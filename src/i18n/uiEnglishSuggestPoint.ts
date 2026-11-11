@@ -49,6 +49,8 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Зона устранения', 'Kill zone'], ['Квест на устранение', 'Kill task'], ['Квесты на устранение', 'Kill tasks'],
   // Locked rooms on the map (owner, 11.11.2026)
   ['Вход по ключу', 'Entry by key'], ['Мест спавна в этой комнате', 'Spawn spots in this room'],
+  // The quest window's look (owner, 11.11.2026)
+  ['Вид окна', 'Window look'], ['Обычный', 'Standard'], ['Вкладки по этапам', 'Tabs by stage'], ['Шкала этапов', 'Stage timeline'], ['Этапы', 'Stages'], ['Готово', 'Done'],
   // The owner's table
   ['Принять точку', 'Accept the point'],
   ['Точка принята', 'Point accepted'],

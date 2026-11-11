@@ -41,6 +41,8 @@ import { canvasMarkers, type SpriteSpec } from '../maps/markerSprites'
 import { useRaidState } from '../app/useRaidState'
 import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot, keyWorth, usesPossibleSpawnBadge } from '../data/mapMarkerAdapter'
 import { floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots } from '../maps/lockedRoomSpots'
+import { useQuestSheetView } from '../components/questSheetView'
+import { QuestSheetViewButton } from '../components/QuestSheetViewButton'
 import possibleSpawnPicture from '../assets/map-markers-new/loot-guaranteed-maybe.svg'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { STATIONARY_WEAPONS, StationaryWeaponZone, stationaryWeaponIcon, stationaryWeaponKind } from '../components/StationaryWeaponZones'
@@ -1006,6 +1008,7 @@ export function MapsPage() {
     }
     : undefined
   const sheetFloor = sheetPoint ? pointFloor(sheetPoint) : null
+  const sheetView = useQuestSheetView()
   const selectedExit = selectedMarker ? extractGuideOf(selectedMarker.id) : undefined
   const selectedDocument = selectedMarker ? markerLayerId(selectedMarker) === 'loot.documents' : false
   const selectedWeapon = selectedMarker ? stationaryWeaponKind(selectedMarker) : undefined
@@ -1293,7 +1296,9 @@ export function MapsPage() {
         <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}`} aria-hidden={!sheetOpen}>
           <QuestSheetEditProvider questId={relatedQuest?.id ?? ''} enabled={editingTexts}>
           {uiText(relatedQuest && (
-            <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}${mobile ? ' has-close' : ''}`}>
+            <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}${mobile ? ' has-close' : ''} is-view-${sheetView}`}>
+              {/* The look of this window (owner, 11.11.2026: «кнопка в виде шестеренки слева вверху этого окна»). */}
+              {relatedSheet && !relatedStage && <QuestSheetViewButton />}
               {mobile && <button className="icon-button map-marker-detail-close" onClick={clearQuestSelection} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>}
               {/* Owner, 04.11.2026: «Справа сверху в этом окне нижнем с квестом будет кнопка "Чего-то не хватает" и знак вопроса». Named «Нашли неточность?» since 05.11.2026, by the owner. */}
               <button type="button" className="button small ghost map-quest-sheet-report" onClick={() => {
@@ -1324,7 +1329,7 @@ export function MapsPage() {
                       <h4>{uiText("Цели")}</h4>
                       {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} questId={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective}
                         focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined}
-                        pointOf={(objectiveId) => objectivePoints(relatedQuest.id, objectiveId).length > 0} onGoToPoint={(objectiveId) => goToObjectivePoint(relatedQuest.id, objectiveId)} /> : (
+                        pointOf={(objectiveId) => objectivePoints(relatedQuest.id, objectiveId).length > 0} onGoToPoint={(objectiveId) => goToObjectivePoint(relatedQuest.id, objectiveId)} view={sheetView} /> : (
                         <ul className="map-quest-sheet-objectives">
                           {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
                             const objectiveId = relatedQuest.objectives.length ? relatedQuest.objectiveIds?.[index] : undefined

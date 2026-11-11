@@ -1,7 +1,8 @@
-import { useEffect, useRef, type ReactNode } from 'react'
-import { Archive, Camera, Check, Crosshair, ListChecks, MapPin, Package } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Archive, Camera, Check, CheckCircle2, Crosshair, ListChecks, MapPin, Package } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { stagesOf, type SheetNeed, type SheetObjectives, type SheetStageKind } from '../progression/sheetObjectives'
+import { stagesOf, type SheetNeed, type SheetObjectives, type SheetStage, type SheetStageKind } from '../progression/sheetObjectives'
+import type { QuestSheetView } from './questSheetView'
 import { PointHintLine } from './QuestCuratedInfo'
 import { EditableText } from './QuestSheetEditing'
 import { useObjectivePhotos } from './QuestGuidePhotos'
@@ -14,7 +15,7 @@ import { useObjectivePhotos } from './QuestGuidePhotos'
  * 02.11.2026: «Сделай более удобную отметку в телефонах»). With `pointOf`, a line with its own point on a map has a pin to the
  * left of the box, which takes the map there (owner, 05.11.2026: «кнопочка геометки… тебя перекидывает именно в эту точку»).
  */
-export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onToggle, focusObjectiveId, pointOf, onGoToPoint }: {
+export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onToggle, focusObjectiveId, pointOf, onGoToPoint, view = 'classic' }: {
   /** The quest: its lines then show their own photos (useObjectivePhotos). */
   questId?: string
   sheet: SheetObjectives
@@ -25,6 +26,8 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
   /** This objective has a point of its own on a map. */
   pointOf?: (objectiveId: string) => boolean
   onGoToPoint?: (objectiveId: string) => void
+  /** «Обычный», «Вкладки по этапам» or «Шкала этапов» (components/questSheetView.ts). */
+  view?: QuestSheetView
 }) {
   const root = useRef<HTMLDivElement>(null)
   const photos = useObjectivePhotos(questId)
@@ -38,11 +41,34 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
     if (lineBox.top >= view.top && lineBox.bottom <= view.bottom) return
     box.scrollBy({ top: lineBox.top - view.top - 44, behavior: 'smooth' })
   }, [focusObjectiveId])
+  const stages = sheet.stages ?? stagesOf(sheet.groups)
+  // «Вкладки по этапам»: the first stage with something left, until another tab is pressed.
+  const [tab, setTab] = useState<SheetStageKind | null>(null)
+  const openStage = stages.find((stage) => stage.kind === tab) ?? stages.find((stage) => countOf(stage).done < countOf(stage).total) ?? stages[0]
+  const focusStage = focusObjectiveId ? stages.find((stage) => stage.groups.some((group) => group.objectives.some((objective) => objective.id === focusObjectiveId))) : undefined
+  // A point pressed on the map opens the tab of its objective.
+  useEffect(() => { if (focusStage) setTab(focusStage.kind) }, [focusStage])
+  const shown = view === 'tabs' && openStage ? [openStage] : stages
   return (
-    <div ref={root} className="sheet-stages">
+    <div ref={root} className={`sheet-stages is-view-${view}`}>
+      {view === 'tabs' && stages.length > 1 && (
+        <div className="sheet-tabs" role="tablist" aria-label={uiText('Этапы')}>
+          {stages.map((stage) => {
+            const count = countOf(stage)
+            return (
+              <button key={stage.kind} type="button" role="tab" aria-selected={stage === openStage} className={`sheet-tab is-${stage.kind}${stage === openStage ? ' active' : ''}`} onClick={() => setTab(stage.kind)}>
+                <span className="sheet-tab-icon" aria-hidden="true">{STAGE_ICON[stage.kind]}</span>
+                {uiText(stage.title)}
+                <small className={count.done === count.total ? 'is-done' : undefined}>{count.done}/{count.total}</small>
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {view === 'timeline' && <SheetTimeline stages={stages} />}
       {/* Owner, 10.11.2026: «не понятно что нужно сделать сейчас в рейде а что в схроне… разбей цели на понятные блоки и этапы»:
           one block per stage, the quest's own texts inside; each line's items with their pictures (report of the same day). */}
-      {(sheet.stages ?? stagesOf(sheet.groups)).map((stage, stageIndex) => (
+      {shown.map((stage) => ({ stage, stageIndex: stages.indexOf(stage) })).map(({ stage, stageIndex }) => (
         <section key={stage.kind} className={`sheet-stage is-${stage.kind}`} aria-label={uiText(stage.title)}>
           <header className="sheet-stage-head">
             <span className="sheet-stage-icon" aria-hidden="true">{STAGE_ICON[stage.kind]}</span>
@@ -100,6 +126,38 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
       ))}
       {photos.overlay}
     </div>
+  )
+}
+
+/** How many of a stage's objectives are done, of how many (the optional ones not counted unless done). */
+function countOf(stage: SheetStage) {
+  const all = stage.groups.flatMap((group) => group.objectives).filter((objective) => !objective.optional || objective.done)
+  return { done: all.filter((objective) => objective.done).length, total: all.length }
+}
+
+/** «Шкала этапов»: the stages as steps on one line, what each has done, and «Готово» at its end. */
+function SheetTimeline({ stages }: { stages: readonly SheetStage[] }) {
+  const counts = stages.map(countOf)
+  const done = counts.reduce((sum, count) => sum + count.done, 0)
+  const total = counts.reduce((sum, count) => sum + count.total, 0)
+  const current = counts.findIndex((count) => count.done < count.total)
+  return (
+    <ol className="sheet-timeline" aria-label={uiText('Этапы')}>
+      {stages.map((stage, index) => {
+        const count = counts[index]!
+        const state = count.done === count.total ? 'is-done' : index === current ? 'is-current' : 'is-next'
+        return (
+          <li key={stage.kind} className={`sheet-step ${state}`}>
+            <span className="sheet-step-dot" aria-hidden="true">{count.done === count.total ? <Check size={12} strokeWidth={3} /> : `${count.done}/${count.total}`}</span>
+            <span className="sheet-step-name"><strong>{uiText(stage.title)}</strong><small>{uiText(stage.hint)}</small></span>
+          </li>
+        )
+      })}
+      <li className={`sheet-step is-finish${total > 0 && done === total ? ' is-done' : ''}`}>
+        <span className="sheet-step-dot" aria-hidden="true"><CheckCircle2 size={13} /></span>
+        <span className="sheet-step-name"><strong>{uiText('Готово')}</strong><small>{done}/{total}</small></span>
+      </li>
+    </ol>
   )
 }
 

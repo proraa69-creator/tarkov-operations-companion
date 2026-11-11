@@ -1469,3 +1469,48 @@ a.quest-stage:hover { color: var(--text); }
 .map-locked-entry-title { color: var(--brass-strong, var(--brass)); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .map-locked-note.is-entry .map-locked-key { margin-top: 2px; }
 .mmt-room-spots { color: var(--text); }
+
+/* The look of the quest window (owner, 11.11.2026, designs 2 and 3; components/questSheetView.ts): the gear on its top left. */
+.quest-sheet-view { position: absolute; top: 6px; left: 8px; z-index: 3; }
+.map-quest-sheet-body:has(> .quest-sheet-view) .map-quest-sheet-eyebrow { padding-left: 26px; min-height: 20px; line-height: 20px; }
+.quest-sheet-view-button { width: 22px; height: 22px; min-height: 22px; border-radius: 6px; color: var(--text-dim); }
+.quest-sheet-view-button:hover, .quest-sheet-view-button.active { color: var(--brass-strong, var(--brass)); }
+.quest-sheet-view-menu { position: absolute; top: 26px; left: 0; display: grid; min-width: 190px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 9px; background: #131a17; box-shadow: 0 10px 24px rgb(0 0 0 / 50%); }
+.quest-sheet-view-menu button { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
+.quest-sheet-view-menu button:hover { background: rgb(255 255 255 / 6%); }
+.quest-sheet-view-menu button.active { color: var(--brass-strong, var(--brass)); }
+
+/* 2 · «Вкладки по этапам»: one stage at a time, its objectives as cards. */
+.sheet-stages.is-view-tabs { grid-template-columns: 1fr; gap: 8px; }
+.sheet-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+.sheet-tab { display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; padding: 6px 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.sheet-tab:hover { color: var(--text); }
+.sheet-tab.active { border-bottom-color: var(--brass); color: var(--text); }
+.sheet-tab-icon { display: inline-grid; color: var(--brass); }
+.sheet-tab small { padding: 0 6px; border-radius: 99px; background: rgb(255 255 255 / 7%); color: var(--text-dim); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.sheet-tab small.is-done { background: color-mix(in srgb, var(--green) 25%, transparent); color: #9fd8b4; }
+.sheet-stages.is-view-tabs .sheet-stage { padding: 0; border: 0; background: transparent; }
+.sheet-stages.is-view-tabs .sheet-stage-head { display: none; }
+.sheet-stages.is-view-tabs .sheet-objective-group ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.sheet-stages.is-view-tabs .sheet-objective { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: rgb(255 255 255 / 3%); }
+.sheet-stages.is-view-tabs .sheet-objective.is-done { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); background: color-mix(in srgb, var(--green) 9%, transparent); }
+.sheet-stages.is-view-tabs .sheet-objective.is-focus { border-color: var(--brass); }
+
+/* 3 · «Шкала этапов»: the stages as steps on one line, each objective a light row under its step. */
+.sheet-stages.is-view-timeline { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.sheet-stages.is-view-timeline > .sheet-stage { flex: 1 1 220px; }
+.sheet-timeline { flex: 1 0 100%; display: flex; align-items: flex-start; gap: 0; margin: 0 0 2px; padding: 0; list-style: none; }
+.sheet-step { position: relative; display: flex; flex: 1 1 0; align-items: flex-start; gap: 8px; min-width: 0; padding-right: 12px; }
+.sheet-step:not(:last-child)::after { content: ''; position: absolute; top: 13px; left: 32px; right: 6px; height: 2px; border-radius: 2px; background: var(--line-strong); }
+.sheet-step.is-done:not(:last-child)::after { background: color-mix(in srgb, var(--green) 70%, transparent); }
+.sheet-step-dot { position: relative; z-index: 1; display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 2px solid var(--line-strong); border-radius: 50%; background: #131a17; color: var(--text-dim); font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sheet-step.is-current .sheet-step-dot { border-color: var(--brass); color: var(--brass-strong, var(--brass)); }
+.sheet-step.is-done .sheet-step-dot { border-color: var(--green); background: var(--green); color: #0d130f; }
+.sheet-step-name { position: relative; z-index: 1; display: grid; min-width: 0; padding: 3px 6px 0 0; background: transparent; line-height: 1.2; }
+.sheet-step-name strong { color: var(--text); font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+.sheet-step-name small { overflow: hidden; color: var(--text-dim); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-step.is-next .sheet-step-name strong { color: var(--text-muted); }
+.sheet-stages.is-view-timeline .sheet-stage { padding: 0 4px 0 12px; border: 0; border-left: 2px solid var(--line); border-radius: 0; background: transparent; }
+.sheet-stages.is-view-timeline .sheet-stage.is-raid { border-left-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
+.sheet-stages.is-view-timeline .sheet-stage-head { display: none; }
+@container (max-width: 520px) { .sheet-step-name small { display: none; } }
