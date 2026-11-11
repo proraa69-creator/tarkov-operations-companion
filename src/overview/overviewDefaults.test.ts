@@ -10,8 +10,8 @@ import { followAnnouncement } from '../announcement/announcement'
 
 /** «Админ панель» → «Блоки»: the Overview every player starts from (owner, 16.10.2026). */
 const OWNER = {
-  layout: { stats: ['stat-kappa', 'stat-tasks', 'stat-conditions', 'stat-goons'], rows: ['stats', 'columns', 'priority'], left: ['requirements', 'raid', 'squad'], right: ['favorites', 'tasks', 'gunsmith'] },
-  phone: ['raid', 'stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons', 'priority', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites'],
+  layout: { stats: ['stat-kappa', 'stat-screen', 'stat-conditions', 'stat-goons'], rows: ['stats', 'columns'], left: ['requirements', 'raid', 'squad'], right: ['favorites', 'tasks', 'gunsmith'] },
+  phone: ['raid', 'stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites'],
   hidden: ['gunsmith'],
   titles: { tasks: { ru: 'Мои задания', en: 'My tasks' } },
 }
@@ -26,8 +26,8 @@ describe('the owner\'s Overview defaults', () => {
   it('are made safe: unknown blocks go, every zone is complete, empty and long headings are cut', () => {
     const clean = sanitizeOverviewDefaults({ layout: { left: ['squad', 'nope'] }, phone: ['tasks'], hidden: ['gunsmith', 'gunsmith', 'stats', 'x'], titles: { tasks: { ru: ' Мои ', en: '' }, favorites: { ru: '', en: '' }, nope: { ru: 'x', en: 'x' }, raid: { ru: 'я'.repeat(60), en: '' } } })!
     expect(clean.layout!.left).toEqual(['raid', 'squad', 'requirements'])
-    expect(new Set(clean.phone)).toEqual(new Set(['stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons', 'priority', 'raid', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites']))
-    expect(clean.phone).toHaveLength(11)
+    expect(new Set(clean.phone)).toEqual(new Set(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons', 'raid', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites']))
+    expect(clean.phone).toHaveLength(10)
     expect(clean.hidden).toEqual(['gunsmith'])
     expect(Object.keys(clean.titles)).toEqual(['tasks', 'raid'])
     expect(clean.titles.raid.ru).toHaveLength(40)
@@ -91,7 +91,7 @@ describe('the Overview follows them', () => {
   })
 
   it('on the PC: the player\'s own order wins, hidden blocks stay hidden; «Сбросить» goes back to the owner\'s order', () => {
-    const own = { stats: ['stat-goons', 'stat-tasks', 'stat-conditions', 'stat-kappa'], rows: ['priority', 'stats', 'columns'], left: ['squad', 'raid', 'requirements'], right: ['gunsmith', 'tasks', 'favorites'] }
+    const own = { stats: ['stat-goons', 'stat-screen', 'stat-conditions', 'stat-kappa'], rows: ['stats', 'columns'], left: ['squad', 'raid', 'requirements'], right: ['gunsmith', 'tasks', 'favorites'] }
     localStorage.setItem(OVERVIEW_LAYOUT_KEY, JSON.stringify(own))
     setOverviewDefaults(sanitizeOverviewDefaults(OWNER))
     const { result } = renderHook(() => useOverviewEditor())
@@ -113,15 +113,29 @@ describe('the Overview follows them', () => {
     unmount()
     act(() => setOverviewDefaults(sanitizeOverviewDefaults({ ...OWNER, phone: [...OWNER.phone].reverse() })))
     const again = renderHook(() => usePhoneOverview())
-    expect(again.result.current.layout.order.slice(0, 2)).toEqual(['stat-tasks', 'raid'])
+    expect(again.result.current.layout.order.slice(0, 2)).toEqual(['stat-screen', 'raid'])
   })
 })
 
-describe('the phone start: the two small counters together at the top', () => {
-  it('puts «Задания для Капы» right after «Текущие задания» in the owner\'s order', async () => {
-    const { basePhoneLayout } = await import('./overviewDefaults')
-    const base = basePhoneLayout({ phone: ['raid', 'stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons'], hidden: [], titles: {} } as never)
-    expect(base.order.slice(0, 4)).toEqual(['raid', 'stat-tasks', 'stat-kappa', 'stat-conditions'])
-    expect(base.narrow).toEqual(['stat-tasks', 'stat-kappa'])
+describe('the phone start of 11.11.2026: «Экран» and «Кочевники» on top', () => {
+  it('an owner\'s order still the old built-in one gives the new start, stored or made safe', async () => {
+    const { OLD_PHONE_ORDER, PHONE_BLOCKS } = await import('./phoneLayout')
+    for (const phone of [OLD_PHONE_ORDER, sanitizeOverviewDefaults({ phone: OLD_PHONE_ORDER, hidden: [], titles: {} })!.phone!]) {
+      const base = basePhoneLayout({ phone, hidden: [], titles: {} })
+      expect(base.order).toEqual([...PHONE_BLOCKS])
+      expect(base.narrow).toEqual(['stat-screen', 'stat-goons'])
+    }
+    // an order of his own stays his
+    expect(basePhoneLayout({ phone: ['raid', 'stat-screen'], hidden: [], titles: {} }).order[0]).toBe('raid')
+  })
+
+  it('«Текущие задания» of a saved order becomes «Экран» in the same place; «Приоритет карт» goes', () => {
+    const clean = sanitizeOverviewDefaults({ layout: { stats: ['stat-kappa', 'stat-tasks'], rows: ['priority', 'stats', 'columns'] }, phone: ['stat-goons', 'stat-tasks', 'priority'], hidden: ['priority', 'stat-tasks'], titles: {} })!
+    expect(clean.layout!.stats.indexOf('stat-screen')).toBeGreaterThan(clean.layout!.stats.indexOf('stat-kappa'))
+    expect(clean.layout!.stats).not.toContain('stat-tasks')
+    expect(clean.layout!.rows).toEqual(['stats', 'columns'])
+    expect(clean.phone!.slice(0, 2)).toEqual(['stat-goons', 'stat-screen'])
+    expect(clean.phone).not.toContain('priority')
+    expect(clean.hidden).toEqual([])
   })
 })

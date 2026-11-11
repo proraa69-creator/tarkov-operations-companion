@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { EASE_IN_OUT, EASE_OUT, canAnimate } from '../shared/motion'
-import { FIXED_BLOCKS, isDefaultLayout, loadOverviewLayout, moveBlock, sameLayout, saveOverviewLayout, type OverviewLayout, type OverviewZoneId } from './overviewLayout'
+import { FIXED_BLOCKS, isDefaultLayout, loadOverviewLayout, moveBlock, sameLayout, saveOverviewLayout, swapZoneBlocks, type OverviewLayout, type OverviewZoneId } from './overviewLayout'
 import { baseOverviewLayout, withoutHiddenBlocks } from './overviewDefaults'
 import { useOverviewDefaults } from './overviewDefaultsStore'
 
@@ -333,6 +333,18 @@ export function useOverviewEditor() {
   // «Сбросить»: back to the starting order (the owner's default for everybody, or the built-in one).
   const reset = useCallback(() => apply(baseRef.current, ['stats', 'rows', 'left', 'right']), [apply])
 
+  /** The block whose «Заменить блок» window is open, with its zone. */
+  const [choosing, setChoosing] = useState<{ zone: OverviewZoneId; id: string } | null>(null)
+  // No sliding and no jump (owner, 11.11.2026: «экран должен оставаться на месте, ничего не должно прыгать»): the two cards
+  // simply stand in each other's places.
+  const replace = useCallback((zone: OverviewZoneId, id: string, chosen: string) => {
+    setChoosing(null)
+    const next = swapZoneBlocks(layoutRef.current, zone, id, chosen)
+    if (next === layoutRef.current) return
+    layoutRef.current = next
+    setLayout(next)
+  }, [])
+
   return useMemo(() => ({
     layout,
     editing,
@@ -342,7 +354,10 @@ export function useOverviewEditor() {
     reset,
     register,
     handlers,
-  }), [base, editing, handlers, layout, lifted, register, reset])
+    choosing,
+    setChoosing,
+    replace,
+  }), [base, editing, handlers, layout, lifted, register, reset, choosing, replace])
 }
 
 export type OverviewEditor = ReturnType<typeof useOverviewEditor>

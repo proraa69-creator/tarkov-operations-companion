@@ -14,9 +14,9 @@ import { DashboardPage } from './DashboardPage'
 
 /** «Админ панель» → «Блоки» on the players' Overview (owner, 16.10.2026). */
 const OWNER = sanitizeOverviewDefaults({
-  layout: { stats: ['stat-kappa', 'stat-tasks', 'stat-conditions', 'stat-goons'], rows: ['stats', 'priority', 'columns'], left: ['raid', 'squad', 'requirements'], right: ['favorites', 'tasks', 'gunsmith'] },
+  layout: { stats: ['stat-kappa', 'stat-screen', 'stat-conditions', 'stat-goons'], rows: ['stats', 'columns'], left: ['raid', 'squad', 'requirements'], right: ['favorites', 'tasks', 'gunsmith'] },
   hidden: ['stat-goons'],
-  titles: { favorites: { ru: 'Мой рынок', en: 'My market' }, 'stat-tasks': { ru: 'Задачи', en: '' } },
+  titles: { favorites: { ru: 'Мой рынок', en: 'My market' }, 'stat-screen': { ru: 'Задачи', en: '' } },
 })
 
 function renderDashboard() {
@@ -40,23 +40,23 @@ describe('DashboardPage with the owner\'s blocks', () => {
   it('shows the owner\'s order, hides his hidden blocks and uses his headings; a change arrives live', () => {
     setOverviewDefaults(OWNER)
     const { container } = renderDashboard()
-    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-kappa', 'stat-tasks', 'stat-conditions'])
+    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-kappa', 'stat-screen', 'stat-conditions'])
     expect(container.querySelector('.goon-card')).toBeNull()
     expect(order(container, '.dashboard-column:last-child > .overview-block')).toEqual(['favorites', 'tasks', 'gunsmith'])
     expect(screen.getByText('Мой рынок')).toHaveClass('panel-title')
     expect(screen.getByText('Задачи')).toHaveClass('stat-label')
 
     act(() => setOverviewDefaults(sanitizeOverviewDefaults({ hidden: ['favorites'], titles: {} })))
-    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons'])
+    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons'])
     expect(order(container, '.dashboard-column:last-child > .overview-block')).toEqual(['tasks', 'gunsmith'])
     expect(screen.queryByText('Мой рынок')).toBeNull()
   })
 
   it('a player\'s own «Настроить блоки» order wins over the owner\'s; the hidden block stays hidden', () => {
-    localStorage.setItem(OVERVIEW_LAYOUT_KEY, JSON.stringify({ stats: ['stat-goons', 'stat-conditions', 'stat-tasks', 'stat-kappa'], rows: ['stats', 'priority', 'columns'], left: ['raid', 'squad', 'requirements'], right: ['gunsmith', 'tasks', 'favorites'] }))
+    localStorage.setItem(OVERVIEW_LAYOUT_KEY, JSON.stringify({ stats: ['stat-goons', 'stat-conditions', 'stat-screen', 'stat-kappa'], rows: ['stats', 'columns'], left: ['raid', 'squad', 'requirements'], right: ['gunsmith', 'tasks', 'favorites'] }))
     setOverviewDefaults(OWNER)
     const { container } = renderDashboard()
-    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-conditions', 'stat-tasks', 'stat-kappa'])
+    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-conditions', 'stat-screen', 'stat-kappa'])
     expect(order(container, '.dashboard-column:last-child > .overview-block')).toEqual(['gunsmith', 'tasks', 'favorites'])
   })
 

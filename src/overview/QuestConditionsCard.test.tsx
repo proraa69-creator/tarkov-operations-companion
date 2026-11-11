@@ -471,7 +471,7 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
   it('replaces «Прогресс» in its slot and lists the current quests of Streets with their gear; «Работа для патриота» opens with its AK-12 build', async () => {
     const { container } = await renderOverview()
     const blocks = [...container.querySelectorAll('.stat-grid > .overview-block')].map((block) => block.getAttribute('data-block'))
-    expect(blocks).toEqual(['stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons'])
+    expect(blocks).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons'])
     expect(container.querySelector('[data-block="stat-conditions"] .quest-conditions-card')).not.toBeNull()
     expect(container.querySelector('.stat-grid')).not.toHaveTextContent('Прогресс')
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })

@@ -211,3 +211,8 @@ img.qc-icon, .qc-part .qc-part-picture img { padding: 0; border: 0; border-radiu
 
 /* A right click on a weapon: «Открыть сборку» (src/overview/WeaponBuildMenu.tsx), above the dialog and the list of weapons. */
 .weapon-build-menu { z-index: 4100; }
+
+/* That one frame with rounded corners (owner, 11.11.2026: «у всех картинок… закругленные края… не нужно добавлять вторую
+   рамку… и на ПК, и на телефоне»): the picture itself is clipped round, its own square frame included; nothing is drawn
+   around it. The weapons too. */
+img.qc-icon, .qc-part .qc-part-picture img, .qc-weapon-card img, .qc-variant img, .gs-part.qc-part img { border-radius: 8px; overflow: hidden; }

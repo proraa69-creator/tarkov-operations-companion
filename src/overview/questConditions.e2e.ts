@@ -60,9 +60,9 @@ for (const locale of ['ru', 'en'] as const) {
     // the English catalog lends its names once loaded
     if (locale === 'en') await expect(page.locator('.current-tasks')).toContainText('Job for a Patriot', { timeout: 45_000 })
     await page.waitForLoadState('networkidle')
-    // the card keeps the stats row's height: as tall as «Текущие задания» beside it
+    // the card keeps the stats row's height: as tall as «Экран» beside it
     await expect.poll(async () => {
-      const [cardBox, tasksBox] = await Promise.all([card.boundingBox(), page.locator('[data-block="stat-tasks"] .stat-card').boundingBox()])
+      const [cardBox, tasksBox] = await Promise.all([card.boundingBox(), page.locator('[data-block="stat-screen"] .stat-card').boundingBox()])
       return cardBox && tasksBox ? Math.abs(cardBox.height - tasksBox.height) : Infinity
     }).toBeLessThan(2)
     await page.waitForTimeout(400)
@@ -153,7 +153,7 @@ test('«Сбор на рейд» on the phone width: beside «Текущие з�
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   // «Текущие задания» and this card share the first row
   await expect.poll(async () => {
-    const [cardBox, tasksBox] = await Promise.all([card.boundingBox(), page.locator('[data-block="stat-tasks"] .stat-card').boundingBox()])
+    const [cardBox, tasksBox] = await Promise.all([card.boundingBox(), page.locator('[data-block="stat-screen"] .stat-card').boundingBox()])
     return cardBox && tasksBox ? Math.abs(cardBox.y - tasksBox.y) : Infinity
   }).toBeLessThan(2)
   await page.waitForTimeout(400)

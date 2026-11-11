@@ -17,7 +17,7 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { OVERVIEW_BLOCK_IDS, OVERVIEW_TITLE_MAX } from '../../../src/overview/overviewDefaults'
-import { OVERVIEW_ZONES, type OverviewZoneId } from '../../../src/overview/overviewLayout'
+import { currentBlockId, OVERVIEW_ZONES, RETIRED_BLOCKS, type OverviewZoneId } from '../../../src/overview/overviewLayout'
 import { BOSS_MAP_IDS, FIGURE_MODES, MAP_BOSS_KEYS } from '../../../src/data/bossRoster'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import type { OverviewDefaultsStore } from '../services/overviewDefaultsStore.js'
@@ -53,6 +53,28 @@ const bodySchema = z.object({
   updatedBy: z.unknown().optional(),
 }).strict()
 
+/**
+ * The blocks of an app from before 11.11.2026 under their current names (stat-tasks → stat-screen) and without the ones that are
+ * no more («Приоритет карт»), so the owner's «Админ панель» of an older app still saves; anything else stays as sent.
+ */
+function currentIds(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
+  const ids = (list: unknown) => (Array.isArray(list)
+    ? list.filter((id) => typeof id !== 'string' || !RETIRED_BLOCKS.has(id)).map((id) => (typeof id === 'string' ? currentBlockId(id) : id))
+    : list)
+  const value = { ...(raw as Record<string, unknown>) }
+  if (value.layout && typeof value.layout === 'object' && !Array.isArray(value.layout)) {
+    value.layout = Object.fromEntries(Object.entries(value.layout as Record<string, unknown>).map(([zone, list]) => [zone, ids(list)]))
+  }
+  value.phone = ids(value.phone)
+  value.hidden = ids(value.hidden)
+  if (value.titles && typeof value.titles === 'object' && !Array.isArray(value.titles)) {
+    value.titles = Object.fromEntries(Object.entries(value.titles as Record<string, unknown>).filter(([id]) => !RETIRED_BLOCKS.has(id)).map(([id, entry]) => [currentBlockId(id), entry]))
+  }
+  if (!('phone' in (raw as object))) delete value.phone
+  return value
+}
+
 export type OverviewDefaultsAudit = (actor: string, action: 'overview.blocks', target: string, details: Record<string, unknown>) => void
 
 /** `changed`: told after every saved write (the apps waiting on GET /v1/announcement?since=… get the new answer). */
@@ -83,7 +105,7 @@ export function createOverviewDefaultsRouter(accounts: AccountStore, store: Over
   router.put('/v1/accounts/me/admin/overview-defaults', (req, res) => {
     const actor = owner(req, res, true)
     if (!actor) return
-    const body = bodySchema.safeParse(req.body)
+    const body = bodySchema.safeParse(currentIds(req.body))
     if (!body.success) {
       const issue = body.error.issues[0]
       res.status(400).json({ error: `Некорректные настройки блоков${issue?.path.length ? ` (${issue.path.join('.')})` : ''}: проверьте блоки, боссов и длину названий (до ${OVERVIEW_TITLE_MAX} символов)` })

@@ -7,6 +7,7 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { mapLocativePhrase } from '../shared/mapLocative'
 import { useAlignedListHeight } from '../overview/useAlignedListHeight'
+import { ThumbScroll } from './ThumbScroll'
 
 interface CurrentTasksPanelProps {
   map: { id: string; name: string }
@@ -36,6 +37,8 @@ interface CurrentTasksPanelProps {
   scrollable?: boolean
   /** Changes whenever the blocks may have moved. */
   layoutKey?: string
+  /** The phone (owner, 11.11.2026: «текущее задание… тоже компактней»): the whole list, this many rows in sight, the rest under a thumb. */
+  compactRows?: number
 }
 
 type Entry = { kind: 'quest'; quest: Quest; index: string; anyMap: boolean } | { kind: 'group' }
@@ -51,7 +54,7 @@ function tasksWord(count: number) {
  * «Текущие задания» of the Overview: the first three tasks, the rest behind «Ещё N заданий». The rest opens and
  * closes slowly (grid rows 0fr ↔ 1fr, pages.css) — the owner asked for a calm, not a snappy, reveal.
  */
-export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3, details, onDefer, deferredCount = 0, scrollable = false, layoutKey = '' }: CurrentTasksPanelProps) {
+export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3, details, onDefer, deferredCount = 0, scrollable = false, layoutKey = '', compactRows }: CurrentTasksPanelProps) {
   const { locale } = useLocale()
   const title = useBlockTitle('Текущие задания')
   const [expanded, setExpanded] = useState(false)
@@ -116,7 +119,7 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
 
   const moreLabel = locale === 'en' ? `${hiddenCount} more ${hiddenCount === 1 ? 'task' : 'tasks'}` : `Ещё ${hiddenCount} ${tasksWord(hiddenCount)}`
 
-  return <section className="panel current-tasks">
+  return <section className={`panel current-tasks${compactRows ? ' is-compact' : ''}`}>
     <div className="panel-header">
       <div className="panel-title">{title}</div>
       {/* Same type as the heading: the count of this map's tasks is the second half of the title, not a footnote. */}
@@ -126,9 +129,10 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
     </div>
     <div className="panel-body">
       {!quests.length && !deferredCount && <p className="muted">{uiText('На карте «')}{uiText(map.name)}{uiText('» нет заданий текущего этапа. Они появятся, когда вы примете в игре задание с этой локации.')}</p>}
-      {scrollable && entries.length > 0 && <div ref={listRef} className="current-tasks-scroll" style={listHeight === null ? undefined : { maxHeight: listHeight }}>{entries.map(render)}</div>}
-      {!scrollable && visible.map(render)}
-      {!scrollable && hiddenCount > 0 && <>
+      {compactRows && entries.length > 0 && <ThumbScroll rows={compactRows}><div className="current-tasks-list">{entries.map(render)}</div></ThumbScroll>}
+      {!compactRows && scrollable && entries.length > 0 && <div ref={listRef} className="current-tasks-scroll" style={listHeight === null ? undefined : { maxHeight: listHeight }}>{entries.map(render)}</div>}
+      {!compactRows && !scrollable && visible.map(render)}
+      {!compactRows && !scrollable && hiddenCount > 0 && <>
         <div id={moreId} className={`current-tasks-more${expanded ? ' is-open' : ''}`} inert={!expanded}>
           <div className="current-tasks-more-inner">{hidden.map(render)}</div>
         </div>

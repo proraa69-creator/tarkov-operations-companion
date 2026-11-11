@@ -509,3 +509,19 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 /* «Сбор на рейд» empty on the phone: no words over the resting Goons (owner, 11.11.2026: «надпись лежит прямо на кочевниках…
    убрать ее, наверное, совсем»); a screen reader still hears it. */
 :root[data-layout="mobile"] .quest-conditions-card.is-empty .qc-empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; padding: 0; margin: -1px; }
+
+/* «Требования рейда» compact on the phone (owner, 11.11.2026): two items a row, two rows in sight, a thumb for the rest. */
+:root[data-layout="mobile"] .raid-needs.is-compact .raid-needs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+:root[data-layout="mobile"] .raid-needs.is-compact .raid-need { grid-template-columns: 1fr; align-content: start; row-gap: 5px; padding: 8px; }
+:root[data-layout="mobile"] .raid-needs.is-compact .raid-need .item-thumb { width: 34px; height: 34px; }
+:root[data-layout="mobile"] .raid-needs.is-compact .raid-need-copy strong { font-size: 12px; }
+:root[data-layout="mobile"] .raid-needs.is-compact .raid-need-copy small { font-size: 10.5px; }
+:root[data-layout="mobile"] .raid-needs.is-compact .raid-needs-note { margin-top: 8px; font-size: 10.5px; }
+/* «Текущие задания» compact the same way: the whole list, a thumb on the right. */
+:root[data-layout="mobile"] .current-tasks.is-compact .current-tasks-list { display: grid; gap: 0; }
+:root[data-layout="mobile"] .raid-needs.is-compact .raid-need-copy small:not(.raid-need-stock) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+:root[data-layout="mobile"] .current-tasks.is-compact .quest-row { padding-block: 8px; gap: 9px; }
+:root[data-layout="mobile"] .current-tasks.is-compact .quest-index { width: 26px; height: 26px; }
+:root[data-layout="mobile"] .current-tasks.is-compact .quest-row small { margin-top: 1px; }
+/* the priority strip in the map's block: no rank number on the phone, the map's name gets the room */
+:root[data-layout="mobile"] .map-priority.is-inline .map-priority-rank { display: none; }

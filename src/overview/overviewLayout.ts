@@ -15,8 +15,9 @@ export type OverviewZoneId = 'stats' | 'rows' | 'left' | 'right'
 export type OverviewLayout = Record<OverviewZoneId, string[]>
 
 export const OVERVIEW_ZONES: Readonly<Record<OverviewZoneId, readonly string[]>> = {
-  stats: ['stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons'],
-  rows: ['stats', 'priority', 'columns'],
+  // «Текущие задания» and «Приоритет карт» stand inside the map's block now (owner, 11.11.2026); «Экран» takes the first card.
+  stats: ['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons'],
+  rows: ['stats', 'columns'],
   left: ['raid', 'squad', 'requirements'],
   right: ['tasks', 'gunsmith', 'favorites'],
 }
@@ -30,10 +31,17 @@ export const OVERVIEW_LAYOUT_KEY = 'raidos-overview-layout-v1'
  * Blocks that were renamed: a saved order keeps them in their place. «Прогресс» (`stat-progress`, the completed-quest
  * counter) became «Условия квестов» (`stat-conditions`, owner, 15.10.2026) in the same slot.
  */
-export const RENAMED_BLOCKS: Readonly<Record<string, string>> = { 'stat-progress': 'stat-conditions' }
+export const RENAMED_BLOCKS: Readonly<Record<string, string>> = {
+  'stat-progress': 'stat-conditions',
+  // «Экран» in the slot of «Текущие задания», whose count stands in the map's block now (owner, 11.11.2026)
+  'stat-tasks': 'stat-screen',
+}
 
 /** A saved block id under its current name. */
 export const currentBlockId = (id: string) => RENAMED_BLOCKS[id] ?? id
+
+/** Blocks that are no more: «Приоритет карт» stands inside the map's block since 11.11.2026. */
+export const RETIRED_BLOCKS: ReadonlySet<string> = new Set(['priority'])
 
 const ZONE_IDS = Object.keys(OVERVIEW_ZONES) as OverviewZoneId[]
 
@@ -53,13 +61,20 @@ export function sanitizeOverviewLayout(raw: unknown): OverviewLayout {
     for (const id of known) if (!order.includes(id)) order.splice(Math.min(known.indexOf(id), order.length), 0, id)
     layout[zone] = order
   }
-  // The card row always stays above the two columns; only the strip moves around them.
-  const rows = layout.rows.filter((id) => !FIXED_BLOCKS.has(id))
-  const fixed = OVERVIEW_ZONES.rows.filter((id) => FIXED_BLOCKS.has(id))
-  const strip = layout.rows.indexOf('priority')
-  const fixedBefore = layout.rows.slice(0, strip).filter((id) => FIXED_BLOCKS.has(id)).length
-  layout.rows = [...fixed.slice(0, fixedBefore), ...rows, ...fixed.slice(fixedBefore)]
+  // The card row always stays above the two columns.
+  layout.rows = [...OVERVIEW_ZONES.rows]
   return layout
+}
+
+/** «Заменить блок» on the PC (owner, 11.11.2026): two blocks of one zone trade places; the same object when nothing changes. */
+export function swapZoneBlocks(layout: OverviewLayout, zone: OverviewZoneId, id: string, chosen: string): OverviewLayout {
+  const order = layout[zone]
+  const from = order.indexOf(id), to = order.indexOf(chosen)
+  if (from < 0 || to < 0 || from === to) return layout
+  const next = [...order]
+  next[from] = chosen
+  next[to] = id
+  return { ...layout, [zone]: next }
 }
 
 /** The layout with `id` moved to `toIndex` of its zone (clamped); the same object when nothing changes. */

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { Columns2, RectangleHorizontal } from 'lucide-react'
+import { Columns2, RectangleHorizontal, Settings } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { PHONE_NARROWABLE } from './phoneLayout'
 import type { PhoneOverview } from './usePhoneOverview'
@@ -146,6 +146,8 @@ export function PhoneOverviewBlock({ overview, id, label, children }: {
     <div ref={contentRef} className="overview-block-content" inert={overview.editing}>{children}</div>
     {overview.editing && <div className="phone-block-tools" role="group" aria-label={uiText(label)}>
       <span className="phone-block-name">{uiText(label)}</span>
+      {/* «Заменить блок» (owner, 11.11.2026): which block stands here */}
+      <button type="button" className="phone-block-tool" onClick={() => overview.setChoosing(id)} aria-label={uiText('Заменить блок')} title={uiText('Заменить блок')}><Settings size={15} /></button>
       {PHONE_NARROWABLE.has(id) && <button type="button" className="phone-block-tool" aria-pressed={half} onClick={() => overview.setHalf(id, !half)}
         aria-label={uiText(half ? 'Во всю ширину' : 'Пополам')} title={uiText(half ? 'Во всю ширину' : 'Пополам')}>
         {half ? <RectangleHorizontal size={15} /> : <Columns2 size={15} />}

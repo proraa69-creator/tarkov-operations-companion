@@ -1,5 +1,5 @@
 import { defaultOverviewLayout, FIXED_BLOCKS, OVERVIEW_ZONES, sanitizeOverviewLayout, type OverviewLayout, type OverviewZoneId } from './overviewLayout'
-import { defaultPhoneLayout, PHONE_BLOCKS, sanitizePhoneLayout, type PhoneLayout } from './phoneLayout'
+import { OLD_PHONE_ORDER, defaultPhoneLayout, PHONE_BLOCKS, sanitizePhoneLayout, type PhoneLayout } from './phoneLayout'
 import { sanitizeMapBosses, type MapBossEntry } from '../data/bossRoster'
 
 /**
@@ -33,11 +33,10 @@ export interface OverviewDefaults {
 
 /** Every block the owner can order, hide or rename, with its built-in heading (RU; the interface translates it). */
 export const OVERVIEW_BLOCKS: ReadonlyArray<{ id: string; label: string; zone: OverviewZoneId }> = [
-  { id: 'stat-tasks', label: 'Текущие задания', zone: 'stats' },
+  { id: 'stat-screen', label: 'Экран', zone: 'stats' },
   { id: 'stat-conditions', label: 'Сбор на рейд', zone: 'stats' },
   { id: 'stat-kappa', label: 'Задания для Капы', zone: 'stats' },
   { id: 'stat-goons', label: 'Кочевники', zone: 'stats' },
-  { id: 'priority', label: 'Приоритет карт', zone: 'rows' },
   { id: 'raid', label: 'План рейда', zone: 'left' },
   { id: 'squad', label: 'Отряд', zone: 'left' },
   { id: 'requirements', label: 'Требования рейда', zone: 'left' },
@@ -113,17 +112,13 @@ export function baseOverviewLayout(defaults: OverviewDefaults | null | undefined
 /** The phone's starting Overview: the owner's order (or the built-in one) without the hidden blocks. */
 export function basePhoneLayout(defaults: OverviewDefaults | null | undefined): PhoneLayout {
   const base = defaultPhoneLayout()
-  const order = defaults?.phone ? sanitizePhoneLayout({ order: defaults.phone }).order : base.order
+  // An owner's order still the old built-in one is none of his own: the new built-in order applies (11.11.2026). It may
+  // come as stored or already made safe (stat-tasks → stat-screen, «Приоритет карт» gone).
+  const old = [OLD_PHONE_ORDER.join(), sanitizePhoneLayout({ order: OLD_PHONE_ORDER }).order.join()]
+  const own = defaults?.phone && !old.includes(defaults.phone.join()) ? defaults.phone : undefined
+  const order = own ? sanitizePhoneLayout({ order: own }).order : base.order
   const off = new Set(defaults?.hidden ?? [])
-  // The two small counters stand side by side at the top (owner, 17.10.2026): «Задания для Капы» right after «Текущие задания».
-  const visible = order.filter((id) => !off.has(id))
-  const tasks = visible.indexOf('stat-tasks')
-  const kappa = visible.indexOf('stat-kappa')
-  if (tasks >= 0 && kappa >= 0 && kappa !== tasks + 1) {
-    visible.splice(kappa, 1)
-    visible.splice(visible.indexOf('stat-tasks') + 1, 0, 'stat-kappa')
-  }
-  return { order: visible, narrow: base.narrow }
+  return { order: order.filter((id) => !off.has(id)), narrow: base.narrow }
 }
 
 /** A phone layout without the hidden blocks. */

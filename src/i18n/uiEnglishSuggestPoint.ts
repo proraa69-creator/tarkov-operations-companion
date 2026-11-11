@@ -67,4 +67,14 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Отчёт закрыт: верните его в работу', 'The report is closed: put it back to work'],
   ['Точки карты на этом сервере недоступны', 'Map points are not available on this server'],
   ['Точку не удалось поставить', 'The point could not be placed'],
+  // The Overview's «Заменить блок» and «Экран» card (11.11.2026)
+  ['Заменить блок', 'Replace block'],
+  ['поменяются местами', 'they swap places'],
+  ['Нет связи с ПК', 'No link to the PC'],
+  ['Выключить пресет', 'Turn the preset off'],
+  ['Включить пресет', 'Turn the preset on'],
+  ['Переключить', 'Switch'],
+  ['Включён', 'On'],
+  ['Выключен', 'Off'],
+  ['Удерживайте блок пальцем и перенесите на место другого — они поменяются местами. Шестерёнка — заменить блок.', 'Hold a block and drop it on another to swap them. The gear replaces a block.'],
 ]

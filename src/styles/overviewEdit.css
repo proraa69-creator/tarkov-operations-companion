@@ -143,3 +143,85 @@
 @media (prefers-reduced-motion: reduce) {
   .phone-block.is-shaking { animation: none; }
 }
+
+/* ---------- «Заменить блок» (owner, 11.11.2026) ---------- */
+/* The gear of a card on the PC: on the top edge beside the grip, half outside like it, above the veil — it covers none of
+   the card's own buttons, and a press never starts a drag. */
+.overview-block-choose {
+  position: absolute; top: -12px; left: calc(50% + 24px); z-index: 6; display: grid; place-items: center; width: 26px; height: 24px; padding: 0;
+  border: 1px solid color-mix(in srgb, var(--brass) 60%, transparent); border-radius: 8px;
+  background: var(--surf-1); color: var(--brass); cursor: pointer;
+}
+.overview-block-choose:hover, .overview-block-choose:focus-visible { background: var(--panel-3); outline: none; border-color: var(--brass); }
+.block-chooser-backdrop {
+  position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 16px;
+  background: rgb(0 0 0 / 55%); animation: block-chooser-in .14s var(--ease-out);
+}
+.block-chooser { width: min(380px, 100%); max-height: min(560px, calc(100dvh - 32px)); display: flex; flex-direction: column; padding: 0; overflow: hidden; background: var(--panel); box-shadow: 0 24px 60px rgb(0 0 0 / 50%); }
+.block-chooser-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 14px 10px 16px; border-bottom: 1px solid var(--line); }
+.block-chooser-head > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.block-chooser-head strong { font-size: 15px; }
+.block-chooser-list { margin: 0; padding: 6px; list-style: none; overflow-y: auto; overscroll-behavior: contain; }
+.block-chooser-list button {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 8px 12px;
+  border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--text); font: inherit; font-weight: 700; text-align: left; cursor: pointer;
+}
+.block-chooser-list button:hover, .block-chooser-list button:focus-visible { background: var(--panel-3); outline: none; }
+.block-chooser-list button.is-here { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); color: var(--brass-strong); }
+.block-chooser-list small { flex: none; font-size: 11px; font-weight: 600; }
+@keyframes block-chooser-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .block-chooser-backdrop { animation: none; } }
+
+/* ---------- «Экран» card ---------- */
+.screen-stat-card { display: flex; flex-direction: column; gap: 8px; }
+.screen-stat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.screen-stat-head .stat-label { display: inline-flex; align-items: center; gap: 5px; }
+.screen-stat-pc { font-size: 10px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+.screen-stat-pc.is-online { color: var(--green, #6fbf73); }
+.screen-stat-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.screen-stat-state { margin-top: -6px; color: var(--text-dim); font-size: 12px; }
+.screen-stat-card.is-on .screen-stat-state { color: var(--text); }
+.screen-stat-name { flex: 1 1 auto; font-size: 17px; font-weight: 820; letter-spacing: -.02em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screen-stat-card:not(.is-on) .screen-stat-name { color: var(--text-dim); }
+.screen-stat-actions { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.screen-stat-next { flex: 1 1 auto; min-width: 0; justify-content: center; gap: 5px; white-space: nowrap; }
+.screen-stat-settings { flex: none; width: 32px; height: 32px; }
+.screen-stat-toggle {
+  position: relative; flex: none; width: 40px; height: 22px; padding: 0; border: 1px solid var(--line-strong); border-radius: 99px;
+  background: var(--panel-3); cursor: pointer; transition: background-color .15s var(--ease-soft), border-color .15s var(--ease-soft);
+}
+.screen-stat-toggle > span { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-dim); transition: transform .15s var(--ease-soft), background-color .15s var(--ease-soft); }
+.screen-stat-toggle.is-on { background: color-mix(in srgb, var(--brass) 35%, transparent); border-color: var(--brass); }
+.screen-stat-toggle.is-on > span { transform: translateX(18px); background: var(--brass-strong); }
+.screen-stat-toggle:disabled, .screen-stat-next:disabled { opacity: .45; cursor: default; }
+/* half a phone row: the name on its own line, the buttons share the rest */
+.phone-block.is-narrow .screen-stat-name { font-size: 15px; }
+.phone-block.is-narrow .screen-stat-next { padding-inline: 6px; font-size: 11.5px; }
+.phone-block.is-narrow .screen-stat-next > svg { display: none; }
+.phone-block.is-narrow .screen-stat-settings { width: 30px; height: 30px; }
+
+/* ---------- The map's block: «Текущие задания N» and «Приоритет карт» on top (owner, 11.11.2026) ---------- */
+.raid-top { display: flex; align-items: center; gap: 12px; margin-bottom: auto; min-width: 0; flex-shrink: 0; }
+.raid-tasks {
+  flex: none; display: flex; flex-direction: column; gap: 1px; padding: 6px 12px 7px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surf-1) 78%, transparent);
+}
+.raid-tasks > span { color: var(--text-dim); font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.raid-tasks > strong { font-size: 22px; font-weight: 850; line-height: 1.05; letter-spacing: -.03em; }
+.map-priority.is-inline { flex: 1; min-width: 0; margin: 0; padding: 0; }
+.map-priority.is-inline .map-priority-grid { grid-auto-columns: minmax(132px, 150px); padding: 2px 0 6px; }
+.raid-card .map-priority.is-inline .map-priority-tile { background: color-mix(in srgb, var(--surf-1) 78%, transparent); }
+:root[data-layout="mobile"] .raid-top { gap: 8px; }
+:root[data-layout="mobile"] .raid-tasks { padding: 5px 9px 6px; }
+:root[data-layout="mobile"] .raid-tasks > strong { font-size: 19px; }
+:root[data-layout="mobile"] .map-priority.is-inline .map-priority-grid { grid-auto-columns: minmax(118px, 128px); scrollbar-width: none; }
+/* the phone: a sheet from the bottom, as in the mockup */
+:root[data-layout="mobile"] .block-chooser-backdrop { place-items: end center; padding: 0; }
+:root[data-layout="mobile"] .block-chooser { width: 100%; max-height: 80dvh; border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); animation: block-chooser-up .22s cubic-bezier(.16, 1, .3, 1); }
+@keyframes block-chooser-up { from { transform: translateY(40%); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { :root[data-layout="mobile"] .block-chooser { animation: none; } }
+/* The phone while arranging: «Сбросить» and «Готово» take their own row, «Промокоды» and «Открыть карту» share the next one
+   (four buttons in one row ran off the screen). */
+.overview-phone .overview-header-actions:has(> .overview-layout-actions > :nth-child(2)) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.overview-phone .overview-layout-actions:has(> :nth-child(2)) { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.overview-phone .overview-layout-actions:has(> :nth-child(2)) > .button { justify-content: center; min-height: 44px; }
