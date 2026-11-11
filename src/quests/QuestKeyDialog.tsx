@@ -56,16 +56,14 @@ export function QuestKeyDialog({ itemId, onClose }: { itemId: string; onClose: (
       <div className="registration-overlay quest-key-dialog-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
         <section className="panel registration-dialog quest-key-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
           <button ref={closeRef} type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
-          <div className="quest-key-head">
-            <span className="quest-key-picture">{item.iconUrl ? <img src={item.iconUrl} alt="" /> : <KeyRound size={22} aria-hidden="true" />}</span>
-            <div className="quest-key-title"><strong id={titleId}>{uiText(item.name)}</strong></div>
-          </div>
-          <div className="quest-key-dialog-row">
-            {has
-              ? <span className="tag green quest-key-owned">{uiText('Есть в наличии')}</span>
-              : <span className="tag quest-key-missing">{uiText('Нет в наличии')}</span>}
-            <QuestKeyMarket item={withLivePrice(item, mode, live)} mode={mode} barters={barters} onBarter={() => setBarterOpen(true)} />
-          </div>
+          {/* Small and centred (owner, 11.11.2026: «окно должно быть поменьше… не с левого края, а посередине… облагородь»):
+              the key's picture, its name, whether the player has it, its price, then the two buttons. */}
+          <span className="quest-key-dialog-picture">{item.iconUrl ? <img src={item.iconUrl} alt="" /> : <KeyRound size={28} aria-hidden="true" />}</span>
+          <strong className="quest-key-dialog-name" id={titleId}>{uiText(item.name)}</strong>
+          {has
+            ? <span className="tag green quest-key-owned">{uiText('Есть в наличии')}</span>
+            : <span className="tag quest-key-missing">{uiText('Нет в наличии')}</span>}
+          <QuestKeyMarket item={withLivePrice(item, mode, live)} mode={mode} barters={barters} onBarter={() => setBarterOpen(true)} />
           <div className="quest-key-dialog-actions">
             <button type="button" className={`button${has ? '' : ' primary'}`} aria-pressed={has} onClick={() => setOwnedKey(profileId, mode, item.id, has ? 0 : 1)}>
               {has ? <Check size={15} aria-hidden="true" /> : <Package size={15} aria-hidden="true" />}{uiText(has ? 'Убрать из наличия' : 'Добавить в наличие')}
