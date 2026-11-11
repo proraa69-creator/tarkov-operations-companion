@@ -1,4 +1,9 @@
 [
+  {"version":"0.6.0.292","date":"2026-11-11","items":[
+    {"kind":"added","ru":"Карта: в настройках можно выключить перемещение карты к выбранной точке","en":"Map: a setting to stop the map moving to the picked point"},
+    {"kind":"improved","ru":"Сюжет «Батя»: на этапе поста «Рябина» добавлен пост «Гнездо» с точкой на Развязке","en":"Story «Batya»: the Ryabina stage now also has the Gnezdo outpost, with its point on Interchange"},
+    {"kind":"improved","ru":"Берег: точнее зона обстрела у Терминала, фото ключа на пирсе","en":"Shoreline: a truer fire zone at the Terminal, a key photo on the pier"}
+  ]},
   {"version":"0.6.0.291","date":"2026-11-11","items":[
     {"kind":"improved","ru":"Сюжетные главы: слева текущие, справа — начать новую","en":"Story chapters: current on the left, start a new one on the right"}
   ]},

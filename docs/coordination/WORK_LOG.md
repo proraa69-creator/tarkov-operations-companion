@@ -6987,3 +6987,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - `src/maps/mapFollowSetting.ts` (localStorage `raidos-map-follow-point`, default on = as before); Settings → «Интерфейс»: «Перемещать карту к точке» / «При нажатии на метку и после галочки в квесте» (`src/pages/ReferencePages.tsx`, EN in `uiEnglishSuggestPoint.ts`). `src/pages/MapsPage.tsx` `FocusOnMarker`: off → flies only to a point asked for (`flyAsked`: «Показать точку на карте», a way in from another page — a non-REPLACE navigation, once per location key —, a door from «Барахолка»).
 - Checks: tsc, eslint, MapsPage test files one by one (all pass; together some time out as before), settings/i18n tests; zz-map harness on Customs: a marker click with the setting off leaves the map, on flies.
 - Page only. Not released.
+
+## 2026-11-11 — Releases 0.6.0.292 (page only) and 0.6.0.293 (main process) — `claude/suggest-point` → `release/production`
+
+- Owner: «Выпускай». 0.6.0.292: reports 141–143, «Батя» two outposts (8b7bd295) — reaches an open PC window without a restart. 0.6.0.293: «Автообновление» with the game open, logs every 2 s — at the next start. News as shown to the owner; no report numbers.
