@@ -11,14 +11,39 @@ import { CANVAS_PICK } from './canvasPick'
  * again once it ends — hundreds of DOM icons each animated on its own made a zoom while the map glided freeze for seconds.
  * The point under the pointer is handed back (`onHover`) for the page to draw as its usual icon, with its tooltip, click
  * and menu; a tap where no icon stands yet (a phone) picks the point (`onPick`).
+ *
+ * The layer alone decides what is under the pointer, also while it is over that icon (owner, 11.11.2026: «если рядом два маркера,
+ * то всплывающее окно постоянно прыгает, сделай менее чувствительное, и бывает что окно зависает… после того как убран курсор с
+ * иконки окно закрывалось сразу же»): the point shown keeps the pointer while it stays within a few pixels of its icon, even where
+ * a neighbour overlaps it (`hoverTarget`), and lets go the moment the pointer is off it or off the map.
  */
 export interface CanvasPoint { id: string; latlng: readonly [number, number]; spec: SpriteSpec }
 
 const PANE = 'raidMarkerCanvas'
 /** A little room around an icon for the pointer. */
 const HIT_SLOP = 3
+/** The point shown keeps the pointer this many pixels past its icon, so a neighbour does not take it at the edge. */
+export const HOVER_STICK = 6
 
 interface Drawn { id: string; x: number; y: number; left: number; top: number; right: number; bottom: number }
+
+const inside = (box: Drawn, x: number, y: number, room = 0) => x >= box.left - room && x <= box.right + room && y >= box.top - room && y <= box.bottom + room
+
+/**
+ * What the pointer is over: the point shown while the pointer stays within HOVER_STICK of its icon, else the top-most icon
+ * under it, else nothing. `boxes` are every icon's boxes, the shown (hidden from the canvas) one too, lower ones first.
+ */
+export function hoverTarget(boxes: readonly Drawn[], current: string | null, x: number, y: number): string | null {
+  if (current) {
+    const own = boxes.find((box) => box.id === current)
+    if (own && inside(own, x, y, HOVER_STICK)) return current
+  }
+  for (let index = boxes.length - 1; index >= 0; index -= 1) {
+    const box = boxes[index]!
+    if (inside(box, x, y)) return box.id
+  }
+  return null
+}
 
 interface CanvasRenderer {
   addTo(map: LeafletMap): unknown
@@ -28,6 +53,8 @@ interface CanvasRenderer {
   _map: LeafletMap & { _animatingZoom?: boolean }
   points: readonly CanvasPoint[]
   drawn: Drawn[]
+  /** Every icon's box, the hidden ones too (the shown point is a DOM icon then). */
+  boxes: Drawn[]
   hidden: ReadonlySet<string>
   redraw(): void
   hitAt(layerPoint: Point): string | null
@@ -39,6 +66,7 @@ const MarkerRenderer = (Renderer as unknown as { extend(props: object): new (opt
     this._container.className = 'raid-marker-canvas'
     this.points = []
     this.drawn = []
+    this.boxes = []
     this.hidden = new Set()
   },
   _destroyContainer(this: CanvasRenderer) {
@@ -65,19 +93,23 @@ const MarkerRenderer = (Renderer as unknown as { extend(props: object): new (opt
     context.setTransform(ratio, 0, 0, ratio, -bounds.min.x * ratio, -bounds.min.y * ratio)
     // lower points over higher ones, as Leaflet stacks its markers
     const placed = this.points
-      .filter((point) => !this.hidden.has(point.id))
       .map((point) => ({ point, at: this._map.latLngToLayerPoint(point.latlng as [number, number]) }))
       .sort((a, b) => a.at.y - b.at.y)
     const drawn: Drawn[] = []
+    const boxes: Drawn[] = []
     for (const { point, at } of placed) {
       const picture = sprite(point.spec)
       if (!picture) continue
       const left = at.x - picture.anchorX, top = at.y - picture.anchorY
       if (left > bounds.max.x || top > bounds.max.y || left + picture.width < bounds.min.x || top + picture.height < bounds.min.y) continue
+      const box = { id: point.id, x: at.x, y: at.y, left: left + picture.hit.x - HIT_SLOP, top: top + picture.hit.y - HIT_SLOP, right: left + picture.hit.x + picture.hit.width + HIT_SLOP, bottom: top + picture.hit.y + picture.hit.height + HIT_SLOP }
+      boxes.push(box)
+      if (this.hidden.has(point.id)) continue
       context.drawImage(picture.canvas, left, top, picture.width, picture.height)
-      drawn.push({ id: point.id, x: at.x, y: at.y, left: left + picture.hit.x - HIT_SLOP, top: top + picture.hit.y - HIT_SLOP, right: left + picture.hit.x + picture.hit.width + HIT_SLOP, bottom: top + picture.hit.y + picture.hit.height + HIT_SLOP })
+      drawn.push(box)
     }
     this.drawn = drawn
+    this.boxes = boxes
   },
   hitAt(this: CanvasRenderer, layerPoint: Point) {
     for (let index = this.drawn.length - 1; index >= 0; index -= 1) {
@@ -113,13 +145,25 @@ export function MarkerCanvasLayer({ points, hidden, interactive, onHover, onPick
     layer.current = renderer
     let hovered: string | null = null
     let frame = 0
-    const move = (event: LeafletMouseEvent) => {
+    let last: PointerEvent | null = null
+    const container = map.getContainer()
+    const show = (id: string | null) => {
+      container.classList.toggle('is-over-canvas-point', Boolean(id))
+      if (id === hovered) return
+      hovered = id
+      handlers.current.onHover(id)
+    }
+    // The container's own pointer moves: they arrive over the shown point's DOM icon and its tooltip too, which Leaflet's
+    // `mousemove` of the map does not (the icon keeps its events), so the layer always knows when the pointer is off it.
+    const move = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') return
+      last = event
       if (frame) return
       frame = requestAnimationFrame(() => {
         frame = 0
-        const id = handlers.current.interactive ? renderer.hitAt(event.layerPoint) : null
-        map.getContainer().classList.toggle('is-over-canvas-point', Boolean(id))
-        if (id !== hovered) { hovered = id; if (id) handlers.current.onHover(id) }
+        if (!last || !handlers.current.interactive || (map as unknown as { _animatingZoom?: boolean })._animatingZoom) { if (!handlers.current.interactive) show(null); return }
+        const at = map.mouseEventToLayerPoint(last as unknown as MouseEvent)
+        show(hoverTarget(renderer.boxes, hovered, at.x, at.y))
       })
     }
     const preclick = (event: LeafletMouseEvent) => {
@@ -129,17 +173,20 @@ export function MarkerCanvasLayer({ points, hidden, interactive, onHover, onPick
       ;(event.originalEvent as unknown as Record<symbol, boolean>)[CANVAS_PICK] = true
       handlers.current.onPick(id)
     }
-    const leave = () => { hovered = null; map.getContainer().classList.remove('is-over-canvas-point') }
-    map.on('mousemove', move)
+    const leave = () => { last = null; show(null) }
+    container.addEventListener('pointermove', move)
+    container.addEventListener('pointerleave', leave)
     map.on('preclick', preclick)
-    map.on('mouseout', leave)
+    // A drag or a zoom moves the icons from under a still pointer: nothing stays shown.
+    map.on('movestart zoomstart', leave)
     const stopReady = onSpritesReady(() => renderer.redraw())
     return () => {
       cancelAnimationFrame(frame)
       stopReady()
-      map.off('mousemove', move)
+      container.removeEventListener('pointermove', move)
+      container.removeEventListener('pointerleave', leave)
       map.off('preclick', preclick)
-      map.off('mouseout', leave)
+      map.off('movestart zoomstart', leave)
       renderer.remove()
       layer.current = null
     }

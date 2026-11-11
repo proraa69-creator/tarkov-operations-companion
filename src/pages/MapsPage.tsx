@@ -1186,7 +1186,7 @@ export function MapsPage() {
                     // a canvas point under the pointer: its tooltip at once, as if the pointer had come onto it
                     if (marker.id === hoveredCanvasId) (event.target as LeafletMarker).openTooltip()
                   },
-                  mouseout: () => { if (marker.id === hoveredCanvasId) setHoveredCanvasId(null) },
+                  // A canvas point's DOM icon goes when the canvas layer says the pointer is off it (maps/MarkerCanvasLayer.tsx).
                   // «Расставить боссов»: a boss dragged to a new place is saved at once (components/BossPlacement.tsx).
                   // «Квесты: правка точек»: a quest point dragged to the right place is saved at once (components/QuestPointEditor.tsx).
                   dragend: (event) => {
