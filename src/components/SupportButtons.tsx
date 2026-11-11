@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, ArrowLeft, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPin, MapPinned, MessageCircle, MessagesSquare, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Bug, ChevronRight, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPin, MapPinned, MessageCircle, MessagesSquare, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useOptionalAppState } from '../state/AppState'
 import { useOptionalTarkovData } from '../data/DataProvider'
-import { QUEST_ISSUE_LABELS, REPORT_CATEGORIES, REPORT_CATEGORY_LABELS, type ReportCategory } from '../shared/reportCategories'
+import { QUEST_ISSUE_LABELS, REPORT_CATEGORY_GROUPS, REPORT_CATEGORY_LABELS, reportCategoryGroup, type ReportCategory, type ReportCategoryGroupId } from '../shared/reportCategories'
 import { QuestReportSection, questReportHasContent, questReportPayload, type QuestReportDraft } from './QuestReportSection'
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useAppVersion } from '../app/appVersion'
@@ -98,6 +98,10 @@ function editionLabel() {
   return nativePlatform() === 'ios' ? 'iPhone' : nativePlatform() === 'android' ? 'Android' : 'phone'
 }
 
+const GROUP_ICONS: Record<ReportCategoryGroupId, LucideIcon> = {
+  'quests-map': MapIcon, 'items-trade': ShoppingCart, weapons: Crosshair, 'progress-squad': Users, account: User, app: Gauge, other: CircleHelp,
+}
+
 const CATEGORY_ICONS: Record<ReportCategory, LucideIcon> = {
   quest: ScrollText, map: MapIcon, minimap: MapPinned, progress: RefreshCw, kappa: Package, 'item-info': Info, bosses: Skull,
   traders: Store, flea: ShoppingCart, hideout: House, gunsmith: Wrench, ballistics: Crosshair, squad: Users, account: User,
@@ -127,6 +131,9 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
   const gameData = useOptionalTarkovData()?.data
   const quests = gameData?.quests
   const [category, setCategory] = useState<ReportCategory | ''>(startQuest ? 'quest' : '')
+  // «Где проблема?» in two steps: the group, then its topic; «Назад» goes back to the groups.
+  const [group, setGroup] = useState<ReportCategoryGroupId | ''>(startQuest ? 'quests-map' : '')
+  const openGroup = group ? REPORT_CATEGORY_GROUPS.find((entry) => entry.id === group) : undefined
   const [questDraft, setQuestDraft] = useState<QuestReportDraft | null>(startQuest ?? null)
   // Without the quest search (no subscription) the window asks in words, as from anywhere else.
   const questsOpen = canLoadGameData(useDataAccess())
@@ -271,17 +278,36 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
       </div> : <form className="bug-report-form" onSubmit={(event) => void submit(event)}>
         {isBug && !compact && (
           <fieldset className="bug-report-categories" disabled={sending}>
-            <legend>{uiText('Где проблема?')}</legend>
-            <div className="bug-report-category-grid" role="radiogroup" aria-label={uiText('Где проблема?')}>
-              {REPORT_CATEGORIES.map((entry) => {
-                const Icon = CATEGORY_ICONS[entry]
-                return (
-                  <button key={entry} type="button" role="radio" aria-checked={category === entry} className={`bug-report-chip${category === entry ? ' active' : ''}`} onClick={() => { setCategory(entry); setError('') }}>
-                    <Icon size={14} aria-hidden="true" />{uiText(REPORT_CATEGORY_LABELS[entry])}
-                  </button>
-                )
-              })}
-            </div>
+            <legend>{uiText(openGroup ? openGroup.title : 'Где проблема?')}</legend>
+            {!openGroup ? (
+              <div className="bug-report-group-grid">
+                {REPORT_CATEGORY_GROUPS.map((entry) => {
+                  const Icon = GROUP_ICONS[entry.id]
+                  const only = entry.categories.length === 1 ? entry.categories[0] : undefined
+                  return (
+                    <button key={entry.id} type="button" className="bug-report-group" onClick={() => { setGroup(entry.id); if (only) setCategory(only); setError('') }}>
+                      <Icon size={18} aria-hidden="true" />
+                      <span>{uiText(entry.title)}</span>
+                      {!only && <ChevronRight size={15} aria-hidden="true" className="bug-report-group-arrow" />}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="bug-report-topics">
+                <button type="button" className="button small ghost bug-report-back" onClick={() => { setGroup(''); setCategory(''); setError('') }}><ArrowLeft size={14} />{uiText('Назад')}</button>
+                {openGroup.categories.length > 1 && <div className="bug-report-category-grid" role="radiogroup" aria-label={uiText(openGroup.title)}>
+                  {openGroup.categories.map((entry) => {
+                    const Icon = CATEGORY_ICONS[entry]
+                    return (
+                      <button key={entry} type="button" role="radio" aria-checked={category === entry} className={`bug-report-chip${category === entry ? ' active' : ''}`} onClick={() => { setCategory(entry); setError('') }}>
+                        <Icon size={14} aria-hidden="true" />{uiText(REPORT_CATEGORY_LABELS[entry])}
+                      </button>
+                    )
+                  })}
+                </div>}
+              </div>
+            )}
           </fieldset>
         )}
         <div className={`bug-report-expand${!isBug || category ? ' is-open' : ''}`} inert={isBug && !category}>

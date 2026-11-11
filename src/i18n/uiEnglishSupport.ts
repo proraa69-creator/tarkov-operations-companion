@@ -65,6 +65,9 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Войдите в аккаунт, чтобы отправить предложение.', 'Sign in to send a suggestion.'],
   ['Отправка предложений работает в приложении. Напишите нам в Telegram.', 'Suggestions are sent from the app. Message us on Telegram.'],
   // Categories and quest corrections (owner, 13.10.2026; src/shared/reportCategories.ts, components/QuestReportSection.tsx)
+  // The groups of «Где проблема?» (owner, 11.11.2026)
+  ['Квесты и карта', 'Tasks and map'], ['Предметы и торговля', 'Items and trading'], ['Оружие и патроны', 'Weapons and ammo'],
+  ['Прогресс и отряд', 'Progress and squad'], ['Аккаунт и оплата', 'Account and payment'], ['Работа приложения', 'How the app works'], ['Назад', 'Back'],
   ['Где проблема?', 'Where is the problem?'], ['Выберите, где проблема.', 'Choose where the problem is.'],
   ['Квест: точка, описание, условия', 'Task: point, description, conditions'], ['Карта и метки', 'Map and markers'],
   ['Прогресс и синхронизация с игрой', 'Progress and game sync'],
