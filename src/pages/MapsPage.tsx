@@ -1357,8 +1357,10 @@ export function MapsPage() {
                   <QuestCuratedRequirements quest={relatedQuest} items={data.items} progress={progress} onEdit={editingTexts ? () => editRequirements(relatedQuest) : undefined} />
                 </div>
                 {/* «Фото мест»: under the title on the PC, after the objectives on the phone (the DOM order). */}
+                {/* A quest on several maps: the photos of this map's places only (report 138, owner 11.11.2026: «на таможне должны
+                    показываться скриншоты только из точки на таможне, а скриншоты на берегу только с берега»). */}
                 <QuestGuidePhotoStrip key={relatedQuest.id} questId={relatedQuest.id} focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined}
-                  {...(relatedSheet?.onlyHere ? { objectives: relatedSheet.groups.flatMap((group) => group.objectives) } : {})} />
+                  {...(relatedSheet?.onlyHere ? { objectives: relatedSheet.groups.flatMap((group) => group.objectives) } : relatedSheet?.showWhere ? { objectives: relatedSheet.groups.flatMap((group) => group.objectives).filter((objective) => objective.here) } : {})} />
                 <Link
                   className="button map-quest-sheet-link"
                   to={questCardHref(relatedQuest)}
