@@ -734,7 +734,9 @@ export function MapsPage() {
     const layerId = markerLayerId(marker)
     if (needle.length >= 2 && layerId.startsWith('loot.') && pointHoldsItem(marker, needle, itemNames)) return true
     if (layerId === 'loot.documents' && foundDocuments.has(marker.id)) return false
-    if (neededKeysOnly && layerId === 'loot.key' && !keysOfPoint(marker).some((id) => neededKeys.has(id))) return false
+    // «Ключи» and «Нужные ключи» are two switches (owner, 11.11.2026: «оно должно работать отдельно, а не вместе»): the keys'
+    // layer shows every key spot, «Нужные ключи» the spots of keys still needed — with the layer off, only those.
+    const neededSpot = layerId === 'loot.key' && neededKeysOnly && keysOfPoint(marker).some((id) => neededKeys.has(id))
     const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId) || marker.id === focusedLockId
     const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
     // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
@@ -747,7 +749,7 @@ export function MapsPage() {
     return relevant
       && stageOk
       && layerId !== 'spawn'
-      && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
+      && (focused || neededSpot || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
       && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || pointMatchesSearch(marker, needle, itemNames))
@@ -896,10 +898,10 @@ export function MapsPage() {
 
   const lockedPoint = (marker: MapMarker) => LOCK_BADGE_LAYERS.has(markerLayerId(marker)) && behindLockedDoor(roomsBehindDoors, marker.position, marker.floor ?? baseFloor, marker.height)
   const roomsOf = (marker: MapMarker) => lockedRoomsAt(roomsBehindDoors, marker.position, marker.floor ?? baseFloor, marker.height)
-  // The key a key spot shows: the dearest of its keys, or of the needed ones while «Нужные ключи» is on.
+  // The key a key spot shows: the dearest of its keys, or of the needed ones while only «Нужные ключи» is on.
   const keysShown = (marker: MapMarker) => {
     const all = keysOfPoint(marker)
-    return neededKeysOnly ? all.filter((id) => neededKeys.has(id)) : all
+    return neededKeysOnly && state.hiddenMarkerLayers.includes('loot.key') ? all.filter((id) => neededKeys.has(id)) : all
   }
   const keyPictureOf = (marker: MapMarker) => {
     const top = keysShown(marker)[0]
@@ -1089,14 +1091,8 @@ export function MapsPage() {
                 </Fragment>
               }))}
               {/* Owner, 08.11.2026: «добавь на точки на карте. И назови их места устранения… по нажатию они включаются и выключаются». */}
-              {group.title === 'Ключи' && <NeededKeysButton count={plottedMarkers.filter((marker) => markerLayerId(marker) === 'loot.key' && keysOfPoint(marker).some((id) => neededKeys.has(id))).length} on={neededKeysOnly && !state.hiddenMarkerLayers.includes('loot.key')}
-                onToggle={() => {
-                  // lit only with the keys' layer on: off with the layer hidden turns both on, as the other rows do
-                  const layerHidden = state.hiddenMarkerLayers.includes('loot.key')
-                  if (neededKeysOnly && !layerHidden) { setNeededKeysOnly(false); return }
-                  setNeededKeysOnly(true)
-                  if (layerHidden) state.toggleMarkerLayer('loot.key')
-                }} />}
+              {group.title === 'Ключи' && <NeededKeysButton count={plottedMarkers.filter((marker) => markerLayerId(marker) === 'loot.key' && keysOfPoint(marker).some((id) => neededKeys.has(id))).length} on={neededKeysOnly}
+                onToggle={() => setNeededKeysOnly(!neededKeysOnly)} />}
               {group.title === 'Задания' && killZoneList.length > 0 && <KillZonesLayerButton count={killZoneList.length} shown={killZonesShown} onToggle={() => setKillZonesShown(!killZonesShown)} />}
             </div>
           )))}
