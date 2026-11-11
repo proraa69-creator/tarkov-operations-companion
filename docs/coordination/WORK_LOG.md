@@ -7015,3 +7015,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 ## 2026-11-12 — Release 0.6.0.294 — `claude/suggest-point` → `release/production`
 
 - Owner: «Выпускай». Report 144 counters (f8adc67e) and the owner app's «Отчёты» fixes (0ba404ff), after the «Не зачислять дни» republish (b0ed42f9). News: «Квесты: счётчик «7 из 10» для целей на убийства и сдачу предметов»; nothing about the admin app.
+
+## 2026-11-12 — Claude: nothing about paying in the iPhone app's news; the site's subscription only after sign-in
+
+- Owner: «проверь что бы в приложении не было упоминаний о подписке и при нажатии на любой сайт из приложения, открывался сайт без каких либо подписок»; «убери на сайте на время, кнопку подписка, пока человек не зарегистрируется, только в личном кабинете будет кнопка подписка»; «убери эту надпись» (the home page's «Компаньон для Escape from Tarkov»).
+- App Store bundle audit (`VITE_APP_STORE=1` build): the paying screens, prices, «Поддержать проект», the cabinet and «+1 день» texts are behind `isIosApp()` already (docs/app-store/05-ios-build-done.md); the strings left in the bundle are the translation table and those guarded paths. Not guarded: the news. `src/news/storeSafe.ts` + `newsEdits.ts`: in the App Store build / iPhone app a news line about a subscription, payment, discount, trial, bonus days or donations is left out (test `src/news/storeSafe.test.ts`).
+- Site (`website/src/components/SiteLayout.tsx`, `pages/HomePage.tsx`): signed out — no «Подписка» in the header or the phone menu, no «Пригласи друга» block (kept on a friend's link /r/<code>); the hero's eyebrow removed (`phrasesPublic.ts`). Checked at 1600 px signed out: header «Скачать приложение · Личный кабинет · RU EN»; the only paying word left is the footer's legal link «Тарифы, оплата и возврат» (kept: the payment providers ask for the terms to be public).
+- Tests: news 18/18, site 175/175, eslint, website tsc. Not released.

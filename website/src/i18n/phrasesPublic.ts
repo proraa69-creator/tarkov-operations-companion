@@ -47,7 +47,6 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['прогресс, позиция и цены', 'progress, position and prices'],
   ['Карта на телефоне: местоположение игрока с ПК', 'The map on the phone: the player’s position from the PC'],
   // Home page (pages/HomePage.tsx).
-  ['Компаньон для Escape from Tarkov', 'Companion for Escape from Tarkov'],
   ['Raid OS — помощник в рейдах · Escape from Tarkov', 'Raid OS — raid assistant · Escape from Tarkov'],
   ['Всё важное перед рейдом — в одном окне.', 'Everything you need before a raid, in one window.'],
   ['Скачать приложение', 'Download the app'], ['Личный кабинет', 'My account'],

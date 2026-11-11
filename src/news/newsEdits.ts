@@ -2,6 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
 import { useAppVersion } from '../app/appVersion'
 import { installedNews, NEWS, type NewsEntry, type NewsItem } from './newsState'
+import { appStoreRules, storeSafeNews } from './storeSafe'
 
 /**
  * «Обновление» as the owner left it (owner, 06.11.2026: «моментально этот текст должен поменяться и у всех пользователей, без обновления
@@ -69,7 +70,8 @@ export function useNewsList() {
   load()
   const list = useSyncExternalStore(subscribe, () => shown, () => shown)
   const running = useAppVersion()
-  return useMemo(() => installedNews(list, running), [list, running])
+  // the iPhone app: nothing about paying (news/storeSafe.ts)
+  return useMemo(() => { const news = installedNews(list, running); return appStoreRules() ? storeSafeNews(news) : news }, [list, running])
 }
 
 export async function refreshNewsEdits() {
