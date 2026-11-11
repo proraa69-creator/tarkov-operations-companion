@@ -12,6 +12,12 @@ import { SubscriptionDialog } from './SubscriptionDialog'
 import { CountryGateDialog } from './CountryGateDialog'
 import '../brand.css'
 
+/**
+ * «Подписка» in the header and the phone menu, off for now (owner, 12.11.2026: «временно убери эту кнопку позже когда скажу
+ * добавить добавишь»): the subscription stays in «Личный кабинет». `true` brings the button back (for a signed-in account).
+ */
+const HEADER_SUBSCRIPTION = false
+
 const NAV = [
   { to: '/', label: 'Главная', end: true },
   { to: '/about', label: 'О нас', end: false },
@@ -50,7 +56,7 @@ export function SiteLayout() {
           <div className="header-actions">
             {/* «Подписка» only once signed in (owner, 12.11.2026: «убери на сайте на время, кнопку подписка, пока человек не
                 зарегистрируется, только в личном кабинете будет кнопка подписка»). */}
-            {account && <button type="button" className="button header-subscription" aria-haspopup="dialog" onClick={() => setSubscriptionOpen(true)}>
+            {HEADER_SUBSCRIPTION && account && <button type="button" className="button header-subscription" aria-haspopup="dialog" onClick={() => setSubscriptionOpen(true)}>
               <Crown aria-hidden="true" />
               <span className="label-long">{tr('Подписка')}</span>
               <span className="label-short">{siteLocale() === 'en' ? 'Plans' : 'Подписка'}</span>
@@ -77,7 +83,7 @@ export function SiteLayout() {
         </div>
         <nav id="mobile-nav" className={`mobile-nav${menuOpen ? ' is-open' : ''}`} inert={!menuOpen} aria-hidden={!menuOpen} aria-label={tr('Мобильная навигация')}>
           {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.end}>{tr(item.label)}</NavLink>)}
-          {account && <button type="button" className="mobile-nav-button" onClick={() => { setMenuOpenOn(null); setSubscriptionOpen(true) }}>{tr('Подписка')}</button>}
+          {HEADER_SUBSCRIPTION && account && <button type="button" className="mobile-nav-button" onClick={() => { setMenuOpenOn(null); setSubscriptionOpen(true) }}>{tr('Подписка')}</button>}
           <NavLink to="/download">{tr('Скачать приложение')}</NavLink>
           <NavLink to="/cabinet">{tr('Личный кабинет')}</NavLink>
         </nav>
