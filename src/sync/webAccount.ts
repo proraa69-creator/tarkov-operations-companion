@@ -28,6 +28,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
   { methods: ['GET'], path: /^\/v1\/data\/prices\/(?:pvp|pve|seasonal)$/ },
+  // The statistics of «Торговля» (src/data/tradingApi.ts; electron/serviceGateway.ts had it, the phone did not — a player's
+  // phone showed «Не удалось получить статистику» in every mode, 11.11.2026).
+  { methods: ['GET'], path: /^\/v1\/data\/trading\/(?:pvp|pve|seasonal)$/ },
   { methods: ['GET'], path: /^\/v1\/data\/price-history\/(?:pvp|pve|seasonal)\/[a-z0-9]{16,48}(?:\?days=\d+)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
   // «Сборки игроков» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
