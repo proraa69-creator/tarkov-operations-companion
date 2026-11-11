@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.291","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Сюжетные главы: слева текущие, справа — начать новую","en":"Story chapters: current on the left, start a new one on the right"}
+  ]},
   {"version":"0.6.0.290","date":"2026-11-11","items":[
     {"kind":"improved","ru":"Телефон: «Торговля» снова показывает статистику","en":"Phone: «Trading» shows its statistics again"}
   ]},

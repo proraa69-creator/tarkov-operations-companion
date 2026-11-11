@@ -6951,3 +6951,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «кнопки одинаковые по размеру и по форме. И непонятно, где какая… все, которые начаты, они в левом блоке в текущих, а все, которые остались, они в правом блоке». `src/quests/StoryChapterColumns.tsx` + `storyChapterColumns.css`: on the left «Текущие» (taken chapters, brass edge, the current goal), on the right «Начать новую» (neither taken nor finished; dashed card with a plus; a tap opens the chapter's stages, as «Начать главу»). Finished chapters stay in «Показать все». `src/pages/QuestsPage.tsx`: the story tab renders the two blocks; it opens on a taken chapter. EN: `uiEnglishSuggestPoint.ts`.
 - Checks: tsc, eslint, QuestsPage/App/StoryChapterPanel/i18n tests; screenshots PC RU/EN and phone 390 px (zz-story harness, not committed), a tap on a new chapter opens its stage picker.
 - Renderer only: reaches an open PC window without a restart. Not released.
+
+## 2026-11-11 — Release 0.6.0.291 — `claude/suggest-point` → `release/production`
+
+- Owner: «Выпускай». Contents: «Главы истории» in two blocks (5782a485). package.json / lock 0.6.0-291, website 0.6.0.291; playerNews «Сюжетные главы: слева текущие, справа — начать новую»; updateHistory one line. Pushed after 0.6.0.290 went live.
