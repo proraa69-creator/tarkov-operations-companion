@@ -6945,3 +6945,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «Выпускай». Contents: the phone's «Торговля» route (a8a44e38), the drawn BTR marker (db981d1b; not in the news, owner: «Новости не пиши о том, что поменяли значок бтр»), on top of Belarus in roubles (9ed1d632, already live as a 0.6.0.289 republish).
 - package.json / lock 0.6.0-290, `website/src/config.ts` 0.6.0.290; playerNews: «Телефон: «Торговля» снова показывает статистику»; updateHistory: one line, no reports.
 - Checks: updateHistory/noSiteNames/news/webAccount tests 36/36, `npm run typecheck`.
+
+## 2026-11-11 — Claude: «Главы истории» in two blocks
+
+- Owner: «кнопки одинаковые по размеру и по форме. И непонятно, где какая… все, которые начаты, они в левом блоке в текущих, а все, которые остались, они в правом блоке». `src/quests/StoryChapterColumns.tsx` + `storyChapterColumns.css`: on the left «Текущие» (taken chapters, brass edge, the current goal), on the right «Начать новую» (neither taken nor finished; dashed card with a plus; a tap opens the chapter's stages, as «Начать главу»). Finished chapters stay in «Показать все». `src/pages/QuestsPage.tsx`: the story tab renders the two blocks; it opens on a taken chapter. EN: `uiEnglishSuggestPoint.ts`.
+- Checks: tsc, eslint, QuestsPage/App/StoryChapterPanel/i18n tests; screenshots PC RU/EN and phone 390 px (zz-story harness, not committed), a tap on a new chapter opens its stage picker.
+- Renderer only: reaches an open PC window without a restart. Not released.

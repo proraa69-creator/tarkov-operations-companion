@@ -92,4 +92,8 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Есть в наличии', 'In stock'],
   ['Добавить в наличие', 'Mark as owned'],
   ['Убрать из наличия', 'Mark as not owned'],
+  // «Главы истории»: taken chapters and the ones to start (11.11.2026)
+  ['Начать новую', 'Start a new one'],
+  ['Взятых глав нет', 'No chapters taken'],
+  ['Все главы начаты', 'Every chapter is started'],
 ]

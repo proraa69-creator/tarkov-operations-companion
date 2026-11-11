@@ -26,6 +26,7 @@ import { featureEnabled } from '../app/archivedFeatures'
 import { StoryEndingsView } from '../endings/StoryEndingsView'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import { StoryChaptersAll } from '../components/StoryChaptersAll'
+import { StoryChapterColumns } from '../quests/StoryChapterColumns'
 import './storyObjectives.css'
 import { useLocale } from '../i18n/LocaleProvider'
 import { ManualMarkActions, ManualTag } from '../quests/ManualMarks'
@@ -114,8 +115,11 @@ export function QuestsPage() {
   // logs miss his quests; what it finds is added and the logs go on deciding (src/account/trialFeatures.ts).
   const playerScanUntil = usePlayerQuestScanUntil()
   const canScan = !mobile && Boolean(window.tarkovDesktop) && statusFilter !== 'story' && statusFilter !== 'endings'
-  // «Хронология» opens on a quest taken now rather than the first one by name
-  const fallback = statusFilter === 'chronology' ? filtered.find((quest) => availability.get(quest.id)?.status === 'active') ?? filtered[0] : filtered[0]
+  // «Главы истории»: the taken chapters on the left, the ones still to start on the right (src/quests/StoryChapterColumns.tsx).
+  const storyCurrent = statusFilter === 'story' ? filtered.filter((quest) => progress.taskProgress[quest.id]?.status === 'active') : []
+  const storyRemaining = statusFilter === 'story' ? filtered.filter((quest) => { const status = progress.taskProgress[quest.id]?.status; return status !== 'active' && status !== 'completed' }) : []
+  // «Хронология» opens on a quest taken now rather than the first one by name; «Сюжетные» on a taken chapter.
+  const fallback = statusFilter === 'chronology' ? filtered.find((quest) => availability.get(quest.id)?.status === 'active') ?? filtered[0] : statusFilter === 'story' ? storyCurrent[0] ?? storyRemaining[0] ?? filtered[0] : filtered[0]
   // The phone opens a quest's card only on a tap (owner, 13.10.2026: «при нажатии на квест не открывается данные о
   // квесте» — the card stood far below the list); the desktop shows the fallback quest until one is chosen.
   const selectedId = params.get('selected') ?? (mobile || treeView ? undefined : fallback?.id)
@@ -179,7 +183,12 @@ export function QuestsPage() {
         {statusFilter === 'chronology' && !treeView && <div className="panel-body" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
           <QuestChronologyPanel quests={data.quests} shown={filtered} availability={availability} progress={progress} selectedId={selected?.id} onOpen={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); return next })} />
         </div>}
-        {statusFilter !== 'chronology' && <div className="panel-body catalog-list" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
+        {statusFilter === 'story' && <div className="panel-body" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
+          <StoryChapterColumns current={storyCurrent} remaining={storyRemaining} progress={progress} selectedId={selected?.id} menuOf={questMenuOf}
+            onOpen={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); next.delete('change'); return next })}
+            onStart={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); next.set('change', '1'); return next })} />
+        </div>}
+        {statusFilter !== 'chronology' && statusFilter !== 'story' && <div className="panel-body catalog-list" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
           {gunsmithActive.map((quest) => <Link key={quest.id} className="catalog-card quest-catalog-card gunsmith-link-card" to={gunsmithHref(quest)}>
             <span className="quest-card-copy"><h3>{uiText(quest.name)}</h3><p>{uiText('В блоке «Оружейник»: оружие, модули и пример сборки')}</p></span>
             <span className="tag brass">{uiText('Оружейник')}</span>
