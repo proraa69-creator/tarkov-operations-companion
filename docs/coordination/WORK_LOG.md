@@ -6861,3 +6861,13 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Quest window: «Обычный» / «Вкладки по этапам» / «Шкала этапов» behind a gear top left (owner picked designs 2 and 3). Quest tree: «Как открыть: <торговец>» bar, «Показать весь путь» (report 133).
 - Tests: server bugReports/reportWork/questPoints 35/35; `npm test` 3829 passed, 12 failed → 11 are the known machine ones (fail on f0dc2b52 too), the 12th fixed (QuestReport.test.tsx). `npm run typecheck` clean, eslint clean on the changed files (warnings only).
 - Not done / risks: not released; not checked in the real Electron shell (renderer checked in a throwaway Vite page); floors from neighbours are an estimate; sniper spots only where the game files name sniper zones (Woods, Reserve, Interchange have none there).
+
+## 2026-11-11 (later) — map ground, phone Overview, quest keys stash filter, trading line — `claude/suggest-point` (57c31adb, 89e29204)
+
+- Owner: Fable 5.2 off — all 59 other sessions back on `claude-opus-5-5` from their next turn.
+- Map: past the scheme's edges the stage is its ground green (`--map-ground: #265d58`, `src/styles/pages.css`) — no black square on the PC or the phone (checked in a Vite page at 1400 px and 375 px).
+- Phone «Сбор на рейд» empty: the text over the resting Goons is hidden (screen readers keep it, `src/styles/mobile.css`).
+- «Ключи для квестов»: «Ключи в схроне» is a filter beside «Найти ключи» (`?stash=1`), «Показать только избранные» beside it; the stash editor unfolds in the page («Изменить ключи в схроне», `OwnedKeysPanel`); every key «Есть в схроне» / «Нет в наличии» (none before the first scan or key added).
+- «Торговля» → «Продажа торговцам»: «На низких уровнях доступны менее выгодные предметы для продажи.» under the disclaimer (owner's words).
+- Not done: the Goons card «кто видел, во сколько, карта» falling down on the phone — not reproduced in the preview; waiting for the owner's screenshot. Not released; phones update with the next release.
+- Tests: src/pages, src/quests, src/overview, src/components 901 passed, 1 failed (AdminPanelPage, known, fails on f0dc2b52 too); typecheck clean.
