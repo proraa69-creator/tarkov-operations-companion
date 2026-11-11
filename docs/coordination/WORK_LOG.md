@@ -6893,3 +6893,13 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Phone → PC: the live screen relay was already push; every `/v1/me` write moved the PC's long poll except an objective undo — fixed.
 - Tests: src/screen + electron/screenTuning 97 passed, overview 59, server me.test undo/sync green; typecheck clean.
 - Not verified on the real PC with the game (gamma ramp and hotkeys are main-process code: full app update).
+
+## 2026-11-11 (evening) — Overview rework, realistic map icons — `claude/suggest-point` (18f5177e, d44975fc)
+
+- «Заменить блок»: a gear on every block while arranging (phone: any block, a block off the screen comes back via layout `hidden`; PC: the top row's cards trade places). No FLIP and no scroll on a replace: the chosen block stands where the replaced one stood (measured: the slot's top unchanged, both directions).
+- «Экран» card (`src/screen/ScreenStatCard.tsx`): PC through `tarkovDesktop.screen`, phone through `/v1/live/screen`; replaces `stat-tasks` (`RENAMED_BLOCKS`). `priority` retired (`RETIRED_BLOCKS`); the server maps an older admin app's ids before validating.
+- Map's block: «Текущие задания N» + inline `MapPriority`; no «ПЛАН РЕЙДА» tag. Phone order v3 (`raidos-overview-phone-v3`); the owner's live phone default equals the old built-in order, so the new order applies.
+- Phone: compact «Кочевники» (sheet with statistics on tap), requirements 2×2 and tasks 4 rows under `ThumbScroll`; «Сбор на рейд» pictures rounded; edit-mode button rows fixed.
+- Map icons (background agent): real pictures for doors (brown wooden, CC0), AGS-30 / «Утёс» (Wikimedia, CC BY-SA 3.0 — attribution only in code comments, owner to decide), loot and 24 containers; «Минимализм» unchanged.
+- Tests: overview/pages/screen/i18n/components 848/850 (AdminPanelPage sidebar known; MapsPage.deferred passes alone), server overviewDefaults+announcement 13/13, typecheck clean, map tests 78/78.
+- Not released (the owner releases the whole batch on his word). Screenshots for approval in `overview-rework-shots/` (untracked).
