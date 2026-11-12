@@ -51,6 +51,9 @@ function FriendsPromo({ referral = false }: { referral?: boolean }) {
   // зарегистрируется»; a page opened from the iPhone app shows no subscription) — but on a friend's link (/r/<code>), whose
   // whole point is the offer.
   if (!signedIn && !referral) return null
+  // Off at the bottom of the home page for now (owner, 13.11.2026: «система приглашений… Её не должно быть на сайте
+  // внизу»); a friend's link (/r/<code>) and the cabinet keep it.
+  if (!referral) return null
   // The Apple reviewer's test account: no «Пригласи друга» (owner, 12.11.2026).
   if (account?.storeReview) return null
   return (
