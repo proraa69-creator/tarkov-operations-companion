@@ -1,6 +1,5 @@
 import tagillaUrl from '../../assets/gear/helmet-tagilla.glb?url'
 import killaUrl from '../../assets/gear/helmet-killa.glb?url'
-import killaNewYearUrl from '../../assets/gear/helmet-killa-ng.glb?url'
 import knightUrl from '../../assets/gear/helmet-knight.glb?url'
 import pumpkinUrl from '../../assets/gear/helmet-pumpkin.glb?url'
 import { isHalloween } from '../halloween'
@@ -18,8 +17,6 @@ export interface HelmetVariant {
    * GLBs come from different tools and face different ways (owner, 09.10: «все маски в одном положении»).
    */
   facing?: { yaw?: number; pitch?: number; roll?: number }
-  /** In the list from this Moscow day on (YYYY-MM-DD); before it the mask is not offered. */
-  from?: string
 }
 
 /**
@@ -32,9 +29,6 @@ export const HELMETS: HelmetVariant[] = [
   { id: 'original', label: 'Маска Тагиллы', url: tagillaUrl },
   // the owner's Killa helmet (packed by scripts/gear/pack-helmet.mjs)
   { id: 'killa', label: 'Шлем Киллы', url: killaUrl, shine: true },
-  // the owner's New Year Killa helmet (13.11.2026; Tripo export, packed by pack-helmet.mjs, 157k → 42k vertices by simplify-helmet.mjs)
-  // in the list from 1 December (owner, 13.11.2026: «добавим маску 1 декабря»)
-  { id: 'killa-ng', label: 'Килла НГ', url: killaNewYearUrl, shine: true, from: '2026-12-01' },
   // the owner's skull mask with dreadlocks (Tripo export, packed by scripts/gear/pack-helmet.mjs, swing weights by rig-knight.mjs)
   { id: 'knight', label: 'Рыцарь', url: knightUrl, sway: true, facing: { yaw: -20 } },
   // the owner's pumpkin (Tripo export, packed by scripts/gear/pack-helmet.mjs, 157k → 36k vertices by simplify-helmet.mjs)
@@ -43,12 +37,6 @@ export const HELMETS: HelmetVariant[] = [
 
 /** Halloween (owner, 31.10.2026: «при запуске по умолчанию включается эта маска пока идет хэллоуин»): the days in ../halloween.ts. */
 export const HALLOWEEN_HELMET = 'pumpkin'
-
-/** The masks offered now: a mask with `from` only from that Moscow day on. */
-export function availableHelmets(now = Date.now()) {
-  const day = new Date(now + 3 * 3600_000).toISOString().slice(0, 10)
-  return HELMETS.filter((helmet) => !helmet.from || day >= helmet.from)
-}
 
 export function seasonalHelmet(now = Date.now()) {
   return isHalloween(now) ? HELMETS.find((helmet) => helmet.id === HALLOWEEN_HELMET) : undefined

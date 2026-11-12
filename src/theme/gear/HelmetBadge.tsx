@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactM
 import { createPortal } from 'react-dom'
 import { Check, Eye, EyeOff, Minus, Plus, RotateCcw, Settings2, Undo2 } from 'lucide-react'
 import type { HelmetHandle } from './helmet3d'
-import { availableHelmets, seasonalHelmet, type HelmetVariant } from './helmets'
+import { HELMETS, seasonalHelmet, type HelmetVariant } from './helmets'
 import { ANGLE_LIMITS, badgeBoxes, clampAngle, clampOffset, loadLayout, saveLayout, type AngleKey, type BadgeSpot, type HelmetLayout } from './helmetLayout'
 import { useReducedMotion } from './useGearActive'
 
@@ -34,8 +34,7 @@ function loadVariant(): HelmetVariant {
   if (seasonal) return seasonal
   let id: string | null = null
   try { id = localStorage.getItem(VARIANT_KEY) } catch { /* storage unavailable */ }
-  const helmets = availableHelmets()
-  return helmets.find((helmet) => helmet.id === id) ?? helmets[0]
+  return HELMETS.find((helmet) => helmet.id === id) ?? HELMETS[0]
 }
 
 function loadHidden() {
@@ -306,7 +305,7 @@ export function HelmetBadge({ reduced }: { reduced: boolean }) {
         <div ref={editorRef} className="gear-helmet-editor" style={{ top: menuAt.top, left: menuAt.left }} role="dialog" aria-label={uiText('Настройки маски')}>
           <div className="gear-helmet-editor-head"><strong>{uiText('Маска')}</strong></div>
           <div role="radiogroup" aria-label={uiText('Маска')}>
-            {availableHelmets().map((entry) => {
+            {HELMETS.map((entry) => {
               const active = entry.id === variant.id && !hidden
               return (
                 <button key={entry.id} type="button" role="radio" aria-checked={active} className={`gear-helmet-option${active ? ' active' : ''}`} onClick={() => choose(entry)}>
