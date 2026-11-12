@@ -47,7 +47,7 @@ import { useRaidState } from '../app/useRaidState'
 import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot, keyWorth, usesPossibleSpawnBadge } from '../data/mapMarkerAdapter'
 import { CLUSTER_M, floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots, mergeSpotHeaps } from '../maps/lockedRoomSpots'
 import { useQuestSheetView } from '../components/questSheetView'
-import { usePhoneSheetView } from '../components/phoneSheetView'
+import { usePhoneSheetHeight, usePhoneSheetView } from '../components/phoneSheetView'
 import { pointHoldsItem, pointMatchesSearch, searchMapCounts, searchNeedle } from '../maps/mapSearch'
 import { QuestSheetViewButton } from '../components/QuestSheetViewButton'
 import possibleSpawnPicture from '../assets/map-markers-new/loot-guaranteed-maybe.svg'
@@ -1087,11 +1087,23 @@ export function MapsPage() {
   // The phone's own looks of this window (components/phoneSheetView.ts, owner 12.11.2026): «Вкладки» shows the stages as tabs,
   // the others one under another; «Шторка» grows tall and low again by its handle; «Только цели» keeps the rest under «Подробнее».
   const phoneView = usePhoneSheetView()
+  const sheetHeight = usePhoneSheetHeight()
   const sheetView = mobile ? (phoneView === 'tabs' ? 'tabs' : 'classic') : pcSheetView
   const [sheetTall, setSheetTall] = useState(false)
   const [detailsFor, setDetailsFor] = useState<string | null>(null)
   const briefSheet = mobile && phoneView === 'compact' && detailsFor !== relatedQuest?.id
   const sheetSwipe = useRef<number | null>(null)
+  // The phone: the height of the buttons over the map (--hud-h on the map), so the quest window on the full screen sideways
+  // opens below them instead of making them wrap (owner, 12.11.2026: «кнопки плавно… уходить влево, если не мешают»).
+  const hudRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const hud = hudRef.current
+    if (!mobile || !hud || typeof ResizeObserver === 'undefined') return
+    const stage = hud.parentElement
+    const observer = new ResizeObserver(() => stage?.style.setProperty('--hud-h', `${Math.ceil(hud.getBoundingClientRect().height)}px`))
+    observer.observe(hud)
+    return () => observer.disconnect()
+  }, [mobile])
   const reportRelatedQuest = () => {
     if (!relatedQuest) return
     const point = selectedMarker?.questId === relatedQuest.id ? selectedMarker : null
@@ -1171,7 +1183,7 @@ export function MapsPage() {
       </aside>
 
       <section className={`map-stage${(focusedQuestId && focusedQuestId !== killFocus && !killOnly.has(focusedQuestId)) || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
-        <div className="map-hud">
+        <div className="map-hud" ref={hudRef}>
           {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
           <MapToolbar value={tools} onChange={setTools} />
@@ -1382,7 +1394,7 @@ export function MapsPage() {
         </div>}
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
-        <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}${mobile && relatedQuest ? ` is-phone-${phoneView}` : ''}${mobile && relatedQuest && phoneView === 'drawer' && sheetTall ? ' is-tall' : ''}`} aria-hidden={!sheetOpen}>
+        <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}${mobile && relatedQuest ? ` is-phone-${phoneView} is-h-${sheetHeight}` : ''}${mobile && relatedQuest && phoneView === 'drawer' && sheetTall ? ' is-tall' : ''}`} aria-hidden={!sheetOpen}>
           <QuestSheetEditProvider questId={relatedQuest?.id ?? ''} enabled={editingTexts}>
           {/* The phone: the window's head stays in place while its objectives scroll (owner, 12.11.2026): the look, the trader
               and the name, «Нашли неточность?» as «?» and «×»; in «Шторка» a handle on its top edge makes the window tall. */}

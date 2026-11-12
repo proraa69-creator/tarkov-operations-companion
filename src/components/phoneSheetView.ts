@@ -41,3 +41,50 @@ const subscribe = (listener: () => void) => { listeners.add(listener); return ()
 export function usePhoneSheetView(): PhoneSheetView {
   return useSyncExternalStore(subscribe, snapshot, snapshot)
 }
+
+/**
+ * The height of the quest window held upright (owner, 12.11.2026: «настройку высоты… до середины экрана, на 25% меньше и еще на
+ * 25%… Кому-то удобнее, чтобы на пол экрана, кому-то… меньше»): half the map, a quarter lower, and lower again.
+ */
+export const PHONE_SHEET_HEIGHTS = ['half', 'mid', 'low'] as const
+export type PhoneSheetHeight = typeof PHONE_SHEET_HEIGHTS[number]
+export const PHONE_SHEET_HEIGHT_LABELS: Record<PhoneSheetHeight, string> = { half: 'До середины', mid: 'Ниже на 25%', low: 'Ниже на 50%' }
+const HEIGHT_KEY = 'raidos-phone-sheet-height-v1'
+const heightListeners = new Set<() => void>()
+let currentHeight: PhoneSheetHeight | null = null
+
+function readHeight(): PhoneSheetHeight {
+  try {
+    const saved = localStorage.getItem(HEIGHT_KEY)
+    return (PHONE_SHEET_HEIGHTS as readonly string[]).includes(saved ?? '') ? saved as PhoneSheetHeight : 'mid'
+  } catch {
+    return 'mid'
+  }
+}
+
+export function setPhoneSheetHeight(height: PhoneSheetHeight) {
+  try {
+    if (height === 'mid') localStorage.removeItem(HEIGHT_KEY)
+    else localStorage.setItem(HEIGHT_KEY, height)
+  } catch { /* the choice lasts until the window closes */ }
+  currentHeight = height
+  heightListeners.forEach((listener) => listener())
+}
+
+const heightSnapshot = () => (currentHeight ??= readHeight())
+const subscribeHeight = (listener: () => void) => { heightListeners.add(listener); return () => { heightListeners.delete(listener) } }
+
+export function usePhoneSheetHeight(): PhoneSheetHeight {
+  return useSyncExternalStore(subscribeHeight, heightSnapshot, heightSnapshot)
+}
+
+/** The phone held upright (the height choice is for that only). */
+const portraitQuery = () => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(orientation: portrait)') : null)
+const subscribePortrait = (listener: () => void) => {
+  const query = portraitQuery()
+  query?.addEventListener?.('change', listener)
+  return () => query?.removeEventListener?.('change', listener)
+}
+export function usePortrait() {
+  return useSyncExternalStore(subscribePortrait, () => portraitQuery()?.matches ?? true, () => true)
+}
