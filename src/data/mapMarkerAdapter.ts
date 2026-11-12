@@ -582,7 +582,8 @@ function adaptSniperSpots(map: GameMap): MapMarker[] {
   return (SNIPER_SPOTS[map.id] ?? []).flatMap(([x, y, z], index): MapMarker[] => {
     const base = baseMarker(map, `sniper-${index}`, { x, y, z }, undefined, y, y)
     if (!base) return []
-    return [{ ...base, type: 'danger', layerId: 'sniper', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
+    // No floor, height or roof on them (owner, 13.11.2026: «убери у точек снайперов этажи»): no badge, shown on every floor.
+    return [{ ...base, floor: undefined, height: undefined, heightRange: undefined, type: 'danger', layerId: 'sniper', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
   })
 }
 

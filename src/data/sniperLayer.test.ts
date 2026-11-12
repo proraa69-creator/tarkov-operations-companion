@@ -19,6 +19,10 @@ describe('Scav sniper spots: a layer of their own, «Снайперы», shown f
     expect(defaultHiddenMarkerLayers).not.toContain('sniper')
   })
 
+  it('carries no floor, height or roof: no floor badge, on every floor (owner, 13.11.2026: «убери у точек снайперов этажи»)', () => {
+    expect(snipers().every((marker) => marker.floor === undefined && marker.height === undefined && marker.heightRange === undefined)).toBe(true)
+  })
+
   it('an app before the layer gets them on «Опасности», this app puts them back', () => {
     const dataset = { markers: snipers(), quests: [] } as unknown as AppDataset
     const wire = catalogForWire(dataset)
