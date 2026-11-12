@@ -7,6 +7,7 @@ import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
 import { tr } from '../i18n'
 import { SETUP_URL, useSetupPublished } from '../hooks/setupDownload'
+import { useOptionalAccount } from '../auth'
 
 export function DownloadButton({ large = true }: { large?: boolean }) {
   const setup = useSetupPublished()
@@ -27,6 +28,8 @@ export function DownloadButton({ large = true }: { large?: boolean }) {
 
 export function DownloadPage() {
   const setup = useSetupPublished()
+  // The Apple reviewer's test account: no «Поддержать проект» (owner, 12.11.2026).
+  const account = useOptionalAccount()
   return (
     <div className="page">
       <div className="container narrow">
@@ -48,7 +51,7 @@ export function DownloadPage() {
           )}
         </div>
         {/* «Поддержать проект» (owner, 13.10.2026). */}
-        <div className="download-donate stagger" style={stagger(1)}><DonateCard /></div>
+        {!account?.storeReview && <div className="download-donate stagger" style={stagger(1)}><DonateCard /></div>}
       </div>
     </div>
   )

@@ -9,7 +9,7 @@ import { QuestReportSection, questReportHasContent, questReportPayload, type Que
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useAppVersion } from '../app/appVersion'
 import { appEdition } from '../app/buildEdition'
-import { isDesktopShell, isIosApp, isNative, nativePlatform } from '../platform'
+import { isDesktopShell, hidesPayments, isNative, nativePlatform } from '../platform'
 import { useTarkovEdition, type TarkovEdition } from '../import/logStatus'
 import { LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
@@ -258,13 +258,13 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
       </div> : <div className="bug-report-reward">
         <Gift size={20} aria-hidden="true" />
         {/* No access days as a reward in the App Store build (src/account/IosAccount.tsx). */}
-        <div><strong>{uiText(compact ? 'Нашли неточность в квесте?' : 'Нашёл баг или ошибку?')} {!isIosApp() && <b>{uiText('+1 день')}</b>}</strong><span>{uiText(isIosApp() ? 'Опишите, что случилось. Можно приложить скриншоты.' : compact ? QUEST_REWARD_NOTE : REWARD_NOTE)}</span></div>
+        <div><strong>{uiText(compact ? 'Нашли неточность в квесте?' : 'Нашёл баг или ошибку?')} {!hidesPayments() && <b>{uiText('+1 день')}</b>}</strong><span>{uiText(hidesPayments() ? 'Опишите, что случилось. Можно приложить скриншоты.' : compact ? QUEST_REWARD_NOTE : REWARD_NOTE)}</span></div>
       </div>)}
       {sent ? <div className="bug-report-done" role="status">
         <CheckCircle2 size={34} />
         <strong>{uiText(point ? 'Спасибо! Точка отправлена' : words.sent)}</strong>
         <p className="muted">{uiText(point ? 'Мы проверим её по скриншоту и добавим на карту.' : words.sentNote)}</p>
-        {kind === 'bug' && !isIosApp() && <p className="bug-report-reward-note"><Gift size={14} aria-hidden="true" />{uiText(REWARD_NOTE)}</p>}
+        {kind === 'bug' && !hidesPayments() && <p className="bug-report-reward-note"><Gift size={14} aria-hidden="true" />{uiText(REWARD_NOTE)}</p>}
         <div className="bug-report-actions">
           <a className="button ghost" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} />{SUPPORT_TELEGRAM_HANDLE}</a>
           <button type="button" className="button primary" onClick={onClose}>{uiText('Готово')}</button>

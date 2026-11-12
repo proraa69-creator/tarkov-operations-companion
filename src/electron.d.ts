@@ -37,6 +37,8 @@ export interface ServerAccountStatus {
   kind?: 'user' | 'streamer'
   /** The server-verified owner account may open the mobile admin dashboard. */
   owner?: true
+  /** The Apple reviewer's test account (server AccountView.storeReview): no payment mentions (platform.ts hidesPayments). */
+  storeReview?: true
   /** The API server answered /health. */
   online: boolean
   serverUrl: string

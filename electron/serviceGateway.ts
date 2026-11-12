@@ -613,6 +613,8 @@ export interface AccountStatus {
   emailVerified?: boolean
   /** When the account was registered (ISO): the renderer's first-run guide is for new accounts. */
   createdAt?: string
+  /** The Apple reviewer's test account (server AccountView.storeReview): the renderer names no payment (hidesPayments). */
+  storeReview?: true
   online: boolean
   serverUrl: string
   /** false when the OS offers no secure storage: the session is kept only until the app closes. */
@@ -634,7 +636,7 @@ export async function accountStatus(): Promise<AccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; storeReview?: unknown }
         const next: StoredAccount = { email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== account?.email || next.kind !== account?.kind) await saveSession(sessionToken, next)
         details = accountDetails(view)
@@ -658,7 +660,7 @@ let entitlementDue = false
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
 /** Only the fields the app shows, shape-checked (the server is trusted, the network is not). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> {
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; storeReview?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'storeReview'> {
   const nicknames: Partial<Record<AccountMode, string>> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -680,6 +682,7 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
   const createdAt = date(view.createdAt)
   return {
+    ...(view.storeReview === true ? { storeReview: true as const } : {}),
     nicknames,
     subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}), ...(raid ? { trialRaidDays: raid } : {}) },
     ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),

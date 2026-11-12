@@ -41,6 +41,21 @@ export function isIosApp() {
 /** The App Store build, or the iPhone app at all. */
 export const appStoreRules = () => APP_STORE_BUILD || isIosApp()
 
+/**
+ * The Apple reviewer's test account is signed in (server AccountView.storeReview; owner, 12.11.2026: «там не должно быть не
+ * единого упоминания о платной подписке», nor «Пригласи друга»). Set by src/sync/serverSync.ts, remembered for the next start.
+ */
+const STORE_REVIEW_KEY = 'raidos-store-review-account'
+let storeReviewAccount = (() => { try { return typeof localStorage !== 'undefined' && localStorage.getItem(STORE_REVIEW_KEY) === '1' } catch { return false } })()
+export function noteStoreReviewAccount(on: boolean) {
+  if (on === storeReviewAccount) return
+  storeReviewAccount = on
+  try { if (on) localStorage.setItem(STORE_REVIEW_KEY, '1'); else localStorage.removeItem(STORE_REVIEW_KEY) } catch { /* private mode */ }
+}
+
+/** No paid subscription, price, donation or bonus days named: the iPhone app, or the reviewer's account anywhere. */
+export const hidesPayments = () => isIosApp() || storeReviewAccount
+
 export function isDesktopShell() {
   return typeof window !== 'undefined' && Boolean(window.tarkovDesktop)
 }

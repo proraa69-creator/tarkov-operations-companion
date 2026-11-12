@@ -16,7 +16,7 @@ import {
 import type { QuestPointIcon } from '../shared/questPointConstructor'
 import type { ReportMode } from '../shared/reportCategories'
 import type { GameMap, Item, MapMarker, Quest } from '../domain/types'
-import { isIosApp } from '../platform'
+import { hidesPayments } from '../platform'
 import { createMapCrs, toLeafletBounds } from './mapCrs'
 import { MapFloorLayers } from './MapFloorLayers'
 import { searchQuests } from './QuestPointEditor'
@@ -137,8 +137,8 @@ export function SuggestPointSection({ value, onChange, shots, data, mode, disabl
   return (
     <div className="suggest-point">
       <div className="bug-report-reward suggest-point-terms">
-        {isIosApp() ? <ImagePlus size={20} aria-hidden="true" /> : <Gift size={20} aria-hidden="true" />}
-        <div><strong>{uiText(POINT_CONDITION)}</strong>{!isIosApp() && <span>{uiText(POINT_BONUS)}</span>}</div>
+        {hidesPayments() ? <ImagePlus size={20} aria-hidden="true" /> : <Gift size={20} aria-hidden="true" />}
+        <div><strong>{uiText(POINT_CONDITION)}</strong>{!hidesPayments() && <span>{uiText(POINT_BONUS)}</span>}</div>
       </div>
       <div className="suggest-point-blocks" role="radiogroup" aria-label={uiText('Значок точки')}>
         {POINT_SUGGESTION_BLOCKS.map((block) => (

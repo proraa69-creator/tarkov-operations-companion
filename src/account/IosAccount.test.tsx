@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   logout: vi.fn(async () => {}),
   refresh: vi.fn(async () => {}),
 }))
-vi.mock('../platform', async (original) => ({ ...await original<typeof import('../platform')>(), isIosApp: () => true }))
+vi.mock('../platform', async (original) => ({ ...await original<typeof import('../platform')>(), isIosApp: () => true, hidesPayments: () => true }))
 vi.mock('../sync/serverSync', async (original) => ({
   ...await original<typeof import('../sync/serverSync')>(),
   useServerAccount: () => ({ status: mocks.status, checking: false, available: true, refresh: mocks.refresh, login: vi.fn(), logout: mocks.logout }),

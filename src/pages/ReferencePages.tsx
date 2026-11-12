@@ -701,7 +701,7 @@ import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
 import { AccountDeletionPanel } from "../account/IosAccount";
-import { isAndroidApp, isDesktopShell, isIosApp, isMobileLayout } from "../platform";
+import { isAndroidApp, isDesktopShell, hidesPayments, isMobileLayout } from "../platform";
 import { BackButtonSettings } from "../mobile/backNavigation";
 import { setCurrentTasksView, useCurrentTasksView, type CurrentTasksView } from "../overview/currentTasksView";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
@@ -722,13 +722,13 @@ function SupportPanel() {
         <div className="setting-row">
           <span>
             {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
-            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!isIosApp() && <> {uiText(REWARD_NOTE)}</>}</small>
+            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!hidesPayments() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
+            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!hidesPayments() && <> {uiText(REWARD_NOTE)}</>}</small>
           </span>
         </div>
         <div className="support-row"><SupportButtons variant="panel" /></div>
         {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
-        {!isIosApp() && <div className="support-row"><DonateCard /></div>}
+        {!hidesPayments() && <div className="support-row"><DonateCard /></div>}
       </div>
     </section>
   );

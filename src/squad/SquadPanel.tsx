@@ -13,7 +13,7 @@ import { invalidateSquads, useSquad, useSquadComputed } from './useSquad'
 import { CopyField, ErrorLine, MemberAvatar, MemberChips } from './squadUi'
 import { SquadMapBoard } from './SquadMapBoard'
 import { friendLabel, memberLabel, modeLabel } from './squadLabels'
-import { isIosApp } from '../platform'
+import { hidesPayments } from '../platform'
 
 type Data = Pick<AppDataset, 'quests' | 'items' | 'maps'>
 
@@ -81,10 +81,10 @@ function AccessNotice() {
     <div className="panel squad-paywall">
       <ShieldAlert size={20} />
       {/* The App Store build names no subscription (src/account/IosAccount.tsx). */}
-      {isIosApp()
+      {hidesPayments()
         ? <div><strong>{uiText('Отряд недоступен')}</strong><p className="muted">{uiText('Создать отряд, вступить в него и видеть общие задания этот аккаунт сейчас не может. Покинуть отряд можно всегда.')}</p></div>
         : <div><strong>{uiText('Отряд — функция подписки')}</strong><p className="muted">{uiText('Создать отряд, вступить в него и видеть общие задания можно с активной подпиской. Покинуть отряд можно всегда.')}</p></div>}
-      <Link className="button small" to="/profile">{uiText(isIosApp() ? 'Аккаунт' : 'Подписка')}</Link>
+      <Link className="button small" to="/profile">{uiText(hidesPayments() ? 'Аккаунт' : 'Подписка')}</Link>
     </div>
   )
 }

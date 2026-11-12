@@ -25,7 +25,7 @@ import { saveAppearance, savedTheme, THEME_CHANGED_EVENT, THEMES } from '../them
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { withinBounds } from '../overlay/positionMap'
-import { isDesktopShell, isMobileLayout, isNative } from '../platform'
+import { isDesktopShell, isMobileLayout, isNative, noteStoreReviewAccount } from '../platform'
 import { featureEnabled } from '../app/archivedFeatures'
 import { liveItemBody, onRecognisedItem, parseLiveItem } from '../items/recognisedItem'
 import type { ItemOverlayInfo } from '../overlay/types'
@@ -48,7 +48,14 @@ const MAX_EVENTS_PER_BATCH = 2000
 export type ServerState = { status: ServerAccountStatus | null; checking: boolean }
 let state: ServerState = { status: null, checking: false }
 const listeners = new Set<() => void>()
-const setState = (next: Partial<ServerState>) => { state = { ...state, ...next }; for (const listener of listeners) listener() }
+const setState = (next: Partial<ServerState>) => {
+  state = { ...state, ...next }
+  // The reviewer's account (hidesPayments): known from the server while online, cleared on sign-out.
+  const status = state.status
+  if (status && !status.signedIn) noteStoreReviewAccount(false)
+  else if (status?.signedIn && status.online) noteStoreReviewAccount(status.storeReview === true)
+  for (const listener of listeners) listener()
+}
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 
 /**

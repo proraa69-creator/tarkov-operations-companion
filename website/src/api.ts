@@ -53,6 +53,11 @@ export interface Account {
   statsOnly?: true
   /** The service owner (server-side check of TARKOV_OWNER_EMAILS): sees the owner section. */
   owner?: true
+  /**
+   * The Apple reviewer's test account (TARKOV_STORE_REVIEW_EMAILS; owner, 12.11.2026): the cabinet and the menu show no
+   * subscription, price, payment, donation or «Пригласи друга».
+   */
+  storeReview?: true
   /** When the e-mail was confirmed with a code; absent = not confirmed («Подтвердите e-mail»). */
   emailVerifiedAt?: string
   /** «Удалить аккаунт» was requested: the account is deleted at this time unless cancelled (servers from 20.10.2026). */

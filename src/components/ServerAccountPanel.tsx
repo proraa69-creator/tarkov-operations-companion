@@ -9,7 +9,7 @@ import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
 import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
 import { isOwnerApp } from '../app/buildEdition'
-import { appStoreRules, isNative } from '../platform'
+import { appStoreRules, hidesPayments, isNative } from '../platform'
 import { ServerStatusBlock } from './ServerStatusLamps'
 import { PhoneCabinetRow, PhoneSignInForm, PhoneSignInLinks } from '../account/PhoneAccount'
 import { EmailSignInForm, EmailSignInLinks, EmailVerifyRow } from '../account/EmailAccount'
@@ -67,7 +67,7 @@ export function ServerAccountPanel() {
   }
 
   // The iPhone app: no «Личный кабинет» and no website sign-in by QR for now (owner, 12.11.2026: «удали позже мы их добавим»).
-  const store = appStoreRules()
+  const store = appStoreRules() || hidesPayments()
   const online = status?.online ?? false
   const connectionTag = !status
     ? <span className="tag">{uiText('Проверяем сервер…')}</span>

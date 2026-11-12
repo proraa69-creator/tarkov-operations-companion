@@ -395,7 +395,7 @@ async function accountStatus(checkEntitlement: boolean, patient = false): Promis
       if (patient && me.response.status >= 500) online = false
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
-        const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }
+        const view = me.result as { email: string; kind?: string; owner?: unknown; storeReview?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }
         const next: StoredSession = { token: session.token, email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== session.email || next.kind !== session.kind) { saveSession(next); session = next }
         details = accountDetails(view)
@@ -421,7 +421,7 @@ export function webStoredSessionEmail(): string | null {
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
-function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner' | 'deletionAt'> {
+function accountDetails(view: { owner?: unknown; storeReview?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner' | 'deletionAt' | 'storeReview'> {
   const nicknames: NonNullable<ServerAccountStatus['nicknames']> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -446,6 +446,8 @@ function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscripti
   const deletionAt = date(view.deletionAt)
   return {
     ...(view.owner === true ? { owner: true as const } : {}),
+    // The Apple reviewer's test account: no payment mentions (platform.ts hidesPayments).
+    ...(view.storeReview === true ? { storeReview: true as const } : {}),
     ...(deletionAt ? { deletionAt } : {}),
     nicknames,
     subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}), ...(raid ? { trialRaidDays: raid } : {}) },

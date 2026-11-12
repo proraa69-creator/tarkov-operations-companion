@@ -56,7 +56,7 @@ export function SiteLayout() {
           <div className="header-actions">
             {/* «Подписка» only once signed in (owner, 12.11.2026: «убери на сайте на время, кнопку подписка, пока человек не
                 зарегистрируется, только в личном кабинете будет кнопка подписка»). */}
-            {HEADER_SUBSCRIPTION && account && <button type="button" className="button header-subscription" aria-haspopup="dialog" onClick={() => setSubscriptionOpen(true)}>
+            {HEADER_SUBSCRIPTION && account && !account.storeReview && <button type="button" className="button header-subscription" aria-haspopup="dialog" onClick={() => setSubscriptionOpen(true)}>
               <Crown aria-hidden="true" />
               <span className="label-long">{tr('Подписка')}</span>
               <span className="label-short">{siteLocale() === 'en' ? 'Plans' : 'Подписка'}</span>
@@ -83,7 +83,7 @@ export function SiteLayout() {
         </div>
         <nav id="mobile-nav" className={`mobile-nav${menuOpen ? ' is-open' : ''}`} inert={!menuOpen} aria-hidden={!menuOpen} aria-label={tr('Мобильная навигация')}>
           {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.end}>{tr(item.label)}</NavLink>)}
-          {HEADER_SUBSCRIPTION && account && <button type="button" className="mobile-nav-button" onClick={() => { setMenuOpenOn(null); setSubscriptionOpen(true) }}>{tr('Подписка')}</button>}
+          {HEADER_SUBSCRIPTION && account && !account.storeReview && <button type="button" className="mobile-nav-button" onClick={() => { setMenuOpenOn(null); setSubscriptionOpen(true) }}>{tr('Подписка')}</button>}
           <NavLink to="/download">{tr('Скачать приложение')}</NavLink>
           <NavLink to="/cabinet">{tr('Личный кабинет')}</NavLink>
         </nav>
@@ -115,7 +115,7 @@ export function SiteLayout() {
             <Link to="/legal/privacy">{tr('Политика конфиденциальности')}</Link>
             <Link to="/legal/consent">{tr('Согласие на обработку ПД')}</Link>
             <Link to="/legal/cookies">Cookie</Link>
-            <Link to="/legal">{tr('Тарифы, оплата и возврат')}</Link>
+            {!account?.storeReview && <Link to="/legal">{tr('Тарифы, оплата и возврат')}</Link>}
           </nav>
         </div>
       </footer>

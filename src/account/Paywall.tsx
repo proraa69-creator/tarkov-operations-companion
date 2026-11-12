@@ -8,7 +8,7 @@ import { openWebsite, subscriptionText } from './accountActions'
 import { lockedReasonText, type DataAccess } from './dataAccess'
 import { EFT_IN_USE_TEXT, EFT_OTHER_TEXT, recheckEftAccount } from './eftAccountLink'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
-import { isIosApp, isNative } from '../platform'
+import { hidesPayments, isNative } from '../platform'
 import { IosNoAccess } from './IosAccount'
 import './account.css'
 import './paywall.css'
@@ -70,7 +70,7 @@ export function Paywall({ access }: { access: Extract<DataAccess, { state: 'lock
 
   if (access.reason === 'eft-conflict') return <EftLock access={access} />
   // The App Store build: no plans, prices or payment (src/account/IosAccount.tsx).
-  if (isIosApp()) return <IosNoAccess note={access.reason === 'subscription' ? undefined : lockedReasonText(access.reason, access.message).replace('«Проверить оплату»', '«Обновить»')} />
+  if (hidesPayments()) return <IosNoAccess note={access.reason === 'subscription' ? undefined : lockedReasonText(access.reason, access.message).replace('«Проверить оплату»', '«Обновить»')} />
 
   const subscription = status?.subscription
   const trialOver = subscription?.status === 'inactive' && Boolean(subscription.trialEndsAt)
@@ -162,7 +162,7 @@ function PaywallHeader() {
       <span className="paywall-icon"><Lock size={20} /></span>
       <div>
         <div className="eyebrow">Raid OS</div>
-        <h1>{uiText(isIosApp() ? 'Аккаунт Raid OS' : 'Нужна подписка')}</h1>
+        <h1>{uiText(hidesPayments() ? 'Аккаунт Raid OS' : 'Нужна подписка')}</h1>
       </div>
     </header>
   )

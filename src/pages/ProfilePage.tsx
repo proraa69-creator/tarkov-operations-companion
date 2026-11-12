@@ -15,7 +15,7 @@ import { MovedToAdminPanel } from '../admin/MovedToAdminPanel'
 import { DonateCard } from '../components/DonateCard'
 import { ModeResetButtons, PrestigeLine } from '../components/PrestigeResetButton'
 import { useLocale } from '../i18n/LocaleProvider'
-import { isIosApp, useMobileLayout } from '../platform'
+import { hidesPayments, isIosApp, useMobileLayout } from '../platform'
 import { AccountDeletionPanel, IosAccountPanel } from '../account/IosAccount'
 import { QuestDiagnosticsPanel } from '../quests/QuestDiagnosticsPanel'
 import '../account/account.css'
@@ -80,7 +80,7 @@ export function ProfilePage() {
     {accountBlock}
     {status?.kind === 'streamer' && !ios && <StreamerCabinetPanel />}
     {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026); not in the App Store build. */}
-    {!ios && <div className="profile-donate"><DonateCard /></div>}
+    {!hidesPayments() && <div className="profile-donate"><DonateCard /></div>}
   </div>
 }
 
