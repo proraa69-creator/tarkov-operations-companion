@@ -36,9 +36,13 @@ describe('the owner\'s Gunsmith build screenshots (src/gunsmith/buildScreenshots
     expect(part).toBe(screenshotFiles.get('gunsmith-m4a1'))
     expect(master).toBe(screenshotFiles.get('gunsmith-master-part-9'))
     expect(part).not.toBe(master)
-    // «Мастер. Часть 12» asks for three weapons: only the T-5000M has its screenshot so far.
-    expect(buildScreenshot('676529af9c90953d090882e7', '5df24cf80dee1b22f862e9bc')).toBe(screenshotFiles.get('gunsmith-master-part-12-t-5000m'))
-    expect(buildScreenshot('676529af9c90953d090882e7', '5a7ae0c351dfba0017554310')).toBeUndefined()
+    // «Мастер. Часть 12» asks for three weapons and «Часть 8» for two: each weapon has its own screenshot.
+    const part12 = ['5df24cf80dee1b22f862e9bc', '59984ab886f7743e98271174', '5a7ae0c351dfba0017554310'].map((weapon) => buildScreenshot('676529af9c90953d090882e7', weapon))
+    expect(part12).toEqual(['t-5000m', 'pp-19-01', 'glock-17'].map((name) => screenshotFiles.get(`gunsmith-master-part-12-${name}`)))
+    expect(new Set(part12).size).toBe(3)
+    expect(buildScreenshot('63987301e11ec11ff5504036', '5e81c3cbac2bb513793cdc75')).toBe(screenshotFiles.get('gunsmith-master-part-8-m1911a1'))
+    expect(buildScreenshot('63987301e11ec11ff5504036', '5bfea6e90db834001b7347f3')).toBe(screenshotFiles.get('gunsmith-master-part-8-m700'))
+    expect(buildScreenshot('676529af9c90953d090882e7', '5e81c3cbac2bb513793cdc75')).toBeUndefined()
     expect(buildScreenshot('5ac244eb86f7741356335af1', '5bb2475ed4351e00853264e3')).toBeUndefined()
     expect(buildScreenshot(undefined, M4A1)).toBeUndefined()
   })
