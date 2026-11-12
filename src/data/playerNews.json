@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.297","date":"2026-11-12","items":[
+    {"kind":"added","ru":"Карты: снайперы диких — своя кнопка «Снайперы», видны сразу","en":"Maps: Scav snipers have their own «Snipers» button, shown from the start"},
+    {"kind":"added","ru":"Обзор на телефоне: в «Сборе на рейд» все квесты списком с ползунком","en":"Phone Overview: «Raid loadout» lists every quest with a scroll thumb"}
+  ]},
   {"version":"0.6.0.296","date":"2026-11-12","items":[
     {"kind":"added","ru":"«Оружейник»: готовые сборки M1911A1, «Витязя» и Glock 17 на скриншотах","en":"«Gunsmith»: finished M1911A1, Vityaz and Glock 17 builds on screenshots"}
   ]},
