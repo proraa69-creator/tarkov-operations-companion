@@ -527,9 +527,9 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
    «Назад» stands in a corner of the map and nothing lies under it: the map's own buttons in that corner step aside by
    --map-room-* (the button and a gap). Upright the quest window lies at the bottom; turned sideways it stands on the right
    and the map narrows beside it, with the bars or on the full screen. The +/− at the bottom right, above «Назад» there. */
-:root[data-layout="mobile"] { --map-room-tl: 0px; --map-room-tr: 0px; --map-room-bl: 0px; --map-room-br: 0px; --back-top-extra: 0px; }
+:root[data-layout="mobile"] { --map-room-tl: 0px; --map-room-tr: 0px; --map-room-bl: 0px; --map-room-br: 0px; --back-top-extra: 0px; --map-reserve-br: 56px; }
 :root[data-layout="mobile"]:has(.phone-back.is-bottom-left) { --map-room-bl: 48px; }
-:root[data-layout="mobile"]:has(.phone-back.is-bottom-right) { --map-room-br: 48px; }
+:root[data-layout="mobile"]:has(.phone-back.is-bottom-right) { --map-room-br: 48px; --map-reserve-br: 116px; }
 :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-left) { --map-room-tl: 48px; }
 :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) { --map-room-tr: 48px; }
 /* «Назад» at the top: the page starts below it (see above), so the map is that much lower. */
@@ -552,8 +552,15 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-stage.is-fullscreen { --edge-t: var(--safe-top); --edge-r: var(--safe-right); --edge-b: var(--safe-bottom); --edge-l: var(--safe-left); height: auto; min-height: 0; }
 :root[data-layout="mobile"] .map-stage .map-hud { top: calc(8px + var(--edge-t) + var(--map-room-tl)); left: calc(8px + var(--edge-l)); max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r)); }
 :root[data-layout="mobile"] .map-stage .phone-map-fullscreen { top: calc(8px + var(--edge-t) + var(--map-room-tr)); right: calc(8px + var(--edge-r)); }
-:root[data-layout="mobile"] .map-stage .phone-map-quests { left: calc(8px + var(--edge-l)); bottom: calc(8px + var(--edge-b) + var(--map-room-bl)); }
-:root[data-layout="mobile"] .map-stage .phone-map-floors { left: calc(8px + var(--edge-l)); bottom: calc(50px + var(--edge-b) + var(--map-room-bl)); }
+/* «Квесты» and the floors side by side at the bottom left (owner, 12.11.2026: «они должны быть рядом»); a narrow screen puts
+   the floors over «Квесты». The row keeps clear of the +/− and «Назад» at the bottom right. */
+:root[data-layout="mobile"] .map-stage .phone-map-bottom {
+  position: absolute; left: calc(8px + var(--edge-l)); bottom: calc(8px + var(--edge-b) + var(--map-room-bl));
+  display: flex; flex-wrap: wrap-reverse; align-items: flex-end; gap: 6px;
+  max-width: calc(100% - 16px - var(--edge-l) - var(--edge-r) - var(--map-reserve-br)); pointer-events: none;
+}
+:root[data-layout="mobile"] .map-stage .phone-map-bottom > * { pointer-events: auto; }
+:root[data-layout="mobile"] .map-stage .phone-map-bottom :is(.phone-map-quests, .phone-map-floors) { position: relative; left: auto; bottom: auto; }
 :root[data-layout="mobile"] .map-stage .leaflet-bottom.leaflet-right { bottom: calc(var(--edge-b) + var(--map-room-br)); right: var(--edge-r); }
 :root[data-layout="mobile"] .map-stage .leaflet-bottom.leaflet-right .leaflet-control { margin: 0 8px 8px 0; }
 

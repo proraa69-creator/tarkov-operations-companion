@@ -1371,12 +1371,15 @@ export function MapsPage() {
         {mobile && !fullscreen && !appStoreRules() && <MapScrollRail />}
         {mobile && <PhoneMapFullscreenToggle fullscreen={fullscreen} onToggle={() => setFullscreen(!fullscreen)} />}
         {!mobile && <MapExpandToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />}
-        {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} {...(killOnly.size ? { emptyText: 'Квесты на устранение — в окне «Устранения».' } : {})}
-          checks={{ checked: (questId) => questChecks.has(questId), settled: (questId) => doneHere.has(questId), onToggle: toggleRaidCheck, any: anyQuestChecked, autoReset: isDesktopShell(), onClear: () => clearQuestChecks(profileId, raidMode) }} />}
-        {/* the phone has no panel under the map (owner, 08.11.2026): its floors are a button on the map */}
-        {mobile && !relatedQuest && <PhoneMapFloors floors={floorOrder} floor={floor} playerFloor={playerOnFloor}
-          {...(plan.floorWithoutScheme ? { note: 'У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».' } : plan.floorWithoutRender ? { note: 'У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».' } : {})}
-          onPick={setFloor} />}
+        {/* The phone: «Квесты» and the floors side by side at the bottom left (owner, 12.11.2026: «они должны быть рядом»). */}
+        {mobile && <div className="phone-map-bottom">
+          {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} {...(killOnly.size ? { emptyText: 'Квесты на устранение — в окне «Устранения».' } : {})}
+            checks={{ checked: (questId) => questChecks.has(questId), settled: (questId) => doneHere.has(questId), onToggle: toggleRaidCheck, any: anyQuestChecked, autoReset: isDesktopShell(), onClear: () => clearQuestChecks(profileId, raidMode) }} />}
+          {/* the phone has no panel under the map (owner, 08.11.2026): its floors are a button on the map */}
+          {mobile && !relatedQuest && <PhoneMapFloors floors={floorOrder} floor={floor} playerFloor={playerOnFloor}
+            {...(plan.floorWithoutScheme ? { note: 'У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».' } : plan.floorWithoutRender ? { note: 'У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».' } : {})}
+            onPick={setFloor} />}
+        </div>}
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
         <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}${mobile && relatedQuest ? ` is-phone-${phoneView}` : ''}${mobile && relatedQuest && phoneView === 'drawer' && sheetTall ? ' is-tall' : ''}`} aria-hidden={!sheetOpen}>
