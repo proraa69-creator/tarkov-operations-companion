@@ -125,6 +125,7 @@ export const SQUAD_PHRASES: Array<[string, string]> = [
   // «План рейда» for the group and friends' quest points on the map (owner, 12.10.2026)
   ['Заданий группы на карте', "The group's quests on this map"],
   ['Квесты друзей', "Friends' quests"], ['Заданий на этой карте', 'Quests on this map'],
+  ['Нет друзей с открытым прогрессом и отряда', 'No friends sharing progress and no squad'], ['Квесты друзей и отряда их цветами', "Friends' and squad quests in their colours"],
   ['Никто из друзей пока не открыл свой прогресс', 'None of your friends shares their progress yet'],
   ['Точки заданий друзей их цветами из раздела «Друзья»', "Friends' quest points in their colours from «Friends»"],
   // «Информация о друге» (src/squad/FriendInfoDialog.tsx)

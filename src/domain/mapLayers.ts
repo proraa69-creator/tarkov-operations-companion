@@ -11,6 +11,8 @@ export const defaultVisibleMarkerLayers: MarkerLayerId[] = [
   'quest.item',
   'loot.key',
   'loot.guaranteed',
+  // Where Scav snipers appear (report 131): shown from the start (owner, 12.11.2026: «я не увидел маркера точек снайперов»).
+  'sniper',
 ]
 
 export const defaultHiddenMarkerLayers: MarkerLayerId[] = [

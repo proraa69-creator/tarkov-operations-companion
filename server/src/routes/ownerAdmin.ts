@@ -151,6 +151,7 @@ const bezebeePaymentSchema = z.object({
   friend: z.boolean().optional(),
   amount: z.number().finite().min(0).max(1_000_000).optional(),
   reference: z.string().trim().max(120).optional().transform((value) => value || undefined),
+  noDays: z.boolean().optional(),
 }).strict()
 
 /** Existing owner routes whose successful calls go to the audit log too. Only validated, non-secret fields are kept. */
@@ -304,7 +305,7 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     const input = bezebeePaymentSchema.parse(req.body)
     try {
       const done = bezebee.confirm(actor, input)
-      admin.audit(actor, 'payment.bezebee-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, plan: input.plan, region: done.region, ...(input.friend ? { friend: true } : {}), amount: done.payment.amount, ...(input.reference ? { reference: input.reference } : {}) })
+      admin.audit(actor, 'payment.bezebee-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, plan: input.plan, region: done.region, ...(input.friend ? { friend: true } : {}), amount: done.payment.amount, ...(input.reference ? { reference: input.reference } : {}), ...(input.noDays ? { noDays: true } : {}) })
       res.status(201).json({ payment: done.payment, user: admin.user(done.accountId).user })
     } catch (error) {
       if (error instanceof BezebeeConfirmError) { res.status(error.status).json({ error: error.message, code: error.code }); return }

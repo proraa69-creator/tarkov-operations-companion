@@ -139,7 +139,8 @@ describe('every setting has one', () => {
     const text = source('src/pages/ReferencePages.tsx')
     const page = text.slice(text.indexOf('function SupportPanel'))
     const rows = page.split('"setting-row"').slice(1)
-    expect(rows).toHaveLength(4)
+    // «Перемещать карту к точке» (report 143, 11.11.2026) is the fifth.
+    expect(rows).toHaveLength(5)
     for (const row of rows) expect(/<strong>([\s\S]*?)<\/strong>/.exec(row)?.[1]).toMatch(/<SettingHelp /)
   })
 })

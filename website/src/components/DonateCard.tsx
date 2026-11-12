@@ -5,6 +5,9 @@ import './donateCard.css'
 /** The donation page («Поддержать проект», owner 13.10.2026; the same link as the app's src/app/support.ts). */
 export const DONATE_URL = 'https://donatepay.ru/don/1537561'
 
+/** Off on the site for now (owner, 13.11.2026: «временно отключи её, чтобы она ни у кого не появлялась на сайте. Только в самом приложении пусть будет»). */
+export const SITE_DONATE = false
+
 /**
  * «Поддержать проект» after the owner's design: the Raid OS tile, «RAID OS», «ПОДДЕРЖАТЬ ПРОЕКТ», «Помогите развивать
  * компаньон для Escape from Tarkov», «Спасибо!». On «Скачать приложение» and in the personal cabinet.

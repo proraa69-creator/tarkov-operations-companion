@@ -44,7 +44,7 @@ function useWheelScrollsSideways<T extends HTMLElement>() {
  * one-line tiles (rank · map · count) over a thin bar, «Все карты». Tiles stretch to fill the row; when they do not fit, the row scrolls sideways
  * (wheel over it, drag on a touchpad, or the thin scrollbar).
  */
-export function MapPriority({ maps, countFor, onOpen, limit }: MapPriorityProps) {
+export function MapPriority({ maps, countFor, onOpen, limit, inline = false }: MapPriorityProps & { inline?: boolean }) {
   const { locale } = useLocale()
   const title = useBlockTitle('Приоритет карт')
   const rowRef = useWheelScrollsSideways<HTMLDivElement>()
@@ -58,8 +58,10 @@ export function MapPriority({ maps, countFor, onOpen, limit }: MapPriorityProps)
     return `${count} ${word}`
   }
 
-  return <section className="panel map-priority" aria-label={uiText('Приоритет карт')}>
-    <div className="panel-title map-priority-title">{title}</div>
+  // Inside the map's block (owner, 11.11.2026: «приоритет карт перенеси прямо в этот блок… колонка, которая листается влево-вправо»):
+  // the strip alone, no panel, title or «Все карты».
+  return <section className={inline ? 'map-priority is-inline' : 'panel map-priority'} aria-label={uiText('Приоритет карт')}>
+    {!inline && <div className="panel-title map-priority-title">{title}</div>}
     <div className="map-priority-grid" ref={rowRef}>
       {rows.map(({ map, count }, index) => {
         const label = `${uiText(map.name)} · ${taskLabel(count)}`
@@ -71,6 +73,6 @@ export function MapPriority({ maps, countFor, onOpen, limit }: MapPriorityProps)
         </button>
       })}
     </div>
-    <Link to="/maps" className="dim map-priority-all">{uiText('Все карты ')}<ChevronRight size={13} /></Link>
+    {!inline && <Link to="/maps" className="dim map-priority-all">{uiText('Все карты ')}<ChevronRight size={13} /></Link>}
   </section>
 }

@@ -60,7 +60,7 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ['Светлое помещение', 'A lit room'],
   ['Ярко и чисто', 'Bright and clean'], ['Светло, живые цвета, без шума в тенях', 'Light, lively colours, no noise in the shadows'],
   ['Светло и мягко', 'Light and soft'], ['Ярче вся картинка, мягкий контраст', 'The whole picture brighter, soft contrast'],
-  ['Фильтры', 'Filters'], ['Убрать дымку в темноте', 'Remove the haze in the dark'], ['Убрать красно-бурый налёт', 'Remove the red-brown cast'],
+  ['Фильтры', 'Filters'], ['Убрать дымку в темноте', 'Remove the haze in the dark'], ['Естественный цвет', 'Natural colour'], ['Убрать красно-бурый налёт', 'Remove the red-brown cast'],
   // «Оптимизация ПК» (src/screen/OptimizePanel.tsx)
   ['Оптимизация компьютера', 'PC optimization'],
   ['Только то, что Windows сам предлагает для игр: ничего не разгоняется, игра и её файлы не трогаются. Каждый шаг отменяется кнопкой «Вернуть как было».', 'Only what Windows itself offers for games: nothing is overclocked, the game and its files are not touched. Every step is undone with «Put it back».'],

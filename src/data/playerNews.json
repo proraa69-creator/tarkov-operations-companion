@@ -1,4 +1,57 @@
 [
+  {"version":"0.6.0.297","date":"2026-11-12","items":[
+    {"kind":"added","ru":"Карты: снайперы диких — своя кнопка «Снайперы», видны сразу","en":"Maps: Scav snipers have their own «Snipers» button, shown from the start"},
+    {"kind":"added","ru":"Обзор на телефоне: в «Сборе на рейд» все квесты списком с ползунком","en":"Phone Overview: «Raid loadout» lists every quest with a scroll thumb"}
+  ]},
+  {"version":"0.6.0.296","date":"2026-11-12","items":[
+    {"kind":"added","ru":"«Оружейник»: готовые сборки M1911A1, «Витязя» и Glock 17 на скриншотах","en":"«Gunsmith»: finished M1911A1, Vityaz and Glock 17 builds on screenshots"}
+  ]},
+  {"version":"0.6.0.295","date":"2026-11-12","items":[
+    {"kind":"added","ru":"Карта на телефоне: повернул телефон — окно квеста справа, на весь экран карта не сжимается","en":"Phone map: turned sideways the quest window stands on the right, on the full screen the map keeps its size"},
+    {"kind":"added","ru":"Окно квеста: три вида и выбор высоты в шестерёнке","en":"Quest window: three looks and its height in the gear"},
+    {"kind":"improved","ru":"«Квесты друзей» показывают и квесты отряда и обновляются сами","en":"«Friends’ quests» show the squad’s quests too and update by themselves"},
+    {"kind":"improved","ru":"Точка квеста сама включает свой этаж","en":"A quest point turns on its own floor"},
+    {"kind":"improved","ru":"Плавная прокрутка в «Требованиях рейда»","en":"Smooth scrolling in «Raid requirements»"},
+    {"kind":"improved","ru":"Мягкие нажатия и плавные переходы на телефоне","en":"Soft presses and smooth transitions on the phone"}
+  ]},
+  {"version":"0.6.0.294","date":"2026-11-11","items":[
+    {"kind":"added","ru":"Квесты: счётчик «7 из 10» для целей на убийства и сдачу предметов","en":"Quests: a «7 of 10» counter for kill and hand-over objectives"}
+  ]},
+  {"version":"0.6.0.293","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Квесты из логов игры обновляются быстрее","en":"Quests from the game logs update faster"},
+    {"kind":"improved","ru":"Автообновление скачивается и при открытой игре, вне рейда","en":"Auto-update also downloads with the game open, out of a raid"}
+  ]},
+  {"version":"0.6.0.292","date":"2026-11-11","items":[
+    {"kind":"added","ru":"Карта: в настройках можно выключить перемещение карты к выбранной точке","en":"Map: a setting to stop the map moving to the picked point"},
+    {"kind":"improved","ru":"Сюжет «Батя»: на этапе поста «Рябина» добавлен пост «Гнездо» с точкой на Развязке","en":"Story «Batya»: the Ryabina stage now also has the Gnezdo outpost, with its point on Interchange"},
+    {"kind":"improved","ru":"Берег: точнее зона обстрела у Терминала, фото ключа на пирсе","en":"Shoreline: a truer fire zone at the Terminal, a key photo on the pier"}
+  ]},
+  {"version":"0.6.0.291","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Сюжетные главы: слева текущие, справа — начать новую","en":"Story chapters: current on the left, start a new one on the right"}
+  ]},
+  {"version":"0.6.0.290","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Телефон: «Торговля» снова показывает статистику","en":"Phone: «Trading» shows its statistics again"}
+  ]},
+  {"version":"0.6.0.289","date":"2026-11-11","items":[
+    {"kind":"added","ru":"«Обзор» на телефоне: любой блок можно заменить другим — шестерёнка в «Настроить блоки»","en":"Overview on the phone: swap any block for another — the gear in «Arrange blocks»"},
+    {"kind":"added","ru":"Новый блок «Экран»: пресет, включение и переключение прямо с «Обзора»","en":"New «Screen» block: the preset, on/off and switching right from the Overview"},
+    {"kind":"added","ru":"Телефон: блок «Управление» — скан предметов, поиск ключей и пресеты экрана на ПК","en":"Phone: a «Control» block — item scan, key search and screen presets on the PC"},
+    {"kind":"improved","ru":"Текущие задания и приоритет карт — теперь в блоке карты","en":"Current tasks and map priority now sit in the map block"},
+    {"kind":"improved","ru":"Телефон: компактные «Кочевники», «Требования рейда» и задания","en":"Phone: compact Goons, raid requirements and tasks"},
+    {"kind":"improved","ru":"Пресеты экрана включаются сразу — клавишей, кнопкой или с телефона","en":"Screen presets turn on at once — by hotkey, button or phone"},
+    {"kind":"added","ru":"Настройка «Естественный цвет» для пресетов","en":"A «Natural colour» setting for presets"},
+    {"kind":"added","ru":"Карта: выходы из списка в игре светятся, остальные приглушены","en":"Map: the exits listed in the game light up, the rest are dimmed"},
+    {"kind":"improved","ru":"Карта: настоящие картинки предметов, контейнеров, дверей, машин и БТР; тёмный фон","en":"Map: real pictures of items, containers, doors, cars and the BTR; a dark background"},
+    {"kind":"improved","ru":"Карта: ключи в одной комнате — одна точка, при приближении видны все","en":"Map: keys in one room are one point; zoom in to see them all"},
+    {"kind":"added","ru":"Карта: этажи предметов; у запертой комнаты — ключ от входа","en":"Map: item floors; a locked room shows its entry key"},
+    {"kind":"added","ru":"Карта: поиск ключей и предметов — и на каких картах они лежат","en":"Map: search keys and items — and see which maps have them"},
+    {"kind":"added","ru":"Карта: места снайперов-дикарей, новые места и фото ключей","en":"Map: Scav sniper spots, new key spots and photos"},
+    {"kind":"improved","ru":"Окно квеста: три вида на выбор, без прокрутки, требуемые предметы справа","en":"Quest window: three looks to choose from, no scrolling, needed items on the right"},
+    {"kind":"added","ru":"Дерево квестов: путь к Смотрителю","en":"Quest tree: the way to Lightkeeper"},
+    {"kind":"added","ru":"«Добавить точку»: предложите место со скриншотом — +1 день подписки за новую точку","en":"«Add a point»: suggest a place with a screenshot — +1 day of subscription for a new point"},
+    {"kind":"improved","ru":"«Сообщить об ошибке»: темы по группам","en":"«Report a problem»: topics in groups"},
+    {"kind":"improved","ru":"«Ключи для квестов»: фильтр «Ключи в схроне» и «Показать только избранные»","en":"«Quest keys»: «Keys in stash» and «Favourites only» filters"}
+  ]},
   {"version":"0.6.0.288","date":"2026-11-10","items":[
     {"kind":"added","ru":"Квест на карте: цели разбиты на этапы — «В рейде», «Торговцу», «Вне рейда»","en":"Quest on the map: objectives split into stages — «In raid», «To the trader», «Outside the raid»"},
     {"kind":"added","ru":"Под каждой целью — нужные предметы и ключи с картинками","en":"Under each objective — the items and keys it needs, with pictures"},

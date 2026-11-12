@@ -216,7 +216,7 @@ describe('«Админ панель» sections', () => {
     expect(body.hidden).toEqual(['gunsmith'])
     expect(body.titles).toEqual({ favorites: { ru: 'Мой рынок', en: '' } })
     expect(body.layout.right).toEqual(['tasks', 'favorites', 'gunsmith'])
-    expect(body.phone.indexOf('raid')).toBe(4)
+    expect(body.phone.indexOf('raid')).toBe(1)
     expect(overviewDefaults()?.hidden).toEqual(['gunsmith'])
   })
 

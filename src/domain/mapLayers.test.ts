@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultHiddenMarkerLayers, defaultVisibleMarkerLayers, hiddenLayersFromStorage } from './mapLayers'
 
 describe('map layer defaults', () => {
-  it('shows extracts, transits, power switches, BTR stops, quest work and «Спавн 100 %» by default', () => {
+  it('shows extracts, transits, power switches, BTR stops, quest work, «Спавн 100 %» and the snipers by default', () => {
     expect(defaultVisibleMarkerLayers).toEqual([
       'extract.pmc',
       'extract.scav',
@@ -14,6 +14,7 @@ describe('map layer defaults', () => {
       'quest.item',
       'loot.key',
       'loot.guaranteed',
+      'sniper',
     ])
   })
 

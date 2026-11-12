@@ -15,6 +15,24 @@ export interface GuaranteedSpawn {
 }
 
 export const GUARANTEED_SPAWNS: readonly GuaranteedSpawn[] = [
+  // Report 121 (owner, 11.11.2026: «добавь спавн ключ от спецтехники и еще всякие разные ключи»): the two containers live raids
+  // always find a key in (SPT database staticLoot.json, 11.11.2026; every other container holds a key in a quarter of raids at most).
+  // «Ключ от спецтехники»: the jacket on the dorms' second floor, Customs (container 5937ef2b86f77408a47244b3).
+  {
+    mapId: 'customs',
+    itemId: '5937ee6486f77408994ba448',
+    name: 'Ключ от спецтехники',
+    kind: 'here',
+    positions: [{ x: 179.38, y: 3.92, z: 151.08 }],
+  },
+  // «Ключ от офиса учёных TerraGroup»: the dead lab assistant, Ground Zero (container 6582e6c6edf14c4c6023adf2).
+  {
+    mapId: 'ground-zero',
+    itemId: '658199aa38c79576a2569e13',
+    name: 'Ключ от офиса учёных TerraGroup',
+    kind: 'here',
+    positions: [{ x: -59.38, y: 24.42, z: 26.49 }],
+  },
   {
     mapId: 'streets-of-tarkov',
     itemId: '63a39e1d234195315d4020bd',

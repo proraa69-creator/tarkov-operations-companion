@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { isIosApp } from '../platform'
+import { hidesPayments } from '../platform'
 import { createPortal } from 'react-dom'
 import { CalendarClock, CreditCard, X } from 'lucide-react'
 import { useWindowTurn } from '../app/windowTurn'
@@ -68,7 +68,7 @@ function remainingText(days: number) {
 
 /** The iPhone app (App Store build) shows no subscription and no way to pay (src/account/IosAccount.tsx). */
 export function SubscriptionExpiryNotice(props: { compact?: boolean }) {
-  return isIosApp() ? null : <ExpiryNotice {...props} />
+  return hidesPayments() ? null : <ExpiryNotice {...props} />
 }
 
 function ExpiryNotice({ compact = false }: { compact?: boolean }) {

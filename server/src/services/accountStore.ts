@@ -193,6 +193,12 @@ export interface AccountView {
   statsOnly?: true
   /** The service owner (e-mail listed in TARKOV_OWNER_EMAILS): sees the owner section of the website. */
   owner?: true
+  /**
+   * The Apple reviewer's test account (e-mail listed in TARKOV_STORE_REVIEW_EMAILS; owner, 12.11.2026: «там не должно быть
+   * не единого упоминания о платной подписке», nor «Пригласи друга»): the apps and the site show no subscription, payment,
+   * price, donation or invitation for it.
+   */
+  storeReview?: true
   /** Verified phone number, masked (+7 ••• •••-45-67); the full number is never sent back. */
   phone?: { masked: string; verifiedAt: string }
   /** When the e-mail was confirmed with a one-time code (services/emailAuth.ts); absent = not confirmed yet. */
@@ -588,6 +594,8 @@ export class AccountStore {
   private lastSweep = 0
   private subscriptions?: SubscriptionSource
   private readonly ownerEmails: ReadonlySet<string>
+  /** TARKOV_STORE_REVIEW_EMAILS: the App Store reviewer's test accounts (AccountView.storeReview). */
+  private readonly storeReviewEmails: ReadonlySet<string>
 
   /** `ownerEmails` defaults to TARKOV_OWNER_EMAILS (the owner's desktop app passes it to the API process). */
   /**
@@ -603,11 +611,12 @@ export class AccountStore {
    */
   private readonly trialFromFirstRaid: boolean
 
-  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; streamerTrial?: boolean; trialFromFirstRaid?: boolean } = {}) {
+  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; storeReviewEmails?: readonly string[]; streamerTrial?: boolean; trialFromFirstRaid?: boolean } = {}) {
     this.now = options.now ?? Date.now
     this.streamerTrial = options.streamerTrial ?? true
     this.trialFromFirstRaid = options.trialFromFirstRaid ?? false
     this.ownerEmails = new Set(options.ownerEmails ? parseOwnerEmails(options.ownerEmails.join(',')) : parseOwnerEmails(process.env.TARKOV_OWNER_EMAILS))
+    this.storeReviewEmails = new Set(parseOwnerEmails(options.storeReviewEmails ? options.storeReviewEmails.join(',') : process.env.TARKOV_STORE_REVIEW_EMAILS))
     this.ownsDb = !options.db
     this.db = options.db ?? openDatabase(':memory:')
     this.db.exec(SCHEMA)
@@ -899,8 +908,12 @@ export class AccountStore {
     if (account.kind === 'streamer') view.subscription = { status: 'active', lifetime: true }
     const extra = this.db.prepare('SELECT phone, phone_verified_at, email_verified_at, email_grandfathered FROM accounts WHERE id = ?').get(account.id) as Row | undefined
     if (this.ownerRights(account.email, extra)) view.owner = true
+    if (this.storeReviewEmails.has(account.email.trim().toLowerCase())) view.storeReview = true
     if (extra?.phone != null) view.phone = { masked: maskPhone(String(extra.phone)), verifiedAt: new Date(Number(extra.phone_verified_at)).toISOString() }
     if (extra?.email_verified_at != null) view.emailVerifiedAt = new Date(Number(extra.email_verified_at)).toISOString()
+    // The reviewer's account counts as confirmed (owner, 12.11.2026: «сделай, будто у него почта подтверждена»): no
+    // «Подтвердите e-mail» anywhere. Owner rights still need a real confirmation (ownerRights).
+    else if (view.storeReview) view.emailVerifiedAt = view.createdAt
     const eft = this.eftAccountOf(account.id)
     if (eft) view.eftAccount = eft
     const deletionAt = this.deletionAt(account.id)
@@ -935,7 +948,8 @@ export class AccountStore {
     if (block) throw new EftConflictError(block)
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const own = this.eftDigestOf(account.id)
-    if (!holder && own === undefined) {
+    // The Apple reviewer's account takes no game account: it is signed in on the owner's PC with his game.
+    if (!holder && own === undefined && !this.isStoreReview(account.id)) {
       this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?)').run(account.id, digest, hint, this.now())
     }
     if (this.eftDigestOf(account.id) === digest) this.claimTrialByEft(account.id, digest)
@@ -944,10 +958,11 @@ export class AccountStore {
 
   /**
    * The one-to-one rule for `accountId` and a game account seen in its logs (bindEftAccount), or undefined when it
-   * fits. The owner's own accounts are exempt.
+   * fits. The owner's own accounts and the Apple reviewer's (TARKOV_STORE_REVIEW_EMAILS) are exempt (owner, 13.11.2026:
+   * «сними блокировку по аккаунту таркова для админа и apple test аккаунта»).
    */
   private eftRule(accountId: string, digest: string, hint: string): EftBlock | undefined {
-    if (this.isOwner(accountId)) return undefined
+    if (this.isOwner(accountId) || this.isStoreReview(accountId)) return undefined
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const holderId = holder ? String(holder.account_id) : undefined
     const seen = `••••${hint}`
@@ -1022,6 +1037,12 @@ export class AccountStore {
    * so the owner's existing account keeps working). A listed address registered later without confirmation gets no
    * owner rights until it is confirmed.
    */
+  /** The Apple reviewer's test account (TARKOV_STORE_REVIEW_EMAILS, AccountView.storeReview). */
+  isStoreReview(accountId: string) {
+    const row = this.db.prepare('SELECT email FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row !== undefined && this.storeReviewEmails.has(String(row.email).trim().toLowerCase())
+  }
+
   isOwner(accountId: string) {
     const account = this.mustGet(accountId)
     return this.ownerRights(account.email, this.db.prepare('SELECT email_verified_at, email_grandfathered FROM accounts WHERE id = ?').get(accountId) as Row | undefined)
@@ -1037,8 +1058,8 @@ export class AccountStore {
   }
 
   isEmailVerified(accountId: string) {
-    const row = this.db.prepare('SELECT email_verified_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
-    return row?.email_verified_at != null
+    const row = this.db.prepare('SELECT email, email_verified_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.email_verified_at != null || (row !== undefined && this.storeReviewEmails.has(String(row.email).trim().toLowerCase()))
   }
 
   /**

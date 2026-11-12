@@ -143,6 +143,11 @@ export function useOwnerReportActions() {
       for (const id of ids) await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/work`, { action })
       await refresh()
     },
+    /** «Принять точку»: the proposed point on the map, the report closed, a day to its author. */
+    acceptPoint: async (id: number) => {
+      await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/point`, {})
+      await refresh()
+    },
     /** Subscription days for each report's sender («+1 день» for a confirmed report). */
     reward: async (ids: number[], days: number) => {
       for (const id of ids) await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/reward`, { days })

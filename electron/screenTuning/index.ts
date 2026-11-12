@@ -7,7 +7,7 @@ import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../..
 import { captureScreenRegion, foregroundDisplayMode, foregroundGame, isVirtualKeyDown, visibleGameRect, wasVirtualKeyPressed } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
-import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
+import { activePreset, allPresets, presetShown, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
 import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeStatus, parseOptimizeBackup, POWERSHELL, revert, type OptimizeBackup, type OptimizeItemId, type OptimizeOpenTarget } from './optimizer.js'
 import { readPcInfo, type PcInfo } from './pcInfo.js'
 import { followGameFront } from '../gamePriority.js'
@@ -59,6 +59,13 @@ let gameInFront = false
 let inRaid: () => boolean = () => false
 /** In a raid at the last look (for the page). */
 let lastRaid = false
+/**
+ * Turned on by hand (the key, the switch or the phone): on at once, not after the raid shows in the game's logs (owner,
+ * 11.11.2026: «нажимаю, и только секунд через 10 оно включается… Я нажал на телефоне включить, и тут же оно включается на
+ * компьютере»). The logs and the raid signals see a raid seconds after it starts; until then the press itself says the player
+ * wants it. Held while the raid is still unseen, up to MANUAL_ON_MS; a raid ending by the logs ends it (never in the menus).
+ */
+let manualOnAt = 0
 /** For the page: a key is never taken from other programs now, so none is «busy». */
 const keysOk = { hotkey: true, cycleKey: true }
 const KEY_POLL_MS = 40
@@ -118,13 +125,20 @@ const gameDisplay = () => gameRect ? displayAt(gameRect.x + gameRect.width / 2, 
  * Whether the chosen preset is on: turned on (the switch or the key) and the player is in a raid — never in the game's
  * menus (owner, 28.10.2026: «пресет в меню не должен работать, он работал только в рейде»).
  */
-function presetOn() {
-  lastRaid = inRaid()
-  return settings.enabled && lastRaid
+function presetOn(now = Date.now()) {
+  const raid = inRaid()
+  // the raid ended (or the player left it) after the press: back to the rule of the menus
+  if (lastRaid && !raid) manualOnAt = 0
+  lastRaid = raid
+  return presetShown({ enabled: settings.enabled, raid, manualOnAt, now })
 }
 
-/** «Вкл/выкл пресет»: the chosen preset on or off, from the game. */
+/**
+ * «Вкл/выкл пресет»: the chosen preset on or off, from the game. Turned on but not on the screen (the raid not seen yet):
+ * the press puts it on the screen instead of turning it off.
+ */
 function toggleByKey() {
+  if (settings.enabled && !applied) { manualOnAt = Date.now(); tick(); return }
   change({ ...settings, enabled: !settings.enabled })
 }
 
@@ -281,9 +295,14 @@ async function saveOptimizeBackup() {
 }
 
 function change(next: ScreenTuningSettings) {
+  const was = settings
   settings = cleanSettings(next)
-  saveSettings()
+  // on by hand, or another preset chosen while on: on the screen at once (see manualOnAt)
+  if (settings.enabled && (!was.enabled || was.activeId !== settings.activeId)) manualOnAt = Date.now()
+  if (!settings.enabled) manualOnAt = 0
+  // the screen first, the file after: the press is seen at once
   tick()
+  saveSettings()
   return view()
 }
 

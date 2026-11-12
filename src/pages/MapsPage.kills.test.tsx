@@ -51,14 +51,16 @@ beforeEach(() => {
 })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
-describe('Maps page: the right panel without «Устранения» (owner, 10.11.2026)', () => {
-  it('lists the quests with points under «Актуальные квесты», the only tab', async () => {
+describe('Maps page: «Устранения» on the right without its tick (owner, 11.11.2026)', () => {
+  it('lists the quests with points under «Актуальные квесты»; «Устранения» beside it has no «Места устранения» tick', async () => {
     renderCustoms()
     const tabs = await screen.findByRole('tablist', { name: 'Квесты на карте' })
     await waitFor(() => expect(within(tabs).getByRole('tab', { name: /^Актуальные квесты\s*1$/ })).toHaveAttribute('aria-selected', 'true'))
-    expect(within(tabs).queryByRole('tab', { name: /^Устранения/ })).toBeNull()
     const detail = document.querySelector('aside.map-detail') as HTMLElement
     expect(within(detail).getByText('Проверка')).toBeInTheDocument()
+    fireEvent.click(within(tabs).getByRole('tab', { name: /^Устранения/ }))
+    const panel = await within(detail).findByRole('tabpanel', { name: 'Устранения' })
+    expect(within(panel).queryByRole('checkbox', { name: 'Места устранения' })).toBeNull()
   })
 
   it('«Места устранения» in «Точки на карте» still switches the zones', async () => {

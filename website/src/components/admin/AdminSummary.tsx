@@ -42,7 +42,7 @@ export function AdminSummary() {
           <div className="admin-revenue">
             <RevenueCard title="Выручка сегодня" revenue={data.revenue.today} />
             <RevenueCard title="За этот месяц" revenue={data.revenue.month} />
-            <RevenueCard title="За всё время" revenue={data.revenue.all} />
+            <RevenueCard title="За всё время" revenue={data.revenue.all} repeatPayers={data.repeatPayers} />
           </div>
           {data.plans && (
             <section className="admin-section" aria-labelledby="admin-plans-title">
@@ -165,13 +165,18 @@ function Stat({ icon: Icon, label, value, meta, accent = false }: { icon: typeof
   )
 }
 
-function RevenueCard({ title, revenue }: { title: string; revenue: AdminRevenue }) {
+/**
+ * `repeatPayers` (all the time only): «Оплатили повторно» (owner, 12.11.2026: «счёт того, сколько человек оплатили
+ * повторно») — people with two or more paid payments; granted days are not payments.
+ */
+function RevenueCard({ title, revenue, repeatPayers }: { title: string; revenue: AdminRevenue; repeatPayers?: number }) {
   return (
     <div className="stat-card admin-revenue-card">
       <div className="stat-label"><LineChart aria-hidden="true" />{title}</div>
       <div className="stat-value mono">{rub(revenue.total)}</div>
       <dl className="admin-split">
         <div><dt>Оплат</dt><dd className="mono">{numberFormat.format(revenue.payments)}</dd></div>
+        {repeatPayers !== undefined && <div><dt>Оплатили повторно</dt><dd className="mono">{numberFormat.format(repeatPayers)}</dd></div>}
       </dl>
     </div>
   )

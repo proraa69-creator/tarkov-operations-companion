@@ -95,6 +95,25 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
   })
 })
 
+describe('phone transport: «Торговля» (server/src/routes/data.ts)', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+
+  it('the statistics of each mode go with the session and this device; another mode or method stays blocked', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ format: 1, rows: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    for (const mode of ['pvp', 'pve', 'seasonal']) expect(await webServiceRequest('GET', `/v1/data/trading/${mode}`)).toEqual({ format: 1, rows: [] })
+    const [url, init] = (fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[2]!
+    expect(url).toBe('https://raidos.app/v1/data/trading/seasonal')
+    expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${token}`)
+    for (const [method, path] of [['GET', '/v1/data/trading/arena'], ['POST', '/v1/data/trading/pvp'], ['GET', '/v1/data/trading/pvp-season']] as const) {
+      await expect(webServiceRequest(method, path)).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+})
+
 describe('phone transport: the owner\'s notice (server/src/routes/announcement.ts)', () => {
   beforeEach(() => { localStorage.clear() })
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })

@@ -16,11 +16,11 @@ export function FriendQuestToggle({ layer }: { layer: FriendQuestLayer }) {
   const none = !layer.sharing
   return <div className="map-tools map-friend-quests">
     <button type="button" className={`map-tool${layer.on ? ' active' : ''}`} aria-pressed={layer.on} disabled={none} onClick={layer.toggle}
-      title={uiText(none ? 'Никто из друзей пока не открыл свой прогресс' : 'Точки заданий друзей их цветами из раздела «Друзья»')}>
+      title={uiText(none ? 'Нет друзей с открытым прогрессом и отряда' : 'Квесты друзей и отряда их цветами')}>
       {layer.loading ? <LoaderCircle className="spin" size={14} /> : <Users size={14} />}<span>{uiText('Квесты друзей')}</span>
     </button>
     {layer.on && layer.legend.length > 0 && <span className="map-friend-legend">
-      {layer.legend.map((entry) => <span key={entry.friendId} style={{ color: entry.color }} title={`${uiText('Заданий на этой карте')}: ${entry.quests}`}>
+      {layer.legend.map((entry) => <span key={entry.friendId} style={{ color: entry.color }} title={`${entry.squad ? `${uiText('Отряд')} · ` : ''}${uiText('Заданий на этой карте')}: ${entry.quests}`}>
         <i style={{ background: entry.color }} />{entry.nickname} <b>{entry.quests}</b>
       </span>)}
     </span>}

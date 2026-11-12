@@ -42,6 +42,10 @@ import { OverviewBlock } from '../overview/OverviewBlock'
 import { useCurrentTasksView } from '../overview/currentTasksView'
 import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
+import { BlockChooser, type BlockChoice } from '../overview/BlockChooser'
+import { PHONE_BLOCKS } from '../overview/phoneLayout'
+import { ScreenStatCard } from '../screen/ScreenStatCard'
+import { ControlCard } from '../overview/ControlCard'
 import { usePhoneOverview } from '../overview/usePhoneOverview'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { ownBlockTitle } from '../overview/overviewDefaults'
@@ -236,10 +240,13 @@ export function DashboardPage() {
   const pointLink = (quest: typeof currentQuests[number]) => (ownPoints(quest).length ? questOnMap(quest) : undefined)
   const questCard = mobile ? (quest: typeof currentQuests[number]) => <QuestInlineCard quest={quest} progress={progress} maps={data.maps} pointLink={pointLink(quest)} /> : undefined
 
+  // A map here chooses the raid plan's map, it does not open the map (owner, 10.10.2026).
+  const priorityStrip = <MapPriority inline maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
   const statCards: Blocks = {
-    'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{ownTitle('stat-tasks') ?? uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
+    // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
+    'stat-screen': { label: 'Экран', node: <ScreenStatCard /> },
     'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`}
-      deferredCount={mapConditions.quests.length - conditionQuests.quests.length} onDefer={setDeferMenu} /> },
+      deferredCount={mapConditions.quests.length - conditionQuests.quests.length} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
     'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }
@@ -252,8 +259,13 @@ export function DashboardPage() {
         <RaidSmoke mapId={selectedMap.id} />
         <BossFigures mapId={selectedMap.id} />
         <div className="raid-content">
+          {/* Owner, 11.11.2026: «слева наверху будет писаться текущие задания, количество, и сразу справа… колонка, которая листается,
+              влево-вправо, с приоритетом карт»; «Сверху… план рейда сезон, это убери» — no «ПЛАН РЕЙДА · PVP» line any more. */}
+          <div className="raid-top">
+            <div className="raid-tasks"><span>{uiText('Текущие задания')}</span><strong><CountUp value={taskQuests.length} /></strong></div>
+            {priorityStrip}
+          </div>
           <div className="raid-main">
-            <span className="tag brass">{ownTitle('raid') ? `${ownTitle('raid')} · ` : uiText("ПЛАН РЕЙДА · ")}{uiText(state.raidMode.toUpperCase())}</span>
             <h2 className="raid-map-name">{uiText(selectedMap.name)}</h2>
             <div className="raid-facts"><span><Clock3 size={13} /> {uiText(selectedMap.raidTime)}{uiText(" мин")}</span><span><Users size={13} /> {uiText(selectedMap.players)}{uiText(" игроков")}</span></div>
 
@@ -265,10 +277,10 @@ export function DashboardPage() {
       </section>,
     },
     squad: { label: 'Отряд', node: <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} /> },
-    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} deferredQuests={deferredHere} onDefer={setDeferMenu} /> },
+    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} deferredQuests={deferredHere} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
   }
   const rightBlocks: Blocks = {
-    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={listedQuests} anyMapQuests={listedAnyMap} questLink={questOnMap} details={questCard}
+    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={listedQuests} anyMapQuests={listedAnyMap} questLink={questOnMap} details={questCard} compactRows={mobile ? 4 : undefined}
       onDefer={deferTask} deferredCount={deferredTasks} scrollable={!mobile && tasksView === 'scroll'} layoutKey={`${layoutEditor.editing}|${layout.left.join()}|${layout.right.join()}`} /> },
     gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
     favorites: {
@@ -290,11 +302,8 @@ export function DashboardPage() {
   const titled = (id: string, node: ReactNode) => <BlockTitleProvider title={defaults?.titles[id]}>{node}</BlockTitleProvider>
   const block = (zone: 'stats' | 'rows' | 'left' | 'right', blocks: Blocks) => (id: string) =>
     <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={labelOf(id, blocks)}>{titled(id, blocks[id]?.node)}</OverviewBlock>
-  // A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026).
-  const priority = { label: 'Приоритет карт', node: <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} /> }
   const rows: Blocks = {
     stats: { label: 'Карточки', node: <section className="stat-grid">{layout.stats.map(block('stats', statCards))}</section> },
-    priority,
     columns: {
       label: '',
       node: <div className="dashboard-layout">
@@ -304,8 +313,12 @@ export function DashboardPage() {
     },
   }
 
-  const phoneBlocks: Blocks = { ...statCards, priority, ...leftBlocks, ...rightBlocks }
+  // «Управление» is the phone's own block (owner, 11.11.2026: «Этот блок должен быть только на телефоне»).
+  const phoneBlocks: Blocks = { ...statCards, ...leftBlocks, ...rightBlocks, 'stat-control': { label: 'Управление', node: <ControlCard /> } }
   const order = phone.layout.order
+  // «Заменить блок» on the phone (owner, 11.11.2026): every block of the phone (one off the screen comes back). The PC keeps its row
+  // as it is (owner: «Сделай как есть экран, пресеты, задания для капы, сбор на рейд и кочевники»).
+  const phoneChoices = (here: string): BlockChoice[] => PHONE_BLOCKS.filter((id) => phoneBlocks[id]).map((id) => ({ id, label: labelOf(id, phoneBlocks), state: id === here ? 'here' : order.includes(id) ? 'shown' : 'hidden' }))
   return <div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
@@ -321,12 +334,13 @@ export function DashboardPage() {
     </header>
     {!mobile && <PositionSetupNotice />}
     {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
-      ? 'Удерживайте блок пальцем и перенесите на место другого — они поменяются местами. За уголок справа внизу меняется размер.'
+      ? 'Удерживайте блок пальцем и перенесите на место другого — они поменяются местами. Шестерёнка — заменить блок.'
       : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
 
     {mobile
       ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={labelOf(id, phoneBlocks)} index={index} count={order.length}>{titled(id, phoneBlocks[id].node)}</PhoneOverviewBlock>)}</div>
       : <div className="overview-rows">{layout.rows.filter((id) => id !== 'stats' || layout.stats.length > 0).map(block('rows', rows))}</div>}
+    {mobile && phone.choosing && <BlockChooser title={labelOf(phone.choosing, phoneBlocks)} choices={phoneChoices(phone.choosing)} onPick={(id) => phone.replace(phone.choosing!, id)} onClose={() => phone.setChoosing(null)} />}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
     <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} />
     {favoriteActions.menu}

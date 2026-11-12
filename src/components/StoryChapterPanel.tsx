@@ -131,7 +131,7 @@ function GoalRow({ goal, text, marks, onChange }: { goal: StageGoal; text: strin
   const count = marks[goal.key] ?? 0
   if (goal.target) {
     return <div className={`story-goal is-counter${done ? ' is-done' : ''}`}>
-      <span className="story-goal-text">{text}{goal.optional && <small> ({uiText('необязательно')})</small>}</span>
+      <span className="story-goal-text">{text}{goal.optional && <small> ({uiText('опционально')})</small>}</span>
       <span className="story-goal-counter">
         <button type="button" aria-label={uiText('Меньше')} disabled={count <= 0} onClick={() => onChange(count - 1)}><Minus size={13} aria-hidden="true" /></button>
         <b>{count}/{goal.target}</b>
@@ -141,7 +141,7 @@ function GoalRow({ goal, text, marks, onChange }: { goal: StageGoal; text: strin
   }
   return <label className={`story-goal${done ? ' is-done' : ''}`}>
     <input type="checkbox" checked={done} onChange={() => onChange(done ? 0 : 1)} />
-    <span className="story-goal-text">{text}{goal.optional && <small> ({uiText('необязательно')})</small>}</span>
+    <span className="story-goal-text">{text}{goal.optional && <small> ({uiText('опционально')})</small>}</span>
   </label>
 }
 

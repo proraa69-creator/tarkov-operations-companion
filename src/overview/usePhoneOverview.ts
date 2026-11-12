@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { EASE_IN_OUT, canAnimate } from '../shared/motion'
-import { isDefaultPhoneLayout, loadPhoneLayout, resizePhoneBlock, savePhoneLayout, setPhoneHalf, swapPhoneBlocks, type PhoneBlockSize, type PhoneLayout } from './phoneLayout'
+import { isDefaultPhoneLayout, loadPhoneLayout, replacePhoneBlock, resizePhoneBlock, savePhoneLayout, setPhoneHalf, swapPhoneBlocks, type PhoneBlockSize, type PhoneLayout } from './phoneLayout'
 import { basePhoneLayout, phoneWithoutHidden } from './overviewDefaults'
 import { useOverviewDefaults } from './overviewDefaultsStore'
 
@@ -20,9 +20,16 @@ export function usePhoneOverview() {
   const [editing, setEditing] = useState(false)
   /** The block held up now and the one under the finger. */
   const [dragging, setDragging] = useState<{ id: string; over?: string } | null>(null)
+  /** The block whose «Заменить блок» window is open. */
+  const [choosing, setChoosing] = useState<string | null>(null)
   const elements = useRef(new Map<string, HTMLElement>())
   const layoutRef = useRef(layout)
-  const pending = useRef<{ before: Map<string, DOMRect>; moved?: string } | null>(null)
+  /**
+   * `still`: «Заменить блок» (owner, 11.11.2026: «не должно перекидывать со старым блоком вниз… экран должен оставаться на месте,
+   * ничего не должно прыгать») — nothing flies to its new place and the page does not move: the chosen block stands where
+   * the replaced one stood on the screen.
+   */
+  const pending = useRef<{ before: Map<string, DOMRect>; moved?: string; still?: { id: string; top: number } } | null>(null)
   const baseRef = useRef(base)
   useEffect(() => { baseRef.current = base })
 
@@ -56,6 +63,12 @@ export function usePhoneOverview() {
     const flip = pending.current
     if (!flip) return
     pending.current = null
+    if (flip.still) {
+      const now = elements.current.get(flip.still.id)?.getBoundingClientRect()
+      const shift = now ? now.top - flip.still.top : 0
+      if (Math.abs(shift) >= 0.5) window.scrollBy({ top: shift, behavior: 'instant' })
+      return
+    }
     if (canAnimate()) {
       for (const [id, element] of elements.current) {
         const was = flip.before.get(id)
@@ -92,6 +105,17 @@ export function usePhoneOverview() {
     dragging,
     setDragging,
     swap: useCallback((id: string, target: string) => apply(swapPhoneBlocks(layoutRef.current, id, target)), [apply]),
+    choosing,
+    setChoosing,
+    replace: useCallback((id: string, chosen: string) => {
+      setChoosing(null)
+      const next = replacePhoneBlock(layoutRef.current, id, chosen)
+      if (next === layoutRef.current) return
+      const slot = elements.current.get(id)?.getBoundingClientRect()
+      pending.current = { before: new Map(), ...(slot ? { still: { id: chosen, top: slot.top } } : {}) }
+      layoutRef.current = next
+      setLayout(next)
+    }, []),
     setHalf: useCallback((id: string, half: boolean) => apply(setPhoneHalf(layoutRef.current, id, half), id), [apply]),
     // Dragging a corner: the size follows the finger at once (no slide of the others: they reflow under the finger).
     resize: useCallback((id: string, size: PhoneBlockSize | undefined) => {

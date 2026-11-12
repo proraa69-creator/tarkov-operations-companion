@@ -6850,3 +6850,276 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests before the release: `npm test` 3802 passed, 17 failed — the machine's known ones (appVersion, AdminPanelPage, staleServer, positionTracker, linux/updater, appDelta, two node:test files vitest cannot read) and four timeouts under full load (`App.test.tsx`, `ManualMarks`, `MapsPage.deferred`, `MapsPage.raidChecks`; App and ManualMarks 19/19 alone); `npm run server:test` 549/550 (support chat screenshots: ECONNRESET once, 3 of 3 alone); typecheck clean.
 - Phones: the push to `release/production` builds the IPA and the APK (`.github/workflows/ios-ipa.yml`); the server copies them within 30 minutes.
 - Site leftovers (another session): the «Коллекционер» block keeps the older shot with «Сканировать на ПК»; the home page was not viewed at phone width.
+
+## 2026-11-11 — «Добавить точку», «Сообщить об ошибке» by groups, map and quest window, reports 121–138 — branch `claude/suggest-point` (3668c164…e0d5c319)
+
+- Base: f0dc2b52 (release 0.6.0.288). Branch `claude/suggest-point`, worktree `raidos-suggest-point`; nothing pushed, nothing released.
+- «Ваши предложения» → «Добавить точку» (owner, 10.11.2026): emblems in 4 rows (exits/transits, tasks, keys, items), name search (catalog / quests / existing names), map, the place from the game screenshot's file name; condition and «+1 день» (hidden on iOS). Server: `suggest` on POST /v1/bug-reports (coordinates re-read from `suggest.shot`), POST `/v1/accounts/me/admin/bug-reports/:id/point` («Принять точку»: quest point override kind 'add', report closed, 1 day, audit `bug.point`, 409 on a duplicate). Both gateway allowlists know `point`. «Отчёты» (app, phone admin, site) show the point and the button.
+- «Сообщить об ошибке»: 7 groups → topics with «Назад» (owner, 11.11.2026).
+- Map: «Устранения» tab back on the right without its tick (left keeps it); a kill zone press only shows its quests (report 128); hover window sticks to its point and closes at once (canvas layer decides from container pointer moves); one point per locked room for its key spots + «Вход по ключу» on top of the hover card; locked-or-not by door/item heights; floors from neighbouring points on Lighthouse, Woods, Terminal, Labyrinth (tooltips only); search by key/item names with «Есть на картах» (134); Scav sniper spots on «Опасности» from SPT base.json (131); «Лодка Контрабандистов» as a second point of «Умный в гору не пойдёт» (123); multi-map quests show this map's photos only (138).
+- Keys: photos from reports 136 (relaxation key, negotiation room spot) and 126 (KPP key tent) in `src/data/extraKeySpots.ts` + `src/assets/key-spots`; «Ключ от спецтехники» (Customs dorms jacket) and «Ключ от офиса учёных TerraGroup» (Ground Zero) as «Спавн 100 %» from SPT staticLoot (121). The owner's own server photo on the KPP spot (override 093a89f31c21e7d68eaf88b1) is still there — the owner removes it in the map editor; the DB was only read.
+- Quest window: «Обычный» / «Вкладки по этапам» / «Шкала этапов» behind a gear top left (owner picked designs 2 and 3). Quest tree: «Как открыть: <торговец>» bar, «Показать весь путь» (report 133).
+- Tests: server bugReports/reportWork/questPoints 35/35; `npm test` 3829 passed, 12 failed → 11 are the known machine ones (fail on f0dc2b52 too), the 12th fixed (QuestReport.test.tsx). `npm run typecheck` clean, eslint clean on the changed files (warnings only).
+- Not done / risks: not released; not checked in the real Electron shell (renderer checked in a throwaway Vite page); floors from neighbours are an estimate; sniper spots only where the game files name sniper zones (Woods, Reserve, Interchange have none there).
+
+## 2026-11-11 (later) — map ground, phone Overview, quest keys stash filter, trading line — `claude/suggest-point` (57c31adb, 89e29204)
+
+- Owner: Fable 5.2 off — all 59 other sessions back on `claude-opus-5-5` from their next turn.
+- Map: past the scheme's edges the stage is its ground green (`--map-ground: #265d58`, `src/styles/pages.css`) — no black square on the PC or the phone (checked in a Vite page at 1400 px and 375 px).
+- Phone «Сбор на рейд» empty: the text over the resting Goons is hidden (screen readers keep it, `src/styles/mobile.css`).
+- «Ключи для квестов»: «Ключи в схроне» is a filter beside «Найти ключи» (`?stash=1`), «Показать только избранные» beside it; the stash editor unfolds in the page («Изменить ключи в схроне», `OwnedKeysPanel`); every key «Есть в схроне» / «Нет в наличии» (none before the first scan or key added).
+- «Торговля» → «Продажа торговцам»: «На низких уровнях доступны менее выгодные предметы для продажи.» under the disclaimer (owner's words).
+- Not done: the Goons card «кто видел, во сколько, карта» falling down on the phone — not reproduced in the preview; waiting for the owner's screenshot. Not released; phones update with the next release.
+- Tests: src/pages, src/quests, src/overview, src/components 901 passed, 1 failed (AdminPanelPage, known, fails on f0dc2b52 too); typecheck clean.
+
+## 2026-11-11 (later) — map exits by the game's list, made to work — `claude/suggest-point` (bd9789f0)
+
+- Owner: listed exits as usual, the others at 50 %; «Мы делали эту функцию до этого, но она не работала».
+- Found on the owner's 14 screenshots with the list: the old 0.84-wide corner put scenery before «ВЫХОД» and the parser
+  took lines only starting with it — no exit was ever read; and the reading waited for a double O, which an elevated game
+  (BSG launcher) hides from the app.
+- `electron/extractsReader.ts`: corner 0.56 × 0.7 of the height, read ×2; the green header sought in a thin strip twice a
+  second while the game is in front (detector: 59–62 % on the 14 lists, under 30 % on 302 other screenshots), double O kept.
+- `src/maps/raidExtracts.ts`: parsing anywhere in the line, header skipped, look-alike digits, same-name PMC/Scav exits,
+  car and train by the list, transits never dimmed, «Оставайтесь в зоне выхода» ignored, 50 min without logs.
+- Tests: `src/maps/raidExtracts.test.ts` (the real OCR texts), `electron/extractsReader.test.ts`; map page tests green.
+- Not verified in a live raid (main-process code: needs a full app update, not an interface-only one).
+
+## 2026-11-11 (later) — screen presets at once, «Естественный цвет», phone blocks, phone → PC — `claude/suggest-point` (a6d59545, 4075acc5, and the undo signal)
+
+- Phone Overview: no size by hand (corner handle and «Размер по умолчанию» gone, old hand sizes not drawn); «Пополам» / «Во всю ширину» and the swap by holding stay.
+- Screen presets: the ~10 s came from waiting for the raid in the game's logs (`presetOn` = enabled && inRaid). Now a hand «on» (key, switch, phone) shows at once, held up to 10 min until the logs see the raid (`presetShown`, `electron/screenTuning/state.ts`); a raid ending puts the menus' rule back; on-but-unseen + key shows it instead of turning it off; screen first, file after.
+- «Естественный цвет» 0–100 % (`neutral` in `ScreenProfile`): the three tables drawn to their mean — PC editor, phone editor, server relay schema.
+- Phone → PC: the live screen relay was already push; every `/v1/me` write moved the PC's long poll except an objective undo — fixed.
+- Tests: src/screen + electron/screenTuning 97 passed, overview 59, server me.test undo/sync green; typecheck clean.
+- Not verified on the real PC with the game (gamma ramp and hotkeys are main-process code: full app update).
+
+## 2026-11-11 (evening) — Overview rework, realistic map icons — `claude/suggest-point` (18f5177e, d44975fc)
+
+- «Заменить блок»: a gear on every block while arranging (phone: any block, a block off the screen comes back via layout `hidden`; PC: the top row's cards trade places). No FLIP and no scroll on a replace: the chosen block stands where the replaced one stood (measured: the slot's top unchanged, both directions).
+- «Экран» card (`src/screen/ScreenStatCard.tsx`): PC through `tarkovDesktop.screen`, phone through `/v1/live/screen`; replaces `stat-tasks` (`RENAMED_BLOCKS`). `priority` retired (`RETIRED_BLOCKS`); the server maps an older admin app's ids before validating.
+- Map's block: «Текущие задания N» + inline `MapPriority`; no «ПЛАН РЕЙДА» tag. Phone order v3 (`raidos-overview-phone-v3`); the owner's live phone default equals the old built-in order, so the new order applies.
+- Phone: compact «Кочевники» (sheet with statistics on tap), requirements 2×2 and tasks 4 rows under `ThumbScroll`; «Сбор на рейд» pictures rounded; edit-mode button rows fixed.
+- Map icons (background agent): real pictures for doors (brown wooden, CC0), AGS-30 / «Утёс» (Wikimedia, CC BY-SA 3.0 — attribution only in code comments, owner to decide), loot and 24 containers; «Минимализм» unchanged.
+- Tests: overview/pages/screen/i18n/components 848/850 (AdminPanelPage sidebar known; MapsPage.deferred passes alone), server overviewDefaults+announcement 13/13, typecheck clean, map tests 78/78.
+- Not released (the owner releases the whole batch on his word). Screenshots for approval in `overview-rework-shots/` (untracked).
+
+## 2026-11-11 (night) — Overview corrections, map ground and keys, quest window — `claude/suggest-point` (509a0a0f…80ebda20)
+
+- Phone: «Управление» (phone-only, via «Заменить блок»): «Обнаружение предметов», «Найти ключи» (new screen command `keys`, server schema + relay), preset on/off and next; card-sized, no «?». PC top row back as it was (menu sections and the PC chooser removed on the owner's word). Blood Moon cobwebs removed.
+- Phone lists: thumb-only scrolling (de9e1a50).
+- Map: dark ground (#111413) everywhere; a dark grey plate under ground-zero / interchange / factory / icebreaker / the-lab / the-labyrinth; key spots within 6 m on one floor one point from afar, every spot close up (no hint); «Нужные ключи» independent of «Ключи»; locked car doors/trunks as a GAZ-24 photo, BTR stops as a BTR-80A photo (both CC0).
+- Quest window: fits without scrolling in all three looks (checked «Компромат», «Золотые понты» at 1920×1080), bigger pins/boxes (30 px), gear centred, timeline steps over their stages, «Выход из рейда» last in the raid stage, «опционально».
+- Test builds on the desktop are from 09ddf754 (before these); the owner asked not to rebuild yet. iPhone test IPA via branch `test/ios-ipa-1111` (workflow file only there, never on release).
+- Not verified: the live satellite tiles of Customs (black stripes) — the ground is now near-black; the remote «Найти ключи» on a real PC.
+
+## 2026-11-11 — Release 0.6.0.289 (the batch of 11.11.2026) — `claude/suggest-point` → `release/production`
+
+- On the owner's word («Все, заливаю обновление»). Everything since 0.6.0.288 on this branch: Overview rework, phone «Управление», map exits by the game's list, screen presets at once and «Естественный цвет», realistic map icons, dark map ground, key heaps, quest window looks, «Требуемые предметы» with the key window, one frame per item picture, «Сбор на рейд» unfolding only when it hides something, «Добавить точку», grouped report topics, Lightkeeper tree.
+- Full vitest: 3840 passed; the failures are the known ones (positionTracker, linux updater, staleServer, appVersion, AdminPanelPage sidebar) and load timeouts that pass alone (MapsPage.*, App, DashboardPage, appDelta).
+- Phones: the push runs ios-ipa.yml (IPA + APK + mobile release) and ios-app-store.yml (TestFlight). No android/ or ios/ paths changed.
+- Main-process changes (exits reader, screen presets): players get a full update, not an interface-only one.
+
+## 2026-11-11 — Claude: Belarus pays in roubles only (BZB)
+
+- Owner, after BZB's answer («Карты Беларуси… заблокированы в Stripe, но с ними стабильно работает российский эквайринг… в рублях… Белкарт смогут оплатить»): «у людей из Белоруссии убери в долларах, оставь в рублях». No new BZB product: the CIS rouble pages (300 / 800 / 1500 / 2400 ₽) already go through the Russian acquiring.
+- `server/src/services/bezebee.ts`: `NO_CARD_COUNTRIES = ['BY']`, `bezebeeCardAllowed`, `bezebeeOffer(region, friendOpen, card)`. `server/src/routes/payments.ts`: GET /v1/payments gives a Belarusian account no `card` (the cabinet's «Иностранной картой (USD)» block disappears by itself); POST /bezebee with `card` → 409 `BEZEBEE_CARD_COUNTRY`. The owner preview `?as=CIS` keeps both. Dollar sales that still arrive are credited as before.
+- Tests: `server/src/routes/paymentRegions.test.ts` (Belarus case), bezebeeWebhook tests: 16/16; `npm run typecheck`, eslint clean. Docs: `docs/payments/payment-regions-and-announcements.md`.
+- Deployment: not released (server change; goes out with the next release on the owner's word). Not checked with a real Belarusian card.
+
+## 2026-11-11 — Claude: the drawn BTR marker back
+
+- Owner: «сможешь добавить предыдущие маркеры бтр в приложение без перезагрузки обновления?» The BTR stops use `src/assets/map-markers-new/btr.svg` again in «Стандартные» and the default set (`src/assets/markerImages.ts`, `src/assets/map-markers-new/index.ts`) instead of the photo `real/btr.webp` (kept in the repo, unused).
+- Only `dist/` changes, so a release reaches an open Windows window without a restart (`classifyStagedBuild` → renderer).
+- Checks: `tsc -p tsconfig.app.json`, mapMarkerAdapter/mapLayers tests 56/56; Streets screenshot in the zz-map harness shows the drawn carrier at the 6 stops, no page errors.
+- Deployment: not released yet.
+
+## 2026-11-11 — Claude: «Торговля» on the phone
+
+- Support chat (a player's Android phone, Season): «Не удалось получить статистику. Следующая попытка через 15 минут.» in «Торговля». The server had fresh statistics for all three modes and nginx showed only 200s for `/v1/data/trading/*`: the phone never asked. `src/sync/webAccount.ts` ROUTES (the phone's and the browser preview's allowlist) lacked `/v1/data/trading/(pvp|pve|seasonal)` (the desktop gateway had it since 15d93293), so `webServiceRequest` threw «Неизвестный запрос сервиса» in every mode.
+- Fix: the route added; test `src/sync/webAccount.test.ts` («Торговля»: each mode with the session, other modes/methods blocked). vitest 11/11, `tsc -p tsconfig.app.json`, eslint clean.
+- Deployment: not released. Phones compare `mobile.json` by version, so this needs a new version (0.6.0.290) to reach them; a same-version republish does not.
+
+## 2026-11-11 — Release 0.6.0.290 — `claude/suggest-point` → `release/production`
+
+- Owner: «Выпускай». Contents: the phone's «Торговля» route (a8a44e38), the drawn BTR marker (db981d1b; not in the news, owner: «Новости не пиши о том, что поменяли значок бтр»), on top of Belarus in roubles (9ed1d632, already live as a 0.6.0.289 republish).
+- package.json / lock 0.6.0-290, `website/src/config.ts` 0.6.0.290; playerNews: «Телефон: «Торговля» снова показывает статистику»; updateHistory: one line, no reports.
+- Checks: updateHistory/noSiteNames/news/webAccount tests 36/36, `npm run typecheck`.
+
+## 2026-11-11 — Claude: «Главы истории» in two blocks
+
+- Owner: «кнопки одинаковые по размеру и по форме. И непонятно, где какая… все, которые начаты, они в левом блоке в текущих, а все, которые остались, они в правом блоке». `src/quests/StoryChapterColumns.tsx` + `storyChapterColumns.css`: on the left «Текущие» (taken chapters, brass edge, the current goal), on the right «Начать новую» (neither taken nor finished; dashed card with a plus; a tap opens the chapter's stages, as «Начать главу»). Finished chapters stay in «Показать все». `src/pages/QuestsPage.tsx`: the story tab renders the two blocks; it opens on a taken chapter. EN: `uiEnglishSuggestPoint.ts`.
+- Checks: tsc, eslint, QuestsPage/App/StoryChapterPanel/i18n tests; screenshots PC RU/EN and phone 390 px (zz-story harness, not committed), a tap on a new chapter opens its stage picker.
+- Renderer only: reaches an open PC window without a restart. Not released.
+
+## 2026-11-11 — Release 0.6.0.291 — `claude/suggest-point` → `release/production`
+
+- Owner: «Выпускай». Contents: «Главы истории» in two blocks (5782a485). package.json / lock 0.6.0-291, website 0.6.0.291; playerNews «Сюжетные главы: слева текущие, справа — начать новую»; updateHistory one line. Pushed after 0.6.0.290 went live.
+
+## 2026-11-11 — Claude: «Автообновление» downloads while the game runs (out of a raid)
+
+- Owner: «У кого стоит автообновление, файлы должны скачаться и сами установиться без каких-либо нажатий»; told about the 03.11.2026 stutters, chose «скачивай при открытой игре». `electron/appUpdate.ts` `backgroundOnce`: the game-running hold now applies only without «Автообновление»; with it the raid gate is the only one (a page-only build still waits for the unused window; anything else for the next start). Without «Автообновление» nothing changes (waits for the game to close; «Загрузить обновление» by hand).
+- Test: `electron/appUpdatePolicy.test.ts` (game running, in a raid: nothing; out of a raid: downloaded, next start, no restart). Updater tests 59/59, typecheck, eslint.
+- Main-process change: players get it at their next start, not live. Not released; kept off 0.6.0.291 so that release stays page-only.
+- Risk: stutters in the game menu for ~2 minutes while a partial update rebuilds the archive (the 03.11.2026 report).
+
+## 2026-11-11 — Claude: reports 141 and 142 (Shoreline)
+
+- 141 (idea): «Ключ от номера 306 восточного крыла Санатория» on the desk by the safe in the pier office. The feed already has this key's spot there (`shoreline-loot-key-5`, a metre from the safe and the system unit): `src/data/extraKeySpots.ts` puts the player's photo on it (`src/assets/key-spots/shoreline-pier-office-east-306.webp`, the game interface cut off). `mapMarkerAdapter.test.ts`: the photo test filters by its key.
+- 142 (idea): «поставьте более правильную границу обстрела». The player's outline (his screenshot of our map) turned into game metres by six landmarks (two extracts, the Terminal transit, three Utyos; ≤0.5 m error; the old zone traced back onto his screenshot exactly); `src/data/fireSectors.json` `terminal-transit` is now his outline up the slope joined with the old border along the wall (the owner's drawing of 10.11.2026 inside it). Checked on the zz-map harness, no page errors.
+- Not released; nothing changed in the reports' records (VPS DB read-only).
+
+## 2026-11-11 — Claude: quest logs read every 2 s
+
+- Owner: «приложение очень долго обновляет логи по квестам». The watch (fs.watch) often hears nothing while the game appends to an open log on Windows, so most quest lines waited for the safety poll (45 s). `electron/logWatcher.ts`: LOG_SAFETY_POLL_MS 45 s → 2 s, LOG_POLL_MS (watch down) 5 s → 1.5 s. Measured on the owner's real Logs (31 launches): the first read 198 ms, each next one 1–3 ms (only new bytes); the raid state 0–6 ms. In a raid with the game running the quest read still waits for the raid's end (unchanged).
+- Tests: `electron/logWatcher.test.ts` timings; electron suite — only the known positionTracker / linux updater / staleServer failures.
+- Main process: players get it at their next start. Not released.
+
+## 2026-11-11 — Claude: «Батя», the Ryabina stage has two outposts
+
+- Owner (the game's screen): after «Узнать у торговцев больше об отряде «Богатыри»» the main goals are «Найти позицию «Рябина»» and «Найти форпост «Гнездо»»; we showed only Ryabina and one point. `src/data/storyChapterSeeds.ts` stage 2: a second main goal «Найти пост «Гнездо»» and the Gnezdo point on Interchange (the outline of the later Gnezdo stage) next to Ryabina on Woods, each with a note (EN in `uiEnglishSuggestPoint.ts`). The later «Найти пост «Гнездо»» stage stays (the guides still list it there).
+- Checks: story/progression/i18n tests 81/81; zz-story harness: stage 3 of 38 shows both goals and «Показать на карте · Лес» / «· Развязка».
+- Page only. Not released.
+
+## 2026-11-11 — Claude: report 143, «Перемещать карту к точке» in Settings
+
+- Report 143 (idea): the map should not move by itself on a tap on a marker or when a tick in a quest picks the next point — as a setting («кому то это мешает а кому то помогает»); owner: «сделай в настройках переключатель».
+- `src/maps/mapFollowSetting.ts` (localStorage `raidos-map-follow-point`, default on = as before); Settings → «Интерфейс»: «Перемещать карту к точке» / «При нажатии на метку и после галочки в квесте» (`src/pages/ReferencePages.tsx`, EN in `uiEnglishSuggestPoint.ts`). `src/pages/MapsPage.tsx` `FocusOnMarker`: off → flies only to a point asked for (`flyAsked`: «Показать точку на карте», a way in from another page — a non-REPLACE navigation, once per location key —, a door from «Барахолка»).
+- Checks: tsc, eslint, MapsPage test files one by one (all pass; together some time out as before), settings/i18n tests; zz-map harness on Customs: a marker click with the setting off leaves the map, on flies.
+- Page only. Not released.
+
+## 2026-11-11 — Releases 0.6.0.292 (page only) and 0.6.0.293 (main process) — `claude/suggest-point` → `release/production`
+
+- Owner: «Выпускай». 0.6.0.292: reports 141–143, «Батя» two outposts (8b7bd295) — reaches an open PC window without a restart. 0.6.0.293: «Автообновление» with the game open, logs every 2 s — at the next start. News as shown to the owner; no report numbers.
+
+## 2026-11-11 — Claude: «Не зачислять дни» for a payment confirmed by hand
+
+- Owner: «severok10@gmail.com сделай будто он оплатил, добавь в платежи но дни не зачисляй… сумма 414р» (paid another way, days given by hand). The VPS database is not written by hand: `POST /v1/accounts/me/admin/bezebee/payments` takes `noDays: true` (`server/src/routes/ownerAdmin.ts` schema and audit, `services/bezebee.ts` confirm, `services/paymentStore.ts` confirmManual: the payment is recorded and succeeded, the subscription untouched). Admin «Зачислить оплату вручную»: the box «Не зачислять дни» on the site (`website/src/components/admin/AdminBezebee.tsx`, `website/src/api.ts`) and in the owner app (`src/admin/AdminBezebeeBlock.tsx`).
+- Tests: `server/src/routes/paymentRegions.test.ts` (414 ₽, a Belarusian account, paid_until unchanged); server payment/admin suites 45/45; website admin and owner app tests 74/74; typecheck, eslint.
+- Released as a same-version republish of 0.6.0.293 (no news). The owner records the 414 ₽ himself with the box.
+## 2026-11-11 — Claude: report 144, «7/10» on quest objectives
+
+- Report 144 (idea, taken by the owner): «в квестах на устранения показывало сколько ты убил типо 7 из 10 и квесты с передачей предметов». The game's logs carry no objective counters (checked on the owner's logs: only quest started / finished / failed), so the count is the player's, as the old archived counters were.
+- The quest window under the map (`src/components/QuestSheetObjectives.tsx`, `src/progression/sheetObjectives.ts` target/current, `src/pages/MapsPage.tsx` `countSheetObjective`) and the quest card on «Квесты» (`src/components/QuestObjectivesPanel.tsx` `ObjectiveReadOnly`): an objective of more than one of a current quest shows «7/10» with − and +; the last + ticks it (with its paired «Найти»), as the box; a count already made is shown on a quest that is not current. Stored as manual objective progress, so it syncs like the ticks. Styles in `src/styles/pages.css`.
+- Tests: QuestSheetObjectives (counter), QuestObjectivesPanel (count by hand while counters stay archived), progression, i18n — 194/194; zz-map harness: «Путь выживальщика. Раненый зверь» 0 → 3/3 ticks it, no page errors.
+- Page only. Not released.
+
+## 2026-11-12 — Claude: owner app «Отчёты» — the day window in sight, instant buttons
+
+- Owner (iPhone admin app): «при нажатии готово, окно зачисления одного дня вылезает в низу экрана и его не видно, так же при нажатии кнопок сильная задержка».
+- The window: `RewardQuestion` used the main app's `.registration-overlay`, which the owner app does not load, so it fell to the page's end. `src/reports/reportsTable.css`: `.rt-reward-overlay` / `.rt-reward-dialog` styled by themselves (fixed, centred, safe area).
+- The delay: nginx shows each press as OPTIONS + POST + the table's reload from the phone, ~2 s before the row changed. `src/reports/ReportsTable.tsx`: the new status shows at the press (kept while the row still has the old one), back with the error if the server refuses; no spinner on the action buttons.
+- Tests: reports/admin/site admin 151/151 (`adminBugReports.test.tsx` rewritten for the instant status); a harness with only the owner app's CSS at 390×844: the window centred, «Готово» shown right after «Нет» while the server is still answering.
+- Not released. The owner's iPhone app needs a new version to get it.
+
+## 2026-11-12 — Release 0.6.0.294 — `claude/suggest-point` → `release/production`
+
+- Owner: «Выпускай». Report 144 counters (f8adc67e) and the owner app's «Отчёты» fixes (0ba404ff), after the «Не зачислять дни» republish (b0ed42f9). News: «Квесты: счётчик «7 из 10» для целей на убийства и сдачу предметов»; nothing about the admin app.
+
+## 2026-11-12 — Claude: nothing about paying in the iPhone app's news; the site's subscription only after sign-in
+
+- Owner: «проверь что бы в приложении не было упоминаний о подписке и при нажатии на любой сайт из приложения, открывался сайт без каких либо подписок»; «убери на сайте на время, кнопку подписка, пока человек не зарегистрируется, только в личном кабинете будет кнопка подписка»; «убери эту надпись» (the home page's «Компаньон для Escape from Tarkov»).
+- App Store bundle audit (`VITE_APP_STORE=1` build): the paying screens, prices, «Поддержать проект», the cabinet and «+1 день» texts are behind `isIosApp()` already (docs/app-store/05-ios-build-done.md); the strings left in the bundle are the translation table and those guarded paths. Not guarded: the news. `src/news/storeSafe.ts` + `newsEdits.ts`: in the App Store build / iPhone app a news line about a subscription, payment, discount, trial, bonus days or donations is left out (test `src/news/storeSafe.test.ts`).
+- Site (`website/src/components/SiteLayout.tsx`, `pages/HomePage.tsx`): signed out — no «Подписка» in the header or the phone menu, no «Пригласи друга» block (kept on a friend's link /r/<code>); the hero's eyebrow removed (`phrasesPublic.ts`). Checked at 1600 px signed out: header «Скачать приложение · Личный кабинет · RU EN»; the only paying word left is the footer's legal link «Тарифы, оплата и возврат» (kept: the payment providers ask for the terms to be public).
+- Tests: news 18/18, site 175/175, eslint, website tsc. Not released.
+
+## 2026-11-12 — Claude: the iPhone app without «Личный кабинет», QR sign-in and the map's «Листать» strip — 6eb3958a
+
+- Owner: «Удали кнопку личный кабинет с айфон приложения для эп стор и вход по qr удали позже мы их добавим. И на карте удали ползунок справа».
+- `appStoreRules()` moved to `src/platform.ts` (App Store build or the iPhone app). Hidden there: «Личный кабинет» and «Подтвердить вход на сайте» in «Аккаунт сервера» (`ServerAccountPanel.tsx`), «Войти по QR-коду» on the sign-in screen (`AccountSignIn.tsx`), `MapScrollRail` (`MapsPage.tsx`). Windows, the site and Android unchanged. To bring them back: drop the `appStoreRules()` checks.
+- Tests: account/news/map/SettingHelp 129 + new `ServerAccountPanel.appStore.test.tsx`; tsc, eslint. Checked in a `VITE_APP_STORE=1` phone view: map without the strip, «Аккаунт сервера» with «Выйти» only.
+- Unsigned test IPA from `test/ios-ipa-appstore-1112b` (78b707b5, run 43154065979) on the owner's desktop; the App Store pack's Xcode project and map slide redone. Not released.
+
+## 2026-11-12 — Claude: phone «Назад» not over the map quest window — 8555a712
+
+- Owner's iPhone screenshots: the floating «Назад» covered the quest window's objectives, «Нашли неточность?» and «×» (portrait and landscape). `src/styles/mobile.css`: hidden while `.map-quest-sheet.is-open` or `.map-stage.is-fullscreen`. All phones (not only iPhone).
+- Tests: styles/mobile/MapsPage 86. Checked in a phone view (portrait): shown on the map, hidden with the quest window and in full screen. Test IPA `test/ios-ipa-appstore-1112c`; the App Store pack's Xcode bundle redone. Not released (Android and the web phone get it with the next release).
+
+## 2026-11-12 — Claude: the phone map and quest window reworked — 3b7381ac
+
+- Owner: «Переработай карту и окно. Именно под телефон… несколько видов… При повороте горизонтально карта смещается влево… справа открывается окно с квестами… плюс-минус перенеси… в правый нижний угол… чуть выше кнопки назад… проверь для всех положений кнопок… при нажатии на точку квеста… включается второй этаж… при нажатии просто на карту… основной этаж».
+- `src/styles/mobile.css` (new block at the end; the old full-screen positions and the «Назад» hide rule removed): sideways (`orientation: landscape`) the window is a right panel and the map narrows (`.map-canvas-keyboard` width, Leaflet follows its size), lower bars; the map fills the room between the bars; `--map-room-*` keeps every map button clear of «Назад» in each of its four places (full screen too); +/− bottom right (`ZoomControl` `bottomright` on the phone) above «Назад» and above the window.
+- `src/pages/MapsPage.tsx`: the phone window has a fixed head (gear, trader, name, «?», «×»); `components/phoneSheetView.ts` + `QuestSheetViewButton phone`: «Шторка» (handle: tap or swipe for tall/low), «Вкладки», «Только цели» («Подробнее о квесте»). Floors: `questPointFloor` — one floor → that floor, several → main; objective pin → its point's floor; map press / «×» → main (PC too).
+- Tests: `MapsPage.questFloor.test.tsx` (2), pages/components/mobile 906 (AdminPanelPage local failure, known), typecheck, eslint. Checked in an iPhone-like browser (CapacitorCustomPlatform ios) upright and sideways × 4 places of «Назад» × bars/full screen × window shut/open: nothing covered, no page scroll.
+- Test IPA `test/ios-ipa-appstore-1112d`; App Store pack's Xcode bundle redone. Not released (all phones get it with a release).
+
+- ce6386f4: «Квесты» and the floors chip side by side at the bottom left (on the full screen the floors lay under «Квесты»); checked in every place of «Назад» with iPhone insets. Test IPA `test/ios-ipa-appstore-1112e`.
+
+## 2026-11-12 — Claude: friends + squad quests, full-screen window, window height, smooth thumb, soft motion, repeat payers
+
+- d2e51ba2: «Квесты друзей» also shows squad mates by nickname; friends progress, friends list and squad reload every 30 s while on (friendQuestLayer.ts).
+- 17b212ae: sideways full screen keeps the map size, the window comes in below the buttons (--hud-h), +/− glide left; map buttons glide; gear «Высота окна» upright: 50%, 37.5%, 25% of the map.
+- 57e6910b: ThumbScroll (Требования рейда, Текущие задания) eases after the thumb, no React render per scroll.
+- 6260b954: soft motion on the phone (springy presses, spring windows, gliding blocks via offsets FLIP, Android 6 ms tick). Revert: `SOFT_MOTION = false` in src/app/softMotion.ts or revert this commit. Demo video (stepped 60 fps) sent to the owner.
+- aa6a5fff (subagent): admin «Оплатили повторно» — accounts with >= 2 succeeded payments with amount > 0; overview repeatPayers, stats payers.repeatPaid/repeatInRange; site and phone admin.
+- Tests: full vitest 3862 passed, 11 failed = known local (positionTracker, linux updater, staleServer, appVersion, AdminPanelPage) + 2 node:test files vitest cannot read; server 553 passed (subagent); typecheck ok. Test IPA test/ios-ipa-appstore-1112f. Not released: the owner approved phones for all versions; news list and the animations wait for his answer.
+
+## 2026-11-12 — Release 0.6.0.295 — `claude/suggest-point` → `release/production` (1c1c9e4a)
+
+- Owner: «Переделывай для всех телефонов сразу. Я позже проверю». Gate green, publisher started by hand at 07:03 UTC, live 07:16 UTC; mobile.json 0.6.0-295 (Android 0.6.0.295, iPhone).
+- In it: the phone map rework (3b7381ac, ce6386f4, 17b212ae), friends + squad quests (d2e51ba2), smooth thumb scroll (57e6910b), soft motion (6260b954, revert with SOFT_MOTION = false), admin «Оплатили повторно» (aa6a5fff), the iPhone App Store hides (6eb3958a), phone «Назад» (8555a712).
+- News RU/EN: 6 lines (map sideways/full screen; window looks and height; friends and squad quests; floor of a quest point; smooth scrolling; soft presses).
+
+## 2026-11-12 — Claude: Gunsmith screenshots, Master part 8 (M1911A1) and part 12 (Vityaz, Glock 17) — bc3d8899
+
+- Owner's «Сборки оружия» screenshots; each checked against tarkov.dev buildWeapon objective (parts, ergonomics, recoil, magazine) before it went in.
+- Files: src/assets/gunsmith-builds/gunsmith-master-part-8-m1911a1.webp, -part-12-pp-19-01.webp, -part-12-glock-17.webp; src/gunsmith/buildScreenshots.ts (+ test).
+- Tests: src/gunsmith 36 passed; checked on /gunsmith in the dev app (part 8: 2 pictures, part 12: 3). Not released: reaches players with the next release (Windows also as an interface-only update; phones need the new build).
+
+## 2026-11-12 — Claude: gun builder counts traders' barters — fddb6958
+
+- Owner: the IRBIS-GUN 30AL / 45AL grips (game, MDR 7.62) were not in the builder's module list. Cause: «Можно купить» (on by default) kept money offers only; the grips are Ref's barters for GP coins (30AL 4.99 GP at Ref 2, 45AL 4.7 GP at Ref 1; PvP and PvE).
+- src/data/tarkovDataset.ts: loadTarkovItemsDataset(…, { barters: true }) for the gun catalogue only; tarkovJsonAdapters.ts withBarterOffers → legacy `barterFor` priced in RUB (cheapest buy of each required item, basePrice when none: GP 7500); gunQueries adaptBarters → GunPart.barters (GunOffer.barter); buildStats cheapestOffer: money first, a barter only when nobody sells for money; unlockHint sees barters. Picker / purchase list: «≈ 35 250 ₽», «Реф 1: 4,7 × GP», title «Обмен: …». Gun catalogue cache key v3.
+- Effects: Gunsmith solver now counts barter-only parts as obtainable (priced by the estimate); tieredBuilds choices unchanged (money offers only).
+- Tests: src/arsenal/barterOffers.test.ts (4), arsenal/data/gunsmith/WeaponBuildsPage/i18n 199 passed, typecheck, eslint. Checked on /arsenal/builds MDR 7.62 + M-LOK 4.1": 45AL listed with Ref 1, 30AL locked «Реф 2». Not released.
+
+## 2026-11-12 — Release 0.6.0.296 — `claude/suggest-point` → `release/production` (964ac103)
+
+- Owner: «Да, выпускай». Gate green 08:59 UTC, publisher started by hand 09:01, live 09:13 UTC; mobile.json 0.6.0-296 (Android 0.6.0.296, iPhone).
+- In it: Gunsmith screenshots M1911A1 (Master part 8), Vityaz and Glock 17 (part 12) — bc3d8899. News RU/EN: 1 line (approved by the owner).
+- Not in it: the builder barters (fddb6958), waiting for the owner.
+
+- 90279723: the builder barters (fddb6958) reverted — owner: «оставь как было». src/ is again the same as release 964ac103; tests 156 passed, typecheck ok. Never released.
+
+## 2026-11-12 — Claude: Scav snipers on their own layer «Снайперы» — e59967c4
+
+- Owner: «я не увидел маркера точек снайперов на картах». The spots (f61bed06, report 131) were on «Опасности», hidden by default.
+- Layer 'sniper' (types, mapLayers default visible, MapsPage meta/label/group «Спавны»/canvas, markerImages + map-markers-new/sniper.svg, EN «Snipers»); mapMarkerAdapter adaptSniperSpots → layerId 'sniper'; catalogWire sniper → hazard for older apps.
+- Tests: src/data/sniperLayer.test.ts (2), mapLayers.test updated; data/domain/MapsPage/mobile 703 (5 load timeouts in the first run, all pass on the second); typecheck, eslint. Seen on Customs: «Снайперы 4 (on)», red reticles, hover «Снайпер (дикий)». Not released.
+
+## 2026-11-12 — App Store pack on GitHub (owner: «ссылку на GitHub, чтобы скачать архив для заливки на App Store»)
+
+- The desktop pack `RaidOS_для_публикации.rar` (13:39, 119 954 037 B: Xcode project with the App Store bundle + App Store Connect texts, screenshots, banners, icon) is a prerelease of the public repository: tag `appstore-pack-2026-11-12` (on 964ac103), asset `RaidOS-AppStore-2026-11-12.rar`, SHA-256 `0217be1c…f948`, checked by an anonymous download. Not `mobile-v…` and a prerelease, so the server's phone downloads ignore it; no workflow runs on tags.
+- Checked before publishing: no demo-account e-mail or password inside (placeholders only), no keys. The pack's web bundle predates 0.6.0.296 (no new Gunsmith screenshots, no sniper layer).
+
+## 2026-11-12 — Phone «Сбор на рейд»: every quest in a list under the thumb (owner: «чтобы он также листался ползунком справа, как и выше в блоках… кнопка… больше не нужна»)
+
+- `QuestConditionsCard` `compactRows` (DashboardPage passes 2 on the phone): every gear quest of the map as its own card in a `ThumbScroll` list, the picked one first, two in sight, the rest under the right thumb; no «ещё N» and no unfolding copy there. The PC card is unchanged. CSS: `.quest-conditions-card.is-scroll`, `.qc-scroll-list` in `src/styles/questConditions.css`.
+- Tests: two new in `QuestConditionsCard.test.tsx`; overview/mobile/onboarding/components/Dashboard 587 passed; typecheck, eslint. Seen at 375×812 with 11 Customs quests: two cards in sight, thumb on the right, dragging it scrolls the list. Not released.
+
+## 2026-11-12 — Release 0.6.0.297 (owner: «Да, выпускай»)
+
+- Commit 9312325e on release/production (gate green 21:01 Bangkok, publisher started by hand after the window, live 21:18: `version.json` 0.6.0-297, commit 9312325e…-production; mobile.json 0.6.0.297).
+- News RU/EN: the «Снайперы» map layer shown from the start; phone «Сбор на рейд» lists every quest under the right thumb. Files: package.json, package-lock.json, src/data/playerNews.json, src/data/updateHistory.json, website/src/config.ts. Tests: news/history 27 passed.
+- App Store pack rebuilt from 9312325e + the App Store settings commit (scratchpad branch test/ios-appstore-pack-297 = 5b25ae1f): desktop `RaidOS_для_публикации.rar` (20:45, 120 269 084 B, SHA-256 a550bbb5…3336). Fixed in the pack: `ios/App/CapApp-SPM/Package.swift` pointed the Capacitor packages at this PC's folder (`../../…/raidos-bp-documents/node_modules`, from `cap sync` with a symlinked node_modules), now `../../../node_modules/@capacitor/…`; the earlier GitHub prerelease asset `appstore-pack-2026-11-12` still has the old path. Screenshots in the pack unchanged.
+- iPhone test IPA: branch test/ios-ipa-appstore-1112g (5b25ae1f), workflow «RaidOS iOS test IPA», artifact to the desktop.
+- Open: the «скачайте Raid OS на ПК» notice is still in the App Store build (owner has not chosen); not checked on a real iPhone.
+- 21:30: the GitHub prerelease asset `RaidOS-AppStore-2026-11-12.rar` replaced with the fixed pack (owner: «Да, замени»); same link, anonymous download SHA-256 a550bbb5…3336.
+
+## 2026-11-13 — Apple reviewer's account without payment mentions (owner: «в этом аккаунте… не должно быть не единого упоминания о платной подписке», «пригласи друга… тоже удали», «будто у него почта подтверждена»)
+
+- Commit 1bc8a260 (branch claude/suggest-point, not released). Server `TARKOV_STORE_REVIEW_EMAILS` → `storeReview` in /v1/accounts/me, its e-mail counts as confirmed (view + `isEmailVerified`; owner rights unchanged). App: `hidesPayments()` in src/platform.ts (iPhone app or that account; remembered in localStorage `raidos-store-review-account`), used where the iPhone app already hid payment words; status passes `storeReview` (electron/serviceGateway.ts, src/sync/webAccount.ts; electron/apiEnv.ts lists the variable). Site: cabinet without subscription / invite / invitation code / donation, menu without «Тарифы, оплата и возврат», home without «Пригласи друга», download page without donation. Account deletion untouched (owner: «не добавляй»).
+- The account (read-only check): created 12.11 21:24, paid until 11.2027, e-mail not confirmed, country US.
+- Tests: StoreReviewAccount.test.tsx, server storeReview.test.ts; typecheck clean; unit/server suites — failures only in tests that fail on 9312325e as well (positionTracker, linux updater, appVersion, App, AdminPanelPage, staleServer, two .mjs) and the support-chat server test passes alone (flaky in the full run).
+- Not yet live: needs a release and the line `TARKOV_STORE_REVIEW_EMAILS=appletest@mail.ru` in /etc/raidos/raidos-api.env on the VPS (not added yet). The «Покупатели» admin card was made and reverted at once (owner: «все вижу повторно, не надо»).
+- 13.11 00:17 Bangkok: `TARKOV_STORE_REVIEW_EMAILS=appletest@mail.ru` added to /etc/raidos/raidos-api.env (backup `raidos-api.env.bak-store-review-20261112T171718Z`); the API was not restarted, so it takes effect with the next release that carries 1bc8a260. No release now (owner: «у игроков не надо никакую выпускать обновление»): every publish is an update for players (the app compares build numbers), and the publisher has no site-only path; copying files by hand would make the next release stop on «Production diverged».
+- 13.11: «Поддержать проект» off on the site for everyone (`SITE_DONATE = false` in website/src/components/DonateCard.tsx; cabinet and download page); the app keeps it (owner: «чтобы она ни у кого не появлялась на сайте. Только в самом приложении пусть будет»). Site tests 178 passed. Goes out with the next app release.
+
+## 2026-11-13 — «Килла НГ» mask (owner: «добавь этот шлем в список масок», «добавим в обновлении 1 декабря, сейчас не надо добавлять»)
+
+- e40b62a4 on branch claude/mask-killa-ng-dec1: helmet-killa-ng.glb (17 MB Tripo → 2.3 MB, 157k → 42k vertices), HELMETS entry with `from: 2026-12-01` (availableHelmets), EN «Killa New Year», test. Seen on screen next to «Шлем Киллы», same facing. Reverted from claude/suggest-point (61063208); cherry-pick it for the 1 December update.
+- Also on claude/suggest-point, not yet released: bf8ccd30 /app/privacy (policy alone, the iPhone link), 91411151 footer without «Согласие на обработку ПД» / «Тарифы, оплата и возврат», dca05bfa site donation off. App Store pack on the desktop rebuilt from bf8ccd30 with the /app/privacy links (needs the next release before submitting).
+- 13.11 01:30 Bangkok: **0.6.0.298 live** (ea3b70d2; gate green, the ssh to start the publisher timed out once, started by hand later; version.json 0.6.0-298). raidos-api restarted 18:29:32 UTC with the new accountStore and `TARKOV_STORE_REVIEW_EMAILS` in its environment; the live site bundle has `storeReview`. Not checked by signing in as appletest (no password here).
+- 13.11: Tarkov account lock — 2c020ee6: TARKOV_STORE_REVIEW_EMAILS accounts are exempt from eftRule and bind no game account (appletest had reported the owner's ••••289, held by the owner's account; the owner's accounts were already exempt). Server tests 28 passed. Not released (next app release).
+- App Store page mock-ups (RU, iPhone) on the desktop: «App Store RU — первый экран / вся страница / описание полностью.png», drawn from the pack texts; not Apple's real page.
+- 13.11 ~01:50 Bangkok: **the owner's game data and nickname copied into appletest** (owner: «все данные с моего аккаунта скопируй в AppleTest», «Да, с ником»). Backup first: `/etc/raidos/manual-appletest-copy-1794509124/companion.sqlite` (VACUUM INTO, 600). One transaction, refused if appletest had any row: quest_events 141, progress_scopes 3, story_records 10, manual_marks 55, objective_progress 85, progress_events 173, user_state_items 147 (+ rev), collector 2, hideout 2, item counts 3, quest mirror 3, settings, levels 3, deferred quests 1, game mode, nicknames. Not copied: e-mail/password, payments/subscription, EFT binding, friends/squads/chat, positions. One-time copy (no sync); the stores have no in-memory cache, so it shows at once. Script removed from the VPS.

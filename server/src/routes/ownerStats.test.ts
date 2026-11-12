@@ -143,7 +143,7 @@ type Stats = {
   legacyRegion: Record<string, number>
   byCountry: Array<{ country: string; users: number; paying: number; active: number; revenue: number }>
   subscriptions: { activePaid: number; activeGranted: number; grantedBy: { owner: number; friend: number }; trials: number; expiringIn7Days: number; expiringIn30Days: number; lifetime: { total: number; streamers: number; legend: number }; autopay: number }
-  payers: { everPaid: number; paidInRange: number; newInRange: number }
+  payers: { everPaid: number; paidInRange: number; newInRange: number; repeatPaid: number; repeatInRange: number }
   revenue: { total: number; payments: number; byProvider: Record<string, { count: number; amount: number }>; byMethod: Record<string, { count: number; amount: number }>; byRegion: Record<string, { count: number; amount: number }>; byPlan: Record<string, { count: number; amount: number }>; refunds: { count: number; amount: number } }
   referrals: { friendInvited: number; friendInvitedInRange: number; friendPaid: number; friendPaidDiscount: number; rewardsByStatus: Record<string, number> }
   trialConversion: { trialStarted: number; laterPaid: number; rate: number }
@@ -169,7 +169,8 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     const { trialsPending, ...subscriptions } = stats.subscriptions as Stats['subscriptions'] & { trialsPending: number }
     assert.equal(typeof trialsPending, 'number')
     assert.deepEqual(subscriptions, { activePaid: 3, activeGranted: 2, grantedBy: { owner: 1, friend: 1 }, trials: 1, expiringIn7Days: 2, expiringIn30Days: 4, lifetime: { total: 1, streamers: 1, legend: 0 }, autopay: 1 })
-    assert.deepEqual(stats.payers, { everPaid: 3, paidInRange: 3, newInRange: 2 })
+    // ru1 paid in August and again on 25.09.
+    assert.deepEqual(stats.payers, { everPaid: 3, paidInRange: 3, newInRange: 2, repeatPaid: 1, repeatInRange: 1 })
     assert.equal(stats.revenue.total, 1650)
     assert.equal(stats.revenue.payments, 4)
     assert.deepEqual(stats.revenue.byProvider, { yookassa: { count: 3, amount: 1400 }, bezebee: { count: 1, amount: 250 }, archive: { count: 0, amount: 0 } })
@@ -185,6 +186,8 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     assert.equal(august.revenue.total, 300)
     assert.equal(august.users.new, 2) // the owner and ru1
     assert.equal(august.subscriptions.activePaid, 3)
+    // ru1's August payment was the first one: no repeat in that range.
+    assert.deepEqual([august.payers.repeatPaid, august.payers.repeatInRange], [1, 0])
     // Default: the last 30 owner's days up to today.
     const fallback = (await t.call<Stats>('GET', '/accounts/me/admin/stats', t.owner)).json
     assert.deepEqual([fallback.range.from, fallback.range.to], ['2026-09-02', '2026-10-01'])
@@ -208,6 +211,51 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     assert.deepEqual(methods.map((row) => [row.email.startsWith('deleted-') ? 'deleted' : row.email, row.method]), [
       ['ru1@example.com', 'sbp'], ['ru2@example.com', 'bank_card'], ['ru1@example.com', 'sbp'], ['kz1@example.com', 'bezebee'], ['none1@example.com', 'sbp'], ['deleted', 'sbp'],
     ])
+  } finally { await t.close() }
+})
+
+test('«Оплатили повторно» (owner, 12.11.2026): people with two or more paid payments — refunds, cancels, 0 ₽, granted days and deleted accounts are not', async () => {
+  const t = await setup('2026-10-01T10:00:00.000Z')
+  try {
+    const owner = await t.login('owner@example.com')
+    const bzb = async (email: string, amount: number, noDays = false) => {
+      const done = await t.call('POST', '/accounts/me/admin/bezebee/payments', owner, { email, plan: '1m', amount, ...(noDays ? { noDays: true } : {}) })
+      assert.equal(done.status, 201, JSON.stringify(done.json))
+    }
+    const twice = await t.user('twice@example.com', 'RU')
+    const refunded = await t.user('refunded@example.com', 'RU')
+    const granted = await t.user('granted@example.com', 'RU')
+    await t.user('bzb@example.com', 'KZ')
+    await t.user('zero@example.com', 'KZ')
+    const gone = await t.user('gone@example.com', 'RU')
+    await t.pay(twice.token, '1m')
+    await t.pay(refunded.token, '1m')
+    await t.pay(granted.token, '1m')
+    await bzb('bzb@example.com', 250)
+    await bzb('zero@example.com', 250)
+    await t.pay(gone.token, '1m')
+    await t.pay(gone.token, '1m')
+
+    t.set('2026-10-05T10:00:00.000Z')
+    await t.pay(twice.token, '3m')
+    const back = await t.pay(refunded.token, '1m')
+    assert.equal((await t.call('POST', `/accounts/me/admin/payments/${back}/refunded`, owner)).status, 200)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${granted.id}/grant`, owner, { days: 10, reason: 'тест' })).status, 200)
+    const canceled = await t.startPayment(granted.token, '1m')
+    t.db.prepare("UPDATE payments SET status = 'canceled' WHERE id = ?").run(canceled.id)
+    await t.startPayment(granted.token, '1m') // left pending
+    // A payment recorded without days is still a payment; a 0 ₽ one has no money in it.
+    await bzb('bzb@example.com', 414, true)
+    await bzb('zero@example.com', 0)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${gone.id}/delete`, owner)).status, 200)
+
+    const overview = await t.call<{ repeatPayers: number }>('GET', '/accounts/me/admin/overview', owner)
+    assert.equal(overview.status, 200, JSON.stringify(overview.json))
+    assert.equal(overview.json.repeatPayers, 2)
+    const payers = async (from: string, to: string) => (await t.call<Stats>('GET', `/accounts/me/admin/stats?from=${from}&to=${to}`, owner)).json.payers
+    assert.deepEqual(await payers('2026-10-05', '2026-10-05'), { everPaid: 5, paidInRange: 3, newInRange: 0, repeatPaid: 2, repeatInRange: 2 })
+    assert.deepEqual(await payers('2026-10-01', '2026-10-01'), { everPaid: 5, paidInRange: 5, newInRange: 5, repeatPaid: 2, repeatInRange: 0 })
+    assert.equal((await payers('2026-10-01', '2026-10-05')).repeatInRange, 2)
   } finally { await t.close() }
 })
 

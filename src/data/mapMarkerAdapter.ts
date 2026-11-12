@@ -7,6 +7,7 @@ import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
 import { isStalePlace } from './stalePlaces'
 import sptKeySpots from './sptKeySpots.json'
+import sniperSpots from './sniperSpots.json'
 import gameLootContainers from './gameLootContainers.json'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
@@ -42,6 +43,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptBosses(map, rawMap, mobs, context.items, context.mode))
     markers.push(...adaptSpawns(map, rawMap))
     markers.push(...adaptHazards(map, rawMap))
+    markers.push(...adaptSniperSpots(map))
     markers.push(...adaptLoot(map, rawMap, context.items))
     markers.push(...adaptLocks(map, rawMap, context.items))
     markers.push(...adaptStationaryWeapons(map, rawMap, context.items))
@@ -567,6 +569,23 @@ function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
   })
 }
 
+const SNIPER_SPOTS = (sniperSpots as unknown as { maps: Record<string, Array<[number, number, number, string]>> }).maps
+export const SNIPER_SPOT_TITLE = 'Снайпер (дикий)'
+export const SNIPER_SPOT_TEXT = 'Здесь появляется дикий-снайпер.'
+
+/**
+ * Where Scav snipers appear (report 131, 10.11.2026: «добавьте пожалуйста места снайперов на карте»): the sniper bot zones of the
+ * game's own location files (src/data/sniperSpots.json; the feed tells them on Streets only). A layer of their own, «Снайперы»
+ * (owner, 12.11.2026: on «Опасности», hidden by default, nobody saw them); apps before it get them on «Опасности» (catalogWire).
+ */
+function adaptSniperSpots(map: GameMap): MapMarker[] {
+  return (SNIPER_SPOTS[map.id] ?? []).flatMap(([x, y, z], index): MapMarker[] => {
+    const base = baseMarker(map, `sniper-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    return [{ ...base, type: 'danger', layerId: 'sniper', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
+  })
+}
+
 /** The levers that turn on an exit or the power (src/data/powerSwitches.ts); other tarkov.dev switches are not drawn. */
 function adaptPowerSwitches(map: GameMap, rawMap: JsonRecord): MapMarker[] {
   return asArray(rawMap.switches).flatMap((entry) => {
@@ -690,6 +709,7 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       description: valuables.length ? VALUABLE_SPOT_TEXT : 'Точка свободного лута.',
       meta: shown.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
       itemId: shown[0],
+      lootIds: shown,
       source: 'json.tarkov.dev/maps',
     }, ...keySpot]
   })
@@ -718,7 +738,8 @@ function adaptSptKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string, I
 
 /** The photos players gave of a feed key spot (src/data/extraKeySpots.ts): on the point of the same key within reach. */
 function withKeySpotPhotos(marker: MapMarker, mapId: string, position: JsonRecord): MapMarker {
-  const photos = EXTRA_KEY_SPOTS.filter((spot) => spot.mapId === mapId && marker.keyIds?.includes(spot.itemId)
+  const keys = marker.keyIds ?? (marker.itemId ? [marker.itemId] : [])
+  const photos = EXTRA_KEY_SPOTS.filter((spot) => spot.mapId === mapId && keys.includes(spot.itemId)
     && Math.hypot(number(position.x) - spot.position.x, number(position.z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
     .flatMap((spot) => spot.photos.map((photo) => ({ ...photo })))
   return photos.length ? { ...marker, spotPhotos: photos } : marker
@@ -730,7 +751,8 @@ function adaptExtraKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string,
     if (spot.mapId !== map.id) return []
     const listed = asArray(rawMap.lootLoose).some((loot) => strings(loot.items).includes(spot.itemId)
       && Math.hypot(number(asRecord(loot.position).x) - spot.position.x, number(asRecord(loot.position).z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
-    if (listed) return []
+    // a spot of a «один из N» group (guaranteedSpawns.ts): its photo goes on that point (adaptGuaranteedSpawns)
+    if (listed || isGroupSpot(map.id, spot.itemId, spot.position)) return []
     const base = baseMarker(map, `extra-key-${spot.itemId}-${index}`, spot.position, undefined, spot.position.y, spot.position.y)
     if (!base) return []
     return keyMarker(base, [spot.itemId], items).map((marker) => ({ ...marker, source: 'raidos', spotPhotos: spot.photos.map((photo) => ({ ...photo })) }))
@@ -820,7 +842,7 @@ function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarke
     // Owner, 09.11.2026: only an item that always lies at its one spot is «Спавн 100 %»; a spot of a group («один из 12») is a
     // possible spawn on «Ключи», with the other keys.
     const certain = spawn.kind === 'here' || spawn.positions.length < 2
-    return [{
+    return [withKeySpotPhotos({
       ...base,
       type: 'cache',
       layerId: certain ? 'loot.guaranteed' : 'loot.key',
@@ -832,7 +854,7 @@ function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarke
       // The badge only where the item always lies; a spot of a group holds it in some raids.
       guaranteedSpawn: spawn.kind === 'here' || spawn.positions.length < 2,
       source: 'raid-statistics',
-    }]
+    }, map.id, position)]
   }))
 }
 
@@ -978,6 +1000,15 @@ interface QuestPoint {
   position: JsonRecord
 }
 
+/**
+ * Places of an objective the feed does not mark, by objective id (game coordinates of a place the maps file has): report 123
+ * (10.11.2026), «Умный в гору не пойдёт», «доп место секрет выход» — Customs' other secret exit, «Лодка Контрабандистов»,
+ * opened by the same note «Ворон» as the bunker ZB-1012 the feed marks.
+ */
+export const QUEST_EXTRA_PLACES: Record<string, ReadonlyArray<{ map: string; id: string; position: { x: number; y: number; z: number } }>> = {
+  '675c1cf4a757ddd00404f0a6': [{ map: 'customs', id: 'smugglers-boat', position: { x: -41.51, y: -12.63, z: 122.67 } }],
+}
+
 function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarker[] {
   const markers: MapMarker[] = []
   const maps = new Map(context.maps.map((map) => [map.id, map]))
@@ -993,6 +1024,10 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
         if (!map) continue
         const center = asRecord(zone.position)
         points.push({ kind: 'zone', map, ...pointCoords(center), idSuffix: text(zone.id, objectiveId), zone, position: center })
+      }
+      for (const place of QUEST_EXTRA_PLACES[objectiveId] ?? []) {
+        const map = maps.get(place.map)
+        if (map) points.push({ kind: 'zone', map, ...pointCoords(place.position), idSuffix: place.id, position: place.position })
       }
       // Quest items (findQuestItem) carry exact spawn points instead of zones.
       asArray(objective.possibleLocations).forEach((location, locationIndex) => {

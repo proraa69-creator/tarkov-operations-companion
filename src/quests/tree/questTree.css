@@ -114,3 +114,12 @@
 :root[data-layout="mobile"] .quest-tree-lanes { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
 :root[data-layout="mobile"] .quest-tree-lane-chip { flex: none; min-height: 34px; }
 :root[data-layout="mobile"] .quest-tree-found { margin-top: 4px; }
+/* «Как открыть»: the other traders' quests a trader's quests need first (report 133). */
+.quest-tree-unlock { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--brass) 40%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--brass) 7%, transparent); font-size: 12.5px; }
+.quest-tree-unlock > strong { display: inline-flex; align-items: center; gap: 6px; color: var(--brass-strong, var(--brass)); }
+.quest-tree-unlock-label, .quest-tree-unlock-count { color: var(--text-dim); }
+.quest-tree-unlock-quests { display: flex; flex-wrap: wrap; gap: 5px; }
+.quest-tree-unlock-quest { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid var(--line-strong); border-radius: 99px; background: rgb(255 255 255 / 3%); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.quest-tree-unlock-quest:hover { border-color: var(--brass); }
+.quest-tree-unlock-quest small { color: var(--text-dim); font-size: 10.5px; }
+.quest-tree-unlock-quest.is-completed, .quest-tree-unlock-quest.is-probable { border-color: color-mix(in srgb, var(--green) 50%, var(--line)); }

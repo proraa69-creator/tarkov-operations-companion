@@ -1,12 +1,13 @@
 import { Download } from 'lucide-react'
 import { Notice } from '../components/Notice'
 import { Platforms } from '../components/Platforms'
-import { DonateCard } from '../components/DonateCard'
+import { DonateCard, SITE_DONATE } from '../components/DonateCard'
 import { MobileBadges } from '../components/MobileDownloads'
 import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
 import { tr } from '../i18n'
 import { SETUP_URL, useSetupPublished } from '../hooks/setupDownload'
+import { useOptionalAccount } from '../auth'
 
 export function DownloadButton({ large = true }: { large?: boolean }) {
   const setup = useSetupPublished()
@@ -27,6 +28,8 @@ export function DownloadButton({ large = true }: { large?: boolean }) {
 
 export function DownloadPage() {
   const setup = useSetupPublished()
+  // The Apple reviewer's test account: no «Поддержать проект» (owner, 12.11.2026).
+  const account = useOptionalAccount()
   return (
     <div className="page">
       <div className="container narrow">
@@ -35,8 +38,6 @@ export function DownloadPage() {
           <div className="eyebrow">{tr('Загрузка')}</div>
           <h1 className="page-title">{tr('Скачать приложение')}</h1>
           <p className="page-subtitle">{setup ? tr('Установщик для Windows — выберите папку для приложения.') : tr('Портативная версия для Windows — скачайте и запустите, установка не нужна.')}</p>
-          {/* Owner, 14.10.2026: right under the portable line. */}
-          <p className="download-note">{tr('Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.')}</p>
           <div className="download-meta">
             <span className="tag brass">{tr('Версия {version}', { version: APP_VERSION })}</span>
             <span className="tag">Windows 10 / 11 · 64-bit</span>
@@ -50,7 +51,7 @@ export function DownloadPage() {
           )}
         </div>
         {/* «Поддержать проект» (owner, 13.10.2026). */}
-        <div className="download-donate stagger" style={stagger(1)}><DonateCard /></div>
+        {SITE_DONATE && !account?.storeReview && <div className="download-donate stagger" style={stagger(1)}><DonateCard /></div>}
       </div>
     </div>
   )

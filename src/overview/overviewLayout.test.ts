@@ -15,8 +15,7 @@ describe('Overview layout (owner, 12.10.2026: «Настроить блоки»)
     expect(moveBlock(layout, 'right', 'favorites', 2)).toBe(layout)
     expect(moveBlock(layout, 'right', 'squad', 0)).toBe(layout)
     expect(moveBlock(layout, 'rows', 'columns', 0)).toBe(layout)
-    expect(moveBlock(layout, 'rows', 'priority', 99).rows).toEqual(['stats', 'columns', 'priority'])
-    expect(moveBlock(layout, 'stats', 'stat-goons', -5).stats).toEqual(['stat-goons', 'stat-tasks', 'stat-conditions', 'stat-kappa'])
+    expect(moveBlock(layout, 'stats', 'stat-goons', -5).stats).toEqual(['stat-goons', 'stat-screen', 'stat-conditions', 'stat-kappa'])
     // the big raid map moves too, within its wide column (owner, 12.10.2026: «сделай что бы карта в блоке обзор перемещалась»)
     expect(moveBlock(layout, 'left', 'raid', 2).left).toEqual(['squad', 'requirements', 'raid'])
     expect(moveBlock(layout, 'right', 'raid', 0)).toBe(layout)
@@ -24,35 +23,36 @@ describe('Overview layout (owner, 12.10.2026: «Настроить блоки»)
 
   it('cleans a saved layout: foreign or doubled ids go, missing blocks come back at their default place', () => {
     const layout = sanitizeOverviewLayout({
-      stats: ['stat-kappa', 'stat-kappa', 'favorites', 'stat-tasks'],
+      stats: ['stat-kappa', 'stat-kappa', 'favorites', 'stat-screen'],
       rows: ['columns', 'priority', 'stats'],
       left: 'garbage',
       right: ['gunsmith', 'old-block'],
     })
     // «Условия квестов» and «Кочевники» were missing: back at their default places (second and fourth)
-    expect(layout.stats).toEqual(['stat-kappa', 'stat-conditions', 'stat-tasks', 'stat-goons'])
-    // the card row stays above the columns with the map; the strip keeps its place between them
-    expect(layout.rows).toEqual(['stats', 'priority', 'columns'])
+    expect(layout.stats).toEqual(['stat-kappa', 'stat-conditions', 'stat-screen', 'stat-goons'])
+    // the card row stays above the columns with the map; «Приоритет карт» stands in the map's block now (11.11.2026)
+    expect(layout.rows).toEqual(['stats', 'columns'])
     // a layout saved before the map could move gets the map back at the top of its column
     expect(layout.left).toEqual(['raid', 'squad', 'requirements'])
     expect(layout.right).toEqual(['tasks', 'gunsmith', 'favorites'])
     expect(sanitizeOverviewLayout(null)).toEqual(defaultOverviewLayout())
-    expect(sanitizeOverviewLayout({ rows: ['priority', 'stats', 'columns'] }).rows).toEqual(['priority', 'stats', 'columns'])
+    expect(sanitizeOverviewLayout({ rows: ['priority', 'stats', 'columns'] }).rows).toEqual(['stats', 'columns'])
   })
 
   it('a layout saved with «Прогресс» keeps «Условия квестов» in the same slot (stat-progress → stat-conditions)', () => {
     const storage = memory()
     storage.setItem(OVERVIEW_LAYOUT_KEY, JSON.stringify({ stats: ['stat-kappa', 'stat-goons', 'stat-progress', 'stat-tasks'], rows: ['stats', 'columns', 'priority'], left: ['raid', 'squad', 'requirements'], right: ['tasks', 'gunsmith', 'favorites'] }))
     const layout = loadOverviewLayout(storage)
-    expect(layout.stats).toEqual(['stat-kappa', 'stat-goons', 'stat-conditions', 'stat-tasks'])
-    expect(layout.rows).toEqual(['stats', 'columns', 'priority'])
+    // «Текущие задания» (stat-tasks) became «Экран» in its slot (11.11.2026)
+    expect(layout.stats).toEqual(['stat-kappa', 'stat-goons', 'stat-conditions', 'stat-screen'])
+    expect(layout.rows).toEqual(['stats', 'columns'])
     // both ids at once (an edited file): the card once, at the first one's place
-    expect(sanitizeOverviewLayout({ stats: ['stat-progress', 'stat-tasks', 'stat-conditions'] }).stats).toEqual(['stat-conditions', 'stat-tasks', 'stat-kappa', 'stat-goons'])
+    expect(sanitizeOverviewLayout({ stats: ['stat-progress', 'stat-screen', 'stat-conditions'] }).stats).toEqual(['stat-conditions', 'stat-screen', 'stat-kappa', 'stat-goons'])
   })
 
   it('is kept on this computer; the default order leaves nothing stored; a broken entry falls back to the default', () => {
     const storage = memory()
-    const changed = moveBlock(defaultOverviewLayout(), 'rows', 'priority', 0)
+    const changed = moveBlock(defaultOverviewLayout(), 'stats', 'stat-goons', 0)
     saveOverviewLayout(changed, storage)
     expect(loadOverviewLayout(storage)).toEqual(changed)
     saveOverviewLayout(defaultOverviewLayout(), storage)
@@ -61,3 +61,4 @@ describe('Overview layout (owner, 12.10.2026: «Настроить блоки»)
     expect(isDefaultLayout(loadOverviewLayout(storage))).toBe(true)
   })
 })
+

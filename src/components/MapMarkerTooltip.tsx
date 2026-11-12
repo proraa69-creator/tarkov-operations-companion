@@ -22,6 +22,8 @@ interface MapMarkerTooltipProps {
   keys?: ReadonlyArray<{ item: Item; owned: boolean }>
   /** A spot of several keys: their pictures instead of the list of names (maps/KeySpotKeys.tsx). */
   spotKeys?: ReactNode
+  /** A point behind a locked door: the key of the room, on top of the card (maps/LockedNote.tsx). */
+  entry?: ReactNode
 }
 
 /** Screenshots live in public/extract-shots/<mapId>/<extractId>.jpg — see docs/extract-screenshots.md. */
@@ -35,13 +37,14 @@ function ExtractShot({ url, alt }: { url: string; alt: string }) {
   return <img className="mmt-shot" src={url} alt={alt} loading="lazy" onError={() => setMissing(true)} />
 }
 
-export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, keys, spotKeys }: MapMarkerTooltipProps) {
+export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, keys, spotKeys, entry }: MapMarkerTooltipProps) {
   const { locale } = useLocale()
   // A battle pass document: its picture, its name and the floor, nothing else (owner, 05.11.2026: «нужно только название… и этаж»).
   const documentKinds = marker.layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
   if (documentKinds.length) {
     return (
       <div className="mmt" style={{ '--marker-color': color } as CSSProperties}>
+        {entry}
         <div className="mmt-title-row">
           {documentKinds.map((kind) => <img key={kind} className="mmt-item-icon" src={DOCUMENT_PICTURES[kind]} alt="" />)}
           <div className="mmt-title-copy">
@@ -59,6 +62,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, 
   const shot = guide?.photos?.[0] ? extractPhotoUrl(guide.photos[0], true) : extractScreenshotUrl(marker)
   return (
     <div className="mmt" style={{ '--marker-color': color } as CSSProperties}>
+      {entry}
       <div className="mmt-head">
         <span className="mmt-type"><span className="mmt-dot" />{uiText(typeLabel)}</span>
         <span className={`mmt-floor${indoor ? ' is-indoor' : ''}`}>
@@ -81,6 +85,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, 
 
       {uiText(!boss && marker.guaranteedSpawn && <p className="mmt-meta mmt-guaranteed">{uiText(GUARANTEED_SPAWN_TEXT)}</p>)}
       {spotKeys}
+      {marker.roomSpots && marker.roomSpots > 1 ? <p className="mmt-meta mmt-room-spots">{uiText('Мест спавна в этой комнате')}: {marker.roomSpots}</p> : null}
       {keys && keys.length > 0 && <div className="mmt-keys">{keys.map(({ item: key, owned }) => <span key={key.id} className={`mmt-key${owned ? ' is-owned' : ''}`}>
         {key.iconUrl && <img src={key.iconUrl} alt="" loading="lazy" />}
         <span>{uiText('Нужен ключ')}: {uiText(key.shortName || key.name)}{owned ? <> · {uiText('есть')}</> : null}</span>

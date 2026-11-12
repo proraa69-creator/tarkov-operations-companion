@@ -17,6 +17,32 @@ function LegalNav({ current }: { current?: string }) {
   </>)
 }
 
+/**
+ * /app/privacy — the privacy policy the iPhone app and the App Store card open (owner, 13.11.2026: «при переходе туда
+ * открывается оплата, подписка… Там есть кнопки такие»): the document alone, without the site's header, menu, footer or
+ * the documents' row, so no button leads to the plans, the cabinet or the offer.
+ */
+export function AppPrivacyPage() {
+  const doc = legalDocument('privacy')!
+  return (
+    <main className="page app-privacy">
+      <div className="container narrow legal">
+        <h1 className="page-title">{doc.title}</h1>
+        <p className="page-subtitle">Редакция от {LEGAL_VERSION_LABEL}</p>
+        <article className="panel legal-doc">
+          {doc.sections.map((section) => (
+            <section key={section.title}>
+              <h2>{section.title}</h2>
+              {section.paragraphs?.map((text) => <p key={text}>{text}</p>)}
+              {section.items && <ul>{section.items.map((text) => <li key={text}>{text}</li>)}</ul>}
+            </section>
+          ))}
+        </article>
+      </div>
+    </main>
+  )
+}
+
 /** /legal — the buyer's page (tariffs, payment, access, refund, contacts, seller); /legal/:slug — one document. */
 export function LegalPage() {
   const { slug } = useParams()

@@ -19,8 +19,15 @@ const SLIDERS: Array<{ key: 'gamma' | 'shadows' | 'highlights' | 'contrast' | 'b
   { key: 'temperature', label: 'Температура', help: 'screenTemperature', step: 0.02 },
   { key: 'tint', label: 'Оттенок', help: 'screenTint', step: 0.02 },
 ]
-/** A tuned preset goes to the PC this long after the finger stops (the PC's screen follows while it moves). */
-const SEND_AFTER_MS = 150
+/**
+ * A tuned preset goes to the PC while the finger moves, at most this often, and once more where it stops (owner,
+ * 11.11.2026: «Передвинул ползунок, и изменения внеслись тут же на компьютере»); it waited for the finger to stop before.
+ */
+export const SEND_EVERY_MS = 120
+/** The phone's own value of a slider wins over the PC's echo this long after the last move. */
+const KEEP_OWN_MS = 1_500
+/** The time of a tune, read in the handlers (never while drawing). */
+const timeNow = () => Date.now()
 const RETRY_MS = 3_000
 
 /** A slider with its name, its question mark and its value; the mark stands outside <label> so the label stays the slider's. */
@@ -44,6 +51,10 @@ export function MobileScreenPresets() {
   const [local, setLocal] = useState<Partial<Pick<RemoteScreenState, 'activeId' | 'enabled'>> & { preset?: ScreenProfile }>({})
   const [now, setNow] = useState(() => Date.now())
   const sendTimer = useRef<number | null>(null)
+  const sentAt = useRef(0)
+  const latestPreset = useRef<ScreenProfile | null>(null)
+  // the PC answers each send with the value it got, a step behind the finger: the phone keeps its own while it is being tuned
+  const tunedAt = useRef(0)
 
   useEffect(() => {
     let active = true
@@ -63,7 +74,7 @@ export function MobileScreenPresets() {
         if (next) setLocal((value) => ({
           ...(value.activeId !== undefined && value.activeId !== next.state.activeId ? { activeId: value.activeId } : {}),
           ...(value.enabled !== undefined && value.enabled !== next.state.enabled ? { enabled: value.enabled } : {}),
-          ...(value.preset && sendTimer.current !== null ? { preset: value.preset } : {}),
+          ...(value.preset && (sendTimer.current !== null || timeNow() - tunedAt.current < KEEP_OWN_MS) ? { preset: value.preset } : {}),
         }))
       }
     })()
@@ -82,12 +93,22 @@ export function MobileScreenPresets() {
 
   const choose = (id: string) => { setLocal((value) => ({ ...value, activeId: id, preset: undefined })); send({ type: 'select', activeId: id }) }
   const toggle = () => { setLocal((value) => ({ ...value, enabled: !enabled })); send({ type: 'enabled', enabled: !enabled }) }
-  const tune = (key: (typeof SLIDERS)[number]['key'] | 'vibrance', value: number) => {
+  const tune = (key: (typeof SLIDERS)[number]['key'] | 'vibrance' | 'neutral', value: number) => {
     if (!chosen) return
     const preset = { ...chosen, [key]: value }
     setLocal((current) => ({ ...current, preset }))
-    if (sendTimer.current !== null) window.clearTimeout(sendTimer.current)
-    sendTimer.current = window.setTimeout(() => { sendTimer.current = null; send({ type: 'save', preset: remotePreset(preset) }) }, SEND_AFTER_MS)
+    tunedAt.current = timeNow()
+    latestPreset.current = preset
+    const flush = () => {
+      sendTimer.current = null
+      if (!latestPreset.current) return
+      sentAt.current = timeNow()
+      send({ type: 'save', preset: remotePreset(latestPreset.current) })
+      latestPreset.current = null
+    }
+    const wait = SEND_EVERY_MS - (timeNow() - sentAt.current)
+    if (wait <= 0 && sendTimer.current === null) flush()
+    else if (sendTimer.current === null) sendTimer.current = window.setTimeout(flush, Math.max(0, wait))
   }
 
   return <div className="page mobile-screen-presets">
@@ -127,6 +148,8 @@ export function MobileScreenPresets() {
         <h3>{uiText('Настройка')} · {chosen.name}</h3>
         {SLIDERS.map(({ key, label, help, step }) => <TuneSlider key={key} label={label} help={help} shown={chosen[key].toFixed(2)} min={LIMITS[key][0]} max={LIMITS[key][1]} step={step} value={chosen[key]} disabled={!online} onChange={(event) => tune(key, Number(event.target.value))} />)}
         {chosen.vibrance !== undefined && <TuneSlider label="Цифровая интенсивность" help="screenSaturation" shown={`${Math.round(chosen.vibrance)}%`} min={LIMITS.vibrance[0]} max={LIMITS.vibrance[1]} step={1} value={chosen.vibrance} disabled={!online} onChange={(event) => tune('vibrance', Number(event.target.value))} />}
+        {/* «Естественный цвет» from the phone too (owner, 11.11.2026). */}
+        <TuneSlider label="Естественный цвет" help="screenNeutral" shown={`${Math.round((chosen.neutral ?? 0) * 100)}%`} min={0} max={1} step={0.05} value={chosen.neutral ?? 0} disabled={!online} onChange={(event) => tune('neutral', Number(event.target.value))} />
         <p className="msp-note">{uiText('Кривую и фильтры настраивайте на ПК в «Настройке экрана».')}</p>
       </section>}
     </>}

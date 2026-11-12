@@ -21,6 +21,8 @@ export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
   subscriptions: { active: number; trials: number; autopay: number; streamers: number }
+  /** «Оплатили повторно»: people with two or more paid payments, all the time (servers of 12.11.2026 on). */
+  repeatPayers?: number
   revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue; lavaOriginal: Array<{ currency: string; amount: number }> }
   payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
   /** Paid payments of each plan this month and all the time (servers of 20.10.2026 on). */
@@ -360,6 +362,8 @@ export const adminApi = {
     return `data:${file.mime};base64,${file.data}`
   },
   rewardReport: (id: number, days: number) => request<{ report: BugReportDetail }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/reward`, { days }),
+  /** «Принять точку» (server/src/routes/bugReports.ts). */
+  acceptPoint: (id: number) => request<{ report: BugReportDetail; days: number }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/point`, {}),
   supportThreads: (limit = 100, offset = 0) => request<AdminSupportThreads>(
     'GET', adminPaths.supportThreads(limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),

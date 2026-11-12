@@ -102,3 +102,15 @@ describe('«Настройка экрана»: the ramp written to the monitor',
     expect(writeStrongest(tables, null, () => false)).toBe(0)
   })
 })
+
+describe('a preset turned on by hand is on the screen at once (owner, 11.11.2026)', () => {
+  it('before the logs see the raid, for up to 10 minutes; in a raid always; turned off never', async () => {
+    const { presetShown, MANUAL_ON_MS } = await import('./state')
+    const now = 1_000_000
+    expect(presetShown({ enabled: true, raid: false, manualOnAt: now - 1000, now })).toBe(true)
+    expect(presetShown({ enabled: true, raid: false, manualOnAt: now - MANUAL_ON_MS - 1, now })).toBe(false)
+    expect(presetShown({ enabled: true, raid: false, manualOnAt: 0, now })).toBe(false)
+    expect(presetShown({ enabled: true, raid: true, manualOnAt: 0, now })).toBe(true)
+    expect(presetShown({ enabled: false, raid: true, manualOnAt: now, now })).toBe(false)
+  })
+})

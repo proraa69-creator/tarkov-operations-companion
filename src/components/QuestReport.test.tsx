@@ -88,6 +88,8 @@ describe('«Сообщить об ошибке» → «Квест»', () => {
     const user = userEvent.setup()
     render(<SupportButtons variant="panel" />)
     await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
+    // the group first, then the topic (owner, 11.11.2026)
+    await user.click(await screen.findByRole('button', { name: 'Квесты и карта' }))
     await user.click(await screen.findByRole('radio', { name: 'Квест: точка, описание, условия' }))
     await user.type(screen.getByRole('textbox', { name: 'Найти квест' }), 'посыл')
     await user.click(screen.getByRole('button', { name: /Посылка из прошлого/ }))

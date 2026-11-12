@@ -30,10 +30,13 @@ export const BUILD_SCREENSHOTS: ReadonlyArray<readonly [task: string, weapon: st
   ['639873003693c63d86328f25', '5c46fbd72e2216398b5a8c9c', 'gunsmith-master-part-6'], // Часть 6 (СВДС)
   ['5b477f7686f7744d1b23c4d2', '5aafa857e5b5b00018480968', 'gunsmith-master-part-7'], // Часть 7 (M1A)
   ['63987301e11ec11ff5504036', '5bfea6e90db834001b7347f3', 'gunsmith-master-part-8-m700'], // Часть 8, оружие 1 из 2 (M700)
+  ['63987301e11ec11ff5504036', '5e81c3cbac2bb513793cdc75', 'gunsmith-master-part-8-m1911a1'], // Часть 8, оружие 2 из 2 (M1911A1)
   ['5b47825886f77468074618d3', '5447a9cd4bdc2dbd208b4567', 'gunsmith-master-part-9'], // Часть 9 (M4A1)
   ['64f83bb69878a0569d6ecfbe', '606587252535c57a13424cfd', 'gunsmith-master-part-10'], // Часть 10 (Mk47)
   ['64f83bcdde58fc437700d8fa', '5df8ce05b11454561e39243b', 'gunsmith-master-part-11'], // Часть 11 (SR-25)
   ['676529af9c90953d090882e7', '5df24cf80dee1b22f862e9bc', 'gunsmith-master-part-12-t-5000m'], // Часть 12, оружие 1 из 3 (T-5000M)
+  ['676529af9c90953d090882e7', '59984ab886f7743e98271174', 'gunsmith-master-part-12-pp-19-01'], // Часть 12, оружие 2 из 3 (ПП-19-01 «Витязь»)
+  ['676529af9c90953d090882e7', '5a7ae0c351dfba0017554310', 'gunsmith-master-part-12-glock-17'], // Часть 12, оружие 3 из 3 (Glock 17)
   ['666314b0acf8442f8b0531a1', '5580223e4bdc2d1c128b457f', 'hell-on-earth-part-1'], // Ад на земле. Часть 1 (MP-43-1C)
 ]
 

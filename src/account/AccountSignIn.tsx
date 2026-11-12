@@ -4,7 +4,7 @@ import type { PendingServerRegistration, ServerAccountStatus } from '../electron
 import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
-import { isDesktopShell, isIosApp } from '../platform'
+import { appStoreRules, isDesktopShell, isIosApp } from '../platform'
 import { countryGroups } from '../shared/countries'
 import { confirmRegistrationOnServer, registerOnServer, useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { LEGAL_VERSION, legalUrl, PHONE_AUTH_UI } from './authFeatures'
@@ -115,7 +115,8 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
   const [error, setError] = useState('')
   // «Войти по QR-коду»: the phone by the QR code of the signed-in PC app, the PC by a QR code the signed-in phone
   // approves (QrSignIn.tsx; owner, 28.10.2026).
-  const qr = (usesWebAccount() && !isDesktopShell()) || Boolean(window.tarkovDesktop?.account?.qrStart)
+  // Not in the iPhone app for now (owner, 12.11.2026: «вход по qr удали позже мы их добавим»).
+  const qr = !appStoreRules() && ((usesWebAccount() && !isDesktopShell()) || Boolean(window.tarkovDesktop?.account?.qrStart))
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()

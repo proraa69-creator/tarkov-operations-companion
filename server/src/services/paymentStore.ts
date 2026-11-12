@@ -604,7 +604,7 @@ export class PaymentStore {
    * the payment's own id (the owner's note, or the key of BZB's notification); the same one is never applied twice (409).
    * `assert` runs inside the transaction first (the one-time rules of the caller), `after` last (the caller's own rows).
    */
-  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'bezebee'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
+  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'bezebee'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number; noDays?: boolean }, assert?: () => void, after?: (payment: PaymentView) => void) {
     if (!Number.isInteger(input.amount) || input.amount < 0) throw new PaymentError(400, 'Сумма платежа указана неверно')
     if (input.netAmount !== undefined && (!Number.isInteger(input.netAmount) || input.netAmount < 0)) throw new PaymentError(400, 'Сумма «чистыми» указана неверно')
     if (input.until !== undefined && !Number.isFinite(input.until)) throw new PaymentError(400, 'Срок оплаты указан неверно')
@@ -619,7 +619,10 @@ export class PaymentStore {
       if (input.netAmount !== undefined) this.db.prepare('UPDATE payments SET net_amount = ? WHERE id = ?').run(input.netAmount, id)
       const row = this.db.prepare('SELECT * FROM payments WHERE id = ?').get(id) as Row
       if (!this.markSucceeded(row, input.amount)) throw new PaymentError(409, 'Платёж уже применён')
-      if (input.until === undefined) this.extend(account.id, input.plan)
+      // «Не зачислять дни» (owner, 11.11.2026: «добавь в платежи но дни не зачисляй, я уже добавил ему»): the payment
+      // only, the days were given by hand before.
+      if (input.noDays) { /* the subscription stays as it is */ }
+      else if (input.until === undefined) this.extend(account.id, input.plan)
       else this.extendTo(account.id, input.until)
       const view = toView(this.db.prepare('SELECT * FROM payments WHERE id = ?').get(id) as Row)
       after?.(view)

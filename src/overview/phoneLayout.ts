@@ -9,8 +9,22 @@ import { currentBlockId } from './overviewLayout'
  * blocks added later join at their default place.
  */
 export const PHONE_BLOCKS = [
-  'stat-tasks', 'stat-kappa', 'stat-conditions', 'stat-goons', 'priority', 'raid', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites',
+  'stat-screen', 'stat-goons', 'raid', 'requirements', 'tasks', 'stat-conditions', 'gunsmith', 'stat-kappa', 'squad', 'favorites',
+  'stat-control',
 ] as const
+
+/**
+ * Blocks of the phone only that stand on the Overview only when the player puts them there with «Заменить блок»: never added
+ * by themselves. «Управление» (owner, 11.11.2026: «отдельный блок, которого не будет на ПК… включать функции на ПК»).
+ */
+export const PHONE_OPTIONAL: ReadonlySet<string> = new Set(['stat-control'])
+
+/**
+ * The order before 11.11.2026: an owner's default still equal to it is no order of his own, so the new one applies (owner:
+ * «первые два блока верхние, маленькие, это экран и кочевники… обновленный блок выбора карты… требование рейда… текущее
+ * задание… сбор на рейд… оружейник»). «Текущие задания» and «Приоритет карт» now stand inside the map's block.
+ */
+export const OLD_PHONE_ORDER = ['stat-tasks', 'stat-kappa', 'stat-conditions', 'stat-goons', 'priority', 'raid', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites']
 
 /**
  * The blocks that can be half wide: every one (owner, 20.10.2026: «у всех блоков должны быть одинаковые настройки… все
@@ -23,6 +37,11 @@ export interface PhoneLayout {
   order: string[]
   /** Half-wide blocks (only PHONE_NARROWABLE ones). */
   narrow: string[]
+  /**
+   * Blocks taken off the screen by «Заменить блок» (owner, 11.11.2026: «появляется окно с выбором блока, какой нужно поставить
+   * вместо текущего»): kept here, offered again in that window.
+   */
+  hidden?: string[]
   /**
    * Sizes the player dragged by a block's corner in «Настроить блоки» (owner, 17.10.2026: «любой размер»): `w` the share of
    * the screen's width (0.25–1), `h` the height in pixels (absent: the block's own height). Absent block: its default.
@@ -55,12 +74,12 @@ export function resizePhoneBlock(layout: PhoneLayout, id: string, size: PhoneBlo
   return Object.keys(sizes).length ? { ...rest, sizes } : rest
 }
 
-/** v2 (17.10.2026): the new top row is everybody's start again; an arrangement of v1 is not carried over. */
-export const PHONE_LAYOUT_KEY = 'raidos-overview-phone-v2'
+/** v3 (11.11.2026): «Экран» and «Кочевники» on top, the map with the tasks and the priority inside — everybody's start again. */
+export const PHONE_LAYOUT_KEY = 'raidos-overview-phone-v3'
 
-/** The two counters start side by side. */
+/** «Экран» and «Кочевники» start side by side. */
 export function defaultPhoneLayout(): PhoneLayout {
-  return { order: [...PHONE_BLOCKS], narrow: ['stat-tasks', 'stat-kappa'] }
+  return { order: PHONE_BLOCKS.filter((id) => !PHONE_OPTIONAL.has(id)), narrow: ['stat-screen', 'stat-goons'] }
 }
 
 const known = new Set<string>(PHONE_BLOCKS)
@@ -69,8 +88,9 @@ export function sanitizePhoneLayout(raw: unknown): PhoneLayout {
   const saved = raw && typeof raw === 'object' ? raw as Partial<Record<keyof PhoneLayout, unknown>> : {}
   if (!Array.isArray(saved.order)) return defaultPhoneLayout()
   // A renamed block (overviewLayout.ts RENAMED_BLOCKS) keeps its place and its width.
-  const order = [...new Set(saved.order.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.has(id)))]
-  PHONE_BLOCKS.forEach((id, index) => { if (!order.includes(id)) order.splice(Math.min(index, order.length), 0, id) })
+  const hidden = Array.isArray(saved.hidden) ? [...new Set(saved.hidden.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.has(id)))] : []
+  const order = [...new Set(saved.order.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.has(id) && !hidden.includes(id)))]
+  PHONE_BLOCKS.forEach((id, index) => { if (!order.includes(id) && !hidden.includes(id) && !PHONE_OPTIONAL.has(id)) order.splice(Math.min(index, order.length), 0, id) })
   const narrow = Array.isArray(saved.narrow) ? [...new Set(saved.narrow.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => PHONE_NARROWABLE.has(id)))] : []
   const sizes: Record<string, PhoneBlockSize> = {}
   if (saved.sizes && typeof saved.sizes === 'object') {
@@ -80,7 +100,27 @@ export function sanitizePhoneLayout(raw: unknown): PhoneLayout {
       if (clean) sizes[block] = clean
     }
   }
-  return Object.keys(sizes).length ? { order, narrow, sizes } : { order, narrow }
+  return { order, narrow, ...(hidden.length ? { hidden } : {}), ...(Object.keys(sizes).length ? { sizes } : {}) }
+}
+
+/**
+ * «Заменить блок»: `chosen` takes `id`'s place and width. A block on the screen swaps places with it; one taken off before
+ * comes back, and `id` goes off the screen (offered again in the same window). The same object when nothing changes.
+ */
+export function replacePhoneBlock(layout: PhoneLayout, id: string, chosen: string): PhoneLayout {
+  if (id === chosen || !layout.order.includes(id) || !(PHONE_BLOCKS as readonly string[]).includes(chosen)) return layout
+  if (layout.order.includes(chosen)) {
+    const swapped = swapPhoneBlocks(layout, id, chosen)
+    // the slot keeps its width: the two trade their narrowness too
+    const narrowId = layout.narrow.includes(id), narrowChosen = layout.narrow.includes(chosen)
+    if (narrowId === narrowChosen) return swapped
+    const narrow = swapped.narrow.filter((other) => other !== id && other !== chosen)
+    return { ...swapped, narrow: [...narrow, ...(narrowId ? [chosen] : [id])] }
+  }
+  const order = layout.order.map((other) => (other === id ? chosen : other))
+  const hidden = [...(layout.hidden ?? []).filter((other) => other !== chosen), id]
+  const narrow = layout.narrow.includes(id) ? [...layout.narrow.filter((other) => other !== id), chosen] : layout.narrow.filter((other) => other !== chosen)
+  return { ...layout, order, narrow, hidden }
 }
 
 /** `id` one place up (-1) or down (+1); the same object at either end. */
@@ -132,6 +172,7 @@ export function togglePhoneNarrow(layout: PhoneLayout, id: string): PhoneLayout 
 export function isDefaultPhoneLayout(layout: PhoneLayout, base: PhoneLayout = defaultPhoneLayout()) {
   const sizes = (value: PhoneLayout) => JSON.stringify(Object.entries(value.sizes ?? {}).sort(([a], [b]) => a.localeCompare(b)))
   return layout.order.join() === base.order.join() && [...layout.narrow].sort().join() === [...base.narrow].sort().join() && sizes(layout) === sizes(base)
+    && [...(layout.hidden ?? [])].sort().join() === [...(base.hidden ?? [])].sort().join()
 }
 
 /** The player's own layout (sanitized), or `base` when they never arranged the blocks. */

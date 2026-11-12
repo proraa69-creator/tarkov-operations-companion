@@ -52,8 +52,9 @@ describe('«Показать все» of the story tab', () => {
 
   it('opens every chapter of the base, the ones not reached too, with their stages, items, rewards and a way back', () => {
     const { container } = renderQuests('/quests?filter=story')
-    // the story list itself holds every chapter: one not started waits for «Начать главу»
-    expect(container.querySelectorAll('.quest-catalog-card')).toHaveLength(10)
+    // the story list holds every chapter (owner, 11.11.2026): the taken one in «Текущие», the other nine in «Начать новую»
+    expect(container.querySelectorAll('.story-chapter-row.is-current')).toHaveLength(1)
+    expect(container.querySelectorAll('.story-chapter-row.is-new')).toHaveLength(9)
     fireEvent.click(screen.getByTestId('story-show-all'))
     const view = screen.getByTestId('story-all')
     const chapters = [...view.querySelectorAll('.story-all-chapter')].map((chapter) => chapter.getAttribute('data-chapter'))

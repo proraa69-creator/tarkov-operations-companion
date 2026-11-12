@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { CreditCard, ExternalLink, Globe, LogIn, LogOut, Smartphone, UserPlus, UserRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useServerAccount } from '../sync/serverSync'
-import { isDesktopShell } from '../platform'
+import { hidesPayments, isDesktopShell } from '../platform'
 import { openWebsite, subscriptionText } from './accountActions'
 import { useAccountNickname } from './useAccountNickname'
 import { ApproveWebLoginDialog, MobileLoginDialog } from './QrDialogs'
@@ -42,6 +42,8 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
   }
 
   const subscription = status.subscription
+  // The Apple reviewer's account: no subscription at all (owner, 12.11.2026).
+  const paid = !hidesPayments()
   const good = subscription?.status === 'active' || subscription?.status === 'lifetime' || subscription?.status === 'trial'
 
   const body = <>
@@ -51,11 +53,11 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
             <strong>{status.email ?? '—'}</strong>
             <small>{uiText(status.kind === 'streamer' ? 'Стример' : 'Пользователь')}</small>
           </div>
-          <div className={`account-cabinet-cell ${good ? 'is-good' : 'is-warn'}`}>
+          {paid && <div className={`account-cabinet-cell ${good ? 'is-good' : 'is-warn'}`}>
             <span>{uiText('Подписка')}</span>
             <strong>{uiText(subscriptionText(subscription))}</strong>
             <small>{uiText(subscription?.status === 'lifetime' ? 'Аккаунт стримера' : good ? 'Все функции доступны' : 'Оформить можно в личном кабинете на сайте')}</small>
-          </div>
+          </div>}
           {!buttons && <div className="account-cabinet-cell">
             <span>{uiText('Ник в игре')}</span>
             <strong>{nickname ?? '—'}</strong>
@@ -66,7 +68,7 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
         <div className="account-cabinet-actions">
           {buttons}
           <button className="button primary is-wide" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть кабинет на сайте')}</button>
-          {subscription && !good && <button className="button" onClick={() => openWebsite('cabinet')}><CreditCard size={14} />{uiText('Оформить подписку')}</button>}
+          {paid && subscription && !good && <button className="button" onClick={() => openWebsite('cabinet')}><CreditCard size={14} />{uiText('Оформить подписку')}</button>}
           {desktop && <button className="button" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
           <button className="button ghost is-wide" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
           <button className="button danger is-wide" onClick={() => { if (window.confirm(uiText('Выйти из аккаунта на этом компьютере?'))) void logout() }}><LogOut size={14} />{uiText('Выйти')}</button>

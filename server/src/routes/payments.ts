@@ -35,7 +35,7 @@ import { z } from 'zod'
 import { AccountError, bearer, CONSENT_VERSION, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
 import { FRIEND_DISCOUNT_PERCENT, type InviteProgram } from '../services/invites.js'
-import { bezebeeLink, bezebeeOffer, bezebeeRegionOf } from '../services/bezebee.js'
+import { bezebeeCardAllowed, bezebeeLink, bezebeeOffer, bezebeeRegionOf } from '../services/bezebee.js'
 import { paymentRegionOf } from '../../../src/shared/paymentRegions.js'
 import { countryCode } from '../services/loginCodes.js'
 import { proxiedCountry } from './loginCodes.js'
@@ -117,7 +117,9 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const provider = region === 'RU' ? 'yookassa' : region ? 'bezebee' : null
     // An account from Russia the owner opened BZB to keeps ЮKassa and gets the CIS pages too (services/bezebee.ts).
     const bezebeeRegion = bezebeeRegionOf(accounts, id)
-    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, region, provider, bezebee: bezebeeRegion ? bezebeeOffer(bezebeeRegion, percent > 0) : null })
+    // Belarus: the rouble pages only, its cards fail on the dollar ones (services/bezebee.ts NO_CARD_COUNTRIES).
+    const card = bezebeeCardAllowed(accounts.countryOf(id))
+    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, region, provider, bezebee: bezebeeRegion ? bezebeeOffer(bezebeeRegion, percent > 0, card) : null })
   }))
 
   router.post('/', handle(async (req, res) => {
@@ -151,6 +153,7 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     if (friend && !preview && !(invites?.discountPercent(id) ?? 0)) { res.status(403).json({ error: 'Скидка по приглашению уже использована или недоступна' }); return }
     // `card`: the CIS price by a foreign card in dollars (services/bezebee.ts BEZEBEE_CARD_TARIFFS); ignored outside the CIS.
     const card = parsed.data.card === true
+    if (card && region === 'CIS' && !preview && !bezebeeCardAllowed(accounts.countryOf(id))) { res.status(409).json({ error: 'Для вашей страны оплата — в рублях', code: 'BEZEBEE_CARD_COUNTRY' }); return }
     const url = bezebeeLink(region, parsed.data.plan, friend, card)
     if (!url && card && !friend) { res.status(404).json({ error: 'Этот тариф иностранной картой пока недоступен' }); return }
     if (!url) { res.status(403).json({ error: 'Скидка по приглашению действует только на первый месяц' }); return }

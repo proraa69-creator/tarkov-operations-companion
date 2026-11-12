@@ -35,7 +35,7 @@ export function AdminBezebee() {
   const [copied, setCopied] = useState(false)
   const [attachTo, setAttachTo] = useState<Record<number, string>>({})
   const [payload, setPayload] = useState<{ id: number; text: string } | null>(null)
-  const [manual, setManual] = useState<{ email: string; plan: PlanId; friend: boolean; amount: string }>({ email: '', plan: '1m', friend: false, amount: '' })
+  const [manual, setManual] = useState<{ email: string; plan: PlanId; friend: boolean; amount: string; noDays: boolean }>({ email: '', plan: '1m', friend: false, amount: '', noDays: false })
   const [mailUser, setMailUser] = useState('')
   const [mailPassword, setMailPassword] = useState('')
   const token = panel.token
@@ -95,9 +95,9 @@ export function AdminBezebee() {
     const amount = manual.amount.trim() ? Number(manual.amount.replace(',', '.')) : undefined
     if (!email || (amount !== undefined && !Number.isFinite(amount))) return
     void act(async (session) => {
-      await api.adminBezebeeConfirm(session, { email, plan: manual.plan, ...(manual.friend ? { friend: true as const } : {}), ...(amount !== undefined ? { amount } : {}) })
-      setManual({ email: '', plan: '1m', friend: false, amount: '' })
-    }, `Оплата зачислена на ${email}.`)
+      await api.adminBezebeeConfirm(session, { email, plan: manual.plan, ...(manual.friend ? { friend: true as const } : {}), ...(amount !== undefined ? { amount } : {}), ...(manual.noDays ? { noDays: true as const } : {}) })
+      setManual({ email: '', plan: '1m', friend: false, amount: '', noDays: false })
+    }, manual.noDays ? `Оплата записана на ${email}, дни не зачислены.` : `Оплата зачислена на ${email}.`)
   }
 
   async function copyUrl() {
@@ -219,6 +219,8 @@ export function AdminBezebee() {
                 </select>
                 <input className="input" inputMode="decimal" placeholder="Сумма, ₽" aria-label="Сумма в рублях" value={manual.amount} onChange={(input) => setManual({ ...manual, amount: input.target.value })} />
                 <label className="admin-chips"><input type="checkbox" checked={manual.friend} disabled={manual.plan !== '1m'} onChange={(input) => setManual({ ...manual, friend: input.target.checked })} />Цена друга</label>
+                {/* the payment only: the days were given by hand before (owner, 11.11.2026) */}
+                <label className="admin-chips"><input type="checkbox" checked={manual.noDays} onChange={(input) => setManual({ ...manual, noDays: input.target.checked })} />Не зачислять дни</label>
                 <button type="submit" className="button small primary" disabled={busy || !manual.email.trim()}><BadgeCheck aria-hidden="true" />Зачислить</button>
               </div>
             </form>

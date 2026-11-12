@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Pane, TileLayer } from 'react-leaflet'
+import { Pane, Rectangle, TileLayer } from 'react-leaflet'
 import { FloorSvgOverlay } from './FloorSvgOverlay'
 import { ShopSigns } from './ShopSigns'
 import { toLeafletBounds } from './mapCrs'
@@ -10,6 +10,14 @@ import type { GameMap, MapFloorLayer } from '../domain/types'
 
 /** One array for maps without layers: a new `[]` on every render would make FloorSvgOverlay redo its picture. */
 const NO_LAYERS: MapFloorLayer[] = []
+
+/**
+ * The maps of buildings whose picture leaves gaps between its parts (owner, 11.11.2026: «пропущенные участки, которые мы не
+ * отснимали, залей темно-серым… Эпицентр, Развязка (торговый центр), Завод, Ледокол, Лаборатория, Лабиринт»): a dark grey plate
+ * under the picture over its whole frame, so a gap is grey, not the dark ground beyond the map.
+ */
+export const HOLE_FILL_MAPS: ReadonlySet<string> = new Set(['ground-zero', 'interchange', 'factory', 'icebreaker', 'the-lab', 'the-labyrinth'])
+const HOLE_FILL = { stroke: false, fill: true, fillColor: '#2b2f2d', fillOpacity: 1, interactive: false } as const
 
 /**
  * The drawing of a map with one floor shown, as planMapLayers plans it: the render tiles («Спутник») or the SVG scheme
@@ -27,6 +35,11 @@ export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLa
   const { tileUrl, imageUrl, floorTileUrl } = plan
   return (
     <>
+      {HOLE_FILL_MAPS.has(map.id) && (
+        <Pane name="map-hole-fill" style={{ zIndex: 140 }}>
+          <Rectangle bounds={plan.view === 'satellite' ? bounds : imageBounds} pathOptions={HOLE_FILL} />
+        </Pane>
+      )}
       {/* Digital: the SVG scheme with the ground level (or the selected SVG floor) shown. */}
       {plan.view === 'digital' && imageUrl && (
         <FloorSvgOverlay key={`base:${imageUrl}`} base url={imageUrl} layers={layers} removed={removed} selected={plan.floorSvg ? floor : baseFloor} bounds={imageBounds} opacity={baseOpacity} />

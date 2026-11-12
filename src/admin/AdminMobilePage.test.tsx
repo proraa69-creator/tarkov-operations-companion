@@ -264,6 +264,17 @@ describe('mobile admin dashboard', () => {
     expect(await screen.findByRole('button', { name: /^Новые за прошлый месяц: 4/ })).toBeInTheDocument()
   })
 
+  it('«За всё время» counts «оплатили повторно», as on the site (owner, 12.11.2026); an older server shows no count', async () => {
+    const { unmount } = render(<AdminMobilePage />)
+    expect(await screen.findByText('оплат: 12')).toBeInTheDocument()
+    expect(screen.queryByText(/оплатили повторно/)).toBeNull()
+    unmount()
+    mocks.overview.mockResolvedValue({ ...(await mocks.overview()), repeatPayers: 4 })
+    render(<AdminMobilePage />)
+    expect(await screen.findByText('оплат: 12 · оплатили повторно: 4')).toBeInTheDocument()
+    expect(screen.getAllByText(/оплатили повторно/)).toHaveLength(1)
+  })
+
   it('the calendar of registrations and payments goes month by month and opens a day (owner, 03.11.2026)', async () => {
     const user = userEvent.setup()
     const month = ownerDay(Date.now()).slice(0, 7)

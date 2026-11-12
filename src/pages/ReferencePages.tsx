@@ -1,3 +1,4 @@
+import { setMapFollowEnabled, useMapFollowEnabled } from "../maps/mapFollowSetting";
 import { uiLabel, uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -700,7 +701,7 @@ import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
 import { AccountDeletionPanel } from "../account/IosAccount";
-import { isAndroidApp, isDesktopShell, isIosApp, isMobileLayout } from "../platform";
+import { isAndroidApp, isDesktopShell, hidesPayments, isMobileLayout } from "../platform";
 import { BackButtonSettings } from "../mobile/backNavigation";
 import { setCurrentTasksView, useCurrentTasksView, type CurrentTasksView } from "../overview/currentTasksView";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
@@ -721,13 +722,13 @@ function SupportPanel() {
         <div className="setting-row">
           <span>
             {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
-            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!isIosApp() && <> {uiText(REWARD_NOTE)}</>}</small>
+            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!hidesPayments() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
+            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!hidesPayments() && <> {uiText(REWARD_NOTE)}</>}</small>
           </span>
         </div>
         <div className="support-row"><SupportButtons variant="panel" /></div>
         {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
-        {!isIosApp() && <div className="support-row"><DonateCard /></div>}
+        {!hidesPayments() && <div className="support-row"><DonateCard /></div>}
       </div>
     </section>
   );
@@ -744,6 +745,29 @@ function CurrentTasksViewSetting() {
       <div className="locale-switch" role="radiogroup" aria-label={uiText("Текущие задания")}>
         {choices.map(([id, name]) => <button type="button" role="radio" aria-checked={view === id} key={id} className={view === id ? "active" : ""} onClick={() => setCurrentTasksView(id)}>{uiText(name)}</button>)}
       </div>
+    </div>
+  );
+}
+
+/** «Перемещать карту к точке» (report 143): whether the map flies to a picked point (src/maps/mapFollowSetting.ts). */
+function MapFollowSetting() {
+  const follow = useMapFollowEnabled();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Перемещать карту к точке")}<SettingHelp id="mapFollow" /></strong>
+        <small>{uiText("При нажатии на метку и после галочки в квесте")}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={follow}
+        aria-label={uiText("Перемещать карту к точке")}
+        className={`toggle ${follow ? "on" : ""}`}
+        onClick={() => setMapFollowEnabled(!follow)}
+      >
+        <span />
+      </button>
     </div>
   );
 }
@@ -787,6 +811,7 @@ export function SettingsPage() {
           </span>
           <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
         </div>}
+        <MapFollowSetting />
         <ClickVolumeSetting />
         {!isMobileLayout() && <CurrentTasksViewSetting />}
         <GuideReplaySetting />

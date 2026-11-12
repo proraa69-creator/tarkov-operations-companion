@@ -32,6 +32,23 @@ export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   other: 'Другое',
 }
 
+/**
+ * The categories in groups (owner, 11.11.2026: «придумай сортировку по категориям, то есть не общий список, а должно быть
+ * например Квесты и карта, сделай общие категории при нажатии, будет следующее окно и выбор конкретной темы. должна быть
+ * кнопка назад»). A group of one category is that category at once.
+ */
+export const REPORT_CATEGORY_GROUPS = [
+  { id: 'quests-map', title: 'Квесты и карта', categories: ['quest', 'map', 'minimap', 'kappa', 'bosses'] },
+  { id: 'items-trade', title: 'Предметы и торговля', categories: ['item-info', 'flea', 'traders', 'hideout'] },
+  { id: 'weapons', title: 'Оружие и патроны', categories: ['gunsmith', 'ballistics'] },
+  { id: 'progress-squad', title: 'Прогресс и отряд', categories: ['progress', 'squad'] },
+  { id: 'account', title: 'Аккаунт и оплата', categories: ['account', 'subscription'] },
+  { id: 'app', title: 'Работа приложения', categories: ['update', 'performance', 'interface'] },
+  { id: 'other', title: 'Другое', categories: ['other'] },
+] as const satisfies ReadonlyArray<{ id: string; title: string; categories: readonly ReportCategory[] }>
+export type ReportCategoryGroupId = typeof REPORT_CATEGORY_GROUPS[number]['id']
+export const reportCategoryGroup = (category: ReportCategory) => REPORT_CATEGORY_GROUPS.find((group) => (group.categories as readonly ReportCategory[]).includes(category))
+
 /** What is wrong with a quest (the «Квест» category). The server takes them all: an app of 0.6.0.234 may still send «extra-point». */
 export const QUEST_ISSUES = ['wrong-point', 'missing-point', 'extra-point', 'wrong-text', 'changed', 'other'] as const
 export type QuestIssue = typeof QUEST_ISSUES[number]

@@ -127,9 +127,9 @@ describe('«Пригласи друга»', () => {
     expect(screen.getByText('Зарегистрируйтесь — скидка применится сама.')).toBeInTheDocument()
     expect(screen.queryByText(/Друг пригласил|по ссылке друга/)).toBeNull()
     expect(screen.queryByText(/3 дня бесплатного доступа/)).toBeNull()
-    // The home page section with the ranks ladder.
-    expect(screen.getByRole('heading', { name: 'Raid OS выгоднее с отрядом' })).toBeInTheDocument()
-    expect(screen.getByText('Legend')).toBeInTheDocument()
+    // «Raid OS выгоднее с отрядом» with the ranks ladder is gone from the site (owner, 13.11.2026: «Вообще удали»).
+    expect(screen.queryByRole('heading', { name: 'Raid OS выгоднее с отрядом' })).toBeNull()
+    expect(screen.queryByText('Legend')).toBeNull()
     expect(screen.getAllByRole('link', { name: 'Зарегистрироваться' }).every((link) => link.getAttribute('href') === '/register')).toBe(true)
   })
 

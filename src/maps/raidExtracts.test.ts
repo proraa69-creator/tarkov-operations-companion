@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { exitHighlights, exitKey, isUncertainExit, matchListedExits, parseExtractList } from './raidExtracts'
+import { exitHighlights, exitKey, isStayReading, isUncertainExit, matchListedExits, parseExtractList } from './raidExtracts'
 
 // Report №105 (Reserve, the player's screenshot) as the OCR gives it, a slip or two included.
 const READ = `Найдите зону выхода 0:39:54
@@ -39,11 +39,11 @@ describe('the exits the game lists after a double O (report №105)', () => {
     expect(matchListedExits(['Д-3'], RESERVE).size).toBe(0)
   })
 
-  it('lights the listed exits, dims the others, leaves the train and the car exits alone, only for this raid', () => {
+  it('lights the listed exits, dims the others — the train and the car too, by the list (owner, 11.11.2026) — only for this raid', () => {
     const exits = RESERVE
     const highlights = exitHighlights({ names: parseExtractList(READ), at: 2000 }, 1000, exits)!
-    expect([...highlights.lit].sort()).toEqual(['cliff', 'd2', 'hermetic', 'sewer', 'wild'])
-    expect([...highlights.dim]).toEqual(['exit-hole'])
+    expect([...highlights.lit].sort()).toEqual(['cliff', 'd2', 'hermetic', 'sewer', 'train', 'wild'])
+    expect([...highlights.dim].sort()).toEqual(['exit-hole', 'vex'])
     expect(exitHighlights({ names: ['Д-2'], at: 500 }, 1000, exits)).toBeNull()
     expect(exitHighlights(null, 1000, exits)).toBeNull()
   })
@@ -61,7 +61,62 @@ describe('the exits the game lists after a double O (report №105)', () => {
     const names = parseExtractList(ocr)
     expect(names).toEqual(['Брочепоезд', '1-2', 'гермозатвор бункера', 'Сгуск со скаль', 'Дикие места (Совм)', 'канализационный люк'])
     const highlights = exitHighlights({ names, at: 2000 }, 1000, RESERVE)!
-    expect([...highlights.lit].sort()).toEqual(['cliff', 'd2', 'hermetic', 'sewer', 'wild'])
-    expect([...highlights.dim]).toEqual(['exit-hole'])
+    expect([...highlights.lit].sort()).toEqual(['cliff', 'd2', 'hermetic', 'sewer', 'train', 'wild'])
+    expect([...highlights.dim].sort()).toEqual(['exit-hole', 'vex'])
+  })
+})
+
+/** The map's exits as the map page hands them over: a PMC's and a Scav's exit of one name, the transits too. */
+const exitsOf = (rows: Array<[string, string]>) => rows.map(([id, title]) => ({ id, title, titles: [title] }))
+const lines = (...rows: string[]) => rows.join('\n')
+
+// The owner's own screenshots (11.11.2026, 3440x1440, Documents\Escape from Tarkov\Screenshots) through the new corner
+// (electron/extractsReader.ts CORNER, read at twice its size) and tesseract rus+eng: what the OCR really gave.
+describe('the exit list of real raids (owner, 11.11.2026: «Мы делали эту функцию до этого, но она не работала»)', () => {
+  it('Customs: «ЗБ» read as «35» — every listed exit lit, a Scav exit of the same name too', () => {
+    const ocr = lines('ВЫХОДОВ! А-Выход у общаги 22:22:27?', 'ВЫХОДВ2 35-1213', 'ВЫХОДВЗ 35-1911', 'ВЫХОДВ4 старая заправка 22.22.22?', 'ВЫХОДОЪ ЖД кРезерву',
+      'ВЫХОДОБ Проход через ЖД пути (Сигнал)', 'ВЫХОДО7 Подвал котельной (Совм)', 'ПЕРЕХОДОВ] Переход на Резерв 0:00:58', 'ПЕРЕХОДО2 Nepexog на Завод 0:00:58')
+    const exits = exitsOf([['vex', 'А-Выход у общаги'], ['zb1013', 'ЗБ-1013'], ['zb1011', 'ЗБ-1011'], ['zb1011-scav', 'ЗБ-1011'], ['gas', 'Старая заправка'], ['gas-scav', 'Старая заправка'],
+      ['rr', 'ЖД к Резерву'], ['tracks', 'Проход через ЖД пути (Сигнал)'], ['boiler', 'Подвал котельной (Совм.)'], ['crossroads', 'Перекресток'], ['trailer', 'Трейлерный парк'],
+      ['boat', 'Лодка Контрабандистов'], ['transit', 'Переход на карту Резерв']])
+    const highlights = exitHighlights({ names: parseExtractList(ocr), at: 2000 }, 1000, exits)!
+    expect([...highlights.lit].sort()).toEqual(['boiler', 'gas', 'gas-scav', 'rr', 'tracks', 'vex', 'zb1011', 'zb1011-scav', 'zb1013'])
+    expect([...highlights.dim].sort()).toEqual(['boat', 'crossroads', 'trailer'])
+  })
+
+  it('Interchange: a letter or a mark of the trees before every line', () => {
+    const ocr = lines('“4s Найдите зону выхода 0:59:51 —', 'Se ВЫХОДА! Лагерь Диких (Совм) Е', '7 ВЫХОД@2 Безопасная комната', '‘. BbIXOM@3 кпп мчс', 'К ВЫХОД@4 А-Выход у ТЭЦ + 22:22:27',
+      '27 ВЫХОДОБ Тропа к реке (Сигнал) |', '„Я ПЕРЕХОДА! Переход на Таможню 0:00:52')
+    expect(parseExtractList(ocr)).toEqual(['Лагерь Диких (Совм)', 'Безопасная комната', 'кпп мчс', 'А-Выход у ТЭЦ', 'Тропа к реке (Сигнал)'])
+    const exits = exitsOf([['camp', 'Лагерь Диких (Совм.)'], ['safe', 'Безопасная комната'], ['emercom', 'КПП МЧС'], ['emercom-scav', 'КПП МЧС'], ['pp', 'А-Выход у ТЭЦ'],
+      ['river', 'Тропа к реке (Сигнал)'], ['rail', 'Выход на железной дороге'], ['hole', 'Дыра в заборе'], ['to-customs', 'Переход на карту Таможня']])
+    const highlights = exitHighlights({ names: parseExtractList(ocr), at: 2000 }, 1000, exits)!
+    expect([...highlights.lit].sort()).toEqual(['camp', 'emercom', 'emercom-scav', 'pp', 'river', 'safe'])
+    expect([...highlights.dim].sort()).toEqual(['hole', 'rail'])
+  })
+
+  it('Factory, Labs and Streets', () => {
+    const read = (ocr: string, exits: ReturnType<typeof exitsOf>) => [...exitHighlights({ names: parseExtractList(ocr), at: 2000 }, 1000, exits)!.lit].sort()
+    const factory = exitsOf([['cellars', 'Подвалы'], ['g3', 'Ворота 3'], ['g0', 'Ворота 0'], ['med', 'Ворота у медицинской палатки'], ['yard', 'Ворота во дворе'], ['office', 'Офисное окно'], ['smugglers', 'Проход Контрабандистов']])
+    expect(read(lines('ВЫХОД! Подвалы', 'ВЫХОДВ2 ворота 3', 'ВЫХОДАВЗ Ворота @', 'ВЫХОД@В4 Ворота у медицинской палатки', 'ВЫХОДО5 ворота во дворе', 'ПЕРЕХОДО! Перехсд на Лес 0:00:52'), factory))
+      .toEqual(['cellars', 'g0', 'g3', 'med', 'yard'])
+    const labs = exitsOf([['hangar', 'Ангар'], ['med', 'Лифт медблока'], ['cargo', 'Грузовой лифт'], ['main', 'Центральный лифт'], ['vent', 'Вентиляционная шахта'], ['parking', 'Парковка'], ['sewage', 'Накопительный коллектор']])
+    expect(read(lines('ВЫХОДА! Лифт медблока', 'ВЫХОДВ2 грузовой лифт', 'ВЫХОДВЗ Центральный лифт', 'BbIXOJ@5 накопительный коллектор', 'ВЫХОДОБ Парковка 22:72:77'), labs))
+      .toEqual(['cargo', 'main', 'med', 'parking', 'sewage'])
+    const streets = exitsOf([['well', 'Двор-колодец'], ['taxi', 'А-выход Такси на Приморском'], ['crash', 'Место крушения'], ['ruined', 'Разрушенный дом'], ['klimov', 'Улица Климова (Сигнал)'], ['pinewood', 'Подвал в Pinewood (Совм.)'], ['crane', 'Упавший кран']])
+    expect(read(lines('ВЫХОДОВ! Двор-колодец 22:??:??', 'ВЫХОДО@2 А-выход Такси на Приморском 2:22:27', 'BbIXO{Q@3 Место крушения', 'ВЫХОДА Разрушенный дом', 'ВЫХОДО5 Улица Климова (Сигнал)', 'ВЫХОДОБ Подвал в Pinewood (Совм.'), streets))
+      .toEqual(['crash', 'klimov', 'pinewood', 'ruined', 'taxi', 'well'])
+  })
+
+  it('«Оставайтесь в зоне выхода» lists one exit: no reading; a list of transits only gives no names', () => {
+    expect(isStayReading(lines('«», Оставайтесь в зоне выхода 0:07:21 ss', 'ВЫХОДО5 жд кРезерву 0:00:00'))).toBe(true)
+    expect(parseExtractList(lines('сы Найдите зону выхода 0:20:08', '= ПЕРЕХОД@2 переход на Завод'))).toEqual([])
+  })
+
+  it('no game logs: a reading counts for 50 minutes', () => {
+    const exits = exitsOf([['a', 'Подвалы'], ['b', 'Ворота 3'], ['c', 'Офисное окно']])
+    const reading = { names: ['Подвалы', 'Ворота 3'], at: 1_000_000 }
+    expect(exitHighlights(reading, undefined, exits, 1_000_000 + 49 * 60_000)?.dim).toEqual(new Set(['c']))
+    expect(exitHighlights(reading, undefined, exits, 1_000_000 + 51 * 60_000)).toBeNull()
   })
 })

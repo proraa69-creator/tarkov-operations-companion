@@ -88,8 +88,8 @@ describe('QuestConditionsCard', () => {
 
   it('hovering unfolds the card in place: its quest with all of its info, every other quest below as a full-size card', async () => {
     // Each one hides something at rest (here, a third map), whichever the random pick shows: a hover unfolds only then.
-    const wideDandies: Quest = { ...dandies, objectiveDetails: [{ ...dandies.objectiveDetails![0], mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'] }] }
-    renderCard([patriot, wideDandies, shooter])
+    const wide = (quest: Quest): Quest => ({ ...quest, objectiveDetails: [{ ...quest.objectiveDetails![0], mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'] }] })
+    renderCard([wide(patriot), wide(dandies), wide(shooter)])
     const pop = card().querySelector('.qc-pop') as HTMLElement
     expect(pop).not.toHaveClass('is-open')
     expect(pop).toHaveAttribute('inert')
@@ -276,12 +276,13 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
 
   it('a click on the weapon of «any of N» lists every allowed weapon with its picture; a hover shows nothing; another click closes it (03.11.2026)', async () => {
     renderCard([shooter])
+    // A weapon of three and nothing hidden: a hover does not unfold the card (owner, 11.11.2026: «нет никакой дополнительной
+    // информации при наведении, то не надо раскладывать»); the choice is on the card itself — one example and «+2».
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
-    const full = card().querySelector('.qc-pop.is-open .qc-card.is-full') as HTMLElement
-    const example = full.querySelector('.is-weapons .qc-choice') as HTMLElement
-    // still one example and «или любое из 3»
+    expect(card().querySelector('.qc-pop.is-open')).toBeNull()
+    const example = card().querySelector('.qc-main .qc-choice.qc-weapon-group') as HTMLElement
     expect(example.querySelectorAll('.qc-weapon')).toHaveLength(1)
-    expect(example.querySelector('.qc-choice-more')).toHaveTextContent('или любое из 3')
+    expect(example.querySelector('.qc-choice-more')).toHaveTextContent('+2')
     expect(popup()).toBeNull()
     // A hover shows nothing (owner, 03.11.2026: «только когда наводишь на картинку оружия и нажимаешь лкм»).
     const weapon = example.querySelector('.qc-weapon')!
@@ -375,8 +376,7 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
   it('speaks English', async () => {
     setRenderLanguage('en')
     renderCard([shooter])
-    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
-    const example = card().querySelector('.qc-pop.is-open .is-weapons .qc-choice') as HTMLElement
+    const example = card().querySelector('.qc-main .qc-choice.qc-weapon-group') as HTMLElement
     fireEvent.click(example)
     expect(popup()).not.toBeNull()
     expect(popup()!.querySelector('.qc-variants-title')).toHaveTextContent('Any of 3 fits')
@@ -402,8 +402,7 @@ describe('«Сбор на рейд»: a right click on a weapon opens «Гото
   it('every weapon of «или любое из N»: the right one, not the quest put aside', async () => {
     const onDefer = vi.fn()
     render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" onDefer={onDefer} />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
-    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
-    const weapon = card().querySelector('.qc-pop.is-open .qc-card.is-full .is-weapons .qc-choice .qc-weapon')!
+    const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
     fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
     fireEvent.click(weapon)
     const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
@@ -471,7 +470,7 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
   it('replaces «Прогресс» in its slot and lists the current quests of Streets with their gear; «Работа для патриота» opens with its AK-12 build', async () => {
     const { container } = await renderOverview()
     const blocks = [...container.querySelectorAll('.stat-grid > .overview-block')].map((block) => block.getAttribute('data-block'))
-    expect(blocks).toEqual(['stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons'])
+    expect(blocks).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons'])
     expect(container.querySelector('[data-block="stat-conditions"] .quest-conditions-card')).not.toBeNull()
     expect(container.querySelector('.stat-grid')).not.toHaveTextContent('Прогресс')
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
@@ -499,5 +498,24 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
     const needs = container.querySelector('.raid-needs') as HTMLElement
     expect(needs).not.toHaveTextContent('АК-12')
     expect(needs).not.toHaveTextContent('ПС-320')
+  })
+})
+
+// Owner, 12.11.2026: «Сделай для сбора на рейд список… чтобы он также листался ползунком справа… кнопка… больше не нужна».
+describe('«Сбор на рейд» on the phone: every quest in a list under the thumb, no «ещё N»', () => {
+  it('lists all the quests of the map, the picked one first, with no «ещё» and no unfolded copy', () => {
+    render(<MemoryRouter><QuestConditionsCard result={result([shooter, dandies, patriot])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" compactRows={2} /></MemoryRouter>)
+    const names = [...card().querySelectorAll('.thumb-scroll .qc-scroll-list > li .qc-name')].map((node) => node.textContent)
+    expect(names).toHaveLength(3)
+    expect(new Set(names)).toEqual(new Set(['Тарковский стрелок. Часть 1', 'Стиляги', 'Работа для патриота']))
+    expect(card()).toHaveClass('is-scroll')
+    expect(screen.queryByRole('button', { name: /ещё/ })).toBeNull()
+    expect(card().querySelector('.qc-pop')).toBeNull()
+  })
+
+  it('a quest of the list opens its build', () => {
+    render(<MemoryRouter><QuestConditionsCard result={result([shooter, dandies])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" compactRows={2} /></MemoryRouter>)
+    fireEvent.click(screen.getByText('Стиляги').closest('button')!)
+    expect(screen.getByRole('dialog', { name: 'Стиляги' })).toBeInTheDocument()
   })
 })

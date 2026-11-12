@@ -58,7 +58,7 @@ describe('live map catalog resilience', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const zone = (id: string, hazardType: string) => ({ id, hazardType, name: hazardType, position: { x: 1, y: 0, z: 1 }, outline: [{ x: 0, z: 0 }, { x: 2, z: 0 }, { x: 2, z: 2 }] })
     const raw = (normalizedName: string) => ({ normalizedName, hazards: [zone(`${normalizedName}-mine`, 'minefield'), zone(`${normalizedName}-sniper`, 'sniper')], artillery: { zones: [{ id: `${normalizedName}-gun`, position: { x: 1, y: 0, z: 1 } }] } })
-    const dangers = adaptLiveMapMarkers({ maps: { a: raw('lighthouse'), b: raw('shoreline') } }, {}, context).filter((marker) => marker.layerId === 'hazard').map((marker) => marker.id).sort()
+    const dangers = adaptLiveMapMarkers({ maps: { a: raw('lighthouse'), b: raw('shoreline') } }, {}, context).filter((marker) => marker.layerId === 'hazard' && marker.source !== 'game-sniper-zones').map((marker) => marker.id).sort()
     expect(dangers.filter((id) => id.includes('lighthouse'))).toEqual(['hazard-lighthouse-gun', 'hazard-lighthouse-sniper'].map((id) => expect.stringContaining(id)))
     expect(dangers.filter((id) => id.includes('shoreline'))).toHaveLength(3)
   })
@@ -68,7 +68,7 @@ describe('live map catalog resilience', () => {
     const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
     // Battle pass document pins, the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) and the game-file containers are static data
     // and always present; this test is about the live feed.
-    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files')
+    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos' && marker.source !== 'game-sniper-zones')
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
@@ -606,7 +606,7 @@ describe('battle pass documents', () => {
     expect(documents).toHaveLength(1)
     expect(documents[0]!.approximate).toBeFalsy()
     expect(documents[0]!.documentKinds).toEqual(['financial'])
-    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files')).toBe(false)
+    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos' && marker.source !== 'game-sniper-zones')).toBe(false)
   })
 
   it('has every document name translated and every point on a known map', { timeout: 30_000 }, () => {
@@ -697,7 +697,8 @@ describe('«Спавн 100 %» layer and the containers of the game files (09.11
     const lab = markersOf('the-lab')
     expect(lab.some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
     expect(lab.filter((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 11 возможных точек спавна.')).toHaveLength(11)
-    expect(markersOf('customs').some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
+    // Report 121: the jacket on the dorms' second floor always holds «Ключ от спецтехники» (SPT statistics).
+    expect(markersOf('customs').filter((marker) => marker.layerId === 'loot.guaranteed').map((marker) => marker.itemId)).toEqual(['5937ee6486f77408994ba448'])
   })
 
   it('has English for the new texts', () => {
@@ -734,7 +735,8 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
       { items: ['k1'], position: { x: 10, y: 1, z: 10 } },
       { items: ['k1', 'k2', 'bolts'], position: { x: 40, y: 1, z: 40 } },
     ] } } }, {}, context)
-    const keys = result.filter((marker) => marker.layerId === 'loot.key')
+    // the feed's own spots (the players' and the statistics' key spots of Customs are static data)
+    const keys = result.filter((marker) => marker.layerId === 'loot.key' && marker.source !== 'raidos' && marker.source !== 'raid-statistics')
     expect(keys).toHaveLength(2)
     expect(keys[0]).toMatchObject({ title: 'Ключ от кабинета директора ТарКон', description: 'Может лежать здесь.', itemId: 'k1' })
     expect(keys[0]!.keyCount).toBeUndefined()
@@ -749,7 +751,7 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
     const dorm = new Map<string, unknown>([key('664d4b0103ef2c61246afb56', 'Ключ от комнаты заведующего общежития', 'Зав. общ')])
     const shore = { ...context, items: dorm } as typeof context
     const keys = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { shoreline: { normalizedName: 'shoreline', lootLoose } } }, {}, shore)
-      .filter((marker) => marker.layerId === 'loot.key')
+      .filter((marker) => marker.layerId === 'loot.key' && marker.itemId === '664d4b0103ef2c61246afb56')
     // the feed's spot in the living container (reports of 10.11.2026): its own point carries the photo, nothing is added
     const listed = keys([
       { items: ['664d4b0103ef2c61246afb56'], position: { x: -653.4, y: -25.0, z: -237.2 } },
@@ -776,5 +778,17 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
     expect(translateUiText('Может лежать здесь.')).not.toMatch(/[А-Яа-яЁё]/)
     expect(translateUiText('Ключи: 2')).not.toMatch(/[А-Яа-яЁё]/)
     expect(translateUiText('Может лежать один из: Ключ от комнаты 203, Ключ от комнаты 204.')).toMatch(/^May lie here: one of /)
+  })
+})
+
+describe('report 123: «Умный в гору не пойдёт» — Customs\' other secret exit', () => {
+  it('the objective «Найти секретный выход» has a point at «Лодка Контрабандистов» too', () => {
+    const quest: Quest = { id: '675c1cf4a757ddd00404f0a3', name: 'Умный в гору не пойдёт', trader: 'Егерь', mapId: 'customs', mapIds: ['customs'], level: 1, kappa: false, description: '', objectives: [], rewards: [] }
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { [quest.id]: { objectives: [
+      { id: '675c1cf4a757ddd00404f0a6', type: 'visit', description: 'Найти секретный выход на локации Таможня', zones: [{ id: 'exit777', map: 'customs', position: { x: 462, y: -2, z: -112 } }] },
+    ] } } }, { maps, quests: [quest], items: new Map(), mapNameByApiId: new Map() })
+    const points = result.filter((marker) => marker.questId === quest.id)
+    expect(points.map((marker) => marker.id).sort()).toEqual(['customs-quest-zone-675c1cf4a757ddd00404f0a3-exit777', 'customs-quest-zone-675c1cf4a757ddd00404f0a3-smugglers-boat'])
+    expect(points.find((marker) => marker.id.endsWith('smugglers-boat'))?.position).toEqual([122.67, -41.51])
   })
 })

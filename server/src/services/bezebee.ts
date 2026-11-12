@@ -73,6 +73,17 @@ export const BEZEBEE_CARD_TARIFFS: BezebeeTariffs = {
   friend: { plan: '1m', price: 2.9, url: 'https://pay.bezebee.com/xdoWbQJ2' },
 }
 
+/**
+ * Countries whose cards the dollar pages refuse (owner, 11.11.2026, after BZB's answer: Belarusian cards are blocked by the
+ * card processor of the dollar pages, while the rouble pages' Russian acquiring takes them, Belkart included — «у людей из
+ * Белоруссии убери в долларах, оставь в рублях»). Such an account gets no `card` offer and no dollar page; a sale that
+ * still comes in is credited as usual (services/bezebeeWebhook.ts).
+ */
+export const NO_CARD_COUNTRIES: readonly string[] = ['BY']
+
+/** Whether an account of this saved country may pay the CIS price by a foreign card in dollars. */
+export const bezebeeCardAllowed = (country: string | null | undefined) => !NO_CARD_COUNTRIES.includes((country ?? '').toUpperCase())
+
 /** Every table with the region its payments belong to: the CIS in roubles, the CIS by a foreign card, Global. */
 export const BEZEBEE_TABLES: ReadonlyArray<{ region: BezebeeRegion; tariffs: BezebeeTariffs }> = [
   { region: 'CIS', tariffs: BEZEBEE_TARIFFS.CIS },
@@ -88,10 +99,11 @@ const offerOf = (tariffs: BezebeeTariffs, friendOpen: boolean) => ({
 
 /**
  * What the cabinet may know before a click: the plans and prices of the account's region, never the links. A CIS account
- * also gets `card`: the plans in dollars for a foreign card.
+ * also gets `card`: the plans in dollars for a foreign card — unless its country's cards cannot pay them (`card` false:
+ * NO_CARD_COUNTRIES).
  */
-export function bezebeeOffer(region: BezebeeRegion, friendOpen: boolean) {
-  return { ...offerOf(BEZEBEE_TARIFFS[region], friendOpen), ...(region === 'CIS' ? { card: offerOf(BEZEBEE_CARD_TARIFFS, friendOpen) } : {}) }
+export function bezebeeOffer(region: BezebeeRegion, friendOpen: boolean, card = true) {
+  return { ...offerOf(BEZEBEE_TARIFFS[region], friendOpen), ...(region === 'CIS' && card ? { card: offerOf(BEZEBEE_CARD_TARIFFS, friendOpen) } : {}) }
 }
 
 /**
@@ -122,7 +134,8 @@ export function bezebeeLink(region: BezebeeRegion, plan: BezebeePlanId, friend =
 export class BezebeePayments {
   constructor(private readonly accounts: AccountStore, private readonly payments: PaymentStore, private readonly invites?: InviteProgram) {}
 
-  confirm(actor: string, input: { email: string; plan: BezebeePlanId; friend?: boolean; amount?: number; reference?: string }) {
+  /** `noDays`: «Не зачислять дни» — the payment is recorded, the subscription is left as it is (days given by hand before). */
+  confirm(actor: string, input: { email: string; plan: BezebeePlanId; friend?: boolean; amount?: number; reference?: string; noDays?: boolean }) {
     const account = this.accounts.accountByEmail(input.email)
     if (!account) throw new BezebeeConfirmError(404, 'unknown_email', 'Аккаунт с таким email не найден')
     if (!paymentRegionOf(this.accounts.countryOf(account.id))) throw new BezebeeConfirmError(409, 'no_country', 'У аккаунта не указана страна')
@@ -145,6 +158,7 @@ export class BezebeePayments {
       actor,
       ...(input.reference ? { reference: input.reference } : {}),
       ...(friend ? { discountPercent: FRIEND_DISCOUNT_PERCENT } : {}),
+      ...(input.noDays ? { noDays: true } : {}),
     }, () => {
       if (friend && !((this.invites?.discountPercent(account.id) ?? 0) > 0)) throw new BezebeeConfirmError(409, 'friend_without_referral', 'У аккаунта нет неиспользованной скидки по приглашению')
     })

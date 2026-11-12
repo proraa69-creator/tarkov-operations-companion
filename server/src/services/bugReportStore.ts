@@ -28,6 +28,10 @@
  * stands; `triage_summary` / `triage_plan`: what Claude drew from it and the plan, which the owner corrects; `work_note`,
  * `work_commit`: how the work ended. Claude reads and writes these through server/src/services/reportsAgent.ts on the
  * owner's computer, by SSH, and never through a route. The work starts only by `ownerWork('approve')`, the owner's button.
+ *
+ * «Добавить точку» (owner, 10.11.2026, src/shared/pointSuggestion.ts): an idea may carry a point for the map —
+ * `suggest_json` (emblem, name, map, the place read from the screenshot's name). The owner's «Принять точку» puts it on
+ * the map and closes the report (`acceptPoint`); `suggest_point_id` is the map point it became, so it is accepted once.
  * The old `status` follows: a report that left the working list reads «closed» (retention, «совпадает», the read-only key).
  *
  * Storage: screenshots of all reports together are kept under BUG_REPORT_STORAGE.maxStoredBytes (a new report with
@@ -37,6 +41,8 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
+import { isQuestPointIcon } from '../../../src/shared/questPointConstructor.js'
+import { pointSuggestionLabel, type PointSuggestion } from '../../../src/shared/pointSuggestion.js'
 import { MATCH_RADIUS_M, QUEST_ISSUE_LABELS, REPORT_CATEGORY_LABELS, type QuestIssue, type ReportCategory, type ReportMode } from '../../../src/shared/reportCategories.js'
 import { REPORT_PLAN_EDITABLE, REPORT_TEXT_LIMITS, REPORT_WORK_ACTIONS, REPORT_WORK_AWAITING, REPORT_WORK_CLOSED, REPORT_WORK_STATUSES, REPORT_WORK_WORKING, type ReportTableView, type ReportWorkAction, type ReportWorkStatus } from '../../../src/shared/reportWork.js'
 
@@ -127,6 +133,8 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   ['work_commit', 'TEXT'],
   ['work_published_commit', 'TEXT'],
   ['work_changed_at', 'INTEGER'],
+  ['suggest_json', 'TEXT'],
+  ['suggest_point_id', 'TEXT'],
 ]
 
 export class BugReportError extends Error {
@@ -166,6 +174,8 @@ export interface BugReportInput {
   kind?: ReportKind
   category?: ReportCategory
   quest?: QuestReport
+  /** «Добавить точку»: a point for the map, its place already read from the screenshot's name. */
+  suggest?: Omit<PointSuggestion, 'pointId'>
   topic: string
   description: string
   appVersion: string
@@ -179,6 +189,8 @@ export interface BugReportSummary {
   kind: ReportKind
   category?: ReportCategory
   quest?: QuestReport
+  /** «Добавить точку»: the point the player proposes; `pointId` once the owner accepted it. */
+  suggest?: PointSuggestion
   /** Open quest reports that agree with this one, itself included (same point area, same wrong point or same issue). */
   matches?: number
   /** What this report agrees on with the others of its group (the owner's «Заявки» groups by it). */
@@ -235,6 +247,7 @@ export interface RedactedReport {
   kind: ReportKind
   category?: ReportCategory
   quest?: QuestReport
+  suggest?: PointSuggestion
   /** As in BugReportSummary: open quest reports that agree with this one, and what they agree on. */
   matches?: number
   group?: string
@@ -258,6 +271,7 @@ const AWAITING_SQL = quoted(REPORT_WORK_AWAITING)
 /** The fields of a report Claude may read: named one by one, so the e-mail, the account, the days and the mail state never are. */
 const AGENT_COLUMNS = `r.id, r.kind, r.category, r.account_id, r.topic, r.description, r.app_version, r.platform, r.status, r.created_at, r.closed_at,
   r.quest_id, r.quest_issue, r.game_mode, r.map_id, r.marker_id, r.objective_id, r.stage_index, r.point_x, r.point_z, r.point_floor, r.point_note, r.quest_note,
+  r.suggest_json, r.suggest_point_id,
   (SELECT COUNT(*) FROM bug_report_files f WHERE f.report_id = r.id) AS file_count`
 /** A report as Claude sees it, with the analysis and the state of the work. */
 export type AgentReport = RedactedReport & {
@@ -349,12 +363,12 @@ export class BugReportStore {
       if (incoming > 0 && this.storedBytes() + incoming > this.maxStoredBytes) throw new BugReportError(507, STORAGE_FULL_MESSAGE)
       const quest = input.quest
       const result = this.db.prepare(`INSERT INTO bug_reports (kind, account_id, email, topic, description, app_version, platform, status, created_at,
-          category, quest_id, quest_issue, game_mode, map_id, marker_id, objective_id, stage_index, point_x, point_z, point_floor, point_note, quest_note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          category, quest_id, quest_issue, game_mode, map_id, marker_id, objective_id, stage_index, point_x, point_z, point_floor, point_note, quest_note, suggest_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(input.kind ?? 'bug', accountId, email ?? null, input.topic, input.description, input.appVersion, input.platform, at,
           input.category ?? null, quest?.questId ?? null, quest?.issue ?? null, quest?.mode ?? null, quest?.mapId ?? null, quest?.markerId ?? null,
           quest?.objectiveId ?? null, quest?.stageIndex ?? null, quest?.point?.x ?? null, quest?.point?.z ?? null, quest?.point?.floor ?? null,
-          quest?.pointNote ?? null, quest?.questNote ?? null)
+          quest?.pointNote ?? null, quest?.questNote ?? null, input.suggest ? JSON.stringify(input.suggest) : null)
       const id = Number(result.lastInsertRowid)
       const insert = this.db.prepare('INSERT INTO bug_report_files (report_id, idx, mime, size, data) VALUES (?, ?, ?, ?, ?)')
       input.files.forEach((file, idx) => insert.run(id, idx, mimes[idx], file.length, file))
@@ -618,6 +632,16 @@ export class BugReportStore {
     return Number(result.changes) ? this.get(id) : undefined
   }
 
+  /**
+   * «Принять точку»: the proposed point now stands on the map as `pointId`, and the report is «Готово». Only a report
+   * that carries a point, was not accepted before and is still in the work; otherwise 409 and nothing changes.
+   */
+  acceptPoint(id: number, pointId: string): BugReportView | undefined {
+    const at = this.now()
+    return this.changeWork(id, this.db.prepare(`UPDATE bug_reports SET suggest_point_id = ?, work_status = 'implemented', work_approved_at = NULL, status = 'closed', closed_at = ?, work_changed_at = ?
+      WHERE id = ? AND suggest_json IS NOT NULL AND suggest_point_id IS NULL AND work_status NOT IN (${CLOSED_SQL})`).run(pointId, at, at, id))
+  }
+
   /** «Отвечено» (owner, 04.11.2026): the owner answered this report from its card, now. */
   markAnswered(id: number) {
     this.db.prepare('UPDATE bug_reports SET answered_at = ? WHERE id = ?').run(this.now(), id)
@@ -648,6 +672,7 @@ export class BugReportStore {
       kind: row.kind === 'idea' ? 'idea' : 'bug',
       ...(row.category == null ? {} : { category: String(row.category) as ReportCategory }),
       ...(row.quest_id == null ? {} : { quest: questOf(row) }),
+      ...suggestOf(row),
       ...(row.email == null ? {} : { email: String(row.email) }),
       ...(row.account_id == null ? {} : { accountId: String(row.account_id) }),
       topic: String(row.topic),
@@ -704,6 +729,7 @@ function redacted(row: Row, groups: Map<number, { group: string; matches: number
     kind: row.kind === 'idea' ? 'idea' : 'bug',
     ...(row.category == null ? {} : { category: String(row.category) as ReportCategory }),
     ...(row.quest_id == null ? {} : { quest: questOf(row) }),
+    ...suggestOf(row),
     ...groups.get(Number(row.id)),
     topic: String(row.topic),
     description: String(row.description),
@@ -734,12 +760,33 @@ function questOf(row: Row): QuestReport {
   }
 }
 
+/** The point of «Добавить точку» as it was stored (written by `create` alone, so its shape is the server's own). */
+function suggestOf(row: Row): { suggest?: PointSuggestion } {
+  if (row.suggest_json == null) return {}
+  try {
+    const stored = JSON.parse(String(row.suggest_json)) as PointSuggestion
+    if (!stored || typeof stored !== 'object' || !isQuestPointIcon(stored.icon)) return {}
+    return { suggest: { ...stored, ...(row.suggest_point_id == null ? {} : { pointId: String(row.suggest_point_id) }) } }
+  } catch {
+    return {}
+  }
+}
+
 const MODE_LABELS: Record<ReportMode, string> = { pvp: 'PvP', pve: 'PvE', seasonal: 'Сезон' }
 
-/** The category and the quest correction as «label: value» rows (the owner's PDF and e-mail). */
-export function reportDetails(report: Pick<BugReportSummary, 'category' | 'quest' | 'matches'>): Array<[string, string]> {
+/** The category, the quest correction and the proposed point as «label: value» rows (the owner's PDF and e-mail). */
+export function reportDetails(report: Pick<BugReportSummary, 'category' | 'quest' | 'matches' | 'suggest'>): Array<[string, string]> {
   const rows: Array<[string, string]> = []
   if (report.category) rows.push(['Категория', REPORT_CATEGORY_LABELS[report.category] ?? report.category])
+  const suggest = report.suggest
+  if (suggest) {
+    rows.push(['Точка', `${pointSuggestionLabel(suggest.icon)} — ${suggest.name}`], ['Карта', suggest.mapId],
+      ['Координаты', `x ${suggest.x.toFixed(1)}, y ${suggest.y.toFixed(1)}, z ${suggest.z.toFixed(1)}${suggest.floor ? ` · ${suggest.floor}` : ''}`])
+    if (suggest.mode) rows.push(['Режим', MODE_LABELS[suggest.mode]])
+    if (suggest.questId) rows.push(['Квест (id)', suggest.questId])
+    if (suggest.itemId) rows.push(['Предмет (id)', suggest.itemId])
+    rows.push(['Скриншот', suggest.shot])
+  }
   const quest = report.quest
   if (!quest) return rows
   rows.push(['Квест (id)', quest.questId], ['Что не так', QUEST_ISSUE_LABELS[quest.issue] ?? quest.issue])

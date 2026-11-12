@@ -5,8 +5,10 @@ import transition from './map-markers/04_transition.png'
 // Quest and quest-item markers are red geotag pins drawn in the tactical style.
 import quest from './map-markers/geotag/quest-tactical.svg'
 import questItem from './map-markers/geotag/quest-item-tactical.svg'
-// Locked doors and keycard readers (the «key» layer holds tarkov.dev locks), drawn as a door with a card reader.
-import key from './map-markers/geotag/door-lock-tactical.svg'
+// Locked doors (the «key» layer holds tarkov.dev locks): a real brown wooden door (owner, 11.11.2026: «Сделай двери коричневые,
+// деревянные… Реалистичные»), so it no longer looks like the battle pass documents. Cut from the photo «Lakeside Door» by Jason
+// Rosewell (Unsplash), CC0: https://commons.wikimedia.org/wiki/File:Lakeside_Door_(Unsplash).jpg — toned brown, in a dark jamb.
+import key from './map-markers/real/door.webp'
 // «Реалистичный» (owner, 09.11.2026): the loot layers as the game's own pictures of the things (tarkov.dev base images);
 // the key is the same picture in every style («Картинка ключа везде»).
 import lootKey from './map-markers/real/key.webp'
@@ -20,13 +22,18 @@ import spawn from './map-markers/09_spawn.png'
 // PMC and Scav spawns: the running man of the Scav exit's picture, green and orange.
 import spawnPmc from './map-markers-new/spawn-pmc.svg'
 import spawnScav from './map-markers-new/spawn-scav.svg'
+// Scav snipers: a red scope reticle.
+import sniper from './map-markers-new/sniper.svg'
 import danger from './map-markers/10_danger.png'
 import landmark from './map-markers/11_landmark.png'
-import weaponsAmmo from './map-markers/13_weapons_ammo.png'
+// «Станковое оружие»: the AGS-30 itself (owner, 11.11.2026: «реальная картинка АГС или утеса, просто обрезанная»), cut out of the
+// photo «AGS-30 maks2009» by Allocer, CC BY-SA 3.0: https://commons.wikimedia.org/wiki/File:AGS-30_maks2009.jpg
+import mountedWeapon from './map-markers/real/ags-30.webp'
 import battlePassDocuments from './map-markers/documents/folder.webp'
 // Power switches (рубильники): the wall box with its lever, as in the game.
 import powerSwitch from './map-markers/geotag/switch-tactical.svg'
 // BTR stops: the carrier from the side.
+// The drawn carrier again (owner, 11.11.2026: «добавить предыдущие маркеры бтр»), not the photo of the same day.
 import btr from './map-markers-new/btr.svg'
 // «100 % спавн»: a gold badge with a tick.
 import lootGuaranteed from './map-markers-new/loot-guaranteed.svg'
@@ -43,10 +50,11 @@ export const markerImages: Record<MarkerLayerId, string> = {
   spawn,
   'spawn.pmc': spawnPmc,
   'spawn.scav': spawnScav,
+  sniper,
   hazard: danger,
   landmark,
   'loot.valuable': realValuable,
-  'loot.weapon': weaponsAmmo,
+  'loot.weapon': mountedWeapon,
   'loot.medical': realMedical,
   'loot.provision': realProvision,
   'loot.technical': realTechnical,

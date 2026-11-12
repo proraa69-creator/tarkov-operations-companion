@@ -17,7 +17,7 @@ import { questKeyRows, type QuestKeyRow, type QuestKeyState, type QuestKeyUse } 
 import { QuestKeyBarterDialog, QuestKeyMarket } from '../quests/QuestKeyMarket'
 import { useKeyScan } from '../quests/keyScan'
 import { useKeyUses, useOwnedKeys } from '../quests/ownedKeys'
-import { KeyScanHelp, OwnedKeysDialog } from '../quests/QuestKeysStash'
+import { KeyScanHelp, OwnedKeysPanel } from '../quests/QuestKeysStash'
 import { useAppState } from '../state/AppState'
 import '../quests/questKeys.css'
 
@@ -80,8 +80,11 @@ export function QuestKeysPage() {
   // The keys the player has (owner, 07.11.2026: «Найти ключи… И добавь кнопку «Ключи в схроне»»): found on screen or added by hand.
   const owned = useOwnedKeys(profileId, mode)
   const uses = useKeyUses(profileId, mode)
+  // «Ключи в схроне» filters the list like a tab (owner, 11.11.2026: «нажимаешь «Ключи в схроне», и он из этого всего списка
+  // показывает только то, что у тебя есть в схроне»); «Изменить» unfolds the stash itself in the page.
+  const onlyStash = params.get('stash') === '1'
+  const setOnlyStash = (on: boolean) => setParams((current) => { const next = new URLSearchParams(current); if (on) next.set('stash', '1'); else next.delete('stash'); return next }, { replace: true })
   const [stashOpen, setStashOpen] = useState(false)
-  const closeStash = useCallback(() => setStashOpen(false), [])
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const rows = useMemo(() => questKeyRows(data.quests, items, progress, availability, deferred), [data.quests, items, progress, availability, deferred])
@@ -101,7 +104,7 @@ export function QuestKeysPage() {
   }
   const traderOf = (traderId: string) => data.traders.find((trader) => trader.id === traderId)
   const needle = query.trim().toLowerCase()
-  const matches = (row: QuestKeyRow) => (!onlyFavorites || favorites.has(row.item.id)) && (!mapId || row.mapIds.includes(mapId))
+  const matches = (row: QuestKeyRow) => (!onlyFavorites || favorites.has(row.item.id)) && (!onlyStash || owned.has(row.item.id)) && (!mapId || row.mapIds.includes(mapId))
     && (!needle || [row.item.name, row.item.shortName, ...[...row.needed, ...row.deferred, ...row.done].map((use) => use.quest.name)].some((text) => uiText(text ?? '').toLowerCase().includes(needle)))
   const filtered = rows.filter(matches)
   const inTab = (id: QuestKeyTab) => filtered.filter((row) => (id === 'favorites' ? favorites.has(row.item.id) : row.state === id))
@@ -137,10 +140,6 @@ export function QuestKeysPage() {
         <option value="">{uiText('Все карты')}</option>
         {maps.map((id) => <option key={id} value={id}>{mapName(id)}</option>)}
       </select>
-      {/* «Избранные ключи» holds nothing else, so it has no need of it. */}
-      {tab !== 'favorites' && <button type="button" className={`button small quest-keys-only-favorites${onlyFavorites ? ' primary' : ''}`} aria-pressed={onlyFavorites} onClick={() => { writeOnlyFavorites(!onlyFavorites); setOnlyFavorites(!onlyFavorites) }}>
-        <Star size={14} fill={onlyFavorites ? 'currentColor' : 'none'} aria-hidden="true" />{uiText('Показать только избранные')}
-      </button>}
       <button type="button" className="button small quest-keys-notify" title={uiText('Сообщит, когда 10 и больше избранных ключей больше не нужны.')} onClick={() => writeQuestKeyReminder(!reminder)}>
         {reminder ? <BellOff size={14} aria-hidden="true" /> : <BellRing size={14} aria-hidden="true" />}{uiText(reminder ? 'Выключить уведомления' : 'Включить уведомления')}
       </button>
@@ -150,12 +149,21 @@ export function QuestKeysPage() {
         <ScanSearch size={14} aria-hidden="true" />{uiText(keyScan.busy ? 'Остановить поиск' : 'Найти ключи')}
       </button>}
       <KeyScanHelp />
-      <button type="button" className="button small" onClick={() => setStashOpen(true)}><Package size={14} aria-hidden="true" />{uiText('Ключи в схроне')} · {owned.size}</button>
+      {/* Owner, 11.11.2026: «возле кнопки «Найти ключи» кнопку «Ключи в схроне»… И там же добавь кнопку «Показать только избранные»». */}
+      <button type="button" className={`button small quest-keys-only-stash${onlyStash ? ' primary' : ''}`} aria-pressed={onlyStash} onClick={() => { setOnlyStash(!onlyStash); if (onlyStash) setStashOpen(false) }}><Package size={14} aria-hidden="true" />{uiText('Ключи в схроне')} · {owned.size}</button>
+      {/* «Избранные ключи» holds nothing else, so it has no need of it. */}
+      {tab !== 'favorites' && <button type="button" className={`button small quest-keys-only-favorites${onlyFavorites ? ' primary' : ''}`} aria-pressed={onlyFavorites} onClick={() => { writeOnlyFavorites(!onlyFavorites); setOnlyFavorites(!onlyFavorites) }}>
+        <Star size={14} fill={onlyFavorites ? 'currentColor' : 'none'} aria-hidden="true" />{uiText('Показать только избранные')}
+      </button>}
+      {onlyStash && <button type="button" className={`button small ghost${stashOpen ? ' primary' : ''}`} aria-expanded={stashOpen} onClick={() => setStashOpen(!stashOpen)}>{uiText(stashOpen ? 'Свернуть' : 'Изменить ключи в схроне')}</button>}
       {keyScan.message && <span className="quest-keys-scan-message" role="status">{uiText(keyScan.message)}</span>}
     </div>
+    {onlyStash && stashOpen && <section className="panel quest-keys-stash-inline" aria-label={uiText('Ключи в схроне')}>
+      <OwnedKeysPanel items={data.items} needed={new Set(rows.filter((row) => row.state === 'needed').map((row) => row.item.id))} profileId={profileId} mode={mode} favoriteIds={state.favoriteItemIds} />
+    </section>}
     {tab === 'done' && shown.length > 0 && <p className="quest-keys-note">{uiText('Эти ключи больше не нужны: можно убрать их из избранного в игре.')}</p>}
     {shown.length === 0
-      ? <p className="panel quest-keys-empty">{uiText(needle || mapId ? 'Ничего не найдено.' : onlyFavorites && tab !== 'favorites' ? 'В этом разделе нет избранных ключей.' : empty)}</p>
+      ? <p className="panel quest-keys-empty">{uiText(needle || mapId ? 'Ничего не найдено.' : onlyStash ? (owned.size ? 'В этом разделе нет ключей из схрона.' : 'В схроне пока нет ключей. Нажмите «Найти ключи» или «Изменить ключи в схроне».') : onlyFavorites && tab !== 'favorites' ? 'В этом разделе нет избранных ключей.' : empty)}</p>
       : <ul className="quest-keys-list">
         {shown.map((row) => {
           const starred = favorites.has(row.item.id)
@@ -169,7 +177,10 @@ export function QuestKeysPage() {
               {row.mapIds.length > 0 && <small>{row.mapIds.map(mapName).join(' · ')}</small>}
             </div>
             {stateTag && <span className={`tag ${stateTag.tone}`}>{uiText(stateTag.label)}</span>}
-            {owned.has(row.item.id) && <span className="tag green quest-key-owned">{uiText('Есть в игре')}{row.item.keyUses && uses.has(row.item.id) ? ` · ${uses.get(row.item.id)}/${row.item.keyUses}` : ''}</span>}
+            {/* The Overview's words (owner, 11.11.2026: «чтобы также писалось нет в наличии и в схроне»); nothing before the first scan or key added. */}
+            {owned.has(row.item.id)
+              ? <span className="tag green quest-key-owned">{uiText('Есть в схроне')}{row.item.keyUses && uses.has(row.item.id) ? ` · ${uses.get(row.item.id)}/${row.item.keyUses}` : ''}</span>
+              : owned.size > 0 && row.state !== 'done' ? <span className="tag quest-key-missing">{uiText('Нет в наличии')}</span> : null}
             <QuestKeyMarket item={withLivePrice(row.item, mode, live)} mode={mode} barters={bartersByKey.get(row.item.id) ?? []} onBarter={() => setBarterKey(row.item)} />
             <button type="button" className={`icon-button quest-key-star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starLabel} title={starLabel} onClick={() => setQuestKeyFavorite(profileId, mode, row.item.id, !starred)}><Star size={16} aria-hidden="true" /></button>
           </div>
@@ -189,7 +200,6 @@ export function QuestKeysPage() {
         })}
       </ul>}
     {request && <QuestDeferDialog request={request} onClose={() => setRequest(null)} />}
-    {stashOpen && <OwnedKeysDialog items={data.items} needed={new Set(rows.filter((row) => row.state === 'needed').map((row) => row.item.id))} profileId={profileId} mode={mode} onClose={closeStash} favoriteIds={state.favoriteItemIds} />}
     {barterKey && <QuestKeyBarterDialog item={barterKey} barters={bartersByKey.get(barterKey.id) ?? []} partOf={partOf} traderOf={traderOf} loyalty={loyalty} onClose={closeBarter} />}
   </div>
 }

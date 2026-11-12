@@ -99,3 +99,9 @@ export function useAuth() {
   if (!context) throw new Error('useAuth must be used inside <AuthProvider>')
   return context
 }
+
+/** The signed-in account where there may be no <AuthProvider> (pages rendered alone, as in their tests). */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOptionalAccount() {
+  return useContext(AuthContext)?.account ?? null
+}

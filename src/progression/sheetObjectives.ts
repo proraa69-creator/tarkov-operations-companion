@@ -8,7 +8,14 @@ import type { Item, ModeProgress, Quest, QuestObjective } from '../domain/types'
 import { canonicalMapId, mapDisplayName } from '../data/mapIds'
 import { objectiveDone } from '../raidprep/objectives'
 
-export type SheetGroupKind = 'raid' | 'place' | 'find' | 'handover' | 'other'
+/** How much of an objective of `target` is counted: all of it once done, else the stored count. */
+function counted(progress: ModeProgress | undefined, questId: string, objectiveId: string, target: number) {
+  if (!progress) return 0
+  if (objectiveDone(progress, questId, objectiveId)) return target
+  return Math.min(target, Math.max(0, Math.round(progress.objectiveProgress?.[objectiveId]?.current ?? 0)))
+}
+
+export type SheetGroupKind = 'raid' | 'place' | 'find' | 'extract' | 'handover' | 'other'
 
 export interface SheetObjective {
   id: string
@@ -19,6 +26,13 @@ export interface SheetObjective {
   /** Hand-over of one known item: its name (shown as «Сдать торговцу: <item>»). */
   item?: string
   count?: number
+  /**
+   * An objective of more than one (kills, items to hand over…): how many it asks for and how many are counted so far
+   * (report 144, 11.11.2026: «показывало сколько ты убил типо 7 из 10»). The game writes no counter into its logs: the
+   * player counts by hand, a tick fills it.
+   */
+  target?: number
+  current?: number
   foundInRaid?: boolean
   optional?: boolean
   /** Where it is done: map names, «Любая карта», or null (at the trader, in the menu). */
@@ -86,11 +100,13 @@ const KIND_BY_TYPE: Record<string, SheetGroupKind> = {
   shoot: 'raid',
   visit: 'raid',
   mark: 'raid',
-  extract: 'raid',
+  // Getting out comes last in the raid, after what is found and placed there (owner, 11.11.2026, «Компромат»: «Выжить и выйти
+  // с локации Таможня» stood under the Factory's room, above the case to find on Customs — «перенести ниже, проверь все такие квесты»).
+  extract: 'extract',
   useItem: 'raid',
 }
 
-const ORDER: SheetGroupKind[] = ['raid', 'place', 'find', 'handover', 'other']
+const ORDER: SheetGroupKind[] = ['raid', 'place', 'find', 'extract', 'handover', 'other']
 export const ANY_MAP = 'Любая карта'
 const MAX_MAP_NAMES = 3
 
@@ -115,6 +131,7 @@ function titleOf(kind: SheetGroupKind, objectives: SheetObjective[]) {
   if (kind === 'raid') return 'В рейде'
   if (kind === 'place') return 'Заложить'
   if (kind === 'find') return objectives.every((objective) => objective.foundInRaid) ? 'Найти в рейде' : 'Найти'
+  if (kind === 'extract') return 'Выход из рейда'
   if (kind === 'handover') return 'Сдать торговцу'
   return 'Вне рейда'
 }
@@ -138,7 +155,7 @@ const NEED_LABEL: Record<NonNullable<Quest['raidRequirements']>[number]['purpose
   key: 'Ключ', place: 'Заложить', mark: 'Маркер', bring: 'Взять в рейд', use: 'Использовать', signal: 'Ракетница', handover: 'Сдать', find: 'Найти',
 }
 
-const STAGE_OF: Record<SheetGroupKind, SheetStageKind> = { raid: 'raid', place: 'raid', find: 'raid', handover: 'trader', other: 'out' }
+const STAGE_OF: Record<SheetGroupKind, SheetStageKind> = { raid: 'raid', place: 'raid', find: 'raid', extract: 'raid', handover: 'trader', other: 'out' }
 const STAGE_TEXT: Record<SheetStageKind, { title: string; hint: string }> = {
   raid: { title: 'В рейде', hint: 'Сделать на карте' },
   trader: { title: 'Торговцу', hint: 'Из схрона, после рейда' },
@@ -193,6 +210,7 @@ export function sheetObjectives(
       ...(kind === 'handover' && single ? { item: single.name } : {}),
       // «×5» unless the text already says the number
       ...(objective.count > 1 && !new RegExp(`(^|\\D)${objective.count}(\\D|$)`).test(objective.description) ? { count: objective.count } : {}),
+      ...(objective.count > 1 ? { target: objective.count, current: counted(options.progress, quest.id, objective.id, objective.count) } : {}),
       ...(objective.foundInRaid ? { foundInRaid: true } : {}),
       ...(objective.optional ? { optional: true } : {}),
       where: whereOf(kind, mapIds, options.maps),

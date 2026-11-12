@@ -81,9 +81,15 @@ function ObjectiveReadOnly({ quest, view, tickable }: { quest: Quest; view: Obje
   }
   const text = <>
     <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
-    <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
+    <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('опционально')}</small>}</span>
   </>
   const canTick = tickable && !view.derived && !lockedDone(view)
+  // the last one ticks it (with its paired «Найти»), as the box does
+  const count = (value: number) => {
+    const next = Math.min(def.target, Math.max(0, value))
+    if (next >= def.target && !view.done) toggle()
+    else state.setObjectiveValue(def, next)
+  }
   return <li className={`quest-objective-row ${canTick ? '' : 'is-readonly'} ${view.done ? 'is-done' : ''}`}>
     <div className="quest-objective-main">
       {canTick
@@ -92,7 +98,14 @@ function ObjectiveReadOnly({ quest, view, tickable }: { quest: Quest; view: Obje
           {text}
         </label>
         : <span className="quest-objective-check">{text}</span>}
-      {def.target > 1 && <span className="quest-objective-counter"><strong>{view.current}/{def.target}</strong></span>}
+      {def.target > 1 && (canTick
+        // «7 из 10» counted by hand (report 144, 11.11.2026): the game writes no counter into its logs.
+        ? <span className="quest-objective-counter">
+          <button type="button" className="icon-button" onClick={() => count(view.current - 1)} disabled={view.current <= 0} aria-label={uiText('Меньше')}><Minus size={13} /></button>
+          <strong>{view.current}/{def.target}</strong>
+          <button type="button" className="icon-button" onClick={() => count(view.current + 1)} disabled={view.current >= def.target} aria-label={uiText('Больше')}><Plus size={13} /></button>
+        </span>
+        : <span className="quest-objective-counter"><strong>{view.current}/{def.target}</strong></span>)}
     </div>
   </li>
 }
@@ -113,7 +126,7 @@ function ObjectiveRow({ quest, view }: { quest: Quest; view: ObjectiveView }) {
       <label className="quest-objective-check">
         <input type="checkbox" checked={view.done} disabled={lockedDone(view)} title={lockedDone(view) ? uiText('Заложено — в игре это не отменяется') : undefined} onChange={() => { if (!lockedDone(view)) set(view.done ? 0 : def.target) }} />
         <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
-        <span className="quest-objective-text">{uiText(text)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
+        <span className="quest-objective-text">{uiText(text)}{def.optional && <small className="dim"> · {uiText('опционально')}</small>}</span>
       </label>
       {def.target > 1 && <span className="quest-objective-counter">
         <button type="button" className="icon-button" onClick={() => set(view.current - 1)} disabled={view.current <= 0} aria-label={uiText('Меньше')}><Minus size={13} /></button>

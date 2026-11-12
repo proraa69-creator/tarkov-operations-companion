@@ -27,7 +27,7 @@ import { LEGAL_VERSION } from '../legal/documents'
 import { localeTag, siteLocale, tr } from '../i18n'
 import { countryName, REGION_LABELS, regionOf } from '../../../src/shared/countries'
 import '../invites.css'
-import { DonateCard } from '../components/DonateCard'
+import { DonateCard, SITE_DONATE } from '../components/DonateCard'
 
 /** «12 октября 2026» / «October 12, 2026»: dates and numbers in the site's language (src/i18n). */
 const formatDate = (value: string) => new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(value))
@@ -74,6 +74,8 @@ export function CabinetPage() {
   }
 
   const account = auth.account
+  // The Apple reviewer's test account: no subscription, prices, donation or invitations (owner, 12.11.2026).
+  const paid = !account.storeReview
   return (
     <div className="page page-in">
       <div className="container">
@@ -113,16 +115,16 @@ export function CabinetPage() {
         <div className="cabinet-grid">
           <div className="cabinet-col">
             {account.kind === 'streamer' && account.referralCode && <ReferralProgramPanel account={account} />}
-            <SubscriptionPanel account={account} />
-            {account.kind === 'user' && <InviteFriendsPanel />}
+            {paid && <SubscriptionPanel account={account} />}
+            {paid && account.kind === 'user' && <InviteFriendsPanel />}
             <NicknamesPanel account={account} />
             <CountryPanel account={account} />
           </div>
           <div className="cabinet-col">
             {/* «Поддержать проект» (owner, 13.10.2026). */}
-            <DonateCard />
+            {SITE_DONATE && paid && <DonateCard />}
             <AppPanel />
-            {account.kind === 'user' && <InviteCodePanel account={account} />}
+            {paid && account.kind === 'user' && <InviteCodePanel account={account} />}
             <PasswordPanel />
             <SignOutEverywherePanel />
             <DeleteAccountPanel />

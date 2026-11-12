@@ -358,6 +358,7 @@ export function AdminMobilePage() {
               focusId={focusReport}
               onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}
               onReward={async (id, days) => { await adminApi.rewardReport(id, days); reportsChanged() }}
+              onAcceptPoint={async (id) => { await adminApi.acceptPoint(id); reportsChanged() }}
               loadImage={(row, index) => adminApi.bugReportImage(row.id, index)}
               onOpen={(row) => void openReport(row.id)}
             />
@@ -514,15 +515,18 @@ function OverviewCards({ data, refreshKey }: { data: AdminOverview | null; refre
   )
 }
 
-/** «Выручка сегодня», «За этот месяц», «За всё время», as on the site; the owner's days. */
+/**
+ * «Выручка сегодня», «За этот месяц», «За всё время», as on the site; the owner's days. «За всё время» also counts
+ * «оплатили повторно» (owner, 12.11.2026: «счёт того, сколько человек оплатили повторно»): two or more paid payments.
+ */
 function RevenueCards({ data }: { data: AdminOverview | null }) {
-  const cards: Array<{ title: string; revenue?: AdminRevenue }> = [
+  const cards: Array<{ title: string; revenue?: AdminRevenue; repeat?: number }> = [
     { title: 'Выручка сегодня', revenue: data?.revenue.today },
     { title: 'За этот месяц', revenue: data?.revenue.month },
-    { title: 'За всё время', revenue: data?.revenue.all },
+    { title: 'За всё время', revenue: data?.revenue.all, repeat: data?.repeatPayers },
   ]
   return <section className="admin-revenue-cards" aria-label={uiText('Выручка')}>
-    {cards.map(({ title, revenue }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}`)}</small></article>)}
+    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${repeat === undefined ? '' : ` · оплатили повторно: ${count.format(repeat)}`}`)}</small></article>)}
   </section>
 }
 
@@ -697,7 +701,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{user.email}</strong><small>{subscriptionText(user)}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
         <div className="admin-user-facts">
-          <article><span>{uiText('Подписка до')}</span><strong>{user.subscription.lifetime ? uiText('Навсегда') : dateOnly(user.subscription.paidUntil ?? user.subscription.trialEndsAt)}</strong></article>
+          <article><span>{uiText('Подписка до')}</span><strong>{user.subscription.lifetime ? uiText('Навсегда') : !user.subscription.paidUntil && user.subscription.trialRaidDays ? uiText('ждёт первого рейда') : dateOnly(user.subscription.paidUntil ?? user.subscription.trialEndsAt)}</strong></article>
           <article><span>{uiText('Всего оплат')}</span><strong>{user.payments.count}</strong><small>{money(user.payments.total)}</small></article>
           <article><span>{uiText('Регистрация')}</span><strong>{dateOnly(user.createdAt)}</strong></article>
           <article><span>{uiText('Пригласил')}</span><strong>{user.referredBy ?? '—'}</strong><small>{user.referralCode ? uiText(`код ${user.referralCode}`) : ''}</small></article>
@@ -798,7 +802,8 @@ function subscriptionText(user: AdminUser) {
   if (user.blockedAt) return uiText('Заблокирован')
   if (user.subscription.lifetime) return uiText('Пожизненная подписка')
   if (user.subscription.status === 'active') return uiText(`активна до ${dateOnly(user.subscription.paidUntil)}`)
-  if (user.subscription.status === 'trial' && user.subscription.trialRaidDays) return uiText('пробная с первого рейда')
+  // owner, 12.11.2026: «ждёт первого рейда (2 дня)» instead of the latest end
+  if (user.subscription.status === 'trial' && user.subscription.trialRaidDays) return uiText(`ждёт первого рейда (${user.subscription.trialRaidDays} ${user.subscription.trialRaidDays === 1 ? 'день' : 'дня'})`)
   if (user.subscription.status === 'trial') return uiText(`пробная до ${dateOnly(user.subscription.trialEndsAt)}`)
   return uiText('подписки нет')
 }

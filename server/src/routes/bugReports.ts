@@ -6,6 +6,10 @@
  *        about (src/shared/reportCategories.ts); `quest` (category «Квест»): { questId, issue, mode?, mapId?, markerId?,
  *        objectiveId?, stageIndex?, point?: { x, z, floor? }, pointNote?, questNote? } — a quest correction the player
  *        proposes (owner, 13.10.2026); with it the description may be empty.
+ *        `suggest` (kind 'idea' only, «Добавить точку», owner 10.11.2026): { icon, name, mapId, floor?, itemId?, questId?,
+ *        mode?, shot } — a map point the player proposes (src/shared/pointSuggestion.ts). `shot` is the name of the game
+ *        screenshot sent with it: the point's place is read from that name here, never taken from the app; 400 without a
+ *        screenshot or without coordinates in the name. With it the description may be empty too.
  *        Signed-in accounts only (Bearer). Up to 5 screenshots, PNG / JPEG / WEBP by magic bytes, ≤ 5 MB each,
  *        ≤ 25 MB together. 5 reports per hour per account and per IP (an IPv6 /64 counts as one address). At most
  *        MAX_CONCURRENT_UPLOADS bodies are read at a time (503 + Retry-After past that). Screenshots past the global
@@ -37,6 +41,11 @@
  *        («Нашёл баг или ошибку? +1 день», owner 11.10.2026): granted like «Выдать подписку» with the reason
  *        «Отчёт об ошибке №N» («Предложение №N» for an idea) and added to the report's reward_days (audit: bug.reward);
  *        409 when the account is gone.
+ *   POST /v1/accounts/me/admin/bug-reports/:id/point                      -> { report, days } «Принять точку»: the
+ *        proposed point goes on the map (a quest point override, routes/questPoints.ts), the report closes as «Готово»,
+ *        the player hears of it and gets POINT_SUGGESTION_REWARD_DAYS (reason «Точка на карте №N», audit: bug.point).
+ *        409 when the report carries no point, the point was accepted already, the report is closed, or the same point
+ *        already stands on the map («При условии, что этой точки нет на карте»).
  *   POST /v1/accounts/me/admin/bug-reports/:id/mail                       -> { report } sends the report's PDF to the
  *        owner's mailbox again (audit: bug.mail); 503 when e-mail is not configured.
  *
@@ -54,7 +63,11 @@ import { BUG_REPORT_LIMITS, BugReportError, STORAGE_FULL_MESSAGE, type BugReport
 import { ipRateKey } from '../services/securityGuard.js'
 import type { MapUpdates } from './mapUpdates.js'
 import { QUEST_ISSUES, REPORT_CATEGORIES, REPORT_MODES } from '../../../src/shared/reportCategories.js'
-import { REPORT_TEXT_LIMITS, REPORT_WORK_ACTION_IDS, type ReportWorkAction } from '../../../src/shared/reportWork.js'
+import { REPORT_TEXT_LIMITS, REPORT_WORK_ACTION_IDS, REPORT_WORK_CLOSED, type ReportWorkAction } from '../../../src/shared/reportWork.js'
+import { POINT_SUGGESTION_ICONS, POINT_SUGGESTION_NAME_MAX, POINT_SUGGESTION_REWARD_DAYS, POINT_SUGGESTION_SHOT_MAX, pointSuggestionNeeds, samePlacedPoint, type PointSuggestion } from '../../../src/shared/pointSuggestion.js'
+import { QUEST_POINT_ITEM_ID } from '../../../src/shared/questPointConstructor.js'
+import { parseScreenshotPosition } from '../../../src/overlay/screenshotPosition.js'
+import type { QuestPointStore } from '../services/questPointStore.js'
 
 /** Base64 of 25 MB is ~33.4 MB; the topic, description and JSON around it fit in the rest. */
 export const BUG_REPORT_BODY_LIMIT = '36mb'
@@ -77,17 +90,29 @@ const questSchema = z.object({
   pointNote: z.string().trim().max(300).optional().transform((value) => value || undefined),
   questNote: z.string().trim().max(1000).optional().transform((value) => value || undefined),
 }).refine((quest) => !quest.point || quest.mapId, { message: 'A proposed point needs its map' })
+/** «Добавить точку»: what the player chose. Where the point stands is read from `shot`, the screenshot's name. */
+const suggestSchema = z.object({
+  icon: z.enum(POINT_SUGGESTION_ICONS),
+  name: z.string().trim().min(1).max(POINT_SUGGESTION_NAME_MAX),
+  mapId: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/),
+  floor: z.string().trim().min(1).max(40).optional(),
+  itemId: z.string().regex(QUEST_POINT_ITEM_ID).optional(),
+  questId: ident.optional(),
+  mode: z.enum(REPORT_MODES).optional(),
+  shot: z.string().trim().min(1).max(POINT_SUGGESTION_SHOT_MAX),
+})
 const uploadSchema = z.object({
   kind: kindSchema.default('bug'),
   category: z.enum(REPORT_CATEGORIES).optional(),
   quest: questSchema.optional(),
+  suggest: suggestSchema.optional(),
   topic: z.string().trim().min(1).max(BUG_REPORT_LIMITS.topic),
   // A quest correction may be the whole report (a proposed point and notes): its description may stay empty.
   description: z.string().trim().max(BUG_REPORT_LIMITS.description).default(''),
   appVersion: z.string().trim().max(80).default(''),
   platform: z.string().trim().max(160).default(''),
   screenshots: z.array(z.object({ data: z.string().max(Math.ceil(BUG_REPORT_LIMITS.fileBytes / 3) * 4 + 64) })).max(20).default([]),
-}).refine((report) => report.description.length > 0 || report.quest, { message: 'Describe the problem' })
+}).refine((report) => report.description.length > 0 || report.quest || report.suggest, { message: 'Describe the problem' })
 const eventsSchema = z.object({ since: z.string().regex(/^\d{1,16}$/).optional() })
 const pageSchema = z.object({
   status: z.enum(['open', 'closed']).optional(),
@@ -109,7 +134,7 @@ const planText = z.string().max(REPORT_TEXT_LIMITS.plan * 2)
 const workSchema = z.object({ action: z.enum(REPORT_WORK_ACTION_IDS), plan: planText.optional() })
 const planSchema = z.object({ plan: planText })
 
-export type BugReportAudit = (actor: string, action: 'bug.status' | 'bug.reward' | 'bug.mail' | 'bug.work', target: string, details: Record<string, unknown>) => void
+export type BugReportAudit = (actor: string, action: 'bug.status' | 'bug.reward' | 'bug.mail' | 'bug.work' | 'bug.point', target: string, details: Record<string, unknown>) => void
 /** Sends a report's PDF to the owner (services/bugReportMail.ts). */
 export interface BugReportMail {
   readonly enabled: boolean
@@ -129,6 +154,25 @@ const TEXT_ONLY_BODY_BYTES = 64 * 1024
 
 function safeFull(store: BugReportStore) {
   try { return store.screenshotsFull() } catch { return false }
+}
+
+export const POINT_SHOT_REQUIRED = 'К точке нужен скриншот из игры: по его координатам она встанет на карту'
+export const POINT_SHOT_UNREADABLE = 'В имени скриншота нет координат. Нужен скриншот из игры, файл не переименовывать'
+const round2 = (value: number) => Math.round(value * 100) / 100
+
+/** The proposed point with its place, read from the name of the screenshot the game wrote. */
+function placedSuggestion(input: z.infer<typeof suggestSchema>, screenshots: number): Omit<PointSuggestion, 'pointId'> {
+  if (!screenshots) throw new BugReportError(400, POINT_SHOT_REQUIRED)
+  const at = parseScreenshotPosition(input.shot)
+  if (!at || [at.x, at.y, at.z].some((value) => Math.abs(value) > 5000)) throw new BugReportError(400, POINT_SHOT_UNREADABLE)
+  const needs = pointSuggestionNeeds(input.icon)
+  if (needs === 'quest' && !input.questId) throw new BugReportError(400, 'Выберите квест, к которому относится точка')
+  if (needs === 'item' && !input.itemId) throw new BugReportError(400, 'Выберите ключ из списка')
+  return {
+    icon: input.icon, name: input.name, mapId: input.mapId, shot: input.shot, x: round2(at.x), y: round2(at.y), z: round2(at.z),
+    ...(input.floor ? { floor: input.floor } : {}), ...(input.itemId ? { itemId: input.itemId } : {}),
+    ...(needs === 'quest' && input.questId ? { questId: input.questId } : {}), ...(input.mode ? { mode: input.mode } : {}),
+  }
 }
 
 function decodeScreenshot(raw: string) {
@@ -167,7 +211,10 @@ export function workReport(store: BugReportStore, effects: ReportWorkEffects, ac
   return report
 }
 
-export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: ReportWorkEffects & { limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number; mail?: BugReportMail; grant?: GrantDays } = {}) {
+/** The map's added points and the signal that moves the players' maps (routes/questPoints.ts); read at request time. */
+export type ReportPoints = () => { store: QuestPointStore; changed: () => void } | undefined
+
+export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: ReportWorkEffects & { limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number; mail?: BugReportMail; grant?: GrantDays; points?: ReportPoints } = {}) {
   const router = express.Router()
   const maxUploads = options.maxConcurrentUploads ?? MAX_CONCURRENT_UPLOADS
   let uploads = 0
@@ -204,12 +251,14 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     if (!body.success) { res.status(400).json({ error: 'Укажите тему (до 120 символов) и описание (до 5000 символов)' }); return }
     try {
       if (body.data.screenshots.length > BUG_REPORT_LIMITS.files) throw new BugReportError(400, `Не больше ${BUG_REPORT_LIMITS.files} скриншотов`)
+      if (body.data.suggest && body.data.kind !== 'idea') throw new BugReportError(400, 'Точку добавляют через «Ваши предложения»')
+      const suggest = body.data.suggest ? placedSuggestion(body.data.suggest, body.data.screenshots.length) : undefined
       const files = body.data.screenshots.map((shot) => decodeScreenshot(shot.data))
       const retry = accountLimiter.hit(accountId) || ipLimiter.hit(ipRateKey(req.ip))
       if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много отчётов. Попробуйте через час.' }); return }
       const created = store.create(accountId, accounts.emailOf(accountId), {
         kind: body.data.kind, category: body.data.kind === 'bug' ? body.data.category : undefined, quest: body.data.kind === 'bug' ? body.data.quest : undefined,
-        topic: body.data.topic, description: body.data.description, appVersion: body.data.appVersion, platform: body.data.platform, files,
+        topic: body.data.topic, description: body.data.description, appVersion: body.data.appVersion, platform: body.data.platform, files, suggest,
       })
       res.status(201).json(created)
       try { options.signals?.changed() } catch { /* the badge catches up on its next wait */ }
@@ -377,6 +426,53 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     const updated = store.addReward(report.id, body.data.days)
     try { options.audit?.(actor, 'bug.reward', String(report.id), { days: body.data.days, email: report.email ?? null }) } catch { /* the days are already granted */ }
     res.json({ report: updated })
+  })
+
+  // «Принять точку»: the proposed point goes on the map, the report closes, the player gets the day. One press, once.
+  router.post('/v1/accounts/me/admin/bug-reports/:id/point', express.json({ limit: '4kb' }), (req, res) => {
+    const actor = owner('write', req, res)
+    if (!actor) return
+    const id = idSchema.safeParse(req.params.id)
+    const report = id.success ? store.get(id.data) : undefined
+    if (!report) { notFound(res); return }
+    const suggest = report.suggest
+    if (!suggest) { res.status(409).json({ error: 'В отчёте нет точки' }); return }
+    if (suggest.pointId) { res.status(409).json({ error: 'Точка уже принята' }); return }
+    if (REPORT_WORK_CLOSED.includes(report.work.status)) { res.status(409).json({ error: 'Отчёт закрыт: верните его в работу' }); return }
+    const points = options.points?.()
+    if (!points) { res.status(503).json({ error: 'Точки карты на этом сервере недоступны' }); return }
+    // «При условии, что этой точки нет на карте»: the points added here; the player's app compared the map's own before sending.
+    if (samePlacedPoint(suggest, points.store.list().filter((point) => point.kind === 'add'))) { res.status(409).json({ error: 'Такая точка уже есть на карте' }); return }
+    const saved = points.store.save({
+      kind: 'add', mapId: suggest.mapId, x: suggest.x, z: suggest.z, icon: suggest.icon, title: suggest.name,
+      ...(suggest.floor ? { floor: suggest.floor } : {}), ...(suggest.itemId ? { itemIds: [suggest.itemId] } : {}), ...(suggest.questId ? { questId: suggest.questId } : {}),
+    }, actor)
+    if (typeof saved === 'string') { res.status(409).json({ error: saved === 'full' ? 'Слишком много правок точек. Удалите лишние.' : 'Точку не удалось поставить' }); return }
+    let accepted: BugReportView | undefined
+    try {
+      accepted = store.acceptPoint(report.id, saved.id)
+    } catch (error) {
+      points.store.remove(saved.id)
+      if (error instanceof BugReportError) { res.status(error.status).json({ error: error.message }); return }
+      throw error
+    }
+    if (!accepted) { points.store.remove(saved.id); notFound(res); return }
+    try { points.changed() } catch { /* the maps catch up on their next load */ }
+    // The day for the point. A failed grant never takes the point back: «Выдать» on the report still works.
+    let days = 0
+    if (accepted.accountId && options.grant) {
+      try {
+        options.grant(actor, accepted.accountId, POINT_SUGGESTION_REWARD_DAYS, `Точка на карте №${accepted.id}`)
+        accepted = store.addReward(accepted.id, POINT_SUGGESTION_REWARD_DAYS) ?? accepted
+        days = POINT_SUGGESTION_REWARD_DAYS
+      } catch { /* the account is gone or grants are off */ }
+    }
+    if (accepted.accountId) {
+      try { options.done?.(accepted.accountId, accepted.id, accepted.kind, accepted.topic) } catch { /* the point is already on the map */ }
+    }
+    try { options.audit?.(actor, 'bug.point', String(accepted.id), { pointId: saved.id, mapId: suggest.mapId, icon: suggest.icon, days, email: accepted.email ?? null }) } catch { /* the point is already on the map */ }
+    try { options.signals?.changed() } catch { /* the table catches up on its next wait */ }
+    res.json({ report: accepted, days })
   })
 
   router.post('/v1/accounts/me/admin/bug-reports/:id/mail', async (req, res) => {

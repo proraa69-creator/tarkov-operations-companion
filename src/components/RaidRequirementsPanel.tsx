@@ -5,6 +5,7 @@ import { PackageCheck } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { formatItemCountLabel } from '../shared/raidNeeds'
 import { useHoverCard } from './useHoverCard'
+import { ThumbScroll } from './ThumbScroll'
 import type { DeferMenuState } from './QuestDeferDialog'
 
 export interface RaidNeedRow {
@@ -50,14 +51,15 @@ const PURPOSES: Record<string, string> = {
  * «Отложенные квесты», whose items are not counted, with the term they come back at. `onDefer`: a right click on an item
  * of a quest — «Отложить квест» (components/QuestDeferDialog.tsx).
  */
-export function RaidRequirementsPanel({ rows, deferredQuests = [], onDefer }: { rows: RaidNeedRow[]; deferredQuests?: Array<{ name: string; term?: string }>; onDefer?: (menu: DeferMenuState) => void }) {
+export function RaidRequirementsPanel({ rows, deferredQuests = [], onDefer, compactRows }: { rows: RaidNeedRow[]; deferredQuests?: Array<{ name: string; term?: string }>; onDefer?: (menu: DeferMenuState) => void; compactRows?: number }) {
   const title = useBlockTitle('Требования рейда')
-  return <section className="panel raid-needs">
+  // The phone (owner, 11.11.2026: «два ряда по два предмета… справа будет ползунок»): two columns, `compactRows` rows in sight.
+  return <section className={`panel raid-needs${compactRows ? ' is-compact' : ''}`}>
     <div className="panel-header"><div className="panel-title">{title}</div><span className="tag"><PackageCheck size={11} /> {rows.length}</span></div>
     <div className="panel-body">
-      {rows.length > 0 && <div className="raid-needs-grid">
-        {rows.map((row) => <RaidNeed row={row} key={row.key} onDefer={onDefer} />)}
-      </div>}
+      {rows.length > 0 && <ThumbScroll rows={compactRows}><div className="raid-needs-grid">
+        {rows.map((row) => <RaidNeed row={row} key={row.key} onDefer={onDefer} compact={Boolean(compactRows)} />)}
+      </div></ThumbScroll>}
       {!rows.length && <p className="muted">{uiText('Для текущих заданий на этой карте нет предметов, которые нужно взять с собой или заложить.')}</p>}
       {rows.length > 0 && <p className="muted raid-needs-note">{uiText('Только ключи, сигналы и предметы, которые нужно заложить или пометить. Оружие и снаряжение квестов — в «Сбор на рейд».')}</p>}
       {deferredQuests.length > 0 && <p className="muted raid-needs-note raid-needs-deferred">{uiText('Не учтены отложенные квесты:')} {deferredQuests.map(({ name, term }) => `${uiText(name)}${term ? ` (${term})` : ''}`).join(', ')}</p>}
@@ -75,7 +77,7 @@ function rowQuests(row: RaidNeedRow) {
   return [...quests.values()]
 }
 
-function RaidNeed({ row, onDefer }: { row: RaidNeedRow; onDefer?: (menu: DeferMenuState) => void }) {
+function RaidNeed({ row, onDefer, compact = false }: { row: RaidNeedRow; onDefer?: (menu: DeferMenuState) => void; compact?: boolean }) {
   // «Either key»: the key on the card now, the others in its hover card.
   const shownItems = [{ id: row.itemId ?? row.key, name: row.name, iconUrl: row.iconUrl }, ...(row.alternatives?.turn ? row.alternatives.items : [])]
   const turn = useTurn(shownItems.length, Boolean(row.alternatives?.turn))
@@ -89,7 +91,8 @@ function RaidNeed({ row, onDefer }: { row: RaidNeedRow; onDefer?: (menu: DeferMe
   </>)
   // Two quests or more: each one's count under the total, opening that quest at its point (bug report №30: «показывал
   // что нужно допустим 4 камеры на 1 квест, и 3 камеры на 2 квест, а то он все эти камеры миксует в одно»).
-  const split = new Set(row.lines.flatMap((line) => line.quests?.map((quest) => quest.id) ?? [])).size > 1
+  // compact: the quests in one line after the purpose, never a line each
+  const split = !compact && new Set(row.lines.flatMap((line) => line.quests?.map((quest) => quest.id) ?? [])).size > 1
   const quests = rowQuests(row)
   // A right click puts its quests aside (owner, 03.11.2026: «нажать на любой предмет ПКМ и отложить квест не открывая и не
   // запоминая каждый квест»); on a quest's line, that quest is the one ticked. Not for an item added by hand, nor while a

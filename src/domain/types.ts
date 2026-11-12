@@ -12,6 +12,7 @@ export type MarkerLayerId =
   | 'spawn'
   | 'spawn.pmc'
   | 'spawn.scav'
+  | 'sniper'
   | 'hazard'
   | 'loot.valuable'
   | 'loot.weapon'
@@ -404,8 +405,12 @@ export interface MapMarker {
   possibleSpawn?: boolean
   /** A loose key spot (layer «Ключи»): how many keys may lie there. */
   keyCount?: number
+  /** The key spots of one locked room drawn as one point: how many spots the room has (src/maps/lockedRoomSpots.ts). */
+  roomSpots?: number
   /** A loose key spot: every key that may lie there («Нужные ключи» filters by them). */
   keyIds?: string[]
+  /** A loose loot spot: every item that may lie there («Найти точку…» finds them by name, src/maps/mapSearch.ts). */
+  lootIds?: string[]
   /** Photos of the place (a key players found where the feed has none, src/data/extraKeySpots.ts). */
   spotPhotos?: Array<{ file: string; ru: string; en: string }>
   stageIndex?: number

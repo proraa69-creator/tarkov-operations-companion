@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MapMarker, Quest } from '../domain/types'
-import { friendQuestPoints } from './friendQuestLayer'
-import type { Friend, PlannerPerson } from './socialClient'
+import { friendQuestPoints, mergeLayerPeople, squadPeople } from './friendQuestLayer'
+import type { Friend, PlannerPerson, SquadMember } from './socialClient'
 
 const quest = (id: string, extra: Partial<Quest>): Quest => ({ id, name: `Quest ${id}`, trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [], ...extra })
 const marker = (id: string, questId: string, mapId: string, objectiveId: string, position: [number, number]): MapMarker => ({ id, questId, mapId, objectiveId, position, type: 'quest', title: `point ${objectiveId}`, description: '' })
@@ -40,5 +40,21 @@ describe('friends’ quest points on the map', () => {
     const { points } = friendQuestPoints({ people: [person(a, ['q1'])], sharing: [friend(a)], colors, quests: withGoals, markers, mapId: 'customs', mode: 'pvp' })
     expect(points.map((point) => [point.questId, point.objectiveId, point.trader])).toEqual([['q1', 'o1', 'Механик'], ['q1', 'o2', 'Механик']])
     expect(points[0].left).toEqual([{ objectiveId: 'o1', text: 'Найти склад' }, { objectiveId: 'o2', text: 'Осмотреть офис' }])
+  })
+
+  it('the squad mates come by their nicknames, a friend in the squad once (owner, 12.11.2026)', () => {
+    const a = 'a'.repeat(24)
+    const c = 'c'.repeat(24)
+    const member = (memberId: string, extra: Partial<SquadMember> = {}): SquadMember => ({ memberId, nickname: `S${memberId}`, isYou: false, isOwner: false, joinedAt: '2026-11-01', activeQuestIds: ['q2'], ...extra })
+    const mates = squadPeople([member('me', { isYou: true }), member(a), member(c)])
+    expect(mates.map((mate) => mate.id)).toEqual([a, c])
+    const people = mergeLayerPeople([person(a, ['q1'])], mates)
+    expect(people.map((entry) => [entry.id, entry.squad ?? false])).toEqual([[a, true], [c, true]])
+    const { points, legend } = friendQuestPoints({ people, sharing: [friend(a)], colors: new Map([[a, '#111111'], [c, '#333333']]), quests, markers, mapId: 'customs', mode: 'pvp' })
+    expect(legend).toEqual([
+      { friendId: a, nickname: `N${a}`, color: '#111111', quests: 1, squad: true },
+      { friendId: c, nickname: `S${c}`, color: '#333333', quests: 1, squad: true },
+    ])
+    expect(points.map((point) => point.nickname)).toEqual([`N${a}`, `N${a}`, `S${c}`])
   })
 })

@@ -53,6 +53,11 @@ export interface Account {
   statsOnly?: true
   /** The service owner (server-side check of TARKOV_OWNER_EMAILS): sees the owner section. */
   owner?: true
+  /**
+   * The Apple reviewer's test account (TARKOV_STORE_REVIEW_EMAILS; owner, 12.11.2026): the cabinet and the menu show no
+   * subscription, price, payment, donation or «Пригласи друга».
+   */
+  storeReview?: true
   /** When the e-mail was confirmed with a code; absent = not confirmed («Подтвердите e-mail»). */
   emailVerifiedAt?: string
   /** «Удалить аккаунт» was requested: the account is deleted at this time unless cancelled (servers from 20.10.2026). */
@@ -311,6 +316,8 @@ export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
   subscriptions: { active: number; trials: number; autopay: number; streamers: number }
+  /** «Оплатили повторно»: people with two or more paid payments, all the time (servers before 12.11.2026 omit it). */
+  repeatPayers?: number
   revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue }
   payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
   /** Paid payments of each plan this month and all the time (servers before 20.10.2026 omit it). */
@@ -372,7 +379,8 @@ export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streame
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
-  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
+  /** `trialRaidDays`: the free days still wait for the first raid (trialEndsAt is only their latest end). */
+  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   /** lastSeenAt: the last request from anywhere; pcSeenAt: the last use of the PC app. */
   lastSeenAt?: string; pcSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
@@ -638,7 +646,7 @@ export const api = {
   /** «Убрать»: a waiting notification that is no payment (a test, a stray request) leaves «Ждут привязки». */
   adminBezebeeDismiss: (token: string, id: number) => request<{ event: AdminBezebeeEvent }>(`/me/admin/bezebee/events/${id}/dismiss`, { method: 'POST', token, body: {} }),
   /** «Зачислить вручную»: a BZB payment that sent no notification; `amount` in roubles (required for Global accounts). */
-  adminBezebeeConfirm: (token: string, input: { email: string; plan: PlanId; friend?: true; amount?: number }) => request<{ payment: AdminPayment }>('/me/admin/bezebee/payments', { method: 'POST', token, body: input }),
+  adminBezebeeConfirm: (token: string, input: { email: string; plan: PlanId; friend?: true; amount?: number; noDays?: true }) => request<{ payment: AdminPayment }>('/me/admin/bezebee/payments', { method: 'POST', token, body: input }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
   adminSetPaymentAmount: (token: string, id: string, amount: number, comment?: string) => request<AdminPayment>(`/me/admin/payments/${id}/amount`, { method: 'POST', token, body: { amount, ...(comment ? { comment } : {}) } }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),

@@ -34,4 +34,41 @@ export const EXTRA_KEY_SPOTS: readonly ExtraKeySpot[] = [
       en: 'Scav Farm, the living container: on the frying pan on the table',
     }],
   },
+  {
+    // Report of 10.11.2026 (owner, 11.11.2026: «добавь фото к спавну»): «Ключ от комнаты для расслаблений» on the table by the cleaver,
+    // behind the door «Ключ от комнаты для серьезных переговоров» opens — the one of the key's twelve spots (guaranteedSpawns.ts)
+    // that stands in that room.
+    mapId: 'streets-of-tarkov',
+    itemId: '6582dbf0b8d7830efc45016f',
+    position: { x: 166.14, y: 2.12, z: 165.12 },
+    photos: [{
+      file: 'streets-negotiation-room-relaxation-key.webp',
+      ru: 'Комната для серьёзных переговоров: на столе рядом с тесаком',
+      en: 'The negotiation room: on the table by the cleaver',
+    }],
+  },
+  {
+    // Report of 10.11.2026: «Ключ от военного КПП» in the tent with the dead PMC east of the dorms — the feed's spot of this key there
+    // (owner, 11.11.2026: «вставь фото из заявки»).
+    mapId: 'customs',
+    itemId: '5913915886f774123603c392',
+    position: { x: 110.3, y: -2.5, z: 164 },
+    photos: [{
+      file: 'customs-dorms-tent-military-checkpoint.webp',
+      ru: 'Палатка с мёртвым ЧВК к востоку от общежитий: на матрасе',
+      en: 'The tent with the dead PMC east of the dorms: on the mattress',
+    }],
+  },
+  {
+    // Report 141 (11.11.2026): «Ключ от номера 306 восточного крыла Санатория» on the desk by the safe in the pier office — the
+    // feed's spot of this key there (a metre from the safe and the system unit).
+    mapId: 'shoreline',
+    itemId: '5a145d4786f7744cbb6f4a12',
+    position: { x: 478.75, y: -57.12, z: -315.13 },
+    photos: [{
+      file: 'shoreline-pier-office-east-306.webp',
+      ru: 'Пирс, кабинет: на столе рядом с сейфом',
+      en: 'The pier office: on the desk by the safe',
+    }],
+  },
 ]

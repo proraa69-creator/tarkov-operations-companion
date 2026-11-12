@@ -1,4 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
+import { useMobileLayout } from '../platform'
 import { useBlockTitle } from '../overview/blockTitle'
 import { uiText } from '../i18n/renderText'
 import { menuShift } from './menuShift'
@@ -38,6 +41,10 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
   const [confirmMap, setConfirmMap] = useState<GoonMapId | null>(null)
   const [sending, setSending] = useState(false)
   const [notice, setNotice] = useState<GoonReportResult | null>(null)
+  // The phone: a tap on the block opens the statistics as a sheet (owner, 11.11.2026: «При нажатии на сам блок… открывается
+  // статистика: на каких картах сколько раз видели, последние отметки и ники»); there is no pointer to hover.
+  const mobile = useMobileLayout()
+  const [sheetOpen, setSheetOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -114,6 +121,13 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
   }, [])
 
   useEffect(() => {
+    if (!sheetOpen) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSheetOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sheetOpen])
+
+  useEffect(() => {
     if (!notice) return
     const timer = window.setTimeout(() => setNotice(null), 5000)
     return () => window.clearTimeout(timer)
@@ -151,7 +165,12 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
       ? `${location.nickname ? `${uiText('видел')} ${location.nickname}` : uiText('крайний раз')} · ${time(location.reportedAt)} · ${ago(location.reportedAt)}`
       : uiText(connectionNote)
 
-  return <div ref={cardRef} className={`stat-card goon-card ${menuOpen ? 'is-open' : ''}`}>
+  const openSheet = (event: { target: EventTarget }) => {
+    if (!mobile || (event.target as Element).closest?.('.goon-report-anchor')) return
+    setSheetOpen(true)
+  }
+
+  return <div ref={cardRef} className={`stat-card goon-card ${menuOpen ? 'is-open' : ''}${mobile ? ' is-tappable' : ''}`} onClick={openSheet}>
     <div className="goon-card-heading">
       <div className="stat-label">{title}</div>
       <div className="goon-report-anchor">
@@ -213,5 +232,30 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
           {lastSeen ? <>{uiText('Последний раз:')} {time(lastSeen)} · {ago(lastSeen)}</> : uiText(connectionNote)}
         </div>}
     </div>
+    {sheetOpen && createPortal(
+      <div className="goon-sheet-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setSheetOpen(false) }}>
+        <section className="panel goon-sheet" role="dialog" aria-modal="true" aria-label={title}>
+          <header className="goon-sheet-head">
+            <strong>{title}</strong>
+            <button type="button" className="icon-button" onClick={() => setSheetOpen(false)} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={16} /></button>
+          </header>
+          <p className="goon-sheet-top">{top ? <>{uiText('Чаще всего:')} <strong>{uiText(mapName(top.mapId))}</strong></> : uiText('Отметок нет')}</p>
+          <div className="goon-sheet-maps">
+            {GOON_MAPS.map((id) => {
+              const row = statFor(id)
+              return <div key={id} className={`goon-sheet-map${row && row.mapId === top?.mapId ? ' is-top' : ''}${row ? '' : ' is-empty'}`}><span>{uiText(mapName(id))}</span><b>{row?.count ?? 0}</b></div>
+            })}
+          </div>
+          {recent.length > 0
+            ? <ul className="goon-sheet-recent">
+              {recent.map((entry) => <li key={`${entry.reportedAt}:${entry.mapId}:${entry.nickname ?? ''}`}>
+                <b>{entry.nickname ?? uiText('игрок')}</b><span>{uiText(mapName(entry.mapId))}</span><time dateTime={entry.reportedAt}>{time(entry.reportedAt)} · {ago(entry.reportedAt)}</time>
+              </li>)}
+            </ul>
+            : <p className="goon-sheet-foot dim">{lastSeen ? <>{uiText('Последний раз:')} {time(lastSeen)} · {ago(lastSeen)}</> : uiText(connectionNote)}</p>}
+        </section>
+      </div>,
+      document.body,
+    )}
   </div>
 }

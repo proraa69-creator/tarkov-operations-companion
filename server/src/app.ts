@@ -311,6 +311,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
       if (!adminStore) throw new AccountError(503, 'Выдача подписки на этом сервере недоступна')
       adminStore.grant(actor, accountId, days, reason)
     },
+    // «Принять точку» (the stores are made further down; read when the owner presses the button).
+    points: () => ({ store: questPoints, changed: () => mapUpdates.changed() }),
   }))
   // «Объявления по регионам»: a photo (≤ 5 MB) is uploaded on its own, with its own body limit (routes/notices.ts).
   const notices = new NoticeStore(accounts.database, accounts.clock)

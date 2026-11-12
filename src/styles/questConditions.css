@@ -183,6 +183,12 @@
 .phone-block.is-narrow .qc-main .qc-gear { gap: 6px 8px; }
 .phone-block.is-narrow .quest-conditions-card .qc-gear .qc-more { right: 2px; bottom: 2px; min-width: 16px; padding: 0 3px; font-size: 9px; line-height: 12px; }
 .phone-block.is-narrow .quest-conditions-card > .qc-main .qc-line { display: none; }
+/* The phone: every quest of the map as a card of its own, two in sight, the rest under the thumb (QuestConditionsCard
+   `compactRows`, owner 12.11.2026). */
+.quest-conditions-card.is-scroll { gap: 8px; }
+.qc-scroll-list .qc-card { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); }
+.qc-scroll-list .qc-card:focus-visible { border-color: var(--line-strong); outline: none; }
+.phone-block.is-narrow .qc-scroll-list .qc-line { display: none; }
 @media (max-width: 600px) {
   .qc-pop { max-height: 70dvh; }
   .qc-variants-grid { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
@@ -211,3 +217,8 @@ img.qc-icon, .qc-part .qc-part-picture img { padding: 0; border: 0; border-radiu
 
 /* A right click on a weapon: «Открыть сборку» (src/overview/WeaponBuildMenu.tsx), above the dialog and the list of weapons. */
 .weapon-build-menu { z-index: 4100; }
+
+/* That one frame with rounded corners (owner, 11.11.2026: «у всех картинок… закругленные края… не нужно добавлять вторую
+   рамку… и на ПК, и на телефоне»): the picture itself is clipped round, its own square frame included; nothing is drawn
+   around it. The weapons too. */
+img.qc-icon, .qc-part .qc-part-picture img, .qc-weapon-card img, .qc-variant img, .gs-part.qc-part img { border-radius: 8px; overflow: hidden; }

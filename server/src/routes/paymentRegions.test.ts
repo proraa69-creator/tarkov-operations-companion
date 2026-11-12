@@ -217,6 +217,14 @@ test('BZB tariffs (owner, 20.10.2026): CIS in roubles, the rest of the world in 
     assert.equal((await call<{ url: string }>('POST', '/payments/bezebee', world, { plan: '1m', card: true, consent })).json.url, worldPages[0])
     // No friend's code: no referral page.
     assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m', friend: true, consent })).status, 403)
+    // Belarus (owner, 11.11.2026): its cards fail on the dollar pages — the rouble pages only, no foreign-card offer or page.
+    const by = await player('bzb-by@example.com', 'BY')
+    const byOffer = (await call<WithBzb>('GET', '/payments', by)).json.bezebee
+    assert.deepEqual(byOffer, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 800 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null })
+    assert.equal((await call<{ url: string }>('POST', '/payments/bezebee', by, { plan: '1m', consent })).json.url.split('?')[0], cisPages[0].split('?')[0])
+    const byCard = await call<{ code: string }>('POST', '/payments/bezebee', by, { plan: '1m', card: true, consent })
+    assert.equal(byCard.status, 409)
+    assert.equal(byCard.json.code, 'BEZEBEE_CARD_COUNTRY')
   } finally {
     await close()
   }
@@ -296,6 +304,14 @@ test('BZB confirmation (owner; the same path BZB\'s API will use): months added,
     assert.equal((await call('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-de@example.com', plan: '3m', amount: 1700 })).status, 201)
     assert.equal((await call<{ code: string }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-inviter@example.com', plan: '1m' })).json.code, 'region_mismatch')
     assert.equal((await call('POST', '/accounts/me/admin/bezebee/payments', friend, { email: 'confirm-friend@example.com', plan: '1m' })).status, 404, 'owner only')
+    // «Не зачислять дни» (owner, 11.11.2026): a payment made another way, its days given by hand before — recorded, the
+    // subscription left as it is.
+    await player('confirm-by@example.com', 'BY')
+    const before = payments.paidUntil(idOf('confirm-by@example.com'))
+    const recorded = await call<{ payment: { amount: number; provider: string } }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-by@example.com', plan: '1m', amount: 414, noDays: true })
+    assert.equal(recorded.status, 201, JSON.stringify(recorded.json))
+    assert.equal(recorded.json.payment.amount, 414)
+    assert.equal(payments.paidUntil(idOf('confirm-by@example.com')), before)
   } finally {
     await close()
   }
