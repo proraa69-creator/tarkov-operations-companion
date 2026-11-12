@@ -520,8 +520,10 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .current-tasks.is-compact .quest-row { padding-block: 8px; gap: 9px; }
 :root[data-layout="mobile"] .current-tasks.is-compact .quest-index { width: 26px; height: 26px; }
 :root[data-layout="mobile"] .current-tasks.is-compact .quest-row small { margin-top: 1px; }
-/* the priority strip in the map's block: no rank number on the phone, the map's name gets the room */
+/* the priority strip in the map's block: no rank number on the phone, the map's name gets the room — two columns then, or a
+   long name («Улицы Таркова») took the rank's column and pushed the count out of the tile (owner, 13.11.2026) */
 :root[data-layout="mobile"] .map-priority.is-inline .map-priority-rank { display: none; }
+:root[data-layout="mobile"] .map-priority.is-inline .map-priority-tile { grid-template-columns: minmax(0, 1fr) auto; }
 
 /* ---------- The map for the phone (owner, 12.11.2026: «Переработай карту и окно. Именно под телефон») ----------
    «Назад» stands in a corner of the map and nothing lies under it: the map's own buttons in that corner step aside by
