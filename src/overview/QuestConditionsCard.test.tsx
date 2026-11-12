@@ -500,3 +500,22 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
     expect(needs).not.toHaveTextContent('ПС-320')
   })
 })
+
+// Owner, 12.11.2026: «Сделай для сбора на рейд список… чтобы он также листался ползунком справа… кнопка… больше не нужна».
+describe('«Сбор на рейд» on the phone: every quest in a list under the thumb, no «ещё N»', () => {
+  it('lists all the quests of the map, the picked one first, with no «ещё» and no unfolded copy', () => {
+    render(<MemoryRouter><QuestConditionsCard result={result([shooter, dandies, patriot])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" compactRows={2} /></MemoryRouter>)
+    const names = [...card().querySelectorAll('.thumb-scroll .qc-scroll-list > li .qc-name')].map((node) => node.textContent)
+    expect(names).toHaveLength(3)
+    expect(new Set(names)).toEqual(new Set(['Тарковский стрелок. Часть 1', 'Стиляги', 'Работа для патриота']))
+    expect(card()).toHaveClass('is-scroll')
+    expect(screen.queryByRole('button', { name: /ещё/ })).toBeNull()
+    expect(card().querySelector('.qc-pop')).toBeNull()
+  })
+
+  it('a quest of the list opens its build', () => {
+    render(<MemoryRouter><QuestConditionsCard result={result([shooter, dandies])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" compactRows={2} /></MemoryRouter>)
+    fireEvent.click(screen.getByText('Стиляги').closest('button')!)
+    expect(screen.getByRole('dialog', { name: 'Стиляги' })).toBeInTheDocument()
+  })
+})

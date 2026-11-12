@@ -11,6 +11,7 @@ import { usePictures, type Pictures } from './usePictures'
 import { CHOICE_POPUP_CLASS, ChoicePopover } from './ChoicePopover'
 import type { DeferMenuState } from '../components/QuestDeferDialog'
 import { WeaponBuildMenuProvider, useWeaponBuildMenu } from './WeaponBuildMenu'
+import { ThumbScroll } from '../components/ThumbScroll'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
 import bigPipeResting from '../assets/goons-rest/big-pipe.webp'
@@ -325,8 +326,11 @@ function QuestCard({ entry, pictures, mapName, full, expandable, className = '',
  * quest below as the same full-size card, which shows all of its info in turn when pointed at. A touch: «ещё N». A click
  * on any card opens the whole build; a right click puts its quest aside (`onDefer`). `deferredCount`: the quests of this
  * map with gear conditions put aside, not in `result`.
+ *
+ * `compactRows` (the phone): every quest of the map in a list, that many in sight, the rest under the thumb on the right, and
+ * no «ещё N» (owner, 12.11.2026: «чтобы он также листался ползунком справа, как и выше в блоках… кнопка… больше не нужна»).
  */
-export function QuestConditionsCard({ result, map, mapName, items, pickKey, deferredCount = 0, onDefer }: {
+export function QuestConditionsCard({ result, map, mapName, items, pickKey, deferredCount = 0, onDefer, compactRows }: {
   result: MapConditionQuests
   map: GameMap
   mapName: (id: string) => string
@@ -335,6 +339,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
   pickKey: string
   deferredCount?: number
   onDefer?: (menu: DeferMenuState) => void
+  compactRows?: number
 }) {
   const pictures = usePictures(items)
   const title = useBlockTitle('Сбор на рейд')
@@ -346,7 +351,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
   const shownId = chosen?.key === setKey && ids.includes(chosen.id) ? chosen.id : picked
   const shown = result.quests.find((entry) => entry.quest.id === shownId)
   const others = result.quests.filter((entry) => entry !== shown)
-  const unfoldable = Boolean(shown && (others.length > 0 || hasMoreToShow(shown)))
+  const unfoldable = !compactRows && Boolean(shown && (others.length > 0 || hasMoreToShow(shown)))
   // Unfolded for one map: another map folds it.
   const [openFor, setOpenFor] = useState<string | undefined>()
   const open = unfoldable && openFor === pickKey
@@ -421,14 +426,20 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
   }
   const label = title
 
-  return <WeaponBuildMenuProvider><div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}${shown ? '' : ' is-empty'}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
+  return <WeaponBuildMenuProvider><div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}${shown ? '' : ' is-empty'}${compactRows ? ' is-scroll' : ''}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
     <div className="qc-head">
       <div className="stat-label">{label}</div>
-      {others.length > 0 && <button type="button" className="button small qc-count" aria-expanded={open} aria-controls={popId} onClick={() => open && pinned.current ? fold() : unfold()}>
+      {!compactRows && others.length > 0 && <button type="button" className="button small qc-count" aria-expanded={open} aria-controls={popId} onClick={() => open && pinned.current ? fold() : unfold()}>
         {uiText(`ещё ${others.length}`)}<ChevronDown size={12} aria-hidden="true" />
       </button>}
     </div>
-    {shown
+    {shown && compactRows
+      ? <ThumbScroll rows={compactRows}><ul className="qc-list qc-scroll-list" aria-label={uiText(`Сбор на рейд · ${uiText(map.name)}`)}>
+        {[shown, ...others].map((entry) => <li key={entry.quest.id}>
+          <QuestCard entry={entry} pictures={pictures} mapName={mapName} onOpen={() => openDetails(entry)} onDefer={onDefer} />
+        </li>)}
+      </ul></ThumbScroll>
+      : shown
       ? <QuestCard entry={shown} pictures={pictures} mapName={mapName} onOpen={() => openDetails(shown)} onDefer={onDefer} />
       : <>
         <p className="qc-empty">{uiText(deferredCount ? 'Квесты этой карты со снаряжением отложены' : 'На этой карте нет квестов с условиями на снаряжение')}</p>

@@ -7091,3 +7091,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 
 - The desktop pack `RaidOS_для_публикации.rar` (13:39, 119 954 037 B: Xcode project with the App Store bundle + App Store Connect texts, screenshots, banners, icon) is a prerelease of the public repository: tag `appstore-pack-2026-11-12` (on 964ac103), asset `RaidOS-AppStore-2026-11-12.rar`, SHA-256 `0217be1c…f948`, checked by an anonymous download. Not `mobile-v…` and a prerelease, so the server's phone downloads ignore it; no workflow runs on tags.
 - Checked before publishing: no demo-account e-mail or password inside (placeholders only), no keys. The pack's web bundle predates 0.6.0.296 (no new Gunsmith screenshots, no sniper layer).
+
+## 2026-11-12 — Phone «Сбор на рейд»: every quest in a list under the thumb (owner: «чтобы он также листался ползунком справа, как и выше в блоках… кнопка… больше не нужна»)
+
+- `QuestConditionsCard` `compactRows` (DashboardPage passes 2 on the phone): every gear quest of the map as its own card in a `ThumbScroll` list, the picked one first, two in sight, the rest under the right thumb; no «ещё N» and no unfolding copy there. The PC card is unchanged. CSS: `.quest-conditions-card.is-scroll`, `.qc-scroll-list` in `src/styles/questConditions.css`.
+- Tests: two new in `QuestConditionsCard.test.tsx`; overview/mobile/onboarding/components/Dashboard 587 passed; typecheck, eslint. Seen at 375×812 with 11 Customs quests: two cards in sight, thumb on the right, dragging it scrolls the list. Not released.
