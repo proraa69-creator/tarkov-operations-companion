@@ -575,13 +575,14 @@ export const SNIPER_SPOT_TEXT = 'Здесь появляется дикий-сн
 
 /**
  * Where Scav snipers appear (report 131, 10.11.2026: «добавьте пожалуйста места снайперов на карте»): the sniper bot zones of the
- * game's own location files (src/data/sniperSpots.json; the feed tells them on Streets only). On «Опасности».
+ * game's own location files (src/data/sniperSpots.json; the feed tells them on Streets only). A layer of their own, «Снайперы»
+ * (owner, 12.11.2026: on «Опасности», hidden by default, nobody saw them); apps before it get them on «Опасности» (catalogWire).
  */
 function adaptSniperSpots(map: GameMap): MapMarker[] {
   return (SNIPER_SPOTS[map.id] ?? []).flatMap(([x, y, z], index): MapMarker[] => {
     const base = baseMarker(map, `sniper-${index}`, { x, y, z }, undefined, y, y)
     if (!base) return []
-    return [{ ...base, type: 'danger', layerId: 'hazard', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
+    return [{ ...base, type: 'danger', layerId: 'sniper', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
   })
 }
 

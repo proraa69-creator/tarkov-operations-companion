@@ -13,6 +13,7 @@ import boss from './boss.svg'
 import spawn from './spawn.svg'
 import spawnPmc from './spawn-pmc.svg'
 import spawnScav from './spawn-scav.svg'
+import sniper from './sniper.svg'
 import hazard from './hazard.svg'
 // Loot as real things (owner, 11.11.2026: «Все иконки должны быть не нарисованы, а картинки взяты с реалистичных предметов»): the
 // game's pictures of «Реалистичные» (../map-markers/real/*), with no outline or glow round them (owner, 11.11.2026);
@@ -43,6 +44,7 @@ export const newMarkerImages: Record<MarkerLayerId, string> = {
   spawn,
   'spawn.pmc': spawnPmc,
   'spawn.scav': spawnScav,
+  sniper,
   hazard,
   'loot.valuable': lootValuable,
   'loot.weapon': lootWeapon,

@@ -13,7 +13,7 @@ import type { AppDataset, MapMarker, MarkerLayerId, Quest } from '../domain/type
  * the game's id: the text changes with the language and tarkov.dev's wording, and a tick whose text has a comma or
  * quotes never reached the server (owner, 02.11.2026: «Сделай … постоянные id целей»).
  */
-const OLDER_LAYER: Partial<Record<MarkerLayerId, MarkerLayerId>> = { switch: 'landmark', btr: 'landmark', 'loot.key': 'loot.technical', 'spawn.pmc': 'spawn', 'spawn.scav': 'spawn' }
+const OLDER_LAYER: Partial<Record<MarkerLayerId, MarkerLayerId>> = { switch: 'landmark', btr: 'landmark', 'loot.key': 'loot.technical', 'spawn.pmc': 'spawn', 'spawn.scav': 'spawn', sniper: 'hazard' }
 
 const hasGuideLinks = (quest: Quest) => Boolean(quest.objectiveDetails?.some((objective) => objective.build?.guide?.image || objective.build?.guide?.url))
 

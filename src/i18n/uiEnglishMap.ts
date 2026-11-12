@@ -21,7 +21,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'],
   ['Точка перехода между локациями.', 'Transit point between locations.'], ['Переход', 'Transit'],
   ['Санаторий (главный корпус)', 'Health resort (main building)'], ['Ж/д пути у перехода', 'Railway by the transit'], ['неизвестная зона', 'unknown zone'],
-  ['Спавн ЧВК', 'PMC spawn'], ['Спавн Диких', 'Scav spawn'], ['Спавн дикого', 'Scav spawn'], ['Спавны ЧВК', 'PMC spawns'], ['Спавны диких', 'Scav spawns'], ['Здесь ЧВК начинают рейд.', 'PMCs start the raid here.'], ['Здесь появляются дикие.', 'Scavs appear here.'], ['Точка появления.', 'Spawn point.'], ['спавн', 'spawn'],
+  ['Спавн ЧВК', 'PMC spawn'], ['Спавн Диких', 'Scav spawn'], ['Спавн дикого', 'Scav spawn'], ['Спавны ЧВК', 'PMC spawns'], ['Спавны диких', 'Scav spawns'], ['Снайперы', 'Snipers'], ['Здесь ЧВК начинают рейд.', 'PMCs start the raid here.'], ['Здесь появляются дикие.', 'Scavs appear here.'], ['Точка появления.', 'Spawn point.'], ['спавн', 'spawn'],
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'],
   // «Спавн 100 %» layer: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts).

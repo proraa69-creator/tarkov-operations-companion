@@ -12,6 +12,7 @@ export type MarkerLayerId =
   | 'spawn'
   | 'spawn.pmc'
   | 'spawn.scav'
+  | 'sniper'
   | 'hazard'
   | 'loot.valuable'
   | 'loot.weapon'

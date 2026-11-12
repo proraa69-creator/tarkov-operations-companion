@@ -22,6 +22,8 @@ import spawn from './map-markers/09_spawn.png'
 // PMC and Scav spawns: the running man of the Scav exit's picture, green and orange.
 import spawnPmc from './map-markers-new/spawn-pmc.svg'
 import spawnScav from './map-markers-new/spawn-scav.svg'
+// Scav snipers: a red scope reticle.
+import sniper from './map-markers-new/sniper.svg'
 import danger from './map-markers/10_danger.png'
 import landmark from './map-markers/11_landmark.png'
 // «Станковое оружие»: the AGS-30 itself (owner, 11.11.2026: «реальная картинка АГС или утеса, просто обрезанная»), cut out of the
@@ -48,6 +50,7 @@ export const markerImages: Record<MarkerLayerId, string> = {
   spawn,
   'spawn.pmc': spawnPmc,
   'spawn.scav': spawnScav,
+  sniper,
   hazard: danger,
   landmark,
   'loot.valuable': realValuable,
