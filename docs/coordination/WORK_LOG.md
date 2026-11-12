@@ -7042,3 +7042,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - `src/pages/MapsPage.tsx`: the phone window has a fixed head (gear, trader, name, «?», «×»); `components/phoneSheetView.ts` + `QuestSheetViewButton phone`: «Шторка» (handle: tap or swipe for tall/low), «Вкладки», «Только цели» («Подробнее о квесте»). Floors: `questPointFloor` — one floor → that floor, several → main; objective pin → its point's floor; map press / «×» → main (PC too).
 - Tests: `MapsPage.questFloor.test.tsx` (2), pages/components/mobile 906 (AdminPanelPage local failure, known), typecheck, eslint. Checked in an iPhone-like browser (CapacitorCustomPlatform ios) upright and sideways × 4 places of «Назад» × bars/full screen × window shut/open: nothing covered, no page scroll.
 - Test IPA `test/ios-ipa-appstore-1112d`; App Store pack's Xcode bundle redone. Not released (all phones get it with a release).
+
+- ce6386f4: «Квесты» and the floors chip side by side at the bottom left (on the full screen the floors lay under «Квесты»); checked in every place of «Назад» with iPhone insets. Test IPA `test/ios-ipa-appstore-1112e`.
