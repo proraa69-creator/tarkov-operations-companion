@@ -8,7 +8,7 @@ import { AppLoginPage } from './pages/AppLoginPage'
 import { CabinetPage } from './pages/CabinetPage'
 import { DownloadPage } from './pages/DownloadPage'
 import { HomePage } from './pages/HomePage'
-import { LegalPage } from './pages/LegalPage'
+import { AppPrivacyPage, LegalPage } from './pages/LegalPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ReferralLandingPage } from './pages/ReferralLandingPage'
@@ -35,6 +35,8 @@ export function App() {
   // RU / EN: the whole site renders again in the chosen language (src/i18n/index.ts); the account session stays.
   return (
     <Routes key={locale}>
+      {/* The privacy policy for the iPhone app and the App Store card: the document alone, no buttons (LegalPage.tsx). */}
+      <Route path="app/privacy" element={<AppPrivacyPage />} />
       <Route element={<SiteLayout />}>
         <Route index element={<HomePage />} />
         <Route path="about" element={<AboutPage />} />

@@ -39,7 +39,7 @@ describe('iPhone app (App Store build)', () => {
     expect(screen.getByRole('link', { name: /Поддержка/ })).toHaveAttribute('href', 'https://t.me/raidosapp')
     expect(screen.getByRole('button', { name: /Выйти/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Удалить аккаунт/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Политика конфиденциальности/ })).toHaveAttribute('href', 'https://raidos.app/legal/privacy')
+    expect(screen.getByRole('link', { name: /Политика конфиденциальности/ })).toHaveAttribute('href', 'https://raidos.app/app/privacy')
     expect(document.body.textContent).not.toMatch(/₽|Оплат|оплат|подписк|Подписк|месяц|скидк|код друга/)
   })
 
@@ -101,6 +101,6 @@ describe('iPhone app (App Store build)', () => {
     expect(accessText(undefined)).toBe('Нет данных: сервер недоступен')
     expect(deleteErrorText('Сначала отмените автопродление подписки в личном кабинете')).toMatch(/Напишите в поддержку/)
     expect(deleteErrorText('Пароль указан неверно')).toBe('Пароль указан неверно')
-    expect(privacyPolicyUrl()).toBe('https://raidos.app/legal/privacy')
+    expect(privacyPolicyUrl()).toBe('https://raidos.app/app/privacy')
   })
 })
