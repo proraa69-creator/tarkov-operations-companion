@@ -2,10 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Settings } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { QUEST_SHEET_VIEW_LABELS, QUEST_SHEET_VIEWS, setQuestSheetView, useQuestSheetView } from './questSheetView'
+import { PHONE_SHEET_VIEW_LABELS, PHONE_SHEET_VIEWS, setPhoneSheetView, usePhoneSheetView } from './phoneSheetView'
 
-/** The gear on the top left of the quest window: its three looks (owner, 11.11.2026). Escape or a press outside closes the list. */
-export function QuestSheetViewButton() {
+/**
+ * The gear on the top left of the quest window: its looks (owner, 11.11.2026); `phone` lists the phone's own looks
+ * (phoneSheetView.ts, 12.11.2026). Escape or a press outside closes the list.
+ */
+export function QuestSheetViewButton({ phone = false }: { phone?: boolean }) {
   const view = useQuestSheetView()
+  const phoneView = usePhoneSheetView()
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -16,6 +21,9 @@ export function QuestSheetViewButton() {
     document.addEventListener('keydown', escape)
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
   }, [open])
+  const entries = phone
+    ? PHONE_SHEET_VIEWS.map((entry) => ({ id: entry, label: PHONE_SHEET_VIEW_LABELS[entry], active: phoneView === entry, pick: () => setPhoneSheetView(entry) }))
+    : QUEST_SHEET_VIEWS.map((entry) => ({ id: entry, label: QUEST_SHEET_VIEW_LABELS[entry], active: view === entry, pick: () => setQuestSheetView(entry) }))
   return (
     <div ref={box} className="quest-sheet-view">
       <button type="button" className={`icon-button quest-sheet-view-button${open ? ' active' : ''}`} aria-haspopup="menu" aria-expanded={open} aria-label={uiText('Вид окна')} title={uiText('Вид окна')} onClick={() => setOpen(!open)}>
@@ -23,10 +31,10 @@ export function QuestSheetViewButton() {
       </button>
       {open && (
         <div className="quest-sheet-view-menu" role="menu" aria-label={uiText('Вид окна')}>
-          {QUEST_SHEET_VIEWS.map((entry) => (
-            <button key={entry} type="button" role="menuitemradio" aria-checked={view === entry} className={view === entry ? 'active' : undefined} onClick={() => { setQuestSheetView(entry); setOpen(false) }}>
-              <span>{uiText(QUEST_SHEET_VIEW_LABELS[entry])}</span>
-              {view === entry && <Check size={13} aria-hidden="true" />}
+          {entries.map((entry) => (
+            <button key={entry.id} type="button" role="menuitemradio" aria-checked={entry.active} className={entry.active ? 'active' : undefined} onClick={() => { entry.pick(); setOpen(false) }}>
+              <span>{uiText(entry.label)}</span>
+              {entry.active && <Check size={13} aria-hidden="true" />}
             </button>
           ))}
         </div>

@@ -50,7 +50,7 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   // Locked rooms on the map (owner, 11.11.2026)
   ['Вход по ключу', 'Entry by key'], ['Мест спавна в этой комнате', 'Spawn spots in this room'],
   // The quest window's look (owner, 11.11.2026)
-  ['Вид окна', 'Window look'], ['Обычный', 'Standard'], ['Вкладки по этапам', 'Tabs by stage'], ['Шкала этапов', 'Stage timeline'], ['Этапы', 'Stages'], ['Готово', 'Done'],
+  ['Вид окна', 'Window look'], ['Обычный', 'Standard'], ['Вкладки по этапам', 'Tabs by stage'], ['Шкала этапов', 'Stage timeline'], ['Шторка', 'Drawer'], ['Вкладки', 'Tabs'], ['Только цели', 'Objectives only'], ['Окно выше', 'Taller window'], ['Окно ниже', 'Lower window'], ['Подробнее о квесте', 'More about the quest'], ['Свернуть подробности', 'Hide the details'], ['Этапы', 'Stages'], ['Готово', 'Done'],
   // The map search (report 134)
   ['Найти точку, ключ или предмет…', 'Find a point, key or item…'], ['Есть на картах', 'On maps'],
   // Scav snipers on the map (report 131)

@@ -47,6 +47,7 @@ import { useRaidState } from '../app/useRaidState'
 import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot, keyWorth, usesPossibleSpawnBadge } from '../data/mapMarkerAdapter'
 import { CLUSTER_M, floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots, mergeSpotHeaps } from '../maps/lockedRoomSpots'
 import { useQuestSheetView } from '../components/questSheetView'
+import { usePhoneSheetView } from '../components/phoneSheetView'
 import { pointHoldsItem, pointMatchesSearch, searchMapCounts, searchNeedle } from '../maps/mapSearch'
 import { QuestSheetViewButton } from '../components/QuestSheetViewButton'
 import possibleSpawnPicture from '../assets/map-markers-new/loot-guaranteed-maybe.svg'
@@ -887,8 +888,7 @@ export function MapsPage() {
       navigate(`/maps/${marker.mapId}?quest=${encodeURIComponent(questId)}&objective=${encodeURIComponent(objectiveId)}`)
       return
     }
-    setFloor(marker.floor ?? baseFloor)
-    showMarker(marker)
+    showMarker(marker, true)
   }
 
   // Checking a quest takes its points off the map; if it is the selected one, the selection goes too.
@@ -907,6 +907,12 @@ export function MapsPage() {
   const dismissMapQuest = (questId: string) => {
     state.setManualQuestMark(state.raidMode, questId, 'absent')
     if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection()
+  }
+
+  // A press on the map (or «×») takes the quest's light off and brings the main floor back (owner, 12.11.2026).
+  const clearQuestPick = () => {
+    if (selectedMarker?.questId || focusedQuestId) setFloor(baseFloor)
+    clearQuestSelection()
   }
 
   const clearQuestSelection = () => {
@@ -959,8 +965,21 @@ export function MapsPage() {
   const canvasHidden = hoveredCanvasId && canvasIds.has(hoveredCanvasId) ? new Set([hoveredCanvasId]) : NO_IDS
   const domMarkers = mapMarkers.filter((marker) => !canvasIds.has(marker.id) || marker.id === hoveredCanvasId)
 
-  const showMarker = (marker: MapMarker) => {
+  /**
+   * The floor a quest point opens (owner, 12.11.2026): a quest whose points here lie on one floor, or one point picked on its
+   * own (`one`: an objective's pin), opens that floor; points on several floors open the main floor, where all of them show.
+   */
+  const questPointFloor = (marker: MapMarker, one = false) => {
+    if (one) return marker.floor ?? baseFloor
+    const floors = new Set(plottedMarkers
+      .filter((entry) => entry.questId === marker.questId && entry.mapId === activeMap.id && (marker.stageIndex == null || entry.stageIndex == null || entry.stageIndex === marker.stageIndex))
+      .map((entry) => entry.floor ?? baseFloor))
+    return floors.size === 1 ? [...floors][0] : baseFloor
+  }
+
+  const showMarker = (marker: MapMarker, one = false) => {
     setSelectedMarker(marker)
+    if (marker.questId && marker.source !== 'quest-info') setFloor(questPointFloor(marker, one))
     const next = new URLSearchParams(params)
     next.delete('objective')
     if (marker.id !== focusedLockId) {
@@ -1064,7 +1083,20 @@ export function MapsPage() {
     }
     : undefined
   const sheetFloor = sheetPoint ? pointFloor(sheetPoint) : null
-  const sheetView = useQuestSheetView()
+  const pcSheetView = useQuestSheetView()
+  // The phone's own looks of this window (components/phoneSheetView.ts, owner 12.11.2026): «Вкладки» shows the stages as tabs,
+  // the others one under another; «Шторка» grows tall and low again by its handle; «Только цели» keeps the rest under «Подробнее».
+  const phoneView = usePhoneSheetView()
+  const sheetView = mobile ? (phoneView === 'tabs' ? 'tabs' : 'classic') : pcSheetView
+  const [sheetTall, setSheetTall] = useState(false)
+  const [detailsFor, setDetailsFor] = useState<string | null>(null)
+  const briefSheet = mobile && phoneView === 'compact' && detailsFor !== relatedQuest?.id
+  const sheetSwipe = useRef<number | null>(null)
+  const reportRelatedQuest = () => {
+    if (!relatedQuest) return
+    const point = selectedMarker?.questId === relatedQuest.id ? selectedMarker : null
+    setQuestReport(questReportFromMap(relatedQuest.id, activeMap.id, { ...(floor !== baseFloor ? { floor } : {}), ...(point?.objectiveId ? { objectiveId: point.objectiveId } : {}), ...(point?.stageIndex != null ? { stageIndex: point.stageIndex } : {}) }))
+  }
   const selectedExit = selectedMarker ? extractGuideOf(selectedMarker.id) : undefined
   const selectedDocument = selectedMarker ? markerLayerId(selectedMarker) === 'loot.documents' : false
   const selectedWeapon = selectedMarker ? stationaryWeaponKind(selectedMarker) : undefined
@@ -1193,7 +1225,8 @@ export function MapsPage() {
           zoomControl={false}
           attributionControl={false}
         >
-          <ZoomControl position="topright" />
+          {/* The phone: at the bottom right, above «Назад» when it stands there (owner, 12.11.2026). */}
+          <ZoomControl position={mobile ? 'bottomright' : 'topright'} />
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} follow={mapFollow} askedRef={flyAsked} />
@@ -1202,7 +1235,7 @@ export function MapsPage() {
           {floorWheel && !mobile && floorOrder.length > 1 && <MapFloorWheel floors={floorOrder} floor={floor} onPick={setFloor} />}
           <MapDragGuard draggedRef={mapDragged} />
           <FollowContainerSize />
-          {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
+          {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestPick} />}
           {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
           {questEditor.active && proposal && <Marker position={[proposal.z, proposal.x]} icon={PROPOSAL_ICON} interactive={false} keyboard={false}><Tooltip permanent direction="top">{uiText('Место из заявок игроков')}</Tooltip></Marker>}
@@ -1284,7 +1317,7 @@ export function MapsPage() {
                     original.stopPropagation()
                     const editPoint = () => {
                       if (!questEditor.active) { setBossActive(false); questEditor.setActive(true) }
-                      showMarker(marker)
+                      showMarker(marker, true)
                       questEditor.openMenu({ marker }, original.clientX, original.clientY)
                     }
                     if (!quest) { editPoint(); return }
@@ -1346,29 +1379,48 @@ export function MapsPage() {
           onPick={setFloor} />}
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
-        <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}`} aria-hidden={!sheetOpen}>
+        <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}${mobile && relatedQuest ? ` is-phone-${phoneView}` : ''}${mobile && relatedQuest && phoneView === 'drawer' && sheetTall ? ' is-tall' : ''}`} aria-hidden={!sheetOpen}>
           <QuestSheetEditProvider questId={relatedQuest?.id ?? ''} enabled={editingTexts}>
-          {uiText(relatedQuest && (
-            <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}${mobile ? ' has-close' : ''} is-view-${sheetView}`}>
-              {/* The look of this window (owner, 11.11.2026: «кнопка в виде шестеренки слева вверху этого окна»). */}
-              {relatedSheet && !relatedStage && <QuestSheetViewButton />}
-              {mobile && <button className="icon-button map-marker-detail-close" onClick={clearQuestSelection} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>}
-              {/* Owner, 04.11.2026: «Справа сверху в этом окне нижнем с квестом будет кнопка "Чего-то не хватает" и знак вопроса». Named «Нашли неточность?» since 05.11.2026, by the owner. */}
-              <button type="button" className="button small ghost map-quest-sheet-report" onClick={() => {
-                const point = selectedMarker?.questId === relatedQuest.id ? selectedMarker : null
-                setQuestReport(questReportFromMap(relatedQuest.id, activeMap.id, { ...(floor !== baseFloor ? { floor } : {}), ...(point?.objectiveId ? { objectiveId: point.objectiveId } : {}), ...(point?.stageIndex != null ? { stageIndex: point.stageIndex } : {}) }))
-              }}><CircleHelp size={13} aria-hidden="true" />{uiText('Нашли неточность?')}</button>
-              <div className="map-quest-sheet-copy">
+          {/* The phone: the window's head stays in place while its objectives scroll (owner, 12.11.2026): the look, the trader
+              and the name, «Нашли неточность?» as «?» and «×»; in «Шторка» a handle on its top edge makes the window tall. */}
+          {uiText(mobile && relatedQuest && (
+            <div className="map-quest-sheet-head">
+              {phoneView === 'drawer' && (
+                <button type="button" className="map-quest-sheet-handle" aria-label={uiText(sheetTall ? 'Окно ниже' : 'Окно выше')} title={uiText(sheetTall ? 'Окно ниже' : 'Окно выше')}
+                  onPointerDown={(event) => { sheetSwipe.current = event.clientY }}
+                  onPointerUp={(event) => {
+                    const from = sheetSwipe.current
+                    sheetSwipe.current = null
+                    const moved = from == null ? 0 : event.clientY - from
+                    setSheetTall(moved < -24 ? true : moved > 24 ? false : !sheetTall)
+                  }}><span aria-hidden="true" /></button>
+              )}
+              <QuestSheetViewButton phone />
+              <div className="map-quest-sheet-head-text">
                 <div className="map-quest-sheet-eyebrow">{uiText(relatedQuest.trader)}</div>
                 <h2 className="map-quest-sheet-title"><EditableText field="name" value={relatedQuest.name} /></h2>
-                <div className="map-quest-sheet-meta">
+              </div>
+              <button type="button" className="icon-button map-quest-sheet-report-icon" onClick={reportRelatedQuest} aria-label={uiText('Нашли неточность?')} title={uiText('Нашли неточность?')}><CircleHelp size={17} /></button>
+              <button type="button" className="icon-button map-marker-detail-close" onClick={clearQuestPick} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={17} /></button>
+            </div>
+          ))}
+          {uiText(relatedQuest && (
+            <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''} is-view-${sheetView}`}>
+              {/* The look of this window (owner, 11.11.2026: «кнопка в виде шестеренки слева вверху этого окна»). */}
+              {!mobile && relatedSheet && !relatedStage && <QuestSheetViewButton />}
+              {/* Owner, 04.11.2026: «Справа сверху в этом окне нижнем с квестом будет кнопка "Чего-то не хватает" и знак вопроса». Named «Нашли неточность?» since 05.11.2026, by the owner. */}
+              {!mobile && <button type="button" className="button small ghost map-quest-sheet-report" onClick={reportRelatedQuest}><CircleHelp size={13} aria-hidden="true" />{uiText('Нашли неточность?')}</button>}
+              <div className="map-quest-sheet-copy">
+                {!mobile && <div className="map-quest-sheet-eyebrow">{uiText(relatedQuest.trader)}</div>}
+                {!mobile && <h2 className="map-quest-sheet-title"><EditableText field="name" value={relatedQuest.name} /></h2>}
+                {!briefSheet && <div className="map-quest-sheet-meta">
                   <span className="tag brass">{uiText(questStatusLabel(relatedAvailability?.status ?? 'unknown', isStoryQuest(relatedQuest)))}</span>
                   {uiText(relatedQuest.kappa && <span className="tag brass">{uiText("капа")}</span>)}
                   <span className="tag">{uiText(activeMap.name)}</span>
                   {uiText(sheetFloor && <span className={`tag map-floor-tag${sheetFloor !== 'Основной' ? ' is-indoor' : ''}`}><Building2 size={11} /> {uiText(sheetFloor)}</span>)}
                   {uiText(relatedQuest.anyMap && <span className="tag">{uiText("Любая карта")}</span>)}
                   {uiText(sheetPoint?.guaranteedSpawn && <span className="tag brass">{uiText(GUARANTEED_SPAWN_TEXT)}</span>)}
-                </div>
+                </div>}
                 <div className="map-quest-sheet-section">
                   {editingTexts && <p className="dim map-quest-sheet-description"><EditableText field="description" value={relatedQuest.description} /></p>}
                   {uiText(relatedStage ? (
@@ -1393,24 +1445,31 @@ export function MapsPage() {
                       )}
                     </>
                   ))}
-                  {uiText(sheetPoint?.approximate && (
+                  {uiText(!briefSheet && sheetPoint?.approximate && (
                     <p className="map-quest-sheet-note"><MapPin size={12} />{uiText(" Точное место этапа неизвестно — метка стоит приблизительно.")}</p>
                   ))}
                   {/* The quest constructor's «Где искать» and «Требуется» (src/components/QuestCuratedInfo.tsx). */}
-                  <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} onEditPoint={editingTexts ? editPoint : undefined} />
-                  <QuestGuideImages quest={relatedQuest} />
-                  <QuestCuratedRequirements quest={relatedQuest} items={data.items} progress={progress} onEdit={editingTexts ? () => editRequirements(relatedQuest) : undefined} />
+                  {!briefSheet && <>
+                    <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} onEditPoint={editingTexts ? editPoint : undefined} />
+                    <QuestGuideImages quest={relatedQuest} />
+                    <QuestCuratedRequirements quest={relatedQuest} items={data.items} progress={progress} onEdit={editingTexts ? () => editRequirements(relatedQuest) : undefined} />
+                  </>}
+                  {mobile && phoneView === 'compact' && (
+                    <button type="button" className="button small ghost map-quest-sheet-more" aria-expanded={!briefSheet} onClick={() => setDetailsFor(briefSheet ? relatedQuest.id : null)}>
+                      {briefSheet ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronUp size={14} aria-hidden="true" />}{uiText(briefSheet ? 'Подробнее о квесте' : 'Свернуть подробности')}
+                    </button>
+                  )}
                 </div>
                 {/* «Фото мест»: under the title on the PC, after the objectives on the phone (the DOM order). */}
                 {/* A quest on several maps: the photos of this map's places only (report 138, owner 11.11.2026: «на таможне должны
                     показываться скриншоты только из точки на таможне, а скриншоты на берегу только с берега»). */}
-                <QuestGuidePhotoStrip key={relatedQuest.id} questId={relatedQuest.id} focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined}
-                  {...(relatedSheet?.onlyHere ? { objectives: relatedSheet.groups.flatMap((group) => group.objectives) } : relatedSheet?.showWhere ? { objectives: relatedSheet.groups.flatMap((group) => group.objectives).filter((objective) => objective.here) } : {})} />
-                <Link
+                {!briefSheet && <QuestGuidePhotoStrip key={relatedQuest.id} questId={relatedQuest.id} focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined}
+                  {...(relatedSheet?.onlyHere ? { objectives: relatedSheet.groups.flatMap((group) => group.objectives) } : relatedSheet?.showWhere ? { objectives: relatedSheet.groups.flatMap((group) => group.objectives).filter((objective) => objective.here) } : {})} />}
+                {!briefSheet && <Link
                   className="button map-quest-sheet-link"
                   to={questCardHref(relatedQuest)}
                 >{uiText(" Открыть задание ")}<ChevronRight size={14} />
-                </Link>
+                </Link>}
                 <QuestPointCardActions state={questEditor} marker={selectedMarker} onDone={() => setSelectedMarker(null)} />
               </div>
               {uiText(sheetVisual && sheetPoint && (
@@ -1469,7 +1528,7 @@ export function MapsPage() {
           ? <div className="panel-header"><div className="panel-title">{uiText('Конструктор квестов')}</div></div>
           : <MapDetailTabs tab={detailTab} onTab={setDetailTab} quests={localMapQuests.length + anyMapQuests.length} kills={killsOpenCount} />}
         {questEditor.active ? (
-          <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} items={data.items} traders={data.traders} onPick={pickEditorQuest} onFocus={showMarker} onSelectMap={selectMap} />
+          <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} items={data.items} traders={data.traders} onPick={pickEditorQuest} onFocus={(marker) => showMarker(marker, true)} onSelectMap={selectMap} />
         ) : (
           <>
           {featureEnabled('raidBriefing') && route.enabled && <RaidBriefingPanel mapId={activeMap.id} route={route.plan} compact />}
