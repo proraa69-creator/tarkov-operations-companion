@@ -9,7 +9,7 @@ import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
 import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
 import { isOwnerApp } from '../app/buildEdition'
-import { isNative } from '../platform'
+import { appStoreRules, isNative } from '../platform'
 import { ServerStatusBlock } from './ServerStatusLamps'
 import { PhoneCabinetRow, PhoneSignInForm, PhoneSignInLinks } from '../account/PhoneAccount'
 import { EmailSignInForm, EmailSignInLinks, EmailVerifyRow } from '../account/EmailAccount'
@@ -66,6 +66,8 @@ export function ServerAccountPanel() {
     }
   }
 
+  // The iPhone app: no «Личный кабинет» and no website sign-in by QR for now (owner, 12.11.2026: «удали позже мы их добавим»).
+  const store = appStoreRules()
   const online = status?.online ?? false
   const connectionTag = !status
     ? <span className="tag">{uiText('Проверяем сервер…')}</span>
@@ -98,10 +100,10 @@ export function ServerAccountPanel() {
             <div className="account-cabinet-grid"><EmailVerifyRow status={status} online={online} />{PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}</div>
             {!status.persistent && <p className="dim" style={{ margin: 0 }}>{uiText('В системе нет защищённого хранилища: вход сохранится только до закрытия приложения.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <span className="setting-help-with"><button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button><SettingHelp id="accountCabinet" /></span>
+              {!store && <span className="setting-help-with"><button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button><SettingHelp id="accountCabinet" /></span>}
               {isOwnerApp() && <button className="button ghost" onClick={() => openWebsite('admin')}><LayoutDashboard size={14} />{uiText('Открыть админ-панель')}</button>}
               {window.tarkovDesktop?.account?.mobileLogin && <button className="button ghost" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
-              <span className="setting-help-with"><button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button><SettingHelp id="accountApproveWeb" /></span>
+              {!store && <span className="setting-help-with"><button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button><SettingHelp id="accountApproveWeb" /></span>}
               <span className="setting-help-with"><button className="button danger" onClick={() => void logout()}><LogOut size={14} />{uiText('Выйти')}</button><SettingHelp id="accountSignOut" /></span>
             </div>
             {dialog === 'mobile' && <MobileLoginDialog onClose={() => setDialog(null)} />}

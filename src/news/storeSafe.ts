@@ -1,4 +1,3 @@
-import { APP_STORE_BUILD, isIosApp } from '../platform'
 import type { NewsEntry } from './newsState'
 
 /**
@@ -16,5 +15,4 @@ export function storeSafeNews(entries: readonly NewsEntry[]): NewsEntry[] {
     .filter((entry) => entry.items.length > 0)
 }
 
-/** The App Store build, or the iPhone app at all. */
-export const appStoreRules = () => APP_STORE_BUILD || isIosApp()
+export { appStoreRules } from '../platform'

@@ -38,6 +38,9 @@ export function isIosApp() {
   return isNative() && nativePlatform() === 'ios'
 }
 
+/** The App Store build, or the iPhone app at all. */
+export const appStoreRules = () => APP_STORE_BUILD || isIosApp()
+
 export function isDesktopShell() {
   return typeof window !== 'undefined' && Boolean(window.tarkovDesktop)
 }

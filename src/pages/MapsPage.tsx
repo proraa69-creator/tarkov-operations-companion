@@ -115,7 +115,7 @@ import { MapDragGuard } from '../maps/mapDragGuard'
 import { MapFloorWheel, useGameFloorWheel } from '../maps/mapFloorWheel'
 import { repeatsTitle } from '../maps/repeatsTitle'
 import { useMapFloorWheel } from '../account/trialFeatures'
-import { isDesktopShell, useMobileLayout } from '../platform'
+import { appStoreRules, isDesktopShell, useMobileLayout } from '../platform'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -1334,7 +1334,8 @@ export function MapsPage() {
           }))}
         </MapContainer>
         </div>
-        {mobile && !fullscreen && <MapScrollRail />}
+        {/* not in the iPhone app (owner, 12.11.2026: «на карте удали ползунок справа») */}
+        {mobile && !fullscreen && !appStoreRules() && <MapScrollRail />}
         {mobile && <PhoneMapFullscreenToggle fullscreen={fullscreen} onToggle={() => setFullscreen(!fullscreen)} />}
         {!mobile && <MapExpandToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />}
         {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} {...(killOnly.size ? { emptyText: 'Квесты на устранение — в окне «Устранения».' } : {})}
