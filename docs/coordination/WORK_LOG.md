@@ -7072,3 +7072,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - src/data/tarkovDataset.ts: loadTarkovItemsDataset(…, { barters: true }) for the gun catalogue only; tarkovJsonAdapters.ts withBarterOffers → legacy `barterFor` priced in RUB (cheapest buy of each required item, basePrice when none: GP 7500); gunQueries adaptBarters → GunPart.barters (GunOffer.barter); buildStats cheapestOffer: money first, a barter only when nobody sells for money; unlockHint sees barters. Picker / purchase list: «≈ 35 250 ₽», «Реф 1: 4,7 × GP», title «Обмен: …». Gun catalogue cache key v3.
 - Effects: Gunsmith solver now counts barter-only parts as obtainable (priced by the estimate); tieredBuilds choices unchanged (money offers only).
 - Tests: src/arsenal/barterOffers.test.ts (4), arsenal/data/gunsmith/WeaponBuildsPage/i18n 199 passed, typecheck, eslint. Checked on /arsenal/builds MDR 7.62 + M-LOK 4.1": 45AL listed with Ref 1, 30AL locked «Реф 2». Not released.
+
+## 2026-11-12 — Release 0.6.0.296 — `claude/suggest-point` → `release/production` (964ac103)
+
+- Owner: «Да, выпускай». Gate green 08:59 UTC, publisher started by hand 09:01, live 09:13 UTC; mobile.json 0.6.0-296 (Android 0.6.0.296, iPhone).
+- In it: Gunsmith screenshots M1911A1 (Master part 8), Vityaz and Glock 17 (part 12) — bc3d8899. News RU/EN: 1 line (approved by the owner).
+- Not in it: the builder barters (fddb6958), waiting for the owner.
