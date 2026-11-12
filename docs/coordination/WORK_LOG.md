@@ -7044,3 +7044,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Test IPA `test/ios-ipa-appstore-1112d`; App Store pack's Xcode bundle redone. Not released (all phones get it with a release).
 
 - ce6386f4: «Квесты» and the floors chip side by side at the bottom left (on the full screen the floors lay under «Квесты»); checked in every place of «Назад» with iPhone insets. Test IPA `test/ios-ipa-appstore-1112e`.
+
+## 2026-11-12 — Claude: friends + squad quests, full-screen window, window height, smooth thumb, soft motion, repeat payers
+
+- d2e51ba2: «Квесты друзей» also shows squad mates by nickname; friends progress, friends list and squad reload every 30 s while on (friendQuestLayer.ts).
+- 17b212ae: sideways full screen keeps the map size, the window comes in below the buttons (--hud-h), +/− glide left; map buttons glide; gear «Высота окна» upright: 50%, 37.5%, 25% of the map.
+- 57e6910b: ThumbScroll (Требования рейда, Текущие задания) eases after the thumb, no React render per scroll.
+- 6260b954: soft motion on the phone (springy presses, spring windows, gliding blocks via offsets FLIP, Android 6 ms tick). Revert: `SOFT_MOTION = false` in src/app/softMotion.ts or revert this commit. Demo video (stepped 60 fps) sent to the owner.
+- aa6a5fff (subagent): admin «Оплатили повторно» — accounts with >= 2 succeeded payments with amount > 0; overview repeatPayers, stats payers.repeatPaid/repeatInRange; site and phone admin.
+- Tests: full vitest 3862 passed, 11 failed = known local (positionTracker, linux updater, staleServer, appVersion, AdminPanelPage) + 2 node:test files vitest cannot read; server 553 passed (subagent); typecheck ok. Test IPA test/ios-ipa-appstore-1112f. Not released: the owner approved phones for all versions; news list and the animations wait for his answer.
