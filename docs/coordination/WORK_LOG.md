@@ -7105,3 +7105,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - iPhone test IPA: branch test/ios-ipa-appstore-1112g (5b25ae1f), workflow «RaidOS iOS test IPA», artifact to the desktop.
 - Open: the «скачайте Raid OS на ПК» notice is still in the App Store build (owner has not chosen); not checked on a real iPhone.
 - 21:30: the GitHub prerelease asset `RaidOS-AppStore-2026-11-12.rar` replaced with the fixed pack (owner: «Да, замени»); same link, anonymous download SHA-256 a550bbb5…3336.
+
+## 2026-11-13 — Apple reviewer's account without payment mentions (owner: «в этом аккаунте… не должно быть не единого упоминания о платной подписке», «пригласи друга… тоже удали», «будто у него почта подтверждена»)
+
+- Commit 1bc8a260 (branch claude/suggest-point, not released). Server `TARKOV_STORE_REVIEW_EMAILS` → `storeReview` in /v1/accounts/me, its e-mail counts as confirmed (view + `isEmailVerified`; owner rights unchanged). App: `hidesPayments()` in src/platform.ts (iPhone app or that account; remembered in localStorage `raidos-store-review-account`), used where the iPhone app already hid payment words; status passes `storeReview` (electron/serviceGateway.ts, src/sync/webAccount.ts; electron/apiEnv.ts lists the variable). Site: cabinet without subscription / invite / invitation code / donation, menu without «Тарифы, оплата и возврат», home without «Пригласи друга», download page without donation. Account deletion untouched (owner: «не добавляй»).
+- The account (read-only check): created 12.11 21:24, paid until 11.2027, e-mail not confirmed, country US.
+- Tests: StoreReviewAccount.test.tsx, server storeReview.test.ts; typecheck clean; unit/server suites — failures only in tests that fail on 9312325e as well (positionTracker, linux updater, appVersion, App, AdminPanelPage, staleServer, two .mjs) and the support-chat server test passes alone (flaky in the full run).
+- Not yet live: needs a release and the line `TARKOV_STORE_REVIEW_EMAILS=appletest@mail.ru` in /etc/raidos/raidos-api.env on the VPS (not added yet). The «Покупатели» admin card was made and reverted at once (owner: «все вижу повторно, не надо»).
