@@ -166,7 +166,9 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
       : uiText(connectionNote)
 
   const openSheet = (event: { target: EventTarget }) => {
-    if (!mobile || (event.target as Element).closest?.('.goon-report-anchor')) return
+    // The sheet is a portal: React still bubbles its taps up here, so «×» or the backdrop closed it and this opened it
+    // again at once — the sheet looked frozen until the app restarted (owner, 13.11.2026). Only taps on the card itself.
+    if (!mobile || !cardRef.current?.contains(event.target as Node) || (event.target as Element).closest?.('.goon-report-anchor')) return
     setSheetOpen(true)
   }
 
@@ -233,7 +235,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
         </div>}
     </div>
     {sheetOpen && createPortal(
-      <div className="goon-sheet-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setSheetOpen(false) }}>
+      <div className="goon-sheet-backdrop" onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) setSheetOpen(false) }}>
         <section className="panel goon-sheet" role="dialog" aria-modal="true" aria-label={title}>
           <header className="goon-sheet-head">
             <strong>{title}</strong>
