@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MapMarker, Quest, RaidMode } from '../domain/types'
-import { fetchPlannerPeople, type Friend, type PlannerPerson } from './socialClient'
-import { useFriends } from './useFriends'
+import { fetchPlannerPeople, type Friend, type PlannerPerson, type SquadMember } from './socialClient'
+import { loadFriends, useFriends } from './useFriends'
+import { loadSquad, useSquad } from './useSquad'
 import { friendColors } from './friendColors'
 import { friendLabel } from './squadLabels'
 import { objectivePointsOnMap } from './raidPlanEngine'
@@ -10,6 +11,8 @@ import { doneObjectives, questMapIdsForSquad } from './squadOverview'
 const KEY = 'raidos-map-friend-quests-v1'
 /** The friends progress endpoint takes this many at once (server/src/routes/friends.ts). */
 const MAX_FRIENDS = 10
+/** While the layer is on, the friends' and the squad's quests come again from the server this often (owner, 12.11.2026). */
+export const FRIEND_QUESTS_REFRESH_MS = 30_000
 
 export interface FriendQuestPoint {
   key: string
@@ -29,7 +32,25 @@ export interface FriendQuestPoint {
   slot: number
 }
 
-export interface FriendLegendEntry { friendId: string; nickname: string; color: string; quests: number }
+export interface FriendLegendEntry { friendId: string; nickname: string; color: string; quests: number; squad?: boolean }
+
+/** The squad mates (not you) as people of the layer: their active quests and progress from the squad's overview. */
+export function squadPeople(members: readonly SquadMember[] | undefined): PlannerPerson[] {
+  return (members ?? []).filter((member) => !member.isYou).map((member) => ({
+    id: member.memberId, nickname: member.nickname, hidden: member.hidden === true, activeQuestIds: member.activeQuestIds ?? [],
+    objectives: member.objectives ?? {}, completedCount: member.completedCount ?? 0, lastSyncAt: member.lastSyncAt ?? null,
+  }))
+}
+
+/** The friends first, then the squad mates who are not among them (a friend in the squad shows once). */
+export function mergeLayerPeople(friends: readonly PlannerPerson[], squad: readonly PlannerPerson[]): Array<PlannerPerson & { squad?: boolean }> {
+  const seen = new Set(friends.map((person) => person.id))
+  const squadIds = new Set(squad.map((person) => person.id))
+  return [
+    ...friends.map((person) => (squadIds.has(person.id) ? { ...person, squad: true } : person)),
+    ...squad.filter((person) => !seen.has(person.id)).map((person) => ({ ...person, squad: true })),
+  ]
+}
 
 function readOn() {
   try { return localStorage.getItem(KEY) === '1' } catch { return false }
@@ -39,28 +60,47 @@ function readOn() {
  * «Квесты друзей» on the map (owner, 12.10.2026: «кнопку на карте сверху, квесты друга… появятся на карте точки квестов,
  * подсвечиваются эти точки согласно присвоеному цвету в разделе друзья»): the remaining objective points of every friend
  * who shares progress, in the friend's colour. Off by default; the choice is kept on this computer.
+ * The same button shows the squad mates' quests by their nicknames, and while it is on both come again from the server
+ * every half a minute (owner, 12.11.2026: «Они должны обновляться сами с сервера. И если человек в отряде находится, то
+ * там же включаются и отрядные квесты»).
  */
 export function useFriendQuestLayer(mode: RaidMode, mapId: string, quests: Quest[], markers: MapMarker[]) {
   const { overview, signedIn } = useFriends({ poll: false })
+  const squadState = useSquad(mode, { poll: false })
   const friends = useMemo(() => overview?.friends ?? [], [overview])
   const sharing = useMemo(() => friends.filter((friend) => friend.sharesProgress).slice(0, MAX_FRIENDS), [friends])
+  const squadMates = useMemo(() => squadPeople(squadState.overview?.squad.members ?? squadState.mine?.squad?.members), [squadState.overview, squadState.mine])
   const ids = sharing.map((friend) => friend.friendId).join(',')
   const [on, setOn] = useState(readOn)
+  const [tick, setTick] = useState(0)
   const [result, setResult] = useState<{ key: string; people: PlannerPerson[]; error: string } | null>(null)
   const key = `${mode}:${ids}`
+
+  // While on: again every half a minute while the app is in front (the friends list and the squad too).
+  useEffect(() => {
+    if (!on || !signedIn) return
+    const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      setTick((value) => value + 1)
+      void loadFriends()
+      void loadSquad(mode)
+    }, FRIEND_QUESTS_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [on, signedIn, mode])
 
   useEffect(() => {
     if (!on || !ids) return
     let active = true
     fetchPlannerPeople(mode, ids.split(',')).then(
       (people) => { if (active) setResult({ key, people, error: '' }) },
-      (reason: unknown) => { if (active) setResult({ key, people: [], error: reason instanceof Error ? reason.message : String(reason) }) },
+      // a failed refresh keeps the points already shown
+      (reason: unknown) => { if (active) setResult((current) => (current?.key === key && tick > 0 ? current : { key, people: [], error: reason instanceof Error ? reason.message : String(reason) })) },
     )
     return () => { active = false }
-  }, [on, mode, ids, key])
+  }, [on, mode, ids, key, tick])
 
-  const colors = useMemo(() => friendColors(friends.map((friend) => friend.friendId)), [friends])
-  const people = useMemo(() => (result?.key === key ? result.people : []), [result, key])
+  const colors = useMemo(() => friendColors([...friends.map((friend) => friend.friendId), ...squadMates.map((mate) => mate.id).filter((id) => !friends.some((friend) => friend.friendId === id))]), [friends, squadMates])
+  const people = useMemo(() => mergeLayerPeople(ids && result?.key === key ? result.people : [], squadMates), [result, key, ids, squadMates])
   const { points, legend } = useMemo(() => friendQuestPoints({ people, sharing, colors, quests, markers, mapId, mode }), [people, sharing, colors, quests, markers, mapId, mode])
 
   const toggle = () => setOn((value) => {
@@ -70,7 +110,8 @@ export function useFriendQuestLayer(mode: RaidMode, mapId: string, quests: Quest
   return {
     /** Signed in: the button is there (disabled without friends who share progress). */
     available: signedIn,
-    sharing: sharing.length,
+    /** Friends who share progress and squad mates: the button works with either. */
+    sharing: sharing.length + squadMates.filter((mate) => !sharing.some((friend) => friend.friendId === mate.id)).length,
     on,
     toggle,
     loading: on && Boolean(ids) && result?.key !== key,
@@ -84,7 +125,7 @@ export type FriendQuestLayer = ReturnType<typeof useFriendQuestLayer>
 
 /** Every remaining objective point of each friend's active quests on this map, and the legend (who, which colour, how many quests). */
 export function friendQuestPoints({ people, sharing, colors, quests, markers, mapId, mode }: {
-  people: PlannerPerson[]; sharing: Friend[]; colors: Map<string, string>; quests: Quest[]; markers: MapMarker[]; mapId: string; mode: RaidMode
+  people: Array<PlannerPerson & { squad?: boolean }>; sharing: Friend[]; colors: Map<string, string>; quests: Quest[]; markers: MapMarker[]; mapId: string; mode: RaidMode
 }): { points: FriendQuestPoint[]; legend: FriendLegendEntry[] } {
   const questsById = new Map(quests.map((quest) => [quest.id, quest]))
   const byQuest = new Map<string, MapMarker[]>()
@@ -120,7 +161,7 @@ export function friendQuestPoints({ people, sharing, colors, quests, markers, ma
         })
       }
     }
-    legendOut.push({ friendId: person.id, nickname, color, quests: questCount })
+    legendOut.push({ friendId: person.id, nickname, color, quests: questCount, ...(person.squad ? { squad: true } : {}) })
   }
   return { points: out, legend: legendOut }
 }
