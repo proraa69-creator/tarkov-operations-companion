@@ -7086,3 +7086,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «я не увидел маркера точек снайперов на картах». The spots (f61bed06, report 131) were on «Опасности», hidden by default.
 - Layer 'sniper' (types, mapLayers default visible, MapsPage meta/label/group «Спавны»/canvas, markerImages + map-markers-new/sniper.svg, EN «Snipers»); mapMarkerAdapter adaptSniperSpots → layerId 'sniper'; catalogWire sniper → hazard for older apps.
 - Tests: src/data/sniperLayer.test.ts (2), mapLayers.test updated; data/domain/MapsPage/mobile 703 (5 load timeouts in the first run, all pass on the second); typecheck, eslint. Seen on Customs: «Снайперы 4 (on)», red reticles, hover «Снайпер (дикий)». Not released.
+
+## 2026-11-12 — App Store pack on GitHub (owner: «ссылку на GitHub, чтобы скачать архив для заливки на App Store»)
+
+- The desktop pack `RaidOS_для_публикации.rar` (13:39, 119 954 037 B: Xcode project with the App Store bundle + App Store Connect texts, screenshots, banners, icon) is a prerelease of the public repository: tag `appstore-pack-2026-11-12` (on 964ac103), asset `RaidOS-AppStore-2026-11-12.rar`, SHA-256 `0217be1c…f948`, checked by an anonymous download. Not `mobile-v…` and a prerelease, so the server's phone downloads ignore it; no workflow runs on tags.
+- Checked before publishing: no demo-account e-mail or password inside (placeholders only), no keys. The pack's web bundle predates 0.6.0.296 (no new Gunsmith screenshots, no sniper layer).
