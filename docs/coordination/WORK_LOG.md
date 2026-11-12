@@ -7080,3 +7080,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Not in it: the builder barters (fddb6958), waiting for the owner.
 
 - 90279723: the builder barters (fddb6958) reverted — owner: «оставь как было». src/ is again the same as release 964ac103; tests 156 passed, typecheck ok. Never released.
+
+## 2026-11-12 — Claude: Scav snipers on their own layer «Снайперы» — e59967c4
+
+- Owner: «я не увидел маркера точек снайперов на картах». The spots (f61bed06, report 131) were on «Опасности», hidden by default.
+- Layer 'sniper' (types, mapLayers default visible, MapsPage meta/label/group «Спавны»/canvas, markerImages + map-markers-new/sniper.svg, EN «Snipers»); mapMarkerAdapter adaptSniperSpots → layerId 'sniper'; catalogWire sniper → hazard for older apps.
+- Tests: src/data/sniperLayer.test.ts (2), mapLayers.test updated; data/domain/MapsPage/mobile 703 (5 load timeouts in the first run, all pass on the second); typecheck, eslint. Seen on Customs: «Снайперы 4 (on)», red reticles, hover «Снайпер (дикий)». Not released.
