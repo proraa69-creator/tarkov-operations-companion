@@ -1,7 +1,7 @@
 import { Download } from 'lucide-react'
 import { Notice } from '../components/Notice'
 import { Platforms } from '../components/Platforms'
-import { DonateCard } from '../components/DonateCard'
+import { DonateCard, SITE_DONATE } from '../components/DonateCard'
 import { MobileBadges } from '../components/MobileDownloads'
 import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
@@ -51,7 +51,7 @@ export function DownloadPage() {
           )}
         </div>
         {/* «Поддержать проект» (owner, 13.10.2026). */}
-        {!account?.storeReview && <div className="download-donate stagger" style={stagger(1)}><DonateCard /></div>}
+        {SITE_DONATE && !account?.storeReview && <div className="download-donate stagger" style={stagger(1)}><DonateCard /></div>}
       </div>
     </div>
   )
