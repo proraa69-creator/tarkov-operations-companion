@@ -18,8 +18,6 @@ export interface GunOffer {
   taskUnlock?: { id: string; name: string }
   /** How many a trader sells per restock (tarkov.dev `buyLimit`); traders only. */
   buyLimit?: number
-  /** A barter, not money: what the trader takes for it; `priceRUB` is then what those items cost. */
-  barter?: Array<{ id: string; name: string; shortName: string; iconLink?: string; count: number }>
 }
 
 export interface GunSlot {
@@ -69,8 +67,6 @@ export interface GunPart {
   /** conflictingCategories — may not be installed together with any part of these categories (categoryIds). */
   conflictCategories?: string[]
   offers: GunOffer[]
-  /** Traders' barters for it (each with `barter`): a way to get it when nobody sells it for money. */
-  barters?: GunOffer[]
   /** The flea market's 24-hour average price (tarkov.dev avg24hPrice), when known: «Сборка оружия» prices by it. */
   fleaAvg24h?: number
   /** «noFlea» type: cannot be bought on the flea market. */

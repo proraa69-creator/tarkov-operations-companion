@@ -524,19 +524,7 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; a
 // Right panel: the items of the chosen slot with what each changes.
 // ------------------------------------------------------------------------------------------------------------
 
-const counted = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
-/** A barter's items: «4,99 × GP», the first two and «…» for a longer one. */
-const barterItems = (offer: GunOffer) => {
-  const items = (offer.barter ?? []).map((item) => `${counted.format(item.count)} × ${item.shortName}`)
-  return items.length > 2 ? `${items.slice(0, 2).join(' + ')} + …` : items.join(' + ')
-}
-/** «Барахолка», «Механик 3», a barter «Реф 2: 4,99 × GP» (its price in roubles is what those items cost). */
-const offerLabel = (offer: GunOffer) => offer.vendor === 'flea-market' ? uiText('Барахолка')
-  : offer.barter ? `${offer.vendorName} ${offer.minTraderLevel ?? 1}: ${barterItems(offer)}`
-    : `${offer.vendorName} ${offer.minTraderLevel ?? 1}`
-/** The price of an offer: a barter's is an estimate. */
-const offerPrice = (offer: GunOffer) => offer.barter ? `≈ ${formatRub(offer.priceRUB)}` : formatRub(offer.priceRUB)
-const offerTitle = (offer: GunOffer) => offer.barter ? `${uiText('Обмен')}: ${(offer.barter ?? []).map((item) => `${counted.format(item.count)} × ${item.name}`).join(' + ')}` : undefined
+const offerLabel = (offer: GunOffer) => offer.vendor === 'flea-market' ? uiText('Барахолка') : `${offer.vendorName} ${offer.minTraderLevel ?? 1}`
 /** What opens a part, after the lock: «Механик 3», «квест «Оружейник»», «барахолка с 30 ур.». */
 const unlockLabel = (hint: UnlockHint, locale: string) => {
   if (hint.kind === 'trader') return `${hint.vendorName} ${hint.level}`
@@ -664,7 +652,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
           </span>}
           {replaces.length > 0 && <span className="wb-option-replaces">{uiText('заменит')}: {replaces.join(', ')}</span>}
         </span>
-        <span className="wb-option-price" title={offer && offerTitle(offer)}>{offer ? <><strong>{offerPrice(offer)}</strong><small>{offerLabel(offer)}</small></> : <PartLock part={part} access={access} locale={locale} />}</span>
+        <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <PartLock part={part} access={access} locale={locale} />}</span>
       </button>)}
       {!rows.length && <p className="muted wb-none">{uiText('Ничего не найдено.')}</p>}
     </div>}
@@ -943,8 +931,8 @@ function PurchaseList({ cost, access }: { cost: BuildCost; access: PurchaseAcces
     <table className="wb-buy-table">
       <tbody>{cost.lines.map((line, index) => <tr key={`${line.part.id}-${index}`}>
         <td><span className="wb-buy-name"><PartIcon src={line.part.iconLink} />{line.part.name}</span></td>
-        <td className="dim" title={line.offer && offerTitle(line.offer)}>{line.offer ? offerLabel(line.offer) : <PartLock part={line.part} access={access} locale={locale} />}</td>
-        <td className="mono">{line.offer ? offerPrice(line.offer) : '—'}</td>
+        <td className="dim">{line.offer ? offerLabel(line.offer) : <PartLock part={line.part} access={access} locale={locale} />}</td>
+        <td className="mono">{line.offer ? formatRub(line.offer.priceRUB) : '—'}</td>
       </tr>)}</tbody>
     </table>
     {cost.unavailable.length > 0 && <p className="wb-note is-bad">{uiText('Без цены (бартер, крафт или нужна лояльность выше)')}: {cost.unavailable.length}</p>}

@@ -8,7 +8,7 @@ import { buildLegacyAmmo, buildLegacyItems } from '../data/tarkovJsonAdapters'
 import type { AmmoStats, GunCatalog, GunPart, Weapon } from './gunTypes'
 import { applyPatchFixes } from './patchFixes'
 
-const CACHE_PREFIX = 'raid-os-gun-catalog-v3'
+const CACHE_PREFIX = 'raid-os-gun-catalog-v2'
 /** A cached catalogue younger than this is used without asking tarkov.dev (the mod list is several MB). */
 const FRESH_MS = 30 * 60_000
 /** Offline copy of the builder catalogue (never past the entitlement in the players' app). */
@@ -27,7 +27,7 @@ interface CachedCatalog {
 
 /** Live guns + mods + ammo for one mode and language. */
 export async function fetchLiveGunCatalog(mode: RaidMode, locale: AppLocale): Promise<GunCatalog> {
-  const bundle = await loadTarkovItemsDataset(mode, locale, { barters: true })
+  const bundle = await loadTarkovItemsDataset(mode, locale)
   const items = buildLegacyItems(bundle)
   const payload = { data: { items } }
   const weapons = adaptWeapons(payload)

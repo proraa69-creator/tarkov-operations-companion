@@ -103,32 +103,6 @@ export function adaptOffers(item: Json): GunOffer[] {
   })
 }
 
-/** Raid OS's own `barterFor` of an item (src/data/tarkovJsonAdapters.ts): each trader's barter, priced in roubles. */
-export function adaptBarters(item: Json): GunOffer[] {
-  return list(item.barterFor).flatMap((entry) => {
-    const vendor = record(entry.vendor)
-    const key = text(vendor.normalizedName)
-    const priceRUB = num(entry.priceRUB)
-    const barter = list(entry.requiredItems).flatMap((required) => {
-      const part = record(required.item)
-      const id = text(part.id)
-      return id ? [{ id, name: text(part.name, id), shortName: text(part.shortName, text(part.name, id)), ...(text(part.iconLink) ? { iconLink: text(part.iconLink) } : {}), count: num(required.count) || 1 }] : []
-    })
-    if (!key || priceRUB <= 0 || !barter.length) return []
-    const level = optional(vendor.minTraderLevel)
-    const trader = record(vendor.trader)
-    const task = record(vendor.taskUnlock)
-    return [{
-      vendor: key, vendorName: text(vendor.name, key), priceRUB, barter,
-      ...(level ? { minTraderLevel: level } : {}),
-      ...(text(trader.id) ? { traderId: text(trader.id) } : {}),
-      ...(text(trader.imageLink) ? { traderImage: text(trader.imageLink) } : {}),
-      ...(text(task.id) ? { taskUnlock: { id: text(task.id), name: text(task.name, text(task.id)) } } : {}),
-      ...(optional(vendor.buyLimit) ? { buyLimit: optional(vendor.buyLimit) } : {}),
-    }]
-  })
-}
-
 export function adaptSlots(value: unknown): GunSlot[] {
   return list(value).map((slot) => ({
     id: text(slot.id),
@@ -144,11 +118,6 @@ function conflictCategoriesOf(item: Json): Pick<GunPart, 'conflictCategories'> {
   const ids = (Array.isArray(item.conflictingCategories) ? item.conflictingCategories as unknown[] : [])
     .map((entry) => typeof entry === 'string' ? entry : text(record(entry).id)).filter(Boolean)
   return ids.length ? { conflictCategories: ids } : {}
-}
-
-const barterField = (item: Json): Pick<GunPart, 'barters'> => {
-  const barters = adaptBarters(item)
-  return barters.length ? { barters } : {}
 }
 
 function basePart(item: Json, properties: Json): GunPart {
@@ -173,7 +142,6 @@ function basePart(item: Json, properties: Json): GunPart {
     ...(Array.isArray(item.conflictingSlotIds) && item.conflictingSlotIds.length ? { conflictSlotIds: item.conflictingSlotIds.filter((id): id is string => typeof id === 'string') } : {}),
     ...conflictCategoriesOf(item),
     offers: adaptOffers(item),
-    ...barterField(item),
     ...(num(item.avg24hPrice) > 0 ? { fleaAvg24h: num(item.avg24hPrice) } : {}),
     noFlea: types.includes('noFlea'),
     ...(optional(item.minLevelForFlea) ? { fleaLevel: optional(item.minLevelForFlea) } : {}),
