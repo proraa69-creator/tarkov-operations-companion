@@ -7065,3 +7065,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner's «Сборки оружия» screenshots; each checked against tarkov.dev buildWeapon objective (parts, ergonomics, recoil, magazine) before it went in.
 - Files: src/assets/gunsmith-builds/gunsmith-master-part-8-m1911a1.webp, -part-12-pp-19-01.webp, -part-12-glock-17.webp; src/gunsmith/buildScreenshots.ts (+ test).
 - Tests: src/gunsmith 36 passed; checked on /gunsmith in the dev app (part 8: 2 pictures, part 12: 3). Not released: reaches players with the next release (Windows also as an interface-only update; phones need the new build).
+
+## 2026-11-12 — Claude: gun builder counts traders' barters — fddb6958
+
+- Owner: the IRBIS-GUN 30AL / 45AL grips (game, MDR 7.62) were not in the builder's module list. Cause: «Можно купить» (on by default) kept money offers only; the grips are Ref's barters for GP coins (30AL 4.99 GP at Ref 2, 45AL 4.7 GP at Ref 1; PvP and PvE).
+- src/data/tarkovDataset.ts: loadTarkovItemsDataset(…, { barters: true }) for the gun catalogue only; tarkovJsonAdapters.ts withBarterOffers → legacy `barterFor` priced in RUB (cheapest buy of each required item, basePrice when none: GP 7500); gunQueries adaptBarters → GunPart.barters (GunOffer.barter); buildStats cheapestOffer: money first, a barter only when nobody sells for money; unlockHint sees barters. Picker / purchase list: «≈ 35 250 ₽», «Реф 1: 4,7 × GP», title «Обмен: …». Gun catalogue cache key v3.
+- Effects: Gunsmith solver now counts barter-only parts as obtainable (priced by the estimate); tieredBuilds choices unchanged (money offers only).
+- Tests: src/arsenal/barterOffers.test.ts (4), arsenal/data/gunsmith/WeaponBuildsPage/i18n 199 passed, typecheck, eslint. Checked on /arsenal/builds MDR 7.62 + M-LOK 4.1": 45AL listed with Ref 1, 30AL locked «Реф 2». Not released.
