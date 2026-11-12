@@ -7059,3 +7059,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «Переделывай для всех телефонов сразу. Я позже проверю». Gate green, publisher started by hand at 07:03 UTC, live 07:16 UTC; mobile.json 0.6.0-295 (Android 0.6.0.295, iPhone).
 - In it: the phone map rework (3b7381ac, ce6386f4, 17b212ae), friends + squad quests (d2e51ba2), smooth thumb scroll (57e6910b), soft motion (6260b954, revert with SOFT_MOTION = false), admin «Оплатили повторно» (aa6a5fff), the iPhone App Store hides (6eb3958a), phone «Назад» (8555a712).
 - News RU/EN: 6 lines (map sideways/full screen; window looks and height; friends and squad quests; floor of a quest point; smooth scrolling; soft presses).
+
+## 2026-11-12 — Claude: Gunsmith screenshots, Master part 8 (M1911A1) and part 12 (Vityaz, Glock 17) — bc3d8899
+
+- Owner's «Сборки оружия» screenshots; each checked against tarkov.dev buildWeapon objective (parts, ergonomics, recoil, magazine) before it went in.
+- Files: src/assets/gunsmith-builds/gunsmith-master-part-8-m1911a1.webp, -part-12-pp-19-01.webp, -part-12-glock-17.webp; src/gunsmith/buildScreenshots.ts (+ test).
+- Tests: src/gunsmith 36 passed; checked on /gunsmith in the dev app (part 8: 2 pictures, part 12: 3). Not released: reaches players with the next release (Windows also as an interface-only update; phones need the new build).
