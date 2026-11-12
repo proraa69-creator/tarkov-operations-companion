@@ -515,15 +515,18 @@ function OverviewCards({ data, refreshKey }: { data: AdminOverview | null; refre
   )
 }
 
-/** «Выручка сегодня», «За этот месяц», «За всё время», as on the site; the owner's days. */
+/**
+ * «Выручка сегодня», «За этот месяц», «За всё время», as on the site; the owner's days. «За всё время» also counts
+ * «оплатили повторно» (owner, 12.11.2026: «счёт того, сколько человек оплатили повторно»): two or more paid payments.
+ */
 function RevenueCards({ data }: { data: AdminOverview | null }) {
-  const cards: Array<{ title: string; revenue?: AdminRevenue }> = [
+  const cards: Array<{ title: string; revenue?: AdminRevenue; repeat?: number }> = [
     { title: 'Выручка сегодня', revenue: data?.revenue.today },
     { title: 'За этот месяц', revenue: data?.revenue.month },
-    { title: 'За всё время', revenue: data?.revenue.all },
+    { title: 'За всё время', revenue: data?.revenue.all, repeat: data?.repeatPayers },
   ]
   return <section className="admin-revenue-cards" aria-label={uiText('Выручка')}>
-    {cards.map(({ title, revenue }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}`)}</small></article>)}
+    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${repeat === undefined ? '' : ` · оплатили повторно: ${count.format(repeat)}`}`)}</small></article>)}
   </section>
 }
 

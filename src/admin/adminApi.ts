@@ -21,6 +21,8 @@ export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
   subscriptions: { active: number; trials: number; autopay: number; streamers: number }
+  /** «Оплатили повторно»: people with two or more paid payments, all the time (servers of 12.11.2026 on). */
+  repeatPayers?: number
   revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue; lavaOriginal: Array<{ currency: string; amount: number }> }
   payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
   /** Paid payments of each plan this month and all the time (servers of 20.10.2026 on). */

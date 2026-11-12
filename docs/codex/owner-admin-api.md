@@ -100,7 +100,9 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
   "payers": {
     "everPaid": 3,         // users with at least one succeeded payment (refunded ones do not count)
     "paidInRange": 3,      // users with a succeeded payment in range
-    "newInRange": 2        // users whose first succeeded payment is in range
+    "newInRange": 2,       // users whose first succeeded payment is in range
+    "repeatPaid": 1,       // «Оплатили повторно»: users with two or more succeeded payments above 0 ₽ (all time; also overview.repeatPayers)
+    "repeatInRange": 1     // users with a second or later such payment in range
   },
   "revenue": {             // succeeded payments whose paid_at (else created_at) is in range
     "total": 1660,

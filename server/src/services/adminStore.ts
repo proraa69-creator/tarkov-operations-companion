@@ -253,6 +253,15 @@ export function userQueryDetails(query: UserQuery): Record<string, string> {
 /** The moment a payment counts for revenue: paid, else created (the statistics and `dateField=paid`). */
 const PAID_SQL = 'COALESCE(p.paid_at, p.created_at)'
 
+/**
+ * «Оплатили повторно» (owner, 12.11.2026: «счёт того, сколько человек оплатили повторно»): a payment with money in it is
+ * a succeeded one with an amount — ЮKassa, autopay, BZB confirmed by hand (a recorded one without days too) and the
+ * archived ones; refunded, canceled and pending ones are not, and the owner's granted days are no payments at all.
+ */
+const MONEY_PAYMENT_SQL = "p.account_id = a.id AND p.status = 'succeeded' AND p.amount > 0"
+/** People (accounts that are not deleted) with two or more such payments, all the time. */
+const REPEAT_PAYERS_SQL = `SELECT COUNT(*) AS n FROM accounts a WHERE a.deleted_at IS NULL AND (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL}) >= 2`
+
 /** Accounts (joined as `a`) of a payment region: RU, CIS without Russia, WORLD (every other country, «XX» too), none. */
 function payRegionCondition(region: PayRegion): { sql: string; args: string[] } {
   if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
@@ -389,6 +398,7 @@ export class AdminStore {
       generatedAt: new Date(now).toISOString(),
       users,
       subscriptions,
+      repeatPayers: count(REPEAT_PAYERS_SQL),
       revenue: { today: revenueSince(today), month: revenueSince(monthStart), all: revenueSince(0) },
       plans: { month: plansSince(monthStart), all: plansSince(0) },
       squads: this.squadStats(now),
@@ -624,10 +634,13 @@ export class AdminStore {
         (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
         (SELECT MIN(${PAID_SQL}) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS first_paid_at,
         EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND ${PAID_SQL} >= ? AND ${PAID_SQL} < ?) AS paid_in_range,
+        (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL}) AS money_count,
+        (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL} AND ${PAID_SQL} < ?) AS money_before_end,
+        EXISTS (SELECT 1 FROM payments p WHERE ${MONEY_PAYMENT_SQL} AND ${PAID_SQL} >= ? AND ${PAID_SQL} < ?) AS money_in_range,
         EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND p.discount_percent IS NOT NULL) AS paid_discount,
         EXISTS (SELECT 1 FROM recurring_subscriptions r WHERE r.account_id = a.id AND r.status = 'active') AS autopay,
         ${this.friendRewardSql()} AS friend_reward
-      FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.deleted_at IS NULL`).all(start, end) as Row[]
+      FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.deleted_at IS NULL`).all(start, end, end, start, end) as Row[]
 
     type Bucket = { users: number; new: number; paying: number; active: number; revenue: number }
     const bucket = (): Bucket => ({ users: 0, new: 0, paying: 0, active: 0, revenue: 0 })
@@ -636,7 +649,8 @@ export class AdminStore {
     const legacyRegion: Record<CountryRegion | 'none', number> = { cis: 0, europe: 0, other: 0, none: 0 }
     const users = { total: 0, new: 0, deletedExcluded: 0, streamers: 0, blocked: 0 }
     const subscriptions = { activePaid: 0, activeGranted: 0, grantedBy: { owner: 0, friend: 0 }, trials: 0, trialsPending: 0, expiringIn7Days: 0, expiringIn30Days: 0, lifetime: { total: 0, streamers: 0, legend: 0 }, autopay: 0 }
-    const payers = { everPaid: 0, paidInRange: 0, newInRange: 0 }
+    // repeatPaid: «Оплатили повторно», all the time (as in overview); repeatInRange: a second or later payment in range.
+    const payers = { everPaid: 0, paidInRange: 0, newInRange: 0, repeatPaid: 0, repeatInRange: 0 }
     const referrals = { friendInvited: 0, friendInvitedInRange: 0, friendPaid: 0, friendPaidDiscount: 0, streamerReferred: 0, rewardsByStatus: { pending: 0, review: 0, granted: 0, canceled: 0 } as Record<string, number> }
     const trialConversion = { trialStarted: 0, laterPaid: 0, rate: 0 }
     for (const row of accounts) {
@@ -670,6 +684,9 @@ export class AdminStore {
       if (paid) payers.everPaid++
       if (Number(row.paid_in_range)) payers.paidInRange++
       if (inRange(row.first_paid_at)) payers.newInRange++
+      if (Number(row.money_count) >= 2) payers.repeatPaid++
+      // Two before the end with one in range: the last of them is in range and has one before it.
+      if (Number(row.money_in_range) && Number(row.money_before_end) >= 2) payers.repeatInRange++
       if (row.invited_by != null) {
         referrals.friendInvited++
         if (isNew) referrals.friendInvitedInRange++
