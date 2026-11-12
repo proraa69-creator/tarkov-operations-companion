@@ -111,11 +111,10 @@ export function SiteLayout() {
           </nav>
           {/* The documents themselves stay in Russian (owner, 11.10.2026); only their names are translated. */}
           <nav className="legal-links" aria-label={tr('Документы')}>
-            <Link to="/legal/offer">{tr('Публичная оферта')}</Link>
-            <Link to="/legal/privacy">{tr('Политика конфиденциальности')}</Link>
             <Link to="/legal/cookies">Cookie</Link>
-            {/* «Согласие на обработку ПД» and «Тарифы, оплата и возврат» off the footer for now (owner, 13.11.2026, circled on the
-                screenshot); the pages stay at /legal/consent and /legal, linked from the documents and the sign-up form. */}
+            {/* Only «Cookie» for now (owner, 13.11.2026): no «Публичная оферта», «Политика конфиденциальности», «Согласие на
+                обработку ПД» or «Тарифы, оплата и возврат» — «это будет палево, что у нас оплата». The pages stay at /legal/…,
+                linked from the sign-up form; the iPhone app opens /app/privacy. */}
           </nav>
         </div>
       </footer>
