@@ -448,6 +448,9 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .phone-back.is-bottom-left { bottom: calc(var(--tabbar) + 10px); left: calc(var(--gutter) + var(--safe-left)); }
 :root[data-layout="mobile"] .phone-back.is-bottom-right { bottom: calc(var(--tabbar) + 10px); right: calc(var(--gutter) + var(--safe-right)); }
 :root[data-layout="mobile"] .phone-back:active { transform: scale(.97); }
+/* Not over the map's quest window (its own «×») nor over the full-screen map (its own button): it hid «Нашли неточность?»,
+   the «×» and the objectives (owner's iPhone screenshots, 12.11.2026). */
+:root[data-layout="mobile"]:has(.map-quest-sheet.is-open, .map-stage.is-fullscreen) .phone-back { display: none; }
 /* The top place keeps the page's first line clear of the button. */
 :root[data-layout="mobile"]:has(.phone-back:is(.is-top-left, .is-top-right)) .content { padding-top: calc(var(--topbar) + 60px); }
 .phone-back-setting { flex-wrap: wrap; }
