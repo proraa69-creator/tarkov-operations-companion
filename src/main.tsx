@@ -17,6 +17,7 @@ import { DataProvider } from './data/DataProvider'
 import { LocaleProvider } from './i18n/LocaleProvider'
 import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
 import { installLayoutAttributes, isNative } from './platform'
+import { installSoftMotion } from './app/softMotion'
 import { installNoPageZoom } from './mobile/noPageZoom'
 import { installTarkovFetchGuard } from './data/tarkovApi'
 import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
@@ -79,6 +80,8 @@ window.addEventListener('unhandledrejection', (event) => onWindowError(event.rea
 installTarkovFetchGuard()
 void purgeLegacyPlaintextCaches()
 installLayoutAttributes()
+// Soft presses and gliding blocks on the phone; off with SOFT_MOTION = false in src/app/softMotion.ts (owner, 12.11.2026).
+installSoftMotion()
 // Desktop app: confirm() through the main process, so the window still takes typed keys after it (src/app/nativeConfirm.ts).
 installNativeConfirm()
 // Android / iPhone app: an accidental double tap or pinch never zooms the whole interface out of the screen.

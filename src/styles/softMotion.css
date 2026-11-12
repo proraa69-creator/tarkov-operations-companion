@@ -1,0 +1,32 @@
+/*
+  Soft motion on the phone (src/app/softMotion.ts, owner 12.11.2026: «все нажатия… тактильные, мягкие… отпружинивали»).
+  Only under :root[data-motion="soft"][data-layout="mobile"]: with SOFT_MOTION off none of this applies.
+  The press uses the `scale` property, never `transform`, so it adds to whatever a button already moves by.
+*/
+:root[data-motion="soft"][data-layout="mobile"] :is(button, .button, a.nav-link, .mobile-tab, .icon-button, .map-tool, .phone-map-chip, [role="button"], [role="tab"], .phone-quest-row, .quest-row, .setting-row button) {
+  /* the release: back with a little overshoot; the moves a button already had keep their own glide */
+  transition-property: scale, transform, translate, top, right, bottom, left, width, background-color, border-color, color, opacity, box-shadow;
+  transition-duration: .46s, .18s, .3s, .34s, .34s, .34s, .34s, .34s, .2s, .2s, .2s, .2s, .2s;
+  transition-timing-function: cubic-bezier(.34, 1.7, .5, 1), ease, cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), ease, ease, ease, ease, ease;
+}
+:root[data-motion="soft"][data-layout="mobile"] :is(button, .button, a.nav-link, .mobile-tab, .icon-button, .map-tool, .phone-map-chip, [role="button"], [role="tab"], .phone-quest-row, .quest-row, .setting-row button):not(:disabled):active {
+  /* the press: down fast */
+  scale: .94;
+  transition-duration: .09s, .1s, .3s, .34s, .34s, .34s, .34s, .34s, .1s, .1s, .1s, .1s, .1s;
+  transition-timing-function: cubic-bezier(.3, 0, .6, 1);
+}
+/* big rows and cards sink less than a small button */
+:root[data-motion="soft"][data-layout="mobile"] :is(.phone-quest-row, .quest-row, .mobile-tab):not(:disabled):active { scale: .97; }
+/* their own press looks stay theirs */
+:root[data-motion="soft"][data-layout="mobile"] :is(.phone-back, .leaflet-control-zoom a, .thumb-scroll-thumb, .map-quest-sheet-handle):active { scale: none; }
+
+/* Windows and lists that open: they come with a soft spring instead of a straight line. */
+:root[data-motion="soft"][data-layout="mobile"] .map-quest-sheet { transition-timing-function: cubic-bezier(.22, 1.12, .36, 1), ease, ease; }
+:root[data-motion="soft"][data-layout="mobile"] :is(.phone-map-picker, .phone-map-quests, .phone-map-floors).is-open .phone-map-panel { transition-timing-function: ease, cubic-bezier(.22, 1.3, .36, 1), linear; }
+:root[data-motion="soft"][data-layout="mobile"] .quest-sheet-view-menu { animation: soft-pop .26s cubic-bezier(.22, 1.3, .36, 1) both; transform-origin: top left; }
+:root[data-motion="soft"][data-layout="mobile"] [role="dialog"] > :first-child { animation: soft-pop .3s cubic-bezier(.22, 1.25, .36, 1) both; }
+@keyframes soft-pop { from { opacity: 0; scale: .94; } }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-motion="soft"][data-layout="mobile"] * { scale: none !important; animation-duration: .01s !important; }
+}
