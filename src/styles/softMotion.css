@@ -3,13 +3,15 @@
   Only under :root[data-motion="soft"][data-layout="mobile"]: with SOFT_MOTION off none of this applies.
   The press uses the `scale` property, never `transform`, so it adds to whatever a button already moves by.
 */
-:root[data-motion="soft"][data-layout="mobile"] :is(button, .button, a.nav-link, .mobile-tab, .icon-button, .map-tool, .phone-map-chip, [role="button"], [role="tab"], .phone-quest-row, .quest-row, .setting-row button) {
+/* Not the map's points (Leaflet makes them role="button"): Leaflet moves them by `transform` on every zoom, and a glide
+   on it made them drift and settle after each zoom (owner, 13.11.2026: «точки на карте плывут и встают на место»). */
+:root[data-motion="soft"][data-layout="mobile"] :is(button, .button, a.nav-link, .mobile-tab, .icon-button, .map-tool, .phone-map-chip, [role="button"], [role="tab"], .phone-quest-row, .quest-row, .setting-row button):not(.leaflet-marker-icon) {
   /* the release: back with a little overshoot; the moves a button already had keep their own glide */
   transition-property: scale, transform, translate, top, right, bottom, left, width, background-color, border-color, color, opacity, box-shadow;
   transition-duration: .46s, .18s, .3s, .34s, .34s, .34s, .34s, .34s, .2s, .2s, .2s, .2s, .2s;
   transition-timing-function: cubic-bezier(.34, 1.7, .5, 1), ease, cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), ease, ease, ease, ease, ease;
 }
-:root[data-motion="soft"][data-layout="mobile"] :is(button, .button, a.nav-link, .mobile-tab, .icon-button, .map-tool, .phone-map-chip, [role="button"], [role="tab"], .phone-quest-row, .quest-row, .setting-row button):not(:disabled):active {
+:root[data-motion="soft"][data-layout="mobile"] :is(button, .button, a.nav-link, .mobile-tab, .icon-button, .map-tool, .phone-map-chip, [role="button"], [role="tab"], .phone-quest-row, .quest-row, .setting-row button):not(.leaflet-marker-icon):not(:disabled):active {
   /* the press: down fast */
   scale: .94;
   transition-duration: .09s, .1s, .3s, .34s, .34s, .34s, .34s, .34s, .1s, .1s, .1s, .1s, .1s;
