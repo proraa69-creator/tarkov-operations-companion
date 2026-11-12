@@ -7053,3 +7053,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - 6260b954: soft motion on the phone (springy presses, spring windows, gliding blocks via offsets FLIP, Android 6 ms tick). Revert: `SOFT_MOTION = false` in src/app/softMotion.ts or revert this commit. Demo video (stepped 60 fps) sent to the owner.
 - aa6a5fff (subagent): admin «Оплатили повторно» — accounts with >= 2 succeeded payments with amount > 0; overview repeatPayers, stats payers.repeatPaid/repeatInRange; site and phone admin.
 - Tests: full vitest 3862 passed, 11 failed = known local (positionTracker, linux updater, staleServer, appVersion, AdminPanelPage) + 2 node:test files vitest cannot read; server 553 passed (subagent); typecheck ok. Test IPA test/ios-ipa-appstore-1112f. Not released: the owner approved phones for all versions; news list and the animations wait for his answer.
+
+## 2026-11-12 — Release 0.6.0.295 — `claude/suggest-point` → `release/production` (1c1c9e4a)
+
+- Owner: «Переделывай для всех телефонов сразу. Я позже проверю». Gate green, publisher started by hand at 07:03 UTC, live 07:16 UTC; mobile.json 0.6.0-295 (Android 0.6.0.295, iPhone).
+- In it: the phone map rework (3b7381ac, ce6386f4, 17b212ae), friends + squad quests (d2e51ba2), smooth thumb scroll (57e6910b), soft motion (6260b954, revert with SOFT_MOTION = false), admin «Оплатили повторно» (aa6a5fff), the iPhone App Store hides (6eb3958a), phone «Назад» (8555a712).
+- News RU/EN: 6 lines (map sideways/full screen; window looks and height; friends and squad quests; floor of a quest point; smooth scrolling; soft presses).
