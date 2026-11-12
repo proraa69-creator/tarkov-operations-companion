@@ -7029,3 +7029,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - `appStoreRules()` moved to `src/platform.ts` (App Store build or the iPhone app). Hidden there: «Личный кабинет» and «Подтвердить вход на сайте» in «Аккаунт сервера» (`ServerAccountPanel.tsx`), «Войти по QR-коду» on the sign-in screen (`AccountSignIn.tsx`), `MapScrollRail` (`MapsPage.tsx`). Windows, the site and Android unchanged. To bring them back: drop the `appStoreRules()` checks.
 - Tests: account/news/map/SettingHelp 129 + new `ServerAccountPanel.appStore.test.tsx`; tsc, eslint. Checked in a `VITE_APP_STORE=1` phone view: map without the strip, «Аккаунт сервера» with «Выйти» only.
 - Unsigned test IPA from `test/ios-ipa-appstore-1112b` (78b707b5, run 43154065979) on the owner's desktop; the App Store pack's Xcode project and map slide redone. Not released.
+
+## 2026-11-12 — Claude: phone «Назад» not over the map quest window — 8555a712
+
+- Owner's iPhone screenshots: the floating «Назад» covered the quest window's objectives, «Нашли неточность?» and «×» (portrait and landscape). `src/styles/mobile.css`: hidden while `.map-quest-sheet.is-open` or `.map-stage.is-fullscreen`. All phones (not only iPhone).
+- Tests: styles/mobile/MapsPage 86. Checked in a phone view (portrait): shown on the map, hidden with the quest window and in full screen. Test IPA `test/ios-ipa-appstore-1112c`; the App Store pack's Xcode bundle redone. Not released (Android and the web phone get it with the next release).
