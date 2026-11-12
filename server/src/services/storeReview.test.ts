@@ -15,3 +15,18 @@ test('an account listed in TARKOV_STORE_REVIEW_EMAILS is marked storeReview, any
   assert.equal(accounts.isEmailVerified(review), true)
   assert.equal(accounts.view(player).emailVerifiedAt, undefined)
 })
+
+// Owner, 13.11.2026: «сними блокировку по аккаунту таркова для админа и apple test аккаунта» — the reviewer's account is
+// signed in on the owner's PC, whose game account the owner's account holds.
+test('the reviewer\'s account is never refused for a game account, and takes none', async () => {
+  const accounts = new AccountStore({ db: openDatabase(':memory:'), ownerEmails: [], storeReviewEmails: ['appletest@example.com'] })
+  const holder = accounts.authenticate((await accounts.register('holder@example.com', 'correct horse battery')).token)!
+  const review = accounts.authenticate((await accounts.register('appletest@example.com', 'correct horse battery')).token)!
+  const player = accounts.authenticate((await accounts.register('player@example.com', 'correct horse battery')).token)!
+  accounts.bindEftAccount(holder, '1234289')
+  assert.doesNotThrow(() => accounts.bindEftAccount(review, '1234289'))
+  assert.equal(accounts.view(review).eftAccount, undefined)
+  assert.doesNotThrow(() => accounts.bindEftAccount(review, '7777001'))
+  assert.equal(accounts.view(review).eftAccount, undefined, 'a free game account stays free too')
+  assert.throws(() => accounts.bindEftAccount(player, '1234289'), /уже используется/)
+})

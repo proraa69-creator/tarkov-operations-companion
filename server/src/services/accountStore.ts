@@ -948,7 +948,8 @@ export class AccountStore {
     if (block) throw new EftConflictError(block)
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const own = this.eftDigestOf(account.id)
-    if (!holder && own === undefined) {
+    // The Apple reviewer's account takes no game account: it is signed in on the owner's PC with his game.
+    if (!holder && own === undefined && !this.isStoreReview(account.id)) {
       this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?)').run(account.id, digest, hint, this.now())
     }
     if (this.eftDigestOf(account.id) === digest) this.claimTrialByEft(account.id, digest)
@@ -957,10 +958,11 @@ export class AccountStore {
 
   /**
    * The one-to-one rule for `accountId` and a game account seen in its logs (bindEftAccount), or undefined when it
-   * fits. The owner's own accounts are exempt.
+   * fits. The owner's own accounts and the Apple reviewer's (TARKOV_STORE_REVIEW_EMAILS) are exempt (owner, 13.11.2026:
+   * «сними блокировку по аккаунту таркова для админа и apple test аккаунта»).
    */
   private eftRule(accountId: string, digest: string, hint: string): EftBlock | undefined {
-    if (this.isOwner(accountId)) return undefined
+    if (this.isOwner(accountId) || this.isStoreReview(accountId)) return undefined
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const holderId = holder ? String(holder.account_id) : undefined
     const seen = `••••${hint}`
@@ -1035,6 +1037,12 @@ export class AccountStore {
    * so the owner's existing account keeps working). A listed address registered later without confirmation gets no
    * owner rights until it is confirmed.
    */
+  /** The Apple reviewer's test account (TARKOV_STORE_REVIEW_EMAILS, AccountView.storeReview). */
+  isStoreReview(accountId: string) {
+    const row = this.db.prepare('SELECT email FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row !== undefined && this.storeReviewEmails.has(String(row.email).trim().toLowerCase())
+  }
+
   isOwner(accountId: string) {
     const account = this.mustGet(accountId)
     return this.ownerRights(account.email, this.db.prepare('SELECT email_verified_at, email_grandfathered FROM accounts WHERE id = ?').get(accountId) as Row | undefined)
