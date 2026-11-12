@@ -1,4 +1,12 @@
 [
+  {"version":"0.6.0.295","date":"2026-11-12","items":[
+    {"kind":"added","ru":"Карта на телефоне: повернул телефон — окно квеста справа, на весь экран карта не сжимается","en":"Phone map: turned sideways the quest window stands on the right, on the full screen the map keeps its size"},
+    {"kind":"added","ru":"Окно квеста: три вида и выбор высоты в шестерёнке","en":"Quest window: three looks and its height in the gear"},
+    {"kind":"improved","ru":"«Квесты друзей» показывают и квесты отряда и обновляются сами","en":"«Friends’ quests» show the squad’s quests too and update by themselves"},
+    {"kind":"improved","ru":"Точка квеста сама включает свой этаж","en":"A quest point turns on its own floor"},
+    {"kind":"improved","ru":"Плавная прокрутка в «Требованиях рейда»","en":"Smooth scrolling in «Raid requirements»"},
+    {"kind":"improved","ru":"Мягкие нажатия и плавные переходы на телефоне","en":"Soft presses and smooth transitions on the phone"}
+  ]},
   {"version":"0.6.0.294","date":"2026-11-11","items":[
     {"kind":"added","ru":"Квесты: счётчик «7 из 10» для целей на убийства и сдачу предметов","en":"Quests: a «7 of 10» counter for kill and hand-over objectives"}
   ]},
