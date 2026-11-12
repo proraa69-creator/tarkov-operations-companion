@@ -7078,3 +7078,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «Да, выпускай». Gate green 08:59 UTC, publisher started by hand 09:01, live 09:13 UTC; mobile.json 0.6.0-296 (Android 0.6.0.296, iPhone).
 - In it: Gunsmith screenshots M1911A1 (Master part 8), Vityaz and Glock 17 (part 12) — bc3d8899. News RU/EN: 1 line (approved by the owner).
 - Not in it: the builder barters (fddb6958), waiting for the owner.
+
+- 90279723: the builder barters (fddb6958) reverted — owner: «оставь как было». src/ is again the same as release 964ac103; tests 156 passed, typecheck ok. Never released.
