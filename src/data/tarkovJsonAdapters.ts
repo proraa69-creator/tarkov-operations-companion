@@ -171,7 +171,7 @@ export function buildLegacyItems(bundle: TarkovJsonBundle): Json[] {
   const prices = object(normalizeMinutePrices(bundle.prices, bundle.mode ?? 'pvp').items)
   const categories = dictionary(itemRoot.itemCategories)
   const imageBase = bundle.imageBaseUrl ?? 'https://raidos.app/v1/item-images'
-  return Object.values(items).map((item) => {
+  const legacy = Object.values(items).map((item) => {
     const id = text(item.id)
     const price = object(prices[id]) as MinutePrice
     const categoryId = Array.isArray(item.categories) ? text(item.categories[0]) : ''
@@ -196,6 +196,39 @@ export function buildLegacyItems(bundle: TarkovJsonBundle): Json[] {
       properties: legacyProperties(item.properties, items, names, imageBase),
     }
   })
+  return bundle.barters === undefined ? legacy : withBarterOffers(legacy, bundle.barters, traders, names)
+}
+
+/**
+ * Each trader's barter for an item as Raid OS's own `barterFor` (owner, 12.11.2026: the IRBIS-GUN grips, Ref's for GP
+ * coins only, were missing from «Можно купить»): the trader with its loyalty and quest, what the barter takes, and that in
+ * roubles for one item — each part at its cheapest buy (flea or a trader), at its base price when nobody sells it (GP coins).
+ */
+function withBarterOffers(items: Json[], bartersFile: unknown, traders: Record<string, Json>, names: Json): Json[] {
+  const byId = new Map(items.map((item) => [text(item.id), item]))
+  const value = (id: string) => {
+    const item = byId.get(id)
+    const prices = array(item?.buyFor).flatMap((offer) => positive(offer.priceRUB) ?? [])
+    return prices.length ? Math.min(...prices) : positive(item?.basePrice)
+  }
+  const offers = new Map<string, Json[]>()
+  for (const row of tarkovRecords(bartersFile, 'barters')) {
+    const offered = object(row.offeredItem)
+    const id = text(offered.item)
+    const traderId = text(row.trader)
+    const required = counts(row.requiredItems)
+    if (!byId.has(id) || !traderId || !required.length) continue
+    const values = required.map((entry) => value(entry.itemId))
+    if (values.some((price) => price === undefined)) continue
+    const total = required.reduce((sum, entry, index) => sum + entry.count * values[index]!, 0)
+    const priceRUB = Math.round(total / Math.max(1, number(offered.count) ?? 1))
+    const requiredItems = required.map((entry) => {
+      const item = byId.get(entry.itemId)
+      return { item: { id: entry.itemId, name: text(item?.name, entry.itemId), shortName: text(item?.shortName, text(item?.name, entry.itemId)), iconLink: text(item?.iconLink) || undefined }, count: entry.count }
+    })
+    offers.set(id, [...offers.get(id) ?? [], { priceRUB, vendor: traderVendor(traderId, traders, row, names), requiredItems }])
+  }
+  return offers.size ? items.map((item) => offers.has(text(item.id)) ? { ...item, barterFor: offers.get(text(item.id)) } : item) : items
 }
 
 export function buildLegacyAmmo(bundle: TarkovJsonBundle): Json[] {

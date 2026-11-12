@@ -242,23 +242,29 @@ export function offerAccess(offer: GunOffer, item: Pick<GunPart, 'noFlea' | 'fle
   return { ok: true }
 }
 
-/** Cheapest offer the player can use: flea (unless the item is flea-banned or the flea is closed) or a trader whose loyalty level is reached. */
-export function cheapestOffer(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'>, access: PurchaseAccess = FULL_ACCESS): GunOffer | undefined {
-  return item.offers
+type Sold = Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'> & Partial<Pick<GunPart, 'barters'>>
+
+/**
+ * Cheapest offer the player can use: flea (unless the item is flea-banned or the flea is closed) or a trader whose loyalty
+ * level is reached; a trader's barter only when nobody sells it for money (Ref's grips for GP coins).
+ */
+export function cheapestOffer(item: Sold, access: PurchaseAccess = FULL_ACCESS): GunOffer | undefined {
+  const cheapest = (offers: readonly GunOffer[]) => offers
     .filter((offer) => offerAccess(offer, item, access).ok)
     .reduce<GunOffer | undefined>((best, offer) => !best || offer.priceRUB < best.priceRUB ? offer : best, undefined)
+  return cheapest(item.offers) ?? cheapest(item.barters ?? [])
 }
 
 /** What opens a part the player cannot buy yet (owner, 04.11.2026: «модули должны быть открыты при достижении этих условий»). */
 export type UnlockHint = { kind: 'trader'; vendorName: string; level: number } | { kind: 'task'; task: string } | { kind: 'flea'; level: number }
 
 /** The nearest way: a trader's next loyalty level, then a quest, the flea market's level, a loyalty further off. Nothing when nobody sells it. */
-export function unlockHint(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'>, access: PurchaseAccess): UnlockHint | undefined {
+export function unlockHint(item: Sold, access: PurchaseAccess): UnlockHint | undefined {
   let trader: GunOffer | undefined
   let next = false
   let task: GunOffer | undefined
   let flea: number | undefined
-  for (const offer of item.offers) {
+  for (const offer of [...item.offers, ...item.barters ?? []]) {
     const result = offerAccess(offer, item, access)
     if (result.ok) return undefined
     if (result.reason === 'level') {
