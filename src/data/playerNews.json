@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.296","date":"2026-11-12","items":[
+    {"kind":"added","ru":"«Оружейник»: готовые сборки M1911A1, «Витязя» и Glock 17 на скриншотах","en":"«Gunsmith»: finished M1911A1, Vityaz and Glock 17 builds on screenshots"}
+  ]},
   {"version":"0.6.0.295","date":"2026-11-12","items":[
     {"kind":"added","ru":"Карта на телефоне: повернул телефон — окно квеста справа, на весь экран карта не сжимается","en":"Phone map: turned sideways the quest window stands on the right, on the full screen the map keeps its size"},
     {"kind":"added","ru":"Окно квеста: три вида и выбор высоты в шестерёнке","en":"Quest window: three looks and its height in the gear"},
