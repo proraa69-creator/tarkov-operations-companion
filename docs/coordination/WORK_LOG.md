@@ -7096,3 +7096,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 
 - `QuestConditionsCard` `compactRows` (DashboardPage passes 2 on the phone): every gear quest of the map as its own card in a `ThumbScroll` list, the picked one first, two in sight, the rest under the right thumb; no «ещё N» and no unfolding copy there. The PC card is unchanged. CSS: `.quest-conditions-card.is-scroll`, `.qc-scroll-list` in `src/styles/questConditions.css`.
 - Tests: two new in `QuestConditionsCard.test.tsx`; overview/mobile/onboarding/components/Dashboard 587 passed; typecheck, eslint. Seen at 375×812 with 11 Customs quests: two cards in sight, thumb on the right, dragging it scrolls the list. Not released.
+
+## 2026-11-12 — Release 0.6.0.297 (owner: «Да, выпускай»)
+
+- Commit 9312325e on release/production (gate green 21:01 Bangkok, publisher started by hand after the window, live 21:18: `version.json` 0.6.0-297, commit 9312325e…-production; mobile.json 0.6.0.297).
+- News RU/EN: the «Снайперы» map layer shown from the start; phone «Сбор на рейд» lists every quest under the right thumb. Files: package.json, package-lock.json, src/data/playerNews.json, src/data/updateHistory.json, website/src/config.ts. Tests: news/history 27 passed.
+- App Store pack rebuilt from 9312325e + the App Store settings commit (scratchpad branch test/ios-appstore-pack-297 = 5b25ae1f): desktop `RaidOS_для_публикации.rar` (20:45, 120 269 084 B, SHA-256 a550bbb5…3336). Fixed in the pack: `ios/App/CapApp-SPM/Package.swift` pointed the Capacitor packages at this PC's folder (`../../…/raidos-bp-documents/node_modules`, from `cap sync` with a symlinked node_modules), now `../../../node_modules/@capacitor/…`; the earlier GitHub prerelease asset `appstore-pack-2026-11-12` still has the old path. Screenshots in the pack unchanged.
+- iPhone test IPA: branch test/ios-ipa-appstore-1112g (5b25ae1f), workflow «RaidOS iOS test IPA», artifact to the desktop.
+- Open: the «скачайте Raid OS на ПК» notice is still in the App Store build (owner has not chosen); not checked on a real iPhone.
