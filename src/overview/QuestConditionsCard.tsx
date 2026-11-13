@@ -124,7 +124,6 @@ function WeaponVariant({ weapon, isExample, pictures }: { weapon: ItemRef; isExa
   const onMenu = useWeaponBuildMenu({ id: weapon.id, name })
   return <li className={`qc-variant is-weapon${isExample ? ' is-example' : ''}${onMenu ? ' has-menu' : ''}`} onContextMenu={onMenu}
     {...(onMenu ? {
-      title: uiText('Правый клик — открыть сборку оружия'),
       onMouseDown: (event: ReactMouseEvent) => { if (event.button === 0 || event.button === 2) event.preventDefault() },
     } : {})}>
     <Picture className="qc-variant-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={name} fallback={<Crosshair size={16} />} />

@@ -447,7 +447,7 @@ describe('«Сбор на рейд»: a right click on a weapon opens «Гото
     fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
     fireEvent.click(weapon)
     const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
-    expect(sv98).toHaveAttribute('title', 'Правый клик — открыть сборку оружия')
+    expect(sv98).not.toHaveAttribute('title')
     expect(fireEvent.mouseDown(sv98, { button: 0 })).toBe(false)
     fireEvent.click(sv98)
     expect(document.querySelector('.qc-variants')).not.toBeNull()

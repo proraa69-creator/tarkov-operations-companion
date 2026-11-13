@@ -9,7 +9,7 @@ export const QUEST_CONDITION_PHRASES: Array<[string, string]> = [
   ['Части тела', 'Body parts'], ['Зоны', 'Zones'], ['только в зонах задания', 'only in the task zones'], ['Время в игре', 'In-game time'],
   ['Цель под эффектом', 'Target under effect'], ['Вы под эффектом', 'You under effect'], ['Открыть квест', 'Open task'],
   // a right click on a weapon (src/overview/WeaponBuildMenu.tsx)
-  ['Открыть сборку', 'Open build'], ['Открыть сборку оружия', 'Open weapon build'], ['Правый клик — открыть сборку оружия', 'Right click — open weapon build'], ['Меню оружия', 'Weapon menu'],
+  ['Открыть сборку', 'Open build'], ['Открыть сборку оружия', 'Open weapon build'], ['Меню оружия', 'Weapon menu'],
   // the short words of the card's line (src/overview/conditionText.ts); «до 25 м» showed as «до 25 m»
   ['до', 'up to'],
   ['ЧВК', 'PMC'], ['Дикие', 'Scavs'], ['любые цели', 'any target'], ['снайперы', 'Sniper Scavs'], ['рейдеры', 'Raiders'], ['отступники', 'Rogues'],
