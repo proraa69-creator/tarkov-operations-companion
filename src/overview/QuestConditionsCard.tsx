@@ -103,6 +103,18 @@ function VariantList({ options, sets, weapons, example, pictures }: { options: I
 }
 
 /**
+ * The weapon's picture on the card and in its unfolded view: a right click offers «Открыть сборку оружия» (WeaponBuildMenu),
+ * not the card's own menu (putting the quest aside), which stays on the rest of the card.
+ */
+function WeaponPicture({ weapon, pictures }: { weapon: ItemRef; pictures: Pictures }) {
+  const name = uiText(nameOf(weapon, pictures))
+  const onMenu = useWeaponBuildMenu({ id: weapon.id, name })
+  return <span className="qc-weapon-hit" onContextMenu={onMenu}>
+    <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={name} fallback={<Crosshair size={20} />} itemId={weapon.id} />
+  </span>
+}
+
+/**
  * One weapon of the list: a click opens its build in «Сборка оружия» (a player, 13.11.2026: the click only closed the list),
  * a right click still offers «Открыть сборку» (WeaponBuildMenu). The press keeps the focus where it is: a press that took it
  * away hid the list (ChoicePopover's blur) before the click could land.
@@ -113,8 +125,8 @@ function WeaponVariant({ weapon, isExample, pictures }: { weapon: ItemRef; isExa
   const openBuild = useOpenWeaponBuild(weapon.id)
   return <li className={`qc-variant is-weapon${isExample ? ' is-example' : ''}${openBuild ? ' is-link' : ''}`} onContextMenu={onMenu}
     {...(openBuild ? {
-      role: 'button', tabIndex: 0, title: uiText('Открыть сборку'),
-      onMouseDown: (event: ReactMouseEvent) => { if (event.button === 0) event.preventDefault() },
+      role: 'button', tabIndex: 0, title: uiText('Открыть сборку оружия'),
+      onMouseDown: (event: ReactMouseEvent) => { if (event.button === 0 || event.button === 2) event.preventDefault() },
       onClick: () => openBuild(),
       onKeyDown: (event: ReactKeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openBuild() } },
     } : {})}>
@@ -200,7 +212,7 @@ export function GearStrip({ conditions, pictures }: { conditions: ObjectiveCondi
   const wearing = conditions.wearing?.length ? conditions.wearing : undefined
   return <span className={`qc-gear${weapon ? ' has-weapon' : ''}`}>
     {weapon && <Choice className="qc-weapon-group" options={weapons} weapons example={weapon} pictures={pictures} more={`+${weapons.length - 1}`}>
-      <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} itemId={weapon.id} />
+      <WeaponPicture weapon={weapon} pictures={pictures} />
     </Choice>}
     {(mods || wearing) && <span className="qc-reqs">
       {mods && <RestOptions kind="mods" options={mods} pictures={pictures} />}
@@ -235,7 +247,7 @@ function FullObjective({ objective, pictures, mapName }: { objective: QuestObjec
       {weapon && <span className="qc-full-row is-weapons">
         <span className="qc-full-label">{uiText('Оружие')}</span>
         <Choice className="qc-full-items" options={weapons} weapons example={weapon} pictures={pictures}>
-          <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} itemId={weapon.id} />
+          <WeaponPicture weapon={weapon} pictures={pictures} />
         </Choice>
       </span>}
       {reqs && <span className="qc-full-reqs">

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AppDataset, GameMap, Item, Quest } from '../domain/types'
@@ -395,7 +395,7 @@ describe('«Сбор на рейд»: a right click on a weapon opens «Гото
     fireEvent.contextMenu(dialog.querySelector('.qc-weapon-card')!, { clientX: 40, clientY: 40 })
     const menu = screen.getByRole('menu', { name: 'Меню оружия' })
     expect(menu).toHaveTextContent('Автомат Калашникова АК-12 5.45x39')
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Открыть сборку' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Открыть сборку оружия' }))
     expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=6499849fc93611967b034949&tab=ready')
   })
 
@@ -408,9 +408,37 @@ describe('«Сбор на рейд»: a right click on a weapon opens «Гото
     const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
     fireEvent.contextMenu(sv98)
     expect(onDefer).not.toHaveBeenCalled()
-    fireEvent.mouseDown(screen.getByRole('menuitem', { name: 'Открыть сборку' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Открыть сборку' }))
+    fireEvent.mouseDown(screen.getByRole('menuitem', { name: 'Открыть сборку оружия' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Открыть сборку оружия' }))
     expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=sv98&tab=ready')
+  })
+
+  it('the weapon on the card: a right click shows «Открыть сборку оружия», not the menu to put the quest aside (owner, 13.11.2026)', async () => {
+    const onDefer = vi.fn()
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" onDefer={onDefer} />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    fireEvent.contextMenu(card().querySelector('.qc-main .qc-weapon')!, { clientX: 30, clientY: 30 })
+    expect(onDefer).not.toHaveBeenCalled()
+    const menu = screen.getByRole('menu', { name: 'Меню оружия' })
+    fireEvent.mouseDown(within(menu).getByRole('menuitem', { name: 'Открыть сборку оружия' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Открыть сборку оружия' }))
+    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=')
+    // the rest of the card keeps its own menu
+    cleanup()
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" onDefer={onDefer} />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    fireEvent.contextMenu(card().querySelector('.qc-name')!)
+    expect(onDefer).toHaveBeenCalledTimes(1)
+  })
+
+  it('in the list a right press keeps the list, and the right click shows the weapon menu', () => {
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
+    expect(fireEvent.mouseDown(sv98, { button: 2 })).toBe(false)
+    fireEvent.contextMenu(sv98, { clientX: 50, clientY: 50 })
+    expect(document.querySelector('.qc-variants')).not.toBeNull()
+    expect(screen.getByRole('menu', { name: 'Меню оружия' })).toHaveTextContent('СВ-98')
   })
 
   it('a left click on a weapon of the list opens its build; the press does not hide the list first (a player, 13.11.2026)', async () => {
@@ -420,7 +448,7 @@ describe('«Сбор на рейд»: a right click on a weapon opens «Гото
     fireEvent.click(weapon)
     const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
     expect(sv98).toHaveAttribute('role', 'button')
-    expect(sv98).toHaveAttribute('title', 'Открыть сборку')
+    expect(sv98).toHaveAttribute('title', 'Открыть сборку оружия')
     // the press keeps the focus where it was: no blur hides the list before the click
     expect(fireEvent.mouseDown(sv98, { button: 0 })).toBe(false)
     expect(document.querySelector('.qc-variants')).not.toBeNull()
@@ -445,7 +473,7 @@ describe('«Сбор на рейд»: a right click on a weapon opens «Гото
     const dialog = await screen.findByRole('dialog')
     fireEvent.contextMenu(dialog.querySelector('.qc-weapon-card')!)
     expect(screen.getByRole('menu', { name: 'Weapon menu' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Open build' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Open weapon build' })).toBeInTheDocument()
   })
 })
 

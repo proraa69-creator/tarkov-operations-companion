@@ -171,6 +171,8 @@
 }
 .qc-variant.is-example { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); }
 .qc-variant.is-weapon { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 4px 5px 5px; }
+/* The weapon picture's own right-click target (WeaponPicture): no box of its own. */
+.qc-weapon-hit { display: contents; }
 /* A weapon of the list opens its build (QuestConditionsCard WeaponVariant). */
 .qc-variant.is-link { cursor: pointer; }
 .qc-variant.is-link:hover, .qc-variant.is-link:focus-visible { border-color: color-mix(in srgb, var(--brass) 70%, var(--line)); outline: none; }

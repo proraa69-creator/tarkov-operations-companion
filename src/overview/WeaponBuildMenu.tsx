@@ -47,7 +47,10 @@ export function useOpenWeaponBuild(weaponId: string) {
   return buildsShown() ? () => navigate(weaponBuildsHref(weaponId)) : undefined
 }
 
-/** The right-click handler for one weapon; none outside the provider or while «Сборка оружия» is hidden. */
+/**
+ * The right-click handler for one weapon (owner, 13.11.2026: «при наведении курсора на оружие правой кнопкой мыши открывалась
+ * менюшка… «Открыть сборку оружия»»); none outside the provider or while «Сборка оружия» is hidden.
+ */
 export function useWeaponBuildMenu(weapon: { id: string; name: string }) {
   const open = useContext(WeaponMenuContext)
   return open ? (event: ReactMouseEvent) => open(weapon, event) : undefined
@@ -64,7 +67,7 @@ function WeaponBuildMenuView({ menu, onClose }: { menu: WeaponMenu | null; onClo
       onContextMenu={(event) => event.preventDefault()} onMouseDown={(event) => event.stopPropagation()}>
       <div className="point-menu-title">{uiText(menu.name)}</div>
       <button type="button" role="menuitem" onClick={() => { onClose(); navigate(weaponBuildsHref(menu.id)) }}>
-        <Wrench size={13} aria-hidden="true" />{uiText('Открыть сборку')}
+        <Wrench size={13} aria-hidden="true" />{uiText('Открыть сборку оружия')}
       </button>
     </div>,
     document.body,
