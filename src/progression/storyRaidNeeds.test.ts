@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Item, Quest } from '../domain/types'
 import { STORY_CHAPTER_SEEDS } from '../data/storyChapterSeeds'
-import { storyStageRaidNeeds } from './storyRaidNeeds'
+import { storyRaidNeedsAhead, storyStageRaidNeeds } from './storyRaidNeeds'
 
 const chapterOf = (id: string) => {
   const seed = STORY_CHAPTER_SEEDS.find((entry) => entry.id === id)!
@@ -59,5 +59,25 @@ describe('«Требования рейда» of a story stage', () => {
 
   it('a chapter the guide does not know asks nothing', () => {
     expect(storyStageRaidNeeds({ id: 'x', name: 'Неизвестно', normalizedName: 'x', kind: 'story' } as unknown as Quest, 0, catalog())).toEqual({ requirements: [], items: [] })
+  })
+})
+
+// A player, 13.11.2026: «не показывает что надо с собою взять для сюжетных квестов, к примеру набор инструментов для борея починки вышки».
+describe('«Требования рейда» of a story chapter: the stages done in the same raid', () => {
+  const TOOLSET = '590c2e1186f77425357b6124'
+  it('«Борей» on «Найти оборудование под вышкой» asks for the toolset of «Починить оборудование» there, in Woods', () => {
+    const quest = chapterOf('boreas')
+    const locate = stageOf('boreas', /^Locate the equipment under the cellular tower/)
+    expect(storyStageRaidNeeds(quest, locate, catalog(TOOLSET)).requirements).toEqual([])
+    const ahead = storyRaidNeedsAhead(quest, locate, catalog(TOOLSET)).requirements
+    expect(ahead.map((need) => [need.itemId, need.purpose, need.mapIds])).toEqual([[TOOLSET, 'use', ['woods']]])
+  })
+
+  it('not past a stage on no map or another map: «Отчитаться Механику» after the repair asks nothing ahead', () => {
+    const quest = chapterOf('boreas')
+    const first = stageOf('boreas', /^Find out from traders/)
+    expect(storyRaidNeedsAhead(quest, first, catalog(TOOLSET)).requirements).toEqual([])
+    const report = stageOf('boreas', /^Report back to Mechanic/)
+    expect(storyRaidNeedsAhead(quest, report, catalog(TOOLSET)).requirements).toEqual([])
   })
 })

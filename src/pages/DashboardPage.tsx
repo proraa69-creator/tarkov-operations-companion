@@ -14,7 +14,7 @@ import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
-import { storyStageRaidNeeds } from '../progression/storyRaidNeeds'
+import { storyRaidNeedsAhead } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { gearObjectives } from '../overview/questConditions'
@@ -139,9 +139,10 @@ export function DashboardPage() {
   const traderLoyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel, traderLoyalty)
   const raidQuests = [...planQuests, ...anyMapCurrent]
-  // The current stage of each story chapter in progress (owner, 06.11.2026): its keys, what it plants or uses, where it applies.
+  // The current stage of each story chapter in progress (owner, 06.11.2026): its keys, what it plants or uses, where it applies;
+  // and the stages after it done in the same raid (a player, 13.11.2026: the toolset of «Борей»).
   const storyRaid = data.quests.filter((quest) => quest.kind === 'story' && isCurrentTrackedQuest(quest, progress) && !deferred.has(quest.id))
-    .map((quest) => ({ quest, ...storyStageRaidNeeds(quest, currentStoryStageIndex(quest, progress), itemById, locale === 'en' ? 'en' : 'ru') }))
+    .map((quest) => ({ quest, ...storyRaidNeedsAhead(quest, currentStoryStageIndex(quest, progress), itemById, locale === 'en' ? 'en' : 'ru') }))
   const storyItems = new Map(storyRaid.flatMap(({ items }) => items.map((item) => [item.id, item] as const)))
   const raidItem = (id: string) => itemById.get(id) ?? storyItems.get(id)
   const requirements = [
