@@ -10,6 +10,7 @@ import { attributeHint, attributeLabel, formatTarget, formatValue } from './guns
 import type { AttributeCheck, GunsmithPlan } from './gunsmithSolver'
 import { BuildImage } from './BuildImage'
 import { buildScreenshot } from './buildScreenshots'
+import { serverBuildScreenshot, usePictureVersions } from '../data/pictureVersions'
 import { BuildPartCards, type ModsStatus } from './BuildPartCards'
 import './gunsmith.css'
 
@@ -49,8 +50,10 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
   // The finished build: the owner's own screenshot only (owner, 06.11.2026: «У нас наши сборки, наши скриншоты»). Without one,
   // or when it does not load (owner, 11.10.2026: «ни одна картинка не открывается»), the weapon.
   const [failedImages, setFailedImages] = useState<string[]>([])
-  const screenshot = buildScreenshot(questId, build.weaponId)
-  const buildImage = screenshot && !failedImages.includes(screenshot) ? screenshot : undefined
+  // The server's screenshot first (owner, 13.11.2026: a replaced one comes once, src/data/pictureVersions.ts), else the app's own.
+  usePictureVersions()
+  const buildImage = [serverBuildScreenshot(questId, build.weaponId), buildScreenshot(questId, build.weaponId)]
+    .find((source): source is string => Boolean(source) && !failedImages.includes(source!))
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
     <figure className={`gs-weapon${buildImage ? ' has-build-image' : ''}`}>
       {/* The finished build (the game's «Сборки оружия» screen), else the weapon's default preset. */}

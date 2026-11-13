@@ -82,6 +82,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/player-news\/reset$/ },
   // «Промокоды» (server/src/services/promoCodes.ts).
   { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
+  // Pictures the server may replace: the build screenshots and the photos of places (src/data/pictureVersions.ts).
+  { methods: ['GET'], path: /^\/v1\/(?:build-screenshots|guide-image-versions)$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
   // «История обновлений» (server/src/routes/ownerAdmin.ts): the server answers 404 to everybody but the owner.
