@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useBlockTitle } from './blockTitle'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
@@ -10,7 +10,7 @@ import { gearObjectives, objectiveOnMap, stablePick, type ConditionQuest, type M
 import { usePictures, type Pictures } from './usePictures'
 import { CHOICE_POPUP_CLASS, ChoicePopover } from './ChoicePopover'
 import type { DeferMenuState } from '../components/QuestDeferDialog'
-import { WeaponBuildMenuProvider, useWeaponBuildMenu } from './WeaponBuildMenu'
+import { WeaponBuildMenuProvider, useOpenWeaponBuild, useWeaponBuildMenu } from './WeaponBuildMenu'
 import { ThumbScroll } from '../components/ThumbScroll'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
@@ -102,11 +102,22 @@ function VariantList({ options, sets, weapons, example, pictures }: { options: I
   </ul>
 }
 
-/** One weapon of the list; a right click: «Открыть сборку» (WeaponBuildMenu). */
+/**
+ * One weapon of the list: a click opens its build in «Сборка оружия» (a player, 13.11.2026: the click only closed the list),
+ * a right click still offers «Открыть сборку» (WeaponBuildMenu). The press keeps the focus where it is: a press that took it
+ * away hid the list (ChoicePopover's blur) before the click could land.
+ */
 function WeaponVariant({ weapon, isExample, pictures }: { weapon: ItemRef; isExample: boolean; pictures: Pictures }) {
   const name = uiText(nameOf(weapon, pictures))
   const onMenu = useWeaponBuildMenu({ id: weapon.id, name })
-  return <li className={`qc-variant is-weapon${isExample ? ' is-example' : ''}`} onContextMenu={onMenu}>
+  const openBuild = useOpenWeaponBuild(weapon.id)
+  return <li className={`qc-variant is-weapon${isExample ? ' is-example' : ''}${openBuild ? ' is-link' : ''}`} onContextMenu={onMenu}
+    {...(openBuild ? {
+      role: 'button', tabIndex: 0, title: uiText('Открыть сборку'),
+      onMouseDown: (event: ReactMouseEvent) => { if (event.button === 0) event.preventDefault() },
+      onClick: () => openBuild(),
+      onKeyDown: (event: ReactKeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openBuild() } },
+    } : {})}>
     <Picture className="qc-variant-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={name} fallback={<Crosshair size={16} />} />
     <span className="qc-variant-name">{name}</span>
   </li>

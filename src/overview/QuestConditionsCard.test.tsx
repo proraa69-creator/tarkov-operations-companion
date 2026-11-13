@@ -413,6 +413,31 @@ describe('«Сбор на рейд»: a right click on a weapon opens «Гото
     expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=sv98&tab=ready')
   })
 
+  it('a left click on a weapon of the list opens its build; the press does not hide the list first (a player, 13.11.2026)', async () => {
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
+    expect(sv98).toHaveAttribute('role', 'button')
+    expect(sv98).toHaveAttribute('title', 'Открыть сборку')
+    // the press keeps the focus where it was: no blur hides the list before the click
+    expect(fireEvent.mouseDown(sv98, { button: 0 })).toBe(false)
+    expect(document.querySelector('.qc-variants')).not.toBeNull()
+    fireEvent.click(sv98)
+    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=sv98&tab=ready')
+  })
+
+  it('the keyboard opens a weapon of the list too', async () => {
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
+    fireEvent.keyDown(sv98, { key: 'Enter' })
+    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=sv98&tab=ready')
+  })
+
   it('speaks English', async () => {
     setRenderLanguage('en')
     renderWith([patriot])
