@@ -1,4 +1,9 @@
 [
+  {"version":"0.6.0.301","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Ключи для квестов: показаны ключи, которые нужно заложить по квесту","en":"Quest keys: keys a quest asks you to plant are listed"},
+    {"kind":"added","ru":"Сбор на рейд: правый клик по оружию — «Открыть сборку оружия»","en":"Raid loadout: right-click a weapon — «Open weapon build»"},
+    {"kind":"added","ru":"Оружейник: скриншот сборки ПКП (Механик, часть 13)","en":"Gunsmith: PKP build screenshot (Mechanic, part 13)"}
+  ]},
   {"version":"0.6.0.300","date":"2026-11-13","items":[
     {"kind":"added","ru":"Квесты: «Я уже выполнил» в меню по правой кнопке","en":"Quests: «Already done» in the right-click menu"},
     {"kind":"added","ru":"Экран заданий: в текущие попадают только квесты со статусом «Активно!»","en":"Tasks screen: only quests read «Active!» become current"},

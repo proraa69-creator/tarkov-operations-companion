@@ -736,7 +736,12 @@ describe('DashboardPage', () => {
     const { container } = renderDashboard(undefined, { data, tasks: [...CUSTOMS_TASKS, 'gear-patriot'] })
     const card = container.querySelector('.quest-conditions-card') as HTMLElement
     expect(card.querySelector(':scope > .qc-main .qc-name')).toHaveTextContent('Работа для патриота')
+    // the weapon itself has its own menu, «Открыть сборку оружия» (owner, 13.11.2026); the rest of the card puts the quest aside
     fireEvent.contextMenu(card.querySelector(':scope > .qc-main [data-item-id="ak-12"]')!, { clientX: 300, clientY: 120 })
+    expect(screen.queryByRole('menu', { name: 'Меню предмета' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Открыть сборку оружия' })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.contextMenu(card.querySelector(':scope > .qc-main .qc-name')!, { clientX: 300, clientY: 120 })
     const menu = screen.getByRole('menu', { name: 'Меню предмета' })
     expect(menu).toHaveTextContent('Автомат АК-12')
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Отложить квест' }))
