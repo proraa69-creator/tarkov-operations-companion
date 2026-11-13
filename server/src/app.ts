@@ -57,7 +57,6 @@ import { createMapTilesRouter } from './routes/mapTiles.js'
 import { createDataMirrorRouter } from './routes/dataMirror.js'
 import { createItemImagesRouter } from './routes/itemImages.js'
 import { createGuideImagesRouter } from './routes/guideImages.js'
-import { createBuildScreenshotsRouter, type BuildScreenshotFolder, type VersionedPictureFolder } from './routes/buildScreenshots.js'
 import type { GuideImageMirror } from './services/guideImages.js'
 import type { MapMirror } from './services/mapMirror.js'
 import type { MirrorStorage } from './services/mirrorStorage.js'
@@ -146,10 +145,6 @@ export interface ApiOptions {
   iphoneStore?: () => Promise<IphoneStore | undefined>
   /** «Оружейник»: the guides' screenshots kept on the server (services/guideImages.ts). */
   guideImages?: GuideImageMirror
-  /** «Оружейник»: the owner's build screenshots the apps take from the server (routes/buildScreenshots.ts). */
-  buildScreenshots?: BuildScreenshotFolder
-  /** The owner's replacements of photos of places under their names (routes/guideImages.ts). */
-  guideReplacements?: VersionedPictureFolder
   /**
    * Photos of the quest constructor's points (services/questPointPhotoStore.ts): the directory under the server's data
    * directory; without it the photo routes answer 503.
@@ -397,8 +392,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory, trading: options.tradingStats }))
   app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createMobileDownloadsRouter(options.mobileDownloads, { iphoneStore: options.iphoneStore }))
-  app.use(createGuideImagesRouter(options.guideImages, options.guideReplacements))
-  app.use(createBuildScreenshotsRouter(options.buildScreenshots))
+  app.use(createGuideImagesRouter(options.guideImages))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // The owner's sticker packs: every app's picker reads the published ones, the iPhone admin makes them (routes/stickers.ts).
   app.use(createStickersRouter(accounts, stickers, { now: accounts.clock, audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined }))

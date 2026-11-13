@@ -93,8 +93,6 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bezebee\/(?:mail\/check|payments|events\/\d{1,12}\/(?:attach|dismiss))$/ },
   // «Промокоды» (server/src/services/promoCodes.ts).
   { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
-  // Pictures the server may replace: the build screenshots and the photos of places (src/data/pictureVersions.ts).
-  { methods: ['GET'], path: /^\/v1\/(?:build-screenshots|guide-image-versions)$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16}(?:&state=\d{1,16})?)?$/ },
   // The player's own lists on every device of the account (src/sync/playerState.ts, server/src/services/playerStateStore.ts).

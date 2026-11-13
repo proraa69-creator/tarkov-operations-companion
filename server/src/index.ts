@@ -29,8 +29,7 @@ import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
 import { configureCatalogMirror, configureEventQuests, configureGuideImages, configureQuestBase } from './services/catalogService.js'
 import { EventQuestStore } from './services/eventQuestStore.js'
-import { GUIDE_IMAGE_FILE, GuideImageMirror } from './services/guideImages.js'
-import { BuildScreenshotFolder, VersionedPictureFolder } from './routes/buildScreenshots.js'
+import { GuideImageMirror } from './services/guideImages.js'
 import { questBasePeriodMs } from './services/questBase.js'
 import { BezebeeCredentialStore } from './services/bezebeeWebhook.js'
 import type { RaidMode } from '../../src/domain/types'
@@ -156,10 +155,6 @@ const legacyGraphql = mirrorStorage ? new LegacyGraphqlBuilder({ storage: mirror
 legacyGraphql?.start()
 // Photos of the quest constructor's points (owner app): files next to the database, never in the repository.
 const questPointPhotoDir = dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'quest-point-photos')
-// «Оружейник»: the owner's build screenshots the apps take from the server and keep (routes/buildScreenshots.ts).
-const buildScreenshots = dbPath === ':memory:' ? undefined : new BuildScreenshotFolder(join(dirname(dbPath), 'build-screenshots'))
-// «Фото мест»: the owner's replacement of a photo goes here under the photo's name (routes/guideImages.ts).
-const guideReplacements = dbPath === ':memory:' ? undefined : new VersionedPictureFolder(join(dirname(dbPath), 'picture-replacements'), GUIDE_IMAGE_FILE)
 // The phone apps from GitHub releases, served from the site (services/mobileDownloads.ts); RAIDOS_MOBILE_DOWNLOADS=0 turns it off.
 const mobileDownloads = dbPath === ':memory:' || process.env.RAIDOS_MOBILE_DOWNLOADS === '0' ? undefined : new MobileDownloads({ dir: join(dirname(dbPath), 'mobile-downloads'), log: (message) => console.log(message) })
 if (mobileDownloads) {
@@ -178,7 +173,7 @@ const releaseReports = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION =
 }
 // The App Store switch for the iPhone app's «Обновить» (services/iphoneStore.ts): a JSON file beside the database.
 const iphoneStore = dbPath === ':memory:' ? undefined : iphoneStoreReader(process.env.RAIDOS_IPHONE_STORE_FILE ?? join(dirname(dbPath), 'iphone-store.json'))
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, buildScreenshots, guideReplacements, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

@@ -66,7 +66,6 @@ import { PrestigeIcon } from '../components/PrestigeIcon'
 import { prestigeLabel } from '../profile/prestige'
 import { endStartupIntro } from '../startup/startupIntro'
 import { openApp, prepareAppOpening } from '../startup/appOpening'
-import { usePictureVersionsRefresh } from '../data/pictureVersions'
 
 
 const navigation = [
@@ -126,8 +125,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Our server's copy of the maps (data/mapMirror.ts) lives on the account's server.
   const mirrorServer = useServerAccount().status?.serverUrl
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
-  // Pictures the server may replace (build screenshots, photos of places): their versions at the start and every half hour.
-  usePictureVersionsRefresh()
   const socialBadge = useSocialBadge(raidMode)
   const { initialLoading, refresh, data, source: dataSource } = useTarkovData()
   useEffect(() => {
