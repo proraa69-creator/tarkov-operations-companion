@@ -1,0 +1,37 @@
+# The background worker on its own CPU core (docs/linux-server.md, «Background worker»).
+# Install by hand: /etc/systemd/system/raidos-worker.service, then systemctl daemon-reload.
+[Unit]
+Description=RaidOS background worker (data, prices, quest base)
+After=network.target
+# A restart of raidos-api (each release) restarts the worker with the new code too.
+PartOf=raidos-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tarkov-operations-companion/server
+EnvironmentFile=/etc/raidos/raidos-api.env
+Environment=RAIDOS_DATA_STRICT=1
+Environment=RAIDOS_ITEM_IMAGE_DIR=/var/lib/raidos/map-mirror/images/items
+Environment=RAIDOS_ITEM_IMAGE_URL=https://raidos.app/v1/item-images
+Environment=RAIDOS_MIRROR_DIR=/var/lib/raidos/map-mirror
+Environment=RAIDOS_MIRROR_REQUIRE_MOUNT=1
+Environment=RAIDOS_PRICE_SYNC_MS=60000
+UMask=0077
+ExecStart=/usr/bin/npm run worker
+# Exits 0 by itself when RAIDOS_BACKGROUND is not "external" (the API does the work then): no restart loop.
+Restart=on-failure
+RestartSec=5
+# The fourth core; below the API and nginx when they reach it.
+CPUAffinity=3
+Nice=5
+User=raidos-api
+Group=raidos-api
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

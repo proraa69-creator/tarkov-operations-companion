@@ -63,6 +63,7 @@ import type { MirrorStorage } from './services/mirrorStorage.js'
 import type { PriceMirror } from './services/priceMirror.js'
 import type { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
+import type { StatusSource } from './services/background.js'
 import type { TradingStats } from './services/tradingStats.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
@@ -138,6 +139,8 @@ export interface ApiOptions {
   legacyGraphql?: LegacyGraphqlBuilder
   priceHistory?: PriceHistoryMirror
   tradingStats?: TradingStats
+  /** RAIDOS_BACKGROUND=external: the statuses of the work the worker does (services/background.ts), over the local jobs'. */
+  backgroundStatus?: Partial<Record<StatusSource, { status(): unknown }>>
   itemImageDir?: string
   /** The phone apps for the site's «Скачать приложение» and the Android in-app update (services/mobileDownloads.ts). */
   mobileDownloads?: MobileDownloads
@@ -389,7 +392,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
   app.use(createMapTilesRouter(options.mapMirror))
-  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory, trading: options.tradingStats }))
+  const remote = options.backgroundStatus ?? {}
+  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: remote.datasets ?? options.dataMirror, prices: remote.prices ?? options.priceMirror, maps: remote.maps ?? options.mapMirror, legacyGraphql: remote.legacyGraphql ?? options.legacyGraphql, priceHistory: remote.priceHistory ?? options.priceHistory, trading: remote.trading ?? options.tradingStats }))
   app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createMobileDownloadsRouter(options.mobileDownloads, { iphoneStore: options.iphoneStore }))
   app.use(createGuideImagesRouter(options.guideImages))
