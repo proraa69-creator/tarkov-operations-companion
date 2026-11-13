@@ -143,3 +143,35 @@
 .frg-loadout-head strong { color: var(--text); font-size: 14px; }
 .frg-loadout-head small { color: var(--text-dim); font-size: 11px; }
 .frg-card p.frg-loadout-weapon { display: flex; align-items: center; gap: 4px; margin: 0; color: var(--text-muted); font-size: 12px; }
+
+/* «Местоположение на карте» (ScreenshotKeyGuide.tsx): the game's settings, step by step, the parts marked by a bright frame
+ * with a bouncing arrow over it (in place of the owner's red circles). */
+.frg-card.skg-card { width: min(620px, calc(100vw - 24px)); padding: 20px 22px 22px; }
+.skg-steps { display: grid; gap: 14px; margin: 0 0 14px; padding: 0; list-style: none; }
+.skg-steps > li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; color: var(--text); font-size: 14px; line-height: 1.45; }
+.skg-num {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-size: 13px; font-weight: 800;
+  color: var(--accent-ink, #10120c); background: var(--accent-fill, var(--brass)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brass-strong) 70%, transparent);
+}
+.skg-shot { position: relative; margin: 8px 0 0; border: 1px solid var(--line); border-radius: var(--radius-sm, 8px); overflow: hidden; background: #0b0d0c; }
+.skg-shot img { display: block; width: 100%; height: auto; }
+.skg-mark {
+  position: absolute; border: 2px solid var(--brass-strong); border-radius: 7px; pointer-events: none;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 55%), 0 0 14px color-mix(in srgb, var(--brass-strong) 70%, transparent), inset 0 0 10px color-mix(in srgb, var(--brass-strong) 30%, transparent);
+}
+.skg-mark::after { content: ''; position: absolute; inset: -2px; border-radius: inherit; border: 2px solid var(--brass-strong); animation: frg-ring 1.6s var(--ease-out) .3s infinite; }
+.skg-arrow {
+  position: absolute; left: 50%; bottom: 100%; display: grid; place-items: center; width: 22px; margin: 0 0 1px -11px;
+  color: var(--brass-strong); filter: drop-shadow(0 2px 4px rgb(0 0 0 / 80%));
+  animation: frg-bounce .9s var(--ease-in-out) infinite alternate;
+}
+.skg-warn {
+  display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; padding: 11px 13px; border-radius: var(--radius-sm, 8px);
+  border: 1px solid color-mix(in srgb, var(--amber, #d2a55d) 60%, var(--line)); background: color-mix(in srgb, var(--amber, #d2a55d) 10%, var(--panel));
+  color: var(--text); font-size: 13.5px; line-height: 1.45;
+}
+.skg-warn svg { flex: none; margin-top: 1px; color: var(--amber, #d2a55d); }
+.skg-warn strong { color: var(--amber, #d2a55d); }
+/* beside the part, pointing at it from the right (the key in the table: above it would cover the row over it) */
+.skg-arrow.is-left { left: 100%; bottom: auto; top: 50%; margin: -11px 0 0 6px; --frg-turn: 90deg; }
+@media (prefers-reduced-motion: reduce) { .skg-arrow, .skg-mark::after { animation: none; } }

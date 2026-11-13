@@ -22,6 +22,12 @@ export interface ToursRecord {
   since: string
   /** Tips shown: `<section>:<step>` and `news:<id>`. */
   seen: string[]
+  /**
+   * The window «Местоположение на карте» (src/onboarding/ScreenshotKeyGuide.tsx): `due` for a new player — after the
+   * question, whatever the answer — until «Понятно». A record without it (everyone who ran the app before) never shows it
+   * (owner, 13.11.2026: «только у тех, кто зарегистрировался и ни разу не запускал приложение»).
+   */
+  screenshotKey?: 'due' | 'done'
 }
 
 export interface TourContext { phone: boolean; desktop: boolean; inRaid?: boolean }
@@ -151,7 +157,12 @@ export function readTours(): ToursRecord | null {
   try {
     const parsed = JSON.parse(localStorage.getItem(TOURS_KEY) ?? 'null') as Partial<ToursRecord> | null
     if (!parsed || !['ask', 'yes', 'no'].includes(String(parsed.choice))) return null
-    return { choice: parsed.choice as ToursRecord['choice'], since: typeof parsed.since === 'string' ? parsed.since : '0', seen: Array.isArray(parsed.seen) ? parsed.seen.filter((key): key is string => typeof key === 'string') : [] }
+    return {
+      choice: parsed.choice as ToursRecord['choice'],
+      since: typeof parsed.since === 'string' ? parsed.since : '0',
+      seen: Array.isArray(parsed.seen) ? parsed.seen.filter((key): key is string => typeof key === 'string') : [],
+      ...(parsed.screenshotKey === 'due' || parsed.screenshotKey === 'done' ? { screenshotKey: parsed.screenshotKey } : {}),
+    }
   } catch {
     return null
   }
@@ -176,9 +187,22 @@ export function startTours(newPlayer: boolean): ToursRecord {
       if (Array.isArray(stored)) for (const id of stored) if (typeof id === 'string') seen.push(`news:${id}`)
     }
   } catch { /* nothing seen before */ }
-  const record: ToursRecord = newPlayer ? { choice: 'ask', since: LATEST_NEWS_RELEASE, seen: [] } : { choice: 'no', since: '0', seen }
+  const record: ToursRecord = newPlayer ? { choice: 'ask', since: LATEST_NEWS_RELEASE, seen: [], screenshotKey: 'due' } : { choice: 'no', since: '0', seen }
   writeTours(record)
   return record
+}
+
+/**
+ * «Местоположение на карте» is due: a new player's PC app, once the question is answered (either way), not in a raid. The
+ * phone takes no screenshots: the PC app does it for both.
+ */
+export function screenshotKeyDue(record: ToursRecord, context: TourContext) {
+  return record.screenshotKey === 'due' && record.choice !== 'ask' && pc(context) && !context.inRaid
+}
+
+export function markScreenshotKeyDone() {
+  const record = readTours()
+  if (record?.screenshotKey === 'due') writeTours({ ...record, screenshotKey: 'done' })
 }
 
 export interface DueTip { key: string; tip: GuideTipContent; news: boolean }
@@ -225,5 +249,5 @@ export function answerTours(choice: 'yes' | 'no') {
 /** Settings → «Показать снова»: every section's tips once more on the next visits. */
 export function replayTours() {
   const record = readTours() ?? { choice: 'yes' as const, since: LATEST_NEWS_RELEASE, seen: [] }
-  writeTours({ ...record, choice: 'yes', seen: record.seen.filter((key) => key.startsWith('news:')) })
+  writeTours({ ...record, choice: 'yes', seen: record.seen.filter((key) => key.startsWith('news:')), screenshotKey: 'due' })
 }
