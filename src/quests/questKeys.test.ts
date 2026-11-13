@@ -113,3 +113,28 @@ describe('«Ключи для квестов»', () => {
     }
   })
 })
+
+describe('«Ключи для квестов»: keys a quest asks to plant (report №154)', () => {
+  // «Супервайзер»: plant the till keys (not optional); finding each is an optional objective of its own
+  const plant = (itemId: string, objectiveId: string) => ({ itemId, purpose: 'place', count: 1, mapIds: ['interchange'], objectiveId })
+  const find = (itemId: string) => ({ itemId, purpose: 'find', count: 1, mapIds: [], optional: true })
+  const supervisor = quest('sup', [plant('k1', 'o1'), find('k1'), plant('k2', 'o2'), find('k2')], { requiredItems: ['k1', 'k2'] })
+
+  it('lists them with the quest and says to plant them, on the map where they are planted', () => {
+    const rows = questKeyRows([supervisor], ITEMS, PROGRESS, status({ sup: 'active' }), NONE)
+    expect(rows.map((row) => [row.item.id, row.state, row.mapIds])).toEqual([['k1', 'needed', ['interchange']], ['k2', 'needed', ['interchange']]])
+    expect(rows[0]!.needed[0]).toMatchObject({ planted: true })
+  })
+
+  it('a key planted (its objective ticked) is needed no more; the other stays', () => {
+    const marks = { ...PROGRESS, objectiveProgress: { o1: { completed: true } } } as unknown as typeof PROGRESS
+    const rows = questKeyRows([supervisor], ITEMS, marks, status({ sup: 'active' }), NONE)
+    // the needed one first, as on the page
+    expect(rows.map((row) => [row.item.id, row.state])).toEqual([['k2', 'needed'], ['k1', 'done']])
+  })
+
+  it('a key only optional in the quest is still not a quest key', () => {
+    const rows = questKeyRows([quest('q', [find('k3')], { requiredItems: ['k3'] })], ITEMS, PROGRESS, status({ q: 'active' }), NONE)
+    expect(rows).toEqual([])
+  })
+})

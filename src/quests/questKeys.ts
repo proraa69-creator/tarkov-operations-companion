@@ -5,7 +5,7 @@ import { storyGuideChapterId } from '../data/storyChapterGuide'
 import type { DeferredQuest, DeferredQuests } from '../progression/deferredQuests'
 import { isLiveGameQuest, questFaction } from '../progression/questBasics'
 import type { TaskAvailability } from '../progression/requirementEngine'
-import { usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
+import { keyUsed, usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
 
 /**
  * «Ключи для квестов» (a player's proposal №52, owner 05.11.2026: «Сделай отдельный раздел ключей для квестов. Туда добавь все ключи,
@@ -24,6 +24,8 @@ export interface QuestKeyUse {
   entry?: DeferredQuest
   /** The objectives this key opens are ticked: the quest, still open, needs it no more. */
   used?: boolean
+  /** The quest asks to plant this key (report №154: «Супервайзер» — the Goshan, IDEA and OLI till keys). */
+  planted?: boolean
 }
 
 export type QuestKeyState = 'needed' | 'deferred' | 'done'
@@ -37,7 +39,7 @@ export interface QuestKeyRow {
   mapIds: string[]
 }
 
-interface QuestKeyNeed { itemId: string; mapIds: string[]; alternatives: string[] }
+interface QuestKeyNeed { itemId: string; mapIds: string[]; alternatives: string[]; planted?: boolean }
 
 /** More keys than this among a quest's required items: a hand-in of any key («Ключевой партнёр»: any of 214), which makes none of them a quest key. */
 const ANY_KEY_LIST = 12
@@ -45,9 +47,12 @@ const ANY_KEY_LIST = 12
 /** The keys of a trader quest: its requirements to bring a key, and the keys among its required items no requirement names. */
 function traderQuestKeys(quest: Quest, items: ReadonlyMap<string, Item>): QuestKeyNeed[] {
   const needs = new Map<string, QuestKeyNeed>()
-  const requirements = (quest.raidRequirements ?? []).filter((need) => need.purpose === 'key' && need.itemId && !need.optional)
+  // A key to open a door, and a key the quest asks to plant (report №154: «Супервайзер» plants three till keys).
+  const planted = (need: { purpose: string; itemId: string }) => need.purpose === 'place' && items.get(need.itemId)?.category === 'Ключ'
+  const requirements = (quest.raidRequirements ?? []).filter((need) => (need.purpose === 'key' || planted(need)) && need.itemId && !need.optional)
   for (const need of requirements) {
     const own = needs.get(need.itemId) ?? { itemId: need.itemId, mapIds: [], alternatives: [] }
+    if (planted(need)) own.planted = true
     own.mapIds = [...new Set([...own.mapIds, ...(need.mapIds ?? [])])]
     if ((need.alternatives ?? 1) > 1) {
       const others = requirements.filter((other) => other.itemId !== need.itemId && other.objectiveId === need.objectiveId).map((other) => other.itemId)
@@ -55,7 +60,9 @@ function traderQuestKeys(quest: Quest, items: ReadonlyMap<string, Item>): QuestK
     }
     needs.set(need.itemId, own)
   }
-  const optional = new Set((quest.raidRequirements ?? []).filter((need) => need.optional).map((need) => need.itemId))
+  // Only a key no requirement asks for in earnest is optional: «Супервайзер» lists its keys to find as optional, to plant as not.
+  const required = new Set((quest.raidRequirements ?? []).filter((need) => !need.optional).map((need) => need.itemId))
+  const optional = new Set((quest.raidRequirements ?? []).filter((need) => need.optional && !required.has(need.itemId)).map((need) => need.itemId))
   const listed = (quest.requiredItems ?? []).filter((itemId) => items.get(itemId)?.category === 'Ключ')
   for (const itemId of listed.length > ANY_KEY_LIST ? [] : listed) {
     if (needs.has(itemId) || optional.has(itemId)) continue
@@ -82,6 +89,13 @@ function storyQuestKeys(quest: Quest, items: ReadonlyMap<string, Item>): QuestKe
 
 const byName = (left: { quest: Quest }, right: { quest: Quest }) => left.quest.level - right.quest.level || left.quest.name.localeCompare(right.quest.name, 'ru')
 
+/** The keys this quest asks to plant whose planting objectives are all ticked: planted, not needed any more. */
+function plantedKeys(quest: Quest, progress: ObjectiveMarks): ReadonlySet<string> {
+  const rows = (quest.raidRequirements ?? []).filter((row) => row.purpose === 'place' && !row.optional)
+  const ids = [...new Set(rows.map((row) => row.itemId))]
+  return new Set(ids.filter((itemId) => rows.filter((row) => row.itemId === itemId).every((row) => keyUsed(progress, quest.id, row))))
+}
+
 /** Every key of every quest of this mode. Failed quests and quests of the other faction hold no key. */
 export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string, Item>, progress: Pick<ModeProgress, 'faction'> & Partial<Pick<ModeProgress, 'prestige'>> & ObjectiveMarks,
   availability: ReadonlyMap<string, TaskAvailability>, deferred: DeferredQuests): QuestKeyRow[] {
@@ -96,11 +110,13 @@ export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string
     // a «Новое начало» of a prestige already behind the character (report №100)
     if (prestigeMismatch(quest, progress.prestige ?? 0) === 'before') continue
     const used = usedQuestKeys(quest, progress)
+    const placed = plantedKeys(quest, progress)
     for (const need of story ? storyQuestKeys(quest, items) : traderQuestKeys(quest, items)) {
       if (!items.has(need.itemId)) continue
       const entry = deferred.get(quest.id)
       const list = uses.get(need.itemId) ?? []
-      list.push({ quest, mapIds: need.mapIds, alternatives: need.alternatives, ...(status ? { status } : {}), ...(entry ? { entry } : {}), ...(used.has(need.itemId) ? { used: true } : {}) })
+      list.push({ quest, mapIds: need.mapIds, alternatives: need.alternatives, ...(status ? { status } : {}), ...(entry ? { entry } : {}),
+        ...(used.has(need.itemId) || (need.planted && placed.has(need.itemId)) ? { used: true } : {}), ...(need.planted ? { planted: true } : {}) })
       uses.set(need.itemId, list)
     }
   }
