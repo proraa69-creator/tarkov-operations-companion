@@ -1529,7 +1529,7 @@ export function MapsPage() {
         <PointMenu state={questEditor} emblems={pointEmblems} />
         {documentGallery && <BattlePassDocumentGallery mapId={activeMap.id} onClose={closeDocumentGallery} />}
         {deferRequest && <QuestDeferDialog request={deferRequest} onClose={() => setDeferRequest(null)} onDeferred={(questIds) => { if (questIds.some((questId) => focusedQuestId === questId || selectedMarker?.questId === questId)) clearQuestSelection() }} />}
-        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onChapter={(questId) => navigate(`/quests?filter=story&selected=${encodeURIComponent(questId)}&change=1`)} onClose={closeQuestMenu} />
+        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onDone={(questId) => { state.setManualQuestMark(state.raidMode, questId, 'completed'); if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection() }} onChapter={(questId) => navigate(`/quests?filter=story&selected=${encodeURIComponent(questId)}&change=1`)} onClose={closeQuestMenu} />
         {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
         {keyDialog && <QuestKeyDialog itemId={keyDialog} onClose={() => setKeyDialog(null)} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}

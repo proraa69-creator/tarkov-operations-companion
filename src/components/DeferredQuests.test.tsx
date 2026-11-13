@@ -66,6 +66,21 @@ describe('«Отложенные квесты»: the right-click menu', () => {
     expect(screen.queryByRole('menuitem', { name: 'Добавить в текущие' })).toBeNull()
   })
 
+  // Owner, 13.11.2026: «Если он хочет убрать его, потому что он его выполнил… будет кнопка «Выполнил»».
+  it('«Я уже выполнил» is there with the marks, held or not, and gives the quest to onDone', () => {
+    const onDone = vi.fn()
+    const onClose = vi.fn()
+    const view = render(<QuestDeferMenu menu={{ questId: 'checking', title: 'Проверка', x: 40, y: 50, held: true }} onDefer={vi.fn()} onAdd={vi.fn()} onDismiss={vi.fn()} onDone={onDone} onClose={onClose} />)
+    expect(within(screen.getByRole('menu', { name: 'Меню квеста' })).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Отложить квест', 'Добавить в текущие', 'У меня нет этого квеста', 'Я уже выполнил'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Я уже выполнил' }))
+    expect(onDone).toHaveBeenCalledWith('checking')
+    expect(onClose).toHaveBeenCalled()
+    view.rerender(<QuestDeferMenu menu={{ questId: 'cans', title: 'Банки', x: 40, y: 50, held: false }} onDefer={vi.fn()} onAdd={vi.fn()} onDismiss={vi.fn()} onDone={onDone} onClose={onClose} />)
+    expect(screen.getByRole('menuitem', { name: 'Я уже выполнил' })).toBeEnabled()
+    view.rerender(<QuestDeferMenu menu={{ questId: 'story-tour', title: 'Тур', x: 40, y: 50 }} onDefer={vi.fn()} onAdd={vi.fn()} onDismiss={vi.fn()} onDone={onDone} onClose={onClose} />)
+    expect(screen.queryByRole('menuitem', { name: 'Я уже выполнил' })).toBeNull()
+  })
+
   it('has one item that puts the quest aside; Escape closes it', () => {
     const onDefer = vi.fn()
     const onClose = vi.fn()

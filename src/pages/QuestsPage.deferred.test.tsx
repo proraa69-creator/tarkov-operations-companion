@@ -42,7 +42,7 @@ describe('Quests page: «Отложенные квесты»', () => {
     await waitFor(() => expect(row(CHECKING.name)).not.toBeNull())
     fireEvent.contextMenu(row(CHECKING.name)!, { clientX: 200, clientY: 300 })
     const menu = screen.getByRole('menu', { name: 'Меню квеста' })
-    expect(within(menu).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Отложить квест', 'Добавить в текущие', 'У меня нет этого квеста'])
+    expect(within(menu).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Отложить квест', 'Добавить в текущие', 'У меня нет этого квеста', 'Я уже выполнил'])
     expect(within(menu).getByRole('menuitem', { name: 'Добавить в текущие' })).toBeDisabled()
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'У меня нет этого квеста' }))
     await waitFor(() => expect(row(CHECKING.name)).toBeNull())
