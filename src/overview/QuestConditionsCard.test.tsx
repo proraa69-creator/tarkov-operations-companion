@@ -441,29 +441,17 @@ describe('«Сбор на рейд»: a right click on a weapon opens «Гото
     expect(screen.getByRole('menu', { name: 'Меню оружия' })).toHaveTextContent('СВ-98')
   })
 
-  it('a left click on a weapon of the list opens its build; the press does not hide the list first (a player, 13.11.2026)', async () => {
+  it('a left click on a weapon of the list opens nothing and keeps the list (only the right click has the menu, owner 13.11.2026)', () => {
     render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
     const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
     fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
     fireEvent.click(weapon)
     const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
-    expect(sv98).toHaveAttribute('role', 'button')
-    expect(sv98).toHaveAttribute('title', 'Открыть сборку оружия')
-    // the press keeps the focus where it was: no blur hides the list before the click
+    expect(sv98).toHaveAttribute('title', 'Правый клик — открыть сборку оружия')
     expect(fireEvent.mouseDown(sv98, { button: 0 })).toBe(false)
-    expect(document.querySelector('.qc-variants')).not.toBeNull()
     fireEvent.click(sv98)
-    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=sv98&tab=ready')
-  })
-
-  it('the keyboard opens a weapon of the list too', async () => {
-    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
-    const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
-    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
-    fireEvent.click(weapon)
-    const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
-    fireEvent.keyDown(sv98, { key: 'Enter' })
-    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=sv98&tab=ready')
+    expect(document.querySelector('.qc-variants')).not.toBeNull()
+    expect(screen.queryByTestId('where')).toBeNull()
   })
 
   it('speaks English', async () => {

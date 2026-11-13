@@ -173,9 +173,8 @@
 .qc-variant.is-weapon { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 4px 5px 5px; }
 /* The weapon picture's own right-click target (WeaponPicture): no box of its own. */
 .qc-weapon-hit { display: contents; }
-/* A weapon of the list opens its build (QuestConditionsCard WeaponVariant). */
-.qc-variant.is-link { cursor: pointer; }
-.qc-variant.is-link:hover, .qc-variant.is-link:focus-visible { border-color: color-mix(in srgb, var(--brass) 70%, var(--line)); outline: none; }
+/* A weapon of the list with the right-click menu «Открыть сборку оружия» (QuestConditionsCard WeaponVariant). */
+.qc-variant.has-menu:hover { border-color: color-mix(in srgb, var(--brass) 70%, var(--line)); }
 .qc-variant-weapon { width: 100%; height: 32px; object-fit: contain; filter: drop-shadow(0 2px 3px rgb(0 0 0 / 45%)); }
 .qc-variant-weapon.is-empty { display: grid; place-items: center; color: var(--text-dim); }
 .qc-variant-name { display: -webkit-box; overflow: hidden; font-size: 11px; font-weight: 650; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }

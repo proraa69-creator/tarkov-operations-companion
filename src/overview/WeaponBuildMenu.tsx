@@ -39,15 +39,6 @@ export function WeaponBuildMenuProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * A left click on a weapon of the list opens its build at once (a player, 13.11.2026: «Я не могу нажать на ган из списка что
- * бы открыть сборку. При нажатии просто окно с пушками пропадает»); none while «Сборка оружия» is hidden.
- */
-export function useOpenWeaponBuild(weaponId: string) {
-  const navigate = useNavigate()
-  return buildsShown() ? () => navigate(weaponBuildsHref(weaponId)) : undefined
-}
-
-/**
  * The right-click handler for one weapon (owner, 13.11.2026: «при наведении курсора на оружие правой кнопкой мыши открывалась
  * менюшка… «Открыть сборку оружия»»); none outside the provider or while «Сборка оружия» is hidden.
  */
