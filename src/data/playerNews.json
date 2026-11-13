@@ -1,4 +1,15 @@
 [
+  {"version":"0.6.0.300","date":"2026-11-13","items":[
+    {"kind":"added","ru":"Квесты: «Я уже выполнил» в меню по правой кнопке","en":"Quests: «Already done» in the right-click menu"},
+    {"kind":"added","ru":"Экран заданий: в текущие попадают только квесты со статусом «Активно!»","en":"Tasks screen: only quests read «Active!» become current"},
+    {"kind":"added","ru":"Требования рейда: что взять для следующего этапа сюжета в этом же рейде","en":"Raid requirements: what to take for the next story stage in the same raid"},
+    {"kind":"added","ru":"«Кочевники» на телефоне: окно статистики снова закрывается","en":"Phone «Goons»: the statistics window closes again"},
+    {"kind":"added","ru":"Карта: точки не дёргаются при приближении","en":"Map: points stay put while zooming"},
+    {"kind":"added","ru":"Звук щелчков на iPhone больше не пропадает","en":"Click sounds no longer go silent on iPhone"},
+    {"kind":"added","ru":"«Приоритет карт»: цифры ровно в плитках","en":"«Map priority»: counts sit neatly in the tiles"},
+    {"kind":"added","ru":"Снайперы на карте — без этажей","en":"Snipers on the map without floors"},
+    {"kind":"added","ru":"Развязка: фото финансовых документов на своих местах","en":"Interchange: financial documents photos in their right places"}
+  ]},
   {"version":"0.6.0.297","date":"2026-11-12","items":[
     {"kind":"added","ru":"Карты: снайперы диких — своя кнопка «Снайперы», видны сразу","en":"Maps: Scav snipers have their own «Snipers» button, shown from the start"},
     {"kind":"added","ru":"Обзор на телефоне: в «Сборе на рейд» все квесты списком с ползунком","en":"Phone Overview: «Raid loadout» lists every quest with a scroll thumb"}
