@@ -1,4 +1,9 @@
 [
+  {"version":"0.6.0.306","date":"2026-11-15","items":[
+    {"kind":"improved","ru":"Фото мест: одно крупное фото и «+N» с остальными","en":"Place photos: one large photo and «+N» with the rest"},
+    {"kind":"added","ru":"На телефоне скриншоты можно увеличивать двумя пальцами","en":"On the phone, screenshots zoom in with two fingers"},
+    {"kind":"improved","ru":"Требования рейда: «Заложить», «Открыть дверь»; «Взял» отмечает ключ как «Есть в наличии»","en":"Raid requirements: «Plant», «Open the door»; «Taken» marks a key as «With you»"}
+  ]},
   {"version":"0.6.0.305","date":"2026-11-14","items":[
     {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
   ]},
