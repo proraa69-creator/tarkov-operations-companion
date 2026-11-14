@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.305","date":"2026-11-14","items":[
+    {"kind":"improved","ru":"Отряд: ровные подписи блоков","en":"Squad: straight block labels"},
+    {"kind":"improved","ru":"Отряд: «Настройки отряда» видны и до вступления в отряд","en":"Squad: «Squad settings» are there before joining a squad too"}
+  ]},
   {"version":"0.6.0.304","date":"2026-11-14","items":[
     {"kind":"added","ru":"Отряд: тиммейты на карте по скриншоту — своим цветом и с ником","en":"Squad: teammates on the map from their screenshot, in their colour with their name"},
     {"kind":"added","ru":"Отряд: общие рисунки на карте и кнопка «Квесты отряда»","en":"Squad: shared map drawings and the «Squad quests» button"},
