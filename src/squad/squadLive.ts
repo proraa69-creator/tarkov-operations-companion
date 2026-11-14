@@ -4,7 +4,7 @@ import type { RaidMode } from '../domain/types'
 import type { SketchStroke } from '../maps/mapSketch'
 import { friendColors } from './friendColors'
 import { memberLabel } from './squadLabels'
-import { useSquadSettings } from './squadSettings'
+import { SQUAD_SKETCH_HIDDEN_SYNC, useSquadSettings } from './squadSettings'
 import { useSquad } from './useSquad'
 
 /**
@@ -55,10 +55,10 @@ export function cleanSquadLive(raw: unknown): LiveAnswer | null {
 
 /**
  * A mate's drawing taken off this player's map (owner, 14.11.2026: «тиммейт может нажать крестик… удалить именно его рисунок»):
- * `memberId:mapId` → the `at` of the drawing taken off. Kept on this device; the mate's next drawing of that map shows again.
+ * `memberId:mapId` → the `at` of the drawing taken off, on every device of the account; the mate's next drawing of that map shows again.
  */
-const HIDDEN_KEY = 'raidos-squad-sketch-hidden-v1'
-const HIDDEN_EVENT = 'raidos-squad-sketch-hidden'
+const HIDDEN_KEY = SQUAD_SKETCH_HIDDEN_SYNC.key
+const HIDDEN_EVENT = SQUAD_SKETCH_HIDDEN_SYNC.event
 const NO_HIDDEN: Record<string, number> = {}
 let hiddenCache: { raw: string | null; value: Record<string, number> } | undefined
 function readHiddenSketches(): Record<string, number> {
@@ -75,8 +75,8 @@ function readHiddenSketches(): Record<string, number> {
 }
 export function hideSquadSketch(memberId: string, mapId: string, at: number) {
   const next = { ...readHiddenSketches(), [`${memberId}:${mapId}`]: at }
-  // Only the latest few dozen: older ones have run out on the server anyway.
-  const kept = Object.fromEntries(Object.entries(next).slice(-60))
+  // Only the latest thirty: older ones have run out on the server anyway, and the account's sync takes a short value.
+  const kept = Object.fromEntries(Object.entries(next).slice(-30))
   try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(kept)) } catch { /* storage unavailable: hidden until the page is left */ }
   window.dispatchEvent(new Event(HIDDEN_EVENT))
 }

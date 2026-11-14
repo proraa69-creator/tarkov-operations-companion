@@ -2,7 +2,8 @@ import { useSyncExternalStore } from 'react'
 
 /**
  * «Настройки отряда» (owner, 14.11.2026: «В блоке отряд у нас будет настройка отряда… включить передачу зарисовок и включить
- * передачу местоположения тиммейтов… Еще можно включить отображение квестов тиммейта»). Kept on this device.
+ * передачу местоположения тиммейтов… Еще можно включить отображение квестов тиммейта»). The same on every device of the account (sync/playerStateStores.ts
+ * `prefs`; owner, 15.11.2026: «все должно везде дублироваться»).
  *
  * - `location`: this app sends the player's place from each game screenshot to the squad, and shows the mates who send theirs.
  * - `sketches`: a drawing kept with ✓ goes to the squad, and the mates' drawings show on the map.
@@ -14,6 +15,10 @@ export interface SquadSettings { location: boolean; sketches: boolean; quests: b
 export const SQUAD_SETTINGS_DEFAULTS: SquadSettings = { location: false, sketches: false, quests: true }
 const KEY = 'raidos-squad-settings-v1'
 const EVENT = 'raidos-squad-settings-changed'
+/** «Настройки отряда» and the mates' drawings taken off the map travel to the account's other devices (sync/playerStateStores.ts). */
+export const SQUAD_SETTINGS_SYNC = { key: KEY, event: EVENT } as const
+/** A mate's drawing taken off this player's map (squad/squadLive.ts hideSquadSketch): off on the PC, off on the phone too. */
+export const SQUAD_SKETCH_HIDDEN_SYNC = { key: 'raidos-squad-sketch-hidden-v1', event: 'raidos-squad-sketch-hidden' } as const
 let cache: { raw: string | null; value: SquadSettings } | undefined
 
 export function readSquadSettings(): SquadSettings {
