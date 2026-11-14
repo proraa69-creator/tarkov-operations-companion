@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.302","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Дерево квестов: кнопка «Открыть на весь экран»","en":"Quest tree: «Open full screen» button"},
+    {"kind":"improved","ru":"Карты: убраны лишние метки багажников машин","en":"Maps: removed wrong car trunk markers"}
+  ]},
   {"version":"0.6.0.301","date":"2026-11-14","items":[
     {"kind":"added","ru":"Ключи для квестов: показаны ключи, которые нужно заложить по квесту","en":"Quest keys: keys a quest asks you to plant are listed"},
     {"kind":"added","ru":"Сбор на рейд: правый клик по оружию — «Открыть сборку оружия»","en":"Raid loadout: right-click a weapon — «Open weapon build»"},
