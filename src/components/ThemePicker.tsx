@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Palette } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { THEMES, THEME_CHANGED_EVENT, currentTheme, saveAppearance } from '../theme/theme'
+import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, currentTheme, saveAppearance } from '../theme/theme'
 import '../styles/themePicker.css'
 import { StitchChooser } from '../theme/alcantara/StitchChooser'
 import { SettingHelp } from './SettingHelp'
@@ -26,7 +26,7 @@ export function ThemePicker() {
     return () => window.removeEventListener(THEME_CHANGED_EVENT, sync)
   }, [])
 
-  const shownLabel = THEMES.find((theme) => theme.id === shown)?.label ?? ''
+  const shownLabel = shown === DAY_NIGHT_THEME.id ? DAY_NIGHT_THEME.label : THEMES.find((theme) => theme.id === shown)?.label ?? ''
 
   const pick = (id: string) => {
     saveAppearance(id)

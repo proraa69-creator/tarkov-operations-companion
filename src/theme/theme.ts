@@ -12,13 +12,17 @@ export const THEMES: ThemeOption[] = [
   { id: 'slate', label: 'Металл', swatch: ['#16191e', '#3b414b', '#d89e68'] },
   { id: 'telnyashka', label: 'Тельняшка', swatch: ['#16171a', '#ece7da', '#1d3f78'] },
   { id: 'gear', label: 'Снаряжение', swatch: ['#12130e', '#5d6041', '#c9ad7a'] },
-  // Colours that follow the clock of the device (owner, 15.11.2026): theme/dayNight.ts, styles/theme-daynight.css
-  { id: 'daynight', label: 'День и ночь', swatch: ['#0f1612', '#2c3b33', '#e09650'] },
   // Halloween with zombies (owner, 31.10.2026): styles/theme-bloodmoon.css (CSS only)
   { id: 'bloodmoon', label: 'Кровавая луна', swatch: ['#0c0808', '#7a1d24', '#ff7a22'] },
   // «Сталь», «Перфорация» and «Алькантара» were removed from the picker on 04.10.2026, «Багровый» and «Ржавая сталь» on
   // 06.10.2026 (their CSS stays; a saved choice falls back to the default)
 ]
+
+/**
+ * «Смена дня и ночи» (owner, 15.11.2026): the olive scheme following the clock (theme/dayNight.ts). Not one of THEMES: the
+ * top-bar button's left click and Settings go through the ordinary schemes only; its right-click menu has it under them.
+ */
+export const DAY_NIGHT_THEME = { id: 'daynight', label: 'Смена дня и ночи' } as const
 
 /** «Алькантара»: the thread colour of the seams (Settings → «Цветовая схема» → «Строчка»). */
 export const ALCANTARA_STITCHES = [
@@ -56,7 +60,7 @@ function read(key: string) {
 /** The player's own choice (kept, and synced to the account), or the default. */
 export function savedTheme() {
   const saved = read(THEME_KEY)
-  return THEMES.some((theme) => theme.id === saved) ? saved! : defaultTheme()
+  return THEMES.some((theme) => theme.id === saved) || saved === DAY_NIGHT_THEME.id ? saved! : defaultTheme()
 }
 
 /** Picked in this run of the app. */
