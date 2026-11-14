@@ -1,0 +1,48 @@
+/* The change of colour scheme as one motion (src/theme/themeTransition.ts, owner 15.11.2026). The browser's own cross-fade is
+   off: each motion below says how the old picture gives way to the new one. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+/* «Растворение»: the old scheme melts into the new one. */
+:root[data-theme-motion="fade"]::view-transition-old(root) { animation: theme-fade-out 650ms cubic-bezier(.4, 0, .2, 1) both; }
+:root[data-theme-motion="fade"]::view-transition-new(root) { animation: theme-fade-in 650ms cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes theme-fade-out { to { opacity: 0; } }
+@keyframes theme-fade-in { from { opacity: 0; } }
+
+/* «Круг от кнопки»: the new scheme opens as a circle from the press. */
+:root[data-theme-motion="circle"]::view-transition-new(root) { animation: theme-circle 820ms cubic-bezier(.65, 0, .35, 1) both; }
+@keyframes theme-circle {
+  from { clip-path: circle(0 at var(--vt-x) var(--vt-y)); }
+  to { clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y)); }
+}
+
+/* «Шторка»: a soft-edged diagonal curtain from the top left to the bottom right. */
+:root[data-theme-motion="sweep"]::view-transition-new(root) {
+  -webkit-mask-image: linear-gradient(120deg, #000 46%, transparent 54%);
+  mask-image: linear-gradient(120deg, #000 46%, transparent 54%);
+  -webkit-mask-size: 300% 300%; mask-size: 300% 300%;
+  animation: theme-sweep 1000ms cubic-bezier(.65, 0, .35, 1) both;
+}
+@keyframes theme-sweep {
+  from { -webkit-mask-position: 100% 100%; mask-position: 100% 100%; }
+  to { -webkit-mask-position: 0 0; mask-position: 0 0; }
+}
+
+/* «Сканер»: a bright line runs down the screen and leaves the new scheme behind it. */
+:root[data-theme-motion="scan"]::view-transition-new(root) { animation: theme-scan-reveal 1100ms cubic-bezier(.45, 0, .55, 1) both; }
+@keyframes theme-scan-reveal {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+/* The line waits under the bottom edge, so nothing shows when the motion ends; its picture runs from the top down to there. */
+.theme-scan-line {
+  position: fixed; top: 100vh; left: 0; right: 0; height: 3px; pointer-events: none; z-index: 2147483647;
+  background: linear-gradient(90deg, transparent, var(--brass-strong) 12%, #fff6d8 50%, var(--brass-strong) 88%, transparent);
+  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--brass-strong) 70%, transparent), 0 0 46px 10px color-mix(in srgb, var(--brass) 35%, transparent);
+  view-transition-name: theme-scan;
+}
+::view-transition-group(theme-scan) { animation: none; }
+::view-transition-new(theme-scan) { animation: theme-scan-line 1100ms cubic-bezier(.45, 0, .55, 1) both; }
+@keyframes theme-scan-line {
+  from { transform: translateY(calc(-100vh - 3px)); }
+  to { transform: translateY(0); }
+}

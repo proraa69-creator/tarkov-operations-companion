@@ -1,4 +1,6 @@
 import { HALLOWEEN, isHalloween } from './halloween'
+import { withThemeTransition } from './themeTransition'
+import { startDayNight, stopDayNight } from './dayNight'
 
 export interface ThemeOption { id: string; label: string; swatch: [string, string, string] }
 
@@ -10,6 +12,8 @@ export const THEMES: ThemeOption[] = [
   { id: 'slate', label: 'Металл', swatch: ['#16191e', '#3b414b', '#d89e68'] },
   { id: 'telnyashka', label: 'Тельняшка', swatch: ['#16171a', '#ece7da', '#1d3f78'] },
   { id: 'gear', label: 'Снаряжение', swatch: ['#12130e', '#5d6041', '#c9ad7a'] },
+  // Colours that follow the clock of the device (owner, 15.11.2026): theme/dayNight.ts, styles/theme-daynight.css
+  { id: 'daynight', label: 'День и ночь', swatch: ['#0f1612', '#2c3b33', '#e09650'] },
   // Halloween with zombies (owner, 31.10.2026): styles/theme-bloodmoon.css (CSS only)
   { id: 'bloodmoon', label: 'Кровавая луна', swatch: ['#0c0808', '#7a1d24', '#ff7a22'] },
   // «Сталь», «Перфорация» and «Алькантара» were removed from the picker on 04.10.2026, «Багровый» and «Ржавая сталь» on
@@ -79,6 +83,8 @@ export function applyAppearance(theme = currentTheme()) {
   if (theme === 'tarkov') root.removeAttribute('data-theme')
   else root.setAttribute('data-theme', theme)
   root.setAttribute('data-alc-stitch', currentStitch())
+  if (theme === 'daynight') startDayNight()
+  else stopDayNight()
 }
 
 /** `picked: false` — the choice came from the account (another device), not from this screen: saved, not forced on. */
@@ -88,7 +94,9 @@ export function saveAppearance(theme: string, { picked = true } = {}) {
     if (picked) localStorage.setItem(THEME_PICKED_AT_KEY, new Date().toISOString())
   } catch { /* storage unavailable */ }
   if (picked) pickedNow = theme
-  applyAppearance()
+  // A scheme the player picks changes in one motion (theme/themeTransition.ts); one from the account just changes.
+  if (picked) withThemeTransition(() => applyAppearance())
+  else applyAppearance()
 }
 
 /** Next theme in the list, for the top-bar button that cycles through them. */

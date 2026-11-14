@@ -2,6 +2,7 @@
 export const THEME_PHRASES: Array<[string, string]> = [
   ['Олива', 'Olive'],
   ['Чёрный мультикам', 'Black MultiCam'],
+  ['День и ночь', 'Day and night'],
   ['Перфорация', 'Perforated steel'],
   ['Ржавая сталь', 'Rusted steel'],
   ['Металл', 'Metal'],
