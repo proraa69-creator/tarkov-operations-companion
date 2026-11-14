@@ -38,7 +38,7 @@
 .map-hud .marker-style-chevron { transition: transform .45s var(--hud-spring); }
 
 /* «ЛОКАЦИИ»: compact rows */
-.map-sidebar > div:first-child > .map-side-title { margin: 4px 7px 8px; }
+.map-sidebar > .map-side-maps > .map-side-title { margin: 4px 7px 8px; }
 .map-sidebar .map-option { min-height: 0; padding: 5px 8px; gap: 8px; margin-bottom: 1px; border-radius: 7px; font-size: 12.5px; line-height: 1.25; transition: background-color .3s var(--hud-soft), border-color .3s var(--hud-soft), color .3s var(--hud-soft); }
 .map-sidebar .map-option .map-color { width: 7px; height: 7px; }
 

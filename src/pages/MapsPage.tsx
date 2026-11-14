@@ -117,6 +117,7 @@ import { MapFloorWheel, useGameFloorWheel } from '../maps/mapFloorWheel'
 import { repeatsTitle } from '../maps/repeatsTitle'
 import { useMapFloorWheel } from '../account/trialFeatures'
 import { appStoreRules, isDesktopShell, useMobileLayout } from '../platform'
+import { MapPanelEye, MapPanelsSettings, useMapPanels } from '../maps/MapPanels'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -544,6 +545,13 @@ export function MapsPage() {
   }
   const [expanded, setExpanded] = useDesktopMapFullscreen(!mobile)
   const shellRef = useMapFitsWindow(!mobile)
+  // Report 158: the panels left and right or above and below the map, and each one hidden by its eye (maps/MapPanels.tsx).
+  const panels = useMapPanels()
+  const panelsOn = !mobile
+  const stacked = panelsOn && panels.layout === 'stacked'
+  const leftHidden = panelsOn && panels.leftHidden
+  const rightHidden = panelsOn && panels.rightHidden
+  useEffect(() => { if (panelsOn) resizeMapSoon() }, [panelsOn, stacked, leftHidden, rightHidden])
   const [fullscreen, setFullscreen] = usePhoneMapFullscreen(mobile)
   const [params, setParams] = useSearchParams()
   const { locale } = useLocale()
@@ -1138,10 +1146,15 @@ export function MapsPage() {
   const pointEmblems = useMemo<PointEmblem[]>(() => QUEST_POINT_ICONS.map((id) => ({ id, label: markerTypeLabel[id], icon: <LayerIcon style={markerStyle} layerId={id} active /> })), [markerStyle])
 
   return <div className="page map-page">
-    <div ref={shellRef} className={`map-shell${layersOpen ? ' layers-open' : ''}${expanded ? ' is-map-fullscreen' : ''}`}>
-      <aside className="map-sidebar">
-        {expanded && <button type="button" className="button map-fullscreen-back" onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" />{uiText('Назад')}</button>}
-        <div>
+    <div ref={shellRef} className={`map-shell${layersOpen ? ' layers-open' : ''}${expanded ? ' is-map-fullscreen' : ''}${stacked ? ' is-stacked' : ''}${leftHidden ? ' left-hidden' : ''}${rightHidden ? ' right-hidden' : ''}`}>
+      <aside className={`map-sidebar${leftHidden ? ' is-hidden' : ''}`}>
+        {panelsOn && <div className="map-panel-tools">
+          {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
+          <span className="map-panel-tools-gap" />
+          <MapPanelsSettings layout={panels.layout} />
+          <MapPanelEye side="left" hidden={leftHidden} />
+        </div>}
+        <div className="map-side-maps">
           <div className="map-side-title">{uiText("ЛОКАЦИИ")}</div>
           {uiText(data.maps.map((map) => (
             <button key={map.id} className={`map-option ${map.id === activeMap.id ? 'active' : ''}`} onClick={() => selectMap(map.id)}>
@@ -1150,7 +1163,7 @@ export function MapsPage() {
             </button>
           )))}
         </div>
-        <div>
+        <div className="map-side-layers">
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
           {/* The phone's list is long: a way back to the map without scrolling past it (owner, 07.11.2026). */}
           {mobile && <button type="button" className="map-layers-close" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={closeLayers}><X size={20} aria-hidden="true" /></button>}
@@ -1539,11 +1552,14 @@ export function MapsPage() {
       {/* The phone has no panel under the map (owner, 08.11.2026: «Найти точку… этажи… ниже идут актуальные квесты. Вот это убери
           все, потому что у нас есть на самой карте кнопка квест»): its quests, ticks and floors are on the map; only the quest
           constructor still opens here. */}
-      {(!mobile || questEditor.active) && <aside className="map-detail">
+      {(!mobile || questEditor.active) && <aside className={`map-detail${rightHidden ? ' is-hidden' : ''}`}>
         {/* Owner, 08.11.2026: «справа, где актуальные квесты, и там будет вот кнопка актуальные квесты и устранение». */}
-        {questEditor.active
-          ? <div className="panel-header"><div className="panel-title">{uiText('Конструктор квестов')}</div></div>
-          : <MapDetailTabs tab={detailTab} onTab={setDetailTab} quests={localMapQuests.length + anyMapQuests.length} kills={killsOpenCount} />}
+        <div className="map-detail-head">
+          {questEditor.active
+            ? <div className="panel-header"><div className="panel-title">{uiText('Конструктор квестов')}</div></div>
+            : <MapDetailTabs tab={detailTab} onTab={setDetailTab} quests={localMapQuests.length + anyMapQuests.length} kills={killsOpenCount} />}
+          {panelsOn && <MapPanelEye side="right" hidden={rightHidden} />}
+        </div>
         {questEditor.active ? (
           <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} items={data.items} traders={data.traders} onPick={pickEditorQuest} onFocus={(marker) => showMarker(marker, true)} onSelectMap={selectMap} />
         ) : (
