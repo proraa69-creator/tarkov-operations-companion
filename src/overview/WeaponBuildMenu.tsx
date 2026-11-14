@@ -5,6 +5,7 @@ import { Wrench } from 'lucide-react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { uiText } from '../i18n/renderText'
 import { usePopupMenu } from '../components/usePopupMenu'
+import { TakenMenuItem } from './TakenItems'
 
 /** «Сборка оружия» on this weapon, on «Готовые сборки» (pages/WeaponBuildsPage.tsx reads `weapon` and `tab`). */
 function weaponBuildsHref(weaponId: string) {
@@ -60,6 +61,7 @@ function WeaponBuildMenuView({ menu, onClose }: { menu: WeaponMenu | null; onClo
       <button type="button" role="menuitem" onClick={() => { onClose(); navigate(weaponBuildsHref(menu.id)) }}>
         <Wrench size={13} aria-hidden="true" />{uiText('Открыть сборку оружия')}
       </button>
+      <TakenMenuItem itemId={menu.id} onDone={onClose} />
     </div>,
     document.body,
   )

@@ -11,6 +11,7 @@ import { usePictures, type Pictures } from './usePictures'
 import { CHOICE_POPUP_CLASS, ChoicePopover } from './ChoicePopover'
 import type { DeferMenuState } from '../components/QuestDeferDialog'
 import { WeaponBuildMenuProvider, useWeaponBuildMenu } from './WeaponBuildMenu'
+import { TakenCheck, useItemTaken } from './TakenItems'
 import { ThumbScroll } from '../components/ThumbScroll'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
@@ -45,9 +46,12 @@ function nameOf(ref: ItemRef, pictures: Pictures) {
 /** `itemId`: the item a right click on the picture puts the quest aside for (its level for «До уровня»). */
 function Picture({ src, alt, className, fallback, itemId }: { src?: string; alt: string; className?: string; fallback: ReactNode; itemId?: string }) {
   const [broken, setBroken] = useState<string | undefined>()
-  return src && broken !== src
+  const taken = useItemTaken(itemId)
+  const picture = src && broken !== src
     ? <img className={className} src={src} alt={alt} title={alt} loading="lazy" onError={() => setBroken(src)} data-item-id={itemId} />
     : <span className={`${className ?? ''} is-empty`} title={alt} role="img" aria-label={alt} data-item-id={itemId}>{fallback}</span>
+  // «Взял» (report 157): the green check in the tile's top right corner.
+  return taken ? <span className="qc-taken" data-taken={itemId}>{picture}<TakenCheck /></span> : picture
 }
 
 function MapChips({ objective, mapName, limit = CARD_MAPS }: { objective: Pick<QuestObjective, 'mapIds'>; mapName: (id: string) => string; limit?: number }) {

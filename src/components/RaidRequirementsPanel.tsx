@@ -7,6 +7,7 @@ import { formatItemCountLabel } from '../shared/raidNeeds'
 import { useHoverCard } from './useHoverCard'
 import { ThumbScroll } from './ThumbScroll'
 import type { DeferMenuState } from './QuestDeferDialog'
+import { TakenCheck, useItemTaken, useTakenItemsMarks } from '../overview/TakenItems'
 
 export interface RaidNeedRow {
   key: string
@@ -98,7 +99,10 @@ function RaidNeed({ row, onDefer, compact = false }: { row: RaidNeedRow; onDefer
   // запоминая каждый квест»); on a quest's line, that quest is the one ticked. Not for an item added by hand, nor while a
   // held finger shows the hover card (its handler cancels the event then).
   const holdMenu = 'onContextMenu' in anchorProps ? anchorProps.onContextMenu : undefined
-  const openMenu = onDefer && quests.length ? (event: ReactMouseEvent<HTMLDivElement>) => {
+  // «Взял» (report 157) is offered on every item, an item added by hand too.
+  const marks = useTakenItemsMarks()
+  const taken = useItemTaken(row.itemId)
+  const openMenu = onDefer && (quests.length || (marks && row.itemId)) ? (event: ReactMouseEvent<HTMLDivElement>) => {
     holdMenu?.(event)
     if (event.defaultPrevented) return
     event.preventDefault()
@@ -110,7 +114,8 @@ function RaidNeed({ row, onDefer, compact = false }: { row: RaidNeedRow; onDefer
   } : holdMenu
   // The item's link covers the whole card (.raid-need-link::after); the quests' lines sit above it.
   return <>
-    <div className={`raid-need${row.alternatives ? ' has-alternatives' : ''}`} {...anchorProps} onContextMenu={openMenu}>
+    <div className={`raid-need${row.alternatives ? ' has-alternatives' : ''}${taken ? ' is-taken' : ''}`} {...anchorProps} onContextMenu={openMenu}>
+      {taken && <TakenCheck />}
       <img className={`item-thumb${row.alternatives?.turn ? ' raid-need-turn' : ''}`} key={turn} src={shown.iconUrl} alt="" />
       <span className="raid-need-copy">
         <Link to={row.href} className="raid-need-link"><strong>{uiText(formatItemCountLabel(shown.name, row.count))}{row.alternatives?.badge && <span className="tag raid-need-badge">{row.alternatives.badge}</span>}</strong></Link>

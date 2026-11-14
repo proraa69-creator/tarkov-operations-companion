@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useAppState } from '../state/AppState'
 import { clearFoundDocumentsOfProfile, watchRaidEnds } from '../progression/foundDocuments'
 import { clearQuestChecksBefore, watchRaidStarts } from '../progression/questChecks'
+import { clearTakenItemsBefore } from '../progression/takenItems'
 
 /**
  * Clears the quest checks («Сделал в этом рейде» on the map page) when the next raid starts: the checks made before it
@@ -17,8 +18,18 @@ export function QuestChecksRaidReset() {
   useEffect(() => {
     const desktop = window.tarkovDesktop
     if (!desktop?.getRaidState || !desktop.onRaidStateChanged) return
-    const stopStarts = watchRaidStarts(desktop, (startedAt) => { clearQuestChecksBefore(profileRef.current, startedAt) })
-    const stopEnds = watchRaidEnds(desktop, () => { clearFoundDocumentsOfProfile(profileRef.current) })
+    // «Взял» on the Overview's items (report 157): the marks made before a raid go once that raid is over — a raid really
+    // played (watchRaidStarts confirms it), so a cancelled search for a match keeps them.
+    let raidStartedAt: number | undefined
+    const stopStarts = watchRaidStarts(desktop, (startedAt) => {
+      clearQuestChecksBefore(profileRef.current, startedAt)
+      raidStartedAt = startedAt
+    })
+    const stopEnds = watchRaidEnds(desktop, () => {
+      clearFoundDocumentsOfProfile(profileRef.current)
+      if (raidStartedAt !== undefined) clearTakenItemsBefore(profileRef.current, raidStartedAt)
+      raidStartedAt = undefined
+    })
     return () => { stopStarts(); stopEnds() }
   }, [])
 
