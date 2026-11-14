@@ -1,4 +1,9 @@
 [
+  {"version":"0.6.0.303","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Обзор: правый клик по предмету — «Взял», зелёная галочка до конца рейда","en":"Overview: right-click an item — «Taken», a green check until the raid ends"},
+    {"kind":"added","ru":"Карты: шестерёнка — панели слева и справа или сверху и снизу","en":"Maps: a gear puts the panels left and right or above and below"},
+    {"kind":"added","ru":"Карты: кнопка-глаз скрывает панель и возвращает её","en":"Maps: an eye button hides a panel and brings it back"}
+  ]},
   {"version":"0.6.0.302","date":"2026-11-14","items":[
     {"kind":"added","ru":"Дерево квестов: кнопка «Открыть на весь экран»","en":"Quest tree: «Open full screen» button"},
     {"kind":"improved","ru":"Карты: убраны лишние метки багажников машин","en":"Maps: removed wrong car trunk markers"}
