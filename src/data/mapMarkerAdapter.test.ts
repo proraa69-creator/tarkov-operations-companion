@@ -505,6 +505,24 @@ describe('locks the current tarkov.dev feed lost (keyDoorNames.ts KEY_DOOR_EXTRA
     // Not on other maps.
     expect(adaptLiveMapMarkers({ maps: { woods: { normalizedName: 'woods', locks: [] } } }, {}, context).some((marker) => marker.lock?.keyId === EXIT_KEY)).toBe(false)
   })
+
+  it('draws no car trunk «opened» by the Factory exit key (report 156: Ground Zero\'s, beyond the map\'s edge); other trunks stay', () => {
+    const OTHER_KEY = '61aa5ba8018e9821b7368da9'
+    const locks = (mapId: string, rows: unknown[]) => adaptLiveMapMarkers({ maps: { [mapId]: { normalizedName: mapId, locks: rows } } }, {}, context).filter((marker) => marker.layerId === 'key')
+    const groundZero = locks('ground-zero', [
+      { id: 'beyond-edge', lockType: 'trunk', key: EXIT_KEY, position: { x: 264.95, y: 17.95, z: 56.14 } },
+      { id: 'street', lockType: 'trunk', key: EXIT_KEY, position: { x: 80.03, y: 15.74, z: 147.8 } },
+    ])
+    expect(groundZero).toEqual([])
+    const streets = locks('streets-of-tarkov', [
+      { id: 'placeholder', lockType: 'trunk', key: EXIT_KEY, position: { x: 98.78, y: 3.8, z: 332.94 } },
+      { id: 'real', lockType: 'trunk', key: OTHER_KEY, position: { x: 120, y: 3.8, z: 300 } },
+    ])
+    expect(streets.map((marker) => [marker.id, marker.lock?.kind])).toEqual([['streets-of-tarkov-lock-real', 'trunk']])
+    // The key's own doors on Factory stay on the map.
+    const factory = locks('factory', [{ id: 'gate', lockType: 'door', key: EXIT_KEY, position: { x: 10, y: 0.5, z: 10 } }])
+    expect(factory.map((marker) => marker.lock?.keyId)).toEqual([EXIT_KEY])
+  })
 })
 
 describe('boss markers are merged within ~100 m (BOSS_MERGE_METRES)', () => {
