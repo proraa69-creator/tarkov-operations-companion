@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest'
  * Owner, 07.11.2026: «Окна не должны выходить выше него» (the level of the page on a phone, --window-top). A new full-screen window
  * has to be named in the block of styles/mobile.css, or be told apart here.
  */
-/** Full-screen, but no window: decoration, a guide's own layer that places its card, the bars' backdrops, a whole-screen mode. */
-const NOT_WINDOWS = new Set(['frg-layer', 'gear-hangers', 'quest-sheet-backdrop', 'mobile-more-backdrop', 'map-stage', 'is-fullscreen', 'is-map-fullscreen'])
+/** Full-screen, but no window: decoration, a guide's own layer that places its card, the bars' backdrops, a whole-screen mode (the map's, the quest tree's on the PC). */
+const NOT_WINDOWS = new Set(['frg-layer', 'gear-hangers', 'quest-sheet-backdrop', 'mobile-more-backdrop', 'map-stage', 'is-fullscreen', 'is-map-fullscreen', 'quest-tree-page'])
 const OWN_RULE = new Set(['search-overlay', 'gallery-overlay', 'support-image-lightbox', 'admin-report-lightbox', 'requests-viewer'])
 
 function files(dir: string): string[] {
