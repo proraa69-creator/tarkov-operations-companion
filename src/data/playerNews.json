@@ -1,4 +1,12 @@
 [
+  {"version":"0.6.0.304","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Отряд: тиммейты на карте по скриншоту — своим цветом и с ником","en":"Squad: teammates on the map from their screenshot, in their colour with their name"},
+    {"kind":"added","ru":"Отряд: общие рисунки на карте и кнопка «Квесты отряда»","en":"Squad: shared map drawings and the «Squad quests» button"},
+    {"kind":"added","ru":"Отряд: «Настройки отряда» и кнопка «В отряд» у друзей","en":"Squad: «Squad settings» and a «To squad» button on friends"},
+    {"kind":"added","ru":"Карта: зажатая правая кнопка двигает карту при рисовании","en":"Map: hold the right button to move the map while drawing"},
+    {"kind":"improved","ru":"Приоритет карт: подсвечена выбранная карта","en":"Map priority: the chosen map is highlighted"},
+    {"kind":"improved","ru":"Интерфейс подстраивается под вертикальные и небольшие мониторы","en":"The interface fits upright and smaller monitors"}
+  ]},
   {"version":"0.6.0.303","date":"2026-11-14","items":[
     {"kind":"added","ru":"Обзор: правый клик по предмету — «Взял», зелёная галочка до конца рейда","en":"Overview: right-click an item — «Taken», a green check until the raid ends"},
     {"kind":"added","ru":"Карты: шестерёнка — панели слева и справа или сверху и снизу","en":"Maps: a gear puts the panels left and right or above and below"},
