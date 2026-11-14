@@ -261,3 +261,46 @@ test('invite code normalization', () => {
   assert.equal(normalizeSquadCode('ABCDE-FGHJU'), null)
   assert.equal(normalizeSquadCode('ABCD'), null)
 })
+
+// «Местоположение тиммейтов» and «Передача зарисовок» (owner, 14.11.2026): /v1/squad-live, in memory, members only.
+test('squad live: positions and drawings reach the other members at once, nobody outside the squad', async () => {
+  await withServer(async ({ call, trial }) => {
+    const a = await trial('alpha@example.com')
+    const b = await trial('bravo@example.com')
+    const c = await trial('charlie@example.com')
+    const squad = await createSquad(call, a)
+    await call('POST', '/v1/squads/join', { code: await invite(call, a, squad.id) }, b)
+    const members = (await json<{ squad: SquadView }>(await call('GET', '/v1/squads/mine/pvp', undefined, b))).squad.members
+    const alpha = members.find((member) => !member.isYou)!.memberId
+    type Live = { version: number; positions: Array<{ memberId: string; x: number; map?: string }>; sketches: Array<{ memberId: string; mapId: string; strokes: unknown[] }> }
+    const read = async (token: string, since?: number) => json<Live>(await call('GET', `/v1/squad-live/${squad.id}/pvp${since === undefined ? '' : `?since=${since}`}`, undefined, token))
+
+    assert.equal((await call('GET', `/v1/squad-live/${squad.id}/pvp`)).status, 401)
+    assert.equal((await call('GET', `/v1/squad-live/${squad.id}/pvp`, undefined, c)).status, 404)
+    assert.equal((await call('POST', `/v1/squad-live/${squad.id}/pvp/position`, { x: 1, y: 0, z: 2, yaw: 0, at: 1 }, c)).status, 404)
+    const first = await read(b)
+    assert.deepEqual([first.positions, first.sketches], [[], []])
+
+    // b waits; a's screenshot wakes it.
+    const waiting = read(b, first.version)
+    assert.equal((await call('POST', `/v1/squad-live/${squad.id}/pvp/position`, { x: 10, y: 0, z: -5, yaw: 90, at: Date.now(), map: 'customs' }, a)).status, 201)
+    const woke = await waiting
+    assert.deepEqual(woke.positions.map((entry) => [entry.memberId, entry.x, entry.map]), [[alpha, 10, 'customs']])
+    // Not one's own, and not another mode.
+    assert.deepEqual((await read(a)).positions, [])
+    assert.deepEqual((await json<Live>(await call('GET', `/v1/squad-live/${squad.id}/pve`, undefined, b))).positions, [])
+
+    const strokes = [{ zoom: 2, points: [[1, 2], [3, 4]], color: '#ff2b2b' }]
+    assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes }, a)).status, 200)
+    assert.deepEqual((await read(b)).sketches.map((entry) => [entry.memberId, entry.mapId, entry.strokes]), [[alpha, 'customs', strokes]])
+    assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes: [] }, a)).status, 200)
+    assert.deepEqual((await read(b)).sketches, [])
+    assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes: [{ zoom: 2, points: [[1, 2]], color: 'red' }] }, a)).status, 400)
+    assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/../x`, { strokes }, a)).status, 404)
+
+    // Left the squad: what a sent is no longer shown, and a cannot read any more.
+    await call('POST', `/v1/squads/${squad.id}/leave`, undefined, a)
+    assert.deepEqual((await read(b)).positions, [])
+    assert.equal((await call('GET', `/v1/squad-live/${squad.id}/pvp`, undefined, a)).status, 404)
+  })
+})

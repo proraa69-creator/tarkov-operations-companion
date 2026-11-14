@@ -94,6 +94,8 @@ import { useRaidRoute } from '../raidprep/useRaidPrep'
 import { useSquadSharedQuests } from '../squad/useSquad'
 import { FriendQuestMarkers, FriendQuestToggle } from '../squad/FriendQuestsOnMap'
 import { useFriendQuestLayer } from '../squad/friendQuestLayer'
+import { useSquadLive } from '../squad/squadLive'
+import { SquadMateMarkers, SquadSketchLines } from '../squad/SquadLiveOnMap'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
@@ -609,7 +611,9 @@ export function MapsPage() {
   // Report №97: the map dragged since the last press — a point's click then is the end of a drag (maps/mapDragGuard.tsx).
   const mapDragged = useRef(false)
   // «Зарисовка» (a player's proposal №80): while it is drawn the points do not take a press, as with the ruler.
-  const sketch = useMapSketch(state.activeProfile.id, state.raidMode, activeMap.id)
+  // The squad's mates and drawings (squad/squadLive.ts): a drawing kept here goes to them when «Зарисовки» is on.
+  const squadLive = useSquadLive(state.raidMode)
+  const sketch = useMapSketch(state.activeProfile.id, state.raidMode, activeMap.id, squadLive.shareSketch)
   const toolActive = tools.tool !== 'none' || sketch.editing
   const [search, setSearch] = useState('')
   const focusedQuestId = params.get('quest')
@@ -819,6 +823,8 @@ export function MapsPage() {
   const squadShared = useSquadSharedQuests(state.raidMode)
   // «Квесты друзей»: friends' quest points in their colours (squad/FriendQuestsOnMap.tsx).
   const friendQuests = useFriendQuestLayer(state.raidMode, activeMap.id, data.quests, data.markers)
+  // «Квесты отряда»: its own button, there while «Настройки отряда» has it on (owner, 14.11.2026).
+  const squadQuests = useFriendQuestLayer(state.raidMode, activeMap.id, data.quests, data.markers, 'squad')
   // «Отложенные квесты»: the quests of this map first in the window; the button is the PC's (a right click puts one aside).
   const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById, first: onThisMap, progress }), [currentQuests, deferred, data.maps, itemsById, onThisMap, progress])
   const deferredHere = deferredRows.some(({ quest }) => onThisMap(quest))
@@ -1209,6 +1215,7 @@ export function MapsPage() {
           {/* The phone has no «Отложенные квесты» over the map: «Устранения» stands in the HUD, after «Слои». */}
           {mobile && killList.length > 0 && <MapKillsButton count={killsOpenCount} open={killsOpen} onToggle={() => setKillsOpen((open) => !open)} buttonRef={killsButtonRef} />}
           <FriendQuestToggle layer={friendQuests} />
+          <FriendQuestToggle layer={squadQuests} />
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
           <BossPlacementControls state={bossPlacement} />
           <QuestEditorButton state={questEditor} onToggle={(on) => { if (on) setBossActive(false) }} />
@@ -1267,10 +1274,13 @@ export function MapsPage() {
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
           {questEditor.active && proposal && <Marker position={[proposal.z, proposal.x]} icon={PROPOSAL_ICON} interactive={false} keyboard={false}><Tooltip permanent direction="top">{uiText('Место из заявок игроков')}</Tooltip></Marker>}
           <MapToolLayer value={tools} onChange={setTools} />
+          <SquadSketchLines sketches={squadLive.sketches} mapId={activeMap.id} />
           <MapSketchLayer sketch={sketch} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
+          <SquadMateMarkers mates={squadLive.positions} mapId={activeMap.id} />
           <FriendQuestMarkers points={friendQuests.points} />
+          <FriendQuestMarkers points={squadQuests.points} />
           {/* «Места устранения»: the kill quests' zones in the mines' dashes, orange for Scavs and any target, green for PMCs. */}
           {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onOpen={openKillZoneQuest} onClear={() => { setKillFocus(null); clearQuestSelection() }} />}
           {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}

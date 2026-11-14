@@ -56,6 +56,7 @@ import { IphoneUpdateBanner } from '../mobile/IphoneUpdateBanner'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
+import { useSquadLocationShare } from '../squad/useSquadLocationShare'
 import { usePresenceHeartbeat } from '../sync/presence'
 import { useShareLevels } from '../squad/useShareLevels'
 import { setMapMirrorServer } from '../data/mapMirror'
@@ -120,6 +121,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nickname = useAccountNickname()
   // Friend requests and squad invitations arrive at once; the «Отряд» button counts them (squad/useSocialEvents.ts).
   useSocialEvents(raidMode)
+  // «Местоположение отряда»: each screenshot's place goes to the squad while it is on (squad/useSquadLocationShare.ts).
+  useSquadLocationShare(raidMode)
   // «Онлайн сейчас»: this app tells the server it is open while signed in, about once a minute (sync/presence.ts).
   usePresenceHeartbeat()
   // Our server's copy of the maps (data/mapMirror.ts) lives on the account's server.

@@ -77,6 +77,46 @@ describe('the pencil on the map', () => {
     expect(localStorage.getItem(key)).toBeNull()
   })
 
+  it('the right button held moves the map while drawing and draws nothing; no menu (owner, 14.11.2026)', () => {
+    render(<Stage />)
+    fireEvent.click(button('Зарисовка'))
+    const before = leaflet.getCenter()
+    fireEvent.pointerDown(container(), { pointerId: 7, button: 2, clientX: 100, clientY: 100, pointerType: 'mouse' })
+    expect(container()).toHaveClass('is-sketch-panning')
+    fireEvent.pointerMove(container(), { pointerId: 7, clientX: 160, clientY: 130 })
+    fireEvent.pointerUp(container(), { pointerId: 7, clientX: 160, clientY: 130 })
+    expect(container()).not.toHaveClass('is-sketch-panning')
+    const after = leaflet.getCenter()
+    expect([after.lat !== before.lat, after.lng !== before.lng]).toEqual([true, true])
+    expect(sketch.strokes).toHaveLength(0)
+    expect(fireEvent.contextMenu(container())).toBe(false)
+    // the left button still draws
+    press(1, 10, 10); move(1, 50, 10); lift(1, 90, 10)
+    expect(sketch.strokes).toHaveLength(1)
+  })
+
+  it('a kept drawing, and a closed one, go to whoever listens (the squad: squad/squadLive.ts)', () => {
+    const kept: Array<[string, number]> = []
+    function Shared() {
+      const value = useMapSketch('p1', 'pvp', 'customs', (mapId, strokes) => kept.push([mapId, strokes.length]))
+      useEffect(() => { sketch = value })
+      return <>
+        <MapSketchToolbar sketch={value} onBegin={() => {}} />
+        <MapContainer crs={CRS.Simple} center={[0, 0]} zoom={1} zoomControl={false} attributionControl={false} style={{ width: 400, height: 400 }}>
+          <Grab />
+          <MapSketchLayer sketch={value} />
+        </MapContainer>
+      </>
+    }
+    render(<Shared />)
+    fireEvent.click(button('Зарисовка'))
+    press(1, 10, 10); move(1, 50, 10); lift(1, 90, 10)
+    expect(kept).toEqual([])
+    fireEvent.click(button('Ок'))
+    fireEvent.click(button('Закрыть зарисовку'))
+    expect(kept).toEqual([['customs', 1], ['customs', 0]])
+  })
+
   it('«Отмена» leaves nothing of what was drawn', () => {
     render(<Stage />)
     fireEvent.click(button('Зарисовка'))

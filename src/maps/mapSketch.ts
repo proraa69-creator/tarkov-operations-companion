@@ -218,8 +218,11 @@ export interface MapSketch {
   close: () => void
 }
 
-/** Another map, mode or profile starts with its own drawing; what was being drawn and not accepted is dropped. */
-export function useMapSketch(profileId: string, mode: RaidMode, mapId: string): MapSketch {
+/**
+ * Another map, mode or profile starts with its own drawing; what was being drawn and not accepted is dropped. `onKeep`: the drawing
+ * of this map as kept with ✓ (or none, closed) — the squad gets it (squad/squadLive.ts).
+ */
+export function useMapSketch(profileId: string, mode: RaidMode, mapId: string, onKeep?: (mapId: string, strokes: SketchStroke[]) => void): MapSketch {
   const key = mapSketchKey(profileId, mode, mapId)
   const [state, setState] = useState(() => ({ key, kept: readMapSketch(key), edit: null as SketchEdit | null }))
   const current = state.key === key ? state : { key, kept: readMapSketch(key), edit: null }
@@ -235,7 +238,8 @@ export function useMapSketch(profileId: string, mode: RaidMode, mapId: string): 
     const merged = withOtherDevices(strokes, kept, readMapSketch(key))
     writeMapSketch(key, merged)
     setState({ key, kept: merged, edit: null })
-  }, [key, kept])
+    onKeep?.(mapId, merged)
+  }, [key, kept, mapId, onKeep])
 
   // Another device drew or took something off: it shows at once. While a drawing is on here, it joins when that is kept (`keep`) or dropped.
   const drawing = Boolean(edit)

@@ -1,0 +1,11 @@
+/* The squad's mates on the map (squad/SquadLiveOnMap.tsx): the player's own marker in the mate's colour, the name under it. */
+.squad-mate { background: transparent; border: 0; }
+.squad-mate-mark { display: block; width: 24px; height: 24px; }
+.squad-mate-mark svg { width: 24px; height: 24px; }
+.squad-mate-mark .pm .pm-core { fill: var(--mate); stroke: #fff; }
+.squad-mate-mark .pm .pm-cone { fill: color-mix(in srgb, var(--mate) 30%, transparent); }
+.squad-mate-mark .pm .pm-halo { fill: color-mix(in srgb, var(--mate) 24%, transparent); }
+.squad-mate.is-stale { opacity: .5; }
+.leaflet-tooltip.squad-mate-name { padding: 1px 6px; border: 1px solid rgb(255 255 255 / 12%); border-radius: 6px; background: rgb(10 13 11 / 86%); box-shadow: none; font-size: 11px; font-weight: 750; white-space: nowrap; }
+.leaflet-tooltip.squad-mate-name::before { display: none; }
+.leaflet-tooltip.squad-mate-name small { color: var(--text-dim); font-weight: 600; }

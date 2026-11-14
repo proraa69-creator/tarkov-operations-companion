@@ -12,6 +12,7 @@ import {
 import { invalidateSquads, useSquad, useSquadComputed } from './useSquad'
 import { CopyField, ErrorLine, MemberAvatar, MemberChips } from './squadUi'
 import { SquadMapBoard } from './SquadMapBoard'
+import { SquadSettingsPanel } from './SquadSettingsPanel'
 import { friendLabel, memberLabel, modeLabel } from './squadLabels'
 import { hidesPayments } from '../platform'
 
@@ -208,6 +209,9 @@ function SquadView({ squad, overview, mode, data, friends, access, busy, run, ac
         <ErrorLine message={actionError} />
         {notice && <p className="squad-notice" role="status">{uiText(notice)}</p>}
       </section>
+
+      {/* Owner, 14.11.2026: «В блоке отряд у нас будет настройка отряда». */}
+      <SquadSettingsPanel />
 
       {access && computed && (
         <>
