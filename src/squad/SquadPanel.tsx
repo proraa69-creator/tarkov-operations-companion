@@ -70,6 +70,8 @@ export function SquadPanel({ mode, data, friends, initialCode }: { mode: RaidMod
           <JoinSquadCard disabled={!mine.access || Boolean(busy)} busy={busy === 'join'} initialCode={initialCode} onJoin={(code) => void run('join', () => joinSquad(code))} />
         </div>
         <ErrorLine message={actionError} />
+        {/* Every player has them, in a squad or not yet (owner, 14.11.2026: «настройки отряда должны быть у всех участников»). */}
+        <SquadSettingsPanel />
       </div>
     )
   }
