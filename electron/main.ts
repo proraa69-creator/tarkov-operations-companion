@@ -1,7 +1,7 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
-import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
+import { displayScale, followDisplayScale, opensMaximized, scaledWindowSize } from './uiScale.js'
 import { readSavedWindow, rememberWindow, restoredBounds } from './windowState.js'
 import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
@@ -203,6 +203,8 @@ function createWindow() {
   const stateFile = join(app.getPath('userData'), 'window-state.json')
   const saved = readSavedWindow(stateFile)
   const restored = saved && restoredBounds(saved, screen.getAllDisplays().map((entry) => entry.workArea), { width: size.minWidth, height: size.minHeight })
+  // An upright monitor or a small screen: the first start fills it (electron/uiScale.ts opensMaximized).
+  const maximizeAtStart = !restored && opensMaximized(size, display.workArea)
   mainWindow = new BrowserWindow({
     ...size,
     ...(restored ?? {}),
@@ -245,7 +247,7 @@ function createWindow() {
   const reveal = () => {
     clearTimeout(revealAnyway)
     if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return
-    if (restored && saved?.maximized) mainWindow.maximize()
+    if ((restored && saved?.maximized) || maximizeAtStart) mainWindow.maximize()
     else mainWindow.show()
   }
   const revealAnyway = setTimeout(reveal, WINDOW_REVEAL_MAX_MS)

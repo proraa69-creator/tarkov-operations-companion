@@ -7,14 +7,22 @@ import { screen, type BrowserWindow, type Display } from 'electron'
  * 1440p at 100 % → 1.33, an ultrawide 3440×1440 → 1.33 (by its height, more room across), Full HD and smaller → 1.
  * The CSS layout therefore always sees about 1920×1080, and text and pictures are drawn at the screen's full sharpness.
  * Moving the window to another monitor re-scales it (and resizes it in proportion, so the layout stays the same).
+ *
+ * Owner, 14.11.2026 («адаптацию под все мониторы, все размеры… сама определяла, какое разрешение стоит, и сама автоматически
+ * выставляла размер»): a monitor stood upright (9:16) is measured against Full HD upright, 1080×1920, so a 4K one gets 2 as
+ * it does lying down; and a screen smaller than Full HD (1366×768, 1600×900, a laptop at 125 %) is zoomed out down to 0.8,
+ * so the layout still sees about Full HD instead of a cramped page.
  */
 export const FULL_HD = { width: 1920, height: 1080 }
+export const FULL_HD_UPRIGHT = { width: 1080, height: 1920 }
+const MIN_SCALE = 0.8
 const MAX_SCALE = 3
 
 export function uiScaleFor(size: { width: number; height: number }) {
-  const ratio = Math.min(size.width / FULL_HD.width, size.height / FULL_HD.height)
-  if (!Number.isFinite(ratio)) return 1
-  return Math.min(MAX_SCALE, Math.max(1, Math.round(ratio * 20) / 20))
+  const reference = size.height > size.width ? FULL_HD_UPRIGHT : FULL_HD
+  const ratio = Math.min(size.width / reference.width, size.height / reference.height)
+  if (!Number.isFinite(ratio) || ratio <= 0) return 1
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(ratio * 20) / 20))
 }
 
 export const displayScale = (display: Pick<Display, 'size'>) => uiScaleFor(display.size)
@@ -23,6 +31,14 @@ export const displayScale = (display: Pick<Display, 'size'>) => uiScaleFor(displ
 export function scaledWindowSize(base: { width: number; height: number; minWidth: number; minHeight: number }, scale: number, area: { width: number; height: number }) {
   const fit = (value: number, limit: number) => Math.min(Math.round(value * scale), limit)
   return { width: fit(base.width, area.width), height: fit(base.height, area.height), minWidth: fit(base.minWidth, area.width), minHeight: fit(base.minHeight, area.height) }
+}
+
+/**
+ * The first start (no remembered place): a window that would take almost the whole work area anyway — an upright monitor,
+ * a small laptop screen — opens maximized instead of a few pixels short of it.
+ */
+export function opensMaximized(size: { width: number; height: number }, area: { width: number; height: number }) {
+  return size.width >= area.width * 0.9 || size.height >= area.height * 0.95
 }
 
 /**
