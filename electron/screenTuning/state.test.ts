@@ -114,3 +114,32 @@ describe('a preset turned on by hand is on the screen at once (owner, 11.11.2026
     expect(presetShown({ enabled: false, raid: true, manualOnAt: now, now })).toBe(false)
   })
 })
+
+// Owner, 15.11.2026: «если у человека пресет переименован уже… пусть остается его версия. Если… не переименованы, значит, они
+// должны переименоваться первый, второй, третий…».
+describe('our presets named by number', () => {
+  const pick = (settings: ReturnType<typeof cleanSettings>, id: string) => allPresets(settings).find((preset) => preset.id === id)!
+
+  it('an untouched one, and one tuned under its old name (in either language), is «Пресет N» now', () => {
+    const stored = cleanSettings({
+      builtIns: {
+        'builtin-owner-full-dark': { name: 'Таможня ночь', profile: { ...NEUTRAL, name: 'Таможня ночь', gamma: 1.3 } },
+        'builtin-daylight': { name: 'Like daytime', profile: { ...NEUTRAL, name: 'Like daytime', gamma: 1.2 } },
+      },
+    })
+    expect(pick(stored, 'builtin-owner-full-dark')).toMatchObject({ name: 'Пресет 1', gamma: 1.3, edited: true })
+    expect(pick(stored, 'builtin-daylight')).toMatchObject({ name: 'Пресет 4', gamma: 1.2 })
+    expect(pick(cleanSettings({}), 'builtin-bright-clean').name).toBe('Пресет 6')
+    expect(allPresets(cleanSettings({})).map((preset) => preset.name)).toEqual(['Без изменений', 'Пресет 1', 'Пресет 2', 'Пресет 3', 'Пресет 4', 'Пресет 5', 'Пресет 6'])
+  })
+
+  it('a name the player gave stays, and tuning one under our name later does not keep that name', () => {
+    const renamed = cleanSettings({ builtIns: { 'builtin-owner-bright': { name: 'Мой вечер' } } })
+    expect(pick(renamed, 'builtin-owner-bright').name).toBe('Мой вечер')
+    const tuned = savePreset(cleanSettings({}), { ...NEUTRAL, id: 'builtin-owner-bright-room', name: 'Пресет 2', gamma: 1.5 }, () => 'own').settings
+    expect(tuned.builtIns['builtin-owner-bright-room']).not.toHaveProperty('name')
+    expect(pick(tuned, 'builtin-owner-bright-room')).toMatchObject({ name: 'Пресет 2', gamma: 1.5 })
+    const keeps = savePreset(renamed, { ...NEUTRAL, id: 'builtin-owner-bright', name: 'Мой вечер', gamma: 1.6 }, () => 'own').settings
+    expect(pick(keeps, 'builtin-owner-bright')).toMatchObject({ name: 'Мой вечер', gamma: 1.6 })
+  })
+})
