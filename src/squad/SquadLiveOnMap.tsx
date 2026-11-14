@@ -6,7 +6,8 @@ import { useOwnMarkerStyle, useScreenAngle } from '../components/LivePlayerMarke
 import { uiText } from '../i18n/renderText'
 import { SKETCH_DEFAULT_COLOR, sketchLineWidth } from '../maps/mapSketch'
 import { playerMarkerSvg, type PlayerMarkerStyle } from '../overlay/playerMarker'
-import type { SquadMate, SquadMateSketch } from './squadLive'
+import { Pencil, X } from 'lucide-react'
+import { hideSquadSketch, type SquadMate, type SquadMateSketch } from './squadLive'
 import './squadLive.css'
 
 /** Older than this, a mate's marker fades: the place is from a while ago. */
@@ -55,4 +56,22 @@ export function SquadSketchLines({ sketches, mapId }: { sketches: SquadMateSketc
       pathOptions={{ color: stroke.color ?? SKETCH_DEFAULT_COLOR, weight: sketchLineWidth(map.getZoomScale(zoom, stroke.zoom)), lineCap: 'round', lineJoin: 'round', opacity: 0.9 }}
     />))}
   </Pane>
+}
+
+/**
+ * Over the map, one chip per mate's drawing of this map: whose it is, in the mate's colour, and a cross that takes that drawing off
+ * this player's map only (owner, 14.11.2026: «чтобы человек понимал, что это нарисовал тиммейт, и можно было удалить именно его рисунок»).
+ */
+export function SquadSketchChips({ sketches, mapId }: { sketches: SquadMateSketch[]; mapId: string }) {
+  const here = sketches.filter((sketch) => sketch.mapId === mapId)
+  if (!here.length) return null
+  return <div className="squad-sketch-chips" role="group" aria-label={uiText('Рисунки отряда')}>
+    {here.map((sketch) => {
+      const remove = `${uiText('Убрать рисунок')} ${sketch.nickname}`
+      return <span key={sketch.memberId} className="squad-sketch-chip" style={{ '--mate': sketch.color } as React.CSSProperties} title={`${uiText('Рисунок')} ${sketch.nickname}`}>
+        <Pencil size={12} aria-hidden="true" />{sketch.nickname}
+        <button type="button" aria-label={remove} title={remove} onClick={() => hideSquadSketch(sketch.memberId, sketch.mapId, sketch.at)}><X size={13} aria-hidden="true" /></button>
+      </span>
+    })}
+  </div>
 }

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
-import { Ban, Check, ChevronDown, ChevronUp, Eye, EyeOff, Info, LoaderCircle, RefreshCw, ShieldAlert, UserMinus, UserPlus, X } from 'lucide-react'
+import { Ban, Check, ChevronDown, ChevronUp, Eye, EyeOff, Info, LoaderCircle, RefreshCw, ShieldAlert, UserMinus, UserPlus, Users, X } from 'lucide-react'
 import type { AppDataset, RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { QrCode } from '../components/QrCode'
 import {
-  answerFriendRequest, extractFriendCode, fetchPlannerPeople, friendAction, regenerateFriendCode, sendFriendRequest, setHideProgress, siteAddress,
+  answerFriendRequest, createSquad, extractFriendCode, fetchPlannerPeople, friendAction, inviteFriendToSquad, regenerateFriendCode, sendFriendRequest, setHideProgress, siteAddress,
   type Friend, type FriendsOverview, type PlannerPerson,
 } from './socialClient'
 import { CopyField, ErrorLine } from './squadUi'
@@ -12,6 +12,7 @@ import { friendLabel, modeLabel } from './squadLabels'
 import { friendColors } from './friendColors'
 import { FriendInfoDialog } from './FriendInfoDialog'
 import { hidesPayments } from '../platform'
+import { invalidateSquads, loadSquad, useSquad } from './useSquad'
 
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
@@ -32,6 +33,28 @@ export function FriendsPanel({ mode, data, friends, error, loading, reload, init
     void siteAddress().then((site) => { if (active) setLink(site ? `${site.replace(/\/+$/, '')}/friend/${friends.code}` : '') })
     return () => { active = false }
   }, [friends?.code])
+
+  // «В отряд» on a friend (owner, 14.11.2026: «добавился в друзья и можешь добавить в отряд»): the commander invites; without a
+  // squad the first press makes one. The friend answers the invitation on «Отряд».
+  const squadState = useSquad(mode, { poll: false })
+  const mySquad = squadState.mine?.squad ?? null
+  const mayInvite = squadState.mine?.access === true && (!mySquad || (mySquad.isOwner && mySquad.members.length < mySquad.maxMembers))
+  const squadOf = (friend: Friend): 'in' | 'can' | 'none' => {
+    const name = friendLabel(friend.nicknames, mode).toLowerCase()
+    if (mySquad?.members.some((member) => !member.isYou && member.nickname?.toLowerCase() === name)) return 'in'
+    return mayInvite ? 'can' : 'none'
+  }
+  const addToSquad = (friend: Friend) => void run(`squad:${friend.friendId}`, async () => {
+    let squadId = mySquad?.id
+    if (!squadId) {
+      const created = await createSquad('') as { squad?: { id?: unknown } } | null
+      squadId = typeof created?.squad?.id === 'string' ? created.squad.id : undefined
+      if (!squadId) throw new Error('Не удалось создать отряд')
+    }
+    await inviteFriendToSquad(squadId, friend.friendId)
+    invalidateSquads()
+    await loadSquad(mode)
+  }, 'Приглашение в отряд отправлено: друг увидит его на странице «Отряд».')
 
   const run = async (key: string, work: () => Promise<unknown>, success: string | ((result: unknown) => string) = '') => {
     setBusy(key)
@@ -104,6 +127,7 @@ export function FriendsPanel({ mode, data, friends, error, loading, reload, init
         <div className="panel-body squad-list">
           {friends.friends.length ? friends.friends.map((friend) => (
             <FriendRow key={friend.friendId} friend={friend} mode={mode} quests={data.quests} busy={Boolean(busy)} access={friends.access} color={colors.get(friend.friendId)}
+              squad={squadOf(friend)} onSquad={() => addToSquad(friend)}
               onPrivacy={(hide) => void run(`privacy:${friend.friendId}`, () => setHideProgress(friend.friendId, hide))}
               onRemove={() => void run(`remove:${friend.friendId}`, () => friendAction(friend.friendId, 'remove'))}
               onBlock={() => void run(`block:${friend.friendId}`, () => friendAction(friend.friendId, 'block'))} />
@@ -163,8 +187,9 @@ function AddFriendCard({ mode, disabled, busy, initialCode, onAdd }: { mode: Rai
   )
 }
 
-function FriendRow({ friend, mode, quests, busy, access, color, onPrivacy, onRemove, onBlock }: {
+function FriendRow({ friend, mode, quests, busy, access, color, squad, onSquad, onPrivacy, onRemove, onBlock }: {
   friend: Friend; mode: RaidMode; quests: AppDataset['quests']; busy: boolean; access: boolean; color?: string
+  squad: 'in' | 'can' | 'none'; onSquad: () => void
   onPrivacy: (hide: boolean) => void; onRemove: () => void; onBlock: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -194,6 +219,8 @@ function FriendRow({ friend, mode, quests, busy, access, color, onPrivacy, onRem
           {friend.hideMyProgress ? <EyeOff size={13} /> : <Eye size={13} />}<span>{uiText('Скрывать мой прогресс')}</span>
         </label>
         <span className="squad-row-actions">
+          {squad === 'in' && <span className="tag green"><Users size={10} />{uiText('В отряде')}</span>}
+          {squad === 'can' && <button type="button" className="button small" disabled={busy} onClick={onSquad}><Users size={13} />{uiText('В отряд')}</button>}
           <button type="button" className="icon-button squad-info-button" title={uiText(access ? 'Информация о друге: уровни и престиж' : hidesPayments() ? 'Информация о друге недоступна' : 'Информация о друге — функция подписки')} aria-label={uiText('Информация о друге')} disabled={!access} onClick={() => setInfo(true)}><Info size={14} /></button>
           <button className="button small ghost" disabled={!access || !friend.sharesProgress} onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}{uiText('Задания')}</button>
           <button className="icon-button" title={uiText('Удалить из друзей')} aria-label={uiText('Удалить из друзей')} disabled={busy} onClick={() => setConfirm(true)}><UserMinus size={14} /></button>

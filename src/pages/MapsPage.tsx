@@ -95,7 +95,7 @@ import { useSquadSharedQuests } from '../squad/useSquad'
 import { FriendQuestMarkers, FriendQuestToggle } from '../squad/FriendQuestsOnMap'
 import { useFriendQuestLayer } from '../squad/friendQuestLayer'
 import { useSquadLive } from '../squad/squadLive'
-import { SquadMateMarkers, SquadSketchLines } from '../squad/SquadLiveOnMap'
+import { SquadMateMarkers, SquadSketchChips, SquadSketchLines } from '../squad/SquadLiveOnMap'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
@@ -821,9 +821,8 @@ export function MapsPage() {
   const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
   const squadShared = useSquadSharedQuests(state.raidMode)
-  // «Квесты друзей»: friends' quest points in their colours (squad/FriendQuestsOnMap.tsx).
-  const friendQuests = useFriendQuestLayer(state.raidMode, activeMap.id, data.quests, data.markers)
-  // «Квесты отряда»: its own button, there while «Настройки отряда» has it on (owner, 14.11.2026).
+  // «Квесты отряда» only: its own button, there while «Настройки отряда» has it on (owner, 14.11.2026: «нужно сделать именно квесты
+  // отряда. Квесты друзей не надо… Все, кто не в отряде, данные по ним не показываются»).
   const squadQuests = useFriendQuestLayer(state.raidMode, activeMap.id, data.quests, data.markers, 'squad')
   // «Отложенные квесты»: the quests of this map first in the window; the button is the PC's (a right click puts one aside).
   const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById, first: onThisMap, progress }), [currentQuests, deferred, data.maps, itemsById, onThisMap, progress])
@@ -1214,8 +1213,8 @@ export function MapsPage() {
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
           {/* The phone has no «Отложенные квесты» over the map: «Устранения» stands in the HUD, after «Слои». */}
           {mobile && killList.length > 0 && <MapKillsButton count={killsOpenCount} open={killsOpen} onToggle={() => setKillsOpen((open) => !open)} buttonRef={killsButtonRef} />}
-          <FriendQuestToggle layer={friendQuests} />
           <FriendQuestToggle layer={squadQuests} />
+          <SquadSketchChips sketches={squadLive.sketches} mapId={activeMap.id} />
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
           <BossPlacementControls state={bossPlacement} />
           <QuestEditorButton state={questEditor} onToggle={(on) => { if (on) setBossActive(false) }} />
@@ -1279,7 +1278,6 @@ export function MapsPage() {
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
           <SquadMateMarkers mates={squadLive.positions} mapId={activeMap.id} />
-          <FriendQuestMarkers points={friendQuests.points} />
           <FriendQuestMarkers points={squadQuests.points} />
           {/* «Места устранения»: the kill quests' zones in the mines' dashes, orange for Scavs and any target, green for PMCs. */}
           {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onOpen={openKillZoneQuest} onClear={() => { setKillFocus(null); clearQuestSelection() }} />}

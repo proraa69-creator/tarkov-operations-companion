@@ -6,6 +6,14 @@
 .squad-mate-mark .pm .pm-cone { fill: color-mix(in srgb, var(--mate) 30%, transparent); }
 .squad-mate-mark .pm .pm-halo { fill: color-mix(in srgb, var(--mate) 24%, transparent); }
 .squad-mate.is-stale { opacity: .5; }
-.leaflet-tooltip.squad-mate-name { padding: 1px 6px; border: 1px solid rgb(255 255 255 / 12%); border-radius: 6px; background: rgb(10 13 11 / 86%); box-shadow: none; font-size: 11px; font-weight: 750; white-space: nowrap; }
+/* The mate's nickname in small letters under the marker (owner, 14.11.2026). */
+.leaflet-tooltip.squad-mate-name { padding: 0 5px; border: 1px solid rgb(255 255 255 / 10%); border-radius: 5px; background: rgb(10 13 11 / 80%); box-shadow: none; font-size: 10px; font-weight: 600; line-height: 15px; white-space: nowrap; }
 .leaflet-tooltip.squad-mate-name::before { display: none; }
 .leaflet-tooltip.squad-mate-name small { color: var(--text-dim); font-weight: 600; }
+
+/* A mate's drawing on this map: whose it is, and a cross that takes it off this map only (squad/SquadLiveOnMap.tsx SquadSketchChips). */
+.squad-sketch-chips { display: flex; flex-wrap: wrap; gap: 4px; pointer-events: auto; }
+.squad-sketch-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 4px 0 8px; border: 1px solid color-mix(in srgb, var(--mate) 55%, var(--line)); border-radius: 8px; background: rgb(12 16 13 / 86%); color: var(--text); font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.squad-sketch-chip > svg:first-child { color: var(--mate); }
+.squad-sketch-chip button { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim); cursor: pointer; }
+.squad-sketch-chip button:hover { background: rgb(255 255 255 / 8%); color: var(--text); }

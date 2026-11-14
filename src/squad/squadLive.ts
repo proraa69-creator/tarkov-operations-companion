@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
 import type { RaidMode } from '../domain/types'
 import type { SketchStroke } from '../maps/mapSketch'
@@ -14,7 +14,8 @@ import { useSquad } from './useSquad'
  */
 export interface SquadMatePosition { x: number; y: number; z: number; yaw: number; at: number; map?: string }
 export interface SquadMate { memberId: string; nickname: string; color: string; position: SquadMatePosition }
-export interface SquadMateSketch { memberId: string; nickname: string; color: string; mapId: string; strokes: SketchStroke[] }
+/** `at`: when the mate kept it (server time); a newer drawing of the same map shows again after «Убрать». */
+export interface SquadMateSketch { memberId: string; nickname: string; color: string; mapId: string; strokes: SketchStroke[]; at: number }
 
 const HEX24 = /^[a-f0-9]{24}$/
 const MAP_ID = /^[A-Za-z0-9_-]{1,40}$/
@@ -27,7 +28,7 @@ const MIN_ROUND_MS = 2_000
 
 export const squadLivePath = (squadId: string, mode: RaidMode) => `/v1/squad-live/${squadId}/${mode}`
 
-interface LiveAnswer { version: number; positions: Array<SquadMatePosition & { memberId: string }>; sketches: Array<{ memberId: string; mapId: string; strokes: SketchStroke[] }> }
+interface LiveAnswer { version: number; positions: Array<SquadMatePosition & { memberId: string }>; sketches: Array<{ memberId: string; mapId: string; strokes: SketchStroke[]; at: number }> }
 
 /** The server's answer, shape-checked; null when it is not one. */
 export function cleanSquadLive(raw: unknown): LiveAnswer | null {
@@ -47,9 +48,41 @@ export function cleanSquadLive(raw: unknown): LiveAnswer | null {
       const points = stroke.points.filter((point): point is [number, number] => Array.isArray(point) && point.length === 2 && finite(point[0]) && finite(point[1]))
       return points.length ? [{ zoom: stroke.zoom, points, ...(typeof stroke.color === 'string' && COLOR.test(stroke.color) ? { color: stroke.color } : {}) }] : []
     })
-    return strokes.length ? [{ memberId: item.memberId, mapId: item.mapId, strokes }] : []
+    return strokes.length ? [{ memberId: item.memberId, mapId: item.mapId, strokes, at: finite(item.at) ? item.at : 0 }] : []
   })
   return { version: value.version, positions, sketches }
+}
+
+/**
+ * A mate's drawing taken off this player's map (owner, 14.11.2026: «тиммейт может нажать крестик… удалить именно его рисунок»):
+ * `memberId:mapId` → the `at` of the drawing taken off. Kept on this device; the mate's next drawing of that map shows again.
+ */
+const HIDDEN_KEY = 'raidos-squad-sketch-hidden-v1'
+const HIDDEN_EVENT = 'raidos-squad-sketch-hidden'
+const NO_HIDDEN: Record<string, number> = {}
+let hiddenCache: { raw: string | null; value: Record<string, number> } | undefined
+function readHiddenSketches(): Record<string, number> {
+  let raw: string | null = null
+  try { raw = localStorage.getItem(HIDDEN_KEY) } catch { /* storage unavailable */ }
+  if (hiddenCache?.raw === raw) return hiddenCache.value
+  let value: Record<string, number> = {}
+  try {
+    const stored: unknown = raw ? JSON.parse(raw) : {}
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) value = Object.fromEntries(Object.entries(stored).filter((entry): entry is [string, number] => finite(entry[1])))
+  } catch { /* broken: nothing hidden */ }
+  hiddenCache = { raw, value }
+  return value
+}
+export function hideSquadSketch(memberId: string, mapId: string, at: number) {
+  const next = { ...readHiddenSketches(), [`${memberId}:${mapId}`]: at }
+  // Only the latest few dozen: older ones have run out on the server anyway.
+  const kept = Object.fromEntries(Object.entries(next).slice(-60))
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(kept)) } catch { /* storage unavailable: hidden until the page is left */ }
+  window.dispatchEvent(new Event(HIDDEN_EVENT))
+}
+const subscribeHidden = (listener: () => void) => {
+  window.addEventListener(HIDDEN_EVENT, listener)
+  return () => window.removeEventListener(HIDDEN_EVENT, listener)
 }
 
 const pause = (ms: number, signal: AbortSignal) => new Promise<void>((resolve) => {
@@ -102,6 +135,7 @@ export function useSquadLive(mode: RaidMode) {
     return new Map(others.map((member) => [member.memberId, { nickname: memberLabel(member.nickname, members.indexOf(member)), color: colors.get(member.memberId) ?? '#c4a665' }]))
   }, [members])
   const live = active && answer?.key === key ? answer.live : null
+  const hidden = useSyncExternalStore(subscribeHidden, readHiddenSketches, () => NO_HIDDEN)
 
   const positions = useMemo<SquadMate[]>(() => (settings.location && live ? live.positions.flatMap(({ memberId, ...position }) => {
     const mate = mates.get(memberId)
@@ -109,8 +143,8 @@ export function useSquadLive(mode: RaidMode) {
   }) : []), [settings.location, live, mates])
   const sketches = useMemo<SquadMateSketch[]>(() => (settings.sketches && live ? live.sketches.flatMap((sketch) => {
     const mate = mates.get(sketch.memberId)
-    return mate ? [{ ...sketch, ...mate }] : []
-  }) : []), [settings.sketches, live, mates])
+    return mate && hidden[`${sketch.memberId}:${sketch.mapId}`] !== sketch.at ? [{ ...sketch, ...mate }] : []
+  }) : []), [settings.sketches, live, mates, hidden])
 
   /** A drawing kept with ✓ (or closed: no strokes) goes to the squad, when «Зарисовки» is on. */
   const shareSketch = useCallback((mapId: string, strokes: SketchStroke[]) => {

@@ -95,7 +95,7 @@ describe('the pencil on the map', () => {
     expect(sketch.strokes).toHaveLength(1)
   })
 
-  it('a kept drawing, and a closed one, go to whoever listens (the squad: squad/squadLive.ts)', () => {
+  it('a drawing kept with ✓ goes to whoever listens (the squad: squad/squadLive.ts); closing it here does not take it from them', () => {
     const kept: Array<[string, number]> = []
     function Shared() {
       const value = useMapSketch('p1', 'pvp', 'customs', (mapId, strokes) => kept.push([mapId, strokes.length]))
@@ -114,7 +114,7 @@ describe('the pencil on the map', () => {
     expect(kept).toEqual([])
     fireEvent.click(button('Ок'))
     fireEvent.click(button('Закрыть зарисовку'))
-    expect(kept).toEqual([['customs', 1], ['customs', 0]])
+    expect(kept).toEqual([['customs', 1]])
   })
 
   it('«Отмена» leaves nothing of what was drawn', () => {

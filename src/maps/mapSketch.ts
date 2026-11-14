@@ -220,7 +220,8 @@ export interface MapSketch {
 
 /**
  * Another map, mode or profile starts with its own drawing; what was being drawn and not accepted is dropped. `onKeep`: the drawing
- * of this map as kept with ✓ (or none, closed) — the squad gets it (squad/squadLive.ts).
+ * of this map as kept with ✓ — the squad gets it (squad/squadLive.ts). Closing it here leaves the mates' copy (owner, 14.11.2026:
+ * «он у себя нажмет крестик «Закрыть», а у тиммейта он останется»); they take it off their map themselves.
  */
 export function useMapSketch(profileId: string, mode: RaidMode, mapId: string, onKeep?: (mapId: string, strokes: SketchStroke[]) => void): MapSketch {
   const key = mapSketchKey(profileId, mode, mapId)
@@ -234,11 +235,11 @@ export function useMapSketch(profileId: string, mode: RaidMode, mapId: string, o
   const change = useCallback((next: (value: SketchEdit) => SketchEdit) => {
     setState((value) => (value.edit ? { ...value, edit: next(value.edit) } : value))
   }, [])
-  const keep = useCallback((strokes: SketchStroke[]) => {
+  const keep = useCallback((strokes: SketchStroke[], share: boolean) => {
     const merged = withOtherDevices(strokes, kept, readMapSketch(key))
     writeMapSketch(key, merged)
     setState({ key, kept: merged, edit: null })
-    onKeep?.(mapId, merged)
+    if (share) onKeep?.(mapId, merged)
   }, [key, kept, mapId, onKeep])
 
   // Another device drew or took something off: it shows at once. While a drawing is on here, it joins when that is kept (`keep`) or dropped.
@@ -276,8 +277,8 @@ export function useMapSketch(profileId: string, mode: RaidMode, mapId: string, o
     replace: useCallback((strokes: SketchStroke[]) => change((value) => changeStrokes(value, strokes)), [change]),
     undo: useCallback(() => change(undoStroke), [change]),
     redo: useCallback(() => change(redoStroke), [change]),
-    accept: () => keep(edit ? edit.strokes : kept),
+    accept: () => keep(edit ? edit.strokes : kept, true),
     cancel: useCallback(() => setState((value) => ({ ...value, edit: null })), []),
-    close: () => keep([]),
+    close: () => keep([], false),
   }
 }
