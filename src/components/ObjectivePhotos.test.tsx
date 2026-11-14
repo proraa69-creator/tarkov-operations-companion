@@ -49,10 +49,10 @@ describe('the photos of each place in the map\'s quest window', () => {
     render(<QuestSheetObjectives questId="q1" sheet={sheet} trader="Скупщик" />)
     await ready()
     fireEvent.mouseEnter(row('Цель у ворот'))
-    expect(shownCaptions()).toEqual(['Ворота', 'Вход в дом'])
+    expect(shownCaptions()).toEqual(['Ворота', 'Ещё фото: 1'])
     fireEvent.mouseLeave(row('Цель у ворот'))
     fireEvent.mouseEnter(row('Цель в палате'))
-    await waitFor(() => expect(shownCaptions()).toEqual(['Палата', 'Коридор', 'Вход в дом']))
+    await waitFor(() => expect(shownCaptions()).toEqual(['Палата', 'Ещё фото: 2']))
     expect(within(row('Цель без фото')).queryByTestId('sheet-objective-photos')).toBeNull()
     fireEvent.mouseLeave(row('Цель в палате'))
     fireEvent.mouseEnter(row('Цель без фото'))
@@ -68,7 +68,7 @@ describe('the photos of each place in the map\'s quest window', () => {
     fireEvent.mouseLeave(row('Цель у ворот'))
     fireEvent.mouseEnter(screen.getByTestId('objective-photo-popup'))
     await wait(450)
-    expect(shownCaptions()).toEqual(['Палата', 'Коридор', 'Вход в дом'])
+    expect(shownCaptions()).toEqual(['Палата', 'Ещё фото: 2'])
   })
 
   it('stays when the mouse moves on to it and goes when it leaves', async () => {
@@ -87,7 +87,7 @@ describe('the photos of each place in the map\'s quest window', () => {
     render(<QuestSheetObjectives questId="q1" sheet={sheet} trader="Скупщик" />)
     await ready()
     fireEvent.mouseEnter(row('Цель в палате'))
-    fireEvent.click(within(screen.getByTestId('objective-photo-popup')).getByRole('listitem', { name: 'Коридор' }))
+    fireEvent.click(within(screen.getByTestId('objective-photo-popup')).getByRole('listitem', { name: 'Ещё фото: 2' }))
     expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p4.png?v=2')
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Следующее изображение' }))
     expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p5.png?v=2')
@@ -102,7 +102,7 @@ describe('the photos of each place in the map\'s quest window', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByTestId('objective-photo-popup')).toBeInTheDocument()
     fireEvent.mouseEnter(row('Цель у ворот'))
-    await waitFor(() => expect(shownCaptions()).toEqual(['Ворота', 'Вход в дом']))
+    await waitFor(() => expect(shownCaptions()).toEqual(['Ворота', 'Ещё фото: 1']))
   })
 
   it('a finger has no hover: the line\'s camera opens the photos', async () => {

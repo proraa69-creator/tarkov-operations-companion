@@ -43,7 +43,7 @@ function useTurn(count: number, on: boolean) {
 }
 
 const PURPOSES: Record<string, string> = {
-  place: 'Взять и заложить', mark: 'Взять для маркировки', key: 'Взять ключ', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде', signal: 'Подать сигнал', use: 'Использовать в рейде',
+  place: 'Заложить', mark: 'Пометить', key: 'Открыть дверь', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде', signal: 'Подать сигнал', use: 'Использовать в рейде',
 }
 
 /**
@@ -119,7 +119,8 @@ function RaidNeed({ row, onDefer, compact = false }: { row: RaidNeedRow; onDefer
       <img className={`item-thumb${row.alternatives?.turn ? ' raid-need-turn' : ''}`} key={turn} src={shown.iconUrl} alt="" />
       <span className="raid-need-copy">
         <Link to={row.href} className="raid-need-link"><strong>{uiText(formatItemCountLabel(shown.name, row.count))}{row.alternatives?.badge && <span className="tag raid-need-badge">{row.alternatives.badge}</span>}</strong></Link>
-        {row.stock && <small className={`raid-need-stock is-${row.stock}`}>{uiText(row.stock === 'owned' ? 'Есть в схроне' : 'Нет в наличии')}</small>}
+        {/* A key ticked «Взял» is with the player now (owner, 15.11.2026: «статус «Нет в наличии» снимается, ставится «Есть в наличии»»). */}
+        {row.stock && <small className={`raid-need-stock is-${taken ? 'owned' : row.stock}`}>{uiText(row.stock === 'owned' ? 'Есть в схроне' : taken ? 'Есть в наличии' : 'Нет в наличии')}</small>}
         {row.fromRaidListOnly
           ? <small>{uiText('Добавлено с барахолки')}</small>
           : row.lines.map((line) => (split && line.quests?.length

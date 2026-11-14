@@ -11,7 +11,7 @@ export const ECONOMY_PHRASES: Array<[string, string]> = [
   ['Найдено ключей', 'Keys found'], ['Добавить вручную', 'Add by hand'], ['Название ключа…', 'Key name…'], ['нужен', 'needed'], ['нужен для квестов', 'needed for quests'],
   ['Пока пусто. Нажмите «Найти ключи» или добавьте ключи вручную.', 'Nothing yet. Press «Find keys» or add keys by hand.'],
   ['Сколько использований осталось', 'Uses left'], ['Осталось использований', 'Uses left'], ['Минус один', 'One less'], ['Плюс один', 'One more'],
-  ['Есть в схроне', 'In stash'], ['Нет в наличии', 'Not in stash'],
+  ['Есть в схроне', 'In stash'], ['Нет в наличии', 'Not in stash'], ['Есть в наличии', 'With you'],
   ['Поиск ключей работает только в приложении для Windows.', 'The key search works only in the Windows app.'],
   ['Откройте игру с контейнером ключей: поиск идёт, пока окно игры видно на экране.', 'Open the game with the key container: the search runs while the game window is on screen.'],
   ['Окно игры не найдено. Откройте в игре контейнер с ключами и нажмите «Найти ключи» ещё раз.', 'The game window was not found. Open the key container in the game and press «Find keys» again.'],

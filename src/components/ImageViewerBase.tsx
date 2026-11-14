@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { usePinchZoom } from './usePinchZoom'
 import '../styles/imageViewer.css'
 
 let openViewers = 0
@@ -57,11 +58,13 @@ export function ImageViewerBase({ t = same, images, index, onIndex, onClose, clo
       if (opener?.isConnected) opener.focus()
     }
   }, [])
+  // Two fingers enlarge it on a phone and it stays so (usePinchZoom); the next image opens at its standard size.
+  const zoom = usePinchZoom(`${index}:${images[index]}`)
   const label = `${t('Изображение')} ${index + 1} ${t('из')} ${count}`
   const step = (delta: number) => onIndex((index + delta + count) % count)
   return createPortal(
     <div ref={viewer} className="requests-viewer" role="dialog" aria-modal="true" aria-label={label} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <img src={images[index]} alt={label} className={closeOnClick ? 'is-closing' : undefined} onClick={closeOnClick ? onClose : undefined} />
+      <img src={images[index]} alt={label} draggable={false} {...zoom.bind} className={closeOnClick && !zoom.zoomed ? 'is-closing' : undefined} onClick={closeOnClick ? () => { if (!zoom.zoomed && !zoom.wasGesture()) onClose() } : undefined} />
       <button ref={closeButton} type="button" className="requests-viewer-close" onClick={onClose} aria-label={t('Закрыть')} title={t('Закрыть')}><X size={18} /></button>
       {count > 1 && <>
         <button type="button" className="requests-viewer-step is-prev" onClick={() => step(-1)} aria-label={t('Предыдущее изображение')} title={t('Предыдущее изображение')}><ChevronLeft size={24} /></button>

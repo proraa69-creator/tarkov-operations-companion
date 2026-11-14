@@ -11,7 +11,7 @@ export const QUEST_PHRASES: Array<[string, string]> = [
   ['Экран не ставит «выполнено»', 'The screen never sets «completed»'], ['Ручная отметка против логов', 'Manual mark against the logs'],
   ['Статусы — только решение системы', 'Statuses come from the engine only'], ['Цепочка: предыдущие задания выполнены', 'Chain: earlier tasks done'],
   ['Уровень персонажа', 'Character level'], ['Фракция', 'Faction'],
-  ['Фото мест', 'Photos of the places'], ['Весь квест', 'The whole quest'], ['Фото места', 'Photo of the place'],
+  ['Фото мест', 'Photos of the places'], ['Весь квест', 'The whole quest'], ['Фото места', 'Photo of the place'], ['Ещё фото', 'More photos'],
   ['Заложено — в игре это не отменяется', 'Planted: it cannot be undone in the game'],
   // Quests → Сюжетные квесты
   ['Чтобы сюжетные квесты определялись автоматически, откройте в игре «Персонаж» → «Задания» и по очереди откройте каждый сюжетный квест. Приложение само просканирует с экрана квесты и их этапы.',
@@ -43,7 +43,7 @@ export const QUEST_PHRASES: Array<[string, string]> = [
     'Click an available task on the left to see its full description here: objectives, requirements, items, places on the map and rewards.'],
   // Full quest description
   ['Условия', 'Requirements'], ['Уровень персонажа от', 'Character level'], ['Только для', 'Only for'], ['Выполнить', 'Complete'],
-  ['Заложить', 'Plant'], ['Пометить', 'Mark'],
+  ['Заложить', 'Plant'], ['Пометить', 'Mark'], ['Открыть дверь', 'Open the door'],
   ['Где выполнять', 'Where to do it'], ['Ещё точек на карте:', 'More points on the map:'],
   ['Задание выполняется на любой карте.', 'The task can be done on any map.'],
   ['Точных точек для этого задания в данных нет — место указано в целях.', 'The data has no exact points for this task; the place is given in the objectives.'],

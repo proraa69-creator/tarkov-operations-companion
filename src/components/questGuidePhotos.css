@@ -14,6 +14,11 @@
 .objective-photo:hover, .objective-photo:focus-visible { border-color: var(--brass); }
 .objective-photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #0c0f0d; }
 .objective-photo span { padding: 0 7px 6px; font-size: 11.5px; line-height: 1.3; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* One photo large and, beside it, a small tile with how many more there are (owner, 15.11.2026: «одно большое и рядом маленькая… +4»). */
+.objective-photo.is-main { width: min(440px, calc(100vw - 150px)); }
+.objective-photo-grid:has(.is-more) { flex-wrap: nowrap; align-items: flex-start; }
+.objective-photo.is-more { position: relative; width: 96px; flex: none; }
+.objective-photo.is-more b { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(8 10 8 / 62%); color: var(--text); font-size: 16px; font-weight: 800; }
 /* The camera on a line with its own photos: on a phone it opens them. */
 .sheet-objective-photos { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 0 4px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--brass); font: inherit; font-size: 10.5px; line-height: 1.5; vertical-align: 1px; cursor: pointer; }
 .sheet-objective.has-photos:hover { background: rgb(255 255 255 / 4%); border-radius: 4px; }

@@ -286,13 +286,13 @@ describe('DashboardPage', () => {
     const needs = container.querySelector('.raid-needs') as HTMLElement
     const camera = within(needs).getByText('Wi-Fi камера ×7').closest('.raid-need') as HTMLElement
     expect(within(camera).getByRole('link', { name: 'Wi-Fi камера ×7' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
-    expect(within(camera).getByText('Взять и заложить')).toBeInTheDocument()
+    expect(within(camera).getByText('Заложить')).toBeInTheDocument()
     expect(within(camera).getByRole('link', { name: '4 — Что-то это мне напоминает..' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
     expect(within(camera).getByRole('link', { name: '3 — Наблюдатель' })).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
     // an item of one quest keeps its one line and its one link
     const elcan = within(needs).getByText(/ELCAN/).closest('.raid-need') as HTMLElement
     expect(within(elcan).getAllByRole('link')).toHaveLength(1)
-    expect(elcan).toHaveTextContent('Взять и заложить · Оптика')
+    expect(elcan).toHaveTextContent('Заложить · Оптика')
     expect(needs.querySelector('.raid-needs-deferred')).toBeNull()
   })
 
@@ -303,7 +303,7 @@ describe('DashboardPage', () => {
     const deferredNote = () => needs.querySelector('.raid-needs-deferred')
     // «Наблюдатель» alone: its 3 cameras, its one line, its point
     expect(camera()).toHaveTextContent('Wi-Fi камера ×3')
-    expect(camera()).toHaveTextContent('Взять и заложить · Наблюдатель')
+    expect(camera()).toHaveTextContent('Заложить · Наблюдатель')
     expect(camera()).not.toHaveTextContent('Что-то это мне напоминает')
     expect(within(camera()!).getByRole('link')).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
     expect(deferredNote()).toHaveTextContent('Не учтены отложенные квесты: Что-то это мне напоминает..')
@@ -454,7 +454,7 @@ describe('DashboardPage', () => {
       const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS, deferred: { pvp: ['scope-stash'] } })
       const needs = container.querySelector('.raid-needs') as HTMLElement
       const camera = within(needs).getByText('WI-FI Camera ×7').closest('.raid-need') as HTMLElement
-      expect(within(camera).getByText('Take and plant')).toBeInTheDocument()
+      expect(within(camera).getByText('Plant')).toBeInTheDocument()
       expect(within(camera).getByRole('link', { name: '4 — Something Reminds Me Of..' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
       expect(within(camera).getByRole('link', { name: '3 — The Watcher' })).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
       expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Deferred quests not counted: Scope Stash')
