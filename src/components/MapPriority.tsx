@@ -13,6 +13,11 @@ interface MapPriorityProps {
   onOpen: (mapId: string) => void
   /** How many maps to show; all by default. */
   limit?: number
+  /**
+   * The map chosen in the block: its tile is the lit one (a player's chat, owner 14.11.2026: «выбрана карта берег а
+   * подсвечивается улицы таркова, а должен подсвечиваться тоже берег»). The order stays by tasks. Without it the busiest map is lit.
+   */
+  selectedId?: string
 }
 
 /**
@@ -44,12 +49,21 @@ function useWheelScrollsSideways<T extends HTMLElement>() {
  * one-line tiles (rank · map · count) over a thin bar, «Все карты». Tiles stretch to fill the row; when they do not fit, the row scrolls sideways
  * (wheel over it, drag on a touchpad, or the thin scrollbar).
  */
-export function MapPriority({ maps, countFor, onOpen, limit, inline = false }: MapPriorityProps & { inline?: boolean }) {
+export function MapPriority({ maps, countFor, onOpen, limit, selectedId, inline = false }: MapPriorityProps & { inline?: boolean }) {
   const { locale } = useLocale()
   const title = useBlockTitle('Приоритет карт')
   const rowRef = useWheelScrollsSideways<HTMLDivElement>()
   const rows = maps.map((map) => ({ map, count: countFor(map.id) })).sort((a, b) => b.count - a.count).slice(0, limit ?? maps.length)
   const max = Math.max(1, ...rows.map((row) => row.count))
+  // The chosen map's tile comes into sight when the row scrolls sideways.
+  useEffect(() => {
+    const row = rowRef.current
+    const tile = selectedId ? row?.querySelector<HTMLElement>(`[data-map-id="${CSS.escape(selectedId)}"]`) : null
+    if (!row || !tile) return
+    const left = tile.offsetLeft - row.offsetLeft
+    if (left < row.scrollLeft) row.scrollLeft = left
+    else if (left + tile.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = left + tile.offsetWidth - row.clientWidth
+  }, [selectedId, rowRef])
   const taskLabel = (count: number) => {
     if (locale === 'en') return `${count} ${count === 1 ? 'task' : 'tasks'}`
     const lastTwo = count % 100
@@ -65,7 +79,9 @@ export function MapPriority({ maps, countFor, onOpen, limit, inline = false }: M
     <div className="map-priority-grid" ref={rowRef}>
       {rows.map(({ map, count }, index) => {
         const label = `${uiText(map.name)} · ${taskLabel(count)}`
-        return <button type="button" key={map.id} className={`map-priority-tile ${index === 0 && count > 0 ? 'is-top' : ''} ${count === 0 ? 'is-empty' : ''}`} title={label} aria-label={label} onClick={() => onOpen(map.id)}>
+        const lit = selectedId !== undefined ? map.id === selectedId : index === 0 && count > 0
+        return <button type="button" key={map.id} data-map-id={map.id} className={`map-priority-tile ${lit ? 'is-top' : ''} ${count === 0 ? 'is-empty' : ''}`} title={label} aria-label={label}
+          aria-pressed={selectedId !== undefined ? map.id === selectedId : undefined} onClick={() => onOpen(map.id)}>
           <span className="map-priority-rank mono">{String(index + 1).padStart(2, '0')}</span>
           <strong className="map-priority-name"><span className="map-priority-dot" style={{ background: map.accent }} aria-hidden="true" /><span className="map-priority-label">{uiText(map.name)}</span></strong>
           <span className="map-priority-count">{count}</span>

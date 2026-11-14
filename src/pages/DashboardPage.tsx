@@ -243,7 +243,7 @@ export function DashboardPage() {
   const questCard = mobile ? (quest: typeof currentQuests[number]) => <QuestInlineCard quest={quest} progress={progress} maps={data.maps} pointLink={pointLink(quest)} /> : undefined
 
   // A map here chooses the raid plan's map, it does not open the map (owner, 10.10.2026).
-  const priorityStrip = <MapPriority inline maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
+  const priorityStrip = <MapPriority inline maps={data.maps} selectedId={selectedMap.id} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
   const statCards: Blocks = {
     // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
     'stat-screen': { label: 'Экран', node: <ScreenStatCard /> },
