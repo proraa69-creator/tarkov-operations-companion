@@ -1,7 +1,8 @@
 [
   {"version":"0.6.0.307","date":"2026-11-15","items":[
     {"kind":"improved","ru":"Цветовая схема меняется плавно — кругом от кнопки","en":"The colour scheme changes smoothly, in a circle from the button"},
-    {"kind":"added","ru":"Схема «Смена дня и ночи»: правой кнопкой по кнопке цветовой схемы","en":"«Day and night» scheme: right-click the colour scheme button"}
+    {"kind":"added","ru":"Схема «Смена дня и ночи»: правой кнопкой по кнопке цветовой схемы","en":"«Day and night» scheme: right-click the colour scheme button"},
+    {"kind":"improved","ru":"Пресеты экрана называются по номерам: «Пресет 1», «Пресет 2» и далее","en":"Screen presets are numbered: «Preset 1», «Preset 2» and on"}
   ]},
   {"version":"0.6.0.306","date":"2026-11-15","items":[
     {"kind":"improved","ru":"Фото мест: одно крупное фото и «+N» с остальными","en":"Place photos: one large photo and «+N» with the rest"},
