@@ -8,6 +8,7 @@ import { dateTime, failure, useAdminData, type Failure } from './adminData'
 import { bugReportsApi, type BugReportQuest, type BugReportRow } from './bugReportsApi'
 import { QUEST_ISSUE_LABELS, type QuestIssue } from '../../../../src/shared/reportCategories'
 import { ReportsTable } from '../../../../src/reports/ReportsTable'
+import { EftCasesTable } from '../../../../src/reports/EftCasesTable'
 import { watchReportEvents } from '../../../../src/reports/reportEvents'
 import type { ReportTableView, ReportWorkAction } from '../../../../src/shared/reportWork'
 
@@ -43,13 +44,20 @@ export function AdminBugReports() {
   const { token } = useAuth()
   const [view, setView] = useState<ReportTableView>('active')
   const [page, setPage] = useState(0)
+  // «Аккаунты Таркова» (owner, 15.11.2026): its tab, the count of new cases and a reload when the server says something moved.
+  const [eftSelected, setEftSelected] = useState(false)
+  const [eftCount, setEftCount] = useState(0)
+  const [eftReload, setEftReload] = useState(0)
   const list = useAdminData(useCallback((owner: string) => bugReportsApi.table(owner, view, PAGE, page * PAGE), [view, page]))
   const { reload } = list
 
   useEffect(() => {
     if (!token) return
     const stop = new AbortController()
-    void watchReportEvents((path) => bugReportsApi.events(token, path), (_event, changed) => { if (changed) void reload() }, stop.signal)
+    void watchReportEvents((path) => bugReportsApi.events(token, path), (event, changed) => {
+      setEftCount(event.eftCases)
+      if (changed) { void reload(); setEftReload((value) => value + 1) }
+    }, stop.signal)
     return () => stop.abort()
   }, [token, reload])
 
@@ -69,7 +77,13 @@ export function AdminBugReports() {
       <ReportsTable
         page={list.data}
         view={view}
-        onView={(next) => { setView(next); setPage(0) }}
+        onView={(next) => { setView(next); setPage(0); setEftSelected(false) }}
+        eft={{
+          count: eftCount,
+          selected: eftSelected,
+          onSelect: () => setEftSelected(true),
+          content: token ? <EftCasesTable load={(status) => bugReportsApi.eftCases(token, status)} setStatus={(id, status) => bugReportsApi.eftStatus(token, id, status)} reloadKey={eftReload} /> : null,
+        }}
         onAct={act}
         onReward={async (id, days) => { if (!token) return; await bugReportsApi.reward(token, id, days); await reload() }}
         onAcceptPoint={async (id) => { if (!token) return; await bugReportsApi.point(token, id); await reload() }}

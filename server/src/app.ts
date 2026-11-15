@@ -12,6 +12,7 @@ import { createQuestBaseRouter } from './routes/questBase.js'
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
+import { createEftCasesRouter } from './routes/eftCases.js'
 import { createLoginCodesRouter, proxiedCountry } from './routes/loginCodes.js'
 import { createPhoneRouter } from './routes/phone.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
@@ -301,7 +302,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock, stickers })
   // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
   // the support chat (routes/bugReports.ts).
-  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount(), unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
+  // `open` counts the new «Аккаунты Таркова» cases too: the owner's red badge lights up for them (owner, 15.11.2026: «присылай мне уведомление»).
+  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount() + accounts.eftLedger.counts().active, eftCases: accounts.eftLedger.counts().active, unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
+  accounts.onEftRebind = (caseId) => {
+    adminStore?.audit('server', 'eft.rebind-case', String(caseId), {})
+    reportSignals.changed()
+  }
   // Who hears of a button on a report: the owner's route and the release that presses «Готово» (services/releaseReports.ts).
   const reportWork: ReportWorkEffects = {
     signals: reportSignals,
@@ -309,6 +315,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     taken: (accountId, id, kind, topic) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind, topic)) },
     done: (accountId, id, kind, topic) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind, topic)) },
   }
+  // «Отчёты» → «Аккаунты Таркова» (routes/eftCases.ts).
+  app.use(createEftCasesRouter(accounts, { audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) }, changed: () => reportSignals.changed() }))
   app.use(createBugReportsRouter(accounts, bugReports, {
     ...reportWork,
     limits: options.bugReportLimits,

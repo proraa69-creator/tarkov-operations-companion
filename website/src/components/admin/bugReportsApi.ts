@@ -2,6 +2,7 @@
  * «Отчёты» tab of the admin panel: the owner-only API of server/src/routes/bugReports.ts. Kept apart from api.ts;
  * the same error handling (ApiError, network message). Screenshots are fetched with the owner's token as blobs.
  */
+import type { EftCasesPage, EftCaseStatus } from '../../../../src/reports/EftCasesTable'
 import { ApiError, NETWORK_ERROR_MESSAGE } from '../../api'
 import { API_URL } from '../../config'
 import type { ReportPage, ReportRow } from '../../../../src/reports/ReportsTable'
@@ -101,6 +102,19 @@ export const bugReportsApi = {
   point: (token: string, id: number) => call<{ report: BugReportDetail; days: number }>(token, `/${id}/point`, {}),
   /** Sends the report's PDF to the owner's mailbox again. */
   mail: (token: string, id: number) => call<{ report: BugReportDetail }>(token, `/${id}/mail`, {}),
+  /** «Аккаунты Таркова» (server/src/routes/eftCases.ts): a game account back on a new account after a deletion. */
+  eftCases: async (token: string, view: EftCaseStatus): Promise<EftCasesPage> => {
+    const response = await send(token, `/v1/accounts/me/admin/eft-cases?view=${view}&limit=100`, undefined, '')
+    const data = await response.json().catch(() => undefined) as { error?: unknown } | undefined
+    if (!response.ok) throw refused(response, data)
+    return data as unknown as EftCasesPage
+  },
+  eftStatus: async (token: string, id: number, status: EftCaseStatus) => {
+    const response = await send(token, `/v1/accounts/me/admin/eft-cases/${id}/status`, { status }, '')
+    const data = await response.json().catch(() => undefined) as { error?: unknown } | undefined
+    if (!response.ok) throw refused(response, data)
+    return data
+  },
   /** The screenshot's bytes (never a URL with the token in it). */
   file: async (token: string, id: number, idx: number): Promise<Blob> => {
     const response = await send(token, `/${id}/files/${idx}`)

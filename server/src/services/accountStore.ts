@@ -16,6 +16,7 @@
  * without Express. `server/src/routes/accounts.ts` adapts them to an Express router.
  * Passwords are never logged or returned; only salted scrypt hashes are kept. Session tokens are stored as SHA-256.
  */
+import { EftLedger } from './eftLedger.js'
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
@@ -611,6 +612,11 @@ export class AccountStore {
    */
   private readonly trialFromFirstRaid: boolean
 
+  /** Every Raid OS account a game account was bound to, and the cases of a game account back after a deletion (services/eftLedger.ts). */
+  readonly eftLedger: EftLedger
+  /** Told of a new case (app.ts: the owner's «Отчёты» badge and table). */
+  onEftRebind?: (caseId: number) => void
+
   constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; storeReviewEmails?: readonly string[]; streamerTrial?: boolean; trialFromFirstRaid?: boolean } = {}) {
     this.now = options.now ?? Date.now
     this.streamerTrial = options.streamerTrial ?? true
@@ -657,6 +663,8 @@ export class AccountStore {
     this.db.exec(`INSERT OR IGNORE INTO eft_trial_claims (eft_digest, account_id, at)
       SELECT e.eft_digest, e.account_id, e.bound_at FROM eft_accounts e JOIN accounts a ON a.id = e.account_id
       WHERE a.trial_ends_at IS NOT NULL AND a.trial_denied IS NULL`)
+    // «Аккаунты Таркова» (services/eftLedger.ts): after the columns above, so the backfill sees deleted_at.
+    this.eftLedger = new EftLedger(this.db, this.now)
   }
 
   /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
@@ -951,6 +959,9 @@ export class AccountStore {
     // The Apple reviewer's account takes no game account: it is signed in on the owner's PC with his game.
     if (!holder && own === undefined && !this.isStoreReview(account.id)) {
       this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?)').run(account.id, digest, hint, this.now())
+      // «Аккаунты Таркова»: a game account back on a new account after its earlier one was deleted (owner, 15.11.2026).
+      const caseId = this.eftLedger.bound(account.id, digest, hint, account.email)
+      if (caseId !== undefined) { try { this.onEftRebind?.(caseId) } catch { /* the case is saved; the badge catches up */ } }
     }
     if (this.eftDigestOf(account.id) === digest) this.claimTrialByEft(account.id, digest)
     return this.eftAccountOf(account.id)
@@ -991,6 +1002,7 @@ export class AccountStore {
   unbindEftAccount(accountId: string) {
     const account = this.mustGet(accountId)
     const removed = Number(this.db.prepare('DELETE FROM eft_accounts WHERE account_id = ?').run(account.id).changes)
+    if (removed > 0) this.eftLedger.gone(account.id, 'unbound')
     this.db.prepare('DELETE FROM eft_reports WHERE account_id = ?').run(account.id)
     return removed > 0
   }
@@ -1484,6 +1496,8 @@ export class AccountStore {
     const progressOwner = `user:${account.id}`
     this.db.exec('BEGIN')
     try {
+      // «Аккаунты Таркова» keeps the game accounts of the deleted account, its e-mail only masked (services/eftLedger.ts).
+      this.eftLedger.gone(account.id, 'deleted', account.email)
       // «Топ сборок»: other players' likes on this account's builds go with the builds (services/buildCatalogStore.ts).
       if (has('shared_builds') && has('shared_build_likes')) this.db.prepare('DELETE FROM shared_build_likes WHERE build_id IN (SELECT id FROM shared_builds WHERE account_id = ?)').run(account.id)
       for (const [table, column] of remove) {
