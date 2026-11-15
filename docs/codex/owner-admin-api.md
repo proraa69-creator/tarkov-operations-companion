@@ -88,9 +88,12 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
   ],
   "subscriptions": {
     "activePaid": 3,       // a running period of an account that has at least one succeeded payment
+    "activePaidRepeat": 1, // of those, accounts with two or more succeeded payments above 0 ₽ (the 2nd, 3rd… subscription)
     "activeGranted": 2,    // a running period of an account that never paid (only grants)
     "grantedBy": { "owner": 1, "friend": 1 },  // activeGranted split: owner grants (incl. bug report rewards) / «Пригласи друга» rewards
     "trials": 1,           // free period running, no paid period
+    "trialsDead": 0,       // of those, «мёртвые»: no request for 21 days (or none on record), or the days still wait for the first raid
+    "trialsAlive": 1,      // of those, «реальные» (trials = trialsDead + trialsAlive); back in the account or in a raid = real again
     "trialsPending": 4,    // free period waiting for the first sign-in in an app
     "expiringIn7Days": 2,  // paid or granted periods (not lifetime) that end within 7 days
     "expiringIn30Days": 4, // … within 30 days
@@ -107,6 +110,7 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
   "revenue": {             // succeeded payments whose paid_at (else created_at) is in range
     "total": 1660,
     "payments": 4,
+    "repeatPayments": 1,   // of those, above 0 ₽ and the account had paid before («повторные оплаты»)
     "streamerEarnings": 0, // streamers' share of those payments
     "byProvider": { "yookassa": { "count": 3, "amount": 1410 }, "bezebee": { "count": 1, "amount": 250 }, "archive": { "count": 0, "amount": 0 } },
     "byMethod": { "sbp": { "count": 2, "amount": 600 }, "bank_card": { "count": 1, "amount": 810 }, "bezebee": { "count": 1, "amount": 250 } },
@@ -125,7 +129,9 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
   "trialConversion": {
     "trialStarted": 2,     // users registered in range whose free period has started
     "laterPaid": 1,        // of those, with a succeeded payment
-    "rate": 0.5            // laterPaid / trialStarted (0–1, 4 decimals; 0 when nobody started)
+    "rate": 0.5,           // laterPaid / trialStarted (0–1, 4 decimals; 0 when nobody started)
+    "dead": 1,             // of trialStarted, «мёртвые» now (as subscriptions.trialsDead), paid since or not
+    "alive": 1             // of trialStarted, «реальные» now
   }
 }
 ```
@@ -327,9 +333,12 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
 
 ### Summary and calendar
 
-- `GET overview` → `{ generatedAt, users: { total, today, days7, days30, blocked }, subscriptions: { active, trials,
-  autopay, streamers }, revenue: { today, month, all: { total, payments } }, payouts: { paid, pending,
-  pendingRequests, earned } }`.
+- `GET overview` → `{ generatedAt, users: { total, today, days7, days30, blocked }, subscriptions: { active, activeRepeat,
+  trials, trialsDead, trialsAlive, autopay, streamers }, revenue: { today, month, all: { total, payments, repeat } },
+  payouts: { paid, pending, pendingRequests, earned } }` (15.11.2026: `activeRepeat` — of `active`, paid twice or more;
+  `trialsDead` / `trialsAlive` — as in `stats`; `repeat` — of `payments`, the account had paid before).
+- A period chosen in «Календарь» (owner, 15.11.2026: first and second day by a right click on the site and in the PC
+  app, by a long press on the phone) is read from `GET stats?from=&to=`.
 - `GET series?period=day|month|year` → `{ period, rows: [{ period, registrations, payments, revenue, plans: { 1m:
   { count, revenue }, … } }] }` (last 31 days / 12 months / all years, newest first).
 - `GET calendar?month=YYYY-MM` → `{ month, today, days: [{ date, registrations, payments, revenue, plans }] }`.

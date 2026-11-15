@@ -7,6 +7,7 @@ import { ownerDayAgo } from '../shared/ownerTime'
 import type { AdSource } from '../shared/adSources'
 import { UPDATE_HISTORY_PATH, type UpdateHistoryAnswer } from '../shared/updateHistory'
 import { keepAnswer, keptAnswer } from './adminKeep'
+import type { AdminPeriodStats } from '../shared/adminPeriod'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
@@ -16,11 +17,13 @@ export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streame
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export type AdminRegionCounts = Record<AdminUserRegion, number>
 
-export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number }
+/** `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»). */
+export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number; repeat?: number }
 export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
-  subscriptions: { active: number; trials: number; autopay: number; streamers: number }
+  /** Servers of 15.11.2026 on: `activeRepeat` — of `active`, paid twice or more; `trialsDead` / `trialsAlive` — of `trials`. */
+  subscriptions: { active: number; activeRepeat?: number; trials: number; trialsDead?: number; trialsAlive?: number; autopay: number; streamers: number }
   /** «Оплатили повторно»: people with two or more paid payments, all the time (servers of 12.11.2026 on). */
   repeatPayers?: number
   revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue; lavaOriginal: Array<{ currency: string; amount: number }> }
@@ -51,7 +54,7 @@ export interface AdminDay {
   invites: Array<{ inviter: string; inviterNickname?: string; friend?: string; friendNickname?: string; friendDeleted?: true; kind: string; days: number | 'lifetime'; status: string; createdAt: string; decidedAt?: string; comment?: string }>
 }
 /** GET /me/admin/stats, the part «Новые за …» reads: accounts created on the owner's days `from`..`to`. */
-export interface AdminRangeStats { range: { from: string; to: string; timezone: string }; users: { total: number; new: number } }
+export type AdminRangeStats = Pick<AdminPeriodStats, 'range' | 'users'> & Partial<Omit<AdminPeriodStats, 'range' | 'users'>>
 
 /** «Стримеры» (server/src/routes/accounts.ts, ownerAdmin.ts, payouts.ts), as on the site. Money in roubles. */
 export interface StreamerStats { visits: number; registrations: number; activeSubscriptions: number; revenue?: { amount: number; currency: string }; earnings: { amount: number; currency: string } }

@@ -3,7 +3,7 @@
  * chat's «Написать», routes/supportChat.ts). Kept apart from api.ts with the same error handling (ApiError, network
  * message), like bugReportsApi.ts.
  */
-import { ApiError, NETWORK_ERROR_MESSAGE } from '../../api'
+import { ApiError, NETWORK_ERROR_MESSAGE, usesApiTransport, viaTransport } from '../../api'
 import { API_URL } from '../../config'
 
 async function send(token: string, method: 'GET' | 'POST', path: string, body?: unknown) {
@@ -26,6 +26,8 @@ function refused(response: Response, data: { error?: unknown } | undefined) {
 
 /** One owner call: the JSON answer, or ApiError with the server's reason. */
 export async function ownerCall<T = unknown>(token: string, method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  // The PC owner app (api.ts setApiTransport): through its gateway.
+  if (usesApiTransport()) return viaTransport<T>(method, path, body)
   const response = await send(token, method, path, body)
   if (response.status === 204) return undefined as T
   const data = await response.json().catch(() => undefined) as { error?: unknown } | undefined

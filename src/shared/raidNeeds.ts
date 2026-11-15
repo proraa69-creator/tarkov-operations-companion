@@ -163,6 +163,9 @@ export function groupAlternatives<T extends ObjectiveRaidRequirement>(
   const replaced = new Map<T, T>()
   const dropped = new Set<T>()
   const groups = new Map<string, AlternativeGroup>()
+  // Objectives that accept the same items share one row (owner, 15.11.2026, «Инвазивная терапия»: «не 3 разных обдолбоса
+  // коктейля, а 1 и написано x3»): the row of the first of them, its count the sum.
+  const sameItems = new Map<string, string>()
   const grouped = new Set([...byObjective.values()].filter((list) => new Set(list.map((requirement) => requirement.itemId)).size > 1).flat())
   for (const alternatives of byObjective.values()) {
     if (new Set(alternatives.map((requirement) => requirement.itemId)).size < 2) continue
@@ -180,7 +183,9 @@ export function groupAlternatives<T extends ObjectiveRaidRequirement>(
     }))
     const [caliber] = calibers
     const ammo = calibers.size === 1 && caliber
-    const id = ammo ? `${AMMO_PACK_GROUP_PREFIX}${caliber}` : `${ANY_OF_GROUP_PREFIX}${alternatives[0].objectiveId}`
+    const itemsKey = `${alternatives[0].purpose}|${[...new Set(alternatives.map((requirement) => requirement.itemId))].sort().join('+')}`
+    const id = ammo ? `${AMMO_PACK_GROUP_PREFIX}${caliber}` : sameItems.get(itemsKey) ?? `${ANY_OF_GROUP_PREFIX}${alternatives[0].objectiveId}`
+    if (!ammo) sameItems.set(itemsKey, id)
     const group = groups.get(id) ?? (ammo ? { id, kind: 'ammo-pack' as const, caliber, itemIds: [] } : { id, kind: 'any-of' as const, itemIds: [] })
     for (const requirement of alternatives) if (!group.itemIds.includes(requirement.itemId)) group.itemIds.push(requirement.itemId)
     groups.set(id, group)

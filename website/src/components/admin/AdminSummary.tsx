@@ -35,8 +35,8 @@ export function AdminSummary() {
         <>
           <div className="stat-grid admin-stats">
             <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)}${data.users.blocked ? ` · заблокировано ${numberFormat.format(data.users.blocked)}` : ''}`} />
-            <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta="только те, кто оплатил и подписка идёт" accent />
-            <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta="2 дня с первого входа в приложение" />
+            <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta={data.subscriptions.activeRepeat === undefined ? 'только те, кто оплатил и подписка идёт' : `из них повторных: ${numberFormat.format(data.subscriptions.activeRepeat)}`} accent />
+            <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta={data.subscriptions.trialsDead === undefined || data.subscriptions.trialsAlive === undefined ? '2 дня с первого рейда' : `мёртвых ${numberFormat.format(data.subscriptions.trialsDead)} · реальных ${numberFormat.format(data.subscriptions.trialsAlive)}`} title="Мёртвый — не заходил в аккаунт 3 недели или ещё не был в рейде" />
             <NewUsersStat />
           </div>
           <div className="admin-revenue">
@@ -155,9 +155,9 @@ function NewUsersStat() {
   )
 }
 
-function Stat({ icon: Icon, label, value, meta, accent = false }: { icon: typeof Users; label: string; value: string; meta: string; accent?: boolean }) {
+function Stat({ icon: Icon, label, value, meta, accent = false, title }: { icon: typeof Users; label: string; value: string; meta: string; accent?: boolean; title?: string }) {
   return (
-    <div className={`stat-card${accent ? ' is-accent' : ''}`}>
+    <div className={`stat-card${accent ? ' is-accent' : ''}`} title={title}>
       <div className="stat-label"><Icon aria-hidden="true" />{label}</div>
       <div className="stat-value mono">{value}</div>
       <div className="stat-meta">{meta}</div>
@@ -167,7 +167,8 @@ function Stat({ icon: Icon, label, value, meta, accent = false }: { icon: typeof
 
 /**
  * `repeatPayers` (all the time only): «Оплатили повторно» (owner, 12.11.2026: «счёт того, сколько человек оплатили
- * повторно») — people with two or more paid payments; granted days are not payments.
+ * повторно») — people with two or more paid payments; granted days are not payments. «Повторных» (owner, 15.11.2026): of the
+ * payments, those of an account that had paid before.
  */
 function RevenueCard({ title, revenue, repeatPayers }: { title: string; revenue: AdminRevenue; repeatPayers?: number }) {
   return (
@@ -176,6 +177,7 @@ function RevenueCard({ title, revenue, repeatPayers }: { title: string; revenue:
       <div className="stat-value mono">{rub(revenue.total)}</div>
       <dl className="admin-split">
         <div><dt>Оплат</dt><dd className="mono">{numberFormat.format(revenue.payments)}</dd></div>
+        {revenue.repeat !== undefined && <div><dt>Повторных</dt><dd className="mono">{numberFormat.format(revenue.repeat)}</dd></div>}
         {repeatPayers !== undefined && <div><dt>Оплатили повторно</dt><dd className="mono">{numberFormat.format(repeatPayers)}</dd></div>}
       </dl>
     </div>

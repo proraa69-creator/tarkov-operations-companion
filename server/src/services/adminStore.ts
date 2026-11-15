@@ -261,6 +261,22 @@ const PAID_SQL = 'COALESCE(p.paid_at, p.created_at)'
 const MONEY_PAYMENT_SQL = "p.account_id = a.id AND p.status = 'succeeded' AND p.amount > 0"
 /** People (accounts that are not deleted) with two or more such payments, all the time. */
 const REPEAT_PAYERS_SQL = `SELECT COUNT(*) AS n FROM accounts a WHERE a.deleted_at IS NULL AND (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL}) >= 2`
+/**
+ * «Повторные оплаты» (owner, 15.11.2026: «сколько оплат и отдельно сколько повторных оплат»): a payment `p` with money in
+ * it (as MONEY_PAYMENT_SQL) whose account had such a payment before it (paid, else created; the same moment: the older row).
+ */
+const REPEAT_PAYMENT_SQL = `p.status = 'succeeded' AND p.amount > 0 AND EXISTS (SELECT 1 FROM payments q WHERE q.account_id = p.account_id AND q.status = 'succeeded' AND q.amount > 0
+  AND (COALESCE(q.paid_at, q.created_at) < COALESCE(p.paid_at, p.created_at) OR (COALESCE(q.paid_at, q.created_at) = COALESCE(p.paid_at, p.created_at) AND q.rowid < p.rowid)))`
+/**
+ * A «мёртвый» free period (owner, 15.11.2026: «не заходил в аккаунт больше 3 недель… или так и не зашёл в рейд»): no
+ * request from the account for TRIAL_DEAD_MS, or its free days still wait for the first raid (trial_raid_ms is cleared
+ * only by the raid). Back in the account or in a raid, it is «реальный» again. Accounts joined as `a`.
+ */
+/** A free period running now (accounts `a`, subscriptions `s`; args: now, now): a user's, not refused, not under a paid period. */
+const TRIAL_NOW_SQL = "a.kind = 'user' AND a.deleted_at IS NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)"
+export const TRIAL_DEAD_MS = 21 * DAY_MS
+const TRIAL_DEAD_SQL = '(a.trial_raid_ms IS NOT NULL OR a.last_seen_at IS NULL OR a.last_seen_at < ?)'
+const trialDead = (row: Row, now: number) => row.trial_raid_ms != null || row.last_seen_at == null || Number(row.last_seen_at) < now - TRIAL_DEAD_MS
 
 /** Accounts (joined as `a`) of a payment region: RU, CIS without Russia, WORLD (every other country, «XX» too), none. */
 function payRegionCondition(region: PayRegion): { sql: string; args: string[] } {
@@ -372,14 +388,19 @@ export class AdminStore {
       // granted days, trials, streamers and the «Легенда» rank are not paid subscriptions.
       active: count(`SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND a.deleted_at IS NULL AND s.paid_until > ?
         AND EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND p.amount > 0)`, now),
-      trials: count("SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.kind = 'user' AND a.deleted_at IS NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)", now, now),
+      // Of them, «повторные» (owner, 15.11.2026): the account paid twice or more (the 2nd, 3rd… subscription).
+      activeRepeat: count(`SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND a.deleted_at IS NULL AND s.paid_until > ?
+        AND (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL}) >= 2`, now),
+      trials: count(`SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE ${TRIAL_NOW_SQL}`, now, now),
+      // «мёртвых» and «реальных» of them (TRIAL_DEAD_SQL); trials = trialsDead + trialsAlive.
+      trialsDead: count(`SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE ${TRIAL_NOW_SQL} AND ${TRIAL_DEAD_SQL}`, now, now, now - TRIAL_DEAD_MS),
       autopay: count("SELECT COUNT(*) AS n FROM recurring_subscriptions WHERE status = 'active'"),
       streamers: count("SELECT COUNT(*) AS n FROM accounts WHERE kind = 'streamer'"),
     }
-    // Every succeeded payment by its stored rouble amount: ЮKassa and the archived ones alike.
+    // Every succeeded payment by its stored rouble amount: ЮKassa and the archived ones alike; `repeat`: REPEAT_PAYMENT_SQL.
     const revenueSince = (since: number) => {
       const row = this.db.prepare("SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(since) as Row
-      return { total: rub(row.total), payments: Number(row.n) }
+      return { total: rub(row.total), payments: Number(row.n), repeat: count(`SELECT COUNT(*) AS n FROM payments p WHERE p.paid_at >= ? AND ${REPEAT_PAYMENT_SQL}`, since) }
     }
     const payouts = this.tableExists('streamer_payouts')
       ? this.db.prepare("SELECT COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS paid, COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS pending, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS open FROM streamer_payouts").get() as Row
@@ -397,7 +418,7 @@ export class AdminStore {
     return {
       generatedAt: new Date(now).toISOString(),
       users,
-      subscriptions,
+      subscriptions: { ...subscriptions, trialsAlive: subscriptions.trials - subscriptions.trialsDead },
       repeatPayers: count(REPEAT_PAYERS_SQL),
       revenue: { today: revenueSince(today), month: revenueSince(monthStart), all: revenueSince(0) },
       plans: { month: plansSince(monthStart), all: plansSince(0) },
@@ -408,20 +429,22 @@ export class AdminStore {
 
   /**
    * «Отряды» (owner, 20.10.2026: «сколько создано отрядов вообще, сколько расформировано, сколько сейчас и сколько человек
-   * в них играет»): created since squad_log exists (services/squadStore.ts; the squads of that moment counted in),
-   * disbanded = created and gone since.
+   * в них играет»), only squads of two or more (owner, 15.11.2026: «Записываю в статистику отряды, в которых было 2 и более
+   * человека»): created = got a second member since squad_team_log exists (services/squadStore.ts; the squads of two or more of
+   * that moment counted in), disbanded = of those, gone since; active and players = the squads of two or more now.
    */
   private squadStats(now: number) {
     if (!this.tableExists('squads') || !this.tableExists('squad_members')) return { created: 0, disbanded: 0, active: 0, players: 0, created30: 0, since: null }
     const count = (sql: string, ...args: number[]) => Number((this.db.prepare(sql).get(...args) as Row).n)
-    const active = count('SELECT COUNT(*) AS n FROM squads')
-    const players = count('SELECT COUNT(*) AS n FROM squad_members')
-    if (!this.tableExists('squad_log')) return { created: active, disbanded: 0, active, players, created30: 0, since: null }
-    const created = count('SELECT COUNT(*) AS n FROM squad_log')
-    const first = (this.db.prepare('SELECT MIN(created_at) AS at FROM squad_log').get() as Row).at
+    const teams = 'SELECT squad_id FROM squad_members GROUP BY squad_id HAVING COUNT(*) >= 2'
+    const active = count(`SELECT COUNT(*) AS n FROM (${teams})`)
+    const players = count(`SELECT COUNT(*) AS n FROM squad_members WHERE squad_id IN (${teams})`)
+    if (!this.tableExists('squad_team_log')) return { created: active, disbanded: 0, active, players, created30: 0, since: null }
+    const created = count('SELECT COUNT(*) AS n FROM squad_team_log')
+    const first = (this.db.prepare('SELECT MIN(created_at) AS at FROM squad_team_log').get() as Row).at
     return {
-      created, disbanded: Math.max(0, created - active), active, players,
-      created30: count('SELECT COUNT(*) AS n FROM squad_log WHERE created_at >= ?', now - 30 * DAY_MS),
+      created, disbanded: count('SELECT COUNT(*) AS n FROM squad_team_log WHERE squad_id NOT IN (SELECT id FROM squads)'), active, players,
+      created30: count('SELECT COUNT(*) AS n FROM squad_team_log WHERE created_at >= ?', now - 30 * DAY_MS),
       since: first == null ? null : new Date(Number(first)).toISOString(),
     }
   }
@@ -630,7 +653,7 @@ export class AdminStore {
     const end = ownerDayRange(toDay).end
     const inRange = (time: unknown) => time != null && Number(time) >= start && Number(time) < end
     const hasInvites = this.tableExists('invite_rewards')
-    const accounts = this.db.prepare(`SELECT a.id, a.kind, a.country, a.created_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.invited_by, a.referred_by, s.paid_until,
+    const accounts = this.db.prepare(`SELECT a.id, a.kind, a.country, a.created_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.trial_raid_ms, a.last_seen_at, a.invited_by, a.referred_by, s.paid_until,
         (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
         (SELECT MIN(${PAID_SQL}) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS first_paid_at,
         EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND ${PAID_SQL} >= ? AND ${PAID_SQL} < ?) AS paid_in_range,
@@ -648,11 +671,13 @@ export class AdminStore {
     const byCountry = new Map<string, Bucket>()
     const legacyRegion: Record<CountryRegion | 'none', number> = { cis: 0, europe: 0, other: 0, none: 0 }
     const users = { total: 0, new: 0, deletedExcluded: 0, streamers: 0, blocked: 0 }
-    const subscriptions = { activePaid: 0, activeGranted: 0, grantedBy: { owner: 0, friend: 0 }, trials: 0, trialsPending: 0, expiringIn7Days: 0, expiringIn30Days: 0, lifetime: { total: 0, streamers: 0, legend: 0 }, autopay: 0 }
+    // activePaidRepeat: of activePaid, paid twice or more; trialsDead / trialsAlive: of trials (TRIAL_DEAD_SQL), now.
+    const subscriptions = { activePaid: 0, activePaidRepeat: 0, activeGranted: 0, grantedBy: { owner: 0, friend: 0 }, trials: 0, trialsDead: 0, trialsAlive: 0, trialsPending: 0, expiringIn7Days: 0, expiringIn30Days: 0, lifetime: { total: 0, streamers: 0, legend: 0 }, autopay: 0 }
     // repeatPaid: «Оплатили повторно», all the time (as in overview); repeatInRange: a second or later payment in range.
     const payers = { everPaid: 0, paidInRange: 0, newInRange: 0, repeatPaid: 0, repeatInRange: 0 }
     const referrals = { friendInvited: 0, friendInvitedInRange: 0, friendPaid: 0, friendPaidDiscount: 0, streamerReferred: 0, rewardsByStatus: { pending: 0, review: 0, granted: 0, canceled: 0 } as Record<string, number> }
-    const trialConversion = { trialStarted: 0, laterPaid: 0, rate: 0 }
+    // dead / alive: of trialStarted, as the free periods now (TRIAL_DEAD_SQL), whether they paid since or not.
+    const trialConversion = { trialStarted: 0, laterPaid: 0, rate: 0, dead: 0, alive: 0 }
     for (const row of accounts) {
       const source = sourceOf(row, now)
       const country = row.country == null ? undefined : String(row.country)
@@ -670,9 +695,9 @@ export class AdminStore {
         if (active) target.active++
       }
       legacyRegion[country ? regionOf(country) : 'none']++
-      if (source === 'money') subscriptions.activePaid++
+      if (source === 'money') { subscriptions.activePaid++; if (Number(row.money_count) >= 2) subscriptions.activePaidRepeat++ }
       if (source === 'grant' || source === 'friend') { subscriptions.activeGranted++; subscriptions.grantedBy[source === 'grant' ? 'owner' : 'friend']++ }
-      if (source === 'trial') subscriptions.trials++
+      if (source === 'trial') { subscriptions.trials++; subscriptions[trialDead(row, now) ? 'trialsDead' : 'trialsAlive']++ }
       if (row.kind === 'user' && row.trial_pending_ms != null && !Number(row.trial_denied ?? 0) && source !== 'money') subscriptions.trialsPending++
       if (source === 'money' || source === 'grant' || source === 'friend') {
         const left = Number(row.paid_until) - now
@@ -698,6 +723,7 @@ export class AdminStore {
       if (isNew && row.kind === 'user' && row.trial_ends_at != null && !Number(row.trial_denied ?? 0)) {
         trialConversion.trialStarted++
         if (paid) trialConversion.laterPaid++
+        trialConversion[trialDead(row, now) ? 'dead' : 'alive']++
       }
     }
     trialConversion.rate = trialConversion.trialStarted ? Math.round(trialConversion.laterPaid / trialConversion.trialStarted * 10_000) / 10_000 : 0
@@ -736,6 +762,7 @@ export class AdminStore {
       byRegion[region].revenue += amount
       if (row.country != null) { const target = byCountry.get(String(row.country)); if (target) target.revenue += amount }
     }
+    const repeatPayments = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM payments p WHERE ${PAID_SQL} >= ? AND ${PAID_SQL} < ? AND ${REPEAT_PAYMENT_SQL}`).get(start, end) as Row).n)
     const refundRow = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(p.amount), 0) AS amount FROM payments p WHERE p.status = 'refunded' AND COALESCE(p.refunded_at, ${PAID_SQL}) >= ? AND COALESCE(p.refunded_at, ${PAID_SQL}) < ?`).get(start, end) as Row
     const rubles = (sums: Record<string, Sum>) => Object.fromEntries(Object.entries(sums).map(([key, sum]) => [key, { count: sum.count, amount: rub(sum.amount) }]))
     const regionView = (item: Bucket) => ({ ...item, revenue: rub(item.revenue) })
@@ -753,6 +780,8 @@ export class AdminStore {
       revenue: {
         total: rub(total.amount),
         payments: total.count,
+        // Of `payments`, those with money whose account had paid before (REPEAT_PAYMENT_SQL).
+        repeatPayments,
         streamerEarnings: rub(streamerEarnings),
         byProvider: rubles(byProvider),
         byMethod: rubles(byMethod),

@@ -462,7 +462,7 @@ test('statistics: users, revenue by plan per day / month, payouts, filters and C
     assert.equal(overview.subscriptions.active, 2)
     assert.equal(overview.subscriptions.streamers, 1)
     // 12 months: 2400 ₽ today + 900 ₽ (the 3 months inserted by SQL).
-    assert.deepEqual(overview.revenue.today, { total: 3300, payments: 2 })
+    assert.deepEqual(overview.revenue.today, { total: 3300, payments: 2, repeat: 1 })
     // a's first month with the 20 % a streamer's link gives (owner, 30.10.2026): 240 ₽.
     assert.equal(overview.revenue.all.total, 3540)
     assert.equal(overview.revenue.all.payments, 3)

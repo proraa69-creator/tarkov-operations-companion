@@ -166,4 +166,14 @@ describe('aggregateRaidNeeds', () => {
       { itemId: 'salewa', count: 1, lines: [], fromRaidListOnly: true },
     ])
   })
+
+  // Owner, 15.11.2026 («Инвазивная терапия»): «не 3 разных обдолбоса коктейля, а 1 и написано x3».
+  it('objectives that accept the same items make one row, its count the sum', () => {
+    const plant = (objectiveId: string, itemId: string) => ({ itemId, count: 1, purpose: 'place' as const, mapIds: ['lighthouse'], objectiveId, alternatives: 2 })
+    const requirements = ['med-bay', 'hall', 'office'].flatMap((objective) => [plant(objective, 'obdolbos'), plant(objective, 'obdolbos-2')])
+    const grouped = groupAlternatives(requirements, () => undefined)
+    expect(grouped.requirements.map((requirement) => requirement.itemId)).toEqual(['any-of:med-bay', 'any-of:med-bay', 'any-of:med-bay'])
+    expect(grouped.groups.get('any-of:med-bay')?.itemIds).toEqual(['obdolbos', 'obdolbos-2'])
+    expect(aggregateRaidNeeds(grouped.requirements)).toEqual([expect.objectContaining({ itemId: 'any-of:med-bay', count: 3 })])
+  })
 })

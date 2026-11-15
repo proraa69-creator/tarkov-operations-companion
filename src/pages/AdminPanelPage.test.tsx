@@ -117,11 +117,21 @@ describe('«Админ панель» in the sidebar', () => {
 })
 
 describe('«Админ панель» sections', () => {
-  it('lists every section; «Объявления» shows only the announcements and their counts', async () => {
+  it('opens on «Сводка»: the site tabs through the app gateway (owner, 15.11.2026)', async () => {
     const request = await desktop()
     renderPage()
+    expect(screen.getByRole('tab', { name: /Сводка/ })).toHaveAttribute('aria-selected', 'true')
+    // Loaded only when opened: the first time takes a while in the tests.
+    const site = await screen.findByRole('tablist', { name: 'Разделы сводки' }, { timeout: 15_000 })
+    expect(within(site).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Сводка', 'Платежи', 'Пользователи', 'Привлечение друзей', 'Стримеры'])
+    await waitFor(() => expect(calls(request, 'GET', '/v1/accounts/me/admin/overview')).toHaveLength(1))
+  }, 30_000)
+
+  it('lists every section; «Объявления» shows only the announcements and their counts', async () => {
+    const request = await desktop()
+    renderPage('/admin?tab=notices')
     const tabs = screen.getByRole('tablist', { name: 'Разделы админ панели' })
-    expect(within(tabs).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Объявления', 'Опросы', 'Баннер', 'Функции', 'Квесты', 'Блоки', 'Отчёты', 'Обновление', 'История обновлений'])
+    expect(within(tabs).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Сводка', 'Объявления', 'Опросы', 'Баннер', 'Функции', 'Квесты', 'Блоки', 'Отчёты', 'Обновление', 'История обновлений'])
     expect(await screen.findByText('Скидка')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Создать объявление' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Создать опрос' })).toBeNull()
@@ -132,7 +142,7 @@ describe('«Админ панель» sections', () => {
   it('an open «Создать объявление» closes when the owner opens another section (owner, 16.10.2026)', async () => {
     const user = userEvent.setup()
     await desktop()
-    renderPage()
+    renderPage('/admin?tab=notices')
     await user.click(await screen.findByRole('button', { name: 'Создать объявление' }))
     expect(screen.getByRole('form', { name: 'Новое объявление' })).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /Опросы/ }))
@@ -269,7 +279,7 @@ describe('«Админ панель» sections', () => {
     await desktop()
     renderPage('/admin?tab=features')
     expect(screen.getByRole('heading', { name: 'Admin panel' })).toBeInTheDocument()
-    expect(within(screen.getByRole('tablist')).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Announcements', 'Surveys', 'Banner', 'Features', 'Tasks', 'Blocks', 'Reports', 'Update', 'Update history'])
+    expect(within(screen.getByRole('tablist')).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Summary', 'Announcements', 'Surveys', 'Banner', 'Features', 'Tasks', 'Blocks', 'Reports', 'Update', 'Update history'])
     expect(await screen.findByText('Off for everybody')).toBeInTheDocument()
     expect(screen.getByText('Position on the map')).toBeInTheDocument()
   })
