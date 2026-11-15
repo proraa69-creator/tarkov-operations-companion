@@ -43,7 +43,7 @@ export const QUEST_PHRASES: Array<[string, string]> = [
     'Click an available task on the left to see its full description here: objectives, requirements, items, places on the map and rewards.'],
   // Full quest description
   ['Условия', 'Requirements'], ['Уровень персонажа от', 'Character level'], ['Только для', 'Only for'], ['Выполнить', 'Complete'],
-  ['Заложить', 'Plant'], ['Пометить', 'Mark'], ['Открыть дверь', 'Open the door'],
+  ['Заложить', 'Plant'], ['Поднять и заложить', 'Pick up and plant'], ['Пометить', 'Mark'], ['Открыть дверь', 'Open the door'],
   ['Где выполнять', 'Where to do it'], ['Ещё точек на карте:', 'More points on the map:'],
   ['Задание выполняется на любой карте.', 'The task can be done on any map.'],
   ['Точных точек для этого задания в данных нет — место указано в целях.', 'The data has no exact points for this task; the place is given in the objectives.'],

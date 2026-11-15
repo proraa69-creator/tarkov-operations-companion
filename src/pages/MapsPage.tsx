@@ -645,7 +645,8 @@ export function MapsPage() {
   useFollowRaidMap(player, activeMap.id, !bossPlacement.active && !questEditor.active)
   const playerOnFloor = useAutoFloor(activeMap, player.onThisMap ? player.position : null, setFloor, !bossPlacement.active && !questEditor.active)
 
-  const itemsById = useMemo(() => new Map<string, Item>(data.items.map((item) => [item.id, item])), [data.items])
+  // with the quests' quest items: what an objective finds, hands over or plants shows with its picture (report 162)
+  const itemsById = useMemo(() => new Map<string, Item>([...data.items, ...(data.questItems ?? [])].map((item) => [item.id, item])), [data.items, data.questItems])
 
   const availability = useMemo(
     () => questAvailabilityOf(data.quests, progress),

@@ -34,6 +34,7 @@ import { AdminBezebeeBlock } from './AdminBezebeeBlock'
 import { History as HistoryIcon } from 'lucide-react'
 import { useAdminAnswer, type AdminAnswer } from './useAdminAnswer'
 import './adminMobile.css'
+import { ruDays } from '../i18n/ruPlural'
 
 /**
  * «Стикеры» (owner, 07.11.2026: «в админ приложении на телефоне сделай мне функцию добавлять стикеры»): the packs and the
@@ -440,7 +441,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     setSaving(true); setError(''); setMessage('')
     try {
       const updated = (await adminApi.rewardReport(detail.id, days)).report
-      onUpdated(updated); setRewardDays(''); setMessage(`Начислено ${days} дней`)
+      onUpdated(updated); setRewardDays(''); setMessage(`Начислено: ${ruDays(days)}`)
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
   }
@@ -685,7 +686,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
 
   const grant = async () => {
     if (!valid) return
-    const label = unit === 'months' ? `${number} мес. (${days} дней)` : `${days} дней`
+    const label = unit === 'months' ? `${number} мес. (${ruDays(days)})` : ruDays(days)
     if (!window.confirm(`Выдать ${label} пользователю ${user.email}?`)) return
     setSaving(true); setError(''); setMessage('')
     try {
@@ -719,7 +720,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
             <label><span>{uiText('Единица')}</span><select className="select" value={unit} onChange={(event) => setUnit(event.target.value as 'days' | 'months')}><option value="days">{uiText('Дни')}</option><option value="months">{uiText('Месяцы')}</option></select></label>
           </div>
           <label className="admin-reason"><span>{uiText('Причина')}</span><input className="input" value={reason} maxLength={200} onChange={(event) => setReason(event.target.value)} /></label>
-          {unit === 'months' && valid && <small className="admin-conversion"><Clock3 size={14} />{uiText(`Будет начислено ${days} дней`)}</small>}
+          {unit === 'months' && valid && <small className="admin-conversion"><Clock3 size={14} />{uiText(`Будет начислено: ${ruDays(days)}`)}</small>}
           {error && <div className="admin-inline-error">{uiText(error)}</div>}
           {message && <div className="admin-inline-success"><Check size={16} />{uiText(message)}</div>}
           <button type="button" className="button primary admin-grant-submit" disabled={!valid || saving} onClick={grant}>{saving ? <LoaderCircle size={17} className="spin" /> : <UserPlus size={17} />}{uiText(saving ? 'Выдаём…' : 'Выдать подписку')}</button>

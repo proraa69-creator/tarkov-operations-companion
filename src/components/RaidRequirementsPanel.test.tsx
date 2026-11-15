@@ -81,4 +81,9 @@ describe('a key ticked «Взял» and the words of each purpose', () => {
     expect(screen.getByText('Предмет mark').closest('.raid-need')).toHaveTextContent('Пометить · Квест')
     expect(document.body.textContent).not.toMatch(/Взять/)
   })
+
+  it('a quest item the quest finds first says «Поднять и заложить» (report 162)', () => {
+    render(<MemoryRouter><RaidRequirementsPanel rows={[{ ...either, key: 'blood', name: 'Проба крови', alternatives: undefined, lines: [{ purpose: 'pickUp', questNames: ['Врачебная тайна. Часть 6'] }] }]} /></MemoryRouter>)
+    expect(screen.getByText('Проба крови').closest('.raid-need')).toHaveTextContent('Поднять и заложить · Врачебная тайна. Часть 6')
+  })
 })

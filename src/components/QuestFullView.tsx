@@ -30,6 +30,7 @@ interface QuestFullViewProps {
 
 const PURPOSES: Record<string, string> = {
   place: 'Заложить',
+  pickUp: 'Поднять и заложить',
   mark: 'Пометить',
   key: 'Ключ',
   bring: 'Взять с собой',
@@ -54,7 +55,8 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
   const note = chronologyNote(quest, availability.get(quest.id), state.activeProfile.modes[state.raidMode], questsById)
   const ownLoyalty = Math.max(0, ...(quest.traderLoyalty?.needed ?? []).filter((entry) => !quest.traderId || entry.traderId === quest.traderId).map((entry) => entry.level))
   const reachedLine = availability.get(quest.id)?.line
-  const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
+  // with the quest items it plants (report 162: «не отображается диск с дезой, который нужно заложить»)
+  const itemsById = useMemo(() => new Map([...data.items, ...(data.questItems ?? [])].map((item) => [item.id, item])), [data.items, data.questItems])
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
   const maps = quest.anyMap ? [] : mapsForQuest(quest, data.maps)
   const firstMap = maps[0]?.id
@@ -86,7 +88,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       }
       const row = rows.get(requirement.itemId) ?? { itemId: requirement.itemId, count: 0, purposes: new Set<string>(), mapIds: new Set<string>() }
       row.count = Math.max(row.count, requirement.count)
-      row.purposes.add(requirement.purpose)
+      row.purposes.add(requirement.pickUp ? 'pickUp' : requirement.purpose)
       requirement.mapIds.forEach((id) => row.mapIds.add(id))
       // Added or corrected in the quest constructor: marked «Raid OS», with the owner's comment.
       if (requirement.curated) {

@@ -145,9 +145,12 @@ export function DashboardPage() {
   const storyRaid = data.quests.filter((quest) => quest.kind === 'story' && isCurrentTrackedQuest(quest, progress) && !deferred.has(quest.id))
     .map((quest) => ({ quest, ...storyRaidNeedsAhead(quest, currentStoryStageIndex(quest, progress), itemById, locale === 'en' ? 'en' : 'ru') }))
   const storyItems = new Map(storyRaid.flatMap(({ items }) => items.map((item) => [item.id, item] as const)))
-  const raidItem = (id: string) => itemById.get(id) ?? storyItems.get(id)
+  // A quest item to plant is in no catalog of items: its name comes with the quests (report 162).
+  const questItemById = new Map((data.questItems ?? []).map((item) => [item.id, item] as const))
+  const raidItem = (id: string) => itemById.get(id) ?? storyItems.get(id) ?? questItemById.get(id)
   const requirements = [
-    ...raidQuests.filter((quest) => !deferred.has(quest.id)).flatMap((quest) => raidPrep(quest).map((requirement) => ({ ...requirement, questName: quest.name, questId: quest.id, quest }))),
+    // «Поднять и заложить»: the same quest has it found in the raid first (report 162).
+    ...raidQuests.filter((quest) => !deferred.has(quest.id)).flatMap((quest) => raidPrep(quest).map((requirement) => ({ ...requirement, ...(requirement.pickUp ? { purpose: 'pickUp' as const } : {}), questName: quest.name, questId: quest.id, quest }))),
     ...storyRaid.flatMap(({ quest, requirements: needs }) => needs.filter((need) => !need.mapIds.length || need.mapIds.includes(selectedMap.id)).map((requirement) => ({ ...requirement, questName: quest.name, questId: quest.id, quest }))),
   ]
   // Named under the list with their term, so an item that left with its quest is no surprise.

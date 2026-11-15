@@ -43,7 +43,7 @@ function useTurn(count: number, on: boolean) {
 }
 
 const PURPOSES: Record<string, string> = {
-  place: 'Заложить', mark: 'Пометить', key: 'Открыть дверь', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде', signal: 'Подать сигнал', use: 'Использовать в рейде',
+  place: 'Заложить', pickUp: 'Поднять и заложить', mark: 'Пометить', key: 'Открыть дверь', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде', signal: 'Подать сигнал', use: 'Использовать в рейде',
 }
 
 /**

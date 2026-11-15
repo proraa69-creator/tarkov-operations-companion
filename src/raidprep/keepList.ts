@@ -131,7 +131,8 @@ export interface QuestItemNeed {
 export function questItemNeeds(quest: Quest) {
   const objectives = new Map<string, NonNullable<Quest['raidRequirements']>>()
   for (const [index, requirement] of (quest.raidRequirements ?? []).entries()) {
-    if (!ITEM_PURPOSES.has(requirement.purpose) || !requirement.itemId) continue
+    // a quest item to plant is given with its quest or found in the raid: nothing to keep in the stash (report 162)
+    if (!ITEM_PURPOSES.has(requirement.purpose) || !requirement.itemId || requirement.questItem) continue
     const key = requirement.objectiveId ? `${requirement.objectiveId}:${requirement.purpose}` : `#${index}`
     const list = objectives.get(key) ?? []
     // One objective lists an item once; the same objective read twice must not double it.

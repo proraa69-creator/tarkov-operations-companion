@@ -72,6 +72,11 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
       const english = items.get(item.id)
       return english ? { ...item, name: english.name || item.name, shortName: english.shortName || item.shortName, description: english.description || item.description } : item
     }),
+    // the quests' quest items (report 162): their English names
+    ...(ru.questItems ? { questItems: ru.questItems.map((item) => {
+      const english = en.questItems?.find((entry) => entry.id === item.id)
+      return english ? { ...item, name: english.name || item.name, shortName: english.shortName || item.shortName } : item
+    }) } : {}),
     maps: ru.maps.map((map) => {
       const english = maps.get(map.id)
       return english ? { ...map, name: english.name || map.name } : map

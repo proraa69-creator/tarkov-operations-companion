@@ -87,7 +87,7 @@ export function QuestsPage() {
   const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel, traderLoyalty)
   // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
   const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
-  const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
+  const itemsById = useMemo(() => new Map([...data.items, ...(data.questItems ?? [])].map((item) => [item.id, item])), [data.items, data.questItems])
   const currentQuests = useMemo(() => data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress)), [data.quests, progress])
   const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById, progress }), [currentQuests, deferred, data.maps, itemsById, progress])
   const deferredIds = useMemo(() => new Set(deferredRows.map(({ quest }) => quest.id)), [deferredRows])
