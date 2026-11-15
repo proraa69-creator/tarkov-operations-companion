@@ -6,8 +6,11 @@
    reaches a little past the farthest corner, so that corner is covered while the edge still moves. */
 :root[data-theme-motion="circle"]::view-transition-old(root),
 :root[data-theme-motion="circle"]::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
-:root[data-theme-motion="circle"]::view-transition-new(root) { animation: theme-circle 720ms cubic-bezier(.33, .4, .6, 1) both; }
+/* Slower (owner, 15.11.2026: «Она должна идти медленно смена темы»): 1.2 s, nearly even speed to the farthest corner. */
+:root[data-theme-motion="circle"]::view-transition-new(root) { animation: theme-circle 1200ms cubic-bezier(.3, .3, .55, 1) both; }
 @keyframes theme-circle {
   from { clip-path: circle(0 at var(--vt-x) var(--vt-y)); }
   to { clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y)); }
 }
+/* While the scheme changes, nothing fades by itself (src/theme/themeTransition.ts): the new picture is the finished one. */
+:root[data-theme-switching] *, :root[data-theme-switching] *::before, :root[data-theme-switching] *::after { transition: none !important; }
