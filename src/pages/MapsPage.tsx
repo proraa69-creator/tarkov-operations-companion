@@ -120,6 +120,8 @@ import { repeatsTitle } from '../maps/repeatsTitle'
 import { useMapFloorWheel } from '../account/trialFeatures'
 import { appStoreRules, isDesktopShell, useMobileLayout } from '../platform'
 import { MapPanelEye, MapPanelsSettings, useMapPanels } from '../maps/MapPanels'
+import { MapSkillTimer, MapSkillTimerSettings } from '../components/MapSkillTimer'
+import { useSkillTimerEnabled } from '../components/skillTimer'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -550,6 +552,7 @@ export function MapsPage() {
   // Report 158: the panels left and right or above and below the map, and each one hidden by its eye (maps/MapPanels.tsx).
   const panels = useMapPanels()
   const panelsOn = !mobile
+  const skillTimerOn = useSkillTimerEnabled()
   const stacked = panelsOn && panels.layout === 'stacked'
   const leftHidden = panelsOn && panels.leftHidden
   const rightHidden = panelsOn && panels.rightHidden
@@ -1158,7 +1161,7 @@ export function MapsPage() {
         {panelsOn && <div className="map-panel-tools">
           {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
           <span className="map-panel-tools-gap" />
-          <MapPanelsSettings layout={panels.layout} />
+          <MapPanelsSettings layout={panels.layout}><MapSkillTimerSettings /></MapPanelsSettings>
           <MapPanelEye side="left" hidden={leftHidden} />
         </div>}
         <div className="map-side-maps">
@@ -1228,7 +1231,8 @@ export function MapsPage() {
           {/* The recognised item under «Вид» (owner, 15.10.2026), on a line of its own below the controls. */}
           <MapItemCard />
         </div>
-        {!mobile && <div className="map-deferred"><DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>}
+        {/* Player report 155: the silent skill-fatigue countdown, left of «Отложенные квесты», once turned on in the gear menu. */}
+        {!mobile && <div className="map-deferred">{skillTimerOn && <MapSkillTimer />}<DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>}
         {/* The phone: «Устранения» under its HUD button (the PC has it as a tab of the right panel). */}
         {mobile && killsOpen && killList.length > 0 && (
           <MapKillsWindow

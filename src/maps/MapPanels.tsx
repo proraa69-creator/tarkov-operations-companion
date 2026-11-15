@@ -95,8 +95,8 @@ const LAYOUTS: Array<[MapPanelsLayout, string, ReactNode]> = [
   ['stacked', 'Сверху и снизу', <Rows3 key="stacked" size={15} aria-hidden="true" />],
 ]
 
-/** The gear over the locations: where the two panels stand around the map. */
-export function MapPanelsSettings({ layout }: { layout: MapPanelsLayout }) {
+/** The gear over the locations: where the two panels stand around the map, and what the page adds below (`children`). */
+export function MapPanelsSettings({ layout, children }: { layout: MapPanelsLayout; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const close = useCallback(() => setOpen(false), [])
@@ -125,6 +125,7 @@ export function MapPanelsSettings({ layout }: { layout: MapPanelsLayout }) {
           {icon}{uiText(text)}
         </button>
       ))}
+      {children}
     </div>}
   </div>
 }
