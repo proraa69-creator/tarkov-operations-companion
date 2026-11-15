@@ -11,6 +11,7 @@ import { withQuestTransits } from './questTransits'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails, type WikiQuestSync } from './wikiQuestCatalog'
 import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
+import { withOwnerGuides } from './ownerGunsmithGuides'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import { applyQuestCorrections } from './questCorrections'
@@ -155,12 +156,13 @@ async function withBuildGuides(
   englishResolver: () => Promise<(name: string) => string | undefined>,
 ): Promise<Quest[]> {
   const isBuild = (quest: Quest) => quest.objectiveDetails?.some((objective) => objective.build) ?? false
-  if (locale !== 'ru' || !quests.some(isBuild)) return quests
+  // The owner's own builds go over the sites' ones, in either language (src/data/ownerGunsmithGuides.ts).
+  if (locale !== 'ru' || !quests.some(isBuild)) return withOwnerGuides(quests, locale !== 'ru')
   const rawTasks = asRecord(tasksRoot.tasks)
   const traderOf = (quest: Quest) => traders.get(text(asRecord(rawTasks[quest.id]).trader))?.normalizedName
   const help = await fetchTarkovHelpGuides(quests.filter(isBuild).map((quest) => ({ id: quest.id, name: quest.name, trader: traderOf(quest) })))
   const isWeapon = (itemId: string) => (items.get(itemId)?.types ?? []).some((type) => type === 'gun' || type === 'preset')
-  const guided = withHelpGuides(quests, help, isWeapon)
+  const guided = withOwnerGuides(withHelpGuides(quests, help, isWeapon))
   // The wiki only for the tasks tarkov.help has no build for.
   const pages = guided.flatMap((quest) => {
     const title = quest.objectiveDetails?.some((objective) => objective.build && !objective.build.guide) ? wikiPageTitle(quest.wikiLink) : undefined

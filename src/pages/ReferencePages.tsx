@@ -779,7 +779,7 @@ function RaidStartSetting() {
   return (
     <div className="setting-row">
       <span>
-        <strong>{uiText("Уведомление о начале рейда")}</strong>
+        <strong>{uiText("Уведомление о начале рейда")}<SettingHelp id="raidStartNotice" /></strong>
         <small>{uiText("Когда загрузка закончилась и рейд начался")}</small>
       </span>
       <button
