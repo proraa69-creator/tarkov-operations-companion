@@ -4,7 +4,7 @@ import { createMapCrs } from '../components/mapCrs'
 import { withMapGeometry } from '../data/mapGeometry'
 import { createModeProgress } from '../domain/progress'
 import type { GameMap, MapMarker, Quest } from '../domain/types'
-import { LABEL_AT, WORLD_LAYOUT, WORLD_SIZE, labelPoint, locationAt, locationPixel, pictureSize, rectsMeet, placeLocation, toWorld, worldBounds, worldLatLng, worldTiles } from './worldMap'
+import { LABEL_AT, WORLD_LAYOUT, WORLD_SIZE, labelPoint, locationAt, locationPixel, openingRect, pictureSize, rectsMeet, placeLocation, toWorld, worldBounds, worldLatLng, worldTiles } from './worldMap'
 import { worldPlacements, worldQuestPoints } from './worldMapQuests'
 
 const mapOf = (id: string, extra: Partial<GameMap> = {}): GameMap => withMapGeometry({
@@ -117,6 +117,24 @@ describe('world map transform', () => {
         expect(phoneWidth * phoneHeight).toBeLessThanOrEqual(width * height)
       }
     }
+  })
+
+  // Owner, 15.11.2026: «начинает приближаться к резерву, и включается… карта резерва»: the flight ends where its map opens.
+  it('gives the place the own map of a location opens on: its bounds on the canvas', () => {
+    for (const map of LOCATIONS) {
+      const placement = placeLocation(map)!
+      const [[x1, y1], [x2, y2]] = openingRect(placement, map)
+      const [[x1b, z1b], [x2b, z2b]] = map.bounds!
+      for (const corner of [[z1b, x1b], [z2b, x2b], [z1b, x2b], [z2b, x1b]] as Array<[number, number]>) {
+        const [x, y] = toWorld(placement, map, corner)
+        expect(x, map.id).toBeGreaterThanOrEqual(x1 - 1e-6)
+        expect(x, map.id).toBeLessThanOrEqual(x2 + 1e-6)
+        expect(y, map.id).toBeGreaterThanOrEqual(y1 - 1e-6)
+        expect(y, map.id).toBeLessThanOrEqual(y2 + 1e-6)
+      }
+    }
+    const lab = placeLocation(mapOf('the-lab'))!
+    expect(openingRect(lab, { ...mapOf('the-lab'), bounds: undefined, svgBounds: undefined })).toEqual(lab.rect)
   })
 
   it('leaves out a location with no geometry or no place in the layout', () => {

@@ -1,7 +1,10 @@
 """
 «Общая карта»: our own drawing of the region (src/assets/world-map/region.webp), made once by hand:
 
-  python -I scripts/world-map/make-world-map.py <stencil.jpg> <out.webp>
+  python -I scripts/world-map/make-world-map.py <stencil.jpg> <out.webp> [--satellite]
+
+`--satellite` (src/assets/world-map/region-satellite.webp): the same shapes in the colours of the ground seen from above, with a
+fine grain, under the locations' «Спутник» renders (owner, 15.11.2026: «режим спутника… в одном стиле, чтобы ничего не отличалось»).
 
 The stencil — where the locations lie and how they join — is tarkov.dev's «openworld-2d» («Nick's Open World V5» by
 LastNickLeft, the-hideout/tarkov-dev, MIT): https://raw.githubusercontent.com/the-hideout/tarkov-dev/main/public/maps/openworld-2d.jpg
@@ -45,6 +48,18 @@ PAINT = {
   'field': (44, 90, 90),
   'trail': (120, 98, 66),     # .gravel #946d3e, darker
 }
+# «Спутник»: the colours of the ground from above, near the locations' renders
+SATELLITE = {
+  'meadow': (88, 98, 62),
+  'forest': (46, 62, 40),
+  'building': (104, 100, 94),
+  'water': (40, 62, 74),
+  'rock': (72, 70, 64),
+  'road': (118, 116, 110),
+  'rail': (86, 82, 76),
+  'field': (120, 116, 82),
+  'trail': (122, 104, 76),
+}
 # how much each kind is smoothed (px of the 4096 picture): areas a lot, lines and houses little
 SMOOTH = {'meadow': 6, 'forest': 6, 'water': 2.5, 'rock': 3, 'field': 5, 'trail': 1.2, 'road': 1.1, 'rail': 1.1, 'building': 1.3}
 NAMES = list(KINDS)
@@ -79,7 +94,13 @@ def lettering_mask(picture):
   return cv2.dilate(mask, np.ones((7, 7), np.uint8))
 
 
-def main(source, target):
+def grain(rng, scale):
+  """Soft noise of features about `scale` px: the grass, crowns and ground of a render, not flat paint."""
+  small = rng.standard_normal((SIZE // scale + 2, SIZE // scale + 2)).astype(np.float32)
+  return cv2.resize(small, (SIZE, SIZE), interpolation=cv2.INTER_CUBIC)
+
+
+def main(source, target, satellite=False):
   picture = np.asarray(Image.open(source).convert('RGB').resize((SIZE, SIZE), Image.LANCZOS))
   lettering = lettering_mask(picture)
   kinds = classify(picture.astype(np.float32))
@@ -99,12 +120,19 @@ def main(source, target):
     shares[..., NAMES.index(name)] *= boost
   shares = np.exp((shares - shares.max(-1, keepdims=True)) * 18)
   shares /= shares.sum(-1, keepdims=True)
-  paint = np.array([PAINT[name] for name in NAMES], np.float32)
+  paint = np.array([(SATELLITE if satellite else PAINT)[name] for name in NAMES], np.float32)
   out = np.empty((SIZE, SIZE, 3), np.float32)
   for y in range(0, SIZE, 512):
     out[y:y + 512] = shares[y:y + 512] @ paint
+  if satellite:
+    rng = np.random.default_rng(15112026)
+    # land gets the grain, water stays calm; a little more in the forest
+    land = 1 - shares[..., water]
+    forest = shares[..., NAMES.index('forest')]
+    noise = (grain(rng, 3) * 0.5 + grain(rng, 9) * 0.35 + grain(rng, 40) * 0.25) * (7 + 9 * forest) * land
+    out += noise[..., None]
   Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).save(target, quality=82, method=6)
 
 
 if __name__ == '__main__':
-  main(sys.argv[1], sys.argv[2])
+  main(sys.argv[1], sys.argv[2], '--satellite' in sys.argv[3:])

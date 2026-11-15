@@ -140,6 +140,20 @@ export function toWorld(placement: WorldPlacement, map: Pick<GameMap, 'transform
   return toWorldPixel(placement, locationPixel(map, position))
 }
 
+/**
+ * Where the location's own map opens on the canvas (its `bounds`, as «Карты» fits them; the scheme's bounds when it has none):
+ * a flight into it ends on the very picture its map then opens with.
+ */
+export function openingRect(placement: WorldPlacement, map: Pick<GameMap, 'transform' | 'coordinateRotation' | 'bounds' | 'svgBounds'>): [WorldPoint, WorldPoint] {
+  const box = map.bounds ?? map.svgBounds
+  if (!box) return placement.rect
+  const [[x1, z1], [x2, z2]] = box
+  const corners = [[z1, x1], [z1, x2], [z2, x1], [z2, x2]].map(([z, x]) => toWorld(placement, map, [z!, x!]))
+  const xs = corners.map(([x]) => x)
+  const ys = corners.map(([, y]) => y)
+  return [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]]
+}
+
 /** The canvas is drawn with Leaflet's CRS.Simple: lat = -y, lng = x. */
 export const worldLatLng = ([x, y]: WorldPoint): [number, number] => [-y, x]
 

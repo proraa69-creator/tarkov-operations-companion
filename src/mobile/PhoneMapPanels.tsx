@@ -34,7 +34,7 @@ export function PhoneMapPicker({ maps, activeId, onPick, onWorld }: { maps: Arra
   return <div className={`phone-map-picker${open ? ' is-open' : ''}`} ref={ref}>
     <button type="button" className="phone-map-chip" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
       <MapIcon size={15} />
-      <span className="phone-map-chip-name">{uiText(active?.name ?? 'Карты')}</span>
+      <span className="phone-map-chip-name">{uiText(active?.name ?? (onWorld && activeId === 'world' ? 'Все локации' : 'Карты'))}</span>
       <ChevronDown size={14} className="phone-map-chip-chevron" />
     </button>
     <div className="phone-map-panel phone-map-list" role="listbox" aria-label={uiText('Карты')} inert={!open}>
@@ -42,10 +42,11 @@ export function PhoneMapPicker({ maps, activeId, onPick, onWorld }: { maps: Arra
         <span className="map-color" style={{ background: map.accent }} />
         <span>{uiText(map.name)}</span>
       </button>)}
-      {/* «Общая карта» on the phone too (owner, 15.11.2026: «общую карту… нужно добавить на мобильное приложение») */}
-      {onWorld && <button type="button" role="option" aria-selected={false} className="phone-map-option phone-map-option-world" onClick={() => { close(); onWorld() }}>
+      {/* «Все локации» on the phone too (owner, 15.11.2026: «общую карту… нужно добавить на мобильное приложение»; «общая карта должна
+          называться все локации») */}
+      {onWorld && <button type="button" role="option" aria-selected={activeId === 'world'} className={`phone-map-option phone-map-option-world${activeId === 'world' ? ' active' : ''}`} onClick={() => { close(); onWorld() }}>
         <MapIcon size={13} aria-hidden="true" />
-        <span>{uiText('Общая карта')}</span>
+        <span>{uiText('Все локации')}</span>
       </button>}
     </div>
   </div>
