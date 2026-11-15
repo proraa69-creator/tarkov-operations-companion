@@ -42,7 +42,10 @@ export function ProfilePage() {
   const online = status?.online ?? false
   const shownLevel = snapshot || progress.levelAnchor ? progress.playerLevel ?? snapshot?.level : undefined
   const blockButtons = <><ModeResetButtons /><NicknameEditor /></>
-  const accountBlock = oneBlock ? (ios ? <AccountDeletionPanel /> : null) : owner && !ios
+  // The players' «Личный кабинет» stands beside «Текущий профиль», not under it (owner, 15.11.2026: «Перенеси вот этот
+  // большой блок наверх»).
+  const cabinetBeside = !oneBlock && !owner && !ios && !(usesWebAccount() && !status?.signedIn)
+  const accountBlock = oneBlock ? (ios ? <AccountDeletionPanel /> : null) : cabinetBeside ? null : owner && !ios
     ? <ServerAccountPanel />
     : usesWebAccount() && !status?.signedIn ? <ServerAccountPanel /> : ios ? <IosAccountPanel /> : <ClientCabinetPanel />
 
@@ -72,6 +75,7 @@ export function ProfilePage() {
         <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /><div className="profile-level-actions"><ModeResetButtons /><NicknameEditor /></div></div><PrestigeLine level={progress.prestige} locale={locale} mode={state.raidMode} /></div>
         {owner && <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>}
       </section>}
+      {cabinetBeside && <ClientCabinetPanel />}
     </div>
     {/* «Баннер для всех», «Объявления по регионам» and «Опросы» moved to «Админ панель» (owner, 16.10.2026). */}
     {owner && <MovedToAdminPanel what="Баннер для всех, объявления и опросы" tab="notices" />}
