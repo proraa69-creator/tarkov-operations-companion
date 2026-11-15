@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, CreditCard, UserPlus, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { CalendarDays, ChevronLeft, ChevronRight, CreditCard, Gift, LineChart, UserPlus, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { ownerDay } from '../shared/ownerTime'
-import { adminApi, adminPaths, type AdminCalendar, type AdminCalendarDay, type AdminDay } from './adminApi'
+import { LONG_PRESS_MS, pickDay, pickedDayState, pickedRange, pickedRangeText, type PickedDays } from '../shared/adminPeriod'
+import { adminApi, adminPaths, type AdminCalendar, type AdminCalendarDay, type AdminDay, type AdminRangeStats } from './adminApi'
 import { accountText, count, errorText, money, PLAN_IDS, PLAN_SHORT, timeOnly } from './adminFormat'
 import { AdminEmpty, AdminLoading, PaymentRow } from './adminShared'
 import { useAdminAnswer } from './useAdminAnswer'
@@ -52,9 +53,15 @@ export function RegistrationsBlock({ refreshKey }: { refreshKey: number }) {
   </section>
 }
 
+/**
+ * A long press on a day picks the first and then the second day of a period (owner, 15.11.2026: «долгое нажатие… можно
+ * листать месяцы»), a third one or the cross drops them; «Сводка за период» shows above the month.
+ */
 function CalendarView({ refreshKey }: { refreshKey: number }) {
   const [month, setMonth] = useState(currentMonth)
   const [open, setOpen] = useState<string | null>(null)
+  const [picked, setPicked] = useState<PickedDays>({})
+  const range = pickedRange(picked)
   const [fallbackToday] = useState(() => ownerDay(Date.now()))
   // The month kept from the last time at once, then the fresh one; another month's answer is never drawn under this title.
   const loadCalendar = useCallback(() => adminApi.calendar(month), [month])
@@ -80,29 +87,79 @@ function CalendarView({ refreshKey }: { refreshKey: number }) {
       <span>{uiText('Оплат')}<strong>{count.format(totals.payments)}</strong></span>
       <span>{uiText('Регистраций')}<strong>{count.format(totals.registrations)}</strong></span>
     </div>}
+    {range && <PeriodSummary from={range.from} to={range.to} refreshKey={refreshKey} onClear={() => setPicked({})} />}
+    {picked.first && !range && <div className="admin-period-wait"><span>{uiText('Долгое нажатие — второй день')}</span><button type="button" className="icon-button" aria-label={uiText('Снять выбор')} onClick={() => setPicked({})}><X size={16} /></button></div>}
     {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
     {!data && !error && <AdminLoading />}
     {data && <div className="admin-calendar-grid" role="grid" aria-label={uiText(`Календарь: ${title}`)}>
       {WEEKDAYS.map((name) => <span key={name} className="admin-calendar-weekday" role="columnheader">{uiText(name)}</span>)}
       {Array.from({ length: lead }, (_, index) => <span key={`lead-${index}`} className="admin-calendar-cell is-empty" aria-hidden="true" />)}
-      {data.days.map((day) => <DayCell key={day.date} day={day} today={today} heat={maxRevenue ? day.revenue / maxRevenue : 0} onOpen={() => setOpen(day.date)} />)}
+      {data.days.map((day) => <DayCell key={day.date} day={day} today={today} heat={maxRevenue ? day.revenue / maxRevenue : 0} picked={pickedDayState(picked, day.date)} onOpen={() => setOpen(day.date)} onPick={() => setPicked((value) => pickDay(value, day.date))} />)}
     </div>}
-    <p className="admin-calendar-note">{uiText('Время — по Бангкоку (UTC+7). Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни.')}</p>
+    <p className="admin-calendar-note">{uiText('Время — по Бангкоку (UTC+7). Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни. Долгое нажатие — начало и конец периода.')}</p>
     {open && <DaySheet date={open} today={today} onChange={setOpen} onClose={() => setOpen(null)} />}
   </div>
 }
 
-function DayCell({ day, today, heat, onOpen }: { day: AdminCalendarDay; today: string; heat: number; onOpen: () => void }) {
+/**
+ * «Сводка за период» (owner, 15.11.2026), as on the site: revenue with the payments and the repeat ones, registrations,
+ * who paid (first time / again), the free periods of the accounts registered then (dead / real) and the plans.
+ */
+function PeriodSummary({ from, to, refreshKey, onClear }: { from: string; to: string; refreshKey: number; onClear: () => void }) {
+  const load = useCallback(() => adminApi.rangeStats(from, to), [from, to])
+  const stats = useAdminAnswer<AdminRangeStats>(adminPaths.rangeStats(from, to), load, refreshKey)
+  const data = stats.data?.range.from === from && stats.data.range.to === to ? stats.data : null
+  const { revenue, payers, trialConversion: trials } = data ?? {}
+  const plans = revenue ? PLAN_IDS.filter((id) => (revenue.byPlan[id]?.count ?? 0) > 0) : []
+  return <section className="admin-period" aria-label={uiText(`Сводка за период ${pickedRangeText(from, to)}`)}>
+    <div className="admin-period-head">
+      <span><strong>{uiText('Сводка за период')}</strong><small>{pickedRangeText(from, to)}</small></span>
+      <button type="button" className="icon-button" aria-label={uiText('Снять выбор')} onClick={onClear}><X size={16} /></button>
+    </div>
+    {!data && (stats.error ? <div className="admin-inline-error" role="alert">{uiText(stats.error)}</div> : <AdminLoading />)}
+    {data && revenue && payers && trials && <>
+      <div className="admin-period-cards">
+        <article className="is-money"><span><LineChart size={14} />{uiText('Выручка')}</span><strong>{money(revenue.total)}</strong><small>{uiText(`оплат: ${count.format(revenue.payments)}${revenue.repeatPayments === undefined ? '' : ` · повторных: ${count.format(revenue.repeatPayments)}`}`)}</small></article>
+        <article><span><UserPlus size={14} />{uiText('Регистрации')}</span><strong>{count.format(data.users.new)}</strong><small>{uiText('новых аккаунтов')}</small></article>
+        <article><span><CreditCard size={14} />{uiText('Платные подписки')}</span><strong>{count.format(payers.paidInRange)}</strong><small>{uiText(`впервые ${count.format(payers.newInRange)} · повторно ${count.format(payers.repeatInRange)}`)}</small></article>
+        <article><span><Gift size={14} />{uiText('Пробный период')}</span><strong>{count.format(trials.trialStarted)}</strong><small>{uiText(`${trials.dead !== undefined && trials.alive !== undefined ? `мёртвых ${count.format(trials.dead)} · реальных ${count.format(trials.alive)} · ` : ''}оплатили ${count.format(trials.laterPaid)}`)}</small></article>
+      </div>
+      {plans.length > 0 && <p className="admin-day-split">{plans.map((id) => <span key={id}>{uiText(PLAN_SHORT[id])}: <strong>{revenue.byPlan[id]!.count}</strong> · {money(revenue.byPlan[id]!.amount)}</span>)}</p>}
+      {revenue.refunds.count > 0 && <small className="admin-day-more">{uiText(`возвратов: ${count.format(revenue.refunds.count)} · ${money(revenue.refunds.amount)}`)}</small>}
+    </>}
+  </section>
+}
+
+function DayCell({ day, today, heat, picked, onOpen, onPick }: { day: AdminCalendarDay; today: string; heat: number; picked?: ReturnType<typeof pickedDayState>; onOpen: () => void; onPick: () => void }) {
   const future = day.date > today
   const number = Number(day.date.slice(8))
+  // A finger held LONG_PRESS_MS picks the day; the tap that ends it does not open the day. Android also sends a
+  // contextmenu for a long press (a right click elsewhere): one pick for both.
+  const press = useRef<{ timer?: number; fired: boolean; x: number; y: number }>({ fired: false, x: 0, y: 0 })
+  const stop = () => { window.clearTimeout(press.current.timer); press.current.timer = undefined }
+  const pick = () => {
+    stop()
+    if (press.current.fired) return
+    press.current.fired = true
+    navigator.vibrate?.(15)
+    onPick()
+  }
+  useEffect(() => stop, [])
   return <button
     type="button"
     role="gridcell"
-    className={`admin-calendar-cell${day.date === today ? ' is-today' : ''}${future ? ' is-future' : ''}${!day.registrations && !day.payments ? ' is-quiet' : ''}`}
+    className={`admin-calendar-cell${day.date === today ? ' is-today' : ''}${future ? ' is-future' : ''}${!day.registrations && !day.payments ? ' is-quiet' : ''}${picked ? ` is-picked is-picked-${picked}` : ''}`}
     style={{ ['--heat' as string]: heat.toFixed(3) }}
     disabled={future}
+    aria-pressed={picked ? true : undefined}
     aria-label={uiText(`${number} число: выручка ${money(day.revenue)}, оплат ${day.payments}, регистраций ${day.registrations}`)}
-    onClick={onOpen}
+    onTouchStart={(event) => { stop(); Object.assign(press.current, { fired: false, x: event.touches[0]?.clientX ?? 0, y: event.touches[0]?.clientY ?? 0 }); press.current.timer = window.setTimeout(pick, LONG_PRESS_MS) }}
+    // A trembling finger stays a press; a scroll (10 px and more) is not one.
+    onTouchMove={(event) => { const touch = event.touches[0]; if (!touch || Math.hypot(touch.clientX - press.current.x, touch.clientY - press.current.y) >= 10) stop() }}
+    onTouchEnd={stop}
+    onTouchCancel={stop}
+    onContextMenu={(event) => { event.preventDefault(); if (future) return; if (press.current.timer === undefined && !press.current.fired) { pick(); press.current.fired = false } else pick() }}
+    onClick={() => { if (press.current.fired) { press.current.fired = false; return } onOpen() }}
   >
     <span className="admin-calendar-day">{number}</span>
     {!future && <>

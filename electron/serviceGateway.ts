@@ -469,13 +469,25 @@ function withCatalogVersion(result: unknown, etag: string | null) {
   return result
 }
 
+/**
+ * «Сводка» of the owner app's «Админ панель» (owner, 15.11.2026: «точная копия сайта: сводка, платежи, пользователи,
+ * привлечение друзей, стримеры»; src/admin/SiteAdminSummary.tsx): the site's owner requests of those tabs, in the owner's
+ * build only (the server answers 404 to anybody but the owner anyway). Path parts are ids and codes only (no dots, so
+ * no «..»); the CSV files are not here: they are downloaded on the site.
+ */
+const OWNER_SITE_ADMIN = /^\/v1\/accounts\/me\/admin\/(?:overview|online|online-stats|calendar|day|series|stats|bezebee|payments|users|streamers|streamer-settings|streamer-stats|streamer-invites|payouts|payout-limits|invite-rewards|referrals)(?:\/[A-Za-z0-9_-]{1,128}){0,4}(?:\?[A-Za-z0-9%._~=&+@-]{0,2000})?$/
+const OWNER_SITE_METHODS: readonly Method[] = ['GET', 'POST', 'PUT']
+export function ownerSiteAdminAllowed(method: string, path: string, owner = isOwnerBuild()) {
+  return owner && OWNER_SITE_METHODS.includes(method as Method) && OWNER_SITE_ADMIN.test(path)
+}
+
 /** A support chat message may carry screenshots (up to ~28 MB): it gets the bug report's time to upload. */
 const SUPPORT_MESSAGE_PATH = /^\/v1\/(?:me\/support\/messages|accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages)$/
 
 /** Whitelisted request from the renderer. `/v1/me/*` returns null when no account is signed in. */
 export async function serviceRequest(method: string, path: string, body?: unknown): Promise<unknown | null> {
   const route = ROUTES.find((entry) => entry.path.test(String(path)))
-  if (!route || !route.methods.includes(method as Method)) throw new Error('Неизвестный запрос сервиса')
+  if ((!route || !route.methods.includes(method as Method)) && !ownerSiteAdminAllowed(method, String(path))) throw new Error('Неизвестный запрос сервиса')
   const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|squad-live|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
   await loadSessionForServer()
   if (personal && !sessionToken) return null

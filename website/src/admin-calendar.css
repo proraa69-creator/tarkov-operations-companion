@@ -70,3 +70,14 @@
 .referral-calendar .calendar-cell { cursor: default; }
 .referral-calendar .calendar-cell:hover { transform: none; }
 .referral-calendar-meta { display: grid; gap: 2px; }
+
+/* «Сводка за период» (owner, 15.11.2026): the days picked by a right click, and the summary above them. */
+.calendar-cell.is-picked { border-color: var(--green); background: color-mix(in srgb, var(--green) 30%, var(--surf-1)); }
+.calendar-cell.is-picked-inside { border-color: color-mix(in srgb, var(--green) 60%, var(--line)); background: color-mix(in srgb, var(--green) 16%, var(--surf-1)); }
+.calendar-cell.is-picked-start, .calendar-cell.is-picked-end, .calendar-cell.is-picked-single { box-shadow: inset 0 0 0 1px var(--green); }
+.calendar-cell.is-picked .calendar-day { color: var(--text); }
+.admin-period { display: grid; gap: 10px; padding: 12px; border: 1px solid color-mix(in srgb, var(--green) 40%, var(--line)); border-radius: var(--radius-md); background: var(--surf-1); }
+.admin-period-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.admin-period-head strong { font-size: 15px; }
+.admin-period-head .mono { color: var(--text-muted); font-weight: 600; margin-left: 4px; }
+.admin-period-wait { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--text-muted); font-size: 13px; }

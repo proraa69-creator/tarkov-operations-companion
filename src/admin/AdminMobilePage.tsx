@@ -502,8 +502,9 @@ function OverviewCards({ data, refreshKey }: { data: AdminOverview | null; refre
   return (
     <section className="admin-overview" aria-label={uiText('Сводка')}>
       <article><span><Users size={16} />{uiText('Пользователи')}</span><strong>{users ? count.format(users.total) : '—'}</strong><small>{uiText(users ? `сегодня +${users.today} · 7 дн. +${users.days7}${users.blocked ? ` · заблокировано ${users.blocked}` : ''}` : '')}</small></article>
-      <article><span><ShieldCheck size={16} />{uiText('Платные подписки')}</span><strong>{data ? count.format(data.subscriptions.active) : '—'}</strong><small>{uiText('только те, кто оплатил и подписка идёт')}</small></article>
-      <article><span><Gift size={16} />{uiText('Пробный период')}</span><strong>{data ? count.format(data.subscriptions.trials) : '—'}</strong><small>{uiText('сейчас на пробном')}</small></article>
+      <article><span><ShieldCheck size={16} />{uiText('Платные подписки')}</span><strong>{data ? count.format(data.subscriptions.active) : '—'}</strong><small>{uiText(data?.subscriptions.activeRepeat === undefined ? 'только те, кто оплатил и подписка идёт' : `из них повторных: ${count.format(data.subscriptions.activeRepeat)}`)}</small></article>
+      {/* «мёртвых» — not in the account for 3 weeks or no raid yet; «реальных» — the rest (owner, 15.11.2026). */}
+      <article><span><Gift size={16} />{uiText('Пробный период')}</span><strong>{data ? count.format(data.subscriptions.trials) : '—'}</strong><small>{uiText(data?.subscriptions.trialsDead === undefined || data.subscriptions.trialsAlive === undefined ? 'сейчас на пробном' : `мёртвых ${count.format(data.subscriptions.trialsDead)} · реальных ${count.format(data.subscriptions.trialsAlive)}`)}</small></article>
       <button type="button" className={`admin-overview-pick${choosing ? ' is-open' : ''}`} aria-expanded={choosing} aria-label={uiText(`${current.title}: ${value ?? '…'}. Выбрать период`)} onClick={() => setChoosing((open) => !open)}>
         <span><UserPlus size={16} />{uiText(current.title)}<ChevronDown size={14} className="admin-overview-caret" /></span>
         <strong>{value === undefined ? (failed ? '—' : '…') : count.format(value)}</strong>
@@ -527,7 +528,7 @@ function RevenueCards({ data }: { data: AdminOverview | null }) {
     { title: 'За всё время', revenue: data?.revenue.all, repeat: data?.repeatPayers },
   ]
   return <section className="admin-revenue-cards" aria-label={uiText('Выручка')}>
-    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${repeat === undefined ? '' : ` · оплатили повторно: ${count.format(repeat)}`}`)}</small></article>)}
+    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${revenue?.repeat === undefined ? '' : ` · повторных: ${count.format(revenue.repeat)}`}`)}</small>{repeat !== undefined && <small>{uiText(`оплатили повторно: ${count.format(repeat)}`)}</small>}</article>)}
   </section>
 }
 

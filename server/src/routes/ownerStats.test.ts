@@ -168,7 +168,8 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     assert.deepEqual(stats.byCountry.map((row) => [row.country, row.users, row.paying, row.active, row.revenue]), [['RU', 2, 2, 2, 1100], ['DE', 2, 0, 2, 0], ['KZ', 1, 1, 1, 250], ['PL', 1, 0, 1, 0], ['US', 1, 0, 0, 0]])
     const { trialsPending, ...subscriptions } = stats.subscriptions as Stats['subscriptions'] & { trialsPending: number }
     assert.equal(typeof trialsPending, 'number')
-    assert.deepEqual(subscriptions, { activePaid: 3, activeGranted: 2, grantedBy: { owner: 1, friend: 1 }, trials: 1, expiringIn7Days: 2, expiringIn30Days: 4, lifetime: { total: 1, streamers: 1, legend: 0 }, autopay: 1 })
+    // ru1 paid twice: a repeat paid subscription; us1 was in the account an hour ago: a real free period.
+    assert.deepEqual(subscriptions, { activePaid: 3, activePaidRepeat: 1, activeGranted: 2, grantedBy: { owner: 1, friend: 1 }, trials: 1, trialsDead: 0, trialsAlive: 1, expiringIn7Days: 2, expiringIn30Days: 4, lifetime: { total: 1, streamers: 1, legend: 0 }, autopay: 1 })
     // ru1 paid in August and again on 25.09.
     assert.deepEqual(stats.payers, { everPaid: 3, paidInRange: 3, newInRange: 2, repeatPaid: 1, repeatInRange: 1 })
     assert.equal(stats.revenue.total, 1650)
@@ -179,7 +180,8 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     assert.deepEqual(stats.revenue.byPlan, { '1m': { count: 3, amount: 850 }, '3m': { count: 1, amount: 800 }, '6m': { count: 0, amount: 0 }, '12m': { count: 0, amount: 0 } })
     assert.deepEqual(stats.revenue.refunds, { count: 1, amount: 300 })
     assert.deepEqual(stats.referrals, { friendInvited: 1, friendInvitedInRange: 1, friendPaid: 1, friendPaidDiscount: 0, streamerReferred: 0, rewardsByStatus: { pending: 0, review: 0, granted: 1, canceled: 0 } })
-    assert.deepEqual(stats.trialConversion, { trialStarted: 2, laterPaid: 1, rate: 0.5 })
+    // kz1 (paid since) has no visit on record: dead; us1 was in the account an hour ago: real.
+    assert.deepEqual(stats.trialConversion, { trialStarted: 2, laterPaid: 1, rate: 0.5, dead: 1, alive: 1 })
 
     // A range before the payments: no revenue, the state «now» stays the same. The August payment of ru1 is there.
     const august = (await t.call<Stats>('GET', '/accounts/me/admin/stats?from=2026-08-01&to=2026-08-31', t.owner)).json
@@ -256,6 +258,55 @@ test('«Оплатили повторно» (owner, 12.11.2026): people with two
     assert.deepEqual(await payers('2026-10-05', '2026-10-05'), { everPaid: 5, paidInRange: 3, newInRange: 0, repeatPaid: 2, repeatInRange: 2 })
     assert.deepEqual(await payers('2026-10-01', '2026-10-01'), { everPaid: 5, paidInRange: 5, newInRange: 5, repeatPaid: 2, repeatInRange: 0 })
     assert.equal((await payers('2026-10-01', '2026-10-05')).repeatInRange, 2)
+  } finally { await t.close() }
+})
+
+test('«Повторные» и «мёртвые» (owner, 15.11.2026): repeat paid subscriptions and payments, dead / real free periods, now and for a period', async () => {
+  const t = await setup('2026-11-01T10:00:00.000Z')
+  try {
+    const twice = await t.user('twice@example.com', 'RU')
+    const once = await t.user('once@example.com', 'RU')
+    const alive = await t.user('alive@example.com', 'RU')
+    const noRaid = await t.user('noraid@example.com', 'RU')
+    const away = await t.user('away@example.com', 'RU')
+    await t.pay(twice.token, '1m')
+    await t.pay(once.token, '1m')
+    t.set('2026-11-05T10:00:00.000Z')
+    await t.pay(twice.token, '3m')
+    const now = t.now()
+    // Free periods running now: one in the account an hour ago, one still waiting for the first raid, one away 22 days.
+    const trial = t.db.prepare('UPDATE accounts SET trial_ends_at = ?, trial_pending_ms = NULL, trial_raid_ms = ?, trial_raid_wait_until = ?, last_seen_at = ? WHERE id = ?')
+    trial.run(now + DAY, null, null, now - 60 * 60 * 1000, alive.id)
+    trial.run(now + 8 * DAY, 2 * DAY, now + 6 * DAY, now - 60 * 60 * 1000, noRaid.id)
+    trial.run(now + DAY, null, null, now - 22 * DAY, away.id)
+    const owner = await t.login('owner@example.com')
+
+    type Overview = { subscriptions: { active: number; activeRepeat: number; trials: number; trialsDead: number; trialsAlive: number }; revenue: Record<'today' | 'month' | 'all', { payments: number; repeat: number }> }
+    const overview = async () => (await t.call<Overview>('GET', '/accounts/me/admin/overview', owner)).json
+    let o = await overview()
+    assert.deepEqual([o.subscriptions.active, o.subscriptions.activeRepeat], [2, 1])
+    assert.deepEqual([o.subscriptions.trials, o.subscriptions.trialsDead, o.subscriptions.trialsAlive], [3, 2, 1])
+    assert.deepEqual([o.revenue.today.payments, o.revenue.today.repeat], [1, 1])
+    assert.deepEqual([o.revenue.month.payments, o.revenue.month.repeat], [3, 1])
+    assert.deepEqual([o.revenue.all.payments, o.revenue.all.repeat], [3, 1])
+
+    type Range = Stats & { subscriptions: { activePaidRepeat: number; trialsDead: number; trialsAlive: number }; revenue: { repeatPayments: number }; trialConversion: { dead: number; alive: number } }
+    const range = async (from: string, to: string) => (await t.call<Range>('GET', `/accounts/me/admin/stats?from=${from}&to=${to}`, owner)).json
+    const day1 = await range('2026-11-01', '2026-11-01')
+    assert.deepEqual([day1.revenue.payments, day1.revenue.repeatPayments], [2, 0])
+    const day5 = await range('2026-11-05', '2026-11-05')
+    assert.deepEqual([day5.revenue.payments, day5.revenue.repeatPayments], [1, 1])
+    const all = await range('2026-11-01', '2026-11-05')
+    assert.deepEqual([all.revenue.payments, all.revenue.repeatPayments], [3, 1])
+    assert.deepEqual([all.subscriptions.activePaid, all.subscriptions.activePaidRepeat], [2, 1])
+    assert.deepEqual([all.subscriptions.trials, all.subscriptions.trialsDead, all.subscriptions.trialsAlive], [3, 2, 1])
+    assert.deepEqual([all.trialConversion.trialStarted, all.trialConversion.dead, all.trialConversion.alive], [3, 2, 1])
+
+    // Back in a raid and back in the account: both are real again.
+    assert.equal(t.accounts.firstRaid(noRaid.id), true)
+    t.db.prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?').run(now, away.id)
+    o = await overview()
+    assert.deepEqual([o.subscriptions.trials, o.subscriptions.trialsDead, o.subscriptions.trialsAlive], [3, 0, 3])
   } finally { await t.close() }
 })
 

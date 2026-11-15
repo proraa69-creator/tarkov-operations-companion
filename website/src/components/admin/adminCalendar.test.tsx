@@ -5,12 +5,12 @@ import type { AdminCalendar as Calendar, AdminDay } from '../../api'
 import { ownerDay } from '../../../../src/shared/ownerTime'
 
 /** «Сводка» → «Календарь»: a month of days; a click opens the day window. */
-const mocks = vi.hoisted(() => ({ calendar: vi.fn(), day: vi.fn() }))
+const mocks = vi.hoisted(() => ({ calendar: vi.fn(), day: vi.fn(), stats: vi.fn() }))
 
 vi.mock('../../auth', () => ({ useAuth: () => ({ status: 'ready', token: 'owner-token', account: null }) }))
 vi.mock('../../api', async (original) => {
   const actual = await original<typeof import('../../api')>()
-  return { ...actual, api: { ...actual.api, adminCalendar: mocks.calendar, adminDay: mocks.day } }
+  return { ...actual, api: { ...actual.api, adminCalendar: mocks.calendar, adminDay: mocks.day, adminStats: mocks.stats } }
 })
 
 const { AdminCalendar } = await import('./AdminCalendar')
@@ -40,7 +40,7 @@ const day: AdminDay = {
   invites: [],
 }
 
-afterEach(() => { cleanup(); mocks.calendar.mockReset(); mocks.day.mockReset() })
+afterEach(() => { cleanup(); mocks.calendar.mockReset(); mocks.day.mockReset(); mocks.stats.mockReset() })
 
 describe('admin calendar', () => {
   it('shows the month and opens a day with its payments, registrations and grants', async () => {
@@ -66,5 +66,45 @@ describe('admin calendar', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('a right click picks the first and the second day of a period: its summary, the third click and the cross drop it (owner, 15.11.2026)', async () => {
+    mocks.calendar.mockResolvedValue(month)
+    const [from, to] = [month.days[1]!.date, month.days[4]!.date]
+    mocks.stats.mockResolvedValue({
+      range: { from, to, timezone: 'Asia/Bangkok' },
+      users: { total: 40, new: 7 },
+      subscriptions: { activePaid: 5, activePaidRepeat: 2, trials: 4, trialsDead: 1, trialsAlive: 3 },
+      payers: { everPaid: 9, paidInRange: 3, newInRange: 2, repeatPaid: 4, repeatInRange: 1 },
+      revenue: { total: 1500, payments: 4, repeatPayments: 2, byPlan: { '1m': { count: 3, amount: 900 }, '3m': { count: 1, amount: 600 } }, refunds: { count: 0, amount: 0 } },
+      trialConversion: { trialStarted: 6, laterPaid: 2, rate: 0.33, dead: 4, alive: 2 },
+    })
+    render(<AdminCalendar />)
+    const fifth = await screen.findByRole('gridcell', { name: /^5 число/ })
+    fireEvent.contextMenu(fifth)
+    expect(screen.getByText('Выберите второй день правой кнопкой')).toBeInTheDocument()
+    expect(fifth).toHaveClass('is-picked')
+    expect(mocks.stats).not.toHaveBeenCalled()
+    fireEvent.contextMenu(screen.getByRole('gridcell', { name: /^2 число/ }))
+
+    const summary = await screen.findByRole('region', { name: /^Сводка за период/ })
+    expect(mocks.stats).toHaveBeenCalledWith('owner-token', from, to)
+    await waitFor(() => expect(within(summary).getByText('1 500 ₽')).toBeInTheDocument())
+    expect(within(summary).getByText('оплат 4 · повторных 2')).toBeInTheDocument()
+    expect(within(summary).getByText('Регистрации').parentElement).toHaveTextContent('7')
+    expect(within(summary).getByText('впервые 2 · повторно 1')).toBeInTheDocument()
+    expect(within(summary).getByText('мёртвых 4 · реальных 2 · оплатили 2')).toBeInTheDocument()
+    expect(screen.getByRole('gridcell', { name: /^3 число/ })).toHaveClass('is-picked-inside')
+    // No day window: a right click is not a click.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByRole('gridcell', { name: /^10 число/ }))
+    expect(screen.queryByRole('region', { name: /^Сводка за период/ })).not.toBeInTheDocument()
+    expect(document.querySelector('.is-picked')).toBeNull()
+
+    fireEvent.contextMenu(screen.getByRole('gridcell', { name: /^2 число/ }))
+    fireEvent.contextMenu(screen.getByRole('gridcell', { name: /^5 число/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Снять выбор' }))
+    expect(screen.queryByRole('region', { name: /^Сводка за период/ })).not.toBeInTheDocument()
   })
 })

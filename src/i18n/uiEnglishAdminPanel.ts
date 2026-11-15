@@ -56,11 +56,19 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Выберите босса', 'Choose a boss'],
   ['Все боссы уже на карте', 'Every boss is on the map already'],
   ['Добавить на карту', 'Add to the map'],
-
+  // «Сводка» (owner, 15.11.2026): the site's tabs in the PC app; the period of the phone admin app's calendar.
+  ['Сводка', 'Summary'], ['Как на сайте', 'As on the website'],
+  ['Сводка за период', 'Period summary'], ['Снять выбор', 'Clear selection'], ['Долгое нажатие — второй день', 'Long press — the second day'],
+  ['новых аккаунтов', 'new accounts'], ['Платные подписки', 'Paid subscriptions'], ['Выручка', 'Revenue'],
+  ['Время — по Бангкоку (UTC+7). Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни. Долгое нажатие — начало и конец периода.', 'Bangkok time (UTC+7). Tap a day to open its sign-ups, payments and granted days. Long press — the start and the end of a period.'],
 ]
 
 /** Server answers with a variable part. */
 export const ADMIN_PANEL_RULES: Array<[RegExp, string]> = [
+  // «Сводка» numbers (owner, 15.11.2026), one part of a «… · …» line each.
+  [/^из них повторных: (\d+)$/g, 'repeat of them: $1'], [/^повторных: (\d+)$/g, 'repeat: $1'], [/^оплат: (\d+)$/g, 'payments: $1'],
+  [/^мёртвых (\d+)$/g, 'dead $1'], [/^реальных (\d+)$/g, 'real $1'], [/^впервые (\d+)$/g, 'first time $1'], [/^повторно (\d+)$/g, 'again $1'],
+  [/^оплатили (\d+)$/g, 'paid $1'], [/^возвратов: (\d+)$/g, 'refunds: $1'], [/^Сводка за период (.+)$/g, 'Period summary $1'],
   [/^Некорректные настройки блоков \(([^)]*)\): проверьте блоки(?:, боссов)? и длину названий \(до (\d+) символов\)$/g, 'Invalid block settings ($1): check the blocks, the bosses and the title length (up to $2 characters)'],
   [/^Некорректные настройки блоков: проверьте блоки(?:, боссов)? и длину названий \(до (\d+) символов\)$/g, 'Invalid block settings: check the blocks, the bosses and the title length (up to $1 characters)'],
 ]

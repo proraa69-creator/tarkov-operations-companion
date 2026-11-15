@@ -1,4 +1,5 @@
 import { API_URL } from './config'
+import type { AdminPeriodStats } from '../../src/shared/adminPeriod'
 import { siteLocale, tr } from './i18n'
 import { loadAdMark, saveAdMark } from './storage'
 import type { AdSource } from '../../src/shared/adSources'
@@ -223,7 +224,35 @@ export interface Autopay {
 export interface PaymentOptions { method?: YooKassaPaymentMethod; /** The separate autopayment consent (LEGAL_VERSION) — only when ticked. */ autopayVersion?: string }
 export interface CreatedPayment { paymentId: string; confirmationUrl: string }
 
+/**
+ * Another way to the server instead of fetch (the PC owner app's «Сводка», src/admin/SiteAdminSummary.tsx: the session
+ * lives in its main process, so the site's admin tabs ask through its gateway). `path` is the whole API path, with its
+ * query; the answer is the JSON, a failure an Error with the server's reason.
+ */
+export type ApiTransport = (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown>
+let transport: ApiTransport | null = null
+export function setApiTransport(next: ApiTransport | null) { transport = next }
+/** Whether the requests go through a transport (no file downloads there). */
+export const usesApiTransport = () => transport !== null
+
+/** A transport failure as ApiError: «не найдено» is the owner routes' 404, «недоступен» / a timeout the network. */
+function transportError(reason: unknown) {
+  const message = reason instanceof Error ? reason.message : String(reason)
+  if (/Не найдено|Not found|404/i.test(message)) return new ApiError(404, message)
+  if (/недоступен|unavailable|timed? ?out|ECONN|fetch failed/i.test(message)) return new ApiError(0, NETWORK_ERROR_MESSAGE, true)
+  return new ApiError(400, message || 'Сервер вернул неожиданный ответ')
+}
+
+export async function viaTransport<T>(method: string, path: string, body?: unknown): Promise<T> {
+  try {
+    return await transport!((method as 'GET' | 'POST' | 'PUT'), path, body) as T
+  } catch (reason) {
+    throw transportError(reason)
+  }
+}
+
 async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null; root?: string; timeoutMs?: number } = {}): Promise<T> {
+  if (transport) return viaTransport<T>(options.method ?? 'GET', `${options.root ?? '/v1/accounts'}${path}`, options.body)
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000)
   let response: Response
@@ -311,11 +340,16 @@ export interface AuthResult { token: string; account: Account; referralApplied?:
 export interface PendingRegistration { pending: true; message: string; challengeId: string; expiresAt: string; resendSeconds: number }
 
 /** «Админ-панель» (owner only; server/src/routes/ownerAdmin.ts, services/adminStore.ts). Money in roubles. */
-export interface AdminRevenue { total: number; payments: number }
+/** `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»). */
+export interface AdminRevenue { total: number; payments: number; repeat?: number }
 export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
-  subscriptions: { active: number; trials: number; autopay: number; streamers: number }
+  /**
+   * Servers of 15.11.2026 on: `activeRepeat` — of `active`, paid twice or more; `trialsDead` / `trialsAlive` — of `trials`,
+   * «мёртвые» (not in the account for 3 weeks, or no raid yet) and «реальные».
+   */
+  subscriptions: { active: number; activeRepeat?: number; trials: number; trialsDead?: number; trialsAlive?: number; autopay: number; streamers: number }
   /** «Оплатили повторно»: people with two or more paid payments, all the time (servers before 12.11.2026 omit it). */
   repeatPayers?: number
   revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue }
@@ -334,7 +368,7 @@ export interface AdminAdNumbers { visits: number; registrations: number; payment
 export interface AdminAdSource { source: AdSource; label: string; totals: AdminAdNumbers & { payers: number }; rows: Array<AdminAdNumbers & { period: string }>; campaigns: Array<AdminAdNumbers & { campaign: string }> }
 export interface AdminAds { period: StatsPeriod; sources: AdminAdSource[] }
 /** GET /me/admin/stats, the part «Новые за …» reads: accounts created on the owner's days `from`..`to` (deleted ones not counted). */
-export interface AdminRangeStats { range: { from: string; to: string; timezone: string }; users: { total: number; new: number } }
+export type AdminRangeStats = Pick<AdminPeriodStats, 'range' | 'users'> & Partial<Omit<AdminPeriodStats, 'range' | 'users'>>
 export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendar { month: string; today: string; days: AdminCalendarDay[] }
 /**
@@ -553,6 +587,7 @@ function adminQuery(params: Record<string, string | number | undefined>) {
 
 /** «Скачать CSV»: the file needs the session header, so it is fetched here and saved through a blob link. */
 export async function downloadAdminPaymentsCsv(token: string, filter: AdminPaymentFilter) {
+  if (transport) throw new ApiError(400, 'CSV скачивается на сайте')
   let response: Response
   try {
     response = await fetch(`${API_URL}/v1/accounts/me/admin/payments.csv${adminQuery({ ...filter })}`, { headers: { authorization: `Bearer ${token}` } })

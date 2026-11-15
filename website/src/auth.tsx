@@ -93,6 +93,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
+/**
+ * The site's admin tabs inside the PC owner app (src/admin/SiteAdminSummary.tsx): the owner is signed in there, and every
+ * request goes through api.ts setApiTransport, so the token here is only a placeholder that is never sent anywhere.
+ */
+export function EmbeddedOwnerAuth({ email, children }: { email: string; children: ReactNode }) {
+  const value = useMemo<AuthState>(() => {
+    const refuse = () => Promise.reject(new ApiError(400, 'Вход — в приложении'))
+    return {
+      token: 'owner-app', status: 'ready', error: null,
+      account: { email, kind: 'user', createdAt: new Date(0).toISOString(), nicknames: {}, subscription: { status: 'inactive' }, owner: true } as Account,
+      login: refuse, register: refuse, confirmRegistration: refuse, logout: () => Promise.resolve(),
+      reload() { /* the app keeps the session */ }, setAccount() { /* nothing to keep */ }, adopt() { /* nothing to keep */ },
+    }
+  }, [email])
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext)
