@@ -119,6 +119,8 @@ export type ExperimentalQuery =
   /** Second attempt, picture check: the items the readings could name (src/overlay/iconMatch.ts). */
   | { id: number; kind: 'item-candidates'; input: { texts: string[] } }
   | { id: number; kind: 'item-picture'; input: PictureQuery }
+  /** The item the picture search found by itself (src/overlay/pictureIndex.ts): its card, or «not found» when the catalog lacks it. */
+  | { id: number; kind: 'item-id'; input: { id: string } }
 
 /** An OCR line around the cursor and its distance from the cursor in screen pixels. */
 export interface NearbyLine { text: string; distance: number }

@@ -88,7 +88,7 @@ describe('reading the game tooltip after the key press', () => {
     expect(result.answer).toBeNull()
     expect(result.rect).not.toBeNull()
     expect(result.tries).toEqual(['Шум', 'Шум', 'Шум'])
-    expect(result.time).toBeGreaterThanOrEqual(1800)
+    expect(result.time).toBeGreaterThanOrEqual(TOOLTIP_TIMING.totalMs)
   })
 
   it('keeps the first grab with the tooltip for the picture — before the app’s own card could show', async () => {

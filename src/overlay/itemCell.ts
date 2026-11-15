@@ -243,3 +243,104 @@ function combPhase(profile: Float32Array, pitch: number, samples: number) {
   // The ±1 px slack makes neighbouring offsets tie: the line itself is where the exact comb peaks.
   return [best - 1, best, best + 1].reduce((top, phase) => (comb(phase, 0) > comb(top, 0) ? phase : top), best)
 }
+
+/** Item sizes the frame search tries (cells along one side). */
+const FRAME_MAX_CELLS = 5
+/** A frame side spans whole cells: its length is k pitches within this share of a pitch. */
+const FRAME_FIT = 0.09
+/** Layouts compared at most (each costs a signature of the area). */
+const FRAME_LAYOUTS = 10
+
+/**
+ * Where the hovered item may lie, from the frame lines right around the cursor rather than from one regular grid: the
+ * game's rigs and pockets place their slots apart (no common grid), and an item's semi-transparent background lets
+ * its inner grid lines show (a 2×1 scope looked like two cells). Every pair of lines left and right of the cursor (and
+ * above and below) a whole number of cells apart is a possible side, so the result is a few layouts (the picture
+ * search compares each with the items of its size), the grid reading of findItemCell among them.
+ */
+export function findItemFrames(image: Bitmap, cursor: { x: number; y: number }, unit: number, tooltip?: Rect | null): ItemCell {
+  const base = findItemCell(image, cursor, unit, tooltip)
+  const pitch = CELL_PITCH * unit
+  const reach = Math.max(2, Math.round(2 * unit))
+  const blocked: Rect[] = [{ x: cursor.x - 2, y: cursor.y - 2, width: Math.round(CURSOR_BOX.width * unit) + 4, height: Math.round(CURSOR_BOX.height * unit) + 4 }]
+  if (tooltip) blocked.push({ x: tooltip.x - reach - 1, y: tooltip.y - reach - 1, width: tooltip.width + 2 * reach + 2, height: tooltip.height + 2 * reach + 2 })
+  const hidden = (x: number, y: number) => blocked.some((rect) => inside(rect, x, y))
+  const around = Math.ceil((FRAME_MAX_CELLS + 1) * pitch)
+  const view = clip({ x: Math.round(cursor.x) - around, y: Math.round(cursor.y) - around, width: around * 2 + 1, height: around * 2 + 1 }, image.width, image.height)
+  const at = luminance(image, view)
+  const right = view.x + view.width, bottom = view.y + view.height
+  const isLine = (value: number, previous: number, next: number, before: number, after: number) =>
+    Math.abs(value - previous) <= LINE_EVEN && Math.abs(value - next) <= LINE_EVEN && (Math.abs(value - before) >= LINE_CONTRAST || Math.abs(value - after) >= LINE_CONTRAST)
+  // Line strength of each column (row) over a band around the cursor across it.
+  const band = Math.max(4, Math.round(pitch * 0.42))
+  const profile = (vertical: boolean) => {
+    const from = vertical ? Math.max(view.x + reach, Math.round(cursor.x - FRAME_MAX_CELLS * pitch)) : Math.max(view.y + reach, Math.round(cursor.y - FRAME_MAX_CELLS * pitch))
+    const to = vertical ? Math.min(right - reach - 1, Math.round(cursor.x + FRAME_MAX_CELLS * pitch)) : Math.min(bottom - reach - 1, Math.round(cursor.y + FRAME_MAX_CELLS * pitch))
+    const across0 = vertical ? Math.max(view.y + 1, Math.round(cursor.y - band)) : Math.max(view.x + 1, Math.round(cursor.x - band))
+    const across1 = vertical ? Math.min(bottom - 2, Math.round(cursor.y + band)) : Math.min(right - 2, Math.round(cursor.x + band))
+    const lines: number[] = []
+    const strength: number[] = []
+    for (let position = from; position <= to; position += 1) {
+      let seen = 0, hits = 0
+      for (let along = across0; along <= across1; along += 1) {
+        const x = vertical ? position : along, y = vertical ? along : position
+        if (hidden(x, y)) continue
+        seen += 1
+        const hit = vertical
+          ? isLine(at(x, y), at(x, y - 1), at(x, y + 1), at(x - reach, y), at(x + reach, y))
+          : isLine(at(x, y), at(x - 1, y), at(x + 1, y), at(x, y - reach), at(x, y + reach))
+        if (hit) hits += 1
+      }
+      strength.push(seen >= (across1 - across0 + 1) * VISIBLE_SHARE ? hits / seen : -1)
+    }
+    // Strong columns, one per run (the strongest of neighbours).
+    for (let index = 0; index < strength.length; index += 1) {
+      const value = strength[index]!
+      if (value < 0.72) continue
+      if ((strength[index - 1] ?? 0) > value || (strength[index + 1] ?? 0) > value || (strength[index - 1] ?? 0) === value) continue
+      lines.push(from + index)
+    }
+    // A border under the tooltip or the cursor cannot be seen: where one would be a whole number of cells from a seen
+    // line, it may be.
+    const strong = [...lines]
+    for (const line of strong) {
+      for (let cells = -FRAME_MAX_CELLS; cells <= FRAME_MAX_CELLS; cells += 1) {
+        const at = Math.round(line + cells * pitch) - from
+        if (cells && at >= 0 && at < strength.length && strength[at] === -1 && !lines.some((known) => Math.abs(known - from - at) <= 2)) lines.push(from + at)
+      }
+    }
+    return lines.sort((a, b) => a - b)
+  }
+  const spans = (lines: number[], center: number) => {
+    const before = lines.filter((line) => line < center - 1)
+    const after = lines.filter((line) => line > center + 1)
+    const found: Array<{ from: number; to: number; cells: number }> = []
+    for (const start of before) {
+      for (const end of after) {
+        const cells = Math.round((end - start) / pitch)
+        if (cells < 1 || cells > FRAME_MAX_CELLS || Math.abs(end - start - cells * pitch) > pitch * FRAME_FIT) continue
+        found.push({ from: start, to: end, cells })
+      }
+    }
+    // Smallest first: the cell under the cursor, then larger items.
+    return found.sort((a, b) => a.cells - b.cells || Math.abs(a.to - a.from - a.cells * pitch) - Math.abs(b.to - b.from - b.cells * pitch)).slice(0, 5)
+  }
+  const columns = spans(profile(true), cursor.x)
+  const rows = spans(profile(false), cursor.y)
+  const layouts: ItemLayout[] = []
+  const seen = new Set<string>()
+  const add = (layout: ItemLayout) => {
+    const key = `${layout.cols}x${layout.rows}@${Math.round(layout.rect.x / 4)},${Math.round(layout.rect.y / 4)}`
+    if (seen.has(key) || layout.rect.width <= 0 || layout.rect.height <= 0) return
+    seen.add(key)
+    layouts.push(layout)
+  }
+  const pairs = columns.flatMap((column) => rows.map((row) => ({ column, row }))).sort((a, b) => a.column.cells * a.row.cells - b.column.cells * b.row.cells)
+  for (const { column, row } of pairs) {
+    if (layouts.length >= FRAME_LAYOUTS) break
+    const rect = clip({ x: column.from + reach, y: row.from + reach, width: column.to - column.from - 2 * reach + 1, height: row.to - row.from - 2 * reach + 1 }, image.width, image.height)
+    add({ rect, cols: column.cells, rows: row.cells, covered: coveredParts(image, rect, blocked, unit) })
+  }
+  for (const layout of base.layouts) add(layout)
+  return { layouts, grid: base.grid || pairs.length > 0 }
+}

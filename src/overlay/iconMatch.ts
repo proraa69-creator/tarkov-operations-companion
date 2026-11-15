@@ -6,7 +6,7 @@
  *
  * The screen side (findItemCell, screenPicture) runs where the screen grab is; icons are decoded where the catalog is.
  */
-import type { Bitmap } from './tooltipDetect.js'
+import type { Bitmap, Rect } from './tooltipDetect.js'
 import type { ItemCell } from './itemCell.js'
 import { iconArea, pictureSignature, signatureDistance, type PictureSignature, type Pixels, type SignatureDistance } from './iconSignature.js'
 
@@ -49,19 +49,63 @@ export interface ScreenPicture {
   }>
 }
 
-export function screenPicture(image: Bitmap, cell: ItemCell): ScreenPicture {
+export function screenPicture(image: Bitmap, cell: ItemCell, options: { backdrop?: boolean } = {}): ScreenPicture {
   const pixels: Pixels = { ...image, order: 'bgra' }
-  return {
-    grid: cell.grid,
-    layouts: cell.layouts.map((layout) => ({
-      cols: layout.cols,
-      rows: layout.rows,
-      turns: {
-        0: pictureSignature(pixels, layout.rect, layout.covered, 0),
-        ...(layout.cols !== layout.rows ? { 1: pictureSignature(pixels, layout.rect, layout.covered, 1), 3: pictureSignature(pixels, layout.rect, layout.covered, 3) } : {}),
-      },
-    })),
+  const layouts: ScreenPicture['layouts'] = []
+  for (const layout of cell.layouts) {
+    const variants: Array<{ source: Pixels; rect: Rect; covered: Rect[] }> = [{ source: pixels, rect: layout.rect, covered: layout.covered }]
+    if (options.backdrop) {
+      const local = withBackdrop(image, layout.rect)
+      if (local) variants.push({ source: local, rect: { x: 0, y: 0, width: layout.rect.width, height: layout.rect.height }, covered: layout.covered.map((part) => ({ ...part, x: part.x - layout.rect.x, y: part.y - layout.rect.y })) })
+    }
+    for (const { source, rect, covered } of variants) {
+      layouts.push({
+        cols: layout.cols,
+        rows: layout.rows,
+        turns: {
+          0: pictureSignature(source, rect, covered, 0),
+          ...(layout.cols !== layout.rows ? { 1: pictureSignature(source, rect, covered, 1), 3: pictureSignature(source, rect, covered, 3) } : {}),
+        },
+      })
+    }
   }
+  return { grid: cell.grid, layouts }
+}
+
+/** Colour distance (sum over channels) within which a pixel counts as the item's background. */
+const BACKDROP_TOLERANCE = 36
+/** The dark cell a transparent icon pixel stands for in its signature (iconSignature.ts BACKDROP). */
+const ICON_BACKDROP = 28
+
+/**
+ * The item's area with its background (the game fills an item's cells with a semi-transparent tint: grey, blue,
+ * yellow…) painted the dark the icon signatures stand for under a transparent pixel — measured on logged lookups: a
+ * grey-backed roll of tape 0.32 → 0.16 from its icon. The background is the median colour along the area's edge.
+ * Null when the area is empty. BGRA in, BGRA out (a copy of just the area).
+ */
+export function withBackdrop(image: Bitmap, rect: Rect): Pixels | null {
+  const x0 = Math.max(0, Math.round(rect.x)), y0 = Math.max(0, Math.round(rect.y))
+  const width = Math.min(image.width, Math.round(rect.x + rect.width)) - x0, height = Math.min(image.height, Math.round(rect.y + rect.height)) - y0
+  if (width < 4 || height < 4) return null
+  const edge: number[][] = [[], [], []]
+  const sample = (x: number, y: number) => {
+    const index = (y * image.width + x) * 4
+    for (let channel = 0; channel < 3; channel += 1) edge[channel]!.push(image.data[index + channel]!)
+  }
+  for (let x = x0; x < x0 + width; x += 1) { sample(x, y0 + 1); sample(x, y0 + height - 2) }
+  for (let y = y0; y < y0 + height; y += 1) { sample(x0 + 1, y); sample(x0 + width - 2, y) }
+  const background = edge.map((values) => values.sort((a, b) => a - b)[values.length >> 1]!)
+  const data = new Uint8Array(width * height * 4)
+  for (let y = 0; y < height; y += 1) {
+    const from = ((y0 + y) * image.width + x0) * 4
+    data.set(image.data.subarray(from, from + width * 4), y * width * 4)
+  }
+  for (let index = 0; index < data.length; index += 4) {
+    const distance = Math.abs(data[index]! - background[0]!) + Math.abs(data[index + 1]! - background[1]!) + Math.abs(data[index + 2]! - background[2]!)
+    if (distance <= BACKDROP_TOLERANCE) data[index] = data[index + 1] = data[index + 2] = ICON_BACKDROP
+    data[index + 3] = 255
+  }
+  return { width, height, data, order: 'bgra' }
 }
 
 /** The signature of a catalog icon of a cols×rows item. */
@@ -133,6 +177,10 @@ export interface PictureQuery {
   screen: ScreenPicture
   /** Icon bytes (base64) by item id, for the candidates whose signature the renderer did not know yet. */
   icons: Record<string, string>
+  /** Icon signatures from the picture index (signatureIndex.ts) by item id: no fetch needed for these. */
+  signatures?: Record<string, PictureSignature>
+  /** The closest pictures of the whole catalog (pictureIndex.ts): candidates too, whatever the readings suggested. */
+  nearby?: string[]
 }
 
 /** The renderer's answer: the item card (or «not found») and every candidate's comparison, for the diagnostics log. */

@@ -37,6 +37,11 @@ const FRAME_CONTRAST = 24
 const MIN_HEIGHT = 17
 const MAX_HEIGHT = 56
 const MIN_WIDTH = 26
+/** A box this tall (1080p px of the screen) is a tooltip only when it is at least twice as wide (see findTooltipPrepared). */
+const CELL_LIKE_HEIGHT = 40
+/** One line of tooltip text is at most this tall (1080p px); a long name wraps onto a second line (two at most). */
+const LINE_HEIGHT_MAX = 30
+const TWO_LINES_MAX = 46
 /** Farthest a tooltip may be from the cursor (1080p px): over a big item it sits at the item's corner. */
 const MAX_DISTANCE = 760
 /** The mouse arrow drawn over the scene (when the capture includes it): about 13×21 px from the hotspot. */
@@ -135,6 +140,9 @@ function findTooltipPrepared(image: Bitmap, cursor: { x: number; y: number }, un
         // Inside the frame (1 px at 1080p, maybe 2 px at larger resolutions; the padding leaves room to spare).
         const rect = { x: x0 + inset, y: top.y + inset, width: x1 - x0 - inset * 2 + 1, height: gap - inset * 2 + 1 }
         if (rect.width < minWidth / 2 || rect.height < minHeight / 2) continue
+        // Taller than one line of the screen's own scale and not much wider than tall: an inventory cell with its
+        // label seen at a larger UI scale, not a tooltip (logged lookups: «Гвозди», «ТПЗ SP» read as tooltips).
+        if (rect.height > CELL_LIKE_HEIGHT * distanceUnit && rect.width < rect.height * 2) continue
         const text = readTextLayout(light, width, rect, cursorMask, unit)
         if (!text) continue
         // Nearest to the cursor wins (the tooltip hugs it); boxes far away are other panels.
@@ -202,7 +210,11 @@ function findSide(light: Uint8Array, grey: Uint8Array, width: number, x: number,
   return null
 }
 
-interface TextLayout { background: number; peak: number; x0: number; x1: number; y0: number; y1: number }
+interface TextLayout {
+  background: number; peak: number; x0: number; x1: number; y0: number; y1: number
+  /** The text lines (rows, inclusive), top first: one, or two for a long name the game wrapped. */
+  lines: Array<{ y0: number; y1: number }>
+}
 
 /**
  * The inside of a real tooltip: an even dark background (its margins free of anything bright) and one line of
@@ -244,13 +256,44 @@ function readTextLayout(light: Uint8Array, width: number, rect: Rect, cursorMask
   if (!counted || x1 < 0) return null
   const share = bright / counted
   if (share < 0.002 || share > 0.4) return null
-  // Text sits inside the box, off its frame, one line high.
+  // Text sits inside the box, off its frame, one line high — or two: the game wraps a long name.
   const textHeight = y1 - y0 + 1
-  if (y0 <= rect.y || y1 >= rect.y + rect.height - 1 || textHeight < 4 * unit || textHeight > 30 * unit) return null
+  if (y0 <= rect.y || y1 >= rect.y + rect.height - 1 || textHeight < 4 * unit || textHeight > TWO_LINES_MAX * unit) return null
+  const lines = textLines(light, width, rect, cursorMask, threshold, y0, y1, unit)
+  if (textHeight > LINE_HEIGHT_MAX * unit && lines.length !== 2) return null
   const padLeft = x0 - rect.x, padRight = rect.x + rect.width - 1 - x1
   if (padRight > 34 * unit || (!maskedLeft && (padLeft > 34 * unit || Math.abs(padLeft - padRight) > Math.max(9 * unit, rect.width * 0.12)))) return null
   peaks.sort((a, b) => a - b)
-  return { background, peak: peaks[Math.floor(peaks.length * 0.9)] ?? threshold, x0, x1, y0, y1 }
+  return { background, peak: peaks[Math.floor(peaks.length * 0.9)] ?? threshold, x0, x1, y0, y1, lines: lines.length === 2 ? lines : [{ y0, y1 }] }
+}
+
+/**
+ * The text lines between y0 and y1: runs of rows holding bright pixels, split where a few rows hold none (between
+ * the lines of a wrapped name); runs too short to be a line (a stray dot, the tail of a comma) join their neighbour.
+ */
+function textLines(light: Uint8Array, width: number, rect: Rect, cursorMask: Rect, threshold: number, y0: number, y1: number, unit: number) {
+  const runs: Array<{ y0: number; y1: number }> = []
+  for (let y = y0; y <= y1; y += 1) {
+    let lit = false
+    for (let x = rect.x; x < rect.x + rect.width && !lit; x += 1) lit = !inMask(cursorMask, x, y) && light[y * width + x]! >= threshold
+    const last = runs.at(-1)
+    if (!lit) continue
+    // Inside one line a row may lack bright pixels (thin strokes): a gap of a pixel or two at 1080p is no new line.
+    if (last && y - last.y1 <= Math.max(1, Math.round(1.5 * unit))) last.y1 = y
+    else runs.push({ y0: y, y1: y })
+  }
+  const tall = runs.filter((run) => run.y1 - run.y0 + 1 >= 5 * unit)
+  if (tall.length !== 2) return [{ y0, y1 }]
+  // Short runs (accents, commas) go to the nearer line.
+  const [first, second] = tall.map((run) => ({ ...run })) as [{ y0: number; y1: number }, { y0: number; y1: number }]
+  for (const run of runs) {
+    if (tall.includes(run)) continue
+    if (run.y0 < second.y0 && run.y0 - first.y1 < second.y0 - run.y1) first.y1 = Math.max(first.y1, run.y1)
+    else if (run.y0 < second.y0) second.y0 = Math.min(second.y0, run.y0)
+    else second.y1 = Math.max(second.y1, run.y1)
+    if (run.y1 < first.y0) first.y0 = run.y0
+  }
+  return [first, second]
 }
 
 export interface OcrOptions {
@@ -327,17 +370,36 @@ export function ocrVariants(image: Bitmap, rect: Rect, cursor?: { x: number; y: 
   const contrast = peak - background
   // Measured on the game's font: text scaled to ~4× its 1080p size and cut to black and white reads best.
   const scale = Math.max(2, Math.min(5, Math.round(4 / unit)))
-  const crop = shifted ? trim(rect, shifted, Math.round(4 * unit)) : rect
+  const room = Math.round(4 * unit)
+  // A long name the game wrapped onto two lines: the OCR reads one line, so the lines are put side by side.
+  const crops = shifted && layout && layout.lines.length === 2
+    ? layout.lines.map((line) => trim(rect, { ...shifted, y0: line.y0 + rect.y - 1, y1: line.y1 + rect.y - 1 }, room, Math.max(1, Math.min(room, Math.floor((layout.lines[1]!.y0 - layout.lines[0]!.y1 - 1) / 2)))))
+    : [shifted ? trim(rect, shifted, room) : rect]
+  const render = (scale: number, black: number, span: number, options: OcrOptions) => sideBySide(crops.map((crop) => tooltipForOcr(image, crop, scale, black, span, { mask, ...options })))
   return [
-    tooltipForOcr(image, crop, scale, background + 12, Math.round(contrast * 0.85), { mask, threshold: 150 }),
-    tooltipForOcr(image, crop, scale + 1, background + 8, contrast, { mask }),
-    tooltipForOcr(image, crop, Math.max(2, scale - 1), background + Math.round(contrast * 0.25), Math.round(contrast * 0.6), { mask, threshold: 120 }),
+    render(scale, background + 12, Math.round(contrast * 0.85), { threshold: 150 }),
+    render(scale + 1, background + 8, contrast, {}),
+    render(Math.max(2, scale - 1), background + Math.round(contrast * 0.25), Math.round(contrast * 0.6), { threshold: 120 }),
   ]
 }
 
+/** Pictures (white margins, BGRA) put next to each other on white, top-aligned: one line of text for the OCR. */
+export function sideBySide(pictures: Bitmap[]): Bitmap {
+  if (pictures.length === 1) return pictures[0]!
+  const width = pictures.reduce((sum, picture) => sum + picture.width, 0)
+  const height = Math.max(...pictures.map((picture) => picture.height))
+  const data = new Uint8Array(width * height * 4).fill(255)
+  let left = 0
+  for (const picture of pictures) {
+    for (let y = 0; y < picture.height; y += 1) data.set(picture.data.subarray(y * picture.width * 4, (y + 1) * picture.width * 4), (y * width + left) * 4)
+    left += picture.width
+  }
+  return { width, height, data }
+}
+
 /** The text line with a little room around it (frame remnants and the empty padding only confuse the OCR). */
-function trim(rect: Rect, layout: TextLayout, room: number): Rect {
-  const x = Math.max(rect.x, layout.x0 - room), y = Math.max(rect.y, layout.y0 - room)
-  const right = Math.min(rect.x + rect.width - 1, layout.x1 + room), bottom = Math.min(rect.y + rect.height - 1, layout.y1 + room)
+function trim(rect: Rect, layout: Pick<TextLayout, 'x0' | 'x1' | 'y0' | 'y1'>, room: number, roomY = room): Rect {
+  const x = Math.max(rect.x, layout.x0 - room), y = Math.max(rect.y, layout.y0 - roomY)
+  const right = Math.min(rect.x + rect.width - 1, layout.x1 + room), bottom = Math.min(rect.y + rect.height - 1, layout.y1 + roomY)
   return { x, y, width: right - x + 1, height: bottom - y + 1 }
 }

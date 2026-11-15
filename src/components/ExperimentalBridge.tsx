@@ -49,6 +49,24 @@ function rankReadings(matcher: TooltipMatcher, texts: string[]) {
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, PICTURE_MATCH.candidates)
 }
 
+/**
+ * The text candidates plus the closest pictures of the whole catalog (the picture index), each of those with how well
+ * the readings name it (0 when not among the names they suggest at all): the picture then chooses only among items the
+ * text finds plausible too (decideByPicture), so a bad reading of a long name still finds its item by its picture.
+ */
+function withNearby(matcher: TooltipMatcher, items: Map<string, Item>, ranked: TooltipCandidate[], texts: string[], nearby: string[]) {
+  const known = new Set(ranked.map(({ item }) => item.id))
+  const extra = nearby.filter((id) => !known.has(id) && items.has(id))
+  if (!extra.length) return ranked
+  const scores = new Map<string, number>()
+  for (const text of texts) {
+    for (const candidate of matcher.rank(text, NEARBY_RANK)) scores.set(candidate.item.id, Math.max(scores.get(candidate.item.id) ?? 0, candidate.score))
+  }
+  return [...ranked, ...extra.map((id) => ({ item: items.get(id)!, score: scores.get(id) ?? 0 }))]
+}
+/** How deep the readings' ranking is searched for the score of a picture candidate. */
+const NEARBY_RANK = 120
+
 /** Why an item's picture cannot be compared, if it cannot. */
 function pictureObstacle(item: Item): 'weapon' | 'no-size' | 'no-icon' | null {
   if (item.types?.includes('gun')) return 'weapon'
@@ -66,7 +84,13 @@ function rememberReadings(matcher: TooltipMatcher, texts: string[], item: Item) 
 
 /** The picture check of the second attempt (src/overlay/iconMatch.ts): which candidate the item under the cursor is. */
 async function checkPicture(matcher: TooltipMatcher, items: Map<string, Item>, input: PictureQuery) {
-  const ranked = rankReadings(matcher, input.texts)
+  // Signatures from the picture index need no download.
+  for (const [id, signature] of Object.entries(input.signatures ?? {})) {
+    if (iconSignatures.has(id)) continue
+    if (iconSignatures.size >= ICON_SIGNATURES_KEPT) iconSignatures.delete(iconSignatures.keys().next().value!)
+    iconSignatures.set(id, signature)
+  }
+  const ranked = withNearby(matcher, items, rankReadings(matcher, input.texts), input.texts, input.nearby ?? [])
   // New icons are decoded together (off the main thread in the browser), then kept by item id.
   await Promise.all(ranked.map(async ({ item }) => {
     const bytes = input.icons[item.id]
@@ -160,6 +184,11 @@ export function ExperimentalBridge() {
           if (item && !remembered && input.remember?.length) rememberReadings(tooltipMatcher, input.remember, item)
         } else item = (input.lines?.length ? matchNearest(matcher, input.lines) : null) ?? matcher(input.text)
         void api.answer(query.id, item ? card(item, source) : { state: 'not-found', text: input.text } satisfies ItemOverlayPayload)
+        return
+      }
+      if (query.kind === 'item-id') {
+        const item = itemsById.get(query.input.id)
+        void api.answer(query.id, item ? card(item, 'picture') : { state: 'not-found' } satisfies ItemOverlayPayload)
         return
       }
       if (query.kind === 'item-candidates') {

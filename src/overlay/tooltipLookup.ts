@@ -33,6 +33,10 @@ export interface TooltipLookupSteps<Answer, Shot extends TooltipShot> {
   match: (text: string) => Promise<Answer | null>
   /** A tooltip was found (e.g. show the card in its «reading…» state right there). */
   onTooltip?: (shot: Shot, rect: Rect) => void
+  /** Every grab, with the tooltip found in it (and its UI unit) or null — the picture search starts from the first. */
+  onShot?: (shot: Shot, rect: Rect | null, unit: number | null) => void
+  /** The lookup is answered already (by the item's picture): no more grabs; the tooltip in hand is still read. */
+  done?: () => boolean
   now?: () => number
   sleep?: (ms: number) => Promise<void>
 }
@@ -40,8 +44,11 @@ export interface TooltipLookupSteps<Answer, Shot extends TooltipShot> {
 export const TOOLTIP_TIMING = {
   /** The game shows the name a moment after the cursor stops on an item: wait this long for it to appear. */
   appearMs: 900,
-  /** A tooltip read without a match (still fading in, or the previous item's) is looked at again until then. */
-  totalMs: 1800,
+  /**
+   * A tooltip read without a match (still fading in, or the previous item's) is looked at again until then. A long
+   * name is read whole at once now (two lines side by side, ocrVariants), so 1.5 s instead of 1.8 s.
+   */
+  totalMs: 1500,
   /**
    * Between grabs. Each grab is a copy of the screen around the cursor and a search of it on the main process (players,
    * 14.10.2026: «при использовании приложения начинает тупить экран и мышка»): every 120 ms, at most 9 grabs while the
@@ -71,13 +78,14 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
   let latest: Shot | null = null
   let grabs = 0
   for (;;) {
+    if (steps.done?.()) break
     const shot = await steps.grab().catch(() => null)
     // At most two of the game's interface scales a grab: the last one found first.
     const found = shot ? findTooltipAtScales(shot.image, shot.cursor, shot.unit, tooltipScaleSchedule(grabs, scales.factor)) : null
     grabs += 1
     latest = shot ?? latest
-    if (found) scales.factor = found.factor
     const rect = found?.rect ?? null
+    if (shot) steps.onShot?.(shot, rect, found?.unit ?? null)
     if (shot && rect) {
       const key = tooltipKey(shot.image, rect)
       if (!last) steps.onTooltip?.(shot, rect)
@@ -90,7 +98,9 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
           tries.push(text)
           if (!text) continue
           const answer = await steps.match(text)
-          if (answer) return { answer, shot, rect, unit: found!.unit, first, tries, grabs, latest }
+          // The interface scale is remembered only once a tooltip found at it named an item: a box found at a wrong
+          // scale (an inventory cell taken for a tooltip at 2×) no longer sends the next lookups to that scale first.
+          if (answer) { scales.factor = found!.factor; return { answer, shot, rect, unit: found!.unit, first, tries, grabs, latest } }
         }
       }
     }
