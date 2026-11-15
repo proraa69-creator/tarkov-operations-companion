@@ -25,7 +25,7 @@ function useDismiss(open: boolean, close: () => void, ref: { current: HTMLElemen
   }, [close, open, ref])
 }
 
-export function PhoneMapPicker({ maps, activeId, onPick }: { maps: Array<{ id: string; name: string; accent?: string }>; activeId: string; onPick: (id: string) => void }) {
+export function PhoneMapPicker({ maps, activeId, onPick, onWorld }: { maps: Array<{ id: string; name: string; accent?: string }>; activeId: string; onPick: (id: string) => void; onWorld?: () => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const close = () => setOpen(false)
@@ -42,6 +42,11 @@ export function PhoneMapPicker({ maps, activeId, onPick }: { maps: Array<{ id: s
         <span className="map-color" style={{ background: map.accent }} />
         <span>{uiText(map.name)}</span>
       </button>)}
+      {/* «Общая карта» on the phone too (owner, 15.11.2026: «общую карту… нужно добавить на мобильное приложение») */}
+      {onWorld && <button type="button" role="option" aria-selected={false} className="phone-map-option phone-map-option-world" onClick={() => { close(); onWorld() }}>
+        <MapIcon size={13} aria-hidden="true" />
+        <span>{uiText('Общая карта')}</span>
+      </button>}
     </div>
   </div>
 }

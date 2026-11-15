@@ -293,6 +293,7 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .phone-map-option span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root[data-layout="mobile"] .phone-map-option.active { border-color: var(--brass); background: rgb(196 166 101 / 16%); color: #f2e2b8; }
 :root[data-layout="mobile"] .phone-map-option .map-color { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 2px; }
+:root[data-layout="mobile"] .phone-map-option-world { grid-column: 1 / -1; justify-content: center; color: #f2e2b8; }
 /* «Квесты» at the bottom left; its list opens upwards. */
 :root[data-layout="mobile"] .phone-map-quests { position: absolute; left: 8px; bottom: 8px; z-index: 740; }
 :root[data-layout="mobile"] .phone-quests-chip { color: #d6ddd7; }

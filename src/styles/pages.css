@@ -1598,6 +1598,7 @@ a.quest-stage:hover { color: var(--text); }
 .sheet-needs-block h5 { margin: 0 0 6px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .sheet-needs-block .sheet-needs { flex-direction: column; flex-wrap: nowrap; gap: 4px; }
 .sheet-needs-block .sheet-need { width: 100%; }
+.sheet-needs-block > section + section { margin-top: 10px; }
 .sheet-stages.is-view-classic > .sheet-needs-block, .sheet-stages.is-view-timeline > .sheet-needs-block { flex: 0 1 230px; }
 .sheet-stages.is-view-timeline > .sheet-needs-block { margin-left: 14px; }
 .sheet-stages.is-view-tabs:has(> .sheet-needs-block) { grid-template-columns: minmax(0, 1fr) minmax(170px, 230px); column-gap: 12px; }

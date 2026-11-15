@@ -96,3 +96,26 @@ describe('quest card under the map: «7/10» on an objective of more than one (r
     expect(screen.queryByRole('button', { name: /Больше/ })).toBeNull()
   })
 })
+
+// Owner, 15.11.2026 («Инвазивная терапия»): «справа будут не требуемые предметы, а тоже надпись «Найти в рейде»… предметы, которые
+// нам нужно найти, и количество»; what is planted is not there, «мы их уже изначально взяли».
+describe('quest card under the map: «Найти в рейде» on the right', () => {
+  it('lists what is to be found, with its count, and nothing that is planted; a key stays under «Требуемые предметы»', () => {
+    const need = (itemId: string, name: string, purpose: 'find' | 'handover' | 'place' | 'key', count = 1) => ({ itemId, name, count, label: purpose, purpose })
+    const therapy: SheetObjectives = {
+      showWhere: true,
+      groups: [
+        { kind: 'place', title: 'Заложить', objectives: [{ id: 'plant', text: 'Заложить коктейль', where: 'Маяк', here: true, done: false, needs: [need('cocktail', 'Обдолбос', 'place')] }] },
+        { kind: 'find', title: 'Найти в рейде', objectives: [{ id: 'find-p22', text: 'Найти P22', where: 'Любая карта', here: false, done: false, needs: [need('p22', 'P22', 'find', 2)] }] },
+        { kind: 'handover', title: 'Сдать торговцу', objectives: [{ id: 'give-p22', text: 'Сдать P22', where: null, here: false, done: false, needs: [need('p22', 'P22', 'handover', 2)] }] },
+        { kind: 'raid', title: 'В рейде', objectives: [{ id: 'door', text: 'Открыть дверь', where: 'Маяк', here: true, done: false, needs: [need('key', 'Ключ', 'key')] }] },
+      ],
+    } as SheetObjectives
+    render(<QuestSheetObjectives sheet={therapy} trader="Терапевт" onToggle={vi.fn()} />)
+    const find = screen.getByRole('region', { name: 'Найти в рейде' })
+    expect(find).toHaveTextContent('P22 ×2')
+    expect(find).not.toHaveTextContent('Обдолбос')
+    expect(screen.getByRole('region', { name: 'Требуемые предметы' })).toHaveTextContent('Ключ')
+    expect(document.querySelector('.sheet-needs-block')).not.toHaveTextContent('Обдолбос')
+  })
+})

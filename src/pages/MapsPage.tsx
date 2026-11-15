@@ -12,7 +12,7 @@ import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowLeft, BadgeCheck, BadgeQuestionMark, Key, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
-  FlaskConical, HeartPulse, KeyRound, Layers, LocateFixed, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
+  FlaskConical, HeartPulse, KeyRound, Layers, LocateFixed, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp, Map as WorldMapIcon,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapFloors, PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
@@ -78,7 +78,7 @@ import { questCardHref } from '../quests/questCardLink'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
-import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
+import { mapObjectivesClosed, mapObjectivesDone, mapObjectivesWaiting, markerObjectiveDone } from '../progression/mapObjectives'
 import { pairedFindDef } from '../progression/objectivePairs'
 import { manualObjectiveValue, questObjectiveDefs } from '../progression/objectiveProgress'
 import { sheetObjectives } from '../progression/sheetObjectives'
@@ -681,7 +681,7 @@ export function MapsPage() {
   const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
 
   const visibleQuestIds = useMemo(
-    () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id) && !mapObjectivesDone(quest, activeMap.id, progress)).map((quest) => quest.id)),
+    () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id) && !mapObjectivesClosed(quest, activeMap.id, progress)).map((quest) => quest.id)),
     [currentQuests, questChecks, deferred, activeMap.id, progress],
   )
 
@@ -713,7 +713,8 @@ export function MapsPage() {
   const onThisMap = useCallback((quest: Quest) => questAppliesToMap(quest, activeMap.id, currentStoryStageIndex(quest, progress)), [activeMap.id, progress])
 
   const mapQuestEntries = useMemo(() => {
-    const onMap = currentQuests.filter((quest) => !deferred.has(quest.id) && onThisMap(quest))
+    // not yet a quest whose objectives here wait for one on another map (report 165)
+    const onMap = currentQuests.filter((quest) => !deferred.has(quest.id) && onThisMap(quest) && !mapObjectivesWaiting(quest, activeMap.id, progress))
     return onMap.map((quest) => {
       const stageIndex = currentStoryStageIndex(quest, progress)
       const marker = plottedMarkers.find((entry) => (
@@ -722,7 +723,7 @@ export function MapsPage() {
       ))
       return { quest, marker }
     })
-  }, [currentQuests, deferred, onThisMap, plottedMarkers, progress])
+  }, [currentQuests, deferred, onThisMap, plottedMarkers, progress, activeMap.id])
 
   // «Устранения» (owner, 08.11.2026; maps/killObjectives.ts): every kill of the current quests on this map — a tab of the right
   // panel on the PC, a window under the HUD on the phone — and their zones on the map. A quest that on this map only asks to kill
@@ -1167,6 +1168,11 @@ export function MapsPage() {
               <span>{uiText(map.name)}</span>
             </button>
           )))}
+          {/* «Общая карта»: every location on one canvas with the current quests (src/pages/WorldMapPage.tsx). */}
+          {!mobile && <Link to="/maps/world" className="map-option map-option-world">
+            <WorldMapIcon size={12} aria-hidden="true" />
+            <span>{uiText('Общая карта')}</span>
+          </Link>}
         </div>
         <div className="map-side-layers">
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
@@ -1204,7 +1210,7 @@ export function MapsPage() {
 
       <section className={`map-stage${(focusedQuestId && focusedQuestId !== killFocus && !killOnly.has(focusedQuestId)) || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud" ref={hudRef}>
-          {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
+          {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} onWorld={() => navigate('/maps/world')} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
           <MapToolbar value={tools} onChange={setTools} />
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />

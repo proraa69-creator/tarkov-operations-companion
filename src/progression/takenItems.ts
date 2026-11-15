@@ -62,14 +62,47 @@ export function clearTakenItemsBefore(profileId: string, startedAt: number) {
     const taken = readTakenItems(profileId, mode)
     const kept = new Map([...taken].filter(([, at]) => at >= startedAt))
     if (kept.size !== taken.size) write(profileId, mode, kept)
+    // a key «Взял» put into the stash stays there after the raid: «Не взял» no longer takes it out
+    const added = keysAddedByTaken(profileId, mode)
+    if ([...added].some((id) => !kept.has(id))) writeAdded(profileId, mode, [...added].filter((id) => kept.has(id)))
   }
+}
+
+/**
+ * Keys «Взял» put into «Ключи в схроне» (owner, 15.11.2026: «человек его… не отметил в ключах для квестов… но он знает, что он у
+ * него есть, он нажимает «взял»… он должен добавляться в ключ, который есть у него в схроне»), so «Не взял» takes out only those
+ * («после того, как я нажимаю «не взял»… статус «есть наличие» не исчезает»), never a key the player had already.
+ */
+const ADDED_PREFIX = 'raidos-taken-keys-added-v1:'
+const addedKey = (profileId: string, mode: RaidMode) => `${ADDED_PREFIX}${profileId}:${mode}`
+
+export function keysAddedByTaken(profileId: string, mode: RaidMode): ReadonlySet<string> {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(addedKey(profileId, mode)) ?? '[]')
+    return new Set(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function writeAdded(profileId: string, mode: RaidMode, ids: string[]) {
+  try {
+    if (ids.length) localStorage.setItem(addedKey(profileId, mode), JSON.stringify(ids))
+    else localStorage.removeItem(addedKey(profileId, mode))
+  } catch { /* storage unavailable */ }
+}
+
+export function setKeyAddedByTaken(profileId: string, mode: RaidMode, itemId: string, added: boolean) {
+  const current = keysAddedByTaken(profileId, mode)
+  if (added === current.has(itemId)) return
+  writeAdded(profileId, mode, added ? [...current, itemId] : [...current].filter((id) => id !== itemId))
 }
 
 /** «Удалить все данные». */
 export function clearAllTakenItems() {
   try {
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
-    for (const key of keys) if (key?.startsWith(KEY_PREFIX)) localStorage.removeItem(key)
+    for (const key of keys) if (key?.startsWith(KEY_PREFIX) || key?.startsWith(ADDED_PREFIX)) localStorage.removeItem(key)
   } catch { /* storage unavailable */ }
   window.dispatchEvent(new Event(EVENT))
 }
