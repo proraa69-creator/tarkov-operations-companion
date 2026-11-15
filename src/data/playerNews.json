@@ -7,7 +7,8 @@
     {"kind":"added","ru":"Окно задания: блок «Найти в рейде» с количеством","en":"Task window: «Find in raid» with the count"},
     {"kind":"added","ru":"Квестовые предметы с картинками в требованиях рейда и в карточке задания","en":"Quest items with pictures in raid requirements and the task card"},
     {"kind":"improved","ru":"Цветовая схема меняется плавной волной от кнопки","en":"The colour scheme changes in a smooth wave from its button"},
-    {"kind":"improved","ru":"Сборка оружия открывается быстрее; кнопка «Избранное» в списке оружия; барахолка — по уровню персонажа","en":"Weapon builds open faster; a Favorites button in the weapon list; the flea market follows your character level"}
+    {"kind":"improved","ru":"Сборка оружия открывается быстрее; кнопка «Избранное» в списке оружия; барахолка — по уровню персонажа","en":"Weapon builds open faster; a Favorites button in the weapon list; the flea market follows your character level"},
+    {"kind":"improved","ru":"Профиль: личный кабинет рядом с профилем, ник и уровень в каждом режиме","en":"Profile: the account sits beside the profile, with your nickname and level in each mode"}
   ]},
   {"version":"0.6.0.307","date":"2026-11-15","items":[
     {"kind":"improved","ru":"Цветовая схема меняется плавно — кругом от кнопки","en":"The colour scheme changes smoothly, in a circle from the button"},
