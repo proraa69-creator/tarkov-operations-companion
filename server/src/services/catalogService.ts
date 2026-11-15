@@ -9,7 +9,7 @@ import { itemImageVersion, withCachedItemImages } from './itemImageCache.js'
 import { layOwnTiles } from './mapMirror.js'
 import type { GuideImageMirror } from './guideImages.js'
 import type { MirrorStorage } from './mirrorStorage.js'
-import { QuestBase, type QuestBaseAppVersion } from './questBase.js'
+import { QuestBase, type QuestBaseAppVersion, type QuestBaseFollow } from './questBase.js'
 import { WikiCache } from './wikiCache.js'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -31,7 +31,9 @@ let questBase = createQuestBase()
 
 const MIRROR_MODE: Record<RaidMode, string> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season' }
 
-function createQuestBase(options: { dir?: string; periodMs?: number; app?: QuestBaseAppVersion; log?: (message: string) => void } = {}) {
+type QuestBaseSetup = { dir?: string; periodMs?: number; app?: QuestBaseAppVersion; log?: (message: string) => void; follow?: QuestBaseFollow }
+
+function createQuestBase(options: QuestBaseSetup = {}) {
   return new QuestBase({
     ...options,
     load: (mode, locale) => fetchLiveCatalog(mode, locale, catalogFetch, { wiki: () => wiki.load(), eventQuests: () => eventQuests() }),
@@ -97,8 +99,9 @@ export function configureCatalogMirror(storage: MirrorStorage) {
 /**
  * The server's quest base: kept in `dir` (one folder per mode, plus the wiki's answer), built every `periodMs`.
  * index.ts calls it once at start, before `start()`; without it the base lives in memory and builds on the first request.
+ * With `follow` the API only reads the base the background worker builds (src/worker.ts, services/background.ts).
  */
-export function configureQuestBase(options: { dir?: string; periodMs?: number; app?: QuestBaseAppVersion; log?: (message: string) => void }) {
+export function configureQuestBase(options: QuestBaseSetup) {
   questBase.stop()
   wiki = new WikiCache({ file: options.dir ? join(options.dir, 'wiki.json') : undefined, log: options.log })
   questBase = createQuestBase(options)
