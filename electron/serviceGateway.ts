@@ -10,6 +10,7 @@
  *   never sent to the renderer, never logged. Login / logout / status have their own IPC (see main.ts).
  * - A server that is not running is reported as `ServiceUnavailableError`, so callers can fall back to local work.
  */
+import { hedgedFetch, warmConnection, type HedgeOptions } from './hedgedFetch.js'
 import { app, safeStorage } from 'electron'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -421,20 +422,35 @@ async function clearSession() {
 // HTTP
 // --------------------------------------------------------------------------------------------------------------
 
-async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string; headers?: Record<string, string> } = {}) {
+/** When the last answer came: fetch keeps that connection a few seconds, so a write soon after needs no new one. */
+let lastAnswerAt = 0
+const CONNECTION_KEPT_MS = 3_000
+
+/**
+ * `hedge`: a read with no answer after a moment goes again on a new connection (electron/hedgedFetch.ts; reads only — a
+ * long wait for news, `false`, must not run twice). A write first brings a connection up the same way when none is kept.
+ */
+async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string; headers?: Record<string, string>; hedge?: false | HedgeOptions } = {}) {
   await loadServerUrl()
+  const base = apiBaseUrl()
+  const init = {
+    method,
+    signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
+    headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  }
   let response: Response
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
-      method,
-      signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    })
+    if (method === 'GET' && options.hedge !== false) response = await hedgedFetch(`${base}${path}`, init, options.hedge ?? {})
+    else {
+      if (method !== 'GET' && Date.now() - lastAnswerAt > CONNECTION_KEPT_MS) await warmConnection(base)
+      response = await fetch(`${base}${path}`, init)
+    }
   } catch (error) {
     // a timed-out request may have reached the server; anything else never left this PC
     throw new ServiceUnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
+  lastAnswerAt = Date.now()
   // 204 No Content and 304 Not Modified carry no body (and no content type).
   const empty = response.status === 204 || response.status === 304
   if (!empty && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
@@ -498,7 +514,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
-  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}), hedge: LIVE_WAIT.test(path) ? false : gated ? { hedgeMs: 3_000, attempts: 2 } : {} })
   const { response, result } = retriesWhileRestarting(method, path)
     ? await retryWhileRestarting(request, (error) => error instanceof ServiceUnavailableError && error.notTaken)
     : await request()
@@ -648,10 +664,11 @@ export async function accountStatus(): Promise<AccountStatus> {
   let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> = {}
   try {
     serverUrl = apiBaseUrl()
-    const health = await send('GET', '/health', { timeoutMs: 3000 })
+    // 10 s with new connections every 1.5 s (electron/hedgedFetch.ts): 3 s took a slow first connection for «нет связи».
+    const health = await send('GET', '/health', { timeoutMs: 10_000 })
     online = health.response.ok
     if (online && sessionToken) {
-      const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
+      const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 10_000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
         const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; storeReview?: unknown }
