@@ -1,4 +1,14 @@
 [
+  {"version":"0.6.0.309","date":"2026-11-15","items":[
+    {"kind":"added","ru":"«Все локации» в «Картах»: вся карта Таркова, переход к любой локации и «Спутник»","en":"«All locations» in Maps: the whole Tarkov map, a jump to any location and «Satellite»"},
+    {"kind":"added","ru":"Вход через Google","en":"Sign in with Google"},
+    {"kind":"added","ru":"Таймер усталости навыка на карте","en":"A skill fatigue timer on the map"},
+    {"kind":"improved","ru":"Фото места — небольшим окошком у метки на карте","en":"Place photos in a small window at the map point"},
+    {"kind":"improved","ru":"Окно задания на карте: высоту можно настроить","en":"The task window on the map: its height can be set"},
+    {"kind":"improved","ru":"Задание на устранение открывается во вкладке «Устранения»","en":"A kill task opens in the «Eliminations» tab"},
+    {"kind":"improved","ru":"Связь с сервером стабильнее при медленном интернете","en":"A steadier link to the server on a slow connection"},
+    {"kind":"improved","ru":"Кнопки «Точки на карте» работают быстрее","en":"The «Map markers» buttons respond faster"}
+  ]},
   {"version":"0.6.0.308","date":"2026-11-15","items":[
     {"kind":"added","ru":"Общая карта: все локации и ваши текущие задания на одной карте","en":"World map: every location and your current tasks on one map"},
     {"kind":"improved","ru":"Задание появляется на карте следующей цели, когда предыдущая выполнена","en":"A task shows on the map of its next objective once the one before is done"},
