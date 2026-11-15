@@ -408,20 +408,22 @@ export class AdminStore {
 
   /**
    * «Отряды» (owner, 20.10.2026: «сколько создано отрядов вообще, сколько расформировано, сколько сейчас и сколько человек
-   * в них играет»): created since squad_log exists (services/squadStore.ts; the squads of that moment counted in),
-   * disbanded = created and gone since.
+   * в них играет»), only squads of two or more (owner, 15.11.2026: «Записываю в статистику отряды, в которых было 2 и более
+   * человека»): created = got a second member since squad_team_log exists (services/squadStore.ts; the squads of two or more of
+   * that moment counted in), disbanded = of those, gone since; active and players = the squads of two or more now.
    */
   private squadStats(now: number) {
     if (!this.tableExists('squads') || !this.tableExists('squad_members')) return { created: 0, disbanded: 0, active: 0, players: 0, created30: 0, since: null }
     const count = (sql: string, ...args: number[]) => Number((this.db.prepare(sql).get(...args) as Row).n)
-    const active = count('SELECT COUNT(*) AS n FROM squads')
-    const players = count('SELECT COUNT(*) AS n FROM squad_members')
-    if (!this.tableExists('squad_log')) return { created: active, disbanded: 0, active, players, created30: 0, since: null }
-    const created = count('SELECT COUNT(*) AS n FROM squad_log')
-    const first = (this.db.prepare('SELECT MIN(created_at) AS at FROM squad_log').get() as Row).at
+    const teams = 'SELECT squad_id FROM squad_members GROUP BY squad_id HAVING COUNT(*) >= 2'
+    const active = count(`SELECT COUNT(*) AS n FROM (${teams})`)
+    const players = count(`SELECT COUNT(*) AS n FROM squad_members WHERE squad_id IN (${teams})`)
+    if (!this.tableExists('squad_team_log')) return { created: active, disbanded: 0, active, players, created30: 0, since: null }
+    const created = count('SELECT COUNT(*) AS n FROM squad_team_log')
+    const first = (this.db.prepare('SELECT MIN(created_at) AS at FROM squad_team_log').get() as Row).at
     return {
-      created, disbanded: Math.max(0, created - active), active, players,
-      created30: count('SELECT COUNT(*) AS n FROM squad_log WHERE created_at >= ?', now - 30 * DAY_MS),
+      created, disbanded: count('SELECT COUNT(*) AS n FROM squad_team_log WHERE squad_id NOT IN (SELECT id FROM squads)'), active, players,
+      created30: count('SELECT COUNT(*) AS n FROM squad_team_log WHERE created_at >= ?', now - 30 * DAY_MS),
       since: first == null ? null : new Date(Number(first)).toISOString(),
     }
   }
