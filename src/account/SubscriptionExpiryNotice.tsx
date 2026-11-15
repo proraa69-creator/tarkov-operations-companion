@@ -8,6 +8,7 @@ import { uiText } from '../i18n/renderText'
 import { useServerAccount } from '../sync/serverSync'
 import { openWebsite, subscriptionText } from './accountActions'
 import './subscriptionExpiry.css'
+import { ruDaysLeft } from '../i18n/ruPlural'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WARNING_DAYS = new Set([1, 3])
@@ -62,8 +63,7 @@ function useStartupUpdateReady() {
 
 function remainingText(days: number) {
   if (days === 0) return 'Подписка заканчивается сегодня'
-  if (days === 1) return 'Остался 1 день'
-  return `Осталось ${days} дня`
+  return ruDaysLeft(days)
 }
 
 /** The iPhone app (App Store build) shows no subscription and no way to pay (src/account/IosAccount.tsx). */

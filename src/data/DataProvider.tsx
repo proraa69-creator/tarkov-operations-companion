@@ -22,6 +22,7 @@ import { useLiveMapUpdates } from './mapUpdates'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { useEventQuestClock, useEventQuests, withEventQuests } from './eventQuests'
 import { withLocalItemPictures } from './localItemPictures'
+import { withQuestItemPictures } from './questItemPictures'
 import { withWholeGunPictures } from './wholeGunPictures'
 
 /**
@@ -111,7 +112,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const withBosses = placements.length ? withOwnerBosses(texted.markers, placements, raidMode) : texted.markers
     const pointed = !placements.length && !questPoints.length ? texted : { ...texted, markers: withQuestPointOverrides(withBosses, questPoints, texted.quests, lang) }
     // Then the points' descriptions on their quests and the curated requirements (the same object when there are none).
-    const shown = withLocalItemPictures(withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang))
+    const shown = withQuestItemPictures(withLocalItemPictures(withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang)))
     return btrStopsOff ? { ...shown, markers: shown.markers.filter((marker) => marker.layerId !== 'btr') } : shown
   }, [evented, questTexts, locale, placements, questPoints, questRequirements, raidMode, btrStopsOff])
   const refresh = useCallback(() => { void refetch() }, [refetch])
