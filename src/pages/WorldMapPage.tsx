@@ -176,8 +176,6 @@ export function WorldMapPage() {
           zoomSnap={0.25}
           minZoom={-3}
           maxZoom={2}
-          zoomDelta={0.5}
-          wheelPxPerZoomLevel={120}
           maxBounds={worldBounds([[-400, -400], [WORLD_SIZE + 400, WORLD_SIZE + 400]])}
           maxBoundsViscosity={0.8}
           zoomControl={false}

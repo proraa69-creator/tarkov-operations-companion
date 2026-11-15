@@ -39,7 +39,9 @@ function floorImage(url: string, layers: MapFloorLayer[], floor: string, removed
   let request = floors.get(key)
   if (!request) {
     request = svgSource(url).then(async (source) => {
-      const svg = selectSvgFloor(source, layers, floor, removed.length ? { removed } : {})
+      // a scheme whose floor groups the data does not name is drawn whole, as «Карты» does (FloorSvgOverlay `base`)
+      let svg = source
+      try { svg = selectSvgFloor(source, layers, floor, removed.length ? { removed } : {}) } catch { /* the whole scheme */ }
       const image = new Image()
       image.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
       await image.decode()
@@ -82,23 +84,24 @@ function faded(picture: CanvasImageSource, mask: HTMLCanvasElement, width: numbe
   return new Promise((resolve) => out.toBlob(resolve, 'image/webp', 0.88))
 }
 
+/**
+ * The picture made for `key`; while a new key's picture is being made the last one stays (owner, 15.11.2026: «при масштабировании
+ * карта прыгает»: the detailed picture went blank and came back on every zoom).
+ */
 function useObjectUrl(make: () => Promise<Blob | null>, key: string) {
   const [shown, setShown] = useState<{ key: string; url: string } | null>(null)
   useEffect(() => {
     if (!key) return
     let alive = true
-    let made: string | undefined
     void make().then((blob) => {
       if (!alive || !blob) return
-      made = URL.createObjectURL(blob)
-      setShown({ key, url: made })
+      setShown({ key, url: URL.createObjectURL(blob) })
     }).catch((error) => console.error('Unable to draw the world map picture', error))
-    return () => {
-      alive = false
-      if (made) window.setTimeout(() => URL.revokeObjectURL(made!), 1000)
-    }
+    return () => { alive = false }
   }, [key]) // eslint-disable-line react-hooks/exhaustive-deps -- `key` stands for `make`
-  return shown?.key === key ? shown.url : null
+  // a picture goes a little after the next one is up, or with the page
+  useEffect(() => () => { if (shown) window.setTimeout(() => URL.revokeObjectURL(shown.url), 2000) }, [shown])
+  return key && shown ? shown.url : null
 }
 
 /**
