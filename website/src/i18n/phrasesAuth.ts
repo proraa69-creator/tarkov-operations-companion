@@ -5,6 +5,8 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Пароль', 'Password'], ['Забыли пароль?', 'Forgot your password?'], ['Входим…', 'Signing in…'], ['Войти', 'Sign in'], ['или', 'or'],
   ['Войти по QR-коду', 'Sign in with a QR code'], ['Войти по коду из письма', 'Sign in with a code from the e-mail'],
   ['Нет аккаунта?', 'No account yet?'], ['Зарегистрироваться', 'Sign up'], ['Войти по e-mail и паролю', 'Sign in with e-mail and password'],
+  // «Войти через Google» (components/GoogleSignIn.tsx)
+  ['Укажите страну, чтобы создать аккаунт.', 'Choose your country to create the account.'], ['Продолжить', 'Continue'],
   // QR sign-in on the sign-in page
   ['Отсканируйте QR-код телефоном, на котором открыто приложение Raid OS с вашим аккаунтом, или введите код в приложении для Windows.',
     'Scan the QR code with a phone where the Raid OS app is signed in to your account, or enter the code in the Windows app.'],

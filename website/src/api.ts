@@ -73,6 +73,8 @@ export interface Account {
  */
 export interface AuthConfig {
   emailEnabled?: boolean; email?: { codeLength: number; codeTtlSeconds: number; resendSeconds: number }
+  /** «Войти через Google»: the server's Google client (absent on an older server: no button). */
+  googleClientId?: string
 }
 /** A code was requested: what the next step sends back. The e-mail itself holds the code. */
 export interface CodeChallenge { challengeId: string; expiresAt: string; resendSeconds: number }
@@ -633,6 +635,8 @@ export const api = {
   emailVerifyStart: (token: string) => request<CodeChallenge>('/me/email/start', { method: 'POST', token, body: {} }),
   emailVerifyConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/email/confirm', { method: 'POST', token, body: { challengeId, code } }),
   login: (email: string, password: string) => request<AuthResult>('/login', { method: 'POST', body: { email, password } }),
+  /** «Войти через Google» (server/src/routes/google.ts): 409 asks the country of a new account. */
+  googleSignIn: (body: { credential: string; country?: string; referralCode?: string }) => request<AuthResult & { created: boolean; referralApplied: boolean }>('/google', { method: 'POST', body }),
   logout: (token: string) => request<void>('/logout', { method: 'POST', token }),
   me: (token: string) => request<Account>('/me', { token }),
   /** «Сменить пароль»: every other session ends; the answer holds a new session for this browser. */

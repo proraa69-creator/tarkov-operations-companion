@@ -5,6 +5,8 @@ import { ApiError, api, errorMessage, type PendingRegistration } from '../api'
 import { useAuth } from '../auth'
 import { ConsentCheckbox } from '../components/ConsentCheckbox'
 import { CountrySelect } from '../components/CountrySelect'
+import { GoogleSignIn } from '../components/GoogleSignIn'
+import { useAuthConfig } from '../components/authConfig'
 import { Notice } from '../components/Notice'
 import { RegistrationCodeStep } from '../components/EmailAuth'
 import { tr } from '../i18n'
@@ -26,6 +28,7 @@ export function RegisterPage() {
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const config = useAuthConfig()
   const [localError, setLocalError] = useState<string | null>(null)
   // With e-mail codes on: the account appears only after the code from the e-mail (server/src/routes/email.ts).
   const [pending, setPending] = useState<{ registration: PendingRegistration; email: string; code: string } | null>(null)
@@ -128,6 +131,8 @@ export function RegisterPage() {
             {busy ? tr('Создаём аккаунт…') : tr('Зарегистрироваться')}
           </button>
         </form>
+        {config?.googleClientId && <div className="auth-divider">{tr('или')}</div>}
+        <GoogleSignIn clientId={config?.googleClientId} referralCode={normalizeReferralCode(referral) || undefined} />
         <p className="auth-switch">{tr('Уже есть аккаунт?')} <Link to="/login">{tr('Войти')}</Link></p>
       </div>
     </div>

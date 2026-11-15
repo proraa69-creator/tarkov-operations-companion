@@ -4,6 +4,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { errorMessage } from '../api'
 import { useAuth } from '../auth'
 import { Notice } from '../components/Notice'
+import { GoogleSignIn } from '../components/GoogleSignIn'
+import { useAuthConfig } from '../components/authConfig'
 import { localeTag, tr } from '../i18n'
 import { appDeepLink, describeAgent, describePlace, normalizeLoginCode, qrLogin, type QrRequester } from '../qrLogin'
 import '../qrLogin.css'
@@ -90,6 +92,7 @@ function SignInHere({ code }: { code: string }) {
  */
 function ApproveHere({ code }: { code: string }) {
   const auth = useAuth()
+  const config = useAuthConfig()
   const [info, setInfo] = useState<QrRequester | null>(null)
   const [typed, setTyped] = useState('')
   const [done, setDone] = useState(false)
@@ -148,6 +151,11 @@ function ApproveHere({ code }: { code: string }) {
             {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Check aria-hidden="true" />}{tr('Подтвердить')}
           </button>
         </form>
+      </>}
+      {/* The PC app's «Войти через Google» opens this page: sign in with Google right here, then confirm (owner, 15.11.2026). */}
+      {auth.status === 'signed-out' && config?.googleClientId && <>
+        <div className="auth-divider">{tr('или здесь')}</div>
+        <GoogleSignIn clientId={config.googleClientId} onSignedIn={() => undefined} />
       </>}
       {auth.status !== 'ready' && <p className="auth-switch">{tr('Нет приложения?')} <Link to="/login">{tr('Войдите на сайте')}</Link> {tr('на этом телефоне и отсканируйте код ещё раз.')}</p>}
     </>}

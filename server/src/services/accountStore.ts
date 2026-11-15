@@ -287,6 +287,9 @@ export const COUNTRY_INVALID_MESSAGE = 'Неизвестная страна. В�
 export const MANUAL_COUNTRY_MESSAGE = 'Название страны: до 60 символов, только буквы, пробелы и дефисы.'
 /** «Укажите страну» once the account has one: changing it is «Страна» in the cabinet. */
 export const COUNTRY_ALREADY_SET = 'Страна уже указана. Изменить её после регистрации нельзя — если она указана неверно, напишите в поддержку.'
+/** «Войти через Google» is not offered in Russia (owner, 15.11.2026; Russian sites may not use a foreign sign-in). */
+export const GOOGLE_RUSSIA_MESSAGE = 'Вход через Google недоступен для России. Войдите по e-mail и паролю.'
+export const GOOGLE_OWNER_MESSAGE = 'Для этого аккаунта вход через Google недоступен. Войдите по e-mail и паролю.'
 export const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.'
 
 /**
@@ -714,6 +717,32 @@ export class AccountStore {
     const code = storedCountry(country)
     if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
     return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp, code, linkNet, ad)
+  }
+
+  /**
+   * «Войти через Google» (services/googleSignIn.ts; owner, 15.11.2026: for every country but Russia). Google has proved the
+   * address: an account with it gets a new session (and its e-mail counts as confirmed); a new address gets an account with
+   * the e-mail confirmed and a random password — «Забыли пароль?» sets a real one. A new account needs its country first
+   * (`needCountry`, the same question as registration). Refused: Russia (an account of Russia, or Russia chosen for a new
+   * one — GOOGLE_RUSSIA_MESSAGE) and the owner's addresses, which sign in with their password only.
+   */
+  async googleSignIn(rawEmail: string, input: { country?: string; referralCode?: string; ip?: string; ad?: AdMark } = {}): Promise<{ token: string; created: boolean; referralApplied: boolean } | { needCountry: true }> {
+    const key = rawEmail.trim().toLowerCase()
+    if (this.ownerEmails.has(key)) throw new AccountError(403, GOOGLE_OWNER_MESSAGE)
+    const existing = this.findByEmail(key)
+    if (existing) {
+      if (existing.country === 'RU') throw new AccountError(403, GOOGLE_RUSSIA_MESSAGE)
+      const token = this.startSession(existing.id)
+      this.db.prepare('UPDATE accounts SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL').run(this.now(), existing.id)
+      return { token, created: false, referralApplied: false }
+    }
+    const country = input.country === undefined || input.country.trim() === '' ? null : storedCountry(input.country)
+    if (!country) return { needCountry: true }
+    if (country === 'RU') throw new AccountError(403, GOOGLE_RUSSIA_MESSAGE)
+    const { salt, hash } = await newPasswordHash(randomBytes(24).toString('base64url'))
+    const ip = input.ip
+    const result = this.insertAccount(key, salt, hash, input.referralCode || undefined, this.now(), ip === undefined ? undefined : signupDigest(ip), country, ip === undefined ? undefined : linkNetDigest(ip), input.ad)
+    return { token: result.token, created: true, referralApplied: result.referralApplied }
   }
 
   /**
