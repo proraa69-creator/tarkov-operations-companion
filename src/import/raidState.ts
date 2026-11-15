@@ -6,10 +6,17 @@ export interface RaidState {
   location?: string
   /** The game's logs are followed, so `inRaid: false` means «not in a raid» (no logs: unknown). */
   tracked?: boolean
+  /**
+   * When the raid itself began (the game's «GameStarted» line), after the loading and matching `since` counts in (owner,
+   * 15.11.2026: «человек… ждет, пока у него идет загрузка. Как только рейд начинается, должно всплывать уведомление»).
+   */
+  begun?: number
 }
 
 /** Loading into a raid: location load, matching, network game creation, spawn. */
 const RAID_START = /\|application\|(?:LocationLoaded|MatchingCompleted|TRACE-NetworkGameCreate|GameSpawn|GameStarting|GameStarted)/
+/** The raid itself begins: the players are in, the loading screen is gone. */
+const RAID_BEGINS = /\|application\|GameStarted\b/
 /** Back in the menu: raid over notification, cancelled matching, profile re-selected, new launch. */
 const RAID_END = /userMatchOver|Network game matching (?:cancelled|aborted)|\|application\|(?:Session mode:|PrepareSelectedProfileLocally|CompleteSelectedProfile|SelectProfile )/i
 const LOCATION = /Location:\s*([A-Za-z0-9_-]+)/
@@ -67,6 +74,8 @@ export interface RaidLogEvent {
   start: boolean
   location?: string
   hint?: true
+  /** A start line that is the raid itself beginning («GameStarted»), not its loading. */
+  begins?: true
 }
 
 export function raidStateFromLogs(texts: string[], now = Date.now()): RaidState {
@@ -84,7 +93,7 @@ export function raidEventsFromText(text: string): RaidLogEvent[] {
     const at = parseLogTime(line)
     if (at == null) continue
     if (named) events.push({ at, start: false, hint: true, location: named })
-    else events.push(start ? { at, start, location: raidMapToken(LOCATION.exec(line)?.[1]) ?? LOCATION.exec(line)?.[1] ?? hintOf(line) } : { at, start })
+    else events.push(start ? { at, start, location: raidMapToken(LOCATION.exec(line)?.[1]) ?? LOCATION.exec(line)?.[1] ?? hintOf(line), ...(RAID_BEGINS.test(line) ? { begins: true as const } : {}) } : { at, start })
   }
   return events
 }
@@ -111,6 +120,7 @@ export function raidStateFromEvents(files: RaidLogEvent[][], now = Date.now()): 
   let last: RaidLogEvent | undefined
   let pending: { location: string; at: number } | undefined
   let since: number | undefined
+  let begun: number | undefined
   for (const event of all) {
     if (event.hint) {
       if (last?.start) last = { ...last, location: event.location }
@@ -118,7 +128,8 @@ export function raidStateFromEvents(files: RaidLogEvent[][], now = Date.now()): 
       continue
     }
     if (event.start) {
-      if (!last?.start) since = event.at
+      if (!last?.start) { since = event.at; begun = undefined }
+      if (event.begins && begun === undefined) begun = event.at
       const fromHint = pending && event.at - pending.at <= HINT_WINDOW_MS ? pending.location : undefined
       const location = event.location ?? (last?.start ? last.location : undefined) ?? fromHint
       if (fromHint && location === fromHint) pending = undefined
@@ -131,5 +142,5 @@ export function raidStateFromEvents(files: RaidLogEvent[][], now = Date.now()): 
     }
   }
   if (!last?.start || now - last.at > MAX_RAID_MS) return { inRaid: false }
-  return { inRaid: true, since: since ?? last.at, location: last.location }
+  return { inRaid: true, since: since ?? last.at, location: last.location, ...(begun !== undefined ? { begun } : {}) }
 }

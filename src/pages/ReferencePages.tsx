@@ -37,6 +37,7 @@ import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
 import { BulletDropPanel } from "../arsenal/BulletDrop";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
+import { setRaidStartNotice, useRaidStartNotice } from "../notifications/raidStartNotice";
 
 export function EconomyPage() {
   const { data, source } = useTarkovData();
@@ -772,6 +773,29 @@ function MapFollowSetting() {
   );
 }
 
+/** «Рейд начался» (owner, 15.11.2026): the small card when the raid itself begins (src/notifications/RaidStartNotifier.tsx). */
+function RaidStartSetting() {
+  const on = useRaidStartNotice();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Уведомление о начале рейда")}</strong>
+        <small>{uiText("Когда загрузка закончилась и рейд начался")}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={uiText("Уведомление о начале рейда")}
+        className={`toggle ${on ? "on" : ""}`}
+        onClick={() => setRaidStartNotice(!on)}
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { source } = useTarkovData();
   const { updatedAt } = useTarkovDataStatus();
@@ -812,6 +836,7 @@ export function SettingsPage() {
           <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
         </div>}
         <MapFollowSetting />
+        <RaidStartSetting />
         <ClickVolumeSetting />
         {!isMobileLayout() && <CurrentTasksViewSetting />}
         <GuideReplaySetting />

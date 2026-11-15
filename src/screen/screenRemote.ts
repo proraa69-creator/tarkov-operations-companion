@@ -33,6 +33,9 @@ export interface RemoteScreenState {
   scan?: RemoteScan
   /** «Найти ключи» from the phone (owner, 11.11.2026: «кнопка сканирования ключей»): the PC's key search now. */
   keys?: RemoteScan
+  /** When the PC's raid itself began (src/import/raidState.ts `begun`) and its map: «Рейд начался» on the phone too. */
+  raidBegun?: number
+  raidLocation?: string
 }
 
 export interface RemoteScan { busy: boolean; message: string; at: number }
@@ -103,7 +106,11 @@ export function ScreenRemoteRunner() {
     let keys: RemoteScan | undefined
     let keySearching = false
     const publish = async (force = false) => {
-      const state = remoteState(await api.state(), scan, keys)
+      const raid = await window.tarkovDesktop?.getRaidState?.().catch(() => null)
+      const state = {
+        ...remoteState(await api.state(), scan, keys),
+        ...(raid?.inRaid && raid.begun ? { raidBegun: raid.begun, ...(raid.location ? { raidLocation: raid.location.slice(0, 64) } : {}) } : {}),
+      }
       const json = JSON.stringify(state)
       if (!force && json === sent && Date.now() - sentAt < HEARTBEAT_MS) return
       if (await screenLiveRequest('PUT', '/v1/live/screen/state', state) !== null) { sent = json; sentAt = Date.now() }
