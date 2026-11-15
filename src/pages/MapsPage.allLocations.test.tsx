@@ -8,11 +8,11 @@ import { DataProvider } from '../data/DataProvider'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { demoDataset } from '../data/demo'
 
-let path = ''
+/** The route shown, read back from the page. */
 function Where() {
-  path = useLocation().pathname
-  return null
+  return <span data-testid="path">{useLocation().pathname}</span>
 }
+const path = () => screen.getByTestId('path').textContent
 
 function renderMaps(at: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -39,7 +39,7 @@ describe('«Все локации» on «Карты»', () => {
     expect(option('Таможня')).toHaveClass('active')
     expect(screen.queryByRole('button', { name: 'Общая карта' })).toBeNull()
     await act(async () => { fireEvent.click(option('Все локации')) })
-    expect(path).toBe('/maps/world')
+    expect(path()).toBe('/maps/world')
     expect(option('Все локации')).toHaveClass('active')
     expect(option('Таможня')).not.toHaveClass('active')
     expect(document.querySelector('.world-map-view')).not.toBeNull()
@@ -54,7 +54,7 @@ describe('«Все локации» on «Карты»', () => {
     // (jsdom has no animation: the flight ends at once)
     await act(async () => { fireEvent.click(option('Резерв')) })
     await act(async () => { vi.advanceTimersByTime(2000) })
-    expect(path).toBe('/maps/reserve')
+    expect(path()).toBe('/maps/reserve')
     expect(option('Резерв')).toHaveClass('active')
     expect(document.querySelector('.world-map-view')).toBeNull()
   })
