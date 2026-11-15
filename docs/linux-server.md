@@ -124,8 +124,8 @@ Install by hand once (the publisher only restarts `raidos-api`; `PartOf=` restar
 
 ```bash
 cp /etc/raidos/raidos-api.env /etc/raidos/raidos-api.env.bak-$(date +%s)
-install -m 644 deploy/linux/background/raidos-worker.service /etc/systemd/system/raidos-worker.service
-install -m 644 deploy/linux/background/raidos-api-cpu.conf /etc/systemd/system/raidos-api.service.d/cpu.conf
+install -m 644 docs/coordination/ops-reference/background/raidos-worker.service /etc/systemd/system/raidos-worker.service
+install -m 644 docs/coordination/ops-reference/background/raidos-api-cpu.conf /etc/systemd/system/raidos-api.service.d/cpu.conf
 echo RAIDOS_BACKGROUND=external >> /etc/raidos/raidos-api.env
 systemctl daemon-reload && systemctl enable raidos-worker && systemctl restart raidos-api && systemctl start raidos-worker
 journalctl -u raidos-worker -f          # «Raid OS worker ready», then «quest base …» and the mirrors' lines
