@@ -85,6 +85,9 @@ const screenStateSchema = z.object({
   scan: z.object({ busy: z.boolean(), message: text(300), at: z.number().int().positive() }).strict().optional(),
   // «Найти ключи» from the phone (11.11.2026): the PC's key search now (src/quests/keyScan.ts runKeyScan).
   keys: z.object({ busy: z.boolean(), message: text(300), at: z.number().int().positive() }).strict().optional(),
+  // «Рейд начался» on the phone (15.11.2026): when the PC's raid itself began, and its map.
+  raidBegun: z.number().int().positive().optional(),
+  raidLocation: z.string().max(64).optional(),
 }).strict()
 const screenCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('select'), activeId: presetId }).strict(),

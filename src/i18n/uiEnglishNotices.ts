@@ -144,4 +144,6 @@ export const NOTICE_PHRASES: Array<[string, string]> = [
   ['История баннеров', 'Banner history'],
   ['Баннеров пока не было.', 'No banners yet.'],
   ['Загрузка…', 'Loading…'],
+  // «Рейд начался» (src/notifications/RaidStartNotifier.tsx)
+  ['Рейд начался', 'Raid started'], ['Уведомление о начале рейда', 'Raid start notification'], ['Когда загрузка закончилась и рейд начался', 'When the loading is over and the raid begins'],
 ]

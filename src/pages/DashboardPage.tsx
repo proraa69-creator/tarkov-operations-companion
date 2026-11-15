@@ -45,7 +45,7 @@ import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
 import { BlockChooser, type BlockChoice } from '../overview/BlockChooser'
 import { PHONE_BLOCKS } from '../overview/phoneLayout'
-import { ScreenStatCard } from '../screen/ScreenStatCard'
+import { InfoStatCard } from '../overview/InfoStatCard'
 import { ControlCard } from '../overview/ControlCard'
 import { usePhoneOverview } from '../overview/usePhoneOverview'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
@@ -253,7 +253,8 @@ export function DashboardPage() {
   const priorityStrip = <MapPriority inline maps={data.maps} selectedId={selectedMap.id} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !deferred.has(quest.id) && !mapObjectivesClosed(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
   const statCards: Blocks = {
     // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
-    'stat-screen': { label: 'Экран', node: <ScreenStatCard /> },
+    // «Время в Таркове», «Сброс торговцев», «Таймер рейда» by its square gear; on the phone its «Пресеты экрана» too (owner, 15.11.2026)
+    'stat-screen': { label: 'Таймеры', node: <InfoStatCard phone={mobile} /> },
     'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`}
       deferredCount={mapConditions.quests.length - conditionQuests.quests.length} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
     'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
