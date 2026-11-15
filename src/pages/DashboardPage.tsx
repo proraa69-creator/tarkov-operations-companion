@@ -11,7 +11,7 @@ import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questAppliesToMap } from '../progression/questLocation'
-import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
+import { mapObjectivesClosed, markerObjectiveDone } from '../progression/mapObjectives'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { storyRaidNeedsAhead } from '../progression/storyRaidNeeds'
@@ -91,8 +91,9 @@ export function DashboardPage() {
     const stageIndex = currentStoryStageIndex(quest, progress)
     return questAppliesToMap(quest, id, stageIndex) && !quest.anyMap
   }
-  // A quest whose objectives on this map are all ticked leaves its list here; it stays current for its other maps.
-  const planQuests = taskQuests.filter((quest) => onMap(quest, selectedMap.id) && !mapObjectivesDone(quest, selectedMap.id, progress))
+  // A quest whose objectives on this map are all ticked leaves its list here; it stays current for its other maps. One whose
+  // objectives here wait for an earlier one on another map is not here yet (report 165).
+  const planQuests = taskQuests.filter((quest) => onMap(quest, selectedMap.id) && !mapObjectivesClosed(quest, selectedMap.id, progress))
   const anyMapCurrent = taskQuests.filter((quest) => quest.anyMap)
   // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
@@ -243,7 +244,10 @@ export function DashboardPage() {
   const questCard = mobile ? (quest: typeof currentQuests[number]) => <QuestInlineCard quest={quest} progress={progress} maps={data.maps} pointLink={pointLink(quest)} /> : undefined
 
   // A map here chooses the raid plan's map, it does not open the map (owner, 10.10.2026).
-  const priorityStrip = <MapPriority inline maps={data.maps} selectedId={selectedMap.id} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
+  // The keys of «Требования рейда»: «Взял» puts one not in the stash into «Ключи в схроне» (overview/TakenItems.tsx).
+  const raidKeyIds = neededRows.flatMap((row) => (row.itemId && row.lines.some((line) => line.purpose === 'key') ? [row.itemId] : [])).join(',')
+  const isRaidKey = useCallback((itemId: string) => raidKeyIds.split(',').includes(itemId), [raidKeyIds])
+  const priorityStrip = <MapPriority inline maps={data.maps} selectedId={selectedMap.id} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !deferred.has(quest.id) && !mapObjectivesClosed(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
   const statCards: Blocks = {
     // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
     'stat-screen': { label: 'Экран', node: <ScreenStatCard /> },
@@ -322,7 +326,7 @@ export function DashboardPage() {
   // as it is (owner: «Сделай как есть экран, пресеты, задания для капы, сбор на рейд и кочевники»).
   const phoneChoices = (here: string): BlockChoice[] => PHONE_BLOCKS.filter((id) => phoneBlocks[id]).map((id) => ({ id, label: labelOf(id, phoneBlocks), state: id === here ? 'here' : order.includes(id) ? 'shown' : 'hidden' }))
   // «Взял» on the items (report 157): one set of marks for the whole page, its menus included.
-  return <TakenItemsProvider profileId={state.activeProfile.id} mode={state.raidMode}><div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
+  return <TakenItemsProvider profileId={state.activeProfile.id} mode={state.raidMode} isKey={isRaidKey}><div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
       <div className="overview-header-actions">

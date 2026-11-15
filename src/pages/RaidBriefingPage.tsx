@@ -9,6 +9,7 @@ import { useRaidMapId } from '../raidprep/useRaidPrep'
 import { planRoute } from '../raidprep/route'
 import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
 import { questAppliesToMap } from '../progression/questLocation'
+import { mapObjectivesWaiting } from '../progression/mapObjectives'
 import '../styles/raidPrep.css'
 
 /**
@@ -34,7 +35,7 @@ export function RaidBriefingPage() {
   const route = useMemo(() => map ? planRoute(data.markers, data.quests, progress, map.id, null) : null, [data.markers, data.quests, progress, map])
   const counts = useMemo(() => {
     const current = data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress) && !quest.anyMap)
-    return new Map(data.maps.map((entry) => [entry.id, current.filter((quest) => questAppliesToMap(quest, entry.id, currentStoryStageIndex(quest, progress))).length]))
+    return new Map(data.maps.map((entry) => [entry.id, current.filter((quest) => questAppliesToMap(quest, entry.id, currentStoryStageIndex(quest, progress)) && !mapObjectivesWaiting(quest, entry.id, progress)).length]))
   }, [data.maps, data.quests, progress])
 
   if (!map) return null

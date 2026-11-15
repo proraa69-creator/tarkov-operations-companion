@@ -54,6 +54,8 @@ export interface SheetNeed {
   count: number
   /** «Ключ», «Заложить», «Взять в рейд»… */
   label: string
+  /** What it is for (the raid requirement's purpose): «Найти в рейде» of the window takes `find` and `handover`. */
+  purpose?: NonNullable<Quest['raidRequirements']>[number]['purpose']
   foundInRaid?: boolean
 }
 
@@ -170,6 +172,7 @@ function needOf(requirement: NonNullable<Quest['raidRequirements']>[number], ite
     ...(item?.iconUrl ? { iconUrl: item.iconUrl } : {}),
     count: requirement.count,
     label: NEED_LABEL[requirement.purpose],
+    purpose: requirement.purpose,
     ...(requirement.foundInRaid ? { foundInRaid: true } : {}),
   }
 }
