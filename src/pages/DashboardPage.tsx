@@ -6,6 +6,7 @@ import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { useOwnedKeys } from '../quests/ownedKeys'
+import { useKeysAddedByTaken } from '../progression/takenItems'
 import { formatPrice } from '../shared/format'
 import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
@@ -193,9 +194,14 @@ export function DashboardPage() {
   }
   // The keys the player has (owner, 07.11.2026: «если он у меня есть… пишется «Есть в схроне». Если нету, то пишется «Нет в наличии»»);
   // nothing said before the first scan or key added by hand, so a player who never scanned is not told every key is missing.
+  // A key «Взял» put there and no scan has seen yet stays «Есть в наличии», ticked or not (owner, 16.11.2026).
   const ownedKeys = useOwnedKeys(state.activeProfile.id, state.raidMode)
-  const keyStock = (row: { lines: Array<{ purpose: string }> }, ids: readonly string[]): RaidNeedRow['stock'] => (
-    ownedKeys.size && row.lines.some((line) => line.purpose === 'key') ? (ids.some((id) => ownedKeys.has(id)) ? 'owned' : 'missing') : undefined)
+  const keysFromTaken = useKeysAddedByTaken(state.activeProfile.id, state.raidMode)
+  const keyStock = (row: { lines: Array<{ purpose: string }> }, ids: readonly string[]): RaidNeedRow['stock'] => {
+    if (!ownedKeys.size || !row.lines.some((line) => line.purpose === 'key')) return undefined
+    const owned = ids.filter((id) => ownedKeys.has(id))
+    return !owned.length ? 'missing' : owned.every((id) => keysFromTaken.has(id)) ? 'known' : 'owned'
+  }
   const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds, (itemId) => raidItem(itemId)?.keyUses).flatMap((row): RaidNeedRow[] => {
     const targets = targetsOf(row.itemId)
     const best = [...targets.values()].sort((a, b) => a.rank - b.rank)[0]

@@ -62,27 +62,33 @@ export function clearTakenItemsBefore(profileId: string, startedAt: number) {
     const taken = readTakenItems(profileId, mode)
     const kept = new Map([...taken].filter(([, at]) => at >= startedAt))
     if (kept.size !== taken.size) write(profileId, mode, kept)
-    // a key «Взял» put into the stash stays there after the raid: «Не взял» no longer takes it out
-    const added = keysAddedByTaken(profileId, mode)
-    if ([...added].some((id) => !kept.has(id))) writeAdded(profileId, mode, [...added].filter((id) => kept.has(id)))
   }
 }
 
 /**
  * Keys «Взял» put into «Ключи в схроне» (owner, 15.11.2026: «человек его… не отметил в ключах для квестов… но он знает, что он у
- * него есть, он нажимает «взял»… он должен добавляться в ключ, который есть у него в схроне»), so «Не взял» takes out only those
- * («после того, как я нажимаю «не взял»… статус «есть наличие» не исчезает»), never a key the player had already.
+ * него есть, он нажимает «взял»… он должен добавляться в ключ, который есть у него в схроне»). They stay there: «Не взял» means only
+ * «not taking it into this raid» (owner, 16.11.2026: «если снять отметку «Взял»… ключ должен остаться «в наличии»»), and they keep
+ * saying «Есть в наличии» until a scan sees them («Есть в схроне», forgetKeysAddedByTaken). Per profile and mode, like the marks.
  */
 const ADDED_PREFIX = 'raidos-taken-keys-added-v1:'
 const addedKey = (profileId: string, mode: RaidMode) => `${ADDED_PREFIX}${profileId}:${mode}`
+const NO_KEYS: ReadonlySet<string> = new Set()
+const addedSnapshots = new Map<string, { raw: string | null; ids: ReadonlySet<string> }>()
 
 export function keysAddedByTaken(profileId: string, mode: RaidMode): ReadonlySet<string> {
+  const key = addedKey(profileId, mode)
+  let raw: string | null = null
+  try { raw = localStorage.getItem(key) } catch { /* storage unavailable */ }
+  const cached = addedSnapshots.get(key)
+  if (cached && cached.raw === raw) return cached.ids
+  let ids = NO_KEYS
   try {
-    const stored: unknown = JSON.parse(localStorage.getItem(addedKey(profileId, mode)) ?? '[]')
-    return new Set(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [])
-  } catch {
-    return new Set()
-  }
+    const stored: unknown = raw ? JSON.parse(raw) : null
+    if (Array.isArray(stored)) ids = new Set(stored.filter((id): id is string => typeof id === 'string'))
+  } catch { /* a damaged value reads as nothing */ }
+  addedSnapshots.set(key, { raw, ids })
+  return ids
 }
 
 function writeAdded(profileId: string, mode: RaidMode, ids: string[]) {
@@ -90,12 +96,20 @@ function writeAdded(profileId: string, mode: RaidMode, ids: string[]) {
     if (ids.length) localStorage.setItem(addedKey(profileId, mode), JSON.stringify(ids))
     else localStorage.removeItem(addedKey(profileId, mode))
   } catch { /* storage unavailable */ }
+  window.dispatchEvent(new Event(EVENT))
 }
 
 export function setKeyAddedByTaken(profileId: string, mode: RaidMode, itemId: string, added: boolean) {
   const current = keysAddedByTaken(profileId, mode)
   if (added === current.has(itemId)) return
   writeAdded(profileId, mode, added ? [...current, itemId] : [...current].filter((id) => id !== itemId))
+}
+
+/** A scan saw these keys: they are in the stash now («Есть в схроне»), no longer known only from «Взял». */
+export function forgetKeysAddedByTaken(profileId: string, mode: RaidMode, ids: Iterable<string>) {
+  const current = keysAddedByTaken(profileId, mode)
+  const seen = new Set(ids)
+  if ([...current].some((id) => seen.has(id))) writeAdded(profileId, mode, [...current].filter((id) => !seen.has(id)))
 }
 
 /** «Удалить все данные». */
@@ -108,7 +122,7 @@ export function clearAllTakenItems() {
 }
 
 function subscribe(listener: () => void) {
-  const onStorage = (event: StorageEvent) => { if (event.key === null || event.key.startsWith(KEY_PREFIX)) listener() }
+  const onStorage = (event: StorageEvent) => { if (event.key === null || event.key.startsWith(KEY_PREFIX) || event.key.startsWith(ADDED_PREFIX)) listener() }
   window.addEventListener(EVENT, listener)
   window.addEventListener('storage', onStorage)
   return () => {
@@ -120,4 +134,10 @@ function subscribe(listener: () => void) {
 export function useTakenItems(profileId: string, mode: RaidMode): Taken {
   const read = useCallback(() => readTakenItems(profileId, mode), [profileId, mode])
   return useSyncExternalStore(subscribe, read, () => NOTHING)
+}
+
+/** The keys «Взял» put into «Ключи в схроне», still not seen by a scan. */
+export function useKeysAddedByTaken(profileId: string, mode: RaidMode): ReadonlySet<string> {
+  const read = useCallback(() => keysAddedByTaken(profileId, mode), [profileId, mode])
+  return useSyncExternalStore(subscribe, read, () => NO_KEYS)
 }
