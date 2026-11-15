@@ -12,6 +12,8 @@ export interface ReportEvent {
   unreadChats: number
   /** The newest report's number (0 from a server before the table). */
   latest: number
+  /** New «Аккаунты Таркова» cases (0 from a server before them; server/src/services/eftLedger.ts). */
+  eftCases: number
 }
 
 /** Pause after a failed wait (no server, an older server without the route, not the owner's session). */
@@ -36,7 +38,7 @@ export async function watchReportEvents(ask: (path: string) => Promise<unknown>,
   while (!signal.aborted) {
     try {
       const asked = Date.now()
-      const answer = await ask(version === undefined ? REPORT_EVENTS_PATH : `${REPORT_EVENTS_PATH}?since=${version}`) as { version?: unknown; open?: unknown; unreadChats?: unknown; stamp?: unknown; latest?: unknown } | null
+      const answer = await ask(version === undefined ? REPORT_EVENTS_PATH : `${REPORT_EVENTS_PATH}?since=${version}`) as { version?: unknown; open?: unknown; unreadChats?: unknown; stamp?: unknown; latest?: unknown; eftCases?: unknown } | null
       if (signal.aborted) return
       const next = typeof answer?.version === 'number' && Number.isSafeInteger(answer.version) ? answer.version : undefined
       if (next === undefined || typeof answer?.open !== 'number') { await pause(retryMs); continue }
@@ -45,7 +47,7 @@ export async function watchReportEvents(ask: (path: string) => Promise<unknown>,
       const changed = version !== undefined && (!same || nextStamp !== stamp)
       version = next
       stamp = nextStamp
-      onEvent({ open: answer.open, unreadChats: safeNumber(answer.unreadChats), latest: safeNumber(answer.latest) }, changed)
+      onEvent({ open: answer.open, unreadChats: safeNumber(answer.unreadChats), latest: safeNumber(answer.latest), eftCases: safeNumber(answer.eftCases) }, changed)
       if (same && Date.now() - asked < QUICK_ANSWER_MS) await pause(Math.min(QUICK_PAUSE_MS, retryMs))
     } catch {
       await pause(retryMs)

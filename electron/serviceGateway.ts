@@ -110,6 +110,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
   // «Отчёты» (src/reports/ReportsTable.tsx): the table, the owner's buttons and his corrections to the plan.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/table\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
+  // «Отчёты» → «Аккаунты Таркова» (server/src/routes/eftCases.ts)
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/eft-cases\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/eft-cases\/\d{1,12}\/status$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward|work|plan|point)$/ },
   // «Доступ Claude к заявкам» (src/requests/ClaudeAccessPanel.tsx, server/src/routes/agentRequests.ts): the state of the
   // owner's read-only key, a new key (shown once) and revoking it. The reports read with the key never pass here.

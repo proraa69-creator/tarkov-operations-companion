@@ -1,3 +1,4 @@
+import { EftCasesTable } from '../reports/EftCasesTable'
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -118,6 +119,9 @@ export function AdminMobilePage() {
   const [customDates, setCustomDates] = useState(() => ({ from: ownerDayAgo(29), to: ownerDayAgo(0) }))
   const [selected, setSelected] = useState<AdminUserDetail | null>(null)
   const [reportView, setReportView] = useState<ReportTableView>('active')
+  // «Аккаунты Таркова» (owner, 15.11.2026): the tab next to the three lists and its count of new cases.
+  const [eftSelected, setEftSelected] = useState(false)
+  const [eftCount, setEftCount] = useState(0)
   const [focusReport, setFocusReport] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
@@ -176,7 +180,7 @@ export function AdminMobilePage() {
   useEffect(() => {
     if (section !== 'requests') return
     const stop = new AbortController()
-    void adminApi.watchReports(reportsChanged, stop.signal)
+    void adminApi.watchReports(reportsChanged, stop.signal, setEftCount)
     return () => stop.abort()
   }, [section, reportsChanged])
 
@@ -351,7 +355,13 @@ export function AdminMobilePage() {
             <ReportsTable
               page={reports.data}
               view={reportView}
-              onView={setReportView}
+              onView={(next) => { setReportView(next); setEftSelected(false) }}
+              eft={{
+                count: eftCount,
+                selected: eftSelected,
+                onSelect: () => setEftSelected(true),
+                content: <EftCasesTable load={adminApi.eftCases} setStatus={adminApi.eftStatus} t={uiText} reloadKey={reportsTick} />,
+              }}
               t={uiText}
               focusId={focusReport}
               onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}

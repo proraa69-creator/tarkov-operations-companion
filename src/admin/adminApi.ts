@@ -1,3 +1,4 @@
+import type { EftCasesPage, EftCaseStatus } from '../reports/EftCasesTable'
 import { watchReportEvents } from '../reports/reportEvents'
 import type { ReportPage, ReportRow } from '../reports/ReportsTable'
 import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
@@ -301,13 +302,17 @@ export const adminApi = {
   ),
   reportPlan: (id: number, plan: string) => request<{ report: BugReportDetail }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/plan`, { plan }),
   /** Waits on the server for the next change of the table, until `signal` aborts; `changed` asks the table again. */
-  watchReports: (onChange: () => void, signal: AbortSignal) => watchReportEvents((path) => ask('GET', path), (_event, changed) => {
+  watchReports: (onChange: () => void, signal: AbortSignal, onEftCases?: (count: number) => void) => watchReportEvents((path) => ask('GET', path), (event, changed) => {
+    onEftCases?.(event.eftCases)
     if (!changed) return
     fresh.delete(adminPaths.reportTable('active'))
     fresh.delete(adminPaths.reportTable('working'))
     fresh.delete(adminPaths.reportTable('closed'))
     onChange()
   }, signal),
+  /** «Отчёты» → «Аккаунты Таркова» (server/src/routes/eftCases.ts). */
+  eftCases: (view: EftCaseStatus) => request<EftCasesPage>('GET', `/v1/accounts/me/admin/eft-cases?view=${view}&limit=100`),
+  eftStatus: (id: number, status: EftCaseStatus) => request<unknown>('POST', `/v1/accounts/me/admin/eft-cases/${id}/status`, { status }),
   overview: () => request<AdminOverview>('GET', adminPaths.overview(), undefined, keep),
   online: async (days = 30) => {
     const [history, live] = await Promise.all([

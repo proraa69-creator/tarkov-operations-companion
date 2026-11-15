@@ -73,6 +73,11 @@ interface ReportsTableProps<Row extends ReportRow> {
   /** The same in a window of its own (the phone); takes the place of `detail`. */
   onOpen?: (row: Row) => void
   footer?: ReactNode
+  /**
+   * «Аккаунты Таркова» next to the three lists (owner, 15.11.2026; src/reports/EftCasesTable.tsx): its tab with the count of
+   * new cases; while it is chosen, its `content` takes the place of the reports.
+   */
+  eft?: { count?: number; selected: boolean; onSelect: () => void; content: ReactNode }
 }
 
 const same: Translate = (text) => text
@@ -101,23 +106,27 @@ function actionsOf(status: ReportWorkStatus) {
  * grows the same row (owner: «Оно не должно открываться ниже»). Three lists: «Активные», «В процессе» and «Закрытые». On a narrow
  * screen every row becomes a card (reportsTable.css).
  */
-export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct, onReward, onAcceptPoint, loadImage, t = same, focusId, loading, error, onRefresh, detail, onOpen, footer }: ReportsTableProps<Row>) {
-  const rows = page?.rows ?? []
+export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct, onReward, onAcceptPoint, loadImage, t = same, focusId, loading, error, onRefresh, detail, onOpen, footer, eft }: ReportsTableProps<Row>) {
+  const rows = eft?.selected ? [] : page?.rows ?? []
   return (
     <div className="rt-wrap">
       <div className="rt-head">
         <div className="rt-views" role="group" aria-label={t('Какие отчёты показать')}>
           {VIEWS.map(({ id, label }) => (
-            <button key={id} type="button" className={`button small ${view === id ? 'primary' : 'ghost'}`} aria-pressed={view === id} onClick={() => onView(id)}>
+            <button key={id} type="button" className={`button small ${view === id && !eft?.selected ? 'primary' : 'ghost'}`} aria-pressed={view === id && !eft?.selected} onClick={() => onView(id)}>
               {t(label)}{page ? <span className="rt-count"> · {page.counts[id] ?? 0}</span> : null}
             </button>
           ))}
+          {eft && <button type="button" className={`button small ${eft.selected ? 'primary' : 'ghost'}`} aria-pressed={eft.selected} onClick={eft.onSelect}>
+            {t('Аккаунты Таркова')}{eft.count ? <span className="rt-count rt-count-alert"> · {eft.count}</span> : null}
+          </button>}
         </div>
         {onRefresh && <button type="button" className="button small ghost rt-refresh" disabled={loading} aria-label={t('Обновить')} title={t('Обновить')} onClick={onRefresh}>{loading ? <LoaderCircle size={14} className="spin spinner" aria-hidden="true" /> : <RefreshCw size={14} aria-hidden="true" />}</button>}
       </div>
-      {error && <p className="rt-error" role="alert">{t(error)}</p>}
-      {!page && !error && <p className="rt-empty"><LoaderCircle size={14} className="spin spinner" aria-hidden="true" /> {t('Загружаем отчёты…')}</p>}
-      {page && rows.length === 0 && <p className="rt-empty">{t(VIEWS.find(({ id }) => id === view)!.empty)}</p>}
+      {eft?.selected && eft.content}
+      {!eft?.selected && error && <p className="rt-error" role="alert">{t(error)}</p>}
+      {!eft?.selected && !page && !error && <p className="rt-empty"><LoaderCircle size={14} className="spin spinner" aria-hidden="true" /> {t('Загружаем отчёты…')}</p>}
+      {!eft?.selected && page && rows.length === 0 && <p className="rt-empty">{t(VIEWS.find(({ id }) => id === view)!.empty)}</p>}
       {rows.length > 0 && (
         <table className="rt-table">
           <colgroup><col className="rt-col-number" /><col className="rt-col-kind" /><col /><col className="rt-col-author" /><col className="rt-col-status" /></colgroup>

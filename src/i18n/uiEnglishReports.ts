@@ -31,6 +31,13 @@ export const REPORTS_TABLE_PHRASES: Array<[string, string]> = [
   ['Данные этого отчёта для Claude: почта, Windows, Steam, версия, тема и текст', 'This report’s data for Claude: e-mail, Windows, Steam, version, title and text'],
   ['Таблица заработает после обновления сервера.', 'The table will work once the server is updated.'],
   ['Обновить', 'Refresh'],
+  // «Аккаунты Таркова» (src/reports/EftCasesTable.tsx)
+  ['Аккаунты Таркова', 'Tarkov accounts'], ['Какие случаи показать', 'Which cases to show'], ['Загружаем…', 'Loading…'],
+  ['Новых случаев нет.', 'No new cases.'], ['Случаев в процессе нет.', 'No cases in progress.'], ['Закрытых случаев нет.', 'No closed cases.'],
+  ['Аккаунт Таркова', 'Tarkov account'], ['Сейчас', 'Now'], ['Раньше', 'Before'], ['Один и тот же аккаунт Таркова в разных случаях', 'The same Tarkov account across cases'],
+  ['нет почты', 'no e-mail'], ['почта неизвестна', 'e-mail unknown'], ['Аккаунт создан', 'Account created'], ['Таркова привязан', 'Tarkov linked'],
+  ['Бонусные дни: не выданы (уже были у этого аккаунта Таркова)', 'Free days: not given (this Tarkov account already had them)'], ['Бонусные дни: выданы', 'Free days: given'], ['Бонусные дни: нет', 'Free days: none'],
+  ['отвязан', 'unlinked'], ['удалён', 'deleted'], ['брал бонусные дни', 'took free days'], ['Взять', 'Take'], ['Закрыть', 'Close'], ['Вернуть', 'Reopen'],
   ['Загружаем отчёты…', 'Loading reports…'],
   ['Активных отчётов и предложений нет.', 'No active reports or ideas.'],
   ['Закрытых отчётов и предложений нет.', 'No closed reports or ideas.'],
