@@ -157,6 +157,8 @@
 
 /* «Войти по QR-коду» on the sign-in screen (QrSignIn.tsx). */
 .account-gate-qr { width: 100%; }
+/* «Войти через Google» (owner, 16.11.2026): our green button, the coloured «G» without a white plate. */
+.account-gate-google { width: 100%; }
 .account-qr-signin { align-items: stretch; text-align: left; }
 .account-qr-signin h2 { margin: 0; }
 .account-qr-signin .account-qr-frame { align-self: center; }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Crosshair, X } from 'lucide-react'
 import { useRaidState } from '../app/useRaidState'
-import { useTarkovData } from '../data/DataProvider'
+import { useOptionalTarkovData } from '../data/DataProvider'
 import { canonicalMapId } from '../data/mapIds'
 import { uiText } from '../i18n/renderText'
 import { useRemoteScreen } from '../screen/screenRemote'
@@ -19,10 +19,13 @@ import '../arsenal/arsenal.css'
  * may be behind a video; Windows' own is held back while the game is in front). Once per raid, when the raid itself begins
  * (src/import/raidState.ts `begun`), not when its loading starts. Switched off in «Настройки».
  */
+/** Before the game data is there (or outside its provider): no map names, the notice still comes. */
+const NO_MAPS: ReadonlyArray<{ id: string; name: string }> = []
+
 function RaidStartToast({ mapId, onClose }: { mapId?: string; onClose: () => void }) {
   const navigate = useNavigate()
-  const { data } = useTarkovData()
-  const map = mapId ? data.maps.find((entry) => entry.id === mapId) : undefined
+  const maps = useOptionalTarkovData()?.data.maps ?? NO_MAPS
+  const map = mapId ? maps.find((entry) => entry.id === mapId) : undefined
   useEffect(() => {
     const timer = window.setTimeout(onClose, TOAST_MS)
     return () => window.clearTimeout(timer)
@@ -51,14 +54,14 @@ function raidMapId(location: string | undefined, known: ReadonlyArray<{ id: stri
 export function RaidStartNotifier() {
   const on = useRaidStartNotice()
   const raid = useRaidState()
-  const { data } = useTarkovData()
+  const maps = useOptionalTarkovData()?.data.maps ?? NO_MAPS
   const [shown, setShown] = useState<{ begun: number; mapId?: string } | null>(null)
   const begun = raid?.inRaid ? raid.begun : undefined
-  const mapId = raidMapId(raid?.location, data.maps)
+  const mapId = raidMapId(raid?.location, maps)
   useEffect(() => {
     if (!on || !takeRaidStart(begun)) return
     const title = uiText('Рейд начался')
-    const name = mapId ? uiText(data.maps.find((map) => map.id === mapId)?.name ?? '') : ''
+    const name = mapId ? uiText(maps.find((map) => map.id === mapId)?.name ?? '') : ''
     addNotification({ title, text: name, ...(mapId ? { open: `/maps/${mapId}` } : {}) })
     void window.tarkovDesktop?.notify?.(title, name).catch(() => false)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the card comes once, when the raid has begun
@@ -90,13 +93,13 @@ export function LastRaidRecorder() {
 /** The phone: what the PC app said last (its raid's start comes with its screen state, src/screen/screenRemote.ts). */
 function PhoneWatcher() {
   const { pc } = useRemoteScreen()
-  const { data } = useTarkovData()
+  const maps = useOptionalTarkovData()?.data.maps ?? NO_MAPS
   const [shown, setShown] = useState<{ begun: number; mapId?: string } | null>(null)
   const begun = pc?.state.raidBegun
-  const mapId = raidMapId(pc?.state.raidLocation, data.maps)
+  const mapId = raidMapId(pc?.state.raidLocation, maps)
   useEffect(() => {
     if (!takeRaidStart(begun)) return
-    const name = mapId ? uiText(data.maps.find((map) => map.id === mapId)?.name ?? '') : ''
+    const name = mapId ? uiText(maps.find((map) => map.id === mapId)?.name ?? '') : ''
     addNotification({ title: uiText('Рейд начался'), text: name, ...(mapId ? { open: `/maps/${mapId}` } : {}) })
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the card comes once, when the raid has begun
     setShown({ begun: begun!, ...(mapId ? { mapId } : {}) })

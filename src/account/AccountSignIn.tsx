@@ -151,7 +151,7 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
       <button className="button primary account-gate-submit" type="submit" disabled={busy || !online}>
         {busy ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}{uiText(busy ? 'Входим…' : 'Войти')}
       </button>
-      {google && <button type="button" className="button ghost account-gate-google" disabled={!online} onClick={onPickGoogle}><GoogleMark />{uiText('Войти через Google')}</button>}
+      {google && <button type="button" className="button account-gate-google" disabled={!online} onClick={onPickGoogle}><GoogleMark />{uiText('Войти через Google')}</button>}
       {qr && <button type="button" className="button ghost account-gate-qr" onClick={onPickQr}><QrCode size={16} />{uiText('Войти по QR-коду')}</button>}
       <EmailSignInLinks online={online} onPick={onPickEmail} />
       {PHONE_AUTH_UI && <PhoneSignInLinks online={online} onPick={onPickPhone} resetLabel="Сбросить пароль по SMS" />}

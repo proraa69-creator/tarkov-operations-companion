@@ -16,7 +16,7 @@ import { DashboardPage } from './DashboardPage'
 const OWNER = sanitizeOverviewDefaults({
   layout: { stats: ['stat-kappa', 'stat-screen', 'stat-conditions', 'stat-goons'], rows: ['stats', 'columns'], left: ['raid', 'squad', 'requirements'], right: ['favorites', 'tasks', 'gunsmith'] },
   hidden: ['stat-goons'],
-  titles: { favorites: { ru: 'Мой рынок', en: 'My market' }, 'stat-screen': { ru: 'Задачи', en: '' } },
+  titles: { favorites: { ru: 'Мой рынок', en: 'My market' }, 'stat-kappa': { ru: 'Задачи', en: '' } },
 })
 
 function renderDashboard() {
