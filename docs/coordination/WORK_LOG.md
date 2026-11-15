@@ -7433,3 +7433,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - src/theme/themeTransition.ts: the change's callback now waits (settle, at most SETTLE_MS 1.5 s) for the scheme's pictures (prepareTheme), two turns for the pieces that follow `data-theme`, and the pictures they added; `data-theme-switching` turns CSS transitions off until the circle is over; the radius reaches 1.06× the farthest corner + 8 px. themeMotion.css: 1200 ms, cubic-bezier(.3, .3, .55, 1) (was 720 ms).
 - Checked: a frame-stepped 60 fps video (dev server, animations at 1/10 speed via CDP, a picture every 1/60 s of animation time) olive → black multicam: the texture is inside the circle from the first frame, the circle reaches every corner, the sidebar changes as the edge passes it, nothing appears after. Sent to the owner.
 - Tests: src/theme 29/29 (settle waits for the scheme's and the added pictures, not for those already on the page; never longer than SETTLE_MS); typecheck clean; eslint clean. Not checked in the packaged app on the owner's wide screen.
+
+## 2026-11-16 — Promo code 1YEAROFESCAPING added on the live server (database only)
+
+- Owner 16.11: «новый промо 1YEAROFESCAPING». Added straight to `promo_codes` on the VPS (no release): mode NULL (every mode), last_seen_at = now + 14 days (shown until ~30.11 unless the source pages list it, after which the server keeps it as any other). Backup first: /var/lib/raidos/backups/manual-promo-1yearofescaping-1794773748844.sqlite. Live /v1/promo-codes: 26 codes with it; apps read the list every 30 min.
+- Web check the same night: every code on PCGamesN, Dexerto, Beebom, Gamespec, Shane the Gamer, Guided.news, Skycoach was already in the app (25).
