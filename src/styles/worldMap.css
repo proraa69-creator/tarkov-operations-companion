@@ -30,3 +30,10 @@
 /* Close up, the floors of the location pressed, while it is in sight (owner: «как нажимаешь, этажи появляются»). */
 .world-map-floors { position: absolute; top: 12px; left: 12px; z-index: 800; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: calc(100% - 90px); padding: 6px 8px; border: 1px solid var(--line-soft); border-radius: 9px; background: rgb(10 16 12 / 88%); backdrop-filter: blur(8px); }
 .world-map-floors-title { margin-right: 4px; color: #d5b76f; font-size: 12px; font-weight: 700; }
+
+/* The phone (owner, 15.11.2026: «общую карту… на мобильное приложение… чтобы она работала плавно»): the map over the whole stage,
+   back and the locations over it at the top left, the floors at the bottom. */
+.world-map-phone-hud { position: absolute; top: 8px; left: 8px; z-index: 810; display: flex; align-items: flex-start; gap: 6px; max-width: calc(100% - 64px); }
+.world-map-phone-hud .world-map-back { display: inline-flex; align-items: center; justify-content: center; width: 38px; min-height: 38px; padding: 0; }
+:root[data-layout="mobile"] .world-map-page .world-map-floors { top: auto; bottom: 10px; left: 8px; max-width: calc(100% - 16px); }
+:root[data-layout="mobile"] .world-map-page .world-map-floors .button { min-height: 34px; }

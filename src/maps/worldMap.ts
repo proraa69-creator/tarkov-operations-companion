@@ -201,9 +201,12 @@ export function locationAt(placements: Iterable<WorldPlacement>, [x, y]: WorldPo
  * The size of a location's picture, px: light for the whole map, detailed (`close`) only while it is close up and in
  * sight — a picture per screen pixel of the map at its middle zooms, never past what a browser draws fast.
  */
-export function pictureSize({ rect: [[x1, y1], [x2, y2]] }: WorldPlacement, close: boolean): [number, number] {
+export function pictureSize({ rect: [[x1, y1], [x2, y2]] }: WorldPlacement, close: boolean, phone = false): [number, number] {
   const [width, height] = [x2 - x1, y2 - y1]
   const long = Math.max(width, height)
-  const side = close ? Math.min(2560, Math.max(1024, long * 2.5)) : Math.min(768, Math.max(256, long * 0.5))
+  // the phone (owner, 15.11.2026: «добавить на мобильное приложение… чтобы она работала плавно»): smaller pictures
+  const side = close
+    ? (phone ? Math.min(1536, Math.max(768, long * 1.6)) : Math.min(2560, Math.max(1024, long * 2.5)))
+    : (phone ? Math.min(512, Math.max(192, long * 0.35)) : Math.min(768, Math.max(256, long * 0.5)))
   return [Math.round(side * width / long), Math.round(side * height / long)]
 }

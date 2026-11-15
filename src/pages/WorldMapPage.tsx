@@ -6,6 +6,8 @@ import { ArrowLeft } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useTarkovData } from '../data/DataProvider'
+import { useMobileLayout } from '../platform'
+import { PhoneMapPicker } from '../mobile/PhoneMapPanels'
 import { useAppState } from '../state/AppState'
 import { useQuestChecks } from '../progression/questChecks'
 import { useDeferredQuests } from '../progression/deferredQuests'
@@ -55,6 +57,8 @@ export function WorldMapPage() {
   const state = useAppState()
   useLocale()
   const navigate = useNavigate()
+  // the phone (owner, 15.11.2026): the map over the whole screen, the locations in a list over it, lighter pictures
+  const mobile = useMobileLayout()
   const progress = state.activeProfile.modes[state.raidMode]
   const checked = useQuestChecks(state.activeProfile.id, state.raidMode)
   const loyalty = useTraderLoyalty()
@@ -136,7 +140,7 @@ export function WorldMapPage() {
 
   return <div className="page map-page world-map-page">
     <div className="map-shell world-map-shell">
-      <aside className="map-sidebar world-map-sidebar">
+      {!mobile && <aside className="map-sidebar world-map-sidebar">
         <Link to="/maps" className="button world-map-back"><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Карты')}</span></Link>
         <div className="map-side-title">{uiText('ЛОКАЦИИ')}</div>
         <button type="button" className={`map-option${mapFilter ? '' : ' active'}`} onClick={() => pickMap(null)}>
@@ -159,8 +163,12 @@ export function WorldMapPage() {
             </button>
           ))}
         </div>
-      </aside>
+      </aside>}
       <section className="map-stage world-map-stage">
+        {mobile && <div className="world-map-phone-hud">
+          <Link to="/maps" className="button world-map-back" aria-label={uiText('Карты')}><ArrowLeft size={15} aria-hidden="true" /></Link>
+          <PhoneMapPicker maps={[{ id: '', name: 'Все локации', accent: '#d5b76f' }, ...placedMaps]} activeId={mapFilter ?? ''} onPick={(id) => pickMap(id || null)} />
+        </div>}
         <MapContainer
           crs={CRS.Simple}
           bounds={allBounds}
@@ -185,7 +193,7 @@ export function WorldMapPage() {
           {drawOrder.map((map, index) => {
             const placement = placements.get(map.id)!
             return <Pane key={map.id} name={`world-${map.id}`} style={{ zIndex: 300 + index }}>
-              <LocationLayer map={map} placement={placement} floor={floorOf(map)} close={closeUp && Boolean(view) && rectsMeet(placement.rect, view!.rect)} />
+              <LocationLayer map={map} placement={placement} floor={floorOf(map)} phone={mobile} close={closeUp && Boolean(view) && rectsMeet(placement.rect, view!.rect)} />
             </Pane>
           })}
           {canvasMarkers && <MarkerCanvasLayer points={canvasPoints} hidden={hiddenOnCanvas} interactive onHover={setHovered} onPick={openPoint} />}
@@ -224,12 +232,12 @@ export function WorldMapPage() {
  * One location in the drawing: its scheme (a location without one: its tiles in one picture), edges faded — a light picture
  * always, a detailed one on top while it is close up and in sight (owner: «карта лагает»).
  */
-function LocationLayer({ map, placement, floor, close }: { map: GameMap; placement: WorldPlacement; floor: string; close: boolean }) {
+function LocationLayer({ map, placement, floor, close, phone }: { map: GameMap; placement: WorldPlacement; floor: string; close: boolean; phone: boolean }) {
   const bounds = useMemo(() => worldBounds(placement.rect), [placement])
   const layers = useMemo(() => map.layers ?? [], [map.layers])
   const removed = removedMineGroups(map.id)
-  const [lightWidth, lightHeight] = pictureSize(placement, false)
-  const [closeWidth, closeHeight] = pictureSize(placement, true)
+  const [lightWidth, lightHeight] = pictureSize(placement, false, phone)
+  const [closeWidth, closeHeight] = pictureSize(placement, true, phone)
   const light = useSchemePicture(map.imageUrl, layers, floor, removed, lightWidth, lightHeight)
   const detailed = useSchemePicture(map.imageUrl, layers, floor, removed, close ? closeWidth : 0, closeHeight)
   // a scheme-less location (Labs): the floor's own tiles

@@ -111,6 +111,10 @@ describe('world map transform', () => {
         expect(Math.max(width, height), map.id).toBeLessThanOrEqual(close ? 2560 : 768)
         expect(Math.max(width, height), map.id).toBeGreaterThanOrEqual(close ? 1024 : 256)
         expect(width / height).toBeCloseTo((x2 - x1) / (y2 - y1), 1)
+        // the phone's are smaller still
+        const [phoneWidth, phoneHeight] = pictureSize(placement, close, true)
+        expect(Math.max(phoneWidth, phoneHeight), map.id).toBeLessThanOrEqual(close ? 1536 : 512)
+        expect(phoneWidth * phoneHeight).toBeLessThanOrEqual(width * height)
       }
     }
   })
