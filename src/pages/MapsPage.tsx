@@ -12,7 +12,7 @@ import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowLeft, BadgeCheck, BadgeQuestionMark, Key, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
-  FlaskConical, HeartPulse, KeyRound, Layers, LocateFixed, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
+  FlaskConical, HeartPulse, KeyRound, Layers, LocateFixed, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp, Map as WorldMapIcon,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapFloors, PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
@@ -1167,6 +1167,11 @@ export function MapsPage() {
               <span>{uiText(map.name)}</span>
             </button>
           )))}
+          {/* «Общая карта»: every location on one canvas with the current quests (src/pages/WorldMapPage.tsx). */}
+          {!mobile && <Link to="/maps/world" className="map-option map-option-world">
+            <WorldMapIcon size={12} aria-hidden="true" />
+            <span>{uiText('Общая карта')}</span>
+          </Link>}
         </div>
         <div className="map-side-layers">
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
