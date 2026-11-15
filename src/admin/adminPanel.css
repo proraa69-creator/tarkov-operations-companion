@@ -13,6 +13,8 @@
 .admin-section-tab.active { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); background: var(--surf-2); }
 .admin-section-tab.active svg { color: var(--brass); }
 .admin-section-tab:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+/* What waits in «Отчёты» and «Чат» (owner, 15.11.2026): the red number at the tab's end. */
+.admin-section-tab .admin-section-badge { flex: none; margin-left: auto; }
 
 .admin-content { display: grid; gap: 16px; min-width: 0; }
 .admin-content > .panel { margin: 0; }

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), bugReportImage: vi.fn(), reportTable: vi.fn(), reportWork: vi.fn(), reportPlan: vi.fn(), watchReports: vi.fn(),
-  supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(), supportReact: vi.fn(),
+  supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(), supportReact: vi.fn(), supportEdit: vi.fn(),
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
   setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), setPayoutLimits: vi.fn(), forget: vi.fn(),
@@ -129,6 +129,60 @@ describe('mobile admin dashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Стикеры' }))
     await user.click(within(screen.getByRole('group', { name: 'Стикеры' })).getByRole('button', { name: 'Спасибо, бро' }))
     await waitFor(() => expect(mocks.supportReply).toHaveBeenLastCalledWith(accountId, '', [], undefined, { sticker: 'thanks' }))
+  })
+
+  // Owner, 15.11.2026: «После отправки сообщения нельзя сразу отправить второе: клавиатура больше не открывается. Отправка
+  // долго думает». «Редактирование своих сообщений только у админа… Человек не видит, что сообщение отредактировано».
+  it('a chat: the answer shows at once and the box is ready for the next; «Редактировать» on the owner\'s own message', async () => {
+    const user = userEvent.setup()
+    const accountId = 'd'.repeat(24)
+    const asked = { id: 7, author: 'user' as const, text: 'Где ключ от 314?', createdAt: '2026-11-15T10:00:00.000Z', read: true }
+    mocks.supportThreads.mockResolvedValue({ threads: [{ accountId, email: 'rat@example.com', nickname: 'Rat_King', lastMessage: asked, lastAt: asked.createdAt, unread: 0 }], total: 1, unread: 0 })
+    mocks.supportThread.mockResolvedValue({ account: { id: accountId, email: 'rat@example.com', nickname: 'Rat_King' }, messages: [asked] })
+    let deliver: () => void = () => {}
+    mocks.supportReply.mockImplementation((_account: string, text: string) => new Promise((resolve) => {
+      deliver = () => resolve({ message: { id: 8, author: 'owner', text, createdAt: '2026-11-15T10:01:00.000Z', read: false } })
+    }))
+    mocks.supportEdit.mockImplementation(async (_account: string, id: number, text: string) => ({ message: { id, author: 'owner', text, createdAt: '2026-11-15T10:01:00.000Z', read: false } }))
+
+    render(<AdminMobilePage />)
+    await user.click(tab('Чаты'))
+    await user.click(await screen.findByText('Rat_King'))
+    await screen.findByText('Где ключ от 314?', { selector: '.support-chat-text' })
+    const box = screen.getByRole('textbox', { name: 'Сообщение' })
+    await user.type(box, 'В общаге')
+    await user.click(screen.getByRole('button', { name: 'Отправить' }))
+    // Before the server answers: in the conversation with a clock, the box empty and still in focus.
+    const sent = screen.getByText('В общаге', { selector: '.support-chat-text' }).closest('.support-chat-message') as HTMLElement
+    expect(within(sent).getByRole('img', { name: 'Отправляется' })).toBeInTheDocument()
+    expect(box).toHaveValue('')
+    expect(box).toHaveFocus()
+    await act(async () => deliver())
+    const answer = await waitFor(() => {
+      const node = screen.getByText('В общаге', { selector: '.support-chat-text' }).closest('.support-chat-message') as HTMLElement
+      expect(within(node).getByRole('img', { name: 'Отправлено' })).toBeInTheDocument()
+      return node
+    })
+    // The player's message has no «Редактировать»; the owner's has.
+    fireEvent.contextMenu(screen.getByText('Где ключ от 314?', { selector: '.support-chat-text' }).closest('.support-chat-message')!)
+    expect(screen.queryByRole('menuitem', { name: 'Редактировать' })).toBeNull()
+    await user.keyboard('{Escape}')
+    fireEvent.contextMenu(answer)
+    await user.click(screen.getByRole('menuitem', { name: 'Редактировать' }))
+    expect(box).toHaveValue('В общаге')
+    await user.type(box, ' на третьем этаже')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await waitFor(() => expect(mocks.supportEdit).toHaveBeenCalledWith(accountId, 8, 'В общаге на третьем этаже'))
+    expect(await screen.findByText('В общаге на третьем этаже', { selector: '.support-chat-text' })).toBeInTheDocument()
+    expect(box).toHaveValue('')
+  })
+
+  // Owner, 15.11.2026: «Убрать блок «История обновлений»… Она уже есть в «Обновлениях»».
+  it('«Сводка» has no «История обновлений»; «Обновление» stays', async () => {
+    render(<AdminMobilePage />)
+    await screen.findByText('Платные подписки')
+    expect(screen.queryByRole('button', { name: 'История обновлений' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Обновление' })).toBeInTheDocument()
   })
 
   // Owner, 07.11.2026: «в админ приложении на телефоне сделай мне функцию добавлять стикеры».

@@ -9,7 +9,9 @@ import type { OwnerChatThread, OwnerReport } from '../data/ownerRequests'
 
 /**
  * «Отчёты» (owner app, owner 05.11.2026): the one table; under «Подробнее» what a report could do before (owner 13.10.2026):
- * agreeing quest corrections grouped, the owner applies, grants days, answers, opens the chat.
+ * agreeing quest corrections grouped, the owner applies, grants days, answers, opens the chat. Since 15.11.2026 «Отчёты» and
+ * «Чат» are sections of «Админ панель» (owner: «Блок «Отчёты» снизу перенести наверх, в «Админ панель»»): the old address
+ * goes there, and the red number is on «Админ панель».
  */
 const data = {
   quests: [{ id: 'q1', name: 'Посылка из прошлого', trader: 'Прапор', description: '', level: 5, kappa: false, rewards: [], objectives: [] }],
@@ -18,7 +20,9 @@ const data = {
 vi.mock('../data/DataProvider', () => ({ useOptionalTarkovData: () => ({ data }) }))
 
 const { RequestsPage, groupQuestReports } = await import('./RequestsPage')
-const { RequestsNavButton } = await import('../components/RequestsNavButton')
+const { AdminPanelPage } = await import('./AdminPanelPage')
+const { AdminNavLink } = await import('../admin/AdminNavLink')
+const { resetOwnerAccessForTests } = await import('../admin/ownerAccess')
 
 const quest = (id: number, x: number, z: number, extra: Partial<OwnerReport> = {}): OwnerReport => ({
   id, kind: 'bug', category: 'quest', topic: 'Квест «Посылка из прошлого»: точка стоит не там', appVersion: '0.6.0-28 · client', platform: 'Windows',
@@ -28,7 +32,7 @@ const quest = (id: number, x: number, z: number, extra: Partial<OwnerReport> = {
 })
 const bug: OwnerReport = { id: 7, kind: 'bug', category: 'map', topic: 'Карта не открывается', appVersion: '0.6.0-28 · client', platform: 'Windows', status: 'open', createdAt: '2026-10-13T09:00:00.000Z', files: 0, rewardDays: 0, email: 'bug@mail.ru' }
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); Reflect.deleteProperty(window, 'tarkovDesktop') })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); Reflect.deleteProperty(window, 'tarkovDesktop'); resetOwnerAccessForTests() })
 
 const PLAYER = 'a1b2c3d4e5f6a1b2c3d4e5f6'
 const chat = (unread: number): OwnerChatThread => ({
@@ -81,9 +85,10 @@ function ownerApp(reports: OwnerReport[], edition: 'owner' | 'client' = 'owner',
   const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/requests']}>
-        <RequestsNavButton locale="ru" />
+        <nav aria-label="Основная навигация"><AdminNavLink locale="ru" /></nav>
         <Routes>
           <Route path="/requests" element={<RequestsPage />} />
+          <Route path="/admin" element={<AdminPanelPage />} />
           <Route path="/maps/:mapId" element={<p>map page</p>} />
           <Route path="/" element={<p>home</p>} />
         </Routes>
@@ -102,14 +107,17 @@ describe('«Отчёты»', () => {
     expect(groups[0]).toMatchObject({ questId: 'q1', issue: 'wrong-point', mapId: 'customs', markerId: 'customs-quest-zone-q1-z1', objectiveId: 'o1' })
   })
 
-  it('the sidebar button shows what waits for the owner, in the owner app only', async () => {
+  it('the red number is on «Админ панель»; the old «Отчёты» address opens its «Отчёты»; nothing of it in the players\' app', async () => {
     ownerApp([quest(1, 100, -40), quest(2, 108, -36), bug])
-    const nav = await screen.findByRole('navigation', { name: 'Отчёты' })
-    expect(within(nav).getByRole('link', { name: /Отчёты/ })).toHaveAttribute('href', '/requests')
-    expect(await within(nav).findByLabelText('Ожидающих отчётов: 3')).toHaveTextContent('3')
+    const nav = await screen.findByRole('navigation', { name: 'Основная навигация' })
+    expect(within(nav).getByRole('link', { name: /Админ панель/ })).toHaveAttribute('href', '/admin')
+    expect(await within(nav).findByLabelText('Ждут ответа: 3')).toHaveTextContent('3')
+    expect(screen.queryByRole('navigation', { name: 'Отчёты' })).toBeNull()
+    expect(screen.getByRole('tab', { name: /^Отчёты/ })).toHaveAttribute('aria-selected', 'true')
+    expect(await within(screen.getByRole('tab', { name: /^Отчёты/ })).findByLabelText('Новых: 3')).toBeInTheDocument()
     cleanup()
     ownerApp([bug], 'client')
-    expect(screen.queryByRole('navigation', { name: 'Отчёты' })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Админ панель/ })).toBeNull()
     expect(await screen.findByText('home')).toBeInTheDocument()
   })
 
@@ -124,7 +132,7 @@ describe('«Отчёты»', () => {
     for (const fact of ['bug@mail.ru', 'Ник_Игрока', '0.6.0-28 · client', 'Windows']) expect(within(line).getByText(fact)).toBeInTheDocument()
     expect(screen.queryByText('Ожидает проверки')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Отдать в работу' })).toBeNull()
-    expect(screen.getByRole('tablist', { name: 'Отчёты' })).toBeInTheDocument()
+    expect(screen.getByRole('tablist', { name: 'Разделы админ панели' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /Ошибки/ })).toBeNull()
   })
 
@@ -134,7 +142,7 @@ describe('«Отчёты»', () => {
       return undefined
     })
     expect(await screen.findByText('Таблица заработает после обновления сервера.', undefined, { timeout: 5000 })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Чаты/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Чат/ })).toBeInTheDocument()
   })
 
   it('«Копировать» carries the report\'s data: e-mail, system, version', async () => {
@@ -202,17 +210,19 @@ describe('«Отчёты»', () => {
     expect(await screen.findByText('Точка применена, отчёты закрыты')).toBeInTheDocument()
   })
 
-  it('the «Отчёты» badge counts what waits for the owner and the chats with unread messages', async () => {
+  it('the «Админ панель» badge counts what waits for the owner and the chats with unread messages; «Отчёты» and «Чат» each their own', async () => {
     ownerApp([bug], 'owner', [chat(2)])
-    const nav = await screen.findByRole('navigation', { name: 'Отчёты' })
-    expect(await within(nav).findByLabelText('Ожидающих отчётов: 2')).toHaveTextContent('2')
+    const nav = await screen.findByRole('navigation', { name: 'Основная навигация' })
+    expect(await within(nav).findByLabelText('Ждут ответа: 2')).toHaveTextContent('2')
+    expect(within(screen.getByRole('tab', { name: /^Отчёты/ })).getByLabelText('Новых: 1')).toBeInTheDocument()
+    expect(within(screen.getByRole('tab', { name: /^Чат/ })).getByLabelText('Новых: 1')).toBeInTheDocument()
   })
 
   it('«Чаты»: the conversations with the unread ones counted; opening one shows it, marks it read, and the owner answers (owner, 13.10.2026)', async () => {
     const { calls } = ownerApp([], 'owner', [chat(2)])
     const user = userEvent.setup()
-    const tab = await screen.findByRole('tab', { name: /Чаты/ })
-    await waitFor(() => expect(tab).toHaveTextContent('Чаты1'))
+    const tab = await screen.findByRole('tab', { name: /^Чат/ })
+    await waitFor(() => expect(tab).toHaveTextContent('Переписка с игроками1'))
     await user.click(tab)
     const thread = await screen.findByRole('button', { name: /Shturman_77/ })
     expect(thread).toHaveTextContent('Карта Таможни не грузится')
@@ -261,7 +271,7 @@ describe('«Ответить» on a report', () => {
     expect(await within(card).findByRole('status')).toHaveTextContent('Ответ отправлен')
     expect(within(card).queryByRole('textbox', { name: 'Сообщение' })).toBeNull()
     // Still on the table, and nothing moved.
-    expect(screen.getByRole('tab', { name: /Отчёты/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /^Отчёты/ })).toHaveAttribute('aria-selected', 'true')
     expect(calls.some(([method, path]) => method === 'POST' && path.endsWith('/work'))).toBe(false)
   })
 
@@ -330,7 +340,7 @@ describe('«Открыть чат» on a report', () => {
     const user = userEvent.setup()
     const card = await detailsOf(user, 'Карта не открывается')
     await user.click(within(card).getByRole('button', { name: 'Открыть чат' }))
-    expect(screen.getByRole('tab', { name: /Чаты/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /^Чат/ })).toHaveAttribute('aria-selected', 'true')
     const view = await screen.findByRole('region', { name: 'bug@mail.ru' })
     expect(await within(view).findByText('Сообщений пока нет.')).toBeInTheDocument()
     // Nothing to delete yet; the other conversations stay in the list.
@@ -373,7 +383,7 @@ describe('«Открыть чат» on a report', () => {
     const actions = group.querySelector('.requests-actions') as HTMLElement
     expect(within(actions).queryByRole('button', { name: 'Открыть чат' })).toBeNull()
     await user.click(within(lines[1]!).getByRole('button', { name: 'Открыть чат' }))
-    expect(screen.getByRole('tab', { name: /Чаты/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /^Чат/ })).toHaveAttribute('aria-selected', 'true')
     view.unmount()
 
     ownerApp([withAuthor(quest(1, 100, -40), PLAYER), withAuthor(quest(2, 108, -36), PLAYER)])
@@ -395,7 +405,7 @@ describe('«Проблема решена»', () => {
       return undefined
     })
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Чаты/ }))
+    await user.click(await screen.findByRole('tab', { name: /^Чат/ }))
     await user.click(await screen.findByRole('button', { name: /Shturman_77/ }))
     const view = await screen.findByRole('region', { name: 'Shturman_77' })
     await within(view).findByText('Здравствуйте!')
@@ -429,7 +439,7 @@ describe('«Проблема решена»', () => {
       return undefined
     })
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Чаты/ }))
+    await user.click(await screen.findByRole('tab', { name: /^Чат/ }))
     await user.click(await screen.findByRole('button', { name: /Shturman_77/ }))
     const view = await screen.findByRole('region', { name: 'Shturman_77' })
     await within(view).findByText('Здравствуйте!')
@@ -457,7 +467,7 @@ describe('«Чаты» with screenshots (owner, 15.10.2026: «еще связа�
   it('the list says «[скриншот]»; the conversation shows the players\' screenshots from the owner\'s route; a click opens them full size', async () => {
     const { calls } = ownerApp([], 'owner', [shotChat], withShots)
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Чаты/ }))
+    await user.click(await screen.findByRole('tab', { name: /^Чат/ }))
     const thread = await screen.findByRole('button', { name: /Shturman_77/ })
     expect(thread).toHaveTextContent('[скриншот]')
     await user.click(thread)
@@ -479,7 +489,7 @@ describe('«Чаты» with screenshots (owner, 15.10.2026: «еще связа�
   it('the owner attaches a screenshot to an answer with the same box', async () => {
     const { calls } = ownerApp([], 'owner', [chat(1)])
     const user = userEvent.setup({ applyAccept: false })
-    await user.click(await screen.findByRole('tab', { name: /Чаты/ }))
+    await user.click(await screen.findByRole('tab', { name: /^Чат/ }))
     await user.click(await screen.findByRole('button', { name: /Shturman_77/ }))
     const view = await screen.findByRole('region', { name: 'Shturman_77' })
     await user.upload(within(view).getByLabelText('Скриншоты'), new File([Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])], 'fix.jpg', { type: 'image/jpeg' }))

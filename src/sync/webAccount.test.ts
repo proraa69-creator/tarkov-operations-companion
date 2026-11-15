@@ -53,6 +53,18 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('«Редактировать» (owner, 15.11.2026): the owner\'s edit of a message goes with the session; the player has no such route', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: { id: 5 } }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const edit = `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/5/edit`
+    expect(await webServiceRequest('POST', edit, { text: 'Новый текст' })).toEqual({ message: { id: 5 } })
+    for (const [method, path] of [['GET', edit], ['POST', '/v1/me/support/messages/5/edit'], ['POST', `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/x/edit`]] as const) {
+      await expect(webServiceRequest(method, path, { text: 'x' })).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   // Owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон».
   it('sticker packs: the picker reads the published ones without a session; the owner\'s routes go with it; others stay blocked', async () => {
     const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ packs: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))

@@ -4,12 +4,13 @@
  * Добавь смайлики всякие… стикеры в стиле Таркова»): what support/SupportChat.tsx and its three places (the player's
  * window, the owner's «Чаты», the owner's iPhone admin) share besides the components.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { imageViewerOpen } from '../components/ImageViewer'
 import { uiText } from '../i18n/renderText'
-import { SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_STICKER_PLACEHOLDER, supportQuoteText, type SupportReaction, type SupportReplyQuote, type SupportSide } from '../shared/supportChat'
+import { cleanIpcError } from '../sync/serverSync'
+import { cleanSupportText, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_STICKER_PLACEHOLDER, supportQuoteText, type SupportReaction, type SupportReplyQuote, type SupportSide } from '../shared/supportChat'
 import { supportSticker } from '../shared/supportStickers'
-import type { SupportMessage } from './supportChatClient'
+import type { SupportImageUpload, SupportMessage, SupportSendExtra } from './supportChatClient'
 
 /** The emoji of the composer's grid: everyday ones, then the raid's (gear, blood, loot, the extract, the rat). */
 export const SUPPORT_EMOJI: readonly string[] = [
@@ -83,6 +84,92 @@ export function useSupportReply(messages: SupportMessage[]) {
   const [reply, setReply] = useState<SupportReplyTarget | null>(null)
   const shown = reply && messages.some((message) => message.id === reply.message.id) ? reply : null
   return [shown, setReply] as const
+}
+
+type SupportSend = (text: string, images: SupportImageUpload[], extra: SupportSendExtra) => Promise<unknown>
+
+/**
+ * Sending without waiting (owner, 15.11.2026: «после отправки сообщения нельзя сразу отправить второе… Отправка долго
+ * думает»): a message the composer hands over shows at once at the end of the conversation with a clock (`sending`), and
+ * the box is free for the next one. They go to the server one after another, in the order written; each leaves the list
+ * when the server's own message is in (or sending failed: the composer then gives the words back with the reason).
+ * Returns the conversation with them and the `send` for SupportComposer.
+ */
+export function useSupportOutbox(messages: SupportMessage[], author: SupportMessage['author'], send: SupportSend) {
+  const [outbox, setOutbox] = useState<SupportMessage[]>([])
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const nextId = useRef(-1)
+  const latest = useRef({ send, messages })
+  useEffect(() => { latest.current = { send, messages } })
+  const enqueue = useCallback<SupportSend>((text, images, extra) => {
+    const id = nextId.current--
+    const quoted = extra.replyTo === undefined ? undefined : latest.current.messages.find((message) => message.id === extra.replyTo)
+    const words = extra.sticker !== undefined ? '' : cleanSupportText(text)
+    const draft: SupportMessage = {
+      id, author, text: words || (images.length ? SUPPORT_IMAGE_PLACEHOLDER : ''), createdAt: new Date().toISOString(), read: false, sending: true,
+      ...(extra.sticker !== undefined ? { sticker: extra.sticker } : {}), ...(quoted ? { replyTo: replyQuoteOf(quoted) } : {}),
+    }
+    setOutbox((current) => [...current, draft])
+    const run = queue.current.catch(() => undefined).then(() => latest.current.send(text, images, extra))
+    queue.current = run
+    return run.finally(() => setOutbox((current) => current.filter((message) => message.id !== id)))
+  }, [author])
+  const shown = useMemo(() => (outbox.length ? [...messages, ...outbox] : messages), [messages, outbox])
+  return [shown, enqueue] as const
+}
+
+/** The words of a message as its author wrote them (an answer about a report: without the report's card). */
+export function supportOwnWords(message: SupportMessage) {
+  const words = message.report?.text ?? message.text
+  return words === SUPPORT_IMAGE_PLACEHOLDER ? '' : words
+}
+
+/** The owner may change the words of an own sent message (not a sticker, not one still on its way). */
+export function supportEditable(message: SupportMessage, viewer: SupportMessage['author']) {
+  return viewer === 'owner' && message.author === 'owner' && !message.sticker && !message.sending && message.id > 0
+}
+
+/** «Редактировать» chosen on a message; after a failed save, with the words typed and the reason. */
+export interface SupportEditTarget { message: SupportMessage; draft?: string; error?: string }
+
+/**
+ * «Редактировать» (owner, 15.11.2026: «Редактирование своих сообщений только у админа… Человек не видит, что сообщение
+ * отредактировано: никакой пометки, просто новый текст»): the message being edited (the composer takes its words), and the
+ * conversation with the new words shown at once while the server saves them. A failed save brings the edit back with the
+ * words and the reason. `save` gets the message and the new words.
+ */
+export function useSupportEdit(messages: SupportMessage[], save: (message: SupportMessage, text: string) => Promise<unknown>) {
+  const [editing, setEditing] = useState<SupportEditTarget | null>(null)
+  const [changed, setChanged] = useState<Record<number, string>>({})
+  const latest = useRef(save)
+  useEffect(() => { latest.current = save })
+  const start = useCallback((message: SupportMessage) => setEditing({ message }), [])
+  const cancel = useCallback(() => setEditing(null), [])
+  const submit = useCallback(async (message: SupportMessage, text: string) => {
+    setEditing(null)
+    const words = cleanSupportText(text)
+    setChanged((current) => ({ ...current, [message.id]: words }))
+    try {
+      await latest.current(message, text)
+    } catch (reason) {
+      setEditing({ message, draft: text, error: cleanIpcError(reason) || 'Не удалось изменить сообщение' })
+    } finally {
+      setChanged((current) => {
+        if (current[message.id] !== words) return current
+        const rest = { ...current }
+        delete rest[message.id]
+        return rest
+      })
+    }
+  }, [])
+  const shown = useMemo(() => (Object.keys(changed).length ? messages.map((message) => {
+    const words = changed[message.id]
+    if (words === undefined) return message
+    if (message.report) return { ...message, report: { ...message.report, text: words } }
+    return { ...message, text: words || (message.attachments?.length ? SUPPORT_IMAGE_PLACEHOLDER : '') }
+  }) : messages), [changed, messages])
+  const target = editing && messages.some((message) => message.id === editing.message.id) ? editing : null
+  return { messages: shown, editing: target, start, cancel, submit }
 }
 
 /**

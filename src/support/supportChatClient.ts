@@ -53,6 +53,8 @@ const KEPT = 500
 export interface SupportMessage {
   id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply
   sticker?: string; replyTo?: SupportReplyQuote; reactions?: SupportReaction[]
+  /** On its way to the server (this app only, support/supportChatTools.ts useSupportOutbox): shown with a clock, no menu. */
+  sending?: boolean
 }
 
 /** What a message is sent with besides its text and screenshots: the message it answers, or a sticker instead of words. */

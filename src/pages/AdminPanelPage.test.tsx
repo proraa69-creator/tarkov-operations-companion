@@ -83,7 +83,7 @@ afterEach(async () => {
 })
 
 describe('«Админ панель» in the sidebar', () => {
-  const nav = () => render(<MemoryRouter><nav aria-label="Основная навигация"><AdminNavLink locale="ru" /></nav></MemoryRouter>)
+  const nav = () => render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><nav aria-label="Основная навигация"><AdminNavLink locale="ru" /></nav></MemoryRouter></QueryClientProvider>)
 
   it('is there in the owner app signed in to the owner account', async () => {
     await desktop()
@@ -131,7 +131,9 @@ describe('«Админ панель» sections', () => {
     const request = await desktop()
     renderPage('/admin?tab=notices')
     const tabs = screen.getByRole('tablist', { name: 'Разделы админ панели' })
-    expect(within(tabs).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Сводка', 'Объявления', 'Опросы', 'Баннер', 'Функции', 'Квесты', 'Блоки', 'Отчёты', 'Обновление', 'История обновлений'])
+    expect(within(tabs).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Сводка', 'Отчёты', 'Чат', 'Объявления', 'Опросы', 'Баннер', 'Функции', 'Квесты', 'Блоки', 'Обновление'])
+    // Owner, 15.11.2026: «Отчёты» and «Чат» apart; «Убрать блок «История обновлений»».
+    expect(screen.queryByText('История обновлений')).toBeNull()
     expect(await screen.findByText('Скидка')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Создать объявление' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Создать опрос' })).toBeNull()
@@ -279,7 +281,7 @@ describe('«Админ панель» sections', () => {
     await desktop()
     renderPage('/admin?tab=features')
     expect(screen.getByRole('heading', { name: 'Admin panel' })).toBeInTheDocument()
-    expect(within(screen.getByRole('tablist')).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Summary', 'Announcements', 'Surveys', 'Banner', 'Features', 'Tasks', 'Blocks', 'Reports', 'Update', 'Update history'])
+    expect(within(screen.getByRole('tablist')).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Summary', 'Reports', 'Chat', 'Announcements', 'Surveys', 'Banner', 'Features', 'Tasks', 'Blocks', 'Update'])
     expect(await screen.findByText('Off for everybody')).toBeInTheDocument()
     expect(screen.getByText('Position on the map')).toBeInTheDocument()
   })
