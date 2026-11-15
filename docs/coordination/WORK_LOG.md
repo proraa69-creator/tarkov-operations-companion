@@ -7393,3 +7393,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: MapSkillTimer 10 passed; src/i18n + SettingHelp + MapsPage.* pass (some MapsPage files time out at 5 s only when run all together, pass alone). typecheck (tsc -b) clean, eslint clean (only the old fast-refresh warnings in MapPanels/MapTools).
 - Seen in the renderer dev server at 1440×900: RU and EN, on/off, countdown 3:20 → 0:00, help on hover.
 - Not verified / risks: not in the packaged app. The gear menu is cut on its left by the sidebar's scroll box (was so before; to be fixed with the panel rework the owner asked for next).
+## 2026-11-15 — maps.json sent again on a slow connection (branch claude/maps-json-hedged from release/production 0.6.0.308, not released)
+
+- From this PC (Cloudflare WARP) about two new connections in three to raidos.app take ~20 s (the first packet lost; RaidOS checked: the server is fine, 15 outside nodes connect in 0.1–0.3 s). maps.json had a 20 s limit, so it failed there and the maps lost their floors and renders — «Все локации» showed no schemes. Players behind such networks would see the same.
+- src/data/mapConfigClient.ts `hedgedGet`: while no copy has answered, maps.json goes again after 1.5, 4 and 9 s on a fresh request; the first answer wins, the others are aborted; fails only when every copy failed; 45 s in all. The same idea as RaidOS's electron/hedgedFetch.ts (claude/server-connection) for the desktop gateway.
+- Tests: mapConfigClient.test.ts 2 new (5 pass). Typecheck and eslint clean.
