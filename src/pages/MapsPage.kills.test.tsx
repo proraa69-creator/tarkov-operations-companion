@@ -32,7 +32,7 @@ const dataset: AppDataset = { ...demoDataset, quests: [...demoDataset.quests, OU
 // «Проверка» of the demo catalog has points on Customs: it stays in «Актуальные квесты».
 const ACTIVE = ['checking', OUTPOSTS.id, SETUP.id]
 
-function renderCustoms() {
+function renderCustoms(at = '/maps/customs') {
   let profile = createLocalProfile('TEST', 'kills')
   for (const taskId of ACTIVE) profile = setTaskProgress(profile, 'pvp', { taskId, status: 'active', source: 'eft-log', updatedAt: '2026-11-08T10:00:00.000Z' })
   localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
@@ -40,7 +40,7 @@ function renderCustoms() {
   client.setQueryData(['tarkov-companion-data', 'pvp'], dataset)
   return render(
     <LocaleProvider><QueryClientProvider client={client}><AppStateProvider><DataProvider>
-      <MemoryRouter initialEntries={['/maps/customs']}><Routes><Route path="/maps/:mapId" element={<MapsPage />} /></Routes></MemoryRouter>
+      <MemoryRouter initialEntries={[at]}><Routes><Route path="/maps/:mapId" element={<MapsPage />} /></Routes></MemoryRouter>
     </DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>,
   )
 }
@@ -70,5 +70,23 @@ describe('Maps page: «Устранения» on the right without its tick (own
     fireEvent.click(layer)
     expect(localStorage.getItem('raidos-map-kill-zones-v1')).toBe('off')
     expect(layer).toHaveAttribute('aria-pressed', 'false')
+  })
+})
+
+// Owner, 15.11.2026: «Тарковский стрелок, часть 5. Я нажал открыть квест, нажал показать на карте… справа… открываются актуальные
+// квесты, а должно открываться устранение».
+describe('Maps page: a kill quest opened on the map opens «Устранения»', () => {
+  it('opens on «Устранения» for a quest this map lists there, and keeps a tab picked by hand', async () => {
+    renderCustoms(`/maps/customs?quest=${SETUP.id}`)
+    const tabs = await screen.findByRole('tablist', { name: 'Квесты на карте' })
+    await waitFor(() => expect(within(tabs).getByRole('tab', { name: /^Устранения/ })).toHaveAttribute('aria-selected', 'true'))
+    fireEvent.click(within(tabs).getByRole('tab', { name: /^Актуальные квесты/ }))
+    expect(within(tabs).getByRole('tab', { name: /^Актуальные квесты/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('a quest with points stays on «Актуальные квесты»', async () => {
+    renderCustoms('/maps/customs?quest=checking')
+    const tabs = await screen.findByRole('tablist', { name: 'Квесты на карте' })
+    await waitFor(() => expect(within(tabs).getByRole('tab', { name: /^Актуальные квесты/ })).toHaveAttribute('aria-selected', 'true'))
   })
 })

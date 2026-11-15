@@ -18,6 +18,7 @@ import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapFloors, PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
 import { WORLD_MAP_ID, WorldMapView } from '../maps/WorldMapView'
 import { noteSidebarNavigation } from '../app/desktopBack'
+import { QuestSheetGrip, useQuestSheetMax } from '../maps/questSheetGrip'
 import { markerImages } from '../assets/markerImages'
 import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
@@ -752,8 +753,12 @@ export function MapsPage() {
   const killZonesShown = useKillZonesShown()
   const [killsOpen, setKillsOpen, closeKills] = useKillsWindow(activeMap.id, killList.length === 0)
   const killsButtonRef = useRef<HTMLButtonElement>(null)
-  /** The PC's right panel: «Актуальные квесты» or «Устранения» (owner, 08.11.2026). */
-  const [detailTab, setDetailTab] = useState<MapDetailTab>('quests')
+  /**
+   * The PC's right panel: «Актуальные квесты» or «Устранения» (owner, 08.11.2026). A quest opened on the map that this map lists under
+   * «Устранения» opens that tab (owner, 15.11.2026: «Тарковский стрелок, часть 5… нажал показать на карте… открываются актуальные
+   * квесты, а должно открываться устранение»), until the tab is picked by hand for it.
+   */
+  const [tabPick, setTabPick] = useState<{ tab: MapDetailTab; questId: string | null }>({ tab: 'quests', questId: null })
   // The kill quest opened from «Устранения» or its zone: it dims no points (owner, 08.11.2026: «когда нажимаешь на квест
   // «Устранение» во вкладке «Устранение», то точки на карте не должны приглушаться»).
   const [killFocus, setKillFocus] = useState<string | null>(null)
@@ -761,6 +766,8 @@ export function MapsPage() {
     () => new Set(mapQuestEntries.filter(({ quest }) => movesToKills(quest, activeMap.id, progress, plottedMarkers)).map(({ quest }) => quest.id)),
     [mapQuestEntries, activeMap.id, progress, plottedMarkers],
   )
+  const detailTab: MapDetailTab = focusedQuestId && focusedQuestId !== tabPick.questId && killOnly.has(focusedQuestId) ? 'kills' : tabPick.tab
+  const setDetailTab = (tab: MapDetailTab) => setTabPick({ tab, questId: focusedQuestId })
   // Owner, 08.11.2026: «При наведении в эту зону должны быть не точки… а именно нарисованные зоны»: while the zones are drawn,
   // the points of those kill objectives leave the map (the zone shows the quest on hover instead).
   const killZonesDrawn = killZonesShown && !questEditor.active
@@ -1148,6 +1155,9 @@ export function MapsPage() {
     ? selectedMarker
     : null
   const sheetOpen = Boolean(selectedMarker)
+  // The PC: the quest window's greatest height, set by the grip on its top edge (src/maps/questSheetGrip.tsx).
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const sheetMax = useQuestSheetMax(sheetRef)
   const selectedItem = selectedMarker?.itemId ? itemsById.get(selectedMarker.itemId) : undefined
   const sheetPoint = relatedQuest && flyTarget && flyTarget.questId === relatedQuest.id ? flyTarget : null
   // «Цели» grouped (в рейде / заложить / найти / сдать торговцу) with the map of each one when they are on several maps
@@ -1506,7 +1516,9 @@ export function MapsPage() {
         </div>}
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
-        <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}${mobile && relatedQuest ? ` is-phone-${phoneView} is-h-${sheetHeight}` : ''}${mobile && relatedQuest && phoneView === 'drawer' && sheetTall ? ' is-tall' : ''}`} aria-hidden={!sheetOpen}>
+        <div ref={sheetRef} className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}${mobile && relatedQuest ? ` is-phone-${phoneView} is-h-${sheetHeight}` : ''}${mobile && relatedQuest && phoneView === 'drawer' && sheetTall ? ' is-tall' : ''}${!mobile && sheetMax.sizing ? ' is-sizing' : ''}`} aria-hidden={!sheetOpen}
+          style={!mobile && sheetMax.max != null ? (sheetMax.sizing ? { height: sheetMax.max, maxHeight: sheetMax.max } : { maxHeight: sheetMax.max }) : undefined}>
+          {!mobile && relatedQuest && <QuestSheetGrip max={sheetMax.max} handlers={sheetMax.handlers} />}
           <QuestSheetEditProvider questId={relatedQuest?.id ?? ''} enabled={editingTexts}>
           {/* The phone: the window's head stays in place while its objectives scroll (owner, 12.11.2026): the look, the trader
               and the name, «Нашли неточность?» as «?» and «×»; in «Шторка» a handle on its top edge makes the window tall. */}
