@@ -42,19 +42,23 @@ export interface TooltipLookupSteps<Answer, Shot extends TooltipShot> {
 }
 
 export const TOOLTIP_TIMING = {
-  /** The game shows the name a moment after the cursor stops on an item: wait this long for it to appear. */
-  appearMs: 900,
+  /**
+   * The game shows the name a moment after the cursor stops on an item: wait this long for it to appear. The key may be
+   * pressed the moment the cursor lands, before the name shows (owner, 15.11.2026: «навел и тут же нажал»), and the
+   * picture search answers meanwhile; 1.6 s covers the game's slower tooltips (the logged «no-tooltip» gave up at ~0.93 s).
+   */
+  appearMs: 1600,
   /**
    * A tooltip read without a match (still fading in, or the previous item's) is looked at again until then. A long
    * name is read whole at once now (two lines side by side, ocrVariants), so 1.5 s instead of 1.8 s.
    */
-  totalMs: 1500,
+  totalMs: 2000,
   /**
    * Between grabs. Each grab is a copy of the screen around the cursor and a search of it on the main process (players,
    * 14.10.2026: «при использовании приложения начинает тупить экран и мышка»): every 120 ms, at most 9 grabs while the
-   * tooltip has not appeared, instead of 16 at 60 ms.
+   * tooltip has not appeared, instead of 16 at 60 ms. Every 160 ms since the wait grew to 1.6 s: 11 grabs at most.
    */
-  intervalMs: 120,
+  intervalMs: 160,
 }
 
 /** The game's interface scale the last tooltip was found at: tried first by the next lookups (tooltipScaleSchedule). */
