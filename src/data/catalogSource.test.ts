@@ -227,7 +227,7 @@ const priceFeed = (mode: 'regular' | 'pve' | 'pvp-season'): Record<string, unkno
   return {
     tasks: { tasks: { t1: { id: 't1', name: 'Задание', trader: 'tr-therapist', objectives: [] } } },
     items: {
-      fleaMarket: { enabled: true, sellOfferFeeRate: 0.03, sellRequirementFeeRate: 0.03 },
+      fleaMarket: { enabled: true, minPlayerLevel: 15, sellOfferFeeRate: 0.03, sellRequirementFeeRate: 0.03 },
       items: {
         salewa: { id: 'salewa', name: 'Аптечка Salewa', shortName: 'Salewa', types: ['meds'], basePrice: 21000,
           lastLowPrice: salewa[0], avg24hPrice: salewa[1], low24hPrice: salewa[0] - 1500, high24hPrice: salewa[1] + 11000,
@@ -313,7 +313,7 @@ describe('catalog adapter: flea prices per mode', () => {
     expect([salewa('pvp').fleaPrice, salewa('pve').fleaPrice, salewa('seasonal').fleaPrice]).toEqual([36500, 22100, 30200])
     for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
       expect(catalogs[mode].items.flatMap((entry) => entry.prices).every((entry) => entry.mode === mode)).toBe(true)
-      expect(catalogs[mode].metadata).toMatchObject({ mode, fleaMarket: { enabled: true, offerFeeRate: 0.03, requirementFeeRate: 0.03 } })
+      expect(catalogs[mode].metadata).toMatchObject({ mode, fleaMarket: { enabled: true, offerFeeRate: 0.03, requirementFeeRate: 0.03, minPlayerLevel: 15 } })
     }
   })
 

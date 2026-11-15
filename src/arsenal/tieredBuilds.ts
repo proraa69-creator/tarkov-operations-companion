@@ -134,6 +134,37 @@ const clash = (a: Point, b: Point) => {
 }
 const union = (a: ReadonlySet<string>, b: ReadonlySet<string>) => !a.size ? b : !b.size ? a : new Set([...a, ...b])
 
+/**
+ * The same blocked-parts sets come up again and again while fronts are combined (most points of a slot block the same
+ * parts): a union of two sets is made once and kept with them, and a set's sorted key (`prunePoints` groups by it) is
+ * worked out once. The M4A1's three builds took 7.7 s of the page's thread before (owner, 15.11.2026: «очень долго
+ * загружается сборка оружия»). Weak maps: they go with the sets.
+ */
+const blockUnions = new WeakMap<ReadonlySet<string>, WeakMap<ReadonlySet<string>, ReadonlySet<string>>>()
+function unionBlocks(a: ReadonlySet<string>, b: ReadonlySet<string>): ReadonlySet<string> {
+  if (!a.size || a === b) return b
+  if (!b.size) return a
+  let byOther = blockUnions.get(a)
+  if (!byOther) { byOther = new WeakMap(); blockUnions.set(a, byOther) }
+  let joined = byOther.get(b)
+  if (!joined) { joined = new Set([...a, ...b]); byOther.set(b, joined) }
+  return joined
+}
+const blockKeys = new WeakMap<ReadonlySet<string>, string>()
+function blockKey(blocks: ReadonlySet<string>) {
+  if (!blocks.size) return ''
+  let key = blockKeys.get(blocks)
+  if (key === undefined) { key = [...blocks].sort().join(','); blockKeys.set(blocks, key) }
+  return key
+}
+/** A part's own blocked parts, one set per part (`unionBlocks` finds it again). */
+const conflictSets = new WeakMap<GunPart, ReadonlySet<string>>()
+function conflictsOf(part: GunPart) {
+  let set = conflictSets.get(part)
+  if (!set) { set = new Set(part.conflicts); conflictSets.set(part, set) }
+  return set
+}
+
 export function partScore(part: Pick<GunPart, 'recoilModifier' | 'ergonomics'>) {
   return -part.recoilModifier * 100 * RECOIL_WEIGHT + part.ergonomics * ERGO_WEIGHT
 }
@@ -398,12 +429,12 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
       if (price === undefined) continue
       // A foregrip straight on the handguard counts half the bonus of one on a rail (BUILD_RULES).
       const own = ruleScore(part, tier, learned) - (part.category === 'foregrip' && !/mount/i.test(owner?.category ?? '') ? FOREGRIP_BONUS / 2 : 0)
-      const self: Point = { ...EMPTY, items: new Set([id]), blocks: new Set(part.conflicts) }
+      const self: Point = { ...EMPTY, items: new Set([id]), blocks: conflictsOf(part) }
       // A bare mount (a sight mount, a rail with nothing on it) is left out.
       const bareMount = /mount/i.test(part.category ?? '') && !slot.required
       for (const sub of itemFront(part, depth, trail)) {
         if (clash(self, sub) || (bareMount && !sub.picks.length)) continue
-        options.push({ cost: price + sub.cost, score: own + sub.score, ergo: part.ergonomics + sub.ergo, picks: [{ slot: slot.nameId, itemId: id, sub }], items: union(self.items, sub.items), blocks: union(self.blocks, sub.blocks) })
+        options.push({ cost: price + sub.cost, score: own + sub.score, ergo: part.ergonomics + sub.ergo, picks: [{ slot: slot.nameId, itemId: id, sub }], items: union(self.items, sub.items), blocks: unionBlocks(self.blocks, sub.blocks) })
       }
     }
     if (!options.length) return slot.required ? undefined : [EMPTY]
@@ -427,11 +458,11 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
 /** Every combination of two independent slot fronts that may stand together, pruned (parts are joined only for the kept ones). */
 function combine(a: Point[], b: Point[]): Point[] {
   if (a.length === 1 && a[0] === EMPTY) return b
-  const pairs: Array<{ cost: number; score: number; left: Point; right: Point }> = []
-  for (const left of a) for (const right of b) if (!clash(left, right)) pairs.push({ cost: left.cost + right.cost, score: left.score + right.score, left, right })
-  return prunePoints(pairs.map(({ cost, score, left, right }) => ({
-    cost, score, ergo: left.ergo + right.ergo, picks: [...left.picks, ...right.picks], items: union(left.items, right.items), blocks: union(left.blocks, right.blocks),
-  })))
+  const pairs: Array<{ cost: number; score: number; blocks: ReadonlySet<string>; left: Point; right: Point }> = []
+  for (const left of a) for (const right of b) if (!clash(left, right)) pairs.push({ cost: left.cost + right.cost, score: left.score + right.score, blocks: unionBlocks(left.blocks, right.blocks), left, right })
+  return prunePoints(pairs).map(({ cost, score, blocks, left, right }) => ({
+    cost, score, ergo: left.ergo + right.ergo, picks: [...left.picks, ...right.picks], items: union(left.items, right.items), blocks,
+  }))
 }
 
 /**
@@ -441,10 +472,10 @@ function combine(a: Point[], b: Point[]): Point[] {
  * самое»; the separate set was both cheaper and better). Points are kept per set of blocked parts; one blocking
  * nothing still drops a worse, dearer one of any set.
  */
-function prunePoints(points: Point[]): Point[] {
-  const groups = new Map<string, Point[]>()
+function prunePoints<T extends Pick<Point, 'cost' | 'score' | 'blocks'>>(points: T[]): T[] {
+  const groups = new Map<string, T[]>()
   for (const point of points) {
-    const key = point.blocks.size ? [...point.blocks].sort().join(',') : ''
+    const key = blockKey(point.blocks)
     const group = groups.get(key)
     if (group) group.push(point)
     else groups.set(key, [point])

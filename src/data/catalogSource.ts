@@ -284,17 +284,19 @@ export function presetImageFor(entry: JsonRecord, rawItems: JsonRecord): string 
 
 type FleaMarketInfo = NonNullable<NonNullable<AppDataset['metadata']>['fleaMarket']>
 
-/** tarkov.dev `fleaMarket` of the items file (json.tarkov.dev `<mode>/items`): whether this mode's flea is open, and its fee rates. */
+/** tarkov.dev `fleaMarket` of the items file (json.tarkov.dev `<mode>/items`): whether this mode's flea is open, its fee rates and level. */
 export function adaptFleaMarket(root: JsonRecord): FleaMarketInfo | undefined {
   const flea = asRecord(root.fleaMarket)
   if (!Object.keys(flea).length) return undefined
   const rate = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined)
   const offerFeeRate = rate(flea.sellOfferFeeRate)
   const requirementFeeRate = rate(flea.sellRequirementFeeRate)
+  const minPlayerLevel = typeof flea.minPlayerLevel === 'number' && Number.isFinite(flea.minPlayerLevel) && flea.minPlayerLevel >= 1 ? Math.round(flea.minPlayerLevel) : undefined
   return {
     enabled: flea.enabled !== false,
     ...(offerFeeRate !== undefined ? { offerFeeRate } : {}),
     ...(requirementFeeRate !== undefined ? { requirementFeeRate } : {}),
+    ...(minPlayerLevel !== undefined ? { minPlayerLevel } : {}),
   }
 }
 
