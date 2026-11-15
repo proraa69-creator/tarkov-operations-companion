@@ -127,6 +127,14 @@ span.gs-part { cursor: default; }
   .gunsmith-parts { max-height: none; }
 }
 
+/* The phone (owner, 16.11.2026): a part as a window with «Назад», or unfolded under its row with a cross on the right. */
+.gunsmith-window-bar { position: sticky; top: 0; z-index: 3; display: flex; padding: 0 0 10px; background: var(--bg); }
+.gunsmith-parts li.is-unfolded { align-items: start; }
+.gunsmith-unfolded { grid-column: 1 / -1; margin: 6px 0 10px; }
+.gunsmith-part-row.has-close { grid-template-columns: 24px 44px minmax(0, 1fr) auto; }
+.gunsmith-part-close { grid-column: 4; grid-row: 1 / span 2; display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text-muted); }
+.gunsmith-part-row.has-close .gunsmith-part-status { grid-column: 3; }
+
 @media (max-width: 560px) {
   .gs-stats li { grid-template-columns: minmax(0, 1fr) auto; }
   .gs-stat-actual { grid-column: 1 / -1; justify-content: flex-start; min-width: 0; }

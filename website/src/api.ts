@@ -349,7 +349,7 @@ export interface AdminOverview {
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
   /**
    * Servers of 15.11.2026 on: `activeRepeat` — of `active`, paid twice or more; `trialsDead` / `trialsAlive` — of `trials`,
-   * «мёртвые» (not in the account for 3 weeks, or no raid yet) and «реальные».
+   * «мёртвые» (21 days registered without the free days used) and «реальные».
    */
   subscriptions: { active: number; activeRepeat?: number; trials: number; trialsDead?: number; trialsAlive?: number; autopay: number; streamers: number }
   /** «Оплатили повторно»: people with two or more paid payments, all the time (servers before 12.11.2026 omit it). */

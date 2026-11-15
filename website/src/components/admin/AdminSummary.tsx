@@ -36,7 +36,7 @@ export function AdminSummary() {
           <div className="stat-grid admin-stats">
             <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)}${data.users.blocked ? ` · заблокировано ${numberFormat.format(data.users.blocked)}` : ''}`} />
             <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta={data.subscriptions.activeRepeat === undefined ? 'только те, кто оплатил и подписка идёт' : `из них повторных: ${numberFormat.format(data.subscriptions.activeRepeat)}`} accent />
-            <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta={data.subscriptions.trialsDead === undefined || data.subscriptions.trialsAlive === undefined ? '2 дня с первого рейда' : `мёртвых ${numberFormat.format(data.subscriptions.trialsDead)} · реальных ${numberFormat.format(data.subscriptions.trialsAlive)}`} title="Мёртвый — не заходил в аккаунт 3 недели или ещё не был в рейде" />
+            <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta={data.subscriptions.trialsDead === undefined || data.subscriptions.trialsAlive === undefined ? '2 дня с первого рейда' : `мёртвых ${numberFormat.format(data.subscriptions.trialsDead)} · реальных ${numberFormat.format(data.subscriptions.trialsAlive)}`} title="Мёртвый — за 21 день так и не воспользовался пробным периодом" />
             <NewUsersStat />
           </div>
           <div className="admin-revenue">

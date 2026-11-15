@@ -92,7 +92,7 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
     "activeGranted": 2,    // a running period of an account that never paid (only grants)
     "grantedBy": { "owner": 1, "friend": 1 },  // activeGranted split: owner grants (incl. bug report rewards) / «Пригласи друга» rewards
     "trials": 1,           // free period running, no paid period
-    "trialsDead": 0,       // of those, «мёртвые»: no request for 21 days (or none on record), or the days still wait for the first raid
+    "trialsDead": 0,       // of those, «мёртвые»: registered 21+ days ago and the free days never used (not started, waiting for the first raid, refused)
     "trialsAlive": 1,      // of those, «реальные» (trials = trialsDead + trialsAlive); back in the account or in a raid = real again
     "trialsPending": 4,    // free period waiting for the first sign-in in an app
     "expiringIn7Days": 2,  // paid or granted periods (not lifetime) that end within 7 days
@@ -130,7 +130,7 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
     "trialStarted": 2,     // users registered in range whose free period has started
     "laterPaid": 1,        // of those, with a succeeded payment
     "rate": 0.5,           // laterPaid / trialStarted (0–1, 4 decimals; 0 when nobody started)
-    "dead": 1,             // of trialStarted, «мёртвые» now (as subscriptions.trialsDead), paid since or not
+    "dead": 1,             // of every registration in the range, «мёртвые» now (as subscriptions.trialsDead); dead + alive = registrations
     "alive": 1             // of trialStarted, «реальные» now
   }
 }

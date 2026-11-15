@@ -269,15 +269,18 @@ const REPEAT_PAYERS_SQL = `SELECT COUNT(*) AS n FROM accounts a WHERE a.deleted_
 const REPEAT_PAYMENT_SQL = `p.status = 'succeeded' AND p.amount > 0 AND EXISTS (SELECT 1 FROM payments q WHERE q.account_id = p.account_id AND q.status = 'succeeded' AND q.amount > 0
   AND (COALESCE(q.paid_at, q.created_at) < COALESCE(p.paid_at, p.created_at) OR (COALESCE(q.paid_at, q.created_at) = COALESCE(p.paid_at, p.created_at) AND q.rowid < p.rowid)))`
 /**
- * A «мёртвый» free period (owner, 15.11.2026: «не заходил в аккаунт больше 3 недель… или так и не зашёл в рейд»): no
- * request from the account for TRIAL_DEAD_MS, or its free days still wait for the first raid (trial_raid_ms is cleared
- * only by the raid). Back in the account or in a raid, it is «реальный» again. Accounts joined as `a`.
+ * A «мёртвый» registration (owner, 16.11.2026: «добавлять в мертвые только тех кто не использовал пробный период в течении
+ * 21 дня»; «За 15 число 178 регистраций, а написано 149 реальных»): TRIAL_DEAD_MS since it registered and its free days
+ * never used — not started in the app (trial_pending_ms, or no trial_ends_at), still waiting for the first raid
+ * (trial_raid_ms is cleared only by the raid) or refused — and never paid. A newer one is «реальный», whatever it did so
+ * far; so are one that used them and one that paid. Accounts joined as `a`.
  */
 /** A free period running now (accounts `a`, subscriptions `s`; args: now, now): a user's, not refused, not under a paid period. */
 const TRIAL_NOW_SQL = "a.kind = 'user' AND a.deleted_at IS NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)"
 export const TRIAL_DEAD_MS = 21 * DAY_MS
-const TRIAL_DEAD_SQL = '(a.trial_raid_ms IS NOT NULL OR a.last_seen_at IS NULL OR a.last_seen_at < ?)'
-const trialDead = (row: Row, now: number) => row.trial_raid_ms != null || row.last_seen_at == null || Number(row.last_seen_at) < now - TRIAL_DEAD_MS
+const TRIAL_DEAD_SQL = `(a.created_at < ? AND (a.trial_pending_ms IS NOT NULL OR a.trial_ends_at IS NULL OR a.trial_raid_ms IS NOT NULL OR COALESCE(a.trial_denied, 0) <> 0) AND NOT EXISTS (SELECT 1 FROM payments p WHERE ${MONEY_PAYMENT_SQL}))`
+const trialDead = (row: Row, now: number) => Number(row.created_at) < now - TRIAL_DEAD_MS
+  && (row.trial_pending_ms != null || row.trial_ends_at == null || row.trial_raid_ms != null || Boolean(Number(row.trial_denied ?? 0))) && !(Number(row.money_count) > 0)
 
 /** Accounts (joined as `a`) of a payment region: RU, CIS without Russia, WORLD (every other country, «XX» too), none. */
 function payRegionCondition(region: PayRegion): { sql: string; args: string[] } {
@@ -677,7 +680,7 @@ export class AdminStore {
     // repeatPaid: «Оплатили повторно», all the time (as in overview); repeatInRange: a second or later payment in range.
     const payers = { everPaid: 0, paidInRange: 0, newInRange: 0, repeatPaid: 0, repeatInRange: 0 }
     const referrals = { friendInvited: 0, friendInvitedInRange: 0, friendPaid: 0, friendPaidDiscount: 0, streamerReferred: 0, rewardsByStatus: { pending: 0, review: 0, granted: 0, canceled: 0 } as Record<string, number> }
-    // dead / alive: of trialStarted, as the free periods now (TRIAL_DEAD_SQL), whether they paid since or not.
+    // dead / alive: every registration of the range (users), as TRIAL_DEAD_SQL now: dead + alive = the registrations.
     const trialConversion = { trialStarted: 0, laterPaid: 0, rate: 0, dead: 0, alive: 0 }
     for (const row of accounts) {
       const source = sourceOf(row, now)
@@ -724,8 +727,8 @@ export class AdminStore {
       if (isNew && row.kind === 'user' && row.trial_ends_at != null && !Number(row.trial_denied ?? 0)) {
         trialConversion.trialStarted++
         if (paid) trialConversion.laterPaid++
-        trialConversion[trialDead(row, now) ? 'dead' : 'alive']++
       }
+      if (isNew && row.kind === 'user') trialConversion[trialDead(row, now) ? 'dead' : 'alive']++
     }
     trialConversion.rate = trialConversion.trialStarted ? Math.round(trialConversion.laterPaid / trialConversion.trialStarted * 10_000) / 10_000 : 0
     users.deletedExcluded = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE deleted_at IS NOT NULL').get() as Row).n)

@@ -38,6 +38,7 @@ import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/
 import { BulletDropPanel } from "../arsenal/BulletDrop";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 import { setRaidStartNotice, useRaidStartNotice } from "../notifications/raidStartNotice";
+import { PHONE_GUNSMITH_VIEWS, PHONE_GUNSMITH_VIEW_LABELS, setPhoneGunsmithView, usePhoneGunsmithView } from "../gunsmith/phoneGunsmithView";
 
 export function EconomyPage() {
   const { data, source } = useTarkovData();
@@ -735,6 +736,21 @@ function SupportPanel() {
   );
 }
 
+/** «Оружейник» on the phone (owner, 16.11.2026): a part opens as a window with «Назад» or unfolds under its row. */
+function PhoneGunsmithSetting() {
+  const view = usePhoneGunsmithView();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Квест оружейника")}<SettingHelp id="phoneGunsmithView" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Квест оружейника")}>
+        {PHONE_GUNSMITH_VIEWS.map((id) => <button type="button" role="radio" aria-checked={view === id} key={id} className={view === id ? "active" : ""} onClick={() => setPhoneGunsmithView(id)}>{uiText(PHONE_GUNSMITH_VIEW_LABELS[id])}</button>)}
+      </div>
+    </div>
+  );
+}
+
 function CurrentTasksViewSetting() {
   const view = useCurrentTasksView();
   const choices: Array<[CurrentTasksView, string]> = [["expand", "Разворачивать список"], ["scroll", "Прокручивать список"]];
@@ -841,6 +857,7 @@ export function SettingsPage() {
         {!isMobileLayout() && <CurrentTasksViewSetting />}
         <GuideReplaySetting />
         {isMobileLayout() && <BackButtonSettings />}
+        {isMobileLayout() && <PhoneGunsmithSetting />}
       </div>
     </section>
   );
