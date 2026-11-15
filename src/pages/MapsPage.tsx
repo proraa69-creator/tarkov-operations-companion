@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapFloors, PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
+import { WORLD_MAP_ID, WorldMapView } from '../maps/WorldMapView'
+import { noteSidebarNavigation } from '../app/desktopBack'
 import { markerImages } from '../assets/markerImages'
 import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
@@ -540,7 +542,10 @@ function LayerIcon({ style, layerId, active }: { style: MarkerStyle; layerId: Ma
 /** On the phone it runs inside mobile/PhoneMapsPage.tsx, which adds the player's position from the server. */
 export function MapsPage() {
   const routeParams = useParams()
-  const mapId = routeParams.mapId
+  // «Все локации» (owner, 15.11.2026: «просто в этом же окне, ничего не меняя, должна включиться вся локация Таркова»): the route
+  // /maps/world shows the region in the place of the map; the last location stays the page's own for the rest of it.
+  const worldOpen = routeParams.mapId === WORLD_MAP_ID
+  const mapId = worldOpen ? undefined : routeParams.mapId
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
   const closeLayers = () => {
@@ -932,6 +937,31 @@ export function MapsPage() {
     setFloor(nextMap ? mainFloor(nextMap) : baseFloor)
     navigate(questId ? `/maps/${id}?quest=${encodeURIComponent(questId)}` : `/maps/${id}`)
   }
+  // «Все локации» from a location: it opens on that location and zooms out («меня как будто отдаляет быстро»); a location picked
+  // there is flown to first, then its own map opens («начинает приближаться к резерву, и включается… карта резерва»).
+  const [worldTarget, setWorldTarget] = useState<string | null>(null)
+  const worldFrom = (location.state as { worldFrom?: string } | null)?.worldFrom ?? null
+  const enteringFromWorld = Boolean((location.state as { fromWorld?: boolean } | null)?.fromWorld)
+  const openWorld = () => {
+    if (worldOpen) return
+    setWorldTarget(null)
+    // a switch within «Карты», like the locations above it: no «Назад» for it
+    noteSidebarNavigation()
+    navigate(`/maps/${WORLD_MAP_ID}`, { state: { worldFrom: activeMap.id } })
+  }
+  const pickLocation = (id: string) => {
+    if (worldOpen) setWorldTarget(id)
+    else selectMap(id)
+  }
+  const arriveFromWorld = (id: string) => {
+    setWorldTarget(null)
+    state.setSelectedMapId(id)
+    setSelectedMarker(null)
+    const nextMap = data.maps.find((entry) => entry.id === id)
+    setFloor(nextMap ? mainFloor(nextMap) : baseFloor)
+    noteSidebarNavigation()
+    navigate(`/maps/${id}`, { state: { fromWorld: true } })
+  }
 
   // The pin at an objective of the quest card: its own point, on this map first. An objective with several points goes through
   // them; one on another map opens that map (?objective= picks the point there).
@@ -1211,16 +1241,16 @@ export function MapsPage() {
         <div className="map-side-maps">
           <div className="map-side-title">{uiText("ЛОКАЦИИ")}</div>
           {uiText(data.maps.map((map) => (
-            <button key={map.id} className={`map-option ${map.id === activeMap.id ? 'active' : ''}`} onClick={() => selectMap(map.id)}>
+            <button key={map.id} className={`map-option ${!worldOpen && map.id === activeMap.id ? 'active' : ''}`} onClick={() => pickLocation(map.id)}>
               <span className="map-color" style={{ background: map.accent }} />
               <span>{uiText(map.name)}</span>
             </button>
           )))}
-          {/* «Общая карта»: every location on one canvas with the current quests (src/pages/WorldMapPage.tsx). */}
-          {!mobile && <Link to="/maps/world" className="map-option map-option-world">
+          {/* «Все локации»: the whole region in this same window (src/maps/WorldMapView.tsx). */}
+          <button type="button" className={`map-option map-option-world${worldOpen ? ' active' : ''}`} onClick={openWorld}>
             <WorldMapIcon size={12} aria-hidden="true" />
-            <span>{uiText('Общая карта')}</span>
-          </Link>}
+            <span>{uiText('Все локации')}</span>
+          </button>
         </div>
         <div className="map-side-layers">
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
@@ -1257,7 +1287,7 @@ export function MapsPage() {
 
       <section className={`map-stage${(focusedQuestId && focusedQuestId !== killFocus && !killOnly.has(focusedQuestId)) || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud" ref={hudRef}>
-          {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} onWorld={() => navigate('/maps/world')} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
+          {mobile ? <PhoneMapPicker maps={data.maps} activeId={worldOpen ? WORLD_MAP_ID : activeMap.id} onPick={pickLocation} onWorld={openWorld} /> : worldOpen ? <span>{uiText('ВСЕ ЛОКАЦИИ')}</span> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
           <MapToolbar value={tools} onChange={setTools} />
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
@@ -1289,7 +1319,8 @@ export function MapsPage() {
             onClose={closeKills}
           />
         )}
-        <div className="map-canvas-keyboard" onClickCapture={(event) => {
+        {worldOpen ? <WorldMapView from={worldFrom} target={worldTarget} view={plan.view} phone={mobile} onArrive={arriveFromWorld} onOpenLocation={pickLocation} onOpenPoint={navigate} />
+        : <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
           // a press on a point that dragged the map is no click on it (report №97): Leaflet drops that click itself
@@ -1302,6 +1333,7 @@ export function MapsPage() {
         }}>
         <MapContainer
           key={`${activeMap.id}:${JSON.stringify(activeMap.transform)}:${JSON.stringify(activeBounds)}`}
+          className={enteringFromWorld ? 'map-enter-from-world' : undefined}
           crs={activeCrs}
           bounds={activeBounds}
           boundsOptions={{ padding: [20, 20] }}
@@ -1457,14 +1489,14 @@ export function MapsPage() {
             )
           }))}
         </MapContainer>
-        </div>
+        </div>}
         {placePhotos.overlay}
         {/* not in the iPhone app (owner, 12.11.2026: «на карте удали ползунок справа») */}
         {mobile && !fullscreen && !appStoreRules() && <MapScrollRail />}
         {mobile && <PhoneMapFullscreenToggle fullscreen={fullscreen} onToggle={() => setFullscreen(!fullscreen)} />}
         {!mobile && <MapExpandToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />}
         {/* The phone: «Квесты» and the floors side by side at the bottom left (owner, 12.11.2026: «они должны быть рядом»). */}
-        {mobile && <div className="phone-map-bottom">
+        {mobile && !worldOpen && <div className="phone-map-bottom">
           {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} {...(killOnly.size ? { emptyText: 'Квесты на устранение — в окне «Устранения».' } : {})}
             checks={{ checked: (questId) => questChecks.has(questId), settled: (questId) => doneHere.has(questId), onToggle: toggleRaidCheck, any: anyQuestChecked, autoReset: isDesktopShell(), onClear: () => clearQuestChecks(profileId, raidMode) }} />}
           {/* the phone has no panel under the map (owner, 08.11.2026): its floors are a button on the map */}
@@ -1653,7 +1685,7 @@ export function MapsPage() {
               ))}
             </div>
           )}
-          {uiText(activeMap.floors && activeMap.floors.length > 1 && (
+          {uiText(!worldOpen && activeMap.floors && activeMap.floors.length > 1 && (
             <div className="filter-row map-floor-buttons" style={{ padding: '0 12px', margin: '0 0 12px' }}>
               {uiText(floorOrder.map((entry) => (
                 <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
