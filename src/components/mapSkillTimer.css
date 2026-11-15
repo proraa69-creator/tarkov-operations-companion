@@ -1,0 +1,15 @@
+/* Player report 155: «Таймер усталости» under the layouts. Scoped past `.map-panels-menu button`, which styles the rows above. */
+.skill-timer-settings { display: grid; gap: 2px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.skill-timer-settings .map-panels-menu-title { display: flex; align-items: center; gap: 6px; }
+.skill-timer-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 0 10px; color: var(--text-dim); font-size: 12.5px; }
+.map-panels-menu .skill-timer-settings .toggle { display: block; min-height: 0; width: 44px; height: 24px; padding: 3px; border: 0; border-radius: 99px; background: #2b382f; }
+.map-panels-menu .skill-timer-settings .toggle.on { background: #526c57; }
+.map-panels-menu .skill-timer-settings .setting-help { min-height: 0; padding: 0; border: 0; background: transparent; }
+.skill-timer-seconds { display: inline-flex; align-items: center; gap: 6px; }
+.skill-timer-seconds input { width: 64px; min-height: 26px; padding: 0 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-2); color: var(--text); font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.skill-timer-seconds input:focus { outline: none; border-color: #6d603f; }
+/* The map button: the clock keeps its width while it counts. */
+.skill-timer-clock span { min-width: 30px; font-variant-numeric: tabular-nums; }
+.skill-timer-clock.is-done { border-color: #6d603f; color: #f2e2b8; animation: skill-timer-done 1s ease-in-out 4; }
+@keyframes skill-timer-done { 50% { background: rgb(196 166 101 / 22%); } }
+@media (prefers-reduced-motion: reduce) { .skill-timer-clock.is-done { animation: none; } }
