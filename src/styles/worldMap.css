@@ -27,6 +27,6 @@
 .map-option.map-option-world { margin-top: 6px; border-color: var(--line-soft); color: #d5b76f; text-decoration: none; grid-template-columns: 12px minmax(0, 1fr); }
 
 
-/* Close up, the floors of the location in the middle of the view (owner: «как только приближаешь… появляется кнопка этажей»). */
+/* Close up, the floors of the location pressed, while it is in sight (owner: «как нажимаешь, этажи появляются»). */
 .world-map-floors { position: absolute; top: 12px; left: 12px; z-index: 800; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: calc(100% - 90px); padding: 6px 8px; border: 1px solid var(--line-soft); border-radius: 9px; background: rgb(10 16 12 / 88%); backdrop-filter: blur(8px); }
 .world-map-floors-title { margin-right: 4px; color: #d5b76f; font-size: 12px; font-weight: 700; }

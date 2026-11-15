@@ -40,13 +40,15 @@ const pinIcon = (item: boolean) => divIcon({
 const PIN_ICONS = { zone: pinIcon(false), item: pinIcon(true) }
 
 interface View { zoom: number; fitZoom: number; rect: [WorldPoint, WorldPoint] }
+const isCloseUp = (view: View | null) => Boolean(view && view.zoom >= view.fitZoom + CLOSE_UP)
 
 /**
  * «Общая карта»: our drawing of the region with our schemes laid into it, their edges faded into the drawing (owner:
  * «плавный переход карт, чтобы не было резких границ»), and the current quests' points (src/maps/worldMap.ts).
  * The points are drawn on one canvas glued to the map (owner, 15.11.2026: «при увеличении, чтобы маркеры не прыгали»);
- * close up, the location in the middle of the view gets its floors (owner: «если открыта вся карта, этажи не переключаются…
- * как только приближаешь чуть-чуть… появляется кнопка этажей»).
+ * close up, a press on a location turns it on and its floors appear (owner, 15.11.2026: «при приближении можно нажать на
+ * карту… этажи появляются только в той части, которая показана на экране… они включаются только когда карта включается,
+ * чтобы не загружать карту»). Out of sight or the whole map again: it is off, back on its main floor.
  */
 export function WorldMapPage() {
   const { data } = useTarkovData()
@@ -68,7 +70,8 @@ export function WorldMapPage() {
   const [mapFilter, setMapFilter] = useState<string | null>(null)
   const [questFilter, setQuestFilter] = useState<string | null>(null)
   const [view, setView] = useState<View | null>(null)
-  const [floors, setFloors] = useState<Record<string, string>>({})
+  // the location pressed close up, and the floor picked on it
+  const [active, setActive] = useState<{ id: string; floor: string | null } | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
 
   const questRows = useMemo(() => {
@@ -84,13 +87,23 @@ export function WorldMapPage() {
   const shownPoints = useMemo(() => points.filter((point) => (!mapFilter || point.mapId === mapFilter) && (!questFilter || point.quest.id === questFilter)), [points, mapFilter, questFilter])
   const mapName = (id: string) => uiText(data.maps.find((map) => map.id === id)?.name ?? id)
 
-  // Close up: the detailed pictures of the locations in sight, and the floors of the one in the middle.
-  const closeUp = Boolean(view && view.zoom >= view.fitZoom + CLOSE_UP)
-  const centre: WorldPoint | null = view ? [(view.rect[0][0] + view.rect[1][0]) / 2, (view.rect[0][1] + view.rect[1][1]) / 2] : null
-  const focusId = closeUp && centre ? locationAt(placements.values(), centre) : null
-  const focusMap = focusId ? data.maps.find((map) => map.id === focusId) : undefined
-  const focusFloors = useMemo(() => (focusMap && (focusMap.floors?.length ?? 0) > 1 ? floorsBottomUp(focusMap) : []), [focusMap])
-  const floorOf = (map: GameMap) => (map.id === focusId && floors[map.id] && map.floors?.includes(floors[map.id]!) ? floors[map.id]! : mainFloor(map))
+  // Close up: the detailed pictures of the locations in sight; a pressed one is on, with its floors, while it is in sight.
+  const closeUp = isCloseUp(view)
+  const onView = useCallback((next: View) => {
+    setView(next)
+    setActive((current) => {
+      const placement = current ? placements.get(current.id) : undefined
+      return current && isCloseUp(next) && placement && rectsMeet(placement.rect, next.rect) ? current : null
+    })
+  }, [placements])
+  const activeMap = active ? data.maps.find((map) => map.id === active.id) : undefined
+  const activeFloors = useMemo(() => (activeMap && (activeMap.floors?.length ?? 0) > 1 ? floorsBottomUp(activeMap) : []), [activeMap])
+  const floorOf = (map: GameMap) => (map.id === active?.id && active.floor && map.floors?.includes(active.floor) ? active.floor : mainFloor(map))
+  const pressAt = useCallback((at: WorldPoint) => {
+    if (!closeUp) return
+    const id = locationAt(placements.values(), at)
+    setActive((current) => (current?.id === id ? current : id ? { id, floor: null } : null))
+  }, [closeUp, placements])
 
   // The points on one canvas; the one under the pointer becomes a DOM pin with its tooltip and click.
   const pointId = (point: WorldQuestPoint) => `${point.mapId}:${point.marker.id}`
@@ -165,7 +178,7 @@ export function WorldMapPage() {
         >
           <ZoomControl position="topright" />
           <FlyTo bounds={focusBounds ?? allBounds} />
-          <ViewWatch onChange={setView} />
+          <ViewWatch onChange={onView} onPress={pressAt} />
           <Pane name="world-drawing" style={{ zIndex: 250 }}>
             <ImageOverlay url={regionPicture} bounds={worldBounds(WORLD_RECT)} className="world-map-drawing" />
           </Pane>
@@ -191,12 +204,12 @@ export function WorldMapPage() {
             {placedMaps.map((map) => <LocationLabel key={map.id} map={map} placement={placements.get(map.id)!} onOpen={() => navigate(`/maps/${map.id}`)} />)}
           </Pane>
         </MapContainer>
-        {focusMap && focusFloors.length > 1 && (
+        {activeMap && activeFloors.length > 1 && (
           <div className="world-map-floors" role="group" aria-label={uiText('Этажи')}>
-            <span className="world-map-floors-title">{uiText(focusMap.name)}</span>
-            {focusFloors.map((entry) => (
-              <button key={entry} type="button" className={`button small ${floorOf(focusMap) === entry ? 'primary' : 'ghost'}`}
-                onClick={() => setFloors((current) => ({ ...current, [focusMap.id]: entry }))}>
+            <span className="world-map-floors-title">{uiText(activeMap.name)}</span>
+            {activeFloors.map((entry) => (
+              <button key={entry} type="button" className={`button small ${floorOf(activeMap) === entry ? 'primary' : 'ghost'}`}
+                onClick={() => setActive({ id: activeMap.id, floor: entry })}>
                 {uiText(entry)}
               </button>
             ))}
@@ -247,8 +260,8 @@ function LocationLabel({ map, placement, onOpen }: { map: GameMap; placement: Wo
   return <Marker position={worldLatLng(labelPoint(placement))} icon={label} pane="world-labels" eventHandlers={{ click: onOpen }} title={uiText('Открыть карту локации')} />
 }
 
-/** The zoom and the part of the map in sight, once a move or zoom ends. */
-function ViewWatch({ onChange }: { onChange: (view: View) => void }) {
+/** The zoom and the part of the map in sight, once a move or zoom ends; a press on the map, as a point of the drawing. */
+function ViewWatch({ onChange, onPress }: { onChange: (view: View) => void; onPress: (at: WorldPoint) => void }) {
   const report = (map: ReturnType<typeof useMap>) => {
     const bounds = map.getBounds()
     onChange({
@@ -257,7 +270,10 @@ function ViewWatch({ onChange }: { onChange: (view: View) => void }) {
       rect: [[bounds.getWest(), -bounds.getNorth()], [bounds.getEast(), -bounds.getSouth()]],
     })
   }
-  const map = useMapEvents({ moveend: () => report(map), zoomend: () => report(map), resize: () => report(map) })
+  const map = useMapEvents({
+    moveend: () => report(map), zoomend: () => report(map), resize: () => report(map),
+    click: (event) => onPress([event.latlng.lng, -event.latlng.lat]),
+  })
   useEffect(() => { report(map) }, [map]) // eslint-disable-line react-hooks/exhaustive-deps -- once, as the map is made
   return null
 }
