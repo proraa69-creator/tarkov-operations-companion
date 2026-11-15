@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFileSink } from '../app/fileSink'
 import { createPortal } from 'react-dom'
-import { Camera, Check, KeyRound, LoaderCircle, Package, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { Camera, Check, Images, KeyRound, LoaderCircle, Package, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { QUEST_POINT_DESCRIPTION_MAX, QUEST_POINT_TITLE_MAX } from '../data/questPointOverrides'
 import { uploadQuestPointPhoto } from '../data/questPointPhotos'
@@ -9,7 +9,7 @@ import { isQuestIcon, isQuestPointIcon, QUEST_POINT_CONDITIONS_MAX, QUEST_POINT_
 import type { Item, MapMarker, Quest } from '../domain/types'
 import { goalKeyOf, questGoals, searchQuests, type PointSettings, type PointTarget, type QuestPointEditorState } from './QuestPointEditor'
 import { ItemPicker } from './QuestRequirementsEditor'
-import { PointItems, PointPhotos } from './PointPhotos'
+import { PlacePhotoChoice, PointItems, PointPhotos } from './PointPhotos'
 import './questEditor.css'
 
 /**
@@ -126,6 +126,7 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
   const [picking, setPicking] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [photoError, setPhotoError] = useState('')
+  const [choosingPhoto, setChoosingPhoto] = useState(false)
   const set = (patch: Partial<PointSettings>) => setSettings((current) => ({ ...current, ...patch }))
   const questMode = isQuestIcon(settings.icon)
   const quest = questMode && settings.questId ? quests.find((entry) => entry.id === settings.questId) : undefined
@@ -154,6 +155,8 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
     }
   }
   useFileSink(settings.photoIds.length < QUEST_POINT_PHOTO_LIMITS.perPoint && !uploading, { take: (files) => void addPhoto(files[0]) })
+  const photosFull = settings.photoIds.length >= QUEST_POINT_PHOTO_LIMITS.perPoint
+  const otherPhotos = useMemo(() => placePhotosToChoose(state.overrides, settings.questId, state.mapId, settings.photoIds), [state.overrides, settings.questId, state.mapId, settings.photoIds])
   const save = async () => {
     if (state.busy || uploading) return
     if (await state.configure(target, settings)) state.closeSettings()
@@ -250,13 +253,20 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
       </fieldset>
 
       <fieldset>
-        <legend>{uiText('Фото: где искать')}</legend>
+        <legend>{uiText('Фото места')}</legend>
         <PointPhotos ids={settings.photoIds} onRemove={(id) => set({ photoIds: settings.photoIds.filter((entry) => entry !== id) })} />
-        <label className={`button small point-photo-add${settings.photoIds.length >= QUEST_POINT_PHOTO_LIMITS.perPoint || uploading ? ' is-disabled' : ''}`}>
-          {uploading ? <LoaderCircle size={13} className="spin" /> : <Camera size={13} />}{uiText(uploading ? 'Загрузка фото…' : 'Добавить фото')}
-          <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={settings.photoIds.length >= QUEST_POINT_PHOTO_LIMITS.perPoint || uploading} aria-label={uiText('Фото места')}
-            onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; void addPhoto(file) }} />
-        </label>
+        {choosingPhoto && !photosFull && otherPhotos.length > 0 && <PlacePhotoChoice ids={otherPhotos} onClose={() => setChoosingPhoto(false)}
+          onPick={(id) => setSettings((current) => ({ ...current, photoIds: [...new Set([...current.photoIds, id])].slice(0, QUEST_POINT_PHOTO_LIMITS.perPoint) }))} />}
+        <div className="point-photo-buttons">
+          {otherPhotos.length > 0 && <button type="button" className={`button small${choosingPhoto ? ' active' : ''}`} disabled={photosFull} aria-pressed={choosingPhoto} onClick={() => setChoosingPhoto(!choosingPhoto)}>
+            <Images size={13} />{uiText('Выбрать фото места')}
+          </button>}
+          <label className={`button small point-photo-add${photosFull || uploading ? ' is-disabled' : ''}`}>
+            {uploading ? <LoaderCircle size={13} className="spin" /> : <Camera size={13} />}{uiText(uploading ? 'Загрузка фото…' : 'Добавить фото места')}
+            <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={photosFull || uploading} aria-label={uiText('Фото места')}
+              onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; void addPhoto(file) }} />
+          </label>
+        </div>
         <small className="dim">{uiText('JPG, PNG или WEBP до 5 МБ, не больше 4 фото на точку.')}</small>
         {photoError && <small className="account-error">{uiText(photoError)}</small>}
       </fieldset>
@@ -273,4 +283,15 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
       </div>
     </form>
   )
+}
+
+/**
+ * The place photos the owner already put on other points, for «Выбрать фото места»: this quest's first, then this map's,
+ * then the rest; none twice and none this point already has; at most PHOTOS_TO_CHOOSE (each is read from the server).
+ */
+const PHOTOS_TO_CHOOSE = 24
+function placePhotosToChoose(overrides: QuestPointEditorState['overrides'], questId: string, mapId: string, chosen: string[]) {
+  const rank = (entry: QuestPointEditorState['overrides'][number]) => (questId && entry.questId === questId ? 0 : entry.mapId === mapId ? 1 : 2)
+  const ordered = overrides.filter((entry) => entry.photoIds?.length).sort((a, b) => rank(a) - rank(b))
+  return [...new Set(ordered.flatMap((entry) => entry.photoIds ?? []))].filter((id) => !chosen.includes(id)).slice(0, PHOTOS_TO_CHOOSE)
 }

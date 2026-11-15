@@ -27,6 +27,7 @@ export const POINT_CONSTRUCTOR_PHRASES: Array<[string, string]> = [
   ['Заголовок, например «Склад у заправки»', 'Title, e.g. “Storage by the gas station”'],
   ['Предметы из каталога', 'Catalog items'], ['Предметы точки', 'Point items'], ['Убрать предмет', 'Remove item'], ['Искать', 'Look for'],
   ['Фото: где искать', 'Photo: where to look'], ['Фото места', 'Photo of the place'], ['Фото точки', 'Point photos'],
+  ['Выбрать фото места', 'Choose a place photo'], ['Добавить фото места', 'Add a place photo'], ['Фото с других точек', 'Photos from other points'],
   ['JPG, PNG или WEBP до 5 МБ, не больше 4 фото на точку.', 'JPG, PNG or WEBP up to 5 MB, at most 4 photos per point.'],
   ['Загрузка фото…', 'Loading photo…'], ['Фото не загрузилось', 'The photo did not upload'], ['Фото видно после входа в аккаунт', 'Sign in to see the photo'],
   ['Фото не найдено', 'Photo not found'], ['Сервер не принял фото', 'The server did not accept the photo'], ['Нет связи с сервером', 'No connection to the server'],

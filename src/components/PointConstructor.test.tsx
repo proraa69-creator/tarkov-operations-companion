@@ -157,6 +157,28 @@ describe('the point constructor on the map (owner, 16.10.2026: «ставлю т
     await waitFor(() => expect(screen.getByTestId('markers')).toHaveTextContent(':o2:Заложить маяк'))
   })
 
+  it('«Фото места» (owner, 15.11.2026): every photo large; «Выбрать фото места» puts a photo of another point on this one', async () => {
+    const { requests, points, wrapper } = ownerApp()
+    const other = 'c'.repeat(24)
+    points.push({ id: '9'.repeat(24), questId: 'q1', mapId: 'customs', x: 1, z: 2, kind: 'add', icon: 'quest.zone', objectiveId: 'o2', photoIds: [other], updatedAt: 't' })
+    render(<Constructor initialQuestId="q1" />, { wrapper })
+    fireEvent.click(await screen.findByRole('button', { name: `right-click ${original.id}` }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню точки' })).getByRole('menuitem', { name: /Редактировать/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Настройки точки' })
+    expect(within(dialog).getByText('Добавить фото места')).toBeInTheDocument()
+    fireEvent.click(await within(dialog).findByRole('button', { name: /Выбрать фото места/ }))
+    const tile = within(within(dialog).getByRole('list', { name: 'Фото с других точек' })).getByRole('listitem')
+    await waitFor(() => expect(tile).toBeEnabled())
+    fireEvent.click(tile)
+    // On the point now, large as the places' photos, and the choice closes.
+    const photo = await within(within(dialog).getByRole('list', { name: 'Фото точки' })).findByRole('img', { name: 'Фото: где искать' })
+    expect(photo.closest('button')).toHaveClass('objective-photo', 'is-main')
+    expect(within(dialog).queryByRole('list', { name: 'Фото с других точек' })).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Сохранить/ }))
+    await waitFor(() => expect(pointWrites(requests)).toHaveLength(1))
+    expect(pointWrites(requests)[0]).toMatchObject({ markerId: original.id, kind: 'describe', photoIds: [other] })
+  })
+
   it('right-click «Редактировать» on an original point moves it to another objective and keeps its quest; «Удалить» hides it', async () => {
     const { requests, wrapper } = ownerApp()
     render(<Constructor initialQuestId="q1" />, { wrapper })
@@ -205,6 +227,18 @@ describe('the quest window\'s pencils (owner, 16.10.2026: «кнопка кар�
     expect(requests.some(([method, path]) => method === 'GET' && path === `/v1/me/quest-point-photos/${'b'.repeat(24)}`)).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Изменить точку' }))
     expect(onEdit).toHaveBeenCalled()
+  })
+
+  it('a point\'s photos to players: one large, as the places\' photos, and a small tile «+N» for the rest; a click opens them all', async () => {
+    const { wrapper } = ownerApp()
+    render(<PointHintLine hint={{ title: 'Склад', photoIds: ['b'.repeat(24), 'c'.repeat(24), 'd'.repeat(24)] }} />, { wrapper })
+    const list = screen.getByRole('list', { name: 'Фото точки' })
+    const main = (await within(list).findByRole('img', { name: 'Фото: где искать' })).closest('button')!
+    expect(main).toHaveClass('objective-photo', 'is-main')
+    expect(await within(list).findByText('+2')).toBeInTheDocument()
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+    fireEvent.click(main)
+    expect(await screen.findByText('1 / 3')).toBeInTheDocument()
   })
 })
 
