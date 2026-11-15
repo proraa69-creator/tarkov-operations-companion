@@ -84,4 +84,9 @@ export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Неизвестный стикер', 'Unknown sticker'],
   ['Такой реакции нет', 'No such reaction'],
   ['Стикер отправляется без текста и скриншотов', 'A sticker is sent without text or screenshots'],
+  // Sent at once and the owner's «Редактировать» (owner, 15.11.2026). «Редактировать», «Сохранить» have theirs elsewhere.
+  ['Отправляется', 'Sending'],
+  ['Редактирование', 'Editing'],
+  ['Отменить редактирование', 'Cancel editing'],
+  ['Не удалось изменить сообщение', 'Could not change the message'],
 ]

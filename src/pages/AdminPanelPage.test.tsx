@@ -83,7 +83,7 @@ afterEach(async () => {
 })
 
 describe('«Админ панель» in the sidebar', () => {
-  const nav = () => render(<MemoryRouter><nav aria-label="Основная навигация"><AdminNavLink locale="ru" /></nav></MemoryRouter>)
+  const nav = () => render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><nav aria-label="Основная навигация"><AdminNavLink locale="ru" /></nav></MemoryRouter></QueryClientProvider>)
 
   it('is there in the owner app signed in to the owner account', async () => {
     await desktop()
@@ -117,11 +117,19 @@ describe('«Админ панель» in the sidebar', () => {
 })
 
 describe('«Админ панель» sections', () => {
-  it('lists every section; «Объявления» shows only the announcements and their counts', async () => {
-    const request = await desktop()
+  // Owner, 15.11.2026: «Внутри админ-панели отдельно «Отчёты» и отдельно «Чат»»; «Убрать блок «История обновлений»».
+  it('«Отчёты» and «Чат» first and the panel opens on «Отчёты»; no «История обновлений»', async () => {
+    await desktop()
     renderPage()
     const tabs = screen.getByRole('tablist', { name: 'Разделы админ панели' })
-    expect(within(tabs).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Объявления', 'Опросы', 'Баннер', 'Функции', 'Квесты', 'Блоки', 'Отчёты', 'Обновление', 'История обновлений'])
+    expect(within(tabs).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Отчёты', 'Чат', 'Объявления', 'Опросы', 'Баннер', 'Функции', 'Квесты', 'Блоки', 'Обновление'])
+    expect(screen.getByRole('tab', { name: /^Отчёты/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('История обновлений')).toBeNull()
+  })
+
+  it('lists every section; «Объявления» shows only the announcements and their counts', async () => {
+    const request = await desktop()
+    renderPage('/admin?tab=notices')
     expect(await screen.findByText('Скидка')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Создать объявление' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Создать опрос' })).toBeNull()
@@ -132,7 +140,7 @@ describe('«Админ панель» sections', () => {
   it('an open «Создать объявление» closes when the owner opens another section (owner, 16.10.2026)', async () => {
     const user = userEvent.setup()
     await desktop()
-    renderPage()
+    renderPage('/admin?tab=notices')
     await user.click(await screen.findByRole('button', { name: 'Создать объявление' }))
     expect(screen.getByRole('form', { name: 'Новое объявление' })).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /Опросы/ }))
@@ -269,7 +277,7 @@ describe('«Админ панель» sections', () => {
     await desktop()
     renderPage('/admin?tab=features')
     expect(screen.getByRole('heading', { name: 'Admin panel' })).toBeInTheDocument()
-    expect(within(screen.getByRole('tablist')).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Announcements', 'Surveys', 'Banner', 'Features', 'Tasks', 'Blocks', 'Reports', 'Update', 'Update history'])
+    expect(within(screen.getByRole('tablist')).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Reports', 'Chat', 'Announcements', 'Surveys', 'Banner', 'Features', 'Tasks', 'Blocks', 'Update'])
     expect(await screen.findByText('Off for everybody')).toBeInTheDocument()
     expect(screen.getByText('Position on the map')).toBeInTheDocument()
   })

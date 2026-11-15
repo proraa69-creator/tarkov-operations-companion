@@ -11,7 +11,7 @@ import { countryName } from '../shared/countries'
 import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
 import { SupportComposer, SupportMessageList, SupportReportCard } from '../support/SupportChat'
 import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
-import { supportPreviewText, useSupportReply } from '../support/supportChatTools'
+import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from '../support/supportChatTools'
 import { useLocale } from '../i18n/LocaleProvider'
 import {
   adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
@@ -28,10 +28,8 @@ import { RegistrationsBlock } from './AdminRegistrations'
 import { ReferralsSheet } from './AdminReferralsSheet'
 import { AdsSheet } from './AdminAdsSheet'
 import { StreamersSheet } from './AdminStreamersSheet'
-import { UpdateHistorySheet } from './AdminUpdateHistorySheet'
 import { AdminNewsSheet } from './AdminNewsEditor'
 import { AdminBezebeeBlock } from './AdminBezebeeBlock'
-import { History as HistoryIcon } from 'lucide-react'
 import { useAdminAnswer, type AdminAnswer } from './useAdminAnswer'
 import './adminMobile.css'
 
@@ -133,7 +131,6 @@ export function AdminMobilePage() {
   const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'ads' | 'news' | 'stickers' | null>(null)
   // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
   const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
-  const [history, setHistory] = useState(false)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search), 300)
@@ -320,14 +317,14 @@ export function AdminMobilePage() {
       {stale && <div className="admin-stale" role="status"><WifiOff size={15} /><span>{uiText(stale.keptAt ? `Сервер не ответил — показаны данные от ${dateTime(new Date(stale.keptAt).toISOString())}, повторим сами` : 'Сервер не ответил — показаны последние данные, повторим сами')}</span><button type="button" onClick={refresh}>{uiText('Повторить')}</button></div>}
 
       {section === 'summary' ? <>
-        {/* «Стримеры» and «Пригласи друга» as the site's tabs (owner, 03.11.2026), each in its own window. */}
+        {/* «Стримеры» and «Пригласи друга» as the site's tabs (owner, 03.11.2026), each in its own window. No «История
+          обновлений» (owner, 15.11.2026): it is in «Обновление», where it is read and edited. */}
         <div className="admin-quick-links">
           <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
           {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
           {/* «Реклама» (owner, 09.11.2026): переходы, регистрации и оплаты по ссылке рекламы Reddit. */}
           <button type="button" onClick={() => setSheet('ads')}><Megaphone size={18} /><span>{uiText('Реклама')}</span><ChevronRight size={16} /></button>
           <button type="button" onClick={() => setSheet('news')}><Newspaper size={18} /><span>{uiLabel('Обновление')}</span><ChevronRight size={16} /></button>
-          <button type="button" onClick={() => setHistory(true)}><HistoryIcon size={18} /><span>{uiText('История обновлений')}</span><ChevronRight size={16} /></button>
           <button type="button" onClick={() => setSheet('stickers')}><Sticker size={18} /><span>{uiText('Стикеры')}</span><ChevronRight size={16} /></button>
         </div>
         {!overview.data && overview.error && <AdminFailure text={overview.error} onRetry={refresh} />}
@@ -380,7 +377,6 @@ export function AdminMobilePage() {
       {sheet === 'ads' && <AdsSheet onClose={() => setSheet(null)} />}
       {sheet === 'news' && <AdminNewsSheet request={adminApi.ownerRequest} onClose={() => setSheet(null)} />}
       {sheet === 'stickers' && <Suspense fallback={<div className="admin-sheet-backdrop"><AdminLoading /></div>}><StickerPacksSheet onClose={() => setSheet(null)} /></Suspense>}
-      {history && <UpdateHistorySheet onClose={() => setHistory(false)} />}
     </div>
   )
 }
@@ -763,12 +759,23 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
     }
   }, [load])
 
+  // Sent at once, the box and the keyboard ready for the next one (owner, 15.11.2026: «после отправки сообщения нельзя
+  // сразу отправить второе… Отправка долго думает»): the server's message joins the conversation as it comes, nothing is
+  // read again for it.
+  const sendReply = useCallback(async (text: string, images: SupportImageUpload[], extra: SupportSendExtra) => {
+    const { message } = await adminApi.supportReply(accountId, text, images, undefined, extra)
+    setDetail((current) => (current && !current.messages.some((known) => known.id === message.id) ? { ...current, messages: [...current.messages, message] } : current))
+    onChanged()
+  }, [accountId, onChanged])
+  const [sending, send] = useSupportOutbox(detail?.messages ?? [], 'owner', sendReply)
+  // «Редактировать» (owner, 15.11.2026): the owner's own messages; the player sees only the new words.
+  const editor = useSupportEdit(sending, async (message, text) => {
+    const answer = await adminApi.supportEdit(accountId, message.id, text)
+    setDetail((current) => (current ? { ...current, messages: current.messages.map((known) => (known.id === answer.message.id ? answer.message : known)) } : current))
+  })
+  const messages = editor.messages
   // Reactions, «Ответить» and stickers (owner, 07.11.2026): as in the owner app's «Чаты».
-  const [replying, setReplying] = useSupportReply(detail?.messages ?? [])
-  const reply = async (text: string, images: SupportImageUpload[], extra: SupportSendExtra) => {
-    await adminApi.supportReply(accountId, text, images, undefined, extra)
-    await load()
-  }
+  const [replying, setReplying] = useSupportReply(messages)
   const react = async (message: SupportMessage, emoji: string, on: boolean) => {
     const answer = await adminApi.supportReact(accountId, message.id, emoji, on)
     setDetail((current) => (current ? { ...current, messages: current.messages.map((known) => (known.id === answer.message.id ? answer.message : known)) } : current))
@@ -788,9 +795,10 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-chat-body">
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
-        <SupportMessageList messages={detail?.messages ?? []} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет."
-          onReact={react} onReply={setReplying} />
-        <SupportComposer onSend={reply} placeholder="Ответ пользователю…" allowImages allowEmoji allowStickers replyTo={replying} onCancelReply={() => setReplying(null)} />
+        <SupportMessageList messages={messages} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет."
+          onReact={react} onReply={setReplying} onEdit={editor.start} />
+        <SupportComposer onSend={send} placeholder="Ответ пользователю…" allowImages allowEmoji allowStickers replyTo={replying} onCancelReply={() => setReplying(null)}
+          editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
         <button type="button" className="button danger admin-delete-chat" disabled={deleting} onClick={() => void remove()}>{deleting ? <LoaderCircle size={16} className="spin" /> : <Trash2 size={16} />}{uiText(deleting ? 'Удаляем…' : 'Удалить чат с сервера')}</button>
         <small className="admin-delete-note">{uiText('После удаления переписка не хранится в рабочей базе и не попадает в управляемые резервные копии.')}</small>
       </div>

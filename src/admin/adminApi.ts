@@ -5,7 +5,6 @@ import { isServerUnavailable, webServiceRequest } from '../sync/webAccount'
 import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
 import { ownerDayAgo } from '../shared/ownerTime'
 import type { AdSource } from '../shared/adSources'
-import { UPDATE_HISTORY_PATH, type UpdateHistoryAnswer } from '../shared/updateHistory'
 import { keepAnswer, keptAnswer } from './adminKeep'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
@@ -352,7 +351,6 @@ export const adminApi = {
   setPayoutLimits: (min: number, max: number) => request<{ limits: { min: number; max: number } }>('PUT', '/v1/accounts/me/admin/payout-limits', { min, max }),
   referrals: (search: string, sort: ReferralSort) => request<AdminReferrals>('GET', adminPaths.referrals(search, sort), undefined, keep),
   referrer: (id: string) => request<AdminReferrerDetail>('GET', `/v1/accounts/me/admin/referrals/${encodeURIComponent(id)}`),
-  updateHistory: () => request<UpdateHistoryAnswer>('GET', UPDATE_HISTORY_PATH),
   bugReports: (status: BugReportStatus, limit = 100, offset = 0) => request<BugReportList>(
     'GET', adminPaths.bugReports(status, limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),
@@ -377,6 +375,10 @@ export const adminApi = {
     { text, images, ...(reportId ? { reportId } : {}), ...(extra.replyTo ? { replyTo: extra.replyTo } : {}), ...(extra.sticker ? { sticker: extra.sticker } : {}) },
   ),
   /** The owner's reaction on a message of the conversation: set (`on`) or taken back. */
+  /** «Редактировать» (owner, 15.11.2026): new words for the owner's own message; the player sees only them. */
+  supportEdit: (accountId: string, id: number, text: string) => request<{ message: AdminSupportMessage }>(
+    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/${id}/edit`, { text },
+  ),
   supportReact: (accountId: string, id: number, emoji: string, on: boolean) => request<{ message: AdminSupportMessage }>(
     'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/${id}/reactions`, { emoji, on },
   ),

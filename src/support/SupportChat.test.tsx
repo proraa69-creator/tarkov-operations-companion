@@ -2,13 +2,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SupportChatDialog, SupportNotice } from './SupportChat'
+import { useState } from 'react'
+import { SupportChatDialog, SupportComposer, SupportMessageList, SupportNotice } from './SupportChat'
 import { cleanSupportMessage, pendingSupportNotice, resetSupportChat, supportTime, type SupportMessage } from './supportChatClient'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
 import { SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_STICKER_PLACEHOLDER, type SupportReaction } from '../shared/supportChat'
 import { SUPPORT_STICKERS } from '../shared/supportStickers'
 import { cleanStickerCatalog, loadStickerCatalog, resetStickerCatalog, stickerPictureSrc } from './stickerCatalog'
-import { quoteBody, supportPreviewText } from './supportChatTools'
+import { quoteBody, supportPreviewText, useSupportEdit } from './supportChatTools'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { SupportButtons } from '../components/SupportButtons'
 import { MobileTabBar } from '../mobile/MobileNav'
@@ -1009,6 +1010,138 @@ describe('the owner\'s sticker packs in the picker', () => {
     } finally {
       setRenderLanguage('ru')
       localStorage.clear()
+    }
+  })
+})
+
+// Owner, 15.11.2026: «После отправки сообщения нельзя сразу отправить второе: клавиатура больше не открывается. Отправка
+// долго думает». «Редактирование своих сообщений только у админа… Человек не видит, что сообщение отредактировано».
+describe('sent at once, and the owner’s «Редактировать»', () => {
+  const bubble = (text: string) => screen.getByText(text, { selector: '.support-chat-text' }).closest('.support-chat-message') as HTMLElement
+
+  it('the box empties before the server answers and keeps the focus; the message shows «Отправляется»; a second one goes after the first', async () => {
+    const server = mockServer(signedIn, { messages: [], unread: 0 })
+    const serve = server.serviceRequest.getMockImplementation()!
+    const gates: Array<() => void> = []
+    server.serviceRequest.mockImplementation(async (method: string, path: string, body?: unknown) => {
+      if (method === 'POST' && path === '/v1/me/support/messages') await new Promise<void>((resolve) => gates.push(resolve))
+      return serve(method, path, body)
+    })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    const box = await screen.findByRole('textbox', { name: 'Сообщение' })
+    await user.type(box, 'Первое')
+    await user.click(screen.getByRole('button', { name: 'Отправить' }))
+    // Not waiting for the server: empty, still in focus (the phone's keyboard stays), never read-only.
+    expect(box).toHaveValue('')
+    expect(box).toHaveFocus()
+    expect(box).not.toHaveAttribute('readonly')
+    expect(within(bubble('Первое')).getByRole('img', { name: 'Отправляется' })).toBeInTheDocument()
+    expect(bubble('Первое')).toHaveClass('is-sending')
+    await user.type(box, 'Второе{Enter}')
+    expect(box).toHaveValue('')
+    expect(bubble('Второе')).toHaveClass('is-sending')
+    // One after another, in the order written.
+    await waitFor(() => expect(gates).toHaveLength(1))
+    gates.shift()!()
+    await waitFor(() => expect(gates).toHaveLength(1))
+    gates.shift()!()
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'Отправляется' })).toBeNull())
+    const posts = server.calls.filter(([method, path]) => method === 'POST' && path === '/v1/me/support/messages').map(([, , body]) => body)
+    expect(posts).toEqual([{ text: 'Первое' }, { text: 'Второе' }])
+    expect(screen.getAllByText(/Первое|Второе/, { selector: '.support-chat-text' }).map((node) => node.textContent)).toEqual(['Первое', 'Второе'])
+    expect(within(bubble('Второе')).getByRole('img', { name: 'Отправлено' })).toBeInTheDocument()
+  })
+
+  it('a refused message comes back before what was typed since, with the reason', async () => {
+    const server = mockServer(signedIn, { messages: [], unread: 0 })
+    let refuse: (reason: Error) => void = () => {}
+    server.serviceRequest.mockImplementation(async (method: string, path: string) => {
+      if (method === 'POST') return new Promise((_, reject) => { refuse = reject })
+      return path.startsWith('/v1/me/support/messages') ? { messages: [], unread: 0 } : null
+    })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    const box = await screen.findByRole('textbox', { name: 'Сообщение' })
+    await user.type(box, 'Не дошло{Enter}')
+    expect(box).toHaveValue('')
+    await user.type(box, 'новое')
+    act(() => refuse(new Error('Сервер недоступен')))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сервер недоступен')
+    expect(box).toHaveValue('Не дошло\nновое')
+    expect(screen.queryByText('Не дошло', { selector: '.support-chat-text' })).toBeNull()
+  })
+
+  /** The owner's conversation as the owner app and the phone admin show it (support/OwnerChats.tsx, admin/AdminMobilePage.tsx). */
+  function OwnerConversation({ save }: { save: (message: SupportMessage, text: string) => Promise<void> }) {
+    const [list, setList] = useState<SupportMessage[]>([mine(1, 'Не грузится карта'), answer(2, 'Обновите прилоение')])
+    const editor = useSupportEdit(list, async (message, text) => {
+      await save(message, text)
+      setList((current) => current.map((known) => (known.id === message.id ? { ...known, text } : known)))
+    })
+    return <>
+      <SupportMessageList messages={editor.messages} viewer="owner" loading={false} error="" onRetry={() => {}} emptyText="Сообщений пока нет." onReply={() => {}} onEdit={editor.start} />
+      <SupportComposer onSend={async () => {}} placeholder="Ответ игроку…" editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
+    </>
+  }
+
+  it('the owner: «Редактировать» on own messages only; the box takes the words, the new ones show at once with no mark; the draft comes back', async () => {
+    let finish: () => void = () => {}
+    const save = vi.fn((): Promise<void> => new Promise<void>((resolve) => { finish = resolve }))
+    const user = userEvent.setup()
+    render(<OwnerConversation save={save} />)
+    const box = screen.getByRole('textbox', { name: 'Сообщение' })
+    await user.type(box, 'черновик')
+    // The player's message: no «Редактировать».
+    fireEvent.contextMenu(bubble('Не грузится карта'), { clientX: 10, clientY: 10 })
+    expect(within(screen.getByRole('menu')).queryByRole('menuitem', { name: 'Редактировать' })).toBeNull()
+    await user.keyboard('{Escape}')
+    fireEvent.contextMenu(bubble('Обновите прилоение'), { clientX: 10, clientY: 10 })
+    await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Редактировать' }))
+    expect(screen.getByRole('group', { name: 'Редактирование' })).toHaveTextContent('Обновите прилоение')
+    expect(box).toHaveValue('Обновите прилоение')
+    expect(box).toHaveFocus()
+    await user.clear(box)
+    await user.type(box, 'Обновите приложение')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }), 'Обновите приложение')
+    // At once, before the server: the new words in the same bubble, nothing that says they changed; the draft is back.
+    expect(bubble('Обновите приложение')).toHaveClass('is-own')
+    expect(screen.queryByText('Обновите прилоение', { selector: '.support-chat-text' })).toBeNull()
+    expect(document.body.textContent).not.toMatch(/изменено|отредактировано/i)
+    expect(screen.queryByRole('group', { name: 'Редактирование' })).toBeNull()
+    expect(box).toHaveValue('черновик')
+    await act(async () => finish())
+    expect(bubble('Обновите приложение')).toBeInTheDocument()
+  })
+
+  it('the owner: Escape leaves the edit; a failed save brings it back with the words and the reason', async () => {
+    const save = vi.fn().mockRejectedValue(new Error('Сервер недоступен'))
+    const user = userEvent.setup()
+    render(<OwnerConversation save={save} />)
+    const box = screen.getByRole('textbox', { name: 'Сообщение' })
+    fireEvent.contextMenu(bubble('Обновите прилоение'), { clientX: 10, clientY: 10 })
+    await user.click(screen.getByRole('menuitem', { name: 'Редактировать' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('group', { name: 'Редактирование' })).toBeNull()
+    expect(box).toHaveValue('')
+    fireEvent.contextMenu(bubble('Обновите прилоение'), { clientX: 10, clientY: 10 })
+    await user.click(screen.getByRole('menuitem', { name: 'Редактировать' }))
+    await user.type(box, '!{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сервер недоступен')
+    expect(screen.getByRole('group', { name: 'Редактирование' })).toBeInTheDocument()
+    expect(box).toHaveValue('Обновите прилоение!')
+    expect(bubble('Обновите прилоение')).toBeInTheDocument()
+  })
+
+  it('English', async () => {
+    const { setRenderLanguage, uiText } = await import('../i18n/renderText')
+    setRenderLanguage('en')
+    try {
+      expect(['Отправляется', 'Редактировать', 'Редактирование', 'Отменить редактирование', 'Сохранить', 'Не удалось изменить сообщение'].map((text) => uiText(text)))
+        .toEqual(['Sending', 'Edit', 'Editing', 'Cancel editing', 'Save', 'Could not change the message'])
+    } finally {
+      setRenderLanguage('ru')
     }
   })
 })

@@ -344,6 +344,27 @@ export class SupportChatStore {
     })
   }
 
+  /**
+   * «Редактировать» (owner, 15.11.2026: «человек не видит, что сообщение отредактировано… просто новый текст»): the new words
+   * of the owner's own message `id` of the account's conversation; nothing marks the change. Quotes of it in later messages
+   * read the new words too. With screenshots the words may be empty. 404 for a message of another conversation, the
+   * player's or a sticker; 400 for empty or too long words. Returns the message as it reads now.
+   */
+  edit(accountId: string, id: number, raw: string): SupportMessage {
+    return transaction(this.db, () => {
+      const row = Number.isSafeInteger(id) && id > 0
+        ? this.db.prepare('SELECT * FROM support_messages WHERE id = ? AND account_id = ?').get(id, accountId) as Row | undefined
+        : undefined
+      if (!row || row.author !== 'owner' || filled(row.sticker)) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      const text = Number(row.images ?? 0) > 0 ? cleanSupportText(raw) : supportText(raw)
+      if (text.length > SUPPORT_MESSAGE_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
+      this.db.prepare('UPDATE support_messages SET body = ? WHERE id = ?').run(text, id)
+      this.db.prepare('UPDATE support_messages SET reply_text = ? WHERE account_id = ? AND reply_to = ?').run(supportQuoteText(text), accountId, id)
+      const updated = this.db.prepare('SELECT * FROM support_messages WHERE id = ?').get(id) as Row
+      return this.withExtras([updated])[0]!
+    })
+  }
+
   /** The conversation, oldest first: its newest messages, or only the ones after message `after`. */
   messages(accountId: string, after?: number): SupportMessage[] {
     const rows = after === undefined

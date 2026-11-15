@@ -56,7 +56,8 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Выберите босса', 'Choose a boss'],
   ['Все боссы уже на карте', 'Every boss is on the map already'],
   ['Добавить на карту', 'Add to the map'],
-
+  // «Отчёты» and «Чат» in the panel, the red numbers (owner, 15.11.2026).
+  ['Чат', 'Chat'], ['Переписка с игроками', 'Conversations with players'], ['Новых', 'New'], ['Ждут ответа', 'Waiting'],
 ]
 
 /** Server answers with a variable part. */

@@ -47,6 +47,8 @@
 .support-chat-meta { justify-self: end; display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); font-size: 10.5px; font-variant-numeric: tabular-nums; }
 .support-chat-status { display: inline-flex; }
 .support-chat-status.is-read { color: var(--green); }
+/* On its way to the server (owner, 15.11.2026: sent at once): a little faded, a clock in place of the tick. */
+.support-chat-message.is-sending { opacity: 0.72; }
 
 /* The box under it. */
 .support-chat-compose { display: grid; gap: 6px; }
@@ -167,6 +169,8 @@ button.support-chat-reaction { cursor: pointer; }
 .support-chat-replying { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--brass-strong, var(--brass)); }
 .support-chat-replying > .support-chat-quote { flex: 1 1 auto; margin: 0; }
 .support-chat-replying > .icon-button { flex: none; width: 28px; height: 28px; }
+/* «Редактирование»: the owner's own message whose words are in the box. */
+.support-chat-replying.is-editing { color: var(--text); }
 /* The emoji and the stickers, between the conversation and the box. */
 .support-chat-picker {
   display: grid; gap: 2px; max-height: 196px; overflow-y: auto; overscroll-behavior: contain; padding: 6px;

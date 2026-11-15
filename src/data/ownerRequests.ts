@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { serviceClient } from '../account/nicknameBinding'
 import { isOwnerApp } from '../app/buildEdition'
 import { useServerAccount } from '../sync/serverSync'
@@ -82,28 +82,57 @@ export function watchOwnerRequests(request: Request, onCount: (counts: OwnerRequ
 }
 
 /**
- * The owner app's «Отчёты» count: reports that wait for the owner plus conversations with unseen messages (null until
- * known, or outside the owner app / signed out). Whatever moved, the table and the chats on screen read it again.
+ * One wait for the whole owner app: the sidebar's «Админ панель» and its «Отчёты» / «Чат» read the same counts (owner,
+ * 15.11.2026: «Красная цифра непрочитанных… должна гореть на кнопке «Админ панель»»). It runs while any of them is shown;
+ * whatever moved, the table and the chats on screen read it again.
  */
-export function useOwnerRequestCount() {
-  const client = useQueryClient()
-  const { status } = useServerAccount()
-  const enabled = isOwnerApp() && Boolean(status?.signedIn)
-  const [count, setCount] = useState<number | null>(null)
-  useEffect(() => {
-    const request = enabled ? serviceClient() : undefined
-    if (!request) return
+const shared = { counts: null as OwnerRequestCounts | null, users: 0, stop: null as AbortController | null, listeners: new Set<() => void>() }
+const notify = () => { for (const listener of shared.listeners) listener() }
+const subscribeCounts = (listener: () => void) => { shared.listeners.add(listener); return () => { shared.listeners.delete(listener) } }
+
+function shareOwnerWatch(request: Request, client: QueryClient) {
+  shared.users += 1
+  if (shared.users === 1) {
     const stop = new AbortController()
+    shared.stop = stop
     void watchOwnerRequests(request, (counts, changed) => {
-      setCount(counts.open + counts.unreadChats)
+      if (stop.signal.aborted) return
+      shared.counts = counts
+      notify()
       if (!changed) return
       void client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
       // A player wrote (or the owner read a conversation on another device): the list and the open one follow.
       void client.invalidateQueries({ queryKey: OWNER_CHATS_KEY })
     }, stop.signal)
-    return () => { stop.abort(); setCount(null) }
+  }
+  return () => {
+    shared.users -= 1
+    if (shared.users > 0) return
+    shared.stop?.abort()
+    shared.stop = null
+    shared.counts = null
+    notify()
+  }
+}
+
+/** Reports that wait for the owner and conversations with unseen messages (null until known, outside the owner app or signed out). */
+export function useOwnerRequestCounts(): OwnerRequestCounts | null {
+  const client = useQueryClient()
+  const { status } = useServerAccount()
+  const enabled = isOwnerApp() && Boolean(status?.signedIn)
+  const counts = useSyncExternalStore(subscribeCounts, () => shared.counts, () => null)
+  useEffect(() => {
+    const request = enabled ? serviceClient() : undefined
+    if (!request) return
+    return shareOwnerWatch(request, client)
   }, [client, enabled])
-  return enabled ? count : null
+  return enabled ? counts : null
+}
+
+/** The red number on «Админ панель»: reports that wait plus conversations with unseen messages. */
+export function useOwnerRequestCount() {
+  const counts = useOwnerRequestCounts()
+  return counts ? counts.open + counts.unreadChats : null
 }
 
 /** «Отчёты»: the latest 200 of the table, the newest number first; the sidebar's wait reads it again on every change. */
@@ -228,15 +257,31 @@ export function useOwnerChatActions() {
   return {
     reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = [], reportId?: number, extra: SupportSendExtra = {}) => {
       const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads, reportId, extra)) as { message?: unknown } | null
-      await refresh()
+      const sent = cleanSupportMessage(answer?.message)
+      // In the open conversation at once (owner, 15.11.2026: «отправка долго думает»); the lists follow in the background.
+      if (sent) client.setQueryData<OwnerChatDetail>([...OWNER_CHATS_KEY, 'thread', accountId], (current) => (current && !current.messages.some((known) => known.id === sent.id)
+        ? { ...current, messages: [...current.messages, sent] }
+        : current))
+      void refresh()
       // The card shows «Отвечено» from the server's word.
       if (reportId) await client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
-      return cleanSupportMessage(answer?.message)
+      return sent
     }, [client, refresh]),
     markRead: useCallback(async (accountId: string) => {
       await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/read`)
       await refresh()
     }, [refresh]),
+    /** «Редактировать» (owner, 15.11.2026): the owner's own message with new words, in the open conversation at once. */
+    edit: useCallback(async (accountId: string, id: number, text: string) => {
+      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages/${id}/edit`, { text }) as { message?: unknown } | null
+      const message = cleanSupportMessage(answer?.message)
+      if (!message) throw new Error('Сервер вернул неожиданный ответ')
+      client.setQueryData<OwnerChatDetail>([...OWNER_CHATS_KEY, 'thread', accountId], (current) => (current
+        ? { ...current, messages: current.messages.map((known) => (known.id === message.id ? message : known)) }
+        : current))
+      void refresh()
+      return message
+    }, [client, refresh]),
     react: useCallback(async (accountId: string, id: number, emoji: string, on: boolean) => {
       const answer = await ownerCall('POST', supportReactionPath(id, accountId), { emoji, on }) as { message?: unknown } | null
       const message = cleanSupportMessage(answer?.message)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type TouchEvent as ReactTouchEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Check, CheckCheck, Copy, ImageOff, LoaderCircle, LogIn, MessagesSquare, Paperclip, RefreshCw, Reply, Send, Smile, Sticker, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckCheck, Clock3, Copy, ImageOff, LoaderCircle, LogIn, MessagesSquare, Paperclip, Pencil, RefreshCw, Reply, Send, Smile, Sticker, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
@@ -14,7 +14,7 @@ import { cleanIpcError } from '../sync/serverSync'
 import { ImageViewer, imageViewerOpen } from '../components/ImageViewer'
 import { ToastDock, useToastTimer } from '../notifications/ToastDock'
 import { openSupportChat, supportAttachmentImage, supportTime, useSupportChat, useSupportNotice, type SupportImageUpload, type SupportMessage, type SupportSendExtra } from './supportChatClient'
-import { emojiOnly, quoteBody, replyQuoteOf, stickerCaption, SUPPORT_EMOJI, supportChatLayerOpen, toggledReactions, useEscapeLayer, useSupportReply, type SupportReplyTarget } from './supportChatTools'
+import { emojiOnly, quoteBody, replyQuoteOf, stickerCaption, SUPPORT_EMOJI, supportChatLayerOpen, supportEditable, supportOwnWords, toggledReactions, useEscapeLayer, useSupportOutbox, useSupportReply, type SupportEditTarget, type SupportReplyTarget } from './supportChatTools'
 import { stickerPictureSrc, useStickerCatalog } from './stickerCatalog'
 import './supportChat.css'
 
@@ -36,7 +36,9 @@ export function SupportChatDialog({ onClose }: { onClose: () => void }) {
   const chat = useSupportChat(true)
   const mobile = useMobileLayout()
   const dialog = useRef<HTMLElement>(null)
-  const [reply, setReply] = useSupportReply(chat.messages)
+  // Sent at once, the box free for the next one (owner, 15.11.2026).
+  const [messages, send] = useSupportOutbox(chat.messages, 'user', chat.send)
+  const [reply, setReply] = useSupportReply(messages)
   useEffect(() => {
     // Captured on the window: over the bug report dialog, Escape closes only the chat; over a screenshot, a message's
     // menu, a grid or a reply being written, only it.
@@ -58,10 +60,10 @@ export function SupportChatDialog({ onClose }: { onClose: () => void }) {
         <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
       </header>
       {chat.signedIn ? <>
-        <SupportMessageList messages={chat.messages} viewer="user" otherName="Raid OS" loading={chat.loading && !chat.loaded} error={chat.loaded ? '' : chat.error} onRetry={() => void chat.reload()} emptyText="Напишите нам — ответим здесь же"
+        <SupportMessageList messages={messages} viewer="user" otherName="Raid OS" loading={chat.loading && !chat.loaded} error={chat.loaded ? '' : chat.error} onRetry={() => void chat.reload()} emptyText="Напишите нам — ответим здесь же"
           onReact={(message, emoji, on) => chat.react(message.id, emoji, on)} onReply={setReply} />
         {/* No keyboard popping up on the phone the moment the sheet opens. */}
-        <SupportComposer onSend={chat.send} placeholder="Ваше сообщение…" autoFocus={!mobile} allowImages allowEmoji allowStickers dropZone={dialog} replyTo={reply} onCancelReply={() => setReply(null)} />
+        <SupportComposer onSend={send} placeholder="Ваше сообщение…" autoFocus={!mobile} allowImages allowEmoji allowStickers dropZone={dialog} replyTo={reply} onCancelReply={() => setReply(null)} />
       </> : <div className="support-chat-signin">
         <p className="muted">{uiText(chat.checking ? 'Проверяем аккаунт…' : 'Войдите в аккаунт, чтобы написать нам')}</p>
         {!chat.checking && <button type="button" className="button primary" onClick={() => { onClose(); openAccountSignIn('login') }}><LogIn size={15} />{uiText('Войти')}</button>}
@@ -156,7 +158,7 @@ interface MenuAt { id: number; x: number; y: number; touch: boolean; kind: 'all'
  * shows as its picture, a built-in one with the caption in the reader's language; one the owner deleted since reads
  * «[стикер]». `peerName`: who the other side is in quotes and in the chips' titles (default `otherName`).
  */
-export function SupportMessageList({ messages, viewer, otherName, peerName, loading, error, onRetry, emptyText, onReact, onReply }: {
+export function SupportMessageList({ messages, viewer, otherName, peerName, loading, error, onRetry, emptyText, onReact, onReply, onEdit }: {
   messages: SupportMessage[]
   viewer: SupportMessage['author']
   otherName?: string
@@ -167,6 +169,8 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
   emptyText: string
   onReact?: (message: SupportMessage, emoji: string, on: boolean) => Promise<unknown>
   onReply?: (target: SupportReplyTarget) => void
+  /** «Редактировать» on the owner's own messages (owner, 15.11.2026): the composer takes the message's words. */
+  onEdit?: (message: SupportMessage) => void
 }) {
   const { locale } = useLocale()
   const log = useRef<HTMLDivElement>(null)
@@ -180,7 +184,8 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
   // A finger on a message: where it went down and whether it scrolls or swipes; the bubble's pull while it swipes.
   const gesture = useRef<{ id: number; x: number; y: number; mode: 'wait' | 'swipe' | 'scroll'; dx: number } | null>(null)
   const [swipe, setSwipe] = useState<{ id: number; dx: number; back: boolean } | null>(null)
-  const interactive = Boolean(onReact || onReply)
+  const interactive = Boolean(onReact || onReply || onEdit)
+  const editable = (message: SupportMessage) => Boolean(onEdit) && supportEditable(message, viewer)
   // The newest message in view: on opening and whenever one arrives or is sent.
   useEffect(() => {
     const node = log.current
@@ -221,7 +226,8 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
   }
   const copyable = (message: SupportMessage) => !message.sticker && words(message) !== SUPPORT_IMAGE_PLACEHOLDER && words(message) !== SUPPORT_STICKER_PLACEHOLDER && Boolean(navigator.clipboard)
   const openMenu = (message: SupportMessage, x: number, y: number, touch: boolean, kind: MenuAt['kind']) => {
-    if (!interactive || (kind === 'copy' && !copyable(message))) return
+    // A message still on its way has no menu yet.
+    if (!interactive || message.sending || (kind === 'copy' && !copyable(message) && !editable(message))) return
     // A long press may have started selecting the words: the menu takes their place.
     if (touch) window.getSelection?.()?.removeAllRanges()
     setMenu((current) => (current?.id === message.id && current.kind === kind ? current : { id: message.id, x, y, touch, kind }))
@@ -237,7 +243,7 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
     const touch = event.touches[0]
     cancelPress()
     gesture.current = null
-    if (event.touches.length !== 1 || !touch) return
+    if (event.touches.length !== 1 || !touch || message.sending) return
     const { clientX: x, clientY: y } = touch
     gesture.current = { id: message.id, x, y, mode: 'wait', dx: 0 }
     press.current = { x, y, timer: setTimeout(() => { press.current = null; if (gesture.current?.mode === 'wait') openMenu(message, x, y, true, 'copy') }, LONG_PRESS_MS) }
@@ -277,7 +283,7 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
             : <p className="support-chat-empty">{uiText(emptyText)}</p>
       ) : messages.map((message) => {
         const own = message.author === viewer
-        const status = message.read ? 'Прочитано' : 'Отправлено'
+        const status = message.sending ? 'Отправляется' : message.read ? 'Прочитано' : 'Отправлено'
         const attachments = message.attachments ?? []
         // An answer about a report: its card and the owner's own words (`text` repeats the report for older apps).
         const text = words(message)
@@ -288,7 +294,7 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
         const reactions = reactionsOf(message)
         const quote = message.replyTo
         const pulled = swipe?.id === message.id ? swipe : null
-        const classes = ['support-chat-message', own && 'is-own', attachments.length && 'has-images', message.sticker && 'is-sticker', interactive && 'has-menu', flash?.id === message.id && 'is-flash', menu?.id === message.id && 'is-menu', pulled && (pulled.back ? 'is-springing' : 'is-swiping')]
+        const classes = ['support-chat-message', own && 'is-own', message.sending && 'is-sending', attachments.length && 'has-images', message.sticker && 'is-sticker', interactive && 'has-menu', flash?.id === message.id && 'is-flash', menu?.id === message.id && 'is-menu', pulled && (pulled.back ? 'is-springing' : 'is-swiping')]
         return (
           <div key={message.id} data-message-id={message.id} className={classes.filter(Boolean).join(' ')}
             style={pulled ? { transform: `translateX(${pulled.dx}px)` } : undefined}
@@ -333,7 +339,7 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
             </div>}
             <span className="support-chat-meta">
               <time dateTime={message.createdAt}>{supportTime(message.createdAt, locale)}</time>
-              {own && <span className={`support-chat-status${message.read ? ' is-read' : ''}`} role="img" aria-label={uiText(status)} title={uiText(status)}>{message.read ? <CheckCheck size={13} /> : <Check size={13} />}</span>}
+              {own && <span className={`support-chat-status${message.read ? ' is-read' : ''}`} role="img" aria-label={uiText(status)} title={uiText(status)}>{message.sending ? <Clock3 size={12} /> : message.read ? <CheckCheck size={13} /> : <Check size={13} />}</span>}
             </span>
           </div>
         )
@@ -343,7 +349,8 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
         mine={new Set(reactionsOf(open).filter((reaction) => reaction.authors.includes(viewer)).map((reaction) => reaction.emoji))}
         onReact={onReact && menu.kind !== 'copy' ? (emoji) => toggle(open, emoji) : undefined}
         onReply={onReply && menu.kind !== 'copy' ? () => onReply({ message: open, name: nameOf(open.author) }) : undefined}
-        onCopy={menu.kind !== 'actions' && copyable(open) ? () => void navigator.clipboard.writeText(words(open)).catch(() => {}) : undefined} />}
+        onCopy={menu.kind !== 'actions' && copyable(open) ? () => void navigator.clipboard.writeText(words(open)).catch(() => {}) : undefined}
+        onEdit={onEdit && editable(open) ? () => onEdit(open) : undefined} />}
     </div>
   )
 }
@@ -422,12 +429,13 @@ const TOUCH_SETTLE_MS = 400
  * «Копировать». A click outside, Escape, scrolling or the window losing focus closes it. Rendered into <body>: the
  * conversation scrolls and clips.
  */
-function MessageMenu({ at, mine, onReact, onReply, onCopy, onClose }: {
+function MessageMenu({ at, mine, onReact, onReply, onCopy, onEdit, onClose }: {
   at: MenuAt
   mine: Set<string>
   onReact?: (emoji: string) => void
   onReply?: () => void
   onCopy?: () => void
+  onEdit?: () => void
   onClose: () => void
 }) {
   const box = useRef<HTMLDivElement>(null)
@@ -475,6 +483,7 @@ function MessageMenu({ at, mine, onReact, onReply, onCopy, onClose }: {
     </div>}
     {onReply && <button type="button" role="menuitem" className="support-chat-menu-item" onClick={() => choose(onReply)}><Reply size={15} aria-hidden="true" />{uiText('Ответить')}</button>}
     {onCopy && <button type="button" role="menuitem" className="support-chat-menu-item" onClick={() => choose(onCopy)}><Copy size={15} aria-hidden="true" />{uiText('Копировать')}</button>}
+    {onEdit && <button type="button" role="menuitem" className="support-chat-menu-item" onClick={() => choose(onEdit)}><Pencil size={15} aria-hidden="true" />{uiText('Редактировать')}</button>}
   </div>, document.body)
 }
 
@@ -526,8 +535,13 @@ function MessageImages({ attachments, viewer }: { attachments: SupportAttachment
 interface PendingShot { key: number; name: string; preview: string; data: string }
 let nextShotKey = 1
 /**
- * The box under the conversation: Enter sends, Shift+Enter starts a new line, up to 2000 characters. The text stays
- * when sending fails, with the reason above it.
+ * The box under the conversation: Enter sends, Shift+Enter starts a new line, up to 2000 characters.
+ *
+ * Without waiting (owner, 15.11.2026: «после отправки сообщения нельзя сразу отправить второе: клавиатура больше не
+ * открывается. Отправка долго думает»): the box empties the moment a message is handed to `onSend` and stays ready, the
+ * cursor and the phone's keyboard stay in it (the send button never takes the focus); the conversation shows the message on
+ * its way (supportChatTools.ts useSupportOutbox). When sending fails, the words and screenshots come back into the box with
+ * the reason above it.
  *
  * With `allowImages`, screenshots too (owner, 15.10.2026): the paperclip, a paste (Ctrl+V) or a drop anywhere (app/fileSink.ts;
  * `dropZone`, else the box, lights up) adds up to four PNG / JPEG / WEBP, each at most 5 MB, scaled down to 1920 px like the photos
@@ -538,8 +552,11 @@ let nextShotKey = 1
  * with `allowEmoji`, the smile opens a grid of emoji put in at the cursor; with `allowStickers`, the sticker button opens the packs
  * (StickerPicker: the built-in one and the owner's published ones), and a sticker is sent at once as a message of its own. `replyTo` (from «Ответить» in the conversation): shown above the box
  * with «×» (`onCancelReply`, also Escape), sent with the next message or sticker and then gone.
+ *
+ * `editing` (the owner's «Редактировать», owner 15.11.2026): the box takes the message's words, «Сохранить» hands the new
+ * ones to `onEdit`; «×» or Escape (`onCancelEdit`) leaves them. What was in the box before comes back afterwards.
  */
-export function SupportComposer({ onSend, placeholder, autoFocus = false, allowImages = false, allowEmoji = false, allowStickers = false, dropZone, replyTo, onCancelReply }: {
+export function SupportComposer({ onSend, placeholder, autoFocus = false, allowImages = false, allowEmoji = false, allowStickers = false, dropZone, replyTo, onCancelReply, editing, onEdit, onCancelEdit }: {
   onSend: (text: string, images: SupportImageUpload[], extra: SupportSendExtra) => Promise<unknown>
   placeholder: string
   autoFocus?: boolean
@@ -549,31 +566,61 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
   dropZone?: RefObject<HTMLElement | null>
   replyTo?: SupportReplyTarget | null
   onCancelReply?: () => void
+  editing?: SupportEditTarget | null
+  onEdit?: (message: SupportMessage, text: string) => unknown
+  onCancelEdit?: () => void
 }) {
   const { locale } = useLocale()
   const mobile = useMobileLayout()
   const [text, setText] = useState('')
   const [shots, setShots] = useState<PendingShot[]>([])
   const [preparing, setPreparing] = useState(0)
-  const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [picker, setPicker] = useState<'emoji' | 'sticker' | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const form = useRef<HTMLFormElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-  // Where the cursor goes after an emoji was put in.
+  // Where the cursor goes after an emoji was put in (or the words of a message to edit).
   const caret = useRef<number | null>(null)
   // Screenshots taken and being scaled down: what is left of the four.
   const taken = useRef(0)
-  const empty = !cleanSupportText(text) && !shots.length
+  const edited = editing && onEdit ? editing : null
+  const empty = edited
+    ? !cleanSupportText(text) && !edited.message.attachments?.length
+    : !cleanSupportText(text) && !shots.length
   const full = shots.length + preparing >= SUPPORT_IMAGE_LIMITS.files
-  const replyId = replyTo?.message.id
+  const replyId = edited ? undefined : replyTo?.message.id
   const closePicker = useCallback(() => setPicker(null), [])
   const cancelReply = useCallback(() => onCancelReply?.(), [onCancelReply])
+  const cancelEdit = useCallback(() => onCancelEdit?.(), [onCancelEdit])
   useEscapeLayer(picker !== null, closePicker)
   useEscapeLayer(replyId !== undefined, cancelReply)
+  useEscapeLayer(edited !== null, cancelEdit)
   // «Ответить»: the cursor goes to the box.
   useEffect(() => { if (replyId !== undefined) input.current?.focus() }, [replyId])
+  // «Редактировать»: the message's words (or the ones a failed save gave back) in the box, the cursor after them; when the
+  // edit ends, what was in the box before. Only a new edit or its end changes the box, never the words typed meanwhile.
+  const [shownEdit, setShownEdit] = useState<SupportEditTarget | null>(null)
+  // The words in the box before «Редактировать»: back once the edit is saved or left.
+  const [aside, setAside] = useState<string | null>(null)
+  if (shownEdit !== edited) {
+    setShownEdit(edited)
+    if (edited) {
+      if (aside === null) setAside(text)
+      setText(edited.draft ?? supportOwnWords(edited.message))
+      setError(edited.error ? uiText(edited.error) : '')
+      setPicker(null)
+    } else if (aside !== null) {
+      setText(aside)
+      setAside(null)
+    }
+  }
+  useEffect(() => {
+    const box = input.current
+    if (!edited || !box) return
+    box.focus()
+    box.setSelectionRange(box.value.length, box.value.length)
+  }, [edited])
   useLayoutEffect(() => {
     const at = caret.current
     const box = input.current
@@ -622,38 +669,45 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
     dragging: (on) => (dropZone?.current ?? form.current)?.classList.toggle('is-dropping', on),
   })
   const extra = (): SupportSendExtra => (replyId !== undefined ? { replyTo: replyId } : {})
-  const submit = async () => {
-    if (empty || sending || preparing) return
-    setSending(true)
-    setError('')
-    try {
-      await onSend(text, shots.map((shot) => ({ data: shot.data })), extra())
-      setText('')
-      setShots([])
-      setPicker(null)
-      taken.current = 0
-      onCancelReply?.()
-    } catch (reason) {
-      setError(uiText(cleanIpcError(reason)))
-    } finally {
-      setSending(false)
-      input.current?.focus()
+  /** Sending failed: the words and screenshots back in the box (before anything typed since), with the reason. */
+  const giveBack = (words: string, sent: PendingShot[], reason: unknown) => {
+    setText((current) => {
+      if (!words) return current
+      const joined = current.trim() ? `${words}\n${current}` : words
+      return joined.length <= SUPPORT_MESSAGE_MAX ? joined : current
+    })
+    const back = sent.slice(0, Math.max(0, SUPPORT_IMAGE_LIMITS.files - taken.current))
+    if (back.length) {
+      taken.current += back.length
+      setShots((current) => [...back, ...current])
     }
+    setError(uiText(cleanIpcError(reason)))
+  }
+  const submit = () => {
+    if (empty || preparing) return
+    // The keyboard stays: the focus never left the box, and it comes back in the same tap.
+    input.current?.focus()
+    setError('')
+    setPicker(null)
+    if (edited) {
+      // What was in the box before comes back when the edit ends.
+      void onEdit!(edited.message, text)
+      return
+    }
+    const words = text
+    const sent = shots
+    setText('')
+    setShots([])
+    taken.current = 0
+    onCancelReply?.()
+    onSend(words, sent.map((shot) => ({ data: shot.data })), extra()).catch((reason: unknown) => giveBack(words, sent, reason))
   }
   /** A sticker goes at once, as a message of its own; the words and screenshots in the box stay for the next one. */
-  const sendSticker = async (id: string) => {
-    if (sending) return
-    setSending(true)
+  const sendSticker = (id: string) => {
     setError('')
-    try {
-      await onSend('', [], { ...extra(), sticker: id })
-      setPicker(null)
-      onCancelReply?.()
-    } catch (reason) {
-      setError(uiText(cleanIpcError(reason)))
-    } finally {
-      setSending(false)
-    }
+    setPicker(null)
+    onCancelReply?.()
+    onSend('', [], { ...extra(), sticker: id }).catch((reason: unknown) => setError(uiText(cleanIpcError(reason))))
   }
   /** Puts an emoji in at the cursor (in place of what is selected), within the 2000 characters. */
   const insert = (emoji: string) => {
@@ -673,13 +727,20 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
   const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
     event.preventDefault()
-    void submit()
+    submit()
   }
   const togglePicker = (kind: 'emoji' | 'sticker') => setPicker((current) => (current === kind ? null : kind))
   return (
-    <form ref={form} className="support-chat-compose" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+    <form ref={form} className={`support-chat-compose${edited ? ' is-editing' : ''}`} onSubmit={(event) => { event.preventDefault(); submit() }}>
       {error && <div className="support-chat-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
-      {replyTo && <div className="support-chat-replying" role="group" aria-label={uiText('Ответ на сообщение')}>
+      {edited ? <div className="support-chat-replying is-editing" role="group" aria-label={uiText('Редактирование')}>
+        <Pencil size={15} aria-hidden="true" />
+        <div className="support-chat-quote">
+          <strong>{uiText('Редактирование')}</strong>
+          <span>{quoteBody(replyQuoteOf(edited.message), locale)}</span>
+        </div>
+        <button type="button" className="icon-button" onClick={cancelEdit} aria-label={uiText('Отменить редактирование')} title={uiText('Отменить редактирование')}><X size={14} /></button>
+      </div> : replyTo && <div className="support-chat-replying" role="group" aria-label={uiText('Ответ на сообщение')}>
         <Reply size={15} aria-hidden="true" />
         <div className="support-chat-quote">
           <strong>{replyTo.name}</strong>
@@ -687,20 +748,20 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
         </div>
         <button type="button" className="icon-button" onClick={cancelReply} aria-label={uiText('Отменить ответ')} title={uiText('Отменить ответ')}><X size={14} /></button>
       </div>}
-      {(shots.length > 0 || preparing > 0) && <ul className="support-chat-shots" aria-label={uiText('Скриншоты к сообщению')}>
+      {!edited && (shots.length > 0 || preparing > 0) && <ul className="support-chat-shots" aria-label={uiText('Скриншоты к сообщению')}>
         {shots.map((shot) => <li key={shot.key}>
           <img src={shot.preview} alt={shot.name} />
-          <button type="button" disabled={sending} onClick={() => remove(shot.key)} aria-label={`${uiText('Убрать скриншот')} ${shot.name}`} title={uiText('Убрать скриншот')}><X size={13} /></button>
+          <button type="button" onClick={() => remove(shot.key)} aria-label={`${uiText('Убрать скриншот')} ${shot.name}`} title={uiText('Убрать скриншот')}><X size={13} /></button>
         </li>)}
         {preparing > 0 && <li className="is-preparing" role="status" aria-label={uiText('Готовим скриншот…')}><LoaderCircle className="spin" size={16} /></li>}
       </ul>}
       {picker === 'emoji' && <div className="support-chat-picker is-emoji" role="group" aria-label={uiText('Смайлики')}>
         {SUPPORT_EMOJI.map((emoji) => <button key={emoji} type="button" aria-label={emoji} onClick={() => insert(emoji)}>{emoji}</button>)}
       </div>}
-      {picker === 'sticker' && <StickerPicker locale={locale} disabled={sending} onPick={(id) => void sendSticker(id)} />}
+      {picker === 'sticker' && !edited && <StickerPicker locale={locale} disabled={false} onPick={sendSticker} />}
       <div className="support-chat-compose-row">
         {allowImages && <>
-          <button type="button" className="button ghost support-chat-attach" disabled={sending || full} onClick={() => fileInput.current?.click()}
+          <button type="button" className="button ghost support-chat-attach" disabled={full || Boolean(edited)} onClick={() => fileInput.current?.click()}
             aria-label={uiText('Прикрепить скриншот')} title={uiText('Прикрепить скриншот: до 4 изображений PNG, JPEG или WEBP, каждое до 5 МБ. Можно вставить из буфера (Ctrl+V) или перетащить в окно.')}>
             <Paperclip size={17} />
           </button>
@@ -710,27 +771,26 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
           onClick={() => togglePicker('emoji')} aria-label={uiText('Смайлики')} title={uiText('Смайлики')}>
           <Smile size={17} />
         </button>}
-        {allowStickers && <button type="button" className={`button ghost support-chat-attach support-chat-tool${picker === 'sticker' ? ' is-active' : ''}`} aria-expanded={picker === 'sticker'}
+        {allowStickers && <button type="button" className={`button ghost support-chat-attach support-chat-tool${picker === 'sticker' ? ' is-active' : ''}`} aria-expanded={picker === 'sticker'} disabled={Boolean(edited)}
           onClick={() => togglePicker('sticker')} aria-label={uiText('Стикеры')} title={uiText('Стикеры')}>
           <Sticker size={17} />
         </button>}
-        {/* Read-only, not disabled, while sending: the cursor stays in the box for the next message. */}
         <textarea
           ref={input}
           className="input support-chat-input"
           value={text}
           rows={2}
           maxLength={SUPPORT_MESSAGE_MAX}
-          readOnly={sending}
           autoFocus={autoFocus}
-          enterKeyHint="send"
+          enterKeyHint={edited ? 'done' : 'send'}
           placeholder={uiText(placeholder)}
           aria-label={uiText('Сообщение')}
           onChange={(event) => { setText(event.target.value); if (error) setError('') }}
           onKeyDown={onKeyDown}
         />
-        <button type="submit" className="button primary" disabled={empty || sending || preparing > 0}>
-          {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}<span>{uiText(sending ? 'Отправляем…' : 'Отправить')}</span>
+        {/* A press here never takes the focus from the box: the phone's keyboard stays open for the next message. */}
+        <button type="submit" className="button primary" disabled={empty || preparing > 0} onMouseDown={(event) => event.preventDefault()}>
+          {edited ? <Check size={15} /> : <Send size={15} />}<span>{uiText(edited ? 'Сохранить' : 'Отправить')}</span>
         </button>
       </div>
       <div className="support-chat-foot">
