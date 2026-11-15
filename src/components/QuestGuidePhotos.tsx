@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import type { Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
@@ -129,93 +128,63 @@ export function QuestGuidePhotoStrip({ questId, focusObjectiveId, objectives }: 
   </div>
 }
 
-/** The way from a line to its window crosses a gap and other lines: the window waits this long for the mouse. */
-const POPUP_LEAVE_MS = 350
-/** Another line takes the window only when the mouse stays on it this long: on the way up to a photo it just crosses them. */
-const POPUP_SWITCH_MS = 180
-/** After the full-size view the mouse is somewhere else: a moment to come back or go on to the next line. */
-const POPUP_AFTER_VIEW_MS = 1500
-const POPUP_GAP = 8
-const POPUP_MARGIN = 8
-/** A finger has no hover: on a phone the line's camera opens the photos at once. */
-const canHover = () => typeof window.matchMedia !== 'function' || window.matchMedia('(hover: hover) and (pointer: fine)').matches
-/** Where the window goes: over the whole quest window, so that it covers none of the lines, from the line's left edge. */
-function popupAnchor(line: Element) {
-  const lineBox = line.getBoundingClientRect()
-  const sheet = line.closest('.map-quest-sheet')?.getBoundingClientRect() ?? lineBox
-  return { left: lineBox.left, top: sheet.top, bottom: sheet.bottom }
-}
-type PopupAnchor = ReturnType<typeof popupAnchor>
-
 /**
- * Every place of a quest has its own photos in the map's quest window (owner, 04.11.2026, «Что-то мне это напоминает…», 27
- * places and 40 photos: «при наведении курсора мыши на какую-либо из точек появлялись всплывающее окно с фотографиями, и
- * можно было переместить курсор мыши на одну из фотографий, нажать, и она увеличится. Повторное нажатие выключает
- * фотографию … их можно листать … можно перенести мышку дальше на следующую цель»): the line's window shows only that
- * place's photos, stays while the mouse is on the line or on it, and the full-size view goes through those photos only.
- * The map keys the list by the quest, so another quest starts with nothing open.
+ * Every place of a quest has its own photos in the map's quest window (owner, 04.11.2026, «Что-то мне это напоминает…»): the
+ * line's camera opens that place's photos full size, and the arrows go through those photos only. A line no longer shows
+ * them on hover: the photo shows over the place's point on the map (MarkerPlacePhoto; report 167, owner, 15.11.2026: «при
+ * наведении на цель… фотографии не появляется, она будет появляться при наведении на метку, которая на карте»).
  */
 export function useObjectivePhotos(questId: string | undefined) {
   const found = useQuestGuide(questId ?? '')
-  const [shown, setShown] = useState<{ key: string; photos: GuidePhoto[]; anchor: PopupAnchor } | null>(null)
   const [viewing, setViewing] = useState<{ photos: GuidePhoto[]; index: number } | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const switching = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const hold = useCallback(() => { clearTimeout(timer.current); clearTimeout(switching.current) }, [])
-  const leave = useCallback((ms = POPUP_LEAVE_MS) => {
-    hold()
-    timer.current = setTimeout(() => setShown(null), ms)
-  }, [hold])
-  useEffect(() => hold, [hold])
   const photosOf = (objective: ObjectiveKeys) => (found ? found.guide.photos.filter((photo) => photoOfObjective(photo, objective)) : [])
-  const rowProps = (key: string, photos: GuidePhoto[]) => (photos.length ? {
-    onMouseEnter: (event: { currentTarget: Element }) => {
-      if (!canHover()) return
-      hold()
-      if (shown?.key === key) return
-      const next = { key, photos, anchor: popupAnchor(event.currentTarget) }
-      if (shown) switching.current = setTimeout(() => setShown(next), POPUP_SWITCH_MS)
-      else setShown(next)
-    },
-    // While a photo is open its overlay takes the mouse: that is not leaving.
-    onMouseLeave: () => { if (!viewing) leave() },
-  } : {})
-  const data = found?.data
-  const closeView = () => { setViewing(null); if (shown) leave(POPUP_AFTER_VIEW_MS) }
-  const overlay = data && <>
-    {shown && <ObjectivePhotoPopup key={shown.key} data={data} photos={shown.photos} anchor={shown.anchor} onEnter={hold} onLeave={() => { if (!viewing) leave() }} onOpen={(index) => { hold(); setViewing({ photos: shown.photos, index }) }} />}
-    {viewing && <ImageViewer images={viewing.photos.map((photo) => pictureUrl(data, photo.id, false))} index={viewing.index} onIndex={(index) => setViewing({ ...viewing, index })} onClose={closeView} closeOnClick />}
-  </>
-  return { photosOf, rowProps, view: (photos: GuidePhoto[]) => { hold(); setViewing({ photos, index: 0 }) }, overlay }
+  const data = found?.data
+  const overlay = data && viewing && <ImageViewer images={viewing.photos.map((photo) => pictureUrl(data, photo.id, false))} index={viewing.index} onIndex={(index) => setViewing({ ...viewing, index })} onClose={() => setViewing(null)} closeOnClick />
+  return { photosOf, view: (photos: GuidePhoto[]) => setViewing({ photos, index: 0 }), overlay }
 }
 
-function ObjectivePhotoPopup({ data, photos, anchor, onEnter, onLeave, onOpen }: { data: GuideData; photos: GuidePhoto[]; anchor: PopupAnchor; onEnter: () => void; onLeave: () => void; onOpen: (index: number) => void }) {
+/** The map asks for the list as it opens, so that the first point the mouse comes to already has its photo. */
+export const preloadQuestGuidePhotos = () => { void loadGuides().catch(() => {}) }
+
+/** The full-size view of a point's photos: it lives on the map, not in the point's card, which closes as the mouse leaves. */
+export function usePlacePhotoViewer() {
+  const [viewing, setViewing] = useState<{ urls: string[]; index: number } | null>(null)
+  const overlay = viewing && <ImageViewer images={viewing.urls} index={viewing.index} onIndex={(index) => setViewing({ ...viewing, index })} onClose={() => setViewing(null)} closeOnClick />
+  return { open: (urls: string[], index: number) => setViewing({ urls, index }), overlay }
+}
+
+/**
+ * The place's photo in its point's card on the map, small (report 167: «сделайте над меткой фотку и поменьше, фото слишком
+ * большое, перегораживает всю карту»; owner, 15.11.2026: «навёл курсор на метку, появилось окошечко с фотографией места»).
+ * The mouse goes on to it (maps/holdTooltip.ts) and a click opens this place's photos full size, only them, not the whole
+ * quest's («если у конкретной точки своё место, свои фотографии, значит, должны быть только они»); «+N» opens the next one.
+ * The card sits inside Leaflet's map: the clicks are taken here, before the map would start a drag or close the quest.
+ */
+export function MarkerPlacePhoto({ questId, objectiveId, onOpen }: { questId: string; objectiveId: string; onOpen: (urls: string[], index: number) => void }) {
+  const found = useQuestGuide(questId)
   const { locale } = useLocale()
   const box = useRef<HTMLDivElement>(null)
-  const [place, setPlace] = useState<{ left: number; top: number } | null>(null)
-  // Above, as the owner marked it; under it when there is no room above.
-  useLayoutEffect(() => {
-    const size = box.current?.getBoundingClientRect()
-    if (!size) return
-    const above = anchor.top - size.height - POPUP_GAP
-    const top = above >= POPUP_MARGIN ? above : Math.min(anchor.bottom + POPUP_GAP, window.innerHeight - size.height - POPUP_MARGIN)
-    setPlace({ left: Math.max(POPUP_MARGIN, Math.min(anchor.left, window.innerWidth - size.width - POPUP_MARGIN)), top: Math.max(POPUP_MARGIN, top) })
-  }, [anchor, photos])
-  const captionOf = (photo: GuidePhoto) => (locale === 'en' ? photo.captionEn ?? photo.caption : photo.caption)
-  const [first, second] = photos
-  const more = photos.length - 1
-  const caption = captionOf(first)
-  // One photo large, as the documents' card has it; the rest behind one small tile with how many there are (owner, 15.11.2026).
-  return createPortal(<div ref={box} className={`objective-photo-popup${more ? ' has-more' : ''}`} data-testid="objective-photo-popup" style={place ? place : { left: 0, top: 0, visibility: 'hidden' }} onMouseEnter={onEnter} onMouseLeave={onLeave}>
-    <div className="objective-photo-grid" role="list">
-      <button type="button" role="listitem" className="objective-photo is-main" onClick={() => onOpen(0)} title={caption || uiText('Фото места')}>
-        <img src={pictureUrl(data, first.id, true)} alt={caption || uiText('Фото места')} decoding="async" />
-        {caption && <span>{caption}</span>}
-      </button>
-      {second && <button type="button" role="listitem" className="objective-photo is-more" onClick={() => onOpen(1)} title={`${uiText('Ещё фото')}: ${more}`}>
-        <img src={pictureUrl(data, second.id, true)} alt="" decoding="async" />
-        <b aria-hidden="true">+{more}</b>
-      </button>}
-    </div>
-  </div>, document.body)
+  const photos = found ? found.guide.photos.filter((photo) => photoOfObjective(photo, { id: objectiveId })) : []
+  // One key for the effect: the list of this place's full-size pictures.
+  const urls = found ? photos.map((photo) => pictureUrl(found.data, photo.id, false)).join(' ') : ''
+  useEffect(() => {
+    const element = box.current
+    if (!element || !urls) return
+    const stop = (event: Event) => event.stopPropagation()
+    const click = (event: MouseEvent) => {
+      event.stopPropagation()
+      onOpen(urls.split(' '),(event.target as Element).closest('[data-more]') ? 1 : 0)
+    }
+    const kinds = ['mousedown', 'pointerdown', 'dblclick', 'wheel', 'contextmenu'] as const
+    kinds.forEach((kind) => element.addEventListener(kind, stop))
+    element.addEventListener('click', click)
+    return () => { kinds.forEach((kind) => element.removeEventListener(kind, stop)); element.removeEventListener('click', click) }
+  }, [urls, onOpen])
+  const [first] = photos
+  if (!found || !first) return null
+  const caption = (locale === 'en' ? first.captionEn ?? first.caption : first.caption) || uiText('Фото места')
+  return <div ref={box} className="mmt-place-photo" data-testid="marker-place-photo" role="button" tabIndex={-1} title={caption}>
+    <img className="mmt-shot" src={pictureUrl(found.data, first.id, true)} alt={caption} decoding="async" />
+    {photos.length > 1 && <b data-more="">+{photos.length - 1}</b>}
+  </div>
 }
