@@ -1,5 +1,5 @@
 import { HALLOWEEN, isHalloween } from './halloween'
-import { withThemeTransition } from './themeTransition'
+import { prepareTheme, prepareThemeWhenIdle, withThemeTransition, type ThemeOrigin } from './themeTransition'
 import { startDayNight, stopDayNight } from './dayNight'
 
 export interface ThemeOption { id: string; label: string; swatch: [string, string, string] }
@@ -91,23 +91,34 @@ export function applyAppearance(theme = currentTheme()) {
   else stopDayNight()
 }
 
-/** `picked: false` — the choice came from the account (another device), not from this screen: saved, not forced on. */
-export function saveAppearance(theme: string, { picked = true } = {}) {
+/**
+ * `picked: false` — the choice came from the account (another device), not from this screen: saved, not forced on.
+ * `origin` — the pressed button: the new scheme opens as a circle from its centre (theme/themeTransition.ts).
+ */
+export function saveAppearance(theme: string, { picked = true, origin }: { picked?: boolean; origin?: ThemeOrigin } = {}) {
   try {
     localStorage.setItem(THEME_KEY, theme)
     if (picked) localStorage.setItem(THEME_PICKED_AT_KEY, new Date().toISOString())
   } catch { /* storage unavailable */ }
   if (picked) pickedNow = theme
   // A scheme the player picks changes in one motion (theme/themeTransition.ts); one from the account just changes.
-  if (picked) withThemeTransition(() => applyAppearance())
-  else applyAppearance()
+  if (picked) {
+    withThemeTransition(() => applyAppearance(), { origin, prepared: prepareTheme(theme) })
+    // The player may press again: the scheme after this one gets its pictures ready meanwhile.
+    prepareThemeWhenIdle(() => nextTheme().id, 900)
+  } else applyAppearance()
 }
 
-/** Next theme in the list, for the top-bar button that cycles through them. */
-export function cycleTheme() {
+/** The scheme the top-bar button puts on next. */
+export function nextTheme() {
   const index = THEMES.findIndex((theme) => theme.id === currentTheme())
-  const next = THEMES[(index + 1) % THEMES.length]!
-  saveAppearance(next.id)
+  return THEMES[(index + 1) % THEMES.length]!
+}
+
+/** Next theme in the list, for the top-bar button that cycles through them; `origin`: that button. */
+export function cycleTheme(origin?: ThemeOrigin) {
+  const next = nextTheme()
+  saveAppearance(next.id, { origin })
   window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
   return next
 }

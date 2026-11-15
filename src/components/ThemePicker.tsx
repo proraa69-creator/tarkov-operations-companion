@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, Palette } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, currentTheme, saveAppearance } from '../theme/theme'
+import { prepareTheme, type ThemeOrigin } from '../theme/themeTransition'
 import '../styles/themePicker.css'
 import { StitchChooser } from '../theme/alcantara/StitchChooser'
 import { SettingHelp } from './SettingHelp'
@@ -28,8 +29,8 @@ export function ThemePicker() {
 
   const shownLabel = shown === DAY_NIGHT_THEME.id ? DAY_NIGHT_THEME.label : THEMES.find((theme) => theme.id === shown)?.label ?? ''
 
-  const pick = (id: string) => {
-    saveAppearance(id)
+  const pick = (id: string, origin?: ThemeOrigin) => {
+    saveAppearance(id, { origin })
     setShown(id)
     window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
   }
@@ -59,7 +60,7 @@ export function ThemePicker() {
               const active = shown === option.id
               const url = previewOf(option.id)
               return (
-                <button key={option.id} type="button" role="radio" aria-checked={active} className={`theme-card${active ? ' is-active' : ''}`} onClick={() => pick(option.id)} title={uiText(option.label)}>
+                <button key={option.id} type="button" role="radio" aria-checked={active} className={`theme-card${active ? ' is-active' : ''}`} onPointerEnter={() => prepareTheme(option.id)} onFocus={() => prepareTheme(option.id)} onClick={(event) => pick(option.id, event.currentTarget)} title={uiText(option.label)}>
                   <span className="theme-card-shot">
                     {url
                       ? <img src={url} alt="" width={200} height={120} loading="lazy" draggable={false} />

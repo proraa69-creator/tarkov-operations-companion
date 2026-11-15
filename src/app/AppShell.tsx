@@ -38,7 +38,8 @@ import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLo
 import type { RaidMode } from '../domain/types'
 import { legacyObjectiveIds, withCurrentObjectiveIds, type LegacyObjectiveIds } from '../progression/objectiveProgress'
 import { useLocale } from '../i18n/LocaleProvider'
-import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, cycleTheme, currentTheme } from '../theme/theme'
+import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, cycleTheme, currentTheme, nextTheme } from '../theme/theme'
+import { prepareTheme, prepareThemeWhenIdle } from '../theme/themeTransition'
 import { useThemeSchemeMenu } from '../theme/ThemeSchemeMenu'
 import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
@@ -520,10 +521,13 @@ function ThemeButton() {
     window.addEventListener(THEME_CHANGED_EVENT, sync)
     return () => window.removeEventListener(THEME_CHANGED_EVENT, sync)
   }, [])
+  // The next scheme's pictures are decoded before the press (theme/themeTransition.ts): the circle starts at once.
+  useEffect(() => { prepareThemeWhenIdle(() => nextTheme().id, 4000) }, [])
   const label = theme === DAY_NIGHT_THEME.id ? DAY_NIGHT_THEME.label : THEMES.find((entry) => entry.id === theme)?.label ?? ''
   const menu = useThemeSchemeMenu(theme, setTheme)
+  const prepareNext = () => { prepareTheme(nextTheme().id) }
   return <>
-    <button className="icon-button theme-cycle" onClick={() => setTheme(cycleTheme().id)} onContextMenu={menu.onContextMenu} title={`${uiText('Цветовая схема')}: ${uiText(label)}`} aria-label={uiText('Сменить цветовую схему')}>
+    <button className="icon-button theme-cycle" onClick={(event) => setTheme(cycleTheme(event.currentTarget).id)} onPointerEnter={prepareNext} onPointerDown={prepareNext} onFocus={prepareNext} onContextMenu={menu.onContextMenu} title={`${uiText('Цветовая схема')}: ${uiText(label)}`} aria-label={uiText('Сменить цветовую схему')}>
       <Palette size={16} />
     </button>
     {menu.overlay}
