@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -271,8 +271,61 @@ describe('mobile admin dashboard', () => {
     unmount()
     mocks.overview.mockResolvedValue({ ...(await mocks.overview()), repeatPayers: 4 })
     render(<AdminMobilePage />)
-    expect(await screen.findByText('оплат: 12 · оплатили повторно: 4')).toBeInTheDocument()
+    expect(await screen.findByText('оплатили повторно: 4')).toBeInTheDocument()
     expect(screen.getAllByText(/оплатили повторно/)).toHaveLength(1)
+  })
+
+  it('«Платные подписки» with the repeat ones, «Пробный период» dead / real, «повторных» in the revenue (owner, 15.11.2026)', async () => {
+    const base = await mocks.overview()
+    mocks.overview.mockResolvedValue({
+      ...base, subscriptions: { ...base.subscriptions, activeRepeat: 2, trials: 5, trialsDead: 3, trialsAlive: 2 },
+      revenue: { ...base.revenue, today: { ...base.revenue.today, repeat: 1 }, month: { ...base.revenue.month, repeat: 1 }, all: { ...base.revenue.all, repeat: 6 } },
+    })
+    render(<AdminMobilePage />)
+    expect(await screen.findByText('из них повторных: 2')).toBeInTheDocument()
+    expect(screen.getByText('мёртвых 3 · реальных 2')).toBeInTheDocument()
+    expect(screen.getByText('оплат: 1 · повторных: 1')).toBeInTheDocument()
+    expect(screen.getByText('оплат: 12 · повторных: 6')).toBeInTheDocument()
+  })
+
+  it('a long press on the calendar picks the first and the second day; the period summary; the cross drops it (owner, 15.11.2026)', async () => {
+    const month = ownerDay(Date.now()).slice(0, 7)
+    mocks.rangeStats.mockImplementation(async (from: string, to: string) => ({
+      range: { from, to, timezone: 'Asia/Bangkok' }, users: { total: 12, new: from === to ? 11 : 6 },
+      subscriptions: { activePaid: 7, activePaidRepeat: 2, trials: 5, trialsDead: 3, trialsAlive: 2 },
+      payers: { everPaid: 9, paidInRange: 3, newInRange: 2, repeatPaid: 4, repeatInRange: 1 },
+      revenue: { total: 2700, payments: 3, repeatPayments: 1, byPlan: { '1m': { count: 3, amount: 2700 } }, refunds: { count: 0, amount: 0 } },
+      trialConversion: { trialStarted: 4, laterPaid: 1, rate: 0.25, dead: 3, alive: 1 },
+    }))
+    render(<AdminMobilePage />)
+    const hold = async (day: number) => {
+      const cell = await screen.findByRole('gridcell', { name: new RegExp(`^${day} число`) })
+      vi.useFakeTimers()
+      fireEvent.touchStart(cell)
+      act(() => { vi.advanceTimersByTime(600) })
+      fireEvent.touchEnd(cell)
+      fireEvent.click(cell)
+      vi.useRealTimers()
+      return cell
+    }
+    const fifth = await hold(5)
+    expect(fifth).toHaveClass('is-picked')
+    expect(screen.getByText('Долгое нажатие — второй день')).toBeInTheDocument()
+    await hold(2)
+    expect(mocks.day).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.rangeStats).toHaveBeenCalledWith(`${month}-02`, `${month}-05`))
+    const summary = await screen.findByRole('region', { name: /^Сводка за период/ })
+    expect(await within(summary).findByText('оплат: 3 · повторных: 1')).toBeInTheDocument()
+    expect(within(summary).getByText('впервые 2 · повторно 1')).toBeInTheDocument()
+    expect(within(summary).getByText('мёртвых 3 · реальных 1 · оплатили 1')).toBeInTheDocument()
+    expect(screen.getByRole('gridcell', { name: /^3 число/ })).toHaveClass('is-picked-inside')
+    fireEvent.click(within(summary).getByRole('button', { name: 'Снять выбор' }))
+    expect(screen.queryByRole('region', { name: /^Сводка за период/ })).toBeNull()
+    expect(document.querySelector('.admin-calendar-cell.is-picked')).toBeNull()
+    // A short tap still opens the day.
+    mocks.day.mockReturnValue(new Promise(() => {}))
+    fireEvent.click(screen.getByRole('gridcell', { name: /^2 число/ }))
+    await waitFor(() => expect(mocks.day).toHaveBeenCalledWith(`${month}-02`))
   })
 
   it('the calendar of registrations and payments goes month by month and opens a day (owner, 03.11.2026)', async () => {

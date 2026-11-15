@@ -1,7 +1,8 @@
-import { createReadStream, readFileSync } from 'node:fs'
+import { createReadStream, readdirSync, readFileSync } from 'node:fs'
 import { configDefaults, defineConfig } from 'vitest/config'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { scopeSiteCss } from './src/shared/scopeSiteCss.ts'
 
 /**
  * The OCR engine of «Синхронизация по фото» (src/stashPhoto/browser.ts) served from the app itself under ocr/, never
@@ -60,6 +61,34 @@ function appStoreStubs(): Plugin {
 }
 
 /**
+ * The site's admin tabs inside the PC owner app («Админ панель» → «Сводка», src/admin/SiteAdminSummary.tsx; owner,
+ * 15.11.2026: «точная копия сайта»): the website's stylesheets they bring apply only inside `.site-admin` (and the day
+ * window it opens on the page, `.site-admin-layer`), never to the app around them. Their @keyframes stay outside the
+ * scope (CSS allows none inside) under a `site-` name, so they never replace the app's own. The website's build is not
+ * touched: this is the app's config only.
+ */
+const SITE_CSS = /[\\/]website[\\/]src[\\/][^?]*\.css(?:\?.*)?$/
+
+function scopedSiteCss(): Plugin {
+  // Every @keyframes name of the website's sheets: one sheet may run another's (the spinner of styles.css).
+  const names = new Set<string>()
+  const walk = (dir: URL) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) walk(new URL(`${entry.name}/`, dir))
+      else if (entry.name.endsWith('.css')) for (const match of readFileSync(new URL(entry.name, dir), 'utf8').matchAll(/@keyframes\s+([\w-]+)/g)) names.add(match[1]!)
+    }
+  }
+  walk(new URL('website/src/', import.meta.url))
+  return {
+    name: 'raidos-scoped-site-css',
+    enforce: 'pre',
+    transform(code, id) {
+      return SITE_CSS.test(id) ? { code: scopeSiteCss(code, [...names]), map: null } : null
+    },
+  }
+}
+
+/**
  * The start intro stands in index.html itself, so it is on screen before the app's code is read (src/startup/startupIntro.ts).
  * Written in after Vite's own HTML steps: nothing of it is bundled, rewritten or fetched.
  */
@@ -78,7 +107,7 @@ function startupIntro(): Plugin {
 
 export default defineConfig({
   base: './',
-  plugins: [appStoreStubs(), react(), ocrAssets(), startupIntro()],
+  plugins: [appStoreStubs(), scopedSiteCss(), react(), ocrAssets(), startupIntro()],
   build: {
     // Release renderer (docs/subscription-protection.md): no source maps next to the bundle, no console output or
     // `debugger` statements left in it.

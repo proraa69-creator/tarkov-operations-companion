@@ -44,10 +44,13 @@ function subscriptionText(user: AdminUser) {
   return { label: sub.paidUntil ? `истекла ${dateOnly.format(new Date(sub.paidUntil))}` : 'нет', tone: '' }
 }
 
-/** «Пользователи»: search by e-mail, filters, and per-user actions (each one is written to the owner's log). */
-export function AdminUsers() {
+/**
+ * «Пользователи»: search by e-mail, filters, and per-user actions (each one is written to the owner's log). `query`: the
+ * search to open with (the PC owner app's «Сводка», whose address is not the site's).
+ */
+export function AdminUsers({ query }: { query?: string } = {}) {
   // A link from «Платежи» or «Награды за друзей» (/admin?tab=users&q=e-mail) opens the list on that account.
-  const [initial] = useState(() => (typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('q')?.trim().slice(0, 254) ?? ''))
+  const [initial] = useState(() => (query ?? (typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('q') ?? '')).trim().slice(0, 254))
   const [search, setSearch] = useState(initial)
   const [q, setQ] = useState(initial)
   const [filter, setFilter] = useState<AdminUserFilter>('all')

@@ -1,6 +1,6 @@
-import { useMemo, type ReactNode } from 'react'
+import { lazy, Suspense, useMemo, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { BellRing, ClipboardList, FileText, LayoutGrid, Megaphone, Newspaper, Power, ShieldCheck, Target } from 'lucide-react'
+import { BellRing, ClipboardList, FileText, LayoutDashboard, LayoutGrid, Megaphone, Newspaper, Power, ShieldCheck, Target } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
 import { OwnerNoticeTools } from '../notices/OwnerNoticeTools'
@@ -14,11 +14,17 @@ import { History as HistoryIcon } from 'lucide-react'
 import { ownerRequest, useOwnerAccess } from '../admin/ownerAccess'
 import { OwnerReportsTable } from './RequestsPage'
 import type { AdminRequest } from '../admin/ownerAccess'
+import { useServerStatus } from '../sync/serverSync'
 import '../admin/adminPanel.css'
 
-export type AdminSectionId = 'reports' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'news' | 'history'
+/** «Сводка»: the site's admin tabs with the site's sheets, loaded only when opened (src/admin/SiteAdminSummary.tsx). */
+const SiteAdminSummary = lazy(() => import('../admin/SiteAdminSummary').then((module) => ({ default: module.SiteAdminSummary })))
+
+export type AdminSectionId = 'summary' | 'reports' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'news' | 'history'
 
 const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: string; icon: typeof Megaphone }> = [
+  // «Сводка» (owner, 15.11.2026): as on the site — сводка, платежи, пользователи, привлечение друзей, стримеры.
+  { id: 'summary', label: 'Сводка', hint: 'Как на сайте', icon: LayoutDashboard },
   { id: 'notices', label: 'Объявления', hint: 'Всем или по регионам', icon: BellRing },
   { id: 'surveys', label: 'Опросы', hint: 'Создать, результаты', icon: ClipboardList },
   { id: 'banner', label: 'Баннер', hint: 'Сверху у всех игроков', icon: Megaphone },
@@ -51,7 +57,7 @@ export function AdminPanelPage() {
   const access = useOwnerAccess()
   const [params, setParams] = useSearchParams()
   const tab = params.get('tab')
-  const section: AdminSectionId = isSection(tab) ? tab : 'notices'
+  const section: AdminSectionId = isSection(tab) ? tab : 'summary'
   const request = useMemo(() => ownerRequest(), [])
   const choose = (id: AdminSectionId) => setParams({ tab: id }, { replace: true })
 
@@ -93,7 +99,10 @@ export function AdminPanelPage() {
 
 function AdminSection({ id, request }: { id: AdminSectionId; request: AdminRequest }) {
   const navigate = useNavigate()
+  const email = useServerStatus()?.email ?? ''
   switch (id) {
+    case 'summary':
+      return <Suspense fallback={null}><SiteAdminSummary request={request} email={email} /></Suspense>
     case 'reports':
       return (
         <section className="panel admin-section" aria-labelledby="admin-reports-title">
