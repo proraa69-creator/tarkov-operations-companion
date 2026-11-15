@@ -343,6 +343,7 @@ function keyPictureIcon(url: string, focused: boolean, badge: string, locked = f
  * hazards). Exits, quests, bosses, switches and the stationary weapons stay DOM icons (few, with names and states).
  */
 const NO_IDS: ReadonlySet<string> = new Set()
+const NO_MARKERS: readonly MapMarker[] = []
 /** The items a locked door can keep: loot, containers, documents, keys (report №114). */
 const LOCK_BADGE_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['loot.guaranteed', 'loot.valuable', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container', 'loot.documents', 'loot.key', 'loot.weapon'])
 const CANVAS_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['loot.guaranteed', 'loot.valuable', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container', 'loot.documents', 'loot.key', 'key', 'spawn', 'spawn.pmc', 'spawn.scav', 'sniper', 'hazard', 'landmark'])
@@ -788,6 +789,48 @@ export function MapsPage() {
       && (isQuest || focused || pointMatchesSearch(marker, needle, itemNames))
   }), [plottedMarkers, floor, baseFloor, visibleQuestIds, needle, itemNames, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints, neededKeysOnly, neededKeys])
 
+  // «Точки на карте»: each layer's points on this map, counted once for all the rows (the list used to go through every
+  // point of the map once per row on every render: about 45 passes over up to 2 000 points per click).
+  const pointsByLayer = useMemo(() => {
+    const byLayer = new Map<MarkerLayerId, MapMarker[]>()
+    for (const marker of plottedMarkers) {
+      if (marker.questId && !visibleQuestIds.has(marker.questId)) continue
+      if (foundDocuments.has(marker.id)) continue
+      const layerId = markerLayerId(marker)
+      const list = byLayer.get(layerId)
+      if (list) list.push(marker)
+      else byLayer.set(layerId, [marker])
+    }
+    return byLayer
+  }, [plottedMarkers, visibleQuestIds, foundDocuments])
+  const neededKeySpots = useMemo(() => (pointsByLayer.get('loot.key') ?? []).filter((marker) => keysOfPoint(marker).some((id) => neededKeys.has(id))).length, [pointsByLayer, neededKeys])
+  /**
+   * A point's card goes with its point when the player turns its layer (or its kind of container) off in «Точки на карте»
+   * (owner, 15.11.2026: «ненужные ключи на карте исчезают, но маркер сам, где ты нажимаешь, он не гаснет»): before, the
+   * point left the map and its card stayed open over it. A quest's point is the quest's, not the layer's: it stays.
+   */
+  const closeCardOfHidden = (hiddenLayers: readonly string[], hiddenKinds: readonly string[], keysOnlyNeeded = neededKeysOnly) => {
+    if (!selectedMarker || selectedMarker.questId) return
+    const layerId = markerLayerId(selectedMarker)
+    const kept = layerId === 'loot.key' && keysOnlyNeeded && keysOfPoint(selectedMarker).some((id) => neededKeys.has(id))
+    const off = hiddenLayers.includes(layerId) || (layerId === 'loot.container' && hiddenKinds.includes(lootContainerKindOf(selectedMarker) ?? ''))
+    if (off && !kept) setSelectedMarker(null)
+  }
+  const toggleLayer = (layerId: MarkerLayerId) => {
+    const visible = !state.hiddenMarkerLayers.includes(layerId)
+    if (layerId === 'loot.container') state.setContainerKinds([], !visible)
+    else state.toggleMarkerLayer(layerId)
+    if (visible) closeCardOfHidden([...state.hiddenMarkerLayers, layerId], layerId === 'loot.container' ? [] : hiddenContainerKinds)
+  }
+  const setContainerKinds = (hidden: string[], layerVisible: boolean) => {
+    state.setContainerKinds(hidden, layerVisible)
+    closeCardOfHidden(layerVisible ? state.hiddenMarkerLayers.filter((id) => id !== 'loot.container') : [...state.hiddenMarkerLayers, 'loot.container'], hidden)
+  }
+  const toggleNeededKeys = () => {
+    setNeededKeysOnly(!neededKeysOnly)
+    if (neededKeysOnly) closeCardOfHidden(state.hiddenMarkerLayers, hiddenContainerKinds, false)
+  }
+
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
   const exitFan = useMemo(() => exitFanOut(mapMarkers.filter((marker) => marker.type === 'extract')), [mapMarkers])
   // Report №104: the many small points on one canvas; the one under the pointer becomes its DOM icon (tooltip, click, menu).
@@ -1185,23 +1228,22 @@ export function MapsPage() {
               {uiText(group.layers.map((layerId) => {
                 const meta = markerMeta[layerId]
                 const visible = !state.hiddenMarkerLayers.includes(layerId)
-                const onLayer = plottedMarkers.filter((marker) => markerLayerId(marker) === layerId && (!marker.questId || visibleQuestIds.has(marker.questId)) && !foundDocuments.has(marker.id))
+                const onLayer = pointsByLayer.get(layerId) ?? NO_MARKERS
                 if ((layerId === 'loot.key' || layerId === 'btr' || layerId === 'spawn.pmc' || layerId === 'spawn.scav' || layerId === 'sniper') && !onLayer.length) return null
                 return <Fragment key={layerId}>
-                  <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => layerId === 'loot.container' ? state.setContainerKinds([], !visible) : state.toggleMarkerLayer(layerId)}>
+                  <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => toggleLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}
                     {/* Owner, 09.11.2026: «у документов боевого пропуска нет картинки» — the first kind's own picture. */}
                     {layerId === 'loot.documents' ? <img className="layer-doc-picture" src={DOCUMENT_PICTURES.financial} alt="" width={18} height={18} /> : <LayerIcon style={markerStyle} layerId={layerId} />}
                     <span>{uiText(meta.label)}</span>
                     <small>{uiText(onLayer.length)}</small>
                   </button>
-                  {layerId === 'loot.container' && <LootContainerRows markers={onLayer} layerVisible={visible} hidden={hiddenContainerKinds} onChange={state.setContainerKinds} />}
+                  {layerId === 'loot.container' && <LootContainerRows markers={onLayer} layerVisible={visible} hidden={hiddenContainerKinds} onChange={setContainerKinds} />}
                   {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} />}
                 </Fragment>
               }))}
               {/* Owner, 08.11.2026: «добавь на точки на карте. И назови их места устранения… по нажатию они включаются и выключаются». */}
-              {group.title === 'Ключи' && <NeededKeysButton count={plottedMarkers.filter((marker) => markerLayerId(marker) === 'loot.key' && keysOfPoint(marker).some((id) => neededKeys.has(id))).length} on={neededKeysOnly}
-                onToggle={() => setNeededKeysOnly(!neededKeysOnly)} />}
+              {group.title === 'Ключи' && <NeededKeysButton count={neededKeySpots} on={neededKeysOnly} onToggle={toggleNeededKeys} />}
               {group.title === 'Задания' && killZoneList.length > 0 && <KillZonesLayerButton count={killZoneList.length} shown={killZonesShown} onToggle={() => setKillZonesShown(!killZonesShown)} />}
             </div>
           )))}
