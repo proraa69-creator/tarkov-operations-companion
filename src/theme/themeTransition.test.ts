@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { circleRadius, originPoint, pictureUrls, prepareTheme, themePictureUrls, withThemeTransition } from './themeTransition'
+import { circleRadius, originPoint, pictureUrls, prepareTheme, settle, SETTLE_MS, themePictureUrls, withThemeTransition } from './themeTransition'
 
 type Doc = { startViewTransition?: unknown }
 
@@ -28,7 +28,8 @@ describe('the circle of the colour scheme change', () => {
       const corners = [[0, 0], [1600, 0], [0, 950], [1600, 950]].map(([x, y]) => Math.hypot(x! - point.x, y! - point.y))
       const radius = circleRadius(point, screen)
       expect(radius).toBeGreaterThan(Math.max(...corners))
-      expect(radius).toBeLessThan(Math.max(...corners) * 1.06 + 5)
+      expect(radius).toBeGreaterThan(Math.max(...corners) * 1.05)
+      expect(radius).toBeLessThan(Math.max(...corners) * 1.07 + 9)
     }
   })
 
@@ -88,6 +89,52 @@ describe('the circle of the colour scheme change', () => {
     await vi.advanceTimersByTimeAsync(1000)
     expect(older).not.toHaveBeenCalled()
     expect(newer).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the new scheme is whole before the circle opens it (owner, 15.11.2026: «должна доходить до конца плавно»)', () => {
+  it('waits for the scheme\'s pictures and for the pictures its pieces added, not for those already on the page', async () => {
+    vi.useFakeTimers()
+    const old = document.createElement('img')
+    Object.defineProperty(old, 'complete', { value: false })
+    old.decode = () => new Promise<void>(() => {})
+    document.body.appendChild(old)
+    const before = new Set(Array.from(document.images))
+    let decoded!: () => void
+    const added = document.createElement('img')
+    Object.defineProperty(added, 'complete', { value: false })
+    added.decode = () => new Promise<void>((resolve) => { decoded = resolve })
+    document.body.appendChild(added)
+    let pictures!: () => void
+    const prepared = { done: false, promise: new Promise<void>((resolve) => { pictures = resolve }) }
+    let settled = false
+    void settle(prepared, before).then(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(10)
+    expect(settled).toBe(false)
+    pictures()
+    await vi.advanceTimersByTimeAsync(10)
+    expect(settled).toBe(false)
+    decoded()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settled).toBe(true)
+  })
+
+  it('never keeps the old picture longer than SETTLE_MS', async () => {
+    vi.useFakeTimers()
+    let settled = false
+    void settle({ done: false, promise: new Promise<void>(() => {}) }, new Set()).then(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(SETTLE_MS - 1)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(settled).toBe(true)
+  })
+
+  it('the circle\'s change runs the scheme change and then waits for it to settle', async () => {
+    const calls = stubTransition()
+    const apply = vi.fn()
+    withThemeTransition(apply, { origin: { x: 10, y: 10 }, prepared: { done: true, promise: Promise.resolve() } })
+    expect(calls).toHaveLength(1)
+    expect(apply).toHaveBeenCalledTimes(1)
   })
 })
 
