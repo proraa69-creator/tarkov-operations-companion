@@ -23,8 +23,8 @@
 
 /* Weapon index */
 .wb-index { display: flex; flex-direction: column; gap: 4px; max-height: min(640px, calc(100vh - var(--topbar) - 160px)); padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
-.wb-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin: 4px 0 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-0); }
-.wb-segment button { min-height: 26px; border: 0; border-radius: 5px; background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 750; cursor: pointer; }
+.wb-segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin: 4px 0 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-0); }
+.wb-segment button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 26px; border: 0; border-radius: 5px; background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 750; cursor: pointer; }
 .wb-segment button.is-active { background: var(--surf-2); color: var(--brass-strong); }
 .wb-index-group { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
 .wb-index-group h3 { display: flex; align-items: center; gap: 7px; margin: 4px 6px; color: var(--text); font-size: 11px; font-weight: 850; letter-spacing: .06em; }
@@ -260,10 +260,6 @@
 .wb-trader-auto { justify-self: end; padding: 0; border: 0; background: none; color: var(--text-dim); font-size: 10.5px; cursor: pointer; }
 button.wb-trader-auto { color: var(--brass); }
 @media (prefers-reduced-motion: reduce) { .wb-traders-panel { animation: none; } }
-/* «Барахолка доступна» and its «по уровню персонажа» on one line, in the same type (owner, 28.10.2026). */
-.wb-flea-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
-.wb-flea-auto { padding: 0; border: 0; background: none; font: inherit; font-size: 12px; line-height: inherit; color: var(--text-muted); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
-.wb-flea-auto:hover { color: var(--text); }
 /* «Выберите патрон»: a small flat note under the empty round cell (owner, 28.10.2026). */
 .wb-ammo-hint { display: block; width: 100%; margin-top: 4px; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--brass) 55%, var(--line)); border-radius: 6px; background: color-mix(in srgb, var(--brass) 14%, var(--panel)); color: var(--text); font: inherit; font-size: 11px; font-weight: 650; text-align: center; cursor: pointer; animation: wb-ammo-hint-in .25s var(--ease-out, ease-out) both; }
 @keyframes wb-ammo-hint-in { from { opacity: 0; transform: translateY(-3px); } }

@@ -909,7 +909,7 @@ export interface AppDataset {
     /** Upstream timestamp of the task data, ISO. */
     sourceUpdatedAt?: string
     /** The flea market of this mode (tarkov.dev `fleaMarket` of the items file): open or not, and its fee rates. */
-    fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number }
+    fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number; minPlayerLevel?: number }
     /**
      * Desktop app: the server's version of this catalog's content (its ETag, electron/serviceGateway.ts). The next
      * request sends it back and gets «not modified» while nothing changed (src/data/tarkovJsonClient.ts).

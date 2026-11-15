@@ -77,6 +77,13 @@ describe('trader loyalty estimate (EFT logs carry no loyalty)', () => {
     expect(unlockHint({ noFlea: false, offers: [flea] }, playerAccess([], 40, false))).toBeUndefined()
   })
 
+  // Owner, 15.11.2026: the character's level alone decides; the market's level is the mode's own when its data names one.
+  it('opens the flea at the level the data of the mode names', () => {
+    expect(playerAccess([], 16, true, undefined, 20)).toMatchObject({ flea: false, fleaOpensAt: 20 })
+    expect(playerAccess([], 20, true, undefined, 20)).toMatchObject({ flea: true, playerLevel: 20 })
+    expect(playerAccess([], 15, true)).toMatchObject({ flea: true, fleaOpensAt: 15 })
+  })
+
   it('takes the traders\' screen as proof of at least its level, not as an override (audit P18)', () => {
     // Read 3 on the screen: the estimate alone said 1.
     expect(traderLevelInfos([prapor], quests, () => undefined, 40, {}, { prapor: 3 }).map((info) => [info.level, info.min, info.screen])).toEqual([[3, 3, 3]])

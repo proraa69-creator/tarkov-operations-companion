@@ -18,7 +18,7 @@ import { TRADER_SCREEN_NAMES } from '../import/traderLoyalty'
 export const MAX_TRADER_LEVEL = 4
 /** The traders in the game's order (the strip of portraits at the trader screen). */
 export const TRADER_ORDER = ['prapor', 'therapist', 'fence', 'skier', 'peacekeeper', 'mechanic', 'ragman', 'jaeger', 'ref']
-/** Flea market from character level 15. */
+/** Flea market from character level 15, unless the mode's data names its own (tarkov.dev `fleaMarket.minPlayerLevel`). */
 export const FLEA_PLAYER_LEVEL = 15
 
 export interface TraderLevelInfo {
@@ -143,7 +143,10 @@ export function saveScreenTraderLevels(mode: RaidMode, character: string | undef
  * «Престиж +» or a nickname change (src/state/modeReset.ts): the mode's loyalty starts again — the traders' screen's
  * readings of every character of that mode and the player's own levels for it go; other modes keep theirs.
  */
-/** The player's own «Барахолка доступна» in «Сборка оружия», per mode (pages/WeaponBuildsPage.tsx). */
+/**
+ * The player's own «Барахолка доступна» of «Сборка оружия», per mode: no longer read (owner, 15.11.2026: the character's
+ * level alone decides), still cleared with the mode's levels so no old choice lingers.
+ */
 export const FLEA_CHOICE_KEY = 'raid-os-gun-flea-v3'
 
 export function clearTraderLevels(mode: RaidMode) {
@@ -198,13 +201,16 @@ export function traderLevelInfos(traders: Trader[], quests: Quest[], statusOf: (
     .sort((a, b) => order(a.key) - order(b.key))
 }
 
-/** What the player can buy under these levels in this mode (flea from character level 15, when the mode has a flea). */
-export function playerAccess(infos: TraderLevelInfo[], playerLevel: number, fleaEnabled: boolean, taskDone?: (taskId: string) => boolean): PurchaseAccess {
+/**
+ * What the player can buy under these levels in this mode: the flea from the market's level (`fleaLevel`, 15) when the mode
+ * has a flea, and each item there from its own level when that is higher (buildStats.ts offerAccess, `playerLevel`).
+ */
+export function playerAccess(infos: TraderLevelInfo[], playerLevel: number, fleaEnabled: boolean, taskDone?: (taskId: string) => boolean, fleaLevel = FLEA_PLAYER_LEVEL): PurchaseAccess {
   return {
     traderLevel: 1,
-    flea: fleaEnabled && playerLevel >= FLEA_PLAYER_LEVEL,
+    flea: fleaEnabled && playerLevel >= fleaLevel,
     playerLevel,
-    ...(fleaEnabled ? { fleaOpensAt: FLEA_PLAYER_LEVEL } : {}),
+    ...(fleaEnabled ? { fleaOpensAt: fleaLevel } : {}),
     traderLevels: Object.fromEntries(infos.map((info) => [info.key, info.level])),
     ...(taskDone ? { taskDone } : {}),
   }
