@@ -44,10 +44,10 @@ const renderPage = () => render(<LocaleProvider><ScreenTuningPage /></LocaleProv
 describe('«Настройка экрана»', () => {
   it('lists our presets, chooses one, turns it on in the game and picks the monitor', async () => {
     renderPage()
-    expect(await screen.findByText('Таможня ночь')).toBeInTheDocument()
+    expect(await screen.findByText('Пресет 1')).toBeInTheDocument()
     // what the presets use (owner, 08.11.2026)
     expect(screen.getByText(/цветовая таблица монитора — стандартная функция Windows — и «Цифровая интенсивность» NVIDIA. В игру не встраивается и никак с ней не взаимодействует/)).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Светло и мягко'))
+    fireEvent.click(screen.getByText('Пресет 3'))
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ activeId: 'builtin-owner-bright' }))
     fireEvent.click(screen.getByLabelText('Включить в игре'))
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ enabled: true }))
@@ -101,9 +101,9 @@ describe('«Настройка экрана»', () => {
 
   it('renames and takes off one of ours', async () => {
     renderPage()
-    await screen.findByText('Таможня ночь')
+    await screen.findByText('Пресет 1')
     fireEvent.click(screen.getAllByTitle('Переименовать')[1]!)
-    const name = screen.getByDisplayValue('Таможня ночь')
+    const name = screen.getByDisplayValue('Пресет 1')
     fireEvent.change(name, { target: { value: 'Кромешная ночь' } })
     fireEvent.click(screen.getByText('Сохранить'))
     await waitFor(() => expect(api.renamePreset).toHaveBeenCalledWith('builtin-owner-full-dark', 'Кромешная ночь'))
@@ -114,7 +114,7 @@ describe('«Настройка экрана»', () => {
   it('is English in the English interface', async () => {
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     const { container } = renderPage()
-    expect(await screen.findByText('Customs at night')).toBeInTheDocument()
+    expect(await screen.findByText('Preset 1')).toBeInTheDocument()
     expect(screen.getByText('Turn on in the game')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Add a new preset'))
     expect(container.querySelector('.screen-page')?.textContent ?? '').not.toMatch(/[А-Яа-яЁё]/)
@@ -156,7 +156,7 @@ describe('«Настройка экрана»: the question marks (owner, 06.11.
 
   it('every button has one, and the two keys too', async () => {
     renderPage()
-    await screen.findByText('Таможня ночь')
+    await screen.findByText('Пресет 1')
     for (const name of ['Включить в игре', 'Снимок из игры', 'Добавить новый пресет']) expect(beside(name), name).toBeTruthy()
     expect(screen.getByText('Пресеты').querySelector('.setting-help')).toBeTruthy()
     expect(screen.getByLabelText('Монитор').tagName).toBe('SELECT')
@@ -169,7 +169,7 @@ describe('«Настройка экрана»: the question marks (owner, 06.11.
 
   it('pressing a mark changes nothing on the page', async () => {
     renderPage()
-    await screen.findByText('Таможня ночь')
+    await screen.findByText('Пресет 1')
     fireEvent.click(beside('Включить в игре')!)
     fireEvent.click(beside('Снимок из игры')!)
     expect(api.update).not.toHaveBeenCalled()

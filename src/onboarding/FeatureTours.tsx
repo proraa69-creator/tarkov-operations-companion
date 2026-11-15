@@ -7,7 +7,8 @@ import { useWindowTurn } from '../app/windowTurn'
 import { useMinuteClock } from '../trading/tradingClock'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 import { isNewAccount } from './guideProgress'
-import { answerTours, dueTips, markNewsDone, markTipSeen, readTours, startTours, TOURS_CHANGED_EVENT, type ToursRecord } from './tours'
+import { ScreenshotKeyGuide } from './ScreenshotKeyGuide'
+import { answerTours, dueTips, markNewsDone, markScreenshotKeyDone, markTipSeen, readTours, screenshotKeyDue, startTours, TOURS_CHANGED_EVENT, type ToursRecord } from './tours'
 
 const QUESTION: GuideTipContent = {
   title: { ru: 'Показать возможности Raid OS?', en: 'Show what Raid OS can do?' },
@@ -52,14 +53,17 @@ export function FeatureTours() {
     if (record) markNewsDone(pathname)
   }, [record, pathname])
   const tips = record ? dueTips(pathname, record, { phone, desktop, inRaid }) : []
-  const pending = record?.choice === 'ask' ? 'question' : tips[0]?.key ?? null
+  // The question first; then, whatever the answer, «Местоположение на карте» (ScreenshotKeyGuide.tsx); then the tips.
+  const screenshotKey = record ? screenshotKeyDue(record, { phone, desktop, inRaid }) : false
+  const pending = record?.choice === 'ask' ? 'question' : screenshotKey ? 'screenshot-key' : tips[0]?.key ?? null
   const ready = useGuideReady(pending ? `tours:${pending}` : null, pathname, PAGE)
   const [open, setOpen] = useState<string | null>(null)
   const turn = useWindowTurn('feature-tours', Boolean(open) || Boolean(pending && ready))
   if (!open && pending && ready && turn) setOpen(pending)
   // Another page, or the tip is not due any more: it closes and waits for its page.
-  if (open && open !== pending && open !== 'question') setOpen(null)
+  if (open && open !== pending && open !== 'question' && open !== 'screenshot-key') setOpen(null)
   if (!open) return null
+  if (open === 'screenshot-key') return <ScreenshotKeyGuide onDone={() => { markScreenshotKeyDone(); setOpen(null) }} />
   if (open === 'question') {
     const answer = (choice: 'yes' | 'no') => { answerTours(choice); setOpen(null) }
     return <GuideTip key="question" id="tours-question" tip={QUESTION} phone={phone} acceptLabel={SHOW} onAccept={() => answer('yes')} decline={{ label: NO, onDecline: () => answer('no') }} />

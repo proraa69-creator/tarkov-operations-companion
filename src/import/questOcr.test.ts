@@ -246,13 +246,14 @@ describe('a line of a quest\'s text on the Tasks screen is no quest', () => {
     ]) expect(read(line), line).toEqual([])
   })
 
-  it('a row of the table still reads, its status or columns lost or junk around it', () => {
+  // Since 13.11.2026 a row counts only with its status read (a player: quests long handed in came back as current).
+  it('a row of the table still reads with junk around it while its status is read; without a status it does not count', () => {
     expect(read('Серьёзные обвинения Берег активно!')).toEqual(['Серьёзные обвинения'])
-    expect(read('Серьёзные обвинения Берег')).toEqual(['Серьёзные обвинения'])
-    expect(read('Серьезные обвннения Любая ni')).toEqual(['Серьёзные обвинения'])
-    expect(read('Документы')).toEqual(['Документы'])
-    expect(read('и Документы oni ae')).toEqual(['Документы'])
-    expect(read('Серьёзные Ee')).toEqual(['Серьёзные обвинения'])
+    expect(read('Серьёзные обвинения Берег')).toEqual([])
+    expect(read('Серьезные обвннения Любая ni')).toEqual([])
+    expect(read('Документы')).toEqual([])
+    expect(read('и Документы oni ae')).toEqual([])
+    expect(read('Серьёзные Ee')).toEqual([])
     expect(read('ЗАВЕРШИТЬ ® Документы Резерв активно!')).toEqual(['Документы'])
   })
 })

@@ -21,6 +21,7 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ['Работает в рейде, когда игра на экране', 'Works in a raid, while the game is on the screen'], ['Настройка пресета', 'Preset tuning'], ['Настройка', 'Tuning'],
   ['Гамма', 'Gamma'], ['Света', 'Highlights'], ['Температура', 'Temperature'], ['Оттенок', 'Tint'], ['Цифровая интенсивность', 'Digital vibrance'],
   ['Подключаемся…', 'Connecting…'], ['Кривую и фильтры настраивайте на ПК в «Настройке экрана».', 'Tune the curve and the filters on the PC in «Screen settings».'],
+  ['Пресет 1', 'Preset 1'], ['Пресет 2', 'Preset 2'], ['Пресет 3', 'Preset 3'], ['Пресет 4', 'Preset 4'], ['Пресет 5', 'Preset 5'], ['Пресет 6', 'Preset 6'],
   ['Таможня ночь', 'Customs at night'], ['Ночные рейды на Таможне', 'Night raids on Customs'], ['Светло', 'Light'], ['Тёмные помещения: светло и видно', 'Dark rooms: light and visible'],
   ['Как днём', 'Like daytime'], ['Ночь и сумерки на улице: светло и видно', 'Night and dusk outdoors: light and visible'], ['Убежище, подвалы, бункеры, Лаборатория', 'The hideout, basements, bunkers, the Lab'],
   ['Шкала кривой', 'Curve scale'], ['Тени крупно', 'Shadows large'], ['Обычная шкала', 'Plain scale'], ['Выбранная точка', 'Chosen point'], ['было', 'in'], ['стало', 'out'], ['Убрать точку', 'Remove the point'],

@@ -12,6 +12,7 @@ import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { MAX_PLAYER_LEVEL } from '../import/modeSelectScreen'
 import { usePopupMenu } from './usePopupMenu'
 import './deferredQuests.css'
+import { TakenMenuItem } from '../overview/TakenItems'
 
 /**
  * What a right click on the Overview was on: the item (its picture and name, where it opens for «До уровня») and the quests
@@ -46,7 +47,9 @@ export function DeferItemMenu({ menu, onOpen, onClose }: { menu: DeferMenuState 
   return createPortal(
     <div ref={ref} className="point-menu quest-defer-menu" role="menu" aria-label={uiText('Меню предмета')} style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
       <div className="point-menu-title">{uiText(menu.title ?? request.item?.name ?? request.quests[0]?.name ?? '')}</div>
-      <button type="button" role="menuitem" onClick={() => { onClose(); onOpen(request) }}><Hourglass size={13} aria-hidden="true" />{uiText('Отложить квест')}</button>
+      {/* «Взял» (report 157): a green check on the item until the raid is over */}
+      <TakenMenuItem itemId={request.item?.id} onDone={onClose} />
+      {request.quests.length > 0 && <button type="button" role="menuitem" onClick={() => { onClose(); onOpen(request) }}><Hourglass size={13} aria-hidden="true" />{uiText('Отложить квест')}</button>}
     </div>,
     document.body,
   )

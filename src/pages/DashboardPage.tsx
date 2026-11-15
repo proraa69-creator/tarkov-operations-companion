@@ -14,11 +14,12 @@ import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
-import { storyStageRaidNeeds } from '../progression/storyRaidNeeds'
+import { storyRaidNeedsAhead } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { gearObjectives } from '../overview/questConditions'
 import { DeferItemMenu, QuestDeferDialog, type DeferMenuState, type DeferRequest } from '../components/QuestDeferDialog'
+import { TakenItemsProvider } from '../overview/TakenItems'
 import { FavoriteQuestLine, useFavoriteActions } from '../components/FavoriteQuests'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { MapPicker } from '../components/MapPicker'
@@ -139,9 +140,10 @@ export function DashboardPage() {
   const traderLoyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel, traderLoyalty)
   const raidQuests = [...planQuests, ...anyMapCurrent]
-  // The current stage of each story chapter in progress (owner, 06.11.2026): its keys, what it plants or uses, where it applies.
+  // The current stage of each story chapter in progress (owner, 06.11.2026): its keys, what it plants or uses, where it applies;
+  // and the stages after it done in the same raid (a player, 13.11.2026: the toolset of «Борей»).
   const storyRaid = data.quests.filter((quest) => quest.kind === 'story' && isCurrentTrackedQuest(quest, progress) && !deferred.has(quest.id))
-    .map((quest) => ({ quest, ...storyStageRaidNeeds(quest, currentStoryStageIndex(quest, progress), itemById, locale === 'en' ? 'en' : 'ru') }))
+    .map((quest) => ({ quest, ...storyRaidNeedsAhead(quest, currentStoryStageIndex(quest, progress), itemById, locale === 'en' ? 'en' : 'ru') }))
   const storyItems = new Map(storyRaid.flatMap(({ items }) => items.map((item) => [item.id, item] as const)))
   const raidItem = (id: string) => itemById.get(id) ?? storyItems.get(id)
   const requirements = [
@@ -241,7 +243,7 @@ export function DashboardPage() {
   const questCard = mobile ? (quest: typeof currentQuests[number]) => <QuestInlineCard quest={quest} progress={progress} maps={data.maps} pointLink={pointLink(quest)} /> : undefined
 
   // A map here chooses the raid plan's map, it does not open the map (owner, 10.10.2026).
-  const priorityStrip = <MapPriority inline maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
+  const priorityStrip = <MapPriority inline maps={data.maps} selectedId={selectedMap.id} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
   const statCards: Blocks = {
     // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
     'stat-screen': { label: 'Экран', node: <ScreenStatCard /> },
@@ -319,7 +321,8 @@ export function DashboardPage() {
   // «Заменить блок» on the phone (owner, 11.11.2026): every block of the phone (one off the screen comes back). The PC keeps its row
   // as it is (owner: «Сделай как есть экран, пресеты, задания для капы, сбор на рейд и кочевники»).
   const phoneChoices = (here: string): BlockChoice[] => PHONE_BLOCKS.filter((id) => phoneBlocks[id]).map((id) => ({ id, label: labelOf(id, phoneBlocks), state: id === here ? 'here' : order.includes(id) ? 'shown' : 'hidden' }))
-  return <div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
+  // «Взял» on the items (report 157): one set of marks for the whole page, its menus included.
+  return <TakenItemsProvider profileId={state.activeProfile.id} mode={state.raidMode}><div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
       <div className="overview-header-actions">
@@ -345,5 +348,5 @@ export function DashboardPage() {
     <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} />
     {favoriteActions.menu}
     {deferRequest && <QuestDeferDialog request={deferRequest} onClose={closeDeferRequest} />}
-  </div>
+  </div></TakenItemsProvider>
 }

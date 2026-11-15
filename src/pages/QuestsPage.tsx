@@ -136,6 +136,8 @@ export function QuestsPage() {
     if (params.get('selected') === questId) closeSelected()
   }
   const addQuest = (questId: string) => state.addManualQuests(state.raidMode, [questId])
+  // «Я уже выполнил» (owner, 13.11.2026): the player's own «Выполнено»; a newer event of the game still decides over it.
+  const doneQuest = (questId: string) => state.setManualQuestMark(state.raidMode, questId, 'completed')
   const questMenuOf = (quest: Quest) => {
     const held = isCurrentTrackedQuest(quest, progress)
     const story = isStoryQuest(quest)
@@ -241,7 +243,7 @@ export function QuestsPage() {
         </div>)}
       </aside>
     </div>}
-    <QuestDeferMenu menu={questMenu} onDefer={deferCatalogQuest} onAdd={addQuest} onDismiss={dismissQuest} onChapter={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); next.set('change', '1'); return next })} onClose={closeQuestMenu} />
+    <QuestDeferMenu menu={questMenu} onDefer={deferCatalogQuest} onAdd={addQuest} onDismiss={dismissQuest} onDone={doneQuest} onChapter={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); next.set('change', '1'); return next })} onClose={closeQuestMenu} />
     {deferRequest && <QuestDeferDialog request={deferRequest} onClose={() => setDeferRequest(null)} onDeferred={(questIds) => { if (questIds.includes(params.get('selected') ?? '')) closeSelected() }} />}
     {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(state.activeProfile.id, state.raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
   </div>

@@ -274,9 +274,10 @@
   --gear-wear-over: var(--gear-p-scratch-b) 72% 70% / 60px 27px no-repeat;
   --gear-cut: var(--gear-p-tear-cut) 0 100% / 46px 30px no-repeat;
 }
-/* name tape: dark ranger webbing with a merrowed edge, the text in tan thread */
+/* name tape: dark ranger webbing with a merrowed edge, the text in tan thread. As wide as its text wherever it stands: stretched
+   across a grid or a column, the slight tilt drew a long slanted strip («Позвать друзей» on «Отряд», owner 14.11.2026). */
 :root[data-theme="gear"] .stat-label {
-  display: inline-block; padding: 5px 11px 4px; border-radius: 3px;
+  display: inline-block; width: fit-content; max-width: 100%; justify-self: start; padding: 5px 11px 4px; border-radius: 3px;
   color: #e3d3a6; font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; font-size: 11px; letter-spacing: .16em;
   background: linear-gradient(180deg, rgb(255 244 214 / 9%), rgb(0 0 0 / 18%)), var(--gear-web-ranger) 0 0 / 256px 256px;
   box-shadow:
@@ -472,7 +473,7 @@
 }
 /* the stats sheet's heading is plain text, not a sewn-on name tape */
 :root[data-theme="gear"] .goon-stats-popover .stat-label {
-  display: block; padding: 0; background: none; box-shadow: none; transform: none;
+  display: block; width: auto; padding: 0; background: none; box-shadow: none; transform: none;
   font-size: 10.5px; letter-spacing: .14em; color: #cdc2a1; text-shadow: 0 1px 1px #000;
 }
 :root[data-theme="gear"] .raid-map-name { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .02em; }

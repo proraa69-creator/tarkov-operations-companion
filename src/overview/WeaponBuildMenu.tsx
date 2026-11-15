@@ -5,6 +5,7 @@ import { Wrench } from 'lucide-react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { uiText } from '../i18n/renderText'
 import { usePopupMenu } from '../components/usePopupMenu'
+import { TakenMenuItem } from './TakenItems'
 
 /** «Сборка оружия» on this weapon, on «Готовые сборки» (pages/WeaponBuildsPage.tsx reads `weapon` and `tab`). */
 function weaponBuildsHref(weaponId: string) {
@@ -38,7 +39,10 @@ export function WeaponBuildMenuProvider({ children }: { children: ReactNode }) {
   </WeaponMenuContext.Provider>
 }
 
-/** The right-click handler for one weapon; none outside the provider or while «Сборка оружия» is hidden. */
+/**
+ * The right-click handler for one weapon (owner, 13.11.2026: «при наведении курсора на оружие правой кнопкой мыши открывалась
+ * менюшка… «Открыть сборку оружия»»); none outside the provider or while «Сборка оружия» is hidden.
+ */
 export function useWeaponBuildMenu(weapon: { id: string; name: string }) {
   const open = useContext(WeaponMenuContext)
   return open ? (event: ReactMouseEvent) => open(weapon, event) : undefined
@@ -55,8 +59,9 @@ function WeaponBuildMenuView({ menu, onClose }: { menu: WeaponMenu | null; onClo
       onContextMenu={(event) => event.preventDefault()} onMouseDown={(event) => event.stopPropagation()}>
       <div className="point-menu-title">{uiText(menu.name)}</div>
       <button type="button" role="menuitem" onClick={() => { onClose(); navigate(weaponBuildsHref(menu.id)) }}>
-        <Wrench size={13} aria-hidden="true" />{uiText('Открыть сборку')}
+        <Wrench size={13} aria-hidden="true" />{uiText('Открыть сборку оружия')}
       </button>
+      <TakenMenuItem itemId={menu.id} onDone={onClose} />
     </div>,
     document.body,
   )

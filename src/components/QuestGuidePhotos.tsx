@@ -202,12 +202,20 @@ function ObjectivePhotoPopup({ data, photos, anchor, onEnter, onLeave, onOpen }:
     setPlace({ left: Math.max(POPUP_MARGIN, Math.min(anchor.left, window.innerWidth - size.width - POPUP_MARGIN)), top: Math.max(POPUP_MARGIN, top) })
   }, [anchor, photos])
   const captionOf = (photo: GuidePhoto) => (locale === 'en' ? photo.captionEn ?? photo.caption : photo.caption)
-  return createPortal(<div ref={box} className="objective-photo-popup" data-testid="objective-photo-popup" style={place ? place : { left: 0, top: 0, visibility: 'hidden' }} onMouseEnter={onEnter} onMouseLeave={onLeave}>
+  const [first, second] = photos
+  const more = photos.length - 1
+  const caption = captionOf(first)
+  // One photo large, as the documents' card has it; the rest behind one small tile with how many there are (owner, 15.11.2026).
+  return createPortal(<div ref={box} className={`objective-photo-popup${more ? ' has-more' : ''}`} data-testid="objective-photo-popup" style={place ? place : { left: 0, top: 0, visibility: 'hidden' }} onMouseEnter={onEnter} onMouseLeave={onLeave}>
     <div className="objective-photo-grid" role="list">
-      {photos.map((photo, index) => <button key={photo.id} type="button" role="listitem" className="objective-photo" onClick={() => onOpen(index)} title={captionOf(photo) || uiText('Фото места')}>
-        <img src={pictureUrl(data, photo.id, true)} alt={captionOf(photo) || uiText('Фото места')} decoding="async" />
-        {captionOf(photo) && <span>{captionOf(photo)}</span>}
-      </button>)}
+      <button type="button" role="listitem" className="objective-photo is-main" onClick={() => onOpen(0)} title={caption || uiText('Фото места')}>
+        <img src={pictureUrl(data, first.id, true)} alt={caption || uiText('Фото места')} decoding="async" />
+        {caption && <span>{caption}</span>}
+      </button>
+      {second && <button type="button" role="listitem" className="objective-photo is-more" onClick={() => onOpen(1)} title={`${uiText('Ещё фото')}: ${more}`}>
+        <img src={pictureUrl(data, second.id, true)} alt="" decoding="async" />
+        <b aria-hidden="true">+{more}</b>
+      </button>}
     </div>
   </div>, document.body)
 }

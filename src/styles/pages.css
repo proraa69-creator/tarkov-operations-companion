@@ -1105,9 +1105,10 @@ a.quest-stage:hover { color: var(--text); }
 .map-priority-tile.is-top { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
 .map-priority-tile.is-empty { color: var(--text-dim); }
 .map-priority-rank { color: var(--text-dim); font-size: 10px; }
-.map-priority-count { min-width: 22px; padding: 1px 6px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: 11px; font-weight: 800; text-align: center; }
-.map-priority-tile.is-top .map-priority-count { background: color-mix(in srgb, var(--brass) 26%, transparent); color: var(--brass-strong); }
-.map-priority-tile.is-empty .map-priority-count { background: transparent; color: var(--text-dim); }
+/* The number alone, no pill around it (owner, 13.11.2026: «количество квестов в приоритете карт без рамки цифр»). */
+.map-priority-count { justify-self: end; color: var(--text); font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.map-priority-tile.is-top .map-priority-count { color: var(--brass-strong); }
+.map-priority-tile.is-empty .map-priority-count { color: var(--text-dim); }
 .map-priority-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 750; white-space: nowrap; overflow: hidden; }
 .map-priority-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .map-priority-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; }

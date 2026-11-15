@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { Marker, Popup, Tooltip } from 'react-leaflet'
-import { ChevronRight, LoaderCircle, Users, X } from 'lucide-react'
+import { ChevronRight, LoaderCircle, Users, UsersRound, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useMobileLayout } from '../platform'
 import { questCardHref } from '../quests/questCardLink'
@@ -14,10 +14,11 @@ import { useMapDragged } from '../maps/mapDragGuard'
 export function FriendQuestToggle({ layer }: { layer: FriendQuestLayer }) {
   if (!layer.available) return null
   const none = !layer.sharing
-  return <div className="map-tools map-friend-quests">
+  const squad = layer.who === 'squad'
+  return <div className={`map-tools map-friend-quests${squad ? ' is-squad' : ''}`}>
     <button type="button" className={`map-tool${layer.on ? ' active' : ''}`} aria-pressed={layer.on} disabled={none} onClick={layer.toggle}
-      title={uiText(none ? 'Нет друзей с открытым прогрессом и отряда' : 'Квесты друзей и отряда их цветами')}>
-      {layer.loading ? <LoaderCircle className="spin" size={14} /> : <Users size={14} />}<span>{uiText('Квесты друзей')}</span>
+      title={uiText(squad ? 'Квесты отряда их цветами' : none ? 'Нет друзей с открытым прогрессом' : 'Квесты друзей их цветами')}>
+      {layer.loading ? <LoaderCircle className="spin" size={14} /> : squad ? <UsersRound size={14} /> : <Users size={14} />}<span>{uiText(squad ? 'Квесты отряда' : 'Квесты друзей')}</span>
     </button>
     {layer.on && layer.legend.length > 0 && <span className="map-friend-legend">
       {layer.legend.map((entry) => <span key={entry.friendId} style={{ color: entry.color }} title={`${entry.squad ? `${uiText('Отряд')} · ` : ''}${uiText('Заданий на этой карте')}: ${entry.quests}`}>

@@ -38,7 +38,8 @@ import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLo
 import type { RaidMode } from '../domain/types'
 import { legacyObjectiveIds, withCurrentObjectiveIds, type LegacyObjectiveIds } from '../progression/objectiveProgress'
 import { useLocale } from '../i18n/LocaleProvider'
-import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
+import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, cycleTheme, currentTheme } from '../theme/theme'
+import { useThemeSchemeMenu } from '../theme/ThemeSchemeMenu'
 import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
@@ -56,6 +57,7 @@ import { IphoneUpdateBanner } from '../mobile/IphoneUpdateBanner'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
+import { useSquadLocationShare } from '../squad/useSquadLocationShare'
 import { usePresenceHeartbeat } from '../sync/presence'
 import { useShareLevels } from '../squad/useShareLevels'
 import { setMapMirrorServer } from '../data/mapMirror'
@@ -120,6 +122,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nickname = useAccountNickname()
   // Friend requests and squad invitations arrive at once; the «Отряд» button counts them (squad/useSocialEvents.ts).
   useSocialEvents(raidMode)
+  // «Местоположение отряда»: each screenshot's place goes to the squad while it is on (squad/useSquadLocationShare.ts).
+  useSquadLocationShare(raidMode)
   // «Онлайн сейчас»: this app tells the server it is open while signed in, about once a minute (sync/presence.ts).
   usePresenceHeartbeat()
   // Our server's copy of the maps (data/mapMirror.ts) lives on the account's server.
@@ -505,13 +509,23 @@ function ShellTabBar(props: Omit<Parameters<typeof MobileTabBar>[0], 'refreshing
   return <MobileTabBar {...props} refreshing={isFetching} />
 }
 
-/** Cycles the colour schemes in order; the current one's name is in the tooltip. */
+/**
+ * Cycles the ordinary colour schemes in order; the current one's name is in the tooltip. The right click opens them all in a
+ * menu, with «Смена дня и ночи» under them (theme/ThemeSchemeMenu.tsx); the left click never goes to that one.
+ */
 function ThemeButton() {
   const [theme, setTheme] = useState(currentTheme)
-  const label = THEMES.find((entry) => entry.id === theme)?.label ?? ''
-  return (
-    <button className="icon-button theme-cycle" onClick={() => setTheme(cycleTheme().id)} title={`${uiText('Цветовая схема')}: ${uiText(label)}`} aria-label={uiText('Сменить цветовую схему')}>
+  useEffect(() => {
+    const sync = () => setTheme(currentTheme())
+    window.addEventListener(THEME_CHANGED_EVENT, sync)
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync)
+  }, [])
+  const label = theme === DAY_NIGHT_THEME.id ? DAY_NIGHT_THEME.label : THEMES.find((entry) => entry.id === theme)?.label ?? ''
+  const menu = useThemeSchemeMenu(theme, setTheme)
+  return <>
+    <button className="icon-button theme-cycle" onClick={() => setTheme(cycleTheme().id)} onContextMenu={menu.onContextMenu} title={`${uiText('Цветовая схема')}: ${uiText(label)}`} aria-label={uiText('Сменить цветовую схему')}>
       <Palette size={16} />
     </button>
-  )
+    {menu.overlay}
+  </>
 }

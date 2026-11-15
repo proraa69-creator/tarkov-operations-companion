@@ -83,3 +83,35 @@ export function storyStageRaidNeeds(quest: Quest, stageIndex: number, catalog: R
   if (colour) for (const id of FLARES[colour]!) add(id, 'signal', stageMaps, 1, 2)
   return { requirements, items }
 }
+
+/**
+ * What to take for the chapter's current stage and the stages right after it that are done in the same raid: each next one on
+ * a map the current stage is on, no branch between (a player, 13.11.2026: «программа не показывает что надо с собою взять для
+ * сюжетных квестов, к примеру набор инструментов для борея починки вышки» — «Борей» stood on «Найти оборудование под вышкой» in
+ * Woods, and the toolset of «Починить оборудование», done in that raid, came only after it). Three stages at most.
+ */
+export function storyRaidNeedsAhead(quest: Quest, stageIndex: number, catalog: ReadonlyMap<string, Item>, locale: 'ru' | 'en' = 'ru'): StoryRaidNeeds {
+  const chapter = storyGuideChapterId(quest)
+  const seeds = chapter ? STORY_CHAPTER_SEEDS.find((entry) => entry.id === chapter)?.stages ?? [] : []
+  const mapsOf = (index: number) => quest.stages?.[index]?.mapIds ?? seeds[index]?.mapIds ?? []
+  const first = storyStageRaidNeeds(quest, stageIndex, catalog, locale)
+  const here = mapsOf(stageIndex)
+  if (!here.length) return first
+  const requirements = [...first.requirements]
+  const items = [...first.items]
+  const seen = new Set(requirements.map((requirement) => requirement.itemId))
+  for (let next = stageIndex + 1; next <= stageIndex + 2; next += 1) {
+    const seed = seeds[next]
+    const maps = mapsOf(next)
+    if (!seed || seed.branch || !maps.some((mapId) => here.includes(mapId))) break
+    const ahead = storyStageRaidNeeds(quest, next, catalog, locale)
+    for (const requirement of ahead.requirements) {
+      if (seen.has(requirement.itemId)) continue
+      seen.add(requirement.itemId)
+      requirements.push(requirement)
+      const item = ahead.items.find((entry) => entry.id === requirement.itemId)
+      if (item) items.push(item)
+    }
+  }
+  return { requirements, items }
+}

@@ -122,7 +122,7 @@ export function LivePlayerMarker({ player }: { player: LivePlayer }) {
 }
 
 /** Heading on screen: project a point a few metres ahead so the arrow follows the map's own rotation. */
-function useScreenAngle(position: PlayerPosition | null) {
+export function useScreenAngle(position: Pick<PlayerPosition, 'x' | 'z' | 'yaw'> | null) {
   const map = useMap()
   return useMemo(() => {
     if (!position) return 0
@@ -178,19 +178,24 @@ function useFollowPlayer(position: PlayerPosition | null, onThisMap: boolean) {
 /** The logs named no map: the dot is on the map that is open (src/overlay/positionMap.ts). */
 export const GUESSED_MAP_NOTE = 'Карта рейда не определена по логам игры — точка на открытой карте'
 
-function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source: 'desktop' }> }) {
-  const { position, onThisMap, guessed } = player
-  const [now, setNow] = useState(() => Date.now())
+/** The marker the player chose in the settings (the PC's; the phone has the arrow). The squad's mates are drawn with it too. */
+export function useOwnMarkerStyle() {
   const [style, setStyle] = useState<PlayerMarkerStyle>('arrow')
-
-  // «Вы · N с назад» is read on hover: it ticks while the window is in use, not behind the game (src/app/activePolling.ts).
-  useEffect(() => startActivePolling(() => setNow(Date.now()), { activeEveryMs: 5000 }), [])
-
   useEffect(() => {
     const experimental = window.tarkovDesktop?.experimental
     if (!experimental) return
     void experimental.getSettings().then((settings) => setStyle(settings.playerMarker)).catch(() => {})
   }, [])
+  return style
+}
+
+function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source: 'desktop' }> }) {
+  const { position, onThisMap, guessed } = player
+  const [now, setNow] = useState(() => Date.now())
+  const style = useOwnMarkerStyle()
+
+  // «Вы · N с назад» is read on hover: it ticks while the window is in use, not behind the game (src/app/activePolling.ts).
+  useEffect(() => startActivePolling(() => setNow(Date.now()), { activeEveryMs: 5000 }), [])
 
   const angle = useScreenAngle(position)
   const icon = useMemo(() => divIcon({ className: 'ov-player live-player is-desktop', html: playerMarkerSvg(style, angle), iconSize: [26, 26], iconAnchor: [13, 13] }), [angle, style])

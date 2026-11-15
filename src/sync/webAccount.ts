@@ -178,6 +178,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/squads/[a-f0-9]{32}/overview/${MODE}$`) },
   { methods: ['POST'], path: /^\/v1\/squads\/[a-f0-9]{32}\/(?:invites|leave|disband|kick|invite-friend)$/ },
   { methods: ['POST'], path: /^\/v1\/squads\/invitations\/[a-f0-9]{24}\/(?:accept|decline)$/ },
+  // «Местоположение тиммейтов» and «Передача зарисовок» (server/src/routes/squadLive.ts): members only, in memory on the server.
+  { methods: ['GET'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}(?:\\?since=\\d{1,16})?$`) },
+  { methods: ['POST'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}/position$`) },
+  { methods: ['PUT'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}/sketch/[A-Za-z0-9_-]{1,40}$`) },
   // Friends (server/src/routes/friends.ts): the server checks the friendship on every call.
   { methods: ['GET'], path: /^\/v1\/friends$/ },
   { methods: ['POST'], path: /^\/v1\/friends\/(?:requests|code)$/ },
@@ -210,7 +214,7 @@ interface StoredSession { token: string; email: string; kind: 'user' | 'streamer
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
 /** The live relay's wait (GET /v1/live/:mode?since=): answered within ~25 s. */
-const LIVE_WAIT = /^\/v1\/live\/[a-z]+(?:\/pc)?\?since=/
+const LIVE_WAIT = /^\/v1\/(?:live\/[a-z]+(?:\/pc)?|squad-live\/[a-f0-9]{32}\/[a-z]+)\?since=/
 /** «Онлайн сейчас»: the heartbeat goes with the device id, which tells the phone from the browser (server/src/routes/presence.ts). */
 const PRESENCE_PATH = '/v1/me/presence'
 
@@ -332,7 +336,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const route = ROUTES.find((entry) => entry.path.test(path))
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|squad-live|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
     || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
   // The owner's notice is in the language of the account's country (owner, 14.10.2026, server/src/routes/announcement.ts):

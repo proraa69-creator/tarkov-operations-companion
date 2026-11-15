@@ -1,4 +1,51 @@
 [
+  {"version":"0.6.0.307","date":"2026-11-15","items":[
+    {"kind":"improved","ru":"Цветовая схема меняется плавно — кругом от кнопки","en":"The colour scheme changes smoothly, in a circle from the button"},
+    {"kind":"added","ru":"Схема «Смена дня и ночи»: правой кнопкой по кнопке цветовой схемы","en":"«Day and night» scheme: right-click the colour scheme button"},
+    {"kind":"improved","ru":"Пресеты экрана называются по номерам: «Пресет 1», «Пресет 2» и далее","en":"Screen presets are numbered: «Preset 1», «Preset 2» and on"},
+    {"kind":"improved","ru":"Отряд: настройки и убранные рисунки одинаковые на ПК и телефоне","en":"Squad: settings and removed drawings are the same on PC and phone"}
+  ]},
+  {"version":"0.6.0.306","date":"2026-11-15","items":[
+    {"kind":"improved","ru":"Фото мест: одно крупное фото и «+N» с остальными","en":"Place photos: one large photo and «+N» with the rest"},
+    {"kind":"added","ru":"На телефоне скриншоты можно увеличивать двумя пальцами","en":"On the phone, screenshots zoom in with two fingers"},
+    {"kind":"improved","ru":"Требования рейда: «Заложить», «Открыть дверь»; «Взял» отмечает ключ как «Есть в наличии»","en":"Raid requirements: «Plant», «Open the door»; «Taken» marks a key as «With you»"}
+  ]},
+  {"version":"0.6.0.305","date":"2026-11-14","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.304","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Отряд: тиммейты на карте по скриншоту — своим цветом и с ником","en":"Squad: teammates on the map from their screenshot, in their colour with their name"},
+    {"kind":"added","ru":"Отряд: общие рисунки на карте и кнопка «Квесты отряда»","en":"Squad: shared map drawings and the «Squad quests» button"},
+    {"kind":"added","ru":"Отряд: «Настройки отряда» и кнопка «В отряд» у друзей","en":"Squad: «Squad settings» and a «To squad» button on friends"},
+    {"kind":"added","ru":"Карта: зажатая правая кнопка двигает карту при рисовании","en":"Map: hold the right button to move the map while drawing"},
+    {"kind":"improved","ru":"Приоритет карт: подсвечена выбранная карта","en":"Map priority: the chosen map is highlighted"},
+    {"kind":"improved","ru":"Интерфейс подстраивается под вертикальные и небольшие мониторы","en":"The interface fits upright and smaller monitors"}
+  ]},
+  {"version":"0.6.0.303","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Обзор: правый клик по предмету — «Взял», зелёная галочка до конца рейда","en":"Overview: right-click an item — «Taken», a green check until the raid ends"},
+    {"kind":"added","ru":"Карты: шестерёнка — панели слева и справа или сверху и снизу","en":"Maps: a gear puts the panels left and right or above and below"},
+    {"kind":"added","ru":"Карты: кнопка-глаз скрывает панель и возвращает её","en":"Maps: an eye button hides a panel and brings it back"}
+  ]},
+  {"version":"0.6.0.302","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Дерево квестов: кнопка «Открыть на весь экран»","en":"Quest tree: «Open full screen» button"},
+    {"kind":"improved","ru":"Карты: убраны лишние метки багажников машин","en":"Maps: removed wrong car trunk markers"}
+  ]},
+  {"version":"0.6.0.301","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Ключи для квестов: показаны ключи, которые нужно заложить по квесту","en":"Quest keys: keys a quest asks you to plant are listed"},
+    {"kind":"added","ru":"Сбор на рейд: правый клик по оружию — «Открыть сборку оружия»","en":"Raid loadout: right-click a weapon — «Open weapon build»"},
+    {"kind":"added","ru":"Оружейник: скриншот сборки ПКП (Механик, часть 13)","en":"Gunsmith: PKP build screenshot (Mechanic, part 13)"}
+  ]},
+  {"version":"0.6.0.300","date":"2026-11-13","items":[
+    {"kind":"added","ru":"Квесты: «Я уже выполнил» в меню по правой кнопке","en":"Quests: «Already done» in the right-click menu"},
+    {"kind":"added","ru":"Экран заданий: в текущие попадают только квесты со статусом «Активно!»","en":"Tasks screen: only quests read «Active!» become current"},
+    {"kind":"added","ru":"Требования рейда: что взять для следующего этапа сюжета в этом же рейде","en":"Raid requirements: what to take for the next story stage in the same raid"},
+    {"kind":"added","ru":"«Кочевники» на телефоне: окно статистики снова закрывается","en":"Phone «Goons»: the statistics window closes again"},
+    {"kind":"added","ru":"Карта: точки не дёргаются при приближении","en":"Map: points stay put while zooming"},
+    {"kind":"added","ru":"Звук щелчков на iPhone больше не пропадает","en":"Click sounds no longer go silent on iPhone"},
+    {"kind":"added","ru":"«Приоритет карт»: цифры ровно в плитках","en":"«Map priority»: counts sit neatly in the tiles"},
+    {"kind":"added","ru":"Снайперы на карте — без этажей","en":"Snipers on the map without floors"},
+    {"kind":"added","ru":"Развязка: фото финансовых документов на своих местах","en":"Interchange: financial documents photos in their right places"}
+  ]},
   {"version":"0.6.0.297","date":"2026-11-12","items":[
     {"kind":"added","ru":"Карты: снайперы диких — своя кнопка «Снайперы», видны сразу","en":"Maps: Scav snipers have their own «Snipers» button, shown from the start"},
     {"kind":"added","ru":"Обзор на телефоне: в «Сборе на рейд» все квесты списком с ползунком","en":"Phone Overview: «Raid loadout» lists every quest with a scroll thumb"}

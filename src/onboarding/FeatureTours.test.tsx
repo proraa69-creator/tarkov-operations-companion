@@ -100,3 +100,71 @@ describe('news', () => {
 })
 
 // Owner, 05.11.2026: «уведомление о новой функции торговли должно быть посередине, как у нас все всплывающие окна с указателем. На кнопку и должно быть объявление».
+
+// Owner, 13.11.2026: «после входа… сначала предлагаешь обучение пройти… если человек нажимает «нет», у него все равно
+// вылезает окно, как настроить местоположение… только у тех, кто зарегистрировался и ни разу не запускал приложение».
+describe('«Местоположение на карте»: the screenshot key', () => {
+  const desktop = () => { window.tarkovDesktop = {} as typeof window.tarkovDesktop }
+  const keyWindow = () => screen.queryByRole('dialog', { name: 'Настройте клавишу скриншота' })
+
+  it('a new player\'s PC app: after «Нет, спасибо» the window still comes, once', async () => {
+    desktop()
+    renderAt('/')
+    await settle()
+    expect(keyWindow()).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Нет, спасибо' }))
+    await settle()
+    expect(keyWindow()).toBeInTheDocument()
+    expect(screen.getByText(/только этой клавишей из игры/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+    await settle()
+    expect(keyWindow()).toBeNull()
+    expect(readTours()?.screenshotKey).toBe('done')
+    cleanup()
+    renderAt('/')
+    await settle()
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0)
+  })
+
+  it('after «Показать» it comes before the tab\'s tips', async () => {
+    desktop()
+    renderAt('/')
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Показать' }))
+    await settle()
+    expect(keyWindow()).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+    await settle()
+    expect(screen.getByRole('dialog', { name: 'Текущие задания' })).toBeInTheDocument()
+  })
+
+  it('never for whoever ran the app before (a record without it), nor for an existing account, nor on the phone build', async () => {
+    desktop()
+    localStorage.setItem(TOURS_KEY, JSON.stringify({ choice: 'no', since: '0', seen: [] }))
+    renderAt('/')
+    await settle()
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0)
+    cleanup(); localStorage.clear()
+    status.value = oldPlayer
+    renderAt('/')
+    await settle()
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0)
+    cleanup(); localStorage.clear(); delete window.tarkovDesktop
+    status.value = newPlayer
+    renderAt('/')
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Нет, спасибо' }))
+    await settle()
+    expect(keyWindow()).toBeNull()
+  })
+
+  it('not over a raid: it waits for the raid\'s end', async () => {
+    desktop()
+    localStorage.setItem(TOURS_KEY, JSON.stringify({ choice: 'no', since: '0', seen: [], screenshotKey: 'due' }))
+    raid.value = { inRaid: true }
+    renderAt('/')
+    await settle()
+    expect(keyWindow()).toBeNull()
+    expect(startTours(true).screenshotKey).toBe('due')
+  })
+})

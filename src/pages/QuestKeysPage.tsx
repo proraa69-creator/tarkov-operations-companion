@@ -122,7 +122,7 @@ export function QuestKeysPage() {
     chosen: [use.quest.id],
   })
   const questLink = (use: QuestKeyUse) => <Link to={`/quests?filter=${use.quest.kind === 'story' ? 'story' : 'all'}&selected=${encodeURIComponent(use.quest.id)}`}>{uiText(use.quest.name)}</Link>
-  const questFacts = (use: QuestKeyUse) => `${uiText(use.quest.trader)}${use.quest.kind === 'story' ? '' : ` · ${locale === 'en' ? `level ${use.quest.level}` : `${use.quest.level} ур.`}`}`
+  const questFacts = (use: QuestKeyUse) => `${uiText(use.quest.trader)}${use.quest.kind === 'story' ? '' : ` · ${locale === 'en' ? `level ${use.quest.level}` : `${use.quest.level} ур.`}`}${use.planted ? ` · ${locale === 'en' ? 'to plant' : 'заложить'}` : ''}`
   const altNames = (use: QuestKeyUse) => use.alternatives.map((id) => uiText(items.get(id)?.shortName ?? items.get(id)?.name ?? id)).join(', ')
 
   return <div className="page quest-keys-page">

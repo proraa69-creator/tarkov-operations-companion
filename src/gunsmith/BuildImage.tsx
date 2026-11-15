@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { usePinchZoom } from '../components/usePinchZoom'
 import { useLocale } from '../i18n/LocaleProvider'
 
 /**
@@ -10,6 +11,8 @@ import { useLocale } from '../i18n/LocaleProvider'
 export function BuildImage({ src, alt, onError }: { src: string; alt: string; onError?: () => void }) {
   const { locale } = useLocale()
   const [open, setOpen] = useState(false)
+  // On a phone two fingers enlarge the screenshot and it stays so (owner, 15.11.2026); the next opening is its standard size.
+  const pinch = usePinchZoom(open)
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
@@ -22,7 +25,7 @@ export function BuildImage({ src, alt, onError }: { src: string; alt: string; on
       <img src={src} alt={alt} loading="lazy" onError={onError} />
     </button>
     {open && createPortal(<div className="gs-lightbox" role="dialog" aria-modal="true" aria-label={alt} onClick={() => setOpen(false)}>
-      <img src={src} alt={alt} />
+      <img src={src} alt={alt} draggable={false} {...pinch.bind} onClick={(event) => { if (pinch.zoomed || pinch.wasGesture()) event.stopPropagation() }} />
       <button type="button" className="gs-lightbox-close" aria-label={locale === 'en' ? 'Close' : 'Закрыть'} onClick={() => setOpen(false)}><X size={18} aria-hidden="true" /></button>
     </div>, document.body)}
   </>

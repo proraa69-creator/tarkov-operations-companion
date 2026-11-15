@@ -1,0 +1,66 @@
+/* The PC map's panels (report 158, maps/MapPanels.tsx): the gear and the eye over the locations, the eye over the quests;
+   the panels left and right of the map or above and below it, and a hidden panel leaves only its faint eye in place. */
+.map-panel-tools { display: flex; align-items: center; gap: 4px; margin: 0 0 8px; }
+.map-panel-tools-gap { flex: 1; }
+.map-panel-tools .map-fullscreen-back { margin: 0; }
+.map-panel-button { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text-dim); cursor: pointer; transition: opacity .16s ease, color .16s ease, border-color .16s ease, background-color .16s ease; }
+.map-panel-button:hover, .map-panel-button.is-open { color: var(--text); border-color: var(--accent, #c9a56a); background: var(--surf-2); }
+.map-panel-button:focus-visible { outline: 2px solid var(--accent, #c9a56a); outline-offset: 2px; }
+.map-panel-button.is-off { opacity: .35; }
+.map-panel-button.is-off:hover, .map-panel-button.is-off:focus-visible { opacity: 1; }
+
+.map-panels-settings { position: relative; }
+.map-panels-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 1300; display: grid; gap: 2px; min-width: 190px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); box-shadow: 0 12px 30px rgb(0 0 0 / 55%); }
+.map-panels-menu-title { padding: 4px 8px 6px; color: var(--text-dim); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.map-panels-menu button { display: flex; align-items: center; gap: 9px; min-height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text-dim); font-size: 12.5px; text-align: left; cursor: pointer; }
+.map-panels-menu button:hover { background: var(--surf-2); color: var(--text); }
+.map-panels-menu button.active { border-color: #4b5038; background: #201f17; color: #ece4d2; }
+
+/* the quests' panel: its tabs and the eye on one line */
+.map-detail-head { display: flex; align-items: stretch; flex: 0 0 auto; border-bottom: 1px solid var(--line); }
+.map-detail-head > :first-child { flex: 1; min-width: 0; border-bottom: 0; }
+.map-detail-head > .map-panel-eye { align-self: center; margin: 0 10px 0 2px; }
+/* room for the eye: the tabs a little tighter, still on one line */
+.map-detail-head > .map-detail-tabs { padding: 0 2px 0 10px; gap: 2px; }
+.map-detail-head > .map-detail-tabs .map-detail-tab { gap: 5px; padding: 0 5px; letter-spacing: .03em; }
+.map-detail-head > .map-panel-eye { width: 28px; height: 28px; margin: 0 8px 0 0; }
+
+/* a hidden panel: only its buttons */
+.map-sidebar.is-hidden > :not(.map-panel-tools), .map-detail.is-hidden > :not(.map-detail-head), .map-detail.is-hidden .map-detail-head > :not(.map-panel-eye) { display: none !important; }
+.map-sidebar.is-hidden { overflow: visible; }
+.map-shell:not(.is-stacked) .map-sidebar.is-hidden .map-panels-menu { top: 0; right: auto; left: calc(100% + 8px); }
+.map-detail.is-hidden .map-detail-head { border-bottom: 0; }
+.map-sidebar.is-hidden .map-fullscreen-back { width: 30px; height: 30px; min-height: 0; padding: 0; justify-content: center; }
+.map-sidebar.is-hidden .map-fullscreen-back > span { display: none; }
+
+@media (min-width: 981px) {
+  :root:not([data-layout="mobile"]) .map-shell { --map-left-w: 220px; --map-right-w: 320px; }
+  @media (max-width: 1280px) {
+    :root:not([data-layout="mobile"]) .map-shell { --map-left-w: 190px; --map-right-w: 290px; }
+    .map-detail-head > .map-detail-tabs .map-detail-tab { padding: 0 3px; letter-spacing: 0; font-size: 10.5px; }
+  }
+  :root:not([data-layout="mobile"]) .map-shell.left-hidden { --map-left-w: 52px; }
+  :root:not([data-layout="mobile"]) .map-shell.right-hidden { --map-right-w: 52px; }
+  :root:not([data-layout="mobile"]) .map-shell:not(.is-stacked) { grid-template-columns: var(--map-left-w) minmax(0, 1fr) var(--map-right-w); }
+  /* left and right, hidden: the buttons one under another in the narrow strip */
+  :root:not([data-layout="mobile"]) .map-shell:not(.is-stacked) .map-sidebar.is-hidden { padding: 10px; }
+  :root:not([data-layout="mobile"]) .map-shell:not(.is-stacked) .map-sidebar.is-hidden .map-panel-tools { flex-direction: column-reverse; justify-content: flex-end; }
+  :root:not([data-layout="mobile"]) .map-shell:not(.is-stacked) .map-sidebar.is-hidden .map-panel-tools-gap { display: none; }
+  :root:not([data-layout="mobile"]) .map-shell:not(.is-stacked) .map-detail.is-hidden .map-detail-head { justify-content: center; padding-top: 10px; }
+  :root:not([data-layout="mobile"]) .map-shell:not(.is-stacked) .map-detail.is-hidden .map-panel-eye { align-self: flex-start; margin: 0; }
+
+  /* above and below (a tall monitor): the locations and points on top, the quests under the map */
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-sidebar { height: clamp(150px, 27vh, 340px); border-right: 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 16px; align-items: start; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-panel-tools { grid-column: 1 / -1; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-side-layers { columns: 190px; column-gap: 16px; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-side-layers > .map-side-title:first-child { margin-top: 4px !important; column-span: all; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-layer-group { break-inside: avoid-column; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-detail { height: clamp(170px, 30vh, 400px); border-left: 0; border-top: 1px solid var(--line); }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-detail .detail-section { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); column-gap: 10px; align-content: start; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-detail .detail-section > :is(h4, .quest-raid-note, p) { grid-column: 1 / -1; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-sidebar.is-hidden { height: auto; display: block; padding: 8px 12px; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-sidebar.is-hidden .map-panel-tools { margin: 0; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-detail.is-hidden { height: auto; }
+  :root:not([data-layout="mobile"]) .map-shell.is-stacked .map-detail.is-hidden .map-detail-head { justify-content: flex-end; min-height: 46px; }
+}

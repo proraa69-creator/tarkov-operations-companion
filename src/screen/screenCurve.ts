@@ -275,19 +275,20 @@ export function exposureCurve(knee: number, top = 255): CurvePoint[] {
 /**
  * Our presets: the five the owner tuned by hand in the app and kept (28.10.2026: «я сохранил пресеты… 1, 2, 3, 4, 5
  * пресетов и один стандартный»; checked again the same night), as saved in the owner's screen-tuning.json, after «Без изменений». The rest of the
- * earlier set went: players make their own («Добавить новый пресет»).
+ * earlier set went: players make their own («Добавить новый пресет»). Named by number since 15.11.2026 (owner: «переименуй все
+ * пресеты. Пресет 1, пресет 2, 3 и так далее»); «Без изменений» stays the standard one.
  */
 export const BUILT_IN_PRESETS: ScreenProfile[] = [
   { id: 'builtin-off', name: 'Без изменений', builtIn: true, note: 'Экран как есть', ...NEUTRAL },
   {
-    id: 'builtin-owner-full-dark', name: 'Таможня ночь', builtIn: true, note: 'Ночные рейды на Таможне',
+    id: 'builtin-owner-full-dark', name: 'Пресет 1', builtIn: true, note: 'Ночные рейды на Таможне',
     ...NEUTRAL, highlights: -0.04, brightness: -0.005, haze: 3, vibrance: 51,
     curve: [
       { x: 0, y: 0 }, { x: 0.02, y: 0.1511 }, { x: 0.0909, y: 0.2936 }, { x: 0.6364, y: 0.6814 }, { x: 1, y: 1 },
     ],
   },
   {
-    id: 'builtin-owner-bright-room', name: 'Светло', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
+    id: 'builtin-owner-bright-room', name: 'Пресет 2', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
     ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 3, vibrance: 56,
     curve: [
       { x: 0, y: 0.086 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 }, { x: 0.0314, y: 0.3333 },
@@ -296,14 +297,14 @@ export const BUILT_IN_PRESETS: ScreenProfile[] = [
     ],
   },
   {
-    id: 'builtin-owner-bright', name: 'Светло и мягко', builtIn: true, note: 'Ярче вся картинка, мягкий контраст',
+    id: 'builtin-owner-bright', name: 'Пресет 3', builtIn: true, note: 'Ярче вся картинка, мягкий контраст',
     ...NEUTRAL, gamma: 1.82, shadows: 0.36, highlights: -0.04, contrast: 0.14, brightness: -0.02, haze: 4, vibrance: 60,
     curve: [
       { x: 0, y: 0 }, { x: 0.2576, y: 0.2678 }, { x: 0.5242, y: 0.5587 }, { x: 1, y: 1 },
     ],
   },
   {
-    id: 'builtin-daylight', name: 'Как днём', builtIn: true, note: 'Ночь и сумерки на улице: светло и видно',
+    id: 'builtin-daylight', name: 'Пресет 4', builtIn: true, note: 'Ночь и сумерки на улице: светло и видно',
     ...NEUTRAL, contrast: 0.05,
     curve: [
       { x: 0, y: 0 }, { x: 0.0039, y: 0.0824 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 },
@@ -312,7 +313,7 @@ export const BUILT_IN_PRESETS: ScreenProfile[] = [
     ],
   },
   {
-    id: 'builtin-daylight-rooms', name: 'Светлое помещение', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
+    id: 'builtin-daylight-rooms', name: 'Пресет 5', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
     ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 5, cast: 0.25, vibrance: 67,
     curve: [
       { x: 0, y: 0.086 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 }, { x: 0.0314, y: 0.3333 },
@@ -329,7 +330,7 @@ export const BUILT_IN_PRESETS: ScreenProfile[] = [
    * processing a colour table cannot do.
    */
   {
-    id: 'builtin-bright-clean', name: 'Ярко и чисто', builtIn: true, note: 'Светло, живые цвета, без шума в тенях',
+    id: 'builtin-bright-clean', name: 'Пресет 6', builtIn: true, note: 'Светло, живые цвета, без шума в тенях',
     ...NEUTRAL, vibrance: 62,
     curve: [
       { x: 0, y: 0.012 }, { x: 0.01, y: 0.022 }, { x: 0.025, y: 0.045 }, { x: 0.05, y: 0.1 }, { x: 0.08, y: 0.165 }, { x: 0.12, y: 0.25 },

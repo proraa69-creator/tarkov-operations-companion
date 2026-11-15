@@ -11,6 +11,7 @@ import { usePictures, type Pictures } from './usePictures'
 import { CHOICE_POPUP_CLASS, ChoicePopover } from './ChoicePopover'
 import type { DeferMenuState } from '../components/QuestDeferDialog'
 import { WeaponBuildMenuProvider, useWeaponBuildMenu } from './WeaponBuildMenu'
+import { TakenCheck, useItemTaken } from './TakenItems'
 import { ThumbScroll } from '../components/ThumbScroll'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
@@ -45,9 +46,12 @@ function nameOf(ref: ItemRef, pictures: Pictures) {
 /** `itemId`: the item a right click on the picture puts the quest aside for (its level for «До уровня»). */
 function Picture({ src, alt, className, fallback, itemId }: { src?: string; alt: string; className?: string; fallback: ReactNode; itemId?: string }) {
   const [broken, setBroken] = useState<string | undefined>()
-  return src && broken !== src
+  const taken = useItemTaken(itemId)
+  const picture = src && broken !== src
     ? <img className={className} src={src} alt={alt} title={alt} loading="lazy" onError={() => setBroken(src)} data-item-id={itemId} />
     : <span className={`${className ?? ''} is-empty`} title={alt} role="img" aria-label={alt} data-item-id={itemId}>{fallback}</span>
+  // «Взял» (report 157): the green check in the tile's top right corner.
+  return taken ? <span className="qc-taken" data-taken={itemId}>{picture}<TakenCheck /></span> : picture
 }
 
 function MapChips({ objective, mapName, limit = CARD_MAPS }: { objective: Pick<QuestObjective, 'mapIds'>; mapName: (id: string) => string; limit?: number }) {
@@ -102,11 +106,30 @@ function VariantList({ options, sets, weapons, example, pictures }: { options: I
   </ul>
 }
 
-/** One weapon of the list; a right click: «Открыть сборку» (WeaponBuildMenu). */
+/**
+ * The weapon's picture on the card and in its unfolded view: a right click offers «Открыть сборку оружия» (WeaponBuildMenu),
+ * not the card's own menu (putting the quest aside), which stays on the rest of the card.
+ */
+function WeaponPicture({ weapon, pictures }: { weapon: ItemRef; pictures: Pictures }) {
+  const name = uiText(nameOf(weapon, pictures))
+  const onMenu = useWeaponBuildMenu({ id: weapon.id, name })
+  return <span className="qc-weapon-hit" onContextMenu={onMenu}>
+    <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={name} fallback={<Crosshair size={20} />} itemId={weapon.id} />
+  </span>
+}
+
+/**
+ * One weapon of the list: a right click offers «Открыть сборку оружия» (WeaponBuildMenu; owner, 13.11.2026: only the right
+ * click, the menu's button opens the build). No press takes the focus away: a press that did hid the list (ChoicePopover's
+ * blur) before the menu could show — a player: «При нажатии просто окно с пушками пропадает».
+ */
 function WeaponVariant({ weapon, isExample, pictures }: { weapon: ItemRef; isExample: boolean; pictures: Pictures }) {
   const name = uiText(nameOf(weapon, pictures))
   const onMenu = useWeaponBuildMenu({ id: weapon.id, name })
-  return <li className={`qc-variant is-weapon${isExample ? ' is-example' : ''}`} onContextMenu={onMenu}>
+  return <li className={`qc-variant is-weapon${isExample ? ' is-example' : ''}${onMenu ? ' has-menu' : ''}`} onContextMenu={onMenu}
+    {...(onMenu ? {
+      onMouseDown: (event: ReactMouseEvent) => { if (event.button === 0 || event.button === 2) event.preventDefault() },
+    } : {})}>
     <Picture className="qc-variant-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={name} fallback={<Crosshair size={16} />} />
     <span className="qc-variant-name">{name}</span>
   </li>
@@ -189,7 +212,7 @@ export function GearStrip({ conditions, pictures }: { conditions: ObjectiveCondi
   const wearing = conditions.wearing?.length ? conditions.wearing : undefined
   return <span className={`qc-gear${weapon ? ' has-weapon' : ''}`}>
     {weapon && <Choice className="qc-weapon-group" options={weapons} weapons example={weapon} pictures={pictures} more={`+${weapons.length - 1}`}>
-      <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} itemId={weapon.id} />
+      <WeaponPicture weapon={weapon} pictures={pictures} />
     </Choice>}
     {(mods || wearing) && <span className="qc-reqs">
       {mods && <RestOptions kind="mods" options={mods} pictures={pictures} />}
@@ -224,7 +247,7 @@ function FullObjective({ objective, pictures, mapName }: { objective: QuestObjec
       {weapon && <span className="qc-full-row is-weapons">
         <span className="qc-full-label">{uiText('Оружие')}</span>
         <Choice className="qc-full-items" options={weapons} weapons example={weapon} pictures={pictures}>
-          <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} itemId={weapon.id} />
+          <WeaponPicture weapon={weapon} pictures={pictures} />
         </Choice>
       </span>}
       {reqs && <span className="qc-full-reqs">

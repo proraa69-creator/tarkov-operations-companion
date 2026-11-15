@@ -1,0 +1,10 @@
+/* «Взял» (report 157, overview/TakenItems.tsx): a green check in the top right corner of a taken item's tile. */
+.qc-taken { position: relative; display: inline-flex; flex: 0 0 auto; }
+.item-taken-check {
+  position: absolute; top: 3px; right: 3px; z-index: 2; display: grid; place-items: center; width: 18px; height: 18px;
+  border: 1px solid color-mix(in srgb, var(--green, #7fb069) 70%, #000); border-radius: 50%;
+  background: var(--green, #7fb069); color: #0b130c; box-shadow: 0 1px 4px rgb(0 0 0 / 45%); pointer-events: none;
+}
+.raid-need > .item-taken-check { top: 6px; right: 6px; }
+/* the name keeps clear of the check */
+.raid-need.is-taken { padding-right: 30px; }

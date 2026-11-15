@@ -34,6 +34,7 @@ import { keyUsesKey, OWNED_KEYS_EVENT, ownedKeysKey } from '../quests/ownedKeys'
 import { RESTOCK_SETTINGS_SYNC } from '../restock/restockSettings'
 import { TRADING_POSITIONS_SYNC } from '../trading/tradingPositions'
 import { TRADING_SETTINGS_SYNC } from '../trading/tradingSettings'
+import { SQUAD_SETTINGS_SYNC, SQUAD_SKETCH_HIDDEN_SYNC } from '../squad/squadSettings'
 import { canonicalJson, hashOf, schedulePlayerStateSync, type StateAdapter, type StateMode } from './playerState'
 
 const WHOLE_ACCOUNT: readonly StateMode[] = ['']
@@ -222,6 +223,8 @@ const PREFS: ReadonlyArray<{ key: string; event: string }> = [
   TRADING_SETTINGS_SYNC,
   RESTOCK_SETTINGS_SYNC,
   KAPPA_BADGE_SYNC,
+  SQUAD_SETTINGS_SYNC,
+  SQUAD_SKETCH_HIDDEN_SYNC,
 ]
 
 const prefs: StateAdapter = {

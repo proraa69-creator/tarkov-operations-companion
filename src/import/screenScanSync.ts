@@ -78,16 +78,13 @@ function isRussianTasksMenu(text: string) {
 }
 
 /**
- * The rows of a table frame that may count as current. A row whose status cell was not read counts only on a frame with
- * two or more status cells read — the Tasks table itself. A trader's own Tasks tab shows the status of the open quest
- * only and lists quests not taken yet beside it (audit P13): there only the rows with a status read count. With
- * «Показать заблокированные» ticked that tab has many status cells (a player's ticket №37, 04.11.2026: «заблокировано» on
- * the parts not open yet): a frame with a row of a quest not being done is treated the same.
+ * The rows of a table frame that may count as current: only those whose status cell was read. A row without one used to
+ * count on the Tasks table itself, and brought into «Текущие» quests long handed in and quests not given yet — a completed
+ * row whose «выполнено!» was missed, a trader's list beside it (a player, 13.11.2026: «появляются квесты которые он уже
+ * сдал в игре»). A quest really taken still comes from the game's logs.
  */
-export function tableMatches<T extends { status?: QuestRowStatus }>(text: string, matches: T[]): T[] {
-  const rows = tableRowLines(text)
-  const notBeingDone = rows.some((line) => { const status = rowStatus(line); return status === 'locked' || status === 'available' })
-  return rows.length >= 2 && !notBeingDone ? matches : matches.filter((match) => match.status !== undefined)
+export function tableMatches<T extends { status?: QuestRowStatus }>(_text: string, matches: T[]): T[] {
+  return matches.filter((match) => match.status !== undefined)
 }
 
 /** The table's status cell, Russian and English (questOcr.ts rowStatus); not the trader tab's «ЗАВЕРШИТЬ» / «COMPLETE» button. */
@@ -182,7 +179,7 @@ export function applyScreenScanProgress(
   return next
 }
 
-/** Rows marked «доступно» / «заблокировано» / «провалено» are listed but not being done. */
+/** Only a row read «активно!» / «можно сдать» is being done; «доступно» / «заблокировано» / «провалено» or no status read is not. */
 function isCurrentRow(status?: QuestRowStatus) {
-  return status === undefined || status === 'active' || status === 'ready'
+  return status === 'active' || status === 'ready'
 }

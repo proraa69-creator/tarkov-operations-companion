@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Maximize2, Minus, Plus } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, Minus, MoveHorizontal, Plus } from 'lucide-react'
 import type { Quest, Trader } from '../../domain/types'
 import type { TaskAvailability } from '../../progression/requirementEngine'
 import { provenCompleted } from '../../progression/requirementEngine'
@@ -102,9 +102,11 @@ export function QuestTreeView({ quests, traders, availability, query }: QuestTre
 
   const root = useRef<HTMLDivElement>(null)
   useFitBelow(root, !mobile)
+  const [expanded, setExpanded] = useQuestTreeFullscreen(!mobile)
 
   return <div ref={root} className="quest-tree" data-testid="quest-tree">
     <div className="quest-tree-toolbar">
+      {expanded && <button type="button" className="button small quest-tree-fullscreen-back" onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" />{uiText('Назад')}</button>}
       <LaneChips model={model} traders={traders} availability={availability} lane={lane} onLane={(key) => select({ lane: key })} />
       {query.trim() && <div className="quest-tree-found" data-testid="quest-tree-found">
         {matches.length
@@ -124,8 +126,39 @@ export function QuestTreeView({ quests, traders, availability, query }: QuestTre
       onShowPath={(questId) => { select({ lane: ALL_LANES, selected: questId }); window.setTimeout(() => focusOn(questId), 80) }} />}
     {mobile
       ? <QuestTreeOutline model={model} availability={availability} lane={lane} matches={query.trim() ? matches : undefined} selectedId={selectedId} onOpen={open} onJump={jump} />
-      : <QuestTreeCanvas model={model} traders={traders} availability={availability} lane={lane} query={query} matches={matches} currentMatch={matches[matchIndex]} selectedId={selectedId} focus={focus} onOpen={open} onJump={jump} />}
+      : <QuestTreeCanvas model={model} traders={traders} availability={availability} lane={lane} query={query} matches={matches} currentMatch={matches[matchIndex]} selectedId={selectedId} focus={focus} onOpen={open} onJump={jump}
+        expanded={expanded} onExpand={() => setExpanded(!expanded)} />}
   </div>
+}
+
+/**
+ * PC: the tree on the whole window of the app, as the map does (owner, 14.11.2026: «добавь кнопку «Открыть на весь
+ * экран», как у нас на карте… для всех деревьев квестов» — every trader's lane, the Lightkeeper's and «Все»). The app's
+ * menu and top bar hide, the chosen quest's card stays beside the tree; Esc or «Назад» bring them back. Not remembered.
+ */
+function useQuestTreeFullscreen(enabled: boolean) {
+  const [on, setOn] = useState(false)
+  const active = enabled && on
+  useEffect(() => {
+    if (!active) return
+    const root = document.documentElement
+    root.setAttribute('data-quest-tree-fullscreen', '')
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !event.defaultPrevented) setOn(false) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      root.removeAttribute('data-quest-tree-fullscreen')
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [active])
+  return [active, setOn] as const
+}
+
+/** The four corners at the bottom right of the tree, the same button as the map's (MapsPage MapExpandToggle). */
+function QuestTreeExpandToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
+  const label = uiText(expanded ? 'Выйти из полноэкранного режима (Esc)' : 'Открыть на весь экран')
+  return <button type="button" className={`quest-tree-expand-toggle${expanded ? ' is-expanded' : ''}`} data-testid="quest-tree-fullscreen" aria-pressed={expanded} aria-label={label} title={label} onClick={onToggle}>
+    {expanded ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}
+  </button>
 }
 
 const laneProgress = (lane: QuestTreeLane, availability: QuestTreeAvailability) => lane.questIds.filter((id) => provenCompleted(availability.get(id))).length
@@ -159,13 +192,16 @@ interface QuestTreeCanvasProps {
   focus?: { questId: string; token: number }
   onOpen: (questId: string) => void
   onJump: (questId: string) => void
+  /** The tree on the whole window (useQuestTreeFullscreen). */
+  expanded: boolean
+  onExpand: () => void
 }
 
 /**
  * A plain scrolling box with the tree scaled inside: the wheel scrolls as everywhere in the app, Ctrl + wheel and the buttons
  * zoom, dragging moves the view, and Tab walks the quests with the browser keeping the focused one in sight.
  */
-function QuestTreeCanvas({ model, traders, availability, lane, query, matches, currentMatch, selectedId, focus, onOpen, onJump }: QuestTreeCanvasProps) {
+function QuestTreeCanvas({ model, traders, availability, lane, query, matches, currentMatch, selectedId, focus, onOpen, onJump, expanded, onExpand }: QuestTreeCanvasProps) {
   const viewport = useRef<HTMLDivElement>(null)
   const laneKeys = useMemo(() => lane === ALL_LANES ? undefined : new Set([lane]), [lane])
   const layout = useMemo(() => layoutQuestTree(model, laneKeys), [model, laneKeys])
@@ -284,9 +320,10 @@ function QuestTreeCanvas({ model, traders, availability, lane, query, matches, c
         <button type="button" className="icon-button" aria-label={uiText('Уменьшить')} title={uiText('Уменьшить')} data-testid="quest-tree-zoom-out" onClick={() => applyZoom(zoom / 1.2)}><Minus size={14} /></button>
         <span data-testid="quest-tree-zoom-value">{Math.round(zoom * 100)}%</span>
         <button type="button" className="icon-button" aria-label={uiText('Увеличить')} title={uiText('Увеличить')} data-testid="quest-tree-zoom-in" onClick={() => applyZoom(zoom * 1.2)}><Plus size={14} /></button>
-        <button type="button" className="icon-button" aria-label={uiText('По ширине')} title={uiText('По ширине')} data-testid="quest-tree-fit" onClick={fit}><Maximize2 size={13} /></button>
+        <button type="button" className="icon-button" aria-label={uiText('По ширине')} title={uiText('По ширине')} data-testid="quest-tree-fit" onClick={fit}><MoveHorizontal size={14} /></button>
       </div>
     </div>
+    <div className="quest-tree-stage">
     <div ref={viewport} className="quest-tree-viewport" data-testid="quest-tree-canvas" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onClickCapture={(event) => { if (justDragged.current) { event.stopPropagation(); event.preventDefault() } }}>
       <div className="quest-tree-sizer" style={{ width: layout.width * zoom, height: layout.height * zoom }}>
         <div className={`quest-tree-plane${searching ? ' is-searching' : ''}${chain ? ' has-chain' : ''}`} style={{ width: layout.width, height: layout.height, transform: `scale(${zoom})` }}>
@@ -320,6 +357,8 @@ function QuestTreeCanvas({ model, traders, availability, lane, query, matches, c
           })}
         </div>
       </div>
+    </div>
+    <QuestTreeExpandToggle expanded={expanded} onToggle={onExpand} />
     </div>
   </>
 }

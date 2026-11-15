@@ -7,8 +7,10 @@ import { friendColors } from './friendColors'
 import { friendLabel } from './squadLabels'
 import { objectivePointsOnMap } from './raidPlanEngine'
 import { doneObjectives, questMapIdsForSquad } from './squadOverview'
+import { useSquadSettings } from './squadSettings'
 
 const KEY = 'raidos-map-friend-quests-v1'
+const SQUAD_KEY = 'raidos-map-squad-quests-v1'
 /** The friends progress endpoint takes this many at once (server/src/routes/friends.ts). */
 const MAX_FRIENDS = 10
 /** While the layer is on, the friends' and the squad's quests come again from the server this often (owner, 12.11.2026). */
@@ -52,26 +54,34 @@ export function mergeLayerPeople(friends: readonly PlannerPerson[], squad: reado
   ]
 }
 
-function readOn() {
-  try { return localStorage.getItem(KEY) === '1' } catch { return false }
+function readOn(key: string) {
+  try { return localStorage.getItem(key) === '1' } catch { return false }
 }
+
+/** «Квесты друзей» or «Квесты отряда»: which button of the map this layer is. */
+export type QuestLayerWho = 'friends' | 'squad'
 
 /**
  * «Квесты друзей» on the map (owner, 12.10.2026: «кнопку на карте сверху, квесты друга… появятся на карте точки квестов,
  * подсвечиваются эти точки согласно присвоеному цвету в разделе друзья»): the remaining objective points of every friend
  * who shares progress, in the friend's colour. Off by default; the choice is kept on this computer.
  * The same button shows the squad mates' quests by their nicknames, and while it is on both come again from the server
- * every half a minute (owner, 12.11.2026: «Они должны обновляться сами с сервера. И если человек в отряде находится, то
- * там же включаются и отрядные квесты»).
+ * every half a minute (owner, 12.11.2026: «Они должны обновляться сами с сервера»).
+ * The squad has its own button since 14.11.2026 (owner: «включил, поставил галочку на квесты отряда, у человека на карте появляется
+ * кнопка сверху квесты отряда. По нажатию ее только потом появляются квесты. Также по цветам они различаются»): `who` 'squad' is
+ * the squad mates only, there while «Настройки отряда» has «Квесты отряда» on; 'friends' is the friends only.
  */
-export function useFriendQuestLayer(mode: RaidMode, mapId: string, quests: Quest[], markers: MapMarker[]) {
+export function useFriendQuestLayer(mode: RaidMode, mapId: string, quests: Quest[], markers: MapMarker[], who: QuestLayerWho = 'friends') {
   const { overview, signedIn } = useFriends({ poll: false })
   const squadState = useSquad(mode, { poll: false })
+  const settings = useSquadSettings()
+  const squadLayer = who === 'squad'
   const friends = useMemo(() => overview?.friends ?? [], [overview])
-  const sharing = useMemo(() => friends.filter((friend) => friend.sharesProgress).slice(0, MAX_FRIENDS), [friends])
+  const sharing = useMemo(() => (squadLayer ? [] : friends.filter((friend) => friend.sharesProgress).slice(0, MAX_FRIENDS)), [friends, squadLayer])
   const squadMates = useMemo(() => squadPeople(squadState.overview?.squad.members ?? squadState.mine?.squad?.members), [squadState.overview, squadState.mine])
   const ids = sharing.map((friend) => friend.friendId).join(',')
-  const [on, setOn] = useState(readOn)
+  const storageKey = squadLayer ? SQUAD_KEY : KEY
+  const [on, setOn] = useState(() => readOn(storageKey))
   const [tick, setTick] = useState(0)
   const [result, setResult] = useState<{ key: string; people: PlannerPerson[]; error: string } | null>(null)
   const key = `${mode}:${ids}`
@@ -82,11 +92,11 @@ export function useFriendQuestLayer(mode: RaidMode, mapId: string, quests: Quest
     const timer = window.setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
       setTick((value) => value + 1)
-      void loadFriends()
-      void loadSquad(mode)
+      if (squadLayer) void loadSquad(mode)
+      else void loadFriends()
     }, FRIEND_QUESTS_REFRESH_MS)
     return () => window.clearInterval(timer)
-  }, [on, signedIn, mode])
+  }, [on, signedIn, mode, squadLayer])
 
   useEffect(() => {
     if (!on || !ids) return
@@ -100,22 +110,22 @@ export function useFriendQuestLayer(mode: RaidMode, mapId: string, quests: Quest
   }, [on, mode, ids, key, tick])
 
   const colors = useMemo(() => friendColors([...friends.map((friend) => friend.friendId), ...squadMates.map((mate) => mate.id).filter((id) => !friends.some((friend) => friend.friendId === id))]), [friends, squadMates])
-  const people = useMemo(() => mergeLayerPeople(ids && result?.key === key ? result.people : [], squadMates), [result, key, ids, squadMates])
+  const people = useMemo(() => (squadLayer ? mergeLayerPeople([], squadMates) : ids && result?.key === key ? result.people : []), [squadLayer, result, key, ids, squadMates])
   const { points, legend } = useMemo(() => friendQuestPoints({ people, sharing, colors, quests, markers, mapId, mode }), [people, sharing, colors, quests, markers, mapId, mode])
 
   const toggle = () => setOn((value) => {
-    try { localStorage.setItem(KEY, value ? '0' : '1') } catch { /* storage unavailable: on for this visit only */ }
+    try { localStorage.setItem(storageKey, value ? '0' : '1') } catch { /* storage unavailable: on for this visit only */ }
     return !value
   })
   return {
-    /** Signed in: the button is there (disabled without friends who share progress). */
-    available: signedIn,
-    /** Friends who share progress and squad mates: the button works with either. */
-    sharing: sharing.length + squadMates.filter((mate) => !sharing.some((friend) => friend.friendId === mate.id)).length,
+    who,
+    /** Signed in: the friends' button is there (disabled without friends who share progress); the squad's in a squad, with it turned on. */
+    available: squadLayer ? signedIn && settings.quests && squadMates.length > 0 : signedIn,
+    sharing: squadLayer ? squadMates.length : sharing.length,
     on,
     toggle,
-    loading: on && Boolean(ids) && result?.key !== key,
-    error: result?.key === key ? result.error : '',
+    loading: !squadLayer && on && Boolean(ids) && result?.key !== key,
+    error: !squadLayer && result?.key === key ? result.error : '',
     points: on ? points : [],
     legend: on ? legend : [],
   }

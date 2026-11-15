@@ -286,13 +286,13 @@ describe('DashboardPage', () => {
     const needs = container.querySelector('.raid-needs') as HTMLElement
     const camera = within(needs).getByText('Wi-Fi камера ×7').closest('.raid-need') as HTMLElement
     expect(within(camera).getByRole('link', { name: 'Wi-Fi камера ×7' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
-    expect(within(camera).getByText('Взять и заложить')).toBeInTheDocument()
+    expect(within(camera).getByText('Заложить')).toBeInTheDocument()
     expect(within(camera).getByRole('link', { name: '4 — Что-то это мне напоминает..' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
     expect(within(camera).getByRole('link', { name: '3 — Наблюдатель' })).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
     // an item of one quest keeps its one line and its one link
     const elcan = within(needs).getByText(/ELCAN/).closest('.raid-need') as HTMLElement
     expect(within(elcan).getAllByRole('link')).toHaveLength(1)
-    expect(elcan).toHaveTextContent('Взять и заложить · Оптика')
+    expect(elcan).toHaveTextContent('Заложить · Оптика')
     expect(needs.querySelector('.raid-needs-deferred')).toBeNull()
   })
 
@@ -303,7 +303,7 @@ describe('DashboardPage', () => {
     const deferredNote = () => needs.querySelector('.raid-needs-deferred')
     // «Наблюдатель» alone: its 3 cameras, its one line, its point
     expect(camera()).toHaveTextContent('Wi-Fi камера ×3')
-    expect(camera()).toHaveTextContent('Взять и заложить · Наблюдатель')
+    expect(camera()).toHaveTextContent('Заложить · Наблюдатель')
     expect(camera()).not.toHaveTextContent('Что-то это мне напоминает')
     expect(within(camera()!).getByRole('link')).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
     expect(deferredNote()).toHaveTextContent('Не учтены отложенные квесты: Что-то это мне напоминает..')
@@ -454,7 +454,7 @@ describe('DashboardPage', () => {
       const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS, deferred: { pvp: ['scope-stash'] } })
       const needs = container.querySelector('.raid-needs') as HTMLElement
       const camera = within(needs).getByText('WI-FI Camera ×7').closest('.raid-need') as HTMLElement
-      expect(within(camera).getByText('Take and plant')).toBeInTheDocument()
+      expect(within(camera).getByText('Plant')).toBeInTheDocument()
       expect(within(camera).getByRole('link', { name: '4 — Something Reminds Me Of..' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
       expect(within(camera).getByRole('link', { name: '3 — The Watcher' })).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
       expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Deferred quests not counted: Scope Stash')
@@ -467,6 +467,22 @@ describe('DashboardPage', () => {
       installCatalogTranslations([])
       vi.unstubAllGlobals()
     }
+  })
+
+  // Report 157 (owner, 14.11.2026): «Отмечается правой кнопкой, нажимаешь взял. Ставится галочка в углу».
+  it('«Взял»: a right click ticks the item with a green check in its corner, «Не взял» takes it back', () => {
+    const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    const camera = () => within(needs).getByText(/^Wi-Fi камера/).closest('.raid-need') as HTMLElement
+    expect(within(camera()).queryByRole('img', { name: 'Взял' })).toBeNull()
+    fireEvent.contextMenu(camera(), { clientX: 200, clientY: 150 })
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Взял' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(within(camera()).getByRole('img', { name: 'Взял' })).toBeInTheDocument()
+    expect(camera()).toHaveClass('is-taken')
+    fireEvent.contextMenu(camera(), { clientX: 200, clientY: 150 })
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Не взял' }))
+    expect(within(camera()).queryByRole('img', { name: 'Взял' })).toBeNull()
   })
 
   // Owner, 03.11.2026: «нажать на любой предмет ПКМ и отложить квест не открывая и не запоминая каждый квест… отладка по
@@ -731,12 +747,29 @@ describe('DashboardPage', () => {
     })
   })
 
+  it('«Сбор на рейд»: «Взял» on the weapon draws the check on its tile', () => {
+    const data: AppDataset = { ...dataset, quests: [...dataset.quests, gearQuest], items: [...dataset.items, item('ak-12', 'Автомат АК-12', ['gun'])] }
+    const { container } = renderDashboard(undefined, { data, tasks: [...CUSTOMS_TASKS, 'gear-patriot'] })
+    const card = container.querySelector('.quest-conditions-card') as HTMLElement
+    expect(card.querySelector('[data-taken="ak-12"]')).toBeNull()
+    fireEvent.contextMenu(card.querySelector(':scope > .qc-main [data-item-id="ak-12"]')!, { clientX: 300, clientY: 120 })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Взял' }))
+    const tile = card.querySelector(':scope > .qc-main [data-taken="ak-12"]') as HTMLElement
+    expect(within(tile).getByRole('img', { name: 'Взял' })).toBeInTheDocument()
+    expect(tile.querySelector('[data-item-id="ak-12"]')).toBeInTheDocument()
+  })
+
   it('«Сбор на рейд»: a right click on a quest\'s gear puts that quest aside, and the card says so', () => {
     const data: AppDataset = { ...dataset, quests: [...dataset.quests, gearQuest], items: [...dataset.items, item('ak-12', 'Автомат АК-12', ['gun'])] }
     const { container } = renderDashboard(undefined, { data, tasks: [...CUSTOMS_TASKS, 'gear-patriot'] })
     const card = container.querySelector('.quest-conditions-card') as HTMLElement
     expect(card.querySelector(':scope > .qc-main .qc-name')).toHaveTextContent('Работа для патриота')
+    // the weapon itself has its own menu, «Открыть сборку оружия» (owner, 13.11.2026); the rest of the card puts the quest aside
     fireEvent.contextMenu(card.querySelector(':scope > .qc-main [data-item-id="ak-12"]')!, { clientX: 300, clientY: 120 })
+    expect(screen.queryByRole('menu', { name: 'Меню предмета' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Открыть сборку оружия' })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.contextMenu(card.querySelector(':scope > .qc-main .qc-name')!, { clientX: 300, clientY: 120 })
     const menu = screen.getByRole('menu', { name: 'Меню предмета' })
     expect(menu).toHaveTextContent('Автомат АК-12')
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Отложить квест' }))

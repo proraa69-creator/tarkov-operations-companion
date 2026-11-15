@@ -28,7 +28,7 @@ describe('screen scan sync after turn-in', () => {
   it('the next quest of a chain on the screen takes nothing away: the reading may be wrong, a hand-in shows in the logs (owner, 05.11.2026)', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'checking' }], [debut, checking], { previousSeenIds: ['debut'] })
+    const next = applyScreenScanProgress(progress, [{ questId: 'checking', status: 'active' }], [debut, checking], { previousSeenIds: ['debut'] })
     expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
   })
@@ -44,7 +44,7 @@ describe('screen scan sync after turn-in', () => {
 
   it('keeps the previous quest current if it is still on the same Tasks screen', () => {
     const progress = createModeProgress()
-    const next = applyScreenScanProgress(progress, [{ questId: 'debut' }, { questId: 'checking' }], [debut, checking])
+    const next = applyScreenScanProgress(progress, [{ questId: 'debut', status: 'active' }, { questId: 'checking', status: 'active' }], [debut, checking])
     expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
   })
@@ -64,7 +64,7 @@ describe('screen scan sync after turn-in', () => {
     progress.taskProgress.checking = { taskId: 'checking', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     const next = applyScreenScanProgress(
       progress,
-      [{ questId: 'checking' }, { questId: 'side' }],
+      [{ questId: 'checking', status: 'active' }, { questId: 'side', status: 'active' }],
       [debut, checking, parallel],
       { previousSeenIds: ['debut', 'checking'] },
     )
@@ -77,7 +77,7 @@ describe('screen scan sync after turn-in', () => {
     const skier: Quest = { id: 'swag', name: 'Золотая добыча', trader: 'Лыжник', level: 5, kappa: true, description: '', objectives: [], rewards: [] }
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'swag' }], [debut, skier], { previousSeenIds: ['debut'] })
+    const next = applyScreenScanProgress(progress, [{ questId: 'swag', status: 'active' }], [debut, skier], { previousSeenIds: ['debut'] })
     expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.swag?.status).toBe('active')
   })
@@ -86,7 +86,7 @@ describe('screen scan sync after turn-in', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     progress.taskProgress.side = { taskId: 'side', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'side' }], [debut, parallel], { previousSeenIds: ['debut', 'side'] })
+    const next = applyScreenScanProgress(progress, [{ questId: 'side', status: 'active' }], [debut, parallel], { previousSeenIds: ['debut', 'side'] })
     expect(next.taskProgress.debut?.status).toBe('active')
   })
 
@@ -96,7 +96,7 @@ describe('screen scan sync after turn-in', () => {
     const progress = createModeProgress()
     progress.taskProgress.cans = { taskId: 'cans', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     progress.taskProgress.side = { taskId: 'side', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'side' }, { questId: 'order' }], [cans, order, parallel], { previousSeenIds: ['cans', 'side', 'order'] })
+    const next = applyScreenScanProgress(progress, [{ questId: 'side', status: 'active' }, { questId: 'order', status: 'active' }], [cans, order, parallel], { previousSeenIds: ['cans', 'side', 'order'] })
     expect(next.taskProgress.cans?.status).toBe('active')
   })
 
@@ -106,14 +106,14 @@ describe('screen scan sync after turn-in', () => {
     const next = applyScreenScanProgress(progress, [{ questId: 'debut' }], [debut, checking])
     expect(next.taskProgress.debut?.status).toBe('completed')
 
-    const fresh = applyScreenScanProgress(createModeProgress(), [{ questId: 'checking' }], [debut, checking])
+    const fresh = applyScreenScanProgress(createModeProgress(), [{ questId: 'checking', status: 'active' }], [debut, checking])
     expect(fresh.taskProgress.debut).toBeUndefined()
   })
 
   it('adds a new quest in live watch only after two consecutive frames', () => {
-    const first = applyScreenScanProgress(createModeProgress(), [{ questId: 'debut' }], [debut], { previousSeenIds: [], requireConfirmation: true })
+    const first = applyScreenScanProgress(createModeProgress(), [{ questId: 'debut', status: 'ready' }], [debut], { previousSeenIds: [], requireConfirmation: true })
     expect(first.taskProgress.debut).toBeUndefined()
-    const second = applyScreenScanProgress(first, [{ questId: 'debut' }], [debut], { previousSeenIds: ['debut'], requireConfirmation: true })
+    const second = applyScreenScanProgress(first, [{ questId: 'debut', status: 'ready' }], [debut], { previousSeenIds: ['debut'], requireConfirmation: true })
     expect(second.taskProgress.debut?.status).toBe('active')
   })
 
@@ -124,9 +124,10 @@ describe('screen scan sync after turn-in', () => {
     expect(once.taskProgress.side).toBeUndefined()
   })
 
-  it('adds a row whose title was read exactly from one frame, whatever its status; a looser reading still needs two (owner, 03.11.2026)', () => {
+  // Since 13.11.2026 a row needs its status read at all (a player: quests long handed in came back as current).
+  it('adds a row whose title was read exactly from one frame with its status read; none without one; a looser reading still needs two (owner, 03.11.2026)', () => {
     const once = applyScreenScanProgress(createModeProgress(), [{ questId: 'debut', score: 1 }, { questId: 'checking', status: 'ready', score: 1 }, { questId: 'side', status: 'ready', score: 0.8 }], [debut, checking, parallel], { previousSeenIds: [], requireConfirmation: true })
-    expect(once.taskProgress.debut?.status).toBe('active')
+    expect(once.taskProgress.debut).toBeUndefined()
     expect(once.taskProgress.checking?.status).toBe('active')
     expect(once.taskProgress.side).toBeUndefined()
     const twice = applyScreenScanProgress(once, [{ questId: 'side', status: 'ready', score: 0.8 }], [debut, checking, parallel], { previousSeenIds: ['side'], requireConfirmation: true })
@@ -136,7 +137,7 @@ describe('screen scan sync after turn-in', () => {
   it('keeps active PvE quests found in logs when OCR only sees one page', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'eft-log', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'checking' }], [debut, checking], { previousSeenIds: ['checking'], requireConfirmation: true })
+    const next = applyScreenScanProgress(progress, [{ questId: 'checking', status: 'active' }], [debut, checking], { previousSeenIds: ['checking'], requireConfirmation: true })
     expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
   })
@@ -208,9 +209,10 @@ describe('a trader\'s own Tasks tab in the Russian game (audit P13)', () => {
       expect(read.map((match) => name(match.questId))).toEqual(expect.arrayContaining(['Короли высоток']))
       expect(tableMatches(shown(word), read).map((match) => name(match.questId)).sort()).toEqual(['Зеленый коридор', 'Новый участковый', 'Работа для патриота'])
     }
-    // The Tasks table itself: a row whose status cell was missed still counts.
+    // The Tasks table itself: a row whose status cell was missed no longer counts (a player, 13.11.2026: quests long handed
+    // in came back as current).
     const table = ['Работа для патриота Любая локация активно!', 'Зеленый коридор Любая локация выполнено!', 'Короли высоток'].join('\n')
-    expect(tableMatches(table, matchQuestsFromOcr(table, quests)).map((match) => name(match.questId))).toEqual(expect.arrayContaining(['Короли высоток']))
+    expect(tableMatches(table, matchQuestsFromOcr(table, quests)).map((match) => name(match.questId))).not.toContain('Короли высоток')
   })
 })
 

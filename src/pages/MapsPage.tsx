@@ -94,6 +94,8 @@ import { useRaidRoute } from '../raidprep/useRaidPrep'
 import { useSquadSharedQuests } from '../squad/useSquad'
 import { FriendQuestMarkers, FriendQuestToggle } from '../squad/FriendQuestsOnMap'
 import { useFriendQuestLayer } from '../squad/friendQuestLayer'
+import { useSquadLive } from '../squad/squadLive'
+import { SquadMateMarkers, SquadSketchChips, SquadSketchLines } from '../squad/SquadLiveOnMap'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
@@ -117,6 +119,7 @@ import { MapFloorWheel, useGameFloorWheel } from '../maps/mapFloorWheel'
 import { repeatsTitle } from '../maps/repeatsTitle'
 import { useMapFloorWheel } from '../account/trialFeatures'
 import { appStoreRules, isDesktopShell, useMobileLayout } from '../platform'
+import { MapPanelEye, MapPanelsSettings, useMapPanels } from '../maps/MapPanels'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -544,6 +547,13 @@ export function MapsPage() {
   }
   const [expanded, setExpanded] = useDesktopMapFullscreen(!mobile)
   const shellRef = useMapFitsWindow(!mobile)
+  // Report 158: the panels left and right or above and below the map, and each one hidden by its eye (maps/MapPanels.tsx).
+  const panels = useMapPanels()
+  const panelsOn = !mobile
+  const stacked = panelsOn && panels.layout === 'stacked'
+  const leftHidden = panelsOn && panels.leftHidden
+  const rightHidden = panelsOn && panels.rightHidden
+  useEffect(() => { if (panelsOn) resizeMapSoon() }, [panelsOn, stacked, leftHidden, rightHidden])
   const [fullscreen, setFullscreen] = usePhoneMapFullscreen(mobile)
   const [params, setParams] = useSearchParams()
   const { locale } = useLocale()
@@ -601,7 +611,9 @@ export function MapsPage() {
   // Report №97: the map dragged since the last press — a point's click then is the end of a drag (maps/mapDragGuard.tsx).
   const mapDragged = useRef(false)
   // «Зарисовка» (a player's proposal №80): while it is drawn the points do not take a press, as with the ruler.
-  const sketch = useMapSketch(state.activeProfile.id, state.raidMode, activeMap.id)
+  // The squad's mates and drawings (squad/squadLive.ts): a drawing kept here goes to them when «Зарисовки» is on.
+  const squadLive = useSquadLive(state.raidMode)
+  const sketch = useMapSketch(state.activeProfile.id, state.raidMode, activeMap.id, squadLive.shareSketch)
   const toolActive = tools.tool !== 'none' || sketch.editing
   const [search, setSearch] = useState('')
   const focusedQuestId = params.get('quest')
@@ -809,8 +821,9 @@ export function MapsPage() {
   const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
   const squadShared = useSquadSharedQuests(state.raidMode)
-  // «Квесты друзей»: friends' quest points in their colours (squad/FriendQuestsOnMap.tsx).
-  const friendQuests = useFriendQuestLayer(state.raidMode, activeMap.id, data.quests, data.markers)
+  // «Квесты отряда» only: its own button, there while «Настройки отряда» has it on (owner, 14.11.2026: «нужно сделать именно квесты
+  // отряда. Квесты друзей не надо… Все, кто не в отряде, данные по ним не показываются»).
+  const squadQuests = useFriendQuestLayer(state.raidMode, activeMap.id, data.quests, data.markers, 'squad')
   // «Отложенные квесты»: the quests of this map first in the window; the button is the PC's (a right click puts one aside).
   const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById, first: onThisMap, progress }), [currentQuests, deferred, data.maps, itemsById, onThisMap, progress])
   const deferredHere = deferredRows.some(({ quest }) => onThisMap(quest))
@@ -1138,10 +1151,15 @@ export function MapsPage() {
   const pointEmblems = useMemo<PointEmblem[]>(() => QUEST_POINT_ICONS.map((id) => ({ id, label: markerTypeLabel[id], icon: <LayerIcon style={markerStyle} layerId={id} active /> })), [markerStyle])
 
   return <div className="page map-page">
-    <div ref={shellRef} className={`map-shell${layersOpen ? ' layers-open' : ''}${expanded ? ' is-map-fullscreen' : ''}`}>
-      <aside className="map-sidebar">
-        {expanded && <button type="button" className="button map-fullscreen-back" onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" />{uiText('Назад')}</button>}
-        <div>
+    <div ref={shellRef} className={`map-shell${layersOpen ? ' layers-open' : ''}${expanded ? ' is-map-fullscreen' : ''}${stacked ? ' is-stacked' : ''}${leftHidden ? ' left-hidden' : ''}${rightHidden ? ' right-hidden' : ''}`}>
+      <aside className={`map-sidebar${leftHidden ? ' is-hidden' : ''}`}>
+        {panelsOn && <div className="map-panel-tools">
+          {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
+          <span className="map-panel-tools-gap" />
+          <MapPanelsSettings layout={panels.layout} />
+          <MapPanelEye side="left" hidden={leftHidden} />
+        </div>}
+        <div className="map-side-maps">
           <div className="map-side-title">{uiText("ЛОКАЦИИ")}</div>
           {uiText(data.maps.map((map) => (
             <button key={map.id} className={`map-option ${map.id === activeMap.id ? 'active' : ''}`} onClick={() => selectMap(map.id)}>
@@ -1150,7 +1168,7 @@ export function MapsPage() {
             </button>
           )))}
         </div>
-        <div>
+        <div className="map-side-layers">
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
           {/* The phone's list is long: a way back to the map without scrolling past it (owner, 07.11.2026). */}
           {mobile && <button type="button" className="map-layers-close" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={closeLayers}><X size={20} aria-hidden="true" /></button>}
@@ -1195,7 +1213,8 @@ export function MapsPage() {
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
           {/* The phone has no «Отложенные квесты» over the map: «Устранения» stands in the HUD, after «Слои». */}
           {mobile && killList.length > 0 && <MapKillsButton count={killsOpenCount} open={killsOpen} onToggle={() => setKillsOpen((open) => !open)} buttonRef={killsButtonRef} />}
-          <FriendQuestToggle layer={friendQuests} />
+          <FriendQuestToggle layer={squadQuests} />
+          <SquadSketchChips sketches={squadLive.sketches} mapId={activeMap.id} />
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
           <BossPlacementControls state={bossPlacement} />
           <QuestEditorButton state={questEditor} onToggle={(on) => { if (on) setBossActive(false) }} />
@@ -1254,10 +1273,12 @@ export function MapsPage() {
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
           {questEditor.active && proposal && <Marker position={[proposal.z, proposal.x]} icon={PROPOSAL_ICON} interactive={false} keyboard={false}><Tooltip permanent direction="top">{uiText('Место из заявок игроков')}</Tooltip></Marker>}
           <MapToolLayer value={tools} onChange={setTools} />
+          <SquadSketchLines sketches={squadLive.sketches} mapId={activeMap.id} />
           <MapSketchLayer sketch={sketch} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
-          <FriendQuestMarkers points={friendQuests.points} />
+          <SquadMateMarkers mates={squadLive.positions} mapId={activeMap.id} />
+          <FriendQuestMarkers points={squadQuests.points} />
           {/* «Места устранения»: the kill quests' zones in the mines' dashes, orange for Scavs and any target, green for PMCs. */}
           {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onOpen={openKillZoneQuest} onClear={() => { setKillFocus(null); clearQuestSelection() }} />}
           {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
@@ -1529,7 +1550,7 @@ export function MapsPage() {
         <PointMenu state={questEditor} emblems={pointEmblems} />
         {documentGallery && <BattlePassDocumentGallery mapId={activeMap.id} onClose={closeDocumentGallery} />}
         {deferRequest && <QuestDeferDialog request={deferRequest} onClose={() => setDeferRequest(null)} onDeferred={(questIds) => { if (questIds.some((questId) => focusedQuestId === questId || selectedMarker?.questId === questId)) clearQuestSelection() }} />}
-        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onChapter={(questId) => navigate(`/quests?filter=story&selected=${encodeURIComponent(questId)}&change=1`)} onClose={closeQuestMenu} />
+        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onDone={(questId) => { state.setManualQuestMark(state.raidMode, questId, 'completed'); if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection() }} onChapter={(questId) => navigate(`/quests?filter=story&selected=${encodeURIComponent(questId)}&change=1`)} onClose={closeQuestMenu} />
         {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
         {keyDialog && <QuestKeyDialog itemId={keyDialog} onClose={() => setKeyDialog(null)} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
@@ -1539,11 +1560,14 @@ export function MapsPage() {
       {/* The phone has no panel under the map (owner, 08.11.2026: «Найти точку… этажи… ниже идут актуальные квесты. Вот это убери
           все, потому что у нас есть на самой карте кнопка квест»): its quests, ticks and floors are on the map; only the quest
           constructor still opens here. */}
-      {(!mobile || questEditor.active) && <aside className="map-detail">
+      {(!mobile || questEditor.active) && <aside className={`map-detail${rightHidden ? ' is-hidden' : ''}`}>
         {/* Owner, 08.11.2026: «справа, где актуальные квесты, и там будет вот кнопка актуальные квесты и устранение». */}
-        {questEditor.active
-          ? <div className="panel-header"><div className="panel-title">{uiText('Конструктор квестов')}</div></div>
-          : <MapDetailTabs tab={detailTab} onTab={setDetailTab} quests={localMapQuests.length + anyMapQuests.length} kills={killsOpenCount} />}
+        <div className="map-detail-head">
+          {questEditor.active
+            ? <div className="panel-header"><div className="panel-title">{uiText('Конструктор квестов')}</div></div>
+            : <MapDetailTabs tab={detailTab} onTab={setDetailTab} quests={localMapQuests.length + anyMapQuests.length} kills={killsOpenCount} />}
+          {panelsOn && <MapPanelEye side="right" hidden={rightHidden} />}
+        </div>
         {questEditor.active ? (
           <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} items={data.items} traders={data.traders} onPick={pickEditorQuest} onFocus={(marker) => showMarker(marker, true)} onSelectMap={selectMap} />
         ) : (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { api, type PlansResponse } from '../api'
 import { LEGAL_DOCUMENTS, LEGAL_VERSION_LABEL, legalDocument, SELLER_DETAILS } from '../legal/documents'
+import { appPrivacyDocument } from '../legal/appPrivacy'
 import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
 import { siteLocale, tr } from '../i18n'
 import '../extras.css'
@@ -23,7 +24,8 @@ function LegalNav({ current }: { current?: string }) {
  * the documents' row, so no button leads to the plans, the cabinet or the offer.
  */
 export function AppPrivacyPage() {
-  const doc = legalDocument('privacy')!
+  // As for a free app: no payments, plans, invitations or advertising (owner, 13.11.2026; legal/appPrivacy.ts).
+  const doc = appPrivacyDocument()
   return (
     <main className="page app-privacy">
       <div className="container narrow legal">

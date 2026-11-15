@@ -10,6 +10,12 @@
  * on, else the site's download page. The App Store build compares itself with `iphone.storeVersion` (the App Store's
  * newest) and says nothing while the switch is off; the build from the site compares itself with that version too once the
  * switch is on, else with the site's.
+ *
+ * The App Store build also asks the App Store itself (owner, 15.11.2026: «com.raidos.app — это будет наша ссылка в App Store…
+ * будет появляться кнопка «Обновить приложение», и при нажатии… будет открываться страница в App Store»): Apple's public
+ * lookup by the app's bundle id gives the newest version there and its page; a newer one than this app's own version (the
+ * App Store's, not the site's numbering) is offered with that page. Before the app is out the lookup finds nothing and the
+ * server's switch stays in charge. The build from the site never asks: its «Обновить» goes to the site.
  */
 import { App } from '@capacitor/app'
 import { useSyncExternalStore } from 'react'
@@ -19,6 +25,9 @@ import { APP_STORE_BUILD, isIosApp } from '../platform'
 export const MOBILE_RELEASE_URL = 'https://raidos.app/v1/downloads/mobile.json'
 export const IPHONE_DOWNLOAD_PAGE = 'https://raidos.app/download'
 const APP_STORE_URL = /^https:\/\/apps\.apple\.com\/[A-Za-z0-9/_\-.%?=&]{1,300}$/
+/** The App Store app (owner, 15.11.2026). */
+export const APP_STORE_BUNDLE_ID = 'com.raidos.app'
+export const APP_STORE_LOOKUP_URL = `https://itunes.apple.com/lookup?bundleId=${APP_STORE_BUNDLE_ID}`
 const DISMISSED_KEY = 'raidos-iphone-update-dismissed-v1'
 const RECHECK_AFTER_MS = 12 * 60 * 60 * 1000
 
@@ -52,6 +61,22 @@ export function newerIphoneRelease(body: unknown, current: string, appStoreBuild
   return { version, url: store ?? IPHONE_DOWNLOAD_PAGE }
 }
 
+/** Apple's answer for the app: its version there and its page, when newer than `current` (this app's own version). */
+export function newerAppStoreRelease(body: unknown, current: string): IphoneRelease | null {
+  const results = body && typeof body === 'object' ? (body as { results?: unknown }).results : undefined
+  const app = Array.isArray(results) ? results.find((entry) => entry && typeof entry === 'object' && (entry as { bundleId?: unknown }).bundleId === APP_STORE_BUNDLE_ID) as { version?: unknown; trackViewUrl?: unknown } | undefined : undefined
+  if (!app || typeof app.version !== 'string' || typeof app.trackViewUrl !== 'string' || !APP_STORE_URL.test(app.trackViewUrl)) return null
+  return compareVersions(app.version, current) > 0 ? { version: app.version, url: app.trackViewUrl } : null
+}
+
+/** This app's own version as the App Store knows it (CFBundleShortVersionString); null where it cannot be read. */
+async function nativeVersion() {
+  try {
+    const info = await App.getInfo()
+    return typeof info?.version === 'string' && info.version ? info.version : null
+  } catch { return null }
+}
+
 interface IphoneUpdateState { available: string | null; url: string; dismissed: string | null }
 
 let state: IphoneUpdateState = { available: null, url: IPHONE_DOWNLOAD_PAGE, dismissed: readDismissed() }
@@ -70,6 +95,16 @@ function set(next: Partial<IphoneUpdateState>) {
 
 export async function checkIphoneUpdate(fetcher: typeof fetch = fetch, current = packageVersion, appStoreBuild = APP_STORE_BUILD) {
   checkedAt = Date.now()
+  if (appStoreBuild) {
+    const own = await nativeVersion()
+    if (own) {
+      try {
+        const answer = await fetcher(APP_STORE_LOOKUP_URL, { cache: 'no-store' })
+        const release = answer.ok ? newerAppStoreRelease(await answer.json(), own) : null
+        if (release) { set({ available: release.version, url: release.url }); return }
+      } catch { /* the App Store did not answer: the server's switch below */ }
+    }
+  }
   try {
     const response = await fetcher(MOBILE_RELEASE_URL, { cache: 'no-store' })
     if (!response.ok) return

@@ -9,6 +9,8 @@ class FakeAudioContext {
   destination = {}
   suspend = vi.fn(() => Promise.resolve().then(() => { this.state = 'suspended' }))
   resume = vi.fn(() => Promise.resolve().then(() => { this.state = 'running' }))
+  close = vi.fn(() => Promise.resolve().then(() => { this.state = 'closed' }))
+  onstatechange: (() => void) | null = null
   constructor() { FakeAudioContext.created.push(this) }
   createGain() {
     const param = { value: 1, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }
@@ -104,5 +106,39 @@ describe('the clicks volume', () => {
     expect(localStorage.getItem('raidos-ui-sound-volume')).toBe('0.4')
     setUiSoundVolume(5)
     expect(uiSoundVolume()).toBe(1)
+  })
+})
+
+// Owner, 13.11.2026: «пропадает звук в приложении щелчков» — the iPhone's WebKit leaves the context 'interrupted' (a call,
+// another app's sound, the background) and resume() did not bring the clicks back.
+describe('UI sounds after the iPhone interrupts them', () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.resetModules(); FakeAudioContext.created = []; vi.stubGlobal('AudioContext', FakeAudioContext) })
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+
+  it('an interrupted context is dropped and the next sound plays on a new one', async () => {
+    const { playUiSound } = await import('./uiSound')
+    playUiSound('click')
+    const [first] = FakeAudioContext.created
+    ;(first as unknown as { state: string }).state = 'interrupted'
+    first!.onstatechange?.()
+    playUiSound('click')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(FakeAudioContext.created).toHaveLength(2)
+    expect(first!.close).toHaveBeenCalled()
+    expect(FakeAudioContext.created[1]!.state).toBe('running')
+  })
+
+  it('a closed context is made again too; a resting one is only resumed', async () => {
+    const { playUiSound } = await import('./uiSound')
+    playUiSound('hover')
+    const [first] = FakeAudioContext.created
+    first!.state = 'suspended'
+    playUiSound('hover')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(FakeAudioContext.created).toHaveLength(1)
+    expect(first!.resume).toHaveBeenCalled()
+    first!.state = 'closed'
+    playUiSound('hover')
+    expect(FakeAudioContext.created).toHaveLength(2)
   })
 })

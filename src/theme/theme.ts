@@ -1,4 +1,6 @@
 import { HALLOWEEN, isHalloween } from './halloween'
+import { withThemeTransition } from './themeTransition'
+import { startDayNight, stopDayNight } from './dayNight'
 
 export interface ThemeOption { id: string; label: string; swatch: [string, string, string] }
 
@@ -15,6 +17,12 @@ export const THEMES: ThemeOption[] = [
   // «Сталь», «Перфорация» and «Алькантара» were removed from the picker on 04.10.2026, «Багровый» and «Ржавая сталь» on
   // 06.10.2026 (their CSS stays; a saved choice falls back to the default)
 ]
+
+/**
+ * «Смена дня и ночи» (owner, 15.11.2026): the olive scheme following the clock (theme/dayNight.ts). Not one of THEMES: the
+ * top-bar button's left click and Settings go through the ordinary schemes only; its right-click menu has it under them.
+ */
+export const DAY_NIGHT_THEME = { id: 'daynight', label: 'Смена дня и ночи' } as const
 
 /** «Алькантара»: the thread colour of the seams (Settings → «Цветовая схема» → «Строчка»). */
 export const ALCANTARA_STITCHES = [
@@ -52,7 +60,7 @@ function read(key: string) {
 /** The player's own choice (kept, and synced to the account), or the default. */
 export function savedTheme() {
   const saved = read(THEME_KEY)
-  return THEMES.some((theme) => theme.id === saved) ? saved! : defaultTheme()
+  return THEMES.some((theme) => theme.id === saved) || saved === DAY_NIGHT_THEME.id ? saved! : defaultTheme()
 }
 
 /** Picked in this run of the app. */
@@ -79,6 +87,8 @@ export function applyAppearance(theme = currentTheme()) {
   if (theme === 'tarkov') root.removeAttribute('data-theme')
   else root.setAttribute('data-theme', theme)
   root.setAttribute('data-alc-stitch', currentStitch())
+  if (theme === 'daynight') startDayNight()
+  else stopDayNight()
 }
 
 /** `picked: false` — the choice came from the account (another device), not from this screen: saved, not forced on. */
@@ -88,7 +98,9 @@ export function saveAppearance(theme: string, { picked = true } = {}) {
     if (picked) localStorage.setItem(THEME_PICKED_AT_KEY, new Date().toISOString())
   } catch { /* storage unavailable */ }
   if (picked) pickedNow = theme
-  applyAppearance()
+  // A scheme the player picks changes in one motion (theme/themeTransition.ts); one from the account just changes.
+  if (picked) withThemeTransition(() => applyAppearance())
+  else applyAppearance()
 }
 
 /** Next theme in the list, for the top-bar button that cycles through them. */

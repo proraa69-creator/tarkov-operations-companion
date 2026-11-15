@@ -1,7 +1,10 @@
 import { act, render, screen } from '@testing-library/react'
+import '@testing-library/jest-dom/vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { KEY_TURN_MS, RaidRequirementsPanel, type RaidNeedRow } from './RaidRequirementsPanel'
+import { TakenItemsProvider } from '../overview/TakenItems'
+import { setItemTaken } from '../progression/takenItems'
 
 // Report №90: «ключ 219 или ключ 220» — one card, «+1», the keys taking turns (owner, 07.11.2026: «каждые 3 секунды менялась картинка»).
 const either: RaidNeedRow = {
@@ -52,3 +55,30 @@ describe('a key the player has or not', () => {
   })
 })
 
+
+// Owner, 15.11.2026: «Если я кликаю правой кнопкой, нажимаю «Взял», у меня статус переходит в «Есть в наличии»»; «Слово взять мы
+// больше не пишем, только действие… Ключи, которыми нужно открыть двери… «открыть»».
+describe('a key ticked «Взял» and the words of each purpose', () => {
+  afterEach(() => { localStorage.clear() })
+
+  it('a key not in the stash and ticked «Взял» is «Есть в наличии»', () => {
+    const missing: RaidNeedRow = { ...either, key: 'k-missing', alternatives: undefined, stock: 'missing' }
+    const view = () => <MemoryRouter><TakenItemsProvider profileId="p1" mode="pvp"><RaidRequirementsPanel rows={[missing]} /></TakenItemsProvider></MemoryRouter>
+    const { container, rerender } = render(view())
+    expect(container.querySelector('.raid-need')).toHaveTextContent('Нет в наличии')
+    act(() => { setItemTaken('p1', 'pvp', 'k219', true) })
+    rerender(view())
+    expect(container.querySelector('.raid-need')).toHaveTextContent('Есть в наличии')
+    expect(container.querySelector('.raid-need')).not.toHaveTextContent('Нет в наличии')
+    expect(container.querySelector('.raid-need-stock')?.className).toContain('is-owned')
+  })
+
+  it('a door key says «Открыть дверь», a key or an item to plant «Заложить», to mark «Пометить»: no «Взять»', () => {
+    const row = (purpose: string): RaidNeedRow => ({ ...either, key: `r-${purpose}`, name: `Предмет ${purpose}`, alternatives: undefined, lines: [{ purpose, questNames: ['Квест'] }] })
+    render(<MemoryRouter><RaidRequirementsPanel rows={[row('key'), row('place'), row('mark')]} /></MemoryRouter>)
+    expect(screen.getByText('Предмет key').closest('.raid-need')).toHaveTextContent('Открыть дверь · Квест')
+    expect(screen.getByText('Предмет place').closest('.raid-need')).toHaveTextContent('Заложить · Квест')
+    expect(screen.getByText('Предмет mark').closest('.raid-need')).toHaveTextContent('Пометить · Квест')
+    expect(document.body.textContent).not.toMatch(/Взять/)
+  })
+})

@@ -65,7 +65,8 @@ export function MapSketchToolbar({ sketch, onBegin }: { sketch: MapSketch; onBeg
 /**
  * The strokes on the map, under its points, never taking a click; while drawing, a press draws. One finger draws on a phone, two zoom
  * the map (a stroke begun by the first finger goes). The wheel and the zoom buttons work while drawing. The eraser goes the same way:
- * what lies between its press and its release is one step back.
+ * what lies between its press and its release is one step back. The right mouse button held moves the map (owner, 14.11.2026: «при
+ * нажатии правой клавиши и удержании ее можно двигать карту»).
  */
 export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
   const map = useMap()
@@ -100,6 +101,8 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
     /** The eraser, while held: what it has left, and where it was last. */
     let left: SketchStroke[] | null = null
     let rubbed: ScreenPoint = { x: 0, y: 0 }
+    /** The right button held: the map follows the mouse. */
+    let panning: { pointer: number; x: number; y: number } | null = null
 
     const drop = () => {
       line?.remove()
@@ -119,6 +122,14 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
       }
     }
     const onDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse' && event.button === 2) {
+        if ((event.target as HTMLElement).closest('.leaflet-control')) return
+        event.preventDefault()
+        try { container.setPointerCapture?.(event.pointerId) } catch { /* a pointer the browser no longer knows: the moves still come */ }
+        panning = { pointer: event.pointerId, x: event.clientX, y: event.clientY }
+        container.classList.add('is-sketch-panning')
+        return
+      }
       if (event.pointerType === 'touch') {
         fingers.add(event.pointerId)
         if (fingers.size > 1) { pinching = true; drop(); return }
@@ -141,6 +152,12 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
       line = leafletPolyline(points, { pane: PANE, color, weight: SKETCH_LINE_PX, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(map)
     }
     const onMove = (event: PointerEvent) => {
+      if (panning && event.pointerId === panning.pointer) {
+        const dx = event.clientX - panning.x, dy = event.clientY - panning.y
+        panning = { ...panning, x: event.clientX, y: event.clientY }
+        if (dx || dy) map.panBy([-dx, -dy], { animate: false })
+        return
+      }
       if (event.pointerId !== pointer) return
       if (Math.hypot(event.clientX - last.x, event.clientY - last.y) < MIN_STEP_PX) return
       last = { x: event.clientX, y: event.clientY }
@@ -152,6 +169,11 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
       line.addLatLng(point)
     }
     const onUp = (event: PointerEvent) => {
+      if (panning && event.pointerId === panning.pointer) {
+        panning = null
+        container.classList.remove('is-sketch-panning')
+        return
+      }
       fingers.delete(event.pointerId)
       if (!fingers.size) pinching = false
       if (event.pointerId !== pointer) return
@@ -166,7 +188,12 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
     container.addEventListener('pointermove', onMove)
     container.addEventListener('pointerup', onUp)
     container.addEventListener('pointercancel', onUp)
+    // No menu for the right button while drawing: it moves the map.
+    const noMenu = (event: MouseEvent) => event.preventDefault()
+    container.addEventListener('contextmenu', noMenu)
     return () => {
+      container.removeEventListener('contextmenu', noMenu)
+      container.classList.remove('is-sketch-panning')
       container.removeEventListener('pointerdown', onDown)
       container.removeEventListener('pointermove', onMove)
       container.removeEventListener('pointerup', onUp)

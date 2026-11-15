@@ -202,8 +202,32 @@ describe('«Дерево квестов»', () => {
     expect(screen.getByTestId('where')).not.toHaveTextContent('selected=')
   })
 
+  it('opens on the whole window and back, on every lane, with the card beside it (owner, 14.11.2026)', () => {
+    const view = renderQuests('/quests?filter=chronology&view=tree')
+    const root = document.documentElement
+    expect(root).not.toHaveAttribute('data-quest-tree-fullscreen')
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть на весь экран' }))
+    expect(root).toHaveAttribute('data-quest-tree-fullscreen')
+    expect(screen.getByTestId('quest-tree-fullscreen')).toHaveAttribute('aria-pressed', 'true')
+    // another trader, «Все» and a quest's card: the tree stays on the whole window
+    fireEvent.click(within(screen.getByTestId('quest-tree-lanes')).getByRole('button', { name: /Все/ }))
+    fireEvent.click(card('shortage'))
+    expect(root).toHaveAttribute('data-quest-tree-fullscreen')
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Дефицит')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(root).not.toHaveAttribute('data-quest-tree-fullscreen')
+    fireEvent.click(screen.getByTestId('quest-tree-fullscreen'))
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+    expect(root).not.toHaveAttribute('data-quest-tree-fullscreen')
+    // leaving the tree leaves the full screen too
+    fireEvent.click(screen.getByTestId('quest-tree-fullscreen'))
+    view.unmount()
+    expect(root).not.toHaveAttribute('data-quest-tree-fullscreen')
+  })
+
   it('in English', () => {
     renderQuests('/quests?filter=chronology&view=tree', { locale: 'en' })
+    expect(screen.getByRole('button', { name: 'Open full screen' })).toBeInTheDocument()
     const buttons = within(screen.getByTestId('quest-view-switch'))
     expect(buttons.getByRole('button', { name: 'Task catalog' })).toBeInTheDocument()
     expect(buttons.getByRole('button', { name: 'Quest tree' })).toHaveAttribute('aria-pressed', 'true')

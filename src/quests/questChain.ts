@@ -188,6 +188,22 @@ export function handedInByLaterQuests(records: Record<string, TaskProgressRecord
 }
 
 /**
+ * The quests the logs show a player past: every quest a log-taken or log-handed-in quest needs handed in first. A Tasks-table
+ * reading of one of them as current is the reader's mistake (a player, 13.11.2026: «отмечает у меня квесты… которые я
+ * сделал»): the game gave the later quest only after its hand-in.
+ */
+function passedByLaterQuests(records: Record<string, TaskProgressRecord>, index: ChainIndex): Set<string> {
+  const passed = new Set<string>()
+  for (const record of Object.values(records)) {
+    if (record.source !== 'eft-log' || (record.status !== 'active' && record.status !== 'completed')) continue
+    const quest = index.byId.get(record.taskId)
+    if (!quest) continue
+    for (const before of questsBefore(quest, index)) if (!ARENA_LINE.test(before.name)) passed.add(before.id)
+  }
+  return passed
+}
+
+/**
  * The layers with the chain applied (the same object when it changes nothing). A Tasks-table record goes from the table's
  * layer and from the account's copy, only where the screen decided: a mark or a log event of the quest itself stands. A
  * hand-in the logs missed goes in as the server's event, a moment after the quest was taken: any newer event of the game or
@@ -197,12 +213,19 @@ export function withQuestChain(layers: QuestInputLayers, records: Record<string,
   const index = chainIndex(quests)
   const closed = handedInByLaterQuests(records, quests)
   const handedIn = (taskId: string) => ({ taskId, status: 'completed' as const, at: new Date(Date.parse(records[taskId]!.updatedAt) + 1).toISOString() })
+  const passed = passedByLaterQuests(records, index)
+  // Read as current though the logs show a later quest of its chain: handed in, as the server's event a moment after the reading.
+  const passedReadings: string[] = []
   // A quest made up for as handed in holds nothing back: a real quest beside the later one stays.
   const known = closed.length ? { ...records, ...Object.fromEntries(closed.map((taskId) => [taskId, { ...records[taskId]!, status: 'completed' as const, updatedAt: handedIn(taskId).at }])) } : records
   const goes = (taskId: string, record: TaskProgressRecord) => {
     if (record.status !== 'active' || record.source !== 'screen-scan' || records[taskId]?.source !== 'screen-scan') return false
     const quest = index.byId.get(taskId)
     if (!quest) return false
+    if (passed.has(taskId)) {
+      if (!passedReadings.includes(taskId)) passedReadings.push(taskId)
+      return true
+    }
     return (syncFrom !== undefined && MISREAD_BEFORE_THE_MENDING.has(taskId) && record.updatedAt < syncFrom) || Boolean(questHoldingBack(quest, record.updatedAt, known, index))
   }
   const kept = (layer: Record<string, TaskProgressRecord> | undefined) => {
@@ -214,5 +237,6 @@ export function withQuestChain(layers: QuestInputLayers, records: Record<string,
   if (table === layers.table && mirror === layers.mirror && !closed.length) return layers
   const server = { ...layers.server }
   for (const taskId of closed) server[taskId] = { status: 'completed', at: handedIn(taskId).at }
+  for (const taskId of passedReadings) if (!server[taskId]) server[taskId] = { status: 'completed', at: handedIn(taskId).at }
   return { ...layers, table: table ?? {}, server, ...(mirror ? { mirror } : {}) }
 }

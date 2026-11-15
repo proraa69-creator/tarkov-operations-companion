@@ -1,7 +1,7 @@
 import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerLock, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
 import { addedExtractRecords } from './addedExtracts'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
-import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
+import { KEY_DOOR_EXTRA_LOCKS, keyDoorExcluded } from './keyDoorNames'
 import { lootContainerTitle } from './lootContainerKinds'
 import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
@@ -582,7 +582,8 @@ function adaptSniperSpots(map: GameMap): MapMarker[] {
   return (SNIPER_SPOTS[map.id] ?? []).flatMap(([x, y, z], index): MapMarker[] => {
     const base = baseMarker(map, `sniper-${index}`, { x, y, z }, undefined, y, y)
     if (!base) return []
-    return [{ ...base, type: 'danger', layerId: 'sniper', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
+    // No floor, height or roof on them (owner, 13.11.2026: «убери у точек снайперов этажи»): no badge, shown on every floor.
+    return [{ ...base, floor: undefined, height: undefined, heightRange: undefined, type: 'danger', layerId: 'sniper', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
   })
 }
 
@@ -912,6 +913,12 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
     const base = baseMarker(map, `lock-${text(lock.id, String(index))}`, lock.position, undefined, asRecord(lock.position).y, asRecord(lock.position).y)
     if (!base) return []
     const keyId = text(lock.key) || text(asRecord(lock.key).id)
+    const lockType = text(lock.lockType, 'door')
+    // A lock ruled out for its key (src/data/keyDoorNames.ts KEY_DOOR_EXCLUSIONS) is not drawn either, as the key's door
+    // list already leaves it out: report 156 (14.11.2026, «маркер авто за картой»), the Factory emergency exit key on
+    // car trunks of Ground Zero (one beyond the map's edge), Lighthouse, Streets and Shoreline.
+    const point = asRecord(lock.position)
+    if (keyId && keyDoorExcluded(keyId, canonicalMapId(map.id), Number(point.x), Number(point.z), typeof point.y === 'number' ? point.y : undefined, lockKind(lockType))) return []
     const key = items.get(keyId)
     const keycard = keycardColor(keyId, key?.name ?? text(asRecord(lock.key).name))
     // tarkov.dev names the card in the catalog language; a Russian catalog without the name gets our label.
@@ -919,7 +926,6 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
     const shownName = keyName || (keycard ? KEYCARD_LABELS[keycard] : '')
     const needsPower = Boolean(lock.needsPower)
     const needs = keycard ? `Нужна ключ-карта «${shownName}».` : `Нужен ключ «${shownName}».`
-    const lockType = text(lock.lockType, 'door')
     const lockLabel = lockType === 'container' ? 'Запертый контейнер' : lockType === 'trunk' ? 'Дверь или багажник машины' : 'Дверь'
     return [{
       ...base,

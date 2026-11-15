@@ -37,6 +37,7 @@ export const BUILD_SCREENSHOTS: ReadonlyArray<readonly [task: string, weapon: st
   ['676529af9c90953d090882e7', '5df24cf80dee1b22f862e9bc', 'gunsmith-master-part-12-t-5000m'], // Часть 12, оружие 1 из 3 (T-5000M)
   ['676529af9c90953d090882e7', '59984ab886f7743e98271174', 'gunsmith-master-part-12-pp-19-01'], // Часть 12, оружие 2 из 3 (ПП-19-01 «Витязь»)
   ['676529af9c90953d090882e7', '5a7ae0c351dfba0017554310', 'gunsmith-master-part-12-glock-17'], // Часть 12, оружие 3 из 3 (Glock 17)
+  ['64f83bd983cfca080a362c82', '64ca3d3954fc657e230529cc', 'gunsmith-master-part-13'], // Часть 13 (ПКП)
   ['666314b0acf8442f8b0531a1', '5580223e4bdc2d1c128b457f', 'hell-on-earth-part-1'], // Ад на земле. Часть 1 (MP-43-1C)
 ]
 

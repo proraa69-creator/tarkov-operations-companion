@@ -49,11 +49,37 @@ function restLater(ctx: AudioContext) {
   }, UI_SOUND_REST_MS)
 }
 
+/**
+ * The iPhone's WebKit takes the context to 'interrupted' (a call, another app's sound, the app in the background) or
+ * closes it, and a plain resume() did not bring the clicks back — they were gone until the app restarted (owner,
+ * 13.11.2026: «пропадает звук в приложении щелчков»). Such a context is dropped and the next sound makes a new one.
+ */
+let broken = false
+
+function dropContext() {
+  const old = context
+  context = null
+  master = null
+  noise = null
+  clickSample = null
+  clickLoading = null
+  broken = false
+  resting = false
+  clearTimeout(restTimer)
+  restTimer = undefined
+  if (old && old.state !== 'closed') void old.close().catch(() => {})
+}
+
 function audio() {
   if (context) return context
   const Ctor = typeof window === 'undefined' ? undefined : window.AudioContext
   if (!Ctor) return null
   context = new Ctor()
+  const created = context
+  created.onstatechange = () => {
+    const state = created.state as string
+    if (created === context && (state === 'interrupted' || state === 'closed')) broken = true
+  }
   master = context.createGain()
   master.gain.value = MASTER_LEVEL * uiSoundVolume()
   master.connect(context.destination)
@@ -89,11 +115,16 @@ function burst(ctx: AudioContext, at: number, frequency: number, q: number, peak
 /** Hover: a short synthesized tick. Press: the owner's click recording (softened, see playClickSample). */
 export function playUiSound(kind: SoundKind) {
   if (uiSoundVolume() <= 0) return
-  const ctx = audio()
+  let ctx = audio()
+  if (ctx && (broken || (ctx.state as string) === 'interrupted' || ctx.state === 'closed')) {
+    dropContext()
+    ctx = audio()
+  }
   if (!ctx || !master) return
-  if (resting || ctx.state === 'suspended') {
+  if (resting || ctx.state !== 'running') {
     resting = false
-    void ctx.resume().catch(() => {})
+    const current = ctx
+    void ctx.resume().catch(() => { if (current === context) broken = true })
   }
   restLater(ctx)
   const at = ctx.currentTime + 0.002

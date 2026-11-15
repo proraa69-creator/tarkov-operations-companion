@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Ban, Hourglass, Package, Pencil, Star, X, Plus, BookOpen } from 'lucide-react'
+import { Ban, Hourglass, Package, Pencil, Star, X, Plus, BookOpen, CheckCheck } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import type { Item } from '../domain/types'
@@ -77,21 +77,23 @@ export interface QuestDeferMenuState {
 /**
  * The right click on a quest (its row, its point on the map): «Отложить квест», «Добавить в текущие» (owner, 05.11.2026: «если он не
  * нашелся, он может также этой кнопкой его найти и добавить, без сканирования. То есть, там уже будет у нас 3 кнопки») and «У меня нет
- * этого квеста» (04.11.2026: «если какой-то лишний квест, правой кнопкой нажимаешь … он уходит тогда обратно»); a point the owner
- * can edit also has «Редактировать точку». Escape or a click elsewhere closes it. `onClose` must keep its identity between renders.
+ * этого квеста» (04.11.2026: «если какой-то лишний квест, правой кнопкой нажимаешь … он уходит тогда обратно»; until the logs
+ * name it again), «Я уже выполнил» (13.11.2026: «Если он хочет убрать его, потому что он его выполнил… будет кнопка «Выполнил»»:
+ * the player's own «Выполнено» mark); a point the owner can edit also has «Редактировать точку». Escape or a click elsewhere closes it. `onClose` must keep its identity between renders.
  */
-export function QuestDeferMenu({ menu, onDefer, onAdd, onDismiss, onChapter, onClose }: { menu: QuestDeferMenuState | null; onDefer: (questId: string) => void; onAdd?: (questId: string) => void; onDismiss?: (questId: string) => void; onChapter?: (questId: string) => void; onClose: () => void }) {
+export function QuestDeferMenu({ menu, onDefer, onAdd, onDismiss, onDone, onChapter, onClose }: { menu: QuestDeferMenuState | null; onDefer: (questId: string) => void; onAdd?: (questId: string) => void; onDismiss?: (questId: string) => void; onDone?: (questId: string) => void; onChapter?: (questId: string) => void; onClose: () => void }) {
   const ref = usePopupMenu(menu, onClose)
   if (!menu) return null
   const left = Math.max(8, Math.min(menu.x, window.innerWidth - 268))
   const marks = menu.held !== undefined && Boolean(onAdd && onDismiss)
-  const top = Math.max(8, Math.min(menu.y, window.innerHeight - 86 - (menu.onEdit ? 34 : 0) - (marks ? 68 : 0)))
+  const top = Math.max(8, Math.min(menu.y, window.innerHeight - 86 - (menu.onEdit ? 34 : 0) - (marks ? (onDone ? 102 : 68) : 0)))
   return createPortal(
     <div ref={ref} className="point-menu quest-defer-menu" role="menu" aria-label={uiText('Меню квеста')} style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
       <div className="point-menu-title">{uiText(menu.title)}</div>
       <button type="button" role="menuitem" disabled={menu.canDefer === false} onClick={() => { onClose(); onDefer(menu.questId) }}><Hourglass size={13} aria-hidden="true" />{uiText('Отложить квест')}</button>
       {marks && <button type="button" role="menuitem" disabled={menu.held} onClick={() => { onClose(); onAdd!(menu.questId) }}><Plus size={13} aria-hidden="true" />{uiText('Добавить в текущие')}</button>}
       {marks && <button type="button" role="menuitem" disabled={!menu.held} onClick={() => { onClose(); onDismiss!(menu.questId) }}><Ban size={13} aria-hidden="true" />{uiText('У меня нет этого квеста')}</button>}
+      {marks && onDone && <button type="button" role="menuitem" onClick={() => { onClose(); onDone(menu.questId) }}><CheckCheck size={13} aria-hidden="true" />{uiText('Я уже выполнил')}</button>}
       {menu.chapter && onChapter && <button type="button" role="menuitem" className={menu.chapter === 'start' ? 'story-chapter-glow' : undefined} onClick={() => { onClose(); onChapter(menu.questId) }}><BookOpen size={13} aria-hidden="true" />{uiText(menu.chapter === 'start' ? 'Начать главу' : 'Изменить главу')}</button>}
       {menu.onEdit && <button type="button" role="menuitem" onClick={() => { onClose(); menu.onEdit?.() }}><Pencil size={13} aria-hidden="true" />{uiText('Редактировать точку')}</button>}
     </div>,

@@ -58,6 +58,27 @@ export const MAX_PRESETS = 100
 const isBuiltIn = (id: unknown) => BUILT_IN_PRESETS.some((preset) => preset.id === id)
 const cleanName = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 48) : ''
 
+/**
+ * The names our presets had before they were numbered, in both languages. A tuned preset kept its name with the curve, so
+ * such a stored name is not the player's own: it gives way to «Пресет N» (owner, 15.11.2026: «Если у людей пресеты не
+ * переименованы, значит, они должны переименоваться… если… переименован уже… пусть остается его версия»).
+ */
+const STOCK_NAMES: Record<string, string[]> = {
+  'builtin-owner-full-dark': ['Таможня ночь', 'Customs at night'],
+  'builtin-owner-bright-room': ['Светло', 'Light'],
+  'builtin-owner-bright': ['Светло и мягко', 'Light and soft'],
+  'builtin-daylight': ['Как днём', 'Like daytime'],
+  'builtin-daylight-rooms': ['Светлое помещение', 'A lit room'],
+  'builtin-bright-clean': ['Ярко и чисто', 'Bright and clean'],
+}
+/** `name` is one of our preset's own names (its number in either language, or the one it had before): not the player's. */
+function isStockName(id: string, name: string) {
+  const preset = BUILT_IN_PRESETS.find((entry) => entry.id === id)
+  if (!preset) return false
+  const number = /^Пресет (\d+)$/.exec(preset.name)?.[1]
+  return name === preset.name || (number !== undefined && name === `Preset ${number}`) || (STOCK_NAMES[id] ?? []).includes(name)
+}
+
 export function cleanSettings(value: unknown): ScreenTuningSettings {
   const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const seen = new Set<string>()
@@ -69,7 +90,8 @@ export function cleanSettings(value: unknown): ScreenTuningSettings {
   const rawBuiltIns = raw.builtIns && typeof raw.builtIns === 'object' ? raw.builtIns as Record<string, Record<string, unknown>> : {}
   for (const [id, entry] of Object.entries(rawBuiltIns)) {
     if (!isBuiltIn(id) || !entry || typeof entry !== 'object') continue
-    const name = cleanName(entry.name)
+    const stored = cleanName(entry.name)
+    const name = stored && !isStockName(id, stored) ? stored : ''
     const profile = entry.profile ? cleanProfile({ ...(entry.profile as object), id, name: 'x' }) : null
     if (name || entry.hidden === true || profile) builtIns[id] = { ...(name ? { name } : {}), ...(entry.hidden === true ? { hidden: true } : {}), ...(profile ? { profile } : {}) }
   }
@@ -112,7 +134,10 @@ export function savePreset(settings: ScreenTuningSettings, value: unknown, newId
     const id = String(raw.id)
     const profile = cleanProfile(raw)
     if (!profile) throw new Error('Укажите название пресета')
-    const next = { ...settings, builtIns: { ...settings.builtIns, [id]: { ...settings.builtIns[id], name: profile.name, profile } } }
+    // Saved under our own name: no name of the player's, so the preset keeps ours.
+    const { name: _old, ...rest } = settings.builtIns[id] ?? {}
+    const named = isStockName(id, profile.name) ? (_old && !isStockName(id, _old) ? { name: _old } : {}) : { name: profile.name }
+    const next = { ...settings, builtIns: { ...settings.builtIns, [id]: { ...rest, ...named, profile } } }
     return { settings: next, preset: allPresets(next).find((preset) => preset.id === id) ?? profile }
   }
   const own = settings.presets.some((preset) => preset.id === raw.id)

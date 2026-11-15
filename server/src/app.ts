@@ -22,6 +22,7 @@ import { AccountError, AccountStore, bearer, FixedWindowRateLimiter } from './se
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { createLiveRouter, LIVE_PUBLISH_LIMITS } from './routes/live.js'
 import { LiveRelay } from './services/liveRelay.js'
+import type { SquadLive } from './services/squadLive.js'
 import { ScreenRelay } from './services/screenRelay.js'
 import { BezebeePayments } from './services/bezebee.js'
 import { BezebeeCredentialStore, BezebeeWebhooks } from './services/bezebeeWebhook.js'
@@ -209,6 +210,8 @@ export interface ApiOptions {
   guard?: ServerGuardOptions
   /** «Отряд» and friends (routes/social.ts): rate limits for tests. */
   squadLimits?: SocialLimits['squadLimits']
+  /** The squad's positions and drawings (services/squadLive.ts); tests pass one with a short wait. */
+  squadLive?: SquadLive
   friendLimits?: SocialLimits['friendLimits']
   /** The friend's info (routes/friends.ts): public game profiles; default the tarkov.dev lookup, tests pass a fake. */
   playerProfile?: FriendsRouterOptions['playerProfile']
@@ -491,7 +494,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const live = options.live ?? new LiveRelay(accounts.clock)
   live.gameModeOf = (accountId) => userData.getGameMode(accountId)
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) }, live, trials }))
-  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
+  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, squadLive: options.squadLive, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
   // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site

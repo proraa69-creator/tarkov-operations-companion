@@ -176,6 +176,24 @@ describe('the layers with the chain applied', () => {
     expect(withQuestChain(logged, progressOf(logged).taskProgress, quests, at(6))).toBe(logged)
   })
 
+  // A player, 13.11.2026: «Отмечает у меня квесты либо которые я сделал» — the screen read as current a quest whose later
+  // quest the logs show taken; the reading held it in «Текущие» for days.
+  it('read as current though the logs show a later quest of its chain taken or handed in: handed in, gone from «Текущие»', () => {
+    const layers = layersOf({ log: { p3: { status: 'active', at: at(10) } }, table: { p1: screen('p1', at(11)), p2: screen('p2', at(11)) } })
+    const before = progressOf(layers)
+    expect(isCurrentTrackedQuest(P2, before)).toBe(true)
+    const chained = withQuestChain(layers, before.taskProgress, quests)
+    expect(chained.table).toEqual({})
+    const after = progressOf(chained)
+    expect(after.taskProgress.p1?.status).toBe('completed')
+    expect(after.taskProgress.p2?.status).toBe('completed')
+    expect(isCurrentTrackedQuest(P2, after)).toBe(false)
+    expect(isCurrentTrackedQuest(P3, after)).toBe(true)
+    // A handed-in later quest says the same; the player's own mark still decides over it.
+    const done = layersOf({ log: { other: { status: 'completed', at: at(10) } }, table: { p3: screen('p3', at(11)) }, manual: { p3: { status: 'active', at: at(12) } } })
+    expect(progressOf(withQuestChain(done, progressOf(done).taskProgress, quests)).taskProgress.p3?.status).toBe('active')
+  })
+
   it('a mark of the player\'s own stands, on the quest or on the one before it', () => {
     const onQuest = layersOf({ log: { p1: { status: 'active', at: at(1) } }, table: { p3: screen('p3', at(5)) }, manual: { p3: { status: 'active', at: at(6) } } })
     expect(withQuestChain(onQuest, progressOf(onQuest).taskProgress, quests, at(6))).toBe(onQuest)
