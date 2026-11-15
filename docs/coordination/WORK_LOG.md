@@ -7320,3 +7320,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Gate green → `systemctl start --no-block raidos-release.service` by hand; version.json 0.6.0-308 c75f6f05 at ~13:09 UTC, setup.json too; raidos-release.timer started again (active), raidos-api active, health 200.
 - Desktop: PC owner exe 0.6.0-308 (session «Общая карта», from c75f6f05), admin iPhone IPA 0.6.0-308 d3d6ccb5 (from 3b0ffcfd; the later commits change no admin-app code).
 - Risks: the item key was checked on the logged crops only, not in the game; the picture index needs a rebuild (scripts/build-item-signatures.mjs) when the game adds items.
+
+## 2026-11-15 — Production DB: an Escape from Tarkov account moved to the player's new Raid OS account (owner's word)
+
+- Owner (screenshot «Этот аккаунт Escape from Tarkov уже используется»): the player forgot the e-mail of his first account and registered again; «Найди по этому номеру старый аккаунт и удали его, и сделай доступ на вот эту почту… нужно перезаписать».
+- Found read-only: the new account's EFT report (hint ••••323) is bound to an account from 01.11 (last seen that day, no payments or subscriptions, trial used). Backup `/var/lib/raidos/backups/manual-eft-rebind-1794748460486.sqlite` (VACUUM INTO), then one transaction: the old account's quest mirror and game mode moved to the new one (it had none), the old account erased exactly as AccountStore.deleteAccount (anonymous stub), the EFT binding inserted for the new account, `owner_audit_log` action `eft.rebind`. The EFT trial claim stays on the old (deleted) account, so no second trial. No e-mails in this log.
