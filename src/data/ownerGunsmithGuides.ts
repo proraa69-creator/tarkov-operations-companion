@@ -6,8 +6,8 @@ import type { BuildGuidePart, Quest } from '../domain/types'
  *
  * «Оружейник. АКМ» (owner, 16.11.2026, report 168: «Указанные модификации в гайде не соответствуют требованиям… Механик не
  * принимает»; «собери по сборке на первом скриншоте», «у нас в сборке не хватает пт акм и пт-1»): his build from the game —
- * Fortis Shift (the task asks for it), PMAG 30 GEN M3, «Гексагон», TAPCO SAW, Б-33, Б-10М+Б-19, Short Mount with Short Prism
- * 2.5x, ПТ АКМ with ПТ-1. In the game: ergonomics 49, recoil 84 + 208, sighting range 800. The gas tube and the rear sight
+ * Fortis Shift (the task asks for it) and the SFG grip (owner: «рукоятка должна быть SFG… ручка… шифт»), PMAG 30 GEN M3, «Гексагон», TAPCO SAW, Б-33, Б-10М+Б-19, Short Mount with Short Prism
+ * 2.5x, ПТ АКМ with ПТ-1; the rear sight is the weapon's own («целик не добавляй»). In the game: ergonomics 49, recoil 84 + 208, sighting range 800. The gas tube and the rear sight
  * are the weapon's own.
  */
 interface OwnerGuide { questId: string; weaponId: string; parts: Array<{ itemId: string; name: string; nameEn: string }> }
@@ -18,6 +18,7 @@ export const OWNER_GUNSMITH_GUIDES: readonly OwnerGuide[] = [
     weaponId: '59d6088586f774275f37482f',
     parts: [
       { itemId: '59f8a37386f7747af3328f06', name: 'Тактическая рукоятка Fortis "Shift"', nameEn: 'Fortis Shift tactical grip' },
+      { itemId: '5f6340d3ca442212f4047eb2', name: 'Тактическая рукоятка Tactical Dynamics "Skeletonized Foregrip"', nameEn: 'Tactical Dynamics Skeletonized Foregrip' },
       { itemId: '59d6272486f77466146386ff', name: 'Магазин Magpul "PMAG 30 GEN M3" на 30 патронов 7.62x39 для АК', nameEn: 'AK 7.62x39 Magpul PMAG 30 GEN M3 30-round magazine' },
       { itemId: '593d489686f7745c6255d58a', name: 'Модератор звука Гексагон 7.62x39 для АКМ', nameEn: 'Hexagon AKM 7.62x39 sound suppressor' },
       { itemId: '5947f92f86f77427344a76b1', name: 'Пистолетная рукоятка TAPCO "SAW-Style" для АК (Черная)', nameEn: 'AK TAPCO SAW-Style pistol grip (Black)' },
