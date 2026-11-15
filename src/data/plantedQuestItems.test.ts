@@ -81,7 +81,7 @@ describe('quest items to plant', () => {
       const quest = data.quests.find((entry) => entry.name === (locale === 'ru' ? 'На свет. Доверяй, но проверяй' : 'To the Light - Trust but Verify'))!
       expect(quest.raidRequirements?.find((need) => need.itemId === DRIVE)).toMatchObject({ purpose: 'place', questItem: true })
       expect(quest.raidRequirements?.find((need) => need.itemId === DRIVE)?.pickUp).toBeUndefined()
-      expect(data.questItems?.find((item) => item.id === DRIVE)?.name).toBe(locale === 'ru' ? 'Жесткий диск с дезой' : 'Hard drive with false data')
+      expect(data.questItems?.find((item) => item.id === DRIVE)).toMatchObject({ name: locale === 'ru' ? 'Жесткий диск с дезой' : 'Hard drive with false data', iconUrl: expect.stringContaining(`quest-items/${DRIVE}.webp`) })
     }
   })
 

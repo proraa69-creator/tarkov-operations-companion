@@ -7,6 +7,13 @@ import type { Item } from '../domain/types'
  */
 export const QUEST_ITEM_PICTURES: ReadonlySet<string> = new Set([
   '6331bb0d1aa9f42b804997a6', // Флеш-накопитель с наклейкой v3 («На свет», src/data/curatedQuests.ts)
+  // tarkov.dev has no picture of these: the wiki's icons (15.11.2026), its English label and check mark taken off (owner: «Убери на этих
+  // картинках галочки и надписи»)
+  '6a8993cab2713c27d90e9bb7', // Жесткий диск с дезой
+  '6a898f9486c2a3db7e01ab25', // Первый кейс с товаром для контрабандистов
+  '6a899014c891636d94044439', // Второй кейс с товаром для контрабандистов
+  '6a898d53c891636d94044435', // Коробка с товаром для отступников
+  '6a8c6ff9795e10dd8c01d2ba', // Личное дело Третьякова С.И.
   '590c62a386f77412b0130255', // Защищенный флеш-накопитель Sliderkey
   '590dde5786f77405e71908b2', // Банковский кейс
   '5910922b86f7747d96753483', // Карбоновый кейс
