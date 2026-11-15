@@ -139,25 +139,37 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
       {view === 'timeline' && <SheetFinish stages={stages} />}
       {/* What the quest needs, once each, in one block on the right (owner, 11.11.2026: «Не нужно показывать два ключа. Покажи
           один ключ… Сделай справа просто блок с требуемыми предметами»), not under every objective. */}
-      {needs.length > 0 && <aside className="sheet-needs-block" aria-label={uiText('Требуемые предметы')}><h5>{uiText('Требуемые предметы')}</h5><SheetNeeds needs={needs} open={openNeed} /></aside>}
+      {/* «Найти в рейде» (owner, 15.11.2026, «Инвазивная терапия»: «справа будут не требуемые предметы, а тоже надпись «Найти в
+          рейде»… предметы, которые нам нужно найти, и количество»): what is planted or marked is not here, «мы их уже изначально
+          взяли»; the keys and what else goes into the raid stay under «Требуемые предметы». */}
+      {(needs.find.length > 0 || needs.take.length > 0) && <aside className="sheet-needs-block">
+        {needs.find.length > 0 && <section aria-label={uiText('Найти в рейде')}><h5>{uiText('Найти в рейде')}</h5><SheetNeeds needs={needs.find} open={openNeed} bare /></section>}
+        {needs.take.length > 0 && <section aria-label={uiText('Требуемые предметы')}><h5>{uiText('Требуемые предметы')}</h5><SheetNeeds needs={needs.take} open={openNeed} /></section>}
+      </aside>}
       {photos.overlay}
     </div>
   )
 }
 
-/** Every item the objectives still to do and the stages need, one row per item (the biggest count), in the order met. */
-function questNeeds(stages: readonly SheetStage[]): SheetNeed[] {
-  const byItem = new Map<string, SheetNeed>()
+/**
+ * Every item the objectives still to do and the stages need, one row per item (the biggest count), in the order met: what is to
+ * be found (to find or to hand over) apart from what to take into the raid; nothing that is planted or marked.
+ */
+function questNeeds(stages: readonly SheetStage[]): { find: SheetNeed[]; take: SheetNeed[] } {
+  const find = new Map<string, SheetNeed>()
+  const take = new Map<string, SheetNeed>()
   const add = (need: SheetNeed) => {
-    const had = byItem.get(need.itemId)
-    if (!had) byItem.set(need.itemId, need)
-    else if (need.count > had.count) byItem.set(need.itemId, { ...had, count: need.count })
+    if (need.purpose === 'place' || need.purpose === 'mark') return
+    const list = need.purpose === 'find' || need.purpose === 'handover' ? find : take
+    const had = list.get(need.itemId)
+    if (!had) list.set(need.itemId, need)
+    else if (need.count > had.count) list.set(need.itemId, { ...had, count: need.count })
   }
   for (const stage of stages) {
     for (const group of stage.groups) for (const objective of group.objectives) if (!objective.done) objective.needs?.forEach(add)
     stage.needs?.forEach(add)
   }
-  return [...byItem.values()]
+  return { find: [...find.values()], take: [...take.values()].filter((need) => !find.has(need.itemId)) }
 }
 
 /** How many of a stage's objectives are done, of how many (the optional ones not counted unless done). */
@@ -196,7 +208,7 @@ const STAGE_ICON: Record<SheetStageKind, ReactNode> = {
 }
 
 /** The items a line needs, each with its picture, its count and what it is for. */
-function SheetNeeds({ needs, open }: { needs: readonly SheetNeed[]; open?: { can: (itemId: string) => boolean; open: (itemId: string) => void } }) {
+function SheetNeeds({ needs, open, bare }: { needs: readonly SheetNeed[]; open?: { can: (itemId: string) => boolean; open: (itemId: string) => void }; bare?: boolean }) {
   return (
     <ul className="sheet-needs" aria-label={uiText('Требования рейда')}>
       {needs.map((need) => {
@@ -204,7 +216,7 @@ function SheetNeeds({ needs, open }: { needs: readonly SheetNeed[]; open?: { can
           {need.iconUrl ? <img src={need.iconUrl} alt="" loading="lazy" decoding="async" /> : <span className="sheet-need-empty" aria-hidden="true"><Package size={14} /></span>}
           <span className="sheet-need-text">
             <strong>{uiText(need.name)}{need.count > 1 ? <span className="mono"> ×{need.count}</span> : null}</strong>
-            <small>{uiText(need.label)}{need.foundInRaid ? ` · ${uiText('найден в рейде')}` : ''}</small>
+            {!bare && <small>{uiText(need.label)}{need.foundInRaid ? ` · ${uiText('найден в рейде')}` : ''}</small>}
           </span>
         </>
         return open?.can(need.itemId)

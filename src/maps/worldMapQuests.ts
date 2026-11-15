@@ -1,7 +1,7 @@
 import type { GameMap, MapMarker, ModeProgress, Quest } from '../domain/types'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import { questAppliesToMap } from '../progression/questLocation'
-import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
+import { mapObjectivesClosed, markerObjectiveDone } from '../progression/mapObjectives'
 import { placeLocation, toWorld, type WorldPlacement, type WorldPoint } from './worldMap'
 
 export interface WorldQuestPoint {
@@ -66,7 +66,7 @@ export function worldQuestPoints({ quests, markers, maps, progress, checked, def
     if (marker.stageIndex != null && marker.stageIndex !== stage) continue
     if (markerObjectiveDone(marker, progress) || !questAppliesToMap(quest, marker.mapId, stage)) continue
     const doneKey = `${quest.id}|${marker.mapId}`
-    if (!doneOn.has(doneKey)) doneOn.set(doneKey, mapObjectivesDone(quest, marker.mapId, progress))
+    if (!doneOn.has(doneKey)) doneOn.set(doneKey, mapObjectivesClosed(quest, marker.mapId, progress))
     if (doneOn.get(doneKey)) continue
     const map = mapsById.get(marker.mapId)
     const placement = placements.get(marker.mapId)

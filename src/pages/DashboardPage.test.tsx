@@ -19,6 +19,7 @@ import { setDeferredFavorites } from '../progression/questDeferral'
 import { recordAutoFavorites } from '../progression/autoFavorites'
 import { setManualTraderLevel } from '../gunsmith/traderLevels'
 import { useAppState } from '../state/AppState'
+import { readOwnedKeys, setOwnedKey } from '../quests/ownedKeys'
 import pagesCss from '../styles/pages.css?raw'
 
 // «Сорвать сделку»: one stash objective that accepts any 7.62x51 pack (tarkov.dev ids and Russian names).
@@ -357,6 +358,46 @@ describe('DashboardPage', () => {
       expect(row(/^Ключ от склада/)).toBeNull()
       tick('revision', REVISION_OBJECTIVES[0], 0)
       expect(row(/^Ключ от склада/)).not.toBeNull()
+    })
+
+    // Owner, 15.11.2026: «нажимаешь «взял», он пишет, что есть наличие… после того, как я нажимаю «не взял», статус «нет в
+    // наличии» не появляется».
+    it('a key not in the stash: «Взял» makes it «Есть в наличии», «Не взял» brings «Нет в наличии» back', () => {
+      renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
+      const profileId = (JSON.parse(localStorage.getItem('tarkov-operations-profiles-v2')!) as { activeProfileId: string }).activeProfileId
+      act(() => { setOwnedKey(profileId, 'pvp', 'some-other-key', 1) })
+      const key = () => row(/^Ключ от склада/)!
+      expect(key()).toHaveTextContent('Нет в наличии')
+      fireEvent.contextMenu(key(), { clientX: 200, clientY: 150 })
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Взял' }))
+      expect(key()).toHaveTextContent('Есть в наличии')
+      fireEvent.contextMenu(key(), { clientX: 200, clientY: 150 })
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Не взял' }))
+      expect(key()).toHaveTextContent('Нет в наличии')
+      expect(key()).not.toHaveTextContent('Есть в наличии')
+    })
+
+    // Owner, 15.11.2026: «он должен добавляться в ключ, который есть у него в схроне».
+    it('«Взял» puts a key not in the stash into «Ключи в схроне», «Не взял» takes it out; a key the player had stays', () => {
+      renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
+      const profileId = (JSON.parse(localStorage.getItem('tarkov-operations-profiles-v2')!) as { activeProfileId: string }).activeProfileId
+      act(() => { setOwnedKey(profileId, 'pvp', 'some-other-key', 1) })
+      const key = () => row(/^Ключ от склада/)!
+      const menu = (name: string) => {
+        fireEvent.contextMenu(key(), { clientX: 200, clientY: 150 })
+        fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name }))
+      }
+      menu('Взял')
+      expect(readOwnedKeys(profileId, 'pvp').has(STORE_KEY)).toBe(true)
+      menu('Не взял')
+      expect(readOwnedKeys(profileId, 'pvp').has(STORE_KEY)).toBe(false)
+      act(() => { setOwnedKey(profileId, 'pvp', STORE_KEY, 1) })
+      expect(key()).toHaveTextContent('Есть в схроне')
+      menu('Взял')
+      expect(key()).toHaveTextContent('Есть в наличии')
+      menu('Не взял')
+      expect(readOwnedKeys(profileId, 'pvp').has(STORE_KEY)).toBe(true)
+      expect(key()).toHaveTextContent('Есть в схроне')
     })
 
     it('a key two objectives need stays until both are ticked, and opens on the one left', () => {

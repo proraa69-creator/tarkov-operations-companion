@@ -32,6 +32,32 @@ export function mapObjectivesDone(quest: Quest, mapId: string, progress: ModePro
   return needed.length > 0 && needed.every((objective) => objectiveDone(progress, quest.id, objective.id))
 }
 
+/**
+ * The quest's objectives on this map wait for one before them on another map (report 165, owner 15.11.2026: «на таможне у него
+ * надо забрать предмет, а потом в следующем рейде заложить его в лесу… пока он не выполнил цель на таможне и не поставил
+ * галочку, у него не появляется вторая цель на лесу»): an objective here waits while an earlier objective not done, on another
+ * map, deals with one of its items (found there, planted or handed over here). Objectives that share no item stay side by side,
+ * as the game opens them («Потрошитель»: kills on Factory and on Lighthouse, either first). Optional ones hold nothing; story
+ * chapters go by their stages instead. False when the quest has nothing to do here.
+ */
+export function mapObjectivesWaiting(quest: Quest, mapId: string, progress: ModeProgress): boolean {
+  if (quest.kind === 'story' || quest.stages?.length) return false
+  const map = canonicalMapId(mapId)
+  const onThisMap = (objective: QuestObjective) => (objective.mapIds ?? []).some((id) => canonicalMapId(id) === map)
+  const open = (quest.objectiveDetails ?? []).filter((objective) => objective.id && !objective.optional && !objectiveDone(progress, quest.id, objective.id))
+  const here = open.filter(onThisMap)
+  return here.length > 0 && here.every((objective) => {
+    const items = new Set(objective.itemIds ?? [])
+    return open.slice(0, open.indexOf(objective)).some((earlier) => Boolean(earlier.mapIds?.length) && !onThisMap(earlier)
+      && (earlier.itemIds ?? []).some((id) => items.has(id)))
+  })
+}
+
+/** The quest has nothing to do on this map now: its objectives here are done, or wait for one on another map first. */
+export function mapObjectivesClosed(quest: Quest, mapId: string, progress: ModeProgress): boolean {
+  return mapObjectivesDone(quest, mapId, progress) || mapObjectivesWaiting(quest, mapId, progress)
+}
+
 /** A quest point whose objective is done: hidden on the map. */
 export function markerObjectiveDone(marker: Pick<MapMarker, 'questId' | 'objectiveId'>, progress: ModeProgress): boolean {
   return Boolean(marker.questId && marker.objectiveId && objectiveDone(progress, marker.questId, marker.objectiveId))

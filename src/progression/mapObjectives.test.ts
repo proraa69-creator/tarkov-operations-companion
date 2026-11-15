@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ModeProgress, ObjectiveProgress, Quest, QuestObjective } from '../domain/types'
 import { progressWith, quest } from '../raidprep/fixtures'
-import { mapObjectivesDone, markerObjectiveDone } from './mapObjectives'
+import { mapObjectivesClosed, mapObjectivesDone, mapObjectivesWaiting, markerObjectiveDone } from './mapObjectives'
 
 const objective = (id: string, type: string, mapIds?: string[]): QuestObjective => ({ id, type, description: id, count: 1, ...(mapIds ? { mapIds } : {}) })
 const ticked = (...ids: string[]) => Object.fromEntries(ids.map((id): [string, ObjectiveProgress] => [id, {
@@ -59,3 +59,36 @@ describe('objectives ticked by hand, per map', () => {
     expect(markerObjectiveDone({ questId: 'butcher' }, progress)).toBe(false)
   })
 })
+
+// Report 165 (owner, 15.11.2026): «на таможне у него надо забрать предмет, а потом в следующем рейде заложить его в лесу… пока он
+// не выполнил цель на таможне и не поставил галочку, у него не появляется вторая цель на лесу».
+describe('an objective that waits for the one before it on another map', () => {
+  const step = (id: string, type: string, mapIds: string[], itemIds?: string[]): QuestObjective => ({ ...objective(id, type, mapIds), ...(itemIds ? { itemIds } : {}) })
+  const courier = quest('courier', 'Курьер', {
+    mapIds: ['customs', 'woods'],
+    objectiveDetails: [step('pick', 'findQuestItem', ['customs'], ['parcel']), step('plant', 'plantQuestItem', ['woods'], ['parcel']), objective('give', 'giveItem')],
+  })
+  const tickedAs = (...ids: string[]) => progressWith({ courier: 'active' }, { objectiveProgress: Object.fromEntries(Object.entries(ticked(...ids)).map(([id, entry]) => [id, { ...entry, taskId: 'courier' }])) })
+
+  it('is not on its map until the one before is ticked; then the first map is done and the second open', () => {
+    expect(mapObjectivesWaiting(courier, 'woods', tickedAs())).toBe(true)
+    expect(mapObjectivesClosed(courier, 'woods', tickedAs())).toBe(true)
+    expect(mapObjectivesClosed(courier, 'customs', tickedAs())).toBe(false)
+    expect(mapObjectivesClosed(courier, 'customs', tickedAs('pick'))).toBe(true)
+    expect(mapObjectivesWaiting(courier, 'woods', tickedAs('pick'))).toBe(false)
+    expect(mapObjectivesClosed(courier, 'woods', tickedAs('pick'))).toBe(false)
+  })
+
+  it('objectives on two maps that share no item stay side by side', () => {
+    const butcher = quest('butcher', 'Потрошитель', { objectiveDetails: [objective('kill-factory', 'shoot', ['factory']), objective('kill-lighthouse', 'shoot', ['lighthouse'])] })
+    expect(mapObjectivesWaiting(butcher, 'lighthouse', progressWith({ butcher: 'active' }))).toBe(false)
+    expect(mapObjectivesWaiting(butcher, 'factory', progressWith({ butcher: 'active' }))).toBe(false)
+  })
+
+  it('an item found on any map holds nothing back, nor does a map the quest has nothing on', () => {
+    const anywhere = quest('anywhere', 'Где угодно', { objectiveDetails: [step('find', 'findItem', [], ['p22']), step('plant', 'plantItem', ['lighthouse'], ['p22'])] })
+    expect(mapObjectivesWaiting(anywhere, 'lighthouse', progressWith({ anywhere: 'active' }))).toBe(false)
+    expect(mapObjectivesWaiting(courier, 'shoreline', tickedAs())).toBe(false)
+  })
+})
+
