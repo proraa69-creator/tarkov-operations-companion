@@ -1,4 +1,14 @@
 [
+  {"version":"0.6.0.308","date":"2026-11-15","items":[
+    {"kind":"added","ru":"Общая карта: все локации и ваши текущие задания на одной карте","en":"World map: every location and your current tasks on one map"},
+    {"kind":"improved","ru":"Задание появляется на карте следующей цели, когда предыдущая выполнена","en":"A task shows on the map of its next objective once the one before is done"},
+    {"kind":"improved","ru":"«Взял» на ключе добавляет его в «Ключи в схроне»","en":"«Taken» on a key adds it to «Keys in stash»"},
+    {"kind":"improved","ru":"Требования рейда: одинаковые предметы одной строкой","en":"Raid requirements: the same items in one row"},
+    {"kind":"added","ru":"Окно задания: блок «Найти в рейде» с количеством","en":"Task window: «Find in raid» with the count"},
+    {"kind":"added","ru":"Квестовые предметы с картинками в требованиях рейда и в карточке задания","en":"Quest items with pictures in raid requirements and the task card"},
+    {"kind":"improved","ru":"Цветовая схема меняется плавной волной от кнопки","en":"The colour scheme changes in a smooth wave from its button"},
+    {"kind":"improved","ru":"Сборка оружия открывается быстрее; кнопка «Избранное» в списке оружия; барахолка — по уровню персонажа","en":"Weapon builds open faster; a Favorites button in the weapon list; the flea market follows your character level"}
+  ]},
   {"version":"0.6.0.307","date":"2026-11-15","items":[
     {"kind":"improved","ru":"Цветовая схема меняется плавно — кругом от кнопки","en":"The colour scheme changes smoothly, in a circle from the button"},
     {"kind":"added","ru":"Схема «Смена дня и ночи»: правой кнопкой по кнопке цветовой схемы","en":"«Day and night» scheme: right-click the colour scheme button"},
