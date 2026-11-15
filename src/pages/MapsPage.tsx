@@ -84,7 +84,8 @@ import { manualObjectiveValue, questObjectiveDefs } from '../progression/objecti
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
 import { MarkerHintBlock, PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
-import { QuestGuidePhotoStrip } from '../components/QuestGuidePhotos'
+import { MarkerPlacePhoto, preloadQuestGuidePhotos, QuestGuidePhotoStrip, usePlacePhotoViewer } from '../components/QuestGuidePhotos'
+import { holdTooltipOnHover } from '../maps/holdTooltip'
 import { ReportDialog } from '../components/SupportButtons'
 import { questReportFromMap, type QuestReportDraft } from '../components/QuestReportSection'
 import { formatPrice } from '../shared/format'
@@ -554,6 +555,9 @@ export function MapsPage() {
   const leftHidden = panelsOn && panels.leftHidden
   const rightHidden = panelsOn && panels.rightHidden
   useEffect(() => { if (panelsOn) resizeMapSoon() }, [panelsOn, stacked, leftHidden, rightHidden])
+  // The places' photos of the quest points' cards (report 167): loaded with the map, not on the first point under the mouse.
+  useEffect(() => { if (!mobile) preloadQuestGuidePhotos() }, [mobile])
+  const placePhotos = usePlacePhotoViewer()
   const [fullscreen, setFullscreen] = usePhoneMapFullscreen(mobile)
   const [params, setParams] = useSearchParams()
   const { locale } = useLocale()
@@ -1369,6 +1373,8 @@ export function MapsPage() {
                     const map = mapRef.current
                     if (!map) return
                     placeTooltip(map, event.target as LeafletMarker, event.tooltip)
+                    // a quest point's card stays while the mouse goes on to its photo (report 167)
+                    if (marker.questId && marker.objectiveId) holdTooltipOnHover(event.target as LeafletMarker, event.tooltip)
                     // The React content is measured again once it has rendered into the tooltip.
                     requestAnimationFrame(() => { if (event.tooltip.isOpen()) placeTooltip(map, event.target as LeafletMarker, event.tooltip) })
                   },
@@ -1401,6 +1407,7 @@ export function MapsPage() {
                       boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
                       keys={marker.questId ? keysByQuest.get(marker.questId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
                       spotKeys={layerId === 'loot.key' && (marker.keyCount ?? 1) > 1 ? <KeySpotKeys keyIds={keysShown(marker)} items={itemsById} owned={ownedKeys} compact /> : undefined}
+                      photo={marker.questId && marker.objectiveId ? <MarkerPlacePhoto questId={marker.questId} objectiveId={marker.objectiveId} onOpen={placePhotos.open} /> : undefined}
                     />
                   </Tooltip>
                 )}
@@ -1409,6 +1416,7 @@ export function MapsPage() {
           }))}
         </MapContainer>
         </div>
+        {placePhotos.overlay}
         {/* not in the iPhone app (owner, 12.11.2026: «на карте удали ползунок справа») */}
         {mobile && !fullscreen && !appStoreRules() && <MapScrollRail />}
         {mobile && <PhoneMapFullscreenToggle fullscreen={fullscreen} onToggle={() => setFullscreen(!fullscreen)} />}

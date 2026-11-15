@@ -94,7 +94,7 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
                     quest shown before in the next one (owner, 20.10.2026: «подзадачи гуляют из квеста в квест»). */}
                 {group.objectives.map((objective, index) => {
                   const own = photos.photosOf(objective)
-                  return <li key={`${index}:${objective.id}`} {...photos.rowProps(`${group.kind}:${index}`, own)} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}${own.length ? ' has-photos' : ''}`}>
+                  return <li key={`${index}:${objective.id}`} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}${own.length ? ' has-photos' : ''}`}>
                     {/* the map under the pin and the box (owner, 11.11.2026: «Карту пиши под ячейками… А текст всегда должен ложиться
                         ровно»): every line's text starts in one column */}
                     <span className="sheet-objective-side">
