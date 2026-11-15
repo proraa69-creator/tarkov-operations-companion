@@ -1,7 +1,12 @@
 /* The change of colour scheme (src/theme/themeTransition.ts, owner 15.11.2026): the new scheme opens as a circle from the
-   press over the old one. The browser's own cross-fade is off. */
-::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
-:root[data-theme-motion="circle"]::view-transition-new(root) { animation: theme-circle 820ms cubic-bezier(.65, 0, .35, 1) both; }
+   pressed scheme button over the old one. The browser's own cross-fade is off for it only; a change of page keeps its
+   cross-fade (global.css).
+   The curve starts moving at once (no slow start that looks like waiting), its fastest point is only ~1.4× the average
+   (the old ease-in-out reached 2.85× in the middle: the «рывок» towards the far corners), and it settles softly; the radius
+   reaches a little past the farthest corner, so that corner is covered while the edge still moves. */
+:root[data-theme-motion="circle"]::view-transition-old(root),
+:root[data-theme-motion="circle"]::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+:root[data-theme-motion="circle"]::view-transition-new(root) { animation: theme-circle 720ms cubic-bezier(.33, .4, .6, 1) both; }
 @keyframes theme-circle {
   from { clip-path: circle(0 at var(--vt-x) var(--vt-y)); }
   to { clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y)); }

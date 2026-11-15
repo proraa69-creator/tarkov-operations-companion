@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Check, SunMoon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, saveAppearance } from './theme'
+import { prepareTheme } from './themeTransition'
 import './themeSchemeMenu.css'
 
 /** «Смена дня и ночи» was turned on once on this device: its window is not shown again. */
@@ -44,7 +45,7 @@ export function ThemeSchemeMenu({ x, y, current, onPick, onClose }: { x: number;
       window.removeEventListener('blur', onClose)
     }
   }, [onClose])
-  const item = (id: string, label: string, icon: React.ReactNode) => <button key={id} type="button" role="menuitemradio" aria-checked={current === id} className={current === id ? 'is-active' : undefined} onClick={() => onPick(id)}>
+  const item = (id: string, label: string, icon: React.ReactNode) => <button key={id} type="button" role="menuitemradio" aria-checked={current === id} className={current === id ? 'is-active' : undefined} onPointerEnter={() => prepareTheme(id)} onFocus={() => prepareTheme(id)} onClick={() => onPick(id)}>
     {icon}<span>{uiText(label)}</span>{current === id && <Check size={14} className="theme-scheme-check" aria-hidden="true" />}
   </button>
   return createPortal(<div ref={box} className="theme-scheme-menu" role="menu" aria-label={uiText('Цветовая схема')} style={place ?? { left: x, top: y, visibility: 'hidden' }} onContextMenu={(event) => event.preventDefault()}>
@@ -77,10 +78,12 @@ export function DayNightIntro({ onClose }: { onClose: () => void }) {
 export function useThemeSchemeMenu(current: string, onChanged: (id: string) => void) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [intro, setIntro] = useState(false)
+  // The scheme button the menu belongs to: a scheme picked from the menu opens as a circle from that button.
+  const anchor = useRef<Element | null>(null)
   const pick = (id: string) => {
     setMenu(null)
     if (id !== current) {
-      saveAppearance(id)
+      saveAppearance(id, { origin: anchor.current })
       window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
       onChanged(id)
     }
@@ -91,6 +94,7 @@ export function useThemeSchemeMenu(current: string, onChanged: (id: string) => v
   }
   const onContextMenu = (event: React.MouseEvent) => {
     event.preventDefault()
+    anchor.current = event.currentTarget
     setMenu({ x: event.clientX, y: event.clientY })
   }
   const overlay = <>
