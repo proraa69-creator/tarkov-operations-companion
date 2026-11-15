@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Crosshair, X } from 'lucide-react'
 import { useRaidState } from '../app/useRaidState'
@@ -10,6 +10,7 @@ import { useServerStatus } from '../sync/serverSync'
 import { TOAST_MS } from './ToastDock'
 import { addNotification } from './notificationCenter'
 import { takeRaidStart, useRaidStartNotice } from './raidStartNotice'
+import { rememberLastRaid } from '../overview/infoCardClock'
 import '../arsenal/arsenal.css'
 
 /**
@@ -65,6 +66,25 @@ export function RaidStartNotifier() {
   }, [on, begun]) // eslint-disable-line react-hooks/exhaustive-deps -- once per raid; its map as known then
   if (!shown || !on) return null
   return <RaidStartToast mapId={shown.mapId} onClose={() => setShown(null)} />
+}
+
+/**
+ * The PC: the raid just over, for «Таймер рейда» on the Overview («сколько длился прошлый рейд и на какой карте»). A «raid» that ends
+ * within a minute of its start was an aborted loading: not kept.
+ */
+export function LastRaidRecorder() {
+  const raid = useRaidState()
+  const before = useRef(raid)
+  useEffect(() => {
+    const previous = before.current
+    before.current = raid
+    if (!previous?.inRaid || raid?.inRaid !== false) return
+    const began = previous.begun ?? previous.since
+    const ended = Date.now()
+    if (!began || ended - began < 60_000) return
+    rememberLastRaid({ began, ended, ...(previous.location ? { location: previous.location } : {}) })
+  }, [raid])
+  return null
 }
 
 /** The phone: what the PC app said last (its raid's start comes with its screen state, src/screen/screenRemote.ts). */

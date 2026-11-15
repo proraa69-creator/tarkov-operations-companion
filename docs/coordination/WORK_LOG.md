@@ -7323,3 +7323,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: raidState `begun` (1), RaidStartNotifier (3), server live screen state with raidBegun (in the screen test). Notifications/screen/import/settings/i18n/App: 430 passed. Typecheck clean, eslint clean.
 - Note for the release: the PC sends the new fields only during a raid; an older server answers 400 to them (strict schema) until it is updated with this release.
 - Not seen live: the card in the real desktop app and on a real phone (a stand-in desktop bridge crashes the renderer preview).
+
+## 2026-11-16 — The Overview's first block: «Время в Таркове», «Сброс торговцев», «Таймер рейда» (branch claude/overview-info-card on claude/raid-start-notice, not released)
+
+- Owner: «в этом блоке будет кнопка маленькая, квадратная, настроек. И там можно выбрать время в Таркове, сбросов торговцев, таймер рейда… сколько длился прошлый рейд и на какой карте. А пресеты оттуда убери… и на телефоне, и на ПК. Хотя на телефоне оставь еще на выбор пресетов».
+- The block `stat-screen` (layout id kept, editor label «Таймеры») is src/overview/InfoStatCard.tsx: a square gear opens «Что показывать». PC: time in Tarkov (default), trader resets, raid timer — no screen presets. Phone: the same plus «Пресеты экрана» (default there, the old card with the gear beside it). The choice is per device (`raidos-overview-info-card`).
+- Time in Tarkov (src/overview/infoCardClock.ts): ×7, Moscow base, the second clock +12 h; sun/moon, «ночь через / день через» (night 22:00–5:00).
+- Trader resets: the next three, the nearest big; fetched for the card even with restock notifications off; a press opens «Торговцы».
+- Raid timer: PC from the logs (`begun`, else the loading start with «загрузка»), the time since it began and «осталось» of the map's raid time (red under 5 min); between raids «Прошлый рейд: Таможня · 34 мин» (LastRaidRecorder in the toast dock remembers a raid that ends, `raidos-last-raid-v1`; an end within a minute of the start is not kept). Phone: from the PC's screen relay (`raidBegun`, `raidLocation`), «Нет связи с ПК» without it.
+- RU/EN in src/i18n/uiEnglishOverview.ts. Tests: InfoStatCard.test.tsx (6). i18n/Dashboard/screen 147 passed; typecheck clean; eslint: no new problems. Checked in Chromium on the PC layout (screenshot in the side-session notes, overview-info-card.jpg); the phone layout needs a sign-in in the browser, so only its test covers it.

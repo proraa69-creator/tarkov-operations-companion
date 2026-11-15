@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Monitor, Repeat, Settings } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -112,7 +112,7 @@ function useRemoteScreen(on: boolean): ScreenControl {
  * пресетов. И при нажатии настройки тебя переносит прямо в окно пресеты экрана»): the chosen preset, on / off, the next one,
  * and the square gear that opens «Пресеты экрана» (the phone) or «Настройка экрана» (the PC) as a page.
  */
-export function ScreenStatCard() {
+export function ScreenStatCard({ chooser }: { chooser?: ReactNode } = {}) {
   const navigate = useNavigate()
   // the owner's heading of the block (Админ панель → «Блоки»), else «Экран»
   const title = useBlockTitle('Экран')
@@ -125,6 +125,7 @@ export function ScreenStatCard() {
       <div className="screen-stat-head">
         <div className="stat-label"><Monitor size={12} aria-hidden="true" /> {title}</div>
         {!pcControl && <span className={`screen-stat-pc${control.online ? ' is-online' : ''}`}>{uiText(control.online ? 'ПК' : 'ПК не в сети')}</span>}
+        {chooser}
       </div>
       <div className="screen-stat-row">
         <div className="screen-stat-name" title={control.presetName ?? undefined}>{known ? control.presetName : uiText('Нет связи с ПК')}</div>
