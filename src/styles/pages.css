@@ -195,6 +195,13 @@
   opacity: 1;
   pointer-events: auto;
 }
+/* The PC: the grip along the window's top edge sets its greatest height (src/maps/questSheetGrip.tsx, owner 15.11.2026: «на краю
+   этого блока сверху можно нажать на край, и эту шторку квеста можно выставить вверх или вниз»). */
+.map-quest-sheet-grip { position: absolute; top: -6px; left: 14px; right: 14px; height: 12px; z-index: 3; display: flex; align-items: center; justify-content: center; cursor: ns-resize; touch-action: none; outline: none; }
+.map-quest-sheet-grip span { width: 46px; height: 4px; border-radius: 2px; background: #5d6450; box-shadow: 0 1px 2px rgb(0 0 0 / 50%); transition: background-color .15s ease, width .15s ease; }
+.map-quest-sheet-grip:hover span, .map-quest-sheet-grip:focus-visible span, .map-quest-sheet.is-sizing .map-quest-sheet-grip span { width: 64px; background: var(--brass); }
+.map-quest-sheet.is-sizing { transition: none; }
+.map-quest-sheet.is-sizing .map-quest-sheet-body { flex: 1 1 auto; }
 .map-quest-sheet-body {
   position: relative;
   min-height: 0;
