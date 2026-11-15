@@ -221,8 +221,8 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
       ])
       expect(markers.map((marker) => marker.floor)).toEqual([catalog.maps.find((map) => map.id === 'lighthouse')!.floors![0], expect.any(String), expect.any(String)])
       expect(new Set(markers.map((marker) => marker.floor)).size).toBe(1)
-      // what to bring: the transmitter (catalog item, icon) for the visit; no key is needed
-      expect(quest.raidRequirements?.map((need) => [need.itemId, need.purpose, need.objectiveId])).toEqual([['62e910aaf957f2915e0a5e36', 'bring', details[3].id]])
+      // what to bring: the transmitter (catalog item, icon) for the visit; no key is needed (its quest item, found and handed over, comes apart: report 162)
+      expect(quest.raidRequirements?.filter((need) => !need.questItem).map((need) => [need.itemId, need.purpose, need.objectiveId])).toEqual([['62e910aaf957f2915e0a5e36', 'bring', details[3].id]])
       expect(quest.raidRequirements?.some((need) => need.purpose === 'key')).toBe(false)
       // given with the task (catalog items by name) and the craft it opens
       const on = locale === 'ru' ? 'При взятии задания' : 'On taking the task'

@@ -198,8 +198,9 @@ export function buildLegacyItems(bundle: TarkovJsonBundle): Json[] {
   })
 }
 
-export function buildLegacyAmmo(bundle: TarkovJsonBundle): Json[] {
-  return buildLegacyItems(bundle).filter((item) => Array.isArray(item.types) && item.types.includes('ammo')).flatMap((item) => {
+/** `items`: the bundle's items already converted (buildLegacyItems), when the caller has them — the conversion takes a while. */
+export function buildLegacyAmmo(bundle: TarkovJsonBundle, items: Json[] = buildLegacyItems(bundle)): Json[] {
+  return items.filter((item) => Array.isArray(item.types) && item.types.includes('ammo')).flatMap((item) => {
     const properties = object(item.properties)
     if (!text(properties.caliber) || number(properties.damage) === undefined || number(properties.penetrationPower) === undefined) return []
     return [{ item, ...properties }]

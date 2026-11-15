@@ -737,6 +737,13 @@ export interface Quest {
     maxDurability?: number
     dogTagLevel?: number
     /**
+     * A quest item to plant (tarkov.dev `questItem` of a plantQuestItem objective): not sold and not kept in the stash; its
+     * name in `AppDataset.questItems`. `pickUp`: the same quest has it found in a raid first (report 162, owner 15.11.2026:
+     * «квестовый предмет, который сначала нужно поднять, а потом заложить»); else the trader gives it or an earlier quest finds it.
+     */
+    questItem?: boolean
+    pickUp?: boolean
+    /**
      * Added or corrected by the owner in the quest constructor («добавлено Raid OS»): its own kind, comment and the point
      * it is tied to; `replaced` when it corrects the catalog's requirement of the same item and kind.
      */
@@ -888,6 +895,8 @@ export interface AppDataset {
   items: Item[]
   hideout: HideoutStation[]
   traders: Trader[]
+  /** The quest items the quests plant (raid requirements with `questItem`): their names; pictures are the app's own (src/data/localItemPictures.ts). */
+  questItems?: Item[]
   metadata?: {
     source: string
     mode: RaidMode
@@ -900,7 +909,7 @@ export interface AppDataset {
     /** Upstream timestamp of the task data, ISO. */
     sourceUpdatedAt?: string
     /** The flea market of this mode (tarkov.dev `fleaMarket` of the items file): open or not, and its fee rates. */
-    fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number }
+    fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number; minPlayerLevel?: number }
     /**
      * Desktop app: the server's version of this catalog's content (its ETag, electron/serviceGateway.ts). The next
      * request sends it back and gets «not modified» while nothing changed (src/data/tarkovJsonClient.ts).

@@ -16,14 +16,12 @@ import { caliberColors } from '../arsenal/caliberColors'
 import { isMuzzleSlot, muzzleKits, type MuzzleKit } from '../arsenal/muzzleKits'
 import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact, weaponIcon } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
-import { FLEA_CHOICE_KEY } from '../gunsmith/traderLevels'
-import { FLEA_PLAYER_LEVEL, TRADER_ORDER } from '../gunsmith/traderLevels'
+import { TRADER_ORDER } from '../gunsmith/traderLevels'
 import { BUILD_TIERS, buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
 import { useOwnerBuilds } from '../arsenal/ownerBuilds'
 import { withLiveGunPrices } from '../arsenal/liveGunPrices'
 import { useLivePrices } from '../data/livePrices'
 import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
-import type { RaidMode } from '../domain/types'
 import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
 import { isOwnerApp } from '../app/buildEdition'
@@ -43,22 +41,14 @@ const CLASS_NAMES: Record<string, string> = {
   'marksman-rifle': 'Марксманские винтовки', 'sniper-rifle': 'Болтовые винтовки', shotgun: 'Дробовики',
   machinegun: 'Пулемёты', handgun: 'Пистолеты', revolver: 'Револьверы', 'grenade-launcher': 'Гранатомёты',
 }
-const ACCESS_KEY = FLEA_CHOICE_KEY
 const BUYABLE_KEY = 'raid-os-gun-buyable-v1'
-type Grouping = 'caliber' | 'class'
+/** «Избранное» (owner, 15.11.2026): only the weapons with a build starred in this mode (SaveControls, SavedList). */
+type Grouping = 'caliber' | 'class' | 'favorites'
 type Sort = 'balanced' | 'recoil' | 'ergonomics' | 'price' | 'name' | 'kits'
 
 /** The weapon's picture: tarkov.dev's 512 px cut-out in development, our server's inventory picture in the app. */
 function pictureUrl(id: string) {
   return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-512.webp`
-}
-
-/** The player's own flea choice in this mode, or null: open from character level 15 (src/gunsmith/traderLevels.ts). */
-function readFleaChoice(mode: RaidMode): boolean | null {
-  try {
-    const value = JSON.parse(localStorage.getItem(`${ACCESS_KEY}:${mode}`) ?? 'null') as { flea?: unknown } | null
-    return typeof value?.flea === 'boolean' ? value.flea : null
-  } catch { return null }
 }
 
 const pathKey = (path: string[]) => path.join('/')
@@ -112,19 +102,10 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   // Each trader's own loyalty (owner, 18.10.2026: «не одна на всех… программа сама определяет уровень торговцев»): the
   // levels the app reads from the game's traders' screen and the tasks of this mode, changeable by hand (TraderSettings).
   const shop = useGunsmithAccess()
-  // «Барахолка доступна» follows the character's level (owner, 04.11.2026: «если ты выше 15 уровня, автоматически ставит
-  // галочку»); a choice of the player's own, kept per mode, only where it differs. Ticked by hand, the app does not hold
-  // the items' own flea levels against a level it may not know.
-  const [fleaChoice, setFleaChoiceState] = useState<boolean | null>(() => readFleaChoice(raidMode))
-  const setFleaChoice = (choice: boolean | null) => {
-    const next = choice === shop.access.flea ? null : choice
-    setFleaChoiceState(next)
-    try { if (next === null) localStorage.removeItem(`${ACCESS_KEY}:${raidMode}`); else localStorage.setItem(`${ACCESS_KEY}:${raidMode}`, JSON.stringify({ flea: next })) } catch { /* per-viewer convenience only */ }
-  }
-  const access = useMemo<PurchaseAccess>(() => {
-    if (fleaChoice === null || !shop.fleaEnabled) return shop.access
-    return { ...shop.access, flea: fleaChoice, ...(fleaChoice ? { playerLevel: undefined } : {}) }
-  }, [fleaChoice, shop.access, shop.fleaEnabled])
+  // The flea by the character's level alone (owner, 15.11.2026: «если вернуть по уровню персонажа… показывает модули,
+  // которые доступны на барахолке в зависимости от его уровня… кнопку «Барахолка доступна» убирай»): the market from its
+  // level in this mode, each item from its own (tarkov.dev minLevelForFlea, 20–40 for many), src/gunsmith/traderLevels.ts.
+  const access = shop.access
   // Remounted per mode (key below): PvP, PvE and Season lists never mix.
   const [saved, setSaved] = useState<SavedBuild[]>(() => loadSavedBuilds(raidMode))
 
@@ -166,7 +147,6 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         {/* «Сброс»: every stock part back (owner, 17.10.2026: «где заводская написано — сброс, он ставит все штатные детали»). */}
         <button className="button small" onClick={() => { setBuild({ ...stock, ammoId: build.ammoId }); setSelected(null) }} disabled={isStock} title={uiText('Поставить все штатные детали')}><RotateCcw size={13} />{uiText('Сброс')}</button>
         <TraderSettings shop={shop} />
-        <FleaCheck flea={access.flea} open={shop.fleaEnabled} auto={fleaChoice === null} onFlea={setFleaChoice} />
         <span className="wb-toolbar-fill" />
         <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('players') }} />
       </div>
@@ -281,18 +261,6 @@ function TraderSettings({ shop }: { shop: GunsmithAccess }) {
   </div>
 }
 
-/**
- * «Барахолка доступна» beside «Торговцы» (owner, 04.11.2026), by the character's level; one line, one font and colour (owner,
- * 28.10.2026: «почему криво, разный шрифт и разный цвет»). A mode without a flea market has nothing to tick.
- */
-function FleaCheck({ flea, open, auto, onFlea }: { flea: boolean; open: boolean; auto: boolean; onFlea: (next: boolean | null) => void }) {
-  const title = open ? `${uiText('Открывается с уровня')} ${FLEA_PLAYER_LEVEL}` : uiText('В этом режиме барахолки нет')
-  return <div className="wb-flea-row">
-    <label className="wb-check" title={title}><input type="checkbox" checked={flea} disabled={!open} onChange={(event) => onFlea(event.target.checked)} />{uiText('Барахолка доступна')}</label>
-    {!auto && open && <button className="wb-flea-auto" onClick={() => onFlea(null)} title={uiText('Вернуть по уровню персонажа')}>{uiText('по уровню персонажа')}</button>}
-  </div>
-}
-
 // ------------------------------------------------------------------------------------------------------------
 // Weapon index (left): every weapon, by caliber or by class, with a search.
 // ------------------------------------------------------------------------------------------------------------
@@ -323,10 +291,14 @@ function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: W
   const [query, setQuery] = useState('')
   const [grouping, setGrouping] = useState<Grouping>('caliber')
   const { colorOf } = useMemo(() => caliberColors(catalog.ammo), [catalog.ammo])
-  const starred = new Set(saved.filter((entry) => entry.favorite).map((entry) => entry.weaponId))
+  const starred = useMemo(() => new Set(saved.filter((entry) => entry.favorite).map((entry) => entry.weaponId)), [saved])
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase()
     const rows = weapons.filter((weapon) => !needle || `${weapon.name} ${weapon.shortName} ${prettyCaliber(weapon.caliber)}`.toLowerCase().includes(needle))
+    if (grouping === 'favorites') {
+      const favorites = rows.filter((weapon) => starred.has(weapon.id))
+      return favorites.length ? [['favorites', favorites] as [string, Weapon[]]] : []
+    }
     const map = new Map<string, Weapon[]>()
     for (const weapon of rows) {
       const key = grouping === 'caliber' ? weapon.caliber : weapon.weaponClass
@@ -335,22 +307,24 @@ function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: W
     return [...map.entries()].sort((a, b) => grouping === 'caliber'
       ? prettyCaliber(a[0]).localeCompare(prettyCaliber(b[0]), 'en', { numeric: true })
       : Object.keys(CLASS_NAMES).indexOf(a[0]) - Object.keys(CLASS_NAMES).indexOf(b[0]))
-  }, [grouping, query, weapons])
+  }, [grouping, query, starred, weapons])
   return <nav className="wb-index" aria-label={uiText('Оружие')}>
     <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти оружие…')} aria-label={uiText('Найти оружие')} /></label>
     <div className="wb-segment" role="tablist" aria-label={uiText('Группировка')}>
-      {(['caliber', 'class'] as Grouping[]).map((value) => <button key={value} role="tab" aria-selected={grouping === value} className={grouping === value ? 'is-active' : ''} onClick={() => setGrouping(value)}>{uiText(value === 'caliber' ? 'Калибр' : 'Класс')}</button>)}
+      {(['caliber', 'class', 'favorites'] as Grouping[]).map((value) => <button key={value} role="tab" aria-selected={grouping === value} className={grouping === value ? 'is-active' : ''} onClick={() => setGrouping(value)}>
+        {value === 'favorites' && <Star size={12} aria-hidden="true" />}{uiText(value === 'caliber' ? 'Калибр' : value === 'class' ? 'Класс' : 'Избранное')}
+      </button>)}
     </div>
     {groups.map(([key, rows]) => <div className="wb-index-group" key={key}>
-      <h3>{grouping === 'caliber' ? <><i className="wb-caliber-dot" style={{ background: colorOf(key) }} />{prettyCaliber(key)}</> : uiText(CLASS_NAMES[key] ?? rows[0].weaponClassName ?? key)}<span>{rows.length}</span></h3>
+      {grouping !== 'favorites' && <h3>{grouping === 'caliber' ? <><i className="wb-caliber-dot" style={{ background: colorOf(key) }} />{prettyCaliber(key)}</> : uiText(CLASS_NAMES[key] ?? rows[0].weaponClassName ?? key)}<span>{rows.length}</span></h3>}
       {rows.map((weapon) => <button key={weapon.id} className={`wb-index-row${weapon.id === selected ? ' is-active' : ''}`} onClick={() => onPick(weapon)} aria-current={weapon.id === selected ? 'true' : undefined}>
         <PartIcon src={weaponIcon(weapon)} />
         <span className="wb-index-name">{weapon.shortName}</span>
-        {starred.has(weapon.id) && <Star size={12} className="wb-index-star" aria-label={uiText('Есть в избранном')} />}
+        {starred.has(weapon.id) && grouping !== 'favorites' && <Star size={12} className="wb-index-star" aria-label={uiText('Есть в избранном')} />}
         <span className="wb-index-caliber">{grouping === 'caliber' ? uiText(CLASS_NAMES[weapon.weaponClass] ?? '').split(' ')[0] : prettyCaliber(weapon.caliber)}</span>
       </button>)}
     </div>)}
-    {!groups.length && <p className="muted wb-index-empty">{uiText('Оружие не найдено.')}</p>}
+    {!groups.length && <p className="muted wb-index-empty">{uiText(grouping === 'favorites' && !query.trim() ? 'Нет избранного: отметьте сборку ★' : 'Оружие не найдено.')}</p>}
   </nav>
 }
 

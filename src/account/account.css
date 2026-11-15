@@ -166,3 +166,12 @@
 .account-qr-steps li { display: grid; grid-template-columns: 26px 18px minmax(0, 1fr); align-items: start; gap: 8px; font-size: 13.5px; line-height: 1.45; }
 .account-qr-steps li::before { counter-increment: qr-step; content: counter(qr-step); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surf-2); color: var(--brass); font-weight: 800; font-size: 12px; }
 .account-qr-steps li > svg { margin-top: 3px; color: var(--text-dim); }
+
+/* «Личный кабинет» beside «Текущий профиль»: the nickname and each mode's level inside the account cell, under a line (owner, 15.11.2026). */
+.account-cabinet-identity { grid-column: 1 / -1; }
+.account-cabinet-nickname { display: grid; gap: 4px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.account-cabinet-nickname > span { color: var(--text-dim); font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.account-cabinet-nickname > b { font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+.account-cabinet-levels { display: flex; flex-wrap: wrap; gap: 6px; }
+.account-cabinet-levels > em { padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-muted); font-size: 11px; font-style: normal; white-space: nowrap; }
+.profile-operator-layout .account-cabinet-grid { grid-template-columns: minmax(0, 1fr); }

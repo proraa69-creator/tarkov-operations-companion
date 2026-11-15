@@ -1,11 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
+import { mkdir, open, readFile, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 
 const SLOT = /^[a-z0-9][a-z0-9_.-]{0,79}$/
 const GENERATION_ID = /^[a-z0-9][a-z0-9_.-]{0,127}$/
 const PART = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
+/** A lock on active.json older than this is a leftover of a process killed mid-publish. */
+const LOCK_STALE_MS = 10 * 60_000
+/** How long a publish waits for another process's publish before it gives up. */
+const LOCK_WAIT_MS = 10 * 60_000
 
 export interface MirrorFileRecord { bytes: number; sha256: string }
 export interface MirrorGeneration {
@@ -21,7 +25,7 @@ export type MirrorPublishResult = MirrorGeneration & { published: boolean }
 export type MirrorSmokeCheck = (generation: MirrorGeneration) => Promise<void>
 
 export class MirrorStorageError extends Error {
-  constructor(readonly code: 'mount-missing' | 'disk-full' | 'invalid-path' | 'invalid-manifest', message: string) { super(message) }
+  constructor(readonly code: 'mount-missing' | 'disk-full' | 'invalid-path' | 'invalid-manifest' | 'locked', message: string) { super(message) }
 }
 
 export interface MirrorStorageOptions {
@@ -79,6 +83,21 @@ function parseGeneration(value: unknown, expectedId?: string, expectedSlot?: str
     files[safe] = { bytes: record.bytes!, sha256: record.sha256 }
   }
   return { id: row.id, slot: row.slot, createdAt: row.createdAt, files, ...(row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? { metadata: row.metadata } : {}) }
+}
+
+const pause = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms) })
+
+/** The locks this process holds now (their tokens): a lock of this process that is not among them is a leftover. */
+const heldLocks = new Set<string>()
+
+/** The owner of a lock file (`<pid> <token> <time>`) is gone: a dead process, or this one without that lock now. */
+function lockOwnerGone(text: string) {
+  const [pidText, token] = text.split(' ')
+  const pid = Number(pidText)
+  if (!Number.isSafeInteger(pid) || pid <= 0) return true
+  if (pid === process.pid) return !token || !heldLocks.has(token)
+  try { process.kill(pid, 0); return false }
+  catch (error) { return (error as NodeJS.ErrnoException).code === 'ESRCH' }
 }
 
 function sameFiles(left: Record<string, MirrorFileRecord>, right: Record<string, MirrorFileRecord>) {
@@ -200,12 +219,12 @@ export class MirrorStorage {
     for (const name of await readdir(this.staging)) if (SLOT.test(name)) await rm(join(this.staging, name), { recursive: true, force: true })
   }
 
-  async publish(transaction: MirrorTransaction, metadata?: Record<string, unknown>, smoke?: MirrorSmokeCheck) {
+  async publish(transaction: MirrorTransaction, metadata?: Record<string, unknown>, smoke?: MirrorSmokeCheck): Promise<MirrorPublishResult> {
     const previous = this.publication
     let release!: () => void
     this.publication = new Promise<void>((resolve) => { release = resolve })
     await previous
-    try { return await this.publishLocked(transaction, metadata, smoke) }
+    try { return await this.acrossProcesses(() => this.publishLocked(transaction, metadata, smoke)) }
     finally { release() }
   }
 
@@ -215,20 +234,72 @@ export class MirrorStorage {
     let release!: () => void
     this.publication = new Promise<void>((resolve) => { release = resolve })
     await previous
-    try {
-      const active = await this.active()
-      const old = active.slots[slot]
-      if (!old?.previous) throw new MirrorStorageError('invalid-manifest', `Mirror slot ${slot} has no previous generation`)
-      const target = await this.verify(slot, old.previous)
-      const next: MirrorActive = { version: 1, slots: { ...active.slots, [slot]: { current: old.previous, previous: old.current } } }
-      await this.writeActive(next)
-      try { if (smoke) await smoke(target) }
-      catch (error) {
-        await this.writeActive(active)
-        throw error
+    try { return await this.acrossProcesses(() => this.rollbackLocked(slot, smoke)) }
+    finally { release() }
+  }
+
+  private async rollbackLocked(slot: string, smoke?: MirrorSmokeCheck): Promise<MirrorPublishResult> {
+    const active = await this.active()
+    const old = active.slots[slot]
+    if (!old?.previous) throw new MirrorStorageError('invalid-manifest', `Mirror slot ${slot} has no previous generation`)
+    const target = await this.verify(slot, old.previous)
+    const next: MirrorActive = { version: 1, slots: { ...active.slots, [slot]: { current: old.previous, previous: old.current } } }
+    await this.writeActive(next)
+    try { if (smoke) await smoke(target) }
+    catch (error) {
+      await this.writeActive(active)
+      throw error
+    }
+    return { ...target, published: true }
+  }
+
+  /**
+   * active.json is read, changed and replaced by more than one process (the API and the background worker, `npm run
+   * worker`): each change holds `active.json.lock`, made with O_EXCL, so no process replaces it with a copy that misses
+   * another one's slot. A lock whose process is gone, or older than LOCK_STALE_MS, is a leftover and is removed.
+   */
+  private async acrossProcesses<T>(work: () => Promise<T>): Promise<T> {
+    const lock = `${this.activePath}.lock`
+    await mkdir(dirname(lock), { recursive: true })
+    const started = Date.now()
+    const token = randomUUID()
+    for (let attempt = 0; ; attempt += 1) {
+      const handle = await open(lock, 'wx', 0o640).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'EEXIST') throw error
+        return undefined
+      })
+      if (handle) {
+        heldLocks.add(token)
+        try {
+          await handle.writeFile(`${process.pid} ${token} ${new Date().toISOString()}\n`)
+          await handle.close()
+        } catch (error) {
+          heldLocks.delete(token)
+          await handle.close().catch(() => undefined)
+          await rm(lock, { force: true })
+          throw error
+        }
+        break
       }
-      return { ...target, published: true }
-    } finally { release() }
+      if (await this.lockIsStale(lock)) { await rm(lock, { force: true }); continue }
+      if (Date.now() - started > LOCK_WAIT_MS) throw new MirrorStorageError('locked', 'Another process holds the mirror for too long')
+      await pause(Math.min(200, 20 + attempt * 10))
+    }
+    try { return await work() }
+    finally {
+      heldLocks.delete(token)
+      await rm(lock, { force: true })
+    }
+  }
+
+  private async lockIsStale(lock: string) {
+    const [text, info] = await Promise.all([readFile(lock, 'utf8').catch(() => undefined), stat(lock).catch(() => undefined)])
+    // Gone between the two calls: try again.
+    if (!info || text === undefined) return false
+    const old = Date.now() - info.mtimeMs > LOCK_STALE_MS
+    // Still being written by its owner, unless that was long ago.
+    if (!text.includes('\n')) return old
+    return old || lockOwnerGone(text)
   }
 
   private async publishLocked(transaction: MirrorTransaction, metadata?: Record<string, unknown>, smoke?: MirrorSmokeCheck): Promise<MirrorPublishResult> {
@@ -261,7 +332,19 @@ export class MirrorStorage {
     await mkdir(dirname(this.activePath), { recursive: true })
     const temporary = `${this.activePath}.${randomUUID()}.tmp`
     await writeFile(temporary, `${JSON.stringify(active)}\n`, { mode: 0o640 })
-    await rename(temporary, this.activePath)
+    // Windows refuses to replace a file another process is reading at that moment (the owner's desktop server, the
+    // tests); Linux never does. A few short retries, then the error.
+    for (let attempt = 0; ; attempt += 1) {
+      try { await rename(temporary, this.activePath); return }
+      catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (attempt >= 20 || (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY')) {
+          await rm(temporary, { force: true }).catch(() => undefined)
+          throw error
+        }
+        await pause(10 + attempt * 5)
+      }
+    }
   }
 
   assertInside(path: string) {

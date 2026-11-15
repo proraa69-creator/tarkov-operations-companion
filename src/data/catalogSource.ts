@@ -110,6 +110,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     wiki.storyQuests,
   ), locale)), locale), curated.added, locale, itemById, series, now)
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
+  const questItems = adaptQuestItems(tasks, questRows)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
   const markers = [...liveMarkers, ...adaptStoryQuestMarkers(questRows, mapRows, liveMarkers)]
 
@@ -120,6 +121,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     items: itemRows,
     hideout: hideoutRows,
     traders: traderRows,
+    ...(questItems.length ? { questItems } : {}),
     metadata: {
       source: 'json.tarkov.dev',
       mode,
@@ -284,17 +286,19 @@ export function presetImageFor(entry: JsonRecord, rawItems: JsonRecord): string 
 
 type FleaMarketInfo = NonNullable<NonNullable<AppDataset['metadata']>['fleaMarket']>
 
-/** tarkov.dev `fleaMarket` of the items file (json.tarkov.dev `<mode>/items`): whether this mode's flea is open, and its fee rates. */
+/** tarkov.dev `fleaMarket` of the items file (json.tarkov.dev `<mode>/items`): whether this mode's flea is open, its fee rates and level. */
 export function adaptFleaMarket(root: JsonRecord): FleaMarketInfo | undefined {
   const flea = asRecord(root.fleaMarket)
   if (!Object.keys(flea).length) return undefined
   const rate = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined)
   const offerFeeRate = rate(flea.sellOfferFeeRate)
   const requirementFeeRate = rate(flea.sellRequirementFeeRate)
+  const minPlayerLevel = typeof flea.minPlayerLevel === 'number' && Number.isFinite(flea.minPlayerLevel) && flea.minPlayerLevel >= 1 ? Math.round(flea.minPlayerLevel) : undefined
   return {
     enabled: flea.enabled !== false,
     ...(offerFeeRate !== undefined ? { offerFeeRate } : {}),
     ...(requirementFeeRate !== undefined ? { requirementFeeRate } : {}),
+    ...(minPlayerLevel !== undefined ? { minPlayerLevel } : {}),
   }
 }
 
@@ -445,6 +449,7 @@ function adaptTasks(
       }))
     })
     raidRequirements.push(...keyRequirements(objectives, keyGroups, maps))
+    raidRequirements.push(...questItemRequirements(objectives, maps))
     // What an objective has the player use in the raid (tarkov.dev `useAny`: a flare, any one of them), and the green flare of an exit
     // opened by one, which the task data does not name (owner, 06.11.2026: «В требования рейда не появляется Сигнальный патрон (Зелёный)»).
     for (const objective of objectives) {
@@ -611,6 +616,45 @@ function objectiveKeyGroups(objective: JsonRecord): string[][] {
  * however many objectives it opens. `neededKeys` is deprecated upstream and a new quest may have none, yet it names the key's
  * map; a key only it lists has no objective and stays with the quest.
  */
+/**
+ * The quest items of a quest (tarkov.dev findQuestItem / giveQuestItem / plantQuestItem: `questItem`): what it finds, hands over and
+ * plants, with their pictures in the quest and the one to plant in «Требования рейда» (report 162, owner 15.11.2026: «не отображается
+ * диск с дезой, который нужно заложить»; «А где картинки жестких дисков… И не только флешки»). `pickUp`: the same quest has the item
+ * to plant found first («Поднять и заложить»); otherwise the trader gave it or an earlier quest found it, and it is taken into the raid.
+ */
+const QUEST_ITEM_PURPOSES: Record<string, 'find' | 'handover' | 'place'> = { findQuestItem: 'find', giveQuestItem: 'handover', plantQuestItem: 'place' }
+
+function questItemRequirements(objectives: JsonRecord[], maps: Map<string, string>): NonNullable<Quest['raidRequirements']> {
+  const found = new Set(objectives.filter((objective) => text(objective.type) === 'findQuestItem').map((objective) => refId(objective.questItem)).filter(Boolean))
+  return objectives.flatMap((objective) => {
+    const purpose = QUEST_ITEM_PURPOSES[text(objective.type)]
+    const itemId = purpose ? refId(objective.questItem) : ''
+    if (!purpose || !itemId) return []
+    return [{
+      itemId,
+      count: number(objective.count) || 1,
+      purpose,
+      mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)),
+      objectiveId: text(objective.id) || undefined,
+      optional: objective.optional === true || undefined,
+      questItem: true,
+      ...(purpose === 'place' && found.has(itemId) ? { pickUp: true } : {}),
+    }]
+  })
+}
+
+/** The names of the quests' quest items (tarkov.dev `questItems` of the tasks file, translated); no picture: the app has its own (src/data/questItemPictures.ts). */
+function adaptQuestItems(tasksRoot: JsonRecord, quests: readonly Quest[]): Item[] {
+  const wanted = new Set(quests.flatMap((quest) => (quest.raidRequirements ?? []).filter((need) => need.questItem).map((need) => need.itemId)))
+  const known = asRecord(tasksRoot.questItems)
+  return [...wanted].flatMap((id) => {
+    const entry = asRecord(known[id])
+    const name = text(entry.name)
+    if (!name || name.startsWith(id)) return []
+    return [{ id, name, shortName: text(entry.shortName) || name, category: 'Бартер' as const, description: '', prices: [], ...(number(entry.width) ? { width: number(entry.width), height: number(entry.height) || 1 } : {}) }]
+  })
+}
+
 function keyRequirements(objectives: JsonRecord[], keyGroups: JsonRecord[], maps: Map<string, string>): NonNullable<Quest['raidRequirements']> {
   const neededMaps = new Map<string, string[]>()
   for (const group of keyGroups) {

@@ -10,6 +10,9 @@ import { openAccountSignIn } from './accountEvents'
 import { PhoneCabinetRow } from './PhoneAccount'
 import { PHONE_AUTH_UI } from './authFeatures'
 import { EmailVerifyRow } from './EmailAccount'
+import { useOptionalAppState } from '../state/AppState'
+import { modeLabel } from '../squad/squadLabels'
+import { knownModeLevels } from './modeLevels'
 import './account.css'
 
 /**
@@ -25,6 +28,7 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
   const [dialog, setDialog] = useState<'mobile' | 'approve' | null>(null)
   const desktop = isDesktopShell()
   const online = status?.online ?? false
+  const levels = knownModeLevels(useOptionalAppState()?.activeProfile.modes ?? {})
 
   if (!status?.signedIn) {
     return (
@@ -48,19 +52,23 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
 
   const body = <>
         <div className="account-cabinet-grid">
-          <div className="account-cabinet-cell">
+          {/* The account and, apart under a line, the nickname with each mode's level (owner, 15.11.2026). */}
+          <div className="account-cabinet-cell account-cabinet-identity">
             <span>{uiText('Аккаунт')}</span>
             <strong>{status.email ?? '—'}</strong>
             <small>{uiText(status.kind === 'streamer' ? 'Стример' : 'Пользователь')}</small>
+            {!buttons && <div className="account-cabinet-nickname">
+              <span>{uiText('Ник в игре')}</span>
+              <b>{nickname ?? '—'}</b>
+              {levels.length > 0 && <div className="account-cabinet-levels">
+                {levels.map(({ mode, level }) => <em key={mode}>{modeLabel(mode)} · {uiText('Уровень ')}{level}</em>)}
+              </div>}
+            </div>}
           </div>
           {paid && <div className={`account-cabinet-cell ${good ? 'is-good' : 'is-warn'}`}>
             <span>{uiText('Подписка')}</span>
             <strong>{uiText(subscriptionText(subscription))}</strong>
             <small>{uiText(subscription?.status === 'lifetime' ? 'Аккаунт стримера' : good ? 'Все функции доступны' : 'Оформить можно в личном кабинете на сайте')}</small>
-          </div>}
-          {!buttons && <div className="account-cabinet-cell">
-            <span>{uiText('Ник в игре')}</span>
-            <strong>{nickname ?? '—'}</strong>
           </div>}
           {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
           <EmailVerifyRow status={status} online={online} />

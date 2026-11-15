@@ -7,14 +7,17 @@ import type { LegacyGraphqlBuilder } from '../services/legacyGraphqlBuilder.js'
 import type { PriceHistoryMirror } from '../services/priceHistoryMirror.js'
 import type { TradingStats } from '../services/tradingStats.js'
 
+/** Each source only needs its status: the job itself, or the background worker's (services/background.ts). */
+type Status<T extends { status(): unknown }> = Pick<T, 'status'> | { status(): unknown }
+
 export interface DataMirrorRouteOptions {
   storage?: MirrorStorage
-  datasets?: TarkovDataMirror
-  prices?: PriceMirror
-  maps?: MapMirror
-  legacyGraphql?: LegacyGraphqlBuilder
-  priceHistory?: PriceHistoryMirror
-  trading?: TradingStats
+  datasets?: Status<TarkovDataMirror>
+  prices?: Status<PriceMirror>
+  maps?: Status<MapMirror>
+  legacyGraphql?: Status<LegacyGraphqlBuilder>
+  priceHistory?: Status<PriceHistoryMirror>
+  trading?: Status<TradingStats>
 }
 
 /** Public operational status. It intentionally exposes no local paths, upstream URLs or credentials. */

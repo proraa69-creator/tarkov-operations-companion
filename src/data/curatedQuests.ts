@@ -194,6 +194,17 @@ const VAL_MAG_6L25 = '57838f9f2459774a150289a0'
 const PAB9_PACK_20 = '657025cfbfc87b3a34093253'
 /** S.I. Tretyakov's personnel file: the game's id (the wiki's item page); tarkov.dev's quest items do not have it. */
 const TRETYAKOV_FILE = '6a8c6ff9795e10dd8c01d2ba'
+/** The hard drive with false data Mechanic gives with «Доверяй, но проверяй»: the game's id (the wiki's item page, `node`); tarkov.dev has not got it. */
+const FALSE_DATA_DRIVE = '6a8993cab2713c27d90e9bb7'
+
+/**
+ * Quest items of the curated quests that tarkov.dev's `questItems` has not got: their names, for «Требования рейда» (report 162).
+ * Their pictures are the app's own (src/data/localItemPictures.ts).
+ */
+export const CURATED_QUEST_ITEMS: Readonly<Record<string, Text>> = {
+  [FALSE_DATA_DRIVE]: { ru: 'Жесткий диск с дезой', en: 'Hard drive with false data' },
+  [TRETYAKOV_FILE]: { ru: 'Личное дело Третьякова С.И.', en: 'S.I. Tretyakov’s personnel file' },
+}
 const MASKA_SHIELD_OD = '5c0919b50db834001b7ce3b9'
 const MASKA_HELMET_OD = '5c091a4e0db834001d5addc8'
 const LSHZ_SHIELD = '5d6d3829a4b9361bc8618943'
@@ -314,6 +325,7 @@ export const TO_THE_LIGHT: CuratedSeries = {
         {
           type: 'plantQuestItem',
           maps: ['the-lab'],
+          questItem: FALSE_DATA_DRIVE,
           text: {
             ru: 'Заложить жесткий диск с дезой на Лабе в крытой серверной рядом с зоной испытаний оружия на локации Лаборатория (В одном рейде)',
             en: 'Stash the Hard drive with false data in the server room near the weapon testing area in The Lab (In one raid)',
@@ -1650,7 +1662,12 @@ export function withCuratedTasks(tasksRoot: JsonRecord, context: CuratedTaskCont
   if (added.has(ID.gettingAcquainted) && Object.keys(source).length && !asArray(source.taskRequirements).length) {
     next[INFORMATION_SOURCE] = { ...source, taskRequirements: [{ task: ID.gettingAcquainted, status: ['complete'] }] }
   }
-  return { tasks: added.size || next[INFORMATION_SOURCE] !== tasks[INFORMATION_SOURCE] ? { ...tasksRoot, tasks: next } : tasksRoot, added }
+  if (!added.size && next[INFORMATION_SOURCE] === tasks[INFORMATION_SOURCE]) return { tasks: tasksRoot, added }
+  // The added quests' own quest items, where tarkov.dev's list has not got them.
+  const questItems = asRecord(tasksRoot.questItems)
+  const missing = Object.entries(CURATED_QUEST_ITEMS).filter(([id]) => !questItems[id])
+  const items = missing.length ? { questItems: { ...questItems, ...Object.fromEntries(missing.map(([id, name]) => [id, { id, name: name[context.locale], shortName: name[context.locale], width: 1, height: 1 }])) } } : {}
+  return { tasks: { ...tasksRoot, ...items, tasks: next }, added }
 }
 
 /**

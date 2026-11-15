@@ -48,6 +48,8 @@ import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
 import { removeStartupIntro } from '../startup/startupIntro'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
+// «Общая карта»: every location on one canvas (src/maps/worldMap.ts), loaded when opened.
+const WorldMapPage = lazy(() => import('../pages/WorldMapPage').then((module) => ({ default: module.WorldMapPage })))
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
 const HideoutStashPage = lazy(() => import('../pages/HideoutStashPage').then((module) => ({ default: module.HideoutStashPage })))
 const HideoutHubPage = lazy(() => import('../pages/HideoutHubPage').then((module) => ({ default: module.HideoutHubPage })))
@@ -91,6 +93,7 @@ export function App() {
     <Route path="/briefing" element={featureEnabled('raidBriefing') ? <RaidBriefingPage /> : <Navigate to="/" replace />} />
     <Route path="/" element={<DashboardPage />} />
     <Route path="/maps" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
+    <Route path="/maps/world" element={<Suspense fallback={null}><WorldMapPage /></Suspense>} />
     <Route path="/maps/:mapId" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
     <Route path="/quest-keys" element={<QuestKeysPage />} />

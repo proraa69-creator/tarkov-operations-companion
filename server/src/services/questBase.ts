@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AppDataset, Quest, RaidMode } from '../../../src/domain/types'
 import { storyChapterTitles } from '../../../src/data/storyChapters'
@@ -102,9 +102,24 @@ export interface QuestBaseModeReport {
 }
 export interface QuestBaseReport { periodMinutes: number; modes: Record<RaidMode, QuestBaseModeReport> }
 
+/**
+ * The API when another process builds the base (the background worker, src/worker.ts): it never builds, it reads what
+ * the builder saved in `dir` and looks at the manifests every `pollMs` for a newer version.
+ */
+export interface QuestBaseFollow {
+  /** A change only a build shows (new tarkov.dev data, the owner's event quests): ask the builder for one. */
+  requestBuild: (modes: readonly RaidMode[]) => void
+  /** How often the manifests are looked at (default 10 s). */
+  pollMs?: number
+  /** How long a request waits for a mode with nothing on disk yet (default 60 s). */
+  waitMs?: number
+}
+
 export interface QuestBaseOptions {
   /** Folder of the snapshots, one sub-folder per mode; none: memory only (development, tests). */
   dir?: string
+  /** Read the base another process builds in `dir` instead of building it (QuestBaseFollow). */
+  follow?: QuestBaseFollow
   /** Builds the catalog of a mode in a language (the server: fetchLiveCatalog on the mirror, services/catalogService.ts). */
   load: (mode: RaidMode, locale: CatalogLocale) => Promise<AppDataset>
   /** The state of the outside sources after a build of the mode (the mirror generation, the wiki cache). */
@@ -131,6 +146,10 @@ interface ModeState {
   /** How long the last successful build of both languages took. */
   lastBuildMs?: number
   saved: boolean
+  /** Follow mode: the manifest on disk last read (inode, time and size). */
+  diskKey?: string
+  /** Follow mode: why the disk could not be read the last time (logged once per reason). */
+  diskError?: string
   /** Requests waiting for the first snapshot of the mode. */
   waiters: Array<{ resolve: () => void; reject: (error: Error) => void }>
 }
@@ -283,6 +302,8 @@ export class QuestBase {
   private mirrorTimer?: ReturnType<typeof setTimeout>
   private readonly mirrorModes = new Set<RaidMode>()
   private running?: Promise<void>
+  private followTimer?: ReturnType<typeof setInterval>
+  private following?: Promise<void>
 
   constructor(private readonly options: QuestBaseOptions) {
     for (const mode of QUEST_BASE_MODES) this.states.set(mode, { due: Number.POSITIVE_INFINITY, triggers: 0, building: false, failures: 0, saved: true, waiters: [] })
@@ -298,6 +319,14 @@ export class QuestBase {
     if (this.started) return this.ready
     this.started = true
     this.stopped = false
+    if (this.options.follow) {
+      this.ready = this.followDisk().then(() => {
+        if (this.stopped) return
+        this.followTimer = setInterval(() => { void this.followDisk() }, this.options.follow?.pollMs ?? 10_000)
+        this.followTimer.unref?.()
+      })
+      return this.ready
+    }
     this.ready = this.loadAll().then(() => {
       const now = this.now()
       for (const state of this.states.values()) {
@@ -314,7 +343,8 @@ export class QuestBase {
     this.stopped = true
     if (this.timer) clearTimeout(this.timer)
     if (this.mirrorTimer) clearTimeout(this.mirrorTimer)
-    this.timer = this.mirrorTimer = undefined
+    if (this.followTimer) clearInterval(this.followTimer)
+    this.timer = this.mirrorTimer = this.followTimer = undefined
   }
 
   /** Settles once no build is running. */
@@ -346,6 +376,11 @@ export class QuestBase {
   /** The tarkov.dev mirror published new data of these modes: they are built again once the mirror is quiet. */
   mirrorUpdated(modes: readonly RaidMode[] = QUEST_BASE_MODES) {
     if (this.stopped || !modes.length) return
+    if (this.options.follow) {
+      try { this.options.follow.requestBuild(modes) }
+      catch (error) { this.log(`quest base: the builder was not asked for a build (${describe(error)})`) }
+      return
+    }
     for (const mode of modes) this.mirrorModes.add(mode)
     if (this.mirrorTimer) clearTimeout(this.mirrorTimer)
     this.mirrorTimer = setTimeout(() => {
@@ -409,6 +444,7 @@ export class QuestBase {
   }
 
   private firstSnapshot(mode: RaidMode, state: ModeState) {
+    if (this.options.follow) return this.waitForDisk(state)
     if (state.failures > 0 && !state.building && this.now() < state.due) return Promise.reject(new Error(state.lastError ?? 'Каталог ещё не собран'))
     return new Promise<void>((resolve, reject) => {
       state.waiters.push({ resolve, reject })
@@ -570,6 +606,61 @@ export class QuestBase {
     }
   }
 
+  /** Follow mode: a mode with nothing yet waits for the builder's first save, at most `waitMs`. */
+  private waitForDisk(state: ModeState) {
+    return new Promise<void>((resolve, reject) => {
+      const waiter = {
+        resolve: () => { clearTimeout(timer); resolve() },
+        reject: (error: Error) => { clearTimeout(timer); reject(error) },
+      }
+      const timer = setTimeout(() => {
+        const index = state.waiters.indexOf(waiter)
+        if (index >= 0) state.waiters.splice(index, 1)
+        reject(new Error('Каталог ещё не собран'))
+      }, this.options.follow?.waitMs ?? 60_000)
+      timer.unref?.()
+      state.waiters.push(waiter)
+      void this.followDisk()
+    })
+  }
+
+  /**
+   * Follow mode: each mode whose manifest changed on disk is read again. The same version only takes the new manifest
+   * (its check time) and keeps the snapshots, the very same objects, so the prepared catalog answers stay; a new version
+   * reads and checks both snapshots. A read that fails (a save under way) keeps what the base has and is tried again.
+   */
+  private followDisk(): Promise<void> {
+    if (this.following) return this.following
+    this.following = (async () => {
+      for (const mode of QUEST_BASE_MODES) {
+        const state = this.state(mode)
+        const path = join(this.options.dir ?? '', mode, MANIFEST)
+        const info = this.options.dir ? await stat(path).catch(() => undefined) : undefined
+        if (!info) continue
+        const key = `${info.ino}:${info.mtimeMs}:${info.size}`
+        if (state.diskKey === key) continue
+        try {
+          const manifest = parseManifest(JSON.parse(await readFile(path, 'utf8')), mode)
+          if (state.current && state.current.manifest.version === manifest.version) state.current = { ...state.current, manifest }
+          else {
+            const snapshot = await this.readMode(mode)
+            if (!snapshot) continue
+            state.current = snapshot
+            this.log(`quest base ${mode}: ${snapshot.manifest.version} read from disk (built ${snapshot.manifest.builtAt})`)
+          }
+          state.diskKey = key
+          state.diskError = undefined
+          this.settle(state)
+        } catch (error) {
+          const reason = describe(error)
+          if (state.diskError !== reason) this.log(`quest base ${mode}: the base on disk is not read yet (${reason}); ${state.current ? `version ${state.current.manifest.version} stays` : 'no base yet'}`)
+          state.diskError = reason
+        }
+      }
+    })().finally(() => { this.following = undefined })
+    return this.following
+  }
+
   private async loadAll() {
     if (!this.options.dir) return
     for (const mode of QUEST_BASE_MODES) {
@@ -591,8 +682,8 @@ export class QuestBase {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
       throw error
     }
-    // Leftovers of a write that a stop or a crash interrupted.
-    for (const name of names) if (name.endsWith(TEMPORARY_SUFFIX)) await rm(join(dir, name), { force: true }).catch(() => undefined)
+    // Leftovers of a write that a stop or a crash interrupted (only the builder's own: a follower's could be a save under way).
+    if (!this.options.follow) for (const name of names) if (name.endsWith(TEMPORARY_SUFFIX)) await rm(join(dir, name), { force: true }).catch(() => undefined)
     if (!names.includes(MANIFEST)) return undefined
     const manifest = parseManifest(JSON.parse(await readFile(join(dir, MANIFEST), 'utf8')), mode)
     const datasets = {} as Record<CatalogLocale, AppDataset>

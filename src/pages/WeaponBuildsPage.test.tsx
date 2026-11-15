@@ -28,7 +28,6 @@ vi.mock('../arsenal/buildCatalogClient', () => ({ listSharedBuilds, publishBuild
 const access = (playerLevel: number, extra: Partial<PurchaseAccess> = {}): PurchaseAccess => ({ traderLevel: 1, flea: playerLevel >= 15, playerLevel, fleaOpensAt: 15, traderLevels: {}, ...extra })
 const renderPage = () => render(<LocaleProvider><MemoryRouter initialEntries={[`/arsenal/builds?weapon=${FX.m4}`]}><WeaponBuildsPage /></MemoryRouter></LocaleProvider>)
 const tab = (name: string) => screen.getByRole('tab', { name })
-const flea = () => screen.getByRole('checkbox', { name: 'Барахолка доступна' })
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
@@ -102,44 +101,81 @@ describe('«Сборка оружия»: the three lists', () => {
   })
 })
 
-// Owner, 04.11.2026: «Рядом с кнопкой "Торговцы" сделай рядом галочку "Барахолка доступна"… если ты выше 15 уровня, автоматически ставит галочку».
-describe('«Сборка оружия»: «Барахолка доступна»', () => {
-  it('stands beside «Торговцы» and follows the character\'s level', () => {
+// Owner, 15.11.2026: «если вернуть по уровню персонажа… показывает модули, которые доступны на барахолке в зависимости от его
+// уровня… кнопку «Барахолка доступна» убирай».
+describe('«Сборка оружия»: the flea by the character level', () => {
+  const magazines = () => {
+    fireEvent.click(screen.getAllByRole('button').find((entry) => entry.classList.contains('wb-cell') && entry.textContent?.includes('STANAG'))!)
+    const picker = screen.getByRole('region', { name: 'Магазин' })
+    fireEvent.click(within(picker).getByRole('checkbox', { name: 'Можно купить' }))
+    return within(picker).getAllByRole('option').find((entry) => entry.textContent?.includes('D-60'))!
+  }
+  const d60 = catalog.mods.get(FX.mag60)!
+  afterEach(() => { catalog.mods.set(FX.mag60, d60) })
+
+  it('has no «Барахолка доступна» of its own', () => {
+    renderPage()
+    expect(screen.queryByRole('checkbox', { name: 'Барахолка доступна' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'по уровню персонажа' })).toBeNull()
+  })
+
+  it('an item the flea opens later stays shut below its own level', () => {
+    catalog.mods.set(FX.mag60, { ...d60, fleaLevel: 25 })
     const { unmount } = renderPage()
-    expect(flea()).toBeChecked()
-    expect(screen.getByRole('button', { name: 'Торговцы' }).closest('.wb-traders')!.nextElementSibling).toContainElement(flea() as HTMLElement)
+    const shut = magazines()
+    expect(shut).toHaveClass('is-locked')
+    expect(shut.querySelector('.wb-part-lock')).toHaveTextContent('барахолка с 25 ур.')
     unmount()
+    state.access = access(25)
+    renderPage()
+    expect(magazines()).not.toHaveClass('is-locked')
+  })
+
+  it('an old choice of «Барахолка доступна» is not read', () => {
+    localStorage.setItem('raid-os-gun-flea-v3:pvp', JSON.stringify({ flea: true }))
     state.access = access(14)
     renderPage()
-    expect(flea()).not.toBeChecked()
-    expect(screen.queryByRole('button', { name: 'по уровню персонажа' })).toBeNull()
+    expect(magazines().querySelector('.wb-part-lock')).toHaveTextContent(/Миротворец 3|барахолка с 15 ур\./)
+  })
+})
+
+// Owner, 15.11.2026: «где слева кнопка выбора оружия, у нас будет калибр, класс и избранное. Звездочка будет… появляется
+// избранное оружие».
+describe('«Сборка оружия»: «Избранное» in the weapon list', () => {
+  const openList = () => { fireEvent.click(document.querySelector('.wb-chooser-button')!); return screen.getByRole('navigation', { name: /Оружие|Weapons?/ }) }
+  const names = (list: HTMLElement) => [...list.querySelectorAll('.wb-index-name')].map((entry) => entry.textContent)
+
+  it('stands beside «Калибр» and «Класс»; empty, it says so in one line', () => {
+    renderPage()
+    const list = openList()
+    expect(within(list).getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Калибр', 'Класс', 'Избранное'])
+    fireEvent.click(within(list).getByRole('tab', { name: 'Избранное' }))
+    expect(names(list)).toEqual([])
+    expect(list).toHaveTextContent('Нет избранного: отметьте сборку ★')
   })
 
-  it('a choice of one\'s own stays in its mode and goes when it agrees with the level', () => {
-    const { unmount } = renderPage()
-    fireEvent.click(flea())
-    expect(flea()).not.toBeChecked()
-    expect(screen.getByRole('button', { name: 'по уровню персонажа' })).toBeInTheDocument()
-    unmount()
-    state.mode = 'pve'
-    const pve = renderPage()
-    expect(flea()).toBeChecked()
-    pve.unmount()
-    state.mode = 'pvp'
+  it('lists the weapons of starred builds of this mode only', () => {
+    const ak = catalog.weapons.find((weapon) => weapon.id === FX.ak)!
+    const code = encodeBuild(presetBuild(ak, catalog).build, catalog)!
+    localStorage.setItem('raid-os-gun-builds-v1', JSON.stringify({
+      pvp: [{ id: 'a', name: 'АК', weaponId: FX.ak, code, savedAt: '2026-11-15T00:00:00.000Z', favorite: true }, { id: 'b', name: 'Glock', weaponId: FX.glock, code, savedAt: '2026-11-15T00:00:00.000Z' }],
+      pve: [{ id: 'c', name: 'Glock', weaponId: FX.glock, code, savedAt: '2026-11-15T00:00:00.000Z', favorite: true }],
+    }))
     renderPage()
-    expect(flea()).not.toBeChecked()
-    fireEvent.click(flea())
-    expect(flea()).toBeChecked()
-    expect(screen.queryByRole('button', { name: 'по уровню персонажа' })).toBeNull()
-    expect(localStorage.getItem('raid-os-gun-flea-v3:pvp')).toBeNull()
+    const list = openList()
+    fireEvent.click(within(list).getByRole('tab', { name: 'Избранное' }))
+    expect(names(list)).toEqual(['AK-74N'])
+    fireEvent.click(within(list).getByRole('tab', { name: 'Калибр' }))
+    expect(names(list).length).toBeGreaterThan(1)
   })
 
-  it('a mode without a flea market has nothing to tick', () => {
-    state.fleaEnabled = false
-    state.access = access(40, { flea: false, fleaOpensAt: undefined })
+  it('in English: «Favorites»', () => {
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    setRenderLanguage('en')
     renderPage()
-    expect(flea()).toBeDisabled()
-    expect(flea()).not.toBeChecked()
+    const list = openList()
+    fireEvent.click(within(list).getByRole('tab', { name: 'Favorites' }))
+    expect(list).toHaveTextContent('No favorites yet: star a build')
   })
 })
 

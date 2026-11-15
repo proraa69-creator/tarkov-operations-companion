@@ -1,3 +1,4 @@
+import { interfaceVersion } from '../app/appVersion'
 import type { GuideTipContent } from './FirstRunGuide'
 
 /**
@@ -28,10 +29,23 @@ export interface ToursRecord {
    * (owner, 13.11.2026: «только у тех, кто зарегистрировался и ни разу не запускал приложение»).
    */
   screenshotKey?: 'due' | 'done'
+  /**
+   * The app version this device started its tips with («Показать снова» sets it anew). A tip added in a later release
+   * never shows here (owner, 15.11.2026: «Это окно должно появляться только при первом запуске. После оно не должно
+   * вылезать, даже после обновлений, если человек уже заходил. Это касается всех первых подсказок»). A record without it
+   * started before this was kept: no added tip shows there.
+   */
+  app?: string
 }
 
 export interface TourContext { phone: boolean; desktop: boolean; inRaid?: boolean }
-export interface TourStep { id: string; tip: GuideTipContent; when?: (context: TourContext) => boolean }
+export interface TourStep {
+  id: string
+  tip: GuideTipContent
+  when?: (context: TourContext) => boolean
+  /** The release that added this tip to a section the players had before: only devices that started with it or later. */
+  added?: string
+}
 export interface TourSection { id: string; matches: (pathname: string) => boolean; steps: TourStep[] }
 export interface NewsItem {
   id: string
@@ -73,16 +87,20 @@ export const SECTIONS: TourSection[] = [
     } },
   ] },
   { id: 'quests', matches: same('/quests'), steps: [
-    { id: 'story', when: pc, tip: {
+    // Story quests are no longer read from the screen (owner, 15.11.2026: «у нас больше не сканируются сюжетные квесты…
+    // выберите текущие сюжетные квесты и перейдите на текущий этап в приложении, которые у вас в игре»).
+    { id: 'story', tip: {
       title: { ru: 'Сюжетные задания', en: 'Story quests' },
-      text: () => ({ ru: 'Откройте в игре окно сюжетного задания на 3 секунды — Raid OS сам прочитает его этапы.', en: 'Open a story quest’s window in the game for 3 seconds: Raid OS reads its stages by itself.' }),
+      text: () => ({ ru: 'Выберите свои текущие сюжетные задания и переключите каждое на этап, на котором вы сейчас в игре.', en: 'Pick your current story quests and set each one to the stage you are at in the game.' }),
       target: '[data-guide="story-tab"]',
     } },
   ] },
   { id: 'maps', matches: under('/maps'), steps: [
     { id: 'checkmark', tip: {
       title: { ru: 'Галочка у задания', en: 'The checkmark by a quest' },
-      text: () => ({ ru: 'Сделали задание в рейде — нажмите галочку, и его точки уйдут с карты. В игре задание от этого не выполняется.', en: 'Done a quest in the raid? Press its checkmark and its points leave the map. It does not complete the quest in the game.' }),
+      // Owner, 15.11.2026: «если вы поставили галочку, приложение не считает его выполненным. Это сделано для удобства. И чтобы
+      // меньше мешало на карте».
+      text: () => ({ ru: 'Галочка не отмечает задание выполненным. Она для удобства: точки задания уходят с карты и не мешают.', en: 'The checkmark does not mark the quest as completed. It is for convenience: the quest’s points leave the map and stay out of the way.' }),
       target: '.quest-raid-check',
       media: 'checkmark',
       press: true,
@@ -92,9 +110,14 @@ export const SECTIONS: TourSection[] = [
       text: () => ({ ru: 'Здесь переключается вид карты.', en: 'The map’s view switches here.' }),
       target: '.map-view-trigger',
     } },
-    { id: 'position', when: pc, tip: {
-      title: { ru: 'Ваша точка на карте', en: 'Your position on the map' },
-      text: () => ({ ru: 'Назначьте в игре клавишу скриншота («Настройки» → «Управление»): по скриншоту Raid OS покажет, где вы.', en: 'Set the screenshot key in the game (Settings → Controls): Raid OS shows where you are from the screenshot.' }),
+    // No «Ваша точка на карте» (owner, 15.11.2026): the Overview's card tells how to set the screenshot key.
+  ] },
+  { id: 'weapon-builds', matches: same('/arsenal/builds'), steps: [
+    // Owner, 15.11.2026: «Все готовые сборки собираются под ваш уровень персонажа и уровень торговцев. И доступность на
+    // барахолке предметов… Чем выше уровень, чем выше прокачан аккаунт, тем лучше сборка оружия».
+    { id: 'level', added: '0.6.0.308', tip: {
+      title: { ru: 'Готовые сборки', en: 'Ready builds' },
+      text: () => ({ ru: 'Сборки собираются из того, что вам доступно: по уровню персонажа, уровням торговцев и барахолке. Чем выше уровень, тем лучше сборки.', en: 'Builds use what is open to you: by your character level, trader levels and the flea market. The higher your level, the better the builds.' }),
     } },
   ] },
   { id: 'kappa', matches: same('/kappa-items'), steps: [
@@ -162,6 +185,7 @@ export function readTours(): ToursRecord | null {
       since: typeof parsed.since === 'string' ? parsed.since : '0',
       seen: Array.isArray(parsed.seen) ? parsed.seen.filter((key): key is string => typeof key === 'string') : [],
       ...(parsed.screenshotKey === 'due' || parsed.screenshotKey === 'done' ? { screenshotKey: parsed.screenshotKey } : {}),
+      ...(typeof parsed.app === 'string' ? { app: parsed.app } : {}),
     }
   } catch {
     return null
@@ -187,7 +211,7 @@ export function startTours(newPlayer: boolean): ToursRecord {
       if (Array.isArray(stored)) for (const id of stored) if (typeof id === 'string') seen.push(`news:${id}`)
     }
   } catch { /* nothing seen before */ }
-  const record: ToursRecord = newPlayer ? { choice: 'ask', since: LATEST_NEWS_RELEASE, seen: [], screenshotKey: 'due' } : { choice: 'no', since: '0', seen }
+  const record: ToursRecord = newPlayer ? { choice: 'ask', since: LATEST_NEWS_RELEASE, seen: [], screenshotKey: 'due', app: interfaceVersion } : { choice: 'no', since: '0', seen, app: interfaceVersion }
   writeTours(record)
   return record
 }
@@ -215,6 +239,7 @@ export function dueTips(pathname: string, record: ToursRecord, context: TourCont
       if (!section.matches(pathname)) continue
       for (const step of section.steps) {
         const key = `${section.id}:${step.id}`
+        if (step.added && (!record.app || compareReleases(record.app, step.added) < 0)) continue
         if ((step.when?.(context) ?? true) && !record.seen.includes(key)) due.push({ key, tip: step.tip, news: false })
       }
     }
@@ -249,5 +274,5 @@ export function answerTours(choice: 'yes' | 'no') {
 /** Settings → «Показать снова»: every section's tips once more on the next visits. */
 export function replayTours() {
   const record = readTours() ?? { choice: 'yes' as const, since: LATEST_NEWS_RELEASE, seen: [] }
-  writeTours({ ...record, choice: 'yes', seen: record.seen.filter((key) => key.startsWith('news:')), screenshotKey: 'due' })
+  writeTours({ ...record, choice: 'yes', seen: record.seen.filter((key) => key.startsWith('news:')), screenshotKey: 'due', app: interfaceVersion })
 }

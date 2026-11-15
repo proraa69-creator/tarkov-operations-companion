@@ -97,3 +97,15 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Ожидает выплаты', 'Waiting for payout'], ['Отклонено', 'Rejected'],
   ['Сначала укажите реквизиты для выплаты', 'Set the payout details first'], ['Выплаты доступны только стримерам', 'Payouts are for streamers only'],
 ]
+
+/** The subscription's days left (src/i18n/ruPlural.ts ruDaysLeft) and grants: «Осталось 36 дней», «Остался 1 день», «Начислено: 2 дня». */
+export const ACCOUNT_RULES: Array<[RegExp, string]> = [
+  [/(?:Остался|Осталось) 1 день/g, '1 day left'],
+  [/(?:Остался|Осталось) (\d+) (?:день|дня|дней)/g, '$1 days left'],
+  [/Подписка заканчивается сегодня/g, 'The subscription ends today'],
+  [/Доступ действует до ([^.]+)\. Продлите подписку, чтобы приложение продолжило работать без перерыва\./g, 'Access lasts until $1. Renew the subscription to keep the app working without a break.'],
+  [/Будет начислено: 1 день/g, 'Will grant: 1 day'],
+  [/Начислено: 1 день/g, 'Granted: 1 day'],
+  [/Будет начислено: (\d+) (?:день|дня|дней)/g, 'Will grant: $1 days'],
+  [/Начислено: (\d+) (?:день|дня|дней)/g, 'Granted: $1 days'],
+]
