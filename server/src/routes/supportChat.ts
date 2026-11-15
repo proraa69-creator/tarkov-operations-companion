@@ -44,6 +44,10 @@
  *        reads `answeredAt` («Отвечено», owner 04.11.2026), also after «Проблема решена» deletes the conversation.
  *   GET  /v1/accounts/me/admin/support/attachments/:id                  -> { mime, data: base64, width, height }: any
  *        conversation's screenshot
+ *   POST /v1/accounts/me/admin/support/threads/:accountId/messages/:id/edit { text } -> { message }: «Редактировать»
+ *        (owner, 15.11.2026): new words for the owner's own message, nothing marks it as changed for the player; 404
+ *        «Сообщение не найдено» for the player's message, a sticker or another conversation's; 400 for empty or too long
+ *        words (with screenshots they may be empty)
  *   POST /v1/accounts/me/admin/support/threads/:accountId/read             -> 204
  *   POST /v1/accounts/me/admin/support/threads/:accountId/messages/:id/reactions { emoji, on? } -> { message }: the
  *        owner's reaction, as the player's
@@ -85,6 +89,8 @@ export const SUPPORT_UPLOAD_BODY_LIMIT = '28mb'
 export const MAX_CONCURRENT_SUPPORT_UPLOADS = 2
 /** A message without screenshots is a few kilobytes; a bigger body while the screenshot storage is full is refused unread. */
 const TEXT_ONLY_BODY_BYTES = 64 * 1024
+/** The raw text before cleaning: generous, the 2000 characters are counted after it (supportText). */
+const RAW_TEXT_MAX = 8000
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/
 const DATA_URL_PREFIX = /^data:image\/(?:png|jpeg|webp);base64,/
 const PLAYER_MESSAGES_PATH = '/v1/me/support/messages'
@@ -101,9 +107,8 @@ const textSchema = z.object({
   replyTo: z.unknown().optional(),
 })
 const reactionSchema = z.object({ emoji: z.unknown(), on: z.boolean().optional() })
+const editSchema = z.object({ text: z.string().max(RAW_TEXT_MAX) })
 const messageIdSchema = z.string().regex(/^\d{1,12}$/).transform(Number)
-/** The raw text before cleaning: generous, the 2000 characters are counted after it (supportText). */
-const RAW_TEXT_MAX = 8000
 const afterSchema = z.object({ after: z.string().regex(/^\d{1,12}$/).transform(Number).optional() })
 const pageSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -416,6 +421,25 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     res.json({ message: result.message })
     // The player's open chat shows it at once.
     if (result.changed) signal(() => options.social?.changed([accountId]))
+  })
+
+  // «Редактировать» (owner, 15.11.2026): the player's open chat shows the new words at once, with no mark.
+  router.post('/v1/accounts/me/admin/support/threads/:accountId/messages/:id/edit', (req, res) => {
+    if (!owner('write', req, res)) return
+    const accountId = thread(req, res)
+    if (!accountId) return
+    const id = messageIdSchema.safeParse(req.params.id)
+    const body = editSchema.safeParse(req.body)
+    try {
+      if (!id.success) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      if (!body.success) throw new SupportChatError(400, body.error.issues.some((issue) => issue.code === 'too_big') ? TOO_LONG_MESSAGE : EMPTY_MESSAGE)
+      const message = store.edit(accountId, id.data, body.data.text)
+      res.json({ message })
+      signal(() => options.social?.changed([accountId]))
+    } catch (error) {
+      if (!(error instanceof SupportChatError)) throw error
+      res.status(error.status).json({ error: error.message })
+    }
   })
 
   router.post('/v1/accounts/me/admin/support/threads/:accountId/read', (req, res) => {

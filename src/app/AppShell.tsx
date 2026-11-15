@@ -4,7 +4,6 @@ import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
-import { RequestsNavButton } from '../components/RequestsNavButton'
 import { useTradingSignalCount } from '../trading/tradingClock'
 import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
@@ -424,7 +423,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list">{window.tarkovDesktop?.screen && <NavLink to="/screen" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><SunMedium /><span>{uiText(locale === 'en' ? 'Screen settings' : 'Настройка экрана')}</span></NavLink>}<NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink><SupportButtons variant="nav" /></nav>
-        <RequestsNavButton locale={locale} />
         <SidebarOperator />
       </aside>}
       {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}

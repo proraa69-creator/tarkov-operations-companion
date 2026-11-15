@@ -61,6 +61,8 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Сводка за период', 'Period summary'], ['Снять выбор', 'Clear selection'], ['Долгое нажатие — второй день', 'Long press — the second day'],
   ['новых аккаунтов', 'new accounts'], ['Платные подписки', 'Paid subscriptions'], ['Выручка', 'Revenue'],
   ['Время — по Бангкоку (UTC+7). Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни. Долгое нажатие — начало и конец периода.', 'Bangkok time (UTC+7). Tap a day to open its sign-ups, payments and granted days. Long press — the start and the end of a period.'],
+  // «Отчёты» and «Чат» in the panel, the red numbers (owner, 15.11.2026).
+  ['Чат', 'Chat'], ['Переписка с игроками', 'Conversations with players'], ['Новых', 'New'], ['Ждут ответа', 'Waiting'],
 ]
 
 /** Server answers with a variable part. */

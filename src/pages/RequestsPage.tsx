@@ -1,15 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { CheckCircle2, FileText, Gift, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, Reply, Users } from 'lucide-react'
+import { CheckCircle2, Gift, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, Reply, Users } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { isOwnerApp } from '../app/buildEdition'
 import { useOptionalTarkovData } from '../data/DataProvider'
 import { useQuestPointWriter } from '../data/questPointOverrides'
-import { useOwnerChatActions, useOwnerChats, useOwnerReportActions, useOwnerReportTable, type OwnerReport, type OwnerReportRow } from '../data/ownerRequests'
-import { OwnerChats } from '../support/OwnerChats'
+import { useOwnerChatActions, useOwnerReportActions, useOwnerReportTable, type OwnerReport, type OwnerReportRow } from '../data/ownerRequests'
 import { SupportComposer, SupportReportCard } from '../support/SupportChat'
-import { ClaudeAccessPanel } from '../requests/ClaudeAccessPanel'
 import { ReportsTable } from '../reports/ReportsTable'
 import { cleanIpcError } from '../sync/serverSync'
 import { MATCHES_CONFIRMED, QUEST_ISSUE_LABELS } from '../shared/reportCategories'
@@ -75,59 +73,24 @@ export function reportAuthor(report: OwnerReport | OwnerReportRow): string | und
   return typeof id === 'string' && ACCOUNT_ID.test(id) ? id : undefined
 }
 
-type Tab = 'reports' | 'chats'
-
 /**
- * «Отчёты» (owner app only): the one table of reports, ideas and quest corrections (owner, 05.11.2026: «убери из отчетов все
- * и сделай там таблицу»; src/reports/ReportsTable.tsx), and «Чаты», the players' support conversations, answered here
- * (support/OwnerChats.tsx). What a report could do before lives under «Подробнее», in its row: «Ответить»
+ * The old «Отчёты» page (owner app only) now lives in «Админ панель» (owner, 15.11.2026: «Блок «Отчёты» снизу перенести
+ * наверх, в «Админ панель»… Внутри админ-панели отдельно «Отчёты» и отдельно «Чат»»): an old address goes there, with the
+ * report (?report=N) or the conversation (?chat=<account>) it named.
+ *
+ * What it holds: the one table of reports, ideas and quest corrections (owner, 05.11.2026: «убери из отчетов все и сделай там
+ * таблицу»; src/reports/ReportsTable.tsx); what a report could do before lives under «Подробнее», in its row: «Ответить»
  * (owner, 04.11.2026: «прям там могу ответить, не открывая чат»: the answer goes into the author's chat under «Ответ на заявку
  * №N», and the report reads «Отвечено»), «Начислить дни», «Открыть чат», and for a quest correction the constructor and the
  * place players agree on (owner, 13.10.2026). Nothing changes until the owner presses something.
- * The address may name a report (?report=N, a notification) or a conversation (?chat=<account>, from «Админ панель»).
  */
 export function RequestsPage() {
-  if (!isOwnerApp()) return <Navigate to="/" replace />
-  return <Requests />
-}
-
-function Requests() {
   const [params] = useSearchParams()
+  if (!isOwnerApp()) return <Navigate to="/" replace />
   const chat = params.get('chat')
-  const [tab, setTab] = useState<Tab>(chat ? 'chats' : 'reports')
-  const [chatWith, setChatWith] = useState<string | null>(chat)
-  const tabsRef = useRef<HTMLDivElement>(null)
-  const openChat = useCallback((accountId: string) => {
-    setChatWith(accountId)
-    setTab('chats')
-    // From a row far down the table: the tabs come back into view under the top bar, the conversation under them.
-    tabsRef.current?.scrollIntoView?.({ block: 'nearest' })
-  }, [])
-  const chats = useOwnerChats()
-  const focus = Number(params.get('report')) || null
-  return (
-    <div className="page requests-page">
-      <header className="page-header">
-        <div>
-          <div className="eyebrow">{uiText('Админ')}</div>
-          <h1 className="page-title">{uiText('Отчёты')}</h1>
-          <p className="page-subtitle">{uiText('Отчёты, предложения и исправления квестов от игроков. Ничего не меняется, пока вы не нажмёте кнопку.')}</p>
-        </div>
-      </header>
-      <div ref={tabsRef} className="requests-tabs" role="tablist" aria-label={uiText('Отчёты')}>
-        <button type="button" role="tab" aria-selected={tab === 'reports'} className={`requests-tab${tab === 'reports' ? ' is-active' : ''}`} onClick={() => setTab('reports')}>
-          <FileText size={14} />{uiText('Отчёты')}
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'chats'} className={`requests-tab${tab === 'chats' ? ' is-active' : ''}`} onClick={() => setTab('chats')}>
-          <MessagesSquare size={14} />{uiText('Чаты')}{chats.data?.unread ? <span className="requests-tab-count">{chats.data.unread}</span> : null}
-        </button>
-      </div>
-      {tab === 'reports' && <OwnerReportsTable onOpenChat={openChat} focusId={focus} />}
-      {tab === 'chats' && <OwnerChats selected={chatWith} onSelect={setChatWith} />}
-      {/* «Доступ Claude к заявкам» (owner, 14.10.2026: «2 вариант да»): the read-only key for Claude's cloud sessions. */}
-      {tab === 'reports' && <details className="requests-more"><summary>{uiText('Доступ Claude к отчётам')}</summary><ClaudeAccessPanel /></details>}
-    </div>
-  )
+  const report = params.get('report')
+  const target = chat ? `/admin?tab=chat&chat=${encodeURIComponent(chat)}` : report ? `/admin?tab=reports&report=${encodeURIComponent(report)}` : '/admin?tab=reports'
+  return <Navigate to={target} replace />
 }
 
 /** The table with the owner app's data and its details; also in «Админ панель» → «Отчёты». */

@@ -122,6 +122,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // own conversation, the owner's on any.
   { methods: ['POST'], path: /^\/v1\/me\/support\/messages\/\d{1,12}\/reactions$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
+  // «Редактировать»: new words for the owner's own message (owner, 15.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/edit$/ },
   // The owner's published sticker packs for the chat's picker (server/src/routes/stickers.ts; owner, 07.11.2026: «паки
   // стикеров… по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон»). Public; the pictures are
   // <img> addresses of the server (src/support/stickerCatalog.ts), never through here.

@@ -140,6 +140,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
   // The owner's reaction on a message of a conversation (owner, 07.11.2026).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
+  // «Редактировать»: new words for the owner's own message (owner, 15.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/edit$/ },
   // «Стикеры» of the iPhone admin (server/src/routes/stickers.ts; owner, 07.11.2026: «И там я буду делать паки стикеров»):
   // the packs, a new one, their order, a rename / «Добавить» / «Убрать», deleting one; a sticker's upload and order; deleting one.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stickers$/ },

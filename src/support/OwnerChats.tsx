@@ -6,8 +6,8 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { OWNER_CHATS_KEY, useOwnerChat, useOwnerChatActions, useOwnerChats, type OwnerChatDetail, type OwnerChatThread } from '../data/ownerRequests'
 import { cleanIpcError } from '../sync/serverSync'
 import { SupportComposer, SupportMessageList } from './SupportChat'
-import { supportTime } from './supportChatClient'
-import { supportPreviewText, useSupportReply } from './supportChatTools'
+import { supportTime, type SupportImageUpload, type SupportSendExtra } from './supportChatClient'
+import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from './supportChatTools'
 import { FindUserToWrite } from './FindUserToWrite'
 import './supportChat.css'
 
@@ -78,7 +78,7 @@ function useResolveOwnerChat() {
 /** One conversation: the player's messages on the left, the owner's answers on the right, the answer box under them. */
 function OwnerChatView({ accountId, thread, onBack }: { accountId: string; thread?: OwnerChatThread; onBack: () => void }) {
   const chat = useOwnerChat(accountId)
-  const { reply, markRead, react } = useOwnerChatActions()
+  const { reply, markRead, react, edit } = useOwnerChatActions()
   const resolve = useResolveOwnerChat()
   const [confirming, setConfirming] = useState(false)
   const [resolving, setResolving] = useState(false)
@@ -110,7 +110,11 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
   const player = chat.data?.account ?? thread
   // Opened from a report, the conversation may not be in the list: no name until its account is read.
   const name = player || !chat.isLoading ? playerName(player) : '…'
-  const messages = chat.data?.messages ?? []
+  // Sent at once (owner, 15.11.2026), and «Редактировать» on the owner's own messages.
+  const sendReply = useCallback((text: string, images: SupportImageUpload[], extra: SupportSendExtra) => reply(accountId, text, images, undefined, extra), [accountId, reply])
+  const [sending, send] = useSupportOutbox(chat.data?.messages ?? [], 'owner', sendReply)
+  const editor = useSupportEdit(sending, (message, text) => edit(accountId, message.id, text))
+  const messages = editor.messages
   const [replying, setReplying] = useSupportReply(messages)
   const cancel = () => setConfirming(false)
   const confirm = async () => {
@@ -142,9 +146,9 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
       </header>
       {resolveError && <div className="support-chat-error" role="alert"><AlertTriangle size={15} /><span>{uiText(resolveError)}</span></div>}
       <SupportMessageList messages={messages} viewer="owner" peerName={player ? name : undefined} loading={chat.isLoading} error={chat.error instanceof Error ? cleanIpcError(chat.error) : ''} onRetry={() => void chat.refetch()} emptyText="Сообщений пока нет."
-        onReact={(message, emoji, on) => react(accountId, message.id, emoji, on)} onReply={setReplying} />
-      <SupportComposer onSend={(text, images, extra) => reply(accountId, text, images, undefined, extra)} placeholder="Ответ игроку…" autoFocus allowImages allowEmoji allowStickers dropZone={view}
-        replyTo={replying} onCancelReply={() => setReplying(null)} />
+        onReact={(message, emoji, on) => react(accountId, message.id, emoji, on)} onReply={setReplying} onEdit={editor.start} />
+      <SupportComposer onSend={send} placeholder="Ответ игроку…" autoFocus allowImages allowEmoji allowStickers dropZone={view}
+        replyTo={replying} onCancelReply={() => setReplying(null)} editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
     </section>
   )
 }

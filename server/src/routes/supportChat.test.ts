@@ -744,6 +744,49 @@ test('support chat screenshots: the storage quota (507), retention, the oldest m
 // на это сообщение… стикеры в стиле Таркова отправлять».
 interface Rich extends Message { sticker?: string; replyTo?: { id: number; author: string; text: string; sticker?: string }; reactions?: Array<{ emoji: string; authors: string[] }> }
 
+// Owner, 15.11.2026: «Редактирование своих сообщений только у админа… Человек не видит, что сообщение отредактировано».
+test('support chat edit: the owner changes the own words, the player reads only the new ones, quotes follow; a player message and a sticker are refused', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const playerId = t.idOf('player@example.com')
+    const otherId = t.idOf('owner@example.com')
+    const asked = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Карта не грузится' })).json.message
+    const answered = (await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: 'Обновите прилоение' })).json.message
+    const quoted = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Обновил', replyTo: answered.id })).json.message
+    const sticker = (await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: '', sticker: 'thanks' })).json.message
+    const edit = (id: number | string, body: unknown, token = owner, accountId = playerId) => t.call<{ message: Rich; error?: string }>('POST', `/accounts/me/admin/support/threads/${accountId}/messages/${id}/edit`, token, body)
+
+    const changed = await edit(answered.id, { text: '  Обновите приложение  ' })
+    assert.equal(changed.status, 200, JSON.stringify(changed.json))
+    assert.equal(changed.headers.get('cache-control'), 'no-store')
+    assert.deepEqual([changed.json.message.id, changed.json.message.text, changed.json.message.createdAt], [answered.id, 'Обновите приложение', answered.createdAt])
+    // The player reads the new words, in the same place, with nothing that says they changed.
+    const mine = (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages
+    assert.deepEqual(mine.map((message) => message.text), ['Карта не грузится', 'Обновите приложение', 'Обновил', '[стикер: Спасибо, бро]'])
+    assert.deepEqual(Object.keys(mine[1]!).sort(), Object.keys(answered).sort())
+    assert.equal(mine.find((message) => message.id === quoted.id)!.replyTo!.text, 'Обновите приложение')
+
+    for (const [answer, status] of [
+      [await edit(asked.id, { text: 'чужое' }), 404],
+      [await edit(sticker.id, { text: 'текст' }), 404],
+      [await edit(999_999, { text: 'текст' }), 404],
+      [await edit('abc', { text: 'текст' }), 404],
+      [await edit(answered.id, { text: 'текст' }, owner, otherId), 404],
+      [await edit(answered.id, { text: '   ' }), 400],
+      [await edit(answered.id, { text: 'я'.repeat(2001) }), 400],
+      [await edit(answered.id, {}), 400],
+    ] as const) assert.equal(answer.status, status, JSON.stringify(answer.json))
+    // The owner's route is the owner's; a session is required.
+    assert.equal((await edit(answered.id, { text: 'x' }, player)).status, 404)
+    assert.equal((await t.call('POST', `/accounts/me/admin/support/threads/${playerId}/messages/${answered.id}/edit`, undefined, { text: 'x' })).status, 401)
+    assert.equal((await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages[1]!.text, 'Обновите приложение')
+  } finally {
+    await t.close()
+  }
+})
+
 test('support chat reactions: each side toggles its own on any message; both read them; a wrong emoji or another conversation is refused', async () => {
   const t = await setup()
   try {
