@@ -152,15 +152,30 @@
 .point-items li { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border-radius: 7px; background: rgb(255 255 255 / 4%); font-size: 11.5px; }
 .point-items img { width: 22px; height: 22px; object-fit: contain; }
 .point-items .icon-button { width: 20px; height: 20px; min-width: 20px; min-height: 20px; padding: 0; }
-.point-photos { display: flex; flex-wrap: wrap; gap: 6px; }
-.point-photo { position: relative; }
-.point-photo-thumb { display: grid; place-items: center; width: 88px; height: 60px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: #000; color: var(--text-dim); cursor: zoom-in; }
-.point-photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.point-photo-thumb.is-loading, .point-photo-thumb.is-missing { cursor: default; background: rgb(255 255 255 / 3%); }
+/* Large, as the places' photos (questGuidePhotos.css .objective-photo): one large and a small «+N» tile; in the window every one large. */
+.point-photos { gap: 8px; }
+.point-photos.objective-photo-grid { display: flex; flex-wrap: nowrap; align-items: flex-start; }
+.point-photos .objective-photo.is-main { flex: 0 1 440px; width: auto; min-width: 0; max-width: 440px; }
+.point-photos .objective-photo.is-more { flex: none; width: 96px; }
+:root[data-layout="mobile"] .point-photos .objective-photo.is-more { width: 72px; }
+.point-photo-tile.is-loading, .point-photo-tile.is-missing { display: grid; place-items: center; aspect-ratio: 16 / 9; color: var(--text-dim); background: rgb(255 255 255 / 3%); cursor: default; }
+.point-photos.is-editing { display: grid; }
+.point-photo { position: relative; display: block; max-width: 440px; }
+.point-photo .objective-photo { width: 100%; }
 .point-photo-remove {
-  position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 1px solid var(--line);
-  border-radius: 999px; background: var(--bg-elevated, var(--panel)); color: var(--text); cursor: pointer;
+  position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line);
+  border-radius: 999px; background: rgb(10 13 11 / 82%); color: var(--text); cursor: pointer;
 }
+.point-photo-remove:hover, .point-photo-remove:focus-visible { border-color: var(--brass); color: var(--brass); }
+.point-photo-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+/* «Выбрать фото места»: the owner's photos on other points, small; a click puts one here. */
+.point-photo-choice { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: rgb(255 255 255 / 2%); }
+.point-photo-choice-head { display: flex; align-items: center; justify-content: space-between; color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.point-photo-choice-head .icon-button { width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; }
+.point-photo-choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; max-height: 260px; overflow: auto; }
+.point-photo-choice-tile { display: grid; place-items: center; aspect-ratio: 16 / 9; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: #0c0f0d; color: var(--text-dim); cursor: pointer; }
+.point-photo-choice-tile img { width: 100%; height: 100%; object-fit: cover; }
+.point-photo-choice-tile:hover, .point-photo-choice-tile:focus-visible { border-color: var(--brass); }
 
 /* The pencils of the quest window (components/QuestSheetEditing.tsx). */
 .sheet-pencil { flex: 0 0 auto; width: 22px; height: 22px; min-width: 22px; min-height: 22px; margin-left: 4px; padding: 0; vertical-align: middle; opacity: .7; }
