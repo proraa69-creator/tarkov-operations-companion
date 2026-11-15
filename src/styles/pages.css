@@ -845,7 +845,8 @@ a.quest-stage:hover { color: var(--text); }
 .profile-delete{width:42px;border:0;border-left:1px solid var(--line);background:transparent;color:var(--text-dim);cursor:pointer}
 .profile-delete:hover{color:#d27b7b;background:rgba(210,123,123,.08)}
 .flea-layout{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
-.flea-layout.with-detail{grid-template-columns:minmax(0,1fr) 340px}
+/* Owner 16.11.2026 (report 171): the list a little narrower, the item's card wider, taking the room from the left. */
+.flea-layout.with-detail{grid-template-columns:minmax(0,1fr) clamp(400px,38%,520px)}
 .flea-detail{position:relative;position:sticky;top:82px}
 .quest-scan-panel { margin: 0 0 14px; padding: 16px 18px; }
 .quest-scan-copy { display: flex; gap: 12px; align-items: flex-start; }

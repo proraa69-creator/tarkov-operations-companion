@@ -33,4 +33,18 @@ describe('who sells each part of a Gunsmith build', () => {
     expect(sellers.get('rvg')).toEqual([{ trader: 'peacekeeper', level: 2 }])
     expect(sellers.get('barrel')).toEqual([{ trader: 'peacekeeper', level: 2, barter: true }, { trader: 'mechanic', level: 3 }])
   })
+  it('keeps the quest an offer waits for; one without a quest at the same level wins; the guide gets the catalog’s quest', () => {
+    const mods = new Map([
+      mod('rc2', [{ vendor: 'peacekeeper', vendorName: 'Миротворец', priceRUB: 200, minTraderLevel: 2, taskUnlock: { id: 'q-rc2', name: 'Q' } }]),
+      mod('rvg', [
+        { vendor: 'mechanic', vendorName: 'Механик', priceRUB: 100, minTraderLevel: 2, taskUnlock: { id: 'q-rvg', name: 'Q' } },
+        { vendor: 'mechanic', vendorName: 'Механик', priceRUB: 120, minTraderLevel: 2 },
+      ]),
+    ])
+    const unlocks = new Map([['barrel', [{ trader: 'mechanic', level: 3, questId: 'q-barrel' }]]])
+    const sellers = partSellers(build, mods, unlocks)
+    expect(sellers.get('rc2')).toEqual([{ trader: 'peacekeeper', level: 2, questId: 'q-rc2' }])
+    expect(sellers.get('rvg')).toEqual([{ trader: 'mechanic', level: 2 }])
+    expect(sellers.get('barrel')).toEqual([{ trader: 'peacekeeper', level: 2, barter: true }, { trader: 'mechanic', level: 3, questId: 'q-barrel' }])
+  })
 })

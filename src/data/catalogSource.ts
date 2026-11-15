@@ -21,6 +21,7 @@ import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiv
 import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
 import { gearStatsOf, presetIndex } from './gearStats'
+import { questOfferUnlocks, withOfferUnlocks } from './questOfferUnlocks'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -72,7 +73,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const rawItems: RawEndpoint = {}
   // The tasks untranslated: the game's keys of a kill objective's body parts and targets (src/data/objectiveConditions.ts).
   const rawTasks: RawEndpoint = {}
-  const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
+  const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki, barters] = await Promise.all([
     fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher, rawTasks),
     fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, rawItems),
     fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
@@ -81,6 +82,8 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     fetchMapRenderingConfigs(fetcher).catch(() => new Map<string, Partial<GameMap>>()),
     // The quest wiki used for details is Russian; the English catalog keeps tarkov.dev's own English text.
     (locale === 'ru' ? (options.wiki ?? fetchWikiQuestSync)() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
+    // The barters only add what a quest opens for items (src/data/questOfferUnlocks.ts): without them the rest stays.
+    fetchEnvelope(`${BASE_URL}/${upstreamMode}/barters`, fetcher).then((envelope) => envelope.data).catch(() => undefined),
   ])
 
   // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
@@ -105,10 +108,10 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
       : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
     return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const questRows = applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
+  const questRows = withOfferUnlocks(applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale)), locale), curated.added, locale, itemById, series, now)
+  ), locale)), locale), curated.added, locale, itemById, series, now), questOfferUnlocks(tasks, items, barters))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const questItems = adaptQuestItems(tasks, questRows)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })

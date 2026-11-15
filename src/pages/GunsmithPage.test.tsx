@@ -42,6 +42,7 @@ vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests,
 const appState = vi.hoisted(() => ({ profile: undefined as ReturnType<typeof createLocalProfile> | undefined, setManualQuestMark: vi.fn() }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: 'pvp', activeProfile: appState.profile ?? profile, setManualQuestMark: appState.setManualQuestMark }) }))
 vi.mock('../arsenal/gunCatalog', () => ({ useGunCatalog: () => ({ data: catalog, isLoading: false }) }))
+vi.mock('../components/FleaItemDetail', () => ({ FleaItemDetail: ({ item, onClose }: { item: { name: string }; onClose: () => void }) => <aside data-testid="flea-card">{item.name}<button type="button" onClick={onClose}>Закрыть карточку</button></aside> }))
 
 describe('«Оружейник → Посмотреть все»', () => {
   it('lists every part and shows the selected one: its stats and the modules, who sells each on hover; no example section', async () => {
@@ -53,12 +54,18 @@ describe('«Оружейник → Посмотреть все»', () => {
     await waitFor(() => expect(screen.getAllByText('в игре').length).toBeGreaterThan(0))
     expect(screen.queryByText('Как собрать · пример сборки')).toBeNull()
     expect(screen.queryByText('Что купить')).toBeNull()
-    const suppressor = screen.getByRole('link', { name: /SOCOM556-RC2/ })
+    const suppressor = screen.getByRole('button', { name: /SOCOM556-RC2/ })
     // Who sells it from which level (a new character: loyalty 1, so Peacekeeper's III is locked), in the hover window.
     await userEvent.hover(suppressor)
     const window = await screen.findByRole('tooltip')
     expect(window.textContent).toContain('Задание требует именно этот модуль')
     expect(window.querySelector('.gs-trader.is-locked .gs-trader-level')?.textContent).toBe('III')
+    // A click opens the part's card from «Барахолка» on the right (report 171); its cross closes it.
+    await userEvent.click(suppressor)
+    expect(screen.getByTestId('flea-card').textContent).toContain('Глушитель SureFire SOCOM556-RC2')
+    expect(screen.getByTestId('item-drawer')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Закрыть карточку' }))
+    expect(screen.queryByTestId('item-drawer')).toBeNull()
   })
 
   it('a part without the owner\'s screenshot shows the weapon, never another site\'s picture or name', async () => {

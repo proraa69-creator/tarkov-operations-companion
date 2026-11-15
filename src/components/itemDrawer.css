@@ -1,0 +1,19 @@
+/* An item's card from «Барахолка» on the right of the window (ItemDrawer.tsx): «Оружейник»'s parts open it. */
+.item-drawer-backdrop { position: fixed; inset: 0; z-index: 90; background: rgb(0 0 0 / 28%); animation: item-drawer-fade .16s ease both; }
+.item-drawer {
+  position: absolute; top: calc(var(--topbar, 0px) + var(--notice-room, 0px) + 12px); right: 12px; bottom: 12px;
+  width: min(480px, calc(100vw - 24px)); display: flex; animation: item-drawer-in .22s var(--ease-soft, ease) both;
+}
+:root:root .item-drawer .flea-detail { position: relative; top: auto; flex: 1 1 auto; max-height: none; overflow: auto; box-shadow: -18px 0 40px rgb(0 0 0 / 45%); }
+@keyframes item-drawer-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes item-drawer-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+
+/* Phone: a sheet from the bottom over the tab bar, as «Барахолка»'s card. */
+:root[data-layout="mobile"] .item-drawer { top: auto; left: 0; right: 0; bottom: var(--tabbar, 0px); width: auto; animation: mobile-sheet-in .22s var(--ease-soft, ease) both; }
+:root[data-layout="mobile"] .item-drawer .flea-detail { border-radius: 16px 16px 0 0; padding-left: var(--safe-left, 0px); padding-right: var(--safe-right, 0px); box-shadow: 0 -18px 40px rgb(0 0 0 / 65%); }
+@media (prefers-reduced-motion: reduce) { .item-drawer, .item-drawer-backdrop { animation: none; } }
+
+/* «Оружейник»'s part cards open the drawer (src/gunsmith/BuildPartCards.tsx): a button drawn as the old link. */
+button.gs-part { width: 100%; font: inherit; text-align: left; cursor: pointer; }
+.gs-sellers-quest { display: flex; align-items: center; gap: 4px; margin-top: 2px; color: var(--text-dim); font-size: 11px; }
+.gs-sellers-quest.is-locked { color: var(--brass-strong); }
