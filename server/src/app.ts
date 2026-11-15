@@ -13,6 +13,8 @@ import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
 import { createLoginCodesRouter, proxiedCountry } from './routes/loginCodes.js'
+import { createGoogleRouter } from './routes/google.js'
+import { GOOGLE_CLIENT_ID, type GoogleVerifier } from './services/googleSignIn.js'
 import { createPhoneRouter } from './routes/phone.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
 import { createEmailRouter } from './routes/email.js'
@@ -195,6 +197,8 @@ export interface ApiOptions {
   phones?: PhoneAuthService
   /** E-mail one-time codes; defaults to switched off (no e-mail provider: registration works without codes). */
   emails?: EmailAuthService
+  /** «Войти через Google»: the ID-token check (tests give their own; default: Google's keys). */
+  googleVerifier?: GoogleVerifier
   /** Registration asks for the e-mail code (default REGISTRATION_EMAIL_CODE). */
   registrationEmailCode?: boolean
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
@@ -450,8 +454,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails, registrationEmailCode: options.registrationEmailCode ?? REGISTRATION_EMAIL_CODE }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
+  // «Войти через Google» (routes/google.ts): every country but Russia.
+  app.use('/v1/accounts', createGoogleRouter(accounts, options.googleVerifier ? { verify: options.googleVerifier } : {}))
   const phones = options.phones ?? new PhoneAuthService(accounts)
-  app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => emails.publicConfig() }))
+  app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => ({ ...emails.publicConfig(), googleClientId: GOOGLE_CLIENT_ID }) }))
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).

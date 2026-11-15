@@ -63,6 +63,10 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Компьютер или браузер просит войти в ваш аккаунт', 'A computer or a browser asks to sign in to your account'],
   ['Готово: устройство вошло в ваш аккаунт.', 'Done: the device is signed in to your account.'],
   ['Наведите камеру телефона, где открыт Raid OS с вашим аккаунтом, на QR-код. В приложении введите код с этого экрана и нажмите «Разрешить вход» — компьютер войдёт сам.', 'Point the camera of the phone where Raid OS is signed in to your account at the QR code. In the app type the code from this screen and tap «Allow sign-in»: this computer signs in by itself.'],
+  // «Войти через Google» on the PC (AccountSignIn.tsx, QrSignIn.tsx)
+  ['Войти через Google', 'Sign in with Google'], ['Вход через Google', 'Sign in with Google'],
+  ['В браузере войдите через Google, введите код с этого экрана и нажмите «Подтвердить» — компьютер войдёт сам.', 'In the browser, sign in with Google, enter the code from this screen and press “Confirm” — this PC signs in by itself.'],
+  ['Ждём подтверждения в браузере', 'Waiting for the browser'], ['Открыть сайт ещё раз', 'Open the website again'], ['Новый код', 'New code'],
   ['QR-код для входа', 'Sign-in QR code'], ['Код для телефона', 'Code for the phone'], ['Ждём подтверждения с телефона', 'Waiting for the phone'],
   ['Код истёк', 'The code expired'], ['Новый QR-код', 'New QR code'], ['В QR-коде нет пароля: только одноразовый код на 2 минуты.', 'The QR code holds no password: only a one-time code for 2 minutes.'],
   ['Войти по e-mail и паролю', 'Sign in with e-mail and password'],
