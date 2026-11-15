@@ -156,7 +156,7 @@ async function withBuildGuides(
   englishResolver: () => Promise<(name: string) => string | undefined>,
 ): Promise<Quest[]> {
   const isBuild = (quest: Quest) => quest.objectiveDetails?.some((objective) => objective.build) ?? false
-  // The owner's own builds go over the sites' ones, in either language (src/data/ownerGunsmithGuides.ts).
+  // The parts the sites leave out of a build, at the end of their list (src/data/ownerGunsmithGuides.ts).
   if (locale !== 'ru' || !quests.some(isBuild)) return withOwnerGuides(quests, locale !== 'ru')
   const rawTasks = asRecord(tasksRoot.tasks)
   const traderOf = (quest: Quest) => traders.get(text(asRecord(rawTasks[quest.id]).trader))?.normalizedName

@@ -3,7 +3,7 @@
     {"kind":"added","ru":"Уведомление «Рейд начался», когда загрузка закончилась","en":"A «Raid started» notification once the loading is over"},
     {"kind":"improved","ru":"Обзор: первый блок — время в Таркове, сброс торговцев или таймер рейда","en":"Overview: the first block shows the time in Tarkov, trader resets or a raid timer"},
     {"kind":"improved","ru":"Цветовая схема меняется плавнее и до самых краёв","en":"The colour scheme changes more smoothly, right to the edges"},
-    {"kind":"improved","ru":"«Оружейник. АКМ»: готовая сборка под новые условия задания","en":"«Gunsmith. AKM»: a ready build for the task's new terms"}
+    {"kind":"improved","ru":"«Оружейник. АКМ»: в сборке теперь приклад ПТ-1 и замок ПТ АКМ","en":"«Gunsmith. AKM»: the build now has the PT-1 stock and the PT lock"}
   ]},
   {"version":"0.6.0.309","date":"2026-11-15","items":[
     {"kind":"added","ru":"Вход через Google","en":"Sign in with Google"},

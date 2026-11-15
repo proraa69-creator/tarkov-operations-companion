@@ -59,6 +59,7 @@ export function BuildPartCards({ build, compact, mods, access, plan, modsStatus,
     for (const part of build.guide?.parts ?? []) add({ id: part.itemId, name: (part.itemId ? items.get(part.itemId)?.name : undefined) ?? part.name, role: 'build', ...(part.fleaOnly ? { fleaOnly: true } : {}), ...(part.notSold ? { notSold: true } : {}) })
     return out
   }, [build, items])
+  const { locale } = useLocale()
   if (!cards.length) return null
 
   return <div className="gs-block">
@@ -68,6 +69,8 @@ export function BuildPartCards({ build, compact, mods, access, plan, modsStatus,
         sellers={card.id ? sellers.get(card.id) : undefined} traders={traders} access={access}
         fitting={fittingOf(card, plan)} plan={plan} modsStatus={modsStatus} onRetryMods={onRetryMods} />)}
     </div>
+    {/* Owner, 16.11.2026, under the parts of every Gunsmith build, word for word. */}
+    <p className="gs-parts-note">{locale === 'en' ? 'The weapon must be complete, with no ammo.' : 'Оружие должно быть целое, без патронов.'}</p>
   </div>
 }
 

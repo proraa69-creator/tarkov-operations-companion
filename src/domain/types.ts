@@ -598,8 +598,7 @@ export interface WeaponBuildRequirement {
 
 /** A build that passes a Gunsmith task, as a guide site lists it: the parts to put on the weapon and who sells them. */
 export interface BuildGuide {
-  /** `owner`: the owner's own build (src/data/ownerGunsmithGuides.ts), over the sites' ones. */
-  source: 'tarkov.help' | 'wiki' | 'owner'
+  source: 'tarkov.help' | 'wiki'
   /** The guide's page. */
   url?: string
   /** The game's «Сборки оружия» screen with this build finished (tarkov.help). */

@@ -7438,3 +7438,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 
 - Owner 16.11: «новый промо 1YEAROFESCAPING». Added straight to `promo_codes` on the VPS (no release): mode NULL (every mode), last_seen_at = now + 14 days (shown until ~30.11 unless the source pages list it, after which the server keeps it as any other). Backup first: /var/lib/raidos/backups/manual-promo-1yearofescaping-1794773748844.sqlite. Live /v1/promo-codes: 26 codes with it; apps read the list every 30 min.
 - Web check the same night: every code on PCGamesN, Dexerto, Beebom, Gamespec, Shane the Gamer, Guided.news, Skycoach was already in the app (25).
+
+## 2026-11-16 — «Оружейник. АКМ»: tarkov.help's build back, plus ПТ АКМ and ПТ-1; a note under every Gunsmith build
+
+- Owner 16.11: the report's screenshot was wrong («он тупит сам»); keep the AKM picture he added; tarkov.help's list is right, only the stock and its lock were missing. `src/data/ownerGunsmithGuides.ts` no longer replaces the site's build: it adds the ПТ АКМ lock and the ПТ-1 stock at the end of the site's list (Б-10М+Б-19, «Гексагон», SAW, PMAG GEN M3, Shift, Short Mount, Prism 2.5x, «Бастион»), only when the site lacks them; its screenshot and the app's own picture stay. `BuildGuide.source` back to tarkov.help | wiki.
+- Under the parts of every Gunsmith build (`BuildPartCards`): «Оружие должно быть целое, без патронов.» (owner's words) / «The weapon must be complete, with no ammo.»
+- News and update history of 0.6.0.310: the AKM line now says the PT-1 stock and the PT lock.
+- Tests: ownerGunsmithGuides, WeaponBuildDetails (note in RU and EN), src/gunsmith, src/data; typecheck. Not released.
