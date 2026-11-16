@@ -1,6 +1,6 @@
 /** English for the Overview additions: the Kappa card and its «Квесты» dialog (src/components/KappaProgress.tsx). */
 export const OVERVIEW_PHRASES: Array<[string, string]> = [
-  ['Задания для Каппы', 'Kappa-required tasks'], ['Удалить блок', 'Remove block'], ['Квесты', 'Tasks'],
+  ['Задания для Каппы', 'Kappa-required tasks'], ['Удалить блок', 'Remove block'], ['Показать только сюжетные', 'Show story only'], ['Главы', 'Chapters'], ['Все главы', 'All chapters'], ['Сюжету больше ничего не нужно', 'The story needs nothing more'], ['Квесты', 'Tasks'],
   ['Скупщик выдаёт «Коллекционера», когда выполнены три условия:', 'Fence gives out “The Collector” once three conditions are met:'],
   ['Лояльность 4 (корона)', 'Loyalty level 4 (crown)'],
   ['у Прапора, Терапевта, Лыжника, Миротворца, Механика, Барахольщика и Егеря', 'with Prapor, Therapist, Skier, Peacekeeper, Mechanic, Ragman and Jaeger'],
