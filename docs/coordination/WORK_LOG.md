@@ -7509,3 +7509,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner 17.11 «Просто пиши время и все», 6cda9444: «Время в Таркове» shows only the two clocks.
 - Owner 17.11 calendar day window off screen in the PC owner app, b3d483b1: `AdminCalendar` imports `payments.css` (its `.pay-dialog-backdrop` / `.pay-dialog`); nothing else loaded it in the app. Built CSS of SiteAdminSummary now has the fixed backdrop. Not seen in the owner app itself (needs the owner's sign-in).
 - Tests: typecheck, lint (no errors), 53 related files / 281 tests. Full run: the same environment-only failures as before (electron position tracker, stale server, linux updater, release-policy paths, appVersion path, AdminPanelPage source match); the three map page tests that timed out under the full load pass alone. Not released.
+
+## 2026-11-17 — Release 0.6.0.311 (owner: «Ну все, выпускай. 8 утра обновление»)
+
+- `claude/goons-always-map` → 24c95f7c, fast-forward of release/production 48f1adf5, pushed to release/production at ~01:55 Bangkok. Version by `scripts/set-version.mjs 0.6.0.311` (package, lock, website/src/config.ts).
+- In it: «Кочевники» for the whole day (server goonStore + app), «Тактика боя» Shadow of Tagilla's retinue (173), «Задания для Каппы» (174), the map settings menu over the page, «Время в Таркове» only the clocks, the admin calendar day window's sheet.
+- News: «Кочевники»: отметки и список, кто их видел, хранятся целые сутки; «Тактика боя»: свита Тени Тагиллы — как она воюет и что носит (RU/EN). Owner 17.11: nothing about «ночь через / день через». History: four lines, reports [173, 174].
+- Checks: typecheck; server tests 575/575 (an earlier run had one timing failure, 19 vs 24, that passed on the rerun); app tests as in the entry above; no android/ios/tests paths.
+- Publishing: the timer's next window is 13:00 Bangkok, so a background script on this PC waits for the green RaidOS Production Gate and starts `raidos-release.service` by hand at 08:00 Bangkok, then watches `download/version.json` for 0.6.0-311. This entry is committed to claude/goons-always-map only; release/production is not moved before the publish.
