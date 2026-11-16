@@ -75,10 +75,9 @@ function Card({ icon, title, chooser, children, className = '' }: { icon: ReactN
   )
 }
 
-/** «Время в Таркове»: both clocks of the raid selection, day or night, and when that changes. */
+/** «Время в Таркове»: both clocks of the raid selection, day or night; only the time (owner, 17.11.2026: «Просто пиши время и все»). */
 function TarkovTime({ chooser }: { chooser: ReactNode }) {
   const now = useNow(1000)
-  const { locale } = useLocale()
   const clocks = tarkovClocks(now)
   return (
     <Card icon={<Clock3 size={12} aria-hidden="true" />} title="Время в Таркове" chooser={chooser} className="info-tarkov-time">
@@ -87,7 +86,6 @@ function TarkovTime({ chooser }: { chooser: ReactNode }) {
           <div key={index} className={`info-clock${clock.night ? ' is-night' : ''}`}>
             {clock.night ? <Moon size={14} aria-hidden="true" /> : <Sun size={14} aria-hidden="true" />}
             <strong className="mono">{formatClock(clock)}</strong>
-            <small>{uiText(clock.night ? 'день через' : 'ночь через')} {formatSpan(clock.untilChange, locale === 'en' ? 'en' : 'ru')}</small>
           </div>
         ))}
       </div>
