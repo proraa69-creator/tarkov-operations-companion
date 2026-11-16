@@ -700,6 +700,8 @@ export interface Quest {
   objectives: string[]
   stages?: QuestStage[]
   rewards: string[]
+  /** What the quest opens at the traders once it is done (src/data/questOfferUnlocks.ts): items, parts, ammo. */
+  offerUnlocks?: QuestOfferUnlock[]
   requiredItems?: string[]
   previous?: string[]
   requirements?: TaskRequirement[]
@@ -771,6 +773,15 @@ export interface PriceQuote {
   kind?: 'flea' | 'trader' | 'base'
   /** Flea quotes: the current lowest offer (`lastLowPrice`) or, when there is none, the 24-hour average. */
   basis?: 'last-low' | 'avg-24h'
+}
+
+/** An item a quest opens at a trader: on sale from this loyalty level once the quest is done (`barter`: for items only). */
+export interface QuestOfferUnlock {
+  itemId: string
+  /** The catalog's trader id. */
+  traderId: string
+  level: number
+  barter?: boolean
 }
 
 export interface Item {

@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, RotateCcw } from 'lucide-react'
+import { Check, Lock, Package, RotateCcw } from 'lucide-react'
 import type { PurchaseAccess } from '../arsenal/buildStats'
 import type { GunPart } from '../arsenal/gunTypes'
 import type { Item, Trader, WeaponBuildRequirement } from '../domain/types'
@@ -11,9 +11,11 @@ import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
 import { useHoverCard } from '../components/useHoverCard'
+import { ItemDrawer } from '../components/ItemDrawer'
+import { useItemQuestUnlocks } from '../quests/questOfferUnlockIndex'
 import type { GunsmithPlan, SlotAlternatives } from './gunsmithSolver'
 import { formatShortValue, formatTarget, meets } from './gunsmith'
-import { partSellers, type PartSeller } from './partSellers'
+import { partSellers, type PartQuestUnlock, type PartSeller } from './partSellers'
 import { TraderBadge } from './TraderBadge'
 import { traderKey } from './traderLevels'
 
@@ -42,7 +44,15 @@ export function BuildPartCards({ build, compact, mods, access, plan, modsStatus,
   const { data } = useTarkovData()
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const traders = useMemo(() => new Map((data.traders ?? []).map((trader) => [traderKey(trader), trader])), [data.traders])
-  const sellers = useMemo(() => partSellers(build, mods), [build, mods])
+  // What the catalog's quests open, by item and trader key: the guide's sellers name no quest (report 171).
+  const questUnlocks = useItemQuestUnlocks()
+  const unlocks = useMemo(() => {
+    const keyOf = new Map((data.traders ?? []).map((trader) => [trader.id, traderKey(trader)]))
+    const result = new Map<string, PartQuestUnlock[]>()
+    for (const [itemId, rows] of questUnlocks) result.set(itemId, rows.flatMap((row) => keyOf.get(row.traderId) ? [{ trader: keyOf.get(row.traderId)!, level: row.level, questId: row.quest.id, ...(row.barter ? { barter: true } : {}) }] : []))
+    return result
+  }, [data.traders, questUnlocks])
+  const sellers = useMemo(() => partSellers(build, mods, unlocks), [build, mods, unlocks])
   const cards = useMemo(() => {
     const listed = new Set<string>()
     const out: Card[] = []
@@ -98,6 +108,8 @@ function PartCard({ card, item, compact, sellers, traders, access, fitting, plan
   const mode = useAppState().raidMode
   const { data } = useTarkovData()
   const price = item ? displayPrice(item, mode) : undefined
+  // A click opens the part's card from «Барахолка» on the right (owner, 16.11.2026, report 171).
+  const [open, setOpen] = useState(false)
   const hover = useHoverCard(<>
     <Sellers sellers={sellers} traders={traders} access={access} locale={locale} card={card} />
     <Alternatives card={card} fitting={fitting} plan={plan} modsStatus={modsStatus} onRetryMods={onRetryMods} locale={locale} items={data.items} />
@@ -112,15 +124,19 @@ function PartCard({ card, item, compact, sellers, traders, access, fitting, plan
     </span>
   </>
   return <>
-    {card.id
-      ? <Link className="gs-part" to={`/flea?selected=${card.id}`} {...hover.anchorProps}>{body}</Link>
-      : <span className="gs-part" tabIndex={0} {...hover.anchorProps}>{body}</span>}
+    {card.id && item
+      ? <button type="button" className="gs-part" aria-haspopup="dialog" onClick={() => setOpen(true)} {...hover.anchorProps}>{body}</button>
+      : card.id
+        ? <Link className="gs-part" to={`/flea?selected=${card.id}`} {...hover.anchorProps}>{body}</Link>
+        : <span className="gs-part" tabIndex={0} {...hover.anchorProps}>{body}</span>}
     {hover.card}
+    {open && item && <ItemDrawer item={item} onClose={() => setOpen(false)} />}
   </>
 }
 
 /** «Продают»: each trader with the loyalty level the part needs (I, II, III, a crown for 4), barters marked. */
 function Sellers({ sellers, traders, access, locale, card }: { sellers?: PartSeller[]; traders: Map<string, Trader>; access?: PurchaseAccess; locale: AppLocale; card: Card }) {
+  const { data } = useTarkovData()
   // tarkov.help: «Цена в барахолке» (the flea only), «Нельзя купить» (found in raid or from a task).
   const note = card.notSold ? (locale === 'en' ? 'Not sold: find it in raid or get it from a task.' : 'Купить нельзя: найдите в рейде или получите за задание.')
     : card.fleaOnly && !sellers?.length ? (locale === 'en' ? 'Sold on the flea market only.' : 'Продаётся только на барахолке.') : ''
@@ -133,12 +149,20 @@ function Sellers({ sellers, traders, access, locale, card }: { sellers?: PartSel
         const trader = traders.get(seller.trader)
         const name = trader?.name ?? seller.trader
         const have = access?.traderLevels?.[seller.trader]
-        const locked = have !== undefined && have < seller.level
+        // A quest's offer opens once the quest is done (src/arsenal/buildStats.ts offerAccess).
+        const questDone = seller.questId && access?.taskDone ? access.taskDone(seller.questId) : undefined
+        const quest = seller.questId ? data.quests.find((entry) => entry.id === seller.questId) : undefined
+        const locked = (have !== undefined && have < seller.level) || questDone === false
         const level = locale === 'en' ? `loyalty ${seller.level}` : `уровень ${seller.level}`
-        const extra = [seller.barter ? (locale === 'en' ? 'barter' : 'бартер') : '', locked ? (locale === 'en' ? `you have ${have}` : `у вас ${have}`) : ''].filter(Boolean).join(', ')
+        const extra = [seller.barter ? (locale === 'en' ? 'barter' : 'бартер') : '', have !== undefined && have < seller.level ? (locale === 'en' ? `you have ${have}` : `у вас ${have}`) : ''].filter(Boolean).join(', ')
         return <li key={`${seller.trader}-${seller.level}-${seller.barter ? 'b' : 'c'}`}>
           <TraderBadge trader={trader} name={name} level={seller.level} barter={seller.barter} locked={locked} small />
-          <span><strong>{uiText(name)}</strong> — {level}{extra ? <span className={locked ? 'gs-sellers-locked' : 'dim'}> ({extra})</span> : null}</span>
+          <span><strong>{uiText(name)}</strong> — {level}{extra ? <span className={locked ? 'gs-sellers-locked' : 'dim'}> ({extra})</span> : null}
+            {quest && <small className={`gs-sellers-quest${questDone === false ? ' is-locked' : ''}`}>
+              {questDone ? <Check size={11} aria-hidden="true" /> : <Lock size={11} aria-hidden="true" />}
+              {locale === 'en' ? 'after the quest ' : 'после квеста '}«{uiText(quest.name)}»
+            </small>}
+          </span>
         </li>
       })}
     </ul>

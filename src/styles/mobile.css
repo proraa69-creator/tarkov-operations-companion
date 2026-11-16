@@ -495,6 +495,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .photo-sync-backdrop { padding-bottom: 0; }
 /* The sheets from the bottom of «Заменить блок» and «Кочевники» (11.11.2026) sit on the screen's lower edge. */
 :root[data-layout="mobile"] :is(.block-chooser-backdrop, .goon-sheet-backdrop) { padding-bottom: 0; }
+/* A part's card from «Оружейник» (components/ItemDrawer.tsx, report 171): a sheet from the bottom, its top on that level. */
+:root[data-layout="mobile"] .item-drawer-backdrop .item-drawer { max-height: calc(100dvh - var(--window-top) - var(--tabbar, 0px)); }
 :root[data-layout="mobile"] .frg-card { max-height: var(--window-room); }
 /* The full-size picture: the cross on that level, the picture under it. */
 :root[data-layout="mobile"] .requests-viewer { padding-top: calc(var(--window-top) + 48px); padding-bottom: calc(var(--window-bottom) + 62px); }

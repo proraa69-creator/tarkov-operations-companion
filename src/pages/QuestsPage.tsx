@@ -1,5 +1,5 @@
 import { uiText } from '../i18n/renderText'
-import { useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Check, ListTree, MapPin, RefreshCw, ScanSearch, Search, Trophy, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
@@ -42,6 +42,7 @@ import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestD
 import { QuestTreeView, QuestViewSwitch } from '../quests/tree/QuestTreeView'
 import { openRequiredItems } from '../raidprep/objectives'
 import { questItemRows } from '../quests/questItemRows'
+import { QuestOfferUnlocks } from '../quests/QuestOfferUnlocks'
 
 const filterLabels: Record<string, string> = {
   active: 'Текущие',
@@ -128,6 +129,22 @@ export function QuestsPage() {
     ? (selectedId ? data.quests.find((quest) => quest.id === selectedId) : undefined)
     : filtered.find((quest) => quest.id === selectedId) ?? fallback
   const closeSelected = () => setParams((current) => { const next = new URLSearchParams(current); next.delete('selected'); return next }, { replace: true })
+  // A quest opened from an item's card (`find`, src/quests/QuestOfferUnlocks.tsx): «Текущие» when it is there, else «Все».
+  const findId = params.get('find') === '1' ? params.get('selected') : null
+  const findInAll = Boolean(findId) && statusFilter !== 'all' && !filtered.some((quest) => quest.id === findId)
+  const scrollToFound = useRef(false)
+  useEffect(() => {
+    if (!findId) return
+    scrollToFound.current = true
+    setParams((current) => { const next = new URLSearchParams(current); next.delete('find'); if (findInAll) { next.set('filter', 'all'); next.delete('all') } return next }, { replace: true })
+  }, [findId, findInAll, setParams])
+  // …and the list comes to it.
+  useEffect(() => {
+    if (!scrollToFound.current || findId) return
+    scrollToFound.current = false
+    const row = document.querySelector<HTMLElement>('.catalog-list .quest-map-row.selected')
+    if (typeof row?.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' })
+  }, [findId, statusFilter, selected?.id])
   const deferCatalogQuest = (questId: string) => {
     const quest = data.quests.find((entry) => entry.id === questId)
     if (quest) setDeferRequest({ quests: [{ id: quest.id, name: quest.name }], chosen: [quest.id] })
@@ -241,7 +258,7 @@ export function QuestsPage() {
         <QuestCuratedRequirements quest={selected} items={data.items} progress={progress} />
         {selected.pointHints?.length ? <div className="detail-section"><h4>{uiText('Где искать')}</h4><QuestPointHints quest={selected} /></div> : null}
         {selected.guideImages?.length ? <div className="detail-section"><h4>{uiText('Где искать')}</h4><QuestGuideImages quest={selected} /></div> : null}
-        <div className="detail-section"><h4>{uiText("Награды")}</h4>{uiText(selected.rewards.length ? selected.rewards.map((reward) => <div className="quest-objective" key={reward}><Trophy size={15} color="var(--brass)" /><span>{uiText(reward)}</span></div>) : <p className="dim">{uiText("Награды не указаны.")}</p>)}</div>
+        <div className="detail-section"><h4>{uiText("Награды")}</h4>{selected.rewards.map((reward) => <div className="quest-objective" key={reward}><Trophy size={15} color="var(--brass)" /><span>{uiText(reward)}</span></div>)}<QuestOfferUnlocks quest={selected} />{!selected.rewards.length && !selected.offerUnlocks?.length && <p className="dim">{uiText("Награды не указаны.")}</p>}</div>
         <div className="detail-section stack">{uiText((selected.anyMap || selected.mapId || selected.mapIds?.length || selectedStage?.mapIds.length) && <Link className="button ghost" to={`/maps/${mapTarget}?quest=${selected.id}${isStoryQuest(selected) ? `&stage=${selectedStageIndex}` : ''}`}><MapPin size={15} />{uiText(" Показать на карте")}</Link>)}</div>
         </>}
         </div>)}
