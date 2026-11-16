@@ -7495,3 +7495,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner 16.11: «нужно, чтобы показывало всегда, даже если больше 5 часов прошло… По прошествию суток записи удаляются… отметок нет, пиши. А так пишется список, кто во сколько видел. Это будет уже в следующую сборку.»
 - Server `services/goonStore.ts`: `GOON_STATS_WINDOW_MS` = the 24 h retention (was 5 h), `GOON_RECENT_LIMIT` 20 (was 8); the answer keeps the field name `last5h` for the apps already out. Client `src/data/goonTracker.ts`: the same day window for own sightings; a community report older than a day is dropped. `GoonCard`: nothing for the day → «Отметок нет» / «No sightings» (was «Нет данных»).
 - Tests: server goons/persistence 10/10, client goonTracker/GoonCard/i18n 58; typecheck (app, server), lint. Dev renderer: «ОТМЕТОК НЕТ» / «NO SIGHTINGS». Not merged into a release; server and app go out together with the next one.
+
+## 2026-11-16 — App Store pack from 0.6.0.310 (owner: «Собери мне свежую сборку для App Store публикации»)
+
+- Built from 48f1adf5 (0.6.0.310) + the App Store settings (d2a43272), local branch test/ios-ipa-appstore-1116a = ffe65f5d (not pushed). VITE_APP_STORE=1 bundle, no admin pages in it. Desktop `RaidOS_для_публикации.rar`, 122 521 845 B, SHA-256 f206bb47…7c3b. Bundle ID com.raidos.app, version 1.0, build 3 (was 2, so an upload never repeats a build number already sent); readmes say Build 3. App Store texts and screenshots unchanged. The TestFlight workflow still skips (no App Store Connect secrets). Not opened in Xcode.
