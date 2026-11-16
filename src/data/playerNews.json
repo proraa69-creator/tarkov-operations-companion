@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.311","date":"2026-11-17","items":[
+    {"kind":"improved","ru":"«Кочевники»: отметки и список, кто их видел, хранятся целые сутки","en":"«Goons»: sightings and who saw them are kept for a whole day"},
+    {"kind":"improved","ru":"«Тактика боя»: свита Тени Тагиллы — как она воюет и что носит","en":"«Boss tactics»: Shadow of Tagilla's retinue — how it fights and what it carries"}
+  ]},
   {"version":"0.6.0.310","date":"2026-11-16","items":[
     {"kind":"added","ru":"Уведомление «Рейд начался», когда загрузка закончилась","en":"A «Raid started» notification once the loading is over"},
     {"kind":"improved","ru":"Обзор: первый блок — время в Таркове, сброс торговцев или таймер рейда","en":"Overview: the first block shows the time in Tarkov, trader resets or a raid timer"},
