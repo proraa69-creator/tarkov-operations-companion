@@ -337,10 +337,15 @@ const overlapOf = (a: Box, b: Box) => areaOf({ south: Math.max(a.south, b.south)
 
 /**
  * A zone over this share of the map is no place to kill in (owner, 08.11.2026: «Не просто отметка на полкарты… Там, где нету
- * конкретного места убийства, не надо»): «Долгая дорога» on Shoreline (44 %), «Хайкинг» on Woods (37 %); the smugglers' bases
+ * конкретного места убийства, не надо»): «Долгая дорога» on Shoreline (44 %), «Хайкинг» on Woods (37 %, shown: WIDE_ZONE_QUESTS); the smugglers' bases
  * are 11 %, the dorms 15 %.
  */
 export const MAX_ZONE_SHARE = 0.3
+/**
+ * Quests whose zone is drawn whatever its size (owner, 17.11.2026, report 176 «Хайкинг»: «Значит показывай эту зону»). By
+ * `normalizedName`, the same in every mode and language. Such a zone stands alone: it never swallows the smaller zones inside it.
+ */
+export const WIDE_ZONE_QUESTS: ReadonlySet<string> = new Set(['hiking'])
 /** Two zones are one place when they overlap over this much of the smaller one. */
 const SAME_PLACE = 0.6
 
@@ -401,12 +406,14 @@ export function insetOutline(positions: ReadonlyArray<readonly [number, number]>
 export function killZones(rows: readonly KillRow[], extent?: ReadonlyArray<readonly [number, number]>): KillZone[] {
   const mapBox = extent && extent.length >= 2 ? boxOf(extent) : undefined
   const limit = mapBox && areaOf(mapBox) > 0 ? areaOf(mapBox) * MAX_ZONE_SHARE : Infinity
-  const raw = rows.flatMap((row) => (row.settled ? [] : row.zones.map((positions, index) => ({
-    id: `${row.key}:${index}`, row, positions, box: boxOf(positions), kind: (row.kind === 'pmc' ? 'pmc' : 'scav') as 'pmc' | 'scav',
-  })))).filter((zone) => areaOf(zone.box) <= limit)
+  const raw = rows.flatMap((row) => (row.settled ? [] : row.zones.map((positions, index) => {
+    const box = boxOf(positions)
+    const wide = areaOf(box) > limit
+    return { id: `${row.key}:${index}`, row, positions, box, wide, kind: (row.kind === 'pmc' ? 'pmc' : 'scav') as 'pmc' | 'scav' }
+  }))).filter((zone) => !zone.wide || WIDE_ZONE_QUESTS.has(zone.row.quest.normalizedName ?? ''))
   const groups: Array<typeof raw> = []
   for (const zone of [...raw].sort((a, b) => areaOf(b.box) - areaOf(a.box))) {
-    const place = groups.find((group) => group.some((other) => {
+    const place = zone.wide ? undefined : groups.find((group) => !group[0]!.wide && group.some((other) => {
       const smaller = Math.min(areaOf(other.box), areaOf(zone.box))
       return smaller > 0 && overlapOf(other.box, zone.box) >= SAME_PLACE * smaller
     }))

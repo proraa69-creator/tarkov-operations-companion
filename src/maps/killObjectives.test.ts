@@ -206,6 +206,14 @@ describe('the zones: a place, not half the map; one zone per place; rounded (own
     expect(killZones(rows)).toHaveLength(2)
   })
 
+  it('«Хайкинг» is drawn whatever its size, alone: the zones inside it stay their own (owner, 17.11.2026, report 176)', () => {
+    const hiking = { ...zoned('hiking', SCAVS), normalizedName: 'hiking' }
+    const quests = [hiking, zoned('camp', SCAVS)]
+    const points = pointsOf([['hiking', square(0, 0, 700)], ['camp', square(100, 100, 150)]])
+    const zones = killZones(killRows({ ...input, quests, points, progress: progress() }), extent)
+    expect(zones.map((entry) => entry.questIds)).toEqual([['hiking'], ['camp']])
+  })
+
   it('a PMC kill and a Scav kill in one place are one blue zone listing both; two Scav quests there one orange zone', () => {
     const quests = [zoned('hunt-pmc', PMCS), zoned('hunt-scav', SCAVS), zoned('other-scav', SCAVS), zoned('far', SCAVS)]
     const points = pointsOf([['hunt-pmc', square(100, 100, 200)], ['hunt-scav', square(110, 110, 190)], ['other-scav', square(600, 600, 100)], ['far', square(610, 590, 95)]])
