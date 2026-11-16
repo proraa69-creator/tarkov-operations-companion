@@ -29,8 +29,8 @@ export interface GoonSightingView { mapId: GoonMapId; reportedAt: string; nickna
 
 export interface GoonMapStat { mapId: GoonMapId; count: number; lastAt: string }
 export interface GoonSnapshot { latest: GoonSightingView | null; last5h: GoonMapStat[]; recent: GoonSightingView[] }
-/** How many of the newest sightings (last 5 hours) the snapshot lists with their nicknames. */
-export const GOON_RECENT_LIMIT = 8
+/** How many of the newest sightings (the day kept) the snapshot lists with their nicknames. */
+export const GOON_RECENT_LIMIT = 20
 
 /** Storage contract so the in-memory store can later be swapped for SQLite/Redis without touching the routes. */
 export interface GoonStore {
@@ -46,7 +46,12 @@ export interface GoonStore {
 }
 
 export const GOON_RETENTION_MS = 24 * 60 * 60 * 1000
-export const GOON_STATS_WINDOW_MS = 5 * 60 * 60 * 1000
+/**
+ * The counts and the «кто видел» list cover the whole day kept, no longer 5 hours (owner, 16.11.2026: «нужно, чтобы показывало
+ * всегда, даже если больше 5 часов прошло… По прошествию суток записи удаляются… отметок нет… А так пишется список, кто
+ * во сколько видел»). The answer's field keeps its old name `last5h` for the apps already out.
+ */
+export const GOON_STATS_WINDOW_MS = GOON_RETENTION_MS
 
 export class MemoryGoonStore implements GoonStore {
   /** Kept sorted oldest → newest because entries are appended with server time. */
@@ -135,8 +140,8 @@ export class SqliteGoonStore implements GoonStore {
 }
 
 /**
- * Latest sighting ever kept (24 h), per-map counts for the last 5 hours (most reported first) and the newest sightings
- * of those 5 hours with the nickname of who saw them — his account's current one for the mode when `nicknameOf` knows it.
+ * Latest sighting ever kept (24 h), per-map counts for that day (most reported first) and the newest sightings
+ * of it with the nickname of who saw them — his account's current one for the mode when `nicknameOf` knows it.
  */
 export function summarizeGoons(store: GoonStore, mode: GoonMode, nowMs: number, nicknameOf?: GoonNicknameOf): GoonSnapshot {
   const viewOf = (entry: GoonSighting): GoonSightingView => {

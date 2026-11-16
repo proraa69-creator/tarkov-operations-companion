@@ -34,7 +34,7 @@ export interface GoonsRouterOptions {
 
 /**
  * Public Goons sightings API, mounted at /v1/goons.
- *   GET  /v1/goons/:mode            → { latest, last5h, recent: [{ mapId, reportedAt, nickname? }] }
+ *   GET  /v1/goons/:mode            → { latest, last5h (the last 24 h, name kept), recent: [{ mapId, reportedAt, nickname? }] }
  *   POST /v1/goons/:mode/sightings  { mapId } (Bearer) → { accepted, reason?, snapshot }
  *        reason: 'duplicate' (same map within 2 minutes), 'signin' (no session), 'nickname' (no nickname for the mode)
  * Client addresses are only kept as salted hashes for rate limiting and dedupe; the reporting account id is stored with

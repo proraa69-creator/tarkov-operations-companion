@@ -7489,3 +7489,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 ## 2026-11-16 — 0.6.0.310 news: modules in quest rewards, item lookup
 
 - Owner 16.11: of the three proposed news items he removed the keys one and the item-key one, then dictated «Улучшили распознание поиска предмета» (kept word for word). `src/data/playerNews.json` 0.6.0.310: «Квесты»: в наградах видно, какой модуль открывается у торговцев / «Quests»: rewards show which module unlocks at the traders; «Улучшили распознание поиска предмета» / Improved item lookup recognition. `src/data/updateHistory.json` keeps 4 lines: overview and colour scheme joined, quest rewards joined with the AKM line, the item lookup line. No report numbers. News tests pass. Not released.
+
+## 2026-11-16 — «Кочевники»: the map, the counts and «кто видел» for the whole day kept (branch claude/goons-always-map, next build)
+
+- Owner 16.11: «нужно, чтобы показывало всегда, даже если больше 5 часов прошло… По прошествию суток записи удаляются… отметок нет, пиши. А так пишется список, кто во сколько видел. Это будет уже в следующую сборку.»
+- Server `services/goonStore.ts`: `GOON_STATS_WINDOW_MS` = the 24 h retention (was 5 h), `GOON_RECENT_LIMIT` 20 (was 8); the answer keeps the field name `last5h` for the apps already out. Client `src/data/goonTracker.ts`: the same day window for own sightings; a community report older than a day is dropped. `GoonCard`: nothing for the day → «Отметок нет» / «No sightings» (was «Нет данных»).
+- Tests: server goons/persistence 10/10, client goonTracker/GoonCard/i18n 58; typecheck (app, server), lint. Dev renderer: «ОТМЕТОК НЕТ» / «NO SIGHTINGS». Not merged into a release; server and app go out together with the next one.

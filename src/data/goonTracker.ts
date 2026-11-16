@@ -12,7 +12,8 @@ export const isGoonMap = (value: unknown): value is GoonMapId => typeof value ==
 /** Our server is polled this often; the tarkov.dev community feed is an extra, slower source. */
 export const GOON_REFRESH_MS = 30_000
 const COMMUNITY_REFRESH_MS = 60_000
-export const GOON_STATS_WINDOW_MS = 5 * 60 * 60 * 1000
+/** Counts and «кто видел» cover the day the sightings are kept (owner, 16.11.2026; server/src/services/goonStore.ts). */
+export const GOON_STATS_WINDOW_MS = 24 * 60 * 60 * 1000
 /** Unsent own sightings are retried on every refresh while they are still this fresh. */
 /** An unsent sighting is sent again with every refresh for this long. */
 export const GOON_RETRY_UNSENT_MS = 15 * 60_000
@@ -94,9 +95,11 @@ const sortStats = (rows: GoonMapStat[]) => rows.sort((a, b) => b.count - a.count
 export function mergeGoonView(input: { server: GoonSnapshot | null; community: GoonLocation | null; own: OwnGoonSighting[]; now: number }) {
   const { server, community, own, now } = input
   const ownShown = server ? own.filter((entry) => !entry.sent) : own
+  // Nothing older than the day the sightings are kept: then «Отметок нет».
+  const fresh = (location: { reportedAt: string }) => now - Date.parse(location.reportedAt) <= GOON_STATS_WINDOW_MS
   const candidates: GoonLocation[] = [
     ...(server?.latest ? [{ ...server.latest, source: 'server' as const }] : []),
-    ...(community ? [community] : []),
+    ...(community && fresh(community) ? [community] : []),
     ...ownShown.map((entry) => ({ mapId: entry.mapId, reportedAt: entry.reportedAt, source: 'local' as const, ...(entry.sent ? {} : { unsent: true }) })),
   ]
   const location = candidates.sort((a, b) => b.reportedAt.localeCompare(a.reportedAt))[0] ?? null

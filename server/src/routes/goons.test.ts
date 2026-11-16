@@ -24,7 +24,7 @@ async function withApi(run: (api: { get: (mode: string) => Promise<Response>; po
   }
 }
 
-test('goons: stores sightings with server time, keeps modes apart and summarizes 5 hours', async () => {
+test('goons: stores sightings with server time, keeps modes apart and summarizes the day kept (owner, 16.11.2026)', async () => {
   await withApi(async ({ get, post, advance }) => {
     assert.deepEqual(await (await get('pvp')).json(), { latest: null, last5h: [], recent: [] })
     const first = await post('pvp', { mapId: 'woods', reportedAt: '2001-01-01T00:00:00.000Z' }, '10.0.0.1')
@@ -48,9 +48,10 @@ test('goons: stores sightings with server time, keeps modes apart and summarizes
     assert.deepEqual(await (await get('seasonal')).json(), { latest: null, last5h: [], recent: [] })
 
     advance(5 * 60 * 60 * 1000 + 60_000)
-    const later = await (await get('pvp')).json() as { latest: { mapId: string }; last5h: unknown[] }
-    assert.equal(later.latest.mapId, 'customs', 'latest survives the 5 h stats window')
-    assert.deepEqual(later.last5h, [])
+    const later = await (await get('pvp')).json() as { latest: { mapId: string }; last5h: Array<{ mapId: string; count: number }>; recent: unknown[] }
+    assert.equal(later.latest.mapId, 'customs', 'the map stays past 5 hours')
+    assert.deepEqual(later.last5h.map((row) => [row.mapId, row.count]), [['woods', 2], ['customs', 1]], 'the counts too, for the whole day')
+    assert.equal(later.recent.length, 3, 'and who saw them when')
     advance(19 * 60 * 60 * 1000)
     assert.deepEqual(await (await get('pvp')).json(), { latest: null, last5h: [], recent: [] }, 'entries older than 24 h are pruned')
   })
@@ -93,7 +94,12 @@ test('goons store: summary ignores other modes and prunes old entries', () => {
   store.add({ mapId: 'woods', mode: 'pvp', reportedAt: '2026-09-27T11:00:00.000Z', reporter: 'a' })
   store.add({ mapId: 'customs', mode: 'pvp', reportedAt: '2026-09-28T06:00:00.000Z', reporter: 'a' })
   store.add({ mapId: 'shoreline', mode: 'seasonal', reportedAt: '2026-09-28T11:00:00.000Z', reporter: 'b' })
-  assert.deepEqual(summarizeGoons(store, 'pvp', now), { latest: { mapId: 'customs', reportedAt: '2026-09-28T06:00:00.000Z' }, last5h: [], recent: [] })
+  // Six hours old: still counted and listed (the day kept, owner 16.11.2026); the one from yesterday is out.
+  assert.deepEqual(summarizeGoons(store, 'pvp', now), {
+    latest: { mapId: 'customs', reportedAt: '2026-09-28T06:00:00.000Z' },
+    last5h: [{ mapId: 'customs', count: 1, lastAt: '2026-09-28T06:00:00.000Z' }],
+    recent: [{ mapId: 'customs', reportedAt: '2026-09-28T06:00:00.000Z' }],
+  })
   store.prune(now - 24 * 60 * 60 * 1000)
   assert.equal(store.list('pvp', 0).length, 1)
   assert.equal(store.lastByReporter('b')?.mapId, 'shoreline')

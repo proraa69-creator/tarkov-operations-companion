@@ -30,7 +30,7 @@ const NOTICE: Record<GoonReportResult, string> = {
 
 /**
  * Goons (Кочевники) stat card. Everything that opens here is absolutely positioned,
- * so the card and the rest of the dashboard never move or resize. The 5-hour statistics cover the card exactly, never
+ * so the card and the rest of the dashboard never move or resize. The day's statistics (24 h, owner 16.11.2026) cover the card exactly, never
  * more (owner, 12.10.2026); with the pointer over them the wheel scrolls «кто видел», not the page.
  */
 export function GoonCard({ mode, mapName }: GoonCardProps) {
@@ -196,7 +196,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
       </div>
     </div>
     {/* A new value remounts (key) so it slides up into place. */}
-    <div className="stat-value goon-map-value"><span key={location?.mapId ?? 'none'} className="goon-rise">{uiText(location ? mapName(location.mapId) : 'Нет данных')}</span></div>
+    <div className="stat-value goon-map-value"><span key={location?.mapId ?? 'none'} className="goon-rise">{uiText(location ? mapName(location.mapId) : 'Отметок нет')}</span></div>
     <div className={`stat-meta goon-meta ${location?.unsent && !notice ? 'is-unsent' : ''}`} aria-live="polite">
       <span key={`${location?.reportedAt ?? ""}:${notice ?? ""}:${connection}`} className="goon-rise is-late">{meta}</span>{location?.unsent && !notice && <em className="goon-rise is-late">{uiText(resending ? 'отправится позже' : 'не отправлено')}</em>}
     </div>
