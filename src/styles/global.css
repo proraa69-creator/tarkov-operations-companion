@@ -139,7 +139,7 @@ img { max-width: 100%; }
 .panel-header { min-height: 48px; padding: 0 17px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .panel-title { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #c7d0c9; font-weight: 820; }
 .panel-body { padding: 17px; }
-.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.stat-grid { display: grid; grid-template-columns: repeat(var(--stat-count, 4), minmax(0, 1fr)); gap: 12px; }
 .stat-card { padding: 16px; min-height: 104px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(145deg, var(--surf-2), var(--surf-1)); }
 .stat-label { color: var(--text-dim); font-size: 9px; letter-spacing: .13em; font-weight: 800; text-transform: uppercase; }
 .stat-value { margin-top: 10px; font-size: 27px; font-weight: 850; letter-spacing: -.035em; }

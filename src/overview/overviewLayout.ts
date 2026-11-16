@@ -12,7 +12,11 @@
  */
 export type OverviewZoneId = 'stats' | 'rows' | 'left' | 'right'
 
-export type OverviewLayout = Record<OverviewZoneId, string[]>
+/**
+ * `removed`: blocks the player took off the Overview with the cross in «Настроить блоки» (owner, 17.11.2026: «кнопку
+ * удаления блоков… Вернуть их можно будет кнопкой «Сбросить»»). They are not added back by themselves; «Сбросить» does.
+ */
+export type OverviewLayout = Record<OverviewZoneId, string[]> & { removed?: string[] }
 
 export const OVERVIEW_ZONES: Readonly<Record<OverviewZoneId, readonly string[]>> = {
   // «Текущие задания» and «Приоритет карт» stand inside the map's block now (owner, 11.11.2026); «Экран» takes the first card.
@@ -52,19 +56,21 @@ export function defaultOverviewLayout(): OverviewLayout {
 
 /** A saved layout made safe: each zone holds exactly its own blocks, once each; anything else is dropped. */
 export function sanitizeOverviewLayout(raw: unknown): OverviewLayout {
-  const saved = raw && typeof raw === 'object' ? raw as Partial<Record<OverviewZoneId, unknown>> : {}
+  const saved = raw && typeof raw === 'object' ? raw as Partial<Record<OverviewZoneId | 'removed', unknown>> : {}
   const layout = defaultOverviewLayout()
+  const movable = new Set(ZONE_IDS.flatMap((zone) => OVERVIEW_ZONES[zone]).filter((id) => !FIXED_BLOCKS.has(id)))
+  const removed = [...new Set(Array.isArray(saved.removed) ? (saved.removed as unknown[]).filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => movable.has(id)) : [])]
   for (const zone of ZONE_IDS) {
     const known = OVERVIEW_ZONES[zone]
     const list = Array.isArray(saved[zone]) ? (saved[zone] as unknown[]).filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.includes(id)) : []
-    const order = [...new Set(list)]
-    // New blocks (not in the saved order yet) take their default place.
-    for (const id of known) if (!order.includes(id)) order.splice(Math.min(known.indexOf(id), order.length), 0, id)
+    const order = [...new Set(list)].filter((id) => !removed.includes(id))
+    // New blocks (not in the saved order yet) take their default place; removed ones stay off.
+    for (const id of known) if (!order.includes(id) && !removed.includes(id)) order.splice(Math.min(known.indexOf(id), order.length), 0, id)
     layout[zone] = order
   }
   // The card row always stays above the two columns.
   layout.rows = [...OVERVIEW_ZONES.rows]
-  return layout
+  return removed.length ? { ...layout, removed } : layout
 }
 
 /** The layout with `id` moved to `toIndex` of its zone (clamped); the same object when nothing changes. */
@@ -79,9 +85,16 @@ export function moveBlock(layout: OverviewLayout, zone: OverviewZoneId, id: stri
   return { ...layout, [zone]: next }
 }
 
-/** Same blocks in the same order in every zone. */
+/** The layout without `id`: it goes off the Overview until «Сбросить»; the other blocks of its zone close up. */
+export function removeBlock(layout: OverviewLayout, id: string): OverviewLayout {
+  const zone = ZONE_IDS.find((each) => layout[each].includes(id))
+  if (!zone || FIXED_BLOCKS.has(id)) return layout
+  return { ...layout, [zone]: layout[zone].filter((other) => other !== id), removed: [...new Set([...(layout.removed ?? []), id])] }
+}
+
+/** Same blocks in the same order in every zone, the same ones removed. */
 export function sameLayout(a: OverviewLayout, b: OverviewLayout) {
-  return ZONE_IDS.every((zone) => a[zone].join() === b[zone].join())
+  return ZONE_IDS.every((zone) => a[zone].join() === b[zone].join()) && [...(a.removed ?? [])].sort().join() === [...(b.removed ?? [])].sort().join()
 }
 
 /**

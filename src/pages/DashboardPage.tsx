@@ -1,6 +1,6 @@
 import { uiText, uiLabel } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
-import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
@@ -319,12 +319,14 @@ export function DashboardPage() {
   const block = (zone: 'stats' | 'rows' | 'left' | 'right', blocks: Blocks) => (id: string) =>
     <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={labelOf(id, blocks)}>{titled(id, blocks[id]?.node)}</OverviewBlock>
   const rows: Blocks = {
-    stats: { label: 'Карточки', node: <section className="stat-grid">{layout.stats.map(block('stats', statCards))}</section> },
+    // Removed cards: the rest share the row evenly (owner, 17.11.2026: «Распределяются по площади»).
+    stats: { label: 'Карточки', node: <section className="stat-grid" style={{ '--stat-count': layout.stats.length } as CSSProperties}>{layout.stats.map(block('stats', statCards))}</section> },
     columns: {
       label: '',
-      node: <div className="dashboard-layout">
-        <div className="dashboard-column">{layout.left.map(block('left', leftBlocks))}</div>
-        <div className="dashboard-column">{layout.right.map(block('right', rightBlocks))}</div>
+      // A column with every block removed goes, and the other one takes the whole width.
+      node: <div className={`dashboard-layout${layout.left.length && layout.right.length ? '' : ' is-single'}`}>
+        {layout.left.length > 0 && <div className="dashboard-column">{layout.left.map(block('left', leftBlocks))}</div>}
+        {layout.right.length > 0 && <div className="dashboard-column">{layout.right.map(block('right', rightBlocks))}</div>}
       </div>,
     },
   }
@@ -356,7 +358,7 @@ export function DashboardPage() {
 
     {mobile
       ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={labelOf(id, phoneBlocks)} index={index} count={order.length}>{titled(id, phoneBlocks[id].node)}</PhoneOverviewBlock>)}</div>
-      : <div className="overview-rows">{layout.rows.filter((id) => id !== 'stats' || layout.stats.length > 0).map(block('rows', rows))}</div>}
+      : <div className="overview-rows">{layout.rows.filter((id) => (id !== 'stats' || layout.stats.length > 0) && (id !== 'columns' || layout.left.length + layout.right.length > 0)).map(block('rows', rows))}</div>}
     {mobile && phone.choosing && <BlockChooser title={labelOf(phone.choosing, phoneBlocks)} choices={phoneChoices(phone.choosing)} onPick={(id) => phone.replace(phone.choosing!, id)} onClose={() => phone.setChoosing(null)} />}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
     <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} />

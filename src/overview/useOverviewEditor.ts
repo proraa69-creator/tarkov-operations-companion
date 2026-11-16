@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { EASE_IN_OUT, EASE_OUT, canAnimate } from '../shared/motion'
-import { FIXED_BLOCKS, isDefaultLayout, loadOverviewLayout, moveBlock, sameLayout, saveOverviewLayout, type OverviewLayout, type OverviewZoneId } from './overviewLayout'
+import { FIXED_BLOCKS, isDefaultLayout, loadOverviewLayout, moveBlock, removeBlock, sameLayout, saveOverviewLayout, type OverviewLayout, type OverviewZoneId } from './overviewLayout'
 import { baseOverviewLayout, withoutHiddenBlocks } from './overviewDefaults'
 import { useOverviewDefaults } from './overviewDefaultsStore'
 
@@ -330,7 +330,10 @@ export function useOverviewEditor() {
   // Leaving the editing mode (or the page) drops whatever is being carried.
   useEffect(() => () => finish(false), [editing, finish])
 
-  // «Сбросить»: back to the starting order (the owner's default for everybody, or the built-in one).
+  // The cross on a block: it goes off the Overview, the rest of its zone closes up (and the card row shares its width).
+  const remove = useCallback((zone: OverviewZoneId, id: string) => apply(removeBlock(layoutRef.current, id), [zone]), [apply])
+
+  // «Сбросить»: back to the starting order (the owner's default for everybody, or the built-in one), removed blocks back too.
   const reset = useCallback(() => apply(baseRef.current, ['stats', 'rows', 'left', 'right']), [apply])
 
   return useMemo(() => ({
@@ -340,9 +343,10 @@ export function useOverviewEditor() {
     isDefault: isDefaultLayout(layout, base),
     toggleEditing: () => setEditing((value) => !value),
     reset,
+    remove,
     register,
     handlers,
-  }), [base, editing, handlers, layout, lifted, register, reset])
+  }), [base, editing, handlers, layout, lifted, register, remove, reset])
 }
 
 export type OverviewEditor = ReturnType<typeof useOverviewEditor>

@@ -101,7 +101,7 @@ export function withoutHiddenBlocks(layout: OverviewLayout, hidden: readonly str
   if (!hidden.length) return layout
   const off = new Set(hidden)
   const keep = (id: string) => FIXED_BLOCKS.has(id) || !off.has(id)
-  return { stats: layout.stats.filter(keep), rows: layout.rows.filter(keep), left: layout.left.filter(keep), right: layout.right.filter(keep) }
+  return { stats: layout.stats.filter(keep), rows: layout.rows.filter(keep), left: layout.left.filter(keep), right: layout.right.filter(keep), ...(layout.removed ? { removed: layout.removed } : {}) }
 }
 
 /** The PC's starting Overview: the owner's order (or the built-in one) without the hidden blocks. */

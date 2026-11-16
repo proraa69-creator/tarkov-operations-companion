@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import { GripHorizontal } from 'lucide-react'
+import { GripHorizontal, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { FIXED_BLOCKS, type OverviewZoneId } from './overviewLayout'
 import type { OverviewEditor } from './useOverviewEditor'
@@ -41,5 +41,8 @@ export function OverviewBlock({ editor, zone, id, label, className, children }: 
     >
       <span className="overview-grip" aria-hidden="true"><GripHorizontal size={14} /></span>
     </div>}
+    {/* Off the Overview until «Сбросить» (owner, 17.11.2026). Not inside the veil: a press on it must not pick the block up. */}
+    {movable && editor.lifted !== id && <button type="button" className="overview-remove" aria-label={`${uiText('Удалить блок')}: ${uiText(label)}`} title={uiText('Удалить блок')}
+      onPointerDown={(event) => event.stopPropagation()} onClick={() => editor.remove(zone, id)}><X size={13} aria-hidden="true" /></button>}
   </div>
 }
