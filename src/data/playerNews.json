@@ -1,5 +1,6 @@
 [
   {"version":"0.6.0.311","date":"2026-11-17","items":[
+    {"kind":"added","ru":"«Квесты»: кнопка «Показать только сюжетные» — предметы, которые нужно сдать по сюжету","en":"«Quests»: «Show story only» — the items the story asks you to hand over"},
     {"kind":"added","ru":"«Обзор»: лишние блоки можно удалить, вернуть их — кнопкой «Сбросить»","en":"«Overview»: remove the blocks you do not need, «Reset» brings them back"},
     {"kind":"improved","ru":"«Кочевники»: отметки и список, кто их видел, хранятся целые сутки","en":"«Goons»: sightings and who saw them are kept for a whole day"},
     {"kind":"improved","ru":"«Тактика боя»: свита Тени Тагиллы — как она воюет и что носит","en":"«Boss tactics»: Shadow of Tagilla's retinue — how it fights and what it carries"}
