@@ -7489,3 +7489,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 ## 2026-11-16 — 0.6.0.310 news: modules in quest rewards, item lookup
 
 - Owner 16.11: of the three proposed news items he removed the keys one and the item-key one, then dictated «Улучшили распознание поиска предмета» (kept word for word). `src/data/playerNews.json` 0.6.0.310: «Квесты»: в наградах видно, какой модуль открывается у торговцев / «Quests»: rewards show which module unlocks at the traders; «Улучшили распознание поиска предмета» / Improved item lookup recognition. `src/data/updateHistory.json` keeps 4 lines: overview and colour scheme joined, quest rewards joined with the AKM line, the item lookup line. No report numbers. News tests pass. Not released.
+
+## 2026-11-16 — Release 0.6.0.310 live
+
+- Owner: «Да, выпускай все» (history lines without the colour scheme and the AKM). 48f1adf5 pushed to release/production 03:26 UTC; «RaidOS Production Gate» green 03:40; `systemctl start --no-block raidos-release.service` by hand; publisher «release: success» 03:51 UTC; version.json 0.6.0-310 (48f1adf5), /download/windows 200, raidos-api active, health 200, timer active.
+- In it: «Рейд начался», Overview's first block, colour scheme, AKM Gunsmith parts + the note under every build, phone Gunsmith window/unfold, admin «мёртвые», report 172 (two-line tooltips), «Не взял» keeps a key, report 171 (quest unlocks). History `"reports":[171,172]`: the server closes them once it sees the version twice.
+- Checks before: 79 changed paths, 0 refused by release-policy.mjs (same hash as the VPS); typecheck app/server/website; server 574/575 (background mirror-storage test flaky, untouched); app tests as noted above.
+- Next build: claude/goons-always-map (effe51a5). Report reward days: waiting for the owner's choice.
