@@ -262,7 +262,13 @@ function readTextLayout(light: Uint8Array, width: number, rect: Rect, cursorMask
   const lines = textLines(light, width, rect, cursorMask, threshold, y0, y1, unit)
   if (textHeight > LINE_HEIGHT_MAX * unit && lines.length !== 2) return null
   const padLeft = x0 - rect.x, padRight = rect.x + rect.width - 1 - x1
-  if (padRight > 34 * unit || (!maskedLeft && (padLeft > 34 * unit || Math.abs(padLeft - padRight) > Math.max(9 * unit, rect.width * 0.12)))) return null
+  // A wrapped name (report 172, 16.11.2026: «примерно половина предметов не отображается»): the game wraps at a fixed
+  // width (~300 px at 1080p) and the box keeps it, so the longer line may end far from the right edge — only the
+  // left padding is the tooltip's own then, and the text must still reach past the box's middle.
+  if (lines.length === 2) {
+    if (!maskedLeft && padLeft > 34 * unit) return null
+    if (x1 - rect.x < rect.width * 0.55) return null
+  } else if (padRight > 34 * unit || (!maskedLeft && (padLeft > 34 * unit || Math.abs(padLeft - padRight) > Math.max(9 * unit, rect.width * 0.12)))) return null
   peaks.sort((a, b) => a - b)
   return { background, peak: peaks[Math.floor(peaks.length * 0.9)] ?? threshold, x0, x1, y0, y1, lines: lines.length === 2 ? lines : [{ y0, y1 }] }
 }
