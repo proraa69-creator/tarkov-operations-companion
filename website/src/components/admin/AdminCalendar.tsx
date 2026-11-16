@@ -9,6 +9,8 @@ import { failure, formatRub, inviterText, numberFormat, PAYMENT_STATUS, PLAN_IDS
 import { OWNER_TIME_ZONE, ownerDay } from '../../../../src/shared/ownerTime'
 import { pickDay, pickedDayState, pickedRange, type PickedDays } from '../../../../src/shared/adminPeriod'
 import { AdminPeriodSummary } from './AdminPeriodSummary'
+// The day window is a .pay-dialog: its sheet comes with it, the PC owner app has no other page that loads it (owner, 17.11.2026).
+import '../../payments.css'
 import '../../admin-calendar.css'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
