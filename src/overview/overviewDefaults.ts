@@ -35,7 +35,7 @@ export interface OverviewDefaults {
 export const OVERVIEW_BLOCKS: ReadonlyArray<{ id: string; label: string; zone: OverviewZoneId }> = [
   { id: 'stat-screen', label: 'Экран', zone: 'stats' },
   { id: 'stat-conditions', label: 'Сбор на рейд', zone: 'stats' },
-  { id: 'stat-kappa', label: 'Задания для Капы', zone: 'stats' },
+  { id: 'stat-kappa', label: 'Задания для Каппы', zone: 'stats' },
   { id: 'stat-goons', label: 'Кочевники', zone: 'stats' },
   { id: 'raid', label: 'План рейда', zone: 'left' },
   { id: 'squad', label: 'Отряд', zone: 'left' },

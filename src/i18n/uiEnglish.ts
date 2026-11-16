@@ -91,7 +91,7 @@ const PHRASES: Array<[string, string]> = [
   ['Введите минимум два символа', 'Enter at least two characters'],
   ['Ничего не найдено. Попробуйте другое название.', 'Nothing found. Try another name.'],
   ['Текущие', 'Current'], ['Сюжетные', 'Story'], ['Все', 'All'], ['Все торговцы', 'All traders'],
-  ['Выполненные задания', 'Completed tasks'], ['Сюжетные квесты', 'Story quests'], ['Задания капы', 'Kappa tasks'],
+  ['Выполненные задания', 'Completed tasks'], ['Сюжетные квесты', 'Story quests'], ['Задания Каппы', 'Kappa tasks'],
   ['Прогресс операции', 'Operation progress'], ['Поиск задания…', 'Search tasks…'], ['Найдено:', 'Found:'],
   ['Главы истории', 'Story chapters'], ['Каталог заданий', 'Task catalog'], ['Актуальный этап', 'Current stage'],
   ['Глава истории', 'Story chapter'], ['Текущая глава', 'Current chapter'], ['Текущее', 'Current'], ['Каталог', 'Catalog'],

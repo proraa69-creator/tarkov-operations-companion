@@ -4,7 +4,7 @@ import { OVERVIEW_PHRASES } from './uiEnglishOverview'
 
 describe('Overview English', () => {
   it('translates the Kappa card, its list and the reused Overview texts', () => {
-    expect(translateUiText('Задания для Капы')).toBe('Kappa-required tasks')
+    expect(translateUiText('Задания для Каппы')).toBe('Kappa-required tasks')
     expect(translateUiText('Выполнено 3 из 13')).toBe('Completed 3 of 13')
     expect(translateUiText('Репутация у Скупщика от +3,0')).toBe('Fence reputation +3.0 or higher')
     expect(translateUiText('4 ключевых задания')).toBe('4 key tasks')

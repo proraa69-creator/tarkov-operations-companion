@@ -17,7 +17,7 @@ const STATE_LABELS: Record<CollectorTaskState, string> = { completed: 'выпо�
  * «Предметы» the Collector items page; the card itself keeps the plain layout of the other stat cards.
  */
 export function KappaStatCard({ completed, total, open, onOpen, controlsId }: { completed: number; total: number; open: boolean; onOpen: () => void; controlsId: string }) {
-  const title = useBlockTitle('Задания для Капы')
+  const title = useBlockTitle('Задания для Каппы')
   return <div className="stat-card kappa-card">
     <div className="kappa-card-actions">
       <button type="button" className="button small kappa-quests-button" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? controlsId : undefined} onClick={onOpen}>{uiText('Квесты')}</button>
@@ -66,9 +66,9 @@ export function KappaBreakdownPanel({ id, open, rows, completed, total, onClose 
   }
 
   return createPortal(<div className="registration-overlay kappa-breakdown-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-    <section id={id} className="panel kappa-breakdown-panel" role="dialog" aria-modal="true" aria-label={uiText('Задания для Капы')}>
+    <section id={id} className="panel kappa-breakdown-panel" role="dialog" aria-modal="true" aria-label={uiText('Задания для Каппы')}>
       <div className="panel-header">
-        <div className="panel-title">{uiText('Задания для Капы')}</div>
+        <div className="panel-title">{uiText('Задания для Каппы')}</div>
         <div className="kappa-breakdown-actions">
           <span className="tag brass">{uiText(`Выполнено ${completed} из ${total}`)}</span>
           <button ref={closeRef} type="button" className="icon-button kappa-breakdown-close" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={onClose}><X size={16} /></button>

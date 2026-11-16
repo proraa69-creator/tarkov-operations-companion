@@ -240,7 +240,7 @@ export function DashboardPage() {
     const quests = mapConditions.quests.filter((entry) => !deferred.has(entry.quest.id))
     return quests.length === mapConditions.quests.length ? mapConditions : { tier: quests.length ? 'active' as const : 'none' as const, quests }
   }, [deferred, mapConditions])
-  // «Задания для Капы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
+  // «Задания для Каппы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
   const kappaRows = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const kappaDone = kappaRows.filter((row) => row.state === 'completed').length
   const openKappa = () => setKappaOpen(true)
@@ -263,7 +263,7 @@ export function DashboardPage() {
     'stat-screen': { label: 'Таймеры', node: <InfoStatCard phone={mobile} /> },
     'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`}
       deferredCount={mapConditions.quests.length - conditionQuests.quests.length} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
-    'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
+    'stat-kappa': { label: 'Задания для Каппы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }
   const leftBlocks: Blocks = {

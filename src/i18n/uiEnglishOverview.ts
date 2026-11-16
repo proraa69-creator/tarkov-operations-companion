@@ -1,6 +1,6 @@
 /** English for the Overview additions: the Kappa card and its «Квесты» dialog (src/components/KappaProgress.tsx). */
 export const OVERVIEW_PHRASES: Array<[string, string]> = [
-  ['Задания для Капы', 'Kappa-required tasks'], ['Квесты', 'Tasks'],
+  ['Задания для Каппы', 'Kappa-required tasks'], ['Квесты', 'Tasks'],
   ['Скупщик выдаёт «Коллекционера», когда выполнены три условия:', 'Fence gives out “The Collector” once three conditions are met:'],
   ['Лояльность 4 (корона)', 'Loyalty level 4 (crown)'],
   ['у Прапора, Терапевта, Лыжника, Миротворца, Механика, Барахольщика и Егеря', 'with Prapor, Therapist, Skier, Peacekeeper, Mechanic, Ragman and Jaeger'],
@@ -56,6 +56,6 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Хеллоуин', 'Halloween'],
   // The first small block's views (src/overview/InfoStatCard.tsx)
   ['Время в Таркове', 'Time in Tarkov'], ['Сброс торговцев', 'Trader resets'], ['Таймер рейда', 'Raid timer'], ['Что показывать', 'What to show'],
-  ['день через', 'day in'], ['ночь через', 'night in'], ['Нет данных о сбросе', 'No reset data'], ['загрузка', 'loading'], ['осталось', 'left'],
+  ['Нет данных о сбросе', 'No reset data'], ['загрузка', 'loading'], ['осталось', 'left'],
   ['время вышло', 'time is up'], ['Рейд не идёт', 'Not in a raid'], ['Прошлый рейд', 'Last raid'], ['Таймеры', 'Timers'],
 ]

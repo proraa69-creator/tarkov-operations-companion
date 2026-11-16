@@ -5,7 +5,7 @@
 .quest-conditions-card { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 11px; }
 .quest-conditions-card.is-listing { z-index: 40; }
 .qc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 18px; }
-/* «ещё N» is the same button as «Квесты» / «Предметы» of «Задания для Капы» (owner, 10.11.2026): .button.small (global.css). */
+/* «ещё N» is the same button as «Квесты» / «Предметы» of «Задания для Каппы» (owner, 10.11.2026): .button.small (global.css). */
 .qc-count { flex: 0 0 auto; gap: 2px; padding-right: 7px; white-space: nowrap; }
 .qc-count svg { transition: transform .2s var(--ease-out); }
 .qc-count[aria-expanded="true"] svg { transform: rotate(180deg); }
