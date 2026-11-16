@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Columns3, Eye, EyeOff, Rows3, Settings } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import './mapPanels.css'
@@ -95,14 +96,41 @@ const LAYOUTS: Array<[MapPanelsLayout, string, ReactNode]> = [
   ['stacked', 'Сверху и снизу', <Rows3 key="stacked" size={15} aria-hidden="true" />],
 ]
 
-/** The gear over the locations: where the two panels stand around the map, and what the page adds below (`children`). */
+/**
+ * The gear over the locations: where the two panels stand around the map, and what the page adds below (`children`).
+ * The menu is laid over the page, under the gear and kept inside the window: inside the locations panel its scroll box cut
+ * off the left side (owner, 17.11.2026: «окно сломано и открывается не правильно»).
+ */
 export function MapPanelsSettings({ layout, children }: { layout: MapPanelsLayout; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const close = useCallback(() => setOpen(false), [])
+  useLayoutEffect(() => {
+    if (!open) return
+    const update = () => {
+      const gear = rootRef.current?.getBoundingClientRect()
+      const menu = menuRef.current
+      if (!gear || !menu) return
+      const margin = 8
+      const width = menu.offsetWidth
+      const left = Math.max(margin, Math.min(gear.right - width, window.innerWidth - width - margin))
+      const below = gear.bottom + 6
+      const top = below + menu.offsetHeight > window.innerHeight - margin ? Math.max(margin, gear.top - 6 - menu.offsetHeight) : below
+      menu.style.top = `${top}px`
+      menu.style.left = `${left}px`
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true) }
+  }, [open])
   useEffect(() => {
     if (!open) return
-    const onDown = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) close() }
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) close()
+    }
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); close() } }
     document.addEventListener('pointerdown', onDown)
     // capture: the menu closes first, the map's own Esc (leaving the whole window) sees it handled
@@ -117,7 +145,7 @@ export function MapPanelsSettings({ layout, children }: { layout: MapPanelsLayou
     <button type="button" className={`map-panel-button${open ? ' is-open' : ''}`} aria-haspopup="menu" aria-expanded={open} aria-label={label} title={label} onClick={() => setOpen(!open)}>
       <Settings size={15} aria-hidden="true" />
     </button>
-    {open && <div className="map-panels-menu" role="menu" aria-label={label}>
+    {open && createPortal(<div ref={menuRef} className="map-panels-menu" role="menu" aria-label={label}>
       <div className="map-panels-menu-title">{label}</div>
       {LAYOUTS.map(([id, text, icon]) => (
         <button key={id} type="button" role="menuitemradio" aria-checked={layout === id} className={layout === id ? 'active' : ''}
@@ -126,6 +154,6 @@ export function MapPanelsSettings({ layout, children }: { layout: MapPanelsLayou
         </button>
       ))}
       {children}
-    </div>}
+    </div>, document.body)}
   </div>
 }

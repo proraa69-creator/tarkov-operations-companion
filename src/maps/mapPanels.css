@@ -10,7 +10,8 @@
 .map-panel-button.is-off:hover, .map-panel-button.is-off:focus-visible { opacity: 1; }
 
 .map-panels-settings { position: relative; }
-.map-panels-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 1300; display: grid; gap: 2px; min-width: 190px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); box-shadow: 0 12px 30px rgb(0 0 0 / 55%); }
+/* Laid over the page under the gear (MapPanelsSettings places it): a panel's scroll box no longer cuts it off. */
+.map-panels-menu { position: fixed; z-index: 1300; display: grid; gap: 2px; min-width: 190px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); box-shadow: 0 12px 30px rgb(0 0 0 / 55%); }
 .map-panels-menu-title { padding: 4px 8px 6px; color: var(--text-dim); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .map-panels-menu button { display: flex; align-items: center; gap: 9px; min-height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text-dim); font-size: 12.5px; text-align: left; cursor: pointer; }
 .map-panels-menu button:hover { background: var(--surf-2); color: var(--text); }
