@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { Check } from 'lucide-react'
 import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
-import { keysAddedByTaken, setItemTaken, setKeyAddedByTaken, useTakenItems } from '../progression/takenItems'
+import { setItemTaken, setKeyAddedByTaken, useTakenItems } from '../progression/takenItems'
 import { readOwnedKeys, setOwnedKey } from '../quests/ownedKeys'
 import './takenItems.css'
 
@@ -15,20 +15,18 @@ interface TakenItems { has: (itemId: string) => boolean; set: (itemId: string, t
 const TakenItemsContext = createContext<TakenItems | undefined>(undefined)
 
 /**
- * `isKey`: a key of «Требования рейда». «Взял» on one not in «Ключи в схроне» puts it there, «Не взял» takes it out again
- * (progression/takenItems.ts keysAddedByTaken).
+ * `isKey`: a key of «Требования рейда». «Взял» on one not in «Ключи в схроне» puts it there for good: «Не взял» takes back only
+ * the mark (progression/takenItems.ts keysAddedByTaken).
  */
 export function TakenItemsProvider({ profileId, mode, isKey, children }: { profileId: string; mode: RaidMode; isKey?: (itemId: string) => boolean; children: ReactNode }) {
   const taken = useTakenItems(profileId, mode)
   const value = useMemo<TakenItems>(() => ({
     has: (itemId) => taken.has(itemId),
     set: (itemId, on) => {
+      // «Не взял» leaves the key in the stash (owner, 16.11.2026): only the mark goes.
       if (on && isKey?.(itemId) && !readOwnedKeys(profileId, mode).has(itemId)) {
         setKeyAddedByTaken(profileId, mode, itemId, true)
         setOwnedKey(profileId, mode, itemId, 1)
-      } else if (!on && keysAddedByTaken(profileId, mode).has(itemId)) {
-        setKeyAddedByTaken(profileId, mode, itemId, false)
-        setOwnedKey(profileId, mode, itemId, 0)
       }
       setItemTaken(profileId, mode, itemId, on)
     },

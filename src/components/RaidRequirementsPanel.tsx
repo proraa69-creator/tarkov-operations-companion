@@ -24,8 +24,11 @@ export interface RaidNeedRow {
   /** The other items the row's objective accepts, shown in its hover card (any 7.62x51 pack, the other ELCAN colour). */
   /** `turn`: either key opens the door — the picture and the name take turns every few seconds (report №90). */
   alternatives?: { title: string; items: Array<{ id: string; name: string; iconUrl?: string }>; badge?: string; turn?: boolean }
-  /** A key: the player has it («Есть в схроне») or not («Нет в наличии»); none before any key is found or added. */
-  stock?: 'owned' | 'missing'
+  /**
+   * A key: the player has it («Есть в схроне»), said so with «Взял» and no scan has seen it yet («Есть в наличии», `known`), or not
+   * («Нет в наличии»); none before any key is found or added.
+   */
+  stock?: 'owned' | 'known' | 'missing'
 }
 
 /** How long each key of «either key» stays on its card (owner, 07.11.2026: «каждые 3 секунды менялась картинка, тот и тот ключ»). */
@@ -120,8 +123,8 @@ function RaidNeed({ row, onDefer, compact = false }: { row: RaidNeedRow; onDefer
       <span className="raid-need-copy">
         <Link to={row.href} className="raid-need-link"><strong>{uiText(formatItemCountLabel(shown.name, row.count))}{row.alternatives?.badge && <span className="tag raid-need-badge">{row.alternatives.badge}</span>}</strong></Link>
         {/* A key ticked «Взял» is with the player now (owner, 15.11.2026: «статус «Нет в наличии» снимается, ставится «Есть в наличии»»),
-            and in «Ключи в схроне» too: «Не взял» brings back what was before. */}
-        {row.stock && <small className={`raid-need-stock is-${taken ? 'owned' : row.stock}`}>{uiText(taken ? 'Есть в наличии' : row.stock === 'owned' ? 'Есть в схроне' : 'Нет в наличии')}</small>}
+            and in «Ключи в схроне» too; «Не взял» leaves it there (owner, 16.11.2026: «ключ должен остаться «в наличии»»). */}
+        {row.stock && <small className={`raid-need-stock is-${taken || row.stock === 'known' ? 'owned' : row.stock}`}>{uiText(taken || row.stock === 'known' ? 'Есть в наличии' : row.stock === 'owned' ? 'Есть в схроне' : 'Нет в наличии')}</small>}
         {row.fromRaidListOnly
           ? <small>{uiText('Добавлено с барахолки')}</small>
           : row.lines.map((line) => (split && line.quests?.length
