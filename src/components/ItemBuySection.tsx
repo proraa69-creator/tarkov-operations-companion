@@ -36,6 +36,8 @@ export function ItemBuySection({ itemId }: { itemId: string }) {
     ? itemBuyOptions(itemId, economy.data, { loyalty, playerLevel, fleaEnabled, fleaLevel, ...(access.taskDone ? { taskDone: access.taskDone } : {}) })
     : null, [access.taskDone, economy.data, fleaEnabled, fleaLevel, itemId, loyalty, playerLevel])
   const portrait = (traderId?: string) => data.traders.find((trader) => trader.id === traderId)?.imageUrl
+  // a quest named by its id in the trading data: its name from the catalog
+  const named = (lock?: BuyLock) => lock?.task ? { ...lock, task: { ...lock.task, name: data.quests.find((quest) => quest.id === lock.task!.id)?.name ?? lock.task.name } } : lock
   const nothing = options && !options.traders.length && !options.flea && !options.barters.length
 
   return <div className="detail-section item-buy">
@@ -46,7 +48,7 @@ export function ItemBuySection({ itemId }: { itemId: string }) {
       {options.traders.map((offer) => <li key={`${offer.traderName}-${offer.level}-${offer.price}`} className={offer.lock ? 'is-locked' : undefined}>
         <span className="item-buy-source">
           {portrait(offer.traderId) ? <img src={portrait(offer.traderId)} alt="" /> : <Store size={16} aria-hidden="true" />}
-          <span><strong>{uiText(offer.traderName)} · {uiText('ур.')} {offer.level}</strong><LockNote lock={offer.lock} /></span>
+          <span><strong>{uiText(offer.traderName)} · {uiText('ур.')} {offer.level}</strong><LockNote lock={named(offer.lock)} /></span>
         </span>
         <span className="item-buy-price mono">{formatPrice(offer.price)}{offer.buyLimit ? <small>{uiText('лимит')} {offer.buyLimit}</small> : null}</span>
       </li>)}
@@ -62,7 +64,7 @@ export function ItemBuySection({ itemId }: { itemId: string }) {
       {options.barters.map((barter) => <li key={barter.id} className={`item-buy-barter${barter.lock ? ' is-locked' : ''}`}>
         <span className="item-buy-source">
           {portrait(barter.traderId) ? <img src={portrait(barter.traderId)} alt="" /> : <Repeat size={16} aria-hidden="true" />}
-          <span><strong>{uiText('Бартер')} · {uiText(barter.traderName)} · {uiText('ур.')} {barter.level}</strong><LockNote lock={barter.lock} /></span>
+          <span><strong>{uiText('Бартер')} · {uiText(barter.traderName)} · {uiText('ур.')} {barter.level}</strong><LockNote lock={named(barter.lock)} /></span>
         </span>
         <span className="item-buy-price mono">{barter.total !== null ? `≈ ${formatPrice(barter.total)}` : '—'}{barter.gives > 1 ? <small>{uiText('за')} {barter.gives} {uiText('шт.')}</small> : null}</span>
         <ul className="item-buy-parts">

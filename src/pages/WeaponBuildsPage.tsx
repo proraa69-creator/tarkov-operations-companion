@@ -27,6 +27,11 @@ import { usesDataGateway } from '../data/tarkovApi'
 import { isOwnerApp } from '../app/buildEdition'
 import '../styles/weaponBuilds.css'
 import { isMobileLayout } from '../platform'
+import { useOptionalTarkovData } from '../data/DataProvider'
+import { useEconomySnapshot } from '../data/useEconomy'
+import { FLEA_PLAYER_LEVEL } from '../gunsmith/traderLevels'
+import { itemBuyOptions } from '../trading/itemBuyOptions'
+import { gunPriceChoice, type GunPriceChoice } from '../trading/gunPrice'
 
 /**
  * «Сборка оружия» (owner, 17.10.2026): an interactive workbench after db4tarkov's FORGE. The weapon and its slots are
@@ -115,6 +120,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const stock = useMemo(() => presetBuild(weapon, catalog).build, [catalog, weapon])
   const stockStats = computeStats({ ...stock, ammoId: build.ammoId }, weapon, catalog, ammo)
   const extra = computeExtraCost(build, stock, catalog, access)
+  const gun = useGunPrice(weapon, shop)
   // Empty slots nothing can go into right now are not drawn (an installed part conflicts with every candidate).
   const fullLayout = boardLayout(build, weapon, catalog)
   const layout = { ...fullLayout, cells: fullLayout.cells.filter((cell) => cell.part || (cell.slot.required && !stockSlotTaken(build, cell.path, catalog)) || hasInstallable(build, cell.path, cell.slot, catalog, weapon)) }
@@ -147,6 +153,10 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         {/* «Сброс»: every stock part back (owner, 17.10.2026: «где заводская написано — сброс, он ставит все штатные детали»). */}
         <button className="button small" onClick={() => { setBuild({ ...stock, ammoId: build.ammoId }); setSelected(null) }} disabled={isStock} title={uiText('Поставить все штатные детали')}><RotateCcw size={13} />{uiText('Сброс')}</button>
         <TraderSettings shop={shop} />
+        <label className={`wb-gun-price-toggle${gun.on ? ' is-on' : ''}`} title={uiText('Добавить к общей цене цену самого оружия')}>
+          <input type="checkbox" checked={gun.on} onChange={(event) => gun.setOn(event.target.checked)} />
+          <span>{uiText('Цена оружия')}</span>
+        </label>
         <span className="wb-toolbar-fill" />
         <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('players') }} />
       </div>
@@ -170,7 +180,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
       <Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected} />
       <p className="wb-note">{uiText(RECOIL_NOTE)}</p>
 
-      <PurchaseList cost={extra} access={access} />
+      <PurchaseList cost={extra} access={access} gun={gun.on ? { weapon, choice: gun.choice } : undefined} />
     </section>
 
     <aside className="wb-side" ref={side}>
@@ -897,13 +907,48 @@ function PartLock({ part, access, locale }: { part: GunPart; access: PurchaseAcc
   return <small className="wb-part-lock" title={uiText('Откроется, когда выполнится условие')}><Lock size={10} aria-hidden="true" />{unlockLabel(hint, locale)}</small>
 }
 
-function PurchaseList({ cost, access }: { cost: BuildCost; access: PurchaseAccess }) {
+/** «Цена оружия»: on or off, remembered on this device; the gun's price by what this player can use now (trading/gunPrice.ts). */
+const GUN_PRICE_KEY = 'raid-os-gun-include-weapon-v1'
+function useGunPrice(weapon: Weapon, shop: GunsmithAccess) {
+  const [on, setOnState] = useState(() => { try { return localStorage.getItem(GUN_PRICE_KEY) === '1' } catch { return false } })
+  const setOn = (next: boolean) => {
+    setOnState(next)
+    try { localStorage.setItem(GUN_PRICE_KEY, next ? '1' : '0') } catch { /* per-viewer convenience only */ }
+  }
+  const metadata = useOptionalTarkovData()?.data.metadata
+  const economy = useEconomySnapshot(shop.mode).data
+  const fleaLevel = metadata?.fleaMarket?.minPlayerLevel ?? FLEA_PLAYER_LEVEL
+  const choice = useMemo<GunPriceChoice>(() => {
+    if (!on) return { kind: 'none' }
+    const loyalty = new Map(shop.infos.map((info) => [info.trader.id, info.level]))
+    const buyAccess = { loyalty, playerLevel: shop.playerLevel, fleaEnabled: shop.fleaEnabled, fleaLevel, ...(shop.access.taskDone ? { taskDone: shop.access.taskDone } : {}) }
+    // a barter may give the bare weapon or its default preset
+    const ids = [weapon.id, weapon.defaultPreset?.id].filter((id): id is string => Boolean(id))
+    const buy = economy ? ids.map((id) => itemBuyOptions(id, economy, buyAccess)) : []
+    return gunPriceChoice(weapon, shop.access, buy)
+  }, [economy, fleaLevel, on, shop.access, shop.fleaEnabled, shop.infos, shop.playerLevel, weapon])
+  return { on, setOn, choice }
+}
+
+/** Which price of the gun went into the total: «цена с барахолки», «цена по бартеру · Механик ур. 2»… */
+function gunPriceLabel(choice: GunPriceChoice) {
+  if (choice.kind === 'none') return uiText('оружие недоступно')
+  if (choice.kind === 'flea') return uiText('цена с барахолки')
+  return `${uiText(choice.kind === 'barter' ? 'цена по бартеру' : 'у торговца')} · ${uiText(choice.traderName)} ${uiText('ур.')} ${choice.level}`
+}
+
+function PurchaseList({ cost, access, gun }: { cost: BuildCost; access: PurchaseAccess; gun?: { weapon: Weapon; choice: GunPriceChoice } }) {
   const { locale } = useLocale()
+  const gunPrice = gun && gun.choice.kind !== 'none' ? gun.choice.price : 0
   return <details className="wb-buy" open>
-    <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length ? `${cost.lines.length} ${uiText('поз.')}` : uiText('только заводские модули')}</small><strong><small>{uiText('Общая цена')}</small> {formatRub(cost.total)}</strong></summary>
+    <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length ? `${cost.lines.length} ${uiText('поз.')}` : uiText('только заводские модули')}</small><strong><small>{uiText(gun ? 'Общая цена с оружием' : 'Общая цена')}</small> {formatRub(cost.total + gunPrice)}</strong></summary>
     <p className="wb-note">{uiText('Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.')}</p>
     <table className="wb-buy-table">
-      <tbody>{cost.lines.map((line, index) => <tr key={`${line.part.id}-${index}`}>
+      <tbody>{gun && <tr className={`wb-buy-gun${gun.choice.kind === 'none' ? ' is-bad' : ''}`}>
+        <td><span className="wb-buy-name"><PartIcon src={weaponIcon(gun.weapon)} />{gun.weapon.shortName}</span></td>
+        <td className="dim">{gunPriceLabel(gun.choice)}</td>
+        <td className="mono">{gun.choice.kind !== 'none' ? formatRub(gun.choice.price) : '—'}</td>
+      </tr>}{cost.lines.map((line, index) => <tr key={`${line.part.id}-${index}`}>
         <td><span className="wb-buy-name"><PartIcon src={line.part.iconLink} />{line.part.name}</span></td>
         <td className="dim">{line.offer ? offerLabel(line.offer) : <PartLock part={line.part} access={access} locale={locale} />}</td>
         <td className="mono">{line.offer ? formatRub(line.offer.priceRUB) : '—'}</td>
