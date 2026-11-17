@@ -57,4 +57,9 @@ describe('a heap of spots seen from afar (owner, 11.11.2026: «при отдал
     expect(out.map((marker) => marker.id)).toEqual(['a', 'c', 'room', 'near'])
     expect(out[0]!.roomSpots).toBe(2)
   })
+  it('a spot players described (report 182: the key on the shovel) keeps its own point; its neighbour is no heap then', () => {
+    const out = mergeSpotHeaps([key('a', 100, 100, ['k1']), { ...key('shovel', 103, 101, ['k1']), ownSpot: true }, key('far', 140, 100, ['k1'])], 'Основной')
+    expect(out.map((marker) => marker.id)).toEqual(['a', 'shovel', 'far'])
+    expect(out.every((marker) => marker.roomSpots === undefined)).toBe(true)
+  })
 })

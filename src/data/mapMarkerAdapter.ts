@@ -652,6 +652,16 @@ const ROUTE_ITEMS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
   },
 }
 
+/**
+ * Where on a spot of the feed a route item lies, as players told (report 182, 17.11.2026: «Спавн ключа на лопате в этом месте»,
+ * Лабиринт, beside «Комната 1»): within EXTRA_KEY_SAME_SPOT_METRES of the feed's spot of that item. The text goes after the
+ * item's own (src/i18n/uiEnglishMap.ts has its English), and the spot keeps its own point (`ownSpot`).
+ */
+export const ROUTE_ITEM_PLACES: ReadonlyArray<{ mapId: string; itemId: string; x: number; z: number; ru: string }> = [
+  // «Ключ 01»: the middle of the three rooms by the toxic pool (room 1), the feed's spot at y 0.5 — on the floor, on the shovel
+  { mapId: 'the-labyrinth', itemId: '679baa2c61f588ae2b062a24', x: -42.57, z: 64.85, ru: 'Лежит на лопате.' },
+]
+
 function adaptRouteItems(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
   const route = ROUTE_ITEMS[map.id]
   if (!route) return []
@@ -660,7 +670,13 @@ function adaptRouteItems(map: GameMap, rawMap: JsonRecord, items: Map<string, It
     const item = items.get(itemId)
     const base = description && item && baseMarker(map, `route-item-${itemId}-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
     if (!base) return []
-    return [{ ...base, type: 'cache', layerId: 'loot.key', title: item.name, description, meta: item.shortName, itemId, source: 'json.tarkov.dev/maps' }]
+    const at = asRecord(loot.position)
+    const place = ROUTE_ITEM_PLACES.find((spot) => spot.mapId === map.id && spot.itemId === itemId
+      && Math.hypot(number(at.x) - spot.x, number(at.z) - spot.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    return [{
+      ...base, type: 'cache', layerId: 'loot.key', title: item.name, description: place ? `${description} ${place.ru}` : description,
+      meta: item.shortName, itemId, source: 'json.tarkov.dev/maps', ...(place ? { ownSpot: true } : {}),
+    }]
   }))
 }
 

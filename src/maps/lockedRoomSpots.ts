@@ -63,7 +63,8 @@ const HEIGHT_M = 2.2
 export function mergeSpotHeaps(markers: readonly MapMarker[], baseFloor: string, worth: (id: string) => number = () => 0): MapMarker[] {
   const heapKey = (marker: MapMarker) => (marker.layerId === 'loot.key' ? 'loot.key'
     : marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.container' && marker.itemId ? `${marker.layerId}:${marker.itemId}` : null)
-  const candidates = markers.filter((marker) => !marker.roomSpots && heapKey(marker))
+  // a spot players described (report 182: the key on the shovel) stands where it lies, not under a neighbour's point
+  const candidates = markers.filter((marker) => !marker.roomSpots && !marker.ownSpot && heapKey(marker))
   const parent = new Map<MapMarker, MapMarker>(candidates.map((marker) => [marker, marker]))
   const root = (marker: MapMarker): MapMarker => {
     let top = marker

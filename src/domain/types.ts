@@ -407,6 +407,8 @@ export interface MapMarker {
   keyCount?: number
   /** The key spots of one locked room drawn as one point: how many spots the room has (src/maps/lockedRoomSpots.ts). */
   roomSpots?: number
+  /** A spot players described (where on it the item lies): its own point at any zoom, never one of a heap (lockedRoomSpots.ts). */
+  ownSpot?: boolean
   /** A loose key spot: every key that may lie there («Нужные ключи» filters by them). */
   keyIds?: string[]
   /** A loose loot spot: every item that may lie there («Найти точку…» finds them by name, src/maps/mapSearch.ts). */
