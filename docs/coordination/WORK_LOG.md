@@ -7534,9 +7534,35 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - 32e4ba34: worldMapPictures.ts — tiles load with `crossOrigin` (our map copy answers `Access-Control-Allow-Origin: *`; without CORS a plain image as before), the mask is read from the pixels (black → clear as 6·(r+g+b) − 0.18, as the filter did), blurred in code (`blurMask`, 3 box passes, outside empty); a render fades wholly inwards over 3.5 % (`RENDER_FEATHER`); the filter path stays as the fallback. A scheme on «Спутник» is toned onto the renders' ramp, its water onto their water (`satelliteColour`). scripts/world-map/make-world-map.py: new SATELLITE palette from k-means of seven main renders; region-satellite.webp redrawn from the same stencil (tarkov.dev openworld-2d, 4096 px, 0.9 MB). «Схема» unchanged.
 - Checks: src/maps 99/99 (new worldMapPictures.test.ts), MapsPage.allLocations + src/mobile 54/54, typecheck, eslint. Chromium on the dev renderer, 430×932 with canvas filters off (as WebKit) and on, 1440×900: the whole region one picture, no black, Customs close up seamless; «Схема» looks as before.
 - Not verified: a real iPhone (WebKit itself); PvE catalog (the shots are PvP — same renders).
+
 ## 2026-11-17 — Player report 177: a one-time quiet chime for the map's fatigue timer (branch claude/report-177-timer-chime, not released)
 
 - Player (idea, 0.6.0.310, Windows): «простенький разовый сигнал по окончанию таймера, негромкий и тихий… проиграла один раз… а не ждёт… кнопку нажать». Owner 17.11 «Да, делай» to: a switch «Сигнал в конце» in the gear menu, off by default (report 155 asked for a silent timer), one short quiet sound, volume shared with the clicks.
 - 0351c4f2: skillTimer.ts (chime on/off in localStorage, `useSkillTimerChime`), MapSkillTimer.tsx (the switch; the chime once as the countdown reaches zero, guarded against several ticks before a re-render; a countdown that ran out while the map was closed stays silent; turning the switch on plays the chime as a sample), uiSound.ts (`playTimerChime`: 880 + 1318.5 Hz sine, peak 0.1 × click volume, ~0.9 s; clicks at 0 do not silence it — the chime then plays at full click level; `readyContext` shared with `playUiSound`), help text skillTimer shortened to fit 170 chars, EN «Chime at the end».
 - Checks: MapSkillTimer + uiSound + ClickVolumeSetting + SettingHelp + src/i18n 78/78; typecheck; eslint on the changed files. Chromium on the dev renderer (1440×900): RU and EN labels, the sample on turning on (2 notes), a 5 s countdown gives exactly one chime and nothing after.
 - Not verified: the sound by ear and in the packaged app; it plays only while the map page is open (the timer button lives there).
+
+## 2026-11-17 — Reports 177–183 and «Спутник» gathered as 0.6.0.312 (local branch claude/release-312, not pushed)
+
+- Owner 17.11: «Возьми в работу все заявки… кочевники с других сайтов… только не указывай, что мы их откуда-то берем…
+  добавь возможность менять местами пресеты экрана… Соблюдай все анимации». Branches (each from release/production 845b5d07, pushed):
+  - 178 claude/report-178-boss-armor bbebf8e8: «Боссы» — rounds per gun, «Броня» (plate classes front/back/sides, helmet, face,
+    vests, guards); src/data/bossGear.json from json.tarkov.dev bot loadouts (scripts/bosses/boss-gear.mjs, not automatic).
+    Player's facts checked: Tagilla/Shadow front 6 back 4 — yes; BD Labs class 4 — yes (Icebreaker too); BD elsewhere 5–6 (Terminal).
+  - 179 claude/report-179-preset-order e3998760 + 5f7eadb7: screen-tuning `order`, IPC screen:reorder-presets (preload.ts and .cjs),
+    useHoldToReorder (hold 0.32 s, others move aside, glide in, Esc, Alt+↑/↓). An older main process: no dragging.
+  - 180 claude/report-180-goon-feeds dfbba3c0 + apiEnv: server/src/services/goonFeeds.ts — every 3 min tarkov.help (PvP, nicknames)
+    and tarkov-goon-tracker.com (PvP + PvE) into the goon store; dedupe 3 min by map + nickname; rude/bot/site names dropped;
+    nothing in the app names a source. RAIDOS_GOON_FEEDS=0 stops it; off on the owner's PC.
+  - 181 claude/report-181-show-hide-all 8819f686 → 9a8ee832 (owner: no «Вернуть»): «Скрыть все» keeps the player's choice and
+    takes every row off; «Показать все» brings that choice back.
+  - 182 claude/report-182-labyrinth-key 2bfbe902: «Ключ 01» on the shovel by «Комната 1» — own icon, never merged with neighbours.
+  - 183 claude/report-183-trader-tooltip b132eac5: trader tooltips — the yellow price row is no longer read as a second name line.
+  - 177 chime (0351c4f2) and «Спутник» (32e4ba34) merged too; version 0.6.0.312; news 8 lines, history 4 lines, reports 177–183.
+- Checks: full vitest — failures only in the 10 tests that fail the same on clean 0.6.0.311 here (paths with a space, tar,
+  file watching) and map-page timeouts under the parallel run (pass alone); typecheck clean; server tests 580/581 (support-chat
+  upload ECONNRESET, unrelated). Feeds dry run from this PC: 32 sightings. Browser: presets drag (isolated page), boss panels,
+  map buttons, Labyrinth card (helpers' screenshots).
+- Not verified: real Electron app and game; feeds on the VPS until released; rare boss guns beyond ~15 sampled loadouts.
+- Waiting: the owner's word on the news and when to release (push release/production → 13:00 / 20:00 Bangkok timer).
+
