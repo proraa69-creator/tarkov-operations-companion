@@ -7576,3 +7576,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   requests; logins 58 (22 × 401, 5 × 429). No sign of a successful break-in: SSH logins for 7 days only by key from 104.28.x (WARP).
 - SSH: 2455 failed password tries today (top 77.239.124.157: 613). PasswordAuthentication yes, PermitRootLogin yes, no fail2ban,
   ufw inactive — hardening proposed to the owner, waiting for his word.
+- Owner 17.11 («давай делай тогда по ключу»): /etc/ssh/sshd_config.d/00-raidos-keys-only.conf — PasswordAuthentication no,
+  KbdInteractiveAuthentication no, PermitRootLogin prohibit-password (read before 50-cloud-init.conf, which still says yes).
+  Backup /root/sshd-backup-20261117; `sshd -t` ok, `systemctl reload ssh`; a 10-minute auto-rollback timer was armed and
+  stopped after the check. Checked: a new key login works, a password login gets «Permission denied (publickey)»; api, nginx up.
+  The root password still works in the Timeweb web console. fail2ban / ufw not touched.
