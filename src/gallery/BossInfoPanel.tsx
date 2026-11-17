@@ -181,6 +181,7 @@ function ItemTiles({ refs, items, index, gun = false, price = false }: { refs: B
         </span>
         <span className="boss-info-item-name">{ref.name[locale]}</span>
         {value > 0 && <span className="boss-info-item-price">{formatPrice(value)}</span>}
+        {ref.note && <span className="boss-info-item-note">{ref.note[locale]}</span>}
       </li>
     })}
   </ul>

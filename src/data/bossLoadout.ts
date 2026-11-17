@@ -21,6 +21,8 @@ export interface BossItemRef {
   /** Fragment of tarkov.dev's normalizedName, tried when no id matches. */
   slug?: string
   name: Bilingual
+  /** A short line under the tile: how often, what for (reports 188, 189). */
+  note?: Bilingual
 }
 
 export interface BossLoadout {
@@ -54,6 +56,28 @@ const SAIGA12K = item('Сайга-12К', 'Saiga-12K', 'saiga-12ga-ver10-12x76-sh
 const M870 = item('Remington 870', 'Remington 870', 'remington-model-870-12ga-pump-action-shotgun', '5a7828548dc32e5a9c28b516')
 const TT = item('ТТ-33', 'TT-33', 'tt-33-762x25-tt-pistol', '571a12c42459771f627b58a0')
 const GOLDEN_TT = item('Золотой ТТ', 'Golden TT', 'tt-33-762x25-tt-pistol-golden', '5b3b713c5acfc4330140bd8d')
+const noted = (ref: BossItemRef, ru: string, en: string): BossItemRef => ({ ...ref, note: { ru, en } })
+
+/**
+ * Report 188 (17.11.2026): Shadow of Tagilla carries the Labrys papers and keycard Mechanic asks for. The bot's loot lists
+ * (tarkov.dev mobs, November 2026): Labrys research notes in 26 %, the Labrys access
+ * keycard in 11 %; Mechanic's «Проверка гипотез» wants 5 notes found in raid, «Разведка боем» the keycard. The community wikis agree
+ * he can carry the notes and the keycard (owner: «найди в интернете эту информацию и добавь»); pictures come from the catalog.
+ */
+const SHADOW_LOOT: BossItemRef[] = [
+  noted(item('Отчёты Labrys о проведённых испытаниях', 'Labrys research notes', 'labrys-research-notes', '679b992329acd1f2f60985a5'),
+    'Документы для Механика: 5 шт. на задание «Проверка гипотез»', 'Papers for Mechanic: 5 for the task «Hypotheses Testing»'),
+  noted(item('Ключ-карта Labrys', 'Labrys access keycard', 'labrys-access-keycard', '679b9819a2f2dd4da9023512'),
+    'Нужна Механику: «Разведка боем»', 'Mechanic needs it: «Offensive Reconnaissance»'),
+]
+
+/**
+ * Report 189 (17.11.2026): Birdeye's backpack — the Mystery Ranch NICE COMM 3 BVS (Coyote) in all 15 of his loadouts
+ * (tarkov.dev mobs); 4×5 outside, one 2×7 grid inside, 15 kg; Ragman's «Специальное предложение» wants one found in raid.
+ */
+const BIRDEYE_BACKPACK = noted(item('Фрейм система Mystery Ranch NICE COMM 3 BVS (Coyote)', 'Mystery Ranch NICE COMM 3 BVS (Coyote)', 'mystery-ranch-nice-comm-3-bvs-frame-system-coyote', '628bc7fb408e2b2e9c0801b1'),
+  'Всегда при нём. Внутри мал (2×7), весит 15 кг. Нужен Барахольщику: «Специальное предложение»',
+  'Always on him. Small inside (2×7), weighs 15 kg. Ragman needs it: «Special Offer»')
 
 export const BOSS_LOADOUT: Record<string, BossLoadout> = {
   reshala: {
@@ -69,7 +93,7 @@ export const BOSS_LOADOUT: Record<string, BossLoadout> = {
   'goon-1': {
     body: [70, 175, 150, 100, 100, 100, 100],
     weapons: [item('Aklys Defense RSASS', 'RSASS', 'aklys-defense-velociraptor', '5a367e5dc4a282000e49738f'), item('Colt M4A1', 'Colt M4A1', 'colt-m4a1-556x45-assault-rifle', '5447a9cd4bdc2dbd208b4567'), item('Beretta M9A3', 'Beretta M9A3', 'beretta-m9a3', '5cadc190ae921500103bb3b6')],
-    loot: [item('Разгрузка THOR CRV', 'THOR Concealable Reinforced Vest', 'nfm-thor-concealable-reinforced-vest'), LABS_KEYCARD, GPU],
+    loot: [BIRDEYE_BACKPACK, item('Разгрузка THOR CRV', 'THOR Concealable Reinforced Vest', 'nfm-thor-concealable-reinforced-vest'), LABS_KEYCARD, GPU],
   },
   'goon-2': {
     body: [80, 220, 220, 150, 150, 150, 150],
@@ -105,6 +129,7 @@ export const BOSS_LOADOUT: Record<string, BossLoadout> = {
   'tagilla-2': {
     body: [105, 360, 280, 140, 140, 140, 140],
     weapons: [SAIGA12K, item('АК-12', 'AK-12', 'kalashnikov-ak-12')],
+    loot: SHADOW_LOOT,
     note: { ru: 'Секира и маска с него не снимаются.', en: 'His Labrys and mask can’t be looted.' },
   },
   glukhar: {
