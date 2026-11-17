@@ -87,10 +87,15 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     fetchEnvelope(`${BASE_URL}/${upstreamMode}/barters`, fetcher).then((envelope) => envelope.data).catch(() => undefined),
   ])
 
+  // Season: the quests its data lacks, from the PvP data (SEASON_BORROWED_TASKS); without the PvP data, Season as it is.
+  const seasonTasks = upstreamMode === 'pvp-season'
+    ? await borrowRegularTasks(upstreamTasks, rawTasks, locale, fetcher).catch(() => upstreamTasks)
+    : upstreamTasks
+
   // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
   const now = options.now ?? Date.now()
   const series = eventSeriesWith(options.eventQuests?.() ?? [])
-  const curated = withCuratedTasks(upstreamTasks, { mode, locale, maps, traders, series, now })
+  const curated = withCuratedTasks(seasonTasks, { mode, locale, maps, traders, series, now })
   const tasks = curated.tasks
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
@@ -209,6 +214,38 @@ export type ConditionSources = (taskId: string) => ObjectiveConditionSource
 
 /** An endpoint as upstream serves it: the data with translation keys for its texts, and the dictionary of the locale. */
 interface RawEndpoint { data?: unknown; dictionary?: JsonRecord }
+
+/**
+ * Quests the game gives in Season that the Season data (tarkov.dev `pvp-season`) lacks: the 0.16 branch between Skier and
+ * the BTR driver (reports 184, 185, 17.11.2026: a Season player had «Выбирай друзей правильно» active in the game and found it
+ * nowhere in the app). From «Задержка поставки» and «Навести мосты», both in Season: «Спросить дорогу» → «Стабилизировать
+ * бизнес» → «Поменять батарейку» (Ragman's way) → «Цена независимости», and Skier's «Выше головы» → «Отклонение от
+ * маршрута» → «Подстелить соломку» → «Ключевой партнёр» → «Убойный аргумент» → «Выбирай друзей правильно»; «Цена
+ * независимости» and «Выбирай друзей правильно» fail each other. Every quest they need is in Season already.
+ */
+export const SEASON_BORROWED_TASKS: readonly string[] = [
+  '674492b6909d2013670a347a', '6744a4717e3818d5bb0680bb', '6744a9dfef61d56e020b5c4a', '6744af0969a58fceba101fed', '6745cbee909d2013670a4a55',
+  '6745fae369a58fceba10343d', '674600a366e6a521aa05eb66', '674602307e3818d5bb069489', '6746053b5b555b53460d9896', '674605df60a98cad1b0ec799',
+  '67460662d0fbbc74ca0f7229',
+]
+
+/** `root`'s tasks with the borrowed ones `from` has and `root` has not, and their quest items. */
+export function withBorrowedTasks(root: JsonRecord, from: JsonRecord, ids: readonly string[] = SEASON_BORROWED_TASKS): JsonRecord {
+  const tasks = asRecord(root.tasks)
+  const source = asRecord(from.tasks)
+  const borrowed = ids.filter((id) => !tasks[id] && source[id])
+  if (!borrowed.length) return root
+  const questItems = { ...asRecord(from.questItems), ...asRecord(root.questItems) }
+  return { ...root, questItems, tasks: { ...tasks, ...Object.fromEntries(borrowed.map((id) => [id, source[id]])) } }
+}
+
+async function borrowRegularTasks(seasonTasks: JsonRecord, rawSeason: RawEndpoint, locale: AppLocale, fetcher: typeof fetch): Promise<JsonRecord> {
+  const rawRegular: RawEndpoint = {}
+  const regular = await fetchTranslated('regular', 'tasks', locale, undefined, fetcher, rawRegular)
+  // the untranslated tasks too: a kill objective's conditions are read from them (conditionSourceOf)
+  rawSeason.data = withBorrowedTasks(asRecord(rawSeason.data), asRecord(rawRegular.data))
+  return withBorrowedTasks(seasonTasks, regular)
+}
 
 async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version: { version?: string } | undefined, fetcher: typeof fetch, raw?: RawEndpoint): Promise<JsonRecord> {
   const path = `${mode}/${endpoint}`
