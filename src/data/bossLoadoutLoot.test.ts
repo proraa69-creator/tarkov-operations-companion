@@ -13,7 +13,8 @@ describe('«Ценный лут» from the players (reports 188, 189)', () => {
   it('Birdeye: the NICE COMM 3 BVS first — always on him, small inside, heavy, wanted by Ragman', () => {
     const backpack = BOSS_LOADOUT['goon-1']!.loot![0]!
     expect(backpack.ids).toEqual(['628bc7fb408e2b2e9c0801b1'])
-    expect(backpack.note?.ru).toMatch(/Всегда при нём.*2×7.*15 кг.*Специальное предложение/)
-    expect(backpack.note?.en).toMatch(/Always on him.*2×7.*15 kg.*Special Offer/)
+    expect(backpack.note?.ru).toMatch(/Всегда при нём.*14 ячеек.*15 кг.*Специальное предложение/)
+    expect(backpack.market).toBe(true)
+    expect(backpack.note?.en).toMatch(/Always on him.*14 slots.*15 kg.*Special Offer/)
   })
 })

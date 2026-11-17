@@ -23,6 +23,8 @@ export interface BossItemRef {
   name: Bilingual
   /** A short line under the tile: how often, what for (reports 188, 189). */
   note?: Bilingual
+  /** Both live prices of the mode on screen, the flea's and the best trader's (owner, 18.11.2026: «Цена на барахолке и цена торговцу»). */
+  market?: true
 }
 
 export interface BossLoadout {
@@ -72,12 +74,16 @@ const SHADOW_LOOT: BossItemRef[] = [
 ]
 
 /**
- * Report 189 (17.11.2026): Birdeye's backpack — the Mystery Ranch NICE COMM 3 BVS (Coyote) in all 15 of his loadouts
- * (tarkov.dev mobs); 4×5 outside, one 2×7 grid inside, 15 kg; Ragman's «Специальное предложение» wants one found in raid.
+ * Report 189 (17.11.2026): Birdeye's backpack — the Mystery Ranch NICE COMM 3 BVS (Coyote) in all 15 of his loadouts, the
+ * same one in PvP, PvE and Season (tarkov.dev mobs, 18.11.2026; owner: «Они разные бывают» — not for him); 4×5 outside, one
+ * 2×7 grid inside (14 slots), 15 kg; Ragman's «Специальное предложение» wants one found in raid. Its prices live (`market`).
  */
-const BIRDEYE_BACKPACK = noted(item('Фрейм система Mystery Ranch NICE COMM 3 BVS (Coyote)', 'Mystery Ranch NICE COMM 3 BVS (Coyote)', 'mystery-ranch-nice-comm-3-bvs-frame-system-coyote', '628bc7fb408e2b2e9c0801b1'),
-  'Всегда при нём. Внутри мал (2×7), весит 15 кг. Нужен Барахольщику: «Специальное предложение»',
-  'Always on him. Small inside (2×7), weighs 15 kg. Ragman needs it: «Special Offer»')
+const BIRDEYE_BACKPACK: BossItemRef = {
+  ...noted(item('Фрейм система Mystery Ranch NICE COMM 3 BVS (Coyote)', 'Mystery Ranch NICE COMM 3 BVS (Coyote)', 'mystery-ranch-nice-comm-3-bvs-frame-system-coyote', '628bc7fb408e2b2e9c0801b1'),
+    'Всегда при нём. 14 ячеек (2×7) при размере 4×5 — маленький и тяжёлый, 15 кг. Нужен Барахольщику: «Специальное предложение»',
+    'Always on him. 14 slots (2×7) for a 4×5 size — small and heavy, 15 kg. Ragman needs it: «Special Offer»'),
+  market: true,
+}
 
 export const BOSS_LOADOUT: Record<string, BossLoadout> = {
   reshala: {
