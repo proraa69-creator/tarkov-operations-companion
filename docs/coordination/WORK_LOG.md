@@ -7566,3 +7566,14 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Not verified: real Electron app and game; feeds on the VPS until released; rare boss guns beyond ~15 sampled loadouts.
 - Waiting: the owner's word on the news and when to release (push release/production → 13:00 / 20:00 Bangkok timer).
 
+
+## 2026-11-17 — Site: privacy policy in the footer, «Поддержка» chat for guests (branch claude/site-privacy-support)
+
+- Owner 17.11: «нету политики конфиденциальности. Добавь ее срочно… поддержка в чат… кружочек… можно войти как гость».
+- 459aa586: footer link «Политика конфиденциальности» (/legal/privacy; the page existed, its link was taken out 13.11);
+  policy ред. 24 (LEGAL_VERSION 2026-11-17.1, src/account/authFeatures.ts too): Google sign-in, the support chat, guests,
+  «raidos-support-guest». Server: /v1/support/guest… (guest ids shaped like accounts' → «Гость N» in the owner's «Чаты»,
+  old owner apps too). Site: components/SupportWidget.tsx (button bottom right, panel, polling 8 s / 60 s, badge).
+- Checks: server chat 27/27, site + account + support 327/327, typechecks; browser against a throwaway in-memory API
+  (guest → owner answer → shown; signed in; phone width; policy page).
+- Not released: needs the server and the site out (a release); the owner answers guests in the owner app as any chat.
