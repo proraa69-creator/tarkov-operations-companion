@@ -246,6 +246,11 @@ export class SupportChatStore {
       id TEXT NOT NULL UNIQUE,
       token_hash TEXT NOT NULL UNIQUE,
       created_at INTEGER NOT NULL)`)
+    // The name and e-mail a guest may leave, so the answer also goes to the mailbox (owner, 17.11.2026: «чтобы мы
+    // отправили ответ им туда. Имя и почту»).
+    const guestColumns = new Set((this.db.prepare('PRAGMA table_info(support_guests)').all() as Row[]).map((row) => String(row.name)))
+    if (!guestColumns.has('name')) this.db.exec('ALTER TABLE support_guests ADD COLUMN name TEXT')
+    if (!guestColumns.has('email')) this.db.exec('ALTER TABLE support_guests ADD COLUMN email TEXT')
     this.pruneImages()
   }
 
@@ -266,6 +271,18 @@ export class SupportChatStore {
     if (!GUEST_TOKEN.test(token)) return undefined
     const row = this.db.prepare('SELECT id FROM support_guests WHERE token_hash = ?').get(guestTokenHash(token)) as Row | undefined
     return row ? String(row.id) : undefined
+  }
+
+  /** The name and e-mail the guest left (either may be empty: then it is taken away). */
+  setGuestContact(id: string, contact: { name?: string; email?: string }) {
+    this.db.prepare('UPDATE support_guests SET name = ?, email = ? WHERE id = ?').run(contact.name || null, contact.email || null, id)
+  }
+
+  /** The guest's number, name and e-mail; undefined for an account. */
+  guestOf(id: string): { number: number; name?: string; email?: string } | undefined {
+    const row = this.db.prepare('SELECT number, name, email FROM support_guests WHERE id = ?').get(id) as Row | undefined
+    if (!row) return undefined
+    return { number: Number(row.number), ...(row.name ? { name: String(row.name) } : {}), ...(row.email ? { email: String(row.email) } : {}) }
   }
 
   /** «Гость N»: the guest's number, undefined for an account. */

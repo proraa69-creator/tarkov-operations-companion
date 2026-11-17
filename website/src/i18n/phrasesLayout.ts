@@ -16,6 +16,8 @@ export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Вы пишете как гость', 'You write as a guest'], ['Задайте любой вопрос — ответим здесь.', 'Ask anything — we answer right here.'],
   ['Ваш вопрос', 'Your question'], ['Отправить', 'Send'], ['Не удалось отправить. Попробуйте ещё раз.', 'Could not send. Try again.'],
   ['Нет связи с сервером. Попробуйте ещё раз.', 'No connection to the server. Try again.'],
+  ['Оставить имя и почту для ответа', 'Leave a name and e-mail for the answer'], ['Ответ придёт и на {email}', 'The answer also goes to {email}'],
+  ['Имя', 'Name'], ['Почта', 'E-mail'], ['Отмена', 'Cancel'], ['Проверьте адрес почты', 'Check the e-mail address'],
   ['Условия и документы доступны только на русском языке: они составлены по законодательству РФ.', 'Terms and legal documents are available in Russian only: they are drawn up under Russian law.'],
   // Page titles (App.tsx).
   ['Raid OS — приложение для Таркова (Escape from Tarkov): квесты, карты, цены', 'Raid OS — the Escape from Tarkov app: quests, maps, prices'],
@@ -23,7 +25,7 @@ export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['О нас — Raid OS', 'About — Raid OS'], ['Вход — Raid OS', 'Sign in — Raid OS'],
   ['Регистрация — Raid OS', 'Sign up — Raid OS'], ['Восстановление пароля — Raid OS', 'Password reset — Raid OS'], ['Личный кабинет — Raid OS', 'My account — Raid OS'], 
   ['Реквизиты и документы — Raid OS', 'Details and documents — Raid OS'], ['Публичная оферта — Raid OS', 'Public offer — Raid OS'],
-  ['Политика обработки персональных данных — Raid OS', 'Personal data policy — Raid OS'], ['Согласие на обработку персональных данных — Raid OS', 'Personal data consent — Raid OS'],
+  ['Политика обработки персональных данных — Raid OS', 'Personal data policy — Raid OS'], ['Политика конфиденциальности — Raid OS', 'Privacy policy — Raid OS'], ['Согласие на обработку персональных данных — Raid OS', 'Personal data consent — Raid OS'],
   ['Cookie и хранилище браузера — Raid OS', 'Cookies and browser storage — Raid OS'], ['Приглашение стримера — Raid OS', 'Streamer invitation — Raid OS'],
   ['Приглашение в отряд — Raid OS', 'Squad invitation — Raid OS'], ['Приглашение в друзья — Raid OS', 'Friend invitation — Raid OS'],
   // What search engines show under the public pages (App.tsx).

@@ -112,9 +112,10 @@ export function SiteLayout() {
           </nav>
           {/* The documents themselves stay in Russian (owner, 11.10.2026); only their names are translated. */}
           <nav className="legal-links" aria-label={tr('Документы')}>
-            <Link to="/legal/privacy">{tr('Политика конфиденциальности')}</Link>
+            <Link to="/privacy">{tr('Политика конфиденциальности')}</Link>
             <Link to="/legal/cookies">Cookie</Link>
-            {/* «Cookie» and, again, the privacy policy (owner, 17.11.2026: «нету политики конфиденциальности. Добавь ее срочно»);
+            {/* «Cookie» and, again, the privacy policy (owner, 17.11.2026: «нету политики конфиденциальности. Добавь ее срочно»), the
+                version without prices, plans or subscriptions (/privacy; «Главное, чтобы в политике не было упоминания о ценах»);
                 still no «Публичная оферта», «Согласие на обработку ПД» or «Тарифы, оплата и возврат» (owner, 13.11.2026: «это
                 будет палево, что у нас оплата»). Those pages stay at /legal/…, linked from the sign-up form; the iPhone app
                 opens /app/privacy. */}

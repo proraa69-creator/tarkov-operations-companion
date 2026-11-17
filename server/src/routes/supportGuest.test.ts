@@ -7,18 +7,19 @@ import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import type { SupportChatLimits } from './supportChat.js'
+import type { EmailMessage } from '../services/email/types.js'
 
 /** The site's chat for guests (owner, 17.11.2026: «Можно войти как гость… если он не авторизован, то пишется как гость»). */
 const password = 'correct horse battery'
 
-async function setup(limits?: Partial<SupportChatLimits>) {
+async function setup(limits?: Partial<SupportChatLimits>, mails: EmailMessage[] = []) {
   const db = openDatabase(':memory:')
   const first = new AccountStore({ db, ownerEmails: [] })
   await first.register('owner@example.com', password)
   first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
   const accounts = new AccountStore({ db, ownerEmails: ['owner@example.com'] })
   const payments = new PaymentStore(db, undefined)
-  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, supportChatLimits: limits, guard: { quickCheckEveryMs: 0 } }).listen(0, '127.0.0.1')
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, supportChatLimits: limits, guard: { quickCheckEveryMs: 0 }, bugReportMail: { sender: { provider: 'fake', from: 'Raid OS <noreply@raidos.app>', send: async (message: EmailMessage) => { mails.push(message); return {} } } } }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
   const call = async <T = Record<string, unknown>>(method: string, path: string, options: { token?: string; guest?: string; body?: unknown } = {}) => {
@@ -100,5 +101,37 @@ test('support guest: a few new guests an hour per address, the messages limited 
     assert.equal((await t.call('POST', '/support/guest/messages', { guest: first, body: { text: '1' } })).status, 201)
     assert.equal((await t.call('POST', '/support/guest/messages', { guest: first, body: { text: '2' } })).status, 201)
     assert.equal((await t.call('POST', '/support/guest/messages', { guest: first, body: { text: '3' } })).status, 429)
+  } finally { await t.close() }
+})
+
+test('support guest: a name and an e-mail, if the guest leaves them — the owner sees them, the answer also goes by mail', async () => {
+  const mails: EmailMessage[] = []
+  const t = await setup(undefined, mails)
+  try {
+    assert.equal((await t.call('POST', '/support/guest', { body: { email: 'not-an-address' } })).status, 400)
+    const created = await t.call<{ token: string; contact: { name?: string; email?: string } }>('POST', '/support/guest', { body: { name: '  Андрей  ', email: ' Andrey@Example.com ' } })
+    assert.equal(created.status, 201)
+    assert.deepEqual(created.json.contact, { name: 'Андрей', email: 'andrey@example.com' })
+    const guest = created.json.token
+    await t.call('POST', '/support/guest/messages', { guest, body: { text: 'Вопрос <b>про</b> карты' } })
+    const threads = await t.call<{ threads: Array<{ accountId: string; nickname?: string; email: string }> }>('GET', '/accounts/me/admin/support/threads', { token: t.owner })
+    const thread = threads.json.threads[0]!
+    assert.equal(thread.nickname, 'Андрей (гость)')
+    assert.equal(thread.email, 'andrey@example.com')
+    await t.call('POST', `/accounts/me/admin/support/threads/${thread.accountId}/messages`, { token: t.owner, body: { text: 'Ответ <i>тут</i>' } })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.equal(mails.length, 1)
+    assert.equal(mails[0]!.to, 'andrey@example.com')
+    assert.equal(mails[0]!.subject, 'Ответ поддержки Raid OS')
+    assert.match(mails[0]!.html, /Ответ &lt;i&gt;тут&lt;\/i&gt;/)
+    assert.match(mails[0]!.text, /^Ответ <i>тут<\/i>\n\nПродолжить разговор/)
+    // the guest changes or takes away the contact; without an e-mail no letter
+    const changed = await t.call<{ contact: Record<string, string> }>('POST', '/support/guest/contact', { guest, body: { name: 'Андрей' } })
+    assert.deepEqual(changed.json.contact, { name: 'Андрей' })
+    assert.deepEqual((await t.call<{ contact: Record<string, string> }>('GET', '/support/guest/messages', { guest })).json.contact, { name: 'Андрей' })
+    await t.call('POST', `/accounts/me/admin/support/threads/${thread.accountId}/messages`, { token: t.owner, body: { text: 'Ещё ответ' } })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.equal(mails.length, 1)
+    assert.equal((await t.call('POST', '/support/guest/contact', { guest, body: { email: 'bad@' } })).status, 400)
   } finally { await t.close() }
 })

@@ -7,7 +7,9 @@ import { API_URL } from './config'
  * own (/v1/support/guest), its token kept in this browser; the owner answers both from «Заявки» → «Чаты».
  */
 export interface SupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read?: boolean }
-export interface SupportPage { messages: SupportMessage[]; unread: number }
+/** A guest's name and e-mail (both optional): the answer also goes to the e-mail. */
+export interface GuestContact { name?: string; email?: string }
+export interface SupportPage { messages: SupportMessage[]; unread: number; contact?: GuestContact }
 export type SupportWho = { kind: 'account'; token: string } | { kind: 'guest'; token: string | null }
 
 const GUEST_KEY = 'raidos-support-guest'
@@ -55,7 +57,7 @@ export async function readSupport(who: SupportWho): Promise<SupportPage> {
   if (who.kind === 'guest' && !who.token) return { messages: [], unread: 0 }
   try {
     const page = await call<SupportPage>('GET', `${base(who)}/messages`, headersOf(who))
-    return { messages: Array.isArray(page.messages) ? page.messages : [], unread: Number(page.unread) || 0 }
+    return { messages: Array.isArray(page.messages) ? page.messages : [], unread: Number(page.unread) || 0, ...(page.contact ? { contact: page.contact } : {}) }
   } catch (error) {
     if (who.kind === 'guest' && error instanceof SupportChatError && error.status === 401) { saveGuestToken(null); return { messages: [], unread: 0 } }
     throw error
@@ -63,15 +65,20 @@ export async function readSupport(who: SupportWho): Promise<SupportPage> {
 }
 
 /** Sends a message; a guest's first message makes the guest's conversation. Returns the guest token in use. */
-export async function sendSupport(who: SupportWho, text: string): Promise<{ message: SupportMessage; guestToken?: string }> {
+export async function sendSupport(who: SupportWho, text: string, contact: GuestContact = {}): Promise<{ message: SupportMessage; guestToken?: string }> {
   if (who.kind === 'account') return call('POST', '/v1/me/support/messages', headersOf(who), { text })
   let token = who.token
   if (!token) {
-    token = (await call<{ token: string }>('POST', '/v1/support/guest', {})).token
+    token = (await call<{ token: string }>('POST', '/v1/support/guest', {}, contact)).token
     saveGuestToken(token)
   }
   const sent = await call<{ message: SupportMessage }>('POST', '/v1/support/guest/messages', { 'x-support-guest': token }, { text })
   return { ...sent, guestToken: token }
+}
+
+/** Saves a guest's name and e-mail; before the first message there is no guest yet, they go with it. */
+export async function saveGuestContact(token: string, contact: GuestContact): Promise<GuestContact> {
+  return (await call<{ contact: GuestContact }>('POST', '/v1/support/guest/contact', { 'x-support-guest': token }, contact)).contact
 }
 
 export async function markSupportRead(who: SupportWho) {

@@ -502,6 +502,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     social: socialSignals,
     ownerSignals: reportSignals,
     now: accounts.clock,
+    // a guest of the site who left an e-mail gets the answer there (the same sender as the codes and the reports)
+    mail: options.bugReportMail?.sender,
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))
   // «Объявления по регионам» and «Опросы» (owner, 15.10.2026): per account, before /v1/me as well; the targeted apps

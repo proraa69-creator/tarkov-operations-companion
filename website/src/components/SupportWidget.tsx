@@ -1,14 +1,15 @@
-import { MessageCircle, SendHorizontal, X } from 'lucide-react'
+import { Mail, MessageCircle, SendHorizontal, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { tr } from '../i18n'
-import { loadGuestToken, markSupportRead, readSupport, sendSupport, SUPPORT_TEXT_MAX, SupportChatError, type SupportMessage, type SupportWho } from '../supportChatApi'
+import { loadGuestToken, markSupportRead, readSupport, saveGuestContact, sendSupport, SUPPORT_TEXT_MAX, SupportChatError, type GuestContact, type SupportMessage, type SupportWho } from '../supportChatApi'
 import './supportWidget.css'
 
 /** The conversation is read this often while the chat is open, and while it is closed (for the badge) once it exists. */
 const OPEN_EVERY_MS = 8_000
 const CLOSED_EVERY_MS = 60_000
+const looksLikeEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 
 /**
  * «Поддержка» (owner, 17.11.2026): a round button in the bottom right corner opens the chat. A signed-in visitor writes from
@@ -19,7 +20,10 @@ export function SupportWidget() {
   const [open, setOpen] = useState(false)
   const [guestToken, setGuestToken] = useState(loadGuestToken)
   /** The conversation as last read, and whose it is: another visitor's (signed out, signed in) is never shown. */
-  const [page, setPage] = useState<{ key: string; messages: SupportMessage[]; unread: number }>({ key: '', messages: [], unread: 0 })
+  const [page, setPage] = useState<{ key: string; messages: SupportMessage[]; unread: number; contact?: GuestContact }>({ key: '', messages: [], unread: 0 })
+  /** A guest's name and e-mail before the first message (they go with it), and the form to leave them. */
+  const [pendingContact, setPendingContact] = useState<GuestContact>({})
+  const [contactForm, setContactForm] = useState<{ name: string; email: string } | null>(null)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
@@ -32,11 +36,12 @@ export function SupportWidget() {
   const whoKey = who ? `${who.kind}:${who.token ?? ''}` : ''
   const shown = page.key === whoKey ? page : { key: whoKey, messages: [] as SupportMessage[], unread: 0 }
   const { messages, unread } = shown
+  const contact: GuestContact = (who?.kind === 'guest' && who.token ? shown.contact : pendingContact) ?? {}
 
   const refresh = useCallback(async (current: SupportWho, key: string, markRead: boolean) => {
     try {
       const read = await readSupport(current)
-      setPage({ key, messages: read.messages, unread: markRead ? 0 : read.unread })
+      setPage({ key, messages: read.messages, unread: markRead ? 0 : read.unread, ...(read.contact ? { contact: read.contact } : {}) })
       if (markRead && read.unread) await markSupportRead(current)
     } catch { /* the next read catches up */ }
   }, [])
@@ -70,18 +75,34 @@ export function SupportWidget() {
     setSending(true)
     setError('')
     try {
-      const sent = await sendSupport(who, text)
+      const sent = await sendSupport(who, text, pendingContact)
       if (sent.guestToken && sent.guestToken !== guestToken) setGuestToken(sent.guestToken)
       const key = sent.guestToken ? `guest:${sent.guestToken}` : whoKey
       setPage((current) => {
         const list = current.key === key ? current.messages : messages
-        return { key, unread: 0, messages: list.some((message) => message.id === sent.message.id) ? list : [...list, sent.message] }
+        return { key, unread: 0, contact: current.key === key ? current.contact : contact, messages: list.some((message) => message.id === sent.message.id) ? list : [...list, sent.message] }
       })
       setDraft('')
     } catch (problem) {
       setError(tr(problem instanceof SupportChatError ? problem.message : 'Не удалось отправить. Попробуйте ещё раз.'))
     } finally {
       setSending(false)
+    }
+  }
+
+  const saveContact = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!contactForm || !who || who.kind !== 'guest') return
+    const next: GuestContact = { ...(contactForm.name.trim() ? { name: contactForm.name.trim() } : {}), ...(contactForm.email.trim() ? { email: contactForm.email.trim() } : {}) }
+    if (next.email && !looksLikeEmail(next.email)) { setError(tr('Проверьте адрес почты')); return }
+    setError('')
+    if (!who.token) { setPendingContact(next); setContactForm(null); return }
+    try {
+      const saved = await saveGuestContact(who.token, next)
+      setPage((current) => ({ ...current, contact: saved }))
+      setContactForm(null)
+    } catch (problem) {
+      setError(tr(problem instanceof SupportChatError ? problem.message : 'Не удалось отправить. Попробуйте ещё раз.'))
     }
   }
 
@@ -101,6 +122,20 @@ export function SupportWidget() {
           </div>
           <button type="button" className="support-close" aria-label={tr('Закрыть')} onClick={() => setOpen(false)}><X size={18} /></button>
         </header>
+        {/* A guest may leave a name and an e-mail: the answer also goes there (owner, 17.11.2026). */}
+        {!signedIn && (contactForm
+          ? <form className="support-contact-form" onSubmit={(event) => void saveContact(event)}>
+            <input value={contactForm.name} maxLength={60} placeholder={tr('Имя')} aria-label={tr('Имя')} autoComplete="name" onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} />
+            <input value={contactForm.email} maxLength={254} type="email" placeholder={tr('Почта')} aria-label={tr('Почта')} autoComplete="email" onChange={(event) => setContactForm({ ...contactForm, email: event.target.value })} />
+            <div>
+              <button type="button" className="support-contact-cancel" onClick={() => setContactForm(null)}>{tr('Отмена')}</button>
+              <button type="submit" className="support-contact-save">{tr('Сохранить')}</button>
+            </div>
+          </form>
+          : <button type="button" className="support-contact" onClick={() => setContactForm({ name: contact.name ?? '', email: contact.email ?? '' })}>
+            <Mail size={15} aria-hidden="true" />
+            <span>{contact.email ? tr('Ответ придёт и на {email}', { email: contact.email }) : tr('Оставить имя и почту для ответа')}</span>
+          </button>)}
         <div className="support-messages" ref={list} aria-live="polite">
           {messages.length === 0
             ? <p className="support-empty">{tr('Задайте любой вопрос — ответим здесь.')}</p>

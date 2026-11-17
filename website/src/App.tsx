@@ -8,7 +8,7 @@ import { AppLoginPage } from './pages/AppLoginPage'
 import { CabinetPage } from './pages/CabinetPage'
 import { DownloadPage } from './pages/DownloadPage'
 import { HomePage } from './pages/HomePage'
-import { AppPrivacyPage, LegalPage } from './pages/LegalPage'
+import { AppPrivacyPage, LegalPage, PrivacyPage } from './pages/LegalPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ReferralLandingPage } from './pages/ReferralLandingPage'
@@ -50,6 +50,7 @@ export function App() {
         <Route path="boosty" element={<Navigate to="/cabinet#subscription" replace />} />
         {/* Owner only (the server checks every request); not linked from the menu. */}
         <Route path="admin" element={<AdminPage />} />
+        <Route path="privacy" element={<PrivacyPage />} />
         <Route path="legal" element={<LegalPage />} />
         <Route path="legal/:slug" element={<LegalPage />} />
         <Route path="r/:code" element={<ReferralLandingPage />} />

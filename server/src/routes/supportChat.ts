@@ -87,6 +87,7 @@ import { ipRateKey } from '../services/securityGuard.js'
 import type { SocialSignals } from '../services/socialSignals.js'
 import { EMPTY_MESSAGE, IMAGE_STORAGE_FULL, MESSAGE_NOT_FOUND, STICKER_ALONE, SupportChatError, supportText, TOO_LONG_MESSAGE, TOO_MANY_IMAGES, UNKNOWN_REACTION, UNKNOWN_STICKER, type SupportChatStore, type SupportMessageExtra } from '../services/supportChatStore.js'
 import type { MapUpdates } from './mapUpdates.js'
+import type { EmailMessage, EmailSender } from '../services/email/types.js'
 import { regionOf } from '../../../src/shared/countries.js'
 import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportReportRef } from '../../../src/shared/supportChat.js'
 import { isSupportStickerId, SUPPORT_REACTIONS } from '../../../src/shared/supportStickers.js'
@@ -134,6 +135,36 @@ export const SUPPORT_CHAT_RATE_LIMITS: SupportChatLimits = { perAccount: 20, per
 /** A guest of the site's chat as the owner's apps show him: «Гость 12». */
 export const GUEST_NAME = 'Гость'
 export const GUEST_UNKNOWN = 'Гостевой чат не найден'
+export const BAD_GUEST_EMAIL = 'Проверьте адрес почты'
+const GUEST_NAME_MAX = 60
+const guestContactSchema = z.object({ name: z.string().max(400).optional(), email: z.string().max(254).optional() }).passthrough()
+const emailSchema = z.string().email()
+
+/** A guest's name (one line, ≤ 60 characters) and e-mail (lower case) from a body; null for an address that is not one. */
+export function guestContact(body: unknown): { name?: string; email?: string } | null {
+  const parsed = guestContactSchema.safeParse(body ?? {})
+  if (!parsed.success) return null
+  const name = cleanSupportText(parsed.data.name ?? '').replace(/\s+/g, ' ').trim().slice(0, GUEST_NAME_MAX)
+  const email = (parsed.data.email ?? '').trim().toLowerCase()
+  if (email && !emailSchema.safeParse(email).success) return null
+  return { ...(name ? { name } : {}), ...(email ? { email } : {}) }
+}
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!)
+
+/** The answer as a letter: the text, and where to go on writing. */
+export function guestAnswerMail(to: string, text: string): EmailMessage {
+  const subject = 'Ответ поддержки Raid OS'
+  const more = 'Продолжить разговор можно в чате «Поддержка» на сайте https://raidos.app (кнопка в правом нижнем углу).'
+  const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>${subject}</title></head><body style="margin:0;padding:24px;background:#0a0f0c;color:#edf2ed;font-family:Arial,sans-serif;font-size:15px;line-height:1.5">
+<div style="max-width:560px;margin:0 auto;padding:22px 24px;border:1px solid #2b3a30;border-radius:14px;background:#141d18">
+<h1 style="margin:0 0 12px;font-size:19px;color:#dfbd70">${subject}</h1>
+<p style="margin:0 0 16px;white-space:pre-wrap">${escapeHtml(text)}</p>
+<p style="margin:0;color:#97a49a;font-size:13px">${escapeHtml(more)}</p>
+</div></body></html>`
+  return { to, subject, html, text: `${text}\n\n${more}` }
+}
+
 export const SUPPORT_IMAGE_RATE_MESSAGE = 'Слишком много скриншотов. Попробуйте через час.'
 export const SUPPORT_RATE_MESSAGE = 'Слишком много сообщений. Подождите несколько минут.'
 export const REPORT_NOT_FOUND = 'Заявка не найдена'
@@ -147,6 +178,8 @@ export interface SupportChatRouterOptions {
   /** The reports an answer may be about (services/bugReportStore.ts). */
   reports?: { get(id: number): { accountId?: string; kind: 'bug' | 'idea'; topic: string } | undefined; markAnswered(id: number): void }
   audit?: SupportChatAudit
+  /** Sends an answer to a guest who left an e-mail (services/email). Without it the answer stays in the chat only. */
+  mail?: EmailSender
   now?: () => number
 }
 
@@ -167,6 +200,10 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
   const reactionLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
   // «Написать пользователю»: typing searches as it goes, never a crawl of every address.
   const searchLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
+  // A guest's name and e-mail: changed now and then, never a crawl.
+  const contactLimiter = new FixedWindowRateLimiter(20, 10 * 60 * 1000, options.now)
+  // Answers by e-mail to one guest: at most 30 an hour.
+  const mailLimiter = new FixedWindowRateLimiter(30, 60 * 60 * 1000, options.now)
   // A guest of the site's chat: a few new conversations an hour per address.
   const guestCreateLimiter = new FixedWindowRateLimiter(limits.guestsPerHour, 60 * 60 * 1000, options.now)
   const signal = (work: () => void) => { try { work() } catch { /* the other side catches up on its next read */ } }
@@ -194,8 +231,8 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
 
   /** Who wrote: the e-mail and the Escape from Tarkov nickname (one for every mode); a guest of the site: «Гость N». */
   const who = (accountId: string) => {
-    const guest = store.guestNumber(accountId)
-    if (guest !== undefined) return { email: '', nickname: `${GUEST_NAME} ${guest}`, nicknames: {}, guest: true as const }
+    const guest = store.guestOf(accountId)
+    if (guest) return { email: guest.email ?? '', nickname: guest.name ? `${guest.name} (${GUEST_NAME.toLowerCase()})` : `${GUEST_NAME} ${guest.number}`, nicknames: {}, guest: true as const }
     try {
       const view = accounts.view(accountId)
       return { email: view.email, ...(view.nickname ? { nickname: view.nickname } : {}), nicknames: view.nicknames }
@@ -313,8 +350,22 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     res.set('Cache-Control', 'no-store')
     const retry = guestCreateLimiter.hit(ipRateKey(req.ip))
     if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: SUPPORT_RATE_MESSAGE }); return }
+    const contact = guestContact(req.body)
+    if (contact === null) { res.status(400).json({ error: BAD_GUEST_EMAIL }); return }
     const created = store.createGuest((id) => accounts.exists(id))
-    res.status(201).json({ token: created.token, name: `${GUEST_NAME} ${created.number}` })
+    if (contact.name || contact.email) store.setGuestContact(created.id, contact)
+    res.status(201).json({ token: created.token, name: `${GUEST_NAME} ${created.number}`, contact })
+  })
+
+  // The name and e-mail a guest leaves (both optional): the owner sees them, an answer also goes to the e-mail.
+  router.post('/v1/support/guest/contact', (req, res) => {
+    const id = guest(req, res, contactLimiter)
+    if (!id) return
+    const contact = guestContact(req.body)
+    if (contact === null) { res.status(400).json({ error: BAD_GUEST_EMAIL }); return }
+    store.setGuestContact(id, contact)
+    res.json({ contact })
+    signal(() => options.ownerSignals?.changed())
   })
 
   router.get('/v1/support/guest/messages', (req, res) => {
@@ -322,7 +373,8 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     if (!id) return
     const query = afterSchema.safeParse(req.query)
     if (!query.success) { res.status(400).json({ error: 'Некорректные данные запроса' }); return }
-    res.json({ messages: store.messages(id, query.data.after), unread: store.unreadForUser(id), oldestId: store.oldestId(id) })
+    const { name, email } = store.guestOf(id) ?? {}
+    res.json({ messages: store.messages(id, query.data.after), unread: store.unreadForUser(id), oldestId: store.oldestId(id), contact: { ...(name ? { name } : {}), ...(email ? { email } : {}) } })
   })
 
   // A guest writes text only: no screenshots, stickers or replies.
@@ -485,6 +537,13 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     signal(() => options.social?.changed([accountId]))
     if (marked) signal(() => options.ownerSignals?.changed())
     signal(() => options.audit?.(actor, starts ? 'support.start' : 'support.reply', who(accountId).email || accountId, { id: message.id, ...(report ? { report: report.id } : {}) }))
+    // A guest who left an e-mail gets the answer there too (never logged: the address and the text).
+    const to = store.guestOf(accountId)?.email
+    if (to && options.mail && message.text && mailLimiter.hit(accountId) === 0) {
+      void options.mail.send(guestAnswerMail(to, message.text)).catch((error: unknown) => {
+        console.warn(`Support guest mail failed: ${error instanceof Error ? error.name : 'error'}`)
+      })
+    }
   })
 
   router.post('/v1/accounts/me/admin/support/threads/:accountId/messages/:id/reactions', (req, res) => {

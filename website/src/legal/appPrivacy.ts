@@ -10,7 +10,7 @@ import { legalDocument, type LegalDocument, type LegalSection } from './document
  */
 
 /** Words this page must not hold (appPrivacy.test.ts). */
-export const APP_PRIVACY_FORBIDDEN = /оплат|платеж|платёж|тариф|подписк|ЮKassa|ЮМани|НСПК|BZB|bezebee|Boosty|налог|чек|реклам|приглаш|Пригласи|партн[её]р|скидк|бесплатн|сумм|валют|оферт|банк|выплат|наград|пробн|Premium|автопродл|возврат/i
+export const APP_PRIVACY_FORBIDDEN = /(^|[^а-яё])цен[аыуеой]?([^а-яё]|$)|стоимост|оплат|платеж|платёж|тариф|подписк|ЮKassa|ЮМани|НСПК|BZB|bezebee|Boosty|налог|чек|реклам|приглаш|Пригласи|партн[её]р|скидк|бесплатн|сумм|валют|оферт|банк|выплат|наград|пробн|Premium|автопродл|возврат/i
 
 type Edit = { drop: string } | { from: string; to: string }
 
