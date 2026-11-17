@@ -14,7 +14,7 @@ import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { formatPrice } from '../shared/format'
 import type { Item } from '../domain/types'
-import { displayPrice } from '../domain/itemPrices'
+import { displayPrice, fleaQuote, traderQuotes } from '../domain/itemPrices'
 import { useAppState } from '../state/AppState'
 import './bossInfoPanel.css'
 
@@ -180,10 +180,22 @@ function ItemTiles({ refs, items, index, gun = false, price = false }: { refs: B
           {ref.image ? <img src={ref.image} alt="" loading="lazy" decoding="async" /> : <ItemPicture item={found} />}
         </span>
         <span className="boss-info-item-name">{ref.name[locale]}</span>
-        {value > 0 && <span className="boss-info-item-price">{formatPrice(value)}</span>}
+        {ref.market ? <MarketPrices item={found} /> : value > 0 && <span className="boss-info-item-price">{formatPrice(value)}</span>}
+        {ref.note && <span className="boss-info-item-note">{ref.note[locale]}</span>}
       </li>
     })}
   </ul>
+}
+
+/** The flea's price and the best trader's of the mode on screen, as the catalog has them now (report 189). */
+function MarketPrices({ item }: { item?: Item }) {
+  const { raidMode } = useAppState()
+  const flea = fleaQuote(item, raidMode)
+  const trader = traderQuotes(item, raidMode)[0]
+  return <span className="boss-info-item-market">
+    <span>{uiText('Барахолка')}: <b>{flea ? formatPrice(flea.price) : '—'}</b></span>
+    <span>{uiText('Торговцу')}: <b>{trader ? formatPrice(trader.price) : '—'}</b>{trader && <small> · {uiText(trader.source)}</small>}</span>
+  </span>
 }
 
 /** Weapons show the whole gun (tarkov.dev default preset), not the bare receiver; the item icon if that fails. */
