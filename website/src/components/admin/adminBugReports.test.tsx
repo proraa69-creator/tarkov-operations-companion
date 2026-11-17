@@ -41,7 +41,8 @@ describe('«Отчёты» on the site', () => {
     expect(within(line).getByText(/Чёрный экран/)).toBeInTheDocument()
     for (const fact of ['player@example.com', 'Shturman_77', '0.5.4 · client']) expect(within(line).getByText(fact)).toBeInTheDocument()
     expect(within(line).queryByText('Ожидает проверки')).toBeNull()
-    expect(within(line).queryByRole('textbox')).toBeNull()
+    // the only field in the row: the days to give (owner, 18.11.2026)
+    expect(within(line).getAllByRole('textbox').map((field) => field.getAttribute('aria-label'))).toEqual(['Сколько дней выдать'])
     expect(screen.queryByText(/Claude/)).toBeNull()
     expect(within(await row('Таймер рейда')).getByText('Предложение')).toBeInTheDocument()
     expect(mocks.table).toHaveBeenCalledWith('owner-token', 'active', 50, 0)
@@ -97,7 +98,7 @@ describe('«Отчёты» on the site', () => {
     render(<AdminBugReports />)
     const names = (line: HTMLElement) => within(line).getAllByRole('button').map((button) => button.textContent)
     const taken = await row('Делаю сам')
-    expect(names(taken)).toEqual(['Готово', 'Вернуть в активные', 'Копировать', 'Подробнее'])
+    expect(names(taken)).toEqual(['Готово', 'Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
     expect(within(taken).queryByText('В процессе')).toBeNull()
     fireEvent.click(within(taken).getByRole('button', { name: 'Готово' }))
     // «Выдать 1 день?»: «Нет» only closes it
@@ -105,7 +106,7 @@ describe('«Отчёты» on the site', () => {
     await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 5, 'implemented'))
     const done = await row('Сделал сам')
     expect(within(done).getByText('Готово')).toBeInTheDocument()
-    expect(names(done)).toEqual(['Вернуть в активные', 'Копировать', 'Подробнее'])
+    expect(names(done)).toEqual(['Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
     expect(within(await row('Отменён')).getByText('Отменено')).toBeInTheDocument()
   })
 
