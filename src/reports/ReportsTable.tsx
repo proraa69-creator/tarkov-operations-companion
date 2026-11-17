@@ -34,6 +34,8 @@ export interface ReportRow {
   work: { status: ReportWorkStatus; note?: string; commit?: string }
   /** Subscription days the owner gave for this report (0: none). */
   rewardDays?: number
+  /** When days were last given for it. */
+  rewardedAt?: string
 }
 export interface ReportPage<Row extends ReportRow = ReportRow> {
   rows: Row[]
@@ -82,6 +84,9 @@ interface ReportsTableProps<Row extends ReportRow> {
 
 const same: Translate = (text) => text
 const DATE_TIME = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+const DATE = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
+/** Days the owner may give for one report in one press. */
+export const REWARD_DAYS_MAX = 365
 const format = (formatter: Intl.DateTimeFormat, iso: string) => { try { return formatter.format(new Date(iso)) } catch { return '' } }
 
 const VIEWS: Array<{ id: ReportTableView; label: string; empty: string }> = [
@@ -150,7 +155,7 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
   // goes back if the server refuses.
   const [pending, setPending] = useState<{ from: ReportWorkStatus; to: ReportWorkStatus } | null>(null)
   const status = pending && row.work.status === pending.from ? pending.to : row.work.status
-  const [busy, setBusy] = useState<ReportWorkAction | 'point' | null>(null)
+  const [busy, setBusy] = useState<ReportWorkAction | 'point' | 'reward' | null>(null)
   const [failure, setFailure] = useState('')
   // A notification's report opens by itself; after that it is the owner's to close.
   const [open, setOpen] = useState(focused)
@@ -190,6 +195,23 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
   const press = (action: ReportWorkAction) => {
     if (action === 'implemented' && onReward && row.email) setAsking(true)
     else void act(action)
+  }
+  // «Выдать дни» in the row itself (owner, 18.11.2026: «чтобы в основном списке у меня была кнопка… «Выдать дни», количество,
+  // которое я ввожу, и кнопку «Выдать». И тут же должно писаться, выдавались ли дни уже или нет»), without «Подробнее».
+  const [days, setDays] = useState('')
+  const [given, setGiven] = useState<{ base: number; added: number; at: string } | null>(null)
+  const shownDays = given && (row.rewardDays ?? 0) <= given.base ? given.base + given.added : row.rewardDays ?? 0
+  const shownAt = given && (row.rewardDays ?? 0) <= given.base ? given.at : row.rewardedAt
+  const daysValue = Number(days)
+  const canGive = Boolean(onReward && row.email)
+  const give = async () => {
+    if (!onReward || !Number.isInteger(daysValue) || daysValue < 1 || daysValue > REWARD_DAYS_MAX) return
+    setBusy('reward'); setFailure('')
+    try {
+      await onReward(row.id, daysValue)
+      setGiven({ base: given ? shownDays : row.rewardDays ?? 0, added: daysValue, at: new Date().toISOString() })
+      setDays('')
+    } catch (reason) { fail(reason) } finally { setBusy(null) }
   }
   const finish = async (give: boolean) => {
     setAsking(false); setBusy('implemented'); setFailure('')
@@ -238,9 +260,9 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
             {/* The list itself says «Активные» and «В процессе». */}
             {status !== 'review' && status !== 'taken' && <span className={`rt-status is-${status}`}>{t(REPORT_WORK_LABELS[status])}</span>}
             {row.work.note && <small className="rt-note">{row.work.note}</small>}
-            {/* Owner, 09.11.2026: «пиши, выдавал ли я в этой заявке дни или нет… И сколько дней». */}
-            {row.rewardDays ? <small className="rt-reward-given"><Gift size={11} aria-hidden="true" />{t('Выдано дней')}: {row.rewardDays}</small>
-              : REPORT_WORK_CLOSED.includes(status) && row.email ? <small className="rt-dim">{t('Дни не выдавались')}</small> : null}
+            {/* Owner, 09.11.2026: «пиши, выдавал ли я в этой заявке дни или нет… И сколько дней»; 18.11.2026: in every row. */}
+            {shownDays ? <small className="rt-reward-given"><Gift size={11} aria-hidden="true" />{t('Выдано дней')}: {shownDays}{shownAt ? ` · ${format(DATE, shownAt)}` : ''}</small>
+              : row.email ? <small className="rt-dim">{t('Дни не выдавались')}</small> : null}
             {(actionsOf(status).length > 0 || canAccept) && (
               <div className="rt-actions">
                 {canAccept && <button type="button" className="button small primary" disabled={busy !== null} onClick={() => void accept()}>
@@ -253,6 +275,13 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
                 ))}
               </div>
             )}
+            {canGive && <form className="rt-give" onSubmit={(event) => { event.preventDefault(); void give() }}>
+              <input className="input" inputMode="numeric" value={days} placeholder={t('Дни')} aria-label={t('Сколько дней выдать')} disabled={busy !== null}
+                onChange={(event) => setDays(event.target.value.replace(/\D/g, '').slice(0, 3))} />
+              <button type="submit" className="button small" disabled={busy !== null || !(daysValue >= 1 && daysValue <= REWARD_DAYS_MAX)}>
+                {busy === 'reward' ? <LoaderCircle size={13} className="spin spinner" aria-hidden="true" /> : <Gift size={13} aria-hidden="true" />}{t('Выдать')}
+              </button>
+            </form>}
             {failure && <small className="rt-failure" role="alert">{t(failure)}</small>}
             <div className="rt-links">
               <button type="button" className="rt-link rt-more" title={t('Данные этого отчёта: почта, ник, система, версия, тема и текст')} onClick={() => void copy()}>
