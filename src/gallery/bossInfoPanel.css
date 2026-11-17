@@ -15,13 +15,15 @@
 .boss-info-chip { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); font-size: 12px; font-weight: 700; }
 
 /* health: Tarkov-style body figure (src/components/BodyHealthFigure.tsx), HP on every part, a PMC's HP small under it */
-.body-figure { position: relative; margin: 0; aspect-ratio: 710 / 891; container-type: inline-size; border-radius: 8px; background: radial-gradient(ellipse 55% 60% at 50% 45%, rgb(150 190 196 / 10%), transparent 70%), #0b0e0e; overflow: hidden; }
+.body-figure { position: relative; margin: 0 auto; width: 85%; aspect-ratio: 710 / 891; container-type: inline-size; border-radius: 8px; background: radial-gradient(ellipse 55% 60% at 50% 45%, rgb(150 190 196 / 10%), transparent 70%), #0b0e0e; overflow: hidden; }
 /* the skeleton fills the middle 60% (its cut-out box is 710×1485 of the picture) */
 .body-figure-skeleton { position: absolute; top: 0; bottom: 0; left: 20%; width: 60%; }
 .body-figure-skeleton img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; user-select: none; pointer-events: none; }
-.body-figure-base { transition: opacity .18s ease, filter .18s ease; }
+.body-figure-base { transition: opacity .25s ease, filter .25s ease; }
 .body-figure.has-active .body-figure-base { opacity: .4; filter: saturate(.6); }
-.body-figure-glow { opacity: 0; filter: sepia(1) saturate(7) hue-rotate(-14deg) brightness(1.08) contrast(1.05); transition: opacity .18s ease; }
+/* The part's light fades over its border (BodyHealthFigure zoneMask): no hard cut between the zones. */
+.body-figure-glow { opacity: 0; filter: sepia(1) saturate(7) hue-rotate(-14deg) brightness(1.08) contrast(1.05); transition: opacity .25s ease;
+  mask-size: 100% 100%; -webkit-mask-size: 100% 100%; mask-repeat: no-repeat; -webkit-mask-repeat: no-repeat; }
 .body-figure-glow.is-active { opacity: 1; }
 .body-figure-areas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .body-figure-areas polygon { fill: transparent; cursor: pointer; }
@@ -56,7 +58,17 @@
 
 /* report 178: rounds under each gun, plate classes front / back / sides, a kit per map (Black Division) */
 .boss-gear-ammo { display: flex; flex-wrap: wrap; gap: 4px; }
-.boss-gear-round { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px 1px 2px; border-radius: 999px; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text-muted); font-size: 10.5px; font-weight: 700; line-height: 18px; white-space: nowrap; }
+.boss-gear-round { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 0 6px 0 1px; border: 1px solid transparent; border-radius: 999px; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text-muted); font-size: 10.5px; font-weight: 700; line-height: 18px; white-space: nowrap; cursor: default; outline: none;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
+/* pointed at: a light outline and its name above it (owner, 17.11.2026: «чуть-чуть выделиться, не сильно… и появится название») */
+.boss-gear-round:hover, .boss-gear-round:focus-visible, .boss-gear-round.is-pointed { border-color: color-mix(in srgb, var(--brass) 45%, transparent); background: color-mix(in srgb, var(--brass) 12%, transparent); color: var(--text); }
+/* the round's name, inside its gun's tile over the picture: the panel's edge never cuts it */
+.boss-info-items.is-guns .boss-info-item { position: relative; }
+.boss-gear-tip { position: absolute; left: 5px; right: 5px; top: 5px; z-index: 2; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--line-strong)); border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-elevated, #101713) 94%, transparent); box-shadow: 0 6px 18px rgb(0 0 0 / 40%); color: var(--text); font-size: 11px; font-weight: 700; line-height: 1.3;
+  pointer-events: none; animation: boss-gear-tip-in .16s ease both; }
+@keyframes boss-gear-tip-in { from { opacity: 0; translate: 0 3px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .boss-gear-round { transition: none; } .boss-gear-tip { animation: none; } }
 .boss-gear-round img { width: 16px; height: 16px; border-radius: 4px; object-fit: contain; }
 .boss-gear-group + .boss-gear-group, .boss-gear-guards { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .boss-gear-group-title { display: block; margin: 0 0 7px; color: var(--text-muted); font-size: 11.5px; font-weight: 800; }
