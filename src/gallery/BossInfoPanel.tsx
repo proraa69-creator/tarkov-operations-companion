@@ -104,22 +104,33 @@ function GearGroups({ gear, render }: { gear: BossGear; render: (group: BossGear
 /** The guns with the rounds they are loaded with (report 178: «сборка + патрон»). */
 function GunTiles({ group, index }: { group: BossGearGroup; index: Map<string, Item> }) {
   const { locale } = useLocale()
+  /** The round pointed at: its name shows inside its gun's tile, never cut by the panel's edge. */
+  const [tip, setTip] = useState<{ gun: string; round: string; text: string } | null>(null)
+  const away = (gun: string, round: string) => setTip((current) => current?.gun === gun && current.round === round ? null : current)
   return <ul className="boss-info-items is-guns">
     {group.weapons.map((weapon) => {
       const found = index.get(weapon.id)
-      return <li key={weapon.id} className="boss-info-item" title={found ? uiText(found.name) : weapon.name[locale]}>
-        <span className={`boss-info-item-image${found?.presetImageUrl ? ' is-weapon' : ''}`}><ItemPicture item={found} /></span>
-        <span className="boss-info-item-name">{weapon.name[locale]}</span>
+      // the gun's full name on the gun only: a round under it has its own (owner, 17.11.2026: «название в белом окне с
+      // названием оружия не должно появляться при наведении на патрон»)
+      const gunName = found ? uiText(found.name) : weapon.name[locale]
+      return <li key={weapon.id} className="boss-info-item">
+        <span className={`boss-info-item-image${found?.presetImageUrl ? ' is-weapon' : ''}`} title={gunName}><ItemPicture item={found} /></span>
+        <span className="boss-info-item-name" title={gunName}>{weapon.name[locale]}</span>
         {weapon.ammo.length > 0 && <span className="boss-gear-ammo">
           {weapon.ammo.map((round) => {
             const item = index.get(round.id)
             const pen = item?.penetration
-            return <span key={round.id} className="boss-gear-round" title={`${item ? uiText(item.name) : round.name[locale]}${pen ? ` · ${uiText('пробитие')} ${pen}` : ''}`}>
+            const text = `${item ? uiText(item.name) : round.name[locale]}${pen ? ` · ${uiText('пробитие')} ${pen}` : ''}`
+            // the round lights up a little and names itself in its own tip (owner, 17.11.2026)
+            return <span key={round.id} className={`boss-gear-round${tip?.gun === weapon.id && tip.round === round.id ? ' is-pointed' : ''}`} aria-label={text} tabIndex={0}
+              onPointerEnter={() => setTip({ gun: weapon.id, round: round.id, text })} onPointerLeave={() => away(weapon.id, round.id)}
+              onFocus={() => setTip({ gun: weapon.id, round: round.id, text })} onBlur={() => away(weapon.id, round.id)}>
               {item?.iconUrl && <img src={item.iconUrl} alt="" loading="lazy" decoding="async" />}
               {round.name[locale]}
             </span>
           })}
         </span>}
+        {tip?.gun === weapon.id && <span key={tip.round} className="boss-gear-tip" role="tooltip">{tip.text}</span>}
       </li>
     })}
   </ul>
