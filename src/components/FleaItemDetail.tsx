@@ -13,6 +13,7 @@ import { useLivePrices, withLivePrice } from '../data/livePrices'
 import { useMinuteClock } from '../trading/tradingClock'
 import { useLocale } from '../i18n/LocaleProvider'
 import { ItemQuestUnlocks } from '../quests/QuestOfferUnlocks'
+import { ItemBuySection } from './ItemBuySection'
 
 /**
  * An item's card as «Барахолка» shows it on the right (src/pages/FleaMarketPage.tsx): picture, description, the prices of
@@ -53,6 +54,8 @@ export function FleaItemDetail({ item: catalogItem, onClose, panelRef, className
     <div className="detail-section"><h4>{uiText("Описание")}</h4><p>{uiText(selected.description)}</p></div>
     {uiText((selected.damage || selected.penetration) && <div className="detail-section grid-2"><div><div className="stat-label">{uiText("Урон")}</div><div className="stat-value">{uiText(selected.damage)}</div></div><div><div className="stat-label">{uiText("Пробитие")}</div><div className="stat-value">{uiText(selected.penetration)}</div></div></div>)}
     <ItemQuestUnlocks itemId={selected.id} />
+    {/* how to get it now: traders, the flea, barters at today's prices (report 187) */}
+    <ItemBuySection itemId={selected.id} />
     <div className="detail-section"><h4>{uiText("Цены · ")}{uiText(state.raidMode.toUpperCase())}</h4><table className="price-table"><thead><tr><th>{uiText("Источник")}</th><th>{uiText("Цена")}</th></tr></thead><tbody>{uiText(selectedQuotes.map((quote) => <tr key={`${quote.source}-${quote.price}`}><td>{uiText(quote.source)}{uiText(isBest(quote) && <span className="tag green" style={{ marginLeft: 7 }}>{uiText("лучшее")}</span>)}{quoteKind(quote) === 'flea' && <small className="dim" style={{ display: 'block' }}>{uiText(isAveragePrice(quote) ? 'среднее за 24 ч' : 'минимальное предложение')}{selectedRenewedAt !== undefined && ` · ${priceAge(selectedRenewedAt)}`}</small>}{quoteKind(quote) === 'base' && <small className="dim" style={{ display: 'block' }}>{uiText('не предложение')}</small>}</td><td className="mono">{uiText(formatPrice(quote.price))}{quoteKind(quote) === 'flea' && selectedFlea?.fee ? <small className="dim" style={{ display: 'block' }}>{uiText('после комиссии')} {formatPrice(selectedFlea.net)}</small> : null}</td></tr>))}{uiText(!selectedQuotes.length && <tr><td colSpan={2} className="muted">{uiText("Нет данных для выбранного режима.")}</td></tr>)}</tbody></table></div>
     {keyDoors && <div className="detail-section key-doors-detail"><h4>{uiText('Дверь на карте')}</h4><KeyDoorsButton keyName={selected.name} doors={keyDoors.get(selected.id)} variant="detail" /></div>}
     <PriceHistoryChart itemId={selected.id} mode={state.raidMode} />
