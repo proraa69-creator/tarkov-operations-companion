@@ -7614,3 +7614,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   raidos-release.service started by hand; `download/version.json` 0.6.0-313 at 21:18 Bangkok. /privacy and
   /v1/support/guest answer on raidos.app. Reports 184, 185 close on release.
 - Not verified on the live site: a real guest writing and getting a letter (Resend) — the owner's first answer will show.
+
+## 2026-11-17 — raidos.app/support for the App Store card (site only, branch claude/site-support-page)
+
+- Owner: «Дай мне отдельную ссылку для App Store с поддержкой, окно поддержки». 84c131b2: /support — the chat open on its
+  own page (SupportWidget inline), e-mail and Telegram under it, no header/menu/footer (like /app/privacy).
+- Put on raidos.app by hand (no app release, per the site-only rule): build with VITE_API_URL=/api, bundle checked
+  (no «Program Files», `/api`), dist-next-manual → dist, old one dist-old-1794926497053; /support, /, /privacy,
+  version.json, /download/windows 200; checked live in the browser.
+- The NEXT RELEASE must merge claude/site-support-page, or the publisher's site build drops /support again.
