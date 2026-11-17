@@ -14,6 +14,11 @@ import type { WorldPoint, WorldTile } from './worldMap'
  * mask are kept, so a second picture of the same scheme costs one drawing.
  */
 const FEATHER = 0.012
+/**
+ * A render's edge fades wider and wholly inwards: its square must not show on the drawing (owner, 17.11.2026: «чтобы не было
+ * отдельных кусков… сделай в точности как на схеме»).
+ */
+const RENDER_FEATHER = 0.035
 /** The fade mask is blurred small and stretched: the same soft edge for any size of picture, for little work. */
 const MASK_SIDE = 512
 
@@ -78,10 +83,71 @@ function blackToClearFilter() {
 }
 
 /**
+ * Box blur of a mask in place, three passes (near a Gaussian), the outside of the picture counted as empty.
+ */
+export function blurMask(mask: Float32Array, width: number, height: number, radius: number) {
+  const line = new Float32Array(Math.max(width, height))
+  const pass = (count: number, length: number, at: (i: number, k: number) => number) => {
+    for (let i = 0; i < count; i += 1) {
+      for (let k = 0; k < length; k += 1) line[k] = mask[at(i, k)]!
+      let sum = 0
+      for (let k = 0; k <= Math.min(radius, length - 1); k += 1) sum += line[k]!
+      for (let k = 0; k < length; k += 1) {
+        mask[at(i, k)] = sum / (2 * radius + 1)
+        if (k + radius + 1 < length) sum += line[k + radius + 1]!
+        if (k - radius >= 0) sum -= line[k - radius]!
+      }
+    }
+  }
+  for (let n = 0; n < 3; n += 1) {
+    pass(height, width, (y, x) => y * width + x)
+    pass(width, height, (x, y) => y * width + x)
+  }
+}
+
+/**
+ * The mask from the picture's own pixels (owner, 17.11.2026, the iPhone: «не должно быть черных кусков»): WebKit draws no canvas
+ * `filter`, so the SVG filter and the blur below did nothing there — the black around a render stayed and every edge was hard.
+ * Alpha (and, `dark`, the near-black of a render counted as outside: the same 6 × (r + g + b) − 0.18 as the SVG filter), blurred
+ * in plain code. A render's mask then fades wholly inwards, so its edge is clear. Null where the pixels cannot be read.
+ */
+function readMask(small: HTMLCanvasElement, dark: boolean): HTMLCanvasElement | null {
+  const context = small.getContext('2d', { willReadFrequently: true })
+  if (!context) return null
+  let image: ImageData
+  try { image = context.getImageData(0, 0, small.width, small.height) } catch { return null }
+  const { data, width, height } = image
+  const mask = new Float32Array(width * height)
+  for (let i = 0; i < mask.length; i += 1) {
+    const alpha = data[i * 4 + 3]! / 255
+    const lit = dark ? Math.min(1, Math.max(0, (6 * (data[i * 4]! + data[i * 4 + 1]! + data[i * 4 + 2]!)) / 255 - 0.18)) : 1
+    mask[i] = alpha * lit
+  }
+  blurMask(mask, width, height, Math.max(2, Math.round(Math.max(width, height) * (dark ? RENDER_FEATHER : FEATHER))))
+  for (let i = 0; i < mask.length; i += 1) {
+    const value = dark ? Math.min(1, Math.max(0, mask[i]! * 2 - 1)) : mask[i]!
+    data[i * 4] = 255
+    data[i * 4 + 1] = 255
+    data[i * 4 + 2] = 255
+    data[i * 4 + 3] = Math.round(value * 255)
+  }
+  context.putImageData(image, 0, 0)
+  return small
+}
+
+/**
  * The picture's own alpha, small and blurred: multiplied in, it fades the outline inwards and keeps the inside sharp. `dark`: the
  * near-black around a render counts as outside too.
  */
 function fadeMask(picture: CanvasImageSource, width: number, height: number, dark = false) {
+  const scale = MASK_SIDE / Math.max(width, height)
+  const plain = canvasOf(width * scale, height * scale)
+  plain.getContext('2d', { willReadFrequently: true })?.drawImage(picture, 0, 0, plain.width, plain.height)
+  return readMask(plain, dark) ?? filteredMask(picture, width, height, dark)
+}
+
+/** The first way, by canvas filters: where the pixels cannot be read (a render loaded without CORS). */
+function filteredMask(picture: CanvasImageSource, width: number, height: number, dark: boolean) {
   const scale = MASK_SIDE / Math.max(width, height)
   const small = canvasOf(width * scale, height * scale)
   const smallContext = small.getContext('2d')
@@ -126,8 +192,9 @@ function keep(key: string, canvas: HTMLCanvasElement) {
  * The scheme's `floor` (as «Карты» draws it), `width` × `height` px, faded at its outline; no `url`, or `width` 0: none. While a
  * new picture is being made the last one stays (owner, 15.11.2026: «при масштабировании карта прыгает»).
  */
-export function useSchemePicture(url: string | undefined, layers: MapFloorLayer[], floor: string, removed: readonly string[], width: number, height: number): HTMLCanvasElement | null {
-  const key = url && width > 0 ? `${url}|${floor}|${removed.join(',')}|${Math.round(width)}x${Math.round(height)}` : ''
+export function useSchemePicture(url: string | undefined, layers: MapFloorLayer[], floor: string, removed: readonly string[], width: number, height: number,
+  satellite = false): HTMLCanvasElement | null {
+  const key = url && width > 0 ? `${url}|${floor}|${removed.join(',')}|${Math.round(width)}x${Math.round(height)}${satellite ? '|satellite' : ''}` : ''
   const [shown, setShown] = useState<{ key: string; canvas: HTMLCanvasElement } | null>(null)
   useEffect(() => {
     if (!key) return
@@ -143,6 +210,7 @@ export function useSchemePicture(url: string | undefined, layers: MapFloorLayer[
       }
       const picture = faded(image, await mask, width, height)
       if (!picture) return
+      if (satellite) satelliteTone(picture)
       keep(key, picture)
       if (alive) setShown({ key, canvas: picture })
     })().catch((error) => console.error('Unable to draw the world map picture', error))
@@ -152,13 +220,57 @@ export function useSchemePicture(url: string | undefined, layers: MapFloorLayer[
   return key ? made.get(key) ?? shown?.canvas ?? null : null
 }
 
-/** A tile picture, loaded as a plain image: no CORS needed, it is only drawn, never read back. */
-function tileImage(url: string): Promise<HTMLImageElement | null> {
+/**
+ * A scheme in the colours of «Спутник» (owner, 17.11.2026: «под нашу цветовую схему спутника»): a location with no render
+ * (Terminal) is drawn as its scheme, and its light-blue sea and teal ground stood out as a square. By the scheme's own
+ * lightness, onto the ramp of the renders' colours (scripts/world-map/make-world-map.py SATELLITE); its water onto their water.
+ */
+export const SATELLITE_RAMP: ReadonlyArray<readonly [number, readonly [number, number, number]]> = [
+  [0, [34, 38, 26]], [0.3, [57, 60, 43]], [0.6, [86, 84, 76]], [1, [124, 121, 110]],
+]
+export const SATELLITE_WATER: readonly [number, number, number] = [36, 50, 60]
+
+export function satelliteColour(r: number, g: number, b: number): [number, number, number] {
+  const light = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  if (b > r + 25 && b > g + 5) {
+    const shade = 0.85 + 0.4 * light
+    return [SATELLITE_WATER[0] * shade, SATELLITE_WATER[1] * shade, SATELLITE_WATER[2] * shade].map(Math.round) as [number, number, number]
+  }
+  let index = 1
+  while (index < SATELLITE_RAMP.length - 1 && light > SATELLITE_RAMP[index]![0]) index += 1
+  const [at0, from] = SATELLITE_RAMP[index - 1]!
+  const [at1, to] = SATELLITE_RAMP[index]!
+  const t = Math.min(1, Math.max(0, (light - at0) / (at1 - at0)))
+  return [0, 1, 2].map((c) => Math.round(from[c]! + (to[c]! - from[c]!) * t)) as [number, number, number]
+}
+
+function satelliteTone(canvas: HTMLCanvasElement) {
+  const context = canvas.getContext('2d')
+  if (!context) return
+  let image: ImageData
+  try { image = context.getImageData(0, 0, canvas.width, canvas.height) } catch { return }
+  const { data } = image
+  for (let i = 0; i < data.length; i += 4) {
+    if (!data[i + 3]) continue
+    const [r, g, b] = satelliteColour(data[i]!, data[i + 1]!, data[i + 2]!)
+    data[i] = r
+    data[i + 1] = g
+    data[i + 2] = b
+  }
+  context.putImageData(image, 0, 0)
+}
+
+/**
+ * A tile picture. With CORS (our map copy answers `Access-Control-Allow-Origin: *`), so the stitched picture can be read for its
+ * mask; a host without it gets a plain image, drawn but never read (the mask then comes from canvas filters).
+ */
+function tileImage(url: string, cors = true): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const image = new Image()
     image.decoding = 'async'
+    if (cors) image.crossOrigin = 'anonymous'
     image.onload = () => resolve(image)
-    image.onerror = () => resolve(null)
+    image.onerror = () => { if (cors) void tileImage(url, false).then(resolve); else resolve(null) }
     image.src = url
   })
 }

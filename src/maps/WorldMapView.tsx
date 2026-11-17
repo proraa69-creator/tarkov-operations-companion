@@ -215,8 +215,9 @@ function LocationPicturesOf({ map, placement, floor, view, close, phone, onChang
   const [lightWidth, lightHeight] = pictureSize(placement, false, phone)
   const [closeWidth, closeHeight] = pictureSize(placement, true, phone)
   const scheme = tiles ? undefined : map.imageUrl
-  const light = useSchemePicture(scheme, layers, floor, removed, lightWidth, lightHeight)
-  const detailed = useSchemePicture(scheme, layers, floor, removed, close ? closeWidth : 0, closeHeight)
+  // a location with no render on «Спутник» (Terminal) shows its scheme in the renders' colours
+  const light = useSchemePicture(scheme, layers, floor, removed, lightWidth, lightHeight, view === 'satellite')
+  const detailed = useSchemePicture(scheme, layers, floor, removed, close ? closeWidth : 0, closeHeight, view === 'satellite')
   // the floor's own render tiles, else the main render
   const tileMap = useMemo(() => ({ ...map, tileUrl: map.layers?.find((layer) => layer.name === floor)?.tileUrl ?? map.tileUrl }), [map, floor])
   const lightTiles = useMemo(() => (tiles ? worldTiles(tileMap, placement, Math.max(lightWidth, lightHeight)) : []), [tiles, tileMap, placement, lightWidth, lightHeight])

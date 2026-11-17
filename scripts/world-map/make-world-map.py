@@ -48,17 +48,20 @@ PAINT = {
   'field': (44, 90, 90),
   'trail': (120, 98, 66),     # .gravel #946d3e, darker
 }
-# «Спутник»: the colours of the ground from above, near the locations' renders
+# «Спутник»: the colours of the locations' renders themselves (owner, 17.11.2026: «сделай основную карту под цвет наших карт»),
+# from the main renders of seven locations (k-means of their non-black pixels: olive (49, 53, 36) and (60, 61, 47) most,
+# dark crowns (39, 42, 29), ground and concrete (72, 71, 62) and (87, 85, 75)). The first palette was far brighter and greener
+# (meadow (88, 98, 62)), so every render stood out on it as a dark square.
 SATELLITE = {
-  'meadow': (88, 98, 62),
-  'forest': (46, 62, 40),
-  'building': (104, 100, 94),
-  'water': (40, 62, 74),
-  'rock': (72, 70, 64),
-  'road': (118, 116, 110),
-  'rail': (86, 82, 76),
-  'field': (120, 116, 82),
-  'trail': (122, 104, 76),
+  'meadow': (57, 60, 43),
+  'forest': (40, 45, 30),
+  'building': (86, 84, 76),
+  'water': (36, 50, 60),
+  'rock': (64, 63, 56),
+  'road': (100, 98, 89),
+  'rail': (76, 74, 66),
+  'field': (72, 71, 54),
+  'trail': (84, 76, 58),
 }
 # how much each kind is smoothed (px of the 4096 picture): areas a lot, lines and houses little
 SMOOTH = {'meadow': 6, 'forest': 6, 'water': 2.5, 'rock': 3, 'field': 5, 'trail': 1.2, 'road': 1.1, 'rail': 1.1, 'building': 1.3}
