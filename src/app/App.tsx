@@ -47,6 +47,7 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { AppTooltips } from './AppTooltips'
 import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
 import { removeStartupIntro } from '../startup/startupIntro'
+import { LocationKeysWindow } from '../keys/LocationKeysWindow'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 // «Общая карта»: every location on one canvas (src/maps/worldMap.ts), loaded when opened.
@@ -80,7 +81,7 @@ export function App() {
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AppTooltips /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><FirstRaidReport /><RaidExtractsBridge /><GameRestartNotice /></>}<UiSounds /><AppTooltips /><AccountNotices /><div className="toast-dock"><RestockNotifier /><TradingNotifier /><QuestKeysReminder />{desktop ? <><RaidStartNotifier /><LastRaidRecorder /></> : mobile ? <PhoneRaidStartNotifier /> : null}</div><DeviceLimitNotice /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><FirstRaidReport /><RaidExtractsBridge /><GameRestartNotice /></>}<UiSounds /><AppTooltips /><AccountNotices /><div className="toast-dock"><RestockNotifier /><TradingNotifier /><QuestKeysReminder />{desktop ? <><RaidStartNotifier /><LastRaidRecorder /></> : mobile ? <PhoneRaidStartNotifier /> : null}</div><DeviceLimitNotice /><LocationKeysWindow /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
     {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
     <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}

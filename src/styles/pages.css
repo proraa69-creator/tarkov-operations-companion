@@ -377,7 +377,7 @@
   mix-blend-mode: normal;
 }
 .map-hud { position: absolute; left: 14px; top: 14px; z-index: 600; display: flex; gap: 7px; pointer-events: none; }
-.map-hud > span { min-height: 30px; padding: 0 10px; display: flex; align-items: center; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; backdrop-filter: blur(10px); }
+.map-hud > span, .map-hud-title > span { min-height: 30px; padding: 0 10px; display: flex; align-items: center; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; backdrop-filter: blur(10px); }
 .marker-style-menu { position: relative; pointer-events: auto; }
 .marker-style-trigger { min-height: 30px; padding: 0 9px 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; cursor: pointer; backdrop-filter: blur(10px); }
 .marker-style-trigger:hover, .marker-style-menu.is-open .marker-style-trigger { border-color: #5f553a; color: #f1ece0; }
@@ -959,6 +959,11 @@ a.quest-stage:hover { color: var(--text); }
 /* Icon style menu: compact, opens downwards and stays within the HUD column */
 /* The right of the first line stays free for «Отложенные квесты» (.map-deferred), the zoom buttons are under it. */
 .map-hud { flex-wrap: wrap; align-items: flex-start; max-width: calc(100% - 230px); }
+/* the map's name with «Ключи» under it (report 186) */
+.map-hud-title { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+.map-hud-keys { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 0 10px; border: 1px solid var(--line-soft); border-radius: 7px;
+  background: rgb(10 16 12 / 88%); color: #d8c08a; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; backdrop-filter: blur(8px); transition: background-color .18s, border-color .18s, color .18s; }
+.map-hud-keys:hover, .map-hud-keys.is-open { border-color: color-mix(in srgb, var(--brass) 55%, var(--line-soft)); background: rgb(24 30 20 / 92%); color: var(--brass-strong); }
 .marker-style-list { flex-direction: column; gap: 2px; min-width: 156px; padding: 4px; border-radius: 8px; }
 .marker-style-option { min-height: 30px; padding: 0 10px 0 6px; background: transparent; font-size: 11.5px; }
 .marker-style-preview .layer-icon.is-preview, .marker-style-preview .layer-glyph.is-preview { width: 18px; height: 18px; }

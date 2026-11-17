@@ -2,7 +2,8 @@ import { uiText, uiLabel } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { useCallback, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
+import { Check, ChevronRight, Clock3, KeyRound, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
+import { locationKeys, useLocationKeys } from '../keys/locationKeysStore'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { useOwnedKeys } from '../quests/ownedKeys'
@@ -246,6 +247,7 @@ export function DashboardPage() {
   const openKappa = () => setKappaOpen(true)
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
 
+  const keysWindow = useLocationKeys()
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
 
   // «Геопозиция» in the phone's quest card: only a quest with a point of its own on this raid's map.
@@ -348,6 +350,8 @@ export function DashboardPage() {
           <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
         </div>
         <PromoCodesButton />
+        {/* «Ключи» (report 186): the location's keys in a window that stays over the app, the same as on the map */}
+        <button type="button" className={`button location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(selectedMap?.id ?? '')}><KeyRound size={16} />{uiText(' Ключи')}</button>
         <button type="button" className="button" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
     </header>

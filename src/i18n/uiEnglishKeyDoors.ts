@@ -6,4 +6,7 @@ export const KEY_DOOR_PHRASES: Array<[string, string]> = [
   ['Открывает', 'Opens'],
   ['Дверь машины', 'Car door'],
   ['нужно питание', 'needs power'],
+  // «Ключи локации» (src/keys/LocationKeysWindow.tsx, report 186)
+  ['Ключи локации', 'Location keys'], ['Назад к ключам', 'Back to keys'], ['На этой карте ключей нет', 'No keys on this map'],
+  ['Загружаем карту…', 'Loading the map…'], ['Показать двери на карте', 'Show the doors on the map'],
 ]

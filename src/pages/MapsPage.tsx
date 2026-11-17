@@ -24,7 +24,10 @@ import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
 import { useTarkovData } from '../data/DataProvider'
 import { floorBadge, floorLabel, isOnRoof, mainFloor, markerVisibleOnFloor, floorsBottomUp, ROOF_FLOOR } from '../data/mapProjection'
-import { keyDoorFocusCard } from '../data/keyDoors'
+import { buildKeyDoorIndex, keyDoorFocusCard } from '../data/keyDoors'
+import { canonicalMapId as keyMapId } from '../data/mapIds'
+import { KeyDoorsGlow } from '../keys/KeyDoorsGlow'
+import { locationKeys, useLocationKeys } from '../keys/locationKeysStore'
 import { useLocale } from '../i18n/LocaleProvider'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
@@ -642,6 +645,10 @@ export function MapsPage() {
   const focusedLockId = params.get('lock')
   // ?key=<item id>: the key whose curated lock that marker stands for (data/keyDoors.ts keyDoorFocusCard).
   const focusedLockKey = params.get('key')
+  // «Ключи локации» (report 186): ?keyDoors=<key id> lights every door that key opens here, ?door=<marker id> flies to one.
+  const keyDoorsId = params.get('keyDoors')
+  const keyDoorId = params.get('door')
+  const keysWindow = useLocationKeys()
   const activeBounds = toLeafletBounds(activeMap)
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
@@ -665,6 +672,13 @@ export function MapsPage() {
 
   // with the quests' quest items: what an objective finds, hands over or plants shows with its picture (report 162)
   const itemsById = useMemo(() => new Map<string, Item>([...data.items, ...(data.questItems ?? [])].map((item) => [item.id, item])), [data.items, data.questItems])
+  const keyDoorMarkers = useMemo(() => {
+    if (!keyDoorsId) return []
+    const here = keyMapId(activeMap.id)
+    const doors = buildKeyDoorIndex(data.markers, data.maps).get(keyDoorsId) ?? []
+    const byId = new Map(data.markers.map((marker) => [marker.id, marker]))
+    return doors.filter((door) => door.mapId === here).flatMap((door) => byId.get(door.markerId) ?? [])
+  }, [keyDoorsId, activeMap.id, data.markers, data.maps])
 
   const availability = useMemo(
     () => questAvailabilityOf(data.quests, progress),
@@ -1294,6 +1308,11 @@ export function MapsPage() {
             <WorldMapIcon size={12} aria-hidden="true" />
             <span>{uiText('Все локации')}</span>
           </button>
+          {/* «Ключи локации» (report 186): every key of the location, in a window over the app */}
+          <button type="button" className={`map-option map-option-world location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(worldOpen ? (worldFrom ?? activeMap.id) : activeMap.id)}>
+            <KeyRound size={12} aria-hidden="true" />
+            <span>{uiText('Ключи локации')}</span>
+          </button>
         </div>
         <div className="map-side-layers">
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
@@ -1330,7 +1349,12 @@ export function MapsPage() {
 
       <section className={`map-stage${(focusedQuestId && focusedQuestId !== killFocus && !killOnly.has(focusedQuestId)) || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud" ref={hudRef}>
-          {mobile ? <PhoneMapPicker maps={data.maps} activeId={worldOpen ? WORLD_MAP_ID : activeMap.id} onPick={pickLocation} onWorld={openWorld} /> : worldOpen ? <span>{uiText('ВСЕ ЛОКАЦИИ')}</span> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
+          {mobile ? <PhoneMapPicker maps={data.maps} activeId={worldOpen ? WORLD_MAP_ID : activeMap.id} onPick={pickLocation} onWorld={openWorld} /> : worldOpen ? <span>{uiText('ВСЕ ЛОКАЦИИ')}</span>
+            // «Ключи» under the map's name (report 186): the same window as on the Overview and in «Локации»
+            : <div className="map-hud-title"><span>{uiText(activeMap.name.toUpperCase())}</span>
+              <button type="button" className={`map-hud-keys location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(activeMap.id)}><KeyRound size={13} aria-hidden="true" />{uiText('Ключи')}</button>
+            </div>}
+          {mobile && !worldOpen && <button type="button" className={`map-layers-toggle location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(activeMap.id)}><KeyRound size={14} />{uiText('Ключи')}</button>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
           <MapToolbar value={tools} onChange={setTools} />
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
@@ -1391,6 +1415,7 @@ export function MapsPage() {
           <ZoomControl position={mobile ? 'bottomright' : 'topright'} />
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
+          {keyDoorMarkers.length > 0 && <KeyDoorsGlow doors={keyDoorMarkers} door={keyDoorId} floor={floor} keyName={keyDoorsId ? itemsById.get(keyDoorsId)?.shortName : undefined} />}
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} follow={mapFollow} askedRef={flyAsked} />
           <MapRefCapture mapRef={mapRef} />
           <CloseUpWatch onChange={setCloseUp} />
