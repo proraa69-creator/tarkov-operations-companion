@@ -1,4 +1,10 @@
 [
+  {"version":"0.6.0.315","date":"2026-11-18","items":[
+    {"kind":"added","ru":"«Ключи локации»: все ключи карты в окне поверх приложения, двери подсвечиваются на карте","en":"«Location keys»: every key of a map in a window over the app, its doors lit on the map"},
+    {"kind":"added","ru":"Карточка предмета: где купить — торговцы, барахолка и бартеры по вашим уровням","en":"Item card: where to buy — traders, the flea and barters by your levels"},
+    {"kind":"added","ru":"«Сборка оружия»: галочка «Цена оружия» — в итог входит и само оружие","en":"«Gun builder»: «Gun price» adds the gun itself to the total"},
+    {"kind":"improved","ru":"«Боссы»: у Тени Тагиллы — документы и ключ-карта Labrys, у Бёрдая — его рюкзак","en":"«Bosses»: Shadow of Tagilla — Labrys reports and keycard, Birdeye — his backpack"}
+  ]},
   {"version":"0.6.0.314","date":"2026-11-17","items":[
     {"kind":"improved","ru":"«Кочевники»: отметить можно раз в 10 минут, на ПК — раз за рейд","en":"«Goons»: one sighting every 10 minutes, on the PC once a raid"},
     {"kind":"improved","ru":"«Кочевники»: повторные отметки одного игрока больше не засоряют список","en":"«Goons»: one player’s repeated sightings no longer clutter the list"},
