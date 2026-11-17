@@ -222,8 +222,10 @@ function LocationPicturesOf({ map, placement, floor, view, close, phone, onChang
   const tileMap = useMemo(() => ({ ...map, tileUrl: map.layers?.find((layer) => layer.name === floor)?.tileUrl ?? map.tileUrl }), [map, floor])
   const lightTiles = useMemo(() => (tiles ? worldTiles(tileMap, placement, Math.max(lightWidth, lightHeight)) : []), [tiles, tileMap, placement, lightWidth, lightHeight])
   const closeTiles = useMemo(() => (tiles && close ? worldTiles(tileMap, placement, Math.max(closeWidth, closeHeight)) : []), [tiles, close, tileMap, placement, closeWidth, closeHeight])
-  const lightStitched = useStitchedTiles(lightTiles, map.tileSize ?? 256)
-  const closeStitched = useStitchedTiles(closeTiles, map.tileSize ?? 256)
+  // Ground Zero's render has holes reaching its edge between the streets: filled asphalt by the render's own extent too
+  const spans = map.id === 'ground-zero'
+  const lightStitched = useStitchedTiles(lightTiles, map.tileSize ?? 256, spans)
+  const closeStitched = useStitchedTiles(closeTiles, map.tileSize ?? 256, spans)
   const lightPicture = useMemo<WorldPicture | undefined>(() => (tiles
     ? lightStitched ? { key: `${map.id}:tiles-light`, source: lightStitched.canvas, rect: lightStitched.rect } : undefined
     : light ? { key: `${map.id}:light`, source: light, rect: placement.rect } : undefined), [tiles, lightStitched, light, map.id, placement.rect])
