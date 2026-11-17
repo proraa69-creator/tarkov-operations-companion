@@ -39,7 +39,7 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Рулетка', 'Ruler'], ['Снайпер', 'Sniper'], ['Инструменты карты', 'Map tools'],
   // The map's silent skill timer (player report 155).
   ['Таймер усталости', 'Fatigue timer'], ['Время, сек', 'Duration, sec'], ['сек', 'sec'],
-  ['Отсчёт', 'Countdown'], ['Нажмите — сброс', 'Press to reset'],
+  ['Отсчёт', 'Countdown'], ['Нажмите — сброс', 'Press to reset'], ['Сигнал в конце', 'Chime at the end'],
   ['Рулетка: кликайте по карте, чтобы измерить расстояние', 'Ruler: click the map to measure distance'],
   ['Радиус стрельбы: кликните по карте, чтобы поставить центр', 'Firing range: click the map to set the centre'],
   ['Убрать последнюю точку', 'Remove last point'], ['Очистить', 'Clear'],

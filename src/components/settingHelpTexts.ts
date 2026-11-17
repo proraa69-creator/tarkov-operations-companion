@@ -306,8 +306,8 @@ export const SETTING_HELP = {
     en: 'Programs running now that load the PC noticeably. The app does not close them.',
   },
   skillTimer: {
-    ru: 'Часы на карте, слева от «Отложенных квестов». Устал навык — опыт почти не идёт. Нажмите часы и переждите отсчёт: потом навык снова качается в полную силу.',
-    en: 'An hourglass on the map, left of «Deferred quests». A tired skill gives almost no XP. Press it and wait out the countdown: then the skill levels at full rate again.',
+    ru: 'Часы на карте, слева от «Отложенных квестов». Устал навык — опыт почти не идёт. Нажмите часы и переждите отсчёт. По желанию — тихий сигнал в конце.',
+    en: 'An hourglass on the map, left of «Deferred quests». A tired skill gives almost no XP: press it and wait out the countdown. A quiet chime at the end, if you like.',
   },
 } as const satisfies Record<string, { ru: string; en: string }>
 
