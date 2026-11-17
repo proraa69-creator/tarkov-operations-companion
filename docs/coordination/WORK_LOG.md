@@ -7568,3 +7568,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   «Спутник», «Ключ 01»; history the same four. «Выкладывай выпуск прямо сейчас»: c53278aa pushed to release/production 18:26,
   gate green 18:38, raidos-release.service started by hand, `download/version.json` 0.6.0-312 at 18:46 Bangkok. Goons feeds live
   on the VPS (PvP and PvE sightings with nicknames in /v1/goons). Reports 177–183 close on release.
+
+## 2026-11-17 — Server check after «сегодняшней атаки хакеров» (read-only, nothing changed)
+
+- 18:50 Bangkok: raidos-api, nginx, ssh active, no failed units, API restarts 0 since 11:46 UTC; site, /health, /v1/goons, version.json 200.
+- nginx today 1.31 M requests (normal app polling); 502 only at the two release restarts (01:07–01:08 and 11:46 UTC); 7 scanner
+  requests; logins 58 (22 × 401, 5 × 429). No sign of a successful break-in: SSH logins for 7 days only by key from 104.28.x (WARP).
+- SSH: 2455 failed password tries today (top 77.239.124.157: 613). PasswordAuthentication yes, PermitRootLogin yes, no fail2ban,
+  ufw inactive — hardening proposed to the owner, waiting for his word.
