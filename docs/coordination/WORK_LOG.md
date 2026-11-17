@@ -7606,3 +7606,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Backup /root/sshd-backup-20261117; `sshd -t` ok, `systemctl reload ssh`; a 10-minute auto-rollback timer was armed and
   stopped after the check. Checked: a new key login works, a password login gets «Permission denied (publickey)»; api, nginx up.
   The root password still works in the Timeweb web console. fail2ban / ufw not touched.
+
+## 2026-11-17 — 0.6.0.313 live (site chat with guest name/e-mail, /privacy without payments, Season branch)
+
+- Owner: «Да» + «В первую очередь выпускай сайт» + «Делай щас». 3a71e51a pushed 20:45; gate failed once on
+  src/components/ObjectivePhotos.test.tsx (passes 3/3 here; single-worker CI timing), failed job re-run 20:58, green;
+  raidos-release.service started by hand; `download/version.json` 0.6.0-313 at 21:18 Bangkok. /privacy and
+  /v1/support/guest answer on raidos.app. Reports 184, 185 close on release.
+- Not verified on the live site: a real guest writing and getting a letter (Resend) — the owner's first answer will show.
