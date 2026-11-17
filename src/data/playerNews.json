@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.313","date":"2026-11-17","items":[
+    {"kind":"added","ru":"Сайт: чат поддержки — кнопка справа внизу, можно писать и без аккаунта","en":"Site: a support chat — the button bottom right, no account needed"},
+    {"kind":"improved","ru":"«Квесты», «Сезон»: развилка Лыжника и Водителя БТР — вся цепочка до «Цены независимости»","en":"«Quests», Season: the Skier / BTR Driver branch — the whole chain"}
+  ]},
   {"version":"0.6.0.312","date":"2026-11-17","items":[
     {"kind":"added","ru":"«Боссы»: броня с классом плит спереди, сзади и по бокам, оружие с патронами","en":"«Bosses»: armour with plate classes front, back and sides, guns with their rounds"},
     {"kind":"added","ru":"«Настройка экрана»: пресеты можно менять местами — зажмите и перетащите","en":"«Screen tuning»: hold a preset and drag it to change the order"},
