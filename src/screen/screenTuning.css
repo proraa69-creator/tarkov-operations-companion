@@ -34,6 +34,16 @@
 .screen-presets { list-style: none; margin: 0; padding: 8px; display: grid; gap: 6px; }
 .screen-presets li { display: flex; align-items: center; gap: 6px; border: 1px solid transparent; border-radius: 9px; }
 .screen-presets li.is-active { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 10%, transparent); }
+/* Report 179: hold a preset to lift it, drag it up or down; the others move aside, it glides into its place. */
+.screen-presets.can-reorder li { position: relative; user-select: none; -webkit-user-select: none; transition: transform var(--reorder-ms, 180ms) cubic-bezier(.2, .8, .2, 1), box-shadow 160ms ease, background-color 160ms ease; }
+.screen-presets li[data-reorder='lifted'] { z-index: 2; transition: transform 70ms linear, box-shadow 160ms ease, background-color 160ms ease; background: var(--surf-2, var(--surf-1)); box-shadow: 0 10px 28px rgb(0 0 0 / .38), 0 0 0 1px color-mix(in srgb, var(--brass) 45%, transparent); cursor: grabbing; }
+.screen-presets li[data-reorder='lifted'] .screen-preset { cursor: grabbing; }
+.screen-presets li[data-reorder='landing'] { z-index: 2; box-shadow: 0 2px 8px rgb(0 0 0 / .2); }
+.screen-presets.is-reordering .screen-preset:hover { background: transparent; }
+.screen-presets.is-reordering { cursor: grabbing; }
+@media (prefers-reduced-motion: reduce) {
+  .screen-presets.can-reorder li { transition: none; }
+}
 .screen-preset { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; border-radius: 9px; }
 .screen-preset:hover { background: var(--surf-1); }
 .screen-preset span { display: grid; min-width: 0; }

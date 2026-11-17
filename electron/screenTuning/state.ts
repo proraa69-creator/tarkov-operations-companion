@@ -25,6 +25,11 @@ export interface ScreenTuningSettings {
    * «возможность редактировать штатные стандартные пресеты») — the profile replaces our curve, sliders and filters.
    */
   builtIns: Record<string, BuiltInChange>
+  /**
+   * The player's order of the list, by id (report 179, owner 17.11.2026: «по зажатию блока с пресетом можно перенести вверх
+   * или вниз»); [] — ours first, then the player's own. A preset not in it (new, or one of ours put back) goes at the end.
+   */
+  order: string[]
 }
 
 export interface BuiltInChange {
@@ -33,7 +38,7 @@ export interface BuiltInChange {
   profile?: ScreenProfile
 }
 
-export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', hotkey: '', cycleKey: '', builtIns: {} }
+export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', hotkey: '', cycleKey: '', builtIns: {}, order: [] }
 
 /** Modifiers and one key: «F8», «Ctrl+Shift+L», «Alt+Num5»… (what the page records, in Electron's accelerator spelling). */
 const HOTKEY = /^(?:(?:Ctrl|Alt|Shift)\+){0,3}(?:F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|num[0-9]|Insert|Delete|Home|End|PageUp|PageDown)$/
@@ -100,14 +105,26 @@ export function cleanSettings(value: unknown): ScreenTuningSettings {
   const hotkey = key(raw.hotkey)
   // One key, one job: the same key for both would turn on and switch at once.
   const cycleKey = key(raw.cycleKey) === hotkey ? '' : key(raw.cycleKey)
-  const result: ScreenTuningSettings = { presets, activeId: '', enabled: raw.enabled === true, display, hotkey, cycleKey, builtIns }
+  const known = new Set([...BUILT_IN_PRESETS.map((preset) => preset.id), ...presets.map((preset) => preset.id)])
+  const order = cleanOrder(raw.order, known)
+  const result: ScreenTuningSettings = { presets, activeId: '', enabled: raw.enabled === true, display, hotkey, cycleKey, builtIns, order }
   const ids = new Set(allPresets(result).map((preset) => preset.id))
   const fallback = allPresets(result)[0]?.id ?? BUILT_IN_PRESETS[0]!.id
   result.activeId = typeof raw.activeId === 'string' && ids.has(raw.activeId) ? raw.activeId : ids.has(DEFAULT_SETTINGS.activeId) ? DEFAULT_SETTINGS.activeId : fallback
   return result
 }
 
-/** The list the player sees: ours (as the player changed them, without the ones taken off), then the player's own. */
+/** Ids that are presets, each once. */
+function cleanOrder(value: unknown, known: ReadonlySet<string>): string[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  return value.filter((id): id is string => typeof id === 'string' && known.has(id) && !seen.has(id) && Boolean(seen.add(id)))
+}
+
+/**
+ * The list the player sees: ours (as the player changed them, without the ones taken off), then the player's own — in the
+ * player's order where he set one.
+ */
 export function allPresets(settings: ScreenTuningSettings): ScreenProfile[] {
   const ours = BUILT_IN_PRESETS
     .filter((preset) => !settings.builtIns[preset.id]?.hidden)
@@ -117,7 +134,22 @@ export function allPresets(settings: ScreenTuningSettings): ScreenProfile[] {
       const tuned = change.profile ? { ...change.profile, id: preset.id, builtIn: true, note: preset.note, edited: true } : preset
       return { ...tuned, name: change.name ?? preset.name }
     })
-  return [...ours, ...settings.presets]
+  const list = [...ours, ...settings.presets]
+  const order = settings.order ?? []
+  if (!order.length) return list
+  const place = new Map(order.map((id, index) => [id, index]))
+  return list
+    .map((preset, index) => ({ preset, key: place.get(preset.id) ?? order.length + index }))
+    .sort((a, b) => a.key - b.key)
+    .map((entry) => entry.preset)
+}
+
+/** The list in a new order (the ids the page sends, top to bottom); an id that is not a preset is ignored. */
+export function reorderPresets(settings: ScreenTuningSettings, ids: unknown): ScreenTuningSettings {
+  const shown = allPresets(settings).map((preset) => preset.id)
+  const order = cleanOrder(ids, new Set(shown))
+  // whatever the page did not send keeps its place after the ones it did
+  return { ...settings, order: [...order, ...shown.filter((id) => !order.includes(id))] }
 }
 
 export function activePreset(settings: ScreenTuningSettings): ScreenProfile {
@@ -161,7 +193,7 @@ export function renamePreset(settings: ScreenTuningSettings, id: string, name: u
 export function deletePreset(settings: ScreenTuningSettings, id: string): ScreenTuningSettings {
   const next = isBuiltIn(id)
     ? { ...settings, builtIns: { ...settings.builtIns, [id]: { ...settings.builtIns[id], hidden: true } } }
-    : { ...settings, presets: settings.presets.filter((preset) => preset.id !== id) }
+    : { ...settings, presets: settings.presets.filter((preset) => preset.id !== id), order: (settings.order ?? []).filter((entry) => entry !== id) }
   if (next.activeId !== id) return next
   return { ...next, activeId: allPresets(next)[0]?.id ?? BUILT_IN_PRESETS[0]!.id }
 }

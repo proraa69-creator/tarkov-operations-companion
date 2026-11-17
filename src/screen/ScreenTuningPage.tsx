@@ -12,6 +12,7 @@ import { PresetTriggers } from './PresetTriggers'
 import { LIMITS, NEUTRAL, screenTables, type CurvePoint, type ScreenProfile, type Zones } from './screenCurve'
 import { screenApi, type ScreenFrame, type ScreenTuningView } from './screenApi'
 import { useOwnScreenshot } from './ownScreenshot'
+import { useHoldToReorder } from './useHoldToReorder'
 import './screenTuning.css'
 
 type Slider = { key: 'gamma' | 'shadows' | 'highlights' | 'contrast' | 'brightness'; label: string; help: SettingHelpId; step: number; show: (value: number) => string }
@@ -105,12 +106,14 @@ export function ScreenTuningPage() {
   const [naming, setNaming] = useState<{ kind: 'save' } | { kind: 'rename'; preset: ScreenProfile } | null>(null)
   const [error, setError] = useState('')
   const pixels = useRef<Uint8ClampedArray | null>(null)
+  /** While a new order is on its way to the main process, the 2-second reading does not put the old one back. */
+  const reordering = useRef(0)
 
   useEffect(() => {
     if (!api) return
     void api.state().then(setView).catch(() => setError('Не удалось загрузить настройки экрана.'))
     void api.frame('last').then((found) => { if (found) setFrame(found) }).catch(() => {})
-    const timer = setInterval(() => { void api.state().then(setView).catch(() => {}) }, 2000)
+    const timer = setInterval(() => { void api.state().then((next) => { if (!reordering.current) setView(next) }).catch(() => {}) }, 2000)
     return () => { clearInterval(timer); void api.edit(null).catch(() => {}) }
   }, [api])
 
@@ -144,6 +147,16 @@ export function ScreenTuningPage() {
   const onPixels = useCallback((data: Uint8ClampedArray) => { pixels.current = data }, [])
   const ownFrame = useCallback((found: ScreenFrame) => { setFrame(found); setFrameNote('') }, [])
   const dropping = useOwnScreenshot(tab === 'screen', ownFrame)
+
+  /** Report 179: hold a preset and drag it up or down; the list keeps that order (the «Сменить пресет» key too). */
+  const presetIds = useMemo(() => view?.presets.map((preset) => preset.id) ?? [], [view?.presets])
+  const reorder = useCallback((ids: string[]) => {
+    if (!api?.reorderPresets) return
+    setView((current) => current && { ...current, presets: ids.flatMap((id) => current.presets.find((preset) => preset.id === id) ?? []) })
+    reordering.current += 1
+    void perform(async () => { if (api.reorderPresets) setView(await api.reorderPresets(ids)) }).finally(() => { reordering.current -= 1 })
+  }, [api])
+  const { itemProps, dragging } = useHoldToReorder(presetIds, reorder, Boolean(api?.reorderPresets))
 
   /** Any preset is edited in place, ours too (owner, 28.10.2026); «Вернуть как было» brings ours back. */
   const startEditing = (from: ScreenProfile) => {
@@ -248,9 +261,9 @@ export function ScreenTuningPage() {
                   <h2>{uiText('Пресеты')}<SettingHelp id="screenPresets" /></h2>
                   <span className="setting-help-with"><button type="button" className="button small primary" onClick={startNew}><Plus aria-hidden="true" />{uiText('Добавить новый пресет')}</button><SettingHelp id="screenAddPreset" /></span>
                 </div>
-                <ul className="screen-presets">
+                <ul className={`screen-presets${api?.reorderPresets ? ' can-reorder' : ''}${dragging ? ' is-reordering' : ''}`}>
                   {view?.presets.map((preset) => (
-                    <li key={preset.id} className={preset.id === view.settings.activeId ? 'is-active' : ''}>
+                    <li key={preset.id} className={preset.id === view.settings.activeId ? 'is-active' : ''} {...itemProps(preset.id)}>
                       <button type="button" className="screen-preset" onClick={() => void update({ activeId: preset.id })}>
                         <CurveThumb profile={preset} />
                         <span><strong>{uiText(preset.name)}</strong><small>{uiText(preset.note ?? (preset.builtIn ? '' : 'Ваш пресет'))}</small></span>
