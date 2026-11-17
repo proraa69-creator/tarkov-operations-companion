@@ -1,4 +1,4 @@
-import { findTooltipAtScales, ocrVariants, tooltipForOcr, tooltipScaleSchedule, type Bitmap, type Rect } from './tooltipDetect.js'
+import { findTooltipAtScales, isTinted, ocrVariants, tooltipForOcr, tooltipScaleSchedule, type Bitmap, type Rect } from './tooltipDetect.js'
 
 /** A grab of the screen around the cursor (see TOOLTIP_CAPTURE). */
 export interface TooltipShot {
@@ -130,6 +130,8 @@ export function retryOcrReadings(image: Bitmap, rect: Rect, cursor: { x: number;
     for (let x = rect.x; x < rect.x + rect.width; x += 1) {
       if (x >= mask.x && x <= mask.x + mask.width && y >= mask.y && y <= mask.y + mask.height) continue
       const index = (y * image.width + x) * 4
+      // A trader's price row (coloured) is no part of the name (report 183).
+      if (isTinted(image.data[index + 2]!, image.data[index + 1]!, image.data[index]!)) continue
       const value = (image.data[index + 2]! * 54 + image.data[index + 1]! * 183 + image.data[index]! * 19) >> 8
       levels.push(value)
       row.push(value)

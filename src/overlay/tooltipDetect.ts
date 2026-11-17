@@ -33,9 +33,13 @@ const GREY_SPREAD = 30
 const INSIDE_MAX = 72
 /** How much lighter the frame is than the box right inside it. */
 const FRAME_CONTRAST = 24
-/** The box is one line of text: never as tall as an inventory cell (63 px at 1080p). */
+/**
+ * The box is one line of text, two for a long name the game wraps — and on a trader's screen a price row under the name
+ * (report 183): a wrapped name with its price is about 60 px at 1080p. Inventory cells (63 px) are ruled out by their shape
+ * (CELL_LIKE_HEIGHT) and by their inside (readTextLayout).
+ */
 const MIN_HEIGHT = 17
-const MAX_HEIGHT = 56
+const MAX_HEIGHT = 66
 const MIN_WIDTH = 26
 /** A box this tall (1080p px of the screen) is a tooltip only when it is at least twice as wide (see findTooltipPrepared). */
 const CELL_LIKE_HEIGHT = 40
@@ -47,17 +51,32 @@ const MAX_DISTANCE = 760
 /** The mouse arrow drawn over the scene (when the capture includes it): about 13×21 px from the hotspot. */
 const CURSOR_BOX = { width: 15, height: 23 }
 
+/**
+ * The name is light grey (its pixels at most ~20 apart in R, G, B); the price row a trader's tooltip shows under it is
+ * yellow (report 183, 17.11.2026: «Плюшевая игрушка Loot Lord» over «₽ 42 344» — read as one line, the price's numbers
+ * ruled the name out, «Предмет не распознан»). Coloured pixels are never the name: the layout and the OCR leave them out.
+ */
+const TINT_SPREAD = 48
+
+/** A pixel of coloured text (the trader's price, its ₽ / $ / € sign), not of the item's name. */
+export function isTinted(r: number, g: number, b: number) {
+  return Math.max(r, g, b) - Math.min(r, g, b) >= TINT_SPREAD
+}
+
 function luminanceMap(image: Bitmap) {
   const { width, height, data } = image
   const light = new Uint8Array(width * height)
   const grey = new Uint8Array(width * height)
+  const tint = new Uint8Array(width * height)
   for (let pixel = 0, index = 0; pixel < light.length; pixel += 1, index += 4) {
     const b = data[index]!, g = data[index + 1]!, r = data[index + 2]!
     const value = (r * 54 + g * 183 + b * 19) >> 8
+    const spread = Math.max(r, g, b) - Math.min(r, g, b)
     light[pixel] = value
-    grey[pixel] = value >= FRAME_MIN && value <= FRAME_MAX && Math.max(r, g, b) - Math.min(r, g, b) <= GREY_SPREAD ? 1 : 0
+    grey[pixel] = value >= FRAME_MIN && value <= FRAME_MAX && spread <= GREY_SPREAD ? 1 : 0
+    tint[pixel] = spread >= TINT_SPREAD ? 1 : 0
   }
-  return { light, grey }
+  return { light, grey, tint }
 }
 
 interface Run { y: number; x0: number; x1: number }
@@ -74,7 +93,7 @@ export function findTooltip(image: Bitmap, cursor: { x: number; y: number }, uni
 function findTooltipPrepared(image: Bitmap, cursor: { x: number; y: number }, unit: number, distanceUnit: number, maps: ReturnType<typeof luminanceMap>): Rect | null {
   const { width, height } = image
   if (width < 20 || height < 20) return null
-  const { light, grey } = maps
+  const { light, grey, tint } = maps
   const minWidth = Math.round(MIN_WIDTH * unit)
   const minHeight = Math.round(MIN_HEIGHT * unit)
   const maxHeight = Math.round(MAX_HEIGHT * unit)
@@ -143,7 +162,7 @@ function findTooltipPrepared(image: Bitmap, cursor: { x: number; y: number }, un
         // Taller than one line of the screen's own scale and not much wider than tall: an inventory cell with its
         // label seen at a larger UI scale, not a tooltip (logged lookups: «Гвозди», «ТПЗ SP» read as tooltips).
         if (rect.height > CELL_LIKE_HEIGHT * distanceUnit && rect.width < rect.height * 2) continue
-        const text = readTextLayout(light, width, rect, cursorMask, unit)
+        const text = readTextLayout(light, width, rect, cursorMask, unit, tint)
         if (!text) continue
         // Nearest to the cursor wins (the tooltip hugs it); boxes far away are other panels.
         const dx = Math.max(0, x0 - cursor.x, cursor.x - x1)
@@ -221,7 +240,7 @@ interface TextLayout {
  * light text with the same padding left and right. An inventory cell (item picture), an empty cell or a
  * container header bar (text at one side of a long bar) does not look like that.
  */
-function readTextLayout(light: Uint8Array, width: number, rect: Rect, cursorMask: Rect, unit: number): TextLayout | null {
+function readTextLayout(light: Uint8Array, width: number, rect: Rect, cursorMask: Rect, unit: number, tint?: Uint8Array): TextLayout | null {
   const margin = Math.max(1, Math.round(2 * unit))
   const values: number[] = []
   for (const y of [rect.y + margin, rect.y + rect.height - 1 - margin]) {
@@ -237,7 +256,7 @@ function readTextLayout(light: Uint8Array, width: number, rect: Rect, cursorMask
   if (even < values.length * 0.8) return null
 
   const threshold = Math.max(background + 50, 96)
-  let x0 = Infinity, x1 = -1, y0 = Infinity, y1 = -1, bright = 0, counted = 0, maskedLeft = false
+  let x0 = Infinity, x1 = -1, y0 = Infinity, y1 = -1, bright = 0, counted = 0, maskedLeft = false, tinted = 0, tintTop = Infinity
   const peaks: number[] = []
   for (let y = rect.y; y < rect.y + rect.height; y += 1) {
     for (let x = rect.x; x < rect.x + rect.width; x += 1) {
@@ -245,6 +264,8 @@ function readTextLayout(light: Uint8Array, width: number, rect: Rect, cursorMask
       counted += 1
       const value = light[y * width + x]!
       if (value < threshold) continue
+      // The trader's price row (yellow): not the name.
+      if (tint?.[y * width + x]) { tinted += 1; if (y < tintTop) tintTop = y; continue }
       bright += 1
       if (peaks.length < 4000) peaks.push(value)
       if (x < x0) x0 = x
@@ -259,9 +280,16 @@ function readTextLayout(light: Uint8Array, width: number, rect: Rect, cursorMask
   // Text sits inside the box, off its frame, one line high — or two: the game wraps a long name.
   const textHeight = y1 - y0 + 1
   if (y0 <= rect.y || y1 >= rect.y + rect.height - 1 || textHeight < 4 * unit || textHeight > TWO_LINES_MAX * unit) return null
-  const lines = textLines(light, width, rect, cursorMask, threshold, y0, y1, unit)
+  const lines = textLines(light, width, rect, cursorMask, threshold, y0, y1, unit, tint)
   if (textHeight > LINE_HEIGHT_MAX * unit && lines.length !== 2) return null
   const padLeft = x0 - rect.x, padRight = rect.x + rect.width - 1 - x1
+  // A price row under the name (a trader's screen): the box is as wide as the longer of the two, so only the left padding
+  // is the name's own.
+  if (tinted >= 12 * unit * unit && tintTop > y1) {
+    if (!maskedLeft && padLeft > 34 * unit) return null
+    peaks.sort((a, b) => a - b)
+    return { background, peak: peaks[Math.floor(peaks.length * 0.9)] ?? threshold, x0, x1, y0, y1, lines: lines.length === 2 ? lines : [{ y0, y1 }] }
+  }
   // A wrapped name (report 172, 16.11.2026: «примерно половина предметов не отображается»): the game wraps at a fixed
   // width (~300 px at 1080p) and the box keeps it, so the longer line may end far from the right edge — only the
   // left padding is the tooltip's own then, and the text must still reach past the box's middle.
@@ -277,11 +305,11 @@ function readTextLayout(light: Uint8Array, width: number, rect: Rect, cursorMask
  * The text lines between y0 and y1: runs of rows holding bright pixels, split where a few rows hold none (between
  * the lines of a wrapped name); runs too short to be a line (a stray dot, the tail of a comma) join their neighbour.
  */
-function textLines(light: Uint8Array, width: number, rect: Rect, cursorMask: Rect, threshold: number, y0: number, y1: number, unit: number) {
+function textLines(light: Uint8Array, width: number, rect: Rect, cursorMask: Rect, threshold: number, y0: number, y1: number, unit: number, tint?: Uint8Array) {
   const runs: Array<{ y0: number; y1: number }> = []
   for (let y = y0; y <= y1; y += 1) {
     let lit = false
-    for (let x = rect.x; x < rect.x + rect.width && !lit; x += 1) lit = !inMask(cursorMask, x, y) && light[y * width + x]! >= threshold
+    for (let x = rect.x; x < rect.x + rect.width && !lit; x += 1) lit = !inMask(cursorMask, x, y) && light[y * width + x]! >= threshold && !tint?.[y * width + x]
     const last = runs.at(-1)
     if (!lit) continue
     // Inside one line a row may lack bright pixels (thin strokes): a gap of a pixel or two at 1080p is no new line.
@@ -324,7 +352,9 @@ export function tooltipForOcr(image: Bitmap, rect: Rect, scale = 3, black = 45, 
       let value = 255
       if (!mask || !inMask(mask, sx, sy)) {
         const index = (sy * image.width + sx) * 4
-        const light = (image.data[index + 2]! * 54 + image.data[index + 1]! * 183 + image.data[index]! * 19) >> 8
+        const r = image.data[index + 2]!, g = image.data[index + 1]!, b = image.data[index]!
+        // Coloured pixels (a trader's price) stay white: the OCR reads the name only.
+        const light = isTinted(r, g, b) ? 0 : (r * 54 + g * 183 + b * 19) >> 8
         value = 255 - Math.max(0, Math.min(255, (light - black) * 255 / span))
       }
       tone[y * rect.width + x] = value
@@ -366,10 +396,10 @@ export function ocrVariants(image: Bitmap, rect: Rect, cursor?: { x: number; y: 
     const from = (sy * image.width + Math.max(0, rect.x - 1)) * 4
     box.data.set(image.data.subarray(from, Math.min(from + box.width * 4, (sy + 1) * image.width * 4)), row * box.width * 4)
   }
-  const { light } = luminanceMap(box)
+  const { light, tint } = luminanceMap(box)
   const mask = cursor ? { x: cursor.x - 2, y: cursor.y - 2, width: Math.round(CURSOR_BOX.width * unit) + 4, height: Math.round(CURSOR_BOX.height * unit) + 4 } : { x: -99, y: -99, width: 0, height: 0 }
   const local = { x: 1, y: 1, width: rect.width, height: rect.height }
-  const layout = readTextLayout(light, box.width, local, { ...mask, x: mask.x - rect.x + 1, y: mask.y - rect.y + 1 }, unit)
+  const layout = readTextLayout(light, box.width, local, { ...mask, x: mask.x - rect.x + 1, y: mask.y - rect.y + 1 }, unit, tint)
   const shifted = layout ? { ...layout, x0: layout.x0 + rect.x - 1, x1: layout.x1 + rect.x - 1, y0: layout.y0 + rect.y - 1, y1: layout.y1 + rect.y - 1 } : null
   const background = layout?.background ?? 20
   const peak = Math.max(background + 70, layout?.peak ?? 200)
