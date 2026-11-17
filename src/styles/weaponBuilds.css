@@ -248,6 +248,13 @@
 
 /* «Торговцы»: each trader's loyalty for prices, «Можно купить» and the ready-made builds. */
 .wb-traders { position: relative; }
+/* «Цена оружия» right of «Торговцы» (owner, 17.11.2026): the gun's own price in the total, off by default. */
+.wb-gun-price-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text-muted); font-size: 12.5px; font-weight: 700; cursor: pointer; user-select: none; transition: border-color .18s ease, color .18s ease, background-color .18s ease; }
+.wb-gun-price-toggle:hover { border-color: var(--line-strong, var(--line)); color: var(--text); }
+.wb-gun-price-toggle.is-on { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); background: color-mix(in srgb, var(--brass) 10%, transparent); color: var(--text); }
+.wb-gun-price-toggle input { width: 14px; height: 14px; margin: 0; accent-color: var(--brass); cursor: pointer; }
+.wb-buy-gun td { animation: wb-pop 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.wb-buy-gun.is-bad td:nth-child(2) { color: var(--danger, #bd6d60); }
 .wb-traders > .button { gap: 6px; }
 .wb-traders-panel { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 320px; padding: 12px; border: 1px solid var(--line-strong, var(--line)); border-radius: var(--radius-md); background: var(--panel, #151a17); box-shadow: 0 18px 40px rgba(0, 0, 0, .55); transform-origin: top left; animation: wb-pop 160ms cubic-bezier(0.23, 1, 0.32, 1); }
 .wb-traders-panel .wb-note { margin: 0 0 8px; }

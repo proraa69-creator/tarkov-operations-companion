@@ -20,6 +20,7 @@ const listSharedBuilds = vi.hoisted(() => vi.fn(async () => ({ builds: [], total
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode }) }))
 vi.mock('../arsenal/gunCatalog', () => ({ useGunCatalog: () => ({ data: catalog, isLoading: false, isError: false }) }))
 vi.mock('../data/livePrices', () => ({ useLivePrices: () => null }))
+vi.mock('../data/useEconomy', () => ({ useEconomySnapshot: () => ({ data: undefined }) }))
 vi.mock('../gunsmith/useGunsmithAccess', () => ({ useGunsmithAccess: () => ({ access: state.access, infos: [], setLevel: () => {}, fleaEnabled: state.fleaEnabled }) }))
 vi.mock('../arsenal/ownerBuilds', () => ({ useOwnerBuilds: () => ({ builds: [], learned: new Map() }), partsMissingFrom: () => [] }))
 vi.mock('../arsenal/buildCatalogClient', () => ({ listSharedBuilds, publishBuild: vi.fn(), removeSharedBuild: vi.fn(), toggleBuildLike: vi.fn() }))
@@ -38,6 +39,28 @@ beforeEach(() => {
   listSharedBuilds.mockClear()
 })
 afterEach(() => setRenderLanguage('ru'))
+
+describe('«Цена оружия» (owner, 17.11.2026)', () => {
+  it('off at first; on, the price of the gun this player can pay goes into the total and says where from; remembered', () => {
+    const m4 = catalog.weapons.find((weapon) => weapon.id === FX.m4)!
+    m4.offers = [{ vendor: 'flea-market', vendorName: 'Барахолка', priceRUB: 61_000 }]
+    m4.noFlea = false
+    const { unmount } = renderPage()
+    const toggle = screen.getByRole('checkbox', { name: 'Цена оружия' })
+    expect(toggle).not.toBeChecked()
+    expect(document.querySelector('.wb-buy-gun')).toBeNull()
+    fireEvent.click(toggle)
+    const row = document.querySelector('.wb-buy-gun')!
+    expect(row.textContent).toContain('цена с барахолки')
+    expect(screen.getByText('Общая цена с оружием')).toBeTruthy()
+    unmount()
+    // below the flea level nothing open: said, nothing added
+    state.access = access(10)
+    renderPage()
+    expect(screen.getByRole('checkbox', { name: 'Цена оружия' })).toBeChecked()
+    expect(document.querySelector('.wb-buy-gun')!.textContent).toContain('оружие недоступно')
+  })
+})
 
 describe('«Сборка оружия»: the three lists', () => {
   // Owner, 06.11.2026: «Там нужно писать цену… по этим модулям берет цену, без учета оружия», «Должно быть всегда цельное оружие».
