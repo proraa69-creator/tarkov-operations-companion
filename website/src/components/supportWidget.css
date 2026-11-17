@@ -71,6 +71,12 @@
 .support-send:active:not(:disabled) { transform: scale(var(--press-scale)); }
 .support-send:disabled { opacity: .4; cursor: default; }
 
+/* The /support page: the chat stands in the page, full width of its column. */
+.support-page .page-subtitle { margin-bottom: 18px; }
+.support-page-contacts { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 18px 0 0; color: var(--text-muted); font-size: 14px; }
+.support-page-contacts a { display: inline-flex; align-items: center; gap: 7px; color: var(--brass-strong); }
+.support-widget.is-inline { position: static; display: block; pointer-events: auto; }
+.support-widget.is-inline .support-panel { width: 100%; height: min(620px, calc(100dvh - 260px)); min-height: 420px; transform: none; opacity: 1; visibility: visible; transition: none; }
 @keyframes support-fab-in { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
 @keyframes support-icon-in { from { opacity: 0; transform: rotate(-60deg) scale(.6); } to { opacity: 1; transform: none; } }
 @keyframes support-message-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

@@ -15,9 +15,11 @@ const looksLikeEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valu
  * «Поддержка» (owner, 17.11.2026): a round button in the bottom right corner opens the chat. A signed-in visitor writes from
  * the account (the same conversation as in the app); anyone else as a guest. The owner answers from «Заявки» → «Чаты».
  */
-export function SupportWidget() {
+export function SupportWidget({ inline = false }: { inline?: boolean } = {}) {
   const { token, account, status } = useAuth()
-  const [open, setOpen] = useState(false)
+  // inline (the /support page for the App Store, owner 17.11.2026): the chat stands open on the page, no button
+  const [openState, setOpen] = useState(false)
+  const open = inline || openState
   const [guestToken, setGuestToken] = useState(loadGuestToken)
   /** The conversation as last read, and whose it is: another visitor's (signed out, signed in) is never shown. */
   const [page, setPage] = useState<{ key: string; messages: SupportMessage[]; unread: number; contact?: GuestContact }>({ key: '', messages: [], unread: 0 })
@@ -61,12 +63,12 @@ export function SupportWidget() {
   }, [open, messages.length])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || inline) return
     input.current?.focus({ preventScroll: true })
     const close = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
     window.addEventListener('keydown', close)
     return () => window.removeEventListener('keydown', close)
-  }, [open])
+  }, [open, inline])
 
   const send = async (event?: FormEvent) => {
     event?.preventDefault()
@@ -113,14 +115,14 @@ export function SupportWidget() {
   // the site's admin tabs inside the owner app answer chats there, not here
   if (embedded) return null
   return (
-    <div className={`support-widget${open ? ' is-open' : ''}`}>
+    <div className={`support-widget${open ? ' is-open' : ''}${inline ? ' is-inline' : ''}`}>
       <section className="support-panel" role="dialog" aria-label={tr('Поддержка')} aria-hidden={!open} inert={!open}>
         <header className="support-panel-head">
           <div>
             <strong>{tr('Поддержка')}</strong>
             <small>{signedIn ? tr('Вы пишете из аккаунта {email}', { email: account!.email }) : <>{tr('Вы пишете как гость')} · <Link to="/login" onClick={() => setOpen(false)}>{tr('Войти')}</Link></>}</small>
           </div>
-          <button type="button" className="support-close" aria-label={tr('Закрыть')} onClick={() => setOpen(false)}><X size={18} /></button>
+          {!inline && <button type="button" className="support-close" aria-label={tr('Закрыть')} onClick={() => setOpen(false)}><X size={18} /></button>}
         </header>
         {/* A guest may leave a name and an e-mail: the answer also goes there (owner, 17.11.2026). */}
         {!signedIn && (contactForm
@@ -154,10 +156,10 @@ export function SupportWidget() {
           <button type="submit" className="support-send" disabled={!draft.trim() || sending} aria-label={tr('Отправить')}><SendHorizontal size={18} /></button>
         </form>
       </section>
-      <button type="button" className="support-fab" aria-label={tr(open ? 'Закрыть поддержку' : 'Поддержка')} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      {!inline && <button type="button" className="support-fab" aria-label={tr(open ? 'Закрыть поддержку' : 'Поддержка')} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <span className="support-fab-icon" key={open ? 'x' : 'chat'}>{open ? <X size={24} /> : <MessageCircle size={24} />}</span>
         {!open && unread > 0 && <span className="support-badge">{unread > 9 ? '9+' : unread}</span>}
-      </button>
+      </button>}
     </div>
   )
 }

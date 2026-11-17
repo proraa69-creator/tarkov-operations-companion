@@ -17,6 +17,8 @@ export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Ваш вопрос', 'Your question'], ['Отправить', 'Send'], ['Не удалось отправить. Попробуйте ещё раз.', 'Could not send. Try again.'],
   ['Нет связи с сервером. Попробуйте ещё раз.', 'No connection to the server. Try again.'],
   ['Оставить имя и почту для ответа', 'Leave a name and e-mail for the answer'], ['Ответ придёт и на {email}', 'The answer also goes to {email}'],
+  ['Поддержка Raid OS', 'Raid OS support'], ['Поддержка — Raid OS', 'Support — Raid OS'],
+  ['Напишите вопрос в чат — ответим здесь. Без аккаунта можно писать как гость и оставить почту для ответа.', 'Write your question in the chat — we answer right here. Without an account you write as a guest and may leave an e-mail for the answer.'],
   ['Имя', 'Name'], ['Почта', 'E-mail'], ['Отмена', 'Cancel'], ['Проверьте адрес почты', 'Check the e-mail address'],
   ['Условия и документы доступны только на русском языке: они составлены по законодательству РФ.', 'Terms and legal documents are available in Russian only: they are drawn up under Russian law.'],
   // Page titles (App.tsx).

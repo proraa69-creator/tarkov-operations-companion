@@ -9,6 +9,7 @@ import { CabinetPage } from './pages/CabinetPage'
 import { DownloadPage } from './pages/DownloadPage'
 import { HomePage } from './pages/HomePage'
 import { AppPrivacyPage, LegalPage, PrivacyPage } from './pages/LegalPage'
+import { SupportPage } from './pages/SupportPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ReferralLandingPage } from './pages/ReferralLandingPage'
@@ -37,6 +38,7 @@ export function App() {
     <Routes key={locale}>
       {/* The privacy policy for the iPhone app and the App Store card: the document alone, no buttons (LegalPage.tsx). */}
       <Route path="app/privacy" element={<AppPrivacyPage />} />
+      <Route path="support" element={<SupportPage />} />
       <Route element={<SiteLayout />}>
         <Route index element={<HomePage />} />
         <Route path="about" element={<AboutPage />} />
