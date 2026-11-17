@@ -1,18 +1,15 @@
 import { useMemo, useState } from 'react'
 import { Polygon, Popup, Tooltip } from 'react-leaflet'
-import { Crosshair, KeyRound, Tag, TriangleAlert } from 'lucide-react'
 import type { GameMap, Item, MapMarker } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
-import { CARD_COLOURS, keycardRooms, keyRoomSigns, LAB_KEYCARD_ROOMS, labyrinthRoomSigns, labyrinthTraps, lockOf, type RoomSign } from '../data/mapRoomSigns'
-import { toggleRoomLayer, useHiddenRoomLayers, type RoomLayerId } from '../maps/roomLayers'
+import { CARD_COLOURS, keycardRooms, keyRoomSigns, labyrinthRoomSigns, labyrinthTraps, lockOf, type RoomSign } from '../data/mapRoomSigns'
+import { toggleRoomLayer, useHiddenRoomLayers } from '../maps/roomLayers'
+import { FIRE_SECTOR_COLOR, useRoomRows } from '../maps/roomRows'
 import { SignOverlay } from './ShopSigns'
-import { shopSignsOf } from '../data/interchangeShopSigns'
 import { FIRE_SECTOR_TEXT, fireSectorsOf, type FireSector } from '../data/fireSectors'
 
 const TRAP_STYLE = { color: '#ff2d2d', weight: 2, fillColor: '#ff2d2d', fillOpacity: 0.16 }
-/** Report №110: a colour nothing else on the maps has (red is mines and traps, yellow and brown the roads), dashed. */
-export const FIRE_SECTOR_COLOR = '#e040fb'
 const FIRE_STYLE = { color: FIRE_SECTOR_COLOR, weight: 2.5, dashArray: '8 6', fillColor: FIRE_SECTOR_COLOR, fillOpacity: 0.1 }
 const FIRE_LIT_STYLE = { ...FIRE_STYLE, weight: 3.5, fillOpacity: 0.35 }
 
@@ -69,23 +66,7 @@ function FireSectorCard({ kind, items }: { kind: FireSector['kind']; items: Read
 /** The left menu's buttons for them; a map without such rooms has no row. */
 export function MapRoomButtons({ map, markers }: { map: GameMap; markers: readonly MapMarker[] }) {
   const hidden = useHiddenRoomLayers()
-  const rows = useMemo(() => {
-    const doors = markers.filter((marker) => marker.layerId === 'key' && marker.lock && (marker.lock.kind ?? 'door') === 'door')
-    const plain = doors.filter((marker) => !(map.id === 'the-lab' && LAB_KEYCARD_ROOMS.some((room) => room.locks.includes(lockOf(marker)))))
-    const named = new Set(plain.map((marker) => `${marker.lock?.keyId ?? marker.id}|${marker.floor ?? ''}`))
-    const list: Array<{ id: RoomLayerId; label: string; count: number; icon: typeof KeyRound; color: string }> = []
-    if (map.id === 'the-lab') list.push({ id: 'keycard', label: 'Комнаты через ключ-карты', count: LAB_KEYCARD_ROOMS.length, icon: KeyRound, color: '#e5484d' })
-    const traps = labyrinthTraps(map, markers).length
-    if (traps) list.push({ id: 'traps', label: 'Ловушки и комнаты', count: traps, icon: TriangleAlert, color: '#ff2d2d' })
-    if (named.size) list.push({ id: 'signs', label: 'Названия комнат', count: named.size, icon: Tag, color: '#f1e7c9' })
-    // Owner, 06.11.2026: «добавь кнопку… Добавь снизу в самом низу отключение этих названий. Также и название комнат».
-    const places = new Set((map.layers ?? []).flatMap((layer) => shopSignsOf(map.id, layer.svgLayer ?? layer.name)).map((sign) => sign.name)).size
-    if (places) list.push({ id: 'places', label: 'Названия мест', count: places, icon: Tag, color: '#e9e5d3' })
-    // Report №110: «кнопку «Включить-выключить» в разделе карты, так же, как и название магазинов».
-    const fire = fireSectorsOf(map.id).length
-    if (fire) list.push({ id: 'fire', label: 'Сектора обстрела', count: fire, icon: Crosshair, color: FIRE_SECTOR_COLOR })
-    return list
-  }, [map, markers])
+  const rows = useRoomRows(map, markers)
   if (!rows.length) return null
   return <div className="map-layer-group">
     <div className="map-side-title">{uiText(rows.some((row) => row.id === 'fire') ? 'На карте' : 'Названия')}</div>

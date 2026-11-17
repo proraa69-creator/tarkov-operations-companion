@@ -78,4 +78,47 @@ describe('Maps page: «Точки на карте»', () => {
     expect(card()).toHaveTextContent('Утёс')
     expect(screen.queryAllByText('Утёс').length).toBeGreaterThan(0)
   })
+
+  it('report 181: «Скрыть все» puts every row out, «Показать все» lights them all, «Вернуть» brings the own choice back', async () => {
+    renderMaps()
+    await waitFor(() => expect(rows().length).toBeGreaterThan(5))
+    const all = (label: string) => screen.getByRole('button', { name: label })
+    fireEvent.click(row('Станковое оружие'))
+    const own = rows().map((button) => button.classList.contains('active'))
+    expect(own.some(Boolean) && !own.every(Boolean)).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Вернуть' })).toBeNull()
+
+    // the button just pressed turns into «Вернуть»
+    fireEvent.click(all('Скрыть все'))
+    await waitFor(() => expect(rows().every((button) => !button.classList.contains('active'))).toBe(true))
+    expect(screen.queryByRole('button', { name: 'Скрыть все' })).toBeNull()
+    expect(all('Вернуть')).toBeEnabled()
+    expect(all('Показать все')).toBeEnabled()
+    expect(document.querySelector('[data-marker-id="customs-stationary-weapon-1"]')).toBeNull()
+
+    fireEvent.click(all('Показать все'))
+    await waitFor(() => expect(rows().every((button) => button.classList.contains('active') || button.getAttribute('aria-pressed') === 'false')).toBe(true))
+    expect(screen.queryByRole('button', { name: 'Показать все' })).toBeNull()
+    expect(all('Скрыть все')).toBeEnabled()
+
+    // the way back skips the presses between: it is the player's own choice
+    fireEvent.click(all('Вернуть'))
+    await waitFor(() => expect(rows().map((button) => button.classList.contains('active'))).toEqual(own))
+    expect(screen.queryByRole('button', { name: 'Вернуть' })).toBeNull()
+    expect(all('Показать все')).toBeEnabled()
+    expect(all('Скрыть все')).toBeEnabled()
+  })
+
+  it('report 181: a row switched by hand after «Скрыть все» takes the way back away until it is all off again', async () => {
+    renderMaps()
+    await waitFor(() => expect(rows().length).toBeGreaterThan(5))
+    fireEvent.click(screen.getByRole('button', { name: 'Скрыть все' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Вернуть' })).toBeEnabled())
+    fireEvent.click(row('Выходы ЧВК'))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Вернуть' })).toBeNull())
+    expect(screen.getByRole('button', { name: 'Скрыть все' })).toBeEnabled()
+    // switched back by hand to «everything off»: the way back to the own choice is there again
+    fireEvent.click(row('Выходы ЧВК'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Вернуть' })).toBeEnabled())
+  })
 })
