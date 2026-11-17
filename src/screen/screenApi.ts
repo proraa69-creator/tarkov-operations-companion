@@ -2,7 +2,7 @@ import type { ScreenProfile } from './screenCurve'
 
 /** What the main process tells the «Настройка экрана» page (electron/screenTuning/index.ts). */
 export interface ScreenTuningView {
-  settings: { presets: ScreenProfile[]; activeId: string; enabled: boolean; display: string; hotkey: string; cycleKey: string; builtIns: Record<string, { name?: string; hidden?: boolean; profile?: ScreenProfile }> }
+  settings: { presets: ScreenProfile[]; activeId: string; enabled: boolean; display: string; hotkey: string; cycleKey: string; builtIns: Record<string, { name?: string; hidden?: boolean; profile?: ScreenProfile }>; order?: string[] }
   /** Ours first (renamed, without the ones taken off the list), then the player's. */
   presets: ScreenProfile[]
   status: ScreenTuningStatus
@@ -97,6 +97,8 @@ export interface ScreenTuningApi {
   deletePreset: (id: string) => Promise<ScreenTuningView>
   /** Our presets back on the list under their own names. */
   restorePresets: () => Promise<ScreenTuningView>
+  /** The list in the player's order, top to bottom. Absent in an older app's main process. */
+  reorderPresets?: (ids: string[]) => Promise<ScreenTuningView>
   /** One of ours as it came with the app (after the player tuned or renamed it). */
   revertPreset: (id: string) => Promise<ScreenTuningView>
   /** The curve being edited, live in the game in place of the chosen preset for a few minutes (null: stop). */

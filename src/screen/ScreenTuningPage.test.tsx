@@ -77,6 +77,25 @@ describe('«Настройка экрана»', () => {
     await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ gamma: 1, shadows: 0, contrast: 0, curve: [], haze: undefined, cast: undefined })))
   })
 
+  it('report 179: the presets keep the order the player set (Alt + ↑ here; holding and dragging in useHoldToReorder.test.tsx)', async () => {
+    const reordered = (ids: string[]) => ({ ...VIEW, presets: ids.map((id) => BUILT_IN_PRESETS.find((preset) => preset.id === id)!) })
+    ;(api as Record<string, unknown>).reorderPresets = vi.fn(async (ids: string[]) => reordered(ids))
+    renderPage()
+    const second = await screen.findByText('Пресет 2')
+    fireEvent.keyDown(second, { key: 'ArrowUp', altKey: true })
+    const ids = BUILT_IN_PRESETS.map((preset) => preset.id)
+    // «Без изменений» first, then «Пресет 1», «Пресет 2»…
+    const expected = [ids[0]!, ids[2]!, ids[1]!, ...ids.slice(3)]
+    await waitFor(() => expect(api.reorderPresets).toHaveBeenCalledWith(expected))
+    await waitFor(() => expect(screen.getAllByRole('listitem').map((item) => item.textContent)[1]).toContain('Пресет 2'))
+  })
+
+  it('report 179: an older main process without the order: nothing to drag', async () => {
+    renderPage()
+    await screen.findByText('Пресет 2')
+    expect(document.querySelector('.screen-presets')).not.toHaveClass('can-reorder')
+  })
+
   it('binds the on/off key and the next-preset key, both not set at first (owner, 28.10.2026)', async () => {
     renderPage()
     const unset = await screen.findAllByText('Назначьте клавишу')

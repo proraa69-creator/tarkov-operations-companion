@@ -149,8 +149,8 @@ export const SETTING_HELP = {
     en: 'Takes a frame from the game window to compare the picture before and after. The game must be visible on screen.',
   },
   screenPresets: {
-    ru: 'Готовые настройки картинки: нажмите на строку, чтобы выбрать. Кнопки справа настраивают, переименовывают и убирают пресет.',
-    en: 'Ready-made picture settings: click a row to choose one. The buttons on the right tune, rename and remove a preset.',
+    ru: 'Готовые настройки картинки: нажмите на строку, чтобы выбрать. Зажмите строку и перетащите выше или ниже, чтобы поменять порядок.',
+    en: 'Ready-made picture settings: click a row to choose one. Hold a row and drag it up or down to change the order.',
   },
   screenAddPreset: {
     ru: 'Создаёт ваш пресет из настроек выбранного. Таких можно сделать сколько угодно.',
