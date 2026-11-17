@@ -60,6 +60,7 @@ import { MapFloorLayers } from '../components/MapFloorLayers'
 import { MapSketchLayer, MapSketchToolbar } from '../components/MapSketch'
 import { useMapSketch } from '../maps/mapSketch'
 import { MapRoomButtons, MapRoomMarks } from '../components/MapRoomMarks'
+import { useRoomRows } from '../maps/roomRows'
 import { exitFanOut } from '../maps/exitFan'
 import { LivePlayerMarker, useFollowRaidMap, useLivePlayer } from '../components/LivePlayerMarker'
 import { MapItemCard } from '../components/MapItemCard'
@@ -107,6 +108,9 @@ import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../
 import { questKeyRows } from '../quests/questKeys'
 import { useOwnedKeys } from '../quests/ownedKeys'
 import { NeededKeysButton } from '../maps/NeededKeysButton'
+import { MapLayersAll } from '../maps/MapLayersAll'
+import { keepLayersBefore, readLayersBefore, type LayerChoice, type ListedRows } from '../maps/layersAll'
+import { setHiddenRoomLayers, useHiddenRoomLayers } from '../maps/roomLayers'
 import { KeySpotKeys } from '../maps/KeySpotKeys'
 import { SpotPhotos } from '../maps/SpotPhotos'
 import { LockedNote } from '../maps/LockedNote'
@@ -849,6 +853,32 @@ export function MapsPage() {
     setNeededKeysOnly(!neededKeysOnly)
     if (neededKeysOnly) closeCardOfHidden(state.hiddenMarkerLayers, hiddenContainerKinds, false)
   }
+  // The rows of «Точки на карте» this map lists (a layer with nothing on it here has no row).
+  const listedGroups = useMemo(() => layerGroups
+    .filter((group) => group.title !== 'Спавны' || plottedMarkers.some((marker) => group.layers.includes(markerLayerId(marker))))
+    .map((group) => ({ ...group, layers: group.layers.filter((layerId) => !((layerId === 'loot.key' || layerId === 'btr' || layerId === 'spawn.pmc' || layerId === 'spawn.scav' || layerId === 'sniper') && !pointsByLayer.get(layerId)?.length)) })),
+  [plottedMarkers, pointsByLayer])
+  // Report 181: «Показать все» / «Скрыть все» over that list (maps/layersAll.ts).
+  const roomRows = useRoomRows(activeMap, plottedMarkers)
+  const hiddenRooms = useHiddenRoomLayers()
+  const listedRows = useMemo<ListedRows>(() => ({
+    markers: listedGroups.flatMap((group) => group.layers),
+    rooms: roomRows.map((row) => row.id),
+    killZones: killZoneList.length > 0,
+    neededKeys: listedGroups.some((group) => group.title === 'Ключи'),
+  }), [listedGroups, roomRows, killZoneList.length])
+  const layerChoice = useMemo<LayerChoice>(() => ({ hiddenMarkers: state.hiddenMarkerLayers, hiddenKinds: hiddenContainerKinds, hiddenRooms: [...hiddenRooms], killZones: killZonesShown, neededKeys: neededKeysOnly }),
+    [state.hiddenMarkerLayers, hiddenContainerKinds, hiddenRooms, killZonesShown, neededKeysOnly])
+  const [layersBefore, setLayersBefore] = useState(readLayersBefore)
+  const applyLayerChoice = (next: LayerChoice, before: LayerChoice | null) => {
+    state.setMarkerLayers([...next.hiddenMarkers], [...next.hiddenKinds])
+    setHiddenRoomLayers(next.hiddenRooms)
+    if (next.killZones !== killZonesShown) setKillZonesShown(next.killZones)
+    if (next.neededKeys !== neededKeysOnly) setNeededKeysOnly(next.neededKeys)
+    keepLayersBefore(before)
+    setLayersBefore(before)
+    closeCardOfHidden(next.hiddenMarkers, next.hiddenKinds, next.neededKeys)
+  }
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
   const exitFan = useMemo(() => exitFanOut(mapMarkers.filter((marker) => marker.type === 'extract')), [mapMarkers])
@@ -1269,14 +1299,14 @@ export function MapsPage() {
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
           {/* The phone's list is long: a way back to the map without scrolling past it (owner, 07.11.2026). */}
           {mobile && <button type="button" className="map-layers-close" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={closeLayers}><X size={20} aria-hidden="true" /></button>}
-          {uiText(layerGroups.filter((group) => group.title !== 'Спавны' || plottedMarkers.some((marker) => group.layers.includes(markerLayerId(marker)))).map((group) => (
+          <MapLayersAll listed={listedRows} choice={layerChoice} before={layersBefore} onApply={applyLayerChoice} />
+          {uiText(listedGroups.map((group) => (
             <div key={group.title} className="map-layer-group">
               <div className="map-side-title">{uiText(group.title)}</div>
               {uiText(group.layers.map((layerId) => {
                 const meta = markerMeta[layerId]
                 const visible = !state.hiddenMarkerLayers.includes(layerId)
                 const onLayer = pointsByLayer.get(layerId) ?? NO_MARKERS
-                if ((layerId === 'loot.key' || layerId === 'btr' || layerId === 'spawn.pmc' || layerId === 'spawn.scav' || layerId === 'sniper') && !onLayer.length) return null
                 return <Fragment key={layerId}>
                   <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => toggleLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}

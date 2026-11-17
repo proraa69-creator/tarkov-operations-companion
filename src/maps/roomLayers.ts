@@ -27,6 +27,12 @@ export function toggleRoomLayer(id: RoomLayerId) {
   const hidden = new Set(read())
   if (hidden.has(id)) hidden.delete(id)
   else hidden.add(id)
+  setHiddenRoomLayers(hidden)
+}
+
+/** The whole set at once: «Показать все» / «Скрыть все» of «Точки на карте» (report 181). */
+export function setHiddenRoomLayers(ids: Iterable<RoomLayerId>) {
+  const hidden = new Set(ids)
   try {
     if (hidden.size) localStorage.setItem(KEY, JSON.stringify([...hidden]))
     else localStorage.removeItem(KEY)

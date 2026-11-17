@@ -149,6 +149,8 @@ interface AppStateValue extends UiState {
   toggleMarkerLayer: (layerId: MarkerLayerId) => void
   /** The kinds hidden and whether the containers' layer is on, in one step. */
   setContainerKinds: (hidden: string[], layerVisible: boolean) => void
+  /** Every layer and kind at once: «Показать все» / «Скрыть все» of «Точки на карте» (maps/layersAll.ts). */
+  setMarkerLayers: (hiddenLayers: MarkerLayerId[], hiddenKinds: string[]) => void
   createProfile: (name: string) => string
   selectProfile: (id: string) => void
   renameProfile: (name: string) => void
@@ -572,6 +574,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       hiddenContainerKinds: hidden,
       hiddenMarkerLayers: layerVisible ? current.hiddenMarkerLayers.filter((layerId) => layerId !== 'loot.container') : [...current.hiddenMarkerLayers.filter((layerId) => layerId !== 'loot.container'), 'loot.container'],
     })),
+    setMarkerLayers: (hiddenMarkerLayers, hiddenContainerKinds) => setUi((current) => ({ ...current, hiddenMarkerLayers, hiddenContainerKinds })),
     createProfile: (name) => {
       const profile = createLocalProfile(name)
       setProfileState((current) => ({ activeProfileId: profile.id, profiles: [...current.profiles, profile] }))
