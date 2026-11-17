@@ -143,6 +143,29 @@ export class SqliteGoonStore implements GoonStore {
 }
 
 /**
+ * One nickname's repeats are not shown (owner, 17.11.2026: «Если один и тот же ник спамит… в течение 50 минут, показывает
+ * только первое отмеченное… а остальные не показывает»): after a shown sighting of a nickname (or of an account), the
+ * nickname's next ones within 50 minutes are left out — on any map. A sighting without a nickname is matched by who sent
+ * it and the map. Newest first in, newest first out.
+ */
+export const GOON_REPEAT_WINDOW_MS = 50 * 60_000
+
+export function withoutRepeats(entries: readonly GoonSighting[]): GoonSighting[] {
+  const shownAt = new Map<string, number>()
+  const kept: GoonSighting[] = []
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]!
+    const key = entry.account ? `account:${entry.account}` : entry.nickname ? `nick:${entry.nickname.toLowerCase()}` : `who:${entry.reporter}:${entry.mapId}`
+    const time = Date.parse(entry.reportedAt)
+    const previous = shownAt.get(key)
+    if (previous !== undefined && time - previous < GOON_REPEAT_WINDOW_MS) continue
+    shownAt.set(key, time)
+    kept.push(entry)
+  }
+  return kept.reverse()
+}
+
+/**
  * Latest sighting ever kept (24 h), per-map counts for that day (most reported first) and the newest sightings
  * of it with the nickname of who saw them — his account's current one for the mode when `nicknameOf` knows it.
  */
@@ -152,7 +175,7 @@ export function summarizeGoons(store: GoonStore, mode: GoonMode, nowMs: number, 
     const nickname = current === undefined ? entry.nickname : current ?? undefined
     return { mapId: entry.mapId, reportedAt: entry.reportedAt, ...(nickname ? { nickname } : {}) }
   }
-  const day = store.list(mode, nowMs - GOON_RETENTION_MS)
+  const day = withoutRepeats(store.list(mode, nowMs - GOON_RETENTION_MS))
   const latest = day[0] ? viewOf(day[0]) : null
   const recent = day.filter((entry) => Date.parse(entry.reportedAt) >= nowMs - GOON_STATS_WINDOW_MS).slice(0, GOON_RECENT_LIMIT).map(viewOf)
   const stats = new Map<GoonMapId, GoonMapStat>()

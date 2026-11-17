@@ -94,3 +94,25 @@ test('report 180: a round reads every feed, a failing one does not stop the rest
   assert.equal(await readGoonFeeds({ store, feeds, fetch, now: () => NOW + 60_000, onImported: () => { told += 1 } }), 0)
   assert.equal(told, 1)
 })
+
+test('owner 17.11.2026: one nickname spamming — only the first of 50 minutes is shown, on any map; then the next', () => {
+  const store = new MemoryGoonStore()
+  const at = (minutes: number) => new Date(Date.parse('2026-11-17T09:00:00.000Z') + minutes * 60_000).toISOString()
+  const add = (minutes: number, mapId: 'woods' | 'customs' | 'shoreline', nickname?: string, reporter = 'feed:a') =>
+    store.add({ mapId, mode: 'pvp', reportedAt: at(minutes), reporter, ...(nickname ? { nickname } : {}) })
+  add(0, 'woods', 'Spammer')
+  add(5, 'woods', 'spammer')
+  add(12, 'customs', 'Spammer')
+  add(49, 'shoreline', 'Spammer')
+  add(20, 'customs', 'Other')
+  add(55, 'shoreline', 'Spammer')
+  // without a nickname: by who sent it and the map
+  add(30, 'woods')
+  add(31, 'woods')
+  add(32, 'customs')
+  const view = summarizeGoons(store, 'pvp', Date.parse(at(60)))
+  assert.deepEqual(view.recent.map((entry) => `${entry.reportedAt.slice(11, 16)} ${entry.mapId} ${entry.nickname ?? '—'}`), [
+    '09:55 shoreline Spammer', '09:32 customs —', '09:30 woods —', '09:20 customs Other', '09:00 woods Spammer',
+  ])
+  assert.deepEqual(view.last5h.map((row) => [row.mapId, row.count]), [['customs', 2], ['woods', 2], ['shoreline', 1]])
+})

@@ -41,9 +41,10 @@ export interface OwnGoonSighting { mapId: GoonMapId; reportedAt: string; sent: b
 export type GoonConnection = 'server' | 'offline' | 'local-only'
 /**
  * signin: no account session · nickname: the account has no Tarkov nickname for this mode · later: the server's spam
- * protection (one sighting a minute per account, routes/goons.ts) — the app sends it again by itself.
+ * protection (one sighting a minute per account, routes/goons.ts) — the app sends it again by itself · wait: one sighting
+ * every 10 minutes per account (owner, 17.11.2026): refused, not kept, not sent again.
  */
-export type GoonReportResult = 'sent' | 'duplicate' | 'unsent' | 'later' | 'local' | 'signin' | 'nickname'
+export type GoonReportResult = 'sent' | 'duplicate' | 'unsent' | 'later' | 'local' | 'signin' | 'nickname' | 'wait'
 
 export function parseGoonReport(value: unknown): GoonLocation | null {
   const reports = Array.isArray(value) ? value : [value]
@@ -144,6 +145,12 @@ export function resolveGoonTransport(): Transport | null {
 const ownKey = (mode: RaidMode) => `goon-sightings-v2-${mode}`
 const legacyKey = (mode: RaidMode) => `goon-sighting-v1-${mode}`
 
+/** This player's newest sighting in any mode (the server's 10 minutes count across the modes). */
+export function lastOwnSightingAt(now = Date.now()): number | undefined {
+  const times = (['pvp', 'pve', 'seasonal'] as RaidMode[]).flatMap((mode) => readOwnSightings(mode, now).map((entry) => Date.parse(entry.reportedAt)))
+  return times.length ? Math.max(...times) : undefined
+}
+
 export function readOwnSightings(mode: RaidMode, now = Date.now()): OwnGoonSighting[] {
   try {
     const raw = JSON.parse(localStorage.getItem(ownKey(mode)) ?? 'null') as unknown
@@ -169,7 +176,7 @@ async function postSighting(transport: Transport, mode: RaidMode, mapId: GoonMap
   const answer = await transport('POST', `/v1/goons/${mode}/sightings`, { mapId }) as { accepted?: unknown; reason?: unknown; snapshot?: unknown } | null
   if (!answer) return null
   const refused = answer.accepted === false ? answer.reason : undefined
-  const rejected: 'signin' | 'nickname' | undefined = refused === 'signin' ? 'signin' : refused === 'nickname' ? 'nickname' : undefined
+  const rejected: 'signin' | 'nickname' | 'wait' | undefined = refused === 'signin' ? 'signin' : refused === 'nickname' ? 'nickname' : refused === 'wait' ? 'wait' : undefined
   return { duplicate: refused === 'duplicate', rejected, snapshot: parseGoonSnapshot(answer.snapshot) }
 }
 

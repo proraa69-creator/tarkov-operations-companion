@@ -67,7 +67,7 @@ test('goons: validates mode and map', async () => {
   })
 })
 
-test('goons: one report per minute per address and duplicate map ignored for two minutes', async () => {
+test('goons: one sighting per 10 minutes per reporter (any map and mode), the same map ignored for two minutes', async () => {
   await withApi(async ({ get, post, advance }) => {
     assert.equal((await post('pvp', { mapId: 'woods' })).status, 201)
     advance(5_000)
@@ -75,16 +75,24 @@ test('goons: one report per minute per address and duplicate map ignored for two
     assert.equal(duplicate.status, 200)
     assert.deepEqual(((await duplicate.json()) as { accepted: boolean; reason: string }).reason, 'duplicate')
     const tooFast = await post('pve', { mapId: 'customs' })
-    assert.equal(tooFast.status, 429)
-    assert.ok(Number(tooFast.headers.get('retry-after')) > 0)
+    assert.equal(tooFast.status, 200)
+    const refused = await tooFast.json() as { accepted: boolean; reason: string; retryAfter: number }
+    assert.equal(refused.accepted, false)
+    assert.equal(refused.reason, 'wait')
+    assert.ok(refused.retryAfter > 9 * 60 && refused.retryAfter <= 10 * 60)
     assert.equal((await post('pvp', { mapId: 'customs' }, '10.0.0.9')).status, 201, 'other addresses are not limited')
     advance(60_000)
     assert.equal(((await (await post('pvp', { mapId: 'woods' })).json()) as { reason?: string }).reason, 'duplicate', 'same map still deduped within 2 minutes')
+    // nine minutes on: still too soon, on any map
+    advance(8 * 60_000)
+    assert.equal(((await (await post('pvp', { mapId: 'shoreline' })).json()) as { reason?: string }).reason, 'wait')
+    advance(60_000)
     assert.equal((await post('pvp', { mapId: 'shoreline' })).status, 201)
-    advance(125_000)
+    advance(10 * 60_000)
     assert.equal((await post('pvp', { mapId: 'woods' })).status, 201)
     const snapshot = await (await get('pvp')).json() as { last5h: Array<{ mapId: string; count: number }> }
-    assert.deepEqual(snapshot.last5h.map((row) => [row.mapId, row.count]), [['woods', 2], ['shoreline', 1], ['customs', 1]])
+    // the second woods by the same sender 21 minutes on is a repeat: not shown (owner, 17.11.2026, 50 minutes)
+    assert.deepEqual(snapshot.last5h.map((row) => [row.mapId, row.count]), [['shoreline', 1], ['customs', 1], ['woods', 1]])
   })
 })
 
@@ -110,8 +118,7 @@ test('goons: the rate limit counts an IPv6 /64 prefix as one client (IPv4 stays 
     assert.equal((await post('pvp', { mapId: 'woods' }, '2001:db8:1:2::1')).status, 201)
     // Another address of the same /64 (also written differently) is the same client: 429.
     const rotated = await post('pvp', { mapId: 'customs' }, '2001:0db8:0001:0002:ffff:eeee:dddd:cccc')
-    assert.equal(rotated.status, 429)
-    assert.ok(Number(rotated.headers.get('retry-after')) > 0)
+    assert.equal(((await rotated.json()) as { reason?: string }).reason, 'wait')
     // A different /64 is another client.
     assert.equal((await post('pvp', { mapId: 'customs' }, '2001:db8:1:3::1')).status, 201)
     // IPv4: neighbours are separate clients.
@@ -125,6 +132,7 @@ const ACCOUNTS: Record<string, { account: string; nicknames: Partial<Record<stri
   'token-a': { account: 'acc-a', nicknames: { pvp: 'SHAURMA', pve: 'ShaurmaPve' } },
   'token-b': { account: 'acc-b', nicknames: { pvp: 'Bober' } },
   'token-c': { account: 'acc-c', nicknames: {} },
+  ...Object.fromEntries(Array.from({ length: 8 }, (_, index) => [`token-${index}`, { account: `acc-${index}`, nicknames: { pvp: `Player${index}` } }])),
 }
 const identify: GoonsRouterOptions['identify'] = (req, mode) => {
   const entry = ACCOUNTS[(req.get('authorization') ?? '').replace(/^Bearer /, '')]
@@ -144,6 +152,9 @@ test('goons: a signed-in account reports under his Tarkov nickname for that mode
     assert.equal((await post('pvp', { mapId: 'woods', nickname: 'Someone' }, '10.0.0.1', 'token-a')).status, 201)
     advance(70_000)
     assert.equal((await post('pvp', { mapId: 'customs' }, '10.0.0.2', 'token-b')).status, 201)
+    // the same account on another mode within 10 minutes: refused (owner, 17.11.2026)
+    assert.equal(((await (await post('pve', { mapId: 'lighthouse' }, '10.0.0.4', 'token-a')).json()) as { reason?: string }).reason, 'wait')
+    advance(9 * 60_000)
     assert.equal((await post('pve', { mapId: 'lighthouse' }, '10.0.0.4', 'token-a')).status, 201)
     assert.equal(notified, 3)
     const pvp = await (await get('pvp')).json() as { latest: unknown; recent: unknown[] }
@@ -152,17 +163,19 @@ test('goons: a signed-in account reports under his Tarkov nickname for that mode
       { mapId: 'customs', reportedAt: '2026-09-28T10:01:10.000Z', nickname: 'Bober' },
       { mapId: 'woods', reportedAt: '2026-09-28T10:00:00.000Z', nickname: 'SHAURMA' },
     ])
-    assert.deepEqual((await (await get('pve')).json() as { recent: unknown[] }).recent, [{ mapId: 'lighthouse', reportedAt: '2026-09-28T10:01:10.000Z', nickname: 'ShaurmaPve' }])
+    assert.deepEqual((await (await get('pve')).json() as { recent: unknown[] }).recent, [{ mapId: 'lighthouse', reportedAt: '2026-09-28T10:10:10.000Z', nickname: 'ShaurmaPve' }])
   }, { identify, onSighting: () => { notified += 1 } })
 })
 
 test('goons: limits are per account (another address does not help) and per address (several accounts)', async () => {
   await withApi(async ({ post, advance }) => {
     assert.equal((await post('pvp', { mapId: 'woods' }, '10.0.0.1', 'token-a')).status, 201)
-    assert.equal((await post('pvp', { mapId: 'customs' }, '10.0.0.7', 'token-a')).status, 429, 'same account, other address')
-    for (let index = 0; index < 20; index += 1) {
-      advance(61_000)
-      const answer = await post('pvp', { mapId: index % 2 ? 'customs' : 'shoreline' }, '10.0.0.9', index % 2 ? 'token-a' : 'token-b')
+    const again = await post('pvp', { mapId: 'customs' }, '10.0.0.7', 'token-a')
+    assert.equal(((await again.json()) as { reason?: string }).reason, 'wait', 'same account, other address')
+    // several accounts behind one address
+    for (let index = 0; index < 8; index += 1) {
+      advance(10_000)
+      const answer = await post('pvp', { mapId: index % 2 ? 'customs' : 'shoreline' }, '10.0.0.9', `token-${index}`)
       if (index < GOON_ADDRESS_LIMIT) assert.equal(answer.status, 201)
       else { assert.equal(answer.status, 429); break }
     }

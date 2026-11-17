@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { RaidState } from '../import/raidState'
+import { noteRaidStart } from '../data/goonReportGate'
 
 /**
  * The raid state the main process reads from the game's logs (electron/main.ts `game:raid-state`), desktop app only:
@@ -12,8 +13,9 @@ export function useRaidState(): RaidState | null {
     if (!desktop?.getRaidState || !desktop.onRaidStateChanged) return
     let alive = true
     let changed = false
-    const stop = desktop.onRaidStateChanged((next) => { changed = true; if (alive) setState(next) })
-    void desktop.getRaidState().then((next) => { if (alive && !changed) setState(next) }).catch(() => {})
+    // every raid start seen is remembered: «Видел» waits for a new raid after a sighting (data/goonReportGate.ts)
+    const stop = desktop.onRaidStateChanged((next) => { changed = true; noteRaidStart(next); if (alive) setState(next) })
+    void desktop.getRaidState().then((next) => { noteRaidStart(next); if (alive && !changed) setState(next) }).catch(() => {})
     return () => { alive = false; stop() }
   }, [])
   return state

@@ -7,7 +7,9 @@ import { uiText } from '../i18n/renderText'
 import { menuShift } from './menuShift'
 import { fitGoonStats, rowStep } from './goonStatsFit'
 import { useLocale } from '../i18n/LocaleProvider'
-import { GOON_MAPS, GOON_RETRY_UNSENT_MS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
+import { GOON_MAPS, GOON_RETRY_UNSENT_MS, lastOwnSightingAt, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
+import { goonReportBlock, lastRaidStart } from '../data/goonReportGate'
+import { useRaidState } from '../app/useRaidState'
 import type { RaidMode } from '../domain/types'
 import './goonCard.css'
 import goonLying from '../assets/goons-rest/lying.webp'
@@ -26,6 +28,7 @@ const NOTICE: Record<GoonReportResult, string> = {
   local: 'Сохранено только на этом компьютере',
   signin: 'Войдите в аккаунт, чтобы отметить',
   nickname: 'Ник появится, когда приложение прочитает логи игры',
+  wait: 'Отмечать можно раз в 10 минут',
 }
 
 /**
@@ -41,6 +44,9 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
   const [confirmMap, setConfirmMap] = useState<GoonMapId | null>(null)
   const [sending, setSending] = useState(false)
   const [notice, setNotice] = useState<GoonReportResult | null>(null)
+  /** «Видел» held by the spam protection (data/goonReportGate.ts): why, for a few seconds. */
+  const [held, setHeld] = useState<string | null>(null)
+  const raid = useRaidState()
   // The phone: a tap on the block opens the statistics as a sheet (owner, 11.11.2026: «При нажатии на сам блок… открывается
   // статистика: на каких картах сколько раз видели, последние отметки и ники»); there is no pointer to hover.
   const mobile = useMobileLayout()
@@ -132,6 +138,21 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
     const timer = window.setTimeout(() => setNotice(null), 5000)
     return () => window.clearTimeout(timer)
   }, [notice])
+  useEffect(() => {
+    if (!held) return
+    const timer = window.setTimeout(() => setHeld(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [held])
+
+  /** «Видел»: the menu, or why not now — 10 minutes after a sighting, and on the PC until a new raid has begun. */
+  const openReport = () => {
+    if (menuOpen) { closeMenu(); return }
+    const block = goonReportBlock({ lastOwnAt: lastOwnSightingAt(), raidTracked: raid?.tracked === true, raidStart: lastRaidStart(), now: Date.now() })
+    if (block?.kind === 'wait') { setNotice(null); setHeld(`${uiText('Следующая отметка — через')} ${block.minutes} ${uiText('мин')}`); return }
+    if (block?.kind === 'raid') { setNotice(null); setHeld(uiText('Следующая отметка — после нового рейда')); return }
+    setHeld(null)
+    setMenuOpen(true)
+  }
 
   const time = (iso: string) => new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
   const ago = (iso: string) => {
@@ -159,7 +180,9 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
 
   // An unsent sighting goes again with every refresh for a while (spam protection, a short outage): «отправится позже».
   const resending = Boolean(location?.unsent && connection !== 'local-only' && now - Date.parse(location.reportedAt) < GOON_RETRY_UNSENT_MS)
-  const meta = notice
+  const meta = held
+    ? held
+    : notice
     ? uiText(NOTICE[notice])
     : location
       ? `${location.nickname ? `${uiText('видел')} ${location.nickname}` : uiText('крайний раз')} · ${time(location.reportedAt)} · ${ago(location.reportedAt)}`
@@ -176,7 +199,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
     <div className="goon-card-heading">
       <div className="stat-label">{title}</div>
       <div className="goon-report-anchor">
-        <button ref={buttonRef} type="button" className="button small goon-report-button" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}>{uiText('Видел')}</button>
+        <button ref={buttonRef} type="button" className="button small goon-report-button" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={openReport}>{uiText('Видел')}</button>
         {menuOpen && <div ref={menuRef} className="goon-report-menu" role="dialog" aria-label={uiText('Где видели Кочевников?')}>
           {confirmMap
             ? <div className="goon-report-confirm">
