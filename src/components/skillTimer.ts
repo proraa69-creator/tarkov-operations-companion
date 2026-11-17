@@ -2,8 +2,9 @@ import { useSyncExternalStore } from 'react'
 
 /**
  * A plain manual countdown on the PC map (player report 155): the player starts it himself to time the pause a skill
- * needs to shed its fatigue. It reads nothing from the game and makes no sound. Off until turned on in the map's gear menu
- * (owner, 15.11.2026), 200 s unless another length is picked there.
+ * needs to shed its fatigue. It reads nothing from the game. Off until turned on in the map's gear menu (owner, 15.11.2026),
+ * 200 s unless another length is picked there. Silent unless «Сигнал в конце» is on (player report 177, owner 17.11.2026):
+ * then one quiet chime when it reaches zero, nothing to press to stop it.
  */
 
 export const SKILL_TIMER_DEFAULT = 200
@@ -14,6 +15,7 @@ const ENABLED_KEY = 'raidos-map-skill-timer-on-v1'
 const DURATION_KEY = 'raidos-map-skill-timer-seconds-v1'
 const EVENT = 'raidos-map-skill-timer-changed'
 const ENDS_AT_KEY = 'raidos-map-skill-timer-ends-at-v1'
+const CHIME_KEY = 'raidos-map-skill-timer-chime-v1'
 
 /** Whole seconds in range; anything unreadable falls back to 200. */
 export function clampTimerSeconds(value: unknown): number {
@@ -55,8 +57,18 @@ export function setSkillTimerEnabled(enabled: boolean, storage: Store | null = s
   window.dispatchEvent(new Event(EVENT))
 }
 
+/** «Сигнал в конце»: off unless turned on, so the timer stays silent for those who want it so. */
+export function isSkillTimerChime(storage: Store | null = store()): boolean {
+  try { return storage?.getItem(CHIME_KEY) === '1' } catch { return false }
+}
+
+export function setSkillTimerChime(on: boolean, storage: Store | null = store()) {
+  try { storage?.setItem(CHIME_KEY, on ? '1' : '0') } catch { /* storage unavailable */ }
+  window.dispatchEvent(new Event(EVENT))
+}
+
 function subscribe(listener: () => void) {
-  const onStorage = (event: StorageEvent) => { if (event.key === ENABLED_KEY || event.key === DURATION_KEY) listener() }
+  const onStorage = (event: StorageEvent) => { if (event.key === ENABLED_KEY || event.key === DURATION_KEY || event.key === CHIME_KEY) listener() }
   window.addEventListener(EVENT, listener)
   window.addEventListener('storage', onStorage)
   return () => {
@@ -66,6 +78,7 @@ function subscribe(listener: () => void) {
 }
 
 export const useSkillTimerEnabled = () => useSyncExternalStore(subscribe, () => isSkillTimerEnabled(), () => false)
+export const useSkillTimerChime = () => useSyncExternalStore(subscribe, () => isSkillTimerChime(), () => false)
 export const useSkillTimerSeconds = () => useSyncExternalStore(subscribe, () => loadTimerSeconds(), () => SKILL_TIMER_DEFAULT)
 
 /** A running countdown survives leaving the map page and an interface reload. */

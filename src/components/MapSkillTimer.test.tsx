@@ -3,10 +3,13 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { setRenderLanguage } from '../i18n/renderText'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { MapSkillTimer, MapSkillTimerSettings } from './MapSkillTimer'
+import { playTimerChime } from '../shared/uiSound'
 import {
-  SKILL_TIMER_DEFAULT, clampTimerSeconds, formatTimerClock, isSkillTimerEnabled, loadTimerEndsAt, loadTimerSeconds,
-  saveTimerEndsAt, saveTimerSeconds, timerSecondsLeft,
+  SKILL_TIMER_DEFAULT, clampTimerSeconds, formatTimerClock, isSkillTimerChime, isSkillTimerEnabled, loadTimerEndsAt, loadTimerSeconds,
+  saveTimerEndsAt, saveTimerSeconds, setSkillTimerChime, timerSecondsLeft,
 } from './skillTimer'
+
+vi.mock('../shared/uiSound', async (actual) => ({ ...(await actual<typeof import('../shared/uiSound')>()), playTimerChime: vi.fn() }))
 
 describe('skill timer maths', () => {
   it('reads m:ss with 0:00 when idle', () => {
@@ -55,6 +58,7 @@ describe('MapSkillTimer', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
+    vi.mocked(playTimerChime).mockClear()
     setRenderLanguage('ru')
   })
 
@@ -80,6 +84,33 @@ describe('MapSkillTimer', () => {
     act(() => { vi.advanceTimersByTime(200_500) })
     expect(idle()).toHaveTextContent('0:00')
     expect(idle()).toHaveClass('is-done')
+    // silent unless «Сигнал в конце» is on
+    expect(playTimerChime).not.toHaveBeenCalled()
+  })
+
+  it('report 177: with «Сигнал в конце» on, one chime as it reaches zero, none on a reset or later', () => {
+    setSkillTimerChime(true)
+    render(<MapSkillTimer />)
+    fireEvent.click(idle())
+    act(() => { vi.advanceTimersByTime(10_000) })
+    fireEvent.click(running())
+    expect(playTimerChime).not.toHaveBeenCalled()
+    fireEvent.click(idle())
+    act(() => { vi.advanceTimersByTime(199_000) })
+    expect(playTimerChime).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(30_000) })
+    expect(playTimerChime).toHaveBeenCalledTimes(1)
+  })
+
+  it('a countdown that ran out while the map was closed does not chime', () => {
+    setSkillTimerChime(true)
+    const { unmount } = render(<MapSkillTimer />)
+    fireEvent.click(idle())
+    unmount()
+    act(() => { vi.advanceTimersByTime(300_000) })
+    render(<MapSkillTimer />)
+    expect(idle()).toHaveTextContent('0:00')
+    expect(playTimerChime).not.toHaveBeenCalled()
   })
 
   it('keeps counting after the map page is left and opened again', () => {
@@ -122,6 +153,20 @@ describe('MapSkillTimerSettings', () => {
     fireEvent.change(input, { target: { value: '1' } })
     fireEvent.blur(input)
     expect(input).toHaveValue(5)
+  })
+
+  it('«Сигнал в конце» is off at first; turned on it plays once to be heard, turned off it is silent', () => {
+    render(<LocaleProvider><MapSkillTimerSettings /></LocaleProvider>)
+    const chime = screen.getByRole('switch', { name: 'Сигнал в конце' })
+    expect(chime).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(chime)
+    expect(chime).toHaveAttribute('aria-checked', 'true')
+    expect(isSkillTimerChime()).toBe(true)
+    expect(playTimerChime).toHaveBeenCalledTimes(1)
+    fireEvent.click(chime)
+    expect(isSkillTimerChime()).toBe(false)
+    expect(playTimerChime).toHaveBeenCalledTimes(1)
+    vi.mocked(playTimerChime).mockClear()
   })
 
   it('has the question mark that explains the timer', () => {

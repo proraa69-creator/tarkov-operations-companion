@@ -112,21 +112,28 @@ function burst(ctx: AudioContext, at: number, frequency: number, q: number, peak
   source.stop(at + decay + 0.01)
 }
 
-/** Hover: a short synthesized tick. Press: the owner's click recording (softened, see playClickSample). */
-export function playUiSound(kind: SoundKind) {
-  if (uiSoundVolume() <= 0) return
+/** The context ready to play now: a broken one is replaced, a resting one resumed. */
+function readyContext() {
   let ctx = audio()
   if (ctx && (broken || (ctx.state as string) === 'interrupted' || ctx.state === 'closed')) {
     dropContext()
     ctx = audio()
   }
-  if (!ctx || !master) return
+  if (!ctx || !master) return null
   if (resting || ctx.state !== 'running') {
     resting = false
     const current = ctx
     void ctx.resume().catch(() => { if (current === context) broken = true })
   }
   restLater(ctx)
+  return ctx
+}
+
+/** Hover: a short synthesized tick. Press: the owner's click recording (softened, see playClickSample). */
+export function playUiSound(kind: SoundKind) {
+  if (uiSoundVolume() <= 0) return
+  const ctx = readyContext()
+  if (!ctx) return
   const at = ctx.currentTime + 0.002
   if (kind === 'hover') {
     // «Алькантара»: a soft brush over suede instead of the tick
@@ -194,4 +201,33 @@ export function preloadUiSounds() {
   if (uiSoundVolume() <= 0) return
   const ctx = audio()
   if (ctx) void loadClickSample(ctx)
+}
+
+/**
+ * Player report 177 (owner, 17.11.2026): «простенький разовый сигнал по окончанию таймера, негромкий и тихий» — the map's
+ * fatigue timer, when «Сигнал в конце» is on. Two soft sine notes, about a second, played once. It follows «Громкость
+ * щелчков», but clicks turned off do not silence it: the player asked for the chime by its own switch.
+ */
+const CHIME_LEVEL = 0.1
+const CHIME_NOTES = [{ at: 0, hz: 880 }, { at: 0.16, hz: 1318.5 }] as const
+const CHIME_DECAY = 0.9
+
+export function playTimerChime() {
+  const ctx = readyContext()
+  if (!ctx) return
+  const level = CHIME_LEVEL * (uiSoundVolume() || 1)
+  const start = ctx.currentTime + 0.01
+  for (const note of CHIME_NOTES) {
+    const at = start + note.at
+    const tone = ctx.createOscillator()
+    tone.type = 'sine'
+    tone.frequency.value = note.hz
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0, at)
+    gain.gain.linearRampToValueAtTime(level, at + 0.008)
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + CHIME_DECAY)
+    tone.connect(gain).connect(ctx.destination)
+    tone.start(at)
+    tone.stop(at + CHIME_DECAY + 0.02)
+  }
 }

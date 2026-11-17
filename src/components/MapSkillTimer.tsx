@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { Hourglass } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { SettingHelp } from './SettingHelp'
+import { playTimerChime } from '../shared/uiSound'
 import {
-  SKILL_TIMER_MAX, SKILL_TIMER_MIN, clampTimerSeconds, formatTimerClock, loadTimerEndsAt, saveTimerEndsAt, saveTimerSeconds,
-  setSkillTimerEnabled, timerSecondsLeft, useSkillTimerEnabled, useSkillTimerSeconds,
+  SKILL_TIMER_MAX, SKILL_TIMER_MIN, clampTimerSeconds, formatTimerClock, isSkillTimerChime, loadTimerEndsAt, saveTimerEndsAt, saveTimerSeconds,
+  setSkillTimerChime, setSkillTimerEnabled, timerSecondsLeft, useSkillTimerChime, useSkillTimerEnabled, useSkillTimerSeconds,
 } from './skillTimer'
 import './mapSkillTimer.css'
 
-/** How long the button stays lit after the countdown reaches zero. Silent on purpose: no sound, no notification. */
+/** How long the button stays lit after the countdown reaches zero. No sound unless «Сигнал в конце» is on (report 177). */
 const DONE_GLOW_MS = 4000
 
 /**
@@ -24,10 +25,17 @@ export function MapSkillTimer() {
 
   useEffect(() => {
     if (endsAt === null) return
+    // A slow window may run several ticks before React re-renders: the end is acted on once.
+    let over = false
     const tick = () => {
+      if (over) return
       const current = Date.now()
       setNow(current)
-      if (current >= endsAt) { setEndsAt(null); saveTimerEndsAt(null); setDoneAt(current) }
+      if (current < endsAt) return
+      over = true
+      setEndsAt(null); saveTimerEndsAt(null); setDoneAt(current)
+      // Once, as the countdown ends; a countdown that ran out while the map was closed stays silent.
+      if (isSkillTimerChime()) playTimerChime()
     }
     tick()
     const id = window.setInterval(tick, 250)
@@ -63,6 +71,7 @@ export function MapSkillTimer() {
 /** The gear menu over the locations: the timer on or off and its length, 200 s by default (owner, 15.11.2026). */
 export function MapSkillTimerSettings() {
   const enabled = useSkillTimerEnabled()
+  const chime = useSkillTimerChime()
   const seconds = useSkillTimerSeconds()
   const [draft, setDraft] = useState(String(seconds))
   // Another window changed the length: show it (state adjusted during render, not in an effect).
@@ -77,6 +86,14 @@ export function MapSkillTimerSettings() {
         <span>{uiText('На карте')}</span>
         <button type="button" role="switch" aria-checked={enabled} aria-label={title} className={`toggle ${enabled ? 'on' : ''}`}
           onClick={() => setSkillTimerEnabled(!enabled)}>
+          <span />
+        </button>
+      </div>
+      <div className="skill-timer-row">
+        <span>{uiText('Сигнал в конце')}</span>
+        {/* Turned on, it plays once so the player hears how quiet it is. */}
+        <button type="button" role="switch" aria-checked={chime} aria-label={uiText('Сигнал в конце')} className={`toggle ${chime ? 'on' : ''}`}
+          onClick={() => { setSkillTimerChime(!chime); if (!chime) playTimerChime() }}>
           <span />
         </button>
       </div>
