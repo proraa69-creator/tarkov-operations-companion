@@ -7564,5 +7564,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   upload ECONNRESET, unrelated). Feeds dry run from this PC: 32 sightings. Browser: presets drag (isolated page), boss panels,
   map buttons, Labyrinth card (helpers' screenshots).
 - Not verified: real Electron app and game; feeds on the VPS until released; rare boss guns beyond ~15 sampled loadouts.
-- Waiting: the owner's word on the news and when to release (push release/production → 13:00 / 20:00 Bangkok timer).
-
+- Owner 17.11: news only lines 1–4 (bosses, presets order, «Скрыть все»/«Показать все», chime) — nothing about Goons, the trader price,
+  «Спутник», «Ключ 01»; history the same four. «Выкладывай выпуск прямо сейчас»: c53278aa pushed to release/production 18:26,
+  gate green 18:38, raidos-release.service started by hand, `download/version.json` 0.6.0-312 at 18:46 Bangkok. Goons feeds live
+  on the VPS (PvP and PvE sightings with nicknames in /v1/goons). Reports 177–183 close on release.
