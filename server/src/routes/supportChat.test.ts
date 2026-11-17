@@ -258,7 +258,7 @@ test('support chat: a session is required; the owner routes answer 404 to everyb
 })
 
 test('support chat: 20 messages per 10 minutes per account and per address; a refused empty message does not count', async () => {
-  assert.deepEqual(SUPPORT_CHAT_RATE_LIMITS, { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000, imagesPerHour: 40 })
+  assert.deepEqual(SUPPORT_CHAT_RATE_LIMITS, { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000, imagesPerHour: 40, guestsPerHour: 5 })
   const t = await setup({ perAccount: 2, perIp: 3 })
   try {
     const a = await t.register('a@example.com')

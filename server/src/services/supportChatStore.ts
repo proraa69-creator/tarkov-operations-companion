@@ -52,7 +52,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { sniffImage, type ImageMime } from './bugReportStore.js'
 import { imageSize } from './imageSize.js'
 import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_MESSAGE_MAX, SUPPORT_STICKER_PLACEHOLDER, supportQuoteText, supportReportText, supportStickerText, type SupportAttachment, type SupportReaction, type SupportReplyQuote, type SupportReportRef, type SupportReportReply } from '../../../src/shared/supportChat.js'
@@ -209,6 +209,10 @@ export interface SupportChatStoreOptions {
   maxStoredBytes?: number
 }
 
+/** A guest's token as the site keeps it (base64url of 24 random bytes). */
+export const GUEST_TOKEN = /^[A-Za-z0-9_-]{32}$/
+const guestTokenHash = (token: string) => createHash('sha256').update(`support-guest:${token}`).digest('hex')
+
 export class SupportChatStore {
   private readonly db: DatabaseSync
   private readonly now: () => number
@@ -236,7 +240,38 @@ export class SupportChatStore {
     if (!columns.has('reply_author')) this.db.exec('ALTER TABLE support_messages ADD COLUMN reply_author TEXT')
     if (!columns.has('reply_text')) this.db.exec('ALTER TABLE support_messages ADD COLUMN reply_text TEXT')
     if (!columns.has('reply_sticker')) this.db.exec('ALTER TABLE support_messages ADD COLUMN reply_sticker TEXT')
+    // Guests of the site's chat (owner, 17.11.2026: «Можно войти как гость… если он не авторизован, то пишется как гость»).
+    this.db.exec(`CREATE TABLE IF NOT EXISTS support_guests (
+      number INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT NOT NULL UNIQUE,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL)`)
     this.pruneImages()
+  }
+
+  /**
+   * A new guest of the site's chat: a conversation id shaped like an account's (24 hex, so the owner's apps open it as any
+   * other) and the token the browser keeps; only the token's hash is stored. `taken`: an id an account already has.
+   */
+  createGuest(taken: (id: string) => boolean = () => false): { id: string; token: string; number: number } {
+    let id = randomBytes(12).toString('hex')
+    while (taken(id) || this.guestNumber(id) !== undefined) id = randomBytes(12).toString('hex')
+    const token = randomBytes(24).toString('base64url')
+    const result = this.db.prepare('INSERT INTO support_guests (id, token_hash, created_at) VALUES (?, ?, ?)').run(id, guestTokenHash(token), this.now())
+    return { id, token, number: Number(result.lastInsertRowid) }
+  }
+
+  /** The guest's conversation id for a token the browser sent, or undefined. */
+  guestByToken(token: string): string | undefined {
+    if (!GUEST_TOKEN.test(token)) return undefined
+    const row = this.db.prepare('SELECT id FROM support_guests WHERE token_hash = ?').get(guestTokenHash(token)) as Row | undefined
+    return row ? String(row.id) : undefined
+  }
+
+  /** «Гость N»: the guest's number, undefined for an account. */
+  guestNumber(id: string): number | undefined {
+    const row = this.db.prepare('SELECT number FROM support_guests WHERE id = ?').get(id) as Row | undefined
+    return row ? Number(row.number) : undefined
   }
 
   /** Bytes of all stored chat screenshots. */

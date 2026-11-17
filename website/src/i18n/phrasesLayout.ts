@@ -11,6 +11,11 @@ export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Ссылки в подвале', 'Footer links'], ['Документы', 'Documents'], ['Публичная оферта', 'Public offer'],
   ['Политика конфиденциальности', 'Privacy policy'], ['Согласие на обработку ПД', 'Personal data consent'], ['Тарифы, оплата и возврат', 'Plans, payment and refunds'],
   ['Язык сайта', 'Site language'],
+  // The support chat (components/SupportWidget.tsx).
+  ['Поддержка', 'Support'], ['Закрыть поддержку', 'Close support'], ['Вы пишете из аккаунта {email}', 'You write from {email}'],
+  ['Вы пишете как гость', 'You write as a guest'], ['Задайте любой вопрос — ответим здесь.', 'Ask anything — we answer right here.'],
+  ['Ваш вопрос', 'Your question'], ['Отправить', 'Send'], ['Не удалось отправить. Попробуйте ещё раз.', 'Could not send. Try again.'],
+  ['Нет связи с сервером. Попробуйте ещё раз.', 'No connection to the server. Try again.'],
   ['Условия и документы доступны только на русском языке: они составлены по законодательству РФ.', 'Terms and legal documents are available in Russian only: they are drawn up under Russian law.'],
   // Page titles (App.tsx).
   ['Raid OS — приложение для Таркова (Escape from Tarkov): квесты, карты, цены', 'Raid OS — the Escape from Tarkov app: quests, maps, prices'],
