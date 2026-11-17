@@ -7564,7 +7564,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   upload ECONNRESET, unrelated). Feeds dry run from this PC: 32 sightings. Browser: presets drag (isolated page), boss panels,
   map buttons, Labyrinth card (helpers' screenshots).
 - Not verified: real Electron app and game; feeds on the VPS until released; rare boss guns beyond ~15 sampled loadouts.
-- Waiting: the owner's word on the news and when to release (push release/production → 13:00 / 20:00 Bangkok timer).
+- Owner 17.11: news only lines 1–4 (bosses, presets order, «Скрыть все»/«Показать все», chime) — nothing about Goons, the trader price,
+  «Спутник», «Ключ 01»; history the same four. «Выкладывай выпуск прямо сейчас»: c53278aa pushed to release/production 18:26,
+  gate green 18:38, raidos-release.service started by hand, `download/version.json` 0.6.0-312 at 18:46 Bangkok. Goons feeds live
+  on the VPS (PvP and PvE sightings with nicknames in /v1/goons). Reports 177–183 close on release.
 
 
 ## 2026-11-17 — Site: privacy policy in the footer, «Поддержка» chat for guests (branch claude/site-privacy-support)
@@ -7590,3 +7593,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   passed in the run before).
 - Not borrowed (not confirmed in Season): arena «[PVP ZONE]», prestige «Новое начало», Fence's «Возмещение ущерба».
 - Not released yet: reaches players with the server's quest base after a release.
+
+## 2026-11-17 — Server check after «сегодняшней атаки хакеров» (read-only, nothing changed)
+
+- 18:50 Bangkok: raidos-api, nginx, ssh active, no failed units, API restarts 0 since 11:46 UTC; site, /health, /v1/goons, version.json 200.
+- nginx today 1.31 M requests (normal app polling); 502 only at the two release restarts (01:07–01:08 and 11:46 UTC); 7 scanner
+  requests; logins 58 (22 × 401, 5 × 429). No sign of a successful break-in: SSH logins for 7 days only by key from 104.28.x (WARP).
+- SSH: 2455 failed password tries today (top 77.239.124.157: 613). PasswordAuthentication yes, PermitRootLogin yes, no fail2ban,
+  ufw inactive — hardening proposed to the owner, waiting for his word.
+- Owner 17.11 («давай делай тогда по ключу»): /etc/ssh/sshd_config.d/00-raidos-keys-only.conf — PasswordAuthentication no,
+  KbdInteractiveAuthentication no, PermitRootLogin prohibit-password (read before 50-cloud-init.conf, which still says yes).
+  Backup /root/sshd-backup-20261117; `sshd -t` ok, `systemctl reload ssh`; a 10-minute auto-rollback timer was armed and
+  stopped after the check. Checked: a new key login works, a password login gets «Permission denied (publickey)»; api, nginx up.
+  The root password still works in the Timeweb web console. fail2ban / ufw not touched.
