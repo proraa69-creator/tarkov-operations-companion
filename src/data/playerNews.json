@@ -3,11 +3,7 @@
     {"kind":"added","ru":"«Боссы»: броня с классом плит спереди, сзади и по бокам, оружие с патронами","en":"«Bosses»: armour with plate classes front, back and sides, guns with their rounds"},
     {"kind":"added","ru":"«Настройка экрана»: пресеты можно менять местами — зажмите и перетащите","en":"«Screen tuning»: hold a preset and drag it to change the order"},
     {"kind":"added","ru":"«Карты»: кнопки «Скрыть все» и «Показать все» для точек на карте","en":"«Maps»: «Hide all» and «Show all» for the map markers"},
-    {"kind":"added","ru":"Таймер усталости навыка: тихий сигнал в конце, по желанию","en":"Skill fatigue timer: a quiet chime at the end, if you like"},
-    {"kind":"improved","ru":"«Кочевники»: намного больше отметок — кто и когда их видел","en":"«Goons»: many more sightings — who saw them and when"},
-    {"kind":"improved","ru":"Цена предмета распознаётся и в окне торговца","en":"Item prices are recognised on the trader screen too"},
-    {"kind":"improved","ru":"«Все локации»: «Спутник» — одна цельная карта, без чёрных кусков","en":"«All locations»: «Satellite» is one whole map, no black patches"},
-    {"kind":"improved","ru":"«Лабиринт»: «Ключ 01» на лопате","en":"«Labyrinth»: «Key 01» on the shovel"}
+    {"kind":"added","ru":"Таймер усталости навыка: тихий сигнал в конце, по желанию","en":"Skill fatigue timer: a quiet chime at the end, if you like"}
   ]},
   {"version":"0.6.0.311","date":"2026-11-17","items":[
     {"kind":"added","ru":"«Квесты»: кнопка «Показать только сюжетные» — предметы, которые нужно сдать по сюжету","en":"«Quests»: «Show story only» — the items the story asks you to hand over"},
