@@ -1,6 +1,6 @@
 import { uiText, uiLabel } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
-import { useCallback, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Check, ChevronRight, Clock3, KeyRound, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
 import { locationKeys, useLocationKeys } from '../keys/locationKeysStore'
@@ -248,6 +248,9 @@ export function DashboardPage() {
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
 
   const keysWindow = useLocationKeys()
+  // another map picked here while the keys are open: they follow it (the window's own switch changes it after)
+  const keysOpen = keysWindow.open
+  useEffect(() => { if (keysOpen) locationKeys.showMap(selectedMap.id) }, [keysOpen, selectedMap.id])
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
 
   // «Геопозиция» in the phone's quest card: only a quest with a point of its own on this raid's map.
@@ -290,7 +293,10 @@ export function DashboardPage() {
           </div>
           <MapPicker open={mapPickerOpen} maps={data.maps} firstMapId={selectedMap.id}
             onPick={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
-            <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
+            <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button>
+              {/* «Ключи» (report 186; owner 18.11.2026: «выбираю резерв, и рядом кнопка… открывает мне сразу ключи резерва»): the keys of the map
+                  picked here, in the window that stays over the app */}
+              <button type="button" className={`button location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(selectedMap.id)}><KeyRound size={16} />{uiText(' Ключи')}</button></div>
         </div>
       </section>,
     },
@@ -350,8 +356,6 @@ export function DashboardPage() {
           <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
         </div>
         <PromoCodesButton />
-        {/* «Ключи» (report 186): the location's keys in a window that stays over the app, the same as on the map */}
-        <button type="button" className={`button location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(selectedMap?.id ?? '')}><KeyRound size={16} />{uiText(' Ключи')}</button>
         <button type="button" className="button" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
     </header>

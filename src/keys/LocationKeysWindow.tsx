@@ -13,7 +13,7 @@ import { locationKeys, useLocationKeys } from './locationKeysStore'
 import { clampKeysPosition, defaultKeysPosition, keyDoorsHref, keysOfLocation, locationsWithKeys } from './locationKeysList'
 import './locationKeys.css'
 
-const WINDOW_WIDTH = 392
+const WINDOW_WIDTH = 440
 
 /** «открывает 3 двери» / «opens 3 doors». */
 function doorsCount(count: number, locale: AppLocale) {
@@ -139,14 +139,16 @@ function KeysWindowBody() {
         </div>
         : <div className="location-keys-grid" role="list">
           {list.length === 0 && <p className="location-keys-empty">{uiText(tarkov ? 'На этой карте ключей нет' : 'Загружаем карту…')}</p>}
-          {list.map(({ keyId, item, doors }) => <div key={keyId} className="location-key" role="listitem">
-            <button type="button" className="location-key-card" title={keyName(item, keyId)} onClick={() => item && setCard(item)} disabled={!item}>
-              <span className="location-key-picture">{item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={22} />}</span>
+          {/* a short card as in «Требования рейда» (owner, 18.11.2026): the picture, the name, the pin under it */}
+          {list.map(({ keyId, item, doors }) => <div key={keyId} className="location-key" role="listitem" title={keyName(item, keyId)}>
+            <button type="button" className="location-key-open" aria-label={keyName(item, keyId)} onClick={() => item && setCard(item)} disabled={!item} />
+            <span className="location-key-picture">{item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={18} />}</span>
+            <span className="location-key-copy">
               <span className="location-key-name">{item ? uiText(item.shortName || item.name) : keyId}</span>
-            </button>
-            <button type="button" className="location-key-pin" aria-label={`${uiText('Показать на карте')} · ${keyName(item, keyId)}`} title={doors.length > 1 ? `${uiText('Показать двери на карте')} · ${doors.length}` : uiText('Показать дверь на карте')} onClick={() => showDoors(keyId)}>
-              <MapPin size={13} />{doors.length > 1 && <b>{doors.length}</b>}
-            </button>
+              <button type="button" className="location-key-pin" aria-label={`${uiText('Показать на карте')} · ${keyName(item, keyId)}`} title={doors.length > 1 ? `${uiText('Показать двери на карте')} · ${doors.length}` : uiText('Показать дверь на карте')} onClick={() => showDoors(keyId)}>
+                <MapPin size={11} />{doors.length > 1 && <b>{doors.length}</b>}
+              </button>
+            </span>
           </div>)}
         </div>}
     </section>
