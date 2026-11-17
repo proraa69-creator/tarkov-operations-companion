@@ -156,19 +156,16 @@
 .layer-button:hover { background: var(--surf-2); color: var(--text); }
 .layer-button.active { color: #d6ded7; }
 .layer-kinds { display: grid; padding-left: 12px; }
-/* Report 181: «Показать все» / «Скрыть все» over «Точки на карте»; the button just pressed turns into «Вернуть». Side by side;
+/* Report 181: «Показать все» / «Скрыть все» over «Точки на карте». Side by side;
    in the narrow side panel of the PC, one under the other, so the words are never cut. */
 .map-layers-all-box { container-type: inline-size; margin: 0 2px 10px; }
 .map-layers-all { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 @container (max-width: 250px) { .map-layers-all { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
-.map-layers-all-button { min-height: 32px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; background: var(--surf-1); color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color .2s var(--ease-soft), border-color .2s var(--ease-soft), color .2s var(--ease-soft), opacity .26s var(--ease-soft), transform .2s var(--ease-soft); }
-.map-layers-all-face { display: inline-flex; align-items: center; gap: 7px; min-width: 0; animation: map-layers-all-face .26s var(--ease-soft); }
-.map-layers-all-face > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-layers-all-button { min-height: 32px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; background: var(--surf-1); color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; transition: background-color .2s var(--ease-soft), border-color .2s var(--ease-soft), color .2s var(--ease-soft), opacity .26s var(--ease-soft), transform .2s var(--ease-soft); }
+.map-layers-all-button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .map-layers-all-button:hover:not(:disabled) { background: var(--surf-2); border-color: var(--line-strong); color: var(--text); }
 .map-layers-all-button:active:not(:disabled) { transform: scale(.97); }
 .map-layers-all-button:disabled { opacity: .45; cursor: default; }
-.map-layers-all-button.is-back { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); color: var(--brass); }
-@keyframes map-layers-all-face { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 .layer-button.is-kind { min-height: 30px; font-size: 12px; }
 .layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; }
 .layer-icon { width: 22px; height: 22px; object-fit: contain; opacity: .35; filter: grayscale(.8) drop-shadow(0 1px 1px rgb(0 0 0 / 60%)); transition: opacity .26s var(--ease-soft), filter .26s var(--ease-soft); }

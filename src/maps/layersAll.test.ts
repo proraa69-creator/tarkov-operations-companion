@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { allMarkerLayers, defaultHiddenMarkerLayers } from '../domain/mapLayers'
-import { everythingHidden, everythingShown, hideAll, keepLayersBefore, readLayersBefore, sameChoice, showAll, type LayerChoice, type ListedRows } from './layersAll'
+import { everythingHidden, hideAll, keepLayersBefore, readLayersBefore, sameChoice, shownAgain, type LayerChoice, type ListedRows } from './layersAll'
 
 const own: LayerChoice = { hiddenMarkers: [...defaultHiddenMarkerLayers], hiddenKinds: ['safe'], hiddenRooms: ['signs'], killZones: true, neededKeys: true }
 const listed: ListedRows = { markers: ['extract.pmc', 'loot.container', 'boss'], rooms: ['signs', 'places'], killZones: true, neededKeys: true }
@@ -8,14 +8,15 @@ const listed: ListedRows = { markers: ['extract.pmc', 'loot.container', 'boss'],
 describe('report 181: «Показать все» / «Скрыть все» of «Точки на карте»', () => {
   beforeEach(() => localStorage.clear())
 
-  it('«Показать все» turns on every row, the containers\' kinds and «Места устранения»', () => {
-    const next = showAll(own)
-    expect(next.hiddenMarkers).toEqual([])
-    expect(next.hiddenKinds).toEqual([])
-    expect(next.hiddenRooms).toEqual([])
-    expect(next.killZones).toBe(true)
-    expect(everythingShown(listed, next)).toBe(true)
-    expect(everythingHidden(listed, next)).toBe(false)
+  it('«Показать все» brings back the player’s own choice, not every layer; a row turned on by hand since stays on', () => {
+    const hidden = hideAll(own)
+    expect(sameChoice(shownAgain(own, hidden), own)).toBe(true)
+    const byHand = { ...hidden, hiddenMarkers: hidden.hiddenMarkers.filter((id) => id !== 'boss') }
+    const back = shownAgain(own, byHand)
+    expect(back.hiddenMarkers).toEqual(own.hiddenMarkers.filter((id) => id !== 'boss'))
+    expect(back.hiddenKinds).toEqual(['safe'])
+    expect(back.hiddenRooms).toEqual(['signs'])
+    expect(everythingHidden(listed, back)).toBe(false)
   })
 
   it('«Скрыть все» turns off every layer on every map, «Нужные ключи» too, and keeps the kinds for later', () => {
@@ -25,16 +26,9 @@ describe('report 181: «Показать все» / «Скрыть все» of �
     expect(next.killZones).toBe(false)
     expect(next.neededKeys).toBe(false)
     expect(everythingHidden(listed, next)).toBe(true)
-    expect(everythingShown(listed, next)).toBe(false)
   })
 
-  it('a hidden kind of container means not everything is shown; rows the map does not list do not count', () => {
-    expect(everythingShown(listed, { ...showAll(own), hiddenKinds: ['safe'] })).toBe(false)
-    expect(everythingShown({ ...listed, markers: ['extract.pmc'] }, { ...showAll(own), hiddenKinds: ['safe'] })).toBe(true)
-    expect(everythingShown({ ...listed, killZones: false }, { ...showAll(own), killZones: false })).toBe(true)
-  })
-
-  it('the choice from before is kept for «Вернуть» and read back as it was', () => {
+  it('the choice «Скрыть все» keeps is read back as it was (after a restart too)', () => {
     expect(readLayersBefore()).toBeNull()
     keepLayersBefore(own)
     const back = readLayersBefore()

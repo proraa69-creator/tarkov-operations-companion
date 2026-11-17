@@ -869,14 +869,14 @@ export function MapsPage() {
   }), [listedGroups, roomRows, killZoneList.length])
   const layerChoice = useMemo<LayerChoice>(() => ({ hiddenMarkers: state.hiddenMarkerLayers, hiddenKinds: hiddenContainerKinds, hiddenRooms: [...hiddenRooms], killZones: killZonesShown, neededKeys: neededKeysOnly }),
     [state.hiddenMarkerLayers, hiddenContainerKinds, hiddenRooms, killZonesShown, neededKeysOnly])
-  const [layersBefore, setLayersBefore] = useState(readLayersBefore)
-  const applyLayerChoice = (next: LayerChoice, before: LayerChoice | null) => {
+  const [layersKept, setLayersKept] = useState(readLayersBefore)
+  const applyLayerChoice = (next: LayerChoice, kept: LayerChoice | null) => {
     state.setMarkerLayers([...next.hiddenMarkers], [...next.hiddenKinds])
     setHiddenRoomLayers(next.hiddenRooms)
     if (next.killZones !== killZonesShown) setKillZonesShown(next.killZones)
     if (next.neededKeys !== neededKeysOnly) setNeededKeysOnly(next.neededKeys)
-    keepLayersBefore(before)
-    setLayersBefore(before)
+    keepLayersBefore(kept)
+    setLayersKept(kept)
     closeCardOfHidden(next.hiddenMarkers, next.hiddenKinds, next.neededKeys)
   }
 
@@ -1299,7 +1299,7 @@ export function MapsPage() {
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
           {/* The phone's list is long: a way back to the map without scrolling past it (owner, 07.11.2026). */}
           {mobile && <button type="button" className="map-layers-close" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={closeLayers}><X size={20} aria-hidden="true" /></button>}
-          <MapLayersAll listed={listedRows} choice={layerChoice} before={layersBefore} onApply={applyLayerChoice} />
+          <MapLayersAll listed={listedRows} choice={layerChoice} kept={layersKept} onApply={applyLayerChoice} />
           {uiText(listedGroups.map((group) => (
             <div key={group.title} className="map-layer-group">
               <div className="map-side-title">{uiText(group.title)}</div>
