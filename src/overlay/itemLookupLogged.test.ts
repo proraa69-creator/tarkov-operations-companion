@@ -47,6 +47,8 @@ const TOOLTIPS = [
   { file: 'bender-two-lines.png', cursor: { x: -9, y: 87 }, id: '61714eec290d254f5e6b2ffc' },
   { file: 'osprey-two-lines.png', cursor: { x: -11, y: 88 }, id: '60a3c70cde5f453f634816a3' },
   { file: 'wd40.png', cursor: { x: -12, y: 66 }, id: '590c5bbd86f774785762df04' },
+  // A trader's screen (report 183): the name over a yellow price row «₽ 42 344».
+  { file: 'trader-loot-lord.png', cursor: { x: -10, y: 85 }, id: '60b0f7057897d47c5b04ab94' },
 ]
 
 /** The catalog's names around these items, look-alikes and presets included (json.tarkov.dev, 15.11.2026). */
@@ -65,6 +67,7 @@ const CATALOG: Array<{ id: string; name: string; shortName: string; nameEn: stri
   { id: '61714eec290d254f5e6b2ffc', name: 'Оптический прицел 34мм Schmidt & Bender PM II 3-20x50', shortName: 'PM II 3-20x50', nameEn: 'Schmidt & Bender PM II 3-20x50 34mm riflescope', shortNameEn: 'PM II 3-20' },
   { id: '617151c1d92c473c770214ab', name: 'Оптический прицел 30мм Schmidt & Bender PM II 1-8x24', shortName: 'PM II 1-8x24', nameEn: 'Schmidt & Bender PM II 1-8x24 30mm riflescope', shortNameEn: 'PM II 1-8' },
   { id: '62850c28da09541f43158cca', name: 'Оптический прицел 34мм Schmidt & Bender PM II 5-25x56', shortName: 'PM II 5-25x56', nameEn: 'Schmidt & Bender PM II 5-25x56 34mm riflescope', shortNameEn: 'PM II 5-25' },
+  { id: '60b0f7057897d47c5b04ab94', name: 'Плюшевая игрушка Loot Lord', shortName: 'Loot Lord', nameEn: 'Loot Lord plushie', shortNameEn: 'Loot Lord' },
   { id: '69774bb0a247161ff1068335', name: 'Банка утиного паштета', shortName: 'Паштет', nameEn: 'Can of duck pate', shortNameEn: 'Pâté' },
 ]
 
@@ -83,6 +86,51 @@ describe('long names the game wraps onto two lines', () => {
   it('never takes an inventory cell with its label for a tooltip (logged: «Гвозди» at 2×)', async () => {
     const image = await load('cell-not-tooltip.png')
     expect(findTooltipAtScales(image, { x: 37, y: 138 }, UNIT, SCALES)).toBeNull()
+  })
+})
+
+describe('a trader\'s tooltip: the name over a price row (report 183, «Предмет не распознан» while selling)', () => {
+  const CURSOR = { x: -10, y: 85 }
+  /** The crop's rows: the name 13–28, the price 36–57, inside the frame 9–63. */
+  const paint = (image: Bitmap, x0: number, x1: number, y0: number, y1: number) => {
+    const from = (11 * image.width + 20) * 4
+    for (let y = y0; y <= y1; y += 1) for (let x = x0; x <= x1; x += 1) image.data.set(image.data.subarray(from, from + 4), (y * image.width + x) * 4)
+  }
+
+  it('finds the box and gives the OCR the name alone, one line', async () => {
+    const image = await load('trader-loot-lord.png')
+    const found = findTooltipAtScales(image, CURSOR, UNIT, SCALES)
+    expect(found).not.toBeNull()
+    const [first] = ocrVariants(image, found!.rect, CURSOR, found!.unit)
+    // The name line only: about one line of text high (the price row left out).
+    expect(first!.height).toBeLessThan(25 * UNIT * 4)
+    // No pixel of the price row is drawn: the right part of the picture under the name's middle stays white below the text.
+    expect(first!.width / first!.height).toBeGreaterThan(6)
+  })
+
+  it('a short name over a wider price row is still a tooltip', async () => {
+    const image = await load('trader-loot-lord.png')
+    // «Плюшевая» only: the box is as wide as before, the name ends far from its right side.
+    paint(image, 100, 284, 10, 33)
+    expect(findTooltipAtScales(image, CURSOR, UNIT, SCALES)).not.toBeNull()
+  })
+
+  it('a long name the game wrapped, with the price under it (three rows, ~60 px at 1080p)', async () => {
+    const source = await load('trader-loot-lord.png')
+    // The name's rows once more under the first: name, name, price.
+    const extra = 18
+    const height = source.height + extra
+    const data = new Uint8Array(source.width * height * 4)
+    const row = source.width * 4
+    data.set(source.data.subarray(0, 31 * row), 0)
+    data.set(source.data.subarray(13 * row, 31 * row), 31 * row)
+    data.set(source.data.subarray(31 * row), (31 + extra) * row)
+    const image = { width: source.width, height, data }
+    const found = findTooltipAtScales(image, { x: CURSOR.x, y: CURSOR.y + extra }, UNIT, SCALES)
+    expect(found).not.toBeNull()
+    const [first] = ocrVariants(image, found!.rect, { x: CURSOR.x, y: CURSOR.y + extra }, found!.unit)
+    // The two name lines side by side: one line of text for the OCR.
+    expect(first!.width / first!.height).toBeGreaterThan(12)
   })
 })
 
