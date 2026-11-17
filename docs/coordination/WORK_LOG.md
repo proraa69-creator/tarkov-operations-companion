@@ -7623,3 +7623,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (no «Program Files», `/api`), dist-next-manual → dist, old one dist-old-1794926497053; /support, /, /privacy,
   version.json, /download/windows 200; checked live in the browser.
 - The NEXT RELEASE must merge claude/site-support-page, or the publisher's site build drops /support again.
+
+## 2026-11-17 — 0.6.0.314 live
+
+- Owner «выпускай»: 6d1375a2 (goons spam guard: 10 min per account, once a raid on the PC, one nickname's repeats hidden
+  for 50 min; /support kept; «Боссы» soft zones and round tips, smaller health card; compact hotkey rows; «Все локации»
+  Streets' negative tiles, Ground Zero holes asphalt). Pushed 22:53, gate green first time, publisher started by hand,
+  `download/version.json` 0.6.0-314 at 23:18 Bangkok; /support and /privacy 200; /v1/goons/pvp shows repeats folded.
+- Not verified live: hotkey rows in the PC app, «Все локации» zoomed on Streets / Ground Zero in the app.
