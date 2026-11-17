@@ -54,12 +54,15 @@ export const GOON_RETENTION_MS = 24 * 60 * 60 * 1000
 export const GOON_STATS_WINDOW_MS = GOON_RETENTION_MS
 
 export class MemoryGoonStore implements GoonStore {
-  /** Kept sorted oldest → newest because entries are appended with server time. */
+  /** Kept sorted oldest → newest (by `reportedAt`). */
   private sightings: GoonSighting[] = []
   constructor(private readonly maxEntries = 50_000) {}
 
   add(sighting: GoonSighting) {
-    this.sightings.push(sighting)
+    // A sighting from another tracker (services/goonFeeds.ts) can be older than the newest one: kept in time order.
+    let at = this.sightings.length
+    while (at > 0 && this.sightings[at - 1]!.reportedAt > sighting.reportedAt) at -= 1
+    this.sightings.splice(at, 0, sighting)
     if (this.sightings.length > this.maxEntries) this.sightings.splice(0, this.sightings.length - this.maxEntries)
   }
 

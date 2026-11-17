@@ -85,6 +85,7 @@ import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
+import { startGoonFeeds, type GoonFeedOptions } from './services/goonFeeds.js'
 import { UserDataStore } from './services/userDataStore.js'
 import { openDatabase } from './services/database.js'
 import { EntitlementService } from './services/entitlement.js'
@@ -161,6 +162,8 @@ export interface ApiOptions {
   questPointPhotoUploadsPerHour?: number
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
+  /** Sightings from other trackers saved beside ours (services/goonFeeds.ts): true on the players' server. */
+  goonFeeds?: boolean | Omit<GoonFeedOptions, 'store' | 'onImported'>
   /** Per-user documents (Collector, position, settings); defaults to a private in-memory database. */
   userData?: UserDataStore
   /** Already-loaded catalog for summaries (Kappa / Collector totals). Defaults to the server catalog cache. */
@@ -352,7 +355,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Goons card as soon as anybody reports them (routes/mapUpdates.ts).
   const mapUpdates = new MapUpdates()
   // «Кочевники»: reported by a signed-in account; his Tarkov nickname (one for all modes) is shown to everybody.
-  app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore(), {
+  const goonStore = options.goons ?? new MemoryGoonStore()
+  if (options.goonFeeds) {
+    startGoonFeeds({ log: (line) => console.warn(line), ...(typeof options.goonFeeds === 'object' ? options.goonFeeds : {}), store: goonStore, onImported: () => mapUpdates.changed() })
+  }
+  app.use('/v1/goons', createGoonsRouter(goonStore, {
     identify: (req) => {
       const id = accounts.authenticate(bearer(req.get('authorization')))
       if (!id) return null
