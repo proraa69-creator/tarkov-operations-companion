@@ -260,6 +260,63 @@ function satelliteTone(canvas: HTMLCanvasElement) {
   context.putImageData(image, 0, 0)
 }
 
+/** The colour of asphalt in the renders: a dark hole inside a render (Ground Zero between its streets) takes it. */
+export const RENDER_ASPHALT: readonly [number, number, number] = [56, 57, 53]
+/** r + g + b under this is the near-black around a render (the mask's 6 × (r + g + b) / 255 − 0.18 below ½). */
+const NEAR_BLACK = 30
+
+/**
+ * Near-black (or empty) inside a render, not joined to its outer edge, painted asphalt (owner, 17.11.2026: «где у нас карта
+ * эпицентр, там посередине между улицами прозрачное все. Затемни это, сделай в цвет асфальта»): only the black that reaches the
+ * picture's edge is the outside the mask fades away. The darker a pixel, the more of the asphalt it takes. Returns how many.
+ */
+export function fillInnerDark(data: Uint8ClampedArray, width: number, height: number, asphalt: readonly [number, number, number] = RENDER_ASPHALT,
+  options: { spans?: boolean } = {}): number {
+  const dark = (i: number) => data[i * 4 + 3]! < 128 || data[i * 4]! + data[i * 4 + 1]! + data[i * 4 + 2]! < NEAR_BLACK
+  // `spans` (Ground Zero, whose render has holes reaching its edge): a dark place with the render on both sides of it, across or
+  // down, is inside too — only what lies beyond the render's outermost pixels is the outside
+  let inSpan: (i: number) => boolean = () => false
+  if (options.spans) {
+    const rowFirst = new Int32Array(height).fill(width), rowLast = new Int32Array(height).fill(-1)
+    const colFirst = new Int32Array(width).fill(height), colLast = new Int32Array(width).fill(-1)
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      if (dark(y * width + x)) continue
+      if (x < rowFirst[y]!) rowFirst[y] = x
+      if (x > rowLast[y]!) rowLast[y] = x
+      if (y < colFirst[x]!) colFirst[x] = y
+      if (y > colLast[x]!) colLast[x] = y
+    }
+    inSpan = (i) => {
+      const x = i % width, y = (i - x) / width
+      return (x > rowFirst[y]! && x < rowLast[y]!) || (y > colFirst[x]! && y < colLast[x]!)
+    }
+  }
+  const outside = new Uint8Array(width * height)
+  const queue = new Int32Array(width * height)
+  let head = 0, tail = 0
+  const push = (i: number) => { if (!outside[i] && dark(i) && !inSpan(i)) { outside[i] = 1; queue[tail++] = i } }
+  for (let x = 0; x < width; x += 1) { push(x); push((height - 1) * width + x) }
+  for (let y = 0; y < height; y += 1) { push(y * width); push(y * width + width - 1) }
+  while (head < tail) {
+    const i = queue[head++]!
+    const x = i % width
+    if (x > 0) push(i - 1)
+    if (x < width - 1) push(i + 1)
+    if (i >= width) push(i - width)
+    if (i + width < width * height) push(i + width)
+  }
+  let filled = 0
+  for (let i = 0; i < width * height; i += 1) {
+    if (outside[i] || !dark(i)) continue
+    const alpha = data[i * 4 + 3]! / 255
+    const keep = alpha * Math.min(1, (data[i * 4]! + data[i * 4 + 1]! + data[i * 4 + 2]!) / NEAR_BLACK)
+    for (let c = 0; c < 3; c += 1) data[i * 4 + c] = Math.round(asphalt[c]! * (1 - keep) + data[i * 4 + c]! * keep)
+    data[i * 4 + 3] = 255
+    filled += 1
+  }
+  return filled
+}
+
 /**
  * A tile picture. With CORS (our map copy answers `Access-Control-Allow-Origin: *`), so the stitched picture can be read for its
  * mask; a host without it gets a plain image, drawn but never read (the mask then comes from canvas filters).
@@ -280,7 +337,7 @@ function tileImage(url: string, cors = true): Promise<HTMLImageElement | null> {
  * scheme, and every location on «Спутник» (owner, 15.11.2026: «сделать еще режим спутника для нее»). A canvas, drawn as it is
  * on the map's own canvas (WorldPicturesLayer); the last one stays while the next is made.
  */
-export function useStitchedTiles(tiles: readonly WorldTile[], size: number): { canvas: HTMLCanvasElement; rect: [WorldPoint, WorldPoint] } | null {
+export function useStitchedTiles(tiles: readonly WorldTile[], size: number, spans = false): { canvas: HTMLCanvasElement; rect: [WorldPoint, WorldPoint] } | null {
   const key = tiles.map((tile) => tile.url).join('|')
   const [shown, setShown] = useState<{ key: string; canvas: HTMLCanvasElement; rect: [WorldPoint, WorldPoint] } | null>(null)
   useEffect(() => {
@@ -299,6 +356,11 @@ export function useStitchedTiles(tiles: readonly WorldTile[], size: number): { c
       for (const { tile, image } of loaded) {
         if (image) context.drawImage(image, Math.round((tile.rect[0][0] - x1) / step) * size, Math.round((tile.rect[0][1] - y1) / step) * size, size, size)
       }
+      // the dark holes inside the render take the asphalt colour; only the black around it fades away
+      try {
+        const pixels = context.getImageData(0, 0, stitched.width, stitched.height)
+        if (fillInnerDark(pixels.data, stitched.width, stitched.height, RENDER_ASPHALT, { spans })) context.putImageData(pixels, 0, 0)
+      } catch { /* a render loaded without CORS cannot be read: drawn as it is */ }
       const mask = fadeMask(stitched, stitched.width, stitched.height, true)
       const out = canvasOf(stitched.width, stitched.height)
       const fade = out.getContext('2d')
