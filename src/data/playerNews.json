@@ -1,7 +1,10 @@
 [
   {"version":"0.6.0.314","date":"2026-11-17","items":[
     {"kind":"improved","ru":"«Кочевники»: отметить можно раз в 10 минут, на ПК — раз за рейд","en":"«Goons»: one sighting every 10 minutes, on the PC once a raid"},
-    {"kind":"improved","ru":"«Кочевники»: повторные отметки одного игрока больше не засоряют список","en":"«Goons»: one player’s repeated sightings no longer clutter the list"}
+    {"kind":"improved","ru":"«Кочевники»: повторные отметки одного игрока больше не засоряют список","en":"«Goons»: one player’s repeated sightings no longer clutter the list"},
+    {"kind":"improved","ru":"«Все локации», «Спутник»: Улицы Таркова целиком, Эпицентр без дыр","en":"«All locations», «Satellite»: the whole of Streets of Tarkov, Ground Zero without holes"},
+    {"kind":"improved","ru":"«Боссы»: мягкая подсветка частей тела, название патрона при наведении","en":"«Bosses»: soft highlight of body parts, the round’s name on hover"},
+    {"kind":"improved","ru":"«Настройки» → «Клавиши»: кнопки компактнее, всё в одну строку","en":"«Settings» → «Keys»: smaller buttons, all on one line"}
   ]},
   {"version":"0.6.0.313","date":"2026-11-17","items":[
     {"kind":"added","ru":"Сайт: чат поддержки — кнопка справа внизу, можно писать и без аккаунта","en":"Site: a support chat — the button bottom right, no account needed"},
