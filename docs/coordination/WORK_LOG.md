@@ -7577,3 +7577,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Checks: server chat 27/27, site + account + support 327/327, typechecks; browser against a throwaway in-memory API
   (guest → owner answer → shown; signed in; phone width; policy page).
 - Not released: needs the server and the site out (a release); the owner answers guests in the owner app as any chat.
+
+## 2026-11-17 — Reports 184, 185: Season lacked the Skier / BTR driver branch (branch claude/report-184-season-branch)
+
+- One Season player (all his app data is «seasonal»): «Выбирай друзей правильно» and «Цена независимости» not in search or the tree.
+  Both are in PvP and PvE (feed and the server's quest base); tarkov.dev `pvp-season` lacks 41 of `regular`'s tasks, the whole
+  0.16 branch among them.
+- f3b69515: catalogSource.ts — for Season, SEASON_BORROWED_TASKS (11 tasks of that branch) taken from `regular` when missing
+  (translated and raw tasks, quest items); their prerequisites («Задержка поставки», «Навести мосты», «Поменять батарейку»,
+  «Переиграть и уничтожить») are in Season already. Live: Season 507 quests, all 11 in the tree RU/EN, 0 unresolved.
+- Checks: src/data + src/quests + src/progression 837/837, typecheck, eslint; server 580/581 (mirror-storage test, flaky,
+  passed in the run before).
+- Not borrowed (not confirmed in Season): arena «[PVP ZONE]», prestige «Новое начало», Fence's «Возмещение ущерба».
+- Not released yet: reaches players with the server's quest base after a release.
