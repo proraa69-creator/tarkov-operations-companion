@@ -159,7 +159,7 @@ describe('«Отчёты»', () => {
     const { calls } = ownerApp([bug], 'owner', [], (_method, path) => (path.includes('view=working') ? tableOf([{ ...bug, id: 11, topic: 'Делаю сам', work: { status: 'taken' } } as OwnerReport]) : undefined))
     const user = userEvent.setup()
     const line = await rowOf('Карта не открывается')
-    expect(within(line).getAllByRole('button').map((button) => button.textContent)).toEqual(['Взял в работу', 'Уже реализовано', 'Отменить', 'Копировать', 'Подробнее'])
+    expect(within(line).getAllByRole('button').map((button) => button.textContent)).toEqual(['Взял в работу', 'Уже реализовано', 'Отменить', 'Выдать', 'Копировать', 'Подробнее'])
     const reads = calls.filter(([method, path]) => method === 'GET' && path.includes('/table?')).length
     await user.click(within(line).getByRole('button', { name: 'Взял в работу' }))
     await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, path, body]) => [path, body])).toEqual([['/v1/accounts/me/admin/bug-reports/7/work', { action: 'take' }]]))
@@ -167,7 +167,7 @@ describe('«Отчёты»', () => {
 
     await user.click(screen.getByRole('button', { name: /^В процессе/ }))
     const taken = await rowOf('Делаю сам')
-    expect(within(taken).getAllByRole('button').map((button) => button.textContent)).toEqual(['Готово', 'Вернуть в активные', 'Копировать', 'Подробнее'])
+    expect(within(taken).getAllByRole('button').map((button) => button.textContent)).toEqual(['Готово', 'Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
     await user.click(within(taken).getByRole('button', { name: 'Готово' }))
     // «Выдать 1 день?» (owner, 08.11.2026): «Да» closes the report and gives its author the day
     await user.click(screen.getByRole('button', { name: 'Да' }))
