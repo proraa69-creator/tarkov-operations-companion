@@ -7631,3 +7631,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Streets' negative tiles, Ground Zero holes asphalt). Pushed 22:53, gate green first time, publisher started by hand,
   `download/version.json` 0.6.0-314 at 23:18 Bangkok; /support and /privacy 200; /v1/goons/pvp shows repeats folded.
 - Not verified live: hotkey rows in the PC app, «Все локации» zoomed on Streets / Ground Zero in the app.
+
+## 2026-11-18 — 0.6.0.315 live: «Ключи локации», where to buy, gun price, bosses' loot, admin inline day grants
+
+- Owner 18.11: reports 186 (keys window — branch claude/report-186-location-keys 3b199a8c + 17ace406), 187 (item card
+  «Купить», «Цена оружия» in the builder — claude/report-187-item-buy ec8ccf3a, 38830ba9), 188/189 (Shadow of Tagilla's
+  Labrys reports and keycard, Birdeye's backpack with slots and live prices — claude/report-188-boss-loot db485a26,
+  81e0895e), admin «Заявки» rows: days field, «Выдать», whether days were given (claude/admin-reports-inline-grant
+  7af76e5f, ad9e0d94). «По готовности выпуска обновления»: b9f69279 pushed 03:25, gate green, publisher by hand,
+  version.json 0.6.0-315 at 03:47 Bangkok. Reports 186–189 close on release.
+- Checks: full vitest — only the known machine-bound failures and map-page timeouts (pass alone); typechecks; server 586/586.
+- Not verified: the keys window on a real phone (the dev phone view shows the sign-in gate); the admin rows by eye;
+  the item card in English; a high-level profile with open barters in the card.
