@@ -13,7 +13,8 @@ name: RaidOS iOS App Store (TestFlight)
 
 on:
   push:
-    branches: [release/production]
+    # mobile/release: a phone-only update (see ios-ipa.yml)
+    branches: [release/production, mobile/release]
   workflow_dispatch:
 
 permissions:
