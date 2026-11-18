@@ -7631,3 +7631,22 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Streets' negative tiles, Ground Zero holes asphalt). Pushed 22:53, gate green first time, publisher started by hand,
   `download/version.json` 0.6.0-314 at 23:18 Bangkok; /support and /privacy 200; /v1/goons/pvp shows repeats folded.
 - Not verified live: hotkey rows in the PC app, «Все локации» zoomed on Streets / Ground Zero in the app.
+
+## 2026-11-18 — item key: no more 5–6 s waits behind the quest scanner (branch claude/item-lookup-speed-1118, not released)
+
+- Owner: «информация о предмете — очень долго ищет некоторые предметы, может грузиться 5-6 секунд». The logged slow
+  lookups (6111 ms, 1 grab; 5519 ms, 3 grabs) spent almost everything on their 3 readings. Measured here (i5-10400F,
+  tesseract.js, the logs' own crops): a tooltip line reads in 25–135 ms, the tooltip engine loads in 0.5 s, but the
+  quest scanner's whole-screen pass (1421×1080, word boxes) takes 6065 ms — and the OCR queue never started a lookup's
+  reading while a background one ran. A key pressed during such a pass waited for its end.
+- electron/ocrQueue.ts: two lanes — a reading the player waits for (item card, Collector scan) starts at once beside a
+  running background one (its own engine/thread); interactive readings still go one at a time, background ones one at a
+  time and never start while an interactive one runs or waits or while held. Tests: electron/ocrQueue.test.ts (the old
+  queue fails the new ones).
+- electron/experimental/index.ts: the item-lookups log keeps each reading's OCR time (`ocrMs`) and each match's
+  (`matchMs`), and also lookups found by text after ≥ 2.5 s (`outcome: "slow"`), which were not kept before.
+- Checks: `npm run typecheck`, eslint on the 3 files clean; vitest electron/ocrQueue + electron/experimental +
+  src/overlay + ocrPicture/questScreenshot: 175 passed, only the known positionTracker failures.
+- Not verified in the game. Remaining: two readings at once during a lookup in the menus (short: the lookup's few lines);
+  the quest scanner's 6 s whole-screen pass itself is still that long (a separate task). Release only with a new app
+  version ≥ 0.6.0.318 on the owner's word.

@@ -406,11 +406,12 @@ async function lookupItem(test: boolean) {
     // The area around the cursor only, never the whole display; the slow whole-screen fallback once a lookup at most.
     const fallback = { left: 1 }
     const state: { shown: { id: string; payload: unknown } | null; picture: Promise<PictureRun | null> | null } = { shown: null, picture: null }
+    const steps = lookupSteps()
     const reading = await readGameTooltip({
       grab: () => grabAroundCursor(point, display, fallback),
-      recognize: (bitmap) => recognizeTooltip(bitmap),
+      recognize: (bitmap) => steps.time('ocrMs', recognizeTooltip(bitmap)),
       match: async (text) => {
-        const reply = await askRenderer('item', { text, tooltip: true })
+        const reply = await steps.time('matchMs', askRenderer('item', { text, tooltip: true }))
         return found(reply) ? reply : null
       },
       onTooltip: () => { if (!state.shown) sendItem({ state: 'loading' }) },
@@ -437,19 +438,22 @@ async function lookupItem(test: boolean) {
     if (reading.answer) {
       // The tooltip names exactly the hovered item: it wins over a different picture answer.
       if (!shown || shown.id !== itemId(reading.answer)) sendItem(reading.answer)
-      if (shown && shown.id !== itemId(reading.answer)) void logLookup({ outcome: 'text-over-picture', reading, run, ms: Date.now() - started })
+      const ms = Date.now() - started
+      if (shown && shown.id !== itemId(reading.answer)) void logLookup({ outcome: 'text-over-picture', reading, run, ms, steps })
+      // Found, but slowly: kept too, with the time of each step (they were not before, report of 18.11.2026).
+      else if (ms >= SLOW_LOOKUP_MS) void logLookup({ outcome: 'slow', reading, run, ms, steps })
       return reading.answer
     }
     if (shown) return shown.payload
     if (!reading.shot || !reading.rect) {
       sendItem({ state: 'not-found' })
-      void logLookup({ outcome: 'no-tooltip', reading, run, ms: Date.now() - started })
+      void logLookup({ outcome: 'no-tooltip', reading, run, ms: Date.now() - started, steps })
       return null
     }
     // Not found the first time: the picture decides among the readings' names and the closest pictures, then the
     // tooltip is read other ways (see secondAttempt).
     const second = await secondAttempt(reading as TooltipReading<unknown, Grab> & { shot: Grab; rect: Rect }, run)
-    void logLookup({ outcome: second.answer ? second.via! : 'not-found', reading, second, run, ms: Date.now() - started })
+    void logLookup({ outcome: second.answer ? second.via! : 'not-found', reading, second, run, ms: Date.now() - started, steps })
     sendItem(second.answer ?? { state: 'not-found', text: reading.tries[0] ?? '' })
     return second.answer
   } finally {
@@ -460,6 +464,26 @@ async function lookupItem(test: boolean) {
 }
 
 type Grab = NonNullable<Awaited<ReturnType<typeof grabAroundCursor>>>
+
+/** A lookup found by its tooltip this long after the key or later is logged too («slow»), with each step's time. */
+const SLOW_LOOKUP_MS = 2500
+
+/** How long each OCR reading of the tooltip and each name match by the main window took, in order (for the log). */
+type LookupSteps = ReturnType<typeof lookupSteps>
+function lookupSteps() {
+  const times = { ocrMs: [] as number[], matchMs: [] as number[] }
+  return {
+    times,
+    async time<T>(step: keyof typeof times, work: Promise<T>): Promise<T> {
+      const started = Date.now()
+      try {
+        return await work
+      } finally {
+        times[step].push(Date.now() - started)
+      }
+    },
+  }
+}
 const found = (reply: unknown) => Boolean(reply && typeof reply === 'object' && (reply as { state?: string }).state === 'found')
 
 /** The picture index of the catalog (scripts/build-item-signatures.mjs), read once; null when the app has none. */
@@ -598,14 +622,14 @@ function indexSignatures(index: SignatureIndex | null) {
 }
 
 /**
- * Lookups the first attempt could not answer are kept (last 30) so the owner can send them: what was read, the second
+ * Lookups the first attempt could not answer, and slow ones (SLOW_LOOKUP_MS), are kept (last 30) so the owner can send them: what was read, the second
  * attempt (other readings, the picture candidates and their distances), the tooltip's size, and small crops — the
  * tooltip, the item cell, or (when no tooltip was found) the area beside the cursor where it should have been.
  */
 const lookupLogDir = () => join(app.getPath('userData'), 'item-lookups')
 const LOOKUPS_KEPT = 30
 
-async function logLookup(entry: { outcome: string; reading: TooltipReading<unknown, Grab>; second?: SecondAttempt; run?: PictureRun | null; ms: number }) {
+async function logLookup(entry: { outcome: string; reading: TooltipReading<unknown, Grab>; second?: SecondAttempt; run?: PictureRun | null; ms: number; steps?: LookupSteps }) {
   try {
     const { reading, second, run } = entry
     const dir = lookupLogDir()
@@ -623,6 +647,8 @@ async function logLookup(entry: { outcome: string; reading: TooltipReading<unkno
       ms: entry.ms,
       read: reading.tries,
       grabs: reading.grabs,
+      // Each reading's OCR time (waiting for the engine included) and each name match's, in order.
+      ...(entry.steps ? entry.steps.times : {}),
       // Size in game pixels too (1080p): a box taller than one line is a two-line tooltip.
       box: rect ? { ...rect, unit: Number(unit.toFixed(3)), width1080: Math.round(rect.width / unit), height1080: Math.round(rect.height / unit) } : null,
       capture: reading.latest ? { width: reading.latest.image.width, height: reading.latest.image.height, cursor: reading.latest.cursor, screenUnit: Number(reading.latest.unit.toFixed(3)) } : null,
