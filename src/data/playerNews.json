@@ -1,4 +1,20 @@
 [
+  {"version":"0.6.0.320","date":"2026-11-19","items":[
+    {"kind":"added","ru":"«Стекло»: новый стиль для любой цветовой схемы","en":"«Glass»: a new style for any colour scheme"},
+    {"kind":"added","ru":"Плавные анимации во всём приложении, кнопки отзываются на нажатие","en":"Smooth animations across the app; buttons respond to every press"},
+    {"kind":"added","ru":"Уведомления: каждое можно отключить, звук начала рейда","en":"Notifications: each one can be turned off; a raid start sound"},
+    {"kind":"added","ru":"Карта: «Ключи рядом» — спавны ключей возле точек ваших квестов","en":"Map: «Keys nearby» — key spawns near your quest points"},
+    {"kind":"added","ru":"Карта: «Показывать только нужные спавны»","en":"Map: «Show only the spawns I need»"},
+    {"kind":"added","ru":"Ключ на карте и в квесте: цена, бартеры, тир и квесты","en":"A key on the map and in a quest: price, barters, tier and quests"},
+    {"kind":"added","ru":"Сборка оружия: «Избранные» — сборки можно переименовать и пересохранить","en":"Gunsmith: «Favorites» — builds can be renamed and saved again"},
+    {"kind":"added","ru":"Обзор: время в Таркове, сбросы торговцев и таймер рейда в одном блоке","en":"Overview: Tarkov time, trader resets and the raid timer in one block"},
+    {"kind":"added","ru":"Требования рейда: ракетница, нужная для выхода","en":"Raid requirements: the flare an exit needs"},
+    {"kind":"improved","ru":"«Смена дня и ночи»: ночь стала фиолетовой","en":"«Day and night»: the night is violet now"},
+    {"kind":"improved","ru":"«Ключи локации» сразу отсортированы по тиру","en":"«Location keys» are sorted by tier"},
+    {"kind":"improved","ru":"Торговля: товары учитывают уровень торговца в вашем режиме","en":"Trading: offers follow your trader level in the current mode"},
+    {"kind":"improved","ru":"Убежище и предметы для квестов: строки не прыгают при подсчёте","en":"Hideout and quest items: rows stay in place while you count"},
+    {"kind":"improved","ru":"Оптимизирована скорость приложения","en":"The app runs faster"}
+  ]},
   {"version":"0.6.0.319","date":"2026-11-18","items":[
     {"kind":"added","ru":"«Ключи локации»: у каждого ключа цена и буква тир-листа","en":"«Location keys»: each key shows its price and tier-list letter"},
     {"kind":"added","ru":"Карточка ключа: что лежит в комнате за его дверью","en":"Key card: what spawns in the room behind its door"},
