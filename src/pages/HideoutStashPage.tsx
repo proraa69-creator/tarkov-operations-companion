@@ -93,7 +93,9 @@ export function HideoutStashPage() {
   })
   // Still to find first, the biggest first (they pack the grid like a real stash); the collected ones after.
   const size = (need: HideoutNeed) => span(items.get(need.itemId)?.width, 3) * stashRows(items.get(need.itemId), 3)
-  const open = visible.filter((need) => need.remaining > 0).sort((a, b) => size(b) - size(a) || b.remaining - a.remaining)
+  // A place that never changes while the player counts (owner, 19.11.2026: «Перемещаться предметы не должны вообще… если собраны все,
+  // они перемещаются в собранном»): by the size, then what is needed in all, never what is left.
+  const open = visible.filter((need) => need.remaining > 0).sort((a, b) => size(b) - size(a) || b.total - a.total || a.itemId.localeCompare(b.itemId))
   const done = visible.filter((need) => need.remaining === 0)
   const selected = needs.items.find((need) => need.itemId === selectedId) ?? everything.items.find((need) => need.itemId === selectedId)
   const share = everything.total ? (everything.total - everything.remaining) / everything.total : 0
