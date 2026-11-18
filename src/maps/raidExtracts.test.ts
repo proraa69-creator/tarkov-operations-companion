@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { exitHighlights, exitKey, isStayReading, isUncertainExit, matchListedExits, parseExtractList } from './raidExtracts'
+import { exitHighlights, exitKey, exitsInText, isStayReading, isUncertainExit, matchListedExits, parseExtractList } from './raidExtracts'
 
 // Report №105 (Reserve, the player's screenshot) as the OCR gives it, a slip or two included.
 const READ = `Найдите зону выхода 0:39:54
@@ -118,5 +118,19 @@ describe('the exit list of real raids (owner, 11.11.2026: «Мы делали э
     const reading = { names: ['Подвалы', 'Ворота 3'], at: 1_000_000 }
     expect(exitHighlights(reading, undefined, exits, 1_000_000 + 49 * 60_000)?.dim).toEqual(new Set(['c']))
     expect(exitHighlights(reading, undefined, exits, 1_000_000 + 51 * 60_000)).toBeNull()
+  })
+
+  it('one O, then the map own exit names sought in the text read (owner, 18.11.2026): no «ВЫХОД» word needed', () => {
+    // the list's first words lost to the scenery, a name or two slipped; the transits and the header stay out
+    const ocr = ['= ‹ Найдите зону выхода 0:39:54', '7 Бронепоезд ??:??:??', '@@ Д-2', 'xx Гермозатвор бункеpа', 'Спуск со скалы 0:12:00',
+      'ПЕРЕХОД01 Переход на Таможню 0:00:54', 'Exfil Sewer Manhole'].join('\n')
+    expect([...exitsInText(ocr, RESERVE)].sort()).toEqual(['cliff', 'd2', 'hermetic', 'sewer', 'train'])
+    // a short name only as a whole word: «Д-23» or «КД-2» is not «Д-2»
+    expect(exitsInText('Ворота Д-23\nКД-2 корпус', RESERVE).has('d2')).toBe(false)
+    const highlights = exitHighlights({ names: [], text: ocr, at: 2000 }, 1000, RESERVE)!
+    expect([...highlights.lit].sort()).toEqual(['cliff', 'd2', 'hermetic', 'sewer', 'train'])
+    expect([...highlights.dim].sort()).toEqual(['exit-hole', 'vex', 'wild'])
+    // one name of this map in the text is no list of it
+    expect(exitHighlights({ names: [], text: 'Спуск со скалы', at: 2000 }, 1000, RESERVE)).toBeNull()
   })
 })

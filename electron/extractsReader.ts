@@ -12,8 +12,14 @@ import { captureScreenRegion, foregroundDisplayMode } from './experimental/win32
 
 /** Two presses this close make a «double O». */
 export const DOUBLE_PRESS_MS = 550
-/** The list fades in: read after this, and once more a little later (the better reading wins). */
+/** The list seen on screen (its header): read after this, and once more a little later (the better reading wins). */
 const READ_DELAYS_MS = [450, 1100]
+/**
+ * One O in the raid (owner, 18.11.2026: «по нажатию один раз буквы O… включается сканирование через 3 секунды и смотрит
+ * какие выходы»): the list is read 3 s after the press, and once more a little later. The key's place counts, not the
+ * keyboard's language (the virtual key of that key is O in the Russian layout too).
+ */
+export const AFTER_PRESS_MS = [3000, 3700]
 /**
  * The corner: its height and its width, as shares of the display's height. Measured on the owner's 3440×1440 screenshots: the
  * list is 0.53 of the height wide from the right edge, its rows 0.048 high; twelve exits and transits reach 0.65. A wider
@@ -101,7 +107,7 @@ export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: 
     const now = strip ? headerShare(strip.data, strip.width, strip.height) >= HEADER_MIN_SHARE : false
     if (now && (!open || Date.now() - lastRead >= HEADER_REREAD_MS)) {
       lastRead = Date.now()
-      void readExtractsPanel(send)
+      void readExtractsPanel(send, READ_DELAYS_MS)
     }
     open = now
   }, HEADER_POLL_MS)
@@ -109,19 +115,21 @@ export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: 
   return () => clearInterval(timer)
 }
 
-/** A double O while the game is in front: reads the list and hands the text over (`send`). */
-export async function readExtractsPanel(send: (payload: { text: string; at: number }) => void) {
+/** An O while the game is in front (or the list seen): reads the list after `delays` and hands the text over (`send`). */
+export async function readExtractsPanel(send: (payload: { text: string; at: number }) => void, delays: readonly number[] = AFTER_PRESS_MS) {
   // An exclusive full-screen game hides from screen copies.
   if (busy || foregroundDisplayMode() === 'exclusive') return
   busy = true
   try {
     let best = ''
     let waited = 0
-    for (const delay of READ_DELAYS_MS) {
+    for (const delay of delays) {
       await new Promise((resolve) => setTimeout(resolve, delay - waited))
       waited = delay
       const text = await readCorner()
-      if ((text.match(/ВЫХ|EXF|BЫX/gi) ?? []).length > (best.match(/ВЫХ|EXF|BЫX/gi) ?? []).length) best = text
+      // the better reading: more of the list's words, else more text (the names are matched without them, raidExtracts.ts)
+      const words = (value: string) => (value.match(/ВЫХ|EXF|BЫX/gi) ?? []).length
+      if (words(text) > words(best) || (words(text) === words(best) && text.trim().length > best.trim().length)) best = text
     }
     if (best) send({ text: best, at: Date.now() })
   } finally {
