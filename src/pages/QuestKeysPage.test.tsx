@@ -230,6 +230,32 @@ describe('«Ключи для квестов»', () => {
     expect(document.querySelectorAll('.quest-key')).toHaveLength(2)
   })
 
+  // Owner, 18.11.2026: «Если у нас горит кнопка «Нет в наличии», на нее можно нажать, появится окно, и можно нажать «Добавить в наличие»».
+  it('«Нет в наличии» opens a window whose «Добавить в наличие» puts the key in the stash', () => {
+    const profile = open()
+    act(() => setOwnedKey(profile.id, 'pvp', 'k1', 1))
+    fireEvent.click(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' }))
+    const dialog = screen.getByRole('dialog', { name: 'Нет в наличии' })
+    expect(dialog).toHaveTextContent('Ключ от гаража')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить в наличие' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
+    expect(row('Ключ от гаража')).toHaveTextContent('Есть в схроне')
+    // Closed without adding: nothing changes.
+    act(() => setOwnedKey(profile.id, 'pvp', 'k2', 0))
+    fireEvent.click(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(readOwnedKeys(profile.id, 'pvp').has('k2')).toBe(false)
+  })
+
+  it('the window has its English', () => {
+    setRenderLanguage('en')
+    try {
+      expect(['Нет в наличии', 'Добавить в наличие'].map((text) => uiText(text))).toEqual(['Not in stash', 'Mark as owned'])
+    } finally { setRenderLanguage('ru') }
+  })
+
   it('the «?» beside «Найти ключи» says to open the container or bag with all the keys', () => {
     open()
     fireEvent.click(screen.getByRole('button', { name: 'Как работает «Найти ключи»' }))
