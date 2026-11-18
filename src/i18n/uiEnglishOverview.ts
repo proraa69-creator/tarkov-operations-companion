@@ -19,6 +19,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   // «Уведомления» → «Настроить» (src/notifications/NotificationSettings.tsx)
   ['Настройка уведомлений', 'Notification settings'], ['Сообщение, когда закончилась загрузка рейда', 'A message when the raid has loaded'],
   ['Стиль', 'Style'], ['Обычный', 'Classic'], ['Стекло', 'Glass'], ['Обычный или стеклянный, для любой цветовой схемы', 'Classic or glass, for any colour scheme'],
+  ['Для текущих квестов не нужен', 'Not needed for current quests'],
   ['Звуковой сигнал', 'Sound'], ['Торговля', 'Trading'], ['Звук, когда рейд начался', 'A sound when the raid begins'], ['Итог распознавания предметов по клавише', 'What the item scan by hotkey found'],
   ['Торговцы — в «Настройках»', 'Traders: in «Settings»'], ['Цена упала, выросла, можно продавать', 'Price dropped, rose, time to sell'],
   ['Напоминание о ключах в избранном', 'A reminder of your favorite keys'], ['Ответ поддержки', 'Support reply'], ['Новое сообщение в чате поддержки', 'A new message in the support chat'],

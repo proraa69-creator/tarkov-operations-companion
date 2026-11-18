@@ -115,6 +115,8 @@ import { MapLayersAll } from '../maps/MapLayersAll'
 import { keepLayersBefore, readLayersBefore, type LayerChoice, type ListedRows } from '../maps/layersAll'
 import { setHiddenRoomLayers, useHiddenRoomLayers } from '../maps/roomLayers'
 import { KeySpotKeys } from '../maps/KeySpotKeys'
+import { KeySpotCard } from '../maps/KeySpotCard'
+import { setQuestKeyFavorite, useQuestKeyFavorites } from '../quests/questKeyFavorites'
 import { SpotPhotos } from '../maps/SpotPhotos'
 import { LockedNote } from '../maps/LockedNote'
 import { behindLockedDoor, lockedRooms, lockedRoomsAt } from '../data/mapRoomSigns'
@@ -706,6 +708,7 @@ export function MapsPage() {
   const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel, traderLoyalty)
   // Reports №112 and №113: the keys quests open now or put aside need and the player lacks; each quest's keys on this map.
   const ownedKeys = useOwnedKeys(profileId, raidMode)
+  const favoriteKeys = useQuestKeyFavorites(profileId, raidMode)
   const questKeys = useMemo(() => questKeyRows(data.quests, itemsById, progress, availability, deferred), [data.quests, itemsById, progress, availability, deferred])
   const neededKeys = useMemo(() => neededKeysOf(questKeys, ownedKeys), [questKeys, ownedKeys])
   const keysByQuest = useMemo(() => questKeysOnMap(questKeys, activeMap.id), [questKeys, activeMap.id])
@@ -1695,15 +1698,19 @@ export function MapsPage() {
                 ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} />
                 : selectedDocument
                   ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
-                  : markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn && keysOfPoint(selectedMarker).length > 1
-                    ? <KeySpotKeys key={selectedMarker.id} keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} />
+                  : markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn && keysOfPoint(selectedMarker).length > 0
+                    ? <SpotKeyInfo key={selectedMarker.id} keyIds={keysShown(selectedMarker)} render={(picked, pick) => <>
+                      {keysOfPoint(selectedMarker).length > 1 && <KeySpotKeys keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} picked={picked} onPick={pick} />}
+                      {picked && itemsById.get(picked) && <KeySpotCard showName={keysOfPoint(selectedMarker).length > 1} item={itemsById.get(picked)!} items={data.items} mode={raidMode} owned={ownedKeys.get(picked) ?? 0}
+                        questRow={questKeys.find((row) => row.item.id === picked)} favorite={favoriteKeys.has(picked)} onFavorite={() => setQuestKeyFavorite(profileId, raidMode, picked, !favoriteKeys.has(picked))} />}
+                    </>} />
                     : selectedMarker.description && !repeatsTitle(selectedMarker.description, selectedMarker.title) && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.spotPhotos?.length ? <SpotPhotos key={`${selectedMarker.id}-photos`} photos={selectedMarker.spotPhotos} /> : null}
               {lockedPoint(selectedMarker) ? <LockedNote rooms={roomsOf(selectedMarker)} items={itemsById} /> : null}
               {selectedMarker.hint && (selectedMarker.hint.title || selectedMarker.hint.text || selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ title: selectedMarker.hint.title, text: selectedMarker.hint.text, items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
               {selectedMarker.hint && (selectedMarker.hint.requiredItems?.length || selectedMarker.hint.conditions) ? <MarkerHintBlock hint={{ requiredItems: selectedMarker.hint.requiredItems, conditions: selectedMarker.hint.conditions }} /> : null}
-              {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !(markerLayerId(selectedMarker) === 'loot.key' && (selectedMarker.keyCount ?? 1) > 1) && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}
-              {selectedItem && !selectedDocument && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
+              {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !(markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn) && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}
+              {selectedItem && !selectedDocument && !(markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn) && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>
           ))}
@@ -2212,4 +2219,14 @@ function PhoneMapFullscreenToggle({ fullscreen, onToggle }: { fullscreen: boolea
   return <button type="button" className={`phone-map-fullscreen${fullscreen ? ' is-on' : ''}`} aria-pressed={fullscreen} aria-label={label} title={label} onClick={onToggle}>
     {fullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
   </button>
+}
+
+/**
+ * The keys of a key spot's card: the one key of a spot is shown at once; of several, the one pressed (again: none). Its own state, so
+ * another spot starts afresh (keyed by the spot).
+ */
+function SpotKeyInfo({ keyIds, render }: { keyIds: readonly string[]; render: (picked: string | undefined, pick: (id: string) => void) => React.ReactNode }) {
+  const [chosen, setChosen] = useState<string | undefined>(undefined)
+  const picked = keyIds.length === 1 ? keyIds[0] : chosen && keyIds.includes(chosen) ? chosen : undefined
+  return <>{render(picked, (id) => setChosen((current) => (current === id ? undefined : id)))}</>
 }
