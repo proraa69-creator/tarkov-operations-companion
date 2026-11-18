@@ -21,7 +21,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Стиль', 'Style'], ['Обычный', 'Classic'], ['Стекло', 'Glass'], ['Обычный или стеклянный, для любой цветовой схемы', 'Classic or glass, for any colour scheme'],
   ['Для текущих квестов не нужен', 'Not needed for current quests'],
   // «Ключи рядом» and «Настройки карты» (src/maps/NearbyKeysPanel.tsx, src/maps/MapPanels.tsx)
-  ['Ключи рядом', 'Keys nearby'], ['Где', 'Where'], ['Настройки карты', 'Map settings'], ['Показывать уведомления о ближайших ключах', 'Tell me of keys spawning nearby'],
+  ['Ключи рядом', 'Keys nearby'], ['Показывать только нужные спавны', 'Show only the spawns I need'], ['Где', 'Where'], ['Настройки карты', 'Map settings'], ['Показывать уведомления о ближайших ключах', 'Tell me of keys spawning nearby'],
   ['Рядом с вашим квестом спавн ключа — проверьте', 'A key spawns near your quest: check it'],
   ['Звуковой сигнал', 'Sound'], ['Торговля', 'Trading'], ['Звук, когда рейд начался', 'A sound when the raid begins'], ['Итог распознавания предметов по клавише', 'What the item scan by hotkey found'],
   ['Торговцы — в «Настройках»', 'Traders: in «Settings»'], ['Цена упала, выросла, можно продавать', 'Price dropped, rose, time to sell'],

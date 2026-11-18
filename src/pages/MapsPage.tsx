@@ -117,7 +117,8 @@ import { setHiddenRoomLayers, useHiddenRoomLayers } from '../maps/roomLayers'
 import { KeySpotKeys } from '../maps/KeySpotKeys'
 import { KeySpotCard } from '../maps/KeySpotCard'
 import { keyTiers } from '../keys/locationKeysList'
-import { NearbyKeysGlow, NearbyKeysPanel, NearbyKeysSetting } from '../maps/NearbyKeysPanel'
+import { NearbyKeysGlow, NearbyKeysPanel, NearbyKeysSetting, NeededSpawnsSetting } from '../maps/NearbyKeysPanel'
+import { spotIsNeeded, useNeededLootIds, useNeededSpawnsOnly } from '../maps/neededSpawns'
 import { closeNearbyKeys, nearbyKeys, useNearbyKeysClosedFor, useNearbyKeysOn } from '../maps/nearbyKeys'
 import { setQuestKeyFavorite, useQuestKeyFavorites } from '../quests/questKeyFavorites'
 import { SpotPhotos } from '../maps/SpotPhotos'
@@ -821,10 +822,15 @@ export function MapsPage() {
   }, [nearbyOn, nearbyRaidSince, nearbyClosedFor, plottedMarkers, visibleQuestIds, neededKeys, progress])
   const nearbySpots = useMemo(() => [...new Map(nearby.flatMap((entry) => entry.spots).map((spot) => [spot.id, spot])).values()], [nearby])
   const nearbySpotIds = useMemo(() => new Set(nearbySpots.map((spot) => spot.id)), [nearbySpots])
+  // «Показывать только нужные спавны» (maps/neededSpawns.ts): the loot spots of what is still needed
+  const neededSpawnsOnly = useNeededSpawnsOnly()
+  const neededLoot = useNeededLootIds()
+  const unneededSpot = useCallback((marker: MapMarker) => neededSpawnsOnly && markerLayerId(marker).startsWith('loot.') && !spotIsNeeded(marker, neededLoot, neededKeys), [neededSpawnsOnly, neededLoot, neededKeys])
   const mapMarkers = useMemo(() => plottedMarkers.filter((marker) => {
     const layerId = markerLayerId(marker)
     if (needle.length >= 2 && layerId.startsWith('loot.') && pointHoldsItem(marker, needle, itemNames)) return true
     if (layerId === 'loot.documents' && foundDocuments.has(marker.id)) return false
+    if (unneededSpot(marker) && marker.id !== focusedLockId) return false
     // «Ключи» and «Нужные ключи» are two switches (owner, 11.11.2026: «оно должно работать отдельно, а не вместе»): the keys'
     // layer shows every key spot, «Нужные ключи» the spots of keys still needed — with the layer off, only those.
     const neededSpot = (layerId === 'loot.key' && neededKeysOnly && keysOfPoint(marker).some((id) => neededKeys.has(id))) || nearbySpotIds.has(marker.id)
@@ -844,7 +850,7 @@ export function MapsPage() {
       && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || pointMatchesSearch(marker, needle, itemNames))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, needle, itemNames, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints, neededKeysOnly, neededKeys, nearbySpotIds])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, needle, itemNames, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints, neededKeysOnly, neededKeys, nearbySpotIds, unneededSpot])
 
   // «Точки на карте»: each layer's points on this map, counted once for all the rows (the list used to go through every
   // point of the map once per row on every render: about 45 passes over up to 2 000 points per click).
@@ -853,13 +859,15 @@ export function MapsPage() {
     for (const marker of plottedMarkers) {
       if (marker.questId && !visibleQuestIds.has(marker.questId)) continue
       if (foundDocuments.has(marker.id)) continue
+      // the layers' counts follow «Показывать только нужные спавны» too
+      if (unneededSpot(marker)) continue
       const layerId = markerLayerId(marker)
       const list = byLayer.get(layerId)
       if (list) list.push(marker)
       else byLayer.set(layerId, [marker])
     }
     return byLayer
-  }, [plottedMarkers, visibleQuestIds, foundDocuments])
+  }, [plottedMarkers, visibleQuestIds, foundDocuments, unneededSpot])
   const neededKeySpots = useMemo(() => (pointsByLayer.get('loot.key') ?? []).filter((marker) => keysOfPoint(marker).some((id) => neededKeys.has(id))).length, [pointsByLayer, neededKeys])
   /**
    * A point's card goes with its point when the player turns its layer (or its kind of container) off in «Точки на карте»
@@ -1312,7 +1320,7 @@ export function MapsPage() {
         {panelsOn && <div className="map-panel-tools">
           {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
           <span className="map-panel-tools-gap" />
-          <MapPanelsSettings layout={panels.layout}><MapSkillTimerSettings /><NearbyKeysSetting /></MapPanelsSettings>
+          <MapPanelsSettings layout={panels.layout}><MapSkillTimerSettings /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
           <MapPanelEye side="left" hidden={leftHidden} />
         </div>}
         <div className="map-side-maps">

@@ -5,6 +5,7 @@ import { divIcon } from 'leaflet'
 import type { Item, MapMarker } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { setNearbyKeysOn, useNearbyKeysOn, type NearbyKey } from './nearbyKeys'
+import { setNeededSpawnsOnly, useNeededSpawnsOnly } from './neededSpawns'
 import './nearbyKeys.css'
 
 const GLOW = divIcon({ className: 'key-door-glow nearby-key-glow', iconSize: [34, 34], iconAnchor: [17, 17] })
@@ -60,6 +61,19 @@ export function NearbyKeysSetting() {
     <div className="skill-timer-row">
       <span>{title}</span>
       <button type="button" role="switch" aria-checked={on} aria-label={title} className={`toggle ${on ? 'on' : ''}`} onClick={() => setNearbyKeysOn(!on)}><span /></button>
+    </div>
+  </div>
+}
+
+/** «Настройки карты»: «Показывать только нужные спавны» (maps/neededSpawns.ts). */
+export function NeededSpawnsSetting() {
+  const on = useNeededSpawnsOnly()
+  const title = uiText('Показывать только нужные спавны')
+  return <div className="skill-timer-settings" role="group" aria-label={title}>
+    <div className="map-panels-menu-title">{uiText('Спавны')}</div>
+    <div className="skill-timer-row">
+      <span>{title}</span>
+      <button type="button" role="switch" aria-checked={on} aria-label={title} className={`toggle ${on ? 'on' : ''}`} onClick={() => setNeededSpawnsOnly(!on)}><span /></button>
     </div>
   </div>
 }

@@ -53,7 +53,7 @@ describe('Maps page: the panels around the map (report 158)', () => {
 
   it('the gear puts the panels above and below the map and back; Esc closes only its menu', async () => {
     renderMaps()
-    const gear = await screen.findByRole('button', { name: 'Расположение панелей' }, { timeout: 5000 })
+    const gear = await screen.findByRole('button', { name: 'Настройки карты' }, { timeout: 5000 })
     expect(shell()).not.toHaveClass('is-stacked')
     fireEvent.click(gear)
     expect(screen.getByRole('menuitemradio', { name: 'Слева и справа' })).toHaveAttribute('aria-checked', 'true')
@@ -77,9 +77,9 @@ describe('Maps page: the panels around the map (report 158)', () => {
   it('a window taller than wide gets the panels above and below until a layout is chosen', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('portrait'), media: query, addEventListener: () => {}, removeEventListener: () => {} }))
     renderMaps()
-    await screen.findByRole('button', { name: 'Расположение панелей' }, { timeout: 5000 })
+    await screen.findByRole('button', { name: 'Настройки карты' }, { timeout: 5000 })
     expect(shell()).toHaveClass('is-stacked')
-    fireEvent.click(screen.getByRole('button', { name: 'Расположение панелей' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Настройки карты' }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Слева и справа' }))
     expect(shell()).not.toHaveClass('is-stacked')
   })
