@@ -17,6 +17,11 @@ on:
     branches: [release/production, mobile/release]
   workflow_dispatch:
 
+# onnxruntime-node's install script fetches CUDA binaries on Linux x64 from GitHub releases; that file is gone (404 since
+# 18.11.2026) and nothing here uses CUDA, so the download is skipped.
+env:
+  npm_config_onnxruntime_node_install_cuda: skip
+
 permissions:
   contents: read
 
