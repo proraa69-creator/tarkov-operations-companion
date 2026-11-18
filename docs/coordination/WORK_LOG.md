@@ -7734,6 +7734,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   gateway 1411/1411 (src/data, src/import, src/components, pages Flea/Trading/QuestKeys, electron/serviceGateway*,
   ocrQueue; positionTracker left out), typecheck, tsc electron, eslint clean.
 - Remaining: deploy of the server and a release of the app (≥ 0.6.0.318) on the owner's word; check in the game.
+
 ## 2026-11-18 — item key: no more 5–6 s waits behind the quest scanner (branch claude/item-lookup-speed-1118, not released)
 
 - Owner: «информация о предмете — очень долго ищет некоторые предметы, может грузиться 5-6 секунд». The logged slow
@@ -7794,3 +7795,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: QuestKeysPage 17/17 (2 new), typecheck, eslint clean. Look checked in the browser on injected markup (the button
   computes the same as the old tag; the window); the real page could not load the catalog: tarkov.dev GraphQL was down.
 - Not deployed. Release only with a new app version, on the owner's word.
+
+## 2026-11-18 — positionTracker tests no longer write into the player's real Screenshots folder (branch claude/position-test-own-folder, not released)
+
+- Found while reading the owner's flea screenshots: electron/experimental/positionTracker.test.ts moved only `OneDrive`
+  into its temporary folder; `screenshotFolderCandidates()` also uses `homedir()` and `OneDriveConsumer` /
+  `OneDriveCommercial`. On a PC whose real Screenshots folder holds newer screenshots than the tests' (the owner's),
+  the lookup chose the real folder: 5 tests failed (the «known positionTracker failures») and two of them wrote empty
+  fake coordinate screenshots there (three found and removed 18.11.2026).
+- Fix (test only): `node:os` homedir mocked to the temporary folder, all three OneDrive variables replaced and restored,
+  and a first test that every candidate and watched folder lies inside the temporary folder.
+- Checks: positionTracker 10/10 (was 5 failing), electron/experimental 40/40; the real Screenshots folder listing
+  (names, sizes, times) identical before and after the run; typecheck, eslint clean.
