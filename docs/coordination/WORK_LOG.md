@@ -7914,3 +7914,19 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   item card) and every scheme in both styles: no page errors. Typecheck and eslint clean. Trading 146/146, notifications,
   key spots and maps pass (map tests one by one).
 - Test exe on the desktop: owner build 0.6.0-319 (d5378dee, entitlement key built in). Not released.
+
+## 2026-11-19 — test build 3: keys everywhere, «Ключи рядом», needed spawns (claude/motion-vinora, not released)
+
+- 0ff513e2: a key of «Требуемые предметы» in the quest window opens right under its row (quests/QuestKeyInline.tsx:
+  stock, tier, price, star, ItemBuySection with barters and their items' flea levels). It replaces the QuestKeyDialog
+  window on the map. «Ключи локации» sorts by tier (byTier).
+- e1a22a9f: «Ключи рядом» (maps/nearbyKeys.ts, NearbyKeysPanel). In a raid only: needed keys not in the stash, spawn
+  within 50 m of a current quest point on the same storey, with a bottom window, «Свернуть» / «Закрыть» (per raid) and
+  lit spawns shown even with the keys layer off. The gear menu is now «Настройки карты», with a switch (on).
+- a locked room's key in a point card opens in place; tier letters on the keys of locked notes and key spots.
+- ad9d40ec: «Показывать только нужные спавны» (maps/neededSpawns.ts, off by default). It keeps loot and key spots that
+  hold a hideout or quest item still needed, or a key the quests need, and the layer counts follow it. Containers have
+  no content data and stay. The owner was told so; container loot is not shown for the same reason.
+- Tests: maps 114, nearbyKeys, neededSpawns, KeySpotKeys, panels (gear renamed) pass; typecheck clean.
+- Test exe: «Raid OS Стекло тест 2.exe» on the desktop (ad9d40ec); the first test exe was running and could not be
+  replaced. Stash scan fix waits on refs/heads/claude/stash-scan-short-labels (4a78349b), not merged: no owner word yet.
