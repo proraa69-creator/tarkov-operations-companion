@@ -7680,3 +7680,25 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   logged crops, and a test with the old code as reference (noise, transparency, covered parts, turns 0–3). The picture
   index (scripts/build-item-signatures.mjs) needs no rebuild. typecheck, eslint clean; vitest src/overlay +
   src/components + ocrQueue 562 passed.
+
+## 2026-11-18 — report 191 (USEC / BEAR quests twice) and release 0.6.0.318
+
+- Report 191 (Season): «Обновка. Часть 2» and «Текстиль» shown twice with different rewards. They are the game's
+  USEC and BEAR versions (tarkov.dev factionName); without a Tarkov.dev profile `progress.faction` stayed unknown and
+  the tree and lists showed both. src/progression/questBasics.ts `playerFaction` (profile, else the faction of a
+  one-faction quest the player took; both seen → unknown) and `ofFaction`; src/pages/QuestsPage.tsx uses them for the
+  lists and the tree; the tree marks one-faction quests «USEC» / «BEAR» (questTreeText `factionTag`). Commit 2cb2bcc7,
+  test src/progression/questBasics.faction.test.ts.
+- Other same-name pairs in one mode are distinct game quests and stay: «Новое начало» (per prestige), Ref's
+  «Поменять батарейку» / «Цена независимости» (mutually exclusive branches), and two «Тарковский стрелок. Часть 5»
+  (5bc4826c… night Customs Scavs, 5bc48369… Sniper Scavs; the production logs show players completing both).
+- Release 0.6.0.318 (749e1578, branch claude/release-318): 2cb2bcc7 + claude/item-lookup-speed-1118 (942f7db1).
+  News (owner: nothing about prices or screen scanning): «Квесты: задания USEC и BEAR больше не показываются дважды».
+- PC 0.6.0.317 was never published: the VPS publisher refused «Workflow changed» because production.yml gained the
+  `npm_config_onnxruntime_node_install_cuda: skip` env (CUDA tgz 404 on GitHub since 18.11). With the owner's approval
+  `/etc/raidos/release-config.json` workflowHash: dc482156… → dcbb8c53… (sha256 of production.yml at 749e1578), backup
+  `/etc/raidos/release-config.json.bak-1795000586`.
+- Tests: typecheck clean; vitest quests/progression/pages/overlay/ocrQueue/experimental: only the known
+  positionTracker failures, AdminPanelPage source-text check (CRLF in the working copy, unrelated) and
+  MapsPage.deferred under load (passes alone).
+- Remaining: faction fix and item speed not checked in the game; VPS release mirror gc warnings (missing object).
