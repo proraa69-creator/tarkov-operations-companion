@@ -7631,3 +7631,13 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Streets' negative tiles, Ground Zero holes asphalt). Pushed 22:53, gate green first time, publisher started by hand,
   `download/version.json` 0.6.0-314 at 23:18 Bangkok; /support and /privacy 200; /v1/goons/pvp shows repeats folded.
 - Not verified live: hotkey rows in the PC app, «Все локации» zoomed on Streets / Ground Zero in the app.
+
+## 2026-11-18: Claude, бартеры ключей, промокоды из канала, выходы по одной «O»
+
+- Статус: completed, не выпущено (ждёт слова владельца, следующий выпуск ПК — не ниже 0.6.0.317). Три ветки от `release/production` 0.6.0.315:
+  - `claude/key-barter-flea-level` (`6375f40d`): под каждым предметом бартера — «доступно», замок «с ур. N» (уровень барахолки или собственный `minLevelForFlea` предмета, больший из двух) или «нет на барахолке»; предмет, закрытый на барахолке, считается только по торговцам; строка «Барахолка» самого предмета тоже учитывает его уровень. Карточка ключа из «Ключи локации» без таблицы «Цены» и истории цен. Проверено по данным tarkov.dev: 36 бартеров ключей, 63 предмета, 37 открываются позже 15 ур. (20–40), 3 не продаются (Биткоин, медаль Lega, монета GP). Проверено в браузере (ключ 114: «с ур. 20» у трёх предметов).
+  - `claude/promo-telegram` (`fc1912b6`): источник «Тарковское Метадвижение» (t.me/metadvij) через RSS-зеркало `tg.i-c-a.su/rss/metadvij` — Telegram с VPS не открывается. Код из поста канала берётся сразу (без второго сайта) и показывается 14 дней от поста. Проверка по-прежнему раз в 2 часа. insider-gaming отвечает VPS 403 всегда, beebom — через раз.
+  - `claude/exits-single-o` (`4b5da31b`): одно нажатие O → чтение угла через 3 с (и 3,7 с); страница ищет в тексте названия выходов карты (оба языка), короткие — целым словом, длинные — с 1–2 ошибками OCR. На живой игре не проверено.
+- База на VPS: READ80LV добавлен вручную в `promo_codes` (все режимы, 14 дней), копия `/var/lib/raidos/backups/manual-promo-read80lv-1794983537454.sqlite` (chmod 600). raidos.app его отдаёт.
+- Тесты: `src/trading`, `src/keys`, `src/maps/raidExtracts`, `electron/extractsReader`, `server promoCodes` (9) зелёные; typecheck и eslint чистые.
+- Риск: папка `/var/lib/raidos/backups` 755, старые копии базы 644 — читаемы любым пользователем VPS.
