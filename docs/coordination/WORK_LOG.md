@@ -7894,3 +7894,23 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   clean. Real-time check in headless Chromium: one gold item in the menu after each glide.
 - Not done or not checked: the phone layout keeps its own soft motion; the glass theme is not tuned page by page (maps
   page, owner windows); not checked in the real exe on the owner's monitor; not released.
+
+## 2026-11-19 — test build 2: styles for every scheme, soft windows, trading levels, stable hideout grid, key spot card
+
+- «Стекло» had vanished after the scheme button: a Python replace that silently did not apply left it out of THEMES.
+  `PYTHONUTF8=1` is now used for every scripted edit with Cyrillic, and every replace is asserted.
+- 4088966c: style «Обычный» / «Стекло» is apart from the scheme (theme.ts STYLES, `data-style`, styles/style-glass.css
+  takes each scheme's colours). It is picked in the scheme button's right-click menu and in Settings, and synced.
+  Windows and their dark layer fade in. Windows, menus and side panels close as a fading still copy (richMotion fadeOut).
+  The blocks of a page glide on the PC too (softMotion DESKTOP_GLIDE).
+  «Продажа модулей» compares the offer's level with the trader level the app holds (trading/moduleAccess.ts), never
+  with the estimate's highest.
+- Hideout and quest items: the order no longer changes while counting; `total`, then id, replaces `remaining`.
+- d5378dee: map key spot card (maps/KeySpotCard.tsx). It shows tier letter, stock, price, ItemBuySection (flea from its
+  level, traders, barters with items and price) and the quests that need the key. A star beside the cross adds it to
+  «Избранные ключи». A spot of several keys picks one by its picture.
+- Stash scan misses (КШС in the stash itself, several nested containers): passed to the item-lookup session.
+- Checks: headless walk of every menu page, windows (notifications, settings, news, search, scheme menu, location keys,
+  item card) and every scheme in both styles: no page errors. Typecheck and eslint clean. Trading 146/146, notifications,
+  key spots and maps pass (map tests one by one).
+- Test exe on the desktop: owner build 0.6.0-319 (d5378dee, entitlement key built in). Not released.
