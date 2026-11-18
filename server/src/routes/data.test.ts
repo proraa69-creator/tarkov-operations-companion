@@ -359,3 +359,40 @@ test('HTTP gateway: per-IP limit counted first, per-account limit after the chec
     assert.equal((await call('POST', '/v1/data/graphql', { body, ip: '203.0.113.5' })).status, 429)
   }, { perIp: 5, perAccount: 3 })
 })
+
+test('flea prices from the players\' screens: sent through the paid data route, laid over the minute prices of that mode', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'raidos-player-prices-'))
+  const { PlayerPrices } = await import('../services/playerPrices.js')
+  const storage = new MirrorStorage({ root, minFreeBytes: 1, freeBytes: async () => 10_000 })
+  const item = '5447a9cd4bdc2dbd208b4567'
+  for (const mode of ['pve', 'regular'] as const) {
+    const transaction = await storage.begin(`prices-${mode}`)
+    await transaction.write('prices.json', `${JSON.stringify({ mode, updatedAt: '2026-11-18T15:00:00.000Z', items: { [item]: { lastLowPrice: 40_000, avg24hPrice: 42_000, at: 1 } } })}\n`)
+    await transaction.publish({ mode }, async () => {})
+  }
+  let clock = Date.now()
+  const players = new PlayerPrices(() => clock)
+  try {
+    await withApi(async ({ call, accounts, paid }) => {
+      const sightings = [{ itemId: item, price: 38_000, seenAt: clock }]
+      assert.equal((await call('POST', '/v1/data/prices/pve/sightings', { body: { sightings } })).status, 401)
+      const token = (await accounts.register('flea@example.com', 'correct horse battery')).token
+      paid.set(accounts.authenticate(token)!, Date.now() + 30 * DAY)
+      assert.equal((await call('POST', '/v1/entitlement', { token, body: { deviceId: DEVICE } })).status, 200)
+      assert.equal((await call('POST', '/v1/data/prices/nowhere/sightings', { token, device: DEVICE, body: { sightings } })).status, 404)
+      const sent = await call('POST', '/v1/data/prices/pve/sightings', { token, device: DEVICE, body: { sightings } })
+      assert.equal(sent.status, 200)
+      assert.deepEqual(await sent.json(), { accepted: 1, pending: 0, rejected: 0 })
+      const pve = await (await call('GET', '/v1/data/prices/pve', { token, device: DEVICE })).json() as { items: Record<string, { lastLowPrice: number; avg24hPrice: number; at: number }> }
+      assert.deepEqual(pve.items[item], { lastLowPrice: 38_000, avg24hPrice: 42_000, at: Math.floor(clock / 60_000) })
+      const pvp = await (await call('GET', '/v1/data/prices/pvp', { token, device: DEVICE })).json() as typeof pve
+      assert.equal(pvp.items[item]!.lastLowPrice, 40_000, 'PvP keeps its own price')
+      // Half an hour later the minute prices are the other sources' again.
+      clock += 30 * 60_000
+      const later = await (await call('GET', '/v1/data/prices/pve', { token, device: DEVICE })).json() as typeof pve
+      assert.equal(later.items[item]!.lastLowPrice, 40_000)
+      const status = await (await call('GET', '/v1/data/mirror/status')).json() as { players: { lastHour: Record<string, { received: number }> } }
+      assert.equal(status.players.lastHour.pve?.received, 1)
+    }, undefined, { mirrorStorage: storage, playerPrices: players })
+  } finally { await rm(root, { recursive: true, force: true }) }
+})

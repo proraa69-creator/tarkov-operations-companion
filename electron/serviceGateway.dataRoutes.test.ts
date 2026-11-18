@@ -89,6 +89,13 @@ describe('the data the page asks for through the desktop gateway', () => {
     expect(await serviceRequest('GET', '/v1/data/prices/pvp')).toEqual(prices)
   })
 
+  it('a flea price the screen showed reaches the server, and the minute prices of that mode for every app', async () => {
+    const item = '5447a9cd4bdc2dbd208b4567'
+    expect(await serviceRequest('POST', '/v1/data/prices/pvp/sightings', { sightings: [{ itemId: item, price: 19_000, seenAt: Date.now() }] })).toEqual({ accepted: 1, pending: 0, rejected: 0 })
+    expect(await serviceRequest('GET', '/v1/data/prices/pvp')).toMatchObject({ items: { [item]: { lastLowPrice: 19_000 } } })
+    await expect(serviceRequest('POST', '/v1/data/prices/pvp/sightings/../../graphql', {})).rejects.toThrow(REFUSED)
+  })
+
   it('every /v1/data path in the page\'s code is on the gateway\'s list', async () => {
     const paths = await pathsOfThePage()
     expect(paths.map((entry) => entry.path)).toEqual(expect.arrayContaining(['/v1/data/trading/pvp', '/v1/data/prices/pvp', '/v1/data/price-history/pvp/5447a9cd4bdc2dbd208b4567?days=30', '/v1/data/json/regular/items', '/v1/data/graphql']))

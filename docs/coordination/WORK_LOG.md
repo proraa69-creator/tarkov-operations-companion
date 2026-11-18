@@ -7721,3 +7721,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   fake screenshots into the owner's Screenshots folder again, deleted; fix is 8ec20dea). electron/serviceGateway*
   suites fail to load here (no `cors` in the junctioned node_modules), unrelated.
 - Not checked in the running app/game; not checked on a real 2560/3440×1440 frame or a scrolled list.
+- Stage 2, the server (owner: «Да, делай сервер»), not deployed: server/src/services/playerPrices.ts (rules:
+  ±50 % of the mirror's price at once, else a second account within 10 % in 15 min; 120/h per account, 24 a request,
+  repeats within 2 min refused; noFlea / malformed / older than 10 min refused; accounts often outside the band lose
+  «at once»; accepted prices stand 30 min; all in memory, no accounts in the status). routes/data.ts:
+  `POST /v1/data/prices/:mode/sightings` behind the paid-data guard; `GET /v1/data/prices/:mode` lays the standing
+  players' prices over the mirror file (re-rendered when the file, an accepted price or the standing set changes) —
+  in the API process, so it works with RAIDOS_BACKGROUND=external too. Mirror status: `players`. App:
+  screenFleaPrices sends what it applied (gateway only, the same price not again within 2 min), ROUTES line in
+  electron/serviceGateway.ts.
+- Tests: server 595/595 (playerPrices.test.ts in the list; route end to end in routes/data.test.ts), client and
+  gateway 1411/1411 (src/data, src/import, src/components, pages Flea/Trading/QuestKeys, electron/serviceGateway*,
+  ocrQueue; positionTracker left out), typecheck, tsc electron, eslint clean.
+- Remaining: deploy of the server and a release of the app (≥ 0.6.0.318) on the owner's word; check in the game.

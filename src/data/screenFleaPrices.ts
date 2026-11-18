@@ -4,7 +4,7 @@ import { conditionVaries } from '../domain/trading'
 import type { FleaReading } from '../import/fleaReading'
 import { DOLLARS_ID, EUROS_ID, fleaRates, fleaSightings, isTraderRow, keyAllUses, type FleaRates, type FleaRow, type FleaSighting } from '../import/fleaScreen'
 import type { LivePrices } from './livePrices'
-import { tarkovGraphql } from './tarkovApi'
+import { dataRoute, gatewayRequest, tarkovGraphql } from './tarkovApi'
 import type { MinutePrice } from './tarkovJsonAdapters'
 
 /**
@@ -12,7 +12,9 @@ import type { MinutePrice } from './tarkovJsonAdapters'
  * будет с экрана пользователя»). The main process reads the list (src/import/fleaReading.ts); here its names become
  * catalog items, its mode is the mode the game is in by its logs (the owner: «у нас приложение это отслеживает»), its
  * prices go to roubles at the game's rate, and each item's lowest player's price stands in this app over the server's
- * for PLAYER_PRICE_MS — until a fresher one comes. Kept while the app runs; sending them to the server is stage 2.
+ * for PLAYER_PRICE_MS — until a fresher one comes. Kept while the app runs, and sent to our server
+ * (POST /v1/data/prices/:mode/sightings, server/src/services/playerPrices.ts), which lays the ones it accepts over the
+ * minute prices of every app. Only the mode, the item, the price in roubles and when it was seen: no picture, no name.
  */
 export const PLAYER_PRICE_MS = 30 * 60_000
 const MINUTE_MS = 60_000
@@ -59,7 +61,7 @@ export type FleaReadingOutcome =
  * A list read on the player's screen, for the mode the game is in (`mode`: from its logs; null while they have not named
  * it — then nothing is taken). A version line naming another mode keeps the reading out.
  */
-export async function noteFleaReading(reading: FleaReading, mode: RaidMode | null, ratesFor: (mode: RaidMode) => Promise<FleaRates> = fleaRatesOf): Promise<FleaReadingOutcome> {
+export async function noteFleaReading(reading: FleaReading, mode: RaidMode | null, ratesFor: (mode: RaidMode) => Promise<FleaRates> = fleaRatesOf, send: SightingsSender = sendThroughGateway): Promise<FleaReadingOutcome> {
   if (!catalog) return { skipped: 'no-catalog' }
   if (!mode) return { skipped: 'mode-unknown' }
   if (reading.labelMode && reading.labelMode !== mode) return { skipped: 'other-mode' }
@@ -81,8 +83,33 @@ export async function noteFleaReading(reading: FleaReading, mode: RaidMode | nul
   if (result.sightings.length) {
     version += 1
     for (const listener of listeners) listener()
+    void sendSightings(mode, result.sightings, reading.at, send)
   }
   return { applied: result.sightings, stoppedAt: result.stoppedAt }
+}
+
+export type SightingsSender = (mode: RaidMode, sightings: Array<{ itemId: string; price: number; seenAt: number }>) => Promise<unknown>
+
+/** The same price of an item is not sent again within this (the server leaves such a repeat out anyway). */
+export const RESEND_MS = 2 * 60_000
+const sent = new Map<string, { price: number; at: number }>()
+
+/** Our server only, in the players' app (through the gateway with the account's session): never in development. */
+const sendThroughGateway: SightingsSender = (mode, sightings) => dataRoute() === 'gateway'
+  ? gatewayRequest('POST', `/v1/data/prices/${mode}/sightings`, { sightings })
+  : Promise.resolve(null)
+
+async function sendSightings(mode: RaidMode, sightings: FleaSighting[], seenAt: number, send: SightingsSender) {
+  const fresh = sightings.filter((sighting) => {
+    const key = `${mode}:${sighting.itemId}`
+    const before = sent.get(key)
+    if (before && before.price === sighting.price && seenAt - before.at < RESEND_MS) return false
+    sent.set(key, { price: sighting.price, at: seenAt })
+    return true
+  })
+  if (!fresh.length) return
+  // A server that does not answer loses nothing here: the price already stands in this app.
+  await send(mode, fresh.map((sighting) => ({ itemId: sighting.itemId, price: sighting.price, seenAt }))).catch(() => null)
 }
 
 /** tarkov.dev has no Season of its own: Season trades as PvP there (src/data/economyApi.ts). */
@@ -145,6 +172,7 @@ export function withScreenPrices(live: LivePrices | null, mode: RaidMode, now = 
 export function clearScreenPrices() {
   for (const mode of Object.keys(prices) as RaidMode[]) prices[mode].clear()
   rates.clear()
+  sent.clear()
   version += 1
   for (const listener of listeners) listener()
 }

@@ -9,7 +9,8 @@ const item = (id: string, name: string, extra: Partial<Item> = {}): Item => ({ i
 const catalog = [
   item('tape', 'Изолента'), item('salt', 'Соль'), item('key', 'Ключ от комнаты 203', { category: 'Ключ', keyUses: 40 }), item('car', 'Ключ от автомобиля Yotota', { category: 'Ключ', keyUses: 10 }), item('m4', 'Винтовка M4A1', { category: 'Оружие' }),
 ]
-const noteFleaReading = (list: FleaReading, mode: Parameters<typeof note>[1]) => note(list, mode, async () => ({ '$': 140, '€': 190 }))
+let sentToServer: Array<[string, unknown]> = []
+const noteFleaReading = (list: FleaReading, mode: Parameters<typeof note>[1]) => note(list, mode, async () => ({ '$': 140, '€': 190 }), async (to, sightings) => { sentToServer.push([to, sightings]) })
 const row = (name: string, value: number, currency: '₽' | '$' | '€' = '₽', seller = 'Player', info = 'Всего 1'): FleaReadRow => ({ price: { kind: 'price', value, currency, sure: true, digits: String(value) }, seller, info, name })
 const reading = (rows: FleaReadRow[], at = 1_000_000, labelMode: FleaReading['labelMode'] = 'pve'): FleaReading => ({ at, filters: [], label: '', labelMode, rows })
 
@@ -17,7 +18,7 @@ function useCatalog() {
   setFleaCatalog({ match: (name) => catalog.find((entry) => entry.name === name) ?? null })
 }
 
-afterEach(() => { setFleaCatalog(null); clearScreenPrices() })
+afterEach(() => { setFleaCatalog(null); clearScreenPrices(); sentToServer = [] })
 
 describe('flea prices from the player\'s screen', () => {
   it('go to the mode the game is in, and only when the version line does not name another', async () => {
@@ -91,5 +92,19 @@ describe('flea prices from the player\'s screen', () => {
     expect(short).toMatchObject({ applied: [] })
     const unread = await noteFleaReading(reading([row('Ключ от комнаты 203', 3500, '₽', 'Player', 'Всего 1')], 2_000_000), 'pve')
     expect(unread).toMatchObject({ applied: [] })
+  })
+
+  it('go to our server too, for the same mode: item, roubles and when seen only; the same price not again within 2 minutes', async () => {
+    useCatalog()
+    await noteFleaReading(reading([row('Изолента', 6000), row('Соль', 150, '€')]), 'pve')
+    expect(sentToServer).toEqual([['pve', [{ itemId: 'tape', price: 6000, seenAt: 1_000_000 }, { itemId: 'salt', price: 28500, seenAt: 1_000_000 }]]])
+    await noteFleaReading(reading([row('Изолента', 6000)], 1_060_000), 'pve')
+    expect(sentToServer).toHaveLength(1)
+    await noteFleaReading(reading([row('Изолента', 5900)], 1_070_000), 'pve')
+    await noteFleaReading(reading([row('Изолента', 5900)], 1_070_000 + 2 * 60_000), 'pve')
+    expect(sentToServer.slice(1)).toEqual([['pve', [{ itemId: 'tape', price: 5900, seenAt: 1_070_000 }]], ['pve', [{ itemId: 'tape', price: 5900, seenAt: 1_190_000 }]]])
+    // Nothing read for sure, or another mode named on the screen: nothing sent.
+    await noteFleaReading(reading([row('Изолента', 6000)], 2_000_000), 'pvp')
+    expect(sentToServer).toHaveLength(3)
   })
 })

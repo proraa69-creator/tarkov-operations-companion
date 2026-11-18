@@ -91,6 +91,7 @@ import { openDatabase } from './services/database.js'
 import { EntitlementService } from './services/entitlement.js'
 import { DataGateway } from './services/dataGateway.js'
 import { createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/data.js'
+import { PlayerPrices } from './services/playerPrices.js'
 import { createEntitlementRouter } from './routes/entitlement.js'
 import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
 import { createSelfUpdateRouter } from './routes/selfUpdate.js'
@@ -211,6 +212,8 @@ export interface ApiOptions {
   entitlements?: EntitlementService
   /** tarkov.dev gateway with the shared cache (tests pass one with a fake upstream). */
   data?: DataGateway
+  /** Flea prices read on the players' screens (services/playerPrices.ts); tests pass one with their clock. */
+  playerPrices?: PlayerPrices
   /** Per-minute limits of the paid data routes (defaults: DATA_RATE_LIMITS). */
   dataRateLimits?: Partial<typeof DATA_RATE_LIMITS>
   /** The PC's live position and recognised item for the phone (services/liveRelay.ts); tests pass one with their clock. */
@@ -415,7 +418,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
   app.use(createMapTilesRouter(options.mapMirror))
   const remote = options.backgroundStatus ?? {}
-  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: remote.datasets ?? options.dataMirror, prices: remote.prices ?? options.priceMirror, maps: remote.maps ?? options.mapMirror, legacyGraphql: remote.legacyGraphql ?? options.legacyGraphql, priceHistory: remote.priceHistory ?? options.priceHistory, trading: remote.trading ?? options.tradingStats }))
+  // In this process whatever the background mode: the apps send to it, and it lays them over the prices it serves.
+  const playerPrices = options.playerPrices ?? new PlayerPrices(accounts.clock)
+  app.use(createDataMirrorRouter({ players: playerPrices, storage: options.mirrorStorage, datasets: remote.datasets ?? options.dataMirror, prices: remote.prices ?? options.priceMirror, maps: remote.maps ?? options.mapMirror, legacyGraphql: remote.legacyGraphql ?? options.legacyGraphql, priceHistory: remote.priceHistory ?? options.priceHistory, trading: remote.trading ?? options.tradingStats }))
   app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createMobileDownloadsRouter(options.mobileDownloads, { iphoneStore: options.iphoneStore }))
   app.use(createGuideImagesRouter(options.guideImages))
@@ -557,7 +562,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
   // The same access as the game data, with limits of its own: the phone's waits must not use up the catalog's.
   app.use('/v1/live', createLiveRouter(live, requireDataAccess(accounts, entitlements, { perIp: 600, perAccount: 300 }), { now: accounts.clock, limits: options.livePublishLimits, screen: new ScreenRelay(accounts.clock) }))
-  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory))
+  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory, playerPrices))
   // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
   // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.
   app.get('/v1/geo', perIp('geo'), (req, res) => {

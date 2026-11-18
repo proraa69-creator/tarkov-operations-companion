@@ -11,6 +11,9 @@
  *
  *   POST /v1/data/graphql            {query, variables?} -> tarkov.dev GraphQL answer (services/dataGateway.ts)
  *   GET  /v1/data/json/:mode/:name                       -> json.tarkov.dev dataset (catalog parts, translations)
+ *   GET  /v1/data/prices/:mode                           -> the minute prices, the players' accepted ones over them
+ *   POST /v1/data/prices/:mode/sightings {sightings}     -> flea prices a player's app read on the screen
+ *                                                           (services/playerPrices.ts, docs/flea-prices-from-players.md)
  *
  * `requireDataAccess` also guards /v1/catalog/* and /v1/players/* (app.ts).
  */
@@ -21,6 +24,8 @@ import { GatewayError, type DataGateway } from '../services/dataGateway.js'
 import { SUBSCRIPTION_REQUIRED, type EntitlementService } from '../services/entitlement.js'
 import type { MirrorStorage } from '../services/mirrorStorage.js'
 import type { PriceHistoryMirror } from '../services/priceHistoryMirror.js'
+import { layPlayerPrices, priceReferences, type PlayerPriceReference, type PlayerPrices } from '../services/playerPrices.js'
+import type { MirrorMode } from '../services/tarkovDataMirror.js'
 
 export const DATA_RATE_LIMITS = { perIp: 240, perAccount: 120 }
 export const DEVICE_HEADER = 'x-raid-device'
@@ -59,9 +64,26 @@ export function requireDataAccess(accounts: AccountStore, entitlements: Entitlem
   }
 }
 
-export function createDataRouter(gateway: DataGateway, guard: express.RequestHandler, mirror?: MirrorStorage, priceHistory?: PriceHistoryMirror) {
+const PRICE_MODES: Record<string, MirrorMode> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season', regular: 'regular', 'pvp-season': 'pvp-season' }
+
+export function createDataRouter(gateway: DataGateway, guard: express.RequestHandler, mirror?: MirrorStorage, priceHistory?: PriceHistoryMirror, players?: PlayerPrices) {
   const router = express.Router()
   router.use(guard)
+  /**
+   * The mirror's prices file of a mode as read last, its references for the players' prices, and the answer with those
+   * laid over it: made again when the file changed, a player's price was accepted, or one expired.
+   */
+  const rendered = new Map<MirrorMode, { raw: Buffer; references?: Map<string, PlayerPriceReference>; laid: string; body: string }>()
+  const pricesOf = async (mode: MirrorMode) => {
+    const raw = await mirror?.read(`prices-${mode}`, 'prices.json')
+    if (!raw) return null
+    let entry = rendered.get(mode)
+    if (!entry || !entry.raw.equals(raw)) {
+      entry = { raw, laid: '', body: '' }
+      rendered.set(mode, entry)
+    }
+    return entry
+  }
   const send = (res: Response, body: string) => res.type('application/json').send(body)
   const fail = (res: Response, error: unknown) => {
     if (error instanceof GatewayError) {
@@ -84,12 +106,32 @@ export function createDataRouter(gateway: DataGateway, guard: express.RequestHan
   })
   router.get('/prices/:mode', async (req, res, next) => {
     try {
-      const modes: Record<string, string> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season', regular: 'regular', 'pvp-season': 'pvp-season' }
-      const mode = modes[String(req.params.mode)]
+      const mode = PRICE_MODES[String(req.params.mode)]
       if (!mode) { res.status(404).json({ error: 'Неизвестный режим' }); return }
-      const body = await mirror?.read(`prices-${mode}`, 'prices.json')
-      if (!body) { res.status(503).json({ error: 'Цены ещё загружаются' }); return }
-      send(res, body.toString('utf8'))
+      const entry = await pricesOf(mode)
+      if (!entry) { res.status(503).json({ error: 'Цены ещё загружаются' }); return }
+      if (!players) { send(res, entry.raw.toString('utf8')); return }
+      const standing = players.prices(mode)
+      const laid = `${players.revision}:${standing.size}`
+      if (entry.laid !== laid) {
+        entry.body = layPlayerPrices(entry.raw.toString('utf8'), standing)
+        entry.laid = laid
+      }
+      send(res, entry.body)
+    } catch (error) { next(error) }
+  })
+  // The prices a player's app read on the flea (src/data/screenFleaPrices.ts): judged against this mode's file.
+  router.post('/prices/:mode/sightings', async (req, res, next) => {
+    try {
+      const mode = PRICE_MODES[String(req.params.mode)]
+      if (!mode) { res.status(404).json({ error: 'Неизвестный режим' }); return }
+      if (!players) { res.status(503).json({ error: 'Цены игроков не принимаются' }); return }
+      const entry = await pricesOf(mode)
+      if (!entry) { res.status(503).json({ error: 'Цены ещё загружаются' }); return }
+      entry.references ??= priceReferences(entry.raw.toString('utf8'))
+      const references = entry.references
+      const body = req.body && typeof req.body === 'object' ? req.body as { sightings?: unknown } : {}
+      res.json(players.submit(String(res.locals.accountId), mode, body.sightings, (itemId) => references.get(itemId)))
     } catch (error) { next(error) }
   })
   // «Торговля»: the statistics built a few times a day (services/tradingStats.ts), the same bytes for everyone.

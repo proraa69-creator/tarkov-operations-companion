@@ -40,6 +40,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
   // The minute prices (src/data/livePrices.ts, src/data/tarkovDataset.ts) and the statistics of «Торговля» (src/data/tradingApi.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/data/(?:prices|trading)/${MODE}$`) },
+  // Flea prices the player's screen showed (src/data/screenFleaPrices.ts, server/src/services/playerPrices.ts).
+  { methods: ['POST'], path: new RegExp(`^/v1/data/prices/${MODE}/sightings$`) },
   // One item's price history (src/data/economyApi.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/data/price-history/${MODE}/[a-z0-9]{16,48}\\?days=\\d{1,4}$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
