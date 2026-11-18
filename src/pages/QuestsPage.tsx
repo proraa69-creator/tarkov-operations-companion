@@ -6,6 +6,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { collectorKeyTasks } from '../components/collectorKeyTasks'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isLiveGameQuest, isStoryQuest } from '../progression/requirementEngine'
+import { ofFaction, playerFaction } from '../progression/questBasics'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questMapsLabel } from '../progression/questLocation'
 import type { Quest, TaskProgressStatus } from '../domain/types'
@@ -80,6 +81,9 @@ export function QuestsPage() {
   // «Журналы: отслеживаются · последнее событие HH:MM» (the desktop's constant log tracking, electron/logWatcher.ts).
   const logLine = logWatchLine(useLogStatus(), locale)
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
+  // The other faction's own quests stay out once the faction is known (report №191: «Обновка», «Текстиль» shown twice).
+  const faction = useMemo(() => playerFaction(progress, data.quests), [progress, data.quests])
+  const factionQuests = useMemo(() => ofFaction(data.quests, faction), [data.quests, faction])
   const traders = ['Все торговцы', ...new Set(data.quests.filter((quest) => statusFilter === 'story' ? isStoryQuest(quest) : isLiveGameQuest(quest)).map((quest) => quest.trader))]
   // the same count as the Overview Kappa card: the four key tasks for «Коллекционер»
   const kappaKeys = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
@@ -98,7 +102,7 @@ export function QuestsPage() {
   const [questMenu, setQuestMenu] = useState<QuestDeferMenuState | null>(null)
   const closeQuestMenu = useCallback(() => setQuestMenu(null), [setQuestMenu])
 
-  const filtered = useMemo(() => data.quests.filter((quest) => {
+  const filtered = useMemo(() => factionQuests.filter((quest) => {
     const status = availability.get(quest.id)?.status ?? 'unknown'
     const matchesQuery = `${quest.name} ${quest.trader} ${quest.description} ${uiText(quest.name)} ${uiText(quest.trader)}`.toLowerCase().includes(query.toLowerCase())
     const matchesTrader = trader === 'Все торговцы' || quest.trader === trader
@@ -107,7 +111,7 @@ export function QuestsPage() {
     // Every chapter stands in «Сюжетные» (owner, 05.11.2026): one not started waits for «Начать главу».
     if (statusFilter === 'story') return matchesQuery && isStoryQuest(quest)
     return matchesQuery && matchesTrader && belongsInQuestSection(quest, progress, statusFilter === 'chronology' ? 'all' : statusFilter, status)
-  }).sort((left, right) => (left.storyOrder ?? 99) - (right.storyOrder ?? 99) || left.name.localeCompare(right.name, 'ru')), [availability, data.quests, deferredIds, progress, query, trader, statusFilter])
+  }).sort((left, right) => (left.storyOrder ?? 99) - (right.storyOrder ?? 99) || left.name.localeCompare(right.name, 'ru')), [availability, factionQuests, deferredIds, progress, query, trader, statusFilter])
   const mobile = useMobileLayout()
   // PC: the quest's card ends at the bottom of the window and scrolls inside (src/app/useFitBelow.ts).
   const detail = useRef<HTMLElement>(null)
@@ -199,7 +203,7 @@ export function QuestsPage() {
     {statusFilter === 'endings' && featureEnabled('storyEndings') ? <StoryEndingsView mode={state.raidMode} /> : showAllStory ? <StoryChaptersAll availability={availability} progress={progress} onBack={() => setShowAllStory(false)} /> : <div className={`split-page${treeView ? ` quest-tree-page${selected ? ' has-card' : ''}` : ''}`}>
       <section className="panel">
         <div className="panel-header">{statusFilter === 'chronology' ? <QuestViewSwitch /> : <div className="panel-title">{uiText(statusFilter === 'story' ? 'Главы истории' : 'Каталог заданий')}</div>}</div>
-        {treeView && <QuestTreeView quests={data.quests} traders={data.traders} availability={availability} query={query} />}
+        {treeView && <QuestTreeView quests={factionQuests} traders={data.traders} availability={availability} query={query} />}
         {statusFilter === 'chronology' && !treeView && <div className="panel-body" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
           <QuestChronologyPanel quests={data.quests} shown={filtered} availability={availability} progress={progress} selectedId={selected?.id} onOpen={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); return next })} />
         </div>}

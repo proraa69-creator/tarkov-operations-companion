@@ -7734,3 +7734,51 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   gateway 1411/1411 (src/data, src/import, src/components, pages Flea/Trading/QuestKeys, electron/serviceGateway*,
   ocrQueue; positionTracker left out), typecheck, tsc electron, eslint clean.
 - Remaining: deploy of the server and a release of the app (≥ 0.6.0.318) on the owner's word; check in the game.
+## 2026-11-18 — item key: no more 5–6 s waits behind the quest scanner (branch claude/item-lookup-speed-1118, not released)
+
+- Owner: «информация о предмете — очень долго ищет некоторые предметы, может грузиться 5-6 секунд». The logged slow
+  lookups (6111 ms, 1 grab; 5519 ms, 3 grabs) spent almost everything on their 3 readings. Measured here (i5-10400F,
+  tesseract.js, the logs' own crops): a tooltip line reads in 25–135 ms, the tooltip engine loads in 0.5 s, but the
+  quest scanner's whole-screen pass (1421×1080, word boxes) takes 6065 ms — and the OCR queue never started a lookup's
+  reading while a background one ran. A key pressed during such a pass waited for its end.
+- electron/ocrQueue.ts: two lanes — a reading the player waits for (item card, Collector scan) starts at once beside a
+  running background one (its own engine/thread); interactive readings still go one at a time, background ones one at a
+  time and never start while an interactive one runs or waits or while held. Tests: electron/ocrQueue.test.ts (the old
+  queue fails the new ones).
+- electron/experimental/index.ts: the item-lookups log keeps each reading's OCR time (`ocrMs`) and each match's
+  (`matchMs`), and also lookups found by text after ≥ 2.5 s (`outcome: "slow"`), which were not kept before.
+- Checks: `npm run typecheck`, eslint on the 3 files clean; vitest electron/ocrQueue + electron/experimental +
+  src/overlay + ocrPicture/questScreenshot: 175 passed, only the known positionTracker failures.
+- Not verified in the game. Remaining: two readings at once during a lookup in the menus (short: the lookup's few lines);
+  the quest scanner's 6 s whole-screen pass itself is still that long (a separate task). Release only with a new app
+  version ≥ 0.6.0.318 on the owner's word.
+- Follow-up (owner «УСКОРЯЙ»): the picture search (on the main process, logged 57–843 ms in the game; a reading done
+  meanwhile waited for it) spent most of its time in screenPicture — 18 passes over the item's pixels per layout
+  (3 thumbnails × 3 turns × with/without backdrop). src/overlay/iconSignature.ts `pictureSignatures`: all three grids in
+  one pass, every turn from them; src/overlay/iconMatch.ts uses it. Measured on the logged cells: 110–208 ms → 20–56 ms
+  (×4), the whole picture search ~250 → ~70 ms. Same numbers to the bit: compared with the old code on 167 layouts of the
+  logged crops, and a test with the old code as reference (noise, transparency, covered parts, turns 0–3). The picture
+  index (scripts/build-item-signatures.mjs) needs no rebuild. typecheck, eslint clean; vitest src/overlay +
+  src/components + ocrQueue 562 passed.
+
+## 2026-11-18 — report 191 (USEC / BEAR quests twice) and release 0.6.0.318
+
+- Report 191 (Season): «Обновка. Часть 2» and «Текстиль» shown twice with different rewards. They are the game's
+  USEC and BEAR versions (tarkov.dev factionName); without a Tarkov.dev profile `progress.faction` stayed unknown and
+  the tree and lists showed both. src/progression/questBasics.ts `playerFaction` (profile, else the faction of a
+  one-faction quest the player took; both seen → unknown) and `ofFaction`; src/pages/QuestsPage.tsx uses them for the
+  lists and the tree; the tree marks one-faction quests «USEC» / «BEAR» (questTreeText `factionTag`). Commit 2cb2bcc7,
+  test src/progression/questBasics.faction.test.ts.
+- Other same-name pairs in one mode are distinct game quests and stay: «Новое начало» (per prestige), Ref's
+  «Поменять батарейку» / «Цена независимости» (mutually exclusive branches), and two «Тарковский стрелок. Часть 5»
+  (5bc4826c… night Customs Scavs, 5bc48369… Sniper Scavs; the production logs show players completing both).
+- Release 0.6.0.318 (749e1578, branch claude/release-318): 2cb2bcc7 + claude/item-lookup-speed-1118 (942f7db1).
+  News (owner: nothing about prices or screen scanning): «Квесты: задания USEC и BEAR больше не показываются дважды».
+- PC 0.6.0.317 was never published: the VPS publisher refused «Workflow changed» because production.yml gained the
+  `npm_config_onnxruntime_node_install_cuda: skip` env (CUDA tgz 404 on GitHub since 18.11). With the owner's approval
+  `/etc/raidos/release-config.json` workflowHash: dc482156… → dcbb8c53… (sha256 of production.yml at 749e1578), backup
+  `/etc/raidos/release-config.json.bak-1795000586`.
+- Tests: typecheck clean; vitest quests/progression/pages/overlay/ocrQueue/experimental: only the known
+  positionTracker failures, AdminPanelPage source-text check (CRLF in the working copy, unrelated) and
+  MapsPage.deferred under load (passes alone).
+- Remaining: faction fix and item speed not checked in the game; VPS release mirror gc warnings (missing object).

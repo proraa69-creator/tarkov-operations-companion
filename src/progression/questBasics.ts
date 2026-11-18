@@ -15,6 +15,28 @@ export function questFaction(value: string | undefined): 'usec' | 'bear' | undef
   return undefined
 }
 
+/**
+ * The player's faction for this mode: the profile's, else the one of a USEC- or BEAR-only quest the game says the player
+ * took (report №191, Season: «Квестов почему то два, награда тоже разная» — «Обновка» and «Текстиль» come once for each
+ * faction, and without a profile both were shown). Unknown when neither tells.
+ */
+export function playerFaction(progress: { faction: 'usec' | 'bear' | 'unknown'; taskProgress: Readonly<Record<string, { status: string } | undefined>> }, quests: readonly { id: string; faction?: string }[]): 'usec' | 'bear' | 'unknown' {
+  if (progress.faction !== 'unknown') return progress.faction
+  const seen = new Set<'usec' | 'bear'>()
+  for (const quest of quests) {
+    const faction = questFaction(quest.faction)
+    if (faction && progress.taskProgress[quest.id]) seen.add(faction)
+  }
+  // both seen: a wrong reading somewhere, so neither is certain
+  return seen.size === 1 ? [...seen][0]! : 'unknown'
+}
+
+/** The quests of the player's faction (and of any): the other faction's own quests left out when the faction is known. */
+export function ofFaction<T extends { faction?: string }>(quests: readonly T[], faction: 'usec' | 'bear' | 'unknown'): T[] {
+  if (faction === 'unknown') return [...quests]
+  return quests.filter((quest) => { const own = questFaction(quest.faction); return !own || own === faction })
+}
+
 export function isLiveGameQuest(quest: { id: string; kind?: string; storyChapterId?: string }) {
   return Boolean(quest.id) && !quest.id.startsWith('wiki:') && quest.kind !== 'story' && !quest.storyChapterId
 }

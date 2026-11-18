@@ -12,7 +12,7 @@ import { buildQuestTree, questChain, searchQuestTree, type QuestLinkKind, type Q
 import { QuestTreeOutline } from './QuestTreeOutline'
 import { StatusMark } from './StatusMark'
 import { LaneUnlockBar } from './laneUnlock'
-import { questTreeStatus, stepLabel } from './questTreeText'
+import { factionTag, questTreeStatus, stepLabel } from './questTreeText'
 import './questTree.css'
 
 /** The lane chip that shows every trader at once. */
@@ -376,7 +376,7 @@ const QuestCard = memo(function QuestCard({ box, quest, status, statusText, sele
   >
     <StatusMark status={status} />
     <strong>{name}</strong>
-    <small>{uiText(`ур. ${quest.level}`)}{quest.kappa ? <span className="quest-tree-kappa" title={uiText('капа')}>K</span> : null}</small>
+    <small>{uiText(`ур. ${quest.level}`)}{factionTag(quest)}{quest.kappa ? <span className="quest-tree-kappa" title={uiText('капа')}>K</span> : null}</small>
   </button>
 })
 
