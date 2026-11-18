@@ -7676,3 +7676,6 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   OneDrive; `screenshotsFolder()` picks the profile's Documents). This session's test run left 3 empty fake position
   screenshots there (named 2026-10-12, coordinates 42.5/43.5/46.5); removed (each 0–3 bytes). The test needs its own
   folder — not fixed here.
+- Owner: the flea price's mode is the mode the app already tracks and switches to by itself. The plan takes
+  `screenReadingMode` (src/import/screenReadingMode.ts: the game's mode from its logs, as the story and Tasks readings),
+  nothing sent until the logs name it; the «… | PvE» label on the screen only as a second check.
