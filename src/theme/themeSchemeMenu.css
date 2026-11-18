@@ -13,3 +13,12 @@
 .daynight-intro h2 { margin: 0; font-size: 18px; }
 .daynight-intro p { margin: 0 0 6px; color: var(--text-muted); font-size: 14px; line-height: 1.45; }
 .daynight-intro-icon { color: var(--brass-strong); }
+
+/* «Стиль»: «Обычный» / «Стекло» (theme/StyleSwitch.tsx), at the top of this menu and in Settings → «Цветовая схема». */
+.theme-scheme-style { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 6px 5px 9px; color: var(--text-dim); font-size: 12px; font-weight: 700; }
+.style-switch { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); }
+.style-switch button { min-height: 28px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.style-switch button.active { background: var(--panel-3); color: var(--text); }
+:root[data-style="glass"][data-style] .style-switch { border-radius: 999px; background: rgb(0 0 0 / 22%); }
+:root[data-style="glass"][data-style] .style-switch button { border-radius: 999px; }
+:root[data-style="glass"][data-style] .style-switch button.active { background: var(--glass-accent); color: var(--glass-ink); }

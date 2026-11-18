@@ -10,6 +10,11 @@
 import '../styles/softMotion.css'
 
 export const SOFT_MOTION = true
+/**
+ * The PC too (owner, 19.11.2026: «все окна, которые открываются, всплывающие, раздвигающиеся, все должны быть… плавные»): the blocks
+ * glide to their new places when something above them opens or goes. A block that appears is src/app/richMotion.ts's to bring in.
+ */
+export const DESKTOP_GLIDE = true
 
 /** The blocks that glide: the page's panels and cards and the rows of lists inside them. */
 const BLOCKS = '.content .page > *, .content .panel, .content .stat-card, .content .quest-row, .content .raid-needs-grid > *, .content [data-soft-block]'
@@ -62,7 +67,8 @@ export function installSoftMotion(): () => void {
 
   const settle = () => {
     scheduled = false
-    if (root.getAttribute('data-layout') !== 'mobile' || reduced()) { remember(); return }
+    const mobile = root.getAttribute('data-layout') === 'mobile'
+    if ((!mobile && !DESKTOP_GLIDE) || reduced()) { remember(); return }
     // the map page changes all the time under Leaflet and has no blocks to glide
     if (document.querySelector('.content .map-page')) { page = ''; return }
     // a new page or a turned phone: no glide, the blocks are simply where they are
@@ -79,8 +85,8 @@ export function installSoftMotion(): () => void {
       const before = spots.get(element)
       const html = element as HTMLElement
       if (!before) {
-        // a block that appears on the same page comes in softly
-        if (now.h > 0 && now.h < window.innerHeight * 1.5) html.animate([{ opacity: 0, translate: '0 10px', scale: '.985' }, { opacity: 1, translate: '0 0', scale: '1' }], ENTER)
+        // a block that appears on the same page comes in softly (on the PC richMotion.ts brings it in)
+        if (mobile && now.h > 0 && now.h < window.innerHeight * 1.5) html.animate([{ opacity: 0, translate: '0 10px', scale: '.985' }, { opacity: 1, translate: '0 0', scale: '1' }], ENTER)
         continue
       }
       const dx = before.x - now.x, dy = before.y - now.y

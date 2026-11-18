@@ -36,6 +36,7 @@ import { TRADING_POSITIONS_SYNC } from '../trading/tradingPositions'
 import { TRADING_SETTINGS_SYNC } from '../trading/tradingSettings'
 import { SQUAD_SETTINGS_SYNC, SQUAD_SKETCH_HIDDEN_SYNC } from '../squad/squadSettings'
 import { NOTIFICATION_KINDS_SYNC } from '../notifications/notificationKinds'
+import { STYLE_SYNC } from '../theme/theme'
 import { canonicalJson, hashOf, schedulePlayerStateSync, type StateAdapter, type StateMode } from './playerState'
 
 const WHOLE_ACCOUNT: readonly StateMode[] = ['']
@@ -227,6 +228,7 @@ const PREFS: ReadonlyArray<{ key: string; event: string }> = [
   SQUAD_SETTINGS_SYNC,
   SQUAD_SKETCH_HIDDEN_SYNC,
   NOTIFICATION_KINDS_SYNC,
+  STYLE_SYNC,
 ]
 
 const prefs: StateAdapter = {

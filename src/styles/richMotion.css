@@ -6,7 +6,7 @@
 
 /* The gliding highlight: drawn under the items of its group, in the look of the item it goes to. */
 :root[data-rich-motion] .motion-glide { position: absolute; z-index: 0; pointer-events: none; }
-:root[data-rich-motion] :is(.mode-switch, .locale-switch, .segmented-filter, [role="tablist"]) > :not(.motion-glide) { position: relative; }
+:root[data-rich-motion] :is(.mode-switch, .locale-switch, .style-switch, .segmented-filter, [role="tablist"]) > :not(.motion-glide) { position: relative; }
 /* while it glides, the item it goes to shows no highlight of its own (it takes over when the glide ends) */
 :root[data-rich-motion] .motion-glide-target { background: transparent !important; box-shadow: none !important; transition: none !important; }
 :root[data-rich-motion] .motion-glide-target::before { opacity: 0; }
@@ -40,3 +40,6 @@
   :root[data-rich-motion] * { scale: none !important; translate: none !important; }
   :root[data-rich-motion] .motion-glide { display: none; }
 }
+
+/* A closing window's still copy (richMotion.ts fadeOut): it only fades; nothing in it moves or answers. */
+[data-motion-ghost], [data-motion-ghost] * { animation: none !important; transition: none !important; pointer-events: none !important; }

@@ -220,6 +220,7 @@ const GLIDE_GROUPS: GlideGroup[] = [
   { container: '.sidebar', item: '.nav-link', active: '.nav-link.active' },
   { container: '.mode-switch', item: 'button', active: 'button.active' },
   { container: '.locale-switch', item: 'button', active: 'button.active' },
+  { container: '.style-switch', item: 'button', active: 'button.active' },
   { container: '.segmented-filter', item: 'button', active: 'button.active, button[aria-pressed="true"]' },
   { container: '[role="tablist"]', item: '[role="tab"]', active: '[role="tab"][aria-selected="true"]' },
 ]
@@ -314,6 +315,41 @@ function pop(element: Element) {
   target.animate([{ opacity: 0, scale: '.96', translate: '0 6px' }, { opacity: 1, scale: '1', translate: '0 0' }], { duration: 300, easing: SPRING })
 }
 
+/** The dark layer under a window: it fades in as the window grows. */
+const OVERLAYS = '.registration-overlay, .search-overlay, .item-drawer-backdrop, .notice-photo-full'
+function fadeIn(element: Element) {
+  if (getComputedStyle(element).animationName !== 'none' || element.getAnimations().length) return
+  element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' })
+}
+
+/**
+ * What closes (owner, 19.11.2026: «все окна, которые открываются, всплывающие, раздвигающиеся… плавные»): a window, its dark layer,
+ * a menu, a side panel drawn straight under <body> leave at once in React; a still copy of it fades out where it stood. Only what is
+ * fixed or absolute on the screen: a copy of anything else would push the page.
+ */
+const LEAVES = `${OVERLAYS}, [role="dialog"], [role="menu"], [role="listbox"], .theme-scheme-menu, .location-keys`
+const GHOST = 'data-motion-ghost'
+function fadeOut(node: Element) {
+  const ghost = node.cloneNode(true) as HTMLElement
+  ghost.setAttribute(GHOST, '')
+  ghost.setAttribute('aria-hidden', 'true')
+  ghost.inert = true
+  document.body.appendChild(ghost)
+  const position = getComputedStyle(ghost).position
+  if (position !== 'fixed' && position !== 'absolute') { ghost.remove(); return }
+  let removed = false
+  const done = () => { if (!removed) { removed = true; ghost.remove() } }
+  const inner = ghost.matches(OVERLAYS) ? ghost.querySelector('[role="dialog"], .item-drawer, .registration-dialog') : null
+  inner?.animate([{ scale: '1', translate: '0 0' }, { scale: '.97', translate: '0 8px' }], { duration: 200, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' })
+  const fade = ghost.animate(
+    inner ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 1, scale: '1' }, { opacity: 0, scale: '.97' }],
+    { duration: 200, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' },
+  )
+  fade.finished.then(done, done)
+  // a window that draws no frames never ends an animation
+  window.setTimeout(done, 450)
+}
+
 // ------------------------------------------------------------------------------------------------------------
 
 /** Turns the motion on; returns a cleanup. */
@@ -335,8 +371,14 @@ export function installRichMotion(): () => void {
     const added = new Set<Element>()
     const opened = new Set<Element>()
     for (const record of records) {
+      if (record.target === document.body) {
+        for (const node of record.removedNodes) {
+          if (node instanceof Element && !node.hasAttribute(GHOST) && node.matches(LEAVES)) fadeOut(node)
+        }
+      }
       for (const node of record.addedNodes) {
-        if (!(node instanceof Element)) continue
+        if (!(node instanceof Element) || node.hasAttribute(GHOST)) continue
+        if (node.matches(OVERLAYS)) fadeIn(node)
         if (node.matches(POPS)) opened.add(node)
         else node.querySelectorAll(POPS).forEach((element) => opened.add(element))
         if (content?.contains(node)) {

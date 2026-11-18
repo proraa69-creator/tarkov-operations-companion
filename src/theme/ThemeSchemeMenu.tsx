@@ -4,6 +4,7 @@ import { Check, SunMoon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, saveAppearance } from './theme'
 import { prepareTheme } from './themeTransition'
+import { StyleSwitch } from './StyleSwitch'
 import './themeSchemeMenu.css'
 
 /** «Смена дня и ночи» was turned on once on this device: its window is not shown again. */
@@ -49,6 +50,9 @@ export function ThemeSchemeMenu({ x, y, current, onPick, onClose }: { x: number;
     {icon}<span>{uiText(label)}</span>{current === id && <Check size={14} className="theme-scheme-check" aria-hidden="true" />}
   </button>
   return createPortal(<div ref={box} className="theme-scheme-menu" role="menu" aria-label={uiText('Цветовая схема')} style={place ?? { left: x, top: y, visibility: 'hidden' }} onContextMenu={(event) => event.preventDefault()}>
+    {/* the style first, then the schemes it applies to (owner, 19.11.2026) */}
+    <div className="theme-scheme-style"><span>{uiText('Стиль')}</span><StyleSwitch /></div>
+    <div className="theme-scheme-divider" role="separator" />
     {THEMES.map((theme) => item(theme.id, theme.label, <span className="theme-scheme-swatch" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${theme.swatch[0]} 0 45%, ${theme.swatch[1]} 45% 75%, ${theme.swatch[2]} 75%)` }} />))}
     <div className="theme-scheme-divider" role="separator" />
     {item(DAY_NIGHT_THEME.id, DAY_NIGHT_THEME.label, <SunMoon size={16} className="theme-scheme-icon" aria-hidden="true" />)}

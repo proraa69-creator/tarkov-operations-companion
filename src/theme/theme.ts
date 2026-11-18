@@ -50,7 +50,7 @@ const HALLOWEEN_THEME = 'bloodmoon'
 
 /** Everyone who has not picked a scheme yet starts on the olive scheme «Олива» (id «tarkov»), phone and desktop. */
 export function defaultTheme() {
-  return 'glass'
+  return 'tarkov'
 }
 
 function read(key: string) {
@@ -58,16 +58,41 @@ function read(key: string) {
 }
 
 /**
- * «Стекло» comes on once for everyone (owner, 18.11.2026: «Стиль тоже такой стеклянный нужно сделать»): the scheme saved before it
- * gives way to it the first time; a pick after that stands.
+ * The style of the shell, apart from its colour scheme (owner, 19.11.2026: «это должна быть как основная наша тема и стеклянная. И у
+ * каждой темы должен быть олива, потом тельняшка… только в стиле в обычном и в стекле»): «Обычный» or «Стекло»
+ * (styles/style-glass.css, `:root[data-style="glass"]`), every scheme in either. «Стекло» comes on once for everyone; a pick after
+ * that stands. A scheme saved as «glass» by the first test build is the olive one in the glass style.
  */
+export const STYLES = [
+  { id: 'plain', label: 'Обычный' },
+  { id: 'glass', label: 'Стекло' },
+] as const
+export type AppStyle = typeof STYLES[number]['id']
+const STYLE_KEY = 'tarkov-app-style'
 const GLASS_SHOWN_KEY = 'tarkov-app-glass-shown'
+export const STYLE_CHANGED_EVENT = 'tarkov-style-changed'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const STYLE_SYNC = { key: STYLE_KEY, event: STYLE_CHANGED_EVENT } as const
+
 function showGlassOnce() {
-  if (read(GLASS_SHOWN_KEY)) return
+  if (read(GLASS_SHOWN_KEY) && read(THEME_KEY) !== 'glass') return
   try {
     localStorage.setItem(GLASS_SHOWN_KEY, '1')
-    localStorage.setItem(THEME_KEY, 'glass')
+    if (read(THEME_KEY) === 'glass') localStorage.setItem(THEME_KEY, 'tarkov')
+    if (!read(STYLE_KEY)) localStorage.setItem(STYLE_KEY, 'glass')
   } catch { /* storage unavailable */ }
+}
+
+export function currentStyle(): AppStyle {
+  showGlassOnce()
+  return read(STYLE_KEY) === 'glass' ? 'glass' : 'plain'
+}
+
+/** `origin`: the pressed button, the new style opens as a circle from it (theme/themeTransition.ts). */
+export function saveStyle(style: AppStyle, origin?: ThemeOrigin) {
+  try { localStorage.setItem(STYLE_KEY, style) } catch { /* storage unavailable */ }
+  withThemeTransition(() => applyAppearance(), { origin })
+  window.dispatchEvent(new Event(STYLE_CHANGED_EVENT))
 }
 
 /** The player's own choice (kept, and synced to the account), or the default. */
@@ -101,6 +126,8 @@ export function applyAppearance(theme = currentTheme()) {
   if (theme === 'tarkov') root.removeAttribute('data-theme')
   else root.setAttribute('data-theme', theme)
   root.setAttribute('data-alc-stitch', currentStitch())
+  if (currentStyle() === 'glass') root.setAttribute('data-style', 'glass')
+  else root.removeAttribute('data-style')
   if (theme === 'daynight') startDayNight()
   else stopDayNight()
 }
