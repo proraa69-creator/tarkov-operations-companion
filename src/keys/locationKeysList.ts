@@ -71,3 +71,15 @@ export function shortRoubles(value: number, locale: 'ru' | 'en') {
   if (value >= 10_000) return locale === 'en' ? `${round(value / 1e3)}K ₽` : `${round(value / 1e3)} тыс ₽`
   return `${new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'ru-RU').format(Math.round(value))} ₽`
 }
+
+/**
+ * The keys of a location as the window lists them (owner, 19.11.2026: «изначально все ключи должны сортироваться по тир-листу… сначала
+ * S, потом A и так далее… сначала самые крутые ключи»): by the letter, the dearest first within one, the ones with no price at the
+ * end in their own order.
+ */
+export function byTier<T extends { keyId: string }>(keys: readonly T[], tiers: ReadonlyMap<string, { tier: Tier; price: number }>): T[] {
+  const rank = (key: T) => { const worth = tiers.get(key.keyId); return worth ? TIER_ORDER.indexOf(worth.tier) : TIER_ORDER.length }
+  return keys.map((key, at) => ({ key, at })).sort((a, b) => rank(a.key) - rank(b.key)
+    || (tiers.get(b.key.keyId)?.price ?? 0) - (tiers.get(a.key.keyId)?.price ?? 0) || a.at - b.at).map(({ key }) => key)
+}
+const TIER_ORDER: readonly Tier[] = ['S', 'A', 'B', 'C', 'D']

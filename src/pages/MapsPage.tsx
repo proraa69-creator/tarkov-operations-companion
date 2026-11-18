@@ -38,7 +38,7 @@ import { LOOT_CONTAINER_PICTURES } from '../assets/containerMarkers'
 // A locked car door or trunk as a car (owner, 11.11.2026: «обозначение запертой двери или багажник машины там должна быть
 // нарисована машина. А не дверь из дома»): «Volga GAZ-24 Blue», Novoklimov, CC0, commons.wikimedia.org.
 import carLockPicture from '../assets/map-markers/real/car.webp'
-import { QuestKeyDialog } from '../quests/QuestKeyDialog'
+import { QuestKeyInline } from '../quests/QuestKeyInline'
 import { LootContainerRows } from '../components/LootContainerRows'
 import { lootContainerKindOf, type LootContainerKind } from '../data/lootContainerKinds'
 import { battlePassDocumentKindsOf, battlePassDocumentTitle, type BattlePassDocumentKind } from '../data/battlePassDocuments'
@@ -732,7 +732,7 @@ export function MapsPage() {
   // Far: one point per locked room and per heap of spots; close up, every spot (owner, 11.11.2026: «при отдалении показывается
   // одна… когда ты приближаешь очень близко, появляется несколько мест спавна»).
   const [closeUp, setCloseUp] = useState(false)
-  // a key of «Требуемые предметы» pressed in the quest window (quests/QuestKeyDialog.tsx)
+  // a key of «Требуемые предметы» pressed in the quest window: open right under it (quests/QuestKeyInline.tsx)
   const [keyDialog, setKeyDialog] = useState<string | null>(null)
   const plottedMarkers = useMemo(
     () => (closeUp ? mapPoints : mergeSpotHeaps(
@@ -1638,7 +1638,7 @@ export function MapsPage() {
                       {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} questId={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective} onCount={countSheetObjective}
                         focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined}
                         pointOf={(objectiveId) => objectivePoints(relatedQuest.id, objectiveId).length > 0} onGoToPoint={(objectiveId) => goToObjectivePoint(relatedQuest.id, objectiveId)} view={sheetView}
-                        openNeed={{ can: (itemId) => itemsById.get(itemId)?.category === 'Ключ', open: setKeyDialog }} /> : (
+                        openNeed={{ can: (itemId) => itemsById.get(itemId)?.category === 'Ключ', open: (itemId) => setKeyDialog((current) => (current === itemId ? null : itemId)), expanded: keyDialog, render: (itemId) => <QuestKeyInline itemId={itemId} /> }} /> : (
                         <ul className="map-quest-sheet-objectives">
                           {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
                             const objectiveId = relatedQuest.objectives.length ? relatedQuest.objectiveIds?.[index] : undefined
@@ -1721,7 +1721,6 @@ export function MapsPage() {
         {deferRequest && <QuestDeferDialog request={deferRequest} onClose={() => setDeferRequest(null)} onDeferred={(questIds) => { if (questIds.some((questId) => focusedQuestId === questId || selectedMarker?.questId === questId)) clearQuestSelection() }} />}
         <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onDone={(questId) => { state.setManualQuestMark(state.raidMode, questId, 'completed'); if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection() }} onChapter={(questId) => navigate(`/quests?filter=story&selected=${encodeURIComponent(questId)}&change=1`)} onClose={closeQuestMenu} />
         {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
-        {keyDialog && <QuestKeyDialog itemId={keyDialog} onClose={() => setKeyDialog(null)} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
         <PointSettingsWindow state={questEditor} emblems={pointEmblems} quests={data.quests} items={data.items} markers={data.markers} />
       </section>

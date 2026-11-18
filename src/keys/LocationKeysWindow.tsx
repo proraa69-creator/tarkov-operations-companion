@@ -12,7 +12,7 @@ import { canonicalMapId } from '../data/mapIds'
 import { ItemDrawer } from '../components/ItemDrawer'
 import type { Item } from '../domain/types'
 import { locationKeys, useLocationKeys } from './locationKeysStore'
-import { clampKeysPosition, defaultKeysPosition, keyDoorsHref, keyTiers, keysOfLocation, locationsWithKeys, shortRoubles } from './locationKeysList'
+import { byTier, clampKeysPosition, defaultKeysPosition, keyDoorsHref, keyTiers, keysOfLocation, locationsWithKeys, shortRoubles } from './locationKeysList'
 import './locationKeys.css'
 
 const WINDOW_WIDTH = 470
@@ -57,9 +57,11 @@ function KeysWindowBody() {
   const index = useMemo(() => (markers ? buildKeyDoorIndex(markers, maps) : new Map<string, KeyDoor[]>()), [markers, maps])
   const locations = useMemo(() => locationsWithKeys(index, maps), [index, maps])
   const mapId = locations.some((map) => canonicalMapId(map.id) === canonicalMapId(keys.mapId)) ? keys.mapId : locations[0]?.id ?? keys.mapId
-  const list = useMemo(() => keysOfLocation(index, mapId, items), [index, mapId, items])
+  const unsorted = useMemo(() => keysOfLocation(index, mapId, items), [index, mapId, items])
   const raidMode = useOptionalAppState()?.raidMode
   const tiers = useMemo(() => (tarkov && raidMode ? keyTiers(tarkov.data.items, raidMode) : new Map<string, never>()), [tarkov, raidMode])
+  // the best keys first: S, A… D by the tier list, the dearest first within a letter, the ones without a price last (owner, 19.11.2026)
+  const list = useMemo(() => byTier(unsorted, tiers), [unsorted, tiers])
   const focused = keys.focus ? keysOfLocation(index, keys.focus.mapId, items).find((entry) => entry.keyId === keys.focus!.keyId) : undefined
 
   // the corner, kept inside the screen; a new window size (the phone turned) moves it back in

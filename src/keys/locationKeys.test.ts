@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { GameMap, Item, RaidMode } from '../domain/types'
 import type { KeyDoor } from '../data/keyDoors'
-import { clampKeysPosition, defaultKeysPosition, keyDoorsHref, keyTiers, keysOfLocation, locationsWithKeys, shortRoubles } from './locationKeysList'
+import { byTier, clampKeysPosition, defaultKeysPosition, keyDoorsHref, keyTiers, keysOfLocation, locationsWithKeys, shortRoubles } from './locationKeysList'
 import { locationKeys } from './locationKeysStore'
 
 const door = (markerId: string, mapId: string): KeyDoor => ({ markerId, mapId, mapName: mapId, floor: 'Основной', kind: 'door' })
@@ -86,5 +86,13 @@ describe('the location keys: price and tier-list letter (owner, 18.11.2026)', ()
     expect(shortRoubles(85_400, 'en')).toBe('85K ₽')
     expect(shortRoubles(1_240_000, 'en')).toBe('1.2M ₽')
     expect(shortRoubles(8_500, 'en')).toBe('8,500 ₽')
+  })
+})
+
+describe('the location keys window lists the best keys first (owner, 19.11.2026)', () => {
+  it('S, A… D by the tier list, the dearest first in a letter, the unpriced last in their order', () => {
+    const keys = ['d', 'noprice1', 'a-cheap', 's', 'a-dear', 'noprice2'].map((keyId) => ({ keyId }))
+    const tiers = new Map([['d', { tier: 'D' as const, price: 1 }], ['a-cheap', { tier: 'A' as const, price: 10 }], ['s', { tier: 'S' as const, price: 5 }], ['a-dear', { tier: 'A' as const, price: 99 }]])
+    expect(byTier(keys, tiers).map((key) => key.keyId)).toEqual(['s', 'a-dear', 'a-cheap', 'd', 'noprice1', 'noprice2'])
   })
 })

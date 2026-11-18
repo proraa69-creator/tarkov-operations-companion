@@ -121,3 +121,14 @@ button.quest-key-missing:hover { border-color: #d78a6e; color: #f0b9a5; }
 .quest-key-barter-key img { padding: 0; border: 0; background: none; border-radius: 8px; }
 .quest-key-dialog-picture { width: auto; height: auto; border: 0; background: none; border-radius: 0; }
 .quest-key-dialog-picture img { width: 72px; height: 72px; border-radius: 10px; }
+
+/* A key of «Требуемые предметы» open in the quest window (QuestKeyInline.tsx): compact, the buy section right under it. */
+.sheet-needs li.is-expanded { grid-column: 1 / -1; }
+.quest-key-inline { display: grid; gap: 6px; margin: 6px 0 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--surf-1) 80%, transparent); }
+.quest-key-inline-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.quest-key-inline-tier { position: static !important; }
+.quest-key-inline-actions { display: flex; gap: 6px; margin-left: auto; }
+.quest-key-inline-actions .icon-button { width: 30px; height: 30px; }
+.quest-key-inline-actions .is-on { color: var(--brass-strong); }
+.quest-key-inline .detail-section { margin: 0; padding: 6px 0 0; border-top: 1px solid var(--line); }
+.quest-key-inline .item-buy-list li { font-size: 12px; }
