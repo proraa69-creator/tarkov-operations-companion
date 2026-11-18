@@ -115,8 +115,38 @@ export function matchListedExits(names: readonly string[], exits: readonly ExitP
   return listed
 }
 
-/** What the PC app read last: the names and when, for the raid then running. */
-export interface RaidExtractsReading { names: string[]; at: number }
+/**
+ * The map's exits whose names stand in the text read from the screen, wherever the list's lines begin (owner, 18.11.2026:
+ * «смотрит какие выходы, и сравнивает с нашими выходами, пусть в базе держит названия выходов и если они появятся в списке
+ * то подсвечивает найденные»): no «ВЫХОД01» word needed. A long name inside a line (OCR slips forgiven as in the matching
+ * above); a short one («Д-2») as a whole word of it. The header and the transits' lines are left out.
+ */
+export function exitsInText(text: string, exits: readonly ExitPoint[]): Set<string> {
+  const found = new Set<string>()
+  for (const raw of text.split(/\r?\n/)) {
+    if (/(?:зон[уеы]|find|stay)/iu.test(raw) || /найдите|оставай/i.test(raw)) continue
+    const words = raw.trim().replace(TIMER, '').split(/\s+/).filter(Boolean)
+    if (words.some((word) => listWord(word, TRANSIT_WORD))) continue
+    const line = matchKey(words.join(' '))
+    const tokens = new Set(words.flatMap((word, at) => [matchKey(word), matchKey(`${word}${words[at + 1] ?? ''}`)]))
+    for (const exit of exits) {
+      if (found.has(exit.id)) continue
+      if (exit.titles.some((title) => {
+        const key = matchKey(title)
+        if (key.length < 5) return key.length >= 2 && tokens.has(key)
+        if (line.includes(key)) return true
+        // a long name with a letter or two misread («бункеpа» with a Latin p): a stretch of the line as long, nearly the same
+        if (key.length < 8) return false
+        for (let at = 0; at + key.length - 1 <= line.length; at += 1) if (likeness(key, line.slice(at, at + key.length)) >= 0.85) return true
+        return false
+      })) found.add(exit.id)
+    }
+  }
+  return found
+}
+
+/** What the PC app read last: the names and when, for the raid then running; `text`: what was read, for exitsInText. */
+export interface RaidExtractsReading { names: string[]; at: number; text?: string }
 
 let reading: RaidExtractsReading | null = null
 const listeners = new Set<() => void>()
@@ -124,11 +154,11 @@ const listeners = new Set<() => void>()
 /** Readings this close are of one look at the list: their names together (each read may miss a line). */
 const SAME_LOOK_MS = 3 * 60_000
 
-/** A new reading from the game (desktop bridge); an empty list never replaces a good one. */
+/** A new reading from the game (desktop bridge); an empty one never replaces a good one. */
 export function setRaidExtracts(next: RaidExtractsReading | null) {
-  if (next && !next.names.length) return
+  if (next && !next.names.length && !next.text?.trim()) return
   reading = next && reading && next.at - reading.at >= 0 && next.at - reading.at < SAME_LOOK_MS
-    ? { names: [...new Set([...reading.names, ...next.names])], at: next.at }
+    ? { names: [...new Set([...reading.names, ...next.names])], at: next.at, text: [reading.text, next.text].filter(Boolean).join('\n') }
     : next
   for (const listener of listeners) listener()
 }
@@ -149,7 +179,9 @@ export function exitHighlights(current: RaidExtractsReading | null, raidSince: n
   if (!current) return null
   if (raidSince !== undefined ? current.at < raidSince : now - current.at > READING_WITHOUT_LOGS_MS) return null
   const listed = matchListedExits(current.names, exits)
-  if (listed.size < Math.min(2, current.names.length)) return null
+  if (current.text) for (const id of exitsInText(current.text, exits)) listed.add(id)
+  // fewer than two of this map's exits: a list of another map, or nothing read (one is enough when one was listed)
+  if (listed.size < 2 && !(listed.size === 1 && current.names.length === 1)) return null
   const lit = new Set<string>()
   const dim = new Set<string>()
   for (const exit of exits) {
@@ -172,7 +204,7 @@ export function RaidExtractsBridge() {
       const names = parseExtractList(value.text)
       // standing in an exit's zone the game lists that exit alone: it says nothing of the others
       if (names.length < 2 && isStayReading(value.text)) return
-      setRaidExtracts({ names, at: typeof value.at === 'number' ? value.at : Date.now() })
+      setRaidExtracts({ names, at: typeof value.at === 'number' ? value.at : Date.now(), text: value.text })
     })
   }, [])
   return null

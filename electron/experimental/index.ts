@@ -22,7 +22,7 @@ import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type Experim
 import { createTrackingControl } from './trackingControl.js'
 import { noteRaidSignal } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
-import { createDoublePress, readExtractsPanel, watchExtractsHeader } from '../extractsReader.js'
+import { readExtractsPanel, watchExtractsHeader } from '../extractsReader.js'
 import { foregroundWindowKey } from './win32.js'
 import {
   captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
@@ -249,9 +249,8 @@ function startHook() {
   const keyDown = (vk: number) => wasVirtualKeyPressed(vk)
   let previousItem = false
   let previousCollector = false
-  // A quick double O in the raid shows the game's exit list (report №105): read it for the map (electron/extractsReader.ts).
+  // O in the raid shows the game's exit list (report №105): read 3 s after one press (owner, 18.11.2026), electron/extractsReader.ts.
   let previousO = false
-  const doubleO = createDoublePress()
   // The list seen on screen, with no key at all (an elevated game hides its keys from the app).
   watchExtractsHeader(isTarkovForeground, (payload) => options.mainWindow()?.webContents.send('game:raid-extracts', payload))
   keyTimer = setInterval(() => {
@@ -271,7 +270,7 @@ function startHook() {
     }
     previousItem = item
     const o = keyDown(0x4f)
-    if (o && !previousO && plain && isTarkovForeground() && doubleO(Date.now())) {
+    if (o && !previousO && plain && isTarkovForeground()) {
       void readExtractsPanel((payload) => options.mainWindow()?.webContents.send('game:raid-extracts', payload))
     }
     previousO = o
