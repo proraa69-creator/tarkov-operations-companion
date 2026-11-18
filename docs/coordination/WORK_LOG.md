@@ -8036,3 +8036,25 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   drafted for the owner. The VPS SSH and /health timed out once each from this PC (WARP); fine on retry.
 - Remaining: nothing of 319 checked in the game (flea reading at 2560×1440 / 3440×1440, key windows, documents);
   release mirror gc warnings.
+
+## 2026-11-19 — Release 0.6.0.320 (branch claude/release-320, 4d8c3174 on release/production)
+
+- Owner, 19.11.2026: «проверь все, что я сегодня говорил сделать… Если все сделано, выпускай»; the news says nothing of exits
+  by O or detection («Оптимизирована скорость приложения»); themes must not lag, presses must be felt.
+- a0b90220 (claude/motion-vinora): glass buttons (tinted glass for the picked one, no solid fill); glass speed — the photo is
+  one fixed `body::before` layer, scrolling panes tint only, menu and top bar keep the frost; «Смена дня и ночи» violet
+  night, brighter day, stronger sky; presses hold their look 110 ms (`data-motion-pressed`, richMotion.ts) and sink to .94
+  with a little dimming; softMotion skips glides over 160 blocks on the PC. Headless scroll frames: glass no worse than plain.
+- Independent check of the 14 requests of the day: all present. Fixed in 2cf8b2ba: a style from another device applied at
+  once (main.tsx); «Купленные предметы» switch for bought-item trading alerts (they ignored «Торговля»); gunsmith
+  «Сохранено» only when the build on screen is the saved one, an opened build renamed and saved is kept beside it;
+  «21 сборка»; «Обычный» stays «Standard»; «Стиль» help; preload.cjs mirrors `silent`.
+- Merged: claude/stash-scan-short-labels (incl. exits by O ba2847be), claude/exit-flare-requirements, claude/release-319
+  (log). Work log conflicts union-merged.
+- Checks: typecheck and electron tsc clean; server tests pass apart from known network lines; vitest 4250/4262 — the known
+  failures (appVersion, AdminPanelPage, staleServer, linux/updater ×3, release-policy, cache-item-images) plus maps tests
+  that pass alone; lint errors only in untouched files (SubscriptionExpiryNotice, MapSlideshow, screenScanSync, questText).
+- Gate green; publisher started by hand.
+- Open: glass comes on once for every player who never picked a style (`tarkov-app-glass-shown`) — owner to confirm;
+  in glass the day/night sky gradient is under the glass panes (palette shows). Key card flea level shows only while the
+  flea is locked. Saved builds of weapons now excluded still list in «Избранные».
