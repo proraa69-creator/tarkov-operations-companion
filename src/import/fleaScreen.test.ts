@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { FleaPixels } from './fleaDigits'
-import { fleaLayout, fleaModeFromLabel, fleaRowCount, fleaScreenState, fleaSightings, isTraderRow, readFleaPrice, readFleaPrices, type FleaPrice, type FleaRow } from './fleaScreen'
+import { DOLLARS_ID, EUROS_ID, fleaLayout, fleaModeFromLabel, fleaRates, fleaRowCount, fleaScreenState, fleaSightings, inRoubles, isTraderRow, readFleaPrice, readFleaPrices, type FleaPrice, type FleaRow } from './fleaScreen'
 
 /**
  * The owner's flea screenshots of 18.11.2026 (1920×1080; only the parts the reader looks at kept, the rest black — see
@@ -157,14 +157,46 @@ describe('the lowest price of each item on the list', () => {
     expect(fleaSightings([dimTrader, player('a', 100)]).sightings).toEqual([{ itemId: 'a', price: 100, row: 1 }])
   })
 
-  it('gives no price for an item first offered in another currency, worn, or of the kinds whose copies differ', () => {
+  it('gives no price for an item first offered worn, or of the kinds whose copies differ', () => {
     const rows = [
-      { ...player('soap', 200), price: price(200, '€') }, player('soap', 30000),
       player('juice', 14444, 'Всего 1 Ж 30/40'), player('juice', 16666, 'Всего 9 Ж 40/40'),
       player('m4', 50000, 'Всего 1 ⚒ 100/100'),
       player('tape', 6000),
     ]
-    expect(fleaSightings(rows, (id) => id === 'm4').sightings).toEqual([{ itemId: 'tape', price: 6000, row: 5 }])
+    expect(fleaSightings(rows, (id) => id === 'm4').sightings).toEqual([{ itemId: 'tape', price: 6000, row: 3 }])
+  })
+
+  it('gives every price in roubles: dollars and euros at the rate of the game, nothing without one', () => {
+    const rows = [
+      { ...player('soap', 200), price: price(200, '€') }, player('soap', 30000),
+      { ...player('salt', 150), price: price(150, '$') },
+      { ...player('coin', 3), price: price(3, 'GP') },
+      player('tape', 6000),
+    ]
+    const rates = { '$': 140, '€': 190 }
+    expect(fleaSightings(rows, undefined, rates).sightings).toEqual([
+      { itemId: 'soap', price: 38000, row: 0, listed: { value: 200, currency: '€' } },
+      { itemId: 'salt', price: 21000, row: 2, listed: { value: 150, currency: '$' } },
+      { itemId: 'tape', price: 6000, row: 4 },
+    ])
+    // No rate known yet (no catalog): the soap's cheapest offer in roubles is unknown — not the 30 000 ₽ below it.
+    expect(fleaSightings(rows).sightings).toEqual([{ itemId: 'tape', price: 6000, row: 4 }])
+  })
+
+  it('takes the rates of the mode of the player from the handbook prices of the money', () => {
+    const base: Record<string, number> = { [DOLLARS_ID]: 140, [EUROS_ID]: 190 }
+    expect(fleaRates((id) => base[id])).toEqual({ '$': 140, '€': 190 })
+    expect(fleaRates(() => 0)).toEqual({})
+    expect(inRoubles(317, '€', { '€': 190.4 })).toBe(60357)
+    expect(inRoubles(5, 'GP', { '$': 140, '€': 190 })).toBeNull()
+  })
+
+  it('agrees with the order of the flea itself: on a Season frame of the owner 336 € lies between 61 666 ₽ and 65 420 ₽', () => {
+    const rows = labels['season-info']!.rows
+    expect(rows.slice(8, 11)).toEqual([{ value: 61666, currency: '₽' }, { value: 336, currency: '€' }, { value: 65420, currency: '₽' }])
+    // So the game's euro was 183.5–194.7 ₽ that day in Season; a rate outside that band would misplace the offer.
+    expect(61666 / 336).toBeLessThan(184)
+    expect(65420 / 336).toBeGreaterThan(194)
   })
 
   it('knows the traders by name or by their «(лимит N)»', () => {

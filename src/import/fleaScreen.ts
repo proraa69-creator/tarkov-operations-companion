@@ -181,7 +181,39 @@ export interface FleaRow {
   itemId: string | null
 }
 
-export interface FleaSighting { itemId: string; price: number; row: number }
+/** The catalog ids of the game's money: their handbook price is the game's rate in roubles. */
+export const DOLLARS_ID = '5696686a4bdc2da3298b456a'
+export const EUROS_ID = '569668774bdc2da2298b4568'
+
+/** Roubles for one dollar and one euro in the player's mode (0 or absent: not known, such an offer gives no price). */
+export interface FleaRates { '$'?: number; '€'?: number }
+
+/**
+ * The game's rates of this mode from its catalog: the handbook price of «Доллары» and «Евро» (tarkov.dev `basePrice`),
+ * the rate the flea itself sorts the offers of every currency by (owner, 18.11.2026: «все цены указаны в рублях только.
+ * Если предмет в евро, значит, переводи евро на рубли согласно курсу игры»).
+ */
+export function fleaRates(basePriceOf: (itemId: string) => number | undefined): FleaRates {
+  const rate = (id: string) => { const value = basePriceOf(id); return value && Number.isFinite(value) && value > 0 ? value : undefined }
+  const [dollar, euro] = [rate(DOLLARS_ID), rate(EUROS_ID)]
+  return { ...(dollar ? { '$': dollar } : {}), ...(euro ? { '€': euro } : {}) }
+}
+
+/** A price in roubles: roubles as they are, dollars and euros at the game's rate; null when there is no rate (GP coins). */
+export function inRoubles(value: number, currency: FleaCurrency, rates: FleaRates): number | null {
+  if (currency === '₽') return value
+  const rate = currency === '$' || currency === '€' ? rates[currency] : undefined
+  return rate ? Math.round(value * rate) : null
+}
+
+export interface FleaSighting {
+  itemId: string
+  /** Always roubles (an offer in dollars or euros converted at the game's rate). */
+  price: number
+  row: number
+  /** The offer as listed, when it was not in roubles. */
+  listed?: { value: number; currency: FleaCurrency }
+}
 
 export interface FleaSightingResult {
   sightings: FleaSighting[]
@@ -194,10 +226,11 @@ export interface FleaSightingResult {
  * fleaScreenState: open, ascending, atTop, not locked). Reading down: a trader's row is passed over (the traders sell on
  * the flea too, often cheaper); an item's first player's offer is its lowest price — as long as every row above it was
  * read for sure. So the reading stops at the first row it cannot read: a dim one, a price not sure, a name that names no
- * item. An item first offered in another currency, or worn («⚒ 30/40», or a condition read badly), gives no price: its
- * cheapest offer in roubles is unknown. `exclude`: items whose copies differ (weapons, armour, keys…: docs/trading.md).
+ * item. The flea sorts every currency by its value in roubles, so an item first offered in dollars or euros is priced at
+ * the game's rate (`rates`, fleaRates); with no rate for its currency (GP coins), or worn («⚒ 30/40»), it gives no price:
+ * its cheapest offer in roubles is unknown. `exclude`: items whose copies differ (weapons, armour, keys…: docs/trading.md).
  */
-export function fleaSightings(rows: FleaRow[], exclude: (itemId: string) => boolean = () => false): FleaSightingResult {
+export function fleaSightings(rows: FleaRow[], exclude: (itemId: string) => boolean = () => false, rates: FleaRates = {}): FleaSightingResult {
   const sightings: FleaSighting[] = []
   const seen = new Set<string>()
   for (const [row, entry] of rows.entries()) {
@@ -212,8 +245,10 @@ export function fleaSightings(rows: FleaRow[], exclude: (itemId: string) => bool
     if (seen.has(itemId)) continue
     seen.add(itemId)
     const condition = fleaCondition(entry.info)
-    if (price.currency !== '₽' || exclude(itemId) || (condition && condition.now !== condition.max)) continue
-    sightings.push({ itemId, price: price.value, row })
+    if (exclude(itemId) || (condition && condition.now !== condition.max)) continue
+    const roubles = inRoubles(price.value, price.currency, rates)
+    if (roubles === null) continue
+    sightings.push({ itemId, price: roubles, row, ...(price.currency === '₽' ? {} : { listed: { value: price.value, currency: price.currency } }) })
   }
   return { sightings, stoppedAt: null }
 }

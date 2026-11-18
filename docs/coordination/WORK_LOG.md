@@ -7693,3 +7693,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   resampled to 3440×1440. typecheck, eslint clean; vitest src/import 305/305.
 - Next (1b): OCR of the seller/name/info lines and name matching, wired to the screen copy with the «when it runs»
   conditions; then the server (stage 2). Not checked: a real 3440×1440 or 2560×1440 frame, a list scrolled down.
+- Owner: every price in roubles only — an offer in euros (or dollars) converted at the game's rate. `fleaSightings`
+  now takes `rates` (`fleaRates`: the handbook price of Dollars/Euros in the player's mode's catalog) and gives
+  `price` in roubles with `listed` {value, currency} kept; no rate yet or GP → no price. The owner's Season frame bounds
+  the euro at 183.5–194.7 ₽ (336 € between 61 666 ₽ and 65 420 ₽). Tests 18/18, vitest src/import 308/308, typecheck,
+  eslint clean. To check when wired: the catalog's Euros basePrice falls in that band (tarkov.dev was down today).
