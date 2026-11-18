@@ -8016,3 +8016,23 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   line endings) — none touch this change; CI on Linux decides.
 - Not checked in the running app (tests only). Risks: «Взял» is kept per item, so ticking the exit's RSP-30 also ticks a quest row
   of the same RSP-30; the exit row needs the green flares in the loaded catalog (always there in tarkov.dev's items).
+## 2026-11-18 — release 0.6.0.319
+
+- Owner: wait for the flea reading, then release everything («Ждать барахолку», then «Добавляй»).
+- claude/release-319 = claude/report-192-season merged with refs/heads/claude/flea-prices-from-screens (73b82269:
+  flea prices from players' screens, server playerPrices + POST /v1/data/prices/:mode/sightings, already in the
+  electron ROUTES; «Нет в наличии» → «Добавить в наличие»; positionTracker test fix). Only WORK_LOG conflicted (union).
+  Release commit 9f5307bc: version 0.6.0-319, news (owner approved; nothing about prices or screen reading): key price and
+  tier letter, «Что в комнате», quest keys add to stash, documents on every floor, Season «Освободить помещение».
+- Checks: typecheck and electron tsc clean; server 594/595 (supportChat ECONNRESET once, 24/24 alone); vitest 4205
+  passed, 12 failed. 8 of those fail on 318 too (appVersion, AdminPanelPage CRLF, staleServer, linux/updater ×3,
+  release-policy, cache-item-images). MapsPage autoFloor, deferred, raidChecks and ObjectivePhotos pass alone (18/18).
+- Pushed 9f5307bc to release/production (fast-forward; no workflow or native files). Gate 44343861635 green. The
+  publisher was started by hand at 16:23 UTC on the owner's word and succeeded 16:32 UTC: version.json 0.6.0-319
+  (9f5307bc). The sightings route answers 401 without auth, so it is live. Phone builds: TestFlight run success, iOS IPA
+  run in progress at 16:35.
+- Also today: player chat about «нет соединения с сервером» on PC. The server is fine, but there were no desktop requests
+  at all from the player's address (site and Android only). Likely an antivirus, firewall or VPN on the PC; a reply was
+  drafted for the owner. The VPS SSH and /health timed out once each from this PC (WARP); fine on retry.
+- Remaining: nothing of 319 checked in the game (flea reading at 2560×1440 / 3440×1440, key windows, documents);
+  release mirror gc warnings.
