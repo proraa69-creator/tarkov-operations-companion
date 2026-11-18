@@ -1,5 +1,5 @@
 /* «Ключи локации» (report 186): over the whole app, never blocking it; dragged by its header. */
-.location-keys { position: fixed; z-index: 1200; width: min(440px, calc(100vw - 16px)); display: flex; flex-direction: column; border: 1px solid var(--line-strong, #3b4d40);
+.location-keys { position: fixed; z-index: 1200; width: min(470px, calc(100vw - 16px)); display: flex; flex-direction: column; border: 1px solid var(--line-strong, #3b4d40);
   border-radius: 14px; background: color-mix(in srgb, var(--bg-elevated, #101713) 96%, transparent); box-shadow: 0 18px 50px rgb(0 0 0 / 50%); backdrop-filter: blur(10px);
   animation: location-keys-in .22s cubic-bezier(.16, 1, .3, 1) both; }
 @keyframes location-keys-in { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
@@ -37,6 +37,17 @@
 .location-key-pin:hover { background: color-mix(in srgb, var(--brass, #c4a665) 22%, var(--bg, #0a0f0c)); }
 .location-key-pin:active { transform: scale(.94); }
 .location-key-pin b { font-weight: 800; }
+/* the pin and the price on one line; the key's tier-list letter on the picture's corner, in the colours of «Тир-листы» */
+.location-key-row { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
+.location-key-price { min-width: 0; overflow: hidden; color: var(--text-muted, #97a49a); font-size: 10.5px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.location-key-tier { position: absolute; top: -4px; left: -4px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 4px; color: #121410; font-size: 10px; font-weight: 900; line-height: 1; box-shadow: 0 0 0 1px rgb(0 0 0 / 45%); }
+.location-key-tier.tier-s { background: #e0605a; }
+.location-key-tier.tier-a { background: #ec9a52; }
+.location-key-tier.tier-b { background: #e9cf5d; }
+.location-key-tier.tier-c { background: #93cf6b; }
+.location-key-tier.tier-d { background: #7fb2d9; }
+/* a narrow phone: two keys across, so the price fits */
+@media (max-width: 420px) { .location-keys-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .location-keys-focus { display: grid; gap: 10px; max-height: 380px; padding: 12px; overflow-y: auto; }
 .location-keys-focus-key { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--line, #2b3a30); border-radius: 10px; background: color-mix(in srgb, var(--text, #edf2ed) 4%, transparent); color: var(--text, #edf2ed); font: inherit; text-align: left; cursor: pointer; }

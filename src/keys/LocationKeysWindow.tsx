@@ -5,15 +5,17 @@ import { ArrowLeft, GripHorizontal, KeyRound, MapPin, X } from 'lucide-react'
 import { uiLabel, uiText } from '../i18n/renderText'
 import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { useOptionalTarkovData } from '../data/DataProvider'
+import { useOptionalAppState } from '../state/AppState'
+import { formatPrice } from '../shared/format'
 import { buildKeyDoorIndex, keyDoorKindLabel, type KeyDoor } from '../data/keyDoors'
 import { canonicalMapId } from '../data/mapIds'
 import { ItemDrawer } from '../components/ItemDrawer'
 import type { Item } from '../domain/types'
 import { locationKeys, useLocationKeys } from './locationKeysStore'
-import { clampKeysPosition, defaultKeysPosition, keyDoorsHref, keysOfLocation, locationsWithKeys } from './locationKeysList'
+import { clampKeysPosition, defaultKeysPosition, keyDoorsHref, keyTiers, keysOfLocation, locationsWithKeys, shortRoubles } from './locationKeysList'
 import './locationKeys.css'
 
-const WINDOW_WIDTH = 440
+const WINDOW_WIDTH = 470
 
 /** «открывает 3 двери» / «opens 3 doors». */
 function doorsCount(count: number, locale: AppLocale) {
@@ -56,6 +58,8 @@ function KeysWindowBody() {
   const locations = useMemo(() => locationsWithKeys(index, maps), [index, maps])
   const mapId = locations.some((map) => canonicalMapId(map.id) === canonicalMapId(keys.mapId)) ? keys.mapId : locations[0]?.id ?? keys.mapId
   const list = useMemo(() => keysOfLocation(index, mapId, items), [index, mapId, items])
+  const raidMode = useOptionalAppState()?.raidMode
+  const tiers = useMemo(() => (tarkov && raidMode ? keyTiers(tarkov.data.items, raidMode) : new Map<string, never>()), [tarkov, raidMode])
   const focused = keys.focus ? keysOfLocation(index, keys.focus.mapId, items).find((entry) => entry.keyId === keys.focus!.keyId) : undefined
 
   // the corner, kept inside the screen; a new window size (the phone turned) moves it back in
@@ -139,17 +143,27 @@ function KeysWindowBody() {
         </div>
         : <div className="location-keys-grid" role="list">
           {list.length === 0 && <p className="location-keys-empty">{uiText(tarkov ? 'На этой карте ключей нет' : 'Загружаем карту…')}</p>}
-          {/* a short card as in «Требования рейда» (owner, 18.11.2026): the picture, the name, the pin under it */}
-          {list.map(({ keyId, item, doors }) => <div key={keyId} className="location-key" role="listitem" title={keyName(item, keyId)}>
-            <button type="button" className="location-key-open" aria-label={keyName(item, keyId)} onClick={() => item && setCard(item)} disabled={!item} />
-            <span className="location-key-picture">{item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={18} />}</span>
-            <span className="location-key-copy">
-              <span className="location-key-name">{item ? uiText(item.shortName || item.name) : keyId}</span>
-              <button type="button" className="location-key-pin" aria-label={`${uiText('Показать на карте')} · ${keyName(item, keyId)}`} title={doors.length > 1 ? `${uiText('Показать двери на карте')} · ${doors.length}` : uiText('Показать дверь на карте')} onClick={() => showDoors(keyId)}>
-                <MapPin size={11} />{doors.length > 1 && <b>{doors.length}</b>}
-              </button>
-            </span>
-          </div>)}
+          {/* a short card as in «Требования рейда» (owner, 18.11.2026): the picture with the key's tier-list letter, the name, the pin
+              and the price under it */}
+          {list.map(({ keyId, item, doors }) => {
+            const worth = tiers.get(keyId)
+            return <div key={keyId} className="location-key" role="listitem" title={[keyName(item, keyId), worth ? formatPrice(worth.price) : ''].filter(Boolean).join(' · ')}>
+              <button type="button" className="location-key-open" aria-label={keyName(item, keyId)} onClick={() => item && setCard(item)} disabled={!item} />
+              <span className="location-key-picture">
+                {item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={18} />}
+                {worth && <b className={`location-key-tier tier-${worth.tier.toLowerCase()}`} title={`${uiText('Тир-лист')}: ${worth.tier}`}>{worth.tier}</b>}
+              </span>
+              <span className="location-key-copy">
+                <span className="location-key-name">{item ? uiText(item.shortName || item.name) : keyId}</span>
+                <span className="location-key-row">
+                  <button type="button" className="location-key-pin" aria-label={`${uiText('Показать на карте')} · ${keyName(item, keyId)}`} title={doors.length > 1 ? `${uiText('Показать двери на карте')} · ${doors.length}` : uiText('Показать дверь на карте')} onClick={() => showDoors(keyId)}>
+                    <MapPin size={11} />{doors.length > 1 && <b>{doors.length}</b>}
+                  </button>
+                  {worth && <span className="location-key-price">{shortRoubles(worth.price, locale)}</span>}
+                </span>
+              </span>
+            </div>
+          })}
         </div>}
     </section>
     {card && <ItemDrawer item={card} onClose={() => setCard(null)} noPrices />}

@@ -1,6 +1,7 @@
-import type { GameMap, Item } from '../domain/types'
+import type { GameMap, Item, RaidMode } from '../domain/types'
 import type { KeyDoor } from '../data/keyDoors'
 import { canonicalMapId } from '../data/mapIds'
+import { slotTierRows, type Tier } from '../screen/tierLists'
 
 export interface LocationKey {
   keyId: string
@@ -52,4 +53,21 @@ export function clampKeysPosition(position: { x: number; y: number }, size: { wi
 /** The address of the map showing a key's doors (MapsPage `?keyDoors=`), `door` flown to. */
 export function keyDoorsHref(mapId: string, keyId: string, doorId?: string) {
   return `/maps/${encodeURIComponent(mapId)}?keyDoors=${encodeURIComponent(keyId)}${doorId ? `&door=${encodeURIComponent(doorId)}` : ''}`
+}
+
+/**
+ * Each key's letter and price as «Тир-листы» → «Ключи» give them in this mode (owner, 18.11.2026: a key of the list shows
+ * «цена и тир-лист этого ключа, то есть буква»): the flea's lowest offer now, else the best trader; a key with no price has
+ * neither.
+ */
+export function keyTiers(items: readonly Item[], mode: RaidMode): Map<string, { tier: Tier; price: number }> {
+  return new Map(slotTierRows(items, mode, 'keys').map((row) => [row.item.id, { tier: row.tier, price: row.price ?? 0 }]))
+}
+
+/** A price short enough for a key's card: «8 500 ₽», «85 тыс ₽», «1,2 млн ₽» / «85K ₽», «1.2M ₽». */
+export function shortRoubles(value: number, locale: 'ru' | 'en') {
+  const round = (amount: number) => new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'ru-RU', { maximumFractionDigits: amount < 10 ? 1 : 0 }).format(amount)
+  if (value >= 999_500) return locale === 'en' ? `${round(value / 1e6)}M ₽` : `${round(value / 1e6)} млн ₽`
+  if (value >= 10_000) return locale === 'en' ? `${round(value / 1e3)}K ₽` : `${round(value / 1e3)} тыс ₽`
+  return `${new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'ru-RU').format(Math.round(value))} ₽`
 }
