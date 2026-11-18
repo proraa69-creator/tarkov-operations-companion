@@ -141,6 +141,10 @@ describe('map projection helpers', () => {
     // Exits stand on every floor, as quest points do, and say which is theirs (№75).
     expect(markerVisibleOnFloor({ ...marker, floor: 'Основной' }, '2 этаж')).toBe(true)
     expect(markerVisibleOnFloor(marker, '3 этаж')).toBe(true)
+    // Battle pass documents on every floor too (owner, 18.11.2026): a floor followed by screenshot hid 28 of 30 on Ground Zero
+    const documents = { ...loot, layerId: 'loot.documents' as const, floor: 'Основной' }
+    expect(markerVisibleOnFloor(documents, 'Гараж')).toBe(true)
+    expect(markerVisibleOnFloor({ ...documents, floor: '2 этаж' }, '3 этаж')).toBe(true)
     expect(floorLabel({ floor: undefined })).toBe('Основной')
     expect(floorLabel({ floor: '2 этаж' })).toBe('2 этаж')
     expect(floorBadge('2 этаж')).toBe('2')

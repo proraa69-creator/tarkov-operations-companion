@@ -122,12 +122,15 @@ export function playerFloor(map: Pick<GameMap, 'floors' | 'layers'>, position: {
 
 /**
  * Markers stay on the general map (labelled with their floor). Selecting a specific floor narrows the view
- * to that floor's points; quest points and exits are always kept.
+ * to that floor's points; quest points, exits and battle pass documents are always kept.
  */
 export function markerVisibleOnFloor(marker: MapMarker, floor: string, main: string = MAIN_FLOOR) {
   if (marker.type === 'quest' || marker.layerId === 'quest.zone' || marker.layerId === 'quest.item') return true
   // Exits like quest points (a player's proposal, №75: «пусть они горят всегда и на всех этажах, просто с пометкой какой это этаж»).
   if (marker.type === 'extract') return true
+  // Battle pass documents too, with their floor's mark (owner, 18.11.2026, a player's report: the map followed him to the
+  // garage of Ground Zero by his screenshot and showed 2 documents of 30; «Да, на всех этажах»).
+  if (marker.layerId === 'loot.documents') return true
   if (floor === main) return true
   return !marker.floor || marker.floor === floor
 }
