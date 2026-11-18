@@ -270,3 +270,27 @@ button.wb-trader-auto { color: var(--brass); }
 /* «Выберите патрон»: a small flat note under the empty round cell (owner, 28.10.2026). */
 .wb-ammo-hint { display: block; width: 100%; margin-top: 4px; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--brass) 55%, var(--line)); border-radius: 6px; background: color-mix(in srgb, var(--brass) 14%, var(--panel)); color: var(--text); font: inherit; font-size: 11px; font-weight: 650; text-align: center; cursor: pointer; animation: wb-ammo-hint-in .25s var(--ease-out, ease-out) both; }
 @keyframes wb-ammo-hint-in { from { opacity: 0; transform: translateY(-3px); } }
+
+/* «Избранные» (WeaponBuildsPage FavoriteWeapons): the weapons, one open at a time; its builds slide out and push the rest down. */
+.wb-favorites { display: grid; gap: 4px; margin: 0; padding: 8px; overflow-y: auto; list-style: none; }
+.wb-favorite { border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--surf-1) 70%, transparent); }
+.wb-favorite.is-open { border-color: var(--line-strong); }
+.wb-favorite-weapon { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; width: 100%; padding: 6px 10px 6px 6px; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.wb-favorite-weapon span { display: grid; gap: 2px; min-width: 0; }
+.wb-favorite-weapon strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.wb-favorite-weapon small { color: var(--text-dim); font-size: 11px; }
+.wb-favorite-star { color: var(--brass-strong); }
+.wb-favorite-chevron { color: var(--text-dim); transition: rotate .3s cubic-bezier(.22, 1, .36, 1); }
+.wb-favorite.is-open .wb-favorite-chevron { rotate: 180deg; }
+.wb-favorite-builds { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .36s cubic-bezier(.22, 1, .36, 1); }
+.wb-favorite.is-open .wb-favorite-builds { grid-template-rows: 1fr; }
+.wb-favorite-builds > ul { min-height: 0; overflow: hidden; display: grid; gap: 2px; margin: 0; padding: 0 6px; list-style: none; }
+.wb-favorite.is-open .wb-favorite-builds > ul { padding-bottom: 6px; }
+.wb-favorite-builds li { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 2px 2px 2px 8px; border-radius: 8px; }
+.wb-favorite-builds li.is-current { background: color-mix(in srgb, var(--brass) 12%, transparent); }
+.wb-favorite-builds .wb-saved-open { flex: 1; min-width: 0; }
+.wb-favorite-builds .icon-button { width: 28px; height: 28px; flex: none; }
+.wb-favorite-builds .icon-button.is-starred { color: var(--brass-strong); }
+.wb-favorite-rename { display: flex; flex: 1; gap: 4px; min-width: 0; }
+.wb-favorite-rename .input { flex: 1; min-width: 0; height: 30px; }
+@media (prefers-reduced-motion: reduce) { .wb-favorite-builds, .wb-favorite-chevron { transition: none; } }

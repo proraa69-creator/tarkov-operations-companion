@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ChevronDown, Heart, Layers, Lock, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Heart, Layers, Lock, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
@@ -10,7 +10,7 @@ import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, ty
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
 import { cheapestOffer, computeExtraCost, computeStats, unlockHint, type BuildCost, type BuildStats, type PurchaseAccess, type UnlockHint } from '../arsenal/buildStats'
-import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
+import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, renameSavedBuild, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
 import { isMuzzleSlot, muzzleKits, type MuzzleKit } from '../arsenal/muzzleKits'
@@ -85,12 +85,15 @@ export function WeaponBuildsPage() {
   </div>
 }
 
-const SIDE_TABS = { mine: 'Мои сборки', ready: 'Готовые сборки', players: 'Сборки игроков' } as const
+// «Мои сборки» became «Избранные» (owner, 19.11.2026): the weapons, each opening into its builds
+const SIDE_TABS = { mine: 'Избранные', ready: 'Готовые сборки', players: 'Сборки игроков' } as const
 
 function Workshop({ catalog }: { catalog: GunCatalog }) {
   const { raidMode } = useAppState()
   const [params, setParams] = useSearchParams()
-  const weapons = useMemo(() => [...catalog.weapons].sort((a, b) => a.shortName.localeCompare(b.shortName, 'ru')), [catalog])
+  // Only what is built here (owner, 19.11.2026: «РШГ-2 там не должно быть. Оружие, которое не тюнингуется… реактивные патроны там не
+  // должны быть никакие вообще»): firearms of cartridges (no flare or rocket guns, no grenade launchers) with slots for mods.
+  const weapons = useMemo(() => catalog.weapons.filter((weapon) => buildableWeapon(weapon) && weapon.slots.length > 0).sort((a, b) => a.shortName.localeCompare(b.shortName, 'ru')), [catalog])
   const startWeapon = weapons.find((weapon) => weapon.id === params.get('weapon')) ?? weapons.find((weapon) => weapon.shortName === 'M4A1') ?? weapons[0]
   const [build, setBuild] = useState<Build>(() => presetBuild(startWeapon, catalog).build)
   // `tab`: the side tab to open on — «Готовые сборки» from a weapon of «Сбор на рейд» (overview/WeaponBuildMenu.tsx).
@@ -113,6 +116,8 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const access = shop.access
   // Remounted per mode (key below): PvP, PvE and Season lists never mix.
   const [saved, setSaved] = useState<SavedBuild[]>(() => loadSavedBuilds(raidMode))
+  // The saved build opened from «Избранные»: «Сохранить» after a change keeps it (owner, 19.11.2026: «сборки можно редактировать и нажать «Сохранить» на этой сборке»).
+  const [openedId, setOpenedId] = useState<string | null>(null)
 
   const ammoOptions = useMemo(() => catalog.ammo.filter((round) => round.caliber === weapon.caliber).sort((a, b) => b.penetration - a.penetration), [catalog.ammo, weapon.caliber])
   const ammo = ammoOptions.find((round) => round.id === build.ammoId)
@@ -127,11 +132,13 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const missing = missingRequired(build, weapon, catalog)
   const code = encodeBuild(build, catalog) ?? ''
   const savedHere = saved.find((entry) => entry.code === code)
+  const opened = openedId ? saved.find((entry) => entry.id === openedId) : undefined
   const isStock = code === encodeBuild({ ...stock, ammoId: build.ammoId }, catalog)
 
   const pickWeapon = (next: Weapon) => {
     setBuild(presetBuild(next, catalog).build)
     setSelected(null)
+    setOpenedId(null)
     setParams((current) => { const value = new URLSearchParams(current); value.set('weapon', next.id); return value }, { replace: true })
   }
   const loadSaved = (entry: SavedBuild) => {
@@ -139,8 +146,11 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
     if (!decoded) return
     setBuild(decoded)
     setSelected(null)
+    setOpenedId(entry.id || null)
     setParams((current) => { const value = new URLSearchParams(current); value.set('weapon', decoded.weaponId); return value }, { replace: true })
   }
+  // «Сохранить» on the opened build of «Избранные»: the same entry, the same name, the parts as they are now
+  const saveOpened = () => { if (opened && code) setSaved(saveBuild(raidMode, { id: opened.id, name: opened.name, weaponId: build.weaponId, code, ...(opened.favorite ? { favorite: true as const } : {}) })) }
   const selectedCell = layout.cells.find((cell) => pathKey(cell.path) === selected)
   const side = useSideFit()
 
@@ -158,7 +168,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
           <span>{uiText('Цена оружия')}</span>
         </label>
         <span className="wb-toolbar-fill" />
-        <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('players') }} />
+        <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere ?? opened} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('players') }} />
       </div>
 
       <div className="wb-summary">
@@ -203,7 +213,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
               {/* Owner, 04.11.2026: «Мои сборки», «Готовые сборки» и «Сборки игроков». */}
               {(['mine', 'ready', 'players'] as const).map((tab) => <button key={tab} role="tab" aria-selected={sideTab === tab} className={sideTab === tab ? 'active' : undefined} onClick={() => setSideTab(tab)}>{uiText(SIDE_TABS[tab])}</button>)}
             </div>
-            {sideTab === 'mine' && <SavedList saved={saved} catalog={catalog} current={code} onLoad={loadSaved} onChange={setSaved} />}
+            {sideTab === 'mine' && <FavoriteWeapons saved={saved} catalog={catalog} current={code} weaponId={weapon.id} openedId={opened?.id ?? null} onLoad={loadSaved} onChange={setSaved} onSaveOpened={saveOpened} />}
             {sideTab === 'ready' && <AutoBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
             {sideTab === 'players' && <PlayerBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
           </section>}
@@ -748,26 +758,66 @@ function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: 
   </div>
 }
 
-function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: SavedBuild[]; catalog: GunCatalog; current: string; onLoad: (entry: SavedBuild) => void; onChange: (list: SavedBuild[]) => void }) {
+/**
+ * «Избранные» (owner, 19.11.2026: «Мои сборки переименуем в избранные… по нажатию оружия… из этого АКМ выезжает вниз список моих
+ * сборок. Эти названия можно изменять… я нажимаю ниже оружие… АКМ у меня складывается, и раскладываются сборки»): the weapons of
+ * the saved builds of this mode (those with a starred build first, then the newest), one open at a time with its builds sliding
+ * out under it; a build opens on the board, is renamed in place, and the one opened, once changed, is saved over by «Сохранить».
+ */
+function FavoriteWeapons({ saved, catalog, current, weaponId, openedId, onLoad, onChange, onSaveOpened }: {
+  saved: SavedBuild[]; catalog: GunCatalog; current: string; weaponId: string; openedId: string | null
+  onLoad: (entry: SavedBuild) => void; onChange: (list: SavedBuild[]) => void; onSaveOpened: () => void
+}) {
   const { raidMode } = useAppState()
-  const ordered = [...saved].sort((a, b) => Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)) || b.savedAt.localeCompare(a.savedAt))
-  return <>
-    <p className="wb-saved-hint">{uiText('Нажмите на любую ячейку оружия, чтобы выбрать модуль.')}</p>
-    <ul className="wb-saved-list">
-      {ordered.map((entry) => {
-        const savedWeapon = catalog.weapons.find((weapon) => weapon.id === entry.weaponId)
-        return <li key={entry.id} className={entry.code === current ? 'is-current' : undefined}>
-          <button className="wb-saved-open" onClick={() => onLoad(entry)} title={uiText('Открыть')}>
-            <PartIcon src={weaponIcon(savedWeapon)} />
-            <span><strong>{entry.name}</strong><small>{savedWeapon?.shortName ?? '—'} · {new Date(entry.savedAt).toLocaleDateString()}</small></span>
-          </button>
-          <button className={`icon-button${entry.favorite ? ' is-starred' : ''}`} onClick={() => onChange(toggleSavedFavorite(raidMode, entry.id))} aria-pressed={Boolean(entry.favorite)} aria-label={uiText(entry.favorite ? 'Убрать из избранного' : 'В избранное')} title={uiText(entry.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={14} /></button>
-          <button className="icon-button" onClick={() => onChange(deleteSavedBuild(raidMode, entry.id))} aria-label={uiText('Удалить')} title={uiText('Удалить')}><Trash2 size={14} /></button>
-        </li>
-      })}
-      {!saved.length && <li className="muted wb-none">{uiText('Сохранённых сборок для этого режима пока нет.')}</li>}
-    </ul>
-  </>
+  const groups = useMemo(() => {
+    const byWeapon = new Map<string, SavedBuild[]>()
+    for (const entry of saved) byWeapon.set(entry.weaponId, [...(byWeapon.get(entry.weaponId) ?? []), entry])
+    const order = (list: SavedBuild[]) => [...list].sort((a, b) => Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)) || b.savedAt.localeCompare(a.savedAt))
+    return [...byWeapon].map(([id, list]) => ({ id, builds: order(list) }))
+      .sort((a, b) => Number(b.builds.some((entry) => entry.favorite)) - Number(a.builds.some((entry) => entry.favorite)) || b.builds[0]!.savedAt.localeCompare(a.builds[0]!.savedAt))
+  }, [saved])
+  // until the player opens or folds one himself, the weapon on the board is the one open (if it has builds)
+  const [picked, setOpen] = useState<string | null | undefined>(undefined)
+  const open = picked !== undefined ? picked : saved.some((entry) => entry.weaponId === weaponId) ? weaponId : null
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
+  const rename = () => { if (renaming) { onChange(renameSavedBuild(raidMode, renaming.id, renaming.name)); setRenaming(null) } }
+  if (!saved.length) return <p className="muted wb-none">{uiText('Сохраните сборку — её оружие появится здесь.')}</p>
+  return <ul className="wb-favorites">
+    {groups.map(({ id, builds }) => {
+      const gun = catalog.weapons.find((weapon) => weapon.id === id)
+      const isOpen = open === id
+      return <li key={id} className={`wb-favorite${isOpen ? ' is-open' : ''}`}>
+        <button type="button" className="wb-favorite-weapon" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : id)}>
+          <PartIcon src={weaponIcon(gun)} />
+          <span><strong>{gun?.shortName ?? '—'}</strong><small>{builds.length} {uiText(builds.length === 1 ? 'сборка' : builds.length < 5 ? 'сборки' : 'сборок')}</small></span>
+          {builds.some((entry) => entry.favorite) && <Star size={13} className="wb-favorite-star" aria-hidden="true" />}
+          <ChevronDown size={15} className="wb-favorite-chevron" aria-hidden="true" />
+        </button>
+        {/* the builds slide out under the weapon; the weapons below move down by as much */}
+        <div className="wb-favorite-builds" inert={!isOpen}>
+          <ul>
+            {builds.map((entry) => {
+              const changed = entry.id === openedId && entry.code !== current
+              return <li key={entry.id} className={entry.code === current || entry.id === openedId ? 'is-current' : undefined}>
+                {renaming?.id === entry.id
+                  ? <form className="wb-favorite-rename" onSubmit={(event) => { event.preventDefault(); rename() }}>
+                    <input className="input" value={renaming.name} onChange={(event) => setRenaming({ id: entry.id, name: event.target.value })} onKeyDown={(event) => { if (event.key === 'Escape') setRenaming(null) }} aria-label={uiText('Название сборки')} autoFocus maxLength={48} />
+                    <button type="submit" className="icon-button" aria-label={uiText('Готово')} title={uiText('Готово')}><Check size={14} /></button>
+                  </form>
+                  : <button type="button" className="wb-saved-open" onClick={() => onLoad(entry)} title={uiText('Открыть')}>
+                    <span><strong>{entry.name}</strong><small>{new Date(entry.savedAt).toLocaleDateString()}</small></span>
+                  </button>}
+                {changed && <button type="button" className="button small primary" onClick={onSaveOpened}><Save size={12} />{uiText('Сохранить')}</button>}
+                <button type="button" className="icon-button" onClick={() => setRenaming({ id: entry.id, name: entry.name })} aria-label={uiText('Переименовать')} title={uiText('Переименовать')}><Pencil size={13} /></button>
+                <button type="button" className={`icon-button${entry.favorite ? ' is-starred' : ''}`} onClick={() => onChange(toggleSavedFavorite(raidMode, entry.id))} aria-pressed={Boolean(entry.favorite)} aria-label={uiText(entry.favorite ? 'Убрать из избранного' : 'В избранное')} title={uiText(entry.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={13} /></button>
+                <button type="button" className="icon-button" onClick={() => onChange(deleteSavedBuild(raidMode, entry.id))} aria-label={uiText('Удалить')} title={uiText('Удалить')}><Trash2 size={13} /></button>
+              </li>
+            })}
+          </ul>
+        </div>
+      </li>
+    })}
+  </ul>
 }
 
 /**

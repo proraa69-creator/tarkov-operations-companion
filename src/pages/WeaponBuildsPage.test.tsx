@@ -99,12 +99,12 @@ describe('«Сборка оружия»: the three lists', () => {
   it('opens on «Готовые сборки» with ?tab=ready', () => {
     render(<LocaleProvider><MemoryRouter initialEntries={[`/arsenal/builds?weapon=${FX.m4}&tab=ready`]}><WeaponBuildsPage /></MemoryRouter></LocaleProvider>)
     expect(tab('Готовые сборки')).toHaveAttribute('aria-selected', 'true')
-    expect(tab('Мои сборки')).toHaveAttribute('aria-selected', 'false')
+    expect(tab('Избранные')).toHaveAttribute('aria-selected', 'false')
   })
 
   it('has «Мои сборки», «Готовые сборки» and «Сборки игроков», and no «Топ сборок»', () => {
     renderPage()
-    expect(screen.getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Мои сборки', 'Готовые сборки', 'Сборки игроков'])
+    expect(screen.getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Избранные', 'Готовые сборки', 'Сборки игроков'])
     expect(screen.queryByText('Топ сборок')).toBeNull()
   })
 

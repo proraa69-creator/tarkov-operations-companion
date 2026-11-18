@@ -43,7 +43,7 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Вставьте код сборки', 'Paste a build code'], ['Выносливость рук', 'Arm stamina'], ['Группировка', 'Grouping'], ['Добавлено в избранное', 'Added to favorites'],
   ['Убрано из избранного', 'Removed from favorites'], ['Убрать из избранного', 'Remove from favorites'], ['Есть в избранном', 'In favorites'], ['Нет избранного: отметьте сборку ★', 'No favorites yet: star a build'], ['Заводская', 'Default'], ['Итого', 'Total'], ['Общая цена', 'Total price'],
   ['Копировать код сборки', 'Copy build code'], ['Мешает', 'Blocked by'], ['Не ставится вместе с', 'Conflicts with'], ['Не подходит', 'Does not fit'], ['Можно купить', 'Buyable'],
-  ['Мои сборки', 'My builds'], ['Найти модуль', 'Find a mod'], ['Найти оружие', 'Find a weapon'], ['Найти оружие…', 'Find a weapon…'], ['Обязательно', 'Required'],
+  ['Мои сборки', 'My builds'], ['Избранные', 'Favorites'], ['сборка', 'build'], ['сборки', 'builds'], ['сборок', 'builds'], ['Сохраните сборку — её оружие появится здесь.', 'Save a build and its weapon shows here.'], ['Найти модуль', 'Find a mod'], ['Найти оружие', 'Find a weapon'], ['Найти оружие…', 'Find a weapon…'], ['Обязательно', 'Required'],
   ['обязательная, пусто', 'required, empty'], ['Оружие не стреляет без', 'The weapon does not fire without'],
   ['Снято, потому что не ставится вместе с новой деталью', 'Taken off because it does not fit together with the new part'], ['заменит', 'replaces'],
   ['Обязательная деталь: без неё оружие в игре не собрать — её можно только заменить.', 'A required part: the weapon cannot be assembled in the game without it — it can only be replaced.'], ['Перевес', 'Overswing'], ['перевешивает', 'overswings'],
