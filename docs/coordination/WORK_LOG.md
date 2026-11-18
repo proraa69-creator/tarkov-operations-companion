@@ -7751,3 +7751,18 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   components and i18n 994 passed; typecheck and eslint clean.
 - Known: the «Ключи» window stays above the key card (z-index 1200, as before), so it can cover the card's top on a small
   screen.
+
+## 2026-11-18 — battle pass documents on every floor (player chat), not released
+
+- Player chat (PC, PvE): documents «не показывают при нажатии» on Shoreline, Woods and Reserve (also 15.11), and only
+  2 of them on Ground Zero. Data checked: 28–36 per map in every mode; no «Нашёл» marks synced; a click on a point opens
+  its card, fire sectors on as well. The cause is in his settings: «tracking» is on, so useAutoFloor moves the map to the
+  player's floor by screenshot, and a chosen floor shows only its own points. Reproduced: Ground Zero «Гараж» showed 2 of
+  30 while the layer row said 30.
+- Owner: «Да, на всех этажах». Fix on `claude/report-192-season`: markerVisibleOnFloor keeps `loot.documents` on every
+  floor, as for exits and quest points (the icons already have the floor badge). Test added in mapProjection.test.ts.
+  Checked in the browser pane: «Гараж» now shows all documents.
+- Tests: mapProjection passed; the MapsPage, Dashboard and AdminPanel tests that failed under load pass when run one by
+  one. The exception is AdminPanelPage «stands right above «Обзор»», which already failed because of CRLF in the
+  working copy. Typecheck clean.
+- Suggested reply to the player sent to the owner. Not released.
