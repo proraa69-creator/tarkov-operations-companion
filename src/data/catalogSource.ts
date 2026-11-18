@@ -89,7 +89,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
 
   // Season: the quests its data lacks, from the PvP data (SEASON_BORROWED_TASKS); without the PvP data, Season as it is.
   const seasonTasks = upstreamMode === 'pvp-season'
-    ? await borrowRegularTasks(upstreamTasks, rawTasks, locale, fetcher).catch(() => upstreamTasks)
+    ? withSeasonTaskFixes(await borrowRegularTasks(upstreamTasks, rawTasks, locale, fetcher).catch(() => upstreamTasks), rawTasks, locale)
     : upstreamTasks
 
   // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
@@ -117,7 +117,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const questRows = withOfferUnlocks(applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale)), locale), curated.added, locale, itemById, series, now), questOfferUnlocks(tasks, items, barters))
+  ), locale)), locale, mode), curated.added, locale, itemById, series, now), questOfferUnlocks(tasks, items, barters))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const questItems = adaptQuestItems(tasks, questRows)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
@@ -237,6 +237,64 @@ export function withBorrowedTasks(root: JsonRecord, from: JsonRecord, ids: reado
   if (!borrowed.length) return root
   const questItems = { ...asRecord(from.questItems), ...asRecord(root.questItems) }
   return { ...root, questItems, tasks: { ...tasks, ...Object.fromEntries(borrowed.map((id) => [id, source[id]])) } }
+}
+
+interface SeasonTaskFix {
+  /** By the objective's id: its count, kill targets (the game's keys) and line, as the game's Season gives them. */
+  objectives: Record<string, { count?: number; targetNames?: string[]; description?: Record<AppLocale, string> }>
+  /** The game's Season version opens nothing at the traders. */
+  noOfferUnlock?: boolean
+}
+
+/**
+ * Quests the game gives otherwise in Season than tarkov.dev's `pvp-season` data, a copy of the PvP version. Report 192
+ * (18.11.2026, the game's own Season screen): «Освободить помещение» asks to eliminate 24 PMC operatives in the Labyrinth,
+ * not any 36 targets, and its rewards open no «Алтын» at Ragman's.
+ */
+export const SEASON_TASK_FIXES: Readonly<Record<string, SeasonTaskFix>> = {
+  '67d03be712fb5f8fd2096332': {
+    objectives: {
+      '67d03be712fb5f8fd2096334': {
+        count: 24,
+        targetNames: ['AnyPmc'],
+        description: { ru: 'Устранить бойцов ЧВК в Лабиринте', en: 'Eliminate PMC operatives inside The Labyrinth' },
+      },
+    },
+    noOfferUnlock: true,
+  },
+}
+
+/**
+ * `tasks` (translated) with SEASON_TASK_FIXES applied, and the untranslated ones in `raw` likewise (the kill conditions are
+ * read from those). Objectives are found by their id in the untranslated data (the translated one has its text as id).
+ */
+export function withSeasonTaskFixes(tasks: JsonRecord, raw: RawEndpoint, locale: AppLocale, fixes: Readonly<Record<string, SeasonTaskFix>> = SEASON_TASK_FIXES): JsonRecord {
+  const translated = asRecord(tasks.tasks)
+  const rawRoot = asRecord(raw.data)
+  const rawTasks = asRecord(rawRoot.tasks)
+  const dictionary = raw.dictionary ?? {}
+  const fixedTranslated: JsonRecord = {}
+  const fixedRaw: JsonRecord = {}
+  for (const [id, fix] of Object.entries(fixes)) {
+    const rawTask = asRecord(rawTasks[id])
+    const task = asRecord(translated[id])
+    if (!translated[id] || !rawTasks[id]) continue
+    const rawObjectives = asArray(rawTask.objectives).map(asRecord)
+    const objectives = asArray(task.objectives).map(asRecord)
+    const patch = (objective: JsonRecord, change: SeasonTaskFix['objectives'][string] | undefined, translate: boolean) => change ? {
+      ...objective,
+      ...(change.count !== undefined ? { count: change.count } : {}),
+      ...(change.targetNames ? { targetNames: translate ? change.targetNames.map((name) => (typeof dictionary[name] === 'string' ? dictionary[name] : name)) : change.targetNames } : {}),
+      ...(change.description && translate ? { description: change.description[locale] } : {}),
+    } : objective
+    const changes = rawObjectives.map((objective) => fix.objectives[text(objective.id)])
+    const noUnlock = (value: unknown) => (fix.noOfferUnlock ? { ...asRecord(value), offerUnlock: [] } : value)
+    fixedRaw[id] = { ...rawTask, objectives: rawObjectives.map((objective, at) => patch(objective, changes[at], false)), finishRewards: noUnlock(rawTask.finishRewards) }
+    fixedTranslated[id] = { ...task, objectives: objectives.map((objective, at) => patch(objective, changes[at], true)), finishRewards: noUnlock(task.finishRewards) }
+  }
+  if (!Object.keys(fixedTranslated).length) return tasks
+  raw.data = { ...rawRoot, tasks: { ...rawTasks, ...fixedRaw } }
+  return { ...tasks, tasks: { ...translated, ...fixedTranslated } }
 }
 
 async function borrowRegularTasks(seasonTasks: JsonRecord, rawSeason: RawEndpoint, locale: AppLocale, fetcher: typeof fetch): Promise<JsonRecord> {
