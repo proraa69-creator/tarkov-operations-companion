@@ -7653,3 +7653,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - База на VPS: READ80LV добавлен вручную в `promo_codes` (все режимы, 14 дней), копия `/var/lib/raidos/backups/manual-promo-read80lv-1794983537454.sqlite` (chmod 600). raidos.app его отдаёт.
 - Тесты: `src/trading`, `src/keys`, `src/maps/raidExtracts`, `electron/extractsReader`, `server promoCodes` (9) зелёные; typecheck и eslint чистые.
 - Риск: папка `/var/lib/raidos/backups` 755, старые копии базы 644 — читаемы любым пользователем VPS.
+
+## 2026-11-18 — Flea prices from players' screens: plan (branch claude/flea-prices-from-screens, no code)
+
+- Owner: players on the flea in the stash → the top (lowest) price on screen updates our base for everyone at once;
+  «приоритет цены будет с экрана пользователя». docs/flea-prices-from-players.md: what is read and when, the client's
+  checks (one item, prices rising, rubles, two readings agree, mode from the screen = the logs' mode, not the
+  «copies differ» items), what is sent (mode, item id, price, time — no pictures), the server (POST
+  /v1/prices/sightings + ROUTES line; a third source in priceMirror; a player's price over the others for 30 min;
+  plausibility band, a second account for jumps, limits, trust), stages and risks.
+- Measured here (i5-10400F): whole-screen pass 6 065 ms; a ~12-row column 640–950 ms; a price column ~245 ms; the
+  menu bar ~420 ms. No flea frames on this PC: stage 0 is the owner's screenshots of the flea (10–15 frames).
+- Nothing built, nothing deployed. Next: the owner's frames, then the reader on them.
