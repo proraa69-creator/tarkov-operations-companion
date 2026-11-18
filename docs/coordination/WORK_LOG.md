@@ -7860,3 +7860,14 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   src/stashScan/scanScreen.test.ts (3, fake timers). src/stashScan + src/screen 89/89, typecheck, eslint clean.
 - Risk: a screen whose labels re-key every frame (pixel noise) keeps the scan going the full 5 min; the owner's report
   (646 labels read in 16 passes) may be that or scrolling — not checked in the game.
+- The owner's in-game screenshot of 19.11 02:51 (3440×1440: stash, «Хлам», F5 Switchblade and a case open, one beside
+  another): 321 label strips, read with the app's steps and matched against the whole catalog. Containers read as well
+  as the stash. Fixed after it: «КШС» in the junk box read «KLC» (Ш as one L: now folded so too); «PM II 3-28x5@» was the
+  syringe «L1» (1/i not folded for names of 2–3 letters); «ЯЙЦО» and «3n ПОДС.» were taken out as prints — Cyrillic
+  capitals are now kept (the game's small Cyrillic letters read as capitals; prints are Latin brands), the game's own
+  captions in capitals («УБЕЖИЩЕ», «БЫСТРЫЙ ДОСТУП», tabs, slots; RU and EN) are kept out by list; a name of several
+  words scores above its words only when the line is that name. Frame: 171 → 173 of 321 strips matched, the six
+  changes all right (Яйцо, RFB конт., PM II 3-20x50, КШС, ЭП подс.; a wrong «ШГ-2» gone). Unmatched by design: labels of
+  several items (FMJ, ПС, Т-45М1, Плакат, Барельеф, ULACH…).
+- Tests: stashLabels.test.ts 7 (new cases: KLC, ЯИЦО, Зп ПОДС., PM II not L1); src/kappa, src/stashScan, src/overlay,
+  keyScan 165/165; typecheck, eslint clean.

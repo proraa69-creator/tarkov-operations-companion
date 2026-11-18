@@ -173,5 +173,20 @@
   "id": "661e52b5b099f32c28003586",
   "name": "Тактическая рукоятка TangoDown \"Stubby BGV-QDK\" (FDE)",
   "shortName": "BGV-QDK"
+ },
+ {
+  "id": "5ed515e03a40a50460332579",
+  "name": "Шприц с L1 (Норадреналин)",
+  "shortName": "L1"
+ },
+ {
+  "id": "61714eec290d254f5e6b2ffc",
+  "name": "Оптический прицел 34мм Schmidt & Bender PM II 3-20x50",
+  "shortName": "PM II 3-20x50"
+ },
+ {
+  "id": "62a09cfe4f842e1bd12da3e4",
+  "name": "Золотое яйцо",
+  "shortName": "Яйцо"
  }
 ]

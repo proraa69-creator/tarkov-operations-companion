@@ -64,15 +64,17 @@ describe('stash labels: matching what OCR reads', () => {
   // Labels, once each (the cartridge and its pack are both «ЭКО»).
   const found = (text: string) => [...new Set([...countScreenItems(entries, text).keys()].map((id) => catalog.find((item) => item.id === id)!.shortName))]
 
-  it('reads «КШС» as Tesseract writes it: «KLUC», «KWC»', () => {
+  it('reads «КШС» as Tesseract writes it: «KLUC», «KWC», «KLC»', () => {
     expect(labelFold('КШС')).toBe(labelFold('KLUC'))
     expect(labelScore(byLabel('КШС'), 'KWC')).toBe(0.9)
-    expect(labelScore(byLabel('КШС'), 'KLLIC')).toBe(0.9)
+    // In the junk box of the owner's frame of 19.11 02:51.
+    expect(labelScore(byLabel('КШС'), 'KLC')).toBe(0.9)
     expect(found('KLUC\nKWC')).toEqual(['КШС'])
   })
 
-  it('takes 1 for l or i, Э for 3, п for n', () => {
+  it('takes 1 for l or i, Э for 3, п for n, й for и', () => {
     expect(found('Survil2')).toEqual(['Surv12'])
+    expect(found('ЯИЦО')).toEqual(['Яйцо'])
     expect(found('3KO')).toEqual(['ЭКО'])
     expect(found('CBAC nep.')).toEqual(['СВДС пер.'])
   })
@@ -81,6 +83,8 @@ describe('stash labels: matching what OCR reads', () => {
     expect(found('CBAC пер.')).toEqual(['СВДС пер.'])
     expect(found('SALEWA')).toEqual([])
     expect(found('Salewa')).toEqual(['Salewa'])
+    // «подс» read in capitals is the label's own word.
+    expect(found('Зп ПОДС.')).toEqual(['ЭП подс.'])
   })
 
   it('gives a label of several words to the item it names whole', () => {
@@ -91,6 +95,8 @@ describe('stash labels: matching what OCR reads', () => {
   it('does not stretch the short names: two or three letters only whole', () => {
     expect(labelScore(byLabel('КШС'), 'KUC')).toBe(0)
     expect(labelScore(byLabel('КШС'), 'KLUCK')).toBe(0)
+    // «II» is not the syringe «L1» (owner's frame: «PM II 3-28x5@» for the scope «PM II 3-20x50»).
+    expect(found('PM II 3-28x5@')).not.toContain('L1')
   })
 })
 

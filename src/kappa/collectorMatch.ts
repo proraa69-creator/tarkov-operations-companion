@@ -14,15 +14,15 @@ export function labelScore(item: Pick<Item, 'shortName'>, text: string): number 
   const plain = normalizeOcr(item.shortName ?? '')
   // A name of digits alone («42») would match the counts on screen («42/60»): left to the manual tick.
   if (!plain || /^\d+$/.test(plain)) return 0
-  const name = labelFold(item.shortName ?? '')
   // Names of two or three letters («Яд», «Усы», «VHS», «КШС») only as a whole word.
   const short = plain.length <= 3
+  const name = labelFold(item.shortName ?? '', !short)
   let best = 0
-  for (const line of text.split(/\r?\n/).map(labelFold).filter(Boolean)) {
+  for (const line of text.split(/\r?\n/).map((value) => labelFold(value, !short)).filter(Boolean)) {
     if (name.includes(' ')) {
-      // The whole label, word for word: above any one of its words («TK FAST MT» is a helmet, «FAST» a visor).
-      // The line that is the label and nothing else first («TK FAST MT» over «FAST MT»).
-      if (` ${line} `.includes(` ${name} `)) { best = Math.max(best, line === name ? 0.97 : 0.95); continue }
+      // The line that is the whole label, word for word: above any one of its words («TK FAST MT» is a helmet, «FAST» a
+      // visor, «FAST MT» another helmet). Within a longer line, as below.
+      if (line === name) { best = Math.max(best, 0.97); continue }
       // «Loot Lord», «BEAR Buddy»: the words read together, one or two letters off.
       if (line.length >= name.length * 0.7) best = Math.max(best, partialSimilarity(name, line) >= 0.8 ? 0.82 : 0)
       continue
@@ -45,18 +45,19 @@ export function labelScore(item: Pick<Item, 'shortName'>, text: string): number 
 
 /**
  * Both sides of labelScore, with the letters Tesseract reads for others on stash labels folded together (measured on the
- * owner's stash frames, 19.11.2026: «опять не нашёл КШС»): Ш and Щ as «LU», «LLI» or W («KLUC», «KWC» for «КШС»), 1 as
- * l or i («Survil2» for «Surv12»), Э and З as 3 («3KO» for «ЭКО»), п as n («nep.»), г as r, Ы as «bI», Ь as b. Over
- * normalizeOcr (Cyrillic and Latin look-alikes already one).
+ * owner's stash frames, 19.11.2026: «опять не нашёл КШС»): Ш and Щ as «LU», «LLI», «L» or W («KLUC», «KWC», «KLC» for
+ * «КШС»), 1 as l or i («Survil2» for «Surv12»), Э and З as 3 («3KO» for «ЭКО»), й as и («ЯИЦО»), п as n («nep.»), г as r,
+ * Ы as «bI», Ь as b. Over normalizeOcr (Cyrillic and Latin look-alikes already one). `ones`: 1 and i as l too — not for
+ * the names of two or three letters, where «II» of «PM II 3-20x50» would be the syringe «L1».
  */
-export function labelFold(value: string) {
-  return normalizeOcr(value)
-    .replace(/[шщw]/g, 'lu')
+export function labelFold(value: string, ones = true) {
+  const folded = normalizeOcr(value)
+    .replace(/[шщw]/g, 'l')
+    .replace(/й/g, 'и')
     .replace(/ы/g, 'bl')
     .replace(/ь/g, 'b')
     .replace(/[эз]/g, '3')
     .replace(/п/g, 'n')
     .replace(/г/g, 'r')
-    .replace(/[1i]/g, 'l')
-    .replace(/ll[lu]/g, 'lu')
+  return (ones ? folded.replace(/[1i]/g, 'l') : folded).replace(/l[lu]+/g, 'l')
 }
