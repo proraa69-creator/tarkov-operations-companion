@@ -116,6 +116,7 @@ import { keepLayersBefore, readLayersBefore, type LayerChoice, type ListedRows }
 import { setHiddenRoomLayers, useHiddenRoomLayers } from '../maps/roomLayers'
 import { KeySpotKeys } from '../maps/KeySpotKeys'
 import { KeySpotCard } from '../maps/KeySpotCard'
+import { keyTiers } from '../keys/locationKeysList'
 import { NearbyKeysGlow, NearbyKeysPanel, NearbyKeysSetting } from '../maps/NearbyKeysPanel'
 import { closeNearbyKeys, nearbyKeys, useNearbyKeysClosedFor, useNearbyKeysOn } from '../maps/nearbyKeys'
 import { setQuestKeyFavorite, useQuestKeyFavorites } from '../quests/questKeyFavorites'
@@ -711,6 +712,7 @@ export function MapsPage() {
   // Reports №112 and №113: the keys quests open now or put aside need and the player lacks; each quest's keys on this map.
   const ownedKeys = useOwnedKeys(profileId, raidMode)
   const favoriteKeys = useQuestKeyFavorites(profileId, raidMode)
+  const keyTierMap = useMemo(() => keyTiers(data.items, raidMode), [data.items, raidMode])
   const questKeys = useMemo(() => questKeyRows(data.quests, itemsById, progress, availability, deferred), [data.quests, itemsById, progress, availability, deferred])
   const neededKeys = useMemo(() => neededKeysOf(questKeys, ownedKeys), [questKeys, ownedKeys])
   const keysByQuest = useMemo(() => questKeysOnMap(questKeys, activeMap.id), [questKeys, activeMap.id])
@@ -1570,7 +1572,7 @@ export function MapsPage() {
                       item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
                       boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
                       keys={marker.questId ? keysByQuest.get(marker.questId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
-                      spotKeys={layerId === 'loot.key' && (marker.keyCount ?? 1) > 1 ? <KeySpotKeys keyIds={keysShown(marker)} items={itemsById} owned={ownedKeys} compact /> : undefined}
+                      spotKeys={layerId === 'loot.key' && (marker.keyCount ?? 1) > 1 ? <KeySpotKeys keyIds={keysShown(marker)} items={itemsById} owned={ownedKeys} compact tiers={keyTierMap} /> : undefined}
                       photo={marker.questId && marker.objectiveId ? <MarkerPlacePhoto questId={marker.questId} objectiveId={marker.objectiveId} onOpen={placePhotos.open} /> : undefined}
                     />
                   </Tooltip>
@@ -1717,7 +1719,7 @@ export function MapsPage() {
                   ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
                   : markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn && keysOfPoint(selectedMarker).length > 0
                     ? <SpotKeyInfo key={selectedMarker.id} keyIds={keysShown(selectedMarker)} render={(picked, pick) => <>
-                      {keysOfPoint(selectedMarker).length > 1 && <KeySpotKeys keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} picked={picked} onPick={pick} />}
+                      {keysOfPoint(selectedMarker).length > 1 && <KeySpotKeys keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} picked={picked} onPick={pick} tiers={keyTierMap} />}
                       {picked && itemsById.get(picked) && <KeySpotCard showName={keysOfPoint(selectedMarker).length > 1} item={itemsById.get(picked)!} items={data.items} mode={raidMode} owned={ownedKeys.get(picked) ?? 0}
                         questRow={questKeys.find((row) => row.item.id === picked)} favorite={favoriteKeys.has(picked)} onFavorite={() => setQuestKeyFavorite(profileId, raidMode, picked, !favoriteKeys.has(picked))} />}
                     </>} />

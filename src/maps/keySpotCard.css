@@ -24,3 +24,7 @@
 /* the keys of a spot that holds several: each picked to see it */
 .key-spot-keys button.key-spot-keys-pick { all: unset; display: grid; justify-items: center; gap: 3px; width: 100%; cursor: pointer; border-radius: 8px; }
 .key-spot-keys li.is-picked button.key-spot-keys-pick { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* the tier-list letter on each key of a spot, on the picture's corner */
+.key-spot-keys li { position: relative; }
+.key-spot-keys-tier { position: absolute !important; top: 0; left: 4px; }

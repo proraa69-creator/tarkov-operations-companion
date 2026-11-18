@@ -9,7 +9,7 @@ import { uiText } from '../i18n/renderText'
  */
 const FOLDED = 6
 
-export function KeySpotKeys({ keyIds, items, owned, compact = false, picked, onPick }: {
+export function KeySpotKeys({ keyIds, items, owned, compact = false, picked, onPick, tiers }: {
   keyIds: readonly string[]
   items: ReadonlyMap<string, Item>
   owned?: { has(id: string): boolean }
@@ -17,6 +17,8 @@ export function KeySpotKeys({ keyIds, items, owned, compact = false, picked, onP
   /** The key shown in full under the list (maps/KeySpotCard.tsx); a press on a key picks it (owner, 19.11.2026). */
   picked?: string
   onPick?: (id: string) => void
+  /** Each key's tier-list letter (owner, 19.11.2026: «буквы тирлиста должны писаться на каждом ключе»). */
+  tiers?: ReadonlyMap<string, { tier: string }>
 }) {
   const [all, setAll] = useState(false)
   if (!keyIds.length) return null
@@ -27,16 +29,18 @@ export function KeySpotKeys({ keyIds, items, owned, compact = false, picked, onP
       <ul>
         {shown.map((id) => {
           const item = items.get(id)
+          const tier = tiers?.get(id)?.tier
+          const letter = tier ? <b className={`location-key-tier tier-${tier.toLowerCase()} key-spot-keys-tier`}>{tier}</b> : null
           return (
             <li key={id} className={`${owned?.has(id) ? 'is-owned' : ''}${picked === id ? ' is-picked' : ''}`} title={uiText(item?.name ?? id)}>
               {onPick
                 ? <button type="button" className="key-spot-keys-pick" aria-pressed={picked === id} onClick={() => onPick(id)}>
                   {item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <span className="key-spot-keys-blank" aria-hidden="true" />}
-                  <span>{uiText(item?.shortName ?? item?.name ?? id)}</span>
+                  <span>{uiText(item?.shortName ?? item?.name ?? id)}</span>{letter}
                 </button>
                 : <>
                   {item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <span className="key-spot-keys-blank" aria-hidden="true" />}
-                  <span>{uiText(item?.shortName ?? item?.name ?? id)}</span>
+                  <span>{uiText(item?.shortName ?? item?.name ?? id)}</span>{letter}
                 </>}
             </li>
           )

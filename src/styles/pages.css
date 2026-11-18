@@ -1659,3 +1659,10 @@ a.quest-stage:hover { color: var(--text); }
 .sheet-objective-counter button:disabled { opacity: .35; cursor: default; }
 .sheet-objective-counter.is-read strong { min-width: 0; }
 .sheet-objective.is-done .sheet-objective-counter strong { color: var(--green, #7fbf7f); }
+/* The key of a locked room in a point's card: pressed, it opens right under it (maps/LockedNote.tsx, QuestKeyInline). */
+.map-locked-key-block { display: grid; gap: 4px; }
+.map-locked-key.is-button { width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.map-locked-key.is-button:hover { border-color: var(--line-strong); background: rgb(255 255 255 / 4%); }
+.map-locked-key .map-locked-chevron { margin-left: auto; color: var(--text-dim); transition: rotate .2s ease; }
+.map-locked-key[aria-expanded="true"] .map-locked-chevron { rotate: 180deg; }
+.map-locked-tier { position: static !important; flex: none; }
