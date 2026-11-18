@@ -7653,3 +7653,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - База на VPS: READ80LV добавлен вручную в `promo_codes` (все режимы, 14 дней), копия `/var/lib/raidos/backups/manual-promo-read80lv-1794983537454.sqlite` (chmod 600). raidos.app его отдаёт.
 - Тесты: `src/trading`, `src/keys`, `src/maps/raidExtracts`, `electron/extractsReader`, `server promoCodes` (9) зелёные; typecheck и eslint чистые.
 - Риск: папка `/var/lib/raidos/backups` 755, старые копии базы 644 — читаемы любым пользователем VPS.
+
+## 2026-11-18 — positionTracker tests no longer write into the player's real Screenshots folder (branch claude/position-test-own-folder, not released)
+
+- Found while reading the owner's flea screenshots: electron/experimental/positionTracker.test.ts moved only `OneDrive`
+  into its temporary folder; `screenshotFolderCandidates()` also uses `homedir()` and `OneDriveConsumer` /
+  `OneDriveCommercial`. On a PC whose real Screenshots folder holds newer screenshots than the tests' (the owner's),
+  the lookup chose the real folder: 5 tests failed (the «known positionTracker failures») and two of them wrote empty
+  fake coordinate screenshots there (three found and removed 18.11.2026).
+- Fix (test only): `node:os` homedir mocked to the temporary folder, all three OneDrive variables replaced and restored,
+  and a first test that every candidate and watched folder lies inside the temporary folder.
+- Checks: positionTracker 10/10 (was 5 failing), electron/experimental 40/40; the real Screenshots folder listing
+  (names, sizes, times) identical before and after the run; typecheck, eslint clean.
