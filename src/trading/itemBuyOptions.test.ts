@@ -45,6 +45,25 @@ describe('report 187: how to get an item now — traders, the flea, barters at t
     expect(high.barters[0]!.lock).toBeUndefined()
   })
 
+  it('each barter part says whether it is on the flea for this player: open, from its own level, or not sold there', () => {
+    // the key to room 114 of the dorm: peroxide, saline and a medical kit, each on the flea from level 20
+    const key = item('dorm-114')
+    const peroxide = item('peroxide', { lastLowPrice: 20_000, fleaLevel: 20 })
+    const saline = item('saline', { lastLowPrice: 15_000 })
+    const bitcoin = item('bitcoin', { lastLowPrice: 500_000, noFlea: true })
+    const barter = { id: 'b114', traderId: 'therapist', traderName: 'Терапевт', level: 2, requiredItems: [{ itemId: 'peroxide', count: 1 }, { itemId: 'saline', count: 1 }, { itemId: 'bitcoin', count: 1 }], rewardItems: [{ itemId: 'dorm-114', count: 1 }] }
+    const at18 = itemBuyOptions('dorm-114', snapshot([key, peroxide, saline, bitcoin], [barter]), access({ playerLevel: 18 }))
+    expect(at18.barters[0]!.parts.map((part) => part.flea)).toEqual([{ state: 'locked', level: 20 }, { state: 'open' }, { state: 'none' }])
+    // a part locked on the flea has no flea price yet
+    expect(at18.barters[0]!.parts[0]!.total).toBeNull()
+    const at20 = itemBuyOptions('dorm-114', snapshot([key, peroxide, saline, bitcoin], [barter]), access({ playerLevel: 20 }))
+    expect(at20.barters[0]!.parts.map((part) => part.flea.state)).toEqual(['open', 'open', 'none'])
+    // the item's own flea level counts for the item too
+    expect(itemBuyOptions('peroxide', snapshot([peroxide]), access({ playerLevel: 18 })).flea!.lock).toEqual({ playerLevel: 20 })
+    // a mode without the flea: nothing is sold there
+    expect(itemBuyOptions('dorm-114', snapshot([key, peroxide, saline, bitcoin], [barter]), access({ fleaEnabled: false })).barters[0]!.parts.every((part) => part.flea.state === 'none')).toBe(true)
+  })
+
   it('an item nobody sells: nothing', () => {
     const result = itemBuyOptions('quest-item', snapshot([item('quest-item', { noFlea: true })]), access())
     expect([result.traders.length, result.flea, result.barters.length]).toEqual([0, undefined, 0])

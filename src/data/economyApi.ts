@@ -51,6 +51,8 @@ export interface EconomyItem {
   lastLowPrice?: number
   /** tarkov.dev `types` contains `noFlea`: the item cannot be listed on the flea market. */
   noFlea: boolean
+  /** The character level this item opens at on the flea market, when the file names one (tarkov.dev `minLevelForFlea`). */
+  fleaLevel?: number
   buyFor: VendorPrice[]
   sellFor: VendorPrice[]
 }
@@ -152,6 +154,7 @@ export function parseEconomyResponse(data: unknown, mode: RaidMode, loadedAt = n
       low24hPrice: positive(entry.low24hPrice),
       lastLowPrice: positive(entry.lastLowPrice),
       noFlea: types.includes('noFlea'),
+      ...(positive(entry.minLevelForFlea) ? { fleaLevel: positive(entry.minLevelForFlea) } : {}),
       buyFor: asArray(entry.buyFor).map(vendorPrice).filter((quote): quote is VendorPrice => quote !== null),
       sellFor: asArray(entry.sellFor).map(vendorPrice).filter((quote): quote is VendorPrice => quote !== null),
     }

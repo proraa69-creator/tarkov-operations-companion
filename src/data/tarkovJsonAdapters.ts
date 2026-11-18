@@ -244,6 +244,7 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
       iconUrl: localImage(imageBase, wholeGunId(row, id), 'icon'), basePrice: number(row.basePrice) ?? 0,
       avg24hPrice, low24hPrice: positive(quote?.low24hPrice) ?? positive(row.low24hPrice), lastLowPrice,
       noFlea: quote?.noFlea === true || (Array.isArray(row.types) && row.types.includes('noFlea')), buyFor, sellFor,
+      ...(positive(row.minLevelForFlea) ? { fleaLevel: positive(row.minLevelForFlea) } : {}),
     }
   }
   const barters: Barter[] = tarkovRecords(bundle.barters, 'barters').flatMap((row, index) => {

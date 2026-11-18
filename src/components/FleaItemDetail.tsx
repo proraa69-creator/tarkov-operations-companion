@@ -21,9 +21,11 @@ import { ItemBuySection } from './ItemBuySection'
  * «Оружейник» opens the same card for a part (owner, 16.11.2026, report 171). `item` is the catalog's; the minute
  * prices are laid over it here.
  */
-export function FleaItemDetail({ item: catalogItem, onClose, panelRef, className = '' }: {
+export function FleaItemDetail({ item: catalogItem, onClose, panelRef, className = '', noPrices = false }: {
   item: Item
   onClose: () => void
+  /** No «Цены» table (the keys window, owner 18.11.2026: «цены, сезон, барахолка, терапевт… лучше это не пиши вообще. Нам нужно только в бартер»). */
+  noPrices?: boolean
   panelRef?: Ref<HTMLElement>
   className?: string
 }) {
@@ -56,9 +58,9 @@ export function FleaItemDetail({ item: catalogItem, onClose, panelRef, className
     <ItemQuestUnlocks itemId={selected.id} />
     {/* how to get it now: traders, the flea, barters at today's prices (report 187) */}
     <ItemBuySection itemId={selected.id} />
-    <div className="detail-section"><h4>{uiText("Цены · ")}{uiText(state.raidMode.toUpperCase())}</h4><table className="price-table"><thead><tr><th>{uiText("Источник")}</th><th>{uiText("Цена")}</th></tr></thead><tbody>{uiText(selectedQuotes.map((quote) => <tr key={`${quote.source}-${quote.price}`}><td>{uiText(quote.source)}{uiText(isBest(quote) && <span className="tag green" style={{ marginLeft: 7 }}>{uiText("лучшее")}</span>)}{quoteKind(quote) === 'flea' && <small className="dim" style={{ display: 'block' }}>{uiText(isAveragePrice(quote) ? 'среднее за 24 ч' : 'минимальное предложение')}{selectedRenewedAt !== undefined && ` · ${priceAge(selectedRenewedAt)}`}</small>}{quoteKind(quote) === 'base' && <small className="dim" style={{ display: 'block' }}>{uiText('не предложение')}</small>}</td><td className="mono">{uiText(formatPrice(quote.price))}{quoteKind(quote) === 'flea' && selectedFlea?.fee ? <small className="dim" style={{ display: 'block' }}>{uiText('после комиссии')} {formatPrice(selectedFlea.net)}</small> : null}</td></tr>))}{uiText(!selectedQuotes.length && <tr><td colSpan={2} className="muted">{uiText("Нет данных для выбранного режима.")}</td></tr>)}</tbody></table></div>
+    {!noPrices && <div className="detail-section"><h4>{uiText("Цены · ")}{uiText(state.raidMode.toUpperCase())}</h4><table className="price-table"><thead><tr><th>{uiText("Источник")}</th><th>{uiText("Цена")}</th></tr></thead><tbody>{uiText(selectedQuotes.map((quote) => <tr key={`${quote.source}-${quote.price}`}><td>{uiText(quote.source)}{uiText(isBest(quote) && <span className="tag green" style={{ marginLeft: 7 }}>{uiText("лучшее")}</span>)}{quoteKind(quote) === 'flea' && <small className="dim" style={{ display: 'block' }}>{uiText(isAveragePrice(quote) ? 'среднее за 24 ч' : 'минимальное предложение')}{selectedRenewedAt !== undefined && ` · ${priceAge(selectedRenewedAt)}`}</small>}{quoteKind(quote) === 'base' && <small className="dim" style={{ display: 'block' }}>{uiText('не предложение')}</small>}</td><td className="mono">{uiText(formatPrice(quote.price))}{quoteKind(quote) === 'flea' && selectedFlea?.fee ? <small className="dim" style={{ display: 'block' }}>{uiText('после комиссии')} {formatPrice(selectedFlea.net)}</small> : null}</td></tr>))}{uiText(!selectedQuotes.length && <tr><td colSpan={2} className="muted">{uiText("Нет данных для выбранного режима.")}</td></tr>)}</tbody></table></div>}
     {keyDoors && <div className="detail-section key-doors-detail"><h4>{uiText('Дверь на карте')}</h4><KeyDoorsButton keyName={selected.name} doors={keyDoors.get(selected.id)} variant="detail" /></div>}
-    <PriceHistoryChart itemId={selected.id} mode={state.raidMode} />
+    {!noPrices && <PriceHistoryChart itemId={selected.id} mode={state.raidMode} />}
     <div className="detail-section stack"><button className={`button ${favorite ? 'primary' : ''}`} onClick={() => state.toggleFavoriteItem(selected.id)}>{uiText(favorite ? <Heart size={15} fill="currentColor" /> : <Star size={15} />)} {uiText(favorite ? 'Убрать из избранного' : 'Добавить в избранное')}</button><button className={`button ${state.raidItemIds.includes(selected.id) ? 'primary' : 'ghost'}`} onClick={() => state.toggleRaidItem(selected.id)}><ShoppingCart size={15} /> {uiText(state.raidItemIds.includes(selected.id) ? 'В списке рейда' : 'В список рейда')}</button></div>
   </aside>
 }

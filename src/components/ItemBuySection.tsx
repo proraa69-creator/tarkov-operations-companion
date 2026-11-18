@@ -6,7 +6,7 @@ import { useGunsmithAccess } from '../gunsmith/useGunsmithAccess'
 import { FLEA_PLAYER_LEVEL } from '../gunsmith/traderLevels'
 import { uiText } from '../i18n/renderText'
 import { formatPrice } from '../shared/format'
-import { itemBuyOptions, type BuyLock, type ItemBuyOptions } from '../trading/itemBuyOptions'
+import { itemBuyOptions, type BuyLock, type ItemBuyOptions, type PartFlea } from '../trading/itemBuyOptions'
 import './itemBuy.css'
 
 /** «доступно», or what is still missing: a loyalty level, a quest, the character's level for the flea. */
@@ -19,6 +19,13 @@ function LockNote({ lock }: { lock?: BuyLock }) {
     {lock.level !== undefined && lock.task && ' · '}
     {lock.task && <>{uiText('после квеста')} «{uiText(lock.task.name)}»</>}
   </span>
+}
+
+/** A barter part on the flea for this player: «доступно», the lock and the level it opens at, or «нет на барахолке». */
+function PartFleaNote({ flea }: { flea: PartFlea }) {
+  if (flea.state === 'open') return <em className="item-buy-part-flea is-open">{uiText('доступно')}</em>
+  if (flea.state === 'none') return <em className="item-buy-part-flea is-none">{uiText('нет на барахолке')}</em>
+  return <em className="item-buy-part-flea is-locked"><Lock size={10} aria-hidden="true" />{uiText('с ур.')} {flea.level}</em>
 }
 
 /**
@@ -73,6 +80,7 @@ export function ItemBuySection({ itemId }: { itemId: string }) {
             <span>{uiText(part.name)}</span>
             <b>×{part.count}</b>
             <i className="mono">{part.total !== null ? formatPrice(part.total) : '—'}</i>
+            <PartFleaNote flea={part.flea} />
           </li>)}
         </ul>
       </li>)}

@@ -152,6 +152,6 @@ function KeysWindowBody() {
           </div>)}
         </div>}
     </section>
-    {card && <ItemDrawer item={card} onClose={() => setCard(null)} />}
+    {card && <ItemDrawer item={card} onClose={() => setCard(null)} noPrices />}
   </>
 }
