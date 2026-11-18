@@ -7640,3 +7640,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Файлы: `src/maps/canvasPick.ts`, `src/maps/canvasPick.test.ts`, `src/maps/MarkerCanvasLayer.tsx`, `src/pages/MapsPage.tsx`.
 - Тесты: `src/maps` и `src/pages/MapsPage*` зелёные (deferred/autoFloor/raidChecks по отдельности), typecheck и eslint чистые. Проверено в браузере 375×812: ключ на холсте и выход открывают нижнюю карточку, тултипов 0.
 - Риск: на живом iPhone не проверено — только эмуляция в браузере.
+- Выпуск только для телефонов 0.6.0.316 (владелец, 18.11.2026: «выпусти новую версию только для телефона. Для ПК не надо»): ветка `mobile/release` (коммит `cbfd04a9`), `ios-ipa.yml` и `ios-app-store.yml` запускаются и на ней; публикатор VPS смотрит только `release/production`, Windows-версия остаётся 0.6.0.315. Новостей игрокам в сборке нет. TestFlight пропускается — секретов App Store нет (так было и раньше).
+- Следующий выпуск ПК — не ниже 0.6.0.317 (тег `mobile-v0.6.0-316` занят, сервер берёт телефонный выпуск только с более новой версией). Правку карты влить в `release/production` вместе с ним.
