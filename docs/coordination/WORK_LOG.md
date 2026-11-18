@@ -7782,3 +7782,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   positionTracker failures, AdminPanelPage source-text check (CRLF in the working copy, unrelated) and
   MapsPage.deferred under load (passes alone).
 - Remaining: faction fix and item speed not checked in the game; VPS release mirror gc warnings (missing object).
+
+## 2026-11-18 — «Ключи для квестов»: «Нет в наличии» → «Добавить в наличие» (branch claude/quest-keys-add-to-stash, not released)
+
+- Owner: «Если у нас горит кнопка „Нет в наличии“, на нее можно нажать, появится окно, и можно нажать „Добавить в наличие“».
+  The tag is a button now (same look, pointer); it opens a window with the key and «Добавить в наличие», which puts one
+  piece in the stash of this profile and mode (`setOwnedKey`) — the row then says «Есть в схроне». Esc / ✕ / outside:
+  nothing changes.
+- Files: src/quests/QuestKeyStockDialog.tsx (new), src/pages/QuestKeysPage.tsx, src/quests/questKeys.css,
+  src/pages/QuestKeysPage.test.tsx. EN: «Not in stash» / «Mark as owned» (existing translations).
+- Tests: QuestKeysPage 17/17 (2 new), typecheck, eslint clean. Look checked in the browser on injected markup (the button
+  computes the same as the old tag; the window); the real page could not load the catalog: tarkov.dev GraphQL was down.
+- Not deployed. Release only with a new app version, on the owner's word.
