@@ -7930,3 +7930,66 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: maps 114, nearbyKeys, neededSpawns, KeySpotKeys, panels (gear renamed) pass; typecheck clean.
 - Test exe: «Raid OS Стекло тест 2.exe» on the desktop (ad9d40ec); the first test exe was running and could not be
   replaced. Stash scan fix waits on refs/heads/claude/stash-scan-short-labels (4a78349b), not merged: no owner word yet.
+## 2026-11-19 — exits by «O»: read from the game's screen, not the pointer's (branch claude/raid-exits-o-key, not released)
+
+- Owner: «Функция обнаружения выходов по кнопке О… ничего не происходит с выходами и не отмечаются». Checked on his
+  screenshots of 19.11 00:02–00:12 (3440×1440, Customs PvE): the list reads right with the app's own steps (header
+  64 % ≥ 45 %, all 7 exits; matched to 10 Customs exits lit, 18 dimmed); the logs give the raid (bigmap since 23:59:33);
+  the app running is 0.6.0.318. His PC has two screens: 3440×1440 (the game) and 1920×1080 to its right — the reader
+  copied the display under the pointer, which the game hides in a raid. Now it copies the game's own window
+  (`visibleGameRect`), the pointer's display only when the window is not found (`listArea`, `cornerRect`,
+  `headerStripRect`).
+- Each reading is now kept for a look (`%APPDATA%/…/raid-exits`, the last 20: what started it — key or header — where it
+  copied, how long, what it read, and the picture; or «exclusive-full-screen»).
+- Also seen: 3 of the 5 screenshots show only the raid timer — one short O shows the time; the list comes with a double
+  O (or by itself at the raid's start).
+- Tests: electron/extractsReader + src/maps 113/113 (3 new), typecheck, tsc electron, eslint clean.
+- Not checked in the game: one raid with a double O, then the raid-exits folder tells the rest.
+
+## 2026-11-19 — stash scan: «КШС» and other short labels (branch claude/stash-scan-short-labels, not released)
+
+- Owner (Season, «Что собрать для убежища», scan on): «КШС… на экране он есть… не находит. И еще много других
+  предметов»; the app said «Прочитано подписей: 646 · Убежище +0». Checked with the app's own steps (labelBoxes,
+  labelReader, Tesseract rus+eng PSM 11, countScreenItems) on a real 3440×1440 stash frame of his (the item lookup's
+  log, 15.11, with «КШС» in it) and 4 inventory screenshots; catalog: the game's ru names of 13.11.
+- Causes found and fixed:
+  - OCR reads «КШС» as «KLUC» or «KWC» (Ш as LU / LLI / W); 1 as l or i («Survil2»), Э as 3 («3KO»), п as n
+    («CBAC nep.»). collectorMatch.ts `labelFold` folds these on both sides of labelScore (names of ≤3 letters still
+    only whole).
+  - Labels whose letters fall apart were not labels at all: «SE-5» (SE, -, 5), «SSVFK» (SS), «ПБС-1» (-1), «GRAL-S».
+    labelScan.ts joins such fragments to the label beside them, or into a label of their own when they stand as
+    letters on one line (two or more, letter height, same top and bottom) — not round marks, icons or art (checked on
+    the Kappa container: 37 strips as before; same speed on full frames, 45–120 ms).
+  - withoutPrintedCaps took «CBAC» out of «CBAC пер.» as a brand printed on a picture: a label with a word in capitals
+    of its own («СВДС пер.», «BEAR Buddy») keeps it (the Surv12/SALEWA case unchanged).
+  - A label of several words read whole beats one of its words («TK FAST MT» is the helmet, not «FAST» or «FAST MT»);
+    countScreenItems looks for names over two lines only in the lines no item took (before, «TK FAST MT» also counted
+    the FAST visor and the FAST MT helmets).
+- On the frame: 23 of 23 visible labels found (КШС, SE-5, SSVFK, ПБС-1, GRAL-S, Surv12, ЭКО, СВДС пер., TK FAST MT…),
+  nothing else among the look-alikes in the test catalog. Left: ambiguous labels (M856A1, «Флешетта»: 3–4 items each)
+  stay unmatched as before; «Razor HD» read «Кагог НО» unmatched; a tooltip's «Stark» still counts as the «Star» bullet
+  (stray-mark rule, as before).
+- Tests: src/kappa/stashLabels.test.ts (new, 7: real frame and Tesseract, fixtures stash-1440p.webp, stash-items.json);
+  src/kappa, src/stashScan, src/overlay 161/161; src/quests, src/items, pages, screen, state 299/300 (ManualMarks «in
+  English» timed out under load, passes alone 7/7 and on the base); typecheck, tsc electron, eslint clean.
+- Not checked in the game; not released.
+- Owner's clarification: «КШС» lay in the main stash grid, not found there either; and several containers may be open,
+  one after another, one over another. The frame checked above is the main stash grid (КШС beside «Евро») — found now.
+  The scan already copies the game's whole window and looks for labels anywhere in it: the stash and every container
+  window, in any order; a label under another window is read when it comes into view (only the changed part of the
+  screen is searched again). What stopped it was time: one press scanned 45 s. Now (useScreenSync.ts scanScreen) it
+  goes on 45 s after the last labels new on screen, 5 min at most; «Остановить» stops it as before. Test:
+  src/stashScan/scanScreen.test.ts (3, fake timers). src/stashScan + src/screen 89/89, typecheck, eslint clean.
+- Risk: a screen whose labels re-key every frame (pixel noise) keeps the scan going the full 5 min; the owner's report
+  (646 labels read in 16 passes) may be that or scrolling — not checked in the game.
+- The owner's in-game screenshot of 19.11 02:51 (3440×1440: stash, «Хлам», F5 Switchblade and a case open, one beside
+  another): 321 label strips, read with the app's steps and matched against the whole catalog. Containers read as well
+  as the stash. Fixed after it: «КШС» in the junk box read «KLC» (Ш as one L: now folded so too); «PM II 3-28x5@» was the
+  syringe «L1» (1/i not folded for names of 2–3 letters); «ЯЙЦО» and «3n ПОДС.» were taken out as prints — Cyrillic
+  capitals are now kept (the game's small Cyrillic letters read as capitals; prints are Latin brands), the game's own
+  captions in capitals («УБЕЖИЩЕ», «БЫСТРЫЙ ДОСТУП», tabs, slots; RU and EN) are kept out by list; a name of several
+  words scores above its words only when the line is that name. Frame: 171 → 173 of 321 strips matched, the six
+  changes all right (Яйцо, RFB конт., PM II 3-20x50, КШС, ЭП подс.; a wrong «ШГ-2» gone). Unmatched by design: labels of
+  several items (FMJ, ПС, Т-45М1, Плакат, Барельеф, ULACH…).
+- Tests: stashLabels.test.ts 7 (new cases: KLC, ЯИЦО, Зп ПОДС., PM II not L1); src/kappa, src/stashScan, src/overlay,
+  keyScan 165/165; typecheck, eslint clean.

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({ nativeImage: {}, screen: {} }))
+vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeImage: {}, screen: {} }))
 vi.mock('./screenOcr.js', () => ({ recognizeRegion: vi.fn() }))
-vi.mock('./experimental/win32.js', () => ({ captureScreenRegion: vi.fn(), foregroundDisplayMode: vi.fn() }))
+vi.mock('./experimental/win32.js', () => ({ captureScreenRegion: vi.fn(), foregroundDisplayMode: vi.fn(), visibleGameRect: vi.fn() }))
 
-const { CORNER, HEADER_MIN_SHARE, HEADER_STRIP, headerShare } = await import('./extractsReader')
+const { CORNER, cornerRect, HEADER_MIN_SHARE, HEADER_STRIP, headerShare, headerStripRect, listArea } = await import('./extractsReader')
 
 /** BGRA pixels: `lime` of them the list header's green (#7cb518 under the game's light), the rest `other`. */
 function strip(count: number, lime: number, other: [number, number, number]) {
@@ -30,5 +30,31 @@ describe('the exit list seen on screen with no key (owner, 11.11.2026)', () => {
     expect(CORNER.width).toBeLessThan(0.6)
     expect(CORNER.height).toBeGreaterThanOrEqual(0.65)
     expect(HEADER_STRIP.from).toBeLessThan(CORNER.width)
+  })
+})
+
+// Owner, 19.11.2026: «опять нажимаю О… ничего не происходит» — a 3440×1440 screen with the game, a 1920×1080 one to its right.
+describe('the screen the list is read from', () => {
+  const game = { x: 0, y: 0, width: 3440, height: 1440 }
+  const other = { x: 3440, y: 0, width: 1920, height: 1080 }
+
+  it('is the window of the game, wherever the pointer is', () => {
+    const area = listArea(game, other)
+    expect(area).toEqual(game)
+    // the corner of the list and the header strip on the screen of the game, at its right edge
+    expect(cornerRect(area)).toEqual({ x: 3440 - 806, y: 0, width: 806, height: 1008 })
+    const strip = headerStripRect(area)
+    expect(strip.x).toBe(3440 - 720)
+    expect(strip.x + strip.width).toBe(3440 - 288)
+    expect(strip.y).toBe(32)
+  })
+
+  it('is the display of the pointer only when the window of the game is not found', () => {
+    expect(listArea(null, other)).toEqual(other)
+    expect(cornerRect(listArea(null, other)).x).toBe(3440 + 1920 - Math.round(1080 * CORNER.width))
+  })
+
+  it('is the own top-right corner of a game in a window', () => {
+    expect(cornerRect({ x: 100, y: 50, width: 1600, height: 900 })).toEqual({ x: 100 + 1600 - 504, y: 50, width: 504, height: 630 })
   })
 })

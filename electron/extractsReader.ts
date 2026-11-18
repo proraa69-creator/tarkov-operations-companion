@@ -6,9 +6,47 @@
  * page, which parses and matches it (src/maps/raidExtracts.ts). Any resolution: the corner is a share of the display, its
  * width measured by the height (the game's interface scales by the height, so a 21:9 screen keeps the same corner).
  */
-import { nativeImage, screen } from 'electron'
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { app, nativeImage, screen, type NativeImage } from 'electron'
 import { recognizeRegion } from './screenOcr.js'
-import { captureScreenRegion, foregroundDisplayMode } from './experimental/win32.js'
+import { captureScreenRegion, foregroundDisplayMode, visibleGameRect } from './experimental/win32.js'
+
+export interface ScreenRect { x: number; y: number; width: number; height: number }
+
+/**
+ * Where the game's picture is (physical pixels): its window, wherever the pointer is — the owner plays on a 3440×1440
+ * screen with a 1920×1080 one beside it (19.11.2026: «опять нажимаю О… ничего не происходит»), and the display under the
+ * pointer, which the game hides in a raid, may be the other one. The pointer's display only when the window is not found.
+ */
+export function listArea(game: ScreenRect | null, pointerDisplay: ScreenRect): ScreenRect {
+  return game && game.width > 0 && game.height > 0 ? game : pointerDisplay
+}
+
+/** The top-right corner the list is read from (CORNER), inside the game's picture. */
+export function cornerRect(area: ScreenRect): ScreenRect {
+  const height = Math.round(area.height * CORNER.height)
+  const width = Math.min(area.width, Math.round(area.height * CORNER.width))
+  return { x: area.x + area.width - width, y: area.y, width, height }
+}
+
+/** The thin strip inside the list's green header (HEADER_STRIP). */
+export function headerStripRect(area: ScreenRect): ScreenRect {
+  const h = area.height
+  return {
+    x: area.x + area.width - Math.round(h * HEADER_STRIP.from),
+    y: area.y + Math.round(h * HEADER_STRIP.top),
+    width: Math.round(h * (HEADER_STRIP.from - HEADER_STRIP.to)),
+    height: Math.max(2, Math.round(h * HEADER_STRIP.height)),
+  }
+}
+
+function pointerDisplay(): ScreenRect {
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  return process.platform === 'win32' ? screen.dipToScreenRect(null, display.bounds) : display.bounds
+}
+
+const gameArea = () => listArea(visibleGameRect(), pointerDisplay())
 
 /** Two presses this close make a «double O». */
 export const DOUBLE_PRESS_MS = 550
@@ -73,16 +111,11 @@ export function listForOcr(data: Uint8Array, width: number, height: number) {
 }
 
 async function readCorner() {
-  const point = screen.getCursorScreenPoint()
-  const display = screen.getDisplayNearestPoint(point)
-  const physical = process.platform === 'win32' ? screen.dipToScreenRect(null, display.bounds) : display.bounds
-  const height = Math.round(physical.height * CORNER.height)
-  const width = Math.min(physical.width, Math.round(physical.height * CORNER.width))
-  const left = physical.x + physical.width - width
-  const shot = captureScreenRegion(left, physical.y, width, height)
-  if (!shot) return ''
+  const corner = cornerRect(gameArea())
+  const shot = captureScreenRegion(corner.x, corner.y, corner.width, corner.height)
+  if (!shot) return { text: '', corner, image: null }
   const image = nativeImage.createFromBitmap(listForOcr(shot.data, shot.width, shot.height), { width: shot.width, height: shot.height })
-  return recognizeRegion(image).catch(() => '')
+  return { text: await recognizeRegion(image).catch(() => ''), corner, image }
 }
 
 /** How often the header strip is looked at, and how long after a reading the same open list is not read again. */
@@ -98,16 +131,12 @@ export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: 
   let lastRead = 0
   const timer = setInterval(() => {
     if (process.platform !== 'win32' || !gameInFront() || foregroundDisplayMode() === 'exclusive') { open = false; return }
-    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-    const physical = screen.dipToScreenRect(null, display.bounds)
-    const h = physical.height
-    const left = physical.x + physical.width - Math.round(h * HEADER_STRIP.from)
-    const width = Math.round(h * (HEADER_STRIP.from - HEADER_STRIP.to))
-    const strip = captureScreenRegion(left, physical.y + Math.round(h * HEADER_STRIP.top), width, Math.max(2, Math.round(h * HEADER_STRIP.height)))
+    const at = headerStripRect(gameArea())
+    const strip = captureScreenRegion(at.x, at.y, at.width, at.height)
     const now = strip ? headerShare(strip.data, strip.width, strip.height) >= HEADER_MIN_SHARE : false
     if (now && (!open || Date.now() - lastRead >= HEADER_REREAD_MS)) {
       lastRead = Date.now()
-      void readExtractsPanel(send, READ_DELAYS_MS)
+      void readExtractsPanel(send, READ_DELAYS_MS, 'header')
     }
     open = now
   }, HEADER_POLL_MS)
@@ -116,23 +145,54 @@ export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: 
 }
 
 /** An O while the game is in front (or the list seen): reads the list after `delays` and hands the text over (`send`). */
-export async function readExtractsPanel(send: (payload: { text: string; at: number }) => void, delays: readonly number[] = AFTER_PRESS_MS) {
+export async function readExtractsPanel(send: (payload: { text: string; at: number }) => void, delays: readonly number[] = AFTER_PRESS_MS, trigger: 'key' | 'header' = 'key') {
+  if (busy) return
   // An exclusive full-screen game hides from screen copies.
-  if (busy || foregroundDisplayMode() === 'exclusive') return
+  if (foregroundDisplayMode() === 'exclusive') { void logReading({ trigger, outcome: 'exclusive-full-screen' }); return }
   busy = true
+  const started = Date.now()
+  const reads: Array<{ after: number; ms: number; chars: number; words: number }> = []
+  let best = ''
+  let bestImage: NativeImage | null = null
+  let corner: ScreenRect | null = null
   try {
-    let best = ''
     let waited = 0
     for (const delay of delays) {
       await new Promise((resolve) => setTimeout(resolve, delay - waited))
       waited = delay
-      const text = await readCorner()
+      const at = Date.now()
+      const read = await readCorner()
+      corner = read.corner
+      const text = read.text
+      reads.push({ after: at - started, ms: Date.now() - at, chars: text.trim().length, words: listWords(text) })
       // the better reading: more of the list's words, else more text (the names are matched without them, raidExtracts.ts)
-      const words = (value: string) => (value.match(/ВЫХ|EXF|BЫX/gi) ?? []).length
-      if (words(text) > words(best) || (words(text) === words(best) && text.trim().length > best.trim().length)) best = text
+      if (listWords(text) > listWords(best) || (listWords(text) === listWords(best) && text.trim().length > best.trim().length)) { best = text; bestImage = read.image }
     }
     if (best) send({ text: best, at: Date.now() })
   } finally {
     busy = false
+    void logReading({ trigger, outcome: best ? 'sent' : 'nothing-read', corner, reads, text: best }, bestImage)
   }
+}
+
+const listWords = (value: string) => (value.match(/ВЫХ|EXF|BЫX/gi) ?? []).length
+
+/** The last readings kept for a look into a report (owner, 19.11.2026: nothing happened after O), like the item lookups'. */
+const READINGS_KEPT = 20
+export const exitReadingsDir = () => join(app.getPath('userData'), 'raid-exits')
+
+/** One reading's record: what started it, where it copied, what it read, and the picture it read. Diagnostics only. */
+async function logReading(entry: Record<string, unknown>, image: NativeImage | null = null) {
+  try {
+    const dir = exitReadingsDir()
+    await mkdir(dir, { recursive: true })
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    await writeFile(join(dir, `${stamp}.json`), `${JSON.stringify(entry, null, 2)}
+`)
+    if (image) await writeFile(join(dir, `${stamp}.png`), image.resize({ width: Math.round(image.getSize().width / 2) }).toPNG())
+    const files = (await readdir(dir)).sort()
+    const stamps = [...new Set(files.map((name) => name.split('.')[0]!))]
+    const keep = new Set(stamps.slice(-READINGS_KEPT))
+    for (const name of files) if (!keep.has(name.split('.')[0]!)) await rm(join(dir, name), { force: true })
+  } catch { /* diagnostics only */ }
 }
