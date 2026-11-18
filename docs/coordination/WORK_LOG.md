@@ -7653,3 +7653,30 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - База на VPS: READ80LV добавлен вручную в `promo_codes` (все режимы, 14 дней), копия `/var/lib/raidos/backups/manual-promo-read80lv-1794983537454.sqlite` (chmod 600). raidos.app его отдаёт.
 - Тесты: `src/trading`, `src/keys`, `src/maps/raidExtracts`, `electron/extractsReader`, `server promoCodes` (9) зелёные; typecheck и eslint чистые.
 - Риск: папка `/var/lib/raidos/backups` 755, старые копии базы 644 — читаемы любым пользователем VPS.
+
+## 2026-11-18 — item key: no more 5–6 s waits behind the quest scanner (branch claude/item-lookup-speed-1118, not released)
+
+- Owner: «информация о предмете — очень долго ищет некоторые предметы, может грузиться 5-6 секунд». The logged slow
+  lookups (6111 ms, 1 grab; 5519 ms, 3 grabs) spent almost everything on their 3 readings. Measured here (i5-10400F,
+  tesseract.js, the logs' own crops): a tooltip line reads in 25–135 ms, the tooltip engine loads in 0.5 s, but the
+  quest scanner's whole-screen pass (1421×1080, word boxes) takes 6065 ms — and the OCR queue never started a lookup's
+  reading while a background one ran. A key pressed during such a pass waited for its end.
+- electron/ocrQueue.ts: two lanes — a reading the player waits for (item card, Collector scan) starts at once beside a
+  running background one (its own engine/thread); interactive readings still go one at a time, background ones one at a
+  time and never start while an interactive one runs or waits or while held. Tests: electron/ocrQueue.test.ts (the old
+  queue fails the new ones).
+- electron/experimental/index.ts: the item-lookups log keeps each reading's OCR time (`ocrMs`) and each match's
+  (`matchMs`), and also lookups found by text after ≥ 2.5 s (`outcome: "slow"`), which were not kept before.
+- Checks: `npm run typecheck`, eslint on the 3 files clean; vitest electron/ocrQueue + electron/experimental +
+  src/overlay + ocrPicture/questScreenshot: 175 passed, only the known positionTracker failures.
+- Not verified in the game. Remaining: two readings at once during a lookup in the menus (short: the lookup's few lines);
+  the quest scanner's 6 s whole-screen pass itself is still that long (a separate task). Release only with a new app
+  version ≥ 0.6.0.318 on the owner's word.
+- Follow-up (owner «УСКОРЯЙ»): the picture search (on the main process, logged 57–843 ms in the game; a reading done
+  meanwhile waited for it) spent most of its time in screenPicture — 18 passes over the item's pixels per layout
+  (3 thumbnails × 3 turns × with/without backdrop). src/overlay/iconSignature.ts `pictureSignatures`: all three grids in
+  one pass, every turn from them; src/overlay/iconMatch.ts uses it. Measured on the logged cells: 110–208 ms → 20–56 ms
+  (×4), the whole picture search ~250 → ~70 ms. Same numbers to the bit: compared with the old code on 167 layouts of the
+  logged crops, and a test with the old code as reference (noise, transparency, covered parts, turns 0–3). The picture
+  index (scripts/build-item-signatures.mjs) needs no rebuild. typecheck, eslint clean; vitest src/overlay +
+  src/components + ocrQueue 562 passed.

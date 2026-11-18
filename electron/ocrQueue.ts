@@ -1,16 +1,23 @@
 /**
- * One OCR job at a time across the app's Tesseract engines — the quest scanner's, the item card's and the Collector
- * scan's. Each reading takes a processor core, and two or three at once (the scanner during an item lookup or a Kappa
- * scan) made the game stutter (electron/collectorScan.ts: «two made the game stutter»). A job the player waits for
- * (`interactive`: the item card, the Collector scan) goes before the background ones waiting (the quest scanner); a
- * running job is never cut short. A Tesseract worker also takes one job at a time, so this keeps each engine in order too.
+ * OCR across the app's Tesseract engines — the quest scanner's, the item card's and the Collector scan's. Each reading
+ * takes a processor core, and two or three at once (the scanner during an item lookup or a Kappa scan) made the game
+ * stutter (electron/collectorScan.ts: «two made the game stutter»). So the background readings (the quest scanner) go
+ * one at a time and never start while a reading the player waits for (`interactive`: the item card, the Collector scan)
+ * runs or waits; the interactive ones go one at a time too.
+ *
+ * A reading the player waits for no longer waits for a background one already running, though: a running reading is
+ * never cut short, and the scanner's whole-screen pass takes ~6 s (measured 18.11.2026: 1421×1080 with word boxes,
+ * 6065 ms; one tooltip line 25–135 ms). An item key pressed during such a pass waited for its end — the 5–6 s lookups
+ * (owner, 18.11.2026: «очень долго ищет некоторые предметы, может грузиться 5-6 секунд»). It starts at once beside it
+ * (its own engine, its own thread): two readings at once only for the lookup's few short ones.
  */
 export type OcrPriority = 'interactive' | 'background'
 
 interface Waiting { priority: OcrPriority; start: () => void }
 
 const waiting: Waiting[] = []
-let running = false
+/** The reading running in each lane: one background and one interactive at most. */
+const running: Record<OcrPriority, boolean> = { interactive: false, background: false }
 
 /** While an item lookup runs, and a moment after (the player may press again). */
 export const AFTER_HOLD_MS = 1500
@@ -52,12 +59,21 @@ function pumpLater() {
 }
 
 function pump() {
-  if (running || !waiting.length) return
+  if (!waiting.length) return
   const interactive = waiting.findIndex((entry) => entry.priority === 'interactive')
-  const index = interactive >= 0 ? interactive : backgroundScansHeld() ? -1 : 0
-  if (index < 0) { pumpLater(); return }
+  if (interactive >= 0) {
+    // The player waits: beside a background reading already running, never behind it.
+    if (!running.interactive) start(interactive)
+    return
+  }
+  if (running.interactive || running.background) return
+  if (backgroundScansHeld()) { pumpLater(); return }
+  start(0)
+}
+
+function start(index: number) {
   const [next] = waiting.splice(index, 1)
-  running = true
+  running[next!.priority] = true
   next!.start()
 }
 
@@ -95,7 +111,7 @@ export function runOcrJob<T>(job: () => Promise<T>, priority: OcrPriority = 'bac
           if (settled) return false
           settled = true
           clearTimeout(timer)
-          running = false
+          running[priority] = false
           pump()
           return true
         }
