@@ -7807,3 +7807,19 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   and a first test that every candidate and watched folder lies inside the temporary folder.
 - Checks: positionTracker 10/10 (was 5 failing), electron/experimental 40/40; the real Screenshots folder listing
   (names, sizes, times) identical before and after the run; typecheck, eslint clean.
+
+## 2026-11-19 — exits by «O»: read from the game's screen, not the pointer's (branch claude/raid-exits-o-key, not released)
+
+- Owner: «Функция обнаружения выходов по кнопке О… ничего не происходит с выходами и не отмечаются». Checked on his
+  screenshots of 19.11 00:02–00:12 (3440×1440, Customs PvE): the list reads right with the app's own steps (header
+  64 % ≥ 45 %, all 7 exits; matched to 10 Customs exits lit, 18 dimmed); the logs give the raid (bigmap since 23:59:33);
+  the app running is 0.6.0.318. His PC has two screens: 3440×1440 (the game) and 1920×1080 to its right — the reader
+  copied the display under the pointer, which the game hides in a raid. Now it copies the game's own window
+  (`visibleGameRect`), the pointer's display only when the window is not found (`listArea`, `cornerRect`,
+  `headerStripRect`).
+- Each reading is now kept for a look (`%APPDATA%/…/raid-exits`, the last 20: what started it — key or header — where it
+  copied, how long, what it read, and the picture; or «exclusive-full-screen»).
+- Also seen: 3 of the 5 screenshots show only the raid timer — one short O shows the time; the list comes with a double
+  O (or by itself at the raid's start).
+- Tests: electron/extractsReader + src/maps 113/113 (3 new), typecheck, tsc electron, eslint clean.
+- Not checked in the game: one raid with a double O, then the raid-exits folder tells the rest.
