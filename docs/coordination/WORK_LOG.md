@@ -7679,3 +7679,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: the flea price's mode is the mode the app already tracks and switches to by itself. The plan takes
   `screenReadingMode` (src/import/screenReadingMode.ts: the game's mode from its logs, as the story and Tasks readings),
   nothing sent until the logs name it; the «… | PvE» label on the screen only as a second check.
+- PvP/Season frames (18 more, 14:56–14:59): the mode label is «| PvE», «| PvP S» (Season, 10 frames) or nothing (plain
+  PvP, 2 frames, level 12 with the flea locked behind an orange «from level 15» banner); OCR reads it on all 34. Trader
+  offers mixed in with players' (often cheaper), dim «ЗАКРЫТО» rows. Digit shapes trained on PvE only: 155 price rows,
+  141 read sure and all 141 right (checked by eye on crops), 14 flagged unsure (banner/GP, and «1» touching its
+  neighbour: «14 000», «17»); cutting touching pairs at the thinnest column fixed «743» and «74 888».
