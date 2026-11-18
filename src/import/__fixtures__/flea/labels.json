@@ -1,0 +1,692 @@
+{
+ "pve-keys": {
+  "mode": "pve",
+  "rows": [
+   {
+    "value": 1000,
+    "currency": "₽"
+   },
+   {
+    "value": 2000,
+    "currency": "₽"
+   },
+   {
+    "value": 2000,
+    "currency": "₽"
+   },
+   {
+    "value": 2000,
+    "currency": "₽"
+   },
+   {
+    "value": 2500,
+    "currency": "₽"
+   },
+   {
+    "value": 2900,
+    "currency": "₽"
+   },
+   {
+    "value": 2900,
+    "currency": "₽"
+   },
+   {
+    "value": 2990,
+    "currency": "₽"
+   },
+   {
+    "value": 3000,
+    "currency": "₽"
+   },
+   {
+    "value": 3000,
+    "currency": "₽"
+   },
+   {
+    "value": 3000,
+    "currency": "₽"
+   },
+   {
+    "value": 3000,
+    "currency": "₽"
+   }
+  ]
+ },
+ "pve-provisions": {
+  "mode": "pve",
+  "rows": [
+   {
+    "value": 11000,
+    "currency": "₽"
+   },
+   {
+    "value": 13333,
+    "currency": "₽"
+   },
+   {
+    "value": 14444,
+    "currency": "₽"
+   },
+   {
+    "value": 14999,
+    "currency": "₽"
+   },
+   {
+    "value": 15530,
+    "currency": "₽"
+   },
+   {
+    "value": 15999,
+    "currency": "₽"
+   },
+   {
+    "value": 15999,
+    "currency": "₽"
+   },
+   {
+    "value": 16000,
+    "currency": "₽"
+   },
+   {
+    "value": 16000,
+    "currency": "₽"
+   },
+   {
+    "value": 16622,
+    "currency": "₽"
+   },
+   {
+    "value": 16666,
+    "currency": "₽"
+   },
+   {
+    "value": 16666,
+    "currency": "₽"
+   }
+  ]
+ },
+ "pve-marksman": {
+  "mode": "pve",
+  "rows": [
+   {
+    "value": 36666,
+    "currency": "₽"
+   },
+   {
+    "value": 43333,
+    "currency": "₽"
+   },
+   {
+    "value": 50000,
+    "currency": "₽"
+   },
+   {
+    "value": 55000,
+    "currency": "₽"
+   },
+   {
+    "value": 58888,
+    "currency": "₽"
+   },
+   {
+    "value": 60000,
+    "currency": "₽"
+   },
+   {
+    "value": 63300,
+    "currency": "₽"
+   },
+   {
+    "value": 63300,
+    "currency": "₽"
+   },
+   {
+    "value": 63333,
+    "currency": "₽"
+   },
+   {
+    "value": 64999,
+    "currency": "₽"
+   },
+   {
+    "value": 66111,
+    "currency": "₽"
+   },
+   {
+    "value": 66666,
+    "currency": "₽"
+   }
+  ]
+ },
+ "pve-machineguns": {
+  "mode": "pve",
+  "rows": [
+   {
+    "value": 79999,
+    "currency": "₽"
+   },
+   {
+    "value": 85000,
+    "currency": "₽"
+   },
+   {
+    "value": 89000,
+    "currency": "₽"
+   },
+   {
+    "value": 89000,
+    "currency": "₽"
+   },
+   {
+    "value": 89696,
+    "currency": "₽"
+   },
+   {
+    "value": 89696,
+    "currency": "₽"
+   },
+   {
+    "value": 90000,
+    "currency": "₽"
+   },
+   {
+    "value": 91111,
+    "currency": "₽"
+   },
+   {
+    "value": 91111,
+    "currency": "₽"
+   },
+   {
+    "value": 92222,
+    "currency": "₽"
+   },
+   {
+    "value": 92222,
+    "currency": "₽"
+   },
+   {
+    "value": 93000,
+    "currency": "₽"
+   }
+  ]
+ },
+ "pve-machete": {
+  "mode": "pve",
+  "rows": [
+   {
+    "value": 30000,
+    "currency": "₽"
+   },
+   {
+    "value": 36900,
+    "currency": "₽"
+   },
+   {
+    "value": 36900,
+    "currency": "₽"
+   },
+   {
+    "value": 37000,
+    "currency": "₽"
+   },
+   {
+    "value": 37000,
+    "currency": "₽"
+   },
+   {
+    "value": 37000,
+    "currency": "₽"
+   },
+   {
+    "value": 37000,
+    "currency": "₽"
+   },
+   {
+    "value": 37000,
+    "currency": "₽"
+   },
+   {
+    "value": 37000,
+    "currency": "₽"
+   },
+   {
+    "value": 37499,
+    "currency": "₽"
+   },
+   {
+    "value": 37499,
+    "currency": "₽"
+   },
+   {
+    "value": 37499,
+    "currency": "₽"
+   }
+  ]
+ },
+ "pve-unknown-knife": {
+  "mode": "pve",
+  "rows": [
+   {
+    "value": 50000,
+    "currency": "₽"
+   },
+   {
+    "value": 50000,
+    "currency": "₽"
+   },
+   {
+    "value": 51000,
+    "currency": "₽"
+   },
+   {
+    "value": 51999,
+    "currency": "₽"
+   },
+   {
+    "value": 52000,
+    "currency": "₽"
+   },
+   {
+    "value": 52222,
+    "currency": "₽"
+   },
+   {
+    "value": 55000,
+    "currency": "₽"
+   },
+   {
+    "value": 55420,
+    "currency": "₽"
+   },
+   {
+    "value": 55555,
+    "currency": "₽"
+   },
+   {
+    "value": 55555,
+    "currency": "₽"
+   },
+   {
+    "value": 55555,
+    "currency": "₽"
+   },
+   {
+    "value": 57000,
+    "currency": "₽"
+   }
+  ]
+ },
+ "pve-usd": {
+  "mode": "pve",
+  "rows": [
+   {
+    "value": 100,
+    "currency": "$"
+   },
+   {
+    "value": 125,
+    "currency": "$"
+   },
+   {
+    "value": 200,
+    "currency": "$"
+   },
+   {
+    "value": 250,
+    "currency": "$"
+   },
+   {
+    "value": 270,
+    "currency": "$"
+   },
+   {
+    "value": 275,
+    "currency": "$"
+   },
+   {
+    "value": 280,
+    "currency": "$"
+   },
+   {
+    "value": 400,
+    "currency": "$"
+   },
+   {
+    "value": 400,
+    "currency": "$"
+   },
+   {
+    "value": 410,
+    "currency": "$"
+   },
+   {
+    "value": 520,
+    "currency": "$"
+   },
+   {
+    "value": 600,
+    "currency": "$"
+   }
+  ]
+ },
+ "pve-eur": {
+  "mode": "pve",
+  "rows": [
+   {
+    "value": 150,
+    "currency": "€"
+   },
+   {
+    "value": 200,
+    "currency": "€"
+   },
+   {
+    "value": 250,
+    "currency": "€"
+   },
+   {
+    "value": 250,
+    "currency": "€"
+   },
+   {
+    "value": 270,
+    "currency": "€"
+   },
+   {
+    "value": 275,
+    "currency": "€"
+   },
+   {
+    "value": 300,
+    "currency": "€"
+   },
+   {
+    "value": 317,
+    "currency": "€"
+   },
+   {
+    "value": 322,
+    "currency": "€"
+   },
+   {
+    "value": 400,
+    "currency": "€"
+   },
+   {
+    "value": 500,
+    "currency": "€"
+   },
+   {
+    "value": 555,
+    "currency": "€"
+   }
+  ]
+ },
+ "pve-gp-closed": {
+  "mode": "pve",
+  "rows": [
+   "dim",
+   "dim",
+   "dim",
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ]
+ },
+ "season-provisions-14": {
+  "mode": "seasonal",
+  "rows": [
+   {
+    "value": 13999,
+    "currency": "₽"
+   },
+   {
+    "value": 14000,
+    "currency": "₽"
+   },
+   {
+    "value": 14000,
+    "currency": "₽"
+   },
+   {
+    "value": 14000,
+    "currency": "₽"
+   },
+   {
+    "value": 14000,
+    "currency": "₽"
+   },
+   {
+    "value": 14000,
+    "currency": "₽"
+   },
+   {
+    "value": 14443,
+    "currency": "₽"
+   },
+   {
+    "value": 14443,
+    "currency": "₽"
+   },
+   {
+    "value": 14444,
+    "currency": "₽"
+   },
+   {
+    "value": 14444,
+    "currency": "₽"
+   },
+   {
+    "value": 15000,
+    "currency": "₽"
+   },
+   {
+    "value": 15000,
+    "currency": "₽"
+   }
+  ]
+ },
+ "pvp-locked-banner": {
+  "mode": "pvp",
+  "rows": [
+   "banner",
+   {
+    "value": 136,
+    "currency": "₽"
+   },
+   "dim",
+   {
+    "value": 262,
+    "currency": "₽"
+   },
+   "dim",
+   {
+    "value": 372,
+    "currency": "₽"
+   },
+   "dim",
+   {
+    "value": 376,
+    "currency": "₽"
+   },
+   {
+    "value": 393,
+    "currency": "₽"
+   },
+   "dim",
+   "dim",
+   "dim"
+  ]
+ },
+ "season-weapons": {
+  "mode": "seasonal",
+  "rows": [
+   {
+    "value": 2927,
+    "currency": "₽"
+   },
+   {
+    "value": 4585,
+    "currency": "₽"
+   },
+   {
+    "value": 5920,
+    "currency": "₽"
+   },
+   "dim",
+   {
+    "value": 7332,
+    "currency": "₽"
+   },
+   {
+    "value": 7333,
+    "currency": "₽"
+   },
+   {
+    "value": 7509,
+    "currency": "₽"
+   },
+   {
+    "value": 7777,
+    "currency": "₽"
+   },
+   {
+    "value": 8860,
+    "currency": "₽"
+   },
+   "dim",
+   "dim",
+   "dim"
+  ]
+ },
+ "season-info": {
+  "mode": "seasonal",
+  "rows": [
+   {
+    "value": 11790,
+    "currency": "₽"
+   },
+   {
+    "value": 14594,
+    "currency": "₽"
+   },
+   {
+    "value": 18936,
+    "currency": "₽"
+   },
+   {
+    "value": 19353,
+    "currency": "₽"
+   },
+   "dim",
+   {
+    "value": 22222,
+    "currency": "₽"
+   },
+   {
+    "value": 148,
+    "currency": "€"
+   },
+   "dim",
+   {
+    "value": 61666,
+    "currency": "₽"
+   },
+   {
+    "value": 336,
+    "currency": "€"
+   },
+   {
+    "value": 65420,
+    "currency": "₽"
+   },
+   {
+    "value": 66666,
+    "currency": "₽"
+   }
+  ]
+ },
+ "season-ammo": {
+  "mode": "seasonal",
+  "rows": [
+   {
+    "value": 2,
+    "currency": "₽"
+   },
+   {
+    "value": 17,
+    "currency": "₽"
+   },
+   {
+    "value": 27,
+    "currency": "₽"
+   },
+   {
+    "value": 30,
+    "currency": "₽"
+   },
+   {
+    "value": 32,
+    "currency": "₽"
+   },
+   {
+    "value": 35,
+    "currency": "₽"
+   },
+   {
+    "value": 40,
+    "currency": "₽"
+   },
+   {
+    "value": 40,
+    "currency": "₽"
+   },
+   {
+    "value": 40,
+    "currency": "₽"
+   },
+   {
+    "value": 44,
+    "currency": "₽"
+   },
+   {
+    "value": 46,
+    "currency": "₽"
+   },
+   {
+    "value": 50,
+    "currency": "₽"
+   }
+  ]
+ },
+ "season-short": {
+  "mode": "seasonal",
+  "rows": [
+   {
+    "value": 55555,
+    "currency": "₽"
+   },
+   {
+    "value": 77777,
+    "currency": "₽"
+   },
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ]
+ }
+}

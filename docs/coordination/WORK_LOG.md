@@ -7684,3 +7684,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   offers mixed in with players' (often cheaper), dim «ЗАКРЫТО» rows. Digit shapes trained on PvE only: 155 price rows,
   141 read sure and all 141 right (checked by eye on crops), 14 flagged unsure (banner/GP, and «1» touching its
   neighbour: «14 000», «17»); cutting touching pairs at the thinnest column fixed «743» and «74 888».
+- Stage 1 built (owner: «Да, делай»), not wired, nothing sent: src/import/fleaDigits.ts (digit shapes, no imports — the
+  build script loads it), fleaDigitShapes.ts (78 samples, scripts/build-flea-digits.mjs, deterministic), fleaScreen.ts
+  (tab lit, «Цена» chevron up, scrollbar at the top, level-15 banner, each row's price/currency/dim, mode from the
+  version line, `fleaSightings`: traders passed over, stop at the first row not read for sure, other currency / worn /
+  excluded items give no price). Fixtures: 15 masked frames (0.79 MB webp, scripts/make-flea-fixtures.mjs). Tests 15/15:
+  no price read wrong for sure; 108/108 on the training frames, 37/37 on 5 held-out PvP/Season frames, 12/12 on a frame
+  resampled to 3440×1440. typecheck, eslint clean; vitest src/import 305/305.
+- Next (1b): OCR of the seller/name/info lines and name matching, wired to the screen copy with the «when it runs»
+  conditions; then the server (stage 2). Not checked: a real 3440×1440 or 2560×1440 frame, a list scrolled down.
