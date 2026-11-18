@@ -1,4 +1,11 @@
 [
+  {"version":"0.6.0.319","date":"2026-11-18","items":[
+    {"kind":"added","ru":"«Ключи локации»: у каждого ключа цена и буква тир-листа","en":"«Location keys»: each key shows its price and tier-list letter"},
+    {"kind":"added","ru":"Карточка ключа: что лежит в комнате за его дверью","en":"Key card: what spawns in the room behind its door"},
+    {"kind":"added","ru":"«Ключи для квестов»: ключ «Нет в наличии» можно сразу добавить в схрон","en":"«Quest keys»: a key «Not in stash» can be added to the stash right away"},
+    {"kind":"improved","ru":"Документы боевого пропуска видны на всех этажах карты","en":"Battle pass documents show on every floor of the map"},
+    {"kind":"improved","ru":"Сезон: у «Освободить помещение» цель и награды как в игре","en":"Season: «Vacate the Premises» objective and rewards match the game"}
+  ]},
   {"version":"0.6.0.318","date":"2026-11-18","items":[
     {"kind":"improved","ru":"Квесты: задания USEC и BEAR больше не показываются дважды","en":"Quests: USEC and BEAR versions of a quest no longer show twice"}
   ]},
