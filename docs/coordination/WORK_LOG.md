@@ -7654,6 +7654,87 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Тесты: `src/trading`, `src/keys`, `src/maps/raidExtracts`, `electron/extractsReader`, `server promoCodes` (9) зелёные; typecheck и eslint чистые.
 - Риск: папка `/var/lib/raidos/backups` 755, старые копии базы 644 — читаемы любым пользователем VPS.
 
+## 2026-11-18 — Flea prices from players' screens: plan (branch claude/flea-prices-from-screens, no code)
+
+- Owner: players on the flea in the stash → the top (lowest) price on screen updates our base for everyone at once;
+  «приоритет цены будет с экрана пользователя». docs/flea-prices-from-players.md: what is read and when, the client's
+  checks (one item, prices rising, rubles, two readings agree, mode from the screen = the logs' mode, not the
+  «copies differ» items), what is sent (mode, item id, price, time — no pictures), the server (POST
+  /v1/prices/sightings + ROUTES line; a third source in priceMirror; a player's price over the others for 30 min;
+  plausibility band, a second account for jumps, limits, trust), stages and risks.
+- Measured here (i5-10400F): whole-screen pass 6 065 ms; a ~12-row column 640–950 ms; a price column ~245 ms; the
+  menu bar ~420 ms. No flea frames on this PC: stage 0 is the owner's screenshots of the flea (10–15 frames).
+- Nothing built, nothing deployed. Next: the owner's frames, then the reader on them.
+- Update, same day: the owner's 16 flea screenshots (1920×1080, PvE). Layout fixed (rows 72 px at 1080p); the player's
+  filters («Сост. от 100», «Кроме бартера», currency) change the top price; trader offers on the flea («Терапевт»,
+  «(лимит 6)»); «Неизвестный предмет» for unexamined items; $/€/GP by the sign's colour. OCR of the header and the
+  mode right on every frame (30–55 ms), names ~60 ms a line; **prices by OCR 22/36 at best** (0↔8, 3↔4, 11 000 →
+  11 200), **prices by digit shapes 72/72** leave-one-frame-out, ~2 ms a price (best distance ≤ 0.072, runner-up
+  ≥ 0.052 further). The plan now reads prices by shape, never by OCR. Still needed: PvP, 3440×1440/2560×1440, no
+  condition filter, a scrolled list.
+- Found: electron/experimental/positionTracker.test.ts writes into the real EFT Screenshots folder (it redirects only
+  OneDrive; `screenshotsFolder()` picks the profile's Documents). This session's test run left 3 empty fake position
+  screenshots there (named 2026-10-12, coordinates 42.5/43.5/46.5); removed (each 0–3 bytes). The test needs its own
+  folder — not fixed here.
+- Owner: the flea price's mode is the mode the app already tracks and switches to by itself. The plan takes
+  `screenReadingMode` (src/import/screenReadingMode.ts: the game's mode from its logs, as the story and Tasks readings),
+  nothing sent until the logs name it; the «… | PvE» label on the screen only as a second check.
+- PvP/Season frames (18 more, 14:56–14:59): the mode label is «| PvE», «| PvP S» (Season, 10 frames) or nothing (plain
+  PvP, 2 frames, level 12 with the flea locked behind an orange «from level 15» banner); OCR reads it on all 34. Trader
+  offers mixed in with players' (often cheaper), dim «ЗАКРЫТО» rows. Digit shapes trained on PvE only: 155 price rows,
+  141 read sure and all 141 right (checked by eye on crops), 14 flagged unsure (banner/GP, and «1» touching its
+  neighbour: «14 000», «17»); cutting touching pairs at the thinnest column fixed «743» and «74 888».
+- Stage 1 built (owner: «Да, делай»), not wired, nothing sent: src/import/fleaDigits.ts (digit shapes, no imports — the
+  build script loads it), fleaDigitShapes.ts (78 samples, scripts/build-flea-digits.mjs, deterministic), fleaScreen.ts
+  (tab lit, «Цена» chevron up, scrollbar at the top, level-15 banner, each row's price/currency/dim, mode from the
+  version line, `fleaSightings`: traders passed over, stop at the first row not read for sure, other currency / worn /
+  excluded items give no price). Fixtures: 15 masked frames (0.79 MB webp, scripts/make-flea-fixtures.mjs). Tests 15/15:
+  no price read wrong for sure; 108/108 on the training frames, 37/37 on 5 held-out PvP/Season frames, 12/12 on a frame
+  resampled to 3440×1440. typecheck, eslint clean; vitest src/import 305/305.
+- Next (1b): OCR of the seller/name/info lines and name matching, wired to the screen copy with the «when it runs»
+  conditions; then the server (stage 2). Not checked: a real 3440×1440 or 2560×1440 frame, a list scrolled down.
+- Owner: every price in roubles only — an offer in euros (or dollars) converted at the game's rate. `fleaSightings`
+  now takes `rates` (`fleaRates`: the handbook price of Dollars/Euros in the player's mode's catalog) and gives
+  `price` in roubles with `listed` {value, currency} kept; no rate yet or GP → no price. The owner's Season frame bounds
+  the euro at 183.5–194.7 ₽ (336 € between 61 666 ₽ and 65 420 ₽). Tests 18/18, vitest src/import 308/308, typecheck,
+  eslint clean. To check when wired: the catalog's Euros basePrice falls in that band (tarkov.dev was down today).
+- Stage 1b (owner: «Да, подключай»), not released, nothing sent to the server: src/import/fleaReading.ts (the flea
+  looked at on the quest scanner's own GDI copy: not the flea → nothing; the flea → no whole-screen quest pass; a list
+  settled over two looks and not read before → filter chips, seller/info/name per row, version line by the item card's
+  engine at background priority), electron/screenOcr.ts (`lookAtFlea`, `recognizeFleaLine`), StoryScreenScanner
+  (flea frame → `noteFleaReading` with the logs' mode, menus' pace, no screenshot fallback), src/data/screenFleaPrices.ts
+  (names → items by the tooltip matcher, `leaveOut`, rates, the player's prices over the server's for 30 min in
+  `useLivePrices`), ExperimentalBridge registers the matcher. preload/electron.d.ts: `flea` in the frame answer.
+- Found on the owner's frames with the app's own engine (rus+eng): the version line reads «РУЕ» / «РУР 5» (was
+  taken for plain PvP → letters folded); traders beside a level badge («99 Прапор»); condition «40/48», «90/980»
+  (0 read as 8/9/6 tolerated, an extra digit not); «Валюта EUR/USD/GP» filter chips (the top row then is not the
+  item's lowest: such lists are left alone — chips found by their «×» boxes, read one by one, 34/34 right).
+- The game's rate is the traders' price of the money, not the handbook: Season frame 336 € between 61 666 ₽ and
+  65 420 ₽ → 183.5–194.7 ₽; Skier's euro 188 ₽ (handbook 132 ₽). Asked hourly per mode through the data gateway.
+- Owner: keys count only with all their uses («8 из 10… не рассматриваем»): `keyAllUses` — the info line's uses whole
+  and equal to the catalog's `keyUses`.
+- End to end on the owner's 34 screenshots (real OCR, json.tarkov.dev catalog, not committed): 35 prices, all equal to
+  the screen; currency-filtered and level-15-locked lists not taken.
+- Checks: typecheck, `tsc -p tsconfig.electron.json` (it caught extensionless imports `npm run typecheck` does not
+  check), eslint clean; vitest src/import, src/data, src/components, src/overlay, pages Flea/QuestKeys/Trading,
+  electron/ocrQueue + experimental: 1538 passed, 5 failed = positionTracker (unfixed in this branch: it wrote 3 empty
+  fake screenshots into the owner's Screenshots folder again, deleted; fix is 8ec20dea). electron/serviceGateway*
+  suites fail to load here (no `cors` in the junctioned node_modules), unrelated.
+- Not checked in the running app/game; not checked on a real 2560/3440×1440 frame or a scrolled list.
+- Stage 2, the server (owner: «Да, делай сервер»), not deployed: server/src/services/playerPrices.ts (rules:
+  ±50 % of the mirror's price at once, else a second account within 10 % in 15 min; 120/h per account, 24 a request,
+  repeats within 2 min refused; noFlea / malformed / older than 10 min refused; accounts often outside the band lose
+  «at once»; accepted prices stand 30 min; all in memory, no accounts in the status). routes/data.ts:
+  `POST /v1/data/prices/:mode/sightings` behind the paid-data guard; `GET /v1/data/prices/:mode` lays the standing
+  players' prices over the mirror file (re-rendered when the file, an accepted price or the standing set changes) —
+  in the API process, so it works with RAIDOS_BACKGROUND=external too. Mirror status: `players`. App:
+  screenFleaPrices sends what it applied (gateway only, the same price not again within 2 min), ROUTES line in
+  electron/serviceGateway.ts.
+- Tests: server 595/595 (playerPrices.test.ts in the list; route end to end in routes/data.test.ts), client and
+  gateway 1411/1411 (src/data, src/import, src/components, pages Flea/Trading/QuestKeys, electron/serviceGateway*,
+  ocrQueue; positionTracker left out), typecheck, tsc electron, eslint clean.
+- Remaining: deploy of the server and a release of the app (≥ 0.6.0.318) on the owner's word; check in the game.
+
 ## 2026-11-18 — item key: no more 5–6 s waits behind the quest scanner (branch claude/item-lookup-speed-1118, not released)
 
 - Owner: «информация о предмете — очень долго ищет некоторые предметы, может грузиться 5-6 секунд». The logged slow
@@ -7766,3 +7847,26 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   one. The exception is AdminPanelPage «stands right above «Обзор»», which already failed because of CRLF in the
   working copy. Typecheck clean.
 - Suggested reply to the player sent to the owner. Not released.
+## 2026-11-18 — «Ключи для квестов»: «Нет в наличии» → «Добавить в наличие» (branch claude/quest-keys-add-to-stash, not released)
+
+- Owner: «Если у нас горит кнопка „Нет в наличии“, на нее можно нажать, появится окно, и можно нажать „Добавить в наличие“».
+  The tag is a button now (same look, pointer); it opens a window with the key and «Добавить в наличие», which puts one
+  piece in the stash of this profile and mode (`setOwnedKey`) — the row then says «Есть в схроне». Esc / ✕ / outside:
+  nothing changes.
+- Files: src/quests/QuestKeyStockDialog.tsx (new), src/pages/QuestKeysPage.tsx, src/quests/questKeys.css,
+  src/pages/QuestKeysPage.test.tsx. EN: «Not in stash» / «Mark as owned» (existing translations).
+- Tests: QuestKeysPage 17/17 (2 new), typecheck, eslint clean. Look checked in the browser on injected markup (the button
+  computes the same as the old tag; the window); the real page could not load the catalog: tarkov.dev GraphQL was down.
+- Not deployed. Release only with a new app version, on the owner's word.
+
+## 2026-11-18 — positionTracker tests no longer write into the player's real Screenshots folder (branch claude/position-test-own-folder, not released)
+
+- Found while reading the owner's flea screenshots: electron/experimental/positionTracker.test.ts moved only `OneDrive`
+  into its temporary folder; `screenshotFolderCandidates()` also uses `homedir()` and `OneDriveConsumer` /
+  `OneDriveCommercial`. On a PC whose real Screenshots folder holds newer screenshots than the tests' (the owner's),
+  the lookup chose the real folder: 5 tests failed (the «known positionTracker failures») and two of them wrote empty
+  fake coordinate screenshots there (three found and removed 18.11.2026).
+- Fix (test only): `node:os` homedir mocked to the temporary folder, all three OneDrive variables replaced and restored,
+  and a first test that every candidate and watched folder lies inside the temporary folder.
+- Checks: positionTracker 10/10 (was 5 failing), electron/experimental 40/40; the real Screenshots folder listing
+  (names, sizes, times) identical before and after the run; typecheck, eslint clean.

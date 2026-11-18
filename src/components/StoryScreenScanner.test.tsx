@@ -31,6 +31,8 @@ vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests 
 vi.mock('../state/AppState', () => ({ useAppState: () => state }))
 const kept = vi.hoisted(() => ({ applied: 0 }))
 vi.mock('../account/logNickname', async (original) => ({ ...(await original<typeof import('../account/logNickname')>()), applyKeptIdentity: () => { kept.applied += 1 } }))
+const flea = vi.hoisted(() => ({ notes: [] as unknown[][] }))
+vi.mock('../data/screenFleaPrices', () => ({ noteFleaReading: (...args: unknown[]) => { flea.notes.push(args) } }))
 const { StoryScreenScanner } = await import('./StoryScreenScanner')
 
 type Frame = Awaited<ReturnType<NonNullable<Window['tarkovDesktop']>['captureQuestFrame']>>
@@ -428,5 +430,24 @@ describe('unlocked (audit P4a)', () => {
     render(<StoryScreenScanner />)
     await run(0)
     expect(kept.applied).toBe(1)
+  })
+})
+
+describe('the flea market on the screen (docs/flea-prices-from-players.md)', () => {
+  it('hands the list read to the prices, for the mode the logs name, and reads no quests nor any screenshot there', async () => {
+    flea.notes = []
+    updateLogStatus({ scan: gameIn('seasonal') })
+    const reading = { at: 1, label: '', labelMode: 'seasonal', rows: [] }
+    desktop({ text: '', sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 1, flea: { reading } } as unknown as Frame)
+    const screenshot = vi.fn(async () => null)
+    window.tarkovDesktop!.captureQuestScreenshot = screenshot
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(flea.notes).toEqual([[reading, 'seasonal']])
+    expect(screenshot).not.toHaveBeenCalled()
+    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    // Looked at again at the menus' pace while the flea stays open.
+    await run(STORY_SCAN_TIMING.menuMs)
+    expect(looks).toHaveLength(2)
   })
 })

@@ -5,8 +5,18 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 
 const root = mkdtempSync(join(tmpdir(), 'raidos-shots-'))
 vi.mock('electron', () => ({ app: { getPath: () => join(root, 'documents') } }))
+// Every place the app looks is inside `root`: the profile too (homedir), not only the known folder and OneDrive. With the
+// real profile the lookup chose the player's own Screenshots folder (newer screenshots than these), and the tests wrote
+// fake coordinate screenshots into it (found 18.11.2026: three empty files with the tests' names).
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>()
+  const homedir = () => join(root, 'home')
+  return { ...actual, homedir, default: { ...actual, homedir } }
+})
 // Documents moved to OneDrive: EFT writes there (the app also looks under the OneDrive folder).
-const savedOneDrive = process.env.OneDrive
+const ONEDRIVE = ['OneDrive', 'OneDriveConsumer', 'OneDriveCommercial'] as const
+const savedOneDrive = Object.fromEntries(ONEDRIVE.map((name) => [name, process.env[name]]))
+for (const name of ONEDRIVE) Reflect.deleteProperty(process.env, name)
 process.env.OneDrive = join(root, 'onedrive')
 
 const { FOLDER_CACHE_MS, findScreenshotsFolder, PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride, watchedScreenshotFolders } = await import('./positionTracker')
@@ -23,9 +33,19 @@ function folderWith(base: string, files: Array<[string, number]>) {
 }
 
 afterAll(() => {
-  if (savedOneDrive === undefined) Reflect.deleteProperty(process.env, 'OneDrive')
-  else process.env.OneDrive = savedOneDrive
+  for (const name of ONEDRIVE) {
+    if (savedOneDrive[name] === undefined) Reflect.deleteProperty(process.env, name)
+    else process.env[name] = savedOneDrive[name]
+  }
   rmSync(root, { recursive: true, force: true })
+})
+
+describe('the tests themselves', () => {
+  it('look and write only inside their own temporary folder, never in the Screenshots of the player', () => {
+    const candidates = screenshotFolderCandidates()
+    expect(candidates.length).toBeGreaterThan(0)
+    for (const folder of [...candidates, ...watchedScreenshotFolders()]) expect(folder.startsWith(root)).toBe(true)
+  })
 })
 
 describe('EFT screenshots folder', () => {

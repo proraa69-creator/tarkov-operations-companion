@@ -17,6 +17,7 @@ import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa
 import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
 import { mateNamesFor, mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
 import { featureEnabled } from '../app/archivedFeatures'
+import { setFleaCatalog } from '../data/screenFleaPrices'
 
 /** Readings the second attempt found an item for (one list for the app, see createLookupMemory). */
 const lookupMemory = createLookupMemory(() => window.localStorage, foldTooltipText)
@@ -156,6 +157,12 @@ export function ExperimentalBridge() {
   useEffect(() => {
     latest.current = { data, state, matcher, tooltipMatcher, itemsById, keepRows }
   })
+
+  // The flea's rows read on the player's screen name their items by the item card's matcher (src/data/screenFleaPrices.ts).
+  useEffect(() => {
+    setFleaCatalog({ match: (name) => tooltipMatcher(name) })
+    return () => setFleaCatalog(null)
+  }, [tooltipMatcher])
 
   useEffect(() => {
     const api = window.tarkovDesktop?.experimental

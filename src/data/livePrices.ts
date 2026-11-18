@@ -1,8 +1,10 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Item, PriceQuote, RaidMode } from '../domain/types'
 import { FLEA_SOURCE, quoteKind, steadyFleaPrice } from '../domain/itemPrices'
 import { dataRoute, gatewayRequest } from './tarkovApi'
 import type { MinutePrice, MinutePriceSnapshot } from './tarkovJsonAdapters'
+import { useScreenPricesVersion, withScreenPrices } from './screenFleaPrices'
 
 /**
  * The flea prices of one mode, fresh every minute (owner, 02.11.2026: «в тир листах цены на предметы не соответствуют
@@ -37,8 +39,12 @@ export function parseLivePrices(body: unknown, mode: RaidMode): LivePrices | nul
   return { items, ...(Number.isFinite(at) ? { updatedAt: at } : {}), ...(Number.isFinite(renewed) ? { pricesAt: renewed } : {}) }
 }
 
-/** This mode's minute prices while a page that shows them is open (null until the first answer, or off the server). */
+/**
+ * This mode's minute prices while a page that shows them is open (null until the first answer, or off the server), with
+ * the prices the player's own screen showed over them (src/data/screenFleaPrices.ts).
+ */
 export function useLivePrices(mode: RaidMode, enabled = true): LivePrices | null {
+  const screen = useScreenPricesVersion()
   const { data } = useQuery({
     queryKey: ['live-prices', mode],
     queryFn: async () => parseLivePrices(await gatewayRequest('GET', `/v1/data/prices/${mode}`), mode),
@@ -47,7 +53,9 @@ export function useLivePrices(mode: RaidMode, enabled = true): LivePrices | null
     staleTime: LIVE_PRICES_MS / 2,
     retry: 1,
   })
-  return data ?? null
+  const server = data ?? null
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `screen` changes with every price from the screen
+  return useMemo(() => withScreenPrices(server, mode), [server, mode, screen])
 }
 
 /** The item with this mode's flea quote at the minute's price: the lowest offer now, else the 24-hour average (steadyFleaPrice). */

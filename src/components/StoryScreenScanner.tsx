@@ -4,6 +4,7 @@ import { useAppState } from '../state/AppState'
 import { confirmStoryFrame, matchStoryChapters, tasksScreenKind, type StoryConfirmation, type StoryScanMatch } from '../import/storyScan'
 import { matchQuestsFromOcr } from '../import/questOcr'
 import { tableMatches } from '../import/screenScanSync'
+import { noteFleaReading } from '../data/screenFleaPrices'
 import { createScanSession, recordTableView, tableView, type QuestScanSession } from '../import/questSession'
 import type { RaidMode } from '../domain/types'
 import { gameScanDelay, playerScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
@@ -131,6 +132,14 @@ export function StoryScreenScanner() {
         if (frame?.busy) return STORY_SCAN_TIMING.busyMs
         // A new game window is a game start; the first-launch notice counts them (src/onboarding/gameStarts.ts).
         noteGameSighting(frame)
+        // The flea market: the main process read its list from this copy (src/import/fleaReading.ts) and no quest text.
+        // Its prices belong to the mode the game is in by its logs (owner, 18.11.2026: «определяй в каком сейчас режиме
+        // игрок… если он на барахолке смотрит предмет, учитывай что это этот режим»); looked at again at the menus' pace.
+        if (frame?.flea) {
+          forget()
+          if (frame.flea.reading && profileRef.current === profileId) void noteFleaReading(frame.flea.reading, targetMode())
+          return STORY_SCAN_TIMING.menuMs
+        }
         // Shown on every game start, for all modes at once: applied right away, whatever mode the app shows.
         if (frame?.gameWindow && frame.profiles?.length) {
           noteModeSelectRead()
