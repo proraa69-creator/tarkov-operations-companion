@@ -1,4 +1,6 @@
 import { provenCompleted, type TaskAvailability } from '../../progression/requirementEngine'
+import { questFaction } from '../../progression/questBasics'
+import type { Quest } from '../../domain/types'
 import { questStatusText } from '../../shared/questStatus'
 import type { QuestTreeLane, QuestTreeStep } from './questTreeModel'
 
@@ -17,3 +19,6 @@ export function stepLabel(step: QuestTreeStep, lane: QuestTreeLane): { title: st
   if (step.kind === 'stage') return { title: `Лояльность ${step.ll ?? ''}`.trim(), hint: 'по цепочкам и лояльности' }
   return lane.hasLines ? { title: 'Вне веток', hint: 'сюжет, события, задания других торговцев' } : { title: 'Начало', hint: 'первые задания торговца' }
 }
+
+/** «USEC» / «BEAR» after the level for a quest of one faction (report №191: the two «Обновка» told apart). */
+export const factionTag = (quest: Pick<Quest, 'faction'>) => { const own = questFaction(quest.faction); return own ? ` · ${own.toUpperCase()}` : '' }
