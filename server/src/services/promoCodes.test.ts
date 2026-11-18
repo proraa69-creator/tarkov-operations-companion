@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
-import { agreedPromoCodes, ANNOUNCED_PROMO_CODES, checkPromoCodes, parsePromoPage, PROMO_SOURCES, PromoCodeStore } from './promoCodes.js'
+import { agreedPromoCodes, ANNOUNCED_PROMO_CODES, checkPromoCodes, parseChannelFeed, parsePromoPage, PROMO_SOURCES, PromoCodeStore } from './promoCodes.js'
 
 const SOURCE = { from: /^all codes/i, to: /^(how to|expired)/i }
 
@@ -85,4 +85,33 @@ test('report №99: the studio\'s own codes show at once, for their time, in the
   move(20 * 24 * 60 * 60 * 1000)
   assert.deepEqual(store.list(announced), [], 'over, and no page lists it any more')
   assert.deepEqual(ANNOUNCED_PROMO_CODES.map((entry) => [entry.code, entry.mode]), [['PLAYYOURWAY', 'pve'], ['EMBRACEPAIN', 'pvp-season']])
+})
+
+// «Тарковское Метадвижение» through its RSS mirror (owner, 18.11.2026): two real posts, cut short, and one that is no code
+const FEED = `<rss><channel><title>Тарковское Метадвижение</title>
+<item><title>[Photo] 👀 Технический промокод из нового лонгрида</title><description>&lt;b&gt; Технический промокод из нового лонгрида&lt;/b&gt;&lt;br&gt;&lt;br&gt;Набор можно найти в большой статье &lt;a href="https://80.lv/"&gt;80 LEVEL&lt;/a&gt;, где разработчики раскрывают создание локации Терминал.&lt;br&gt;&lt;br&gt;&lt;tg-emoji emoji-id="5199749070830197566"&gt;🎁&lt;/tg-emoji&gt; &lt;code&gt;READ80LV&lt;/code&gt;&lt;br&gt;&lt;br&gt;#EscapefromTarkov #EFT</description><pubDate>Tue, 17 Nov 2026 18:28:49 +0300</pubDate></item>
+<item><title>[Photo] 👀 Новый промокод от разработчиков</title><description>&lt;b&gt;Новый промокод от разработчиков&lt;/b&gt;&lt;br&gt;&lt;br&gt;Добротный подгон только для PvE-режима.&lt;br&gt;&lt;br&gt;&lt;tg-emoji&gt;🎁&lt;/tg-emoji&gt; &lt;code&gt;9GAG&lt;br&gt;&lt;/code&gt;&lt;br&gt;#EscapefromTarkov #EFT</description><pubDate>Sat, 14 Nov 2026 16:46:28 +0300</pubDate></item>
+<item><title>Ледокол</title><description>Новая локация &lt;b&gt;ICEBREAKER&lt;/b&gt; 🎁 подарки на месте</description><pubDate>Sat, 14 Nov 2026 10:00:00 +0300</pubDate></item>
+<item><title>Старый</title><description>Промокод 🎁 &lt;code&gt;OLDCODE&lt;/code&gt;</description><pubDate>Mon, 19 Oct 2026 10:00:00 +0300</pubDate></item>
+</channel></rss>`
+
+test('the channel posts about codes: the code after 🎁 or in <code>, the mode the post says, two weeks from the post; other and old posts stay out', () => {
+  const now = Date.parse('2026-11-18T06:00:00Z')
+  assert.deepEqual(parseChannelFeed(FEED, now), [
+    { code: 'READ80LV', until: Date.parse('2026-12-01T15:28:49Z') },
+    { code: '9GAG', mode: 'pve', until: Date.parse('2026-11-28T13:46:28Z') },
+  ])
+})
+
+test('a check takes the channel code at once, with no second page, and keeps it to its own date', async () => {
+  const { store, move } = setup()
+  const feedOnly = (async (url: string | URL | Request) => String(url).includes('rss') ? new Response(FEED) : new Response('', { status: 503 })) as typeof fetch
+  const channels = [{ id: 'metadvij', url: 'https://feed.test/rss/metadvij' }]
+  const result = await checkPromoCodes(store, { fetch: feedOnly, sources: [], channels })
+  assert.equal(result.answered, 0)
+  assert.deepEqual(result.added.sort(), ['9GAG', 'READ80LV'])
+  // not in the feed any more and no page lists it: still shown to its post's date and a day after
+  move(10 * 24 * 60 * 60 * 1000)
+  store.update([])
+  assert.ok(store.list([]).some((row) => row.code === 'READ80LV'))
 })
