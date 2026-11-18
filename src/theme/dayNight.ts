@@ -2,16 +2,17 @@
  * «Смена дня и ночи» (owner, 15.11.2026: «ориентируется по времени компьютера и… плавно меняется цвет с дневного на ночной»; the
  * olive look chosen of three): the olive scheme follows the clock of this device, brighter and warmer by day, orange at dawn and
  * dusk, deep and quiet at night. Four moments of the day each have a palette; between them every colour slides over a couple of
- * hours, and the app takes the new mix every minute, too little to notice at once (styles/theme-daynight.css).
+ * hours, and the app takes the new mix every minute, too little to notice at once (styles/theme-daynight.css). Owner, 19.11.2026:
+ * «сделай как-то выраженно… где ночь, где день… Ночью… ближе к такому фиолетовому цвету»: the night is violet, the day lighter and warmer.
  */
 type Palette = Record<string, string>
 interface Look { night: Palette; dawn: Palette; day: Palette; dusk: Palette }
 
 // The variables a palette sets: the scheme's own (styles/tokens.css) and the light over the screen (--dn-*).
 const OLIVE: Look = {
-  night: { bg: '#060a08', 'bg-elevated': '#0b110e', panel: '#0f1612', 'panel-2': '#131c17', 'panel-3': '#19241e', line: '#202d25', 'line-strong': '#2f4036', 'line-soft': '#26352c', text: '#dde5dd', 'text-muted': '#87958b', 'text-dim': '#5c695f', brass: '#a8925e', 'brass-strong': '#c2a466', green: '#6f8f73', 'surf-0': '#050907', 'surf-1': '#0c130f', 'surf-2': '#111a15', 'dn-sky': '#0b1418', 'dn-glow': 'rgb(150 175 215 / 7%)' },
+  night: { bg: '#0b0815', 'bg-elevated': '#110c1d', panel: '#150f24', 'panel-2': '#1b142d', 'panel-3': '#241b39', line: '#2e2444', 'line-strong': '#43345f', 'line-soft': '#362a4f', text: '#ebe6f7', 'text-muted': '#aaa0c6', 'text-dim': '#786e96', brass: '#b49cec', 'brass-strong': '#d0bcff', green: '#8ea5dc', 'surf-0': '#080611', 'surf-1': '#100b1a', 'surf-2': '#160f23', 'dn-sky': '#2c1b54', 'dn-glow': 'rgb(160 120 255 / 20%)' },
   dawn: { bg: '#110f0b', 'bg-elevated': '#181510', panel: '#1d1a14', 'panel-2': '#231f18', 'panel-3': '#2c271e', line: '#383126', 'line-strong': '#4c4334', 'line-soft': '#41392c', text: '#f2ece2', 'text-muted': '#aea290', 'text-dim': '#7c7262', brass: '#d9a866', 'brass-strong': '#efc07c', green: '#8fa47c', 'surf-0': '#0e0c09', 'surf-1': '#16130e', 'surf-2': '#1c1913', 'dn-sky': '#3a2a20', 'dn-glow': 'rgb(255 176 112 / 15%)' },
-  day: { bg: '#141c17', 'bg-elevated': '#1a241e', panel: '#202c25', 'panel-2': '#25332b', 'panel-3': '#2e3e34', line: '#3a4c41', 'line-strong': '#4e6457', 'line-soft': '#435649', text: '#f5f8f3', 'text-muted': '#b2bfb4', 'text-dim': '#85938a', brass: '#d4b46c', 'brass-strong': '#ecca7c', green: '#8db592', 'surf-0': '#111814', 'surf-1': '#18211c', 'surf-2': '#1e2a23', 'dn-sky': '#2c3b33', 'dn-glow': 'rgb(255 248 220 / 11%)' },
+  day: { bg: '#18241d', 'bg-elevated': '#1f2c24', panel: '#25342b', 'panel-2': '#2b3c32', 'panel-3': '#35483c', line: '#41564a', 'line-strong': '#57705f', 'line-soft': '#4a6052', text: '#f7faf4', 'text-muted': '#bac8bc', 'text-dim': '#8d9b91', brass: '#e2c06a', 'brass-strong': '#f6d47e', green: '#93c09a', 'surf-0': '#141e18', 'surf-1': '#1c2721', 'surf-2': '#233128', 'dn-sky': '#4a6a56', 'dn-glow': 'rgb(255 244 200 / 20%)' },
   dusk: { bg: '#130e0c', 'bg-elevated': '#1a1310', panel: '#201814', 'panel-2': '#271d18', 'panel-3': '#30241e', line: '#3c2d25', 'line-strong': '#523e33', 'line-soft': '#46352c', text: '#f0e6de', 'text-muted': '#ab9a8d', 'text-dim': '#7a6a5f', brass: '#e09650', 'brass-strong': '#f4ad68', green: '#94976e', 'surf-0': '#0f0b09', 'surf-1': '#17110e', 'surf-2': '#1d1612', 'dn-sky': '#4a2620', 'dn-glow': 'rgb(255 120 72 / 15%)' },
 }
 

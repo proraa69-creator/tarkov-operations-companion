@@ -21,4 +21,3 @@
 .style-switch button.active { background: var(--panel-3); color: var(--text); }
 :root[data-style="glass"][data-style] .style-switch { border-radius: 999px; background: rgb(0 0 0 / 22%); }
 :root[data-style="glass"][data-style] .style-switch button { border-radius: 999px; }
-:root[data-style="glass"][data-style] .style-switch button.active { background: var(--glass-accent); color: var(--glass-ink); }

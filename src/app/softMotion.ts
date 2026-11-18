@@ -79,7 +79,10 @@ export function installSoftMotion(): () => void {
       return
     }
     const next = new WeakMap<Element, Spot>()
-    for (const element of tracked()) {
+    const blocks = tracked()
+    // a long list on the PC (hundreds of rows): measuring them all on every change would cost more than the glide gives
+    if (!mobile && blocks.length > 160) { remember(); return }
+    for (const element of blocks) {
       const now = spotOf(element)
       next.set(element, now)
       const before = spots.get(element)

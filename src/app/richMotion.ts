@@ -352,6 +352,42 @@ function fadeOut(node: Element) {
 
 // ------------------------------------------------------------------------------------------------------------
 
+// ------------------------------------------------------------------------------------------------------------
+// Presses that are felt (owner, 19.11.2026: «чтобы кнопки чувствовались»): a quick click lets :active go before the button has
+// sunk, so the pressed look is held for a short while after the pointer is up.
+
+const PRESSABLE = 'button, .button, .icon-button, a.nav-link, [role="tab"], .profile-chip'
+const PRESSED = 'data-motion-pressed'
+const PRESS_HOLD_MS = 110
+
+function pressFeedback(): () => void {
+  let pressed: Element | null = null
+  let downAt = 0
+  const down = (event: PointerEvent) => {
+    if (event.button !== 0) return
+    const target = event.target instanceof Element ? event.target.closest(PRESSABLE) : null
+    if (!target || target.matches(':disabled, .leaflet-marker-icon')) return
+    pressed?.removeAttribute(PRESSED)
+    pressed = target
+    downAt = performance.now()
+    target.setAttribute(PRESSED, '')
+  }
+  const up = () => {
+    const target = pressed
+    if (!target) return
+    pressed = null
+    window.setTimeout(() => { if (pressed !== target) target.removeAttribute(PRESSED) }, Math.max(0, PRESS_HOLD_MS - (performance.now() - downAt)))
+  }
+  document.addEventListener('pointerdown', down, { capture: true, passive: true })
+  document.addEventListener('pointerup', up, { capture: true, passive: true })
+  document.addEventListener('pointercancel', up, { capture: true, passive: true })
+  return () => {
+    document.removeEventListener('pointerdown', down, { capture: true })
+    document.removeEventListener('pointerup', up, { capture: true })
+    document.removeEventListener('pointercancel', up, { capture: true })
+  }
+}
+
 /** Turns the motion on; returns a cleanup. */
 export function installRichMotion(): () => void {
   if (!RICH_MOTION || typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
@@ -397,9 +433,11 @@ export function installRichMotion(): () => void {
   requestAnimationFrame(rememberActive)
   // the menu may be drawn after the start: what is lit is read again before each press changes it
   document.addEventListener('pointerdown', rememberActive, { capture: true, passive: true })
+  const stopPresses = pressFeedback()
 
   return () => {
     root.removeAttribute('data-rich-motion')
+    stopPresses()
     document.removeEventListener('pointerdown', rememberActive, { capture: true })
     observer.disconnect()
   }
