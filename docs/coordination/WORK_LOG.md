@@ -7706,3 +7706,20 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   config» warning). Gate 44296182135 green; publisher run succeeded 11:54 UTC: version.json 0.6.0-318 (commit
   6b1f27b5), mobile.json 0.6.0-318 (Android and iPhone).
 - Remaining: faction fix and item speed not checked in the game; VPS release mirror gc warnings (missing object).
+
+## 2026-11-18 — report 192 («Освободить помещение» in Season), not released
+
+- Owner: take the next report and fix it, but hold the release; it goes with the next version.
+- Report 192 (Season, 0.6.0.318): «В наградах Алтына нету». The player's game screen: objective «Устранить бойцов ЧВК в
+  Лабиринте» 0/24, no «Алтын» unlock; the app showed «Устранить любую цель в Лабиринте» 0/36 and «Алтын» at Ragman 4.
+  tarkov.dev `pvp-season/tasks` (and pve) carry the PvP version unchanged.
+- Fix a0c9d72c on `claude/report-192-season` (from a8fd6edf): `SEASON_TASK_FIXES` / `withSeasonTaskFixes` in
+  src/data/catalogSource.ts patch the Season tasks, both translated and raw (kill target AnyPmc, count 24, no offerUnlock).
+  `applyQuestCorrections` takes the mode, and a Season-only correction changes «лишних людей» to «ЧВК» in the description.
+- Checked against live tarkov.dev: Season RU/EN show 24 PMC, no unlock, ЧВК in the text; PvP unchanged (any 36, «Алтын»).
+  The game's 336 462 ₽ against our 275 000 ₽ is the player's hideout money bonus, not a data error.
+- Tests: src/data/seasonTaskFixes.test.ts (4) passed; src/data, src/quests, src/progression 849 passed; typecheck clean;
+  eslint clean.
+- Not released: no version bump and no news yet. Proposed news line: «Сезон: у «Освободить помещение» цели и награды как в
+  игре» / «Season: «Vacate the Premises» objectives and rewards match the game».
+- Report 192 status in the DB is unchanged (taken).
