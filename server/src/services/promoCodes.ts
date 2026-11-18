@@ -39,7 +39,19 @@ export const ANNOUNCED_PROMO_CODES: readonly AnnouncedPromoCode[] = [
 
 /** `pvp-season`: a code for PvP and the PvP season both. */
 export type PromoMode = 'pvp' | 'pve' | 'season' | 'pvp-season'
-export interface FoundPromoCode { code: string; mode?: PromoMode }
+export interface FoundPromoCode { code: string; mode?: PromoMode; /** Shown at least until then (ms): a channel's code, two weeks from its post. */ until?: number }
+
+/**
+ * Telegram channels that post the studio's new codes as they come out (owner, 18.11.2026: «Найди ресурс «Тарковское
+ * метадвижение», они постоянно выкладывают свежие промокоды»; its post of 17.11 had READ80LV a day before any page). The
+ * server cannot reach Telegram itself, so a channel is read through its public RSS mirror. A code a channel posts is taken
+ * at once — no second page needed — and shown for CHANNEL_CODE_DAYS from the post.
+ */
+export interface PromoChannel { id: string; url: string }
+export const PROMO_CHANNELS: readonly PromoChannel[] = [
+  { id: 'metadvij', url: 'https://tg.i-c-a.su/rss/metadvij' },
+]
+export const CHANNEL_CODE_DAYS = 14
 
 /** Capitals and digits, as the game's codes are; not a word every such page has in capitals. */
 const CODE = /^[A-Z0-9][A-Z0-9_-]{2,23}$/
@@ -79,6 +91,38 @@ export function parsePromoPage(html: string, source: Pick<PromoSource, 'from' | 
   return [...found.values()]
 }
 
+const ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }
+const decode = (text: string) => text.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (whole, name: string) => name[0] === '#'
+  ? String.fromCodePoint(name[1]?.toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : Number(name.slice(1)))
+  : ENTITY[name.toLowerCase()] ?? whole)
+
+/**
+ * A channel's RSS: the codes of its posts about codes from the last CHANNEL_CODE_DAYS — each one after a 🎁 («🎁 READ80LV»)
+ * or in <code>; the mode as the post says it («только для PvE-режима»).
+ */
+export function parseChannelFeed(xml: string, now: number): FoundPromoCode[] {
+  const found = new Map<string, FoundPromoCode>()
+  for (const [, item] of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
+    const raw = item!.match(/<description>([\s\S]*?)<\/description>/i)?.[1] ?? ''
+    const html = decode(raw.replace(/^\s*<!\[CDATA\[|\]\]>\s*$/g, ''))
+    const text = decode(html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|blockquote)>/gi, '\n').replace(/<[^>]+>/g, ' '))
+    if (!/промо|promo/i.test(text)) continue
+    const posted = Date.parse(item!.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1] ?? '')
+    if (!Number.isFinite(posted) || posted < now - CHANNEL_CODE_DAYS * DAY || posted > now + DAY) continue
+    const words = [
+      ...[...text.matchAll(/🎁([^\n]*)/gu)].flatMap((match) => match[1]!.split(/[\s,;/|]+/)),
+      ...[...html.matchAll(/<code[^>]*>([\s\S]*?)<\/code>/gi)].map((match) => plain(match[1]!)),
+    ]
+    const mode = modeOf(text)
+    for (const word of words) {
+      const code = word.trim()
+      if (!CODE.test(code) || NOT_CODES.has(code) || !/[A-Z]/.test(code) || found.has(code)) continue
+      found.set(code, { code, ...(mode ? { mode } : {}), until: posted + CHANNEL_CODE_DAYS * DAY })
+    }
+  }
+  return [...found.values()]
+}
+
 /** Codes at least two pages list; the mode is the one the pages say most. */
 export function agreedPromoCodes(pages: ReadonlyArray<readonly FoundPromoCode[]>, atLeast = 2): FoundPromoCode[] {
   const seen = new Map<string, { pages: number; modes: Map<PromoMode, number> }>()
@@ -112,11 +156,13 @@ export class PromoCodeStore {
     const at = this.now()
     const empty = Number((this.db.prepare('SELECT COUNT(*) AS n FROM promo_codes').get() as { n: number }).n) === 0
     const added: string[] = []
-    for (const { code, mode } of codes) {
+    for (const { code, mode, until } of codes) {
+      // seen now; a channel's code (or one added by hand) stays to its own date
+      const seen = Math.max(at, until ?? 0)
       const known = this.db.prepare('SELECT code FROM promo_codes WHERE code = ?').get(code)
-      if (known) this.db.prepare('UPDATE promo_codes SET last_seen_at = ?, mode = COALESCE(?, mode) WHERE code = ?').run(at, mode ?? null, code)
+      if (known) this.db.prepare('UPDATE promo_codes SET last_seen_at = MAX(last_seen_at, ?), mode = COALESCE(?, mode) WHERE code = ?').run(seen, mode ?? null, code)
       else {
-        this.db.prepare('INSERT INTO promo_codes (code, mode, first_seen_at, last_seen_at, first_batch) VALUES (?, ?, ?, ?, ?)').run(code, mode ?? null, at, at, empty ? 1 : 0)
+        this.db.prepare('INSERT INTO promo_codes (code, mode, first_seen_at, last_seen_at, first_batch) VALUES (?, ?, ?, ?, ?)').run(code, mode ?? null, at, seen, empty ? 1 : 0)
         added.push(code)
       }
     }
@@ -143,10 +189,24 @@ export class PromoCodeStore {
 
 export const PROMO_CHECK_MS = 2 * 60 * 60 * 1000
 
-/** One check: every page, a page that fails counts as no answer. Fewer than two answers change nothing. New codes are told at once. */
-export async function checkPromoCodes(store: PromoCodeStore, options: { fetch?: typeof fetch; sources?: readonly PromoSource[]; onNew?: (codes: string[]) => void; log?: (line: string) => void } = {}) {
+/**
+ * One check: every page and every channel; one that fails counts as no answer. The pages' codes need two pages, fewer
+ * than two answers take none of theirs; a channel's codes count on their own. New codes are told at once.
+ */
+export async function checkPromoCodes(store: PromoCodeStore, options: { fetch?: typeof fetch; sources?: readonly PromoSource[]; channels?: readonly PromoChannel[]; onNew?: (codes: string[]) => void; log?: (line: string) => void } = {}) {
   const sources = options.sources ?? PROMO_SOURCES
+  const channels = options.channels ?? PROMO_CHANNELS
   const ask = options.fetch ?? fetch
+  const posted = (await Promise.all(channels.map(async (channel) => {
+    try {
+      const response = await ask(channel.url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; RaidOS/1.0)', accept: 'application/rss+xml, text/xml' }, signal: AbortSignal.timeout(30_000) })
+      if (!response.ok) { options.log?.(`promo codes: ${channel.id} ${response.status}`); return [] }
+      return parseChannelFeed(await response.text(), Date.now())
+    } catch (error) {
+      options.log?.(`promo codes: ${channel.id} ${String(error).slice(0, 80)}`)
+      return []
+    }
+  }))).flat()
   const pages = await Promise.all(sources.map(async (source) => {
     try {
       const response = await ask(source.url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; RaidOS/1.0)', accept: 'text/html' }, signal: AbortSignal.timeout(30_000) })
@@ -160,8 +220,15 @@ export async function checkPromoCodes(store: PromoCodeStore, options: { fetch?: 
     }
   }))
   const answered = pages.filter((page): page is FoundPromoCode[] => page !== null)
-  if (answered.length < 2) return { answered: answered.length, added: [] as string[] }
-  const added = store.update(agreedPromoCodes(answered))
+  const agreed = answered.length >= 2 ? agreedPromoCodes(answered) : []
+  // a code both a channel and the pages have: the pages' mode when they say one, the channel's date
+  const codes = new Map(agreed.map((entry) => [entry.code, entry]))
+  for (const entry of posted) {
+    const page = codes.get(entry.code)
+    codes.set(entry.code, page ? { ...entry, ...page, ...(entry.until ? { until: entry.until } : {}) } : entry)
+  }
+  if (!codes.size) return { answered: answered.length, added: [] as string[] }
+  const added = store.update([...codes.values()])
   if (added.length) options.onNew?.(added)
   return { answered: answered.length, added }
 }
