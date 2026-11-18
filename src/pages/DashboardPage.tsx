@@ -16,6 +16,8 @@ import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesClosed, markerObjectiveDone } from '../progression/mapObjectives'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
+import { exitFlareNeeds, flareCardOf, GREEN_FLARE_IDS, SIGNAL_PISTOL_ID } from '../raidprep/exitFlares'
+import { exitShortName } from '../data/exitShortNames'
 import { storyRaidNeedsAhead } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
@@ -232,6 +234,29 @@ export function DashboardPage() {
     const item = raidItem(row.itemId)
     return item ? [{ ...row, lines, key: item.id, itemId: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id), stock: keyStock(row, [item.id]) }] : []
   })
+  // The green flare of each exit of this map opened by one, a row of its own next to a quest's flare (owner, 19.11.2026: «если этот
+  // патрон уже есть в требованиях… добавить ещё одну отдельную строку для выхода»); none for the exit a current quest leaves by
+  // («Прекратить огонь!»), whose own row is that flare.
+  const lang = locale === 'en' ? 'en' : 'ru'
+  const exitFlareRows: RaidNeedRow[] = exitFlareNeeds(data.markers, selectedMap.id, requirements).flatMap((exit): RaidNeedRow[] => {
+    const options = GREEN_FLARE_IDS.flatMap((id) => raidItem(id) ?? [])
+    // the owner's «Реактивный сигнальный патрон (зелёный)»: RSP-30 on the row, 26x75 in its card
+    const main = options[0]
+    if (!main) return []
+    const others = options.slice(1).map((item) => ({ id: item.id, name: item.name, iconUrl: item.iconUrl }))
+    return [{
+      key: `exit-flare:${exit.id}`, itemId: main.id, name: main.name, iconUrl: main.iconUrl, href: `/maps/${selectedMap.id}`, count: 1,
+      lines: [{ purpose: 'exit', questNames: [exitShortName(exit.title, lang)] }], fromRaidListOnly: false,
+      ...(others.length ? { alternatives: { title: 'Подходит и', items: others, badge: `+${others.length}` } } : {}),
+    }]
+  })
+  // Every flare, of any colour and wherever it comes from, tells in its hover card the pistol it is fired from and the calibre.
+  const signalPistol = itemById.get(SIGNAL_PISTOL_ID)
+  const raidNeedRows = [...neededRows, ...exitFlareRows].map((row): RaidNeedRow => {
+    const ids = [row.itemId, ...(row.alternatives?.items.map((item) => item.id) ?? [])]
+    const flare = flareCardOf(ids.flatMap((id) => (id ? raidItem(id) ?? [] : [])), signalPistol, lang)
+    return flare ? { ...row, flare } : row
+  })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   const favoriteActions = useFavoriteActions()
   // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition;
@@ -301,7 +326,7 @@ export function DashboardPage() {
       </section>,
     },
     squad: { label: 'Отряд', node: <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} /> },
-    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} deferredQuests={deferredHere} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
+    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={raidNeedRows} deferredQuests={deferredHere} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
   }
   const rightBlocks: Blocks = {
     tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={listedQuests} anyMapQuests={listedAnyMap} questLink={questOnMap} details={questCard} compactRows={mobile ? 4 : undefined}

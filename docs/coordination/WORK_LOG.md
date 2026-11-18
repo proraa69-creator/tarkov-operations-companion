@@ -7993,3 +7993,26 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   several items (FMJ, ПС, Т-45М1, Плакат, Барельеф, ULACH…).
 - Tests: stashLabels.test.ts 7 (new cases: KLC, ЯИЦО, Зп ПОДС., PM II not L1); src/kappa, src/stashScan, src/overlay,
   keyScan 165/165; typecheck, eslint clean.
+## 2026-11-19 — «Требования рейда»: сигнальный патрон для выхода; пистолет, патрон и калибр в окне ракеты (branch claude/exit-flare-requirements, not released)
+
+- Owner (19.11.2026): on every map with an exit opened by a flare, «Требования рейда» shows the cartridge the exit needs as its own
+  row «Для выхода»; a quest's own flare (same cartridge) does not absorb it — a second row; none while the current quest is the one
+  leaving through that exit («Прекратить огонь!»); back once that quest is done, not yet open or put aside. A flare's hover card
+  shows the pistol it is fired from with the cartridge and the calibre, for every colour.
+- `src/raidprep/exitFlares.ts` (new): flare exits of a map from the extract markers — name «… (Сигнал)/(Flare)» or our exit guide
+  (Icebreaker's helicopter): Таможня, Лес, Развязка, Улицы, Эпицентр, Ледокол; the Scavs' twin not twice. `exitFlareNeeds` drops the
+  exit whose flare a current quest line already asks for (a `signal` line of an `extract` objective; its zone, when it names one,
+  must be this exit). `flareCardOf`: any 26x75 / RSP-30 / ROP-30 item → ZiD SP-81 26x75 (`620109578d82e67e7911abf2`) with the
+  row's 26x75 cartridges, calibre 26x75, and «Без пистолета» for RSP-30 (fired from the hand).
+- `src/pages/DashboardPage.tsx`: exit rows (RSP-30 green on the row, 26x75 green «+1» in the card, «Для выхода · <short exit name>»,
+  opens the map) after the quest rows; every row gets its flare card. `src/components/RaidRequirementsPanel.tsx`: purpose `exit`,
+  `FlareHover`. `src/i18n/uiEnglishOverview.ts`: «Для выхода», «Сигнальный пистолет», «Без пистолета».
+- PvP / PvE / Season: rows come from the selected mode's markers and that mode's quest progress and deferrals.
+- Tests: `src/raidprep/exitFlares.test.ts` (10), `src/pages/DashboardPage.exitFlares.test.tsx` (6: no quest, «Прекратить огонь!»
+  current, put aside, another quest's green flare, hover card green and red, English). typecheck (`npm run typecheck`,
+  `tsc -p tsconfig.electron.json`), eslint on the changed files clean. Full `npm test` (Windows): 4174/4191; the 16 failures are
+  load timeouts (all pass when rerun alone: DashboardPage, App, MapsPage.*, ManualMarks), Windows-only tar / path-with-space
+  (electron/linux/updater, appVersion, staleServer) and AdminPanelPage «stands right above «Обзор»» (reads AppShell.tsx with CRLF
+  line endings) — none touch this change; CI on Linux decides.
+- Not checked in the running app (tests only). Risks: «Взял» is kept per item, so ticking the exit's RSP-30 also ticks a quest row
+  of the same RSP-30; the exit row needs the green flares in the loaded catalog (always there in tarkov.dev's items).
