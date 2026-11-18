@@ -40,7 +40,7 @@ export function ThemePicker() {
   return (
     <div className="theme-chooser">
       <div className="setting-row theme-style-row">
-        <span><strong>{uiText('Стиль')}</strong><small>{uiText('Обычный или стеклянный, для любой цветовой схемы')}</small></span>
+        <span><strong>{uiText('Стиль')}<SettingHelp id="style" /></strong><small>{uiText('Обычный или стеклянный, для любой цветовой схемы')}</small></span>
         <StyleSwitch />
       </div>
       <div className="setting-row theme-chooser-row">

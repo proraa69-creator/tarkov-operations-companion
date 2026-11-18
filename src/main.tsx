@@ -18,7 +18,7 @@ import { createPageTransitionHistory, markViewTransitions } from './app/pageTran
 import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
 import { LocaleProvider } from './i18n/LocaleProvider'
-import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
+import { STYLE_CHANGED_EVENT, applyAppearance, clearRemovedAppearanceSettings, currentStyle } from './theme/theme'
 import { installLayoutAttributes, isNative } from './platform'
 import { installSoftMotion } from './app/softMotion'
 import { installRichMotion } from './app/richMotion'
@@ -95,6 +95,10 @@ installNativeConfirm()
 if (isNative()) installNoPageZoom()
 applyAppearance()
 clearRemovedAppearanceSettings()
+// a style picked on another device arrives as a stored value and this event: shown here too
+window.addEventListener(STYLE_CHANGED_EVENT, () => {
+  if ((document.documentElement.getAttribute('data-style') ?? 'plain') !== (currentStyle() === 'glass' ? 'glass' : 'plain')) applyAppearance()
+})
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } })
 // Page changes crossfade (owner, 12.10.2026: «сделай нам так же плавно все приложение»).

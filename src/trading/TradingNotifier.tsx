@@ -13,6 +13,7 @@ import { boardRows, currentPrice, feeOptionsFor, knownLevel, notifiable, traderO
 import { setTradingSignalCount, useMinuteClock } from './tradingClock'
 import { positionStatus, useAllPositions } from './tradingPositions'
 import { readNotifiedSignals, readTradingSettings, rememberNotifiedSignals, useTradingSettings } from './tradingSettings'
+import { notificationOn } from '../notifications/notificationKinds'
 
 /** At most this many messages at a time: a market-wide dip must not bury the screen. */
 const MAX_AT_ONCE = 3
@@ -118,7 +119,7 @@ export function TradingNotifier() {
     setTradingSignalCount(signals.length + purchases.length)
     seen.current ??= readNotifiedSignals(now)
     const known = seen.current
-    const fresh = [...purchases, ...(readTradingSettings().enabled ? signals : [])].filter((toast) => !known[toast.key])
+    const fresh = [...(notificationOn('trading-bought') ? purchases : []), ...(readTradingSettings().enabled ? signals : [])].filter((toast) => !known[toast.key])
     if (!fresh.length) return
     // Every new signal counts as told, not only the biggest shown: the rest must not trickle out at each catalog update.
     for (const toast of fresh) known[toast.key] = now

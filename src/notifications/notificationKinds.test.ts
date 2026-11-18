@@ -5,7 +5,7 @@ describe('«Уведомления» → «Настроить» (owner, 18.11.20
   beforeEach(() => localStorage.clear())
 
   it('every kind is on until it is turned off; only what is off is kept', () => {
-    expect(readNotificationKinds()).toEqual({ collector: true, support: true, 'app-updated': true, 'raid-start-sound': true })
+    expect(readNotificationKinds()).toEqual({ collector: true, support: true, 'app-updated': true, 'raid-start-sound': true, 'trading-bought': true })
     setNotificationOn('collector', false)
     setNotificationOn('raid-start-sound', false)
     expect(notificationOn('collector')).toBe(false)

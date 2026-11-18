@@ -20,13 +20,13 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Уведомления', 'Notifications'], ['Уведомлений пока нет.', 'No notifications yet.'],
   // «Уведомления» → «Настроить» (src/notifications/NotificationSettings.tsx)
   ['Настройка уведомлений', 'Notification settings'], ['Сообщение, когда закончилась загрузка рейда', 'A message when the raid has loaded'],
-  ['Стиль', 'Style'], ['Обычный', 'Classic'], ['Стекло', 'Glass'], ['Обычный или стеклянный, для любой цветовой схемы', 'Classic or glass, for any colour scheme'],
+  ['Стиль', 'Style'], ['Стекло', 'Glass'], ['Обычный или стеклянный, для любой цветовой схемы', 'Standard or glass, for any colour scheme'],
   ['Для текущих квестов не нужен', 'Not needed for current quests'],
   // «Ключи рядом» and «Настройки карты» (src/maps/NearbyKeysPanel.tsx, src/maps/MapPanels.tsx)
   ['Ключи рядом', 'Keys nearby'], ['Показывать только нужные спавны', 'Show only the spawns I need'], ['Где', 'Where'], ['Настройки карты', 'Map settings'], ['Показывать уведомления о ближайших ключах', 'Tell me of keys spawning nearby'],
   ['Рядом с вашим квестом спавн ключа — проверьте', 'A key spawns near your quest: check it'],
   ['Звуковой сигнал', 'Sound'], ['Торговля', 'Trading'], ['Звук, когда рейд начался', 'A sound when the raid begins'], ['Итог распознавания предметов по клавише', 'What the item scan by hotkey found'],
-  ['Торговцы — в «Настройках»', 'Traders: in «Settings»'], ['Цена упала, выросла, можно продавать', 'Price dropped, rose, time to sell'],
+  ['Торговцы — в «Настройках»', 'Traders: in «Settings»'], ['Цена упала или выросла', 'Price dropped or rose'], ['Купленные предметы', 'Bought items'], ['Можно продавать, цена дошла', 'Time to sell, price reached'],
   ['Напоминание о ключах в избранном', 'A reminder of your favorite keys'], ['Ответ поддержки', 'Support reply'], ['Новое сообщение в чате поддержки', 'A new message in the support chat'],
   ['Приложение обновлено', 'App updated'], ['Новая версия загрузилась', 'A new version has loaded'], ['Сообщения от Raid OS приходят всегда', 'Messages from Raid OS always come'], ['Избранные ключи', 'Favorite keys'], ['Показать только избранные', 'Show favorites only'], ['В этом разделе нет избранных ключей.', 'No favorite keys in this section.'], ['В избранные ключи', 'Add to favorite keys'], ['Убрать из избранных ключей', 'Remove from favorite keys'], ['Нажмите звёздочку на ключе, и он будет здесь.', 'Press the star on a key to keep it here.'], ['Больше не нужен', 'No longer needed'], ['Отложен', 'Put aside'],
   ['Включить уведомления', 'Turn notifications on'], ['Выключить уведомления', 'Turn notifications off'], ['Сообщит, когда 10 и больше избранных ключей больше не нужны.', 'Tells you when 10 or more favorite keys are no longer needed.'],

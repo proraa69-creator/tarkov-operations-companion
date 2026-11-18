@@ -7,8 +7,8 @@ import { useSyncExternalStore } from 'react'
  * window turns that one; the others are kept here, all on until turned off, and travel with the account
  * (sync/playerStateStores.ts).
  */
-export type NotificationKind = 'collector' | 'support' | 'app-updated' | 'raid-start-sound'
-const KINDS: readonly NotificationKind[] = ['collector', 'support', 'app-updated', 'raid-start-sound']
+export type NotificationKind = 'collector' | 'support' | 'app-updated' | 'raid-start-sound' | 'trading-bought'
+const KINDS: readonly NotificationKind[] = ['collector', 'support', 'app-updated', 'raid-start-sound', 'trading-bought']
 
 const KEY = 'raidos-notification-kinds-v1'
 const EVENT = 'raidos-notification-kinds-changed'
@@ -16,7 +16,7 @@ const EVENT = 'raidos-notification-kinds-changed'
 export const NOTIFICATION_KINDS_SYNC = { key: KEY, event: EVENT } as const
 
 type Kinds = Readonly<Record<NotificationKind, boolean>>
-const ALL_ON: Kinds = { collector: true, support: true, 'app-updated': true, 'raid-start-sound': true }
+const ALL_ON: Kinds = { collector: true, support: true, 'app-updated': true, 'raid-start-sound': true, 'trading-bought': true }
 let cachedRaw: string | null | undefined
 let cached: Kinds = ALL_ON
 

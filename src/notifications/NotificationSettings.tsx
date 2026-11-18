@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowLeftRight, Bell, Box, KeyRound, MessagesSquare, Sparkles, Store, Swords, Volume2 } from 'lucide-react'
+import { ArrowLeftRight, Bell, Box, KeyRound, MessagesSquare, ShoppingBag, Sparkles, Store, Swords, Volume2 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { setRaidStartNotice, useRaidStartNotice } from './raidStartNotice'
 import { setNotificationOn, useNotificationKinds } from './notificationKinds'
@@ -33,7 +33,8 @@ export function NotificationSettings() {
     { id: 'raid-start-sound', icon: <Volume2 size={16} />, title: 'Звуковой сигнал', note: 'Звук, когда рейд начался', on: raidStart && kinds['raid-start-sound'], set: (on) => setNotificationOn('raid-start-sound', on), sub: true, disabled: !raidStart },
     { id: 'collector', icon: <Box size={16} />, title: 'Коллекционер', note: 'Итог распознавания предметов по клавише', on: kinds.collector, set: (on) => setNotificationOn('collector', on) },
     { id: 'restock', icon: <Store size={16} />, title: 'Ресток торговцев', note: 'Торговцы — в «Настройках»', on: restock.enabled, set: (on) => writeRestockSettings({ enabled: on }) },
-    { id: 'trading', icon: <ArrowLeftRight size={16} />, title: 'Торговля', note: 'Цена упала, выросла, можно продавать', on: trading.enabled, set: (on) => writeTradingSettings({ enabled: on }) },
+    { id: 'trading', icon: <ArrowLeftRight size={16} />, title: 'Торговля', note: 'Цена упала или выросла', on: trading.enabled, set: (on) => writeTradingSettings({ enabled: on }) },
+    { id: 'trading-bought', icon: <ShoppingBag size={16} />, title: 'Купленные предметы', note: 'Можно продавать, цена дошла', on: kinds['trading-bought'], set: (on) => setNotificationOn('trading-bought', on) },
     { id: 'quest-keys', icon: <KeyRound size={16} />, title: 'Ключи для квестов', note: 'Напоминание о ключах в избранном', on: questKeys, set: writeQuestKeyReminder },
     { id: 'support', icon: <MessagesSquare size={16} />, title: 'Ответ поддержки', note: 'Новое сообщение в чате поддержки', on: kinds.support, set: (on) => setNotificationOn('support', on) },
     { id: 'app-updated', icon: <Sparkles size={16} />, title: 'Приложение обновлено', note: 'Новая версия загрузилась', on: kinds['app-updated'], set: (on) => setNotificationOn('app-updated', on) },

@@ -86,6 +86,11 @@ export function WeaponBuildsPage() {
 }
 
 // «Мои сборки» became «Избранные» (owner, 19.11.2026): the weapons, each opening into its builds
+/** «1 сборка», «3 сборки», «5 сборок», «21 сборка», «12 сборок». */
+const buildsWord = (count: number) => {
+  const tens = count % 100, ones = count % 10
+  return tens >= 11 && tens <= 14 ? 'сборок' : ones === 1 ? 'сборка' : ones >= 2 && ones <= 4 ? 'сборки' : 'сборок'
+}
 const SIDE_TABS = { mine: 'Избранные', ready: 'Готовые сборки', players: 'Сборки игроков' } as const
 
 function Workshop({ catalog }: { catalog: GunCatalog }) {
@@ -719,7 +724,9 @@ function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: 
   const finalName = () => name.trim() || savedHere?.name || weapon.shortName
   const save = (favorite: boolean) => {
     if (!code) return
-    onSaved(saveBuild(raidMode, { id: savedHere?.id, name: finalName(), weaponId: build.weaponId, code, ...(favorite || savedHere?.favorite ? { favorite: true as const } : {}) }))
+    // an opened build changed and given a name of its own is kept as a new one beside it; otherwise the opened one is saved over
+    const asNew = savedHere && savedHere.code !== code && name.trim() && name.trim() !== savedHere.name
+    onSaved(saveBuild(raidMode, { id: asNew ? undefined : savedHere?.id, name: finalName(), weaponId: build.weaponId, code, ...(favorite || (!asNew && savedHere?.favorite) ? { favorite: true as const } : {}) }))
     setNaming(null)
     setNotice(favorite ? 'Добавлено в избранное' : 'Сохранено')
   }
@@ -751,7 +758,7 @@ function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: 
         <button className="icon-button" type="button" onClick={() => setNaming(null)} aria-label={uiText('Отмена')}><X size={14} /></button>
       </form>
       : <>
-        <button className="button small primary" onClick={() => open('save')} disabled={!code}><Save size={13} />{uiText(savedHere ? 'Сохранено' : 'Сохранить')}</button>
+        <button className="button small primary" onClick={() => open('save')} disabled={!code}><Save size={13} />{uiText(savedHere?.code === code ? 'Сохранено' : 'Сохранить')}</button>
         <button className="button small" onClick={() => open('publish')} disabled={!code} title={uiText('Выложить сборку в «Сборки игроков» для всех игроков')}><Upload size={13} />{uiText('Опубликовать')}</button>
       </>}
     <button className={`icon-button wb-star${savedHere?.favorite ? ' is-starred' : ''}`} onClick={star} disabled={!code} aria-pressed={Boolean(savedHere?.favorite)} title={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')} aria-label={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={15} /></button>
@@ -789,7 +796,7 @@ function FavoriteWeapons({ saved, catalog, current, weaponId, openedId, onLoad, 
       return <li key={id} className={`wb-favorite${isOpen ? ' is-open' : ''}`}>
         <button type="button" className="wb-favorite-weapon" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : id)}>
           <PartIcon src={weaponIcon(gun)} />
-          <span><strong>{gun?.shortName ?? '—'}</strong><small>{builds.length} {uiText(builds.length === 1 ? 'сборка' : builds.length < 5 ? 'сборки' : 'сборок')}</small></span>
+          <span><strong>{gun?.shortName ?? '—'}</strong><small>{builds.length} {uiText(buildsWord(builds.length))}</small></span>
           {builds.some((entry) => entry.favorite) && <Star size={13} className="wb-favorite-star" aria-hidden="true" />}
           <ChevronDown size={15} className="wb-favorite-chevron" aria-hidden="true" />
         </button>

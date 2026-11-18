@@ -47,6 +47,10 @@ export const SETTING_HELP = {
     ru: 'Оформление всего приложения. Нажмите на схему: она сразу применится и сохранится.',
     en: 'The look of the whole app. Tap a scheme: it applies and saves at once.',
   },
+  style: {
+    ru: 'Обычный или стеклянный вид. Работает с любой цветовой схемой.',
+    en: 'A standard or glass look. Works with any colour scheme.',
+  },
   stitch: {
     ru: 'Цвет ниток на швах. Есть только в схеме «Алькантара».',
     en: 'The colour of the thread on the seams. Only in the Alcantara scheme.',
