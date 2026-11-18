@@ -7870,3 +7870,27 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   and a first test that every candidate and watched folder lies inside the temporary folder.
 - Checks: positionTracker 10/10 (was 5 failing), electron/experimental 40/40; the real Screenshots folder listing
   (names, sizes, times) identical before and after the run; typecheck, eslint clean.
+
+## 2026-11-19 — test build: motion like the owner's reference, «Стекло», notification switches (branch claude/motion-vinora, not released)
+
+- Owner, 18.11.2026 (a reference dashboard video): the same animations in the app, the glass style, and in «Уведомления» a
+  square «настроить» with a switch for every notification and a sound switch for «Рейд начался». A test build on the desktop.
+- 2ada37fb: src/app/richMotion.ts (RICH_MOTION, desktop layout only) and styles/richMotion.css.
+  - Panels rise one after another; inside them big numbers count up, bars grow, chart lines draw and list rows stagger.
+  - The highlight of the menu and the switches glides in the scheme's own look. Windows pop; presses spring.
+  - «Стекло» (styles/theme-glass.css): a satellite photo of the region under the app, with frosted panes from a
+    pre-blurred copy fixed to the window. There is no backdrop-filter under moving blocks.
+  - Glass comes on once for everyone (`tarkov-app-glass-shown`); a later pick stands.
+- 434e3760: NotificationSettings in the notifications window. Raid start + sound, Collector, restocks, trading, quest
+  keys, support reply, app updated. Existing switches are reused; new ones are in notificationKinds.ts, synced in
+  prefs. The raid start plays the app's chime; its Windows notification is silent (`app:notify` `silent`, a main
+  process change). The owner's messages always come.
+- Test exe: «Raid OS Стекло тест.exe» on the desktop (owner build 0.6.0-319, 434e3760). The first test exe was built
+  without RAIDOS_ENTITLEMENT_PUBLIC_KEY, so the owner saw «Нужна подписка / Сервер недоступен». Rebuilt with the key
+  from /v1/entitlement/public-key ("entitlement key built in"). Packed to `raidos-motion-vinora-release`: electron-builder hit EPERM
+  renaming release/win-unpacked.tmp in the worktree.
+- Video: stepped at 60 fps (film-rich.cjs in the session scratchpad), «Raid OS стекло и анимации.mp4».
+- Tests: richMotion (2), notificationKinds (2), notifications 10/10, i18n/sync/support pass; typecheck and eslint
+  clean. Real-time check in headless Chromium: one gold item in the menu after each glide.
+- Not done or not checked: the phone layout keeps its own soft motion; the glass theme is not tuned page by page (maps
+  page, owner windows); not checked in the real exe on the owner's monitor; not released.
