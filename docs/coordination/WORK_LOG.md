@@ -7665,3 +7665,14 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Measured here (i5-10400F): whole-screen pass 6 065 ms; a ~12-row column 640–950 ms; a price column ~245 ms; the
   menu bar ~420 ms. No flea frames on this PC: stage 0 is the owner's screenshots of the flea (10–15 frames).
 - Nothing built, nothing deployed. Next: the owner's frames, then the reader on them.
+- Update, same day: the owner's 16 flea screenshots (1920×1080, PvE). Layout fixed (rows 72 px at 1080p); the player's
+  filters («Сост. от 100», «Кроме бартера», currency) change the top price; trader offers on the flea («Терапевт»,
+  «(лимит 6)»); «Неизвестный предмет» for unexamined items; $/€/GP by the sign's colour. OCR of the header and the
+  mode right on every frame (30–55 ms), names ~60 ms a line; **prices by OCR 22/36 at best** (0↔8, 3↔4, 11 000 →
+  11 200), **prices by digit shapes 72/72** leave-one-frame-out, ~2 ms a price (best distance ≤ 0.072, runner-up
+  ≥ 0.052 further). The plan now reads prices by shape, never by OCR. Still needed: PvP, 3440×1440/2560×1440, no
+  condition filter, a scrolled list.
+- Found: electron/experimental/positionTracker.test.ts writes into the real EFT Screenshots folder (it redirects only
+  OneDrive; `screenshotsFolder()` picks the profile's Documents). This session's test run left 3 empty fake position
+  screenshots there (named 2026-10-12, coordinates 42.5/43.5/46.5); removed (each 0–3 bytes). The test needs its own
+  folder — not fixed here.
