@@ -7737,3 +7737,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   key's doors. Tests: src/keys 7 passed; typecheck and eslint clean.
 - Proposed news line: «Ключи карты: у каждого ключа цена и буква тир-листа» / «Map keys: each key shows its price and
   tier-list letter».
+
+## 2026-11-18 — key card «Что в комнате», not released
+
+- Owner: a key's card should show what spawns in the room the key opens. Same branch `claude/report-192-season`; goes with the
+  next version.
+- src/data/keyRoomLoot.ts collects the map points inside the rooms of the key's doors (lockedRooms / lockedRoomsAt, the
+  padlock rooms of report №114), on every map. Points in the padlock layers are counted: loot, containers, documents, keys,
+  stationary weapons. src/components/KeyRoomLoot.tsx shows it on every key card (FleaItemDetail). Containers are tags with
+  ×N. Items are pictures with short names, dearest first, 12 shown before «Ещё N»; the picture keeps only its own frame.
+  Doors with no room box show no section.
+- Checked in the browser pane: Customs «Общ 110» shows a safe and 17 valuables. Tests: keyRoomLoot (2); src/data, keys,
+  components and i18n 994 passed; typecheck and eslint clean.
+- Known: the «Ключи» window stays above the key card (z-index 1200, as before), so it can cover the card's top on a small
+  screen.
