@@ -7823,3 +7823,31 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   O (or by itself at the raid's start).
 - Tests: electron/extractsReader + src/maps 113/113 (3 new), typecheck, tsc electron, eslint clean.
 - Not checked in the game: one raid with a double O, then the raid-exits folder tells the rest.
+
+## 2026-11-19 — stash scan: «КШС» and other short labels (branch claude/stash-scan-short-labels, not released)
+
+- Owner (Season, «Что собрать для убежища», scan on): «КШС… на экране он есть… не находит. И еще много других
+  предметов»; the app said «Прочитано подписей: 646 · Убежище +0». Checked with the app's own steps (labelBoxes,
+  labelReader, Tesseract rus+eng PSM 11, countScreenItems) on a real 3440×1440 stash frame of his (the item lookup's
+  log, 15.11, with «КШС» in it) and 4 inventory screenshots; catalog: the game's ru names of 13.11.
+- Causes found and fixed:
+  - OCR reads «КШС» as «KLUC» or «KWC» (Ш as LU / LLI / W); 1 as l or i («Survil2»), Э as 3 («3KO»), п as n
+    («CBAC nep.»). collectorMatch.ts `labelFold` folds these on both sides of labelScore (names of ≤3 letters still
+    only whole).
+  - Labels whose letters fall apart were not labels at all: «SE-5» (SE, -, 5), «SSVFK» (SS), «ПБС-1» (-1), «GRAL-S».
+    labelScan.ts joins such fragments to the label beside them, or into a label of their own when they stand as
+    letters on one line (two or more, letter height, same top and bottom) — not round marks, icons or art (checked on
+    the Kappa container: 37 strips as before; same speed on full frames, 45–120 ms).
+  - withoutPrintedCaps took «CBAC» out of «CBAC пер.» as a brand printed on a picture: a label with a word in capitals
+    of its own («СВДС пер.», «BEAR Buddy») keeps it (the Surv12/SALEWA case unchanged).
+  - A label of several words read whole beats one of its words («TK FAST MT» is the helmet, not «FAST» or «FAST MT»);
+    countScreenItems looks for names over two lines only in the lines no item took (before, «TK FAST MT» also counted
+    the FAST visor and the FAST MT helmets).
+- On the frame: 23 of 23 visible labels found (КШС, SE-5, SSVFK, ПБС-1, GRAL-S, Surv12, ЭКО, СВДС пер., TK FAST MT…),
+  nothing else among the look-alikes in the test catalog. Left: ambiguous labels (M856A1, «Флешетта»: 3–4 items each)
+  stay unmatched as before; «Razor HD» read «Кагог НО» unmatched; a tooltip's «Stark» still counts as the «Star» bullet
+  (stray-mark rule, as before).
+- Tests: src/kappa/stashLabels.test.ts (new, 7: real frame and Tesseract, fixtures stash-1440p.webp, stash-items.json);
+  src/kappa, src/stashScan, src/overlay 161/161; src/quests, src/items, pages, screen, state 299/300 (ManualMarks «in
+  English» timed out under load, passes alone 7/7 and on the base); typecheck, tsc electron, eslint clean.
+- Not checked in the game; not released.

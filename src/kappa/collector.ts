@@ -70,12 +70,16 @@ export function screenScore({ item, ambiguous }: CollectorEntry, ocrText: string
  * A word in capitals alone is a brand printed on an item's picture, not the label, when the item's own label has small
  * letters (owner, 31.10.2026: «показывает что нашел 3 аптечки salewa а у меня в схроне их нету» — three Surv12 kits were
  * in the stash, their pictures' print read as «SALEWA»). Such words are taken out before that item is looked for; labels
- * in capitals («AFAK», «CMS») are looked for as before.
+ * in capitals («AFAK», «CMS») are looked for as before, and so are labels with a word in capitals of their own («СВДС пер.»,
+ * «BEAR Buddy»: owner, 19.11.2026 — «CBAC пер.» on screen was taken out as a print and the adapter never found).
  */
 export function withoutPrintedCaps(ocrText: string, shortName: string | undefined) {
-  if (!shortName || !/\p{Ll}/u.test(shortName)) return ocrText
-  return ocrText.replace(/[\p{L}\p{N}]+/gu, (word) => (word.length >= 4 && /\p{Lu}/u.test(word) && !/\p{Ll}/u.test(word) ? ' ' : word))
+  if (!shortName || !/\p{Ll}/u.test(shortName) || (shortName.match(WORDS) ?? []).some(inCapitals)) return ocrText
+  return ocrText.replace(WORDS, (word) => (inCapitals(word) ? ' ' : word))
 }
+
+const WORDS = /[\p{L}\p{N}]+/gu
+const inCapitals = (word: string) => word.length >= 4 && /\p{Lu}/u.test(word) && !/\p{Ll}/u.test(word)
 
 const STORAGE_PREFIX = 'tarkov-collector-items-v1:'
 export const COLLECTOR_CHANGED_EVENT = 'tarkov-collector-changed'

@@ -23,11 +23,13 @@ import { stashSeenStore } from './stashSeen'
 
 /**
  * Pieces of each wanted item seen in the OCR text of the scan: one stash label is one line and one piece, given to the
- * item it fits best. An item seen only in the whole text (a name over two lines) counts as one.
+ * item it fits best. An item seen only in the lines no item took (a name over two lines) counts as one — a line taken by
+ * its item is not looked at again for others (owner, 19.11.2026: «TK FAST MT» is one helmet, not also the «FAST» visor).
  */
 export function countScreenItems(entries: CollectorEntry[], ocrText: string): Map<string, number> {
   const seen = new Map<string, number>()
   if (!ocrText.trim()) return seen
+  const left: string[] = []
   for (const line of ocrText.split(/\r?\n/)) {
     if (!line.trim()) continue
     let best: CollectorEntry | null = null
@@ -37,8 +39,9 @@ export function countScreenItems(entries: CollectorEntry[], ocrText: string): Ma
       if (score >= bestScore && (!best || score > bestScore)) { best = entry; bestScore = score }
     }
     if (best) seen.set(best.item.id, (seen.get(best.item.id) ?? 0) + 1)
+    else left.push(line)
   }
-  for (const id of findVisibleItems(entries, ocrText)) if (!seen.has(id)) seen.set(id, 1)
+  for (const id of findVisibleItems(entries, left.join('\n'))) if (!seen.has(id)) seen.set(id, 1)
   return seen
 }
 

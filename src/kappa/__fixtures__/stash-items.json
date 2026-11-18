@@ -1,0 +1,177 @@
+[
+ {
+  "id": "544fb45d4bdc2dee738b4568",
+  "name": "Аптечка Salewa First Aid Kit",
+  "shortName": "Salewa"
+ },
+ {
+  "id": "569668774bdc2da2298b4568",
+  "name": "Евро",
+  "shortName": "Евро"
+ },
+ {
+  "id": "57505f6224597709a92585a9",
+  "name": "Шоколад \"Аленка\"",
+  "shortName": "Аленка"
+ },
+ {
+  "id": "57a0dfb82459774d3078b56c",
+  "name": "9x39мм СП-5 гс",
+  "shortName": "СП-5"
+ },
+ {
+  "id": "58d2912286f7744e27117493",
+  "name": "Затыльник Magpul \"Rubber Butt-Pad\" для прикладов \"MOE Carbine\"",
+  "shortName": "MOE RBP"
+ },
+ {
+  "id": "590c621186f774138d11ea29",
+  "name": "Защищенный флеш-накопитель",
+  "shortName": "Флешка"
+ },
+ {
+  "id": "59db3a1d86f77429e05b4e92",
+  "name": "Пистолетная рукоятка Naroh Arms \"GRAL-S\" для AR-15",
+  "shortName": "GRAL-S"
+ },
+ {
+  "id": "59e655cb86f77411dc52a77b",
+  "name": ".366 ТКМ ЭКО",
+  "shortName": "ЭКО"
+ },
+ {
+  "id": "5a0d63621526d8dba31fe3bf",
+  "name": "Глушитель ПБС-1 7.62x39 для АКМ",
+  "shortName": "ПБС-1"
+ },
+ {
+  "id": "5a154d5cfcdbcb001a3b00da",
+  "name": "Шлем Ops-Core \"FAST MT Super High Cut\" (Черный)",
+  "shortName": "FAST MT"
+ },
+ {
+  "id": "5a16b672fcdbcb001912fa83",
+  "name": "Визор для шлемов Ops-Core \"FAST\"",
+  "shortName": "FAST"
+ },
+ {
+  "id": "5a16b7e1fcdbcb00165aa6c9",
+  "name": "Многоударный баллистический лицевой щит-забрало для шлема Ops-Core \"FAST\"",
+  "shortName": "FAST"
+ },
+ {
+  "id": "5a339805c4a2826c6e06d73d",
+  "name": "Пистолетная рукоятка Magpul \"MIAD\" для AR-15 (FDE)",
+  "shortName": "MIAD"
+ },
+ {
+  "id": "5a718da68dc32e000d46d264",
+  "name": "Магазин Magpul \"PMAG GL9\" на 21 патрон 9x19 для Glock",
+  "shortName": "GL9"
+ },
+ {
+  "id": "5ac8d6885acfc400180ae7b0",
+  "name": "Шлем Ops-Core \"FAST MT Super High Cut\" (Urban Tan)",
+  "shortName": "FAST MT"
+ },
+ {
+  "id": "5ad5d49886f77455f9731921",
+  "name": "Ключ от подсобки на электрической подстанции",
+  "shortName": "ЭП подс."
+ },
+ {
+  "id": "5af0534a86f7743b6f354284",
+  "name": "Офтальмоскоп",
+  "shortName": "ОСкоп"
+ },
+ {
+  "id": "5b057b4f5acfc4771e1bd3e9",
+  "name": "Тактическая рукоятка Stark \"SE-5 Express Forward\"",
+  "shortName": "SE-5"
+ },
+ {
+  "id": "5c0e530286f7747fa1419862",
+  "name": "Регенеративный препарат Пропитал",
+  "shortName": "Пропитал"
+ },
+ {
+  "id": "5c1bc5612e221602b5429350",
+  "name": "Тактическая рукоятка Зенит \"РК-1\"",
+  "shortName": "РК-1"
+ },
+ {
+  "id": "5d02797c86f774203f38e30a",
+  "name": "Полевой хирургический набор Surv12",
+  "shortName": "Surv12"
+ },
+ {
+  "id": "5d08d21286f774736e7c94c3",
+  "name": "Ключ от схрона Штурмана",
+  "shortName": "КШ"
+ },
+ {
+  "id": "5e01e9e273d8eb11426f5bc3",
+  "name": "Переходник для ДТК \"Ротор 43\" для СВДС",
+  "shortName": "СВДС пер."
+ },
+ {
+  "id": "5ea05cf85ad9772e6624305d",
+  "name": "Шлем Tac-Kek \"FAST MT\" (реплика)",
+  "shortName": "TK FAST MT"
+ },
+ {
+  "id": "5fc0f9cbd6fa9c00c571bb90",
+  "name": "Тактическая рукоятка SIG Sauer \"Vertical Foregrip KeyMod\" (Черная)",
+  "shortName": "SSVFK"
+ },
+ {
+  "id": "60098ad7c2240c0fe85c570a",
+  "name": "Индивидуальная тактическая аптечка AFAK",
+  "shortName": "AFAK"
+ },
+ {
+  "id": "618ba27d9008e4636a67f61d",
+  "name": "Оптический прицел 30мм Vortex \"Razor HD Gen.2 1-6x24\"",
+  "shortName": "Razor HD Gen.2"
+ },
+ {
+  "id": "619cbfccbedcde2f5b3f7bdd",
+  "name": "Шарнирный ключ КШС",
+  "shortName": "КШС"
+ },
+ {
+  "id": "62a09f32621468534a797acb",
+  "name": "Бутылка пива \"Певко светлое\"",
+  "shortName": "Певко"
+ },
+ {
+  "id": "6516e9d7e239bd0c487e3766",
+  "name": "Затыльник Daniel Defense \"TCS Buttpad\" 20мм",
+  "shortName": "TCS 20"
+ },
+ {
+  "id": "657024011419851aef03e6f4",
+  "name": "Пачка патронов .366 ТКМ ЭКО (20 штук)",
+  "shortName": "ЭКО"
+ },
+ {
+  "id": "657025d4c5d7d4cb4d078585",
+  "name": "Пачка патронов 9x39мм СП-5 гс (20 штук)",
+  "shortName": "СП-5"
+ },
+ {
+  "id": "660bbc47c38b837877075e47",
+  "name": "Зашифрованная флешка",
+  "shortName": "Флешка"
+ },
+ {
+  "id": "661e52415be02310ed07a07a",
+  "name": "Тактическая рукоятка TangoDown \"Stubby BGV-QDK\" (Черная)",
+  "shortName": "BGV-QDK"
+ },
+ {
+  "id": "661e52b5b099f32c28003586",
+  "name": "Тактическая рукоятка TangoDown \"Stubby BGV-QDK\" (FDE)",
+  "shortName": "BGV-QDK"
+ }
+]

@@ -132,25 +132,47 @@ export function labelBoxes(raster: Raster, cell = Math.round(raster.height / 17)
     for (let y = box.y; y < cut; y += 1) ink += rowInk(y)
     return { x: left, y: box.y, width: right - left + 1, height: cut - box.y, ink }
   }
-  const labels = boxes.flatMap((box, index) => {
-    if (isLabel(box)) return [box]
+  // Pieces too plain to be a label alone, yet of a label's size: a few letters («SE» of «SE-5», «SS» of «SSVFK»: one or
+  // two strokes a row), a lone digit, a dash, a dot. Owner, 19.11.2026 («находит не все предметы»): on his stash frame
+  // «SE-5» fell into «SE», «-» and «5» (the gaps wider than the letters' join) and none of them was taken.
+  const isFragment = (box: Box) => box.height <= maxHeight && box.width <= cell
+    && (box.height >= minHeight ? box.width <= box.height * 4 : box.width <= cell * 0.15)
+  const pieces = boxes.flatMap((box, index) => {
+    if (isLabel(box)) return [{ ...box, label: true }]
     const cut = trimmed(box, index + 1)
-    return cut && isLabel(cut) ? [cut] : []
+    if (cut && isLabel(cut)) return [{ ...cut, label: true }]
+    return isFragment(box) ? [{ ...box, label: false }] : []
   }).sort((a, b) => a.y - b.y || a.x - b.x)
-  // Words of one label («Loot Lord», «BEAR Buddy») side by side on one line: one strip.
-  const merged: Box[] = []
-  for (const box of labels) {
+  // Words of one label («Loot Lord», «BEAR Buddy») and its fragments side by side on one line: one strip. A strip of
+  // fragments only is a label when it reads like one as a whole.
+  const merged: Array<Box & { ink: number; label: boolean; parts: Box[] }> = []
+  for (const box of pieces) {
     const near = merged.find((other) => {
       const overlap = Math.min(other.y + other.height, box.y + box.height) - Math.max(other.y, box.y)
       const gapX = box.x > other.x ? box.x - (other.x + other.width) : other.x - (box.x + box.width)
       return overlap >= Math.min(other.height, box.height) * 0.6 && gapX <= cell * 0.15
     })
-    if (!near) { merged.push({ x: box.x, y: box.y, width: box.width, height: box.height }); continue }
+    if (!near) { merged.push({ ...box, parts: [box] }); continue }
     const right = Math.max(near.x + near.width, box.x + box.width), bottom = Math.max(near.y + near.height, box.y + box.height)
     near.x = Math.min(near.x, box.x); near.y = Math.min(near.y, box.y)
     near.width = right - near.x; near.height = bottom - near.y
+    near.ink += box.ink
+    near.label ||= box.label
+    near.parts.push(box)
   }
-  return merged
+  return merged.filter((box) => box.label || (lettersInLine(box.parts) && isLabel(box))).map(({ x, y, width, height }) => ({ x, y, width, height }))
+
+  /**
+   * Fragments alone make a label only as letters do: two or more of a letter's height, no taller than a label's letters
+   * (a sixth of a cell), standing on one line — the same top and bottom. The round marks beside an icon, bits of light
+   * item art are not.
+   */
+  function lettersInLine(parts: Box[]) {
+    const letters = parts.filter((part) => part.height >= minHeight)
+    if (letters.length < 2 || letters.some((part) => part.height > cell * 0.15)) return false
+    const top = letters[0]!.y, bottom = letters[0]!.y + letters[0]!.height
+    return letters.every((part) => Math.abs(part.y - top) <= 1 && Math.abs(part.y + part.height - bottom) <= 1)
+  }
 }
 
 /**
