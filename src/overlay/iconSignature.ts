@@ -54,35 +54,54 @@ interface Thumbnail { width: number; height: number; red: Float32Array; green: F
 
 const inArea = (area: Area, x: number, y: number) => x >= area.x && x < area.x + area.width && y >= area.y && y < area.y + area.height
 
+/** Per-cell sums of a grid over the picture's area, before any turn: what a thumbnail is made of. */
+interface GridSums { width: number; height: number; sums: Float64Array; seen: Float64Array; all: Float64Array }
+
 /**
- * Area-averaged thumbnail (width×height cells) of `area`, skipping covered pixels, after `turns` quarter turns
- * clockwise of the picture (a rotated item in the inventory, turned back to the icon's orientation).
+ * Area-averaged grids (each width×height cells) of `area`, skipping covered pixels — all of them in one pass over the
+ * pixels. A signature's three thumbnails at every turn come from just three grids (4×4, 9×8, 8×9: a quarter turn swaps
+ * the last two), so the screen picture's signatures need one pass instead of nine (measured 18.11.2026: 100–200 ms of
+ * the item key's picture search went here, on the main process). The sums are added in the same order as one pass per
+ * thumbnail added them: the same numbers to the bit.
  */
-function thumbnail(image: Pixels, area: Area, covered: Area[], width: number, height: number, turns: number): Thumbnail {
-  const odd = turns % 2 !== 0
-  const sourceWidth = odd ? height : width, sourceHeight = odd ? width : height
-  const sums = new Float64Array(sourceWidth * sourceHeight * 3)
-  const seen = new Float64Array(sourceWidth * sourceHeight)
-  const all = new Float64Array(sourceWidth * sourceHeight)
-  const [r, b] = image.order === 'rgba' ? [0, 2] : [2, 0]
+function gridSums(image: Pixels, area: Area, covered: Area[]): [GridSums, GridSums, GridSums] {
+  const grid = (width: number, height: number): GridSums => ({ width, height, sums: new Float64Array(width * height * 3), seen: new Float64Array(width * height), all: new Float64Array(width * height) })
+  const out: [GridSums, GridSums, GridSums] = [grid(4, 4), grid(9, 8), grid(8, 9)]
+  const [a, b, c] = out
+  const { data } = image
+  const [r, bl] = image.order === 'rgba' ? [0, 2] : [2, 0]
   const x0 = Math.max(0, Math.round(area.x)), y0 = Math.max(0, Math.round(area.y))
   const x1 = Math.min(image.width, Math.round(area.x + area.width)), y1 = Math.min(image.height, Math.round(area.y + area.height))
   const blocking = covered.filter((rect) => rect.x < x1 && rect.x + rect.width > x0 && rect.y < y1 && rect.y + rect.height > y0)
+  // Each grid's column for every x of the area (the same for every row).
+  const columns = (target: GridSums) => Int32Array.from({ length: Math.max(0, x1 - x0) }, (_, dx) => Math.min(target.width - 1, Math.floor(dx * target.width / (x1 - x0))))
+  const columnA = columns(a), columnB = columns(b), columnC = columns(c)
+  const rowOf = (target: GridSums, y: number) => Math.min(target.height - 1, Math.floor((y - y0) * target.height / (y1 - y0))) * target.width
   for (let y = y0; y < y1; y += 1) {
-    const row = Math.min(sourceHeight - 1, Math.floor((y - y0) * sourceHeight / (y1 - y0)))
+    const rowA = rowOf(a, y), rowB = rowOf(b, y), rowC = rowOf(c, y)
     const rowBlocking = blocking.filter((rect) => y >= rect.y && y < rect.y + rect.height)
     for (let x = x0; x < x1; x += 1) {
-      const cell = row * sourceWidth + Math.min(sourceWidth - 1, Math.floor((x - x0) * sourceWidth / (x1 - x0)))
-      all[cell]! += 1
+      const cellA = rowA + columnA[x - x0]!, cellB = rowB + columnB[x - x0]!, cellC = rowC + columnC[x - x0]!
+      a.all[cellA]! += 1
+      b.all[cellB]! += 1
+      c.all[cellC]! += 1
       if (rowBlocking.length && rowBlocking.some((rect) => inArea(rect, x, y))) continue
-      const index = (y * image.width + x) * 4
-      const opacity = image.alpha ? image.data[index + 3]! / 255 : 1
-      sums[cell * 3]! += image.data[index + r]! * opacity + BACKDROP * (1 - opacity)
-      sums[cell * 3 + 1]! += image.data[index + 1]! * opacity + BACKDROP * (1 - opacity)
-      sums[cell * 3 + 2]! += image.data[index + b]! * opacity + BACKDROP * (1 - opacity)
-      seen[cell]! += 1
+      const pixel = (y * image.width + x) * 4
+      const opacity = image.alpha ? data[pixel + 3]! / 255 : 1
+      const red = data[pixel + r]! * opacity + BACKDROP * (1 - opacity)
+      const green = data[pixel + 1]! * opacity + BACKDROP * (1 - opacity)
+      const blue = data[pixel + bl]! * opacity + BACKDROP * (1 - opacity)
+      a.sums[cellA * 3]! += red; a.sums[cellA * 3 + 1]! += green; a.sums[cellA * 3 + 2]! += blue; a.seen[cellA]! += 1
+      b.sums[cellB * 3]! += red; b.sums[cellB * 3 + 1]! += green; b.sums[cellB * 3 + 2]! += blue; b.seen[cellB]! += 1
+      c.sums[cellC * 3]! += red; c.sums[cellC * 3 + 1]! += green; c.sums[cellC * 3 + 2]! += blue; c.seen[cellC]! += 1
     }
   }
+  return out
+}
+
+/** The width×height thumbnail after `turns` quarter turns clockwise, from the grid of the unturned picture. */
+function turnedThumbnail(grid: GridSums, width: number, height: number, turns: number): Thumbnail {
+  const { width: sourceWidth, height: sourceHeight, sums, seen, all } = grid
   const out: Thumbnail = { width, height, red: new Float32Array(width * height), green: new Float32Array(width * height), blue: new Float32Array(width * height), visible: new Float32Array(width * height) }
   const quarter = ((turns % 4) + 4) % 4
   for (let y = 0; y < height; y += 1) {
@@ -121,16 +140,26 @@ function steps(picture: Thumbnail, dx: number, dy: number) {
  * that bring the picture into the icon's orientation.
  */
 export function pictureSignature(image: Pixels, area: Area, covered: Area[] = [], turns = 0): PictureSignature {
-  const colors = thumbnail(image, area, covered, 4, 4, turns)
-  const palette: number[] = []
-  for (let cell = 0; cell < 16; cell += 1) {
-    if (colors.visible[cell]! < MIN_VISIBLE) palette.push(-1, -1, -1)
-    else palette.push(Math.round(colors.red[cell]!), Math.round(colors.green[cell]!), Math.round(colors.blue[cell]!))
-  }
-  return {
-    steps: steps(thumbnail(image, area, covered, 9, 8, turns), 1, 0) + steps(thumbnail(image, area, covered, 8, 9, turns), 0, 1),
-    colors: palette,
-  }
+  return pictureSignatures(image, area, covered, [turns])[0]!
+}
+
+/** The signatures of the picture in `area` at each of these turns (see pictureSignature), from one pass over its pixels. */
+export function pictureSignatures(image: Pixels, area: Area, covered: Area[], turns: number[]): PictureSignature[] {
+  // The thumbnails' grids before the turn: 4×4 colours, 9×8 and 8×9 steps (swapped by an odd turn).
+  const [colorGrid, wide, tall] = gridSums(image, area, covered)
+  return turns.map((turn) => {
+    const odd = turn % 2 !== 0
+    const colors = turnedThumbnail(colorGrid!, 4, 4, turn)
+    const palette: number[] = []
+    for (let cell = 0; cell < 16; cell += 1) {
+      if (colors.visible[cell]! < MIN_VISIBLE) palette.push(-1, -1, -1)
+      else palette.push(Math.round(colors.red[cell]!), Math.round(colors.green[cell]!), Math.round(colors.blue[cell]!))
+    }
+    return {
+      steps: steps(turnedThumbnail(odd ? tall! : wide!, 9, 8, turn), 1, 0) + steps(turnedThumbnail(odd ? wide! : tall!, 8, 9, turn), 0, 1),
+      colors: palette,
+    }
+  })
 }
 
 /**

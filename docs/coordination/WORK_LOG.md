@@ -7650,3 +7650,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Not verified in the game. Remaining: two readings at once during a lookup in the menus (short: the lookup's few lines);
   the quest scanner's 6 s whole-screen pass itself is still that long (a separate task). Release only with a new app
   version ≥ 0.6.0.318 on the owner's word.
+- Follow-up (owner «УСКОРЯЙ»): the picture search (on the main process, logged 57–843 ms in the game; a reading done
+  meanwhile waited for it) spent most of its time in screenPicture — 18 passes over the item's pixels per layout
+  (3 thumbnails × 3 turns × with/without backdrop). src/overlay/iconSignature.ts `pictureSignatures`: all three grids in
+  one pass, every turn from them; src/overlay/iconMatch.ts uses it. Measured on the logged cells: 110–208 ms → 20–56 ms
+  (×4), the whole picture search ~250 → ~70 ms. Same numbers to the bit: compared with the old code on 167 layouts of the
+  logged crops, and a test with the old code as reference (noise, transparency, covered parts, turns 0–3). The picture
+  index (scripts/build-item-signatures.mjs) needs no rebuild. typecheck, eslint clean; vitest src/overlay +
+  src/components + ocrQueue 562 passed.

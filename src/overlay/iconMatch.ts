@@ -8,7 +8,7 @@
  */
 import type { Bitmap, Rect } from './tooltipDetect.js'
 import type { ItemCell } from './itemCell.js'
-import { iconArea, pictureSignature, signatureDistance, type PictureSignature, type Pixels, type SignatureDistance } from './iconSignature.js'
+import { iconArea, pictureSignature, pictureSignatures, signatureDistance, type PictureSignature, type Pixels, type SignatureDistance } from './iconSignature.js'
 
 /** Thresholds of the picture check (distances: 0 = same picture, unrelated pictures ≈ 0.3–0.5; see iconSignature.ts). */
 export const PICTURE_MATCH = {
@@ -59,13 +59,12 @@ export function screenPicture(image: Bitmap, cell: ItemCell, options: { backdrop
       if (local) variants.push({ source: local, rect: { x: 0, y: 0, width: layout.rect.width, height: layout.rect.height }, covered: layout.covered.map((part) => ({ ...part, x: part.x - layout.rect.x, y: part.y - layout.rect.y })) })
     }
     for (const { source, rect, covered } of variants) {
+      // Every turn from one pass over the pixels (pictureSignatures).
+      const [upright, right, left] = pictureSignatures(source, rect, covered, layout.cols !== layout.rows ? [0, 1, 3] : [0])
       layouts.push({
         cols: layout.cols,
         rows: layout.rows,
-        turns: {
-          0: pictureSignature(source, rect, covered, 0),
-          ...(layout.cols !== layout.rows ? { 1: pictureSignature(source, rect, covered, 1), 3: pictureSignature(source, rect, covered, 3) } : {}),
-        },
+        turns: { 0: upright!, ...(right && left ? { 1: right, 3: left } : {}) },
       })
     }
   }
