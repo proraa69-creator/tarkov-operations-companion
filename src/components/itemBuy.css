@@ -19,3 +19,9 @@
 .item-buy-parts span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-buy-parts b { color: var(--text); font-weight: 700; }
 .item-buy-parts i { font-style: normal; color: var(--text); min-width: 72px; text-align: right; }
+.item-buy-parts img { grid-row: span 2; align-self: start; }
+/* under the part's name: whether this player can buy it on the flea (owner, 18.11.2026) */
+.item-buy-part-flea { grid-column: 2 / -1; display: inline-flex; align-items: center; gap: 3px; margin-top: -2px; font-size: 11px; font-style: normal; font-weight: 700; }
+.item-buy-part-flea.is-open { color: var(--green, #7fa183); }
+.item-buy-part-flea.is-locked { color: var(--amber, #d29b58); }
+.item-buy-part-flea.is-none { color: var(--red, #c96b5f); }

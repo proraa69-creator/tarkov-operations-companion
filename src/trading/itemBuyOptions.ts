@@ -23,7 +23,13 @@ export interface BuyLock { level?: number; task?: TaskRef; playerLevel?: number 
 
 export interface TraderBuy { kind: 'trader'; traderId?: string; traderName: string; level: number; price: number; buyLimit?: number; task?: TaskRef; lock?: BuyLock }
 export interface FleaBuy { kind: 'flea'; price: number; average: boolean; lock?: BuyLock }
-export interface BarterPartPrice { itemId: string; name: string; iconUrl?: string; count: number; total: number | null }
+/**
+ * A barter part on the flea market for this player (owner, 18.11.2026: «бутылка перекиси водорода доступна с такого-то уровня
+ * на барахолке… Просто пиши замочек и с какого уровня… Если доступно купить, то значит доступно… недоступно, нету на
+ * барахолке»): open, from a character level (the market's or the item's own, whichever is higher), or not sold there.
+ */
+export type PartFlea = { state: 'open' } | { state: 'locked'; level: number } | { state: 'none' }
+export interface BarterPartPrice { itemId: string; name: string; iconUrl?: string; count: number; total: number | null; flea: PartFlea }
 export interface BarterBuy { kind: 'barter'; id: string; traderId: string; traderName: string; level: number; gives: number; parts: BarterPartPrice[]; total: number | null; buyLimit?: number; task?: TaskRef; lock?: BuyLock }
 
 export interface ItemBuyOptions {
@@ -39,6 +45,16 @@ function lockOf(traderId: string | undefined, level: number | undefined, task: T
   const needLevel = level && own !== undefined && own < level ? level : undefined
   const needTask = task && access.taskDone && !access.taskDone(task.id) ? task : undefined
   return needLevel || needTask ? { ...(needLevel ? { level: needLevel } : {}), ...(needTask ? { task: needTask } : {}) } : undefined
+}
+
+/** The level `item` opens at on the flea: the market's, or its own when higher (tarkov.dev `minLevelForFlea`, 20–40 for many). */
+const fleaLevelOf = (item: EconomyItem, access: BuyAccess) => Math.max(access.fleaLevel, item.fleaLevel ?? 0)
+
+/** Whether the player can buy `item` on the flea now; not sold there: banned, the mode has no flea, or nobody offers it. */
+export function partFlea(item: EconomyItem | undefined, snapshot: EconomySnapshot, access: BuyAccess): PartFlea {
+  if (!item || item.noFlea || !access.fleaEnabled || !snapshot.flea.enabled || !fleaPrice(item)) return { state: 'none' }
+  const level = fleaLevelOf(item, access)
+  return access.playerLevel < level ? { state: 'locked', level } : { state: 'open' }
 }
 
 /** The ways to get `itemId`, open ones first, each kind by price. Nothing for an item the snapshot does not know. */
@@ -65,7 +81,7 @@ export function itemBuyOptions(itemId: string, snapshot: EconomySnapshot, access
   const fleaValue = item && !noFlea ? fleaPrice(item) : undefined
   const flea: FleaBuy | undefined = fleaValue ? {
     kind: 'flea', price: fleaValue, average: item!.lastLowPrice === undefined,
-    ...(access.playerLevel < access.fleaLevel ? { lock: { playerLevel: access.fleaLevel } } : {}),
+    ...(access.playerLevel < fleaLevelOf(item!, access) ? { lock: { playerLevel: fleaLevelOf(item!, access) } } : {}),
   } : undefined
 
   const barters: BarterBuy[] = snapshot.barters.flatMap((barter) => {
@@ -73,8 +89,10 @@ export function itemBuyOptions(itemId: string, snapshot: EconomySnapshot, access
     if (!reward) return []
     const parts = barter.requiredItems.map(({ itemId: partId, count }) => {
       const part = snapshot.items[partId]
-      const choice = cheapestBuy(part, context)
-      return { itemId: partId, name: part?.name ?? partId, ...(part?.iconUrl ? { iconUrl: part.iconUrl } : {}), count, total: choice ? Math.round(choice.unitPrice * count) : null }
+      const flea = partFlea(part, snapshot, access)
+      // the flea counts for this part only from its own level
+      const choice = cheapestBuy(part, { ...context, fleaEnabled: flea.state === 'open' })
+      return { itemId: partId, name: part?.name ?? partId, ...(part?.iconUrl ? { iconUrl: part.iconUrl } : {}), count, total: choice ? Math.round(choice.unitPrice * count) : null, flea }
     })
     const total = parts.every((part) => part.total !== null) ? parts.reduce((sum, part) => sum + (part.total ?? 0), 0) : null
     const lock = lockOf(barter.traderId, barter.level, barter.taskUnlock, access)
