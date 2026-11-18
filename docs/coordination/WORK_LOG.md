@@ -7851,3 +7851,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   src/kappa, src/stashScan, src/overlay 161/161; src/quests, src/items, pages, screen, state 299/300 (ManualMarks «in
   English» timed out under load, passes alone 7/7 and on the base); typecheck, tsc electron, eslint clean.
 - Not checked in the game; not released.
+- Owner's clarification: «КШС» lay in the main stash grid, not found there either; and several containers may be open,
+  one after another, one over another. The frame checked above is the main stash grid (КШС beside «Евро») — found now.
+  The scan already copies the game's whole window and looks for labels anywhere in it: the stash and every container
+  window, in any order; a label under another window is read when it comes into view (only the changed part of the
+  screen is searched again). What stopped it was time: one press scanned 45 s. Now (useScreenSync.ts scanScreen) it
+  goes on 45 s after the last labels new on screen, 5 min at most; «Остановить» stops it as before. Test:
+  src/stashScan/scanScreen.test.ts (3, fake timers). src/stashScan + src/screen 89/89, typecheck, eslint clean.
+- Risk: a screen whose labels re-key every frame (pixel noise) keeps the scan going the full 5 min; the owner's report
+  (646 labels read in 16 passes) may be that or scrolling — not checked in the game.
