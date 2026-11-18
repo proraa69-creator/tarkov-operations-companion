@@ -66,7 +66,7 @@ describe('«Рейд начался»', () => {
     await act(async () => { send({ inRaid: true, since: Date.now() - 60_000, begun: Date.now() - 1000, location: 'bigmap', tracked: true }) })
     expect(screen.getByRole('status')).toHaveTextContent('Рейд начался')
     expect(screen.getByRole('status')).toHaveTextContent('Таможня')
-    expect(notify).toHaveBeenCalledWith('Рейд начался', 'Таможня')
+    expect(notify).toHaveBeenCalledWith('Рейд начался', 'Таможня', undefined, true)
     expect(JSON.parse(localStorage.getItem('raidos-notifications-v1') ?? '[]')[0]).toMatchObject({ title: 'Рейд начался' })
   })
 

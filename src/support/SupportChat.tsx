@@ -17,6 +17,7 @@ import { openSupportChat, supportAttachmentImage, supportTime, useSupportChat, u
 import { emojiOnly, quoteBody, replyQuoteOf, stickerCaption, SUPPORT_EMOJI, supportChatLayerOpen, supportEditable, supportOwnWords, toggledReactions, useEscapeLayer, useSupportOutbox, useSupportReply, type SupportEditTarget, type SupportReplyTarget } from './supportChatTools'
 import { stickerPictureSrc, useStickerCatalog } from './stickerCatalog'
 import './supportChat.css'
+import { useNotificationKinds } from '../notifications/notificationKinds'
 
 /**
  * «Чат с поддержкой» (owner, 13.10.2026: «сделай обратную связь в приложении, чат с пользователем»): the player's
@@ -86,7 +87,9 @@ export function SupportChatDialog({ onClose }: { onClose: () => void }) {
  */
 export function SupportNotice() {
   const { message, dismiss } = useSupportNotice()
-  if (!message) return null
+  const kinds = useNotificationKinds()
+  // switched off in «Уведомления» → «Настроить»: the unread answer still counts on «Чат с поддержкой»
+  if (!message || !kinds.support) return null
   return <SupportNoticeToast key={message.id} onClose={() => dismiss(message.id)} />
 }
 

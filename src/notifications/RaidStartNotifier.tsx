@@ -10,6 +10,8 @@ import { useServerStatus } from '../sync/serverSync'
 import { TOAST_MS } from './ToastDock'
 import { addNotification } from './notificationCenter'
 import { takeRaidStart, useRaidStartNotice } from './raidStartNotice'
+import { notificationOn } from './notificationKinds'
+import { playTimerChime } from '../shared/uiSound'
 import { rememberLastRaid } from '../overview/infoCardClock'
 import '../arsenal/arsenal.css'
 
@@ -63,7 +65,9 @@ export function RaidStartNotifier() {
     const title = uiText('Рейд начался')
     const name = mapId ? uiText(maps.find((map) => map.id === mapId)?.name ?? '') : ''
     addNotification({ title, text: name, ...(mapId ? { open: `/maps/${mapId}` } : {}) })
-    void window.tarkovDesktop?.notify?.(title, name).catch(() => false)
+    // the sound is the app's own chime, switched in «Уведомления» → «Настроить» (owner, 18.11.2026); Windows stays silent
+    if (notificationOn('raid-start-sound')) playTimerChime()
+    void window.tarkovDesktop?.notify?.(title, name, undefined, true).catch(() => false)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the card comes once, when the raid has begun
     setShown({ begun: begun!, ...(mapId ? { mapId } : {}) })
   }, [on, begun]) // eslint-disable-line react-hooks/exhaustive-deps -- once per raid; its map as known then
@@ -101,6 +105,7 @@ function PhoneWatcher() {
     if (!takeRaidStart(begun)) return
     const name = mapId ? uiText(maps.find((map) => map.id === mapId)?.name ?? '') : ''
     addNotification({ title: uiText('Рейд начался'), text: name, ...(mapId ? { open: `/maps/${mapId}` } : {}) })
+    if (notificationOn('raid-start-sound')) playTimerChime()
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the card comes once, when the raid has begun
     setShown({ begun: begun!, ...(mapId ? { mapId } : {}) })
   }, [begun]) // eslint-disable-line react-hooks/exhaustive-deps -- once per raid; its map as known then

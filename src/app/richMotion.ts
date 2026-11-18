@@ -185,12 +185,16 @@ function staggerRows(block: Element, delay: number) {
     if (list.closest(SKIP) || list.closest('nav')) continue
     const rows = [...list.children].filter((row) => !(row instanceof HTMLTemplateElement))
     if (rows.length < 3) continue
+    // every row in view comes, top to bottom (one left standing below the moving ones looked like a gap); the delay stops
+    // growing after a dozen so a long table is in place in about half a second
     let index = 0
     for (const row of rows) {
-      if (index >= 12 || total >= 30) break
+      if (total >= 60) break
       const rect = row.getBoundingClientRect()
-      if (!rect.height || !inView(rect)) continue
-      row.animate([{ opacity: 0, translate: '0 10px' }, { opacity: 1, translate: '0 0' }], { duration: 420, delay: delay + index * 38, easing: EASE_OUT, fill: 'backwards' })
+      if (!rect.height) continue
+      if (rect.top > window.innerHeight + 40) break
+      if (!inView(rect)) continue
+      row.animate([{ opacity: 0, translate: '0 10px' }, { opacity: 1, translate: '0 0' }], { duration: 420, delay: delay + Math.min(index, 12) * 32, easing: EASE_OUT, fill: 'backwards' })
       index += 1
       total += 1
     }
@@ -263,12 +267,17 @@ function glide(container: HTMLElement, from: Element, to: HTMLElement) {
   container.insertBefore(pill, container.firstChild)
   to.classList.add('motion-glide-target')
   const animation = pill.animate([place(start), place(end)], { duration: 380, easing: SPRING })
+  let finished = false
   const done = () => {
+    if (finished) return
+    finished = true
     pill.remove()
     to.classList.remove('motion-glide-target')
     if (staticBox) container.style.position = ''
   }
   animation.finished.then(done, done)
+  // a window that draws no frames (minimized, hidden) never ends an animation: the highlight is the item's own again anyway
+  window.setTimeout(done, 600)
 }
 
 function glideChanged(records: MutationRecord[]) {
@@ -344,9 +353,12 @@ export function installRichMotion(): () => void {
   })
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-selected', 'aria-pressed'] })
   requestAnimationFrame(rememberActive)
+  // the menu may be drawn after the start: what is lit is read again before each press changes it
+  document.addEventListener('pointerdown', rememberActive, { capture: true, passive: true })
 
   return () => {
     root.removeAttribute('data-rich-motion')
+    document.removeEventListener('pointerdown', rememberActive, { capture: true })
     observer.disconnect()
   }
 }

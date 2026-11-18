@@ -641,11 +641,12 @@ function registerIpc() {
   // picture): a system notification. The picture is only ever a PNG the page drew itself, of a sane size.
   // Never over the game (owner, 07.11.2026: «Все уведомления в приложении не должны открываться поверх игры»): the message waits in
   // «Уведомления» on the top bar (src/notifications).
-  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown, icon?: unknown) => {
+  // `silent`: the page plays its own sound, or none (the raid start's switch in «Уведомления» → «Настроить»)
+  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown, icon?: unknown, silent?: unknown) => {
     if (!Notification.isSupported() || foregroundGame() !== null) return false
     const text = (value: unknown, max: number) => String(value ?? '').slice(0, max)
     const picture = typeof icon === 'string' && icon.length < 300_000 && icon.startsWith('data:image/png;base64,') ? nativeImage.createFromDataURL(icon) : undefined
-    const notification = new Notification({ title: text(title, 120), body: text(body, 300), ...(picture && !picture.isEmpty() ? { icon: picture } : {}) })
+    const notification = new Notification({ title: text(title, 120), body: text(body, 300), silent: silent === true, ...(picture && !picture.isEmpty() ? { icon: picture } : {}) })
     notification.on('click', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus() } })
     notification.show()
     return true

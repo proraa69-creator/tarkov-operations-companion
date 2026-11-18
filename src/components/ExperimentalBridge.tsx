@@ -18,6 +18,7 @@ import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
 import { mateNamesFor, mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
 import { featureEnabled } from '../app/archivedFeatures'
 import { setFleaCatalog } from '../data/screenFleaPrices'
+import { notificationOn } from '../notifications/notificationKinds'
 
 /** Readings the second attempt found an item for (one list for the app, see createLookupMemory). */
 const lookupMemory = createLookupMemory(() => window.localStorage, foldTooltipText)
@@ -235,6 +236,8 @@ export function ExperimentalBridge() {
       const { data, state } = latest.current
       // Pressed in the game, so the system message does not come: what the scan found waits in «Уведомления».
       const notify = (message: string, keep = true) => {
+        // switched off in «Уведомления» → «Настроить»
+        if (!notificationOn('collector')) return
         if (keep) addNotification({ title: 'Коллекционер', text: message, open: '/kappa-items' })
         void window.tarkovDesktop?.notify?.('Коллекционер', message).catch(() => {})
       }

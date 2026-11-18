@@ -72,3 +72,8 @@
 :root[data-theme="glass"] :is(.input, input[type="text"], input[type="search"], select, textarea) { border-radius: 12px; border-color: rgb(255 255 255 / 11%); background-color: rgb(0 0 0 / 24%); }
 :root[data-theme="glass"] .tag { border-radius: 999px; }
 :root[data-theme="glass"] .tag.brass { background: rgb(226 192 98 / 16%); color: var(--brass-strong); }
+
+/* ---------- switches: gold when on ---------- */
+:root[data-theme="glass"] .toggle { background: rgb(255 255 255 / 10%); }
+:root[data-theme="glass"] .toggle.on { background: var(--glass-gold); }
+:root[data-theme="glass"] .toggle.on span { background: #1a1810; }
