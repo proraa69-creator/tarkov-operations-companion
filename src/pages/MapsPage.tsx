@@ -116,6 +116,8 @@ import { keepLayersBefore, readLayersBefore, type LayerChoice, type ListedRows }
 import { setHiddenRoomLayers, useHiddenRoomLayers } from '../maps/roomLayers'
 import { KeySpotKeys } from '../maps/KeySpotKeys'
 import { KeySpotCard } from '../maps/KeySpotCard'
+import { NearbyKeysGlow, NearbyKeysPanel, NearbyKeysSetting } from '../maps/NearbyKeysPanel'
+import { closeNearbyKeys, nearbyKeys, useNearbyKeysClosedFor, useNearbyKeysOn } from '../maps/nearbyKeys'
 import { setQuestKeyFavorite, useQuestKeyFavorites } from '../quests/questKeyFavorites'
 import { SpotPhotos } from '../maps/SpotPhotos'
 import { LockedNote } from '../maps/LockedNote'
@@ -804,13 +806,26 @@ export function MapsPage() {
     return item ? [item.name, uiText(item.name), ...(item.shortName ? [item.shortName] : [])] : []
   }, [itemsById])
   const searchMaps = useMemo(() => searchMapCounts(data.markers, needle, itemNames), [data.markers, needle, itemNames])
+  // «Ключи рядом» (owner, 19.11.2026): in a raid, the spawns of the needed keys the player lacks within 50 m of a current quest's point
+  const nearbyRaid = useRaidState()
+  const nearbyOn = useNearbyKeysOn()
+  const nearbyClosedFor = useNearbyKeysClosedFor()
+  const nearbyRaidSince = nearbyRaid?.inRaid ? nearbyRaid.since ?? 0 : undefined
+  const nearby = useMemo(() => {
+    if (!nearbyOn || nearbyRaidSince === undefined || nearbyClosedFor === nearbyRaidSince) return []
+    const spots = plottedMarkers.filter((marker) => markerLayerId(marker) === 'loot.key' && !marker.possibleSpawn)
+    const questPoints = plottedMarkers.filter((marker) => marker.questId && visibleQuestIds.has(marker.questId) && !markerObjectiveDone(marker, progress))
+    return nearbyKeys(spots, questPoints, neededKeys)
+  }, [nearbyOn, nearbyRaidSince, nearbyClosedFor, plottedMarkers, visibleQuestIds, neededKeys, progress])
+  const nearbySpots = useMemo(() => [...new Map(nearby.flatMap((entry) => entry.spots).map((spot) => [spot.id, spot])).values()], [nearby])
+  const nearbySpotIds = useMemo(() => new Set(nearbySpots.map((spot) => spot.id)), [nearbySpots])
   const mapMarkers = useMemo(() => plottedMarkers.filter((marker) => {
     const layerId = markerLayerId(marker)
     if (needle.length >= 2 && layerId.startsWith('loot.') && pointHoldsItem(marker, needle, itemNames)) return true
     if (layerId === 'loot.documents' && foundDocuments.has(marker.id)) return false
     // «Ключи» and «Нужные ключи» are two switches (owner, 11.11.2026: «оно должно работать отдельно, а не вместе»): the keys'
     // layer shows every key spot, «Нужные ключи» the spots of keys still needed — with the layer off, only those.
-    const neededSpot = layerId === 'loot.key' && neededKeysOnly && keysOfPoint(marker).some((id) => neededKeys.has(id))
+    const neededSpot = (layerId === 'loot.key' && neededKeysOnly && keysOfPoint(marker).some((id) => neededKeys.has(id))) || nearbySpotIds.has(marker.id)
     const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId) || marker.id === focusedLockId
     const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
     // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
@@ -827,7 +842,7 @@ export function MapsPage() {
       && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || pointMatchesSearch(marker, needle, itemNames))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, needle, itemNames, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints, neededKeysOnly, neededKeys])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, needle, itemNames, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints, neededKeysOnly, neededKeys, nearbySpotIds])
 
   // «Точки на карте»: each layer's points on this map, counted once for all the rows (the list used to go through every
   // point of the map once per row on every render: about 45 passes over up to 2 000 points per click).
@@ -1295,7 +1310,7 @@ export function MapsPage() {
         {panelsOn && <div className="map-panel-tools">
           {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
           <span className="map-panel-tools-gap" />
-          <MapPanelsSettings layout={panels.layout}><MapSkillTimerSettings /></MapPanelsSettings>
+          <MapPanelsSettings layout={panels.layout}><MapSkillTimerSettings /><NearbyKeysSetting /></MapPanelsSettings>
           <MapPanelEye side="left" hidden={leftHidden} />
         </div>}
         <div className="map-side-maps">
@@ -1418,6 +1433,7 @@ export function MapsPage() {
           <ZoomControl position={mobile ? 'bottomright' : 'topright'} />
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
+          {nearbySpots.length > 0 && <NearbyKeysGlow spots={nearbySpots} />}
           {keyDoorMarkers.length > 0 && <KeyDoorsGlow doors={keyDoorMarkers} door={keyDoorId} floor={floor} keyName={keyDoorsId ? itemsById.get(keyDoorsId)?.shortName : undefined} />}
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} follow={mapFollow} askedRef={flyAsked} />
           <MapRefCapture mapRef={mapRef} />
@@ -1564,6 +1580,7 @@ export function MapsPage() {
           }))}
         </MapContainer>
         </div>}
+        {nearby.length > 0 && <NearbyKeysPanel keys={nearby} items={itemsById} onShow={(spot) => showMarker(spot, true)} onClose={() => closeNearbyKeys(nearbyRaidSince ?? 0)} />}
         {placePhotos.overlay}
         {/* not in the iPhone app (owner, 12.11.2026: «на карте удали ползунок справа») */}
         {mobile && !fullscreen && !appStoreRules() && <MapScrollRail />}

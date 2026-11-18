@@ -140,13 +140,14 @@ export function MapPanelsSettings({ layout, children }: { layout: MapPanelsLayou
       window.removeEventListener('keydown', onKey, true)
     }
   }, [open, close])
-  const label = uiText('Расположение панелей')
+  // «Настройки карты» (owner, 19.11.2026: «эту кнопку расположения панели… мы переименуем в настройку карты»)
+  const label = uiText('Настройки карты')
   return <div className="map-panels-settings" ref={rootRef}>
     <button type="button" className={`map-panel-button${open ? ' is-open' : ''}`} aria-haspopup="menu" aria-expanded={open} aria-label={label} title={label} onClick={() => setOpen(!open)}>
       <Settings size={15} aria-hidden="true" />
     </button>
     {open && createPortal(<div ref={menuRef} className="map-panels-menu" role="menu" aria-label={label}>
-      <div className="map-panels-menu-title">{label}</div>
+      <div className="map-panels-menu-title">{uiText('Расположение панелей')}</div>
       {LAYOUTS.map(([id, text, icon]) => (
         <button key={id} type="button" role="menuitemradio" aria-checked={layout === id} className={layout === id ? 'active' : ''}
           onClick={() => { setMapPanelsLayout(id); close() }}>
