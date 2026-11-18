@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { FleaPixels } from './fleaDigits'
-import { DOLLARS_ID, EUROS_ID, fleaLayout, fleaModeFromLabel, fleaRates, fleaRowCount, fleaScreenState, fleaSightings, inRoubles, isTraderRow, readFleaPrice, readFleaPrices, type FleaPrice, type FleaRow } from './fleaScreen'
+import { DOLLARS_ID, EUROS_ID, wholeCondition, fleaFilterAllows, fleaFilterChips, fleaLayout, fleaModeFromLabel, fleaRates, fleaRowCount, fleaScreenState, fleaSightings, inRoubles, isTraderRow, readFleaPrice, readFleaPrices, type FleaPrice, type FleaRow } from './fleaScreen'
 
 /**
  * The owner's flea screenshots of 18.11.2026 (1920×1080; only the parts the reader looks at kept, the rest black — see
@@ -117,6 +117,16 @@ describe('the flea screen itself', () => {
     expect(fleaScreenState(pixels)).toMatchObject({ open: true, ascending: false, atTop: false })
   })
 
+  it('finds the filter chips by their «×» boxes, and lets through only those that keep the cheapest offer on top', () => {
+    const at = (name: string) => fleaFilterChips(frames.get(name)!, fleaLayout(frames.get(name)!)).map((chip) => [chip.x, chip.width])
+    expect(at('pve-keys')).toEqual([[608, 102], [726, 129]])
+    expect(at('season-weapons')).toEqual([[608, 102], [726, 129]])
+    expect(at('pve-eur')).toEqual([[608, 102], [725, 108]])
+    // As the app's engine read each chip on the owner's 34 frames.
+    for (const chip of ['Сост. от 100', 'Сост. от 108', 'Кроме бартера', 'Кроме бартера.']) expect(fleaFilterAllows(chip), chip).toBe(true)
+    for (const chip of ['Валюта EUR', 'Валюта USD', 'Валюта GP', 'Цена от 1000', '']) expect(fleaFilterAllows(chip), chip).toBe(false)
+  })
+
   it('has 12 rows above the menu bar at 1080p', () => {
     expect(fleaRowCount()).toBe(12)
   })
@@ -131,6 +141,15 @@ describe('the mode the version line names (only a check of the mode the app foll
     expect(fleaModeFromLabel('1.3.0.2.48779')).toBe('pvp')
     expect(fleaModeFromLabel('')).toBeNull()
     expect(fleaModeFromLabel('ГЛАВНОЕ МЕНЮ')).toBeNull()
+  })
+
+  it('reads them as the app engine does, Russian and English at once: «РУЕ», «РУР 5»', () => {
+    expect(fleaModeFromLabel('1.5.0.2.48779 РУЕ')).toBe('pve')
+    expect(fleaModeFromLabel('1.5.0.2.48779 РУР 5')).toBe('seasonal')
+    expect(fleaModeFromLabel('1.5.0.2.48779')).toBe('pvp')
+    // Something after the version that is none of the three: no check at all, never plain PvP.
+    expect(fleaModeFromLabel('1.5.0.2.48779 РУ')).toBeNull()
+    expect(fleaModeFromLabel(': / wrypmvupoc')).toBeNull()
   })
 })
 
@@ -183,10 +202,15 @@ describe('the lowest price of each item on the list', () => {
     expect(fleaSightings(rows).sightings).toEqual([{ itemId: 'tape', price: 6000, row: 4 }])
   })
 
-  it('takes the rates of the mode of the player from the handbook prices of the money', () => {
-    const base: Record<string, number> = { [DOLLARS_ID]: 140, [EUROS_ID]: 190 }
-    expect(fleaRates((id) => base[id])).toEqual({ '$': 140, '€': 190 })
-    expect(fleaRates(() => 0)).toEqual({})
+  it('takes the rates of the game from what the traders ask for the money, not from the handbook', () => {
+    // json.tarkov.dev 18.11.2026: Peacekeeper's dollar 168 ₽, Skier's euro 188 ₽ (the handbook's: 122 ₽ and 132 ₽).
+    const items = [
+      { id: DOLLARS_ID, buyFor: [{ vendor: { normalizedName: 'peacekeeper' }, priceRUB: 168 }, { vendor: { normalizedName: 'flea-market' }, priceRUB: 150 }] },
+      { id: EUROS_ID, buyFor: [{ vendor: { normalizedName: 'skier' }, priceRUB: 188 }] },
+    ]
+    expect(fleaRates(items)).toEqual({ '$': 168, '€': 188 })
+    expect(fleaRates([])).toEqual({})
+    expect(fleaRates([{ id: EUROS_ID, buyFor: [{ vendor: { normalizedName: 'skier' }, priceRUB: 0 }, null] }, null])).toEqual({})
     expect(inRoubles(317, '€', { '€': 190.4 })).toBe(60357)
     expect(inRoubles(5, 'GP', { '$': 140, '€': 190 })).toBeNull()
   })
@@ -194,14 +218,31 @@ describe('the lowest price of each item on the list', () => {
   it('agrees with the order of the flea itself: on a Season frame of the owner 336 € lies between 61 666 ₽ and 65 420 ₽', () => {
     const rows = labels['season-info']!.rows
     expect(rows.slice(8, 11)).toEqual([{ value: 61666, currency: '₽' }, { value: 336, currency: '€' }, { value: 65420, currency: '₽' }])
-    // So the game's euro was 183.5–194.7 ₽ that day in Season; a rate outside that band would misplace the offer.
-    expect(61666 / 336).toBeLessThan(184)
-    expect(65420 / 336).toBeGreaterThan(194)
+    // So the game's euro was 183.5–194.7 ₽ that day in Season: Skier's 188 ₽ fits, the handbook's 132 ₽ does not.
+    expect(61666 / 336).toBeLessThan(188)
+    expect(65420 / 336).toBeGreaterThan(188)
+    expect(61666 / 336).toBeGreaterThan(132)
   })
 
   it('knows the traders by name or by their «(лимит N)»', () => {
     for (const name of ['Прапор', 'Егерь', 'Лыжник', 'Механик', 'Миротворец', 'Барахольщик', 'Терапевт', 'Реф', 'Prapor', 'Jaeger']) expect(isTraderRow(name, ''), name).toBe(true)
     expect(isTraderRow('Unknown_SELLER', 'Всего 2440000 (лимит 6)')).toBe(true)
     expect(isTraderRow('SakurabaEmaa', 'Всего 1 ⚒ 65/65')).toBe(false)
+  })
+
+  it('knows them beside their level badge, by «(лимит N)» read badly, and by their stock', () => {
+    for (const seller of ['99 Прапор', 'EF Прапор', 'Егерь Е:', 'Реф AK', '№ Механик №', 'Барахольщик има']) expect(isTraderRow(seller, ''), seller).toBe(true)
+    expect(isTraderRow('Pech', 'Всего 1285088 ar')).toBe(true)
+    expect(isTraderRow('x', 'Всего 5790000 (numut 249)')).toBe(true)
+    expect(isTraderRow('x', 'Всего 1770008 (rum 12)')).toBe(true)
+    // A nickname with a trader in it is a player.
+    expect(isTraderRow('Prapor_fan', 'Всего 1')).toBe(false)
+    expect(isTraderRow('Прапорщик', 'Всего 2 ⚒ 40/40')).toBe(false)
+    expect(isTraderRow('ТерапевтПВЕ', 'Всего 24')).toBe(false)
+  })
+
+  it('takes a condition for whole when its two numbers agree but for a 0 read as 8, 9 or 6', () => {
+    for (const info of ['Всего1 Ж 40/48', 'Всего1 Ж 49/40', 'Всего1 Ж 100/190', 'Всего1 Ж 180/100', 'Всего 8', 'Всего1 Ж 85/85']) expect(wholeCondition(info), info).toBe(true)
+    for (const info of ['Всего1 Ж 30/40', 'Всего1 Ж 90/980', 'Всего 4 Ж 358/38', 'Всего1 Ж 60/100']) expect(wholeCondition(info), info).toBe(false)
   })
 })

@@ -7698,3 +7698,26 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   `price` in roubles with `listed` {value, currency} kept; no rate yet or GP → no price. The owner's Season frame bounds
   the euro at 183.5–194.7 ₽ (336 € between 61 666 ₽ and 65 420 ₽). Tests 18/18, vitest src/import 308/308, typecheck,
   eslint clean. To check when wired: the catalog's Euros basePrice falls in that band (tarkov.dev was down today).
+- Stage 1b (owner: «Да, подключай»), not released, nothing sent to the server: src/import/fleaReading.ts (the flea
+  looked at on the quest scanner's own GDI copy: not the flea → nothing; the flea → no whole-screen quest pass; a list
+  settled over two looks and not read before → filter chips, seller/info/name per row, version line by the item card's
+  engine at background priority), electron/screenOcr.ts (`lookAtFlea`, `recognizeFleaLine`), StoryScreenScanner
+  (flea frame → `noteFleaReading` with the logs' mode, menus' pace, no screenshot fallback), src/data/screenFleaPrices.ts
+  (names → items by the tooltip matcher, `leaveOut`, rates, the player's prices over the server's for 30 min in
+  `useLivePrices`), ExperimentalBridge registers the matcher. preload/electron.d.ts: `flea` in the frame answer.
+- Found on the owner's frames with the app's own engine (rus+eng): the version line reads «РУЕ» / «РУР 5» (was
+  taken for plain PvP → letters folded); traders beside a level badge («99 Прапор»); condition «40/48», «90/980»
+  (0 read as 8/9/6 tolerated, an extra digit not); «Валюта EUR/USD/GP» filter chips (the top row then is not the
+  item's lowest: such lists are left alone — chips found by their «×» boxes, read one by one, 34/34 right).
+- The game's rate is the traders' price of the money, not the handbook: Season frame 336 € between 61 666 ₽ and
+  65 420 ₽ → 183.5–194.7 ₽; Skier's euro 188 ₽ (handbook 132 ₽). Asked hourly per mode through the data gateway.
+- Owner: keys count only with all their uses («8 из 10… не рассматриваем»): `keyAllUses` — the info line's uses whole
+  and equal to the catalog's `keyUses`.
+- End to end on the owner's 34 screenshots (real OCR, json.tarkov.dev catalog, not committed): 35 prices, all equal to
+  the screen; currency-filtered and level-15-locked lists not taken.
+- Checks: typecheck, `tsc -p tsconfig.electron.json` (it caught extensionless imports `npm run typecheck` does not
+  check), eslint clean; vitest src/import, src/data, src/components, src/overlay, pages Flea/QuestKeys/Trading,
+  electron/ocrQueue + experimental: 1538 passed, 5 failed = positionTracker (unfixed in this branch: it wrote 3 empty
+  fake screenshots into the owner's Screenshots folder again, deleted; fix is 8ec20dea). electron/serviceGateway*
+  suites fail to load here (no `cors` in the junctioned node_modules), unrelated.
+- Not checked in the running app/game; not checked on a real 2560/3440×1440 frame or a scrolled list.

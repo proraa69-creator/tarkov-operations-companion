@@ -1,6 +1,6 @@
 /**
  * Makes the flea test frames (src/import/__fixtures__/flea) from the owner's flea screenshots of 18.11.2026 in the game's
- * Screenshots folder: only what the reader looks at is kept (tabs, sort chevron, scrollbar, version line, each row's price
+ * Screenshots folder: only what the reader looks at is kept (tabs, filter chips, sort chevron, scrollbar, version line, each row's price
  * band), the rest black — no nicknames, no money. Grey but for the frames whose colours are tested ($, €, the banner).
  * Then: node scripts/build-flea-digits.mjs
  *
@@ -29,8 +29,8 @@ const frames = {
   'season-ammo': ['2026-11-18[14-58] (3).png', 'seasonal', '₽', [2, 17, 27, 30, 32, 35, 40, 40, 40, 44, 46, 50]],
   'season-short': ['2026-11-18[14-59] (0).png', 'seasonal', '₽', [55555, 77777, null, null, null, null, null, null, null, null, null, null]],
 }
-// What the reader looks at (1080p): the tabs, the sort chevron, the scrollbar, the version label and each row's price band.
-const keep = [[780, 12, 380, 44], [1415, 108, 40, 27], [1860, 140, 22, 882], [0, 1018, 260, 32], ...Array.from({ length: 12 }, (_, row) => [1330, 144 + row * 72 + 8, 180, 40])]
+// What the reader looks at (1080p): the tabs, the filter chips, the sort chevron, the scrollbar, the version label and each row's price band.
+const keep = [[780, 12, 380, 44], [600, 56, 590, 40], [1415, 108, 40, 27], [1860, 140, 22, 882], [0, 1018, 260, 32], ...Array.from({ length: 12 }, (_, row) => [1330, 144 + row * 72 + 8, 180, 40])]
 const colour = new Set(['pve-usd', 'pve-eur', 'season-info', 'pvp-locked-banner'])
 const labels = {}
 for (const [name, [file, mode, currency, rows]] of Object.entries(frames)) {

@@ -1,7 +1,7 @@
-import type { RaidMode } from '../domain/types'
-import { gameUiBox } from './storyPaneLayout'
-import { colourAt, currencyOf, decodeDigitShapes, FLEA_LIST, luminance, priceBand, priceGlyphs, readDigits, screenPoint, type DigitSample, type FleaCurrency, type FleaLayout, type FleaPixels } from './fleaDigits'
-import { FLEA_DIGIT_SHAPES } from './fleaDigitShapes'
+import type { RaidMode } from '../domain/types.js'
+import { gameUiBox } from './storyPaneLayout.js'
+import { colourAt, currencyOf, decodeDigitShapes, FLEA_LIST, luminance, priceBand, priceGlyphs, readDigits, screenPoint, type DigitSample, type FleaCurrency, type FleaLayout, type FleaPixels } from './fleaDigits.js'
+import { FLEA_DIGIT_SHAPES } from './fleaDigitShapes.js'
 
 /**
  * The flea market on the player's screen → the lowest price of the items it shows (docs/flea-prices-from-players.md;
@@ -129,11 +129,7 @@ export function readFleaPrices(pixels: FleaPixels, layout = fleaLayout(pixels)):
 /** The parts of a row the caller reads by OCR (one line each), in screen pixels. */
 export function fleaRowParts(layout: FleaLayout, row: number) {
   const top = FLEA_LIST.firstRowTop + row * FLEA_LIST.rowHeight
-  const rect = (x0: number, y0: number, x1: number, y1: number) => {
-    const [x, y] = screenPoint(layout, x0, top + y0)
-    const [right, bottom] = screenPoint(layout, x1, top + y1)
-    return { x, y, width: right - x, height: bottom - y }
-  }
+  const rect = (x0: number, y0: number, x1: number, y1: number) => fleaRect(layout, { x: x0, y: top + y0, width: x1 - x0, height: y1 - y0 })
   return {
     /** The seller: a player's nickname, or a trader's name («Прапор») beside the trader's level badge. */
     seller: rect(640, 6, 860, 28),
@@ -144,32 +140,119 @@ export function fleaRowParts(layout: FleaLayout, row: number) {
   }
 }
 
+/** The version line at the bottom left (1080p): «1.3.0.2.48779 | PvE». */
+export const FLEA_VERSION_LINE = { x: 0, y: 1018, width: 260, height: 32 }
+
+/** A part of the menus (1080p) in screen pixels. */
+export function fleaRect(layout: FleaLayout, part: { x: number; y: number; width: number; height: number }) {
+  const [x, y] = screenPoint(layout, part.x, part.y)
+  const [right, bottom] = screenPoint(layout, part.x + part.width, part.y + part.height)
+  return { x, y, width: right - x, height: bottom - y }
+}
+
+/**
+ * The filter chips above the list («Валюта EUR ×», «Сост. от 100 ×», «Кроме бартера ×»): each ends in a light «×» box
+ * (13 px at 1080p, its top at y 60, the chip's words below it, y 74–86). Found by those boxes; the rects of the chips'
+ * words, left to right, for the caller's OCR (fleaFilterAllows).
+ */
+export function fleaFilterChips(pixels: FleaPixels, layout: FleaLayout) {
+  const [left, edgeTop] = screenPoint(layout, 600, 61)
+  const [right, edgeBottom] = screenPoint(layout, 1180, 71)
+  const boxes: Array<[number, number]> = []
+  let start = -1
+  for (let x = left; x <= right; x += 1) {
+    // The box's top and bottom edges are solid (its × is dark inside): both light in a column of the box.
+    const box = x < right && luminance(pixels, x, edgeTop) > 170 && luminance(pixels, x, edgeBottom) > 170
+    if (box && start < 0) start = x
+    if (!box && start >= 0) {
+      if (x - start >= 8 * layout.unit && x - start <= 18 * layout.unit) boxes.push([start, x - 1])
+      start = -1
+    }
+  }
+  const [, wordsTop] = screenPoint(layout, 0, 72)
+  const [, wordsBottom] = screenPoint(layout, 0, 88)
+  const [first] = screenPoint(layout, 608, 0)
+  return boxes.map(([boxLeft], index) => {
+    const x = index ? boxes[index - 1]![1] + Math.round(4 * layout.unit) : first
+    return { x, y: wordsTop, width: Math.max(1, boxLeft - x), height: wordsBottom - wordsTop }
+  })
+}
+
+/**
+ * A chip that leaves the cheapest offer of an item on top: a condition from N (hides worn copies only — the whole ones
+ * are what is priced), and «Кроме бартера» (barters have no price). Any other — «Валюта EUR» (offers in other
+ * currencies hidden), a price or a count range — may hide a cheaper offer: the list then gives no price at all. By its
+ * first word, as the OCR reads it on the owner's frames («Kpome» on Season's green).
+ */
+export function fleaFilterAllows(chip: string) {
+  return /^\W*(сост|cond|кром|kpom|kpoм|крom|excl|without|no barter)/i.test(chip.trim())
+}
+
+/** Cyrillic letters the OCR (Russian and English at once) reads the Latin «PvE» / «PvP S» as: «РУЕ», «РУР 5». */
+const LOOKALIKES: Record<string, string> = { р: 'p', у: 'v', е: 'e', с: 'c', в: 'b', 5: 's', $: 's' }
+
 /**
  * The mode the version line at the bottom left names: «1.3.0.2.48779 | PvE», «… | PvP S» (Season), nothing after the
- * version in plain PvP (the owner's frames of 18.11.2026). Only a check: the mode itself is the one the app follows from
- * the game's logs (screenReadingMode.ts). Null when no version was read.
+ * version in plain PvP (the owner's frames of 18.11.2026; the app's engine reads them «РУЕ», «РУР 5»). Only a check: the
+ * mode itself is the one the app follows from the game's logs (screenReadingMode.ts) — a label naming another mode
+ * keeps the reading out. Null when no version was read, or what follows it is none of the three.
  */
 export function fleaModeFromLabel(text: string): RaidMode | null {
-  if (!/\d[.,:']\d+[.,:']\d+[.,:']\d+[.,:']\d{4,}/.test(text)) return null
-  if (/p\s*v\s*e/i.test(text)) return 'pve'
-  if (/p\s*v\s*p[\s.:,]*s/i.test(text)) return 'seasonal'
-  if (/p\s*v\s*p/i.test(text)) return null
-  return 'pvp'
+  const version = /\d[.,:']\d+[.,:']\d+[.,:']\d+[.,:']\d{4,}/.exec(text)
+  if (!version) return null
+  const suffix = Array.from(text.slice(version.index + version[0].length).toLowerCase(), (char) => LOOKALIKES[char] ?? char).join('').replace(/[^a-z]/g, '')
+  if (!suffix) return 'pvp'
+  if (suffix === 'pve') return 'pve'
+  if (suffix === 'pvps') return 'seasonal'
+  return null
 }
 
 /** The traders who sell on the flea too (Russian and English names), folded as fold() does. */
 const TRADERS = new Set(['прапор', 'терапевт', 'скупщик', 'лыжник', 'миротворец', 'механик', 'барахольщик', 'егерь', 'реф', 'смотритель', 'prapor', 'therapist', 'fence', 'skier', 'peacekeeper', 'mechanic', 'ragman', 'jaeger', 'ref', 'lightkeeper'])
 const fold = (text: string) => text.toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я]/g, '')
+/** A trader's stock: «Всего 1670000», «Всего 580000»; a player's offer is a few, a stack at most some thousands. */
+const TRADER_STOCK = 100_000
 
-/** A trader's row: its seller is a trader, or its offer has a trader's «(лимит N)». */
+/**
+ * A trader's row: its seller is a trader — the name beside the trader's level badge, which the OCR reads as a word of
+ * its own («99 Прапор», «EF Прапор», «Егерь Е:») — or its offer has a trader's «(лимит N)» (read «numut», «rum» too) or a
+ * trader's stock. A nickname is one word: «Prapor_fan» is no trader.
+ */
 export function isTraderRow(seller: string, info: string) {
-  return TRADERS.has(fold(seller)) || /лимит|limit/i.test(info)
+  const words = seller.split(/\s+/).map(fold).filter(Boolean)
+  if (words.some((word) => TRADERS.has(word)) && words.every((word) => TRADERS.has(word) || word.length <= 3)) return true
+  const stock = /(?:всего|total)\s*(\d+)/i.exec(info)
+  return /лимит|limit|numut/i.test(info) || (stock !== null && Number(stock[1]) >= TRADER_STOCK)
 }
 
 /** «⚒ 40/40» of the info line: the item's condition, null when the line names none (a stack has none). */
 export function fleaCondition(info: string) {
   const match = /(\d+)\s*\/\s*(\d+)/.exec(info)
-  return match ? { now: Number(match[1]), max: Number(match[2]) } : null
+  return match ? { now: match[1]!, max: match[2]! } : null
+}
+
+/** Digits the OCR reads the game's small 0 as (owner's frames: «40/48», «49/40», «100/190», «180/100»). */
+const ZERO_LIKE = /[689]/g
+
+/**
+ * Whole by its info line: no condition named, or both numbers the same — allowing for a 0 read as 8, 9 or 6. A number
+ * read with a digit more («90/980», «358/38») is not taken for whole.
+ */
+export function wholeCondition(info: string) {
+  const condition = fleaCondition(info)
+  if (!condition) return true
+  return condition.now.replace(ZERO_LIKE, '0') === condition.max.replace(ZERO_LIKE, '0')
+}
+
+/**
+ * A key offered with all its uses (owner, 18.11.2026: «если у него 40 использований, должно быть 40 использований. Если
+ * у него там 8 из 10 использований, значит, его не рассматриваем»): the info line names its uses, both numbers the same
+ * (a 0 read as 8, 9 or 6 allowed for), and the most the catalog's — `uses` (0 or unknown: not checked).
+ */
+export function keyAllUses(info: string, uses?: number) {
+  const condition = fleaCondition(info)
+  if (!condition || !wholeCondition(info)) return false
+  return !uses || condition.max.replace(ZERO_LIKE, '0') === String(uses).replace(ZERO_LIKE, '0')
 }
 
 export interface FleaRow {
@@ -181,20 +264,26 @@ export interface FleaRow {
   itemId: string | null
 }
 
-/** The catalog ids of the game's money: their handbook price is the game's rate in roubles. */
+/** The catalog ids of the game's money. */
 export const DOLLARS_ID = '5696686a4bdc2da3298b456a'
 export const EUROS_ID = '569668774bdc2da2298b4568'
 
-/** Roubles for one dollar and one euro in the player's mode (0 or absent: not known, such an offer gives no price). */
+/** Roubles for one dollar and one euro in the player's mode (absent: not known, such an offer gives no price). */
 export interface FleaRates { '$'?: number; '€'?: number }
 
 /**
- * The game's rates of this mode from its catalog: the handbook price of «Доллары» and «Евро» (tarkov.dev `basePrice`),
- * the rate the flea itself sorts the offers of every currency by (owner, 18.11.2026: «все цены указаны в рублях только.
- * Если предмет в евро, значит, переводи евро на рубли согласно курсу игры»).
+ * The game's rates: what a trader asks in roubles for a dollar (Peacekeeper) and a euro (Skier) — tarkov.dev's `buyFor`
+ * of «Доллары» and «Евро», the flea itself left out. The flea sorts the offers of every currency by this: on the owner's
+ * Season frame of 18.11.2026 336 € stood between 61 666 ₽ and 65 420 ₽ (183.5–194.7 ₽ a euro; Skier's euro 188 ₽ that
+ * day, the handbook's 132 ₽ would have put it far higher up). Owner: «все цены указаны в рублях только. Если предмет в
+ * евро, значит, переводи евро на рубли согласно курсу игры».
  */
-export function fleaRates(basePriceOf: (itemId: string) => number | undefined): FleaRates {
-  const rate = (id: string) => { const value = basePriceOf(id); return value && Number.isFinite(value) && value > 0 ? value : undefined }
+export function fleaRates(items: ReadonlyArray<{ id?: unknown; buyFor?: ReadonlyArray<{ vendor?: { normalizedName?: unknown } | null; priceRUB?: unknown } | null> | null } | null>): FleaRates {
+  const rate = (id: string) => {
+    const offers = items.find((item) => item?.id === id)?.buyFor ?? []
+    const prices = offers.flatMap((offer) => offer && offer.vendor?.normalizedName !== 'flea-market' && typeof offer.priceRUB === 'number' && Number.isFinite(offer.priceRUB) && offer.priceRUB > 0 ? [offer.priceRUB] : [])
+    return prices.length ? Math.min(...prices) : undefined
+  }
   const [dollar, euro] = [rate(DOLLARS_ID), rate(EUROS_ID)]
   return { ...(dollar ? { '$': dollar } : {}), ...(euro ? { '€': euro } : {}) }
 }
@@ -228,9 +317,10 @@ export interface FleaSightingResult {
  * read for sure. So the reading stops at the first row it cannot read: a dim one, a price not sure, a name that names no
  * item. The flea sorts every currency by its value in roubles, so an item first offered in dollars or euros is priced at
  * the game's rate (`rates`, fleaRates); with no rate for its currency (GP coins), or worn («⚒ 30/40»), it gives no price:
- * its cheapest offer in roubles is unknown. `exclude`: items whose copies differ (weapons, armour, keys…: docs/trading.md).
+ * its cheapest offer in roubles is unknown. `exclude`: items whose copies differ (weapons, armour…: docs/trading.md), by the
+ * offer's info line (a key counts only with all its uses: screenFleaPrices.ts).
  */
-export function fleaSightings(rows: FleaRow[], exclude: (itemId: string) => boolean = () => false, rates: FleaRates = {}): FleaSightingResult {
+export function fleaSightings(rows: FleaRow[], exclude: (itemId: string, info: string) => boolean = () => false, rates: FleaRates = {}): FleaSightingResult {
   const sightings: FleaSighting[] = []
   const seen = new Set<string>()
   for (const [row, entry] of rows.entries()) {
@@ -244,8 +334,7 @@ export function fleaSightings(rows: FleaRow[], exclude: (itemId: string) => bool
     const itemId = entry.itemId
     if (seen.has(itemId)) continue
     seen.add(itemId)
-    const condition = fleaCondition(entry.info)
-    if (exclude(itemId) || (condition && condition.now !== condition.max)) continue
+    if (exclude(itemId, entry.info) || !wholeCondition(entry.info)) continue
     const roubles = inRoubles(price.value, price.currency, rates)
     if (roubles === null) continue
     sightings.push({ itemId, price: roubles, row, ...(price.currency === '₽' ? {} : { listed: { value: price.value, currency: price.currency } }) })
