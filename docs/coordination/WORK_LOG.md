@@ -7631,3 +7631,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Streets' negative tiles, Ground Zero holes asphalt). Pushed 22:53, gate green first time, publisher started by hand,
   `download/version.json` 0.6.0-314 at 23:18 Bangkok; /support and /privacy 200; /v1/goons/pvp shows repeats folded.
 - Not verified live: hotkey rows in the PC app, «Все локации» zoomed on Streets / Ground Zero in the app.
+
+## 2026-11-18: Claude, карта на телефоне — точки открываются, без окна у точки
+
+- Статус: completed, не выпущено. Ветка `claude/phone-map-taps` от `release/production` 0.6.0.315, коммит `6667a202`.
+- Причина: касание точки на холсте (документы БП, двери, спавны ключей) выбирало её, а `click` карты того же касания тут же снимал выбор (`wasCanvasPick` не видел метку на другом событии). Теперь `src/maps/canvasPick.ts` помнит время выбора (450 мс).
+- На телефоне у точек (выходы и все прочие) больше нет всплывающего окна у самой точки; карточка только снизу (`src/pages/MapsPage.tsx`).
+- Файлы: `src/maps/canvasPick.ts`, `src/maps/canvasPick.test.ts`, `src/maps/MarkerCanvasLayer.tsx`, `src/pages/MapsPage.tsx`.
+- Тесты: `src/maps` и `src/pages/MapsPage*` зелёные (deferred/autoFloor/raidChecks по отдельности), typecheck и eslint чистые. Проверено в браузере 375×812: ключ на холсте и выход открывают нижнюю карточку, тултипов 0.
+- Риск: на живом iPhone не проверено — только эмуляция в браузере.
