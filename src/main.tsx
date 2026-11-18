@@ -9,6 +9,7 @@ import './styles/global.css'
 import './styles/pages.css'
 import './styles/theme-gear.css'
 import './styles/theme-bloodmoon.css'
+import './styles/theme-glass.css'
 import './styles/mobile.css'
 import './styles/themeMotion.css'
 import './styles/theme-daynight.css'
@@ -20,6 +21,7 @@ import { LocaleProvider } from './i18n/LocaleProvider'
 import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
 import { installLayoutAttributes, isNative } from './platform'
 import { installSoftMotion } from './app/softMotion'
+import { installRichMotion } from './app/richMotion'
 import { installNoPageZoom } from './mobile/noPageZoom'
 import { installTarkovFetchGuard } from './data/tarkovApi'
 import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
@@ -84,6 +86,9 @@ void purgeLegacyPlaintextCaches()
 installLayoutAttributes()
 // Soft presses and gliding blocks on the phone; off with SOFT_MOTION = false in src/app/softMotion.ts (owner, 12.11.2026).
 installSoftMotion()
+// The PC app in motion: pages, numbers, charts, the menu's highlight; off with RICH_MOTION = false in src/app/richMotion.ts
+// (owner, 18.11.2026).
+installRichMotion()
 // Desktop app: confirm() through the main process, so the window still takes typed keys after it (src/app/nativeConfirm.ts).
 installNativeConfirm()
 // Android / iPhone app: an accidental double tap or pinch never zooms the whole interface out of the screen.

@@ -50,15 +50,29 @@ const HALLOWEEN_THEME = 'bloodmoon'
 
 /** Everyone who has not picked a scheme yet starts on the olive scheme «Олива» (id «tarkov»), phone and desktop. */
 export function defaultTheme() {
-  return 'tarkov'
+  return 'glass'
 }
 
 function read(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
 }
 
+/**
+ * «Стекло» comes on once for everyone (owner, 18.11.2026: «Стиль тоже такой стеклянный нужно сделать»): the scheme saved before it
+ * gives way to it the first time; a pick after that stands.
+ */
+const GLASS_SHOWN_KEY = 'tarkov-app-glass-shown'
+function showGlassOnce() {
+  if (read(GLASS_SHOWN_KEY)) return
+  try {
+    localStorage.setItem(GLASS_SHOWN_KEY, '1')
+    localStorage.setItem(THEME_KEY, 'glass')
+  } catch { /* storage unavailable */ }
+}
+
 /** The player's own choice (kept, and synced to the account), or the default. */
 export function savedTheme() {
+  showGlassOnce()
   const saved = read(THEME_KEY)
   return THEMES.some((theme) => theme.id === saved) || saved === DAY_NIGHT_THEME.id ? saved! : defaultTheme()
 }
