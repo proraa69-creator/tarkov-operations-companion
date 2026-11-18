@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import { DomUtil, Renderer, type LeafletMouseEvent, type Map as LeafletMap, type Point } from 'leaflet'
 import { onSpritesReady, pixelRatio, sprite, type SpriteSpec } from './markerSprites'
-import { CANVAS_PICK } from './canvasPick'
+import { markCanvasPick } from './canvasPick'
 
 /**
  * Many map points on one canvas (report №104, owner 09.11.2026: «при приближении каждая метка работает отдельно и прыгает
@@ -171,7 +171,7 @@ export function MarkerCanvasLayer({ points, hidden, interactive, onHover, onPick
       if (!handlers.current.interactive) return
       const id = renderer.hitAt(event.layerPoint)
       if (!id) return
-      ;(event.originalEvent as unknown as Record<symbol, boolean>)[CANVAS_PICK] = true
+      markCanvasPick(event)
       handlers.current.onPick(id)
     }
     const leave = () => { last = null; show(null) }

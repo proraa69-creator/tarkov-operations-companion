@@ -1537,8 +1537,10 @@ export function MapsPage() {
               >
                 {/* Phone: a tap on a quest point opens its quest window with the objective lit, ready to tick, as on the PC,
                     so the point has no card of its own over the map (owner, 02.11.2026: «Сделай более удобную отметку в
-                    телефонах» — a player had to scroll down to the quest; before, 17.10.2026, the tap showed only that card). */}
-                {!(mobile && marker.questId) && (
+                    телефонах» — a player had to scroll down to the quest; before, 17.10.2026, the tap showed only that card).
+                    Every other point too: a tap shows its card at the bottom only, none at the point (owner, 18.11.2026: «Нужно
+                    убрать окно выхода у самой точки… появляться должна только снизу информация о выходе»). */}
+                {!mobile && (
                   <Tooltip key={markerStyle} direction="right" offset={tooltipOffset(markerStyle, layerId, bust)} opacity={1} className="map-marker-tooltip">
                     <MapMarkerTooltip
                       marker={weaponKind ? { ...marker, title: STATIONARY_WEAPONS[weaponKind].name } : marker}
