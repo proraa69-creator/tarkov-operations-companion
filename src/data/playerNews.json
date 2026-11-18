@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.317","date":"2026-11-18","items":[
+    {"kind":"improved","ru":"«Ключи локации»: в бартере видно, с какого уровня предмет продаётся на барахолке","en":"«Location keys»: barters show the level each item opens at on the flea"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
   {"version":"0.6.0.315","date":"2026-11-18","items":[
     {"kind":"added","ru":"«Ключи локации»: все ключи карты в окне поверх приложения, двери подсвечиваются на карте","en":"«Location keys»: every key of a map in a window over the app, its doors lit on the map"},
     {"kind":"added","ru":"Карточка предмета: где купить — торговцы, барахолка и бартеры по вашим уровням","en":"Item card: where to buy — traders, the flea and barters by your levels"},
