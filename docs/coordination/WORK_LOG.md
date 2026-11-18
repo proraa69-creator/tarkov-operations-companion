@@ -7701,4 +7701,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: typecheck clean; vitest quests/progression/pages/overlay/ocrQueue/experimental: only the known
   positionTracker failures, AdminPanelPage source-text check (CRLF in the working copy, unrelated) and
   MapsPage.deferred under load (passes alone).
+- First publisher run on 749e1578 failed in its own `npm ci` (same onnxruntime CUDA 404). Fix 6b1f27b5: root `.npmrc`
+  `onnxruntime-node-install-cuda=skip` (npm passes it to install scripts as npm_config_…; only an «Unknown project
+  config» warning). Gate 44296182135 green; publisher run succeeded 11:54 UTC: version.json 0.6.0-318 (commit
+  6b1f27b5), mobile.json 0.6.0-318 (Android and iPhone).
 - Remaining: faction fix and item speed not checked in the game; VPS release mirror gc warnings (missing object).
