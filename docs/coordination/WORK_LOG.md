@@ -7723,3 +7723,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Not released: no version bump and no news yet. Proposed news line: «Сезон: у «Освободить помещение» цели и награды как в
   игре» / «Season: «Vacate the Premises» objectives and rewards match the game».
 - Report 192 status in the DB is unchanged (taken).
+
+## 2026-11-18 — «Ключи» window: price and tier-list letter of each key, not released
+
+- Owner: the map's key list should show each key's name, the map pin, its price and its tier-list letter (like «Информация
+  о предмете»). Hold the release; it goes with the next version, together with report 192.
+- b21c98bd on `claude/report-192-season`: `keyTiers()` / `shortRoubles()` in src/keys/locationKeysList.ts. The letter and
+  the price come from `slotTierRows(items, mode, 'keys')`, the same as «Тир-листы» → «Ключи» in the chosen mode, so they
+  always agree. LocationKeysWindow shows the letter on the picture's corner (tier-list colours), and the pin with a short
+  price beside it (full price in the tooltip). A key with no price shows neither. The window is now 470 px (was 440) so
+  «206 тыс ₽» fits next to a pin with a door count. Under 420 px it shows two keys per row.
+- Checked in the browser pane (vite dev, app-310): PvP RU, Season EN, phone 390 px; the pin still opens the map with the
+  key's doors. Tests: src/keys 7 passed; typecheck and eslint clean.
+- Proposed news line: «Ключи карты: у каждого ключа цена и буква тир-листа» / «Map keys: each key shows its price and
+  tier-list letter».
