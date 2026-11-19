@@ -8065,3 +8065,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Not verified in the game: the exits fix and the window need the built app.
 - Later the same day: the «Ключи» window lost its location picker and follows the map page's map (`locationKeys.followMap`,
   a key's open doors kept); a map without keys says so instead of showing the first map's keys. Added to 0.6.0.321.
+- Released 0.6.0.321: 861aa944 pushed to release/production (fast-forward from 4d8c3174) at 06:58 UTC, gate
+  44476049917 green, publisher started by hand at 07:44 UTC on the owner's go-ahead; version.json and mobile.json show
+  0.6.0-321 (861aa944). News: two lines only on the owner's word («Ключи» follows the map, «Оптимизация карты в рейде»).
+- Remaining: check exits after O and «Ключи рядом» in a real raid; the four KORD BREACH ids; map points of the line.
