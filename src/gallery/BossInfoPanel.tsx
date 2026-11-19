@@ -8,7 +8,8 @@ import { useTarkovData } from '../data/DataProvider'
 import { bossMapIds } from '../data/bossFigures'
 import { bossDetails } from '../data/bossInfo'
 import { bossLoadout, resolveBossItem, type BossItemRef } from '../data/bossLoadout'
-import { bossGear, bossRetinue, classLabel, memberSize, retinueGear, retinueSize, type BossGear, type BossGearGroup, type BossRetinue, type ClassRange } from '../data/bossGear'
+import { bossGear, bossRetinue, classLabel, lightsWarning, LIGHTS_SHOWN, memberSize, retinueGear, retinueLoot, retinueMaps, retinueSize, type BossGear, type BossGearGroup, type BossGearItem, type BossRetinue, type ClassRange } from '../data/bossGear'
+import { dearLoot } from './retinueLoot'
 import { BodyHealthFigure } from '../components/BodyHealthFigure'
 import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
@@ -74,7 +75,7 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
       <p className="boss-info-text">{info.loot[locale]}</p>
     </section> : null}
 
-    {retinue && <RetinueBlock retinue={retinue} index={index} />}
+    {retinue && <RetinueBlock retinue={retinue} items={data.items} index={index} />}
 
     {loadout?.guardWeapons?.length ? <section className="boss-info-block">
       <h3><Crosshair size={14} /> {uiText('Вооружение охраны')}</h3>
@@ -93,26 +94,83 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
 
 /**
  * «Свита» (owner, 20.11.2026: «боссам, у которых есть свита, нужно добавить в описание боссов, какая свита, сколько человек, какая
- * броня, оружие и какие у них патроны бывают»): each kind of guard, how many on which map, his guns with their rounds and his armour.
- * The Goons: «Вместе с» the other two, their kit as on their own pages.
+ * броня, оружие и какие у них патроны бывают»; later the same day: «во что они одеты… что с них дорогого… может упасть»): each kind
+ * of guard, how many on each map, his guns with their rounds, his armour classes, the helmets, armour and rigs he wears and the
+ * dear things he may carry. The Goons: «Вместе с» the other two, their kit as on their own pages.
  */
-function RetinueBlock({ retinue, index }: { retinue: BossRetinue; index: Map<string, Item> }) {
+function RetinueBlock({ retinue, items, index }: { retinue: BossRetinue; items: Item[]; index: Map<string, Item> }) {
   const { locale } = useLocale()
+  const { raidMode } = useAppState()
   const total = retinueSize(retinue)
+  // each guard's line names the maps when the retinue comes on more than one (Glukhar: Reserve, and Terminal for the security)
+  const manyMaps = retinueMaps(retinue).length > 1
+  const loot = useMemo(() => retinue.members.map((member) => dearLoot(items, index, raidMode, retinueLoot(member, raidMode).map((entry) => entry.id))),
+    [retinue, items, index, raidMode])
   return <section className="boss-info-block boss-retinue">
-    <h3><Users size={14} /> {uiText(retinue.squad ? 'Вместе с' : 'Свита')}
+    {/* «Свита» in English straight: the game's own bot names map «Свита» to «The Wedge (Labs) Guard» */}
+    <h3><Users size={14} /> {retinue.squad ? uiText('Вместе с') : locale === 'en' ? 'Retinue' : 'Свита'}
       {!retinue.squad && <b className="boss-info-total">{classLabel(total)} {uiText('чел.')}</b>}</h3>
-    {retinue.members.map((member) => {
+    {retinue.members.map((member, at) => {
       const kit = retinueGear(member)
       return <div key={member.name.en} className="boss-gear-group">
         <span className="boss-gear-group-title boss-retinue-name">{member.name[locale]}{!retinue.squad && <b>×{classLabel(memberSize(member))}</b>}</span>
-        {!retinue.squad && member.counts.length > 1 && <span className="boss-retinue-maps">
+        {!retinue.squad && manyMaps && <span className="boss-retinue-maps">
           {member.counts.map((count) => `${count.maps.map((id) => uiText(MAP_DISPLAY_NAMES[id] ?? id)).join(', ')}: ${classLabel([count.min, count.max])}`).join(' · ')}
         </span>}
-        {kit && <><GunTiles group={kit} index={index} /><ArmorRow group={kit} index={index} /></>}
+        {kit && <><GunTiles group={kit} index={index} /><ArmorRow group={kit} index={index} tiles={false} /><WearRows group={kit} index={index} /></>}
+        {!member.ref && loot[at]!.length > 0 && <RetinueLootTiles items={loot[at]!} />}
       </div>
     })}
   </section>
+}
+
+/**
+ * What a guard wears, the most worn first: helmets, armour and rigs, a small picture with each name; the lights on his guns when
+ * half of them have one, and what they blind when nearly all do (report 201).
+ */
+function WearRows({ group, index }: { group: Omit<BossGearGroup, 'maps'>; index: Map<string, Item> }) {
+  const { locale } = useLocale()
+  const lights = group.lights && group.lights.share >= LIGHTS_SHOWN ? group.lights.devices : []
+  const rows: Array<[string, BossGearItem[]]> = [['Шлем', group.helmets ?? []], ['Броня', group.armor], ['Разгрузка', group.rigs ?? []], ['Фонарь', lights]]
+  const shown = rows.filter(([, list]) => list.length > 0)
+  const warning = lightsWarning(group.lights)
+  if (!shown.length) return null
+  return <><dl className="boss-retinue-wear">
+    {shown.map(([label, list]) => <div key={label} className="boss-retinue-wear-row">
+      <dt>{uiText(label)}</dt>
+      <dd>{list.map((entry) => {
+        const found = index.get(entry.id)
+        return <span key={entry.id} className="boss-retinue-wear-item" title={found ? uiText(found.name) : entry.name[locale]}>
+          {found?.iconUrl && <img src={found.iconUrl} alt="" loading="lazy" decoding="async" />}{entry.name[locale]}
+        </span>
+      })}</dd>
+    </div>)}
+  </dl>
+  {warning && <p className="boss-info-note boss-retinue-lights">{uiText(warning)}</p>}</>
+}
+
+/** «Может выпасть»: the dear things a guard may carry (retinueLoot.ts), two rows of tiles, «Ещё» for the rest. */
+const LOOT_FIRST = 6
+function RetinueLootTiles({ items }: { items: Item[] }) {
+  const { raidMode } = useAppState()
+  const [all, setAll] = useState(false)
+  const shown = all ? items : items.slice(0, LOOT_FIRST)
+  return <div className="boss-retinue-loot">
+    <span className="boss-retinue-loot-title"><Gem size={12} /> {uiText('Может выпасть')}</span>
+    <ul className="boss-info-items">
+      {shown.map((item) => {
+        const price = displayPrice(item, raidMode)?.price ?? 0
+        return <li key={item.id} className="boss-info-item" title={uiText(item.name)}>
+          <span className="boss-info-item-image"><ItemPicture item={item} /></span>
+          <span className="boss-info-item-name">{uiText(item.shortName || item.name)}</span>
+          {price > 0 && <span className="boss-info-item-price">{formatPrice(price)}</span>}
+        </li>
+      })}
+    </ul>
+    {items.length > LOOT_FIRST && <button type="button" className="boss-retinue-loot-more" onClick={() => setAll(!all)}>
+      {all ? uiText('Скрыть') : `${uiText('Ещё')} ${items.length - LOOT_FIRST}`}
+    </button>}
+  </div>
 }
 
 /** One kit, or one per map when the boss's kit differs by map (Black Division: lighter plates on Labs and Icebreaker). */
