@@ -8095,3 +8095,6 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Kill zones are SVG polygons and follow the map; their jumping was the map flying back. The layer switches report of
   Prizrak337 is still not reproduced (PvE, «Стекло», Shoreline: 30 documents, switches work, nothing covers the buttons).
 - typecheck clean; src/maps + MapsPage tests pass (MapsPage.deferred only alone, as before). Not released.
+- Released 0.6.0.323 on the owner's word («Да, выпускай»): 0dba4c89 on release/production; the gate's first run failed
+  on the known flaky server test «mirror storage: two storages on one folder» (client-only change), rerun of the failed
+  job green (44530897532 attempt 2); the timer started the publisher; version.json 0.6.0-323, mobile.json 0.6.0.323.
