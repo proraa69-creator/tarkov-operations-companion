@@ -1,4 +1,4 @@
-import type { GearStats } from '../domain/types'
+import type { GearStats, VisorStats } from '../domain/types'
 
 type JsonRecord = Record<string, unknown>
 
@@ -49,11 +49,40 @@ export function gearStatsOf(entry: JsonRecord, materials: unknown, lookup: (id: 
     speedPenalty: num(properties.speedPenalty) ?? 0,
     turnPenalty: num(properties.turnPenalty) ?? 0,
     ergoPenalty: num(properties.ergoPenalty) ?? 0,
-    ...(kind === 'helmet' ? {
-      deafening: deafening && DEAFENING.has(deafening) ? deafening as GearStats['deafening'] : undefined,
-      blocksHeadset: properties.blocksHeadset === true,
-      ...helmetFace(properties, armorClass, lookup, presetsOf(text(entry.id) ?? '') ?? []),
-    } : {}),
+    ...(kind === 'helmet' ? helmetExtras(properties, armorClass, deafening, lookup, presetsOf(text(entry.id) ?? '') ?? []) : {}),
+  }
+}
+
+/** A helmet's sound, ricochet and face (helmetFace), with its visor's own stats when the visor is a separate item. */
+function helmetExtras(properties: JsonRecord, armorClass: number, deafening: string | undefined, lookup: (id: string) => JsonRecord | undefined, presets: HelmetPreset[]): Partial<GearStats> {
+  const face = helmetFace(properties, armorClass, lookup, presets)
+  const visor = face.visorId ? visorStats(asRecord(lookup(face.visorId))) : undefined
+  return {
+    deafening: deafening && DEAFENING.has(deafening) ? deafening as GearStats['deafening'] : undefined,
+    blocksHeadset: properties.blocksHeadset === true,
+    // A catalog whose helmets have it was built with the visors' stats too (TierListPanel catalogHasGear).
+    ricochet: num(properties.ricochetY),
+    ...face,
+    ...(visor ? { visor } : {}),
+  }
+}
+
+/** A face shield's own stats (src/domain/types.ts VisorStats): its class, durability, zones, ricochet, penalties and weight. */
+function visorStats(entry: JsonRecord): VisorStats | undefined {
+  const properties = asRecord(entry.properties)
+  const armorClass = num(properties.class)
+  if (!armorClass) return undefined
+  const materialRef = properties.material
+  return {
+    armorClass,
+    durability: num(properties.durability),
+    material: typeof materialRef === 'string' ? materialRef : text(asRecord(materialRef).id),
+    zones: Array.isArray(properties.zones) ? properties.zones.length : num(properties.zones),
+    ricochet: num(properties.ricochetY),
+    speedPenalty: num(properties.speedPenalty) ?? 0,
+    turnPenalty: num(properties.turnPenalty) ?? 0,
+    ergoPenalty: num(properties.ergoPenalty) ?? 0,
+    weight: num(entry.weight),
   }
 }
 

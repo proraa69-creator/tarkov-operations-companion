@@ -854,6 +854,13 @@ export interface GearStats {
   visorId?: string
   /** Helmets: the game's preset of the helmet with that visor on (its picture shows them together). */
   presetId?: string
+  /**
+   * Helmets and their visors: the game's ricochet value (tarkov.dev `ricochetY`, the item's RicochetParams.y); the game's inventory
+   * calls it high above 0.3, medium above 0.15, else low (src/screen/tierLists.ts ricochetLevel).
+   */
+  ricochet?: number
+  /** Helmets: the visor's own stats (`visorId`), counted on the face only while it is down (src/screen/tierLists.ts helmetWorn). */
+  visor?: VisorStats
   /** Backpacks: cells inside (owner, 02.11.2026: «Тир лист рюкзаков составь по количеству ячеек»). */
   capacity?: number
   /** Headsets: hearing distance multiplier (1.135 = +13.5 %), distortion 0–1 and the compressor. */
@@ -864,6 +871,20 @@ export interface GearStats {
   compressorThreshold?: number
   /** Headsets: items they cannot be worn with (helmets among them). */
   conflictingIds?: string[]
+}
+
+/** A helmet's armored visor by itself (tarkov.dev `properties` of the face shield; penalties are fractions, negative). */
+export interface VisorStats {
+  armorClass: number
+  durability?: number
+  material?: string
+  /** Hit zones it covers (the face: eyes, jaw…). */
+  zones?: number
+  ricochet?: number
+  speedPenalty: number
+  turnPenalty: number
+  ergoPenalty: number
+  weight?: number
 }
 
 export interface HideoutStation {

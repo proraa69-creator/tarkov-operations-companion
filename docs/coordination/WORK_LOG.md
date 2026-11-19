@@ -8095,3 +8095,28 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Kill zones are SVG polygons and follow the map; their jumping was the map flying back. The layer switches report of
   Prizrak337 is still not reproduced (PvE, «Стекло», Shoreline: 30 documents, switches work, nothing covers the buttons).
 - typecheck clean; src/maps + MapsPage tests pass (MapsPage.deferred only alone, as before). Not released.
+
+## 2026-11-20 — Claude: helmet visors down and up in «Тир листы» (branch claude/helmet-visor)
+- Owner (20.11.2026): pictures of Маска-1Щ (Killa Edition), Маска-1Щ, Рысь-Т, Алтын, Вулкан-5, ЛШЗ-2ДТМ with the visor that suits
+  each, down and raised; in the tier list a right click (a long press on the phone) gives one button, «Опустить забрало» or
+  «Поднять забрало», and the picture and the stats follow the position.
+- Pictures: own BepInEx plugin RaidOsHelmets in the offline SPT copy (`E:\SPT\BepInEx\plugins\RaidOsHelmets`, sleeps without
+  `go.flag`, waits while RaidOsGuns renders). The helmet is built with its built-in plates and its visor (ItemFactory), the visor's
+  `TogglableComponent.On` set, and drawn by the game's own inventory icon renderer (`ItemIconCreator.GetItemSpriteAsync`): the pose
+  is the inventory icon's, the same as the tier list's current pictures. 12 webp, 128 px on the inventory cell's background, in
+  `src/assets/helmet-visors/`; sources and steps in `scripts/helmet-visors/`. Full-size PNGs: `E:\SPT-photo\helmets\renders`.
+- Stats as the game counts them (Assembly-CSharp 0.16.9, read with Mono.Cecil): a raised visor takes no shot
+  (`CompositeArmorComponent.ShotMatches` needs `Togglable.On`), so the face class, its zones and its ricochet leave; its speed,
+  ergonomics and turn penalties and its weight stay (`Player.RecalculateEquipmentParams` adds up every armor put on whatever its
+  position). Ricochet named like the inventory (`RicochetParams.y` > 0.3 high, > 0.15 medium). `src/screen/tierLists.ts`
+  `helmetWorn`, `ricochetLevel`; `src/data/gearStats.ts` reads the visor's own stats and the helmet's `ricochetY`.
+- The list still ranks helmets with the visor down (Killa stays in S when raised). Every helmet with a visor now shows the visor's
+  penalties and weight in its card. The catalog needs the new `gear.ricochet`/`gear.visor`: until the server runs this code the
+  panel reads them from the items file, as it did before the visors (one more request on «Шлемы»).
+- `src/components/useHoverCard.tsx`: `onHoldEnd`, the lifted finger after a long press (opens the menu on the phone).
+- Tests: tierLists, helmetVisors, TierListPanel (toggle, stats, long press, English), useHoverCard; typecheck and eslint of the
+  changed files clean. Checked on the dev server with live data (Playwright): PC RU/EN, Pixel 7 (long press → card → button).
+- Offline game: restarted at 05:43 when RaidOsGuns had been idle since 04:58 (the launcher stuck on its server list; started
+  `EscapeFromTarkov.exe -token=<profile id> -config={"BackendUrl":"https://127.0.0.1:6969",…}` directly); released to the hideout
+  session after the renders.
+- Not released. Remaining: Vulkan-5's visor side shows black in the game's icon renderer (the game draws it so).

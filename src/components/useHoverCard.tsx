@@ -17,9 +17,12 @@ const TOUCH_MOUSE_GAP_MS = 800
  * On a touch screen the card comes with a long press (owner, 13.10.2026: «при удержании пальца на объекте, появляется
  * всплывающее окно … но при удержании и ведении им, окно начинает тоже перетаскиваться»): while it is shown the finger
  * moves nothing — no scrolling, no lifted link — and lifting the finger hides it without opening the link under it.
+ * `onHoldEnd`: that finger was lifted (a phone's long press opens the element's menu then, «Тир листы»: «Поднять забрало»).
  */
-export function useHoverCard(content: ReactNode | null | undefined) {
+export function useHoverCard(content: ReactNode | null | undefined, { onHoldEnd }: { onHoldEnd?: (anchor: HTMLElement) => void } = {}) {
   const id = useId()
+  const holdEnd = useRef(onHoldEnd)
+  useEffect(() => { holdEnd.current = onHoldEnd })
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const timer = useRef<number | undefined>(undefined)
   const [open, setOpen] = useState(false)
@@ -73,6 +76,7 @@ export function useHoverCard(content: ReactNode | null | undefined) {
     swallowClick.current = event.type === 'pointerup'
     setHeld(false)
     setOpen(false)
+    if (event.type === 'pointerup') holdEnd.current?.(event.currentTarget)
   }, [cancelPress, held])
   const onClickCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     if (!swallowClick.current) return
