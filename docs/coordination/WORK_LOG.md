@@ -8083,3 +8083,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Released 0.6.0.322 on the owner's word («Выпусти»): 92437986 (version, history row, no player news) fast-forwarded
   release/production 861aa944 → 92437986 at ~10:16 UTC; Production Gate 44504352551 green; publisher started by hand at
   10:29 UTC; version.json 0.6.0-322 (924379863c58…-production) at ~10:37 UTC, /v1/downloads/mobile.json 0.6.0.322.
+
+## 2026-11-19 — Claude: map points and kill zones no longer jump on a zoom or a click (all maps)
+- Owner's video (Shoreline, Season): after a press on a battle pass document the map moved back to it again and again,
+  the documents and the «Чужое добро» kill zone «ездить, прыгать туда-сюда»; on a zoom the icons slid and snapped.
+- `FocusOnMarker` (`src/pages/MapsPage.tsx`) flew to the picked point on every rebuild of its marker object (data, squad,
+  scanner updates); it now flies once per point (id + position), and again only when asked («Показать точку на карте»).
+- `src/maps/MarkerCanvasLayer.tsx`: the canvas of points scaled as one picture during a zoom. A flight or pinch now redraws
+  each frame at its own zoom; Leaflet's CSS zoom repaints the icons each frame at the inverse of the canvas scale, so they keep
+  size and place. Checked in the dev page: canvas at 2× → icons drawn at ½ (24 → 12 px), a frame zoom redraws at scale 1.
+- Kill zones are SVG polygons and follow the map; their jumping was the map flying back. The layer switches report of
+  Prizrak337 is still not reproduced (PvE, «Стекло», Shoreline: 30 documents, switches work, nothing covers the buttons).
+- typecheck clean; src/maps + MapsPage tests pass (MapsPage.deferred only alone, as before). Not released.

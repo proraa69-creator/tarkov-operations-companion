@@ -1996,12 +1996,19 @@ function FocusOnMarker({ marker, closer = false, follow = true, askedRef }: { ma
   const map = useMap()
   // The zoom picked for the door: a repeated focus on the same door (its marker rebuilt) keeps it instead of the mid-flight zoom.
   const closerZoom = useRef<{ id: string; zoom: number } | null>(null)
+  // The point flown to last: the same point rebuilt (the markers are built anew when the data, the squad or the scanner
+  // update) is not flown to again (owner, 19.11.2026, a video of Shoreline: the map moved back to a picked document every few
+  // seconds after the player had moved it, and the documents and the «Чужое добро» zone «начинают ездить, прыгать туда-сюда»).
+  const flown = useRef<string | null>(null)
   useEffect(() => {
-    if (!marker) return
+    if (!marker) { flown.current = null; return }
     const wanted = askedRef?.current === marker.id
     if (wanted && askedRef) askedRef.current = null
-    if (!follow && !wanted) return
     const [lat, lng] = marker.position
+    const at = `${marker.id}@${lat},${lng}`
+    if (!wanted && flown.current === at) return
+    flown.current = at
+    if (!follow && !wanted) return
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
     let zoom = Math.max(map.getZoom(), map.getMinZoom() + 2)
     if (closer) {

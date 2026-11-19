@@ -8,8 +8,14 @@ import { markCanvasPick } from './canvasPick'
 /**
  * Many map points on one canvas (report №104, owner 09.11.2026: «при приближении каждая метка работает отдельно и прыгает
  * отдельно… чтобы они приклеивались к карте и были единым целым, но также нажимались. И также окошки появлялись при
- * наведении»). The canvas is a Leaflet renderer: it moves with the map, scales as one picture during a zoom and is drawn
- * again once it ends — hundreds of DOM icons each animated on its own made a zoom while the map glided freeze for seconds.
+ * наведении»). The canvas is a Leaflet renderer: it moves with the map — hundreds of DOM icons each animated on its own made a zoom
+ * while the map glided freeze for seconds.
+ *
+ * The icons keep their size and their places all through a zoom (owner, 19.11.2026: «чтобы на всех картах маркеры не прыгали при
+ * увеличении или при нажатии»): the canvas used to scale as one picture, so every icon grew or shrank and slid off its spot until
+ * the zoom ended and it was drawn again. A flight (flyTo, a pinch) is drawn anew at each frame's own zoom; Leaflet's short CSS zoom
+ * (wheel, buttons) still moves the canvas as one, and each frame the icons are painted again at the scale it has reached, smaller
+ * by as much, so on the screen they stay the size they are.
  * The point under the pointer is handed back (`onHover`) for the page to draw as its usual icon, with its tooltip, click
  * and menu; a tap where no icon stands yet (a phone) picks the point (`onPick`).
  *
@@ -57,8 +63,18 @@ interface CanvasRenderer {
   /** Every icon's box, the hidden ones too (the shown point is a DOM icon then). */
   boxes: Drawn[]
   hidden: ReadonlySet<string>
+  _animFrame?: number
   redraw(): void
+  paint(iconScale: number): void
   hitAt(layerPoint: Point): string | null
+}
+
+/** How much the canvas is scaled right now by Leaflet's CSS zoom (1 when it is not). */
+export function cssScale(element: HTMLElement) {
+  const transform = getComputedStyle(element).transform
+  if (!transform || transform === 'none') return 1
+  const scale = new DOMMatrixReadOnly(transform).a
+  return Number.isFinite(scale) && scale > 0 ? scale : 1
 }
 
 const MarkerRenderer = (Renderer as unknown as { extend(props: object): new (options?: object) => CanvasRenderer }).extend({
@@ -71,7 +87,24 @@ const MarkerRenderer = (Renderer as unknown as { extend(props: object): new (opt
     this.hidden = new Set()
   },
   _destroyContainer(this: CanvasRenderer) {
+    if (this._animFrame) cancelAnimationFrame(this._animFrame)
     DomUtil.remove(this._container)
+  },
+  // A flight or a pinch zooms frame by frame: drawn at each frame's zoom, not the first frame's picture stretched.
+  _onZoom(this: CanvasRenderer & { _reset(): void }) {
+    if (!this._map._animatingZoom) this._reset()
+  },
+  // Leaflet's CSS zoom: the canvas scales as one; the icons are painted again every frame at the inverse of that scale.
+  _onAnimZoom(this: CanvasRenderer, event: unknown) {
+    ;(Renderer.prototype as unknown as { _onAnimZoom: (event: unknown) => void })._onAnimZoom.call(this, event)
+    if (this._animFrame) cancelAnimationFrame(this._animFrame)
+    const step = () => {
+      this._animFrame = 0
+      if (!this._map?._animatingZoom) return
+      this.paint(1 / cssScale(this._container))
+      this._animFrame = requestAnimationFrame(step)
+    }
+    this._animFrame = requestAnimationFrame(step)
   },
   _update(this: CanvasRenderer) {
     if (this._map._animatingZoom && this._bounds) return
@@ -80,6 +113,8 @@ const MarkerRenderer = (Renderer as unknown as { extend(props: object): new (opt
   },
   redraw(this: CanvasRenderer) {
     if (!this._map || !this._bounds) return
+    // mid CSS zoom the canvas keeps the place and scale Leaflet animates; only its icons are painted again
+    if (this._map._animatingZoom) { this.paint(1 / cssScale(this._container)); return }
     const bounds = this._bounds
     const size = bounds.getSize()
     const ratio = pixelRatio()
@@ -89,8 +124,18 @@ const MarkerRenderer = (Renderer as unknown as { extend(props: object): new (opt
     canvas.height = Math.round(size.y * ratio)
     canvas.style.width = `${size.x}px`
     canvas.style.height = `${size.y}px`
+    this.paint(1)
+  },
+  /** The icons drawn at their points, `iconScale` times their size around their anchors. */
+  paint(this: CanvasRenderer, iconScale: number) {
+    if (!this._map || !this._bounds) return
+    const bounds = this._bounds
+    const ratio = pixelRatio()
+    const canvas = this._container
     const context = canvas.getContext('2d')
     if (!context) return
+    context.setTransform(1, 0, 0, 1, 0, 0)
+    context.clearRect(0, 0, canvas.width, canvas.height)
     context.setTransform(ratio, 0, 0, ratio, -bounds.min.x * ratio, -bounds.min.y * ratio)
     // lower points over higher ones, as Leaflet stacks its markers
     const placed = this.points
@@ -101,12 +146,13 @@ const MarkerRenderer = (Renderer as unknown as { extend(props: object): new (opt
     for (const { point, at } of placed) {
       const picture = sprite(point.spec)
       if (!picture) continue
-      const left = at.x - picture.anchorX, top = at.y - picture.anchorY
-      if (left > bounds.max.x || top > bounds.max.y || left + picture.width < bounds.min.x || top + picture.height < bounds.min.y) continue
-      const box = { id: point.id, x: at.x, y: at.y, left: left + picture.hit.x - HIT_SLOP, top: top + picture.hit.y - HIT_SLOP, right: left + picture.hit.x + picture.hit.width + HIT_SLOP, bottom: top + picture.hit.y + picture.hit.height + HIT_SLOP }
+      const left = at.x - picture.anchorX * iconScale, top = at.y - picture.anchorY * iconScale
+      const width = picture.width * iconScale, height = picture.height * iconScale
+      if (left > bounds.max.x || top > bounds.max.y || left + width < bounds.min.x || top + height < bounds.min.y) continue
+      const box = { id: point.id, x: at.x, y: at.y, left: left + picture.hit.x * iconScale - HIT_SLOP, top: top + picture.hit.y * iconScale - HIT_SLOP, right: left + (picture.hit.x + picture.hit.width) * iconScale + HIT_SLOP, bottom: top + (picture.hit.y + picture.hit.height) * iconScale + HIT_SLOP }
       boxes.push(box)
       if (this.hidden.has(point.id)) continue
-      context.drawImage(picture.canvas, left, top, picture.width, picture.height)
+      context.drawImage(picture.canvas, left, top, width, height)
       drawn.push(box)
     }
     this.drawn = drawn
