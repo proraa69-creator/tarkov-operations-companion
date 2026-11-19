@@ -75,13 +75,18 @@ function balance(after: BuildStats | undefined, now: BuildStats) {
   return Math.round((recoil * RECOIL_WEIGHT + (after.ergonomicsRaw - now.ergonomicsRaw) * ERGO_WEIGHT) * 2) / 2
 }
 
-/** Where the window goes: under its cell when there is room below, else above; inside the screen. */
-function usePlace(anchor: () => Element | null, width: number) {
+/**
+ * Where the window goes. With `avoid` (the part being changed and its cell): to the left or the right of it, else below or above it,
+ * whichever shows the window most and never over it. Without: under its cell when there is room below, else above. Inside the screen.
+ */
+function usePlace(anchor: () => Element | null, width: number, avoid?: () => DOMRect | null) {
   const [place, setPlace] = useState<CSSProperties>({ visibility: 'hidden' })
   useLayoutEffect(() => {
     let frame = 0
     // at once when the window opens (no frame where it stands nowhere), then on the next frame after a scroll or a resize
     const place = () => {
+        const keep = avoid?.()
+        if (keep) { setPlace(beside(keep, width)); return }
         const cell = anchor()
         if (!cell) return
         const rect = cell.getBoundingClientRect()
@@ -99,8 +104,32 @@ function usePlace(anchor: () => Element | null, width: number) {
     window.addEventListener('resize', measure)
     window.addEventListener('scroll', measure, true)
     return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true) }
-  }, [anchor, width])
+  }, [anchor, avoid, width])
   return place
+}
+
+/** The window beside a box it must not cover: left or right first, then below or above; the side that shows it most. */
+function beside(box: DOMRect, width: number): CSSProperties {
+  const margin = 8
+  const screen = { width: window.innerWidth, height: window.innerHeight }
+  const tallest = Math.min(screen.height - 2 * margin, screen.height * (screen.width < 520 ? 0.46 : 0.7))
+  const options: Array<{ style: CSSProperties; room: number; side: boolean }> = []
+  // left or right of it, as high as it, inside the screen
+  const top = Math.max(margin, Math.min(screen.height - margin - tallest, box.top + box.height / 2 - tallest / 2))
+  const right = screen.width - box.right - 2 * margin
+  const leftRoom = box.left - 2 * margin
+  if (right >= Math.min(width, 260)) options.push({ side: true, room: Math.min(right, width) * tallest, style: { left: box.right + margin, top, maxHeight: tallest, width: Math.min(width, right) } })
+  if (leftRoom >= Math.min(width, 260)) options.push({ side: true, room: Math.min(leftRoom, width) * tallest, style: { left: Math.max(margin, box.left - margin - Math.min(width, leftRoom)), top, maxHeight: tallest, width: Math.min(width, leftRoom) } })
+  // below or above it, as wide as it can
+  const left = Math.max(margin, Math.min(screen.width - width - margin, box.left + box.width / 2 - width / 2))
+  const below = Math.min(tallest, screen.height - box.bottom - 2 * margin)
+  const above = Math.min(tallest, box.top - 2 * margin)
+  if (below >= 120) options.push({ side: false, room: width * below, style: { left, top: box.bottom + margin, maxHeight: below, width } })
+  if (above >= 120) options.push({ side: false, room: width * above, style: { left, bottom: screen.height - box.top + margin, maxHeight: above, width } })
+  // a side first when it shows enough of the window (owner: «левее или правее»), else what shows the most
+  const roomiest = (list: typeof options) => list.reduce<(typeof options)[number] | undefined>((best, option) => !best || option.room > best.room ? option : best, undefined)
+  const best = roomiest(options.filter((option) => option.side && option.room >= 0.6 * width * tallest)) ?? roomiest(options)
+  return best?.style ?? { left: margin, top: margin, maxHeight: tallest, width: Math.min(width, screen.width - 2 * margin) }
 }
 
 /** Closes on Esc and on a press outside the window and outside the cells (a press on another cell chooses that cell). */
@@ -120,14 +149,14 @@ function useDismiss(box: RefObject<HTMLElement | null>, onClose: () => void) {
   }, [box])
 }
 
-function GridWindow({ anchor, title, count, onClose, children, tools }: { anchor: () => Element | null; title: string; count: number; onClose: () => void; children: ReactNode; tools?: ReactNode }) {
+function GridWindow({ anchor, avoid, title, count, onClose, children, tools }: { anchor: () => Element | null; avoid?: () => DOMRect | null; title: string; count: number; onClose: () => void; children: ReactNode; tools?: ReactNode }) {
   const box = useRef<HTMLDivElement>(null)
   const narrow = typeof window !== 'undefined' && window.innerWidth < 520
   const tile = narrow ? 70 : 82
   const columns = Math.max(3, Math.min(narrow ? 4 : 6, count))
   // the tiles, the window's padding and its scroll bar
   const width = Math.min((typeof window === 'undefined' ? 800 : window.innerWidth) - 16, columns * (tile + 4) + 24)
-  const place = usePlace(anchor, width)
+  const place = usePlace(anchor, width, avoid)
   useDismiss(box, onClose)
   return createPortal(<div className="wb-grid-window" ref={box} role="dialog" aria-label={title} style={{ ...place, '--wb-tile': `${tile}px` } as CSSProperties}>
     <div className="wb-grid-head">
@@ -139,11 +168,11 @@ function GridWindow({ anchor, title, count, onClose, children, tools }: { anchor
   </div>, document.body)
 }
 
-export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, everything, anchor, onPick, onPickKit, onRemove, onClose }: {
+export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, everything, anchor, avoid, onPick, onPickKit, onRemove, onClose }: {
   cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess
   /** «Показать все модули»: none greyed, the best change first whatever it costs. */
   everything?: boolean
-  anchor: () => Element | null; onPick: (itemId: string) => void; onPickKit?: (kit: MuzzleKit) => void; onRemove: () => void; onClose: () => void
+  anchor: () => Element | null; avoid?: () => DOMRect | null; onPick: (itemId: string) => void; onPickKit?: (kit: MuzzleKit) => void; onRemove: () => void; onClose: () => void
 }) {
   const muzzle = isMuzzleSlot(cell.slot) && Boolean(onPickKit)
   const [sort, setSortState] = useState<GridSort>(readSort)
@@ -177,7 +206,7 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
     {sorts.map((value) => <option key={value} value={value}>{uiText(SORT_NAMES[value])}</option>)}
   </select>
   const removable = Boolean(cell.part) && (!cell.slot.required || cell.slot.nameId === STOCK_SLOT)
-  if (sort === 'kits' && muzzle) return <GridWindow anchor={anchor} title={cell.slot.name} count={Math.max(3, kits.length)} onClose={onClose} tools={tools}>
+  if (sort === 'kits' && muzzle) return <GridWindow anchor={anchor} avoid={avoid} title={cell.slot.name} count={Math.max(3, kits.length)} onClose={onClose} tools={tools}>
     {kits.map(({ kit, price }) => {
       // what the device and the suppressor give together
       const ergonomics = kit.device.ergonomics + kit.suppressor.ergonomics
@@ -195,7 +224,7 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
     })}
     {!kits.length && <p className="wb-grid-none">{uiText('Комплектов нет.')}</p>}
   </GridWindow>
-  return <GridWindow anchor={anchor} title={cell.slot.name} count={rows.length + (removable ? 1 : 0)} onClose={onClose} tools={tools}>
+  return <GridWindow anchor={anchor} avoid={avoid} title={cell.slot.name} count={rows.length + (removable ? 1 : 0)} onClose={onClose} tools={tools}>
     {removable && <button type="button" className="wb-tile is-remove" onClick={onRemove} title={uiText('Снять')}>
       <Trash2 size={18} />
       <span className="wb-tile-name">{uiText('Снять')}</span>
@@ -219,10 +248,10 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
   </GridWindow>
 }
 
-export function AmmoGrid({ options, selected, access, everything, anchor, onPick, onClose }: {
-  options: AmmoStats[]; selected?: string; access: PurchaseAccess; everything?: boolean; anchor: () => Element | null; onPick: (id: string) => void; onClose: () => void
+export function AmmoGrid({ options, selected, access, everything, anchor, avoid, onPick, onClose }: {
+  options: AmmoStats[]; selected?: string; access: PurchaseAccess; everything?: boolean; anchor: () => Element | null; avoid?: () => DOMRect | null; onPick: (id: string) => void; onClose: () => void
 }) {
-  return <GridWindow anchor={anchor} title={uiText('Патрон')} count={options.length + (selected ? 1 : 0)} onClose={onClose}>
+  return <GridWindow anchor={anchor} avoid={avoid} title={uiText('Патрон')} count={options.length + (selected ? 1 : 0)} onClose={onClose}>
     {selected && <button type="button" className="wb-tile is-remove" onClick={() => onPick('')} title={uiText('Убрать патрон')}>
       <Trash2 size={18} />
       <span className="wb-tile-name">{uiText('Убрать')}</span>

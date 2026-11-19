@@ -8199,3 +8199,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   parts from bundles copied read-only out of the installed game into the offline copy on E:; 16 not: 10 base receivers drawn
   turned or empty by the old client, the P90 SMC-90 stock, 5 helmet items). Tests: buildEdition, deltaBoot, gunParts pass.
   Not released; not started here.
+- Players' reports (owner, 20.11.2026: «все заявки… если они уже сделаны, закрой и начисли по одному дню… если база обновится и данные
+  по квестам, не нужно два раза работать»): in the admin panel (raidos.app/admin?tab=bugs, the owner signed in in the built-in browser)
+  №194, 195, 197, 198, 199 (fixed in c0498f13 on claude/reports-194-199, not released yet) got +1 day each and «Готово» («Нет» in the
+  «Выдать 1 день?» window: the day was given already). №200 («Провокация»: the reward) went to the SPT quest check session, №201
+  (Glukhar's escort: flashlights) to the boss escort session — they stay «В процессе» until those are done.
+- Weapon builds, more: the module window stands beside the part it changes with what is on it, never over it (left or right first,
+  else below or above; partPictures `boxes` by path); the tier list's right click on a weapon «Сборка оружия» lists opens it
+  («Перейти к сборке оружия»; the gun catalogue loads on the «Оружие» tab only).

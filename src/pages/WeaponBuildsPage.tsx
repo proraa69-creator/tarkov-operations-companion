@@ -155,10 +155,10 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const selectedCell = layout.cells.find((cell) => pathKey(cell.path) === selected)
   const side = useSideFit()
   // A slot's modules in a small window at its cell, like the game's (src/arsenal/ModGrid.tsx).
-  const pickAt = (anchor: () => Element | null) => selected === 'ammo'
-    ? <AmmoGrid options={ammoOptions} selected={build.ammoId} access={access} everything={allModules} anchor={anchor} onPick={(ammoId) => { setBuild({ ...build, ammoId: ammoId || undefined }); setSelected(null) }} onClose={() => setSelected(null)} />
+  const pickAt = (anchor: () => Element | null, avoid: () => DOMRect | null) => selected === 'ammo'
+    ? <AmmoGrid options={ammoOptions} selected={build.ammoId} access={access} everything={allModules} anchor={anchor} avoid={avoid} onPick={(ammoId) => { setBuild({ ...build, ammoId: ammoId || undefined }); setSelected(null) }} onClose={() => setSelected(null)} />
     : selectedCell
-      ? <ModGrid key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access} everything={allModules} anchor={anchor}
+      ? <ModGrid key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access} everything={allModules} anchor={anchor} avoid={avoid}
         onPick={(itemId) => {
           const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon)
           if (!done) return

@@ -52,11 +52,35 @@ export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSe
   /** No cell for the round (a Gunsmith task's build). */
   noAmmo?: boolean
   drawn: Drawn | null; size: 'normal' | 'full'; maxHeight?: number; onExpand?: () => void
-  /** The chosen cell's modules in a window at the cell (`anchor` finds the cell's button). */
-  popover?: (anchor: () => Element | null) => ReactNode
+  /**
+   * The chosen cell's modules in a window at the cell (`anchor` finds the cell's button); `avoid`: where the part being changed is on
+   * the screen with what is on it, and its cell — the window never covers them.
+   */
+  popover?: (anchor: () => Element | null, avoid: () => DOMRect | null) => ReactNode
 }) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const anchor = useCallback(() => (selected && root ? root.querySelector(`[data-cell="${CSS.escape(selected)}"]`) : null), [root, selected])
+  // owner, 20.11.2026: «окно… не должно перекрывать модуль, который будет меняться, чтобы я визуально видел, что поменялось»
+  const avoid = useCallback(() => {
+    const cell = anchor()?.getBoundingClientRect()
+    if (!cell || !root || !selected) return cell ?? null
+    let [left, top, right, bottom] = [cell.left, cell.top, cell.right, cell.bottom]
+    const canvas = root.querySelector('.build-stage-picture')
+    const laid = drawn?.laid
+    if (canvas && laid) {
+      const picture = canvas.getBoundingClientRect()
+      const scale = picture.width / Math.max(1, laid.width)
+      const own = Object.entries(laid.boxes).filter(([path]) => path === selected || path.startsWith(`${selected}/`)).map(([, box]) => box)
+      // an empty slot: the point it is at
+      const point = laid.anchors[selected]
+      if (!own.length && point) own.push([point[0] - 30, point[1] - 30, point[0] + 30, point[1] + 30])
+      for (const [l, t, r, b] of own) {
+        left = Math.min(left, picture.left + l * scale); top = Math.min(top, picture.top + t * scale)
+        right = Math.max(right, picture.left + r * scale); bottom = Math.max(bottom, picture.top + b * scale)
+      }
+    }
+    return new DOMRect(left, top, right - left, bottom - top)
+  }, [anchor, drawn, root, selected])
   // A phone keeps the whole build on one screen, on its side too: the stage no taller than the window
   const windowHeight = useWindowHeight()
   const phone = isMobileLayout()
@@ -83,7 +107,7 @@ export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSe
         const cell = cells.get(key)
         return cell ? <SlotCellButton cell={cell} active={selected === key} linked={linked(cell.path)} style={style} onClick={() => toggle(key)} /> : null
       }} />
-    {selected && popover?.(anchor)}
+    {selected && popover?.(anchor, avoid)}
   </div>
 }
 

@@ -65,6 +65,8 @@ export interface LaidBuild {
   far: number
   anchors: Record<string, [number, number]>
   centers: Record<string, [number, number]>
+  /** Each drawn part's box on the picture (left, top, right, bottom) by its path. */
+  boxes: Record<string, [number, number, number, number]>
 }
 
 /**
@@ -115,13 +117,17 @@ export function layBuild(build: Build, index: PartsIndex): LaidBuild {
     near = Math.min(near, part.x + part.asset.d[0])
     far = Math.max(far, part.x + part.asset.d[1])
   }
-  if (!placed.length) return { parts: [], missing, width: 0, height: 0, near: 0, far: 1, anchors: {}, centers: {} }
+  if (!placed.length) return { parts: [], missing, width: 0, height: 0, near: 0, far: 1, anchors: {}, centers: {}, boxes: {} }
   // the box's corner to (0, 0)
   for (const part of placed) { part.m[2] -= left; part.m[5] -= top }
   for (const point of Object.values(anchors)) { point[0] -= left; point[1] -= top }
+  const boxes: Record<string, [number, number, number, number]> = {}
   placed.forEach((part, index) => {
     const [w, h] = [part.asset.w / 2, part.asset.h / 2]
     centers[partPaths[index]!] = [part.m[0] * w + part.m[1] * h + part.m[2], part.m[3] * w + part.m[4] * h + part.m[5]]
+    const xs = [0, part.asset.w].flatMap((u) => [0, part.asset.h].map((v) => part.m[0] * u + part.m[1] * v + part.m[2]))
+    const ys = [0, part.asset.w].flatMap((u) => [0, part.asset.h].map((v) => part.m[3] * u + part.m[4] * v + part.m[5]))
+    boxes[partPaths[index]!] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
   })
-  return { parts: placed, missing, width: Math.ceil(right - left), height: Math.ceil(bottom - top), near, far, anchors, centers }
+  return { parts: placed, missing, width: Math.ceil(right - left), height: Math.ceil(bottom - top), near, far, anchors, centers, boxes }
 }
