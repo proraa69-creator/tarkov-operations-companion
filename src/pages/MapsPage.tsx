@@ -117,9 +117,9 @@ import { setHiddenRoomLayers, useHiddenRoomLayers } from '../maps/roomLayers'
 import { KeySpotKeys } from '../maps/KeySpotKeys'
 import { KeySpotCard } from '../maps/KeySpotCard'
 import { keyTiers } from '../keys/locationKeysList'
-import { NearbyKeysGlow, NearbyKeysPanel, NearbyKeysSetting, NeededSpawnsSetting } from '../maps/NearbyKeysPanel'
+import { NearbyKeysPanel, NearbyKeysSetting, NeededSpawnsSetting } from '../maps/NearbyKeysPanel'
 import { spotIsNeeded, useNeededLootIds, useNeededSpawnsOnly } from '../maps/neededSpawns'
-import { closeNearbyKeys, nearbyKeys, useNearbyKeysClosedFor, useNearbyKeysOn } from '../maps/nearbyKeys'
+import { closeNearbyKeys, foldNearbyKeys, nearbyKeys, useNearbyKeysClosedFor, useNearbyKeysFoldedFor, useNearbyKeysOn } from '../maps/nearbyKeys'
 import { setQuestKeyFavorite, useQuestKeyFavorites } from '../quests/questKeyFavorites'
 import { SpotPhotos } from '../maps/SpotPhotos'
 import { LockedNote } from '../maps/LockedNote'
@@ -822,6 +822,9 @@ export function MapsPage() {
   }, [nearbyOn, nearbyRaidSince, nearbyClosedFor, plottedMarkers, visibleQuestIds, neededKeys, progress])
   const nearbySpots = useMemo(() => [...new Map(nearby.flatMap((entry) => entry.spots).map((spot) => [spot.id, spot])).values()], [nearby])
   const nearbySpotIds = useMemo(() => new Set(nearbySpots.map((spot) => spot.id)), [nearbySpots])
+  // lit as a chosen quest's points while the list is open; folded, the spawns stay on the map unlit (owner, 19.11.2026)
+  const nearbyFolded = useNearbyKeysFoldedFor() === nearbyRaidSince
+  const nearbyLit = nearbyFolded ? NO_IDS : nearbySpotIds
   // «Показывать только нужные спавны» (maps/neededSpawns.ts): the loot spots of what is still needed
   const neededSpawnsOnly = useNeededSpawnsOnly()
   const neededLoot = useNeededLootIds()
@@ -1122,7 +1125,7 @@ export function MapsPage() {
   for (const marker of mapMarkers) {
     const layerId = markerLayerId(marker)
     if (!canvasMarkers || !CANVAS_LAYERS.has(layerId) || stationaryWeaponKind(marker)) continue
-    const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
+    const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId || nearbyLit.has(marker.id)
     // «Редактор карты»: the small points stay on the canvas (the one under the pointer becomes a DOM icon to drag).
     if (focused || marker.questId || (draggableMarker(marker) && !(questEditor.active && isCatalogEditable(marker)))) continue
     const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
@@ -1443,7 +1446,6 @@ export function MapsPage() {
           <ZoomControl position={mobile ? 'bottomright' : 'topright'} />
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
-          {nearbySpots.length > 0 && <NearbyKeysGlow spots={nearbySpots} />}
           {keyDoorMarkers.length > 0 && <KeyDoorsGlow doors={keyDoorMarkers} door={keyDoorId} floor={floor} keyName={keyDoorsId ? itemsById.get(keyDoorsId)?.shortName : undefined} />}
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} follow={mapFollow} askedRef={flyAsked} />
           <MapRefCapture mapRef={mapRef} />
@@ -1472,7 +1474,7 @@ export function MapsPage() {
           {uiText(domMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
-            const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
+            const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId || nearbyLit.has(marker.id)
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
@@ -1590,7 +1592,9 @@ export function MapsPage() {
           }))}
         </MapContainer>
         </div>}
-        {nearby.length > 0 && <NearbyKeysPanel keys={nearby} items={itemsById} onShow={(spot) => showMarker(spot, true)} onClose={() => closeNearbyKeys(nearbyRaidSince ?? 0)} />}
+        {nearby.length > 0 && <NearbyKeysPanel keys={nearby} items={itemsById} folded={nearbyFolded} onFold={(fold) => foldNearbyKeys(fold ? nearbyRaidSince ?? 0 : null)} onClose={() => closeNearbyKeys(nearbyRaidSince ?? 0)}
+          keyCard={(keyId) => itemsById.get(keyId) && <KeySpotCard item={itemsById.get(keyId)!} items={data.items} mode={raidMode} owned={ownedKeys.get(keyId) ?? 0}
+            questRow={questKeys.find((row) => row.item.id === keyId)} favorite={favoriteKeys.has(keyId)} onFavorite={() => setQuestKeyFavorite(profileId, raidMode, keyId, !favoriteKeys.has(keyId))} />} />}
         {placePhotos.overlay}
         {/* not in the iPhone app (owner, 12.11.2026: «на карте удали ползунок справа») */}
         {mobile && !fullscreen && !appStoreRules() && <MapScrollRail />}

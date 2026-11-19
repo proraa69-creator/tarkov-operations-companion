@@ -1,54 +1,63 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronUp, KeyRound, MapPin, X } from 'lucide-react'
-import { Marker } from 'react-leaflet'
-import { divIcon } from 'leaflet'
-import type { Item, MapMarker } from '../domain/types'
+import { useState, type ReactNode } from 'react'
+import { ArrowLeft, ChevronDown, ChevronUp, KeyRound, X } from 'lucide-react'
+import type { Item } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { setNearbyKeysOn, useNearbyKeysOn, type NearbyKey } from './nearbyKeys'
 import { setNeededSpawnsOnly, useNeededSpawnsOnly } from './neededSpawns'
 import './nearbyKeys.css'
 
-const GLOW = divIcon({ className: 'key-door-glow nearby-key-glow', iconSize: [34, 34], iconAnchor: [17, 17] })
-
-/** The spawns of «Ключи рядом» lit on the map, without moving it (the player looks at his own place in the raid). */
-export function NearbyKeysGlow({ spots }: { spots: readonly MapMarker[] }) {
-  return <>{spots.map((spot) => <Marker key={spot.id} position={spot.position} icon={GLOW} interactive={false} keyboard={false} zIndexOffset={1900} />)}</>
-}
-
 /**
- * «Ключи рядом» at the bottom of the map in a raid (src/maps/nearbyKeys.ts): the keys, each with its quest, a pin to its nearest
- * spawn, «Свернуть» (the spawns stay on the map) and «Закрыть» (they go, for this raid).
+ * «Ключи рядом» in a raid (src/maps/nearbyKeys.ts), at the bottom left of the map where a quest's window opens, wide and low
+ * (owner, 19.11.2026): the keys only, each opening its card over the list. While the list is open their spawns glow as a
+ * chosen quest's points do (MapsPage); «Свернуть» takes the glow off and leaves the spawns on the map until the raid ends,
+ * «Закрыть» ends it for the raid.
  */
-export function NearbyKeysPanel({ keys, items, onShow, onClose }: { keys: readonly NearbyKey[]; items: ReadonlyMap<string, Item>; onShow: (spot: MapMarker) => void; onClose: () => void }) {
-  const [folded, setFolded] = useState(false)
+export function NearbyKeysPanel({ keys, items, folded, onFold, onClose, keyCard }: {
+  keys: readonly NearbyKey[]
+  items: ReadonlyMap<string, Item>
+  folded: boolean
+  onFold: (folded: boolean) => void
+  onClose: () => void
+  /** The key's card as a key spot shows it (price, barters, tier, quests). */
+  keyCard: (keyId: string) => ReactNode
+}) {
+  const [picked, setPicked] = useState<string | null>(null)
   if (!keys.length) return null
   if (folded) {
-    return <button type="button" className="nearby-keys-chip" onClick={() => setFolded(false)}>
+    return <button type="button" className="nearby-keys-chip" onClick={() => onFold(false)}>
       <KeyRound size={14} aria-hidden="true" />{uiText('Ключи рядом')} · {keys.length}<ChevronUp size={14} aria-hidden="true" />
     </button>
   }
+  const shown = picked && keys.some((entry) => entry.keyId === picked) ? picked : null
   return <section className="nearby-keys" role="status" aria-live="polite" aria-label={uiText('Ключи рядом')}>
     <header>
       <KeyRound size={15} aria-hidden="true" />
       <strong>{uiText('Рядом с вашим квестом спавн ключа — проверьте')}</strong>
-      <button type="button" className="icon-button" onClick={() => setFolded(true)} aria-label={uiText('Свернуть')} title={uiText('Свернуть')}><ChevronDown size={15} /></button>
+      <button type="button" className="icon-button" onClick={() => { setPicked(null); onFold(true) }} aria-label={uiText('Свернуть')} title={uiText('Свернуть')}><ChevronDown size={15} /></button>
       <button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
     </header>
     <ul>
       {keys.map((entry) => {
         const item = items.get(entry.keyId)
         return <li key={entry.keyId}>
-          <span className="nearby-keys-picture">{item?.iconUrl ? <img src={item.iconUrl} alt="" /> : <KeyRound size={16} />}</span>
-          <span className="nearby-keys-text">
-            <strong title={uiText(item?.name ?? entry.keyId)}>{uiText(item?.shortName || item?.name || entry.keyId)}</strong>
-            <small>{entry.quests.map((quest) => uiText(quest.name)).join(', ')}</small>
-          </span>
-          <button type="button" className="button small" onClick={() => onShow(entry.spots[0]!)} title={uiText('Показать на карте')}>
-            <MapPin size={13} aria-hidden="true" />{entry.spots.length > 1 ? entry.spots.length : uiText('Где')}
+          <button type="button" onClick={() => setPicked(entry.keyId)} title={uiText(item?.name ?? entry.keyId)}>
+            <span className="nearby-keys-picture">{item?.iconUrl ? <img src={item.iconUrl} alt="" /> : <KeyRound size={16} />}</span>
+            <span className="nearby-keys-text">
+              <strong>{uiText(item?.shortName || item?.name || entry.keyId)}</strong>
+              <small>{entry.quests.map((quest) => uiText(quest.name)).join(', ')}</small>
+            </span>
           </button>
         </li>
       })}
     </ul>
+    {shown && <div className="nearby-keys-card">
+      <header>
+        <button type="button" className="icon-button" onClick={() => setPicked(null)} aria-label={uiText('Назад')} title={uiText('Назад')}><ArrowLeft size={15} /></button>
+        <strong>{uiText(items.get(shown)?.name ?? shown)}</strong>
+        <button type="button" className="icon-button" onClick={() => setPicked(null)} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
+      </header>
+      <div className="nearby-keys-card-body">{keyCard(shown)}</div>
+    </div>}
   </section>
 }
 

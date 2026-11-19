@@ -41,6 +41,7 @@ export function nearbyKeys(keySpots: readonly MapMarker[], questPoints: readonly
 
 const KEY = 'raidos-nearby-keys-v1'
 const CLOSED_KEY = 'raidos-nearby-keys-closed'
+const FOLDED_KEY = 'raidos-nearby-keys-folded'
 const EVENT = 'raidos-nearby-keys-changed'
 /** The account's other devices keep the switch too: sync/playerStateStores.ts reads and writes it in this format. */
 export const NEARBY_KEYS_SYNC = { key: KEY, event: EVENT } as const
@@ -56,9 +57,12 @@ export const setNearbyKeysOn = (on: boolean) => write(KEY, on ? null : 'off')
 /** The raid (by its start) whose «Ключи рядом» was closed. */
 export const nearbyKeysClosedFor = () => Number(read(CLOSED_KEY)) || 0
 export const closeNearbyKeys = (raidSince: number) => write(CLOSED_KEY, String(raidSince))
+/** The raid (by its start) whose «Ключи рядом» was folded: its spawns stay on the map, unlit, until the raid ends. */
+export const nearbyKeysFoldedFor = () => Number(read(FOLDED_KEY)) || 0
+export const foldNearbyKeys = (raidSince: number | null) => write(FOLDED_KEY, raidSince === null ? null : String(raidSince))
 
 function subscribe(listener: () => void) {
-  const onStorage = (event: StorageEvent) => { if (event.key === null || event.key === KEY || event.key === CLOSED_KEY) listener() }
+  const onStorage = (event: StorageEvent) => { if (event.key === null || event.key === KEY || event.key === CLOSED_KEY || event.key === FOLDED_KEY) listener() }
   window.addEventListener(EVENT, listener)
   window.addEventListener('storage', onStorage)
   return () => { window.removeEventListener(EVENT, listener); window.removeEventListener('storage', onStorage) }
@@ -66,3 +70,4 @@ function subscribe(listener: () => void) {
 
 export const useNearbyKeysOn = () => useSyncExternalStore(subscribe, nearbyKeysOn, () => true)
 export const useNearbyKeysClosedFor = () => useSyncExternalStore(subscribe, nearbyKeysClosedFor, () => 0)
+export const useNearbyKeysFoldedFor = () => useSyncExternalStore(subscribe, nearbyKeysFoldedFor, () => 0)
