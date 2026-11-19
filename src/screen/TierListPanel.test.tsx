@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { setRenderLanguage } from '../i18n/renderText'
 import type { Item, RaidMode } from '../domain/types'
@@ -28,7 +30,8 @@ const item = (id: string, extra: Partial<Item> & { flea?: Partial<Record<RaidMod
 
 const tier = (letter: string) => document.querySelector(`.tier-${letter}`) as HTMLElement
 const tile = (name: string) => screen.getByText(name).closest('.tier-tile') as HTMLElement
-const open = () => render(<LocaleProvider><TierListPanel /></LocaleProvider>)
+// as in the app: the query cache (the weapons tab reads «Сборка оружия»'s catalogue) and the router (its menu opens it)
+const open = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><LocaleProvider><TierListPanel /></LocaleProvider></MemoryRouter></QueryClientProvider>)
 
 afterEach(() => {
   localStorage.clear()
