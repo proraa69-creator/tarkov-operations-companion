@@ -175,7 +175,9 @@ describe('the Labyrinth', () => {
     const markers = adaptLiveMapMarkers({ maps: { a: { normalizedName: 'the-labyrinth', lootLoose: loot }, b: { normalizedName: 'customs', lootLoose: loot } } }, {}, context)
     // the feed's spots (the players' key spots with photos are static data of their own maps)
     const route = markers.filter((marker) => marker.layerId === 'loot.key' && marker.source !== 'raidos')
-    expect(route.map((marker) => marker.title).sort()).toEqual(['Газовый резак', 'Ключ 01'])
+    expect(route.filter((marker) => marker.source === 'json.tarkov.dev/maps').map((marker) => marker.title).sort()).toEqual(['Газовый резак', 'Ключ 01'])
+    // the other spots of their groups («всегда в одной из N», src/data/guaranteedSpawns.ts ROUTE_ITEM_GROUPS) come too, here only
+    expect(route.filter((marker) => marker.source === 'raid-statistics').length).toBeGreaterThan(0)
     expect(route.every((marker) => marker.mapId === 'the-labyrinth')).toBe(true)
   })
 

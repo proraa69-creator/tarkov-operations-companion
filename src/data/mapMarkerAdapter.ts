@@ -3,7 +3,7 @@ import { addedExtractRecords } from './addedExtracts'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { KEY_DOOR_EXTRA_LOCKS, keyDoorExcluded } from './keyDoorNames'
 import { lootContainerTitle } from './lootContainerKinds'
-import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
+import { GUARANTEED_SPAWNS, ROUTE_ITEM_GROUPS, type GuaranteedSpawn } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
 import { isStalePlace } from './stalePlaces'
 import sptKeySpots from './sptKeySpots.json'
@@ -662,22 +662,49 @@ export const ROUTE_ITEM_PLACES: ReadonlyArray<{ mapId: string; itemId: string; x
   { mapId: 'the-labyrinth', itemId: '679baa2c61f588ae2b062a24', x: -42.57, z: 64.85, ru: 'Лежит на лопате.' },
 ]
 
+/** Two spots of a route item group this close are one place (SPT lists a few twice, a hand's width apart). */
+const ROUTE_GROUP_SAME_SPOT_METRES = 1
+
+/** A group's spots, one per place. */
+function routeGroupSpots(group: GuaranteedSpawn) {
+  const spots: Array<{ x: number; y: number; z: number }> = []
+  for (const position of group.positions) {
+    if (!spots.some((spot) => Math.hypot(spot.x - position.x, spot.y - position.y, spot.z - position.z) < ROUTE_GROUP_SAME_SPOT_METRES)) spots.push(position)
+  }
+  return spots
+}
+
+/** Card text of a route item spot of a group that always holds one (src/data/guaranteedSpawns.ts, ROUTE_ITEM_GROUPS). */
+export const routeGroupText = (count: number) => `Всегда в одной из ${count} точек.`
+
 function adaptRouteItems(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
   const route = ROUTE_ITEMS[map.id]
   if (!route) return []
-  return asArray(rawMap.lootLoose).flatMap((loot, index) => strings(loot.items).flatMap((itemId): MapMarker[] => {
+  const groups = ROUTE_ITEM_GROUPS.filter((group) => group.mapId === map.id)
+  const near = (a: JsonRecord | { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
+    Math.hypot(number(a.x) - b.x, number(a.y) - b.y, number(a.z) - b.z) < ROUTE_GROUP_SAME_SPOT_METRES
+  const groupOf = (itemId: string, at: JsonRecord) => groups.find((group) => group.itemId === itemId && group.positions.some((spot) => near(at, spot)))
+  const marker = (itemId: string, id: string, at: JsonRecord, source: string): MapMarker[] => {
     const description = route[itemId]
     const item = items.get(itemId)
-    const base = description && item && baseMarker(map, `route-item-${itemId}-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
+    const base = description && item && baseMarker(map, id, at, undefined, at.y, at.y)
     if (!base) return []
-    const at = asRecord(loot.position)
     const place = ROUTE_ITEM_PLACES.find((spot) => spot.mapId === map.id && spot.itemId === itemId
       && Math.hypot(number(at.x) - spot.x, number(at.z) - spot.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    const group = groupOf(itemId, at)
+    const text = [description, group ? routeGroupText(routeGroupSpots(group).length) : '', place?.ru ?? ''].filter(Boolean).join(' ')
     return [{
-      ...base, type: 'cache', layerId: 'loot.key', title: item.name, description: place ? `${description} ${place.ru}` : description,
-      meta: item.shortName, itemId, source: 'json.tarkov.dev/maps', ...(place ? { ownSpot: true } : {}),
+      ...base, type: 'cache', layerId: 'loot.key', title: item.name, description: text,
+      meta: item.shortName, itemId, source, ...(place ? { ownSpot: true } : {}),
     }]
-  }))
+  }
+  const loose = asArray(rawMap.lootLoose)
+  const listed = loose.flatMap((loot, index) => strings(loot.items).flatMap((itemId) => marker(itemId, `route-item-${itemId}-${index}`, asRecord(loot.position), 'json.tarkov.dev/maps')))
+  // The spots of a group the feed has not got (SPT's raid statistics).
+  const added = groups.flatMap((group, at) => routeGroupSpots(group)
+    .filter((spot) => !loose.some((loot) => strings(loot.items).includes(group.itemId) && near(asRecord(loot.position), spot)))
+    .flatMap((spot, index) => marker(group.itemId, `route-item-${group.itemId}-group-${at}-${index}`, { ...spot }, 'raid-statistics')))
+  return [...listed, ...added]
 }
 
 /** Card text of a jewelry spot: the items are listed in `meta` (and the first one's icon); the data has no chance. */
@@ -1020,6 +1047,8 @@ interface QuestPoint {
   idSuffix: string
   zone?: JsonRecord
   position: JsonRecord
+  /** A spawn the app added to the feed's (src/data/questItemSpots.ts, `added`): never the id of a merged point. */
+  added?: boolean
 }
 
 /**
@@ -1057,7 +1086,7 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
         if (!map || isStalePlace(objectiveId, map.id)) return
         asArray(location.positions).forEach((position, index) => {
           const idSuffix = `${objectiveId}-${locationIndex ? `${locationIndex}-` : ''}${index}`
-          points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position })
+          points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position, ...(position.added === true ? { added: true } : {}) })
         })
       })
       const itemObjective = objectiveLayer(objective) === 'quest.item' || asArray(objective.possibleLocations).length > 0
@@ -1069,9 +1098,12 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
         const shown = mergeNearbyItemSpots(mapPoints)
         const possible = possibleSpots(shown.map((entry) => entry.point), itemObjective)
         shown.forEach(({ point, members }, index) => {
+          // A merged point keeps the id of the feed's own spawn it covers, when the kept one is an added spawn: the owner's
+          // point edits find markers by id.
+          const idSuffix = point.added ? (members.find((member) => !member.added) ?? point).idSuffix : point.idSuffix
           const base = point.kind === 'zone'
             ? baseMarker(point.map, `quest-zone-${quest.id}-${point.idSuffix}`, point.position, point.zone?.outline, point.zone?.top, point.zone?.bottom)
-            : baseMarker(point.map, `quest-item-${quest.id}-${point.idSuffix}`, point.position, undefined, undefined, undefined)
+            : baseMarker(point.map, `quest-item-${quest.id}-${idSuffix}`, point.position, undefined, undefined, undefined)
           if (!base) return
           const spot = possible.get(index)
           const isItem = point.kind === 'item'

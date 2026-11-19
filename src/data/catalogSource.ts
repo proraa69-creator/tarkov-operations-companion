@@ -16,6 +16,7 @@ import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import { applyQuestCorrections } from './questCorrections'
 import { applyCuratedQuestNotes, withCuratedTasks } from './curatedQuests'
+import { withQuestItemSpots } from './questItemSpots'
 import { eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
@@ -96,7 +97,8 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const now = options.now ?? Date.now()
   const series = eventSeriesWith(options.eventQuests?.() ?? [])
   const curated = withCuratedTasks(seasonTasks, { mode, locale, maps, traders, series, now })
-  const tasks = curated.tasks
+  // Quest item spawns tarkov.dev lists only in part, from the SPT database (src/data/questItemSpots.ts).
+  const tasks = withQuestItemSpots(curated.tasks)
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
   const itemRows = adaptItems(items, traderById, mode)
