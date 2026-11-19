@@ -8217,3 +8217,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   and a PBS-4 going into it): the CMRD lists the AK-102, AK-104 and AK-105, the game never puts it on them; canInstall checked only
   the parts on the weapon, now the weapon too (22 parts in the game ban some weapons: CQR, TRAX 2, Hexagon AK, CMRD…). The PBS-4 has
   no conflicts: with a handguard that allows it, the game shows it running into the handguard the same way (no collisions in the game).
+- Test exe 2 (20.11.2026, 06:03): «Raid OS тест сборки оружия 2.exe» on the desktop (owner, test build, entitlement key, 69c2a514; the
+  first one was running, not replaced): side-rail parts, folding stocks (5033 part files with the folded ones), the CMRD ban, the
+  Gunsmith benches. electron-builder hit EPERM renaming win-unpacked.tmp inside the worktree twice (release/ and release-test/);
+  packed to C:\Users\BANGKOK PC\raidos-pack-test instead (release-test/ added to .gitignore). Still open: SPEAR 6.8, T-5000M,
+  M3 Super 90 and AXMC have parts standing across (the game drew them turned); a helper waits for the offline game to measure the
+  game's own assembled presets and write a `fix` turn per part.

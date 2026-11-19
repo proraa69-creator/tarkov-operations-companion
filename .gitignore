@@ -29,3 +29,4 @@ website/.prerender/
 
 # Part pictures rendered by the game (E:\SPT-photo\weapons); served from the server, not the repo
 public/gun-parts/
+release-test/
