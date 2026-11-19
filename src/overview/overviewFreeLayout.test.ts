@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { defaultOverviewLayout } from './overviewLayout'
-import { completeFree, freeFromZones, moveFree, packFree, removeFree, sanitizeFreeLayout } from './overviewFreeLayout'
+import { addableBlocks, addFree, completeFree, freeFromZones, moveFree, packFree, removeFree, sanitizeFreeLayout } from './overviewFreeLayout'
 
 /** Heights of the Overview's blocks, as on a PC. */
 const HEIGHT: Record<string, number> = {
@@ -37,11 +37,34 @@ describe('the free PC Overview (owner, 20.11.2026: «все блоки можн�
     expect(moveFree(layout, 'raid', 4, 40).x.raid).toBe(9)
   })
 
-  it('a card taken off: the others share the row (owner, 17.11.2026); «Сбросить» brings it back', () => {
-    const layout = removeFree(freeFromZones(defaultOverviewLayout()), 'stat-goons')
-    expect(layout.removed).toEqual(['stat-goons'])
-    const places = packFree(layout, (id) => HEIGHT[id] ?? 0, 14).filter((place) => place.id.startsWith('stat-'))
-    expect(places.map((place) => [place.id, place.x, place.w])).toEqual([['stat-screen', 0, 8], ['stat-conditions', 8, 8], ['stat-kappa', 16, 8]])
+  it('a card taken off leaves its place empty: the cards to its right move left, none stretches; «Добавить блок» puts it in the gap', () => {
+    const start = freeFromZones(defaultOverviewLayout())
+    const layout = removeFree(start, 'stat-conditions', packFree(start, (id) => HEIGHT[id] ?? 0, 14))
+    expect(layout.removed).toEqual(['stat-conditions'])
+    const cards = (from: typeof layout) => packFree(from, (id) => HEIGHT[id] ?? 0, 14).filter((place) => place.id.startsWith('stat-')).map((place) => [place.id, place.x, place.w])
+    expect(cards(layout)).toEqual([['stat-screen', 0, 6], ['stat-kappa', 6, 6], ['stat-goons', 12, 6]])
+    expect(addableBlocks(layout, [])).toEqual(['stat-conditions'])
+    expect(addableBlocks(layout, ['stat-conditions'])).toEqual([])
+    const back = addFree(layout, 'stat-conditions', (id) => HEIGHT[id] ?? 0, 14, start)
+    expect(back.removed).toBeUndefined()
+    expect(cards(back)).toContainEqual(['stat-conditions', 18, 6])
+    expect(packFree(back, (id) => HEIGHT[id] ?? 0, 14).find((place) => place.id === 'stat-conditions')!.y).toBe(0)
+    // no gap high enough anywhere: where it stands highest, under the others, moving none of them
+    const full = removeFree(start, 'favorites', packFree(start, (id) => HEIGHT[id] ?? 0, 14))
+    const again = addFree(full, 'favorites', (id) => HEIGHT[id] ?? 0, 14, start)
+    expect(again.order.at(-1)).toBe('favorites')
+    expect(again.x.favorites).toBe(15)
+  })
+
+  it('a block goes up into a gap it fits in (owner, 20.11.2026: «Остальные просто сдвигаются выше»)', () => {
+    // «Рынок» put at the top right: «Кочевники» goes under it, and «Текущие задания» stays right under the cards beside them
+    const start = freeFromZones(defaultOverviewLayout())
+    const moved = moveFree(start, 'favorites', 0, 15)
+    const places = Object.fromEntries(packFree(moved, (id) => HEIGHT[id] ?? 0, 14).map((place) => [place.id, place]))
+    expect([places.favorites!.x, places.favorites!.y]).toEqual([15, 0])
+    expect(places['stat-goons']!.y).toBe(98)
+    // the room under «Кочевники» (columns 18–24) is too low for the list beside the Kappa card: it goes under the cards
+    expect(places.tasks!.y).toBeGreaterThanOrEqual(places['stat-kappa']!.y + places['stat-kappa']!.h)
   })
 
   it('a saved layout: unknown blocks dropped, a block it lacks joins after its neighbour of the default, the owner\'s hidden one stays out', () => {

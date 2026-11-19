@@ -54,9 +54,11 @@
 
 /* The carried block: above the others, opaque (the panels are slightly see-through), with a shadow; its transform
    comes from useOverviewEditor. */
-.overview-block.is-lifted { background: var(--panel); box-shadow: 0 22px 50px rgb(0 0 0 / 48%); transition: box-shadow .15s var(--ease-out); }
+.overview-block.is-lifted { scale: 1.02; background: var(--panel); box-shadow: 0 22px 50px rgb(0 0 0 / 48%); transition: box-shadow .22s var(--ease-out), scale .32s cubic-bezier(.3, 1.25, .4, 1); }
 .overview-block.is-lifted .overview-veil { cursor: grabbing; border-style: solid; border-color: var(--brass); background: rgb(196 166 101 / 7%); }
-.overview-block:not(.is-lifted) { transition: box-shadow .2s var(--ease-out); }
+/* picked up and put down on the springs of «Стекло» (owner, 20.11.2026: «анимации должны быть все плавные») */
+.overview-block:not(.is-lifted) { transition: box-shadow .3s var(--ease-out), scale .38s cubic-bezier(.22, 1.2, .36, 1); }
+@media (prefers-reduced-motion: reduce) { .overview-block, .overview-block.is-lifted { scale: none; transition: none; } }
 .overview-editing { user-select: none; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -252,3 +254,18 @@
 .overview-free > .overview-block.is-card { display: flex; flex-direction: column; }
 .overview-free > .overview-block.is-card > .overview-block-content > .stat-card { flex: 1; }
 .overview-free > .overview-block > .overview-block-content > :is(.panel, section) { margin-top: 0; }
+
+/* «Добавить блок» (owner, 20.11.2026): the blocks not on the Overview, in a menu under the button. */
+.overview-add { position: relative; }
+.overview-add-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; gap: 2px; min-width: 220px; padding: 6px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surf-1); box-shadow: 0 18px 40px rgb(0 0 0 / 45%);
+  transform-origin: top right;
+}
+.overview-add-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.overview-add-item svg { color: var(--brass); }
+.overview-add-item:hover, .overview-add-item:focus-visible { background: color-mix(in srgb, var(--brass) 14%, transparent); outline: none; }

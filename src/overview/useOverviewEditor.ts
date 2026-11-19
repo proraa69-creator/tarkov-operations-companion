@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
-import { EASE_IN_OUT, EASE_OUT, canAnimate } from '../shared/motion'
+import { EASE_OUT, canAnimate } from '../shared/motion'
 import { loadOverviewLayout, saveOverviewLayout } from './overviewLayout'
-import { completeFree, freeFromZones, GRID, isCard, loadFreeLayout, moveFree, packFree, packedHeight, removeFree, sameFree, saveFreeLayout, SINGLE_BELOW, SNAP, snapX, type FreeLayout, type FreePlace } from './overviewFreeLayout'
+import { addableBlocks, addFree, completeFree, freeFromZones, GRID, isCard, loadFreeLayout, moveFree, packFree, packedHeight, removeFree, sameFree, saveFreeLayout, SINGLE_BELOW, SNAP, snapX, type FreeLayout, type FreePlace } from './overviewFreeLayout'
 import { baseOverviewLayout, withoutHiddenBlocks } from './overviewDefaults'
 import { useOverviewDefaults } from './overviewDefaultsStore'
 
 /** Between blocks, as the Overview always had. */
 const GAP = 14
-/** The picked-up block grows a little and casts a shadow (feedback); the others slide out of its way. */
-const LIFT_SCALE = 1.02
-const REFLOW_MS = 240
-const SETTLE_MS = 200
+/**
+ * The motion of «Стекло» (owner, 20.11.2026: «анимации должны быть все плавные… как видео по стеклянной теме»): the blocks glide on
+ * its soft spring (src/app/softMotion.ts GLIDE), settle on the same, a block added comes in as a page's blocks do
+ * (src/app/richMotion.ts) and one taken off sinks away as a pressed button does. The lift (a little bigger, a shadow) is the
+ * stylesheet's spring (styles/overviewEdit.css).
+ */
+const GLIDE = { duration: 420, easing: 'cubic-bezier(.22, 1.2, .36, 1)' }
+const SETTLE = { duration: 380, easing: 'cubic-bezier(.22, 1.2, .36, 1)' }
+const ENTER = { duration: 560, easing: EASE_OUT }
+const LEAVE = { duration: 200, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' as const }
 /** A press turns into a drag only after this many pixels: a click on the block stays a click. */
 const DRAG_THRESHOLD = 4
 /** Near the window's top or bottom edge the page scrolls by itself while a block is carried. */
@@ -79,6 +85,8 @@ export function useOverviewEditor() {
   /** Where the blocks were on screen just before a move (the «first» of FLIP). */
   const pending = useRef<Map<string, DOMRect> | null>(null)
   const drag = useRef<Drag | null>(null)
+  /** Every block's last known height, kept after it is taken off: a block added back is placed by it. */
+  const seen = useRef<Record<string, number>>({})
   /** The player moved or took off a block: their layout is kept from then on. */
   const touched = useRef(false)
 
@@ -127,7 +135,17 @@ export function useOverviewEditor() {
       if (stretched) element.style.minHeight = stretched
       if (Math.abs((heights[id] ?? -1) - next[id]) > 0.5) changed = true
     }
-    if (changed) setHeights(next)
+    Object.assign(seen.current, next)
+    if (changed) {
+      // a block that grew or shrank: the ones it moves glide (not on the first measure, when nothing stood anywhere yet)
+      const known = Object.keys(heights).length > 0 && [...elements.current.keys()].every((id) => id in heights)
+      if (known && !pending.current && canAnimate()) {
+        const before = new Map<string, DOMRect>()
+        for (const [id, element] of elements.current) before.set(id, element.getBoundingClientRect())
+        pending.current = before
+      }
+      setHeights(next)
+    }
     const now = container.current?.clientWidth ?? 0
     if (Math.abs(now - width) > 0.5) setWidth(now)
   })
@@ -162,7 +180,7 @@ export function useOverviewEditor() {
     const home = pageBoxOf(place)
     const x = d.clientX + window.scrollX - d.grabX - home.x
     const y = d.clientY + window.scrollY - d.grabY - home.y
-    element.style.transform = `translate(${x}px, ${y}px)${canAnimate() ? ` scale(${LIFT_SCALE})` : ''}`
+    element.style.transform = `translate(${x}px, ${y}px)`
   }, [pageBoxOf])
 
   const apply = useCallback((next: FreeLayout) => {
@@ -191,14 +209,20 @@ export function useOverviewEditor() {
     if (!canAnimate()) return
     const carried = d?.started ? d.id : null
     for (const [id, element] of elements.current) {
+      if (id === carried) continue
       const before = flip.get(id)
-      if (!before || id === carried) continue
-      for (const animation of animationsOf(element)) animation.cancel()
+      if (!before) {
+        // a block added: it comes in where it stands
+        element.animate([{ opacity: 0, translate: '0 16px', scale: '.985' }, { opacity: 1, translate: '0 0', scale: '1' }], ENTER)
+        continue
+      }
+      // taken where it is on screen now, mid-glide too, so a new move goes on from there without a jump
+      for (const animation of animationsOf(element)) if (animation.id === 'overview-glide') animation.cancel()
       const after = element.getBoundingClientRect()
       const dx = before.left - after.left
       const dy = before.top - after.top
       if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue
-      element.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: REFLOW_MS, easing: EASE_IN_OUT })
+      element.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { ...GLIDE, id: 'overview-glide' })
     }
   }, [follow, layout, places])
 
@@ -275,7 +299,7 @@ export function useOverviewEditor() {
       element.style.zIndex = ''
       return
     }
-    const settle = element.animate([{ transform: from }, { transform: 'none' }], { duration: SETTLE_MS, easing: EASE_OUT })
+    const settle = element.animate([{ transform: from }, { transform: 'none' }], { ...SETTLE, id: 'overview-glide' })
     const done = () => { element.style.transformOrigin = ''; element.style.zIndex = '' }
     settle.onfinish = done
     settle.oncancel = done
@@ -376,7 +400,23 @@ export function useOverviewEditor() {
   useEffect(() => () => finish(false), [editing, finish])
 
   // The cross on a block: it goes off the Overview, the blocks under it come up.
-  const remove = useCallback((id: string) => apply(removeFree(layoutRef.current, id)), [apply])
+  // The cross: the block sinks away, then the ones of its row to its right move left into its place and those under it come up.
+  const remove = useCallback((id: string) => {
+    const gone = () => {
+      const full = width ? packFree(layoutRef.current, (each) => heights[each] ?? 0, GAP, false) : []
+      apply(removeFree(layoutRef.current, id, full))
+    }
+    const element = elements.current.get(id)
+    if (!element || !canAnimate()) { gone(); return }
+    const leave = element.animate([{ opacity: 1, scale: '1' }, { opacity: 0, scale: '.94' }], LEAVE)
+    leave.onfinish = gone
+    leave.oncancel = gone
+  }, [apply, heights, width])
+
+  // «Добавить блок»: back in the first gap of the top row wide enough for it, else under everything.
+  const add = useCallback((id: string) => {
+    apply(addFree(layoutRef.current, id, (each) => heights[each] ?? seen.current[each] ?? 0, GAP, base))
+  }, [apply, base, heights])
 
   // «Сбросить»: back to the starting layout (the owner's default for everybody, or the built-in one), removed blocks back too; the old
   // zones' order goes with it.
@@ -401,6 +441,8 @@ export function useOverviewEditor() {
     editing,
     lifted,
     isDefault: sameFree(layout, base),
+    addable: addableBlocks(layout, hidden),
+    add,
     toggleEditing: () => setEditing((value) => !value),
     reset,
     remove,
@@ -408,7 +450,7 @@ export function useOverviewEditor() {
     container: setContainer,
     styleOf,
     handlers,
-  }), [base, editing, handlers, layout, lifted, places, register, remove, reset, setContainer, single, styleOf])
+  }), [add, base, editing, handlers, hidden, layout, lifted, places, register, remove, reset, setContainer, single, styleOf])
 }
 
 export type OverviewEditor = ReturnType<typeof useOverviewEditor>

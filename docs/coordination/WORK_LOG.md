@@ -8140,3 +8140,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   рейда» while they stand side by side. Checked in the dev page: «Требования рейда» to the top pushes the three cards under it
   down and leaves «Кочевники»; «Рынок» to the top left; «Сбросить» brings the old look back and clears the saved layout. Tests
   updated/added (130 pass), typecheck and lint clean. Branch claude/quest-row-tags, not released.
+- Overview free layout, owner's second round (20.11.2026): cards keep a quarter of the row (the 17.11 rule «делят ряд поровну»
+  is gone: a card taken off leaves its place, the blocks of its row to its right move left); every block rises into the highest
+  gap it fits (first fit, «сдвигаются выше»); «Добавить блок» (src/overview/AddBlockMenu.tsx, shown while something is off the
+  Overview) puts a block back where it stands highest without moving others, a card back into the row of cards. Motion on the
+  springs of «Стекло»: glide 420 ms cubic-bezier(.22,1.2,.36,1) (softMotion GLIDE), settle 380 ms, lift as a CSS scale spring,
+  an added block comes in like a page's blocks (560 ms), a removed one sinks away (200 ms); height changes glide too.
+  softMotion no longer glides what is inside a block of the free grid a second time (spots measured within the block).
+  Video for the owner, stepped at 60 fps: «Raid OS обзор перетаскивание блоков.mp4» (film-overview.cjs in the session scratchpad).
+  Tests: overview 86 pass, DashboardPage 39 pass alone; typecheck and lint clean. Not released.
