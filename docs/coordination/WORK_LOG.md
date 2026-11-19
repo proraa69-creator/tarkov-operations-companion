@@ -8049,3 +8049,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Checks: typecheck clean; vitest src/data, src/quests, src/progression 861 passed; questBase server test 11/11; dev
   build in Season shows all 21 in ru and en.
 - Not deployed. Remaining: map points for most objectives, quest-item ids, the 4 missing game ids.
+
+## 2026-11-19 — Claude: exits after O reach the map again; «Ключи рядом» window; release 0.6.0.321 prepared
+
+- Exits (owner: «Выходы на карте до сих пор не обнаруживаются», Customs, Season): the PC app read the list correctly
+  (raid-exits log in `%APPDATA%\Tarkov Operations Companion Beta`, three readings 13:28–13:32, raid since 13:25 by the
+  logs) and the matching lights all six exits, but `electron/preload.cjs` had no `onRaidExtracts`, so the page never got a
+  reading. Commit 4ee19ae2: preload.cjs, a sync test over `subscribe()` events, the owner's Customs reading as a test.
+- «Ключи рядом» (owner's list of 19.11): commit 50aa58b6. The spawns glow like a chosen quest (no circle); a wide, low
+  window at the bottom left; keys only, a key's card over the list; «Свернуть» takes the glow off and keeps the spawns
+  until the raid ends (remembered per raid), «Закрыть» as before.
+- Release 0.6.0.321 (KORD BREACH + both above) prepared on claude/kord-breach-quests. Checks: typecheck clean. Full vitest
+  failures are the 320 ones (appVersion, AdminPanelPage, staleServer, cache-item-images); MapsPage tests under load pass
+  alone. Server 594/595 (mirrorStorage once under load, 10/10 alone).
+- Not verified in the game: the exits fix and the window need the built app.

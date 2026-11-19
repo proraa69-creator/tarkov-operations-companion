@@ -1,4 +1,9 @@
 [
+  {"version":"0.6.0.321","date":"2026-11-19","items":[
+    {"kind":"added","ru":"Сезон: квесты KORD BREACH — вся цепочка от Прапора до Смотрителя","en":"Season: the KORD BREACH quests — the whole chain from Prapor to Lightkeeper"},
+    {"kind":"improved","ru":"«Ключи рядом»: окно ниже и шире, ключи подсвечиваются как квесты","en":"«Keys nearby»: a lower, wider window; keys glow like quests"},
+    {"kind":"improved","ru":"Оптимизация карты в рейде","en":"Map optimisation in raid"}
+  ]},
   {"version":"0.6.0.320","date":"2026-11-19","items":[
     {"kind":"added","ru":"«Стекло»: новый стиль для любой цветовой схемы","en":"«Glass»: a new style for any colour scheme"},
     {"kind":"added","ru":"Плавные анимации во всём приложении, кнопки отзываются на нажатие","en":"Smooth animations across the app; buttons respond to every press"},
