@@ -244,3 +244,11 @@
 .phone-block.is-narrow .control-card { gap: 4px; }
 :root[data-layout="mobile"] .phone-block.is-narrow .control-card .control-card-button { min-height: 26px; height: auto; padding: 2px 7px; font-size: 11px; line-height: 1.1; text-align: left; }
 .phone-block.is-narrow .control-card-button > span { white-space: normal; text-overflow: clip; line-height: 1.1; }
+
+/* The PC Overview laid out freely (src/overview/overviewFreeLayout.ts, owner 20.11.2026): each block at its place on the grid,
+   the useOverviewEditor hook gives left, top and width; the grid is as tall as its lowest block. */
+.overview-free { position: relative; min-height: 120px; }
+.overview-free > .overview-block { position: absolute; }
+.overview-free > .overview-block.is-card { display: flex; flex-direction: column; }
+.overview-free > .overview-block.is-card > .overview-block-content > .stat-card { flex: 1; }
+.overview-free > .overview-block > .overview-block-content > :is(.panel, section) { margin-top: 0; }

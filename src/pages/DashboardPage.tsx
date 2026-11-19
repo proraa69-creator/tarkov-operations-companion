@@ -1,6 +1,6 @@
 import { uiText, uiLabel } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Check, ChevronRight, Clock3, KeyRound, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
 import { locationKeys, useLocationKeys } from '../keys/locationKeysStore'
@@ -75,7 +75,7 @@ export function DashboardPage() {
   const { locale } = useLocale()
   // «Настроить блоки» (owner, 12.10.2026): every block but the big map can be moved, each keeps its shape.
   const editor = useOverviewEditor()
-  const { layout } = editor
+  const { layout, container: placeGrid, single: oneColumn, height: gridHeight, styleOf } = editor
   const tasksView = useCurrentTasksView()
   // The phone: one column where every block moves up or down (overview/phoneLayout.ts).
   const mobile = useMobileLayout()
@@ -330,7 +330,7 @@ export function DashboardPage() {
   }
   const rightBlocks: Blocks = {
     tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={listedQuests} anyMapQuests={listedAnyMap} questLink={questOnMap} details={questCard} compactRows={mobile ? 4 : undefined}
-      onDefer={deferTask} deferredCount={deferredTasks} scrollable={!mobile && tasksView === 'scroll'} layoutKey={`${layoutEditor.editing}|${layout.left.join()}|${layout.right.join()}`} /> },
+      onDefer={deferTask} deferredCount={deferredTasks} scrollable={!mobile && tasksView === 'scroll'} layoutKey={`${layoutEditor.editing}|${layout.order.map((id) => `${id}:${layout.x[id]}`).join()}`} /> },
     gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
     favorites: {
       label: 'Рынок · избранное',
@@ -349,20 +349,8 @@ export function DashboardPage() {
   }
   const labelOf = (id: string, blocks: Blocks) => ownTitle(id) ?? blocks[id]?.label ?? id
   const titled = (id: string, node: ReactNode) => <BlockTitleProvider title={defaults?.titles[id]}>{node}</BlockTitleProvider>
-  const block = (zone: 'stats' | 'rows' | 'left' | 'right', blocks: Blocks) => (id: string) =>
-    <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={labelOf(id, blocks)}>{titled(id, blocks[id]?.node)}</OverviewBlock>
-  const rows: Blocks = {
-    // Removed cards: the rest share the row evenly (owner, 17.11.2026: «Распределяются по площади»).
-    stats: { label: 'Карточки', node: <section className="stat-grid" style={{ '--stat-count': layout.stats.length } as CSSProperties}>{layout.stats.map(block('stats', statCards))}</section> },
-    columns: {
-      label: '',
-      // A column with every block removed goes, and the other one takes the whole width.
-      node: <div className={`dashboard-layout${layout.left.length && layout.right.length ? '' : ' is-single'}`}>
-        {layout.left.length > 0 && <div className="dashboard-column">{layout.left.map(block('left', leftBlocks))}</div>}
-        {layout.right.length > 0 && <div className="dashboard-column">{layout.right.map(block('right', rightBlocks))}</div>}
-      </div>,
-    },
-  }
+  // The PC: every block on one free grid (owner, 20.11.2026: «свободную секцию обзора, все блоки можно перемешать и передвигать»).
+  const pcBlocks: Blocks = { ...statCards, ...leftBlocks, ...rightBlocks }
 
   // «Управление» is the phone's own block (owner, 11.11.2026: «Этот блок должен быть только на телефоне»).
   const phoneBlocks: Blocks = { ...statCards, ...leftBlocks, ...rightBlocks, 'stat-control': { label: 'Управление', node: <ControlCard /> } }
@@ -387,11 +375,14 @@ export function DashboardPage() {
     {!mobile && <PositionSetupNotice />}
     {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
       ? 'Удерживайте блок пальцем и перенесите на место другого — они поменяются местами. Шестерёнка — заменить блок.'
-      : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
+      : 'Перетащите блок куда угодно — мешающие блоки сдвинутся вниз. Esc — готово.')}</p>}
 
     {mobile
       ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={labelOf(id, phoneBlocks)} index={index} count={order.length}>{titled(id, phoneBlocks[id].node)}</PhoneOverviewBlock>)}</div>
-      : <div className="overview-rows">{layout.rows.filter((id) => (id !== 'stats' || layout.stats.length > 0) && (id !== 'columns' || layout.left.length + layout.right.length > 0)).map(block('rows', rows))}</div>}
+      : <div ref={placeGrid} className={`overview-free${oneColumn ? ' is-single' : ''}`} style={{ height: gridHeight }}>
+        {layout.order.map((id) => pcBlocks[id] && <OverviewBlock key={id} editor={editor} id={id} label={labelOf(id, pcBlocks)} style={styleOf(id)}
+          className={statCards[id] ? 'is-card' : undefined}>{titled(id, pcBlocks[id].node)}</OverviewBlock>)}
+      </div>}
     {mobile && phone.choosing && <BlockChooser title={labelOf(phone.choosing, phoneBlocks)} choices={phoneChoices(phone.choosing)} onPick={(id) => phone.replace(phone.choosing!, id)} onClose={() => phone.setChoosing(null)} />}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
     <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} />

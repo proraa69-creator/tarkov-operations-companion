@@ -139,18 +139,19 @@ describe('DashboardPage', () => {
     const { container } = renderDashboard()
     const priority = container.querySelector('.map-priority') as HTMLElement
     // owner, 11.11.2026: the count and the strip inside the map's block, no «ПЛАН РЕЙДА · PVP» line, no rows of their own
-    expect([...container.querySelectorAll('.overview-rows > .overview-block')].map((row) => row.getAttribute('data-block'))).toEqual(['stats', 'columns'])
+    // the PC: every block on one free grid (owner, 20.11.2026), as it always stood: the cards, then the two columns
+    expect([...container.querySelectorAll('.overview-free > .overview-block')].map((row) => row.getAttribute('data-block')))
+      .toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons', 'raid', 'tasks', 'squad', 'gunsmith', 'requirements', 'favorites'])
     expect(priority.closest('[data-block]')).toHaveAttribute('data-block', 'raid')
     expect(priority).toHaveClass('is-inline')
     expect(priority.querySelectorAll('.map-priority-tile')).toHaveLength(dataset.maps.length)
     const raid = container.querySelector('.raid-card') as HTMLElement
     expect(raid.querySelector('.raid-tasks')).toHaveTextContent('Текущие задания')
     expect(raid).not.toHaveTextContent('ПЛАН РЕЙДА')
-    expect(container.querySelector('.stat-grid')).not.toHaveTextContent('Текущие задания')
-    const [left, right] = [...container.querySelectorAll('.dashboard-column')]
-    const needs = left.querySelector('.raid-needs') as HTMLElement
+    for (const card of container.querySelectorAll('.overview-block.is-card')) expect(card).not.toHaveTextContent('Текущие задания')
+    const needs = container.querySelector('[data-block="requirements"] .raid-needs') as HTMLElement
     expect(needs).not.toBeNull()
-    expect(right.querySelector('.raid-needs')).toBeNull()
+    expect(container.querySelectorAll('.raid-needs')).toHaveLength(1)
     expect(within(needs).getByText('Любая пачка патронов 7.62x51')).toBeInTheDocument()
     expect(within(needs).queryByText(/M80 \(20 штук\)/)).toBeNull()
     // the two ELCAN colours: one row, the other colour in the row's hover card
@@ -197,7 +198,7 @@ describe('DashboardPage', () => {
   it('keeps the four stat cards in order; «Квесты» on the Kappa card opens the four key tasks for «Коллекционер»', async () => {
     const user = userEvent.setup()
     const { container } = renderDashboard()
-    const cards = [...container.querySelectorAll('.stat-grid .stat-card')]
+    const cards = [...container.querySelectorAll('.overview-block.is-card .stat-card')]
     expect(cards).toHaveLength(4)
     expect(cards[2]).toHaveClass('kappa-card')
     expect(cards[2]).toHaveTextContent('Выполнено 0 из 4')
@@ -206,13 +207,13 @@ describe('DashboardPage', () => {
     expect([...dialog.querySelectorAll('.kappa-quest strong')].map((node) => node.textContent))
       .toEqual(['Реагент. Часть 4', 'Стрелок от бога', 'Тарковский стрелок. Часть 4', 'Шить — не тужить. Часть 4'])
   })
-  it('«Настроить блоки»: every block, the big map too, gets a handle, arrows move it within its zone, the order is kept and «Сбросить» restores it', async () => {
+  it('«Настроить блоки»: every block, the big map too, gets a handle and moves anywhere; the layout is kept and «Сбросить» restores it', async () => {
     const user = userEvent.setup()
     const { container, unmount } = renderDashboard()
     expect(container.querySelector('.overview-veil')).toBeNull()
     await user.click(screen.getByRole('button', { name: /Настроить блоки/ }))
     expect(screen.getByRole('button', { name: /Готово/ })).toHaveAttribute('aria-pressed', 'true')
-    // the four cards, the raid map and the two left blocks, the three right ones; only the rows stay put
+    // the four cards, the raid map, the squad, the requirements and the three right ones
     const handles = () => [...container.querySelectorAll('.overview-veil')].map((veil) => veil.closest('[data-block]')?.getAttribute('data-block'))
     expect(handles().sort()).toEqual(['favorites', 'gunsmith', 'raid', 'requirements', 'squad', 'stat-goons', 'stat-kappa', 'stat-conditions', 'stat-screen', 'tasks'].sort())
     // the PC's row stays as it is: no «Заменить блок» there (owner, 11.11.2026)
@@ -222,29 +223,23 @@ describe('DashboardPage', () => {
     expect(container.querySelector('[data-block="stat-kappa"] > .overview-block-content')).toHaveAttribute('inert')
 
     const veil = (id: string) => container.querySelector(`[data-block="${id}"] > .overview-veil`) as HTMLElement
-    const order = (selector: string) => [...container.querySelectorAll(selector)].map((element) => element.getAttribute('data-block'))
-    // the Kappa card one place to the left; the market to the top of the right column
-    fireEvent.keyDown(veil('stat-kappa'), { key: 'ArrowLeft' })
-    fireEvent.keyDown(veil('favorites'), { key: 'ArrowUp' })
-    fireEvent.keyDown(veil('favorites'), { key: 'ArrowUp' })
-    // the raid map one place down, under the squad
-    fireEvent.keyDown(veil('raid'), { key: 'ArrowDown' })
-    expect(order('.dashboard-column:first-child > .overview-block')).toEqual(['squad', 'raid', 'requirements'])
-    expect(order('.overview-rows > .overview-block')).toEqual(['stats', 'columns'])
-    expect(order('.stat-grid > .overview-block')).toEqual(['stat-screen', 'stat-kappa', 'stat-conditions', 'stat-goons'])
-    expect(order('.dashboard-column:last-child > .overview-block')).toEqual(['favorites', 'tasks', 'gunsmith'])
-    expect(JSON.parse(localStorage.getItem('raidos-overview-layout-v1')!)).toMatchObject({ stats: ['stat-screen', 'stat-kappa', 'stat-conditions', 'stat-goons'], left: ['squad', 'raid', 'requirements'], right: ['favorites', 'tasks', 'gunsmith'] })
+    const order = () => [...container.querySelectorAll('.overview-free > .overview-block')].map((element) => element.getAttribute('data-block'))
+    // «Требования рейда» up past every block to the very top (owner, 20.11.2026: «подвинуть блок требования рейда наверх»)
+    for (let step = 0; step < 9; step += 1) fireEvent.keyDown(veil('requirements'), { key: 'ArrowUp' })
+    expect(order()[0]).toBe('requirements')
+    expect(JSON.parse(localStorage.getItem('raidos-overview-free-v1')!).order[0]).toBe('requirements')
 
-
-    // «Готово» ends the editing; the order stays after a reload
+    // «Готово» ends the editing; the layout stays after a reload
     await user.click(screen.getByRole('button', { name: /Готово/ }))
     expect(container.querySelector('.overview-veil')).toBeNull()
     unmount()
     const again = renderDashboard()
-    expect([...again.container.querySelectorAll('.stat-grid > .overview-block')].map((element) => element.getAttribute('data-block'))).toEqual(['stat-screen', 'stat-kappa', 'stat-conditions', 'stat-goons'])
+    const reloaded = () => [...again.container.querySelectorAll('.overview-free > .overview-block')].map((element) => element.getAttribute('data-block'))
+    expect(reloaded()[0]).toBe('requirements')
     await user.click(screen.getByRole('button', { name: /Настроить блоки/ }))
     await user.click(screen.getByRole('button', { name: /Сбросить/ }))
-    expect([...again.container.querySelectorAll('.stat-grid > .overview-block')].map((row) => row.getAttribute('data-block'))).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons'])
+    expect(reloaded()).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons', 'raid', 'tasks', 'squad', 'gunsmith', 'requirements', 'favorites'])
+    expect(localStorage.getItem('raidos-overview-free-v1')).toBeNull()
     expect(localStorage.getItem('raidos-overview-layout-v1')).toBeNull()
     expect(screen.getByRole('button', { name: /Сбросить/ })).toBeDisabled()
   })

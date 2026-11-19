@@ -15,7 +15,7 @@ export function useAlignedListHeight(list: RefObject<HTMLElement | null>, on: bo
   useLayoutEffect(() => {
     if (!on) return
     const node = list.current
-    const columns = node?.closest('.dashboard-layout')
+    const columns = node?.closest('.dashboard-layout, .overview-free')
     if (!node || !columns || typeof ResizeObserver === 'undefined') return
     let frame = 0
     const measure = () => {
@@ -23,8 +23,13 @@ export function useAlignedListHeight(list: RefObject<HTMLElement | null>, on: bo
       if (node.closest('.overview-editing')) return
       const market = columns.querySelector('[data-block="favorites"]')
       const needs = columns.querySelector('[data-block="requirements"]')
-      const below = market ? node.compareDocumentPosition(market) & Node.DOCUMENT_POSITION_FOLLOWING : 0
-      if (!market || !needs || !below) { setHeight(null); return }
+      // the free Overview (owner, 20.11.2026): only while «Рынок» stands under the list and «Требования рейда» beside it
+      const own = (node.closest('[data-block]') ?? node).getBoundingClientRect()
+      const marketBox = market?.getBoundingClientRect()
+      const needsBox = needs?.getBoundingClientRect()
+      const below = marketBox && marketBox.top >= own.bottom - 1 && marketBox.left < own.right && own.left < marketBox.right
+      const beside = needsBox && (needsBox.right <= own.left + 1 || needsBox.left >= own.right - 1)
+      if (!market || !needs || !below || !beside) { setHeight(null); return }
       const now = node.getBoundingClientRect().height
       const wanted = now + needs.getBoundingClientRect().top - market.getBoundingClientRect().top
       const next = Math.round(Math.min(node.scrollHeight, Math.max(MIN_HEIGHT, wanted)))

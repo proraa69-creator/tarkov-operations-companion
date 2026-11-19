@@ -8129,3 +8129,14 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (`maps` escorts and loadouts, guard names from the game's locale). `bossGear.json` was left as it was: a new run draws a new
   loadout sample. The old «Охрана» armour row is gone (the retinue names each kind). Tests added; typecheck clean; checked in
   the dev page (Reshala, Glukhar, Kaban, Birdeye). Branch claude/quest-row-tags, not released.
+- Overview on the PC: a free layout (owner: «свободную секцию обзора, все блоки можно перемешать и передвигать… остальные
+  блоки сдвинутся вниз, которые мешают»). `src/overview/overviewFreeLayout.ts`: a 24-column grid; each block keeps its width
+  (cards share the row, 4 → a quarter each, a card taken off → the rest widen, as on 17.11; left blocks 15, right 9) and stands
+  at any column (every third) and any height; blocks are laid from the top in their order, so a block put above others pushes
+  down only the ones it would cover. `useOverviewEditor.ts` rewritten for it (drag anywhere with FLIP, arrows up/down/left/right,
+  Esc, the cross, «Сбросить»; heights measured, cards side by side as tall as the tallest; one column under 820 px). Saved under
+  `raidos-overview-free-v1`; a player without it starts from their old zone order or the owner's «Блоки» default, so nothing
+  changes until a block is moved. The phone Overview is unchanged. «Текущие задания» still lines «Рынок» up with «Требования
+  рейда» while they stand side by side. Checked in the dev page: «Требования рейда» to the top pushes the three cards under it
+  down and leaves «Кочевники»; «Рынок» to the top left; «Сбросить» brings the old look back and clears the saved layout. Tests
+  updated/added (130 pass), typecheck and lint clean. Branch claude/quest-row-tags, not released.
