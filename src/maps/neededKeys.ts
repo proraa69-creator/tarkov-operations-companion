@@ -28,18 +28,31 @@ export function keysOfPoint(marker: Pick<MapMarker, 'keyIds' | 'itemId'>): reado
   return marker.keyIds ?? (marker.itemId ? [marker.itemId] : [])
 }
 
+/** A quest's key on this map, with the objectives it is for (none: every point of the quest). */
+export interface QuestKeyOnMap { item: Item; objectiveIds?: readonly string[] }
+
 /** Each quest's keys on this map, for its points' cards: a quest's key of another map is not shown here. */
-export function questKeysOnMap(rows: readonly QuestKeyRow[], mapId: string): Map<string, Item[]> {
-  const byQuest = new Map<string, Item[]>()
+export function questKeysOnMap(rows: readonly QuestKeyRow[], mapId: string): Map<string, QuestKeyOnMap[]> {
+  const byQuest = new Map<string, QuestKeyOnMap[]>()
   for (const row of rows) {
     for (const use of [...row.needed, ...row.deferred]) {
       if (use.mapIds.length && !use.mapIds.includes(mapId)) continue
       const list = byQuest.get(use.quest.id) ?? []
-      if (!list.some((item) => item.id === row.item.id)) list.push(row.item)
+      if (!list.some((key) => key.item.id === row.item.id)) list.push({ item: row.item, ...(use.objectiveIds?.length ? { objectiveIds: use.objectiveIds } : {}) })
       byQuest.set(use.quest.id, list)
     }
   }
   return byQuest
+}
+
+/**
+ * The keys a quest point's card names: its own objective's and the whole quest's (owner, 20.11.2026: «нужен только ключ на
+ * западное крыло чтобы пометить генератор, но когда наводишь на восточное крыло тоже показывает эти же ключи от западного»).
+ * A point that names no objective shows them all.
+ */
+export function questKeysOfPoint(keys: readonly QuestKeyOnMap[] | undefined, objectiveId: string | undefined): Item[] | undefined {
+  const shown = (keys ?? []).filter((key) => !objectiveId || !key.objectiveIds || key.objectiveIds.includes(objectiveId)).map((key) => key.item)
+  return shown.length ? shown : undefined
 }
 
 const KEY = 'raidos-map-needed-keys-only'

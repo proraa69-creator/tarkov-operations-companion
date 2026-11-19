@@ -8114,3 +8114,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   the live game's was found; one of three reads gave «ВС» as Latin «BC». `src/maps/raidExtracts.ts` `matchKey` now treats
   Latin letters drawn like Cyrillic ones as the same letter (test added; 14 exit tests pass). The live pipeline (O key → corner
   → map) is still not seen working in a live raid since 0.6.0.321: the PC had no live raid after it.
+- «Нужно больше энергии» (Shoreline): the card of the east-wing generator point named the west wing's keys (Сан219, Сан220)
+  too. A quest key now keeps the objectives its requirements name (`src/quests/questKeys.ts`, `objectiveIds`; a key some
+  requirement gives no objective stays for the whole quest), `questKeysOnMap` carries them, and `questKeysOfPoint`
+  (`src/maps/neededKeys.ts`) gives a point only its own objective's keys and the whole quest's (MapsPage tooltip). Checked in
+  the dev page: the east-wing card shows no key, the west-wing card shows both. Tests added; typecheck clean; map and quest
+  tests pass (the AdminPanel source test fails in this checkout only because of CRLF line endings). Branch
+  claude/quest-row-tags, not released.
