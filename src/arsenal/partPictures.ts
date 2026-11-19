@@ -30,6 +30,17 @@ const apply = (a: Mat3, v: [number, number, number]): [number, number, number] =
   [a[0] * v[0] + a[1] * v[1] + a[2] * v[2], a[3] * v[0] + a[4] * v[1] + a[5] * v[2], a[6] * v[0] + a[7] * v[1] + a[8] * v[2]]
 /** The turn of most slot bones (-90° about X): it holds a part upright. */
 const STANDARD_BACK = transpose(quat([-0.70711, 0, 0, 0.70711]))
+/**
+ * Barrels the game drew alone hanging from their hinge (a break-action or a quick-change barrel: the weapon's own pose closes it in the
+ * game, owner 20.11.2026: «МР-18 разложенное… ствол смотрит вниз… ствол должен быть цельным»): a quarter turn about the view at their
+ * mount lays them along the weapon, the muzzle forward, with what is on them.
+ */
+export const HINGED_BARRELS: ReadonlySet<string> = new Set([
+  '61f4012adfc9f01a816adda1', // MP-18 600 mm
+  '646371faf2404ab67905c8e9', // ПКМ 658 mm
+  '6513eff1e06849f06c0957d4', // РПД 520 mm
+])
+const CLOSE_HINGE = quat([-0.70711, 0, 0, 0.70711])
 
 /** A part where it stands in the picture: its picture's pixels go through `m` (2×3, to the build's pixels); `x` its place along the view. */
 export interface PlacedPart {
@@ -67,7 +78,8 @@ export function layBuild(build: Build, index: PartsIndex): LaidBuild {
   const anchors: Record<string, [number, number]> = {}
   const centers: Record<string, [number, number]> = {}
   const partPaths: string[] = []
-  const walk = (tpl: string, node: BuildNode | undefined, at: [number, number, number], turn: Mat3, path: string) => {
+  const walk = (tpl: string, node: BuildNode | undefined, at: [number, number, number], given: Mat3, path: string) => {
+    const turn = HINGED_BARRELS.has(tpl) ? mul(given, CLOSE_HINGE) : given
     const asset = index.parts[tpl]
     if (!asset) { missing.push(tpl); return }
     // the X axis (the view) kept or turned round: the picture turns in its plane; any other turn faces the part towards the eye

@@ -1,31 +1,27 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Check, ChevronDown, Heart, Layers, Lock, Maximize2, Minimize2, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Heart, Layers, Lock, Minimize2, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
-import { hasInstallable, installReplacing, missingRequired, presetBuild, removePart, stockSlotTaken } from '../arsenal/buildModel'
-import { boardLayout, hiddenTwins, type BoardLayout, type PlacedCell } from '../arsenal/boardLayout'
-import { useBuildDrawing, type Drawn } from '../arsenal/BuildPicture'
-import { BuildStage, type StageSlot } from '../arsenal/BuildStage'
+import { installReplacing, missingRequired, presetBuild, removePart } from '../arsenal/buildModel'
+import { useBuildDrawing } from '../arsenal/BuildPicture'
+import { BuildBench, pathKey, shownLayout } from '../arsenal/BuildBench'
 import { AmmoGrid, ModGrid } from '../arsenal/ModGrid'
-import { SlotSilhouette } from '../arsenal/SlotSilhouette'
-import { slotPicture } from '../arsenal/slotPictures'
 import { computeExtraCost, computeStats, FULL_ACCESS, unlockHint, type BuildCost, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, renameSavedBuild, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
-import { formatRub, PartIcon, prettyCaliber, signed, signedExact, weaponIcon, unlockLabel } from '../arsenal/gunFormat'
+import { formatRub, PartIcon, prettyCaliber, signed, weaponIcon, unlockLabel } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
 import { TRADER_ORDER } from '../gunsmith/traderLevels'
 import { BUILD_TIERS, buildableWeapon, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
 import { useOwnerBuilds } from '../arsenal/ownerBuilds'
 import { withLiveGunPrices } from '../arsenal/liveGunPrices'
 import { useLivePrices } from '../data/livePrices'
-import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
-import { usesDataGateway } from '../data/tarkovApi'
+import type { Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
 import { isOwnerApp } from '../app/buildEdition'
 import '../styles/weaponBuilds.css'
 import { isMobileLayout } from '../platform'
@@ -50,16 +46,6 @@ const CLASS_NAMES: Record<string, string> = {
 }
 /** «Избранное» (owner, 15.11.2026): only the weapons with a build starred in this mode (SaveControls, SavedList). */
 type Grouping = 'caliber' | 'class' | 'favorites'
-/** The weapon's picture: tarkov.dev's 512 px cut-out in development, our server's inventory picture in the app. */
-/** The weapon's own picture (its default build), for a weapon whose parts the app has no pictures of. */
-const weaponPicture = (weapon: Weapon) => pictureUrl(weapon.defaultPreset?.id ?? weapon.id)
-
-function pictureUrl(id: string) {
-  return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-512.webp`
-}
-
-const pathKey = (path: string[]) => path.join('/')
-
 export function WeaponBuildsPage() {
   const { raidMode } = useAppState()
   const { locale } = useLocale()
@@ -93,9 +79,10 @@ const SIDE_TABS = { mine: 'Избранные', ready: 'Готовые сбор�
 function Workshop({ catalog }: { catalog: GunCatalog }) {
   const { raidMode } = useAppState()
   const [params, setParams] = useSearchParams()
-  // Only what is built here (owner, 19.11.2026: «РШГ-2 там не должно быть. Оружие, которое не тюнингуется… реактивные патроны там не
-  // должны быть никакие вообще»): firearms of cartridges (no flare or rocket guns, no grenade launchers) with slots for mods.
-  const weapons = useMemo(() => catalog.weapons.filter((weapon) => buildableWeapon(weapon) && weapon.slots.length > 0).sort((a, b) => a.shortName.localeCompare(b.shortName, 'ru')), [catalog])
+  // Every firearm of cartridges (owner, 20.11.2026: «Добавляй все оружие… автоматы, винтовки, пистолеты. Не нужно добавлять туда
+  // файеры и холодное оружие. И гранаты не надо»): no flare or rocket guns, no grenade launchers (19.11.2026: «РШГ-2 там не должно
+  // быть»); a weapon with no slots for mods too — its picture and its round.
+  const weapons = useMemo(() => catalog.weapons.filter((weapon) => buildableWeapon(weapon)).sort((a, b) => a.shortName.localeCompare(b.shortName, 'ru')), [catalog])
   const startWeapon = weapons.find((weapon) => weapon.id === params.get('weapon')) ?? weapons.find((weapon) => weapon.shortName === 'M4A1') ?? weapons[0]
   const [build, setBuild] = useState<Build>(() => presetBuild(startWeapon, catalog).build)
   // `tab`: the side tab to open on — «Готовые сборки» from a weapon of «Сбор на рейд» (overview/WeaponBuildMenu.tsx).
@@ -137,10 +124,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const gun = useGunPrice(weapon, shop)
   // Empty slots nothing can go into right now are not drawn (an installed part conflicts with every candidate), nor a second empty
   // slot of a kind beside a filled one (src/arsenal/boardLayout.ts hiddenTwins): it shows while its filled twin is the chosen cell.
-  const fullLayout = boardLayout(build, weapon, catalog)
-  const twins = hiddenTwins(fullLayout.cells, pathKey)
-  const twinShown = (key: string) => { const twin = twins.get(key); return !twin || selected === twin || selected === key }
-  const layout = { ...fullLayout, cells: fullLayout.cells.filter((cell) => (cell.part || (cell.slot.required && !stockSlotTaken(build, cell.path, catalog)) || hasInstallable(build, cell.path, cell.slot, catalog, weapon)) && twinShown(pathKey(cell.path))) }
+  const layout = shownLayout(build, weapon, catalog, selected)
   // The build drawn from the game's own part pictures, live (owner, 20.11.2026); the board of cells when a part has no picture yet.
   const drawing = useBuildDrawing(build)
   // «На весь экран» (owner, 20.11.2026): the build over the whole window, the stats in a window of their own.
@@ -185,7 +169,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null); setSelected(null) }}
         onClose={() => setSelected(null)} />
       : null
-  const bench = (size: 'normal' | 'full', maxHeight?: number) => <Bench layout={layout} weapon={weapon} stats={stats} ammo={ammo} selected={selected} onSelect={setSelected}
+  const bench = (size: 'normal' | 'full', maxHeight?: number) => <BuildBench layout={layout} weapon={weapon} stats={stats} ammo={ammo} selected={selected} onSelect={setSelected}
     drawn={drawing.drawn} size={size} maxHeight={maxHeight} onExpand={size === 'normal' ? () => setFull(true) : undefined}
     popover={(size === 'full') === full ? pickAt : undefined} />
 
@@ -421,58 +405,6 @@ function HandlingRow({ stats }: { stats: BuildStats }) {
 // The board: the weapon in the middle, every slot around it where it sits on the gun (src/arsenal/boardLayout.ts).
 // ------------------------------------------------------------------------------------------------------------
 
-/**
- * The bench: the build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx);
- * the board of cells (Board) while a part of the build has no picture yet.
- */
-function Bench({ layout, weapon, stats, ammo, selected, onSelect, drawn, size, maxHeight, onExpand, popover }: {
-  layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; selected: string | null; onSelect: (key: string | null) => void
-  drawn: Drawn | null; size: 'normal' | 'full'; maxHeight?: number; onExpand?: () => void
-  /** The chosen cell's modules in a window at the cell (`anchor` finds the cell's button). */
-  popover?: (anchor: () => Element | null) => ReactNode
-}) {
-  const [root, setRoot] = useState<HTMLDivElement | null>(null)
-  const anchor = useCallback(() => (selected && root ? root.querySelector(`[data-cell="${CSS.escape(selected)}"]`) : null), [root, selected])
-  // A phone keeps the whole build on one screen, on its side too: the stage no taller than the window
-  const windowHeight = useWindowHeight()
-  const phone = isMobileLayout()
-  const stageHeight = maxHeight ?? (phone ? Math.max(240, windowHeight - 130) : undefined)
-  const slots = useMemo<StageSlot[]>(() => [
-    ...layout.cells.map((cell) => ({ key: pathKey(cell.path), kind: cell.kind, zone: cell.zone, depth: cell.depth, path: cell.path, filled: Boolean(cell.part) })),
-    { key: 'ammo', kind: 'ammo' as const, zone: 'bottom' as const, depth: 1, filled: Boolean(ammo) },
-  ], [layout, ammo])
-  // «Открыть на весь экран» in the bench's corner (owner, 20.11.2026: «вот эта сборка будет открываться на весь экран»)
-  const expand = onExpand && <button type="button" className="wb-stage-expand" onClick={onExpand} title={uiText('Открыть на весь экран')} aria-label={uiText('Открыть на весь экран')}><Maximize2 size={14} /><span>{uiText('На весь экран')}</span></button>
-  const toggle = (key: string) => onSelect(selected === key ? null : key)
-  const selectedPath = selected && selected !== 'ammo' ? selected.split('/') : undefined
-  const linked = (path: string[]) => Boolean(selectedPath && path.length > selectedPath.length && selectedPath.every((id, index) => path[index] === id))
-  const cells = new Map(layout.cells.map((cell) => [pathKey(cell.path), cell]))
-  return <div className={`wb-stage-scroll is-${size}`} ref={setRoot}>
-    {expand}
-    <div className="wb-stage-label">
-      <strong>{weapon.shortName}</strong>
-      <span>{stats.weightLoaded.toFixed(2)} {uiText('кг')}</span>
-    </div>
-    <BuildStage drawn={drawn} flat={drawn ? undefined : weaponPicture(weapon)} slots={slots} size={size === 'full' ? (phone ? 'phoneFull' : 'full') : phone ? 'phone' : 'normal'} selected={selected} maxHeight={stageHeight}
-      renderCell={(key, style) => {
-        if (key === 'ammo') return <AmmoCellButton ammo={ammo} active={selected === 'ammo'} style={style} onClick={() => toggle('ammo')} />
-        const cell = cells.get(key)
-        return cell ? <SlotCellButton cell={cell} active={selected === key} linked={linked(cell.path)} style={style} onClick={() => toggle(key)} /> : null
-      }} />
-    {selected && popover?.(anchor)}
-  </div>
-}
-
-function useWindowHeight() {
-  const [height, setHeight] = useState(() => (typeof window === 'undefined' ? 800 : window.innerHeight))
-  useEffect(() => {
-    const measure = () => setHeight(window.innerHeight)
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [])
-  return height
-}
-
 const STATS_WINDOW_KEY = 'raidos-wb-stats-window'
 function readStatsWindow(): { x: number; y: number } | null {
   try {
@@ -596,49 +528,6 @@ function StatsWindow({ stats, stock, docked }: { stats: BuildStats; stock: Build
       <Delta value={row.delta} better={row.better} digits={row.digits} />
     </div>)}
   </div>
-}
-
-/**
- * A part over the whole cell: its picture without background (owner, 17.10.2026: «без синего фона и без внутренней рамки»),
- * else the inventory picture, else the small icon — whichever loads first.
- */
-/** The background-free picture next to an icon: tarkov.dev «-base-image», our server's «-base». */
-function baseImageOf(iconLink?: string) {
-  if (!iconLink) return undefined
-  return iconLink.includes('assets.tarkov.dev') ? iconLink.replace(/-icon\.webp$/, '-base-image.webp') : iconLink.replace(/-icon\.webp$/, '-base.webp')
-}
-
-function CellPicture({ part }: { part: Pick<GunPart, 'iconLink' | 'baseImageLink' | 'gridImageLink'> }) {
-  const sources = [part.baseImageLink, part.gridImageLink, part.iconLink].filter((src): src is string => Boolean(src))
-  const [attempt, setAttempt] = useState(0)
-  if (attempt >= sources.length) return <PartIcon />
-  return <img className="gb-icon wb-cell-picture" src={sources[attempt]} alt="" loading="lazy" draggable={false} onError={() => setAttempt((value) => value + 1)} />
-}
-
-function AmmoCellButton({ ammo, active, style, onClick }: { ammo?: AmmoStats; active: boolean; style?: CSSProperties; onClick: () => void }) {
-  return <button className={`wb-cell is-ammo${active ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} data-cell="ammo" style={style} onClick={onClick} aria-pressed={active} title={ammo ? ammo.name : uiText('Патрон')}>
-    {!ammo && <span className="wb-cell-slot">{uiText('Патрон')}</span>}
-    {ammo ? <><CellPicture part={{ iconLink: ammo.iconLink, baseImageLink: baseImageOf(ammo.iconLink) }} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <SlotSilhouette kind="ammo" />}
-  </button>
-}
-
-function SlotCellButton({ cell, active, linked, style, onClick }: { cell: PlacedCell; active: boolean; linked: boolean; style?: CSSProperties; onClick: () => void }) {
-  const { part, slot } = cell
-  const missing = slot.required && !part
-  return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} data-cell={pathKey(cell.path)} style={style} onClick={onClick} aria-pressed={active}
-    title={part ? `${slot.name}: ${part.name}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
-    {!part && !slotPicture(slot.nameId, cell.kind) && <span className="wb-cell-slot">{slot.name}</span>}
-    {part ? <>
-      {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signedExact(part.ergonomics)}</span>}
-      {part.recoilModifier !== 0 && <span className={`wb-cell-recoil ${part.recoilModifier < 0 ? 'is-good' : 'is-bad'}`}>{signed(part.recoilModifier * 100, Math.abs(part.recoilModifier * 100) % 1 ? 1 : 0)}</span>}
-      <CellPicture part={part} />
-      <span className="wb-cell-name">{part.shortName}</span>
-      {part.slots.length > 0 && <span className="wb-cell-badge" title={uiText('Свои ячейки')}><Layers size={8} />{part.slots.length}</span>}
-    </> : <>
-      <SlotSilhouette kind={cell.kind} nameId={slot.nameId} />
-      {missing && <AlertTriangle size={11} className="wb-cell-required" aria-label={uiText('Обязательно')} />}
-    </>}
-  </button>
 }
 
 // ------------------------------------------------------------------------------------------------------------
