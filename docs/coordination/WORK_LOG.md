@@ -8190,3 +8190,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   node_modules junction from Git Bash failed silently and `npm ci` in raidos-kord-breach emptied most of
   raidos-map-tiles-negative/node_modules through it (460 → 81); restored with `npm install` there (460 again; electron, koffi,
   sharp checked), raidos-kord-breach now has its own node_modules (npm ci, 461).
+- Test exe again (20.11.2026, the owner could not sign in to the first one: «не может подключиться к серверу»). Causes: no
+  entitlement key built in (the subscription check cannot pass: «Нужна подписка / Сервер недоступен»), and a packaged exe boots the
+  update staged for the real app (%APPDATA%\Raid OS Updates, one staged at 03:38) instead of itself, sharing the owner's data folder.
+  95d1df11: TEST_BUILD=1 → build-info testBuild: boot.ts skips the staged build, main.ts uses %APPDATA%\Raid OS Test Build (runs
+  beside the real app) and starts no update checks; server and account as usual. Rebuilt «Raid OS тест сборки оружия.exe» (owner,
+  entitlement key from /v1/entitlement/public-key, test build, 194 MB) with 2470 part pictures (the helper drew 332 of the 348 newer
+  parts from bundles copied read-only out of the installed game into the offline copy on E:; 16 not: 10 base receivers drawn
+  turned or empty by the old client, the P90 SMC-90 stock, 5 helmet items). Tests: buildEdition, deltaBoot, gunParts pass.
+  Not released; not started here.
