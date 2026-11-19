@@ -107,6 +107,8 @@ const under = (path: string[], prefix: string[]) => path.length >= prefix.length
  * Whether `candidateId` may go into `slot` at `path` (the slot's own path, ending with its nameId) — the game's rules
  * as tarkov.dev carries them (owner, 17.10.2026: «какие и куда подходят, а куда не подходят»):
  * - the slot's filters.allowedItems lists it;
+ * - the weapon itself does not conflict with it (owner, 20.11.2026: the Vltor CMRD handguard lists the AK-102, AK-104 and AK-105 —
+ *   the game does not put it on them, whatever else is on the weapon);
  * - no other installed item conflicts with it in either direction: conflictingItems, or conflictingCategories against
  *   the other item's categories;
  * - conflictingSlotIds: no installed item asks this slot to stay empty, and the candidate does not ask that of a slot
@@ -118,6 +120,10 @@ export function canInstall(build: Build, path: string[], slot: GunSlot, candidat
   const candidate = catalog.mods.get(candidateId)
   if (!candidate) return { ok: false, reason: 'unknown' }
   if (!slot.allowed.includes(candidateId)) return { ok: false, reason: 'not-allowed' }
+  if (candidate.conflicts.includes(build.weaponId) || root?.conflicts.includes(candidateId)
+    || (root && (shares(root.conflictCategories, candidate.categoryIds) || shares(candidate.conflictCategories, root.categoryIds)))) {
+    return { ok: false, reason: 'conflict', conflictWith: build.weaponId }
+  }
   const staying = occupiedSlots(build, catalog, root).filter((entry) => !under(entry.path, path))
   for (const { part } of staying) {
     if (part.conflicts.includes(candidateId) || candidate.conflicts.includes(part.id)

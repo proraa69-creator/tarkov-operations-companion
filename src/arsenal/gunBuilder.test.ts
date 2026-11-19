@@ -38,6 +38,23 @@ describe('tarkov.dev adapters', () => {
 })
 
 describe('build tree and compatibility', () => {
+  // owner, 20.11.2026: the Vltor CMRD handguard on an AK-105 — it lists that weapon, the game never puts it there
+  it('a part that lists the weapon itself among its conflicts never goes on it, nor in place of another', () => {
+    const build = presetBuild(m4, catalog).build
+    const filled = Object.keys(build.root.children)[0]!
+    const slot = m4.slots.find((entry) => entry.nameId === filled)!
+    const other = slot.allowed.find((id) => catalog.mods.has(id))!
+    const original = catalog.mods.get(other)!
+    try {
+      catalog.mods.set(other, { ...original, conflicts: [...original.conflicts, m4.id] })
+      expect(canInstall(build, [filled], slot, other, catalog, m4)).toEqual({ ok: false, reason: 'conflict', conflictWith: m4.id })
+      expect(installReplacing(build, [filled], slot, other, catalog, m4)).toBeUndefined()
+      expect(hasInstallable(emptyBuild(m4), [filled], { ...slot, allowed: [other] }, catalog, m4)).toBe(false)
+    } finally {
+      catalog.mods.set(other, original)
+    }
+  })
+
   it('rebuilds the default preset tree from its flat item list', () => {
     const { build, unplaced } = presetBuild(m4, catalog)
     expect(unplaced).toEqual([])

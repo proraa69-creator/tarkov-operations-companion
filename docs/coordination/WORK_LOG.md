@@ -8213,3 +8213,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   pictures (`<id>.fold.webp/.fold.d.png`), index.json `fold` and `fs` (the slot that folds) on 42 weapons. «Сложить приклад» /
   «Разложить приклад» on the bench of a weapon whose stock folds: the weapon in its folded look, the stock in the folding slot in its
   own. Not done: MP7A1/A2 (the stock slides, no bone turns), the M3 telescopic stock, the Vltor/JMAC/FAB AKMS adapters.
+- A part that lists the weapon itself among its conflicts never goes on it (owner's photo, 20.11.2026: AK-105 with the Vltor CMRD
+  and a PBS-4 going into it): the CMRD lists the AK-102, AK-104 and AK-105, the game never puts it on them; canInstall checked only
+  the parts on the weapon, now the weapon too (22 parts in the game ban some weapons: CQR, TRAX 2, Hexagon AK, CMRD…). The PBS-4 has
+  no conflicts: with a handguard that allows it, the game shows it running into the handguard the same way (no collisions in the game).
