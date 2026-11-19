@@ -1,13 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { isDesktopShell } from '../platform'
 import type { Build } from './gunTypes'
 import { layBuild, type LaidBuild, type PartsIndex } from './partPictures'
 
 /**
- * Where the part pictures are served (`index.json`, `<id>.webp` colour, `<id>.d.png` depth). The dev server serves them from public/;
- * the app will take them from the server once they are there.
+ * Where the part pictures are (`index.json`, `<id>.webp` colour, `<id>.d.png` depth): dist/gun-parts next to the page (public/ in
+ * development). The PC's page is a file:// page, where fetch cannot read files: the app's own scheme reads them (electron/gunParts.ts).
  */
-export const PART_PICTURES_BASE = '/gun-parts/'
+export const PART_PICTURES_BASE = isDesktopShell() ? 'raidos-img://parts/' : `${import.meta.env.BASE_URL}gun-parts/`
 
 let indexLoad: Promise<PartsIndex | null> | null = null
 export function loadPartsIndex(base = PART_PICTURES_BASE): Promise<PartsIndex | null> {

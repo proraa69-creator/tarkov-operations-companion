@@ -18,6 +18,7 @@ import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearScanFrames } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
 import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
+import { createGunPartResponder } from './gunParts.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { setMapFloorWheel, startMapFloorWheel, stopMapFloorWheel } from './mapFloorWheel.js'
@@ -332,7 +333,12 @@ app.whenReady().then(async () => {
     { name: 'raidos.app (Chromium)', url: (path) => `${MAP_FILE_ORIGIN}${path}`, fetch: chromiumFetch },
     { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: chromiumFetch },
   ])
-  protocol.handle(ITEM_IMAGE_SCHEME, (request) => new URL(request.url).hostname === 'map' ? answerMapFile(request.url) : answerItemImage(request.url))
+  // «Сборка оружия»: the part pictures inside the app (electron/gunParts.ts)
+  const answerGunPart = createGunPartResponder(join(dirname(APP_INDEX_FILE), 'gun-parts'))
+  protocol.handle(ITEM_IMAGE_SCHEME, (request) => {
+    const host = new URL(request.url).hostname
+    return host === 'map' ? answerMapFile(request.url) : host === 'parts' ? answerGunPart(request.url) : answerItemImage(request.url)
+  })
   // What the page may ask for (security review, 03.11.2026): copying text, the owner panel's notifications, full screen
   // for a video. Camera, microphone, the screen, location, USB and the rest are refused without asking — the app runs as
   // administrator, and Electron would otherwise grant them all.
