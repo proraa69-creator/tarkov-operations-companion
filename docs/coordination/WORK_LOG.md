@@ -8104,3 +8104,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   of its own. `src/pages/QuestsPage.tsx`: the row's tags (status, «капа», the hand-set mark) sit in one cell `.quest-row-tags`
   (`src/styles/pages.css`, inline-flex, no wrap). Checked in the dev page: four current Kappa quests, rows 61 px each, tags side
   by side. typecheck clean, QuestsPage tests pass. Branch claude/quest-row-tags, not released.
+- «Небеса в огне», stage 8 «Оставить бортовой самописец в указанном месте» (Shoreline): the owner marked the right spot on a
+  screenshot — inside the long house at its south-west corner, 17 m from our point by its north-east corner. The spot was
+  measured by rebuilding the same satellite view in the dev page (the old point read back within 0.1 m) and moved in
+  `src/data/storyChapterSeeds.ts` to x 250.83, z 440.89; no server override exists for it. The dev map shows the stage's
+  marker there; story tests pass. Same branch claude/quest-row-tags, not released.
