@@ -6,7 +6,8 @@
  *
  * A build is laid like the game puts it together: each part at its parent's slot point. A slot's bone turned as most are holds the part
  * upright; another turn about the barrel's axis turns the picture (a grip hung under a rail is upside down). A part turned towards the
- * eye (a side mount) has no picture from that side yet: it is left out and named in `missing`.
+ * eye (on a side rail) is laid in the picture's plane at its own place along the view (`flatten`): over the weapon on the near side,
+ * behind it on the far side.
  */
 import type { Build, BuildNode } from './gunTypes'
 
@@ -48,6 +49,15 @@ export const HINGED_BARRELS: ReadonlySet<string> = new Set([
 ])
 const CLOSE_HINGE = quat([-0.70711, 0, 0, 0.70711])
 
+/** The nearest turn about the view alone: the part's own length (its Z) kept where it points in the picture's plane, its side up. */
+function flatten(turn: Mat3): Mat3 {
+  const [zy, zz] = [turn[5], turn[8]]
+  const length = Math.hypot(zy, zz)
+  if (length < 1e-6) return IDENTITY
+  const [c, s] = [zz / length, -zy / length]
+  return [1, 0, 0, 0, c, -s, 0, s, c]
+}
+
 /** A part where it stands in the picture: its picture's pixels go through `m` (2×3, to the build's pixels); `x` its place along the view. */
 export interface PlacedPart {
   tpl: string
@@ -81,7 +91,7 @@ export interface LaidBuild {
 
 /**
  * The build laid out: every part covered by the index at its place, the picture's size (pixels at the index's scale) and the depth range.
- * `missing`: parts with no picture yet, or turned out of the side view.
+ * `missing`: parts with no picture yet.
  */
 export function layBuild(build: Build, index: PartsIndex, options: { folded?: boolean } = {}): LaidBuild {
   const weapon = index.parts[build.weaponId]
@@ -94,14 +104,17 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
   const centers: Record<string, [number, number]> = {}
   const partPaths: string[] = []
   const walk = (tpl: string, node: BuildNode | undefined, at: [number, number, number], given: Mat3, path: string) => {
-    const turn = HINGED_BARRELS.has(tpl) ? mul(given, CLOSE_HINGE) : given
+    const hinged = HINGED_BARRELS.has(tpl) ? mul(given, CLOSE_HINGE) : given
+    // A part turned towards the eye (on a side rail; owner, 20.11.2026: «предметы, которые ставятся на боковое крепление, должны
+    // показываться… с правой стороны… на боковом креплении с той стороны»): laid in the picture's plane, its length along the weapon as
+    // it is, at its own place along the view — on the near side it is drawn over the weapon, on the far side behind it.
+    const turn = Math.abs(Math.abs(hinged[0]) - 1) > 1e-3 ? flatten(hinged) : hinged
     // folded: the weapon in its folded look, and the stock in the folding slot in its own when it has one
     const plain = index.parts[tpl]
     const foldsHere = folded && (path === '' || path === foldSlot) && Boolean(plain?.fold)
     const asset = foldsHere ? plain!.fold! : plain
     if (!asset) { missing.push(tpl); return }
     // the X axis (the view) kept or turned round: the picture turns in its plane; any other turn faces the part towards the eye
-    if (Math.abs(Math.abs(turn[0]) - 1) > 1e-3) { missing.push(tpl); return }
     // a local (y, z) goes to turn·(y, z); in pixels right is -z, down is -y
     const [a, b, d, e] = [turn[8], turn[7], turn[5], turn[4]]
     const cx = -at[2] * ppm
