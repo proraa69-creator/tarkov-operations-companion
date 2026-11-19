@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { ArrowLeftRight, Lock, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { installReplacing, slotCandidates, STOCK_SLOT, type SlotCell } from './buildModel'
+import { isMuzzleSlot, muzzleKits, type MuzzleKit } from './muzzleKits'
 import { useLocale } from '../i18n/LocaleProvider'
 import { cheapestOffer, computeStats, unlockHint, type BuildStats, type PurchaseAccess } from './buildStats'
 import { formatModifier, formatRub, PartIcon, signedExact, unlockLabel } from './gunFormat'
@@ -40,7 +41,34 @@ function TileLock({ item, access }: { item: Pick<GunPart, 'offers' | 'noFlea' | 
   return <span className="wb-part-lock" title={hint ? `${uiText('Откроется, когда выполнится условие')}: ${text}` : text}><Lock size={9} aria-hidden="true" />{text}</span>
 }
 
+/**
+ * The order of the modules (owner, 20.11.2026: «наверху… вкладки с выбором. Сбалансировано, низкая отдача, больше эргономика и
+ * комплект глушитель плюс дульник»): the three for every slot; a muzzle slot also lists its devices, its suppressors or the kits of a
+ * device and a suppressor together (src/arsenal/muzzleKits.ts) with what the kit gives as a whole.
+ */
+type GridSort = 'balanced' | 'recoil' | 'ergonomics' | 'devices' | 'suppressors' | 'kits'
+const SORT_NAMES: Record<GridSort, string> = {
+  balanced: 'Сбалансированно',
+  recoil: 'Меньше отдача',
+  ergonomics: 'Больше эргономика',
+  devices: 'Дульные устройства',
+  suppressors: 'Глушители',
+  kits: 'Дульник + глушитель',
+}
+const SORT_KEY = 'raidos-wb-grid-sort'
+function readSort(): GridSort {
+  try { const value = localStorage.getItem(SORT_KEY); return value === 'recoil' || value === 'ergonomics' ? value : 'balanced' } catch { return 'balanced' }
+}
+const isSuppressor = (part: GunPart) => part.category === 'silencer' || part.suppressor === true
+
 /** The best change first, as the side list's «Сбалансированно»: vertical recoil removed and ergonomics gained, in half points. */
+function order(sort: GridSort, a: BuildStats | undefined, b: BuildStats | undefined, now: BuildStats) {
+  if (!a || !b) return Number(!a) - Number(!b)
+  if (sort === 'recoil') return a.recoilVerticalExact - b.recoilVerticalExact || b.ergonomicsRaw - a.ergonomicsRaw
+  if (sort === 'ergonomics') return b.ergonomicsRaw - a.ergonomicsRaw || a.recoilVerticalExact - b.recoilVerticalExact
+  return balance(b, now) - balance(a, now)
+}
+
 function balance(after: BuildStats | undefined, now: BuildStats) {
   if (!after) return Number.NEGATIVE_INFINITY
   const recoil = now.recoilVerticalExact > 0 ? (now.recoilVerticalExact - after.recoilVerticalExact) / now.recoilVerticalExact * 100 : 0
@@ -111,13 +139,20 @@ function GridWindow({ anchor, title, count, onClose, children, tools }: { anchor
   </div>, document.body)
 }
 
-export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, everything, anchor, onPick, onRemove, onClose }: {
+export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, everything, anchor, onPick, onPickKit, onRemove, onClose }: {
   cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess
   /** «Показать все модули»: none greyed, the best change first whatever it costs. */
   everything?: boolean
-  anchor: () => Element | null; onPick: (itemId: string) => void; onRemove: () => void; onClose: () => void
+  anchor: () => Element | null; onPick: (itemId: string) => void; onPickKit?: (kit: MuzzleKit) => void; onRemove: () => void; onClose: () => void
 }) {
+  const muzzle = isMuzzleSlot(cell.slot) && Boolean(onPickKit)
+  const [sort, setSortState] = useState<GridSort>(readSort)
+  const setSort = (next: GridSort) => {
+    setSortState(next)
+    if (next === 'balanced' || next === 'recoil' || next === 'ergonomics') try { localStorage.setItem(SORT_KEY, next) } catch { /* a convenience */ }
+  }
   const rows = useMemo(() => slotCandidates(cell.slot, catalog)
+    .filter((part) => sort === 'devices' ? !isSuppressor(part) : sort === 'suppressors' ? isSuppressor(part) : true)
     .map((part) => {
       // what fits, and what fits once a conflicting part comes off (it says what it takes off)
       const done = installReplacing(build, cell.path, cell.slot, part.id, catalog, weapon)
@@ -126,11 +161,41 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
       return { part, done, offer, after, replaces: done?.removed.map((item) => item.shortName || item.name) ?? [] }
     })
     .filter((row) => row.done)
-    // what can be bought first, the best change first; the rest after, greyed
-    .sort((a, b) => (everything ? 0 : Number(!a.offer) - Number(!b.offer)) || balance(b.after, stats) - balance(a.after, stats) || (a.offer?.priceRUB ?? Infinity) - (b.offer?.priceRUB ?? Infinity)),
-  [access, ammo, build, catalog, cell.path, cell.slot, everything, stats, weapon])
+    // what can be bought first, in the chosen order; the rest after, greyed
+    .sort((a, b) => (everything ? 0 : Number(!a.offer) - Number(!b.offer)) || order(sort, a.after, b.after, stats) || (a.offer?.priceRUB ?? Infinity) - (b.offer?.priceRUB ?? Infinity)),
+  [access, ammo, build, catalog, cell.path, cell.slot, everything, sort, stats, weapon])
+  const kits = useMemo(() => !muzzle || sort !== 'kits' ? [] : muzzleKits(build, cell.path, cell.slot, catalog, weapon)
+    .map((kit) => {
+      const offers = [cheapestOffer(kit.device, access), cheapestOffer(kit.suppressor, access)]
+      const price = offers.every(Boolean) ? offers.reduce((total, offer) => total + offer!.priceRUB, 0) : undefined
+      return { kit, price, after: computeStats(kit.build, weapon, catalog, ammo) }
+    })
+    .sort((a, b) => (everything ? 0 : Number(a.price === undefined) - Number(b.price === undefined)) || balance(b.after, stats) - balance(a.after, stats) || (a.price ?? Infinity) - (b.price ?? Infinity)),
+  [access, ammo, build, catalog, cell.path, cell.slot, everything, muzzle, sort, stats, weapon])
+  const sorts: GridSort[] = muzzle ? ['balanced', 'recoil', 'ergonomics', 'devices', 'suppressors', 'kits'] : ['balanced', 'recoil', 'ergonomics']
+  const tools = <select className="wb-grid-sort" value={sorts.includes(sort) ? sort : 'balanced'} onChange={(event) => setSort(event.target.value as GridSort)} aria-label={uiText('Порядок')}>
+    {sorts.map((value) => <option key={value} value={value}>{uiText(SORT_NAMES[value])}</option>)}
+  </select>
   const removable = Boolean(cell.part) && (!cell.slot.required || cell.slot.nameId === STOCK_SLOT)
-  return <GridWindow anchor={anchor} title={cell.slot.name} count={rows.length + (removable ? 1 : 0)} onClose={onClose}>
+  if (sort === 'kits' && muzzle) return <GridWindow anchor={anchor} title={cell.slot.name} count={Math.max(3, kits.length)} onClose={onClose} tools={tools}>
+    {kits.map(({ kit, price }) => {
+      // what the device and the suppressor give together
+      const ergonomics = kit.device.ergonomics + kit.suppressor.ergonomics
+      const recoil = kit.device.recoilModifier + kit.suppressor.recoilModifier
+      return <button type="button" key={`${kit.device.id}-${kit.suppressor.id}`} role="option" aria-selected={false} className={`wb-tile is-kit${price !== undefined || everything ? '' : ' is-locked'}`}
+        onClick={() => onPickKit?.(kit)} title={[`${kit.device.name} + ${kit.suppressor.name}`, kit.removed.length ? `${uiText('заменит')}: ${kit.removed.map((item) => item.shortName || item.name).join(', ')}` : ''].filter(Boolean).join('\n')}>
+        <span className="wb-tile-stats">
+          {ergonomics !== 0 ? <span className={ergonomics > 0 ? 'is-good' : 'is-bad'}>{signedExact(ergonomics)}</span> : <span />}
+          {recoil !== 0 && <span className={recoil < 0 ? 'is-good' : 'is-bad'}>{formatModifier(recoil).replace(' ', '')}</span>}
+        </span>
+        <span className="wb-tile-pair"><TilePicture part={kit.device} /><TilePicture part={kit.suppressor} /></span>
+        <span className="wb-tile-name">{kit.device.shortName} + {kit.suppressor.shortName}</span>
+        <span className="wb-tile-price">{price !== undefined ? formatRub(price) : everything ? '—' : <TileLock item={kit.suppressor} access={access} />}</span>
+      </button>
+    })}
+    {!kits.length && <p className="wb-grid-none">{uiText('Комплектов нет.')}</p>}
+  </GridWindow>
+  return <GridWindow anchor={anchor} title={cell.slot.name} count={rows.length + (removable ? 1 : 0)} onClose={onClose} tools={tools}>
     {removable && <button type="button" className="wb-tile is-remove" onClick={onRemove} title={uiText('Снять')}>
       <Trash2 size={18} />
       <span className="wb-tile-name">{uiText('Снять')}</span>

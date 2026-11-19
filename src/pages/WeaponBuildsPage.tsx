@@ -166,6 +166,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
           setReplaced(done.removed.length ? done.removed.map((part) => part.shortName || part.name) : null)
           setSelected(null)
         }}
+        onPickKit={(kit) => { setBuild(kit.build); setReplaced(kit.removed.length ? kit.removed.map((part) => part.shortName || part.name) : null); setSelected(null) }}
         onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null); setSelected(null) }}
         onClose={() => setSelected(null)} />
       : null

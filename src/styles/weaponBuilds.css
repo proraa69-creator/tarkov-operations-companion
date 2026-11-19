@@ -390,3 +390,8 @@ button.wb-trader-auto { color: var(--brass); }
 .wb-tile.is-remove { align-items: center; justify-content: center; gap: 6px; border-style: dashed; color: var(--text-muted); }
 .wb-grid-none { grid-column: 1 / -1; margin: 10px; color: var(--text-muted); font-size: 12px; text-align: center; }
 .wb-tile-price > .wb-part-lock { display: inline-flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; color: var(--text-muted); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The order of the modules in the window at the cell; a kit's two pictures side by side */
+.wb-grid-sort { flex: none; max-width: 52%; height: 24px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surf-2, #1c2420); color: var(--text); font: inherit; font-size: 11px; }
+.wb-tile-pair { display: flex; flex: 1; min-height: 0; align-items: center; gap: 1px; }
+.wb-tile-pair > .wb-tile-picture, .wb-tile-pair > .gb-icon { flex: 1; min-width: 0; height: 100%; }
