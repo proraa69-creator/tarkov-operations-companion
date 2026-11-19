@@ -236,7 +236,6 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-sidebar .map-option { flex: 0 0 auto; width: auto; min-height: 40px; white-space: nowrap; margin: 0; }
 :root[data-layout="mobile"] .map-sidebar > div:nth-child(2) { display: none; }
 :root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > div:nth-child(2) { display: block; }
-:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > div:nth-child(2) > .map-side-title:first-child { margin-top: 8px !important; }
 :root[data-layout="mobile"] .map-layer-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 :root[data-layout="mobile"] .map-layer-group > .map-side-title { grid-column: 1 / -1; }
 :root[data-layout="mobile"] .layer-button { min-height: 42px; }
@@ -398,8 +397,26 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .sheet-objective-point { flex: none; width: 30px; height: 30px; margin: 0; border-width: 1.5px; border-radius: 8px; vertical-align: top; }
 :root[data-layout="mobile"] .sheet-objective-text { padding-top: 4px; }
 :root[data-layout="mobile"] .sheet-objective > .sheet-objective-photos { justify-self: start; }
-/* «Закрыть» of the list «Слои»: stays in reach while the list scrolls. */
-:root[data-layout="mobile"] .map-layers-close { position: fixed; top: calc(var(--topbar) + var(--announcement-height, 0px) + 18px); right: calc(var(--gutter) + var(--safe-right) + 12px); z-index: 44; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surf-2); color: var(--text); cursor: pointer; }
+/* «Слои» on the phone: a window over the map, from the page's level down to the tab bar (or the screen's bottom on the full
+   screen), in every map mode (owner, 20.11.2026: «слои должны упираться вниз… это как открывается отдельная вкладка… нажимаешь
+   крестик, и только тогда появляется карта»). The page under it keeps its size; only the list scrolls, «×» stays at its top
+   right. Before, the list opened above the map and pushed it down, and on the full screen it lay hidden under the map. */
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar {
+  position: fixed; z-index: 43; display: flex; flex-direction: column; padding: 0; overflow: hidden;
+  top: calc(var(--window-top) + var(--back-top-extra)); bottom: calc(var(--tabbar) + var(--gutter) + max(var(--map-room-bl), var(--map-room-br)));
+  left: calc(var(--gutter) + var(--safe-left)); right: calc(var(--gutter) + var(--safe-right));
+  border: 1px solid var(--line-strong, var(--line)); border-radius: 14px; box-shadow: 0 18px 44px rgb(0 0 0 / 55%);
+  animation: map-layers-in .2s var(--ease-soft) both;
+}
+:root[data-layout="mobile"][data-map-fullscreen] .map-shell.layers-open .map-sidebar {
+  z-index: 75; top: calc(var(--safe-top) + 8px + var(--back-top-extra)); bottom: calc(var(--safe-bottom) + 8px + max(var(--map-room-bl), var(--map-room-br)));
+  left: calc(var(--safe-left) + 8px); right: calc(var(--safe-right) + 8px);
+}
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > .map-side-layers { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 12px 12px 14px; }
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > .map-side-layers > .map-side-title:first-child { display: flex; align-items: center; min-height: 42px; margin-top: 0 !important; padding-right: 52px; }
+:root[data-layout="mobile"] .map-layers-close { position: absolute; top: 12px; right: 12px; z-index: 2; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surf-2); color: var(--text); cursor: pointer; }
+@keyframes map-layers-in { from { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) { :root[data-layout="mobile"] .map-shell.layers-open .map-sidebar { animation: none; } }
 :root[data-layout="mobile"] .sheet-objective-point svg { width: 16px; height: 16px; }
 
 /* ---------- the player's position on the phone map (mobile/PhoneMapsPage.tsx) ---------- */

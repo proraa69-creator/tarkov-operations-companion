@@ -8115,3 +8115,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (`android-layout-0-6-0-323/`). Not checked on a real phone.
 - typecheck clean; 36 related test files pass (MapsPage.keyDoor, mobile, styles, App, Dashboard, MapPriority, i18n). Not released.
 - Commit c82645f6 on branch claude/quirky-bassi-d8f754 (pushed nowhere); a phone-only release would go via mobile/release.
+
+## 2026-11-20 — Claude: «Слои» as a window over the map, Android start intro like the iPhone's
+- Owner (19–20.11.2026, relayed by the RaidOS session): on the phone «Слои» opened inline above the map and stretched the
+  page (the map only at the very bottom); on the full-screen map it did not open at all (the list lay under the fixed map).
+- `src/styles/mobile.css`: with «Слои» open the map's sidebar is a fixed window from the page's level down to the tab bar
+  (on the full screen: inside the screen's safe edges, below/above «Назад»), only its list scrolls, «×» at its top right;
+  the page keeps its size. `src/pages/MapsPage.tsx`: «×» just closes it (no scrolling to the map any more).
+- Start intro: `public/startup-intro.js` gives Android (`window.androidBridge`, as Capacitor's getPlatformId) the iPhone's
+  «third» size; `src/startup/intro.css` comment; `introPage.test.ts` covers Android.
+- Checked with the Playwright script (dev renderer, 412×915 / 915×412, Android-like insets): «Слои» upright and sideways,
+  normal and full-screen map, RU and EN; intro with a faked Android/iPhone bridge. Pictures 5–7 in the side-session notes
+  folder `android-layout-0-6-0-323/`. Not checked on a real phone.
+- typecheck clean; src/startup, MapsPage*, MapItemCard, styles, mobile tests pass (MapsPage.deferred alone, as before). Not released.

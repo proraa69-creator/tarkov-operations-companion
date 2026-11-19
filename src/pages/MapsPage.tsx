@@ -563,10 +563,8 @@ export function MapsPage() {
   const mapId = worldOpen ? undefined : routeParams.mapId
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
-  const closeLayers = () => {
-    setLayersOpen(false)
-    requestAnimationFrame(() => shellRef.current?.querySelector('.map-stage')?.scrollIntoView({ block: 'start' }))
-  }
+  // «Слои» on the phone is a window over the map (styles/mobile.css): «×» closes it and the map is there again, unmoved.
+  const closeLayers = () => setLayersOpen(false)
   const [expanded, setExpanded] = useDesktopMapFullscreen(!mobile)
   const shellRef = useMapFitsWindow(!mobile)
   // Report 158: the panels left and right or above and below the map, and each one hidden by its eye (maps/MapPanels.tsx).
