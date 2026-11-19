@@ -8114,3 +8114,4 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   RU and EN, «Назад» in all four corners); before→after pictures in the side-session notes folder
   (`android-layout-0-6-0-323/`). Not checked on a real phone.
 - typecheck clean; 36 related test files pass (MapsPage.keyDoor, mobile, styles, App, Dashboard, MapPriority, i18n). Not released.
+- Commit c82645f6 on branch claude/quirky-bassi-d8f754 (pushed nowhere); a phone-only release would go via mobile/release.
