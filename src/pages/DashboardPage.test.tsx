@@ -227,7 +227,7 @@ describe('DashboardPage', () => {
     // «Требования рейда» up past every block to the very top (owner, 20.11.2026: «подвинуть блок требования рейда наверх»)
     for (let step = 0; step < 9; step += 1) fireEvent.keyDown(veil('requirements'), { key: 'ArrowUp' })
     expect(order()[0]).toBe('requirements')
-    expect(JSON.parse(localStorage.getItem('raidos-overview-free-v1')!).order[0]).toBe('requirements')
+    expect(JSON.parse(localStorage.getItem('raidos-overview-free-v2')!).order[0]).toBe('requirements')
 
     // «Готово» ends the editing; the layout stays after a reload
     await user.click(screen.getByRole('button', { name: /Готово/ }))
@@ -239,7 +239,7 @@ describe('DashboardPage', () => {
     await user.click(screen.getByRole('button', { name: /Настроить блоки/ }))
     await user.click(screen.getByRole('button', { name: /Сбросить/ }))
     expect(reloaded()).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons', 'raid', 'tasks', 'squad', 'gunsmith', 'requirements', 'favorites'])
-    expect(localStorage.getItem('raidos-overview-free-v1')).toBeNull()
+    expect(localStorage.getItem('raidos-overview-free-v2')).toBeNull()
     expect(localStorage.getItem('raidos-overview-layout-v1')).toBeNull()
     expect(screen.getByRole('button', { name: /Сбросить/ })).toBeDisabled()
   })

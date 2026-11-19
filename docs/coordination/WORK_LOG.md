@@ -8149,3 +8149,18 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   softMotion no longer glides what is inside a block of the free grid a second time (spots measured within the block).
   Video for the owner, stepped at 60 fps: «Raid OS обзор перетаскивание блоков.mp4» (film-overview.cjs in the session scratchpad).
   Tests: overview 86 pass, DashboardPage 39 pass alone; typecheck and lint clean. Not released.
+- Overview free layout, round three (owner, 20.11.2026): cards stand in rows that move as one («Кочевники» stays beside the others,
+  the same size); a row fills its lane (four cards the whole width, three the width of the map's column, one or two at the right
+  the right column); a card carried onto a row joins it. Blocks have no size of their own: each takes the room where it stands (the
+  corner resize was tried and taken out on the owner's word). The jiggle in «Настроить блоки» is quick and uneven, each block its own
+  turn, speed, phase and way round (--jiggle* from useOverviewEditor.styleOf, CSS rotate/translate). Fixes found on the way: an
+  endless jiggle made finish() throw so a drag never began (only finite animations are finished now); a tall block put above a short
+  row went back and forth (the others' places are read with the carried block in place).
+- Fit in every width (owner: «Проверь… все вариации»): a headless check of every block at 1000/1280/1600/1920 px in six layouts
+  (default, columns swapped, 3+1, 2+2, 1+1+2, requirements on top) for anything out of its block, cut or off screen
+  (check-fit.cjs in the session scratchpad). Fixed: the clocks scale with the card (container units, 13–32 px, no wrap: the phone's
+  half-wide card too), the Kappa buttons go under the title under 300 px, the narrow «Кочевники» card shows the title and «Отметок нет»
+  whole with «Видел» at the bottom (as the phone), the empty «Сбор на рейд» words read over dimmed pictures; «Текущие задания» and the
+  map priority tiles are one height on the PC (the strip scrolls by the wheel, its bar hidden). Left: the «Тактика боя» hover hint
+  of the boss figures is a few px wider than its figure (a tooltip, not cut). Overview tests 87 + DashboardPage 39 pass; typecheck
+  and lint clean. Not released.

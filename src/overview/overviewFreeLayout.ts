@@ -1,93 +1,128 @@
 /**
  * The PC Overview laid out freely (owner, 20.11.2026: «Сделай на пк свободную секцию обзора, все блоки можно перемешать и
- * передвигать как нужно то есть можно подвинуть блок требования рейда наверх а остальные блоки сдвинутся вниз, которые
- * мешают»). A grid of 24 columns; every block keeps its width (its shape, owner 12.10.2026: «Каждый блок не должен менять
- * форму») and can stand at any column and any height: the blocks are laid from the top in their order, each one as high as it
- * goes without covering a block laid before it. A block put above others pushes down the ones it would cover.
+ * передвигать как нужно… остальные блоки сдвинутся вниз, которые мешают»). A grid of 24 columns: the blocks are laid from the top in
+ * their order, each one as high as it goes without touching a block laid before it, into a gap above them too
+ * («Остальные просто сдвигаются выше»).
  *
- * A card is a quarter of the row and stands at a multiple of its width. A block taken off leaves its place empty: the blocks of its
- * row to its right move left into it and the ones under it come up; nothing stretches (owner, 20.11.2026: «При удалении карточки
- * делят ряд поровну, не надо. Просто остается пустое место, а все блоки сдвигаются в левую часть… Не нужно их растягивать»;
- * the rule of 17.11 is gone). «Добавить блок» puts a block back where there is room.
+ * The small cards stand in rows: cards next to each other in the order and of one group are one row; a row moves down or up as one
+ * and its cards are as tall as the tallest («кочевники оставались такого же размера, как и остальные блоки. И вставали они рядом»).
+ * A row fills its lane: four cards the whole width, three the width of the map's block («крайний блок должен быть по линии вот этого
+ * блока»), one or two at the right the right column («чуть-чуть растянуться… выставиться посередине… поджаться, чтобы два блока встало
+ * рядом. Как у нас на телефоне»); a single card at the left keeps its own width (nothing stretches far: «Не нужно их растягивать»).
+ * A card carried onto a row joins it; carried elsewhere, it is a row of its own. A card taken off leaves the rest of its row to the
+ * left, its place empty.
  *
- * The order and the columns are kept on this computer. A player who never moved a block follows the zones' layout
- * (overviewLayout.ts: their own old order, or the owner's default for everybody), laid out the way it always looked: the cards
- * in a row, the wide column on the left, the narrow one on the right.
+ * Blocks have no size of their own: each takes the room where it stands (owner, 20.11.2026: «ручное изменение блоков убери… блоки
+ * сами будут адаптироваться под размер»). The order, the columns and the rows are kept on this computer. A player who
+ * never moved a block follows the zones' layout (overviewLayout.ts: their own old order, or the owner's default for everybody).
  */
 import { OVERVIEW_ZONES, type OverviewLayout } from './overviewLayout'
 
 export const GRID = 24
-/** Columns a block may start at: every third, so blocks line up with each other and with the cards. */
+/** Columns a block may start at: every third, so blocks line up. */
 export const SNAP = 3
 /** Below this width (px) the blocks stand in one column, in their order. */
 export const SINGLE_BELOW = 820
+/** The map's column and the right one (1.42 to .88, as the Overview always was). */
+export const WIDE = 15
+export const NARROW = GRID - WIDE
+const CARD = 6
+/** A card of a row stretched further than this stays its own width (a single card at the left). */
+const MAX_STRETCH = 1.6
+export const MIN_W = 4
 
 export interface FreeLayout {
   /** Every block shown, first laid first. */
   order: string[]
-  /** The column each block starts at. */
+  /** The column a block starts at; a card: its row's column (the first card's). */
   x: Record<string, number>
-  /** Taken off with the cross (owner, 17.11.2026), until «Сбросить». */
+  /** The row of each card: cards next to each other in the order with one group stand side by side. Absent: 0. */
+  group?: Record<string, number>
+  /** Taken off with the cross (owner, 17.11.2026), until it is added back or «Сбросить». */
   removed?: string[]
 }
 
-export const FREE_LAYOUT_KEY = 'raidos-overview-free-v1'
+export const FREE_LAYOUT_KEY = 'raidos-overview-free-v2'
 
 /** All the blocks that can stand on the PC Overview. */
 const FREE_BLOCKS: readonly string[] = [...OVERVIEW_ZONES.stats, ...OVERVIEW_ZONES.left, ...OVERVIEW_ZONES.right]
 
 export const isCard = (id: string) => OVERVIEW_ZONES.stats.includes(id)
+export const groupOf = (layout: Pick<FreeLayout, 'group'>, id: string) => layout.group?.[id] ?? 0
+export const rowKey = (group: number) => `row:${group}`
 
-/** A block's width in columns: a card a quarter of the row, the left column's blocks 15, the right column's 9 (as before: 1.42 to .88). */
+/** A block's own width in columns: a card a quarter of the row, the left column's blocks 15, the right column's 9. */
 export function widthOf(id: string): number {
-  if (isCard(id)) return 6
-  return OVERVIEW_ZONES.right.includes(id) ? 9 : 15
+  if (isCard(id)) return CARD
+  return OVERVIEW_ZONES.right.includes(id) ? NARROW : WIDE
 }
 
-/** A column on the grid for a block `w` wide: every third (a card: a multiple of its width), never past the right edge. */
-export function snapX(x: number, w: number, card = false): number {
-  const step = card ? w : SNAP
-  return Math.max(0, Math.min(GRID - w, Math.round(x / step) * step))
+export const snapX = (x: number, w: number) => Math.max(0, Math.min(GRID - w, Math.round(x / SNAP) * SNAP))
+
+/** What is laid as one: a block, or a row of cards. */
+export interface FreeUnit { key: string; ids: string[]; row: boolean }
+
+export function unitsOf(layout: Pick<FreeLayout, 'order' | 'group'>): FreeUnit[] {
+  const units: FreeUnit[] = []
+  for (const id of layout.order) {
+    const last = units[units.length - 1]
+    if (isCard(id) && last?.row && groupOf(layout, last.ids[0]!) === groupOf(layout, id)) { last.ids.push(id); continue }
+    units.push(isCard(id) ? { key: rowKey(groupOf(layout, id)), ids: [id], row: true } : { key: id, ids: [id], row: false })
+  }
+  return units
 }
 
-/** Every block's column snapped for the layout's widths. */
-function snapped(order: string[], x: Record<string, number>): Record<string, number> {
-  return Object.fromEntries(order.map((id) => [id, snapX(x[id] ?? 0, widthOf(id), isCard(id))]))
+/** Where a unit stands across: its column and width (a row of cards fills its lane). */
+export function unitSpan(layout: FreeLayout, unit: FreeUnit, single = false): { x: number; w: number } {
+  if (single) return { x: 0, w: GRID }
+  const at = layout.x[unit.ids[0]!] ?? 0
+  if (!unit.row) {
+    // the block takes the column it stands in (owner, 20.11.2026: «оно по стандарту адаптируется под свободное место»)
+    return at >= WIDE - 1 ? { x: WIDE, w: NARROW } : { x: 0, w: WIDE }
+  }
+  const count = unit.ids.length
+  if (count >= 4) return { x: 0, w: GRID }
+  const right = at >= WIDE - 1
+  const lane = right ? (count <= 2 ? { x: WIDE, w: NARROW } : { x: 0, w: GRID }) : { x: 0, w: WIDE }
+  // a single card at the left would stretch too far: its own width where it was put
+  if (lane.w / count > CARD * MAX_STRETCH) return { x: snapX(at, CARD * count), w: CARD * count }
+  return lane
 }
 
-/**
- * The zones' layout as it always looked: the cards in a row, then the two columns side by side (their blocks taken in turns, so each
- * column keeps its order and both start under the cards).
- */
+/** The cards' rows stay as they were: the zones' layout as it always looked, the cards in a row, then the two columns side by side. */
 export function freeFromZones(zones: OverviewLayout): FreeLayout {
   const order: string[] = []
   const x: Record<string, number> = {}
-  zones.stats.forEach((id, at) => { order.push(id); x[id] = at * 6 })
+  zones.stats.forEach((id, at) => { order.push(id); x[id] = at * CARD })
   for (let at = 0; at < Math.max(zones.left.length, zones.right.length); at += 1) {
     const wide = zones.left[at]
     const narrow = zones.right[at]
     if (wide) { order.push(wide); x[wide] = 0 }
-    if (narrow) { order.push(narrow); x[narrow] = GRID - 9 }
+    if (narrow) { order.push(narrow); x[narrow] = WIDE }
   }
-  return { order, x: snapped(order, x), ...(zones.removed?.length ? { removed: [...zones.removed] } : {}) }
+  return { order, x, ...(zones.removed?.length ? { removed: [...zones.removed] } : {}) }
 }
 
 /** A saved layout made safe: known blocks once each, columns on the grid; null when it is not one. */
 export function sanitizeFreeLayout(raw: unknown, base: FreeLayout): FreeLayout | null {
   if (!raw || typeof raw !== 'object') return null
-  const saved = raw as { order?: unknown; x?: unknown; removed?: unknown }
+  const saved = raw as { order?: unknown; x?: unknown; group?: unknown; removed?: unknown }
   if (!Array.isArray(saved.order)) return null
   const known = new Set(FREE_BLOCKS)
   const ids = (list: unknown[]) => [...new Set(list.filter((id): id is string => typeof id === 'string' && known.has(id)))]
   const removed = Array.isArray(saved.removed) ? ids(saved.removed) : []
   const order = ids(saved.order).filter((id) => !removed.includes(id))
   const columns = saved.x && typeof saved.x === 'object' ? saved.x as Record<string, unknown> : {}
+  const groups = saved.group && typeof saved.group === 'object' ? saved.group as Record<string, unknown> : {}
   const x: Record<string, number> = {}
+  const group: Record<string, number> = {}
   for (const id of order) {
     const value = columns[id]
-    x[id] = typeof value === 'number' && Number.isFinite(value) ? value : base.x[id] ?? 0
+    x[id] = Math.max(0, Math.min(GRID - MIN_W, typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : base.x[id] ?? 0))
+    const row = groups[id]
+    if (isCard(id) && typeof row === 'number' && Number.isInteger(row) && row > 0) group[id] = row
   }
-  return { order, x: snapped(order, x), ...(removed.length ? { removed } : {}) }
+  return { order, x, ...(Object.keys(group).length ? { group } : {}), ...(removed.length ? { removed } : {}) }
 }
 
 /**
@@ -104,25 +139,99 @@ export function completeFree(layout: FreeLayout, hidden: readonly string[], base
     order.splice(before ? order.indexOf(before) + 1 : 0, 0, id)
     x[id] = base.x[id] ?? 0
   }
-  return { order, x: snapped(order, x), ...(layout.removed?.length ? { removed: layout.removed } : {}) }
+  return tidy({ ...layout, order, x })
 }
 
+/** Only what the order holds: columns and groups of the blocks there; nothing empty. */
+function tidy(layout: FreeLayout): FreeLayout {
+  const order = layout.order
+  const x = Object.fromEntries(order.map((id) => [id, layout.x[id] ?? 0]))
+  const group = Object.fromEntries(order.filter((id) => isCard(id) && groupOf(layout, id) !== 0).map((id) => [id, groupOf(layout, id)]))
+  const removed = layout.removed?.filter((id) => !order.includes(id)) ?? []
+  return { order, x, ...(Object.keys(group).length ? { group } : {}), ...(removed.length ? { removed } : {}) }
+}
+
+export interface FreePlace { id: string; x: number; w: number; y: number; h: number }
+
 /**
- * The layout without `id`, off the Overview until it is added back or «Сбросить»: the blocks of its row to its right move left into
- * its place (`places`: where the blocks stand now, on the full grid), the ones under it come up by themselves.
+ * Where each block stands: laid unit by unit in order, each at its columns as high as it goes without touching a unit laid before it.
+ * A row's cards share its width and are as tall as the tallest. `single`: one column, in order.
+ * A block that shows nothing now (no squad) takes no room.
+ */
+export function packFree(layout: FreeLayout, heightOf: (id: string) => number, gap: number, single = false): FreePlace[] {
+  const placed: Array<{ x: number; w: number; y: number; h: number }> = []
+  const out: FreePlace[] = []
+  for (const unit of unitsOf(layout)) {
+    const { x, w } = unitSpan(layout, unit, single)
+    const h = Math.max(0, ...unit.ids.map((id) => Math.max(0, heightOf(id))))
+    const below = placed.filter((other) => other.h > 0 && other.x < x + w && x < other.x + other.w)
+    const free = (top: number) => below.every((other) => !(top < other.y + other.h + gap && other.y < top + h + gap))
+    const y = [0, ...below.map((other) => other.y + other.h + gap)].sort((a, b) => a - b).find(free) ?? 0
+    placed.push({ x, w, y, h })
+    unit.ids.forEach((id, at) => out.push({ id, x: x + (w / unit.ids.length) * at, w: w / unit.ids.length, y, h }))
+  }
+  return out
+}
+
+/** The height of the whole Overview. */
+export const packedHeight = (places: readonly FreePlace[]) => places.reduce((most, place) => Math.max(most, place.y + place.h), 0)
+
+const nextGroup = (layout: FreeLayout) => Math.max(0, ...Object.values(layout.group ?? {})) + 1
+
+/**
+ * `id` laid at `index` of the order (counted without it) and at column `x`. A card: into the row of `join` (a group), else into a row
+ * of its own. The same object when nothing changes.
+ */
+export function moveFree(layout: FreeLayout, id: string, index: number, x: number, join?: number): FreeLayout {
+  const from = layout.order.indexOf(id)
+  if (from < 0) return layout
+  const order = layout.order.filter((other) => other !== id)
+  const to = Math.max(0, Math.min(order.length, index))
+  order.splice(to, 0, id)
+  const next: FreeLayout = { ...layout, order, x: { ...layout.x } }
+  if (isCard(id)) {
+    const group = { ...(layout.group ?? {}) }
+    if (join !== undefined) {
+      if (join === 0) delete group[id]
+      else group[id] = join
+    } else {
+      // a row of its own: its own group unless it stands alone in its row already
+      const mates = unitsOf(layout).find((unit) => unit.ids.includes(id))!.ids
+      if (mates.length > 1 || unitsOf({ order, group }).find((unit) => unit.ids.includes(id))!.ids.length > 1) group[id] = nextGroup(layout)
+    }
+    next.group = group
+  }
+  // the column it was put at: the lane is chosen by it
+  const unit = unitsOf(next).find((each) => each.ids.includes(id))!
+  if (unit.ids[0] === id) next.x[id] = Math.max(0, Math.min(GRID - MIN_W, Math.round(x)))
+  const clean = tidy(next)
+  return sameFree(clean, layout) ? layout : clean
+}
+
+
+/**
+ * The layout without `id`, off the Overview until it is added back or «Сбросить». A card leaves its row (the rest stays together,
+ * at the left); a block's place is left empty and the blocks of its row to its right move left into it (`places`: where the blocks
+ * stand now, on the full grid), the ones under it come up by themselves.
  */
 export function removeFree(layout: FreeLayout, id: string, places: readonly FreePlace[] = []): FreeLayout {
   if (!layout.order.includes(id)) return layout
   const order = layout.order.filter((other) => other !== id)
-  const gone = places.find((place) => place.id === id)
   const x = { ...layout.x }
-  if (gone) {
+  const gone = places.find((place) => place.id === id)
+  if (gone && !isCard(id)) {
     for (const place of places) {
-      if (place.id === id || Math.abs(place.y - gone.y) >= 1 || place.x < gone.x + gone.w) continue
+      if (place.id === id || isCard(place.id) || Math.abs(place.y - gone.y) >= 1 || place.x < gone.x + gone.w) continue
       x[place.id] = place.x - gone.w
     }
   }
-  return { order, x: snapped(order, x), removed: [...new Set([...(layout.removed ?? []), id])] }
+  // the next card of the row takes the row's column
+  if (isCard(id)) {
+    const row = unitsOf(layout).find((unit) => unit.ids.includes(id))!
+    const heir = row.ids.find((other) => other !== id)
+    if (heir && row.ids[0] === id) x[heir] = x[id] ?? 0
+  }
+  return tidy({ ...layout, order, x, removed: [...new Set([...(layout.removed ?? []), id])] })
 }
 
 /** Blocks that can be added: taken off, and not hidden by the owner (owner, 20.11.2026: «добавь функцию добавить блоки»). */
@@ -131,89 +240,39 @@ export function addableBlocks(layout: FreeLayout, hidden: readonly string[]): st
 }
 
 /**
- * `id` back on the Overview, laid last so that it moves none of the others: at the column where it stands highest, in the first gap
- * wide enough for it (a card taken off goes back into the row of cards when its place is free), else under everything.
+ * `id` back on the Overview: a card into the first row of cards with room for it (fewer than four); otherwise laid last, at the column
+ * where it stands highest, so that it moves none of the others.
  */
 export function addFree(layout: FreeLayout, id: string, heightOf: (id: string) => number, gap: number, base: FreeLayout): FreeLayout {
   if (layout.order.includes(id)) return layout
-  const w = widthOf(id)
-  const step = isCard(id) ? w : SNAP
   const removed = (layout.removed ?? []).filter((other) => other !== id)
-  const done = (next: Pick<FreeLayout, 'order' | 'x'>): FreeLayout => ({ order: next.order, x: snapped(next.order, next.x), ...(removed.length ? { removed } : {}) })
-  // A card goes back into the topmost row of cards when it has a free place there, the blocks under the row going down for it.
+  const without = { ...layout, ...(removed.length ? { removed } : { removed: undefined }) }
   if (isCard(id)) {
-    const cards = packFree(layout, heightOf, gap).filter((place) => isCard(place.id) && place.h > 0)
-    const rowY = Math.min(...cards.map((card) => card.y))
-    const row = cards.filter((card) => Math.abs(card.y - rowY) < 1)
-    const after = Math.max(-1, ...row.map((card) => layout.order.indexOf(card.id)))
-    for (let x = 0; row.length && x + w <= GRID; x += w) {
-      if (row.some((card) => card.x < x + w && x < card.x + card.w)) continue
+    const row = unitsOf(layout).find((unit) => unit.row && unit.ids.length < 4)
+    if (row) {
       const order = [...layout.order]
-      order.splice(after + 1, 0, id)
-      const next = { order, x: { ...layout.x, [id]: x } }
-      if (Math.abs(packFree(next, heightOf, gap).find((place) => place.id === id)!.y - rowY) < 1) return done(next)
+      order.splice(order.indexOf(row.ids[row.ids.length - 1]!) + 1, 0, id)
+      const group = groupOf(layout, row.ids[0]!)
+      return tidy({ ...without, order, x: { ...layout.x, [id]: 0 }, group: { ...(layout.group ?? {}), ...(group ? { [id]: group } : {}) } })
     }
   }
   const order = [...layout.order, id]
+  const group = isCard(id) ? { ...(layout.group ?? {}), [id]: nextGroup(layout) } : layout.group
   let best: { x: number; y: number } | null = null
-  for (let x = 0; x + w <= GRID; x += step) {
-    const y = packFree({ order, x: { ...layout.x, [id]: x } }, heightOf, gap).find((place) => place.id === id)!.y
-    if (!best || y < best.y - 0.5) best = { x, y }
+  for (let x = 0; x + MIN_W <= GRID; x += SNAP) {
+    const trial: FreeLayout = { ...without, order, group, x: { ...layout.x, [id]: x } }
+    const place = packFree(trial, heightOf, gap).find((each) => each.id === id)!
+    if (Math.abs(place.x - x) > 0.5 && !isCard(id)) continue
+    if (!best || place.y < best.y - 0.5) best = { x, y: place.y }
   }
-  return done({ order, x: { ...layout.x, [id]: best?.x ?? base.x[id] ?? 0 } })
+  return tidy({ ...without, order, group, x: { ...layout.x, [id]: best?.x ?? base.x[id] ?? 0 } })
 }
 
-export interface FreePlace { id: string; x: number; w: number; y: number; h: number }
-
-/**
- * Where each block stands: laid in order, each at its column as high as it goes without touching a block laid before it — into a
- * gap above them too, when it fits there (owner, 20.11.2026: «Остальные просто сдвигаются выше»). `single`: one column, in order.
- * A block that shows nothing now (no squad) takes no room.
- */
-export function packFree(layout: FreeLayout, heightOf: (id: string) => number, gap: number, single = false): FreePlace[] {
-  const first = lay(layout, heightOf, gap, single)
-  if (single) return first
-  // Cards side by side stand as tall as the tallest of them, as the row of cards always did.
-  const tall = new Map<string, number>()
-  for (const card of first) {
-    if (!isCard(card.id) || card.h <= 0) continue
-    tall.set(card.id, Math.max(...first.filter((other) => isCard(other.id) && other.h > 0 && Math.abs(other.y - card.y) < 1).map((other) => other.h)))
-  }
-  if ([...tall].every(([id, h]) => h === Math.max(0, heightOf(id)))) return first
-  return lay(layout, (id) => tall.get(id) ?? heightOf(id), gap, single)
+export const sameFree = (a: FreeLayout, b: FreeLayout) => JSON.stringify(tidyKeyed(a)) === JSON.stringify(tidyKeyed(b))
+const tidyKeyed = (layout: FreeLayout) => {
+  const sorted = (record: Record<string, unknown> | undefined) => Object.fromEntries(Object.entries(record ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+  return [layout.order, sorted(layout.x), sorted(layout.group), [...(layout.removed ?? [])].sort()]
 }
-
-function lay(layout: FreeLayout, heightOf: (id: string) => number, gap: number, single: boolean): FreePlace[] {
-  const placed: FreePlace[] = []
-  for (const id of layout.order) {
-    const w = single ? GRID : widthOf(id)
-    const x = single ? 0 : snapX(layout.x[id] ?? 0, w, isCard(id))
-    const h = Math.max(0, heightOf(id))
-    const below = placed.filter((other) => other.h > 0 && other.x < x + w && x < other.x + other.w)
-    const free = (top: number) => below.every((other) => !(top < other.y + other.h + gap && other.y < top + h + gap))
-    const y = [0, ...below.map((other) => other.y + other.h + gap)].sort((a, b) => a - b).find(free) ?? 0
-    placed.push({ id, x, w, y, h })
-  }
-  return placed
-}
-
-/** The height of the whole Overview. */
-export const packedHeight = (places: readonly FreePlace[]) => places.reduce((most, place) => Math.max(most, place.y + place.h), 0)
-
-/** `id` laid at `index` of the order and at column `x`; the same object when nothing changes. */
-export function moveFree(layout: FreeLayout, id: string, index: number, x: number): FreeLayout {
-  const from = layout.order.indexOf(id)
-  if (from < 0) return layout
-  const to = Math.max(0, Math.min(layout.order.length - 1, index))
-  const column = snapX(x, widthOf(id), isCard(id))
-  if (to === from && column === layout.x[id]) return layout
-  const order = layout.order.filter((other) => other !== id)
-  order.splice(to, 0, id)
-  return { ...layout, order, x: { ...layout.x, [id]: column } }
-}
-
-export const sameFree = (a: FreeLayout, b: FreeLayout) => a.order.join() === b.order.join() && a.order.every((id) => a.x[id] === b.x[id])
-  && [...(a.removed ?? [])].sort().join() === [...(b.removed ?? [])].sort().join()
 
 /** The player's own free layout, or null when they never moved a block since the free Overview came. */
 export function loadFreeLayout(base: FreeLayout, storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): FreeLayout | null {

@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { EASE_OUT, canAnimate } from '../shared/motion'
 import { loadOverviewLayout, saveOverviewLayout } from './overviewLayout'
-import { addableBlocks, addFree, completeFree, freeFromZones, GRID, isCard, loadFreeLayout, moveFree, packFree, packedHeight, removeFree, sameFree, saveFreeLayout, SINGLE_BELOW, SNAP, snapX, type FreeLayout, type FreePlace } from './overviewFreeLayout'
+import {
+  addableBlocks, addFree, completeFree, freeFromZones, GRID, groupOf, isCard, loadFreeLayout, moveFree, packFree,
+  packedHeight, removeFree, sameFree, saveFreeLayout, SINGLE_BELOW, unitsOf, WIDE, type FreeLayout, type FreePlace,
+} from './overviewFreeLayout'
 import { baseOverviewLayout, withoutHiddenBlocks } from './overviewDefaults'
 import { useOverviewDefaults } from './overviewDefaultsStore'
 
@@ -24,8 +27,6 @@ const EDGE = 72
 const EDGE_SPEED = 16
 const NONE: readonly string[] = []
 
-interface Box { x: number; y: number; w: number; h: number }
-
 interface Drag {
   id: string
   pointerId: number
@@ -46,6 +47,7 @@ interface Drag {
   unlisten: () => void
 }
 
+
 const topInset = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar')) || 68
 
 /** The element's running animations (none where the Web Animations API is missing, as in jsdom). */
@@ -53,10 +55,12 @@ const animationsOf = (element: Element) => (typeof element.getAnimations === 'fu
 
 /**
  * «Настроить блоки» on the PC Overview, laid out freely (overviewFreeLayout.ts; owner, 20.11.2026: «все блоки можно перемешать и
- * передвигать как нужно… остальные блоки сдвинутся вниз, которые мешают»). Pick a block up with the mouse and carry it anywhere:
- * over the column it is carried to, it goes above the blocks whose middle it passes, and those it would cover slide down (FLIP with
- * WAAPI, 240 ms on the strong ease-in-out); let it go and it settles (200 ms ease-out). Arrows: up and down past the next block of
- * its columns, left and right by three columns. Esc puts the carried block back, or leaves the editing mode.
+ * передвигать как нужно… остальные блоки сдвинутся вниз, которые мешают»). The phone has its own (usePhoneOverview.ts).
+ * - Carry a block anywhere: it takes the column under its middle (left or right) and goes above the blocks there whose middle its top
+ *   passes; those it would cover slide down. A block has no size of its own: it takes the room where it stands. A card carried onto a row of
+ *   cards joins it at the place under the pointer; elsewhere it is a row of its own.
+ * - Arrows: up and down past the next block of its columns; left and right a card along its row, a block to the other column.
+ * - Esc puts the carried block back, or leaves the editing mode.
  */
 export function useOverviewEditor() {
   // «Админ панель» → «Блоки»: the owner's order and hidden blocks for everybody (overviewDefaults.ts), followed live until the
@@ -91,8 +95,10 @@ export function useOverviewEditor() {
   const touched = useRef(false)
 
   const single = width < SINGLE_BELOW
-  const places = useMemo(() => packFree(layout, (id) => heights[id] ?? 0, GAP, single), [heights, layout, single])
+  const heightOf = useCallback((id: string) => heights[id] ?? 0, [heights])
+  const places = useMemo(() => packFree(layout, heightOf, GAP, single), [heightOf, layout, single])
   const placesRef = useRef(places)
+  const heightRef = useRef(heightOf)
   const unit = (width + GAP) / GRID
 
   useEffect(() => {
@@ -128,11 +134,11 @@ export function useOverviewEditor() {
     let changed = Object.keys(heights).length !== elements.current.size
     const next: Record<string, number> = {}
     for (const [id, element] of elements.current) {
-      // a card's own height, without the row's (styleOf stretches it to the tallest card beside it)
-      const stretched = element.style.minHeight
-      if (stretched) element.style.minHeight = ''
+      // the block's own height: without the row's stretch (minHeight) and without a height given by its corner
+      const kept = [element.style.minHeight, element.style.height]
+      if (kept[0] || kept[1]) { element.style.minHeight = ''; element.style.height = '' }
       next[id] = element.offsetHeight
-      if (stretched) element.style.minHeight = stretched
+      if (kept[0] || kept[1]) { element.style.minHeight = kept[0]!; element.style.height = kept[1]! }
       if (Math.abs((heights[id] ?? -1) - next[id]) > 0.5) changed = true
     }
     Object.assign(seen.current, next)
@@ -163,13 +169,10 @@ export function useOverviewEditor() {
     if (element) observe(element, true)
   }, [observe])
 
-  /** A block's place in page coordinates, as laid out now (without the drag transform). */
-  const pageBoxOf = useCallback((place: FreePlace): Box => {
+  /** The grid's step (a column with its gap) and its corner in the page. */
+  const grid = useCallback(() => {
     const rect = container.current?.getBoundingClientRect()
-    const left = (rect?.left ?? 0) + window.scrollX
-    const top = (rect?.top ?? 0) + window.scrollY
-    const step = ((container.current?.clientWidth ?? 0) + GAP) / GRID
-    return { x: left + place.x * step, y: top + place.y, w: place.w * step - GAP, h: place.h }
+    return { left: rect?.left ?? 0, top: rect?.top ?? 0, step: ((container.current?.clientWidth ?? 0) + GAP) / GRID }
   }, [])
 
   /** The carried block under the pointer, wherever its place in the layout is now. */
@@ -177,11 +180,11 @@ export function useOverviewEditor() {
     const element = elements.current.get(d.id)
     const place = placesRef.current.find((each) => each.id === d.id)
     if (!element || !place) return
-    const home = pageBoxOf(place)
-    const x = d.clientX + window.scrollX - d.grabX - home.x
-    const y = d.clientY + window.scrollY - d.grabY - home.y
+    const { left, top, step } = grid()
+    const x = d.clientX - d.grabX - (left + place.x * step)
+    const y = d.clientY - d.grabY - (top + place.y)
     element.style.transform = `translate(${x}px, ${y}px)`
-  }, [pageBoxOf])
+  }, [grid])
 
   const apply = useCallback((next: FreeLayout) => {
     if (next === layoutRef.current) return
@@ -197,6 +200,7 @@ export function useOverviewEditor() {
   useLayoutEffect(() => {
     layoutRef.current = layout
     placesRef.current = places
+    heightRef.current = heightOf
     const flip = pending.current
     const d = drag.current
     if (d?.started) {
@@ -224,38 +228,70 @@ export function useOverviewEditor() {
       if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue
       element.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { ...GLIDE, id: 'overview-glide' })
     }
-  }, [follow, layout, places])
+  }, [follow, heightOf, layout, places])
 
-  /** The columns a block overlaps at column `x`. */
-  const overlaps = (place: FreePlace, x: number, w: number) => place.x < x + w && x < place.x + place.w
+  /** Where `index` (counted without the block) falls between whole units: never inside a row of cards. */
+  const boundary = (order: string[], index: number, group: FreeLayout['group']) => {
+    const ends = [0]
+    let at = 0
+    for (const each of unitsOf({ order, group })) { at += each.ids.length; ends.push(at) }
+    return ends.reduce((best, end) => (Math.abs(end - index) < Math.abs(best - index) || (Math.abs(end - index) === Math.abs(best - index) && end > best) ? end : best), 0)
+  }
 
   /**
-   * Where the carried block goes: the column under its left edge (every third), and among the blocks of those columns, above each
-   * one whose middle its top passes going up, below each one whose middle its bottom passes going down (so a tall block is not
-   * carried half its height past a short one before they trade places). Blocks of other columns keep their places.
+   * Where the carried block goes. A card over a row of cards joins it at the place under the pointer. Otherwise: its column (the left
+   * or the right one, by its middle), and among the
+   * blocks of those columns, above each one whose middle its top passes going up, below each one whose middle its bottom passes going
+   * down (a tall block is not carried half its height past a short one before they trade places). Other columns keep their places.
    */
   const retarget = useCallback((d: Drag) => {
     const now = layoutRef.current
-    const placed = placesRef.current
-    const own = placed.find((place) => place.id === d.id)
+    const own = placesRef.current.find((place) => place.id === d.id)
     if (!own) return
-    const rect = container.current?.getBoundingClientRect()
-    const step = ((container.current?.clientWidth ?? 0) + GAP) / GRID
-    const left = d.clientX - d.grabX - (rect?.left ?? 0)
-    const top = d.clientY - d.grabY - (rect?.top ?? 0)
-    const x = single || !step ? now.x[d.id] ?? 0 : snapX(left / step, own.w, isCard(d.id))
-    const w = own.w
+    const { left: gridLeft, top: gridTop, step } = grid()
+    const left = step ? (d.clientX - d.grabX - gridLeft) / step : 0
+    const top = d.clientY - d.grabY - gridTop
+    const card = isCard(d.id)
     const others = now.order.filter((id) => id !== d.id)
+    const without: FreeLayout = { ...now, order: others }
+    const rest = packFree(without, heightRef.current, GAP, single)
+    const middleX = left + (card ? 3 : own.w / 2)
+    const middleY = top + own.h / 2
+    if (card) {
+      for (const row of unitsOf(without).filter((each) => each.row)) {
+        const cards = rest.filter((place) => row.ids.includes(place.id))
+        if (!cards.length || cards[0]!.h <= 0) continue
+        const from = Math.min(...cards.map((place) => place.x))
+        const to = Math.max(...cards.map((place) => place.x + place.w))
+        const { y, h } = cards[0]!
+        if (middleY < y || middleY > y + h || middleX < from - 1.5 || middleX > to + 1.5) continue
+        const before = cards.filter((place) => place.x + place.w / 2 < middleX).length
+        const index = before === 0 ? others.indexOf(row.ids[0]!) : others.indexOf(row.ids[before - 1]!) + 1
+        apply(moveFree(now, d.id, index, now.x[d.id] ?? 0, groupOf(now, row.ids[0]!)))
+        return
+      }
+    }
+    const x = single || !step ? now.x[d.id] ?? 0 : middleX >= WIDE ? WIDE : 0
+    const w = single ? GRID : card ? 6 : x >= WIDE ? GRID - WIDE : WIDE
     const current = now.order.indexOf(d.id)
-    const near = placed.filter((place) => place.id !== d.id && place.h > 0 && (single || overlaps(place, x, w)))
-    const above = near.filter((place) => {
-      const middle = place.y + place.h / 2
-      return now.order.indexOf(place.id) < current ? top >= middle : top + own.h > middle
+    // the others where they stand now, the carried block among them: measured without it, a tall block put above a short row would
+    // pass that row's middle at once and go back under it, over and over
+    const placed = placesRef.current
+    const near = unitsOf(without).flatMap((each) => {
+      const parts = placed.filter((place) => each.ids.includes(place.id))
+      if (!parts.length || parts[0]!.h <= 0) return []
+      const from = Math.min(...parts.map((place) => place.x))
+      const to = Math.max(...parts.map((place) => place.x + place.w))
+      return single || (from < x + w && x < to) ? [{ ids: each.ids, y: parts[0]!.y, h: parts[0]!.h }] : []
     })
-    const last = above.at(-1)
-    const index = last ? others.indexOf(last.id) + 1 : near.length ? others.indexOf(near[0]!.id) : current
-    apply(moveFree(now, d.id, index, x))
-  }, [apply, single])
+    const above = near.filter((each) => {
+      const middle = each.y + each.h / 2
+      return now.order.indexOf(each.ids[0]!) < current ? top >= middle : top + own.h > middle
+    })
+    const last = above[above.length - 1]
+    const wanted = last ? others.indexOf(last.ids[last.ids.length - 1]!) + 1 : near.length ? others.indexOf(near[0]!.ids[0]!) : current
+    apply(moveFree(now, d.id, boundary(others, wanted, now.group), x))
+  }, [apply, grid, single])
 
   const autoScroll = useCallback((d: Drag) => {
     const step = () => {
@@ -324,27 +360,40 @@ export function useOverviewEditor() {
     retarget(d)
   }, [autoScroll, follow, retarget])
 
-  /** Up and down past the next block of its columns; left and right by three columns. */
+  /** Up and down past the next block of its columns; left and right a card along its row, a block to the other column. */
   const nudge = useCallback((id: string, key: string) => {
     const now = layoutRef.current
     const own = placesRef.current.find((place) => place.id === id)
     if (!own) return false
+    const others = now.order.filter((other) => other !== id)
     if (key === 'ArrowLeft' || key === 'ArrowRight') {
       if (single) return false
-      const step = isCard(id) ? own.w : SNAP
-      apply(moveFree(now, id, now.order.indexOf(id), (now.x[id] ?? 0) + (key === 'ArrowLeft' ? -step : step)))
+      const row = unitsOf(now).find((each) => each.ids.includes(id))!
+      if (row.row && row.ids.length > 1) {
+        const at = row.ids.indexOf(id) + (key === 'ArrowLeft' ? -1 : 1)
+        if (at < 0 || at >= row.ids.length) return true
+        const mates = row.ids.filter((other) => other !== id)
+        const index = at === 0 ? others.indexOf(mates[0]!) : others.indexOf(mates[at - 1]!) + 1
+        apply(moveFree(now, id, index, now.x[id] ?? 0, groupOf(now, id)))
+        return true
+      }
+      const x = key === 'ArrowLeft' ? 0 : WIDE
+      apply(moveFree(now, id, boundary(others, now.order.indexOf(id), now.group), x))
       return true
     }
     if (key !== 'ArrowUp' && key !== 'ArrowDown') return false
-    const others = now.order.filter((other) => other !== id)
     // the blocks of its columns from the top (laid in order where they stand as high)
     const rank = (place: FreePlace) => [place.y, now.order.indexOf(place.id)] as const
     const earlier = (a: FreePlace, b: FreePlace) => rank(a)[0] < rank(b)[0] - 0.5 || (Math.abs(rank(a)[0] - rank(b)[0]) <= 0.5 && rank(a)[1] < rank(b)[1])
-    const near = placesRef.current.filter((place) => place.id !== id && (single || overlaps(place, own.x, own.w)))
+    const mates = new Set(unitsOf(now).find((each) => each.ids.includes(id))!.ids)
+    const near = placesRef.current.filter((place) => !mates.has(place.id) && (single || (place.x < own.x + own.w && own.x < place.x + place.w)))
     const passed = key === 'ArrowUp'
       ? near.filter((place) => earlier(place, own)).sort((a, b) => (earlier(a, b) ? 1 : -1))[0]
       : near.filter((place) => earlier(own, place)).sort((a, b) => (earlier(a, b) ? -1 : 1))[0]
-    if (passed) apply(moveFree(now, id, others.indexOf(passed.id) + (key === 'ArrowUp' ? 0 : 1), own.x))
+    if (!passed) return true
+    const target = unitsOf({ order: others, group: now.group }).find((each) => each.ids.includes(passed.id))!
+    const index = key === 'ArrowUp' ? others.indexOf(target.ids[0]!) : others.indexOf(target.ids[target.ids.length - 1]!) + 1
+    apply(moveFree(now, id, index, now.x[id] ?? 0))
     return true
   }, [apply, single])
 
@@ -353,7 +402,11 @@ export function useOverviewEditor() {
       if (event.button !== 0 || drag.current) return
       const element = elements.current.get(id)
       if (!element) return
-      for (const animation of animationsOf(element)) animation.finish()
+      // a glide under way ends where it goes; the jiggle (endless) is left alone: finishing it throws and the drag never began
+      for (const animation of animationsOf(element)) {
+        if (!Number.isFinite(Number(animation.effect?.getComputedTiming().endTime))) continue
+        try { animation.finish() } catch { /* one that cannot finish keeps running */ }
+      }
       const rect = element.getBoundingClientRect()
       const handle = event.currentTarget
       handle.setPointerCapture(event.pointerId)
@@ -399,11 +452,10 @@ export function useOverviewEditor() {
   // Leaving the editing mode (or the page) drops whatever is being carried.
   useEffect(() => () => finish(false), [editing, finish])
 
-  // The cross on a block: it goes off the Overview, the blocks under it come up.
   // The cross: the block sinks away, then the ones of its row to its right move left into its place and those under it come up.
   const remove = useCallback((id: string) => {
     const gone = () => {
-      const full = width ? packFree(layoutRef.current, (each) => heights[each] ?? 0, GAP, false) : []
+      const full = width ? packFree(layoutRef.current, heightRef.current, GAP, false) : []
       apply(removeFree(layoutRef.current, id, full))
     }
     const element = elements.current.get(id)
@@ -411,12 +463,12 @@ export function useOverviewEditor() {
     const leave = element.animate([{ opacity: 1, scale: '1' }, { opacity: 0, scale: '.94' }], LEAVE)
     leave.onfinish = gone
     leave.oncancel = gone
-  }, [apply, heights, width])
+  }, [apply, width])
 
-  // «Добавить блок»: back in the first gap of the top row wide enough for it, else under everything.
+  // «Добавить блок»: a card back into a row of cards with room, a block where it stands highest without moving the others.
   const add = useCallback((id: string) => {
-    apply(addFree(layoutRef.current, id, (each) => heights[each] ?? seen.current[each] ?? 0, GAP, base))
-  }, [apply, base, heights])
+    apply(addFree(layoutRef.current, id, (each) => heightRef.current(each) || seen.current[each] || 0, GAP, base))
+  }, [apply, base])
 
   // «Сбросить»: back to the starting layout (the owner's default for everybody, or the built-in one), removed blocks back too; the old
   // zones' order goes with it.
@@ -425,12 +477,26 @@ export function useOverviewEditor() {
     apply(base)
   }, [apply, base, baseZones])
 
-  /** A block's place on the grid: its left, top and width. */
+  /**
+   * A block's place on the grid (left, top, width; a card as tall as its row's tallest) and its jiggle in «Настроить блоки»: each block
+   * its own speed and step, so that they shake out of time with each other (owner, 20.11.2026: «все блоки трясутся в разнобой»), and
+   * its own turn, so that the edge of a wide block moves as little as a card's (a few pixels).
+   */
   const styleOf = useCallback((id: string): CSSProperties | undefined => {
     const place = places.find((each) => each.id === id)
     if (!place) return undefined
     const own = heights[id] ?? 0
-    return { left: place.x * unit, top: place.y, width: Math.max(0, place.w * unit - GAP), ...(place.h > own + 0.5 ? { minHeight: place.h } : {}) }
+    const pixels = Math.max(0, place.w * unit - GAP)
+    const style: CSSProperties & Record<`--${string}`, string> = { left: place.x * unit, top: place.y, width: pixels }
+    if (place.h > own + 0.5) style.minHeight = place.h
+    const seed = [...id].reduce((hash, letter) => (hash * 31 + letter.charCodeAt(0)) >>> 0, 7)
+    const random = (shift: number) => ((seed >>> shift) % 1000) / 1000
+    const turn = Math.min(1.6, Math.max(0.35, (2.6 / Math.max(40, pixels / 2)) * (180 / Math.PI)))
+    style['--jiggle'] = `${(turn * (0.85 + random(3) * 0.3)).toFixed(3)}deg`
+    style['--jiggle-time'] = `${(0.24 + random(7) * 0.1).toFixed(3)}s`
+    style['--jiggle-delay'] = `${(-random(11) * 0.4).toFixed(3)}s`
+    style['--jiggle-way'] = random(13) < 0.5 ? 'normal' : 'reverse'
+    return style
   }, [heights, places, unit])
 
   return useMemo(() => ({
