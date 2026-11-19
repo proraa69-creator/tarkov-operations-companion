@@ -134,3 +134,23 @@ describe('the exit list of real raids (owner, 11.11.2026: «Мы делали э
     expect(exitHighlights({ names: [], text: 'Спуск со скалы', at: 2000 }, 1000, RESERVE)).toBeNull()
   })
 })
+
+describe('the owner\'s Customs reading of 19.11.2026 (Season, 3440×1440, one O)', () => {
+  // as the PC app read it (raid-exits log): «ВЫХОДОВ!», «35-1213» for «ЗБ-1013», «ПЕРЕХОДВ4А»
+  const TEXT = 'ВЫХОДОВ! А-Выход у общаги 22:2?:2?\nВЫХОДВ2 35-1213\n\nВЫХОДЯЗ Перекресток\n\nВЫХОДВ4 Трейлерный парк\n\n'
+    + 'ВЫХОДО5 Проход через ЖД пути (Сигнал)\n\nВЫХОДОб Подвал котельной (Совм)\n\nПЕРЕХОДОВ! Перехсд на Резерв\n\n'
+    + 'ПЕРЕХОДО2 Переход на Завод\n\nПЕРЕХОДОЗ Переход на Развязку\n\nПЕРЕХОДВ4А Переход на Берег\n'
+  const CUSTOMS = [
+    ['dorms', 'А-Выход у общаги', 'Dorms V-Ex'], ['zb1013', 'ЗБ-1013', 'ZB-1013'], ['zb1011', 'ЗБ-1011', 'ZB-1011'],
+    ['crossroads', 'Перекресток', 'Crossroads'], ['trailer', 'Трейлерный парк', 'Trailer Park'],
+    ['rail', 'Проход через ЖД пути (Сигнал)', 'Railroad Passage (Flare)'], ['boiler', 'Подвал котельной (Совм.)', 'Boiler Room Basement (Co-op)'],
+    ['reserve', 'ЖД к Резерву', 'Railroad to Reserve'], ['ruaf', 'Блокпост ВС РФ', 'RUAF Roadblock'], ['gas', 'Старая заправка', 'Old Gas Station'],
+    ['boat', 'Лодка Контрабандистов', 'Smugglers\' Boat'], ['bunker', 'Бункер Контрабандистов (ЗБ-1012)', 'Smugglers\' Bunker (ZB-1012)'],
+  ].map(([id, ru, en]) => ({ id: id!, title: ru!, titles: [ru!, en!] }))
+
+  it('lights the six exits of the list and dims the other six', () => {
+    const states = exitHighlights({ names: parseExtractList(TEXT), text: TEXT, at: 2000 }, 1000, CUSTOMS)!
+    expect([...states.lit].sort()).toEqual(['boiler', 'crossroads', 'dorms', 'rail', 'trailer', 'zb1013'])
+    expect([...states.dim].sort()).toEqual(['boat', 'bunker', 'gas', 'reserve', 'ruaf', 'zb1011'])
+  })
+})

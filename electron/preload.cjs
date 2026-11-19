@@ -156,6 +156,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     onPosition: (callback) => subscribe('experimental:position', callback),
     onItem: (callback) => subscribe('experimental:item', callback),
     onCollectorScan: (callback) => subscribe('experimental:collector-scan', () => callback()),
+    /** The game's exit list read after O (electron/extractsReader.ts): without it the map never got a reading. */
+    onRaidExtracts: (callback) => subscribe('game:raid-extracts', callback),
   },
 })
 
