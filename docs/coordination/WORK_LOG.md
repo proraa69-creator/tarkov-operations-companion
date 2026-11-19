@@ -8080,3 +8080,6 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Test in `mapObjectives.test.ts`. Checked in the dev window: Customs requirements «WI-FI Камера ×7» (3 for this quest),
   the quest in Lighthouse's list. typecheck clean; progression/maps/pages tests pass (three MapsPage files only alone, as before).
 - Branch claude/cameras-every-map; not released (needs an app version, the owner decides).
+- Released 0.6.0.322 on the owner's word («Выпусти»): 92437986 (version, history row, no player news) fast-forwarded
+  release/production 861aa944 → 92437986 at ~10:16 UTC; Production Gate 44504352551 green; publisher started by hand at
+  10:29 UTC; version.json 0.6.0-322 (924379863c58…-production) at ~10:37 UTC, /v1/downloads/mobile.json 0.6.0.322.
