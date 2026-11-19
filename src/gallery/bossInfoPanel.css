@@ -83,3 +83,8 @@
 /* the heavier the plate, the hotter its number */
 .boss-gear-class[data-class="5"] b { background: color-mix(in srgb, #e0782e 22%, transparent); color: #f0a060; }
 .boss-gear-class[data-class="6"] b { background: color-mix(in srgb, #d84a3a 26%, transparent); color: #ff8a78; }
+/* «Свита»: each kind of guard, how many, then his guns and armour (owner, 20.11.2026) */
+.boss-retinue .boss-retinue-name { display: flex; align-items: baseline; gap: 6px; color: var(--text); font-size: 12.5px; }
+.boss-retinue .boss-retinue-name b { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
+.boss-retinue-maps { display: block; margin: -3px 0 8px; color: var(--text-muted); font-size: 11px; font-weight: 600; }
+.boss-retinue .is-guns + .boss-gear-classes { margin-top: 8px; }

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Crosshair, Gem, HeartPulse, Map as MapIcon, Package, Shield, Swords } from 'lucide-react'
+import { Crosshair, Gem, HeartPulse, Map as MapIcon, Package, Shield, Swords, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { bossTactics, tacticsPath } from '../data/bossTactics'
 import { uiText } from '../i18n/renderText'
@@ -8,7 +8,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { bossMapIds } from '../data/bossFigures'
 import { bossDetails } from '../data/bossInfo'
 import { bossLoadout, resolveBossItem, type BossItemRef } from '../data/bossLoadout'
-import { bossGear, classLabel, type BossGear, type BossGearGroup, type ClassRange } from '../data/bossGear'
+import { bossGear, bossRetinue, classLabel, memberSize, retinueGear, retinueSize, type BossGear, type BossGearGroup, type BossRetinue, type ClassRange } from '../data/bossGear'
 import { BodyHealthFigure } from '../components/BodyHealthFigure'
 import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
@@ -28,6 +28,7 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
   const info = bossDetails(bossKey)
   const loadout = bossLoadout(bossKey)
   const gear = bossGear(bossKey)
+  const retinue = bossRetinue(bossKey)
   const own = useOverviewDefaults()?.bosses
   const maps = bossMapIds(bossKey, own)
   const index = useMemo(() => new Map(data.items.map((entry) => [entry.id, entry])), [data.items])
@@ -56,10 +57,6 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
       <section className="boss-info-block">
         <h3><Shield size={14} /> {uiText('Броня')}</h3>
         <GearGroups gear={gear} render={(group) => <ArmorRow group={group} index={index} />} />
-        {gear.guards && <div className="boss-gear-guards">
-          <span className="boss-gear-group-title">{uiText('Охрана')}</span>
-          <ArmorRow group={gear.guards} index={index} tiles={false} />
-        </div>}
       </section>
     </> : loadout?.weapons?.length ? <section className="boss-info-block">
       <h3><Crosshair size={14} /> {uiText('Вооружение')}</h3>
@@ -77,6 +74,8 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
       <p className="boss-info-text">{info.loot[locale]}</p>
     </section> : null}
 
+    {retinue && <RetinueBlock retinue={retinue} index={index} />}
+
     {loadout?.guardWeapons?.length ? <section className="boss-info-block">
       <h3><Crosshair size={14} /> {uiText('Вооружение охраны')}</h3>
       <ItemTiles refs={loadout.guardWeapons} items={data.items} index={index} gun />
@@ -90,6 +89,30 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
     {loadout?.note && <p className="boss-info-note">{loadout.note[locale]}</p>}
     {basedOn && <p className="boss-info-note">{uiText('По мотивам')}: <b>{basedOn}</b></p>}
   </aside>
+}
+
+/**
+ * «Свита» (owner, 20.11.2026: «боссам, у которых есть свита, нужно добавить в описание боссов, какая свита, сколько человек, какая
+ * броня, оружие и какие у них патроны бывают»): each kind of guard, how many on which map, his guns with their rounds and his armour.
+ * The Goons: «Вместе с» the other two, their kit as on their own pages.
+ */
+function RetinueBlock({ retinue, index }: { retinue: BossRetinue; index: Map<string, Item> }) {
+  const { locale } = useLocale()
+  const total = retinueSize(retinue)
+  return <section className="boss-info-block boss-retinue">
+    <h3><Users size={14} /> {uiText(retinue.squad ? 'Вместе с' : 'Свита')}
+      {!retinue.squad && <b className="boss-info-total">{classLabel(total)} {uiText('чел.')}</b>}</h3>
+    {retinue.members.map((member) => {
+      const kit = retinueGear(member)
+      return <div key={member.name.en} className="boss-gear-group">
+        <span className="boss-gear-group-title boss-retinue-name">{member.name[locale]}{!retinue.squad && <b>×{classLabel(memberSize(member))}</b>}</span>
+        {!retinue.squad && member.counts.length > 1 && <span className="boss-retinue-maps">
+          {member.counts.map((count) => `${count.maps.map((id) => uiText(MAP_DISPLAY_NAMES[id] ?? id)).join(', ')}: ${classLabel([count.min, count.max])}`).join(' · ')}
+        </span>}
+        {kit && <><GunTiles group={kit} index={index} /><ArmorRow group={kit} index={index} /></>}
+      </div>
+    })}
+  </section>
 }
 
 /** One kit, or one per map when the boss's kit differs by map (Black Division: lighter plates on Labs and Icebreaker). */
