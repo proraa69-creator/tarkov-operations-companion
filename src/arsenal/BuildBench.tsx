@@ -47,8 +47,10 @@ export function shownLayout(build: Build, weapon: Weapon, catalog: Pick<GunCatal
  * The bench: the build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx);
  * the board of cells (Board) while a part of the build has no picture yet.
  */
-export function BuildBench({ layout, weapon, stats, ammo, selected, onSelect, drawn, size, maxHeight, onExpand, popover }: {
+export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSelect, drawn, size, maxHeight, onExpand, popover }: {
   layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; selected: string | null; onSelect: (key: string | null) => void
+  /** No cell for the round (a Gunsmith task's build). */
+  noAmmo?: boolean
   drawn: Drawn | null; size: 'normal' | 'full'; maxHeight?: number; onExpand?: () => void
   /** The chosen cell's modules in a window at the cell (`anchor` finds the cell's button). */
   popover?: (anchor: () => Element | null) => ReactNode
@@ -61,8 +63,8 @@ export function BuildBench({ layout, weapon, stats, ammo, selected, onSelect, dr
   const stageHeight = maxHeight ?? (phone ? Math.max(240, windowHeight - 130) : undefined)
   const slots = useMemo<StageSlot[]>(() => [
     ...layout.cells.map((cell) => ({ key: pathKey(cell.path), kind: cell.kind, zone: cell.zone, depth: cell.depth, path: cell.path, filled: Boolean(cell.part) })),
-    { key: 'ammo', kind: 'ammo' as const, zone: 'bottom' as const, depth: 1, filled: Boolean(ammo) },
-  ], [layout, ammo])
+    ...(noAmmo ? [] : [{ key: 'ammo', kind: 'ammo' as const, zone: 'bottom' as const, depth: 1, filled: Boolean(ammo) }]),
+  ], [layout, ammo, noAmmo])
   // «Открыть на весь экран» in the bench's corner (owner, 20.11.2026: «вот эта сборка будет открываться на весь экран»)
   const expand = onExpand && <button type="button" className="wb-stage-expand" onClick={onExpand} title={uiText('Открыть на весь экран')} aria-label={uiText('Открыть на весь экран')}><Maximize2 size={14} /><span>{uiText('На весь экран')}</span></button>
   const toggle = (key: string) => onSelect(selected === key ? null : key)

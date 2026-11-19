@@ -356,13 +356,13 @@ function magazineCapacity(build: Build, catalog: Pick<GunCatalog, 'mods'>) {
   return (parts.find((entry) => entry.path[entry.path.length - 1] === 'mod_magazine' && entry.part.capacity) ?? parts.find((entry) => entry.part.capacity))?.part.capacity
 }
 
-type TryInstall = (from: Build, path: string[], slot: GunSlot, itemId: string) => Build | null
+export type TryInstall = (from: Build, path: string[], slot: GunSlot, itemId: string) => Build | null
 
 /**
  * Puts a required part into the build: into a slot that takes it, else through one or two parts that have such a slot
  * (a mount for a sight, an adapter for a suppressor). Empty slots first, then the cheapest way. Returns its path.
  */
-function placePart(build: Build, weapon: Weapon, catalog: Catalog, partId: string, locked: string[][], tryInstall: TryInstall, price: (part: GunPart) => number): { build: Build; path: string[] } | null {
+export function placePart(build: Build, weapon: Weapon, catalog: Catalog, partId: string, locked: string[][], tryInstall: TryInstall, price: (part: GunPart) => number): { build: Build; path: string[] } | null {
   // Already in (the default preset has it): it only has to stay.
   const present = installedParts(build, catalog).find((entry) => entry.part.id === partId && !locked.some((path) => key(path) === key(entry.path)))
   if (present) return { build, path: present.path }

@@ -71,5 +71,6 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Показать все модули', 'Show all mods'], ['Не учитывать уровень персонажа и лояльность торговцев: открыты все модули игры', 'Ignore your level and trader loyalty: every mod in the game is open'],
   ['Ничего не подходит.', 'Nothing fits.'],
   ['Меньше отдача', 'Less recoil'], ['Больше эргономика', 'More ergonomics'], ['Дульные устройства', 'Muzzle devices'], ['Глушители', 'Suppressors'],
-  ['Дульник + глушитель', 'Muzzle device + suppressor'], ['Порядок', 'Order'], ['Комплектов нет.', 'No kits.'],
+  ['Дульник + глушитель', 'Muzzle device + suppressor'], ['Сборка из задания', 'The task\'s build'], ['Вернуть сборку из задания', 'Back to the task\'s build'],
+  ['Скриншот сборки', 'Build screenshot'], ['Порядок', 'Order'], ['Комплектов нет.', 'No kits.'],
 ]
