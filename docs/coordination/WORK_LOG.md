@@ -8138,3 +8138,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - `src/styles/mobile.css` only. Checked with the Playwright script, RU and EN, upright and sideways, normal and full-screen map,
   overview; pictures 8–9 in `android-layout-0-6-0-323/`. typecheck clean; startup, MapsPage.keyDoor, MapItemCard, styles,
   mobile, App, desktopBack tests pass. Not released; not checked on a real phone.
+
+## 2026-11-20 — Claude: sideways — «Назад» always in the top bar, the map edge to edge, overview header in two columns
+- Owner: sideways PvP/PvE/Сезон must not jump when «Назад» comes and goes — the top bar keeps «Назад»'s place (112 px)
+  always; «Назад» stands there in every chosen corner (the full-screen map keeps its corner).
+- The map page sideways: no gaps — the map from the top bar down to the tab bar, edge to edge (content padding 0, no frame);
+  its buttons keep inside the safe edges (`--edge-l/-r`). Measured: stage left 0, top = top bar, bottom = tab bar.
+- Overview sideways (`src/styles/overviewEdit.css`): «Настроить блоки» on the line of «Следующий рейд начинается здесь» at
+  its right; «Промокоды» and «Открыть карту» each as wide as «Экран» / «Кочевники» under them (two columns, 10 px gap).
+- `src/styles/mobile.css`, `src/styles/overviewEdit.css`. Checked with the Playwright script, RU and EN, «Назад» top-left and
+  bottom-right, overview / map / «Слои» / full screen / quests sideways, overview and map upright (unchanged); picture 10 in
+  `android-layout-0-6-0-323/`. typecheck clean; Dashboard, MapsPage.keyDoor, styles, mobile, App, desktopBack, startup tests
+  pass. Not released; not checked on a real phone.

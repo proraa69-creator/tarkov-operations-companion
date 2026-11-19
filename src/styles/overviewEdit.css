@@ -251,3 +251,13 @@
 .phone-block.is-narrow .control-card { gap: 4px; }
 :root[data-layout="mobile"] .phone-block.is-narrow .control-card .control-card-button { min-height: 26px; height: auto; padding: 2px 7px; font-size: 11px; line-height: 1.1; text-align: left; }
 .phone-block.is-narrow .control-card-button > span { white-space: normal; text-overflow: clip; line-height: 1.1; }
+/* The phone turned sideways (owner, 20.11.2026): «Настроить блоки» on the line of «Следующий рейд начинается здесь», at its
+   right; «Промокоды» and «Открыть карту» each as wide as the blocks under them («Экран», «Кочевники»: two columns, 10 px apart). */
+@media (orientation: landscape) {
+  :root[data-layout="mobile"] .overview-phone .page-header { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 8px 10px; }
+  :root[data-layout="mobile"] .overview-phone .page-header > div:first-child { grid-column: 1 / -1; grid-row: 1; min-width: 0; padding-right: 56px; }
+  :root[data-layout="mobile"] .overview-phone .overview-header-actions { display: contents; }
+  :root[data-layout="mobile"] .overview-phone .overview-layout-actions { grid-column: 2; grid-row: 1; justify-self: end; align-self: end; }
+  :root[data-layout="mobile"] .overview-phone .overview-header-actions > .button { grid-row: 2; justify-content: center; min-width: 0; min-height: 44px; white-space: nowrap; }
+  :root[data-layout="mobile"] .overview-phone .overview-header-actions:not(:has(> .promo-button)) > .button { grid-column: 1 / -1; }
+}

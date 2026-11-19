@@ -674,15 +674,24 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) { --map-room-tr: 0px; --map-side-r: 112px; }
   :root[data-layout="mobile"][data-map-fullscreen] .phone-back:is(.is-top-left, .is-top-right) { width: 104px; padding-inline: 10px; justify-content: center; }
   :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) .map-stage .map-hud { max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r) - var(--map-side-l) - var(--map-side-r)); }
-  /* «Назад» at the top, sideways: in the top bar between the logo and PvP (owner, 20.11.2026: «сделай кнопку назад между
-     эмблемой RaidOS и кнопкой PvP»), so the page and the map keep the whole height under the bar. The full-screen map keeps
-     it in the screen's corner (above). */
-  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back:is(.is-top-left, .is-top-right)) { --back-top-extra: 0px; }
-  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back:is(.is-top-left, .is-top-right)) .content { padding-top: calc(var(--topbar) + 12px); }
-  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back:is(.is-top-left, .is-top-right)) .topbar.mobile-topbar .mode-switch { margin-left: 112px; }
-  :root[data-layout="mobile"]:not([data-map-fullscreen]) .phone-back:is(.is-top-left, .is-top-right) {
-    top: calc(var(--safe-top) + 5px); left: calc(var(--gutter) + var(--safe-left) + 42px); right: auto;
+  /* Sideways «Назад» always stands in the top bar between the logo and PvP, whichever corner was chosen (owner, 20.11.2026:
+     «сделай кнопку назад между эмблемой RaidOS и кнопкой PvP… теперь везде в горизонтальном режиме там у нас будет кнопка
+     назад появляться»). Its place is kept when there is none, so PvP/PvE/Сезон never move; the page and the map keep the
+     whole height under the bar. The full-screen map keeps it in the screen's corner (above). */
+  :root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch { margin-left: 112px; }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back) { --back-top-extra: 0px; --map-room-bl: 0px; --map-room-br: 0px; --map-reserve-br: 56px; }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back) .content { padding-top: calc(var(--topbar) + 12px); }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]) .phone-back:is(.is-top-left, .is-top-right, .is-bottom-left, .is-bottom-right) {
+    top: calc(var(--safe-top) + 5px); bottom: auto; left: calc(var(--gutter) + var(--safe-left) + 42px); right: auto;
     width: 104px; height: 36px; padding-inline: 10px; justify-content: center; box-shadow: none;
   }
-  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.map-shell.layers-open) .phone-back:is(.is-top-left, .is-top-right) { display: inline-flex; }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.map-shell.layers-open) .phone-back:is(.is-top-left, .is-top-right, .is-bottom-left, .is-bottom-right) { display: inline-flex; }
+  /* The map from the top bar down to the tab bar and from edge to edge, no gaps (owner, 20.11.2026); its buttons keep
+     inside the screen's safe edges. */
+  :root[data-layout="mobile"]:not([data-map-fullscreen]) .content:has(> .map-page) { padding: var(--topbar) 0 var(--tabbar); }
+  :root[data-layout="mobile"] .map-page .map-shell { border: 0; border-radius: 0; box-shadow: none; }
+  :root[data-layout="mobile"] .map-stage:not(.is-fullscreen) {
+    --edge-l: var(--safe-left); --edge-r: var(--safe-right);
+    height: calc(100dvh - var(--topbar) - var(--tabbar) - var(--announcement-height, 0px)); border-radius: 0;
+  }
 }
