@@ -8063,3 +8063,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   failures are the 320 ones (appVersion, AdminPanelPage, staleServer, cache-item-images); MapsPage tests under load pass
   alone. Server 594/595 (mirrorStorage once under load, 10/10 alone).
 - Not verified in the game: the exits fix and the window need the built app.
+- Later the same day: the «Ключи» window lost its location picker and follows the map page's map (`locationKeys.followMap`,
+  a key's open doors kept); a map without keys says so instead of showing the first map's keys. Added to 0.6.0.321.

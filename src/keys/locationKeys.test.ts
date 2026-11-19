@@ -50,6 +50,15 @@ describe('report 186: one window for every «Ключи» button', () => {
     expect(locationKeys.get()).toMatchObject({ open: false, focus: null })
   })
 
+  it('follows the map page\'s map without a picker (owner, 19.11.2026); a key\'s doors stay open on their map', () => {
+    locationKeys.toggle('customs')
+    locationKeys.followMap('woods')
+    expect(locationKeys.get()).toMatchObject({ open: true, mapId: 'woods' })
+    locationKeys.focus('key', 'reserve')
+    locationKeys.followMap('reserve')
+    expect(locationKeys.get()).toMatchObject({ mapId: 'reserve', focus: { keyId: 'key', mapId: 'reserve' } })
+  })
+
   it('where it was dragged is remembered', () => {
     locationKeys.move({ x: 40, y: 120 })
     expect(JSON.parse(localStorage.getItem('raidos-location-keys-position-v1')!)).toEqual({ x: 40, y: 120 })

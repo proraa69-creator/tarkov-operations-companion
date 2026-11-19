@@ -1027,6 +1027,9 @@ export function MapsPage() {
   const [worldTarget, setWorldTarget] = useState<string | null>(null)
   const worldFrom = (location.state as { worldFrom?: string } | null)?.worldFrom ?? null
   const enteringFromWorld = Boolean((location.state as { fromWorld?: boolean } | null)?.fromWorld)
+  // «Ключи» shows the open map's keys and follows the map as it changes (owner, 19.11.2026: no picker of its own)
+  const keysMapId = worldOpen ? (worldFrom ?? activeMap.id) : activeMap.id
+  useEffect(() => { if (keysWindow.open) locationKeys.followMap(keysMapId) }, [keysWindow.open, keysMapId])
   const openWorld = () => {
     if (worldOpen) return
     setWorldTarget(null)

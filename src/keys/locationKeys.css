@@ -8,7 +8,7 @@
 .location-keys-head:active { cursor: grabbing; }
 .location-keys-head strong { color: var(--text, #edf2ed); font-size: 14px; }
 .location-keys-grip { flex: none; color: var(--text-dim, #69766d); }
-.location-keys-map { flex: 1 1 auto; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line, #2b3a30); border-radius: 8px; background: var(--surf-1, #111915); color: var(--text, #edf2ed); font: inherit; font-size: 13px; cursor: pointer; }
+.location-keys-map { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--text-dim, #a9b3aa); font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
 .location-keys-close, .location-keys-back { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; border: 1px solid var(--line, #2b3a30); border-radius: 8px; background: var(--surf-1, #111915); color: var(--text-muted, #97a49a); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background-color .18s, color .18s, border-color .18s; }
 .location-keys-close { flex: none; width: 30px; margin-left: auto; }
 .location-keys-back { padding: 0 11px; color: var(--brass-strong, #dfbd70); }

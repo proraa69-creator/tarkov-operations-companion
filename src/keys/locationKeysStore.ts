@@ -41,6 +41,8 @@ export const locationKeys = {
   },
   close: () => set({ open: false, focus: null }),
   showMap: (mapId: string) => set({ mapId, focus: null }),
+  /** The map page's map changed: the list follows it (owner, 19.11.2026: no picker), a key's doors stay open. */
+  followMap(mapId: string) { if (mapId && state.mapId !== mapId) set({ mapId }) },
   focus: (keyId: string, mapId: string) => set({ focus: { keyId, mapId } }),
   back: () => set({ focus: null }),
   move(position: { x: number; y: number }) {

@@ -56,7 +56,8 @@ function KeysWindowBody() {
   const items = useMemo(() => new Map((tarkov?.data.items ?? []).map((item) => [item.id, item])), [tarkov?.data.items])
   const index = useMemo(() => (markers ? buildKeyDoorIndex(markers, maps) : new Map<string, KeyDoor[]>()), [markers, maps])
   const locations = useMemo(() => locationsWithKeys(index, maps), [index, maps])
-  const mapId = locations.some((map) => canonicalMapId(map.id) === canonicalMapId(keys.mapId)) ? keys.mapId : locations[0]?.id ?? keys.mapId
+  // the open map's, even without keys («На этой карте ключей нет»); a window opened from nowhere: the first map with keys
+  const mapId = keys.mapId || locations[0]?.id || ''
   const unsorted = useMemo(() => keysOfLocation(index, mapId, items), [index, mapId, items])
   const raidMode = useOptionalAppState()?.raidMode
   const tiers = useMemo(() => (tarkov && raidMode ? keyTiers(tarkov.data.items, raidMode) : new Map<string, never>()), [tarkov, raidMode])
@@ -125,9 +126,8 @@ function KeysWindowBody() {
           : <>
             <KeyRound size={15} aria-hidden="true" />
             <strong>{uiText('Ключи')}</strong>
-            <select className="location-keys-map" value={mapId} aria-label={uiText('Локация')} onChange={(event) => locationKeys.showMap(event.target.value)}>
-              {locations.map((map) => <option key={map.id} value={map.id}>{uiText(map.name)}</option>)}
-            </select>
+            {/* the open map's keys, no picker (owner, 19.11.2026: «при смене карты ключи сами меняются на нужную карту») */}
+            <span className="location-keys-map">{uiText(mapName(mapId))}</span>
           </>}
         <button type="button" className="location-keys-close" aria-label={uiText('Закрыть')} onClick={locationKeys.close}><X size={15} /></button>
       </header>
