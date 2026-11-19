@@ -8223,3 +8223,6 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   packed to C:\Users\BANGKOK PC\raidos-pack-test instead (release-test/ added to .gitignore). Still open: SPEAR 6.8, T-5000M,
   M3 Super 90 and AXMC have parts standing across (the game drew them turned); a helper waits for the offline game to measure the
   game's own assembled presets and write a `fix` turn per part.
+- Reports №200 and №201 closed with +1 day each (20.11.2026, «Готово» → «Да»): №200 «Провокация» fixed by the SPT quest check
+  (70f65c0b on claude/spt-quest-sync), №201 Glukhar's escort by the SPT escort session (3baa0bdf on claude/boss-retinue-spt); none
+  released. «В процессе» is empty, 194–201 all «Выдано дней: 1».
