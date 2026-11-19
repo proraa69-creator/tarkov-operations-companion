@@ -8126,3 +8126,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   version format) and `src/pages/AdminPanelPage.test.tsx` (sidebar order). Not released, not pushed.
 - Risks: SPT's positions are 0.16.9 statistics — counts were checked against the wiki, positions match tarkov.dev where both
   have them; a later tarkov.dev update listing these spots is not duplicated (spots within 1 m are skipped).
+- Report 200 («Провокация»: «Награда другая», 20.11, 0.6.0.323) — fixed, not closed (the main session closes it): the game,
+  the wiki, tarkov.dev and SPT agree (2 × Virtex, the Lighthouse island stash key, Lightkeeper +0.03, the FLIR RS-32 craft);
+  tarkov.dev lists Virtex as two entries of 1, so the card showed «Virtex × 1» twice. `rewardItemTotals`
+  (`src/data/catalogSource.ts`) adds up a quest's reward entries of the same item (7 more quests had repeated lines; none
+  now, PvP/PvE/Season, RU/EN). Standing and crafts are still not reward lines of tarkov.dev quests — left to the owner.
+  Test: `src/data/catalogSource.test.ts`.

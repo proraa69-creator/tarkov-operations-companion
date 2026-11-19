@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchLiveCatalog, isValuableItem, requirementFoundInRaid } from './catalogSource'
+import { adaptTaskRows, fetchLiveCatalog, isValuableItem, requirementFoundInRaid, rewardItemTotals } from './catalogSource'
 
 /** json.tarkov.dev shapes (tarkov.dev TaskObjectiveItem / RequirementItem), trimmed to what the adapter reads. */
 const upstream: Record<string, unknown> = {
@@ -385,5 +385,30 @@ describe('«Оружейник» in the json.tarkov.dev shape', () => {
     })
     // The weapon is built in the stash and handed to Mechanic: not a raid requirement.
     expect(quest.raidRequirements ?? []).toEqual([])
+  })
+})
+
+describe('quest reward items, one line per item (report 200, 20.11.2026)', () => {
+  const VIRTEX = '5c05308086f7746b2101e90b'
+  const STASH_KEY = '6a8d581fe74010bf70069d83'
+  // «Провокация» (Lightkeeper) as json.tarkov.dev lists its rewards (regular, pve and pvp-season alike, 20.11.2026): the game,
+  // the wiki and SPT give 2 × Virtex
+  const provocation = {
+    id: '63966ff54c3ef01b6f3ffad8', name: 'Провокация', trader: '638f541a29ffd1183d187f57', experience: 0, objectives: [],
+    finishRewards: { items: [{ item: VIRTEX, count: 1, attributes: {} }, { item: VIRTEX, count: 1, attributes: {} }, { item: STASH_KEY, count: 1, attributes: {} }] },
+  }
+  const items = [
+    { id: VIRTEX, name: 'Программируемый процессор Virtex', shortName: 'Virtex' },
+    { id: STASH_KEY, name: 'Ключ от схрона на Маяке', shortName: 'Схрон' },
+  ] as unknown as Parameters<typeof adaptTaskRows>[2]
+  const traders = [{ id: '638f541a29ffd1183d187f57', name: 'Смотритель' }] as unknown as Parameters<typeof adaptTaskRows>[1]
+
+  it('adds up the feed\'s entries of the same item', () => {
+    const [quest] = adaptTaskRows({ tasks: { [provocation.id]: provocation } }, traders, items)
+    expect(quest!.rewards).toEqual(['Программируемый процессор Virtex × 2', 'Ключ от схрона на Маяке × 1'])
+  })
+
+  it('keeps the order, reads GraphQL references and counts an entry without a count as one', () => {
+    expect(rewardItemTotals([{ item: { id: 'b' }, count: 3 }, { item: 'a' }, { item: 'b', count: 2 }, { item: '' }])).toEqual([{ itemId: 'b', count: 5 }, { itemId: 'a', count: 1 }])
   })
 })
