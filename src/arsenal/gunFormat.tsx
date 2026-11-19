@@ -1,6 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { UnlockHint } from './buildStats'
 import { useState } from 'react'
 import { Crosshair } from 'lucide-react'
+
+/** What opens a part, after the lock: «Механик 3», «квест «Оружейник»», «барахолка с 30 ур.». */
+export const unlockLabel = (hint: UnlockHint, locale: string) => {
+  if (hint.kind === 'trader') return `${hint.vendorName} ${hint.level}`
+  if (hint.kind === 'task') return locale === 'en' ? `quest «${hint.task}»` : `квест «${hint.task}»`
+  return locale === 'en' ? `flea from level ${hint.level}` : `барахолка с ${hint.level} ур.`
+}
 
 export const formatRub = (value: number) => `${new Intl.NumberFormat('ru-RU').format(Math.round(value))} ₽`
 

@@ -6,22 +6,21 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
-import { hasInstallable, installReplacing, missingRequired, presetBuild, removePart, slotCandidates, STOCK_SLOT, stockSlotTaken, type SlotCell } from '../arsenal/buildModel'
-import { boardLayout, hiddenTwins, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
+import { hasInstallable, installReplacing, missingRequired, presetBuild, removePart, stockSlotTaken } from '../arsenal/buildModel'
+import { boardLayout, hiddenTwins, type BoardLayout, type PlacedCell } from '../arsenal/boardLayout'
 import { useBuildDrawing, type Drawn } from '../arsenal/BuildPicture'
 import { BuildStage, type StageSlot } from '../arsenal/BuildStage'
 import { AmmoGrid, ModGrid } from '../arsenal/ModGrid'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
-import { cheapestOffer, computeExtraCost, computeStats, FULL_ACCESS, unlockHint, type BuildCost, type BuildStats, type PurchaseAccess, type UnlockHint } from '../arsenal/buildStats'
+import { computeExtraCost, computeStats, FULL_ACCESS, unlockHint, type BuildCost, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, renameSavedBuild, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
-import { isMuzzleSlot, muzzleKits, type MuzzleKit } from '../arsenal/muzzleKits'
-import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact, weaponIcon } from '../arsenal/gunFormat'
+import { formatRub, PartIcon, prettyCaliber, signed, signedExact, weaponIcon, unlockLabel } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
 import { TRADER_ORDER } from '../gunsmith/traderLevels'
-import { BUILD_TIERS, buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
+import { BUILD_TIERS, buildableWeapon, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
 import { useOwnerBuilds } from '../arsenal/ownerBuilds'
 import { withLiveGunPrices } from '../arsenal/liveGunPrices'
 import { useLivePrices } from '../data/livePrices'
@@ -49,27 +48,17 @@ const CLASS_NAMES: Record<string, string> = {
   'marksman-rifle': 'Марксманские винтовки', 'sniper-rifle': 'Болтовые винтовки', shotgun: 'Дробовики',
   machinegun: 'Пулемёты', handgun: 'Пистолеты', revolver: 'Револьверы', 'grenade-launcher': 'Гранатомёты',
 }
-const BUYABLE_KEY = 'raid-os-gun-buyable-v1'
 /** «Избранное» (owner, 15.11.2026): only the weapons with a build starred in this mode (SaveControls, SavedList). */
 type Grouping = 'caliber' | 'class' | 'favorites'
-type Sort = 'balanced' | 'recoil' | 'ergonomics' | 'price' | 'name' | 'kits'
-
 /** The weapon's picture: tarkov.dev's 512 px cut-out in development, our server's inventory picture in the app. */
+/** The weapon's own picture (its default build), for a weapon whose parts the app has no pictures of. */
+const weaponPicture = (weapon: Weapon) => pictureUrl(weapon.defaultPreset?.id ?? weapon.id)
+
 function pictureUrl(id: string) {
   return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-512.webp`
 }
 
 const pathKey = (path: string[]) => path.join('/')
-
-/** The smallest board scale on a phone: cells stay big enough to tap. */
-const PHONE_MIN_SCALE = 0.72
-/**
- * The module search takes the focus only where typing costs nothing: a phone opens its keyboard for a focused field (owner, 20.11.2026:
- * «когда на телефоне нажимаешь на модуль, он открывает клавиатуру… Клавиатура должна открываться только когда нажимаешь на ручной поиск»).
- */
-const typingAtHand = () => !isMobileLayout() && !(typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)').matches)
-/** How far the board grows on a wide PC bench (the cells are 56 px at 1). */
-const BOARD_MAX_SCALE = 1.45
 
 export function WeaponBuildsPage() {
   const { raidMode } = useAppState()
@@ -181,24 +170,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const saveOpened = () => { if (opened && code) setSaved(saveBuild(raidMode, { id: opened.id, name: opened.name, weaponId: build.weaponId, code, ...(opened.favorite ? { favorite: true as const } : {}) })) }
   const selectedCell = layout.cells.find((cell) => pathKey(cell.path) === selected)
   const side = useSideFit()
-  const picker = selected === 'ammo'
-    ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => setBuild({ ...build, ammoId: ammoId || undefined })} onClose={() => setSelected(null)} />
-    : selectedCell
-      ? <ModPicker key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access} everything={allModules}
-        onPick={(itemId) => {
-          // A part that conflicts with installed ones takes them off (owner, 20.10.2026): what came off is said.
-          const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon)
-          if (!done) return
-          setBuild(done.build)
-          setReplaced(done.removed.length ? done.removed.map((part) => part.shortName || part.name) : null)
-        }}
-        onPickKit={(kit) => { setBuild(kit.build); setReplaced(kit.removed.length ? kit.removed.map((part) => part.shortName || part.name) : null) }}
-        onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null) }}
-        onClose={() => setSelected(null)} />
-      : null
-  // The drawn build: a slot's modules in a small window at its cell, like the game's (src/arsenal/ModGrid.tsx); the side list stays
-  // for the board of cells.
-  const atCell = Boolean(drawing.drawn)
+  // A slot's modules in a small window at its cell, like the game's (src/arsenal/ModGrid.tsx).
   const pickAt = (anchor: () => Element | null) => selected === 'ammo'
     ? <AmmoGrid options={ammoOptions} selected={build.ammoId} access={access} everything={allModules} anchor={anchor} onPick={(ammoId) => { setBuild({ ...build, ammoId: ammoId || undefined }); setSelected(null) }} onClose={() => setSelected(null)} />
     : selectedCell
@@ -213,9 +185,9 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null); setSelected(null) }}
         onClose={() => setSelected(null)} />
       : null
-  const bench = (size: 'normal' | 'full', maxHeight?: number) => <Bench layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected}
+  const bench = (size: 'normal' | 'full', maxHeight?: number) => <Bench layout={layout} weapon={weapon} stats={stats} ammo={ammo} selected={selected} onSelect={setSelected}
     drawn={drawing.drawn} size={size} maxHeight={maxHeight} onExpand={size === 'normal' ? () => setFull(true) : undefined}
-    popover={atCell && (size === 'full') === full ? pickAt : undefined} />
+    popover={(size === 'full') === full ? pickAt : undefined} />
 
   return <div className="wb-layout">
 
@@ -260,9 +232,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
     </section>
 
     <aside className="wb-side" ref={side}>
-      {!full && !atCell && picker
-        ? picker
-          : <section className="panel wb-saved" aria-label={uiText('Сборки')}>
+      <section className="panel wb-saved" aria-label={uiText('Сборки')}>
             <div className="wb-side-tabs" role="tablist">
               {/* Owner, 04.11.2026: «Мои сборки», «Готовые сборки» и «Сборки игроков». */}
               {(['mine', 'ready', 'players'] as const).map((tab) => <button key={tab} role="tab" aria-selected={sideTab === tab} className={sideTab === tab ? 'active' : undefined} onClick={() => setSideTab(tab)}>{uiText(SIDE_TABS[tab])}</button>)}
@@ -270,9 +240,9 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
             {sideTab === 'mine' && <FavoriteWeapons saved={saved} catalog={catalog} current={code} weaponId={weapon.id} openedId={opened?.id ?? null} onLoad={loadSaved} onChange={setSaved} onSaveOpened={saveOpened} />}
             {sideTab === 'ready' && <AutoBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
             {sideTab === 'players' && <PlayerBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
-          </section>}
+      </section>
     </aside>
-    {full && <FullBench weapon={weapon} stats={stats} stock={stockStats} picker={atCell ? null : picker} selected={selected} onSelect={setSelected} onClose={closeFull}>
+    {full && <FullBench weapon={weapon} stats={stats} stock={stockStats} selected={selected} onSelect={setSelected} onClose={closeFull}>
       {(maxHeight) => bench('full', maxHeight)}
     </FullBench>}
   </div>
@@ -405,14 +375,6 @@ function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: W
   </nav>
 }
 
-/** The default build's picture (a render of every build is not available), the bare weapon's when it has none. */
-function WeaponPicture({ weapon }: { weapon: Weapon }) {
-  const ids = weapon.defaultPreset ? [weapon.defaultPreset.id, weapon.id] : [weapon.id]
-  const [attempt, setAttempt] = useState(0)
-  if (attempt >= ids.length) return <PartIcon size="large" />
-  return <img src={pictureUrl(ids[attempt])} alt="" onError={() => setAttempt((value) => value + 1)} />
-}
-
 // ------------------------------------------------------------------------------------------------------------
 // Stats: the main bars against the default build, then handling and price.
 // ------------------------------------------------------------------------------------------------------------
@@ -463,8 +425,8 @@ function HandlingRow({ stats }: { stats: BuildStats }) {
  * The bench: the build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx);
  * the board of cells (Board) while a part of the build has no picture yet.
  */
-function Bench({ layout, weapon, stats, ammo, isStock, selected, onSelect, drawn, size, maxHeight, onExpand, popover }: {
-  layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; isStock: boolean; selected: string | null; onSelect: (key: string | null) => void
+function Bench({ layout, weapon, stats, ammo, selected, onSelect, drawn, size, maxHeight, onExpand, popover }: {
+  layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; selected: string | null; onSelect: (key: string | null) => void
   drawn: Drawn | null; size: 'normal' | 'full'; maxHeight?: number; onExpand?: () => void
   /** The chosen cell's modules in a window at the cell (`anchor` finds the cell's button). */
   popover?: (anchor: () => Element | null) => ReactNode
@@ -481,7 +443,6 @@ function Bench({ layout, weapon, stats, ammo, isStock, selected, onSelect, drawn
   ], [layout, ammo])
   // «Открыть на весь экран» in the bench's corner (owner, 20.11.2026: «вот эта сборка будет открываться на весь экран»)
   const expand = onExpand && <button type="button" className="wb-stage-expand" onClick={onExpand} title={uiText('Открыть на весь экран')} aria-label={uiText('Открыть на весь экран')}><Maximize2 size={14} /><span>{uiText('На весь экран')}</span></button>
-  if (!drawn) return <div className="wb-bench-box">{expand}<Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={onSelect} /></div>
   const toggle = (key: string) => onSelect(selected === key ? null : key)
   const selectedPath = selected && selected !== 'ammo' ? selected.split('/') : undefined
   const linked = (path: string[]) => Boolean(selectedPath && path.length > selectedPath.length && selectedPath.every((id, index) => path[index] === id))
@@ -492,7 +453,7 @@ function Bench({ layout, weapon, stats, ammo, isStock, selected, onSelect, drawn
       <strong>{weapon.shortName}</strong>
       <span>{stats.weightLoaded.toFixed(2)} {uiText('кг')}</span>
     </div>
-    <BuildStage drawn={drawn} slots={slots} size={size === 'full' ? (phone ? 'phoneFull' : 'full') : phone ? 'phone' : 'normal'} selected={selected} maxHeight={stageHeight}
+    <BuildStage drawn={drawn} flat={drawn ? undefined : weaponPicture(weapon)} slots={slots} size={size === 'full' ? (phone ? 'phoneFull' : 'full') : phone ? 'phone' : 'normal'} selected={selected} maxHeight={stageHeight}
       renderCell={(key, style) => {
         if (key === 'ammo') return <AmmoCellButton ammo={ammo} active={selected === 'ammo'} style={style} onClick={() => toggle('ammo')} />
         const cell = cells.get(key)
@@ -524,8 +485,8 @@ function readStatsWindow(): { x: number; y: number } | null {
  * The full screen (owner, 20.11.2026: «кнопку «Открыть на весь экран»… подобную Таркову»): the build over the whole window, the
  * chosen cell's modules at the side, the stats in a window that can be dragged where it suits. Esc: the chosen cell first, then back.
  */
-function FullBench({ weapon, stats, stock, picker, selected, onSelect, onClose, children }: {
-  weapon: Weapon; stats: BuildStats; stock: BuildStats; picker: ReactNode; selected: string | null; onSelect: (key: string | null) => void
+function FullBench({ weapon, stats, stock, selected, onSelect, onClose, children }: {
+  weapon: Weapon; stats: BuildStats; stock: BuildStats; selected: string | null; onSelect: (key: string | null) => void
   onClose: () => void; children: (maxHeight: number) => ReactNode
 }) {
   const stageBox = useRef<HTMLDivElement>(null)
@@ -572,16 +533,15 @@ function FullBench({ weapon, stats, stock, picker, selected, onSelect, onClose, 
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
     }
   }, [docked])
-  return createPortal(<div className={`wb-full${picker ? ' has-picker' : ''}`} role="dialog" aria-modal="true" aria-label={`${uiText('Сборка на весь экран')}: ${weapon.name}`}>
+  return createPortal(<div className="wb-full" role="dialog" aria-modal="true" aria-label={`${uiText('Сборка на весь экран')}: ${weapon.name}`}>
     {/* Only the build and one way out (owner, 20.11.2026: «скроет все кнопки и останется только сборка оружия… с выходом… кнопка») */}
     <button type="button" className="wb-full-exit" onClick={onClose} title={uiText('Выйти из полноэкранного режима (Esc)')} aria-label={uiText('Выйти из полноэкранного режима (Esc)')}><Minimize2 size={15} /><span>{uiText('Свернуть')}</span></button>
-    <div className={`wb-full-body${picker ? ' has-picker' : ''}`}>
+    <div className="wb-full-body">
       <div className="wb-full-stage">
         {/* A phone: the stats at the top left above the weapon (owner, 20.11.2026: «характеристики сверху… слева сверху») */}
         {docked && <StatsWindow stats={stats} stock={stock} docked />}
         <div className="wb-full-stage-room" ref={stageBox}>{children(room)}</div>
       </div>
-      {picker && <aside className="wb-full-side">{picker}</aside>}
     </div>
     {!docked && <StatsWindow stats={stats} stock={stock} />}
   </div>, document.body)
@@ -638,67 +598,6 @@ function StatsWindow({ stats, stock, docked }: { stats: BuildStats; stock: Build
   </div>
 }
 
-const ZONE_ROWS: Record<Zone, number> = { top: 1, middle: 2, bottom: 3, rail: 5 }
-
-function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
-  layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; isStock: boolean; selected: string | null; onSelect: (key: string | null) => void
-}) {
-  const toggle = (key: string) => onSelect(selected === key ? null : key)
-  const selectedPath = selected && selected !== 'ammo' ? selected.split('/') : undefined
-  const linked = (path: string[]) => Boolean(selectedPath && path.length > selectedPath.length && selectedPath.every((id, index) => path[index] === id))
-  const hasRail = layout.cells.some((cell) => cell.zone === 'rail')
-  const zones: Zone[] = hasRail ? ['top', 'middle', 'bottom', 'rail'] : ['top', 'middle', 'bottom']
-  // The whole board always fits the width (owner, 17.10.2026: «на одном экране … не нужно было ничего листать»): when
-  // the weapon and its parts are wider than the bench, the board is scaled down instead of scrolling sideways.
-  const outer = useRef<HTMLDivElement>(null)
-  const inner = useRef<HTMLDivElement>(null)
-  const [fit, setFit] = useState<{ scale: number; height?: number; width?: number }>({ scale: 1 })
-  useLayoutEffect(() => {
-    const box = outer.current
-    const board = inner.current
-    if (!box || !board) return
-    const observer = new ResizeObserver(() => {
-      // On a phone the whole board would shrink below a finger's size: it stays at least PHONE_MIN_SCALE and scrolls
-      // sideways instead (the PC keeps everything on one screen).
-      // Grows up to BOARD_MAX_SCALE on a wide bench (owner, 18.10.2026: «само окно с оружием можно сделать больше»).
-      const room = (box.clientWidth - 16) / Math.max(1, board.offsetWidth)
-      const fitted = Math.min(isMobileLayout() ? 1 : BOARD_MAX_SCALE, room)
-      const scale = isMobileLayout() ? Math.max(PHONE_MIN_SCALE, fitted) : fitted
-      const width = scale > room ? board.offsetWidth * scale : undefined
-      setFit((current) => Math.abs(current.scale - scale) < 0.005 && current.height === board.offsetHeight * scale && current.width === width ? current : { scale, height: board.offsetHeight * scale, width })
-    })
-    observer.observe(box)
-    observer.observe(board)
-    return () => observer.disconnect()
-  }, [])
-  return <div className="wb-board-scroll" ref={outer}>
-    <div className={`wb-board-fit${fit.width ? ' is-wide' : ''}`} style={{ height: fit.height, width: fit.width }}>
-    <div className="wb-board" ref={inner} style={{ gridTemplateColumns: `repeat(${layout.columns}, auto)`, transform: fit.scale !== 1 ? `scale(${fit.scale})` : undefined }} aria-label={uiText('Ячейки модулей')}>
-      {zones.flatMap((zone) => {
-        const columnCells = Array.from({ length: layout.columns }, (_, column) => zoneCells(layout, column, zone))
-        const extra = (column: number) => (zone === 'middle' || zone === 'bottom') && column === layout.weaponColumn ? 1 : 0
-        const spans = zone === 'middle' ? undefined : rowSpans(columnCells.map((cells, column) => cells.length + extra(column)))
-        return columnCells.map((cells, column) => {
-        const isWeapon = zone === 'middle' && column === layout.weaponColumn
-        const withAmmo = zone === 'bottom' && column === layout.weaponColumn
-        if (!cells.length && !isWeapon && !withAmmo) return null
-        const ammoCell = withAmmo && <AmmoCellButton key="ammo" ammo={ammo} active={selected === 'ammo'} onClick={() => toggle('ammo')} />
-        const span = spans?.[column]
-        return <div key={`${zone}-${column}`} className={`wb-zone is-${zone}${isWeapon ? ' is-weapon' : ''}`} style={{ gridColumn: span ? `${span.start + 1} / span ${span.span}` : column + 1, gridRow: ZONE_ROWS[zone] }}>
-          {isWeapon && <WeaponCell weapon={weapon} stats={stats} isStock={isStock} />}
-          {cells.map((cell) => <SlotCellButton key={pathKey(cell.path)} cell={cell} active={selected === pathKey(cell.path)} linked={linked(cell.path)} onClick={() => toggle(pathKey(cell.path))} />)}
-          {ammoCell}
-          {/* No round yet: a small flat note under the cell (owner, 28.10.2026: «выскакивает маленькое окошечко… Выберите патрон»). */}
-          {withAmmo && !ammo && selected !== 'ammo' && <button type="button" className="wb-ammo-hint" onClick={() => toggle('ammo')}>{uiText('Выберите патрон')}</button>}
-        </div>
-        })
-      })}
-      {hasRail && <div className="wb-rail-label" style={{ gridRow: 4 }}><span>{uiText('Тактические устройства')}</span></div>}
-    </div>
-    </div>
-  </div>
-}
-
 /**
  * A part over the whole cell: its picture without background (owner, 17.10.2026: «без синего фона и без внутренней рамки»),
  * else the inventory picture, else the small icon — whichever loads first.
@@ -714,18 +613,6 @@ function CellPicture({ part }: { part: Pick<GunPart, 'iconLink' | 'baseImageLink
   const [attempt, setAttempt] = useState(0)
   if (attempt >= sources.length) return <PartIcon />
   return <img className="gb-icon wb-cell-picture" src={sources[attempt]} alt="" loading="lazy" draggable={false} onError={() => setAttempt((value) => value + 1)} />
-}
-
-/** The weapon itself: its picture in the middle of the board, with the weight of the build. */
-function WeaponCell({ weapon, stats, isStock }: { weapon: Weapon; stats: BuildStats; isStock: boolean }) {
-  return <div className="wb-weapon-cell" title={!isStock && weapon.defaultPreset ? `${weapon.name} · ${uiText('Изображение заводской сборки')}` : weapon.name}>
-    <span className="wb-weapon-cell-name">{weapon.shortName}</span>
-    <span className="wb-weapon-cell-picture"><WeaponPicture key={weapon.id} weapon={weapon} /></span>
-    <span className="wb-weapon-cell-foot">
-      {weapon.fireRate > 0 && <small>{weapon.fireRate} {uiText('выстр/мин')}</small>}
-      <strong>{stats.weightLoaded.toFixed(2)} {uiText('кг')}</strong>
-    </span>
-  </div>
 }
 
 function AmmoCellButton({ ammo, active, style, onClick }: { ammo?: AmmoStats; active: boolean; style?: CSSProperties; onClick: () => void }) {
@@ -759,196 +646,9 @@ function SlotCellButton({ cell, active, linked, style, onClick }: { cell: Placed
 // ------------------------------------------------------------------------------------------------------------
 
 const offerLabel = (offer: GunOffer) => offer.vendor === 'flea-market' ? uiText('Барахолка') : `${offer.vendorName} ${offer.minTraderLevel ?? 1}`
-/** What opens a part, after the lock: «Механик 3», «квест «Оружейник»», «барахолка с 30 ур.». */
-const unlockLabel = (hint: UnlockHint, locale: string) => {
-  if (hint.kind === 'trader') return `${hint.vendorName} ${hint.level}`
-  if (hint.kind === 'task') return locale === 'en' ? `quest «${hint.task}»` : `квест «${hint.task}»`
-  return locale === 'en' ? `flea from level ${hint.level}` : `барахолка с ${hint.level} ур.`
-}
 const ALL_MODULES_KEY = 'raidos-wb-all-modules'
 function readAllModules() {
   try { return localStorage.getItem(ALL_MODULES_KEY) === '1' } catch { return false }
-}
-
-function readBuyable() {
-  try { return localStorage.getItem(BUYABLE_KEY) !== 'all' } catch { return true }
-}
-
-function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, everything, onPick, onPickKit, onRemove, onClose }: {
-  cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess; everything?: boolean
-  onPick: (itemId: string) => void; onPickKit: (kit: MuzzleKit) => void; onRemove: () => void; onClose: () => void
-}) {
-  const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<Sort>('balanced')
-  const { locale } = useLocale()
-  // What the player can get now first (owner, 04.11.2026: «модули должны быть открыты при достижении этих условий»); the rest
-  // one tick away, each saying what opens it, for planning ahead.
-  const [buyableChoice, setBuyableState] = useState(readBuyable)
-  // «Показать все модули»: nothing is closed
-  const buyable = buyableChoice && !everything
-  const setBuyable = (next: boolean) => {
-    setBuyableState(next)
-    try { localStorage.setItem(BUYABLE_KEY, next ? 'buyable' : 'all') } catch { /* per-viewer convenience only */ }
-  }
-  const candidates = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return slotCandidates(cell.slot, catalog)
-      .filter((part) => !needle || `${part.name} ${part.shortName}`.toLowerCase().includes(needle))
-      .map((part) => {
-        // What fits, and what fits once a conflicting part comes off (owner, 20.10.2026: a grip-stock replaces the stock).
-        const done = installReplacing(build, cell.path, cell.slot, part.id, catalog, weapon)
-        const offer = cheapestOffer(part, access)
-        const after = done ? computeStats(done.build, weapon, catalog, ammo) : undefined
-        return { part, done, offer, after, replaces: done?.removed.map((item) => item.shortName || item.name) ?? [] }
-      })
-      .filter((row) => row.done)
-      .sort((a, b) => compare(sort, a, b, stats))
-  }, [access, ammo, build, catalog, cell.path, cell.slot, query, sort, stats, weapon])
-  // The part already on the weapon stays listed, to be seen and taken off.
-  const rows = buyable ? candidates.filter((row) => row.offer || row.part.id === cell.part?.id) : candidates
-  // «Комплекты: дульник + глушитель» (src/arsenal/muzzleKits.ts): both parts at once, with what they give together.
-  const allKits = useMemo(() => isMuzzleSlot(cell.slot) ? muzzleKits(build, cell.path, cell.slot, catalog, weapon) : [], [build, catalog, cell.path, cell.slot, weapon])
-  const kits = useMemo(() => {
-    if (sort !== 'kits') return []
-    const needle = query.trim().toLowerCase()
-    return allKits
-      .filter(({ device, suppressor }) => !needle || `${device.name} ${device.shortName} ${suppressor.name} ${suppressor.shortName}`.toLowerCase().includes(needle))
-      .map((kit) => {
-        const offers = [cheapestOffer(kit.device, access), cheapestOffer(kit.suppressor, access)]
-        const price = offers.every(Boolean) ? offers.reduce((total, offer) => total + offer!.priceRUB, 0) : undefined
-        return { kit, price, after: computeStats(kit.build, weapon, catalog, ammo) }
-      })
-      .filter((row) => !buyable || row.price !== undefined)
-      .sort((a, b) => balance({ part: b.kit.device, after: b.after }, stats) - balance({ part: a.kit.device, after: a.after }, stats) || (a.price ?? Infinity) - (b.price ?? Infinity))
-  }, [access, allKits, ammo, buyable, catalog, query, sort, stats, weapon])
-  return <section className="panel wb-picker" aria-label={cell.slot.name}>
-    <div className="wb-picker-head">
-      <div><small>{uiText('Ячейка')}</small><h3>{cell.slot.name}</h3></div>
-      <button className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
-    </div>
-    {cell.part && <div className="wb-picker-current">
-      <PartIcon src={cell.part.iconLink} />
-      <span><small>{uiText('Сейчас')}</small><strong>{cell.part.name}</strong></span>
-      {/* The stock slot takes «Снять» too: the buffer tube comes off for a grip-stock (owner, 28.10.2026). */}
-      {(!cell.slot.required || cell.slot.nameId === STOCK_SLOT) && <button className="button small ghost" onClick={onRemove}><Trash2 size={13} />{uiText('Снять')}</button>}
-    </div>}
-    {cell.part && cell.slot.required && cell.slot.nameId !== STOCK_SLOT && <p className="wb-picker-note">{uiText('Обязательная деталь: без неё оружие в игре не собрать — её можно только заменить.')}</p>}
-    <div className="wb-picker-tools">
-      <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти модуль…')} aria-label={uiText('Найти модуль')} autoFocus={typingAtHand()} /></label>
-      <div className="wb-picker-row">
-        <select className="select" value={sort} onChange={(event) => setSort(event.target.value as Sort)} aria-label={uiText('Сортировка')}>
-          <option value="balanced">{uiText('Сбалансированно')}</option>
-          <option value="recoil">{uiText('Сначала меньше отдача')}</option>
-          <option value="ergonomics">{uiText('Сначала больше эргономика')}</option>
-          <option value="price">{uiText('Сначала дешевле')}</option>
-          <option value="name">{uiText('По названию')}</option>
-          {allKits.length > 0 && <option value="kits">{uiText('Комплекты: дульник + глушитель')}</option>}
-        </select>
-        {!everything && <label className="wb-check"><input type="checkbox" checked={buyable} onChange={(event) => setBuyable(event.target.checked)} />{uiText('Можно купить')}</label>}
-      </div>
-      <p className="wb-picker-count">{uiText(sort === 'kits' ? 'Комплектов' : 'Подходит')}: <strong>{sort === 'kits' ? kits.length : rows.length}</strong>{sort !== 'kits' && candidates.length > rows.length && <span className="wb-picker-closed"> · {uiText('ещё закрыто')}: {candidates.length - rows.length}</span>}</p>
-    </div>
-    {sort === 'kits' ? <div className="wb-options" role="listbox" aria-label={uiText('Комплекты: дульник + глушитель')}>
-      {kits.map(({ kit, price, after }) => {
-        const ergonomics = kit.device.ergonomics + kit.suppressor.ergonomics
-        const recoil = kit.device.recoilModifier + kit.suppressor.recoilModifier
-        const accuracy = kit.device.accuracyModifier + kit.suppressor.accuracyModifier
-        return <button key={`${kit.device.id}-${kit.suppressor.id}`} role="option" aria-selected={false} className="wb-option wb-kit" onClick={() => onPickKit(kit)} title={`${kit.device.name} + ${kit.suppressor.name}`}>
-          <span className="wb-kit-icons"><PartIcon src={kit.device.iconLink} /><PartIcon src={kit.suppressor.iconLink} /></span>
-          <span className="wb-option-text">
-            <strong>{kit.device.shortName} + {kit.suppressor.shortName}</strong>
-            <span className="wb-option-stats">
-              {ergonomics !== 0 && <span className={ergonomics > 0 ? 'is-good' : 'is-bad'}>{uiText('Эрг')} {signedExact(ergonomics)}</span>}
-              {recoil !== 0 && <span className={recoil < 0 ? 'is-good' : 'is-bad'}>{uiText('Отд')} {formatModifier(recoil)}</span>}
-              {accuracy !== 0 && <span className={accuracy > 0 ? 'is-good' : 'is-bad'}>{uiText('Точн')} {formatModifier(accuracy)}</span>}
-            </span>
-            <span className="wb-option-after">
-              {uiText('Верт.')} {after.recoilVertical} <Delta value={after.recoilVertical - stats.recoilVertical} better="lower" />
-              {' · '}{uiText('Эрг.')} {after.ergonomics} <Delta value={after.ergonomicsRaw - stats.ergonomicsRaw} better="higher" digits={Math.round(Math.abs(after.ergonomicsRaw - stats.ergonomicsRaw) * 10) % 10 ? 1 : 0} />
-            </span>
-            {kit.removed.length > 0 && <span className="wb-option-replaces">{uiText('заменит')}: {kit.removed.map((item) => item.shortName || item.name).join(', ')}</span>}
-          </span>
-          <span className="wb-option-price">{price !== undefined ? <><strong>{formatRub(price)}</strong><small>{uiText('за комплект')}</small></> : <small className="is-bad">{uiText('нет в продаже')}</small>}</span>
-        </button>
-      })}
-      {!kits.length && <p className="muted wb-none">{uiText('Ничего не найдено.')}</p>}
-    </div> : <div className="wb-options" role="listbox" aria-label={cell.slot.name}>
-      {rows.map(({ part, offer, after, replaces }) => <button key={part.id} role="option" aria-selected={part.id === cell.part?.id}
-        className={`wb-option${part.id === cell.part?.id ? ' is-current' : ''}${offer ? '' : ' is-locked'}`} onClick={() => onPick(part.id)} title={part.name}>
-        <PartIcon src={part.iconLink} />
-        <span className="wb-option-text">
-          <strong>{part.name}</strong>
-          <span className="wb-option-stats">
-            <>
-              {part.ergonomics !== 0 && <span className={part.ergonomics > 0 ? 'is-good' : 'is-bad'}>{uiText('Эрг')} {signedExact(part.ergonomics)}</span>}
-              {part.recoilModifier !== 0 && <span className={part.recoilModifier < 0 ? 'is-good' : 'is-bad'}>{uiText('Отд')} {formatModifier(part.recoilModifier)}</span>}
-              {part.accuracyModifier !== 0 && <span className={part.accuracyModifier > 0 ? 'is-good' : 'is-bad'}>{uiText('Точн')} {formatModifier(part.accuracyModifier)}</span>}
-              {part.capacity ? <span>{part.capacity} {uiText('патр.')}</span> : null}
-              {part.slots.length > 0 && <span className="is-info"><Layers size={10} /> +{part.slots.length} {uiText('ячеек')}</span>}
-            </>
-          </span>
-          {after && <span className="wb-option-after">
-            {uiText('Верт.')} {after.recoilVertical} <Delta value={after.recoilVertical - stats.recoilVertical} better="lower" />
-            {' · '}{uiText('Эрг.')} {after.ergonomics} <Delta value={after.ergonomicsRaw - stats.ergonomicsRaw} better="higher" digits={Math.round(Math.abs(after.ergonomicsRaw - stats.ergonomicsRaw) * 10) % 10 ? 1 : 0} />
-          </span>}
-          {replaces.length > 0 && <span className="wb-option-replaces">{uiText('заменит')}: {replaces.join(', ')}</span>}
-        </span>
-        <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <PartLock part={part} access={access} locale={locale} />}</span>
-      </button>)}
-      {!rows.length && <p className="muted wb-none">{uiText('Ничего не найдено.')}</p>}
-    </div>}
-  </section>
-}
-
-type Row = { part: GunPart; offer?: GunOffer; after?: BuildStats; replaces?: string[] }
-/**
- * «Сбалансированно» (owner, 18.10.2026: «эргономика и отдача, наиболее приемлемая»): the change to the build scored as in
- * the ready-made builds — every percent of vertical recoil removed is RECOIL_WEIGHT, every point of ergonomics
- * ERGO_WEIGHT — in half-point steps, so of two nearly equal parts the cheaper comes first.
- */
-function balance(row: Row, now: BuildStats) {
-  if (!row.after) return Number.NEGATIVE_INFINITY
-  const recoil = now.recoilVerticalExact > 0 ? (now.recoilVerticalExact - row.after.recoilVerticalExact) / now.recoilVerticalExact * 100 : 0
-  return Math.round((recoil * RECOIL_WEIGHT + (row.after.ergonomicsRaw - now.ergonomicsRaw) * ERGO_WEIGHT) * 2) / 2
-}
-
-function compare(sort: Sort, a: Row, b: Row, now: BuildStats) {
-  const price = (row: Row) => row.offer?.priceRUB ?? Number.POSITIVE_INFINITY
-  if (sort === 'balanced') return balance(b, now) - balance(a, now) || price(a) - price(b)
-  if (sort === 'price') return price(a) - price(b)
-  if (sort === 'name') return a.part.name.localeCompare(b.part.name, 'ru')
-  if (sort === 'ergonomics') return (b.after?.ergonomicsRaw ?? -1e9) - (a.after?.ergonomicsRaw ?? -1e9) || price(a) - price(b)
-  return (a.after?.recoilVerticalExact ?? 1e9) - (b.after?.recoilVerticalExact ?? 1e9) || (b.after?.ergonomicsRaw ?? 0) - (a.after?.ergonomicsRaw ?? 0) || price(a) - price(b)
-}
-
-function AmmoPicker({ options, selected, access, onPick, onClose }: { options: AmmoStats[]; selected?: string; access: PurchaseAccess; onPick: (id: string) => void; onClose: () => void }) {
-  return <section className="panel wb-picker" aria-label={uiText('Патрон')}>
-    <div className="wb-picker-head">
-      <div><small>{uiText('Ячейка')}</small><h3>{uiText('Патрон')}</h3></div>
-      {/* The player picks the round; it can be taken off (owner, 28.10.2026: «кнопку „Патрон“, „Убрать патрон“»). */}
-      {selected && <button className="button small ghost" onClick={() => onPick('')}><Trash2 size={13} />{uiText('Убрать патрон')}</button>}
-      <button className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
-    </div>
-    <div className="wb-options" role="listbox" aria-label={uiText('Патрон')}>
-      {options.map((round) => {
-        const offer = cheapestOffer(round, access)
-        return <button key={round.id} role="option" aria-selected={round.id === selected} className={`wb-option${round.id === selected ? ' is-current' : ''}`} onClick={() => onPick(round.id)}>
-          <PartIcon src={round.iconLink} />
-          <span className="wb-option-text">
-            <strong>{round.name}</strong>
-            <span className="wb-option-stats">
-              <span>{uiText('Проб.')} {round.penetration}</span>
-              <span>{uiText('Урон')} {round.projectileCount > 1 ? `${round.damage}×${round.projectileCount}` : round.damage}</span>
-              {round.initialSpeed > 0 && <span>{Math.round(round.initialSpeed)} {uiText('м/с')}</span>}
-              {round.recoilModifier !== 0 && <span className={round.recoilModifier < 0 ? 'is-good' : 'is-bad'}>{uiText('Отд')} {formatModifier(round.recoilModifier)}</span>}
-            </span>
-          </span>
-          <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <small className="is-bad">{uiText('нет в продаже')}</small>}</span>
-        </button>
-      })}
-      {!options.length && <p className="muted wb-none">{uiText('Нет данных о патронах этого калибра.')}</p>}
-    </div>
-  </section>
 }
 
 // ------------------------------------------------------------------------------------------------------------

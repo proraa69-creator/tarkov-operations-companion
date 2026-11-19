@@ -161,14 +161,16 @@ function drawFlat(canvas: HTMLCanvasElement, drawn: Drawn, scale: number) {
 
 /**
  * The build laid out and every part's pictures loaded. `drawn`: the last complete drawing — while the pictures of a new module load,
- * the one before stays (no blink); `ready` once it is this build's. A build with a part that has no picture yet has none.
+ * the one before stays (no blink); `ready` once it is this build's. A part with no picture, or turned towards the eye (a module on the
+ * side of a handguard), is simply not drawn (owner, 20.11.2026: «если его не видно… просто добавляй»); only a weapon without a picture
+ * of its own has no drawing.
  */
 export function useBuildDrawing(build: Build): { laid: LaidBuild | null; drawn: Drawn | null; ready: boolean } {
   const [index, setIndex] = useState<PartsIndex | null | undefined>(undefined)
   const [drawn, setDrawn] = useState<Drawn | null>(null)
   useEffect(() => { let alive = true; void loadPartsIndex().then((value) => { if (alive) setIndex(value) }); return () => { alive = false } }, [])
   const laid = useMemo(() => (index ? layBuild(build, index) : null), [build, index])
-  const drawable = Boolean(laid?.parts.length && !laid.missing.length)
+  const drawable = Boolean(laid?.parts.length && laid.parts[0]!.tpl === build.weaponId)
   useEffect(() => {
     if (!laid || !drawable) return
     let alive = true

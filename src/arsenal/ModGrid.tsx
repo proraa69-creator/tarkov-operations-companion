@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom'
 import { ArrowLeftRight, Lock, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { installReplacing, slotCandidates, STOCK_SLOT, type SlotCell } from './buildModel'
-import { cheapestOffer, computeStats, type BuildStats, type PurchaseAccess } from './buildStats'
-import { formatModifier, formatRub, PartIcon, signedExact } from './gunFormat'
+import { useLocale } from '../i18n/LocaleProvider'
+import { cheapestOffer, computeStats, unlockHint, type BuildStats, type PurchaseAccess } from './buildStats'
+import { formatModifier, formatRub, PartIcon, signedExact, unlockLabel } from './gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 import { ERGO_WEIGHT, RECOIL_WEIGHT } from './tieredBuilds'
 
@@ -28,6 +29,17 @@ function TilePicture({ part }: { part: Pick<GunPart, 'iconLink' | 'baseImageLink
   return <img className="wb-tile-picture" src={sources[attempt]} alt="" loading="lazy" draggable={false} onError={() => setAttempt((value) => value + 1)} />
 }
 
+/**
+ * A module that cannot be bought yet: the lock and what opens it, short («Миротворец 3», «барахолка с 25 ур.», a quest), in place of the
+ * price; a module nobody sells says so.
+ */
+function TileLock({ item, access }: { item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'>; access: PurchaseAccess }) {
+  const { locale } = useLocale()
+  const hint = unlockHint(item, access)
+  const text = hint ? unlockLabel(hint, locale) : uiText(item.noFlea ? 'запрет барахолки' : 'нет в продаже')
+  return <span className="wb-part-lock" title={hint ? `${uiText('Откроется, когда выполнится условие')}: ${text}` : text}><Lock size={9} aria-hidden="true" />{text}</span>
+}
+
 /** The best change first, as the side list's «Сбалансированно»: vertical recoil removed and ergonomics gained, in half points. */
 function balance(after: BuildStats | undefined, now: BuildStats) {
   if (!after) return Number.NEGATIVE_INFINITY
@@ -40,9 +52,8 @@ function usePlace(anchor: () => Element | null, width: number) {
   const [place, setPlace] = useState<CSSProperties>({ visibility: 'hidden' })
   useLayoutEffect(() => {
     let frame = 0
-    const measure = () => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => {
+    // at once when the window opens (no frame where it stands nowhere), then on the next frame after a scroll or a resize
+    const place = () => {
         const cell = anchor()
         if (!cell) return
         const rect = cell.getBoundingClientRect()
@@ -54,9 +65,9 @@ function usePlace(anchor: () => Element | null, width: number) {
         setPlace(down
           ? { left, top: rect.bottom + 6, maxHeight: Math.max(160, room.below - 6), width }
           : { left, bottom: window.innerHeight - rect.top + 6, maxHeight: Math.max(160, room.above - 6), width })
-      })
     }
-    measure()
+    const measure = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(place) }
+    place()
     window.addEventListener('resize', measure)
     window.addEventListener('scroll', measure, true)
     return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true) }
@@ -136,7 +147,7 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
         <TilePicture part={part} />
         {replaces.length > 0 && <ArrowLeftRight size={10} className="wb-tile-swap" aria-label={uiText('заменит')} />}
         <span className="wb-tile-name">{part.shortName || part.name}</span>
-        <span className="wb-tile-price">{offer ? formatRub(offer.priceRUB) : everything ? '—' : <Lock size={10} aria-label={uiText('нет в продаже')} />}</span>
+        <span className="wb-tile-price">{offer ? formatRub(offer.priceRUB) : everything ? '—' : <TileLock item={part} access={access} />}</span>
       </button>
     })}
     {!rows.length && <p className="wb-grid-none">{uiText('Ничего не подходит.')}</p>}
@@ -159,7 +170,7 @@ export function AmmoGrid({ options, selected, access, everything, anchor, onPick
         <span className="wb-tile-stats"><span>{round.penetration}</span><span>{round.projectileCount > 1 ? `${round.damage}×${round.projectileCount}` : round.damage}</span></span>
         <TilePicture part={{ iconLink: round.iconLink }} />
         <span className="wb-tile-name">{round.shortName}</span>
-        <span className="wb-tile-price">{offer ? formatRub(offer.priceRUB) : <Lock size={10} aria-label={uiText('нет в продаже')} />}</span>
+        <span className="wb-tile-price">{offer ? formatRub(offer.priceRUB) : everything ? '—' : <TileLock item={round} access={access} />}</span>
       </button>
     })}
     {!options.length && <p className="wb-grid-none">{uiText('Нет данных о патронах этого калибра.')}</p>}
