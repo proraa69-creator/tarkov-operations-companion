@@ -8109,3 +8109,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   measured by rebuilding the same satellite view in the dev page (the old point read back within 0.1 m) and moved in
   `src/data/storyChapterSeeds.ts` to x 250.83, z 440.89; no server override exists for it. The dev map shows the stage's
   marker there; story tests pass. Same branch claude/quest-row-tags, not released.
+- Exits after O: the game's list photographed in SPT (Customs, bright sky behind the list) and run through the app's own steps
+  (corner crop, `listForOcr`, tesseract rus+eng psm 6, `parseExtractList`/`exitsInText`): every listed exit whose name matches
+  the live game's was found; one of three reads gave «ВС» as Latin «BC». `src/maps/raidExtracts.ts` `matchKey` now treats
+  Latin letters drawn like Cyrillic ones as the same letter (test added; 14 exit tests pass). The live pipeline (O key → corner
+  → map) is still not seen working in a live raid since 0.6.0.321: the PC had no live raid after it.

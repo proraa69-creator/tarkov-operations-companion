@@ -50,7 +50,11 @@ export function exitKey(name: string) {
 }
 
 /** For the matching only: the letters the OCR takes for digits and back as one («ЗБ-1011» read «35-1011» or «26-1013»). */
-const matchKey = (name: string) => exitKey(name).replace(/з/g, '3').replace(/[б5]/g, '6').replace(/[оo]/g, '0').replace(/[il]/g, '1')
+// Latin letters drawn like Cyrillic ones are one letter for the matching: the OCR reads «ВС» of «Блокпост ВС РФ» as Latin «BC»
+// now and then (the game's list read on Customs, 20.11.2026). Both the reading and the names go through it, English ones too.
+const LOOKALIKE: Record<string, string> = { a: 'а', b: 'в', c: 'с', e: 'е', h: 'н', k: 'к', m: 'м', p: 'р', t: 'т', x: 'х', y: 'у' }
+const matchKey = (name: string) => exitKey(name).replace(/[abcehkmptxy]/g, (letter) => LOOKALIKE[letter]!)
+  .replace(/з/g, '3').replace(/[б5]/g, '6').replace(/[оo]/g, '0').replace(/[il]/g, '1')
 
 /** A transit to another map: never dimmed by the list (it leaves them out). */
 export const isTransit = (title: string) => /^(?:переход|transit)/i.test(title.trim())
