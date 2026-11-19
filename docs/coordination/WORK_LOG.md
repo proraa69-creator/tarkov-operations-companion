@@ -8164,3 +8164,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   map priority tiles are one height on the PC (the strip scrolls by the wheel, its bar hidden). Left: the «Тактика боя» hover hint
   of the boss figures is a few px wider than its figure (a tooltip, not cut). Overview tests 87 + DashboardPage 39 pass; typecheck
   and lint clean. Not released.
+- «Сборка оружия» (owner's phone screenshot, 20.11.2026): the recoil note under the board is gone («про отдачу убери вообще»); the
+  module search no longer takes the focus on a phone or a touch screen, so tapping a module opens no keyboard («только когда нажимаешь
+  на ручной поиск»). The bigger one-screen phone board waits: the owner wants it on the new picture made of the game's part renders,
+  with modules changed live. Weapon builder tests 122 pass; typecheck and lint clean. Not released.

@@ -22,7 +22,6 @@ import { useOwnerBuilds } from '../arsenal/ownerBuilds'
 import { withLiveGunPrices } from '../arsenal/liveGunPrices'
 import { useLivePrices } from '../data/livePrices'
 import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
-import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
 import { isOwnerApp } from '../app/buildEdition'
 import '../styles/weaponBuilds.css'
@@ -60,6 +59,11 @@ const pathKey = (path: string[]) => path.join('/')
 
 /** The smallest board scale on a phone: cells stay big enough to tap. */
 const PHONE_MIN_SCALE = 0.72
+/**
+ * The module search takes the focus only where typing costs nothing: a phone opens its keyboard for a focused field (owner, 20.11.2026:
+ * «когда на телефоне нажимаешь на модуль, он открывает клавиатуру… Клавиатура должна открываться только когда нажимаешь на ручной поиск»).
+ */
+const typingAtHand = () => !isMobileLayout() && !(typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)').matches)
 /** How far the board grows on a wide PC bench (the cells are 56 px at 1). */
 const BOARD_MAX_SCALE = 1.45
 
@@ -193,7 +197,6 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
       {replaced && <div className="wb-alert is-info" role="status"><Layers size={14} />{uiText('Снято, потому что не ставится вместе с новой деталью')}: {replaced.join(', ')}</div>}
 
       <Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected} />
-      <p className="wb-note">{uiText(RECOIL_NOTE)}</p>
 
       <PurchaseList cost={extra} access={access} gun={gun.on ? { weapon, choice: gun.choice } : undefined} />
     </section>
@@ -592,7 +595,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
     </div>}
     {cell.part && cell.slot.required && cell.slot.nameId !== STOCK_SLOT && <p className="wb-picker-note">{uiText('Обязательная деталь: без неё оружие в игре не собрать — её можно только заменить.')}</p>}
     <div className="wb-picker-tools">
-      <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти модуль…')} aria-label={uiText('Найти модуль')} autoFocus /></label>
+      <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти модуль…')} aria-label={uiText('Найти модуль')} autoFocus={typingAtHand()} /></label>
       <div className="wb-picker-row">
         <select className="select" value={sort} onChange={(event) => setSort(event.target.value as Sort)} aria-label={uiText('Сортировка')}>
           <option value="balanced">{uiText('Сбалансированно')}</option>
