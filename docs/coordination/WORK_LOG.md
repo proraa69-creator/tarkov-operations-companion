@@ -8095,3 +8095,20 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Kill zones are SVG polygons and follow the map; their jumping was the map flying back. The layer switches report of
   Prizrak337 is still not reproduced (PvE, «Стекло», Shoreline: 30 documents, switches work, nothing covers the buttons).
 - typecheck clean; src/maps + MapsPage tests pass (MapsPage.deferred only alone, as before). Not released.
+
+## 2026-11-19 — map: canvas points that a player does not see (branch claude/map-docs-valuables, from 0.6.0.323, not released)
+
+- A player's report in the support chat (Prizrak337, PC, PvE, 0.6.0.323, screenshot of Shoreline): «Документы боевого
+  пропуска» on and counted 30, not one on the map; «Драгоценности» the same; «Боссы» works. The bosses are page icons,
+  documents and valuables are drawn on the canvas (MarkerCanvasLayer, markerSprites). Not reproduced on a clean dev
+  build (Shoreline PvE, «Схема» and «Спутник»: the documents are drawn) — so something of his computer.
+- Two places that leave canvas points unseen for good, made safe (src/maps/markerSprites.ts):
+  - the icons are drawn through a canvas filter (their drop shadows); some graphics drivers give an empty picture
+    through it: the first icon drawn is checked, and if nothing came out it is drawn again with a plain shadow, and
+    every icon from then on;
+  - a picture that failed to load stayed «loading» in the sprites (null) and was never drawn nor retried: now the map is
+    told to draw again, and such a point gets a plain round mark.
+- Tests: src/maps/markerSprites.test.ts (3, a fake canvas: empty through the filter, filter fine, failed picture);
+  src/maps + map page 162 (MapsPage.raidChecks timed out under load, passes alone 3/3); typecheck, eslint clean. In the
+  dev build the map draws as before.
+- Not certain this is his cause (not reproduced); it is if his canvas filter draws nothing. Not released.

@@ -65,7 +65,12 @@ function image(src: string) {
     for (const [key, sprite] of sprites) if (sprite === null) sprites.delete(key)
     for (const listener of waiting) listener()
   }
-  next.onerror = () => { images.set(src, 'failed') }
+  // A picture that does not load: its points are drawn with a mark of their own (draw) instead of staying unseen for good.
+  next.onerror = () => {
+    images.set(src, 'failed')
+    for (const [key, sprite] of sprites) if (sprite === null) sprites.delete(key)
+    for (const listener of waiting) listener()
+  }
   next.src = src
   return 'loading' as const
 }
@@ -118,10 +123,54 @@ function draw(spec: SpriteSpec, picture: HTMLImageElement | null): Sprite | null
   if (!context) return null
   context.scale(ratio, ratio)
   const x = PAD, y = PAD
-  // the icon with its shadows: a canvas filter where the browser has one, a plain shadow elsewhere
+  const filtered = Boolean(spec.filter && 'filter' in context && filtersWork !== false)
+  paintIcon(context, spec, picture, x, y, width, height, ratio, filtered)
+  // A canvas filter that draws nothing (a player's report, 19.11.2026: battle pass documents and valuables on, counted, and
+  // not one on the map; the bosses, page icons, were there): the icon again with a plain shadow, and so from then on.
+  if (filtered && filtersWork === undefined) {
+    filtersWork = !blank(context, canvas)
+    if (!filtersWork) {
+      context.setTransform(1, 0, 0, 1, 0, 0)
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      context.setTransform(ratio, 0, 0, ratio, 0, 0)
+      paintIcon(context, spec, picture, x, y, width, height, ratio, false)
+    }
+  }
+  return finish(context, canvas, spec, x, y, width, height, boxWidth, boxHeight)
+}
+
+/**
+ * Whether the canvas filters (the icons' drop shadows) draw on this computer: unknown until the first icon with a picture
+ * is drawn, then known for good (some graphics drivers give an empty picture through a filter).
+ */
+let filtersWork: boolean | undefined
+
+/** Nothing drawn at all. A picture from another site cannot be read: then it counts as drawn. */
+function blank(context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
+  try {
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+    for (let index = 3; index < pixels.length; index += 4) if (pixels[index]! > 0) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The icon itself with its shadows: the canvas filter (`filtered`), else a plain shadow. */
+function paintIcon(context: CanvasRenderingContext2D, spec: SpriteSpec, picture: HTMLImageElement | null, x: number, y: number, width: number, height: number, ratio: number, filtered: boolean) {
   context.save()
-  if (spec.filter && 'filter' in context) context.filter = spec.filter
+  if (filtered) context.filter = spec.filter!
   else { context.shadowColor = 'rgba(0,0,0,.75)'; context.shadowBlur = 3; context.shadowOffsetY = 1 }
+  // A picture that did not load and no plate: a plain round mark, so the point is still seen and can be pointed at.
+  if (!picture && !spec.plate && spec.src) {
+    context.fillStyle = '#e9dcb8'
+    context.strokeStyle = '#1a1a12'
+    context.lineWidth = 1.5
+    context.beginPath()
+    context.arc(x + width / 2, y + height / 2, Math.max(4, Math.min(width, height) / 3), 0, Math.PI * 2)
+    context.fill()
+    context.stroke()
+  }
   if (spec.plate) {
     context.fillStyle = spec.plate.color
     if (spec.plate.shape === 'circle') { context.beginPath(); context.arc(x + width / 2, y + height / 2, Math.min(width, height) / 2 - 2, 0, Math.PI * 2); context.fill() }
@@ -136,6 +185,10 @@ function draw(spec: SpriteSpec, picture: HTMLImageElement | null): Sprite | null
     context.drawImage(picture, x + (width - drawWidth) / 2 + inset / 2, y + (height - drawHeight) / 2 + inset / 2, drawWidth - inset, drawHeight - inset)
   }
   context.restore()
+}
+
+/** The ring, the chips, the padlock and the name over the icon; the sprite. */
+function finish(context: CanvasRenderingContext2D, canvas: HTMLCanvasElement, spec: SpriteSpec, x: number, y: number, width: number, height: number, boxWidth: number, boxHeight: number): Sprite {
   if (spec.possible) {
     context.save()
     context.strokeStyle = spec.possible
@@ -202,4 +255,5 @@ function draw(spec: SpriteSpec, picture: HTMLImageElement | null): Sprite | null
 export function resetSprites() {
   images.clear()
   sprites.clear()
+  filtersWork = undefined
 }
