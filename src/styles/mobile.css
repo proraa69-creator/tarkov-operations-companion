@@ -49,6 +49,9 @@
    (owner, 19.11.2026). */
 :root[data-layout="mobile"] .topbar.mobile-topbar .profile-chip > span:not(.op-prestige-chip) { display: none; }
 :root[data-layout="mobile"] .topbar.mobile-topbar .profile-chip > .op-prestige-chip { display: grid; place-items: center; margin: 0; }
+/* The buttons stand together beside the profile at the right (owner, 20.11.2026: on the turned phone they stood far apart). */
+:root[data-layout="mobile"] .topbar.mobile-topbar { justify-content: flex-start; }
+:root[data-layout="mobile"] .topbar.mobile-topbar .mobile-profile { margin-left: auto; }
 
 /* ---------- content ---------- */
 :root[data-layout="mobile"] .content {
@@ -397,24 +400,27 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .sheet-objective-point { flex: none; width: 30px; height: 30px; margin: 0; border-width: 1.5px; border-radius: 8px; vertical-align: top; }
 :root[data-layout="mobile"] .sheet-objective-text { padding-top: 4px; }
 :root[data-layout="mobile"] .sheet-objective > .sheet-objective-photos { justify-self: start; }
-/* «Слои» on the phone: a window over the map, from the page's level down to the tab bar (or the screen's bottom on the full
-   screen), in every map mode (owner, 20.11.2026: «слои должны упираться вниз… это как открывается отдельная вкладка… нажимаешь
-   крестик, и только тогда появляется карта»). The page under it keeps its size; only the list scrolls, «×» stays at its top
-   right. Before, the list opened above the map and pushed it down, and on the full screen it lay hidden under the map. */
+/* «Слои» on the phone: a window over the map on the whole screen between the bars, or on the whole screen on the full-screen
+   map, in every map mode (owner, 20.11.2026: «слои должны упираться вниз… это как открывается отдельная вкладка… нажимаешь
+   крестик, и только тогда появляется карта»; then «точки на карте блок должен быть до верхнего блока. Не на него, а до
+   верхнего»). The page under it keeps its size; only the list scrolls, «×» stays at its top right. The floating «Назад»
+   steps away while it is open (it stood in the way); sideways it stands in the top bar and stays. */
 :root[data-layout="mobile"] .map-shell.layers-open .map-sidebar {
   position: fixed; z-index: 43; display: flex; flex-direction: column; padding: 0; overflow: hidden;
-  top: calc(var(--window-top) + var(--back-top-extra)); bottom: calc(var(--tabbar) + var(--gutter) + max(var(--map-room-bl), var(--map-room-br)));
-  left: calc(var(--gutter) + var(--safe-left)); right: calc(var(--gutter) + var(--safe-right));
-  border: 1px solid var(--line-strong, var(--line)); border-radius: 14px; box-shadow: 0 18px 44px rgb(0 0 0 / 55%);
+  top: calc(var(--topbar) + var(--announcement-height, 0px)); bottom: var(--tabbar); left: 0; right: 0;
+  border: 0; border-block: 1px solid var(--line-strong, var(--line)); border-radius: 0; box-shadow: none;
   animation: map-layers-in .2s var(--ease-soft) both;
 }
-:root[data-layout="mobile"][data-map-fullscreen] .map-shell.layers-open .map-sidebar {
-  z-index: 75; top: calc(var(--safe-top) + 8px + var(--back-top-extra)); bottom: calc(var(--safe-bottom) + 8px + max(var(--map-room-bl), var(--map-room-br)));
-  left: calc(var(--safe-left) + 8px); right: calc(var(--safe-right) + 8px);
+:root[data-layout="mobile"][data-map-fullscreen] .map-shell.layers-open .map-sidebar { z-index: 75; inset: 0; border: 0; }
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > .map-side-layers {
+  flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain;
+  padding: 12px calc(var(--gutter) + var(--safe-right) + 2px) 16px calc(var(--gutter) + var(--safe-left) + 2px);
 }
-:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > .map-side-layers { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 12px 12px 14px; }
+:root[data-layout="mobile"][data-map-fullscreen] .map-shell.layers-open .map-sidebar > .map-side-layers { padding-top: calc(var(--safe-top) + 12px); padding-bottom: calc(var(--safe-bottom) + 16px); }
 :root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > .map-side-layers > .map-side-title:first-child { display: flex; align-items: center; min-height: 42px; margin-top: 0 !important; padding-right: 52px; }
-:root[data-layout="mobile"] .map-layers-close { position: absolute; top: 12px; right: 12px; z-index: 2; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surf-2); color: var(--text); cursor: pointer; }
+:root[data-layout="mobile"] .map-layers-close { position: absolute; top: 12px; right: calc(var(--gutter) + var(--safe-right) + 2px); z-index: 2; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surf-2); color: var(--text); cursor: pointer; }
+:root[data-layout="mobile"][data-map-fullscreen] .map-layers-close { top: calc(var(--safe-top) + 12px); }
+:root[data-layout="mobile"]:has(.map-shell.layers-open) .phone-back { display: none; }
 @keyframes map-layers-in { from { opacity: 0; transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { :root[data-layout="mobile"] .map-shell.layers-open .map-sidebar { animation: none; } }
 :root[data-layout="mobile"] .sheet-objective-point svg { width: 16px; height: 16px; }
@@ -668,4 +674,15 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) { --map-room-tr: 0px; --map-side-r: 112px; }
   :root[data-layout="mobile"][data-map-fullscreen] .phone-back:is(.is-top-left, .is-top-right) { width: 104px; padding-inline: 10px; justify-content: center; }
   :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) .map-stage .map-hud { max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r) - var(--map-side-l) - var(--map-side-r)); }
+  /* «Назад» at the top, sideways: in the top bar between the logo and PvP (owner, 20.11.2026: «сделай кнопку назад между
+     эмблемой RaidOS и кнопкой PvP»), so the page and the map keep the whole height under the bar. The full-screen map keeps
+     it in the screen's corner (above). */
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back:is(.is-top-left, .is-top-right)) { --back-top-extra: 0px; }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back:is(.is-top-left, .is-top-right)) .content { padding-top: calc(var(--topbar) + 12px); }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back:is(.is-top-left, .is-top-right)) .topbar.mobile-topbar .mode-switch { margin-left: 112px; }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]) .phone-back:is(.is-top-left, .is-top-right) {
+    top: calc(var(--safe-top) + 5px); left: calc(var(--gutter) + var(--safe-left) + 42px); right: auto;
+    width: 104px; height: 36px; padding-inline: 10px; justify-content: center; box-shadow: none;
+  }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.map-shell.layers-open) .phone-back:is(.is-top-left, .is-top-right) { display: inline-flex; }
 }

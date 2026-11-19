@@ -8128,3 +8128,13 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   normal and full-screen map, RU and EN; intro with a faked Android/iPhone bridge. Pictures 5–7 in the side-session notes
   folder `android-layout-0-6-0-323/`. Not checked on a real phone.
 - typecheck clean; src/startup, MapsPage*, MapItemCard, styles, mobile tests pass (MapsPage.deferred alone, as before). Not released.
+
+## 2026-11-20 — Claude: top bar buttons together, «Назад» in the bar sideways, «Точки на карте» up to the top bar
+- Owner (on picture 6): sideways the top bar's buttons stood far apart — now they stand together beside the profile
+  (`justify-content: flex-start`, the profile `margin-left: auto`; upright nothing moves). Sideways «Назад» (top places)
+  stands in the top bar between the logo and PvP, so the page and the map get the height under the bar back.
+- «Точки на карте» («Слои») on the phone: from the top bar down to the tab bar, edge to edge; on the full-screen map the whole
+  screen (its list inside the safe edges). The floating «Назад» hides while it is open (sideways it stays in the bar).
+- `src/styles/mobile.css` only. Checked with the Playwright script, RU and EN, upright and sideways, normal and full-screen map,
+  overview; pictures 8–9 in `android-layout-0-6-0-323/`. typecheck clean; startup, MapsPage.keyDoor, MapItemCard, styles,
+  mobile, App, desktopBack tests pass. Not released; not checked on a real phone.
