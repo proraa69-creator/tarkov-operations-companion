@@ -8036,3 +8036,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   drafted for the owner. The VPS SSH and /health timed out once each from this PC (WARP); fine on retry.
 - Remaining: nothing of 319 checked in the game (flea reading at 2560×1440 / 3440×1440, key windows, documents);
   release mirror gc warnings.
+
+## 2026-11-19 — Claude: Season line «KORD BREACH» (21 quests) in the quest base
+
+- Owner: «этого квеста нету у нас в базе, добавь его … собери цепочку» (screenshots of «Незваные гости. Часть 1» and
+  «Звонки без ответа», Season). tarkov.dev has none of the 21 quests in any mode.
+- Branch claude/kord-breach-quests from release/production 4d8c3174. Files: src/data/kordBreachQuests.ts (new),
+  src/data/curatedQuests.ts (series added), src/data/curatedQuests.test.ts, docs/quests/kord-breach.md (chain, ids,
+  source disagreements).
+- 17 game ids (7 confirmed in the owner's logs of 19.11; Digital Puzzle's id read from the season reward conditions);
+  4 quests without a published id use `kord-breach-…` placeholders until a log names them.
+- Checks: typecheck clean; vitest src/data, src/quests, src/progression 861 passed; questBase server test 11/11; dev
+  build in Season shows all 21 in ru and en.
+- Not deployed. Remaining: map points for most objectives, quest-item ids, the 4 missing game ids.

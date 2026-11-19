@@ -1,5 +1,6 @@
 import type { Item, Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
+import { KORD_BREACH } from './kordBreachQuests'
 
 /**
  * Quests the game has and tarkov.dev does not, curated from the community sources (owner, 15.10.2026: «еще в нашей базе
@@ -1591,7 +1592,7 @@ export const NEW_BEGINNING_PVE: CuratedSeries = {
   ],
 }
 
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, LIGHTHOUSE_BTR, BOREAS_RAGMAN, SCOURGE_INVASION, HALLOWEEN_2026, NEW_BEGINNING_PVE]
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, LIGHTHOUSE_BTR, BOREAS_RAGMAN, SCOURGE_INVASION, HALLOWEEN_2026, NEW_BEGINNING_PVE, KORD_BREACH]
 
 /** The game's other ids of the curated quests → the id the app keeps the quest under (src/quests/questInputs.ts). */
 export const CURATED_QUEST_IDS_BY_OTHER: ReadonlyMap<string, string> = new Map(CURATED_SERIES.flatMap((series) => series.quests.flatMap((quest) => (quest.otherIds ?? []).map((other) => [other, quest.id] as const))))
