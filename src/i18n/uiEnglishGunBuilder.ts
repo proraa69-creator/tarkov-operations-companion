@@ -72,5 +72,5 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Ничего не подходит.', 'Nothing fits.'],
   ['Меньше отдача', 'Less recoil'], ['Больше эргономика', 'More ergonomics'], ['Дульные устройства', 'Muzzle devices'], ['Глушители', 'Suppressors'],
   ['Дульник + глушитель', 'Muzzle device + suppressor'], ['Сборка из задания', 'The task\'s build'], ['Вернуть сборку из задания', 'Back to the task\'s build'],
-  ['Скриншот сборки', 'Build screenshot'], ['Перейти к сборке оружия', 'Open in the weapon builder'], ['Меню оружия', 'Weapon menu'], ['Порядок', 'Order'], ['Комплектов нет.', 'No kits.'],
+  ['Скриншот сборки', 'Build screenshot'], ['Сложить приклад', 'Fold the stock'], ['Разложить приклад', 'Unfold the stock'], ['Перейти к сборке оружия', 'Open in the weapon builder'], ['Меню оружия', 'Weapon menu'], ['Порядок', 'Order'], ['Комплектов нет.', 'No kits.'],
 ]

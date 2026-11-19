@@ -165,18 +165,18 @@ function drawFlat(canvas: HTMLCanvasElement, drawn: Drawn, scale: number) {
  * side of a handguard), is simply not drawn (owner, 20.11.2026: «если его не видно… просто добавляй»); only a weapon without a picture
  * of its own has no drawing.
  */
-export function useBuildDrawing(build: Build): { laid: LaidBuild | null; drawn: Drawn | null; ready: boolean } {
+export function useBuildDrawing(build: Build, folded = false): { laid: LaidBuild | null; drawn: Drawn | null; ready: boolean } {
   const [index, setIndex] = useState<PartsIndex | null | undefined>(undefined)
   const [drawn, setDrawn] = useState<Drawn | null>(null)
   useEffect(() => { let alive = true; void loadPartsIndex().then((value) => { if (alive) setIndex(value) }); return () => { alive = false } }, [])
-  const laid = useMemo(() => (index ? layBuild(build, index) : null), [build, index])
+  const laid = useMemo(() => (index ? layBuild(build, index, { folded }) : null), [build, index, folded])
   const drawable = Boolean(laid?.parts.length && laid.parts[0]!.tpl === build.weaponId)
   useEffect(() => {
     if (!laid || !drawable) return
     let alive = true
     void Promise.all([
-      Promise.all(laid.parts.map((part) => bitmap(`${PART_PICTURES_BASE}${part.tpl}.webp`))),
-      Promise.all(laid.parts.map((part) => bitmap(`${PART_PICTURES_BASE}${part.tpl}.d.png`))),
+      Promise.all(laid.parts.map((part) => bitmap(`${PART_PICTURES_BASE}${part.tpl}${part.fold ? '.fold' : ''}.webp`))),
+      Promise.all(laid.parts.map((part) => bitmap(`${PART_PICTURES_BASE}${part.tpl}${part.fold ? '.fold' : ''}.d.png`))),
     ]).then(([colors, depths]) => { if (alive && colors.every(Boolean) && depths.every(Boolean)) setDrawn({ laid, colors, depths }) })
     return () => { alive = false }
   }, [laid, drawable])

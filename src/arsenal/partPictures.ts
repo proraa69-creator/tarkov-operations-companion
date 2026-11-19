@@ -11,7 +11,13 @@
 import type { Build, BuildNode } from './gunTypes'
 
 /** One part's picture: size, the pixel of its origin, the depth range (metres along the view) and its slots (position xyz, turn xyzw). */
-export interface PartAsset { w: number; h: number; o: [number, number]; d: [number, number]; s: Record<string, number[]> }
+export interface PartAsset {
+  w: number; h: number; o: [number, number]; d: [number, number]; s: Record<string, number[]>
+  /** The folded look (the game's own fold, E:\SPT-photo\weapons): a weapon with its stock folded, a stock folded with its weapon. */
+  fold?: Omit<PartAsset, 'fold' | 'fs'>
+  /** A weapon whose stock folds: the slot that folds (`mod_stock`, `mod_stock_akms`…). */
+  fs?: string
+}
 export interface PartsIndex { ppm: number; parts: Record<string, PartAsset> }
 
 type Mat3 = [number, number, number, number, number, number, number, number, number]
@@ -50,6 +56,8 @@ export interface PlacedPart {
   m: [number, number, number, number, number, number]
   /** The part's origin along the view (metres), to which its depth range adds. */
   x: number
+  /** Drawn folded: its pictures are `<id>.fold.webp` / `<id>.fold.d.png`. */
+  fold?: boolean
 }
 
 /**
@@ -67,13 +75,18 @@ export interface LaidBuild {
   centers: Record<string, [number, number]>
   /** Each drawn part's box on the picture (left, top, right, bottom) by its path. */
   boxes: Record<string, [number, number, number, number]>
+  /** The weapon's stock folds (owner, 20.11.2026: «кнопки сложить, разложить… приклад»). */
+  foldable: boolean
 }
 
 /**
  * The build laid out: every part covered by the index at its place, the picture's size (pixels at the index's scale) and the depth range.
  * `missing`: parts with no picture yet, or turned out of the side view.
  */
-export function layBuild(build: Build, index: PartsIndex): LaidBuild {
+export function layBuild(build: Build, index: PartsIndex, options: { folded?: boolean } = {}): LaidBuild {
+  const weapon = index.parts[build.weaponId]
+  const foldSlot = weapon?.fs
+  const folded = Boolean(options.folded && foldSlot)
   const ppm = index.ppm
   const placed: PlacedPart[] = []
   const missing: string[] = []
@@ -82,7 +95,10 @@ export function layBuild(build: Build, index: PartsIndex): LaidBuild {
   const partPaths: string[] = []
   const walk = (tpl: string, node: BuildNode | undefined, at: [number, number, number], given: Mat3, path: string) => {
     const turn = HINGED_BARRELS.has(tpl) ? mul(given, CLOSE_HINGE) : given
-    const asset = index.parts[tpl]
+    // folded: the weapon in its folded look, and the stock in the folding slot in its own when it has one
+    const plain = index.parts[tpl]
+    const foldsHere = folded && (path === '' || path === foldSlot) && Boolean(plain?.fold)
+    const asset = foldsHere ? plain!.fold! : plain
     if (!asset) { missing.push(tpl); return }
     // the X axis (the view) kept or turned round: the picture turns in its plane; any other turn faces the part towards the eye
     if (Math.abs(Math.abs(turn[0]) - 1) > 1e-3) { missing.push(tpl); return }
@@ -91,7 +107,7 @@ export function layBuild(build: Build, index: PartsIndex): LaidBuild {
     const cx = -at[2] * ppm
     const cy = -at[1] * ppm
     const [ux, uy] = asset.o
-    placed.push({ tpl, asset, x: at[0], m: [a, b, cx - a * ux - b * uy, d, e, cy - d * ux - e * uy] })
+    placed.push({ tpl, asset, x: at[0], m: [a, b, cx - a * ux - b * uy, d, e, cy - d * ux - e * uy], ...(foldsHere ? { fold: true } : {}) })
     partPaths.push(path)
     for (const [slotId, slot] of Object.entries(asset.s)) {
       const offset = apply(turn, [slot[0]!, slot[1]!, slot[2]!])
@@ -117,7 +133,7 @@ export function layBuild(build: Build, index: PartsIndex): LaidBuild {
     near = Math.min(near, part.x + part.asset.d[0])
     far = Math.max(far, part.x + part.asset.d[1])
   }
-  if (!placed.length) return { parts: [], missing, width: 0, height: 0, near: 0, far: 1, anchors: {}, centers: {}, boxes: {} }
+  if (!placed.length) return { parts: [], missing, width: 0, height: 0, near: 0, far: 1, anchors: {}, centers: {}, boxes: {}, foldable: Boolean(foldSlot) }
   // the box's corner to (0, 0)
   for (const part of placed) { part.m[2] -= left; part.m[5] -= top }
   for (const point of Object.values(anchors)) { point[0] -= left; point[1] -= top }
@@ -129,5 +145,5 @@ export function layBuild(build: Build, index: PartsIndex): LaidBuild {
     const ys = [0, part.asset.w].flatMap((u) => [0, part.asset.h].map((v) => part.m[3] * u + part.m[4] * v + part.m[5]))
     boxes[partPaths[index]!] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
   })
-  return { parts: placed, missing, width: Math.ceil(right - left), height: Math.ceil(bottom - top), near, far, anchors, centers, boxes }
+  return { parts: placed, missing, width: Math.ceil(right - left), height: Math.ceil(bottom - top), near, far, anchors, centers, boxes, foldable: Boolean(foldSlot) }
 }

@@ -7,7 +7,7 @@ import { ITEM_IMAGE_SCHEME } from './itemImages.js'
  * in its offline copy) ship inside the app in dist/gun-parts. The page is a file:// page, where fetch cannot read files: they come
  * through the app's own scheme, `raidos-img://parts/<file>`, from that folder only, by a strict name.
  */
-const PART_FILE = /^(?:[0-9a-f]{24}(?:\.webp|\.d\.png)|index\.json)$/
+const PART_FILE = /^(?:[0-9a-f]{24}(?:\.fold)?(?:\.webp|\.d\.png)|index\.json)$/
 const TYPES: Record<string, string> = { webp: 'image/webp', png: 'image/png', json: 'application/json' }
 
 export function gunPartFile(url: string): string | null {

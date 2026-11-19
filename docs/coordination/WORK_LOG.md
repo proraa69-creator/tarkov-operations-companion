@@ -8207,3 +8207,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Weapon builds, more: the module window stands beside the part it changes with what is on it, never over it (left or right first,
   else below or above; partPictures `boxes` by path); the tier list's right click on a weapon «Сборка оружия» lists opens it
   («Перейти к сборке оружия»; the gun catalogue loads on the «Оружие» tab only).
+- Folding stocks (owner, 20.11.2026: «кнопки сложить, разложить… приклад… на каком оружии и на каких модулях можно сложить»): the
+  helper read Foldable / FoldedSlot from the SPT templates (E:\SPT-photo\weapons\foldable.json: 46 weapons, 9 mods) and had the
+  game fold them before a render (FoldableStockView: UnfoldedRotation → FoldedRotation; RaidOsGuns modes fold / foldWith): 46 folded
+  pictures (`<id>.fold.webp/.fold.d.png`), index.json `fold` and `fs` (the slot that folds) on 42 weapons. «Сложить приклад» /
+  «Разложить приклад» on the bench of a weapon whose stock folds: the weapon in its folded look, the stock in the folding slot in its
+  own. Not done: MP7A1/A2 (the stock slides, no bone turns), the M3 telescopic stock, the Vltor/JMAC/FAB AKMS adapters.

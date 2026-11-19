@@ -47,10 +47,13 @@ export function shownLayout(build: Build, weapon: Weapon, catalog: Pick<GunCatal
  * The bench: the build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx);
  * the board of cells (Board) while a part of the build has no picture yet.
  */
-export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSelect, drawn, size, maxHeight, onExpand, popover }: {
+export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSelect, drawn, size, maxHeight, onExpand, popover, folded, onFold }: {
   layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; selected: string | null; onSelect: (key: string | null) => void
   /** No cell for the round (a Gunsmith task's build). */
   noAmmo?: boolean
+  /** The stock folded; `onFold` turns it (shown on a weapon whose stock folds). */
+  folded?: boolean
+  onFold?: (folded: boolean) => void
   drawn: Drawn | null; size: 'normal' | 'full'; maxHeight?: number; onExpand?: () => void
   /**
    * The chosen cell's modules in a window at the cell (`anchor` finds the cell's button); `avoid`: where the part being changed is on
@@ -95,8 +98,13 @@ export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSe
   const selectedPath = selected && selected !== 'ammo' ? selected.split('/') : undefined
   const linked = (path: string[]) => Boolean(selectedPath && path.length > selectedPath.length && selectedPath.every((id, index) => path[index] === id))
   const cells = new Map(layout.cells.map((cell) => [pathKey(cell.path), cell]))
+  // «Сложить приклад» / «Разложить приклад» (owner, 20.11.2026: «кнопки сложить, разложить… приклад… прямо вот в этом окне»)
+  const fold = onFold && drawn?.laid.foldable && <button type="button" className={`wb-stage-fold${folded ? ' is-on' : ''}`} onClick={() => onFold(!folded)} aria-pressed={Boolean(folded)}>
+    {uiText(folded ? 'Разложить приклад' : 'Сложить приклад')}
+  </button>
   return <div className={`wb-stage-scroll is-${size}`} ref={setRoot}>
     {expand}
+    {fold}
     <div className="wb-stage-label">
       <strong>{weapon.shortName}</strong>
       <span>{stats.weightLoaded.toFixed(2)} {uiText('кг')}</span>

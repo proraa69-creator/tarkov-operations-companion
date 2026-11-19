@@ -126,7 +126,9 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   // slot of a kind beside a filled one (src/arsenal/boardLayout.ts hiddenTwins): it shows while its filled twin is the chosen cell.
   const layout = shownLayout(build, weapon, catalog, selected)
   // The build drawn from the game's own part pictures, live (owner, 20.11.2026); the board of cells when a part has no picture yet.
-  const drawing = useBuildDrawing(build)
+  // the stock folded or not (a view of the build, not saved with it)
+  const [folded, setFolded] = useState(false)
+  const drawing = useBuildDrawing(build, folded)
   // «На весь экран» (owner, 20.11.2026): the build over the whole window, the stats in a window of their own.
   const [full, setFull] = useState(false)
   const closeFull = useCallback(() => setFull(false), [])
@@ -171,7 +173,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         onClose={() => setSelected(null)} />
       : null
   const bench = (size: 'normal' | 'full', maxHeight?: number) => <BuildBench layout={layout} weapon={weapon} stats={stats} ammo={ammo} selected={selected} onSelect={setSelected}
-    drawn={drawing.drawn} size={size} maxHeight={maxHeight} onExpand={size === 'normal' ? () => setFull(true) : undefined}
+    drawn={drawing.drawn} size={size} maxHeight={maxHeight} onExpand={size === 'normal' ? () => setFull(true) : undefined} folded={folded} onFold={setFolded}
     popover={(size === 'full') === full ? pickAt : undefined} />
 
   return <div className="wb-layout">
