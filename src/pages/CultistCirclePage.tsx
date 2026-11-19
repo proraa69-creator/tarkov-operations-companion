@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Search, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
@@ -76,7 +76,9 @@ export function CultistCirclePage() {
   const found = useHideoutFound(state.activeProfile.id, mode)
   const [query, setQuery] = useState('')
   const [neededOnly, setNeededOnly] = useState(false)
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  // `?open=<exchange>`: the exchange a «Где взять» row of «Убежище» points to (hideout/WhereToGet.tsx)
+  const [params] = useSearchParams()
+  const [selectedKey, setSelectedKey] = useState<string | null>(() => params.get('open'))
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const needs = useMemo(() => {
     const byItem = new Map<string, CircleNeed[]>()

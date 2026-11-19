@@ -2,11 +2,13 @@ import { ChevronRight, Skull, Target, Warehouse } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
+import { HideoutView } from '../hideout/HideoutView'
 import '../styles/hideoutStash.css'
 
 /**
  * «Убежище и квесты» in «Экономика» (owner, 28.10.2026: «два отдельные кнопки будут. Убежище и квесты»): one opens
  * «Что собрать для убежища», the other the same stash for the quests' items; «Назад» back here is the app's own (AppShell; the pages had a second one, removed — owner, 28.10.2026).
+ * Above them the hideout itself, as in the game (hideout/HideoutView.tsx, owner, 20.11.2026).
  */
 export function HideoutHubPage() {
   const { raidMode } = useAppState()
@@ -18,6 +20,7 @@ export function HideoutHubPage() {
         <p className="page-subtitle">{uiText('Что собрать: предметы на улучшения убежища или предметы для квестов.')}</p>
       </div>
     </header>
+    <HideoutView />
     <div className="hideout-hub-choices">
       <Link to="/hideout/stash" className="panel hideout-hub-choice">
         <Warehouse size={30} aria-hidden="true" />
