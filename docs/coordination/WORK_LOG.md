@@ -8069,3 +8069,14 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   44476049917 green, publisher started by hand at 07:44 UTC on the owner's go-ahead; version.json and mobile.json show
   0.6.0-321 (861aa944). News: two lines only on the owner's word («Ключи» follows the map, «Оптимизация карты в рейде»).
 - Remaining: check exits after O and «Ключи рядом» in a real raid; the four KORD BREACH ids; map points of the line.
+
+## 2026-11-19 — Claude: «Что-то мне это напоминает...» back on every map and in the raid requirements
+- Player chat (PC, PvE): the WI-FI cameras of Fence's «Что-то мне это напоминает...» were missing from «Требования рейда»
+  and the quest was not on the map; only a squad mate's copy showed. The quest was active from the logs, not put aside,
+  no objective ticked (server mirror; reproduced in a dev window with that player's PvE quest statuses, data removed after).
+- Cause: the report 165 rule (de52ec71, 15.11) made an objective wait for an earlier one on another map that shares an item.
+  All 27 objectives plant the same camera, so every map waited for Streets and the quest stayed on Streets only.
+- Fix (`src/progression/mapObjectives.ts`): only an earlier find (findItem / findQuestItem) holds a later objective back.
+  Test in `mapObjectives.test.ts`. Checked in the dev window: Customs requirements «WI-FI Камера ×7» (3 for this quest),
+  the quest in Lighthouse's list. typecheck clean; progression/maps/pages tests pass (three MapsPage files only alone, as before).
+- Branch claude/cameras-every-map; not released (needs an app version, the owner decides).

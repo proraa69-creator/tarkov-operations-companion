@@ -85,6 +85,16 @@ describe('an objective that waits for the one before it on another map', () => {
     expect(mapObjectivesWaiting(butcher, 'factory', progressWith({ butcher: 'active' }))).toBe(false)
   })
 
+  // a player, 19.11.2026: «не отображает в подготовке к рейду что нужно взять вифи камеры… и так же на карте его нет»
+  it('the same item planted on several maps: every map open at once («Что-то мне это напоминает...»)', () => {
+    const reference = quest('reference', 'Что-то мне это напоминает...', {
+      mapIds: ['streets-of-tarkov', 'customs', 'lighthouse'],
+      objectiveDetails: [step('cam-streets', 'plantItem', ['streets-of-tarkov'], ['wifi-camera']), step('cam-customs', 'plantItem', ['customs'], ['wifi-camera']),
+        step('cam-lighthouse', 'plantItem', ['lighthouse'], ['wifi-camera'])],
+    })
+    for (const map of ['streets-of-tarkov', 'customs', 'lighthouse']) expect(mapObjectivesClosed(reference, map, progressWith({ reference: 'active' }))).toBe(false)
+  })
+
   it('an item found on any map holds nothing back, nor does a map the quest has nothing on', () => {
     const anywhere = quest('anywhere', 'Где угодно', { objectiveDetails: [step('find', 'findItem', [], ['p22']), step('plant', 'plantItem', ['lighthouse'], ['p22'])] })
     expect(mapObjectivesWaiting(anywhere, 'lighthouse', progressWith({ anywhere: 'active' }))).toBe(false)
