@@ -8183,3 +8183,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   «Цена оружия»: every trader at the top, the flea open — any build can be made. Tests: arsenal + weapon builds + i18n 166 pass;
   typecheck and lint clean. Not released. Left: 348 parts newer than the offline copy (a helper copies their bundles from the
   installed game, read-only, into E:), side-mounted parts turned to the eye are not drawn yet (the build falls back to the board).
+- Test exe for the owner (20.11.2026, «собери приложение тестовое… добавь все модули»): owner build of claude/quest-row-tags at
+  608733bb («Build 0.6.0-323 608733bb · owner · owner e-mails: 1»), copied to the desktop as «Raid OS тест сборки оружия.exe»
+  (193 MB); app.asar holds dist/gun-parts (4277 files: 2138 parts) and the raidos-img://parts responder (electron/gunParts.ts,
+  2 tests). Not started here (the real shell opens the owner's data); not released. Incident on the way: removing the
+  node_modules junction from Git Bash failed silently and `npm ci` in raidos-kord-breach emptied most of
+  raidos-map-tiles-negative/node_modules through it (460 → 81); restored with `npm install` there (460 again; electron, koffi,
+  sharp checked), raidos-kord-breach now has its own node_modules (npm ci, 461).
