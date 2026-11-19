@@ -8098,3 +8098,19 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Released 0.6.0.323 on the owner's word («Да, выпускай»): 0dba4c89 on release/production; the gate's first run failed
   on the known flaky server test «mirror storage: two storages on one folder» (client-only change), rerun of the failed
   job green (44530897532 attempt 2); the timer started the publisher; version.json 0.6.0-323, mobile.json 0.6.0.323.
+
+## 2026-11-20 — Claude: phone layout fixes from the owner's Android 0.6.0.323 screenshots
+- Top bar: the profile button was an empty square. The phone rule hid every `span` in `.profile-chip`, and with prestige > 0
+  the badge sits in a span (`op-prestige-chip`); now only the nickname hides (`src/styles/mobile.css`).
+- Overview: «Текущие задания N» and the map priority tiles beside it are stretched to one height on the phone
+  (`src/styles/overviewEdit.css`, phone rules only).
+- Maps: the «Листать» page-scroll strip at the map's right edge is removed (component, CSS, four English strings; the
+  MapsPage.keyDoor test now checks it is absent).
+- «Ещё» sheet: the head («Назад», «РАЗДЕЛЫ», «×») stays fixed inside the sheet and only the sections scroll; the sheet has its
+  own «Назад» (`SheetBackButton`, `src/mobile/backNavigation.tsx`) and the floating one hides while the sheet is open.
+- Full-screen map sideways: with «Назад» at the top the map's top row now starts beside it on the same line (`--map-side-l/-r`,
+  «Назад» one width there) instead of a row lower; upright layout unchanged.
+- Checked with a Playwright script against the dev renderer (412×915 and 915×412, Android-like safe-area insets, prestige 2,
+  RU and EN, «Назад» in all four corners); before→after pictures in the side-session notes folder
+  (`android-layout-0-6-0-323/`). Not checked on a real phone.
+- typecheck clean; 36 related test files pass (MapsPage.keyDoor, mobile, styles, App, Dashboard, MapPriority, i18n). Not released.

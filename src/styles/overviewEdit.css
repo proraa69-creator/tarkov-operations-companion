@@ -218,6 +218,13 @@
 :root[data-layout="mobile"] .raid-tasks { padding: 5px 9px 6px; }
 :root[data-layout="mobile"] .raid-tasks > strong { font-size: 19px; }
 :root[data-layout="mobile"] .map-priority.is-inline .map-priority-grid { grid-auto-columns: minmax(118px, 128px); scrollbar-width: none; }
+/* «Текущие задания N» and the map tiles beside it one height (owner, 19.11.2026: the count stood taller than the tiles):
+   the row stretches them all, the tiles keep their text in the middle. */
+:root[data-layout="mobile"] .raid-top { align-items: stretch; }
+:root[data-layout="mobile"] .raid-tasks { justify-content: center; }
+:root[data-layout="mobile"] .map-priority.is-inline { align-items: stretch; }
+:root[data-layout="mobile"] .map-priority.is-inline .map-priority-grid { padding: 0; }
+:root[data-layout="mobile"] .map-priority.is-inline .map-priority-tile { align-content: center; }
 /* the phone: a sheet from the bottom, as in the mockup */
 :root[data-layout="mobile"] .block-chooser-backdrop { place-items: end center; padding: 0; }
 :root[data-layout="mobile"] .block-chooser { width: 100%; max-height: 80dvh; border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); animation: block-chooser-up .22s cubic-bezier(.16, 1, .3, 1); }

@@ -13,6 +13,7 @@ import { unreadNotifications, useNotifications } from '../notifications/notifica
 import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
 import { replaceTab, tabsOf, useSavedTabs } from './mobileTabs'
 import { useHold } from './useHold'
+import { SheetBackButton } from './backNavigation'
 
 /**
  * Owner, 13.10.2026: «в нижнем меню убери раздел миникарта … вместо миникарты сделай оружейника туда» (the position
@@ -144,24 +145,29 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, 
         <div className="mobile-more-backdrop" onClick={() => setMoreOpen(false)}>
           <div className="panel mobile-more-sheet" role="dialog" aria-modal="true" aria-label={uiText(locale === 'en' ? 'More' : 'Ещё')} onClick={(event) => event.stopPropagation()}>
             <div className="mobile-more-grip" aria-hidden />
+            {/* «Назад» and «×» on one line at the top of the sheet; only the sections below scroll (owner, 19.11.2026:
+                the floating «Назад» stood over the sheet's edge and the «×» was cut under it). */}
             <div className="mobile-more-head">
+              <SheetBackButton onLeave={() => setMoreOpen(false)} />
               <span className="nav-label">{uiText(locale === 'en' ? 'SECTIONS' : 'РАЗДЕЛЫ')}</span>
               <button type="button" className="icon-button" onClick={() => setMoreOpen(false)} aria-label={uiText('Закрыть')}><X size={18} /></button>
             </div>
-            <nav className="mobile-more-grid">
-              {moreEntries.map((entry) => {
-                const Icon = entry.icon
-                if (!entry.to) return <button type="button" key={sectionId(entry)} className="nav-link mobile-more-link" onClick={() => { setMoreOpen(false); openAction(entry.action) }}><Icon size={20} /><span>{label(entry)}</span>{countOf(entry)}</button>
-                return <NavLink key={entry.to} to={entry.to} end={entry.to === '/'} className={({ isActive }) => `nav-link mobile-more-link${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon size={20} /><span>{label(entry)}</span>{countOf(entry)}</NavLink>
-              })}
-            </nav>
-            <div className="mobile-more-tools">
-              <button type="button" className="button" onClick={() => { setMoreOpen(false); onSearch() }}><Search size={16} />{uiText(locale === 'en' ? 'Search' : 'Поиск')}</button>
-              <button type="button" className="button" onClick={onRefresh}><RefreshCw size={16} className={refreshing ? 'spin' : ''} />{uiText(locale === 'en' ? 'Refresh' : 'Обновить')}</button>
-              <div className="locale-switch" aria-label={uiText('Язык интерфейса')}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+            <div className="mobile-more-body">
+              <nav className="mobile-more-grid">
+                {moreEntries.map((entry) => {
+                  const Icon = entry.icon
+                  if (!entry.to) return <button type="button" key={sectionId(entry)} className="nav-link mobile-more-link" onClick={() => { setMoreOpen(false); openAction(entry.action) }}><Icon size={20} /><span>{label(entry)}</span>{countOf(entry)}</button>
+                  return <NavLink key={entry.to} to={entry.to} end={entry.to === '/'} className={({ isActive }) => `nav-link mobile-more-link${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon size={20} /><span>{label(entry)}</span>{countOf(entry)}</NavLink>
+                })}
+              </nav>
+              <div className="mobile-more-tools">
+                <button type="button" className="button" onClick={() => { setMoreOpen(false); onSearch() }}><Search size={16} />{uiText(locale === 'en' ? 'Search' : 'Поиск')}</button>
+                <button type="button" className="button" onClick={onRefresh}><RefreshCw size={16} className={refreshing ? 'spin' : ''} />{uiText(locale === 'en' ? 'Refresh' : 'Обновить')}</button>
+                <div className="locale-switch" aria-label={uiText('Язык интерфейса')}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+              </div>
+              {/* Owner, 13.10.2026: «на телефоне тоже пиши, какая версия приложения». */}
+              <p className="mobile-more-version">{uiText(locale === 'en' ? 'Version' : 'Версия')} {version}{nativePlatform() === 'ios' ? ' · iPhone' : nativePlatform() === 'android' ? ' · Android' : ''}</p>
             </div>
-            {/* Owner, 13.10.2026: «на телефоне тоже пиши, какая версия приложения». */}
-            <p className="mobile-more-version">{uiText(locale === 'en' ? 'Version' : 'Версия')} {version}{nativePlatform() === 'ios' ? ' · iPhone' : nativePlatform() === 'android' ? ' · Android' : ''}</p>
           </div>
         </div>
       )}
@@ -173,11 +179,13 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, 
               <span className="nav-label">{replaceTitle}</span>
               <button type="button" className="icon-button" onClick={() => setReplacing(null)} aria-label={uiText('Закрыть')}><X size={18} /></button>
             </div>
-            <div className="mobile-more-grid">
-              {moreEntries.map((entry) => {
-                const Icon = entry.icon
-                return <button type="button" key={sectionId(entry)} className="nav-link mobile-more-link" onClick={() => { replaceTab(barIds, replacing!, sectionId(entry)); setReplacing(null) }}><Icon size={20} /><span>{label(entry)}</span></button>
-              })}
+            <div className="mobile-more-body">
+              <div className="mobile-more-grid">
+                {moreEntries.map((entry) => {
+                  const Icon = entry.icon
+                  return <button type="button" key={sectionId(entry)} className="nav-link mobile-more-link" onClick={() => { replaceTab(barIds, replacing!, sectionId(entry)); setReplacing(null) }}><Icon size={20} /><span>{label(entry)}</span></button>
+                })}
+              </div>
             </div>
           </div>
         </div>

@@ -14,7 +14,6 @@ import {
   AlertTriangle, ArrowLeft, BadgeCheck, BadgeQuestionMark, Key, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
   FlaskConical, HeartPulse, KeyRound, Layers, LocateFixed, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp, Map as WorldMapIcon,
 } from 'lucide-react'
-import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapFloors, PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
 import { WORLD_MAP_ID, WorldMapView } from '../maps/WorldMapView'
 import { noteSidebarNavigation } from '../app/desktopBack'
@@ -135,7 +134,7 @@ import { MapDragGuard } from '../maps/mapDragGuard'
 import { MapFloorWheel, useGameFloorWheel } from '../maps/mapFloorWheel'
 import { repeatsTitle } from '../maps/repeatsTitle'
 import { useMapFloorWheel } from '../account/trialFeatures'
-import { appStoreRules, isDesktopShell, useMobileLayout } from '../platform'
+import { isDesktopShell, useMobileLayout } from '../platform'
 import { MapPanelEye, MapPanelsSettings, useMapPanels } from '../maps/MapPanels'
 import { MapSkillTimer, MapSkillTimerSettings } from '../components/MapSkillTimer'
 import { useSkillTimerEnabled } from '../components/skillTimer'
@@ -1599,8 +1598,6 @@ export function MapsPage() {
           keyCard={(keyId) => itemsById.get(keyId) && <KeySpotCard item={itemsById.get(keyId)!} items={data.items} mode={raidMode} owned={ownedKeys.get(keyId) ?? 0}
             questRow={questKeys.find((row) => row.item.id === keyId)} favorite={favoriteKeys.has(keyId)} onFavorite={() => setQuestKeyFavorite(profileId, raidMode, keyId, !favoriteKeys.has(keyId))} />} />}
         {placePhotos.overlay}
-        {/* not in the iPhone app (owner, 12.11.2026: «на карте удали ползунок справа») */}
-        {mobile && !fullscreen && !appStoreRules() && <MapScrollRail />}
         {mobile && <PhoneMapFullscreenToggle fullscreen={fullscreen} onToggle={() => setFullscreen(!fullscreen)} />}
         {!mobile && <MapExpandToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />}
         {/* The phone: «Квесты» and the floors side by side at the bottom left (owner, 12.11.2026: «они должны быть рядом»). */}
@@ -2212,22 +2209,6 @@ function MapExpandToggle({ expanded, onToggle }: { expanded: boolean; onToggle: 
   return <button type="button" className={`map-expand-toggle${expanded ? ' is-expanded' : ''}`} aria-pressed={expanded} aria-label={label} title={label} onClick={onToggle}>
     {expanded ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}
   </button>
-}
-
-/**
- * Phone: a strip at the right edge of the map that scrolls the page, not the map (owner, 17.10.2026: «когда на весь
- * экран карта, а меню нету в кадре, то невозможно листнуть вниз или вверх, потому что листается карта»). A finger drags
- * the page natively (touch-action: pan-y, outside Leaflet); the arrows move it by most of a screen. 20.10.2026 («сделай
- * аккуратнее, приятнее, чтобы человек понимал, что туда можно нажать и пролистать… мимо неё»): a slim pill that says
- * «Листать» between the arrows.
- */
-function MapScrollRail() {
-  const scrollBy = (direction: 1 | -1) => window.scrollBy({ top: direction * Math.round(window.innerHeight * 0.6), behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
-  return <div className="map-scroll-rail" title={uiText('Здесь страница листается мимо карты')}>
-    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(-1)} aria-label={uiText('Прокрутить страницу вверх')}><ChevronUp size={16} /></button>
-    <span className="map-scroll-rail-grip" aria-hidden="true"><span className="map-scroll-rail-label">{uiText('Листать')}</span></span>
-    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(1)} aria-label={uiText('Прокрутить страницу вниз')}><ChevronDown size={16} /></button>
-  </div>
 }
 
 /**

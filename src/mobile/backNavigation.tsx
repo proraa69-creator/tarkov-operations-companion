@@ -17,6 +17,19 @@ export function PhoneBackButton() {
 }
 
 /**
+ * «Назад» in the head of the «Ещё» sheet, beside its «×»: the floating one hides while the sheet is open (styles/mobile.css),
+ * as it stood over the sheet's top edge (owner, 19.11.2026). It closes the sheet and goes to the page before.
+ */
+export function SheetBackButton({ onLeave }: { onLeave: () => void }) {
+  const navigate = useNavigate()
+  useLocation()
+  usePageHistory()
+  const delta = backDelta()
+  if (delta == null) return null
+  return <button type="button" className="mobile-more-back" onClick={() => { onLeave(); navigate(delta) }} aria-label={uiText('Назад')}><ArrowLeft size={18} /><span>{uiText('Назад')}</span></button>
+}
+
+/**
  * Settings: the place of «Назад» — four corners and a small phone picture where the button moves at once and can be
  * tapped (it does nothing there), so the player checks at once whether the place suits him (owner, 17.10.2026).
  */
