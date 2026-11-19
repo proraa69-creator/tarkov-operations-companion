@@ -234,8 +234,12 @@ export function QuestsPage() {
               </span>
               </button>
               {uiText(!isStoryQuest(quest) && (quest.anyMap || quest.mapId || quest.mapIds?.length || stage?.mapIds.length) && <Link className="quest-map-pin" to={mapLink(quest, stageIndex)} title={uiText("Показать на карте")} aria-label={uiText(`Показать ${quest.name} на карте`)} onClick={(event) => event.stopPropagation()}><MapPin size={15} /></Link>)}
-              <QuestStatusTag status={info?.status ?? 'unknown'} kappa={quest.kappa} story={isStoryQuest(quest)} />
-              <ManualTag progress={progress} questId={quest.id} locale={locale} />
+              {/* the tags side by side in one cell: a second one («капа») no longer drops to a line of its own and makes the
+                  row taller (owner, 19.11.2026: «из-за значка каппа блок с квестом растянут… блоки одного размера») */}
+              <span className="quest-row-tags">
+                <QuestStatusTag status={info?.status ?? 'unknown'} kappa={quest.kappa} story={isStoryQuest(quest)} />
+                <ManualTag progress={progress} questId={quest.id} locale={locale} />
+              </span>
             </div>
           }))}
           {uiText(!filtered.length && <div className="empty-state"><div><Search size={26} /><p>{uiText(deferredEmpty ? 'Это в «Отложенных квестах»: вернуть задания можно кнопкой «Отложенные квесты».' : emptyCopy(statusFilter))}</p></div></div>)}

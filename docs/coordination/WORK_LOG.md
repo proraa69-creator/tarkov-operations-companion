@@ -8098,3 +8098,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Released 0.6.0.323 on the owner's word («Да, выпускай»): 0dba4c89 on release/production; the gate's first run failed
   on the known flaky server test «mirror storage: two storages on one folder» (client-only change), rerun of the failed
   job green (44530897532 attempt 2); the timer started the publisher; version.json 0.6.0-323, mobile.json 0.6.0.323.
+
+## 2026-11-20 — Claude: quest rows keep one height with the Kappa tag
+- Owner (photo of «Квесты» → «Текущие»): a current Kappa quest's row was taller — its second tag («капа») dropped to a grid row
+  of its own. `src/pages/QuestsPage.tsx`: the row's tags (status, «капа», the hand-set mark) sit in one cell `.quest-row-tags`
+  (`src/styles/pages.css`, inline-flex, no wrap). Checked in the dev page: four current Kappa quests, rows 61 px each, tags side
+  by side. typecheck clean, QuestsPage tests pass. Branch claude/quest-row-tags, not released.

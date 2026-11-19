@@ -655,6 +655,9 @@ a.quest-stage:hover { color: var(--text); }
 .segmented-filter button.active { color: var(--text); background: #29392e; }
 .quest-catalog-card { min-height: 58px; padding: 11px 14px; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; overflow: hidden; }
 .quest-catalog-card.quest-map-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+/* a row's tags («Текущее», «капа», a hand-set mark) side by side in one cell, so every row keeps one height */
+.quest-row-tags { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
+.quest-row-tags:empty { display: none; }
 /* «Квесты на карте»: «Сделал в этом рейде» — the player's own note for the raid, not quest progress (QuestRaidCheck). */
 .quest-catalog-card.quest-map-row.has-raid-check { grid-template-columns: minmax(0, 1fr) auto; }
 .quest-raid-check { width: 32px; height: 32px; flex: 0 0 auto; padding: 0; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: transparent; color: var(--green); cursor: pointer; transition: background-color .18s var(--ease-soft), border-color .18s var(--ease-soft), color .18s var(--ease-soft); }
