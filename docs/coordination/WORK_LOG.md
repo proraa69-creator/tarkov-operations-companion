@@ -8055,6 +8055,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   failures (appVersion, AdminPanelPage, staleServer, linux/updater ×3, release-policy, cache-item-images) plus maps tests
   that pass alone; lint errors only in untouched files (SubscriptionExpiryNotice, MapSlideshow, screenScanSync, questText).
 - Gate green; publisher started by hand.
-- Open: glass comes on once for every player who never picked a style (`tarkov-app-glass-shown`) — owner to confirm;
-  in glass the day/night sky gradient is under the glass panes (palette shows). Key card flea level shows only while the
+- Published: version.json and mobile.json show 0.6.0-320. Owner, 19.11.2026: glass stays on once for every player who
+  never picked a style («Оставить», `tarkov-app-glass-shown`).
+- Open: in glass the day/night sky gradient is under the glass panes (palette shows). Key card flea level shows only while the
   flea is locked. Saved builds of weapons now excluded still list in «Избранные».
