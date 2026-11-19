@@ -66,4 +66,8 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Сборки игроков', 'Players\' builds'], ['Бюджетная', 'Budget'], ['Топ', 'Top'], ['только заводские модули', 'stock parts only'],
   ['Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.', 'Only parts added over the stock build: stock parts come with the weapon.'],
   ['Сбалансированно', 'Balanced'],
+  ['На весь экран', 'Full screen'], ['Сборка на весь экран', 'Build in full screen'], ['Вернуться к обычному виду (Esc)', 'Back to the normal view (Esc)'],
+  ['Перетащите окно, куда удобно', 'Drag the window anywhere'],
+  ['Показать все модули', 'Show all mods'], ['Не учитывать уровень персонажа и лояльность торговцев: открыты все модули игры', 'Ignore your level and trader loyalty: every mod in the game is open'],
+  ['Ничего не подходит.', 'Nothing fits.'],
 ]

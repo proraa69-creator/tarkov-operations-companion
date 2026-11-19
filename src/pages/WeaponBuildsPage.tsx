@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Check, ChevronDown, Heart, Layers, Lock, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Heart, Layers, Lock, Maximize2, Minimize2, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
 import { hasInstallable, installReplacing, missingRequired, presetBuild, removePart, slotCandidates, STOCK_SLOT, stockSlotTaken, type SlotCell } from '../arsenal/buildModel'
-import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
+import { boardLayout, hiddenTwins, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
+import { useBuildDrawing, type Drawn } from '../arsenal/BuildPicture'
+import { BuildStage, type StageSlot } from '../arsenal/BuildStage'
+import { AmmoGrid, ModGrid } from '../arsenal/ModGrid'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
-import { cheapestOffer, computeExtraCost, computeStats, unlockHint, type BuildCost, type BuildStats, type PurchaseAccess, type UnlockHint } from '../arsenal/buildStats'
+import { cheapestOffer, computeExtraCost, computeStats, FULL_ACCESS, unlockHint, type BuildCost, type BuildStats, type PurchaseAccess, type UnlockHint } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, renameSavedBuild, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
@@ -122,7 +126,14 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   // The flea by the character's level alone (owner, 15.11.2026: «если вернуть по уровню персонажа… показывает модули,
   // которые доступны на барахолке в зависимости от его уровня… кнопку «Барахолка доступна» убирай»): the market from its
   // level in this mode, each item from its own (tarkov.dev minLevelForFlea, 20–40 for many), src/gunsmith/traderLevels.ts.
-  const access = shop.access
+  // «Показать все модули» (owner, 20.11.2026: «не будет опираться на ограничения уровня или уровень лояльности торговца… можно
+  // будет собрать любую сборку»): every trader at its top, the flea open, every quest's unlock counted.
+  const [allModules, setAllModulesState] = useState(readAllModules)
+  const setAllModules = (next: boolean) => {
+    setAllModulesState(next)
+    try { localStorage.setItem(ALL_MODULES_KEY, next ? '1' : '0') } catch { /* per-viewer convenience only */ }
+  }
+  const access = allModules ? FULL_ACCESS : shop.access
   // Remounted per mode (key below): PvP, PvE and Season lists never mix.
   const [saved, setSaved] = useState<SavedBuild[]>(() => loadSavedBuilds(raidMode))
   // The saved build opened from «Избранные»: «Сохранить» after a change keeps it (owner, 19.11.2026: «сборки можно редактировать и нажать «Сохранить» на этой сборке»).
@@ -135,9 +146,17 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const stockStats = computeStats({ ...stock, ammoId: build.ammoId }, weapon, catalog, ammo)
   const extra = computeExtraCost(build, stock, catalog, access)
   const gun = useGunPrice(weapon, shop)
-  // Empty slots nothing can go into right now are not drawn (an installed part conflicts with every candidate).
+  // Empty slots nothing can go into right now are not drawn (an installed part conflicts with every candidate), nor a second empty
+  // slot of a kind beside a filled one (src/arsenal/boardLayout.ts hiddenTwins): it shows while its filled twin is the chosen cell.
   const fullLayout = boardLayout(build, weapon, catalog)
-  const layout = { ...fullLayout, cells: fullLayout.cells.filter((cell) => cell.part || (cell.slot.required && !stockSlotTaken(build, cell.path, catalog)) || hasInstallable(build, cell.path, cell.slot, catalog, weapon)) }
+  const twins = hiddenTwins(fullLayout.cells, pathKey)
+  const twinShown = (key: string) => { const twin = twins.get(key); return !twin || selected === twin || selected === key }
+  const layout = { ...fullLayout, cells: fullLayout.cells.filter((cell) => (cell.part || (cell.slot.required && !stockSlotTaken(build, cell.path, catalog)) || hasInstallable(build, cell.path, cell.slot, catalog, weapon)) && twinShown(pathKey(cell.path))) }
+  // The build drawn from the game's own part pictures, live (owner, 20.11.2026); the board of cells when a part has no picture yet.
+  const drawing = useBuildDrawing(build)
+  // «На весь экран» (owner, 20.11.2026): the build over the whole window, the stats in a window of their own.
+  const [full, setFull] = useState(false)
+  const closeFull = useCallback(() => setFull(false), [])
   const missing = missingRequired(build, weapon, catalog)
   const code = encodeBuild(build, catalog) ?? ''
   const savedHere = saved.find((entry) => entry.code === code)
@@ -162,6 +181,41 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const saveOpened = () => { if (opened && code) setSaved(saveBuild(raidMode, { id: opened.id, name: opened.name, weaponId: build.weaponId, code, ...(opened.favorite ? { favorite: true as const } : {}) })) }
   const selectedCell = layout.cells.find((cell) => pathKey(cell.path) === selected)
   const side = useSideFit()
+  const picker = selected === 'ammo'
+    ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => setBuild({ ...build, ammoId: ammoId || undefined })} onClose={() => setSelected(null)} />
+    : selectedCell
+      ? <ModPicker key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access} everything={allModules}
+        onPick={(itemId) => {
+          // A part that conflicts with installed ones takes them off (owner, 20.10.2026): what came off is said.
+          const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon)
+          if (!done) return
+          setBuild(done.build)
+          setReplaced(done.removed.length ? done.removed.map((part) => part.shortName || part.name) : null)
+        }}
+        onPickKit={(kit) => { setBuild(kit.build); setReplaced(kit.removed.length ? kit.removed.map((part) => part.shortName || part.name) : null) }}
+        onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null) }}
+        onClose={() => setSelected(null)} />
+      : null
+  // The drawn build: a slot's modules in a small window at its cell, like the game's (src/arsenal/ModGrid.tsx); the side list stays
+  // for the board of cells.
+  const atCell = Boolean(drawing.drawn)
+  const pickAt = (anchor: () => Element | null) => selected === 'ammo'
+    ? <AmmoGrid options={ammoOptions} selected={build.ammoId} access={access} everything={allModules} anchor={anchor} onPick={(ammoId) => { setBuild({ ...build, ammoId: ammoId || undefined }); setSelected(null) }} onClose={() => setSelected(null)} />
+    : selectedCell
+      ? <ModGrid key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access} everything={allModules} anchor={anchor}
+        onPick={(itemId) => {
+          const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon)
+          if (!done) return
+          setBuild(done.build)
+          setReplaced(done.removed.length ? done.removed.map((part) => part.shortName || part.name) : null)
+          setSelected(null)
+        }}
+        onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null); setSelected(null) }}
+        onClose={() => setSelected(null)} />
+      : null
+  const bench = (size: 'normal' | 'full', maxHeight?: number) => <Bench layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected}
+    drawn={drawing.drawn} size={size} maxHeight={maxHeight} onExpand={size === 'normal' ? () => setFull(true) : undefined}
+    popover={atCell && (size === 'full') === full ? pickAt : undefined} />
 
   return <div className="wb-layout">
 
@@ -175,6 +229,10 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         <label className={`wb-gun-price-toggle${gun.on ? ' is-on' : ''}`} title={uiText('Добавить к общей цене цену самого оружия')}>
           <input type="checkbox" checked={gun.on} onChange={(event) => gun.setOn(event.target.checked)} />
           <span>{uiText('Цена оружия')}</span>
+        </label>
+        <label className={`wb-gun-price-toggle${allModules ? ' is-on' : ''}`} title={uiText('Не учитывать уровень персонажа и лояльность торговцев: открыты все модули игры')}>
+          <input type="checkbox" checked={allModules} onChange={(event) => setAllModules(event.target.checked)} />
+          <span>{uiText('Показать все модули')}</span>
         </label>
         <span className="wb-toolbar-fill" />
         <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere ?? opened} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('players') }} />
@@ -196,26 +254,14 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
       {missing.length > 0 && <div className="wb-alert" role="status"><AlertTriangle size={14} />{uiText('Оружие не стреляет без')}: {missing.map((entry) => entry.slot.name).join(', ')}</div>}
       {replaced && <div className="wb-alert is-info" role="status"><Layers size={14} />{uiText('Снято, потому что не ставится вместе с новой деталью')}: {replaced.join(', ')}</div>}
 
-      <Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected} />
+      {bench('normal')}
 
       <PurchaseList cost={extra} access={access} gun={gun.on ? { weapon, choice: gun.choice } : undefined} />
     </section>
 
     <aside className="wb-side" ref={side}>
-      {selected === 'ammo'
-        ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => setBuild({ ...build, ammoId: ammoId || undefined })} onClose={() => setSelected(null)} />
-        : selectedCell
-          ? <ModPicker key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access}
-            onPick={(itemId) => {
-              // A part that conflicts with installed ones takes them off (owner, 20.10.2026): what came off is said.
-              const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon)
-              if (!done) return
-              setBuild(done.build)
-              setReplaced(done.removed.length ? done.removed.map((part) => part.shortName || part.name) : null)
-            }}
-            onPickKit={(kit) => { setBuild(kit.build); setReplaced(kit.removed.length ? kit.removed.map((part) => part.shortName || part.name) : null) }}
-            onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null) }}
-            onClose={() => setSelected(null)} />
+      {!full && !atCell && picker
+        ? picker
           : <section className="panel wb-saved" aria-label={uiText('Сборки')}>
             <div className="wb-side-tabs" role="tablist">
               {/* Owner, 04.11.2026: «Мои сборки», «Готовые сборки» и «Сборки игроков». */}
@@ -226,6 +272,9 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
             {sideTab === 'players' && <PlayerBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
           </section>}
     </aside>
+    {full && <FullBench weapon={weapon} stats={stats} stock={stockStats} picker={atCell ? null : picker} selected={selected} onSelect={setSelected} onClose={closeFull}>
+      {(maxHeight) => bench('full', maxHeight)}
+    </FullBench>}
   </div>
 }
 
@@ -410,6 +459,185 @@ function HandlingRow({ stats }: { stats: BuildStats }) {
 // The board: the weapon in the middle, every slot around it where it sits on the gun (src/arsenal/boardLayout.ts).
 // ------------------------------------------------------------------------------------------------------------
 
+/**
+ * The bench: the build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx);
+ * the board of cells (Board) while a part of the build has no picture yet.
+ */
+function Bench({ layout, weapon, stats, ammo, isStock, selected, onSelect, drawn, size, maxHeight, onExpand, popover }: {
+  layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; isStock: boolean; selected: string | null; onSelect: (key: string | null) => void
+  drawn: Drawn | null; size: 'normal' | 'full'; maxHeight?: number; onExpand?: () => void
+  /** The chosen cell's modules in a window at the cell (`anchor` finds the cell's button). */
+  popover?: (anchor: () => Element | null) => ReactNode
+}) {
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
+  const anchor = useCallback(() => (selected && root ? root.querySelector(`[data-cell="${CSS.escape(selected)}"]`) : null), [root, selected])
+  // A phone keeps the whole build on one screen, on its side too: the stage no taller than the window
+  const windowHeight = useWindowHeight()
+  const phone = isMobileLayout()
+  const stageHeight = maxHeight ?? (phone ? Math.max(240, windowHeight - 130) : undefined)
+  const slots = useMemo<StageSlot[]>(() => [
+    ...layout.cells.map((cell) => ({ key: pathKey(cell.path), kind: cell.kind, zone: cell.zone, depth: cell.depth, path: cell.path, filled: Boolean(cell.part) })),
+    { key: 'ammo', kind: 'ammo' as const, zone: 'bottom' as const, depth: 1, filled: Boolean(ammo) },
+  ], [layout, ammo])
+  // «Открыть на весь экран» in the bench's corner (owner, 20.11.2026: «вот эта сборка будет открываться на весь экран»)
+  const expand = onExpand && <button type="button" className="wb-stage-expand" onClick={onExpand} title={uiText('Открыть на весь экран')} aria-label={uiText('Открыть на весь экран')}><Maximize2 size={14} /><span>{uiText('На весь экран')}</span></button>
+  if (!drawn) return <div className="wb-bench-box">{expand}<Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={onSelect} /></div>
+  const toggle = (key: string) => onSelect(selected === key ? null : key)
+  const selectedPath = selected && selected !== 'ammo' ? selected.split('/') : undefined
+  const linked = (path: string[]) => Boolean(selectedPath && path.length > selectedPath.length && selectedPath.every((id, index) => path[index] === id))
+  const cells = new Map(layout.cells.map((cell) => [pathKey(cell.path), cell]))
+  return <div className={`wb-stage-scroll is-${size}`} ref={setRoot}>
+    {expand}
+    <div className="wb-stage-label">
+      <strong>{weapon.shortName}</strong>
+      <span>{stats.weightLoaded.toFixed(2)} {uiText('кг')}</span>
+    </div>
+    <BuildStage drawn={drawn} slots={slots} size={size === 'full' ? (phone ? 'phoneFull' : 'full') : phone ? 'phone' : 'normal'} selected={selected} maxHeight={stageHeight}
+      renderCell={(key, style) => {
+        if (key === 'ammo') return <AmmoCellButton ammo={ammo} active={selected === 'ammo'} style={style} onClick={() => toggle('ammo')} />
+        const cell = cells.get(key)
+        return cell ? <SlotCellButton cell={cell} active={selected === key} linked={linked(cell.path)} style={style} onClick={() => toggle(key)} /> : null
+      }} />
+    {selected && popover?.(anchor)}
+  </div>
+}
+
+function useWindowHeight() {
+  const [height, setHeight] = useState(() => (typeof window === 'undefined' ? 800 : window.innerHeight))
+  useEffect(() => {
+    const measure = () => setHeight(window.innerHeight)
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+  return height
+}
+
+const STATS_WINDOW_KEY = 'raidos-wb-stats-window'
+function readStatsWindow(): { x: number; y: number } | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(STATS_WINDOW_KEY) ?? 'null') as { x?: unknown; y?: unknown } | null
+    return value && typeof value.x === 'number' && typeof value.y === 'number' ? { x: value.x, y: value.y } : null
+  } catch { return null }
+}
+
+/**
+ * The full screen (owner, 20.11.2026: «кнопку «Открыть на весь экран»… подобную Таркову»): the build over the whole window, the
+ * chosen cell's modules at the side, the stats in a window that can be dragged where it suits. Esc: the chosen cell first, then back.
+ */
+function FullBench({ weapon, stats, stock, picker, selected, onSelect, onClose, children }: {
+  weapon: Weapon; stats: BuildStats; stock: BuildStats; picker: ReactNode; selected: string | null; onSelect: (key: string | null) => void
+  onClose: () => void; children: (maxHeight: number) => ReactNode
+}) {
+  const stageBox = useRef<HTMLDivElement>(null)
+  const docked = isMobileLayout()
+  const [room, setRoom] = useState(() => (typeof window === 'undefined' ? 800 : window.innerHeight - 80))
+  useLayoutEffect(() => {
+    const element = stageBox.current
+    if (!element) return
+    const measure = () => setRoom(Math.max(200, element.clientHeight - 16))
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (selected) onSelect(null)
+      else onClose()
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [selected, onSelect, onClose])
+  useEffect(() => {
+    const before = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = before }
+  }, [])
+  // The PC: the window itself on the whole screen too (no taskbar, no title bar); leaving it (Esc) leaves the full screen.
+  const close = useRef(onClose)
+  useEffect(() => { close.current = onClose }, [onClose])
+  useEffect(() => {
+    if (docked || typeof document === 'undefined' || !document.documentElement.requestFullscreen) return
+    let entered = false
+    // Esc stays the page's (a module window closes first, then the full screen); the browser leaves on a long Esc
+    const keyboard = (navigator as Navigator & { keyboard?: { lock?: (keys?: string[]) => Promise<void>; unlock?: () => void } }).keyboard
+    document.documentElement.requestFullscreen().then(() => { entered = true; return keyboard?.lock?.(['Escape']) }).catch(() => { /* the overlay alone is the full screen */ })
+    const change = () => { if (entered && !document.fullscreenElement) close.current() }
+    document.addEventListener('fullscreenchange', change)
+    return () => {
+      document.removeEventListener('fullscreenchange', change)
+      keyboard?.unlock?.()
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+    }
+  }, [docked])
+  return createPortal(<div className={`wb-full${picker ? ' has-picker' : ''}`} role="dialog" aria-modal="true" aria-label={`${uiText('Сборка на весь экран')}: ${weapon.name}`}>
+    {/* Only the build and one way out (owner, 20.11.2026: «скроет все кнопки и останется только сборка оружия… с выходом… кнопка») */}
+    <button type="button" className="wb-full-exit" onClick={onClose} title={uiText('Выйти из полноэкранного режима (Esc)')} aria-label={uiText('Выйти из полноэкранного режима (Esc)')}><Minimize2 size={15} /><span>{uiText('Свернуть')}</span></button>
+    <div className={`wb-full-body${picker ? ' has-picker' : ''}`}>
+      <div className="wb-full-stage">
+        {/* A phone: the stats at the top left above the weapon (owner, 20.11.2026: «характеристики сверху… слева сверху») */}
+        {docked && <StatsWindow stats={stats} stock={stock} docked />}
+        <div className="wb-full-stage-room" ref={stageBox}>{children(room)}</div>
+      </div>
+      {picker && <aside className="wb-full-side">{picker}</aside>}
+    </div>
+    {!docked && <StatsWindow stats={stats} stock={stock} />}
+  </div>, document.body)
+}
+
+/**
+ * The build's stats in a small window over the full screen, dragged by its title anywhere; it stays where it was left. `docked` (a
+ * phone): in its place at the top left, not dragged.
+ */
+function StatsWindow({ stats, stock, docked }: { stats: BuildStats; stock: BuildStats; docked?: boolean }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [at, setAt] = useState(() => readStatsWindow() ?? { x: 16, y: 16 })
+  const drag = useRef<{ dx: number; dy: number } | null>(null)
+  const clamp = useCallback((x: number, y: number) => {
+    const element = box.current
+    const width = element?.offsetWidth ?? 220
+    const height = element?.offsetHeight ?? 160
+    return { x: Math.round(Math.max(0, Math.min(window.innerWidth - width, x))), y: Math.round(Math.max(0, Math.min(window.innerHeight - height, y))) }
+  }, [])
+  // a window left outside a smaller screen comes back inside
+  useEffect(() => {
+    const fit = () => setAt((current) => clamp(current.x, current.y))
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [clamp])
+  const down = (event: ReactPointerEvent<HTMLDivElement>) => {
+    drag.current = { dx: event.clientX - at.x, dy: event.clientY - at.y }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+  const move = (event: ReactPointerEvent<HTMLDivElement>) => { if (drag.current) setAt(clamp(event.clientX - drag.current.dx, event.clientY - drag.current.dy)) }
+  const up = () => {
+    if (!drag.current) return
+    drag.current = null
+    try { localStorage.setItem(STATS_WINDOW_KEY, JSON.stringify(at)) } catch { /* the place is a convenience */ }
+  }
+  const ergoDelta = stats.ergonomicsRaw - stock.ergonomicsRaw
+  const rows: Array<{ label: string; value: string; delta: number; better: 'lower' | 'higher'; digits?: number }> = [
+    { label: 'Эргономика', value: String(stats.ergonomics), delta: ergoDelta, better: 'higher', digits: Math.round(Math.abs(ergoDelta) * 10) % 10 ? 1 : 0 },
+    { label: 'Вес', value: `${stats.weightLoaded.toFixed(2)} ${uiText('кг')}`, delta: stats.weightLoaded - stock.weightLoaded, better: 'lower', digits: 2 },
+    { label: 'Верт. отдача', value: String(stats.recoilVertical), delta: stats.recoilVertical - stock.recoilVertical, better: 'lower' },
+    { label: 'Гориз. отдача', value: String(stats.recoilHorizontal), delta: stats.recoilHorizontal - stock.recoilHorizontal, better: 'lower' },
+    { label: 'Скорость пули', value: stats.velocity ? `${Math.round(stats.velocity)} ${uiText('м/с')}` : '—', delta: (stats.velocity ?? 0) - (stock.velocity ?? 0), better: 'higher' },
+  ]
+  return <div className={`wb-stats-window${docked ? ' is-docked' : ''}`} ref={box} style={docked ? undefined : { left: at.x, top: at.y }}>
+    {docked
+      ? <div className="wb-stats-window-title">{uiText('Характеристики')}</div>
+      : <div className="wb-stats-window-title is-handle" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} title={uiText('Перетащите окно, куда удобно')}>{uiText('Характеристики')}</div>}
+    {rows.map((row) => <div className="wb-stats-window-row" key={row.label}>
+      <span>{uiText(row.label)}</span>
+      <strong>{row.value}</strong>
+      <Delta value={row.delta} better={row.better} digits={row.digits} />
+    </div>)}
+  </div>
+}
+
 const ZONE_ROWS: Record<Zone, number> = { top: 1, middle: 2, bottom: 3, rail: 5 }
 
 function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
@@ -454,10 +682,7 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
         const isWeapon = zone === 'middle' && column === layout.weaponColumn
         const withAmmo = zone === 'bottom' && column === layout.weaponColumn
         if (!cells.length && !isWeapon && !withAmmo) return null
-        const ammoCell = withAmmo && <button key="ammo" className={`wb-cell is-ammo${selected === 'ammo' ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} onClick={() => toggle('ammo')} aria-pressed={selected === 'ammo'}>
-          {!ammo && <span className="wb-cell-slot">{uiText('Патрон')}</span>}
-          {ammo ? <><CellPicture part={{ iconLink: ammo.iconLink, baseImageLink: baseImageOf(ammo.iconLink) }} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <SlotSilhouette kind="ammo" />}
-        </button>
+        const ammoCell = withAmmo && <AmmoCellButton key="ammo" ammo={ammo} active={selected === 'ammo'} onClick={() => toggle('ammo')} />
         const span = spans?.[column]
         return <div key={`${zone}-${column}`} className={`wb-zone is-${zone}${isWeapon ? ' is-weapon' : ''}`} style={{ gridColumn: span ? `${span.start + 1} / span ${span.span}` : column + 1, gridRow: ZONE_ROWS[zone] }}>
           {isWeapon && <WeaponCell weapon={weapon} stats={stats} isStock={isStock} />}
@@ -503,10 +728,17 @@ function WeaponCell({ weapon, stats, isStock }: { weapon: Weapon; stats: BuildSt
   </div>
 }
 
-function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; active: boolean; linked: boolean; onClick: () => void }) {
+function AmmoCellButton({ ammo, active, style, onClick }: { ammo?: AmmoStats; active: boolean; style?: CSSProperties; onClick: () => void }) {
+  return <button className={`wb-cell is-ammo${active ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} data-cell="ammo" style={style} onClick={onClick} aria-pressed={active} title={ammo ? ammo.name : uiText('Патрон')}>
+    {!ammo && <span className="wb-cell-slot">{uiText('Патрон')}</span>}
+    {ammo ? <><CellPicture part={{ iconLink: ammo.iconLink, baseImageLink: baseImageOf(ammo.iconLink) }} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <SlotSilhouette kind="ammo" />}
+  </button>
+}
+
+function SlotCellButton({ cell, active, linked, style, onClick }: { cell: PlacedCell; active: boolean; linked: boolean; style?: CSSProperties; onClick: () => void }) {
   const { part, slot } = cell
   const missing = slot.required && !part
-  return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} onClick={onClick} aria-pressed={active}
+  return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} data-cell={pathKey(cell.path)} style={style} onClick={onClick} aria-pressed={active}
     title={part ? `${slot.name}: ${part.name}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
     {!part && !slotPicture(slot.nameId, cell.kind) && <span className="wb-cell-slot">{slot.name}</span>}
     {part ? <>
@@ -533,12 +765,17 @@ const unlockLabel = (hint: UnlockHint, locale: string) => {
   if (hint.kind === 'task') return locale === 'en' ? `quest «${hint.task}»` : `квест «${hint.task}»`
   return locale === 'en' ? `flea from level ${hint.level}` : `барахолка с ${hint.level} ур.`
 }
+const ALL_MODULES_KEY = 'raidos-wb-all-modules'
+function readAllModules() {
+  try { return localStorage.getItem(ALL_MODULES_KEY) === '1' } catch { return false }
+}
+
 function readBuyable() {
   try { return localStorage.getItem(BUYABLE_KEY) !== 'all' } catch { return true }
 }
 
-function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, onPickKit, onRemove, onClose }: {
-  cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess
+function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, everything, onPick, onPickKit, onRemove, onClose }: {
+  cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess; everything?: boolean
   onPick: (itemId: string) => void; onPickKit: (kit: MuzzleKit) => void; onRemove: () => void; onClose: () => void
 }) {
   const [query, setQuery] = useState('')
@@ -546,7 +783,9 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
   const { locale } = useLocale()
   // What the player can get now first (owner, 04.11.2026: «модули должны быть открыты при достижении этих условий»); the rest
   // one tick away, each saying what opens it, for planning ahead.
-  const [buyable, setBuyableState] = useState(readBuyable)
+  const [buyableChoice, setBuyableState] = useState(readBuyable)
+  // «Показать все модули»: nothing is closed
+  const buyable = buyableChoice && !everything
   const setBuyable = (next: boolean) => {
     setBuyableState(next)
     try { localStorage.setItem(BUYABLE_KEY, next ? 'buyable' : 'all') } catch { /* per-viewer convenience only */ }
@@ -605,7 +844,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
           <option value="name">{uiText('По названию')}</option>
           {allKits.length > 0 && <option value="kits">{uiText('Комплекты: дульник + глушитель')}</option>}
         </select>
-        <label className="wb-check"><input type="checkbox" checked={buyable} onChange={(event) => setBuyable(event.target.checked)} />{uiText('Можно купить')}</label>
+        {!everything && <label className="wb-check"><input type="checkbox" checked={buyable} onChange={(event) => setBuyable(event.target.checked)} />{uiText('Можно купить')}</label>}
       </div>
       <p className="wb-picker-count">{uiText(sort === 'kits' ? 'Комплектов' : 'Подходит')}: <strong>{sort === 'kits' ? kits.length : rows.length}</strong>{sort !== 'kits' && candidates.length > rows.length && <span className="wb-picker-closed"> · {uiText('ещё закрыто')}: {candidates.length - rows.length}</span>}</p>
     </div>

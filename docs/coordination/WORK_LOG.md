@@ -8168,3 +8168,18 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   module search no longer takes the focus on a phone or a touch screen, so tapping a module opens no keyboard («только когда нажимаешь
   на ручной поиск»). The bigger one-screen phone board waits: the owner wants it on the new picture made of the game's part renders,
   with modules changed live. Weapon builder tests 122 pass; typecheck and lint clean. Not released.
+- «Сборка оружия» on the game's own part pictures (owner, 20.11.2026: «по картинке модуля, с заменой модулей прямо в прямом эфире»;
+  «оружие сделать больше, а квадратики… поменьше… вокруг оружия»; «как в Таркове… окно прям возле ячейки»): the build is drawn live
+  from per-part renders made in the offline SPT copy on E: (RaidOsGuns plugin; 2138 of 2486 parts, 10.2 MB WebP + depth PNG,
+  E:\SPT-photo\weapons\assets → public/gun-parts/, gitignored; hosting for the app is still to decide: a server route + a ROUTES entry
+  in electron/serviceGateway.ts). src/arsenal/partPictures.ts lays a build by slot points (anchors/centres per slot path),
+  BuildPicture.tsx draws it with WebGL2 per-pixel depth (Canvas2D fallback), stageLayout.ts puts small cells around the weapon each
+  near its part, never over a part or another cell (tests), BuildStage.tsx draws picture + faint lines + cells, ModGrid.tsx is the
+  game-like window of module squares at the cell (picture, short name, ergonomics, recoil, price; closed ones greyed). A build with a
+  part that has no picture falls back to the old board and side list. «На весь экран»: only the build, a draggable stats window
+  (ergonomics, weight, recoil, velocity; a phone: at the top left, on its side at the left), one «Свернуть» button; on the PC the
+  window goes full screen too (Esc kept by the page via keyboard.lock). A second empty slot of a kind beside a filled one (the M4A1's
+  B.A.D. slot by its charging handle) is hidden until its twin is chosen (boardLayout.hiddenTwins). «Показать все модули» next to
+  «Цена оружия»: every trader at the top, the flea open — any build can be made. Tests: arsenal + weapon builds + i18n 166 pass;
+  typecheck and lint clean. Not released. Left: 348 parts newer than the offline copy (a helper copies their bundles from the
+  installed game, read-only, into E:), side-mounted parts turned to the eye are not drawn yet (the build falls back to the board).

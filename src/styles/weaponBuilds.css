@@ -294,3 +294,98 @@ button.wb-trader-auto { color: var(--brass); }
 .wb-favorite-rename { display: flex; flex: 1; gap: 4px; min-width: 0; }
 .wb-favorite-rename .input { flex: 1; min-width: 0; height: 30px; }
 @media (prefers-reduced-motion: reduce) { .wb-favorite-builds, .wb-favorite-chevron { transition: none; } }
+
+/* The build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx). */
+.wb-stage-scroll { position: relative; margin-top: 10px; padding: 38px 12px 12px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: radial-gradient(ellipse at 50% 50%, #1a231e 0%, #101412 72%); }
+.wb-stage-label { position: absolute; top: 8px; left: 12px; z-index: 1; display: flex; align-items: baseline; gap: 8px; pointer-events: none; }
+.wb-stage-label strong { color: var(--text-dim); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.wb-stage-label span { color: var(--brass-strong); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.build-stage { position: relative; width: 100%; }
+.build-stage-picture { position: absolute; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .55)); pointer-events: none; }
+.build-stage-lines { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.build-stage-lines line { stroke: color-mix(in srgb, var(--brass) 16%, transparent); stroke-width: 1; }
+.build-stage-lines circle { fill: color-mix(in srgb, var(--brass) 32%, transparent); }
+.build-stage-lines .is-selected line { stroke: color-mix(in srgb, var(--brass-strong) 75%, transparent); stroke-width: 1.4; }
+.build-stage-lines .is-selected circle { fill: var(--brass-strong); }
+.build-stage .wb-cell { z-index: 1; padding-top: 10px; }
+.build-stage .wb-cell-name { font-size: 8px; }
+.build-stage .wb-cell-slot { font-size: 7px; }
+.build-stage:is(.is-phone, .is-phoneFull) .wb-cell.is-filled > .gb-icon { inset: 1px 1px 10px; width: calc(100% - 2px); height: calc(100% - 11px); }
+.build-stage:is(.is-phone, .is-phoneFull) .wb-cell-name { font-size: 7.5px; }
+.build-stage.is-full .wb-cell-name { font-size: 9px; }
+
+/* «На весь экран»: the build over the whole window, the chosen cell's modules at the side, the stats in a window of their own. */
+.wb-full { position: fixed; inset: 0; z-index: 4500; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 45%, #1a231e 0%, #0c0f0e 70%); color: var(--text); }
+.wb-full-exit { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(12, 16, 14, .85); color: var(--text); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .wb-full-exit:hover { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); } }
+.wb-full.has-picker .wb-full-exit { right: 392px; }
+.wb-full-body { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+.wb-full-body.has-picker { grid-template-columns: minmax(0, 1fr) 380px; }
+.wb-full-stage { display: flex; flex-direction: column; min-height: 0; padding: 12px 28px; padding-top: max(12px, env(safe-area-inset-top)); overflow: auto; }
+.wb-full-stage-room { display: flex; flex: 1; align-items: center; min-height: 0; }
+.wb-full-stage-room > .wb-stage-scroll, .wb-full-stage-room > .wb-bench-box { flex: 1; margin: 0; border: 0; background: none; }
+.wb-full-side { min-height: 0; overflow: auto; border-left: 1px solid var(--line); background: var(--surf-1, #131816); }
+.wb-full-side > .panel { min-height: 100%; border: 0; border-radius: 0; }
+.wb-stats-window { position: fixed; z-index: 4510; width: 236px; border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--line)); border-radius: 8px; background: rgba(14, 18, 16, .94); box-shadow: 0 12px 32px rgba(0, 0, 0, .5); backdrop-filter: blur(6px); overflow: hidden; }
+.wb-stats-window-title { padding: 7px 10px; border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .03); color: var(--text-dim); font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; user-select: none; }
+.wb-stats-window-title.is-handle { cursor: grab; touch-action: none; }
+.wb-stats-window-title.is-handle:active { cursor: grabbing; }
+.wb-stats-window.is-docked { position: static; flex: none; align-self: flex-start; box-shadow: none; backdrop-filter: none; }
+.wb-stats-window-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; align-items: baseline; gap: 6px; padding: 5px 10px; font-size: 12px; }
+.wb-stats-window-row + .wb-stats-window-row { border-top: 1px solid rgba(255, 255, 255, .04); }
+.wb-stats-window-row > span { color: var(--text-muted); white-space: nowrap; }
+.wb-stats-window-row > strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wb-stats-window-row > .wb-delta { justify-self: end; font-size: 11px; }
+@media (max-width: 760px) {
+  .wb-full-body.has-picker { grid-template-columns: minmax(0, 1fr); }
+  .wb-full-stage { padding: 8px; padding-top: max(8px, env(safe-area-inset-top)); }
+  .wb-full.has-picker .wb-full-exit { right: max(12px, env(safe-area-inset-right)); }
+  .wb-full-exit > span { display: none; }
+  .wb-full-exit { width: 36px; padding: 0; justify-content: center; }
+  .wb-full-side { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; max-height: 58vh; border-top: 1px solid var(--line); border-left: 0; border-radius: 12px 12px 0 0; box-shadow: 0 -12px 28px rgba(0, 0, 0, .5); }
+  .wb-stats-window { width: 200px; }
+  /* the modules' list below: the weapon in the part above it, the stats window out of the way */
+  .wb-full-body.has-picker .wb-full-stage { height: calc(42vh - 52px); overflow: hidden; }
+  .wb-full-body.has-picker .wb-full-stage-room { align-items: flex-start; }
+  .wb-full.has-picker .wb-stats-window { display: none; }
+  .wb-stats-window-row { font-size: 11px; padding: 4px 8px; }
+}
+.wb-bench-box { position: relative; }
+.wb-stage-expand { position: absolute; top: 8px; right: 8px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: rgba(12, 16, 14, .8); color: var(--text-muted); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
+.wb-bench-box > .wb-stage-expand { top: 18px; }
+@media (hover: hover) and (pointer: fine) { .wb-stage-expand:hover { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); color: var(--text); } }
+@media (max-width: 640px) { .wb-stage-expand > span { display: none; } .wb-stage-expand { width: 30px; padding: 0; justify-content: center; } }
+@media (max-width: 640px) { .wb-stage-scroll { padding: 38px 6px 8px; } }
+.wb-full-stage-room > .wb-stage-scroll { padding-top: 44px; }
+/* A phone on its side: the stats at the left beside the weapon, the whole height for the weapon */
+@media (orientation: landscape) and (max-height: 520px) {
+  .wb-full-stage { flex-direction: row; gap: 8px; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  .wb-stats-window.is-docked { width: 176px; }
+  .wb-stats-window.is-docked .wb-stats-window-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .wb-stats-window.is-docked .wb-stats-window-row > .wb-delta { display: none; }
+}
+
+/* A slot's modules in a small window at its cell (src/arsenal/ModGrid.tsx), like the game's. */
+.wb-grid-window { position: fixed; z-index: 4520; display: flex; flex-direction: column; overflow: hidden; border: 1px solid color-mix(in srgb, var(--brass) 45%, var(--line)); border-radius: 8px; background: rgba(14, 18, 16, .97); box-shadow: 0 14px 36px rgba(0, 0, 0, .6); animation: wb-grid-in 140ms ease-out; }
+@keyframes wb-grid-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .wb-grid-window { animation: none; } }
+.wb-grid-head { display: flex; flex: none; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--line); }
+.wb-grid-head > strong { flex: 1; min-width: 0; overflow: hidden; color: var(--text-dim); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.wb-grid-close { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .wb-grid-close:hover { background: var(--surf-2, #1c2420); color: var(--text); } }
+.wb-grid { display: grid; grid-template-columns: repeat(auto-fill, var(--wb-tile)); gap: 4px; justify-content: center; min-height: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; }
+.wb-tile { position: relative; display: flex; flex-direction: column; align-items: stretch; width: var(--wb-tile); height: calc(var(--wb-tile) + 14px); padding: 2px 3px 3px; border: 1px solid var(--line); border-radius: 4px; background: linear-gradient(180deg, #1b221e, #121715); color: var(--text); font: inherit; text-align: center; cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease; }
+@media (hover: hover) and (pointer: fine) { .wb-tile:hover { border-color: color-mix(in srgb, var(--brass) 65%, var(--line)); background: #1d2621; } }
+.wb-tile:active { transform: scale(.97); }
+.wb-tile.is-current { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; background: #241e12; }
+.wb-tile.is-locked { opacity: .5; }
+.wb-tile-stats { display: flex; justify-content: space-between; gap: 2px; min-height: 12px; font-size: 9px; font-weight: 850; line-height: 12px; font-variant-numeric: tabular-nums; }
+.wb-tile-stats .is-good { color: var(--success, #8fbf6a); }
+.wb-tile-stats .is-bad { color: var(--danger, #d0675a); }
+.wb-tile-picture { flex: 1; min-height: 0; width: 100%; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .6)); }
+.wb-tile > .gb-icon { flex: 1; min-height: 0; width: 100%; border: 0; background: transparent; }
+.wb-tile-name { overflow: hidden; color: var(--text); font-size: 9px; font-weight: 750; line-height: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wb-tile-price { display: flex; align-items: center; justify-content: center; min-height: 12px; color: var(--brass-strong); font-size: 9px; font-weight: 800; line-height: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wb-tile-swap { position: absolute; right: 3px; top: 16px; color: var(--brass-strong); }
+.wb-tile.is-remove { align-items: center; justify-content: center; gap: 6px; border-style: dashed; color: var(--text-muted); }
+.wb-grid-none { grid-column: 1 / -1; margin: 10px; color: var(--text-muted); font-size: 12px; text-align: center; }
