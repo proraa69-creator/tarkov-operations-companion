@@ -8251,3 +8251,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   открывается окно»), any but a required slot's, as the window's «Снять»; the shopping list named a quest by its id
   («квест «67a097379f2068e746…»») — now by its name from the game data, else «квест». Tests 244 in arsenal/gunsmith/pages/screen,
   typecheck, lint pass. Not released.
+- 1a548333, report 203 (owner, 20.11.2026: «место одно, а фото вообще другое»): the Shoreline «Эксплуатационная документация»
+  point at (-627.6, -232.5) — a green-roofed hangar between the village and the car exit — showed the wiki's photo 15 «inside the
+  white house in front of the T-90 in the village», given to it by elimination; none of the feed's 15 points (unchanged since
+  05.11) answers to that photo, so it stays only in «Все места». Report 203 closed with +1 day. Ships with the next app version.
+  Still in work: 204 «Забросить невод [KORD BREACH]» — no point for the four camera spots anywhere open (tarkov.help's map is
+  premium-only, szepiz/tarkov-quest-data has no KORD BREACH points; its guide has only in-game pictures); 202 — the item key showed
+  «Кейс для инъекторов» while the cursor was on «Золотой петух» (the injector case sat in the pouch on the same screen).
