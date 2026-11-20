@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Check, ChevronDown, Heart, Layers, Lock, Minimize2, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { exactUiText } from '../i18n/uiEnglish'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
@@ -394,6 +395,9 @@ function StatBars({ stats, stock, weapon }: { stats: BuildStats; stock: BuildSta
   </div>
 }
 
+/** The interface's word first: the game's names would make «Прицеливание» the quest «Aim Drills» in English. */
+const handlingLabel = (label: string) => { const shown = uiText(label); return shown === label ? label : exactUiText(label) ?? shown }
+
 /** Aiming and arm stamina; the price is only in «Список покупок» (owner, 28.10.2026: «итог… это не пиши… Пишется только общая цена»). */
 function HandlingRow({ stats }: { stats: BuildStats }) {
   const items: Array<[string, string, string?]> = [
@@ -402,7 +406,7 @@ function HandlingRow({ stats }: { stats: BuildStats }) {
     ['Выносливость рук', `${stats.armStamina} ${uiText('сек.')}`],
   ]
   return <div className="wb-handling">
-    {items.map(([label, value, tone]) => <span className="wb-chip" key={label}><small>{uiText(label)}</small><strong className={tone}>{value}</strong></span>)}
+    {items.map(([label, value, tone]) => <span className="wb-chip" key={label}><small>{handlingLabel(label)}</small><strong className={tone}>{value}</strong></span>)}
     <span className="wb-handling-note">{uiText('Прицеливание и выносливость — оценка по модели сообщества.')}</span>
   </div>
 }
