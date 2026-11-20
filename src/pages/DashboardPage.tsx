@@ -16,7 +16,7 @@ import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesClosed, markerObjectiveDone } from '../progression/mapObjectives'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
-import { exitFlareNeeds, flareCardOf, GREEN_FLARE_IDS, SIGNAL_PISTOL_ID } from '../raidprep/exitFlares'
+import { exitFlareNeeds, exitsFiredBy, flareCardOf, flareExitsOn, GREEN_FLARE_IDS, SIGNAL_PISTOL_ID } from '../raidprep/exitFlares'
 import { exitShortName } from '../data/exitShortNames'
 import { storyRaidNeedsAhead } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
@@ -181,6 +181,9 @@ export function DashboardPage() {
   // требованиях рейда, открываться должен квест на карте. в то место где нужно заложить предмет»), and so does the line of
   // each quest under it: per quest, a point of that objective here first, then any point of the quest here; planting or
   // marking before a key. The row takes the best of its quests.
+  // A quest's flare that opens an exit («Прекратить огонь!») and no point of the quest here: the row lights that exit on the map
+  // (owner, 20.11.2026: «при нажатии на него должен подсвечиваться выход на карте»).
+  const flareExitsHere = flareExitsOn(data.markers, selectedMap.id)
   const targetsOf = (itemId: string) => {
     const targets = new Map<string, { href: string; rank: number }>()
     for (const requirement of grouped.requirements) {
@@ -191,7 +194,9 @@ export function DashboardPage() {
         ?? (requirement.objectiveId && points.some((marker) => marker.objectiveId === requirement.objectiveId) ? requirement.objectiveId : undefined)
       const rank = (objectiveId ? 0 : points.length ? 2 : 4) + (requirement.purpose === 'key' ? 1 : 0)
       const known = targets.get(requirement.quest.id)
-      if (!known || rank < known.rank) targets.set(requirement.quest.id, { href: questOnMap(requirement.quest, objectiveId), rank })
+      const exit = !points.length ? exitsFiredBy(requirement, flareExitsHere)[0] : undefined
+      const href = questOnMap(requirement.quest, objectiveId) + (exit ? `&point=${encodeURIComponent(exit.id)}` : '')
+      if (!known || rank < known.rank) targets.set(requirement.quest.id, { href, rank })
     }
     return targets
   }
@@ -245,7 +250,7 @@ export function DashboardPage() {
     if (!main) return []
     const others = options.slice(1).map((item) => ({ id: item.id, name: item.name, iconUrl: item.iconUrl }))
     return [{
-      key: `exit-flare:${exit.id}`, itemId: main.id, name: main.name, iconUrl: main.iconUrl, href: `/maps/${selectedMap.id}`, count: 1,
+      key: `exit-flare:${exit.id}`, itemId: main.id, name: main.name, iconUrl: main.iconUrl, href: `/maps/${selectedMap.id}?point=${encodeURIComponent(exit.id)}`, count: 1,
       lines: [{ purpose: 'exit', questNames: [exitShortName(exit.title, lang)] }], fromRaidListOnly: false,
       ...(others.length ? { alternatives: { title: 'Подходит и', items: others, badge: `+${others.length}` } } : {}),
     }]

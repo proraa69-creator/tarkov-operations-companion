@@ -43,21 +43,20 @@ export interface QuestRaidLine {
 }
 
 /**
- * The exits whose flare a quest of the list already asks for: its objective is to leave through that exit («Прекратить огонь!»).
- * An extract objective that names no exit zone stands for every flare exit of the map.
+ * The flare exits a quest line is the flare of: its objective is to leave through that exit («Прекратить огонь!»). An extract
+ * objective that names no exit zone stands for every flare exit of the map.
  */
+export function exitsFiredBy(line: QuestRaidLine, exits: readonly MapMarker[]): MapMarker[] {
+  if (line.purpose !== 'signal' || !line.objectiveId) return []
+  const objective = line.quest.objectiveDetails?.find((entry) => entry.id === line.objectiveId || entry.legacyId === line.objectiveId)
+  if (objective?.type !== 'extract') return []
+  const zones = (objective.zones ?? []).map((zone) => zone.id).filter(Boolean)
+  return exits.filter((exit) => !zones.length || zones.some((id) => id === exit.id || id === `extract-${exit.extractId}`))
+}
+
+/** The exits whose flare a quest of the list already asks for. */
 function exitsFiredByQuests(lines: readonly QuestRaidLine[], exits: readonly MapMarker[]) {
-  const fired = new Set<string>()
-  for (const line of lines) {
-    if (line.purpose !== 'signal' || !line.objectiveId) continue
-    const objective = line.quest.objectiveDetails?.find((entry) => entry.id === line.objectiveId || entry.legacyId === line.objectiveId)
-    if (objective?.type !== 'extract') continue
-    const zones = (objective.zones ?? []).map((zone) => zone.id).filter(Boolean)
-    for (const exit of exits) {
-      if (!zones.length || zones.some((id) => id === exit.id || id === `extract-${exit.extractId}`)) fired.add(exit.id)
-    }
-  }
-  return fired
+  return new Set(lines.flatMap((line) => exitsFiredBy(line, exits).map((exit) => exit.id)))
 }
 
 /**
