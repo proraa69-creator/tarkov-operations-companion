@@ -25,15 +25,21 @@ export function detectedEftAccount() {
   return detected
 }
 
-/** The game account of this PC from a log scan: the PvP one first (the paid service is about PvP), then PvE, Season. */
-export function eftAccountIdOf(result: Pick<ModeLogScanResult, 'latestAccountIdByMode' | 'accountIds'>) {
+/**
+ * The game account of this PC from a log scan: the one that played last (`latestMode`, the newest signal of the logs), then
+ * PvP, PvE, Season. A game account has one AccountId in every mode, so another id is another player: two players on one PC,
+ * one playing the Season under his bound account and the other PvP before, locked the first one out — «PvP first» always
+ * picked the other's account, however he restarted (support chat, 20.11.2026).
+ */
+export function eftAccountIdOf(result: Pick<ModeLogScanResult, 'latestAccountIdByMode' | 'accountIds'> & Partial<Pick<ModeLogScanResult, 'latestMode'>>) {
   const byMode = result.latestAccountIdByMode ?? {}
-  const id = byMode.pvp ?? byMode.pve ?? byMode.seasonal ?? result.accountIds?.[0]
+  const newest = result.latestMode ? byMode[result.latestMode] : undefined
+  const id = newest ?? byMode.pvp ?? byMode.pve ?? byMode.seasonal ?? result.accountIds?.[0]
   return typeof id === 'number' && Number.isInteger(id) && id > 0 ? id : undefined
 }
 
 /** Called with every log scan (AppShell): remembers the game account seen in the logs. */
-export function rememberEftAccount(result: Pick<ModeLogScanResult, 'latestAccountIdByMode' | 'accountIds'>) {
+export function rememberEftAccount(result: Pick<ModeLogScanResult, 'latestAccountIdByMode' | 'accountIds'> & Partial<Pick<ModeLogScanResult, 'latestMode'>>) {
   const id = eftAccountIdOf(result)
   if (id === undefined || id === detected) return
   detected = id
