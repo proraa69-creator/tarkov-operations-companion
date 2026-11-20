@@ -13,6 +13,7 @@ export const EFT_OTHER_TEXT = 'К этому аккаунту Raid OS привя
 export const EFT_REPORT_PATH = '/v1/accounts/me/eft-account'
 
 let detected: number | undefined
+let candidates: readonly number[] = []
 const listeners = new Set<() => void>()
 
 export function subscribeEftAccount(listener: () => void) {
@@ -23,6 +24,11 @@ export function subscribeEftAccount(listener: () => void) {
 /** The game account the logs showed last, if any. */
 export function detectedEftAccount() {
   return detected
+}
+
+/** Every game account the logs show, the one that played last first (the same array until the logs change). */
+export function detectedEftAccounts() {
+  return candidates
 }
 
 /**
@@ -38,11 +44,51 @@ export function eftAccountIdOf(result: Pick<ModeLogScanResult, 'latestAccountIdB
   return typeof id === 'number' && Number.isInteger(id) && id > 0 ? id : undefined
 }
 
+/**
+ * Every game account of this PC's logs, the one that played last first, then PvP, PvE, Season and the rest: they are offered
+ * to the server in turn until it takes one (reportEftAccounts). One player with a second game account (support chat,
+ * 20.11.2026: «после обновления… к этому аккаунту Raid OS привязан другой аккаунт») and two players on one PC both get in
+ * with the account bound to them, wherever it played.
+ */
+export function eftAccountIdsOf(result: Pick<ModeLogScanResult, 'latestAccountIdByMode' | 'accountIds'> & Partial<Pick<ModeLogScanResult, 'latestMode'>>) {
+  const byMode = result.latestAccountIdByMode ?? {}
+  const all = [result.latestMode ? byMode[result.latestMode] : undefined, byMode.pvp, byMode.pve, byMode.seasonal, ...(result.accountIds ?? [])]
+  return [...new Set(all.filter((id): id is number => typeof id === 'number' && Number.isInteger(id) && id > 0))]
+}
+
+/** The server's answer to a report: taken, refused (one game account — one Raid OS account), or not reached. */
+export type EftReportResult = { taken: number } | { refused: string } | { failed: true }
+type ServiceRequest = (method: 'POST', path: string, body: unknown) => Promise<unknown>
+const REFUSED = /уже используется|привязан другой аккаунт/i
+
+/**
+ * The game accounts offered to the server in turn, the newest first, until it takes one: the device's report is then that one
+ * (AccountStore.eftBlock reads the last report). None taken: the newest one is reported again last, so the lock tells about it.
+ */
+export async function reportEftAccounts(request: ServiceRequest, ids: readonly number[], errorText: (error: unknown) => string = (error) => String((error as Error)?.message ?? error)): Promise<EftReportResult> {
+  let refusal: string | undefined
+  for (const id of ids) {
+    try {
+      await request('POST', EFT_REPORT_PATH, { accountId: String(id) })
+      return { taken: id }
+    } catch (error) {
+      const message = errorText(error)
+      if (!REFUSED.test(message)) return { failed: true }
+      refusal ??= message
+    }
+  }
+  if (refusal === undefined) return { failed: true }
+  if (ids.length > 1) await request('POST', EFT_REPORT_PATH, { accountId: String(ids[0]) }).catch(() => undefined)
+  return { refused: refusal }
+}
+
 /** Called with every log scan (AppShell): remembers the game account seen in the logs. */
 export function rememberEftAccount(result: Pick<ModeLogScanResult, 'latestAccountIdByMode' | 'accountIds'> & Partial<Pick<ModeLogScanResult, 'latestMode'>>) {
   const id = eftAccountIdOf(result)
-  if (id === undefined || id === detected) return
+  const ids = eftAccountIdsOf(result)
+  if (id === undefined || (id === detected && ids.join(',') === candidates.join(','))) return
   detected = id
+  candidates = ids
   for (const listener of listeners) listener()
 }
 
@@ -60,9 +106,9 @@ export async function recheckEftAccount() {
   const result = await desktop.autoFindAndScanLogs(saved).catch(() => null)
   if (!result) return false
   rememberEftAccount(result)
-  const id = eftAccountIdOf(result)
-  if (id === undefined) return false
-  // Refused (409) or not, the server now decides from this report; the caller asks for the status again.
-  await desktop.serviceRequest('POST', EFT_REPORT_PATH, { accountId: String(id) }).catch(() => undefined)
+  const ids = eftAccountIdsOf(result)
+  if (!ids.length) return false
+  // Taken or refused, the server now decides from the last report; the caller asks for the status again.
+  await reportEftAccounts(desktop.serviceRequest, ids)
   return true
 }
