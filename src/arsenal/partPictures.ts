@@ -146,7 +146,7 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
   const anchors: Record<string, [number, number]> = {}
   const centers: Record<string, [number, number]> = {}
   const partPaths: string[] = []
-  const walk = (tpl: string, node: BuildNode | undefined, at: [number, number, number], given: Mat3, path: string) => {
+  const walk = (tpl: string, node: BuildNode | undefined, at: [number, number, number], given: Mat3, path: string, hang = false) => {
     const plain = index.parts[tpl]
     // The game's own turn of the part where it puts it straight on its slot's bone (measured on its assembled presets, `fix`): the
     // MP-18, PKM and RPD barrels drawn hanging, the SPEAR receiver, the T-5000M chassis, the M3 forend… (owner, 20.11.2026: «ствол
@@ -155,7 +155,9 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     // A part turned towards the eye (on a side rail; owner, 20.11.2026: «предметы, которые ставятся на боковое крепление, должны
     // показываться… с правой стороны… на боковом креплении с той стороны»): laid in the picture's plane, its length along the weapon as
     // it is, at its own place along the view — on the near side it is drawn over the weapon, on the far side behind it.
-    const laidTurn = Math.abs(Math.abs(fixed[0]) - 1) > 1e-3 ? flatten(fixed) : fixed
+    const flat = Math.abs(Math.abs(fixed[0]) - 1) > 1e-3 ? flatten(fixed) : fixed
+    // a grip on a side rail pointing at the eye (the 6P29M's only foregrip slot) hangs down under its rail, as it is read from the side
+    const laidTurn = hang ? aboutView(flat, Math.PI) : flat
     // folded: the weapon in its folded look, and the stock in the folding slot in its own when it has one
     const foldsHere = folded && (path === '' || path === foldSlot) && Boolean(plain?.fold)
     const asset = foldsHere ? plain!.fold! : plain
@@ -181,7 +183,13 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
       const slot = asset.s[slotId]
       if (!slot) { missing.push(child.itemId); continue }
       const offset = apply(turn, [slot[0]!, slot[1]!, slot[2]!])
-      walk(child.itemId, child, [at[0] + offset[0], at[1] + offset[1], at[2] + offset[2]], mul(mul(turn, quat(slot.slice(3))), STANDARD_BACK), path ? `${path}/${slotId}` : slotId)
+      const childTurn = mul(mul(turn, quat(slot.slice(3))), STANDARD_BACK)
+      // A foregrip whose slot faces the eye (the 6P29M: its grip slot is on the side, turned a quarter about the barrel; owner,
+      // 21.11.2026: «рукоятки встают неправильно на этом цевье… Так происходит со всеми рукоятками на этом цевье») stood straight up
+      // from the barrel's axis: it is drawn hanging from below the mount instead, its side offset taken as the depth below the axis.
+      const sideGrip = slotId.startsWith('mod_foregrip') && Math.abs(Math.abs(childTurn[0]) - 1) > 1e-3
+      const place: [number, number, number] = sideGrip ? [0, offset[1] - Math.abs(offset[0]), offset[2]] : offset
+      walk(child.itemId, child, [at[0] + place[0], at[1] + place[1], at[2] + place[2]], childTurn, path ? `${path}/${slotId}` : slotId, sideGrip)
     }
   }
   walk(build.weaponId, build.root, [0, 0, 0], IDENTITY, '')

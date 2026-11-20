@@ -57,3 +57,25 @@ describe('a stock stands level', () => {
     expect(angleOf(tilted(15.8))).toBeCloseTo(-15.8, 3)
   })
 })
+
+// owner, 21.11.2026: «рукоятки встают неправильно на этом цевье… Так происходит со всеми рукоятками на этом цевье» (AS VAL, 6P29M)
+describe('a foregrip on a side slot', () => {
+  // the 6P29M: its only foregrip slot on the side (x 0.0294), turned a quarter about the barrel
+  const mount = part({ w: 124, h: 68, o: [28, 34], s: { mod_foregrip: [0.0294, 0, -0.0607, -0.5, 0.5, -0.5, 0.5] } })
+  // a grip's picture: upright, its root at the bottom
+  const grip = part({ w: 58, h: 150, o: [31, 139] })
+  const gun = part({ w: 300, s: { mod_handguard: [0.13, -0.06, 0.5, ...STRAIGHT] } })
+  const sideIndex: PartsIndex = { ppm: 1000, parts: { gun, mount, grip } }
+  const sideBuild = { weaponId: 'gun', root: { itemId: 'gun', children: { mod_handguard: { itemId: 'mount', children: { mod_foregrip: { itemId: 'grip', children: {} } } } } } }
+
+  it('hangs down from below the mount instead of standing up over it', () => {
+    const laid = layBuild(sideBuild, sideIndex)
+    const placed = laid.parts.find((entry) => entry.tpl === 'grip')!
+    // the picture turned upside down: its root (bottom) on top, the grip below
+    expect(placed.m[4]).toBeLessThan(0)
+    const [, top, , bottom] = laid.boxes['mod_handguard/mod_foregrip']!
+    const [, mountTop, , mountBottom] = laid.boxes.mod_handguard!
+    expect(top).toBeGreaterThan((mountTop + mountBottom) / 2)
+    expect(bottom).toBeGreaterThan(mountBottom)
+  })
+})
