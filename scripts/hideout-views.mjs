@@ -6,7 +6,9 @@
 // 0–3) the base with every module at level 0, and every module alone at each of its levels on that base. Here each of those is
 // compared with its base: what changed (near the module's own objects) becomes a piece with a soft edge, the rest of the frame is
 // dropped. The app lays the pieces of the levels the player built on the base of the player's light, so the joins match.
-// Rooms behind the defective wall (rooms-mask.png, made from the plugin's position map) are drawn black until the wall is broken.
+// The game itself draws the rooms behind the defective wall only from its breach (level 5): before it they are black on the base,
+// and they come with the wall's own piece. The modules in those rooms were shot with the wall broken, on a base of their own
+// (base-wall.png); the app shows them only once the wall is broken.
 //
 // Writes src/assets/hideout-views/*.webp and src/data/hideoutViews.json. Only pictures and numbers: nothing of the game itself.
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -34,6 +36,11 @@ const probe = JSON.parse(readFileSync(join(source, 'probe.json'), 'utf8'))
 const idOf = new Map(probe.areas.filter((area) => area.id).map((area) => [area.type, area.id]))
 const lights = readdirSync(sweep).filter((name) => /^L\d$/.test(name)).map((name) => Number(name.slice(1))).sort()
 if (!lights.length) throw new Error(`no sweep in ${sweep}`)
+
+// The game's hideout from above is dark: every picture is lifted by one curve (from the brightest base), the same for the bases and
+// the pieces, so the joins still match and a lower light still looks darker.
+const TARGET_MEAN = 40
+let curve = null
 
 /** A picture as raw RGB (the plugin writes it without alpha; any alpha is dropped before anything else). */
 async function rgb(file) {
@@ -149,6 +156,16 @@ for (const area of baseMeta.areas ?? []) {
   rawSpots[id] = [area.x, area.y]
 }
 const brightBase = await rgb(join(sweep, `L${brightest}`, 'base.png'))
+{
+  // the lift: what brings the brightest base, with the rooms behind the wall open, to TARGET_MEAN
+  const lit = existsSync(join(sweep, `L${brightest}`, 'base-wall.png')) ? await rgb(join(sweep, `L${brightest}`, 'base-wall.png')) : brightBase
+  let sum = 0
+  for (let index = 0; index < lit.data.length; index += 1) sum += lit.data[index]
+  const mean = sum / lit.data.length
+  const gamma = Math.min(1, Math.max(0.5, Math.log(TARGET_MEAN / 255) / Math.log(Math.max(1, mean) / 255)))
+  curve = Uint8Array.from({ length: 256 }, (_, value) => Math.round(255 * (value / 255) ** gamma))
+  console.log(`lift: mean ${mean.toFixed(1)} → gamma ${gamma.toFixed(2)}`)
+}
 const box = contentBox(brightBase, Object.values(rawSpots))
 const scale = Math.min(1, MAX_WIDTH / box.width)
 const outWidth = Math.round(box.width * scale), outHeight = Math.round(box.height * scale)
@@ -175,6 +192,10 @@ for (let round = 0; round < 300; round += 1) {
 const spots = Object.fromEntries(placed.map((spot) => [spot.id, [Number(spot.x.toFixed(4)), Number((spot.y / aspect).toFixed(4))]]))
 
 async function writePicture(raw, channels, width, height, crop, file, quality) {
+  if (curve) {
+    raw = Buffer.from(raw)
+    for (let index = 0; index < raw.length; index += channels) for (let c = 0; c < 3; c += 1) raw[index + c] = curve[raw[index + c]]
+  }
   let image = sharp(raw, { raw: { width, height, channels } })
   if (crop) image = sharp(await image.extract(crop).raw().toBuffer(), { raw: { width: crop.width, height: crop.height, channels } })
   if (scale < 1) image = image.resize(Math.max(1, Math.round((crop?.width ?? width) * scale)))
@@ -183,10 +204,14 @@ async function writePicture(raw, channels, width, height, crop, file, quality) {
 
 const pieces = {}
 let pieceCount = 0
+/** Modules in the rooms behind the defective wall (shot on the base with the wall broken). */
+const inside = new Set()
 for (const light of lights) {
   const dir = join(sweep, `L${light}`)
-  const base = await rgb(join(dir, 'base.png'))
-  const baseBlur = blurred(base)
+  const bases = { base: await rgb(join(dir, 'base.png')) }
+  if (existsSync(join(dir, 'base-wall.png'))) bases['base-wall'] = await rgb(join(dir, 'base-wall.png'))
+  const blurs = Object.fromEntries(Object.entries(bases).map(([name, image]) => [name, blurred(image)]))
+  const base = bases.base
   await writePicture(base.data, 3, base.width, base.height, box, join(assets, `base-L${light}.webp`), 80)
   for (const file of readdirSync(dir).filter((name) => /^\w+-\d+\.png$/.test(name)).sort()) {
     const [, type, levelText] = /^(\w+)-(\d+)\.png$/.exec(file)
@@ -195,8 +220,10 @@ for (const light of lights) {
     const meta = JSON.parse(readFileSync(join(dir, file.replace(/\.png$/, '.json')), 'utf8'))
     const region = union(toPixels(meta.level0, base.width, base.height), toPixels(meta.rect, base.width, base.height))
     if (!region) continue
+    const against = bases[meta.base ?? 'base'] ? meta.base ?? 'base' : 'base'
+    if (against === 'base-wall') inside.add(id)
     const frame = await rgb(join(dir, file))
-    const cut = piece(frame, base, blurred(frame, region), baseBlur, region)
+    const cut = piece(frame, bases[against], blurred(frame, region), blurs[against], region)
     if (!cut) continue
     // the piece inside the picture's cut only
     const x0 = Math.max(cut.x, box.left), y0 = Math.max(cut.y, box.top)
@@ -209,20 +236,8 @@ for (const light of lights) {
   }
 }
 
-// The rooms behind the defective wall: black where the mask is set, until the wall's breach.
-let rooms
-const roomsFile = join(sweep, 'rooms-mask.png')
-if (existsSync(roomsFile)) {
-  const { data, info } = await sharp(roomsFile).greyscale().raw().toBuffer({ resolveWithObject: true })
-  const out = Buffer.alloc(info.width * info.height * 4)
-  for (let i = 0; i < info.width * info.height; i += 1) { out[i * 4 + 3] = data[i] }
-  const resized = info.width === brightBase.width ? out : await sharp(out, { raw: { width: info.width, height: info.height, channels: 4 } }).resize(brightBase.width, brightBase.height).raw().toBuffer()
-  await writePicture(resized, 4, brightBase.width, brightBase.height, box, join(assets, 'rooms.webp'), 70)
-  // the modules whose button falls in a closed room
-  const inside = Object.entries(rawSpots).filter(([, [x, y]]) => resized[(Math.round(y * (brightBase.height - 1)) * brightBase.width + Math.round(x * (brightBase.width - 1))) * 4 + 3] > 128).map(([id]) => id)
-  rooms = { openLevel: WALL_OPEN_LEVEL, station: idOf.get('EmergencyWall'), inside }
-}
+const rooms = inside.size ? { openLevel: WALL_OPEN_LEVEL, station: idOf.get('EmergencyWall'), inside: [...inside] } : undefined
 
 const json = { size: [outWidth, outHeight], lights, lightStation: idOf.get('Illumination'), spots, pieces, ...(rooms ? { rooms } : {}) }
 writeFileSync(dataFile, JSON.stringify(json) + '\n')
-console.log(`picture ${outWidth}x${outHeight} (cut ${JSON.stringify(box)}), ${lights.length} lights, ${Object.keys(spots).length} buttons, ${pieceCount} pieces${rooms ? ', rooms mask' : ''}`)
+console.log(`picture ${outWidth}x${outHeight} (cut ${JSON.stringify(box)}), ${lights.length} lights, ${Object.keys(spots).length} buttons, ${pieceCount} pieces, ${inside.size} modules behind the wall`)

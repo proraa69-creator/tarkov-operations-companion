@@ -49,11 +49,12 @@ export function HideoutPicture({ stations, built }: { stations: readonly Hideout
     {base && <img className="hv-picture" src={base} alt="" draggable={false} />}
     {stations.map((station) => {
       const level = built[station.id] ?? 0
-      const piece = level > 0 ? modulePiece(station.id, level, light) : undefined
+      // a module in a room still closed is not there yet
+      const piece = level > 0 && !(closed && roomsInfo?.inside?.includes(station.id)) ? modulePiece(station.id, level, light) : undefined
       return piece && <img key={station.id} className="hv-piece" src={piece.url} alt="" draggable={false}
         style={{ left: `${piece.left * 100}%`, top: `${piece.top * 100}%`, width: `${piece.width * 100}%`, height: `${piece.height * 100}%` }} />
     })}
-    {closed && <img className="hv-piece hv-rooms" src={roomsPicture()} alt="" draggable={false} />}
+    {closed && roomsPicture() && <img className="hv-piece hv-rooms" src={roomsPicture()} alt="" draggable={false} />}
   </>
 }
 

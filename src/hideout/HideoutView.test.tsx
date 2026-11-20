@@ -47,7 +47,7 @@ vi.mock('./hideoutViews', () => ({
   lightOf: (level: number) => Math.min(level, 3),
   basePicture: (light: number) => `base-L${light}.webp`,
   moduleSpot: (id: string) => ({ 'med-station': { x: 0.25, y: 0.5 }, 'work-bench': { x: 0.75, y: 0.4 }, gym: { x: 0.1, y: 0.1 } } as Record<string, { x: number; y: number }>)[id],
-  modulePiece: (id: string, level: number, light: number) => (id === 'med-station' ? { url: `${id}-${level}-L${light}.webp`, left: 0.2, top: 0.4, width: 0.1, height: 0.2 } : undefined),
+  modulePiece: (id: string, level: number, light: number) => (id === 'med-station' || id === 'gym' ? { url: `${id}-${level}-L${light}.webp`, left: 0.2, top: 0.4, width: 0.1, height: 0.2 } : undefined),
   roomsPicture: () => 'rooms.webp',
   roomsClosed: (built: Record<string, number>) => (built['defective-wall'] ?? 0) < 5,
 }))
@@ -63,17 +63,19 @@ beforeEach(() => {
 
 describe('«Убежище» как в игре', () => {
   it('builds the picture from the base of the player\'s light and the pieces of the built levels, the closed rooms black', () => {
-    state.levels = { [MED]: 2, [LIGHT]: 2 }
+    state.levels = { [MED]: 2, [LIGHT]: 2, [GYM]: 1 }
     renderView()
+    // the gym is in a room behind the wall, still closed: not there yet
     expect(pictures()).toEqual(['base-L2.webp', `${MED}-2-L2.webp`, 'rooms.webp'])
     const piece = document.querySelector(`img[src="${MED}-2-L2.webp"]`)
     expect(piece).toHaveStyle({ left: '20%', top: '40%', width: '10%', height: '20%' })
   })
 
   it('opens the rooms behind the wall once it is broken', () => {
-    state.levels = { [WALL]: 5 }
+    state.levels = { [WALL]: 5, [GYM]: 1 }
     renderView()
     expect(pictures()).not.toContain('rooms.webp')
+    expect(pictures()).toContain(`${GYM}-1-L0.webp`)
     expect(screen.getByRole('button', { name: /Спортзал/ })).not.toHaveClass('is-locked')
   })
 

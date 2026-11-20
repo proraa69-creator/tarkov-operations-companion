@@ -5,7 +5,8 @@
  * above the hideout, turned into pictures by scripts/hideout-views.mjs:
  * - `base-L<light>.webp` — the hideout with every module at level 0, under the light of that Illumination level (0–3);
  * - `<station id>-<level>-L<light>.webp` — the piece of the picture that module changes at that level (soft edged), laid on the base;
- * - `rooms.webp` — the rooms behind the defective wall, drawn black until the wall is broken («комнаты закрыты… не должны подсвечиваться»).
+ * The rooms behind the defective wall are black on the base (the game draws them only from the wall's breach) and come with the
+ * wall's own piece; the modules in them show only once it is broken («комнаты закрыты… не должны подсвечиваться»).
  * The station id is the game's area template id, the same as tarkov.dev's. hideoutViews.json keeps the picture's size, where every
  * module's button sits (the game's own area icon point) and where each piece goes, in pixels of the picture.
  */
@@ -60,7 +61,7 @@ export function modulePiece(stationId: string, level: number, light: number): Pi
 
 export const roomsPicture = () => byName.get('rooms')
 
-/** The rooms behind the defective wall are closed while the wall is below the breach. */
+/** The rooms behind the defective wall are closed while the wall is below the breach (the game draws them only from it). */
 export function roomsClosed(built: Readonly<Record<string, number>>) {
-  return Boolean(file.rooms?.station && roomsPicture()) && (built[file.rooms!.station!] ?? 0) < file.rooms!.openLevel
+  return Boolean(file.rooms?.station) && (built[file.rooms!.station!] ?? 0) < file.rooms!.openLevel
 }
