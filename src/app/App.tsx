@@ -5,6 +5,7 @@ import { featureEnabled } from './archivedFeatures'
 import { isOwnerApp } from './buildEdition'
 import { interfaceVersion } from './appVersion'
 import { AppShell } from './AppShell'
+import { HideoutSection } from '../hideout/HideoutTabs'
 import { DashboardPage } from '../pages/DashboardPage'
 import { MapsPage } from '../pages/MapsPage'
 import { QuestsPage } from '../pages/QuestsPage'
@@ -119,11 +120,14 @@ export function App() {
     <Route path="/ammo" element={<Navigate to="/ballistics" replace />} />
     <Route path="/ballistics" element={<AmmoPage />} />
     {/* «Убежище» (owner, 17.10.2026: «добавляй новую функцию убежище, что бы можно было отмечать найденые предметы»). */}
-    {/* «Убежище и квесты»: two buttons, the hideout's stash and the quests' items (owner, 28.10.2026). */}
-    <Route path="/hideout" element={<Suspense fallback={null}><HideoutHubPage /></Suspense>} />
-    <Route path="/hideout/stash" element={<Suspense fallback={null}><HideoutStashPage /></Suspense>} />
-    <Route path="/hideout/quests" element={<Suspense fallback={null}><QuestItemsPage /></Suspense>} />
-    <Route path="/hideout/cultist-circle" element={<Suspense fallback={null}><CultistCirclePage /></Suspense>} />
+    {/* «Убежище и квесты»: the hideout, its items, the quests' items and the cultist circle under three buttons at the top that stay
+        put (owner, 28.10.2026 and 20.11.2026; hideout/HideoutTabs.tsx). */}
+    <Route element={<HideoutSection />}>
+      <Route path="/hideout" element={<Suspense fallback={null}><HideoutHubPage /></Suspense>} />
+      <Route path="/hideout/stash" element={<Suspense fallback={null}><HideoutStashPage /></Suspense>} />
+      <Route path="/hideout/quests" element={<Suspense fallback={null}><QuestItemsPage /></Suspense>} />
+      <Route path="/hideout/cultist-circle" element={<Suspense fallback={null}><CultistCirclePage /></Suspense>} />
+    </Route>
     <Route path="/hideout/unneeded" element={<Suspense fallback={null}><UnneededItemsPage /></Suspense>} />
     <Route path="/traders" element={<TradersPage />} />
     {/* The old «Сборщик оружия» became «Сборка оружия» (owner, 17.10.2026). */}

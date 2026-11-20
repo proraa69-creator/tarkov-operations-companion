@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Hammer, Lock, TreePine, X } from 'lucide-react'
+import { Check, ChevronDown, Hammer, Lock, TreePine, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
@@ -295,24 +295,51 @@ function Requirements({ stage, stations, built, found, items, economy, builtLeve
 }
 
 /**
- * The crafts the level opens (owner, 20.11.2026: «Должно быть понятно, что требуется для крафта и что мы получим… после крафта»):
- * what goes in and what comes out, each item by picture, name and count.
+ * The crafts the level opens, folded under «Крафты» (owner, 20.11.2026: «Нажимаешь крафт, и он показывает список того, что можно
+ * скрафтить. Не нужно этот список изначально раскладывать от верху до низу»): open, one row per craft — what comes out and how long
+ * it takes — and a row opens what goes in («Должно быть понятно, что требуется для крафта и что мы получим»). A craft asked for
+ * («Открыть модуль» in «Где взять») comes open.
  */
 function Crafts({ crafts, shownLevel, builtLevel, items, craftId }: { crafts: readonly Craft[]; shownLevel: number; builtLevel: number; items: ReadonlyMap<string, Item>; craftId: string | null }) {
+  const [open, setOpen] = useState(() => Boolean(craftId))
+  const [picked, setPicked] = useState<string | null>(craftId)
+  // another craft asked for while the window is open
+  const [asked, setAsked] = useState(craftId)
+  if (craftId !== asked) {
+    setAsked(craftId)
+    if (craftId) { setOpen(true); setPicked(craftId) }
+  }
   useEffect(() => {
     if (craftId) document.getElementById(`hv-craft-${craftId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [craftId])
+  const name = (itemId: string) => uiText(items.get(itemId)?.name ?? itemId)
   const lines = (list: Craft['requiredItems']) => <ul className="hv-craft-lines">{list.map((line) => <li key={line.itemId}>
     <span className="hv-craft-picture"><StashPicture id={line.itemId} item={items.get(line.itemId)} /></span>
-    <span className="hv-craft-name">{uiText(items.get(line.itemId)?.name ?? line.itemId)}</span>
+    <span className="hv-craft-name">{name(line.itemId)}</span>
     <strong>×{line.count}</strong>
   </li>)}</ul>
   return <div className={`hv-crafts${shownLevel > builtLevel ? ' is-locked' : ''}`}>
-    <h3><Hammer size={13} aria-hidden="true" /> {uiText('Крафты уровня')} {roman(shownLevel)}</h3>
-    <ul>{crafts.map((craft) => <li key={craft.id} id={`hv-craft-${craft.id}`} className={`hv-craft${craft.id === craftId ? ' is-target' : ''}`}>
-      <div className="hv-craft-part"><span className="hv-craft-label">{uiText('Нужно')}</span>{lines(craft.requiredItems)}</div>
-      <div className="hv-craft-part"><span className="hv-craft-label">{uiText('Получите')}</span>{lines(craft.rewardItems)}</div>
-      <p className="dim hv-craft-time">{uiText(formatDuration(craft.duration))}{craft.taskUnlock ? ` · ${uiText('после квеста')} ${uiText(craft.taskUnlock.name)}` : ''}</p>
-    </li>)}</ul>
+    <button type="button" className="hv-crafts-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <Hammer size={14} aria-hidden="true" /> {uiText('Крафты уровня')} {roman(shownLevel)}
+      <span className="hv-crafts-count">{crafts.length}</span>
+      <ChevronDown size={14} className="hv-source-chevron" aria-hidden="true" />
+    </button>
+    {open && <ul>{crafts.map((craft) => {
+      const reward = craft.rewardItems[0]
+      const shown = picked === craft.id
+      return <li key={craft.id} id={`hv-craft-${craft.id}`} className={`hv-craft${craft.id === craftId ? ' is-target' : ''}${shown ? ' is-open' : ''}`}>
+        <button type="button" className="hv-craft-row" aria-expanded={shown} onClick={() => setPicked(shown ? null : craft.id)}>
+          <span className="hv-craft-picture">{reward && <StashPicture id={reward.itemId} item={items.get(reward.itemId)} />}</span>
+          <span className="hv-craft-name">{reward ? `${name(reward.itemId)} ×${reward.count}` : ''}{craft.rewardItems.length > 1 ? ` +${craft.rewardItems.length - 1}` : ''}</span>
+          <span className="hv-craft-time">{uiText(formatDuration(craft.duration))}</span>
+          <ChevronDown size={14} className="hv-source-chevron" aria-hidden="true" />
+        </button>
+        {shown && <div className="hv-craft-detail">
+          <div className="hv-craft-part"><span className="hv-craft-label">{uiText('Нужно')}</span>{lines(craft.requiredItems)}</div>
+          <div className="hv-craft-part"><span className="hv-craft-label">{uiText('Получите')}</span>{lines(craft.rewardItems)}</div>
+          {craft.taskUnlock && <p className="dim hv-craft-time">{uiText('после квеста')} {uiText(craft.taskUnlock.name)}</p>}
+        </div>}
+      </li>
+    })}</ul>}
   </div>
 }

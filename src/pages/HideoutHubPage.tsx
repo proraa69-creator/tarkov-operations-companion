@@ -1,43 +1,16 @@
-import { ChevronRight, Skull, Target, Warehouse } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { uiText } from '../i18n/renderText'
-import { useAppState } from '../state/AppState'
 import { HideoutView } from '../hideout/HideoutView'
+import { basePicture, pictureSize } from '../hideout/hideoutViews'
+import { HideoutStashPage } from './HideoutStashPage'
 import '../styles/hideoutStash.css'
 
 /**
- * «Убежище и квесты» in «Экономика» (owner, 28.10.2026: «два отдельные кнопки будут. Убежище и квесты»): one opens
- * «Что собрать для убежища», the other the same stash for the quests' items; «Назад» back here is the app's own (AppShell; the pages had a second one, removed — owner, 28.10.2026).
- * Above them the hideout itself, as in the game (hideout/HideoutView.tsx, owner, 20.11.2026).
+ * «Убежище и квесты» in «Экономика»: the hideout itself, as in the game (hideout/HideoutView.tsx, owner, 20.11.2026), under the three
+ * buttons that switch to its items, the quests' items and the cultist circle (hideout/HideoutTabs.tsx, over every one of these pages).
+ * Without the hideout's pictures, its items.
  */
 export function HideoutHubPage() {
-  const { raidMode } = useAppState()
+  if (!pictureSize || !basePicture(0)) return <HideoutStashPage />
   return <div className="page hideout-hub">
-    <header className="page-header">
-      <div>
-        <div className="eyebrow">{uiText('Экономика · ')}{raidMode === 'seasonal' ? uiText('Сезон') : raidMode.toUpperCase()}</div>
-        <h1 className="page-title">{uiText('Убежище и квесты')}</h1>
-        <p className="page-subtitle">{uiText('Что собрать: предметы на улучшения убежища или предметы для квестов.')}</p>
-      </div>
-    </header>
     <HideoutView />
-    <div className="hideout-hub-choices">
-      <Link to="/hideout/stash" className="panel hideout-hub-choice">
-        <Warehouse size={30} aria-hidden="true" />
-        <span><strong>{uiText('Убежище')}</strong><small>{uiText('Предметы на уровни модулей, которые ещё не построены')}</small></span>
-        <ChevronRight size={18} aria-hidden="true" />
-      </Link>
-      <Link to="/hideout/quests" className="panel hideout-hub-choice">
-        <Target size={30} aria-hidden="true" />
-        <span><strong>{uiText('Квесты')}</strong><small>{uiText('Предметы для текущих, доступных и будущих квестов')}</small></span>
-        <ChevronRight size={18} aria-hidden="true" />
-      </Link>
-      {/* Owner, 04.11.2026: «сделай отдельную кнопку в разделе убежище, там будет круг сектантов». */}
-      <Link to="/hideout/cultist-circle" className="panel hideout-hub-choice">
-        <Skull size={30} aria-hidden="true" />
-        <span><strong>{uiText('Круг сектантов')}</strong><small>{uiText('Что положить в круг, чтобы точно получить нужный предмет')}</small></span>
-        <ChevronRight size={18} aria-hidden="true" />
-      </Link>
-    </div>
   </div>
 }
