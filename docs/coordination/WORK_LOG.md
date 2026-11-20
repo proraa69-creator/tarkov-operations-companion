@@ -8226,3 +8226,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Reports №200 and №201 closed with +1 day each (20.11.2026, «Готово» → «Да»): №200 «Провокация» fixed by the SPT quest check
   (70f65c0b on claude/spt-quest-sync), №201 Glukhar's escort by the SPT escort session (3baa0bdf on claude/boss-retinue-spt); none
   released. «В процессе» is empty, 194–201 all «Выдано дней: 1».
+- The game's own turn per part (20.11.2026): the helper's RaidOsGuns mode `assembled` put 147 of 148 default presets together in the
+  offline game and wrote where each part stood (768 parts); compute_fix.py compared with layBuild: 34 parts need one and the same
+  extra turn, −90° about X in their own frame (the game puts them straight on the slot's bone), whatever the weapon — `fix` in
+  index.json. layBuild applies it (HINGED_BARRELS gone: its turn was this one). Fixed by it: the SPEAR 6.8 receiver, the T-5000M
+  chassis, the M3 forend, the AXMC receiver, the MP-18/PKM/RPD/Pecheneg barrels, stocks of SCAR, SA58, MP7, TOZ-106, UZI, 9A-91, G36,
+  VSS, Desert Eagle/Glock 18C/M1911A1 slides, P90, the M60E6 box. Check of the 151 drawn weapons and the 30 Gunsmith builds: nothing
+  across or away from its parent (the SCAR butt plate is tall by itself). Not covered: parts in no default preset.

@@ -18,6 +18,8 @@ export interface PartAsset {
   fold?: Omit<PartAsset, 'fold' | 'fs'>
   /** A weapon whose stock folds: the slot that folds (`mod_stock`, `mod_stock_akms`…). */
   fs?: string
+  /** The game's own extra turn of the part on its slot (xyzw, in the part's frame), measured on the game's assembled presets. */
+  fix?: number[]
 }
 export interface PartsIndex { ppm: number; parts: Record<string, PartAsset> }
 
@@ -37,17 +39,6 @@ const apply = (a: Mat3, v: [number, number, number]): [number, number, number] =
   [a[0] * v[0] + a[1] * v[1] + a[2] * v[2], a[3] * v[0] + a[4] * v[1] + a[5] * v[2], a[6] * v[0] + a[7] * v[1] + a[8] * v[2]]
 /** The turn of most slot bones (-90° about X): it holds a part upright. */
 const STANDARD_BACK = transpose(quat([-0.70711, 0, 0, 0.70711]))
-/**
- * Barrels the game drew alone hanging from their hinge (a break-action or a quick-change barrel: the weapon's own pose closes it in the
- * game, owner 20.11.2026: «МР-18 разложенное… ствол смотрит вниз… ствол должен быть цельным»): a quarter turn about the view at their
- * mount lays them along the weapon, the muzzle forward, with what is on them.
- */
-export const HINGED_BARRELS: ReadonlySet<string> = new Set([
-  '61f4012adfc9f01a816adda1', // MP-18 600 mm
-  '646371faf2404ab67905c8e9', // ПКМ 658 mm
-  '6513eff1e06849f06c0957d4', // РПД 520 mm
-])
-const CLOSE_HINGE = quat([-0.70711, 0, 0, 0.70711])
 
 /** The nearest turn about the view alone: the part's own length (its Z) kept where it points in the picture's plane, its side up. */
 function flatten(turn: Mat3): Mat3 {
@@ -104,13 +95,16 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
   const centers: Record<string, [number, number]> = {}
   const partPaths: string[] = []
   const walk = (tpl: string, node: BuildNode | undefined, at: [number, number, number], given: Mat3, path: string) => {
-    const hinged = HINGED_BARRELS.has(tpl) ? mul(given, CLOSE_HINGE) : given
+    const plain = index.parts[tpl]
+    // The game's own turn of the part where it puts it straight on its slot's bone (measured on its assembled presets, `fix`): the
+    // MP-18, PKM and RPD barrels drawn hanging, the SPEAR receiver, the T-5000M chassis, the M3 forend… (owner, 20.11.2026: «ствол
+    // должен быть цельным… у всех оружие должно смотреть прямо»).
+    const fixed = plain?.fix ? mul(given, quat(plain.fix)) : given
     // A part turned towards the eye (on a side rail; owner, 20.11.2026: «предметы, которые ставятся на боковое крепление, должны
     // показываться… с правой стороны… на боковом креплении с той стороны»): laid in the picture's plane, its length along the weapon as
     // it is, at its own place along the view — on the near side it is drawn over the weapon, on the far side behind it.
-    const turn = Math.abs(Math.abs(hinged[0]) - 1) > 1e-3 ? flatten(hinged) : hinged
+    const turn = Math.abs(Math.abs(fixed[0]) - 1) > 1e-3 ? flatten(fixed) : fixed
     // folded: the weapon in its folded look, and the stock in the folding slot in its own when it has one
-    const plain = index.parts[tpl]
     const foldsHere = folded && (path === '' || path === foldSlot) && Boolean(plain?.fold)
     const asset = foldsHere ? plain!.fold! : plain
     if (!asset) { missing.push(tpl); return }
