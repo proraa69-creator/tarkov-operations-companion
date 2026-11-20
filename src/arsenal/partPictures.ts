@@ -80,6 +80,27 @@ export interface LaidBuild {
   foldable: boolean
 }
 
+/** How far in front of the receiver a folded stock brought to the near side lies (metres along the view). */
+const FOLDED_GAP = 0.002
+
+/**
+ * A stock folded to the far side of the receiver (the AK family folds to its left, the picture shows the right) lay behind it, hidden
+ * in the receiver (owner, 20.11.2026: «при нажатии уходит в текстуры, а он должен находиться снаружи»): the folded stock and what
+ * is on it are brought just in front of the receiver, so it shows outside, lying along it. A stock folding to the near side stays.
+ */
+function bringFoldedStockNear(placed: PlacedPart[], paths: string[], foldSlot: string) {
+  const receiver = placed[paths.indexOf('')]
+  const group = placed.filter((_, index) => paths[index] === foldSlot || paths[index]!.startsWith(`${foldSlot}/`))
+  // folded is the weapon's folded look (its stock slot turned) or the stock's own folded picture; nothing else moves
+  if (!receiver || !group.length || !(receiver.fold || group.some((part) => part.fold))) return
+  const middle = (part: PlacedPart) => part.x + (part.asset.d[0] + part.asset.d[1]) / 2
+  const groupNear = Math.min(...group.map((part) => part.x + part.asset.d[0]))
+  const groupFar = Math.max(...group.map((part) => part.x + part.asset.d[1]))
+  if ((groupNear + groupFar) / 2 <= middle(receiver)) return
+  const shift = receiver.x + receiver.asset.d[0] - FOLDED_GAP - groupFar
+  for (const part of group) part.x += shift
+}
+
 /**
  * The build laid out: every part covered by the index at its place, the picture's size (pixels at the index's scale) and the depth range.
  * `missing`: parts with no picture yet.
@@ -128,6 +149,10 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     }
   }
   walk(build.weaponId, build.root, [0, 0, 0], IDENTITY, '')
+  if (folded && foldSlot) bringFoldedStockNear(placed, partPaths, foldSlot)
+  // the fold button only where folding shows: the weapon has a folded look, or the stock in the folding slot has its own
+  const foldStock = foldSlot ? build.root.children[foldSlot]?.itemId : undefined
+  const foldable = Boolean(foldSlot && (weapon?.fold || (foldStock && index.parts[foldStock]?.fold)))
   // the picture's box: every part's corners through its placing
   let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity]
   let [near, far] = [Infinity, -Infinity]
@@ -140,7 +165,7 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     near = Math.min(near, part.x + part.asset.d[0])
     far = Math.max(far, part.x + part.asset.d[1])
   }
-  if (!placed.length) return { parts: [], missing, width: 0, height: 0, near: 0, far: 1, anchors: {}, centers: {}, boxes: {}, foldable: Boolean(foldSlot) }
+  if (!placed.length) return { parts: [], missing, width: 0, height: 0, near: 0, far: 1, anchors: {}, centers: {}, boxes: {}, foldable }
   // the box's corner to (0, 0)
   for (const part of placed) { part.m[2] -= left; part.m[5] -= top }
   for (const point of Object.values(anchors)) { point[0] -= left; point[1] -= top }
@@ -152,5 +177,5 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     const ys = [0, part.asset.w].flatMap((u) => [0, part.asset.h].map((v) => part.m[3] * u + part.m[4] * v + part.m[5]))
     boxes[partPaths[index]!] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
   })
-  return { parts: placed, missing, width: Math.ceil(right - left), height: Math.ceil(bottom - top), near, far, anchors, centers, boxes, foldable: Boolean(foldSlot) }
+  return { parts: placed, missing, width: Math.ceil(right - left), height: Math.ceil(bottom - top), near, far, anchors, centers, boxes, foldable }
 }
