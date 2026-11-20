@@ -26,8 +26,12 @@ export interface HideoutViewsFile {
   spots?: Record<string, number[]>
   /** Station id → level → light → [x, y, width, height] of its piece in pixels. */
   pieces?: Record<string, Record<string, Record<string, number[]>>>
-  /** The rooms behind the defective wall: the wall's station, the level that opens them and the stations inside. */
-  rooms?: { station?: string; openLevel: number; inside?: string[] }
+  /**
+   * The rooms behind the defective wall: the wall's station, the level that opens them, the stations whose pictures are in them
+   * (black until then) and those really behind the wall, without a button until then (the gym, the hall of fame, the gear rack —
+   * the med station, rest space and booze generator are built before it).
+   */
+  rooms?: { station?: string; openLevel: number; inside?: string[]; behind?: string[] }
 }
 
 const file = views as HideoutViewsFile

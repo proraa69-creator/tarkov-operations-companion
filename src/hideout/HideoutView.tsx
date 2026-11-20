@@ -36,6 +36,9 @@ function levelReady(stage: Stage | undefined, found: ReadonlyMap<string, number>
  * for every item, where it comes from (WhereToGet.tsx). The pictures come from the offline game copy (hideoutViews.ts); with none,
  * nothing is drawn.
  */
+/** Really behind the defective wall: no button and a note until the breach (the rooms' other modules are built before it). */
+const behindWall = (stationId: string) => Boolean((roomsInfo?.behind ?? roomsInfo?.inside)?.includes(stationId))
+
 export function HideoutView() {
   return pictureSize && basePicture(lightOf(0)) ? <HideoutScene size={pictureSize} /> : null
 }
@@ -94,8 +97,8 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
         {stations.map((entry) => {
           const spot = moduleSpot(entry.id)
           // a module behind the wall not broken yet is not shown at all (owner, 20.11.2026: «если стена не снесена, значит,
-          // модули за этой стенкой не отображаются»)
-          if (!spot || (closed && roomsInfo?.inside?.includes(entry.id))) return null
+          // модули за этой стенкой не отображаются… Все, что до этого, показывается»)
+          if (!spot || (closed && behindWall(entry.id))) return null
           const level = built[entry.id] ?? 0
           const max = entry.levels?.length ?? 0
           const ready = level < max && levelReady(entry.levels?.find((stage) => stage.level === level + 1), found)
@@ -111,7 +114,7 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
         })}
       </div>
     </div>
-    {station && <ModulePanel key={station.id} locked={closed && Boolean(roomsInfo?.inside?.includes(station.id))} station={station} stations={stations} built={built} found={found} items={items} economy={economy.data}
+    {station && <ModulePanel key={station.id} locked={closed && behindWall(station.id)} station={station} stations={stations} built={built} found={found} items={items} economy={economy.data}
       craftId={params.get('craft')} onClose={() => open(null)} onLevel={(level) => state.setHideoutLevel(station.id, level)} />}
   </section>
 }
