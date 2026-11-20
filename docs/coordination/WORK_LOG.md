@@ -8365,3 +8365,33 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Not done here: the Illumination levels look the same (base-L0..L3 mean brightness 36.8–37.2) — reshoot with the lights on,
   passed to the hideout session for the next update; the Season's modules switched on from the server — a helper on
   claude/season-hideout-modules.
+
+## 2026-11-20 — Claude: «Модули убежища» по режимам — со старта или выключен, без обновления приложения (не выпущено)
+- Владелец (20.11): к ближайшему сезону спортзал и биткоин-ферма будут «сразу со старта»; «Включение любого модуля и выключение…
+  по команде… сразу же без обновления приложения появится». Ветка `claude/season-hideout-modules` от `claude/quest-row-tags`
+  (42140d14), worktree `C:/Users/BANGKOK PC/raidos-season-modules`, коммит cdb7bbe2. Ничего не включено: настройка пустая.
+- Общее: `src/hideout/hideoutModules.ts` — по режиму `open` (кнопка и окно даже за целой аварийной стеной; требования других модулей
+  у всех уровней сняты, предметы, лояльность и навыки остаются) и `hidden` (модуля нет в убежище режима); 26 известных id
+  (json.tarkov.dev, 20.11.2026). Биткоин-ферма — `5d494a445b56502f18c98a10`, спортзал — `6377a9b9a93bde8fa30eb79a`.
+- Сервер: `server/src/services/hideoutModulesStore.ts` (SQLite `hideout_modules`), `server/src/routes/hideoutModules.ts`:
+  `GET/PUT /v1/accounts/me/admin/hideout-modules` (`{ mode, open, hidden }`, один режим за запись, другие сохраняются; пустые списки —
+  режим как в игре), 401/404, 60 записей/мин, zod (известные модули или из каталога сервера, без повторов, не в обоих списках),
+  аудит `hideout.modules`. Игрокам — полем `hideoutModules` в `GET /v1/announcement` (null — как в игре). Адрес добавлен в `ROUTES`
+  (`electron/serviceGateway.ts`).
+- Приложение: `src/hideout/hideoutModulesStore.ts` (из объявления, как `overview`, кэш `raidos.hideoutModules.v1`). Применяется:
+  вид сверху (HideoutView: `open` — кнопка и окно без «За аварийной стеной», кусок картинки не рисуется, пока комнаты закрыты —
+  как у медблока до пролома; `hidden` — ни кнопки, ни куска), «Что собрать для убежища», круг сектантов, нужное на картах,
+  «Что не продавать» и уровни там, значок на карточке предмета, синхронизация по экрану, «Где взять» (крафты выключенного модуля
+  и круг), «Прибыль крафтов».
+- Админка: «Админ панель» → «Модули убежища» (`src/admin/AdminHideoutModules.tsx`): режим, «Как в игре» / «Со старта» / «Выключен»,
+  «Сохранить»; RU и EN (`uiEnglishAdminPanel.ts`).
+- Команда для владельца: `scripts/hideout-season-start.js` — вставить в консоль вкладки raidos.app со входом владельца (вход из
+  `localStorage 'toc.session'`, не печатается); `})(false)` в конце — вернуть как в игре. Проверена на локальном сервере в обе стороны.
+- Тесты: новые `src/hideout/hideoutModules.test.ts`, `hideoutModulesStore.test.ts`, `src/admin/AdminHideoutModules.test.tsx`,
+  `electron/serviceGateway.hideoutModules.test.ts`, `server/src/routes/hideoutModules.test.ts`; дополнены `HideoutView.test.tsx`,
+  `AdminPanelPage.test.tsx`. `npm run typecheck` и `tsc` сервера чистые; vitest затронутого — всё зелёное, кроме известного CRLF
+  в AdminPanelPage (AppShell); `npm run server:test` 596/597 — упал «support chat screenshots», отдельно проходит (нагрузка, не наш
+  код); eslint изменённых файлов — 0 ошибок (старые предупреждения HideoutStashPage).
+- Не выпущено, не запушено, VPS не трогали. Риски: включение работает без обновления только у приложений с этим кодом и на
+  сервере с этим адресом — нужно выпустить до сезона; требования других модулей на выключенный модуль остаются строками
+  (данные игры); вживую в окне приложения не смотрели (только тесты).
