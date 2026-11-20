@@ -4,6 +4,8 @@ import { useAppState } from '../state/AppState'
 import { collectorEntries } from '../kappa/collector'
 import { createScreenSync, screenSyncSummary, type ScreenSyncTargets } from './screenSync'
 import { hideoutNeeds } from '../hideout/hideoutNeeds'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { hideoutModules } from '../hideout/hideoutModulesStore'
 import { questNeeds } from '../quests/questItemNeeds'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import type { AppDataset } from '../domain/types'
@@ -18,12 +20,14 @@ export function screenSyncTargets(data: AppDataset, state: ReturnType<typeof use
   const kappa = collectorEntries(data.quests, data.items)
   const quests = questNeeds(data.quests, progress, questAvailabilityOf(data.quests, progress), new Map()).items
   const open = new Map(quests.map((need) => [need.itemId, need.uses.filter((use) => !use.done).reduce((sum, use) => sum + use.count, 0)]))
+  // without the modules the owner turned off in this mode («Модули убежища»)
+  const stations = applyHideoutModules(data.hideout, mode, hideoutModules())
   const known = new Set([
     ...kappa.map(({ item }) => item.id),
-    ...hideoutNeeds(data.hideout, {}, new Map()).items.map((need) => need.itemId),
+    ...hideoutNeeds(stations, {}, new Map()).items.map((need) => need.itemId),
     ...quests.map((need) => need.itemId),
   ])
-  return { mode, profileId: state.activeProfile.id, kappa, stations: data.hideout, built: progress.hideoutLevels, items: data.items, quests: open, known }
+  return { mode, profileId: state.activeProfile.id, kappa, stations, built: progress.hideoutLevels, items: data.items, quests: open, known }
 }
 
 /**

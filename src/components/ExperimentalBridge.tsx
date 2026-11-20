@@ -15,6 +15,8 @@ import type { Item } from '../domain/types'
 import { setRecognisedItem } from '../items/recognisedItem'
 import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa/collector'
 import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { useHideoutModules } from '../hideout/hideoutModulesStore'
 import { mateNamesFor, mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
 import { featureEnabled } from '../app/archivedFeatures'
 import { setFleaCatalog } from '../data/screenFleaPrices'
@@ -145,12 +147,13 @@ export function ExperimentalBridge() {
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   // «Что не продавать» of the selected mode, for the badge on the item card (computed once per progress change).
   const progressNow = state.activeProfile.modes[state.raidMode]
+  const modules = useHideoutModules()
   // Archived with the «Что не продавать» page: the item card shows only «Каппа» and «MATE» then.
   const keepRows = useMemo(() => {
     if (!window.tarkovDesktop?.experimental || !featureEnabled('keepItems')) return new Map<string, KeepRow>()
-    const rows = computeKeepList({ quests: data.quests, hideout: data.hideout, items: data.items, progress: progressNow, collectorCollected: loadCollected(state.raidMode) })
+    const rows = computeKeepList({ quests: data.quests, hideout: applyHideoutModules(data.hideout, state.raidMode, modules), items: data.items, progress: progressNow, collectorCollected: loadCollected(state.raidMode) })
     return new Map(rows.map((row) => [row.item.id, row]))
-  }, [data.quests, data.hideout, data.items, progressNow, state.raidMode])
+  }, [data.quests, data.hideout, data.items, progressNow, state.raidMode, modules])
   const latest = useRef({ data, state, matcher, tooltipMatcher, itemsById, keepRows })
   // Friends' / squad mates' needed items for the «MATE» badge (refreshed periodically and on raid start).
   useMateNeedsRefresh(state.raidMode, data.quests)

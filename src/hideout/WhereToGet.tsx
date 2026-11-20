@@ -12,6 +12,8 @@ import { useTarkovData } from '../data/DataProvider'
 import { useEconomySnapshot } from '../data/useEconomy'
 import { circleTime, stackCount } from './cultistCircle'
 import { itemSources, sourceOpen, type ItemSource } from './itemSources'
+import { applyHideoutModules, CULTIST_CIRCLE } from './hideoutModules'
+import { useHideoutModules, useModeModules } from './hideoutModulesStore'
 import '../styles/hideoutView.css'
 
 const CIRCLE = 'cultist-circle'
@@ -30,13 +32,17 @@ interface ItemSourcesProps {
 /**
  * «Где взять» (owner, 20.11.2026: «появляется окно, и там будет писаться, можно скрафтить на верстаке или можно скрафтить в санузле.
  * Либо… можно добыть в круге сектантов… каждая строка нажимается»): one row per craft, barter and circle exchange that gives the
- * item; a row opens what it takes, and from there the module or the circle.
+ * item; a row opens what it takes, and from there the module or the circle. A module the owner turned off in this mode
+ * («Модули убежища», hideoutModules.ts) offers nothing.
  */
 export function ItemSources({ itemId, foundInRaid = false, economy, items, stations, built }: ItemSourcesProps) {
   // the rows pressed: open ones (closed ones when all start open)
   const [pressed, setPressed] = useState<ReadonlySet<string>>(() => new Set())
+  const { raidMode } = useAppState()
+  const turnedOff = useModeModules(raidMode).hidden
   const circleId = stations.find((station) => station.normalizedName === CIRCLE)?.id
-  const sources = itemSources(itemId, economy).filter((source) => !foundInRaid || source.kind !== 'barter')
+  const sources = itemSources(itemId, economy).filter((source) => (!foundInRaid || source.kind !== 'barter')
+    && !(source.kind === 'craft' && turnedOff.has(source.craft.stationId)) && !(source.kind === 'circle' && turnedOff.has(circleId ?? CULTIST_CIRCLE)))
   if (!economy && !sources.length) return null
   const press = (key: string) => setPressed((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next })
   return <div className="hv-sources">
@@ -66,7 +72,9 @@ export function ItemSourcesBlock({ itemId }: { itemId: string }) {
   const mode = state.raidMode
   const economy = useEconomySnapshot(mode)
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
-  return <ItemSources itemId={itemId} economy={economy.data} items={items} stations={data.hideout} built={state.activeProfile.modes[mode].hideoutLevels} />
+  const modules = useHideoutModules()
+  const stations = useMemo(() => applyHideoutModules(data.hideout, mode, modules), [data.hideout, mode, modules])
+  return <ItemSources itemId={itemId} economy={economy.data} items={items} stations={stations} built={state.activeProfile.modes[mode].hideoutLevels} />
 }
 
 function SourceIcon({ source }: { source: ItemSource }) {

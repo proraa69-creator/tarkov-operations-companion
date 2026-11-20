@@ -5,6 +5,7 @@ import type { HideoutStation, Item } from '../domain/types'
 import type { Craft } from '../data/economyApi'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { HideoutView } from './HideoutView'
+import { setHideoutModules } from './hideoutModulesStore'
 
 const MED = 'med-station'
 const BENCH = 'work-bench'
@@ -27,7 +28,7 @@ const stations: HideoutStation[] = [
   station(BENCH, 'Верстак', [plain(1)]),
   station(LIGHT, 'Освещение', [plain(1), plain(2), plain(3)]),
   station(WALL, 'Аварийная стена', [plain(1), plain(2), plain(3), plain(4), plain(5), plain(6)]),
-  station(GYM, 'Спортзал', [plain(1)]),
+  station(GYM, 'Спортзал', [{ ...plain(1), stationRequirements: ['Аварийная стена ур. 6'] }]),
 ]
 const crafts: Craft[] = [
   { id: 'wire-craft', stationId: BENCH, stationName: 'Верстак', level: 1, duration: 7200, requiredItems: [{ itemId: BOLTS, count: 2 }], rewardItems: [{ itemId: WIRE, count: 1 }] },
@@ -36,9 +37,9 @@ const crafts: Craft[] = [
 ]
 const barters = [{ id: 'bandage-barter', traderId: 'therapist', traderName: 'Терапевт', level: 1, requiredItems: [{ itemId: BOLTS, count: 1 }], rewardItems: [{ itemId: BANDAGE, count: 1 }] }]
 
-const state = vi.hoisted(() => ({ levels: {} as Record<string, number>, setHideoutLevel: vi.fn() }))
+const state = vi.hoisted(() => ({ mode: 'pvp', levels: {} as Record<string, number>, setHideoutLevel: vi.fn() }))
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { items: [item(BANDAGE, 'Бинт'), item(WIRE, 'Провода'), item(BOLTS, 'Болты')], hideout: stations, quests: [] } }) }))
-vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: 'pvp', activeProfile: { id: 'p1', modes: { pvp: { hideoutLevels: state.levels } } }, setHideoutLevel: state.setHideoutLevel }) }))
+vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode, activeProfile: { id: 'p1', modes: { [state.mode]: { hideoutLevels: state.levels } } }, setHideoutLevel: state.setHideoutLevel }) }))
 vi.mock('../data/useEconomy', () => ({ useEconomySnapshot: () => ({ data: { crafts, barters } }) }))
 vi.mock('./hideoutViews', () => ({
   pictureSize: { width: 1000, height: 500 },
@@ -57,6 +58,8 @@ const pictures = () => [...document.querySelectorAll('.hv-stage img.hv-picture, 
 
 beforeEach(() => {
   localStorage.clear()
+  setHideoutModules(null)
+  state.mode = 'pvp'
   state.levels = { [MED]: 1 }
   state.setHideoutLevel.mockReset()
 })
@@ -124,5 +127,49 @@ describe('«Убежище» как в игре', () => {
     fireEvent.click(screen.getByRole('button', { name: /Скрафтить: Верстак, ур. I/ }))
     expect(screen.getByRole('link', { name: 'Открыть модуль' })).toHaveAttribute('href', `/hideout?module=${BENCH}&craft=wire-craft`)
     expect(screen.getByText('Болты').closest('li')).toHaveTextContent('×2')
+  })
+})
+
+describe('«Модули убежища» of the owner in the picture', () => {
+  it('a module open from the start in the mode has its button and window behind the wall not broken yet, without its piece', () => {
+    setHideoutModules({ modes: { seasonal: { open: [GYM], hidden: [] } } })
+    state.mode = 'seasonal'
+    state.levels = { [GYM]: 1 }
+    renderView()
+    // its room is still black (as the med station's before the breach): the button, not the piece
+    expect(pictures()).toEqual(['base-L0.webp', 'rooms.webp'])
+    fireEvent.click(screen.getByRole('button', { name: /Спортзал, уровень 1/ }))
+    expect(screen.queryByText(/За аварийной стеной/)).toBeNull()
+  })
+
+  it('opens the module\'s levels without the other modules it waits for; only in its mode', () => {
+    setHideoutModules({ modes: { seasonal: { open: [GYM], hidden: [] } } })
+    state.mode = 'seasonal'
+    state.levels = {}
+    const { unmount } = renderView()
+    fireEvent.click(screen.getByRole('button', { name: /Спортзал, не построен/ }))
+    expect(screen.getByRole('heading', { name: /Для уровня I/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Аварийная стена ур. 6/)).toBeNull()
+    unmount()
+    state.mode = 'pvp'
+    renderView()
+    expect(screen.queryByRole('button', { name: /Спортзал/ })).toBeNull()
+  })
+
+  it('a module turned off in the mode has no button, no piece and offers no crafts', () => {
+    setHideoutModules({ modes: { pvp: { open: [], hidden: [MED] } } })
+    state.levels = { [MED]: 2 }
+    const { unmount } = renderView()
+    expect(pictures()).toEqual(['base-L0.webp', 'rooms.webp'])
+    expect(screen.queryByRole('button', { name: /Медблок/ })).toBeNull()
+    unmount()
+    setHideoutModules({ modes: { pvp: { open: [], hidden: [BENCH] } } })
+    state.levels = { [MED]: 1, [BENCH]: 1 }
+    renderView()
+    expect(screen.queryByRole('button', { name: /Верстак/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Медблок, уровень 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Провода/ }))
+    expect(screen.queryByRole('button', { name: /Скрафтить: Верстак/ })).toBeNull()
+    expect(screen.getByText('Не крафтится и не меняется — только найти или купить.')).toBeInTheDocument()
   })
 })

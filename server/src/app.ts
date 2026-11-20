@@ -81,6 +81,8 @@ import { OverviewDefaultsStore } from './services/overviewDefaultsStore.js'
 import { PlayerNewsStore } from './services/playerNewsStore.js'
 import { createPlayerNewsRouter } from './routes/playerNews.js'
 import { createOverviewDefaultsRouter } from './routes/overviewDefaults.js'
+import { HideoutModulesStore } from './services/hideoutModulesStore.js'
+import { createHideoutModulesRouter } from './routes/hideoutModules.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
@@ -462,7 +464,15 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createPlayerNewsRouter(accounts, new PlayerNewsStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, () => mapUpdates.changed()))
   const overviewDefaults = new OverviewDefaultsStore(accounts.database)
   app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => { announcementSignals.changed(); socialSignals.changedAll() }))
-  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView() })))
+  // «Админ панель» → «Модули убежища»: per mode, the modules open from the start or turned off, read by the apps with the notice.
+  const hideoutModules = new HideoutModulesStore(accounts.database)
+  const catalogOf = options.catalog ?? peekCatalogSnapshot
+  app.use(createHideoutModulesRouter(accounts, hideoutModules, {
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+    changed: () => { announcementSignals.changed(); socialSignals.changedAll() },
+    knownModule: (id) => (['pvp', 'pve', 'seasonal'] as const).some((mode) => catalogOf(mode)?.hideout?.some((station) => station.id === id)),
+  }))
+  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView(), hideoutModules: hideoutModules.publicView() })))
   // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
   // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
   app.use(createAgentRequestsRouter(accounts, new RequestsKeyStore(accounts.database, { now: accounts.clock }), bugReports, {
