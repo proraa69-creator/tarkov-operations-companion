@@ -8233,3 +8233,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   chassis, the M3 forend, the AXMC receiver, the MP-18/PKM/RPD/Pecheneg barrels, stocks of SCAR, SA58, MP7, TOZ-106, UZI, 9A-91, G36,
   VSS, Desert Eagle/Glock 18C/M1911A1 slides, P90, the M60E6 box. Check of the 151 drawn weapons and the 30 Gunsmith builds: nothing
   across or away from its parent (the SCAR butt plate is tall by itself). Not covered: parts in no default preset.
+- The bench's backdrop per colour scheme (owner, 20.11.2026): 12 places shot in the offline game (RaidOsScenes plugin, E:\SPT-photo\
+  backgrounds, originals 1920×1080 and every take there) — Woods day (tarkov), Woods at dusk (blackmc), Shoreline sea (telnyashka),
+  Reserve concrete (slate), Factory halls (gear, alcantara, perforated), Lighthouse red night and gold sunset (bloodmoon, crimson),
+  Streets (daynight, steel), Customs rusty warehouse (rust); src/assets/bench-backgrounds/<theme>.webp 1280×720, blurred and darkened
+  in CSS under the weapon (src/arsenal/benchBackdrop.ts), following the scheme live. rust, crimson, steel, alcantara and perforated
+  cannot be picked now (src/theme/theme.ts): their shots wait.
