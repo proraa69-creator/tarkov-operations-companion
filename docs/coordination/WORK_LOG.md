@@ -8446,3 +8446,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Вживую не смотрели: в браузере база не грузится без входа с подпиской (только тесты). Мой vite один раз пересобрал общий
   `node_modules/.vite/deps` (node_modules — ссылка на raidos-kord-breach); кэш цел, сервер 5571 отвечает; если у него ошибка
   зависимостей — перезапустить его vite.
+
+## 2026-11-20 — Claude: 0.6.0.327 hotfix out; release 0.6.0.328 (hideout tabs and window, light, tree; stocks; full screen; map follow)
+- 0.6.0.327 (claude/hotfix-eft-327, b61a3c19, live 18:45): the game account from the logs is the one that played last
+  (eftAccountLink.ts), not «PvP first» — two players on one PC, one in the Season, locked out. Merged back (b822e2e8).
+- 0.6.0.328: the hideout session's claude/hideout-view (module window over the picture, one level at a time, crafts by name,
+  Illumination light in the empty hideout, the Christmas tree 1 Dec – 15 Jan or by its button, tabs «Убежище / Квесты / Круг
+  сектантов» at the top, crafts folded) + level tabs as rectangles and the tree under Illumination 0 (0f4f6bac's parent);
+  weapon builds: a folded stock outside the receiver (85721dd6), stocks level (093115fc: slot tilt off every stock, the SCAR
+  and UZI 3/5/6 top edges levelled, `lv` in index.json, E:\SPT-photo\weapons\stock-level-applied.json merged by pack_parts.py),
+  full screen (bdb62200: backdrop on the whole screen, the stats window dragged anywhere on a PC and a phone, cells round it,
+  a phone's weapon edge to edge); «Приближать карту к точке» (claude/map-follow-toggle 8b5d83c0); the server mirror lock
+  (cc99deef). News: 0.6.0.328 «Обновили убежище», 0.6.0.327 «Техническое обновление» (owner's words).
+- Checks: full vitest — only the known Windows false failures; typecheck clean; server 597/597; build 0.6.0-328.
+- Not in it: boss and cultist spawn points (a helper reads E:\SPT; the owner places them on the server, no release needed).

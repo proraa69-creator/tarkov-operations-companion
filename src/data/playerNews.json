@@ -1,4 +1,10 @@
 [
+  {"version":"0.6.0.328","date":"2026-11-20","items":[
+    {"kind":"changed","ru":"Обновили убежище","en":"The hideout updated"}
+  ]},
+  {"version":"0.6.0.327","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
   {"version":"0.6.0.326","date":"2026-11-20","items":[
     {"kind":"added","ru":"Убежище: вид сверху со всеми модулями","en":"Hideout: a view from above with every module"},
     {"kind":"improved","ru":"Полностью переработанная сборка оружия","en":"Weapon builds completely reworked"}
