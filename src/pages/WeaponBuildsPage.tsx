@@ -8,6 +8,8 @@ import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
 import { installReplacing, missingRequired, presetBuild, removePart } from '../arsenal/buildModel'
 import { useBuildDrawing } from '../arsenal/BuildPicture'
+import { STATS_WINDOW_MOVED } from '../arsenal/BuildStage'
+import { useBenchBackdrop } from '../arsenal/benchBackdrop'
 import { BuildBench, pathKey, shownLayout } from '../arsenal/BuildBench'
 import { AmmoGrid, ModGrid } from '../arsenal/ModGrid'
 import { computeExtraCost, computeStats, FULL_ACCESS, unlockHint, type BuildCost, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
@@ -427,6 +429,9 @@ function FullBench({ weapon, stats, stock, selected, onSelect, onClose, children
 }) {
   const stageBox = useRef<HTMLDivElement>(null)
   const docked = isMobileLayout()
+  // the theme's picture behind the whole screen, not a framed part of it (owner, 20.11.2026: «фон на весь экран… не должно быть
+  // часть зеленая, часть с нашим фоном»)
+  const backdrop = useBenchBackdrop()
   const [room, setRoom] = useState(() => (typeof window === 'undefined' ? 800 : window.innerHeight - 80))
   useLayoutEffect(() => {
     const element = stageBox.current
@@ -469,27 +474,28 @@ function FullBench({ weapon, stats, stock, selected, onSelect, onClose, children
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
     }
   }, [docked])
-  return createPortal(<div className="wb-full" role="dialog" aria-modal="true" aria-label={`${uiText('Сборка на весь экран')}: ${weapon.name}`}>
+  return createPortal(<div className={`wb-full${backdrop ? ' has-backdrop' : ''}`} role="dialog" aria-modal="true" aria-label={`${uiText('Сборка на весь экран')}: ${weapon.name}`}>
+    {backdrop && <><div className="wb-full-backdrop" style={{ backgroundImage: `url("${backdrop}")` }} aria-hidden="true" /><div className="wb-full-vignette" aria-hidden="true" /></>}
     {/* Only the build and one way out (owner, 20.11.2026: «скроет все кнопки и останется только сборка оружия… с выходом… кнопка») */}
     <button type="button" className="wb-full-exit" onClick={onClose} title={uiText('Выйти из полноэкранного режима (Esc)')} aria-label={uiText('Выйти из полноэкранного режима (Esc)')}><Minimize2 size={15} /><span>{uiText('Свернуть')}</span></button>
     <div className="wb-full-body">
       <div className="wb-full-stage">
         {/* A phone: the stats at the top left above the weapon (owner, 20.11.2026: «характеристики сверху… слева сверху») */}
-        {docked && <StatsWindow stats={stats} stock={stock} docked />}
         <div className="wb-full-stage-room" ref={stageBox}>{children(room)}</div>
       </div>
     </div>
-    {!docked && <StatsWindow stats={stats} stock={stock} />}
+    <StatsWindow stats={stats} stock={stock} compact={docked} />
   </div>, document.body)
 }
 
 /**
- * The build's stats in a small window over the full screen, dragged by its title anywhere; it stays where it was left. `docked` (a
- * phone): in its place at the top left, not dragged.
+ * The build's stats in a small window over the full screen, held anywhere and dragged where it suits, on a PC and a phone; it stays
+ * where it was left, and the module cells lay round it (src/arsenal/BuildStage.tsx). `compact` (a phone): narrower, without the deltas.
  */
-function StatsWindow({ stats, stock, docked }: { stats: BuildStats; stock: BuildStats; docked?: boolean }) {
+function StatsWindow({ stats, stock, compact }: { stats: BuildStats; stock: BuildStats; compact?: boolean }) {
   const box = useRef<HTMLDivElement>(null)
-  const [at, setAt] = useState(() => readStatsWindow() ?? { x: 16, y: 16 })
+  // a phone starts below the top's buttons, a PC at the top left
+  const [at, setAt] = useState(() => readStatsWindow() ?? { x: 12, y: compact ? 52 : 16 })
   const drag = useRef<{ dx: number; dy: number } | null>(null)
   const clamp = useCallback((x: number, y: number) => {
     const element = box.current
@@ -509,6 +515,8 @@ function StatsWindow({ stats, stock, docked }: { stats: BuildStats; stock: Build
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const move = (event: ReactPointerEvent<HTMLDivElement>) => { if (drag.current) setAt(clamp(event.clientX - drag.current.dx, event.clientY - drag.current.dy)) }
+  // the module cells lay round the window wherever it is (src/arsenal/BuildStage.tsx)
+  useLayoutEffect(() => { window.dispatchEvent(new Event(STATS_WINDOW_MOVED)) }, [at])
   const up = () => {
     if (!drag.current) return
     drag.current = null
@@ -522,10 +530,10 @@ function StatsWindow({ stats, stock, docked }: { stats: BuildStats; stock: Build
     { label: 'Гориз. отдача', value: String(stats.recoilHorizontal), delta: stats.recoilHorizontal - stock.recoilHorizontal, better: 'lower' },
     { label: 'Скорость пули', value: stats.velocity ? `${Math.round(stats.velocity)} ${uiText('м/с')}` : '—', delta: (stats.velocity ?? 0) - (stock.velocity ?? 0), better: 'higher' },
   ]
-  return <div className={`wb-stats-window${docked ? ' is-docked' : ''}`} ref={box} style={docked ? undefined : { left: at.x, top: at.y }}>
-    {docked
-      ? <div className="wb-stats-window-title">{uiText('Характеристики')}</div>
-      : <div className="wb-stats-window-title is-handle" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} title={uiText('Перетащите окно, куда удобно')}>{uiText('Характеристики')}</div>}
+  // held anywhere and moved, on a PC and a phone (owner, 20.11.2026: «блок характеристик можно было зажать и перемещать»)
+  return <div className={`wb-stats-window is-handle${compact ? ' is-compact' : ''}`} ref={box} style={{ left: at.x, top: at.y }}
+    onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} title={uiText('Перетащите окно, куда удобно')}>
+    <div className="wb-stats-window-title">{uiText('Характеристики')}</div>
     {rows.map((row) => <div className="wb-stats-window-row" key={row.label}>
       <span>{uiText(row.label)}</span>
       <strong>{row.value}</strong>

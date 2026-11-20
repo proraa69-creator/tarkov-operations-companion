@@ -49,6 +49,17 @@ export interface StageOptions {
   sides: boolean
   /** The picture is not drawn larger than this (its pictures are 1000 pixels a metre). */
   maxScale: number
+  /**
+   * Boxes no cell may cover (left, top, right, bottom), with the picture's top at 0 (the result's `picture.y` moves them with the
+   * stage): the stats window over the full screen (owner, 20.11.2026: «окна модулей… должны огибать это окно… переместиться левее,
+   * правее, там, выше, ниже»).
+   */
+  avoid?: Array<[number, number, number, number]>
+  /**
+   * The picture's top on the stage when the cells above leave room for it (else lower, as far as they need): with it the avoided
+   * boxes are given on the stage itself, as measured.
+   */
+  pictureTop?: number
 }
 
 /** Where a cell goes: above, below or at a side of the weapon. */
@@ -144,6 +155,12 @@ export function layStage(picture: StagePicture, inputs: StageCellInput[], option
   const blocked = (left: number, right: number) => [...shapes, ...laid.map(([a, b, c, d]): Box => [a - gap, b - gap, c + gap, d + gap])]
     .filter(([a, , c]) => a < right && c > left)
 
+  const lift = options.pictureTop ?? 0
+  // clear of the window's shadow too
+  const clear = gap + 14
+  const avoid: Box[] = (options.avoid ?? []).map(([left, top, right, bottom]): Box => [left - clear, top - lift - clear, right + clear, bottom - lift + clear])
+  const hits = (x: number, y: number) => [...avoid, ...laid.map(([a, b, c, d]): Box => [a - gap, b - gap, c + gap, d + gap])]
+    .some(([a, b, c, d]) => x < c && x + cell > a && y < d && y + cell > b)
   const cells: StageCell[] = []
   const place = (input: StageCellInput, band: Band, x: number, y: number) => {
     const point = pointOf(input)
@@ -156,7 +173,17 @@ export function layStage(picture: StagePicture, inputs: StageCellInput[], option
     const list = bands[band]
     if (!list.length) continue
     const starts = spread(list.map((input) => pointOf(input)[1]), cell, gap, -reach, pictureHeight + reach)
-    list.forEach((input, index) => place(input, band, band === 'left' ? 0 : width - cell, starts[index]!))
+    list.forEach((input, index) => {
+      const x = band === 'left' ? 0 : width - cell
+      let y = starts[index]!
+      const box = avoid.find(([a, b, c, d]) => x < c && x + cell > a && y < d && y + cell > b)
+      if (box) {
+        const above = box[1] - cell
+        const below = box[3]
+        y = Math.abs(above - y) <= Math.abs(below - y) && !hits(x, above) ? above : !hits(x, below) ? below : above
+      }
+      place(input, band, x, y)
+    })
   }
 
   // above and below, row by row from the weapon out: each cell as near its point as the parts and the laid cells let it
@@ -165,22 +192,32 @@ export function layStage(picture: StagePicture, inputs: StageCellInput[], option
     const bandRows = rows(bands[band].map((input) => ({ input, along: along(input, 0) })), perRow)
     for (const row of bandRows) {
       const starts = spread(row.map(({ input }) => pointOf(input)[0]), cell, gap, 0, width)
-      const placed = row.map(({ input }, index) => {
-        const x = starts[index]!
-        const point = pointOf(input)
+      const yAt = (x: number, point: [number, number]) => {
         const under = blocked(x, x + cell)
         // above: the cell's bottom over every part and cell below it, and over its point; below: the other way round
-        const y = band === 'top'
+        return band === 'top'
           ? Math.min(point[1] - reach, ...under.map(([, top]) => top)) - cell
           : Math.max(point[1] + reach, ...under.map(([, , , bottom]) => bottom))
-        return { input, x, y }
-      })
-      // a row is laid at once: its cells do not stand on each other
-      for (const { input, x, y } of placed) place(input, band, x, y)
+      }
+      const placed = row.map(({ input }, index) => ({ input, x: starts[index]!, y: yAt(starts[index]!, pointOf(input)) }))
+      // a row is laid at once: its cells do not stand on each other; one on an avoided box is moved round it, one at a time
+      for (const entry of placed) {
+        let { x, y } = entry
+        const box = avoid.find(([a, b, c, d]) => x < c && x + cell > a && y < d && y + cell > b)
+        if (box) {
+          const point = pointOf(entry.input)
+          const sides = [box[0] - cell, box[2]].filter((at) => at >= 0 && at + cell <= width)
+            .map((at) => ({ x: at, y: yAt(at, point) })).filter((spot) => !hits(spot.x, spot.y))
+            .sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x))
+          if (sides[0]) ({ x, y } = sides[0])
+          else y = band === 'top' ? Math.min(y, box[1] - cell) : Math.max(y, box[3])
+        }
+        place(entry.input, band, x, y)
+      }
     }
   }
 
-  const top = Math.min(0, ...cells.map((entry) => entry.y))
+  const top = Math.min(-lift, ...cells.map((entry) => entry.y))
   const bottom = Math.max(pictureHeight, ...cells.map((entry) => entry.y + cell))
   for (const entry of cells) { entry.y -= top; entry.point[1] -= top; entry.from[1] -= top }
   return { width, height: Math.ceil(bottom - top), picture: { x: pictureX, y: -top, scale }, cell, cells }

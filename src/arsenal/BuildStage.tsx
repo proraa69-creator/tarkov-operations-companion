@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { BuildCanvas, type Drawn } from './BuildPicture'
 import type { SlotKind, Zone } from './boardLayout'
 import { layStage, type StageCellInput } from './stageLayout'
@@ -18,8 +18,36 @@ const SIZES = {
   phone: { cell: 44, gap: 4, reach: 16, maxScale: 1.4 },
   normal: { cell: 50, gap: 4, reach: 22, maxScale: 1.15 },
   full: { cell: 58, gap: 6, reach: 34, maxScale: 1.6 },
-  phoneFull: { cell: 44, gap: 4, reach: 22, maxScale: 1.8 },
+  // a phone's full screen: the weapon from edge to edge, no larger than it is drawn (owner, 20.11.2026: «оружие должно быть от края
+  // до края… если оно влезает нормально, то не нужно его растягивать сильнее»), every cell above or below it
+  phoneFull: { cell: 44, gap: 4, reach: 22, maxScale: 1 },
 } as const
+
+/** The stats window over the full screen (src/pages/WeaponBuildsPage.tsx) tells where it went: the cells lay round it again. */
+export const STATS_WINDOW_MOVED = 'wb-stats-window-moved'
+
+/** Where the full screen's stats window is on the stage (CSS pixels from the stage's corner), when it is over it. */
+function useStatsWindowOver(box: RefObject<HTMLDivElement | null>, on: boolean) {
+  const [over, setOver] = useState<[number, number, number, number] | null>(null)
+  useLayoutEffect(() => {
+    if (!on) return
+    const measure = () => {
+      const stage = box.current
+      const window_ = stage?.closest('.wb-full')?.querySelector('.wb-stats-window')
+      if (!stage || !window_) { setOver(null); return }
+      const a = stage.getBoundingClientRect()
+      const b = window_.getBoundingClientRect()
+      const next: [number, number, number, number] = [b.left - a.left, b.top - a.top, b.right - a.left, b.bottom - a.top]
+      setOver((current) => (current && current.every((value, index) => Math.abs(value - next[index]!) < 3) ? current : next))
+    }
+    measure()
+    const frame = requestAnimationFrame(measure)
+    window.addEventListener('resize', measure)
+    window.addEventListener(STATS_WINDOW_MOVED, measure)
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', measure); window.removeEventListener(STATS_WINDOW_MOVED, measure) }
+  })
+  return on ? over : null
+}
 export type StageSize = keyof typeof SIZES
 
 /** A picture's size once loaded (a flat picture of the weapon); 1000 × 350 until then. */
@@ -95,16 +123,31 @@ export function BuildStage({ drawn, flat, slots, size, selected, renderCell, max
     }),
   }), [laid, flatSize])
   const sizing = SIZES[size]
+  const statsOver = useStatsWindowOver(box, size === 'full' || size === 'phoneFull')
   const stage = useMemo(() => {
     if (!width) return null
-    const options = { width, cell: sizing.cell, gap: sizing.gap, reach: sizing.reach, sides: width >= 640, maxScale: sizing.maxScale }
-    let laidOut = layStage(picture, inputs, options)
-    // the full screen: a stage taller than the window draws the picture smaller until it fits (or cannot shrink further)
-    if (maxHeight && laidOut.height > maxHeight) {
-      for (let scale = laidOut.picture.scale * 0.92; scale > 0.2 && laidOut.height > maxHeight; scale *= 0.92) laidOut = layStage(picture, inputs, { ...options, maxScale: scale })
+    const options = { width, cell: sizing.cell, gap: sizing.gap, reach: sizing.reach, sides: width >= 640 && size !== 'phoneFull', maxScale: sizing.maxScale }
+    // the stats window is measured on the stage as it stands: the picture's top is given to the layout and only ever lowered (the cells
+    // moved above the window need room) until the layout keeps it, so the window and the cells are counted from the same top
+    const lay = (scale: number) => {
+      let laidOut = layStage(picture, inputs, { ...options, maxScale: scale })
+      if (!statsOver) return laidOut
+      let top = laidOut.picture.y
+      for (let pass = 0; pass < 6; pass++) {
+        laidOut = layStage(picture, inputs, { ...options, maxScale: scale, pictureTop: top, avoid: [statsOver] })
+        if (laidOut.picture.y <= top + 0.5) break
+        top = laidOut.picture.y
+      }
+      return laidOut
+    }
+    let laidOut = lay(sizing.maxScale)
+    // the full screen: a stage taller than the window draws the picture smaller until it fits (or cannot shrink further); a phone's
+    // keeps the weapon from edge to edge and scrolls
+    if (maxHeight && laidOut.height > maxHeight && size !== 'phoneFull') {
+      for (let scale = laidOut.picture.scale * 0.92; scale > 0.2 && laidOut.height > maxHeight; scale *= 0.92) laidOut = lay(scale)
     }
     return laidOut
-  }, [width, picture, inputs, sizing, maxHeight])
+  }, [width, picture, inputs, sizing, size, maxHeight, statsOver])
   return <div className={`build-stage is-${size}`} ref={box} style={{ height: stage?.height, '--wb-cell': `${sizing.cell}px` } as CSSProperties}>
     {stage && <>
       {drawn

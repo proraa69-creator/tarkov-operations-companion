@@ -315,7 +315,14 @@ button.wb-trader-auto { color: var(--brass); }
 .build-stage.is-full .wb-cell-name { font-size: 9px; }
 
 /* «На весь экран»: the build over the whole window, the chosen cell's modules at the side, the stats in a window of their own. */
-.wb-full { position: fixed; inset: 0; z-index: 4500; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 45%, #1a231e 0%, #0c0f0e 70%); color: var(--text); }
+.wb-full { position: fixed; inset: 0; z-index: 4500; display: flex; flex-direction: column; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #1a231e 0%, #0c0f0e 70%); color: var(--text); }
+/* the theme's picture behind the whole screen (owner, 20.11.2026: «фон на весь экран… как на ПК, так и на телефоне») */
+.wb-full.has-backdrop { isolation: isolate; background: #0d110f; }
+.wb-full-backdrop { position: absolute; inset: -24px; z-index: 0; background-position: center; background-size: cover; filter: blur(14px) brightness(.42) saturate(.9); transform: scale(1.04); pointer-events: none; }
+.wb-full-vignette { position: absolute; inset: 0; z-index: 0; background: radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(6, 8, 7, .55) 100%); pointer-events: none; }
+.wb-full > .wb-full-body { position: relative; z-index: 1; }
+.wb-full .wb-stage-backdrop, .wb-full .wb-stage-scroll.has-backdrop::after { display: none; }
+.wb-full .wb-stage-scroll.has-backdrop { background: transparent; }
 .wb-full-exit { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(12, 16, 14, .85); color: var(--text); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 @media (hover: hover) and (pointer: fine) { .wb-full-exit:hover { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); } }
 .wb-full.has-picker .wb-full-exit { right: 392px; }
@@ -328,9 +335,8 @@ button.wb-trader-auto { color: var(--brass); }
 .wb-full-side > .panel { min-height: 100%; border: 0; border-radius: 0; }
 .wb-stats-window { position: fixed; z-index: 4510; width: 236px; border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--line)); border-radius: 8px; background: rgba(14, 18, 16, .94); box-shadow: 0 12px 32px rgba(0, 0, 0, .5); backdrop-filter: blur(6px); overflow: hidden; }
 .wb-stats-window-title { padding: 7px 10px; border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .03); color: var(--text-dim); font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; user-select: none; }
-.wb-stats-window-title.is-handle { cursor: grab; touch-action: none; }
-.wb-stats-window-title.is-handle:active { cursor: grabbing; }
-.wb-stats-window.is-docked { position: static; flex: none; align-self: flex-start; box-shadow: none; backdrop-filter: none; }
+.wb-stats-window.is-handle { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.wb-stats-window.is-handle:active { cursor: grabbing; }
 .wb-stats-window-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; align-items: baseline; gap: 6px; padding: 5px 10px; font-size: 12px; }
 .wb-stats-window-row + .wb-stats-window-row { border-top: 1px solid rgba(255, 255, 255, .04); }
 .wb-stats-window-row > span { color: var(--text-muted); white-space: nowrap; }
@@ -357,12 +363,13 @@ button.wb-trader-auto { color: var(--brass); }
 @media (max-width: 640px) { .wb-stage-expand > span { display: none; } .wb-stage-expand { width: 30px; padding: 0; justify-content: center; } }
 @media (max-width: 640px) { .wb-stage-scroll { padding: 38px 6px 8px; } }
 .wb-full-stage-room > .wb-stage-scroll { padding-top: 44px; }
-/* A phone on its side: the stats at the left beside the weapon, the whole height for the weapon */
+/* A phone on its side: the stats in a small window over the top left, the weapon from edge to edge with its cells round the window
+   (owner, 20.11.2026: «оружие должно быть от края до края… модули должны огибать окошечко характеристик») */
 @media (orientation: landscape) and (max-height: 520px) {
-  .wb-full-stage { flex-direction: row; gap: 8px; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
-  .wb-stats-window.is-docked { width: 176px; }
-  .wb-stats-window.is-docked .wb-stats-window-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .wb-stats-window.is-docked .wb-stats-window-row > .wb-delta { display: none; }
+  .wb-full-stage { position: relative; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  .wb-stats-window.is-compact { width: 176px; }
+  .wb-stats-window.is-compact .wb-stats-window-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .wb-stats-window.is-compact .wb-stats-window-row > .wb-delta { display: none; }
 }
 
 /* A slot's modules in a small window at its cell (src/arsenal/ModGrid.tsx), like the game's. */
