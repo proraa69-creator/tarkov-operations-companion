@@ -8531,3 +8531,18 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   tiles z6, the wiki's FallingSkiesGWagonUSBMap): the player most likely took Elektronik's flash drive (stage 15, in a
   village house) for it. 1fa6b3e1 (not released): the point says «Флешка — на подножке чёрного «Гелендвагена» у выхода
   «Тоннель»», its 1 cm duplicate removed. Reply to the player drafted for the owner, not sent.
+
+## 2026-11-21 — Claude: React #185, the Overview jiggle, the Gunsmith bench (not released yet)
+- 379636b9 Overview: no jiggle in «Настроить блоки», glides without overshoot, a drag from 8 px, the carried block's place every
+  140 ms with a swap margin; the layout width taken narrower at once / wider from 24 px (page scrollbar loop); at most 6 sizes per
+  frame. Checked: edit → «Сбросить» → «Готово» at 1600 px, nothing moves or overlaps; a slow drag with tremor swaps once.
+- ae6de982 the build bench: the full screen's stats window measured against the room, not the centred stage — reproduced
+  «Maximum update depth exceeded» + the crash screen on 330 by carrying the window over the M4A1 (owner's video IMG_1247), none
+  after. The bench imports weaponBuilds.css (the Gunsmith page opened first had no bench styles: huge cells over the page, owner's
+  phone). Gunsmith task bench: «На весь экран», «Сложить/Разложить приклад», 58 px cells (FullBench moved to src/arsenal/FullBench.tsx).
+- Not reproduced here: the phone turning (headless has no real safe areas/fullscreen); IMG_1255/1256 (Overview «Ещё 18 заданий» and
+  the Gunsmith rows expanding) need the owner's layout.
+- Queue from the owner (21.11): Val grip RK-2 upwards and crooked stock tubes; hideout window fixed (no scrolling), «Построил» under
+  the next level's badge, compact level window; hideout module pictures per level without light stripes or stale rocks (SPT);
+  theme buttons textured (Стекло, чёрный мультикам, тельняшка); bug report dialog without the bug icon; «Алтын» a helmet picture
+  (memory altyn-helmet-picture).
