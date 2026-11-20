@@ -8508,3 +8508,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   the parts around it), titled «Сборка оружия» / «Weapon builds» (one line, owner: «Типа сборка оружия напиши»), RU/EN,
   1320×2868 and 1284×2778. Mailed alone as RaidOS_AppStore_screenshot03.rar (6.4 MB), accepted (200); it replaces
   03_3-gunsmith-build.png of the build 4 pack. Rejected on the way: the page view and the owner's own phone screenshot.
+- Phone «Назад» (owner: «выкидывает не в список оружия, а в обзор… должен делаться шаг назад в любом блоке»): 873ebf34
+  (after 09bb8d18, a Gunsmith-only first try) — backDelta is one step back whenever there is a screen to return to,
+  not the last entry with another path. Checked at 440×956: Gunsmith weapon → «Назад» → the list → «Назад» → «Обзор».
+  Not released yet on PC/Android/site: goes with the next release from claude/quest-row-tags.
+- App Store pack build 5 (test/ios-ipa-appstore-1120 at 2fee6ea6: 0.6.0.330 + eb56adfa + 873ebf34 + build 5), CI test IPA
+  green (44767250245). Screenshots «Сборка оружия» (one line, «какие модули ставить» crossed out by the owner): 03 = the
+  owner's own phone screenshot of the build page (status bar made 9:41, the update banner removed and the top bar put
+  back; EN rendered by the app at 440 pt with the safe areas), 03b = the build full screen. Mailed as
+  RaidOS_iOS_build5.part01–06.rar, all six accepted (200); it replaces the build 4 letters.
