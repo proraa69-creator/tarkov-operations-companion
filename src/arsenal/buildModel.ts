@@ -65,6 +65,8 @@ export function nodeAt(build: Build, path: string[]): BuildNode | undefined {
  */
 export const GRIP_SLOT = /^mod_pistol_?grip/
 export const STOCK_SLOT = 'mod_stock'
+/** A part the player may take off: any but one a required slot holds (the stock slot's may go: a pistol-grip build). */
+export const canTakeOff = (cell: SlotCell) => Boolean(cell.part) && (!cell.slot.required || cell.slot.nameId === STOCK_SLOT)
 export const isGripStock = (part: Pick<GunPart, 'category'> | undefined, slotNameId: string) => Boolean(part && GRIP_SLOT.test(slotNameId) && part.category === 'stock')
 
 /** The grip-stock beside the stock slot at this path (same parent), if one is installed. */

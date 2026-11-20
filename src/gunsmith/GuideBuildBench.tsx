@@ -44,7 +44,8 @@ export function GuideBuildBench({ weapon, catalog, partIds, access, screenshot, 
       onClose={() => setSelected(null)} />
     : null
   return <div className="gs-guide">
-    <BuildBench layout={layout} weapon={weapon} stats={stats} selected={selected} onSelect={setSelected} drawn={drawing.drawn} size="normal" noAmmo popover={pickAt} />
+    <BuildBench layout={layout} weapon={weapon} stats={stats} selected={selected} onSelect={setSelected} onRemove={(path) => { setBuild(removePart(build, path)); setSelected(null) }}
+      drawn={drawing.drawn} size="normal" noAmmo popover={pickAt} />
     {changed && <div className="gs-guide-tools">
       <button type="button" className="button small" onClick={() => { setBuild(guide); setSelected(null) }} title={uiText('Вернуть сборку из задания')}><RotateCcw size={13} />{uiText('Сборка из задания')}</button>
     </div>}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cheapestOffer, offerAccess, unlockHint } from '../arsenal/buildStats'
+import { unlockLabel } from '../arsenal/gunFormat'
 import type { Quest, TaskProgressStatus, Trader } from '../domain/types'
 import { estimateTraderLevel, loyaltyNumeral, playerAccess, readManualTraderLevels, readScreenTraderLevels, saveScreenTraderLevels, traderLevelInfos } from './traderLevels'
 
@@ -66,7 +67,12 @@ describe('trader loyalty estimate (EFT logs carry no loyalty)', () => {
     expect(unlockHint({ noFlea: false, fleaLevel: 25, offers: [flea, trader(2)] }, access)).toEqual({ kind: 'trader', vendorName: 'Механик', level: 2 })
     expect(unlockHint({ noFlea: false, fleaLevel: 25, offers: [flea, trader(4)] }, access)).toEqual({ kind: 'flea', level: 25 })
     expect(unlockHint({ noFlea: true, offers: [flea, trader(4)] }, access)).toEqual({ kind: 'trader', vendorName: 'Механик', level: 4 })
-    expect(unlockHint({ noFlea: false, fleaLevel: 25, offers: [flea, quest] }, access)).toEqual({ kind: 'task', task: 'Оружейник' })
+    expect(unlockHint({ noFlea: false, fleaLevel: 25, offers: [flea, quest] }, access)).toEqual({ kind: 'task', task: 'Оружейник', taskId: 'q' })
+    // owner, 20.11.2026: a quest the trading data names by its id — its name from the game data, else just «квест»
+    const byId = { kind: 'task' as const, task: '67a097379f2068e74603c6ac', taskId: '67a097379f2068e74603c6ac' }
+    expect(unlockLabel(byId, 'ru')).toBe('квест')
+    expect(unlockLabel(byId, 'ru', (id) => (id === byId.taskId ? 'Пробный заход' : undefined))).toBe('квест «Пробный заход»')
+    expect(unlockLabel({ kind: 'task', task: 'Оружейник', taskId: 'q' }, 'en')).toBe('quest «Оружейник»')
     // already on sale, or sold by nobody: nothing to open
     expect(unlockHint({ noFlea: false, offers: [flea] }, access)).toBeUndefined()
     expect(unlockHint({ noFlea: true, offers: [] }, access)).toBeUndefined()

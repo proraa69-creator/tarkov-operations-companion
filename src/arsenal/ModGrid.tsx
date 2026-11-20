@@ -2,11 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { createPortal } from 'react-dom'
 import { ArrowLeftRight, Lock, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { installReplacing, slotCandidates, STOCK_SLOT, type SlotCell } from './buildModel'
+import { canTakeOff, installReplacing, slotCandidates, type SlotCell } from './buildModel'
 import { isMuzzleSlot, muzzleKits, type MuzzleKit } from './muzzleKits'
 import { useLocale } from '../i18n/LocaleProvider'
 import { cheapestOffer, computeStats, unlockHint, type BuildStats, type PurchaseAccess } from './buildStats'
-import { formatModifier, formatRub, PartIcon, signedExact, unlockLabel } from './gunFormat'
+import { formatModifier, formatRub, PartIcon, signedExact, unlockLabel, useQuestNames } from './gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 import { ERGO_WEIGHT, RECOIL_WEIGHT } from './tieredBuilds'
 
@@ -36,8 +36,9 @@ function TilePicture({ part }: { part: Pick<GunPart, 'iconLink' | 'baseImageLink
  */
 function TileLock({ item, access }: { item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'>; access: PurchaseAccess }) {
   const { locale } = useLocale()
+  const questName = useQuestNames()
   const hint = unlockHint(item, access)
-  const text = hint ? unlockLabel(hint, locale) : uiText(item.noFlea ? 'запрет барахолки' : 'нет в продаже')
+  const text = hint ? unlockLabel(hint, locale, questName) : uiText(item.noFlea ? 'запрет барахолки' : 'нет в продаже')
   return <span className="wb-part-lock" title={hint ? `${uiText('Откроется, когда выполнится условие')}: ${text}` : text}><Lock size={9} aria-hidden="true" />{text}</span>
 }
 
@@ -205,7 +206,7 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
   const tools = <select className="wb-grid-sort" value={sorts.includes(sort) ? sort : 'balanced'} onChange={(event) => setSort(event.target.value as GridSort)} aria-label={uiText('Порядок')}>
     {sorts.map((value) => <option key={value} value={value}>{uiText(SORT_NAMES[value])}</option>)}
   </select>
-  const removable = Boolean(cell.part) && (!cell.slot.required || cell.slot.nameId === STOCK_SLOT)
+  const removable = canTakeOff(cell)
   if (sort === 'kits' && muzzle) return <GridWindow anchor={anchor} avoid={avoid} title={cell.slot.name} count={Math.max(3, kits.length)} onClose={onClose} tools={tools}>
     {kits.map(({ kit, price }) => {
       // what the device and the suppressor give together

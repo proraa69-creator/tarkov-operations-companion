@@ -250,7 +250,7 @@ export function cheapestOffer(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLev
 }
 
 /** What opens a part the player cannot buy yet (owner, 04.11.2026: «модули должны быть открыты при достижении этих условий»). */
-export type UnlockHint = { kind: 'trader'; vendorName: string; level: number } | { kind: 'task'; task: string } | { kind: 'flea'; level: number }
+export type UnlockHint = { kind: 'trader'; vendorName: string; level: number } | { kind: 'task'; task: string; taskId: string } | { kind: 'flea'; level: number }
 
 /** The nearest way: a trader's next loyalty level, then a quest, the flea market's level, a loyalty further off. Nothing when nobody sells it. */
 export function unlockHint(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'>, access: PurchaseAccess): UnlockHint | undefined {
@@ -271,7 +271,7 @@ export function unlockHint(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'
   }
   const loyalty: UnlockHint | undefined = trader && { kind: 'trader', vendorName: trader.vendorName, level: trader.minTraderLevel ?? 1 }
   if (loyalty && next) return loyalty
-  if (task?.taskUnlock) return { kind: 'task', task: task.taskUnlock.name }
+  if (task?.taskUnlock) return { kind: 'task', task: task.taskUnlock.name, taskId: task.taskUnlock.id }
   return flea !== undefined ? { kind: 'flea', level: flea } : loyalty
 }
 

@@ -222,6 +222,21 @@ describe('«Сборка оружия»: what opens a module', () => {
     expect(options.indexOf(locked)).toBe(options.length - 1)
   })
 
+  // owner, 20.11.2026: «правой кнопкой он должен сниматься просто. А по нажатию левой открывается окно»
+  it('a right click on the cell of a module takes it off; a left click opens its window; a required one stays', () => {
+    state.access = access(40)
+    renderPage()
+    const cell = (slot: string) => screen.getAllByRole('button').find((entry) => entry.getAttribute('data-cell') === slot)!
+    expect(cell('mod_pistol_grip')).toHaveClass('is-filled')
+    fireEvent.contextMenu(cell('mod_pistol_grip'))
+    expect(cell('mod_pistol_grip')).not.toHaveClass('is-filled')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.contextMenu(cell('mod_magazine'))
+    expect(cell('mod_magazine')).toHaveClass('is-filled')
+    fireEvent.click(cell('mod_pistol_grip'))
+    expect(screen.getByRole('dialog', { name: 'Пистолетная рукоятка' })).toBeInTheDocument()
+  })
+
   it('«Показать все модули» opens every module whatever the level', () => {
     state.access = access(5)
     renderPage()

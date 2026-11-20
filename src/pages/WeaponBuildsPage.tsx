@@ -14,7 +14,7 @@ import { computeExtraCost, computeStats, FULL_ACCESS, unlockHint, type BuildCost
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, renameSavedBuild, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
-import { formatRub, PartIcon, prettyCaliber, signed, weaponIcon, unlockLabel } from '../arsenal/gunFormat'
+import { formatRub, PartIcon, prettyCaliber, signed, weaponIcon, unlockLabel, useQuestNames } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
 import { TRADER_ORDER } from '../gunsmith/traderLevels'
 import { BUILD_TIERS, buildableWeapon, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
@@ -172,7 +172,8 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null); setSelected(null) }}
         onClose={() => setSelected(null)} />
       : null
-  const bench = (size: 'normal' | 'full', maxHeight?: number) => <BuildBench layout={layout} weapon={weapon} stats={stats} ammo={ammo} selected={selected} onSelect={setSelected}
+  const takeOff = (path: string[]) => { setBuild(removePart(build, path)); setReplaced(null); setSelected(null) }
+  const bench = (size: 'normal' | 'full', maxHeight?: number) => <BuildBench layout={layout} weapon={weapon} stats={stats} ammo={ammo} selected={selected} onSelect={setSelected} onRemove={takeOff}
     drawn={drawing.drawn} size={size} maxHeight={maxHeight} onExpand={size === 'normal' ? () => setFull(true) : undefined} folded={folded} onFold={setFolded}
     popover={(size === 'full') === full ? pickAt : undefined} />
 
@@ -793,9 +794,10 @@ function PlayerBuilds({ catalog, weapon, access, current, onLoad }: { catalog: G
 
 /** A part nobody sells to this player now: what opens it, or that nobody sells it. */
 function PartLock({ part, access, locale }: { part: GunPart; access: PurchaseAccess; locale: string }) {
+  const questName = useQuestNames()
   const hint = unlockHint(part, access)
   if (!hint) return <small className="is-bad">{uiText(part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</small>
-  return <small className="wb-part-lock" title={uiText('Откроется, когда выполнится условие')}><Lock size={10} aria-hidden="true" />{unlockLabel(hint, locale)}</small>
+  return <small className="wb-part-lock" title={uiText('Откроется, когда выполнится условие')}><Lock size={10} aria-hidden="true" />{unlockLabel(hint, locale, questName)}</small>
 }
 
 /** «Цена оружия»: on or off, remembered on this device; the gun's price by what this player can use now (trading/gunPrice.ts). */

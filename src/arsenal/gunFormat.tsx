@@ -1,12 +1,31 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { UnlockHint } from './buildStats'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Crosshair } from 'lucide-react'
+import { useOptionalTarkovData } from '../data/DataProvider'
 
-/** What opens a part, after the lock: «Механик 3», «квест «Оружейник»», «барахолка с 30 ур.». */
-export const unlockLabel = (hint: UnlockHint, locale: string) => {
+const QUEST_ID = /^[0-9a-f]{24}$/
+
+/**
+ * A quest's name by its id from the game data: the trading data names some quests by their id alone (owner, 20.11.2026: the shopping
+ * list said «квест «67a097379f2068e746…»»).
+ */
+export function useQuestNames(): (id: string) => string | undefined {
+  const quests = useOptionalTarkovData()?.data.quests
+  return useMemo(() => {
+    const names = new Map((quests ?? []).map((quest) => [quest.id, quest.name]))
+    return (id: string) => names.get(id)
+  }, [quests])
+}
+
+/** What opens a part, after the lock: «Механик 3», «квест «Оружейник»», «барахолка с 30 ур.»; a quest known only by its id — «квест». */
+export const unlockLabel = (hint: UnlockHint, locale: string, questName?: (id: string) => string | undefined) => {
   if (hint.kind === 'trader') return `${hint.vendorName} ${hint.level}`
-  if (hint.kind === 'task') return locale === 'en' ? `quest «${hint.task}»` : `квест «${hint.task}»`
+  if (hint.kind === 'task') {
+    const name = questName?.(hint.taskId) ?? (QUEST_ID.test(hint.task) ? '' : hint.task)
+    if (!name) return locale === 'en' ? 'quest' : 'квест'
+    return locale === 'en' ? `quest «${name}»` : `квест «${name}»`
+  }
   return locale === 'en' ? `flea from level ${hint.level}` : `барахолка с ${hint.level} ур.`
 }
 

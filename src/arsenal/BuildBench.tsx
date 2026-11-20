@@ -1,10 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { AlertTriangle, Layers, Maximize2 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { isMobileLayout } from '../platform'
 import { usesDataGateway } from '../data/tarkovApi'
-import { hasInstallable, stockSlotTaken } from './buildModel'
+import { canTakeOff, hasInstallable, stockSlotTaken } from './buildModel'
 import { boardLayout, hiddenTwins, type BoardLayout, type PlacedCell } from './boardLayout'
 import type { BuildStats } from './buildStats'
 import type { Drawn } from './BuildPicture'
@@ -48,8 +48,10 @@ export function shownLayout(build: Build, weapon: Weapon, catalog: Pick<GunCatal
  * The bench: the build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx);
  * the board of cells (Board) while a part of the build has no picture yet.
  */
-export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSelect, drawn, size, maxHeight, onExpand, popover, folded, onFold }: {
+export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSelect, onRemove, drawn, size, maxHeight, onExpand, popover, folded, onFold }: {
   layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; selected: string | null; onSelect: (key: string | null) => void
+  /** A right click on a module's cell takes it off (owner, 20.11.2026: «правой кнопкой он должен сниматься просто»). */
+  onRemove?: (path: string[]) => void
   /** No cell for the round (a Gunsmith task's build). */
   noAmmo?: boolean
   /** The stock folded; `onFold` turns it (shown on a weapon whose stock folds). */
@@ -116,7 +118,8 @@ export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSe
       renderCell={(key, style) => {
         if (key === 'ammo') return <AmmoCellButton ammo={ammo} active={selected === 'ammo'} style={style} onClick={() => toggle('ammo')} />
         const cell = cells.get(key)
-        return cell ? <SlotCellButton cell={cell} active={selected === key} linked={linked(cell.path)} style={style} onClick={() => toggle(key)} /> : null
+        return cell ? <SlotCellButton cell={cell} active={selected === key} linked={linked(cell.path)} style={style} onClick={() => toggle(key)}
+          onRemove={onRemove && canTakeOff(cell) ? () => onRemove(cell.path) : undefined} /> : null
       }} />
     {selected && popover?.(anchor, avoid)}
   </div>
@@ -156,11 +159,16 @@ export function AmmoCellButton({ ammo, active, style, onClick }: { ammo?: AmmoSt
   </button>
 }
 
-export function SlotCellButton({ cell, active, linked, style, onClick }: { cell: PlacedCell; active: boolean; linked: boolean; style?: CSSProperties; onClick: () => void }) {
+export function SlotCellButton({ cell, active, linked, style, onClick, onRemove }: {
+  cell: PlacedCell; active: boolean; linked: boolean; style?: CSSProperties; onClick: () => void
+  /** The right button takes the part off; the left one opens the window of modules. */
+  onRemove?: () => void
+}) {
   const { part, slot } = cell
   const missing = slot.required && !part
-  return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} data-cell={pathKey(cell.path)} style={style} onClick={onClick} aria-pressed={active}
-    title={part ? `${slot.name}: ${part.name}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
+  const takeOff = onRemove && part ? (event: MouseEvent) => { event.preventDefault(); onRemove() } : undefined
+  return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} data-cell={pathKey(cell.path)} style={style} onClick={onClick} onContextMenu={takeOff} aria-pressed={active}
+    title={part ? `${slot.name}: ${part.name}${takeOff ? ` · ${uiText('правая кнопка — снять')}` : ''}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
     {!part && !slotPicture(slot.nameId, cell.kind) && <span className="wb-cell-slot">{slot.name}</span>}
     {part ? <>
       {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signedExact(part.ergonomics)}</span>}
