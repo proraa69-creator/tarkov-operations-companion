@@ -9,6 +9,7 @@ import puff2 from '../assets/smoke/puff-2.webp'
 import puff3 from '../assets/smoke/puff-3.webp'
 import puff4 from '../assets/smoke/puff-4.webp'
 import glowUrl from '../assets/smoke/glow.webp'
+import { isMobileLayout } from '../platform'
 import '../styles/raidSmoke.css'
 
 /**
@@ -31,8 +32,14 @@ export function RaidSmoke({ mapId }: { mapId: string }) {
 const PERIOD = 72 // s — puff lives are PERIOD / 2 and PERIOD / 3 (36 s, 24 s): very slow
 // The plume drifts slowly: 24 frames a second and a backing store of 0.4 of the CSS pixels look the same as 30 and 0.5
 // (the smoke is soft anyway) and cost the processor about half (owner, 12.10.2026: «чтобы не сильно нагружало пк»).
-const FRAME_MS = 1000 / 24
-const SCALE = 0.4
+const DESKTOP_FRAME_MS = 1000 / 24
+const DESKTOP_SCALE = 0.4
+/**
+ * The phone (a player's report, 20.11.2026: «Очень сильно лагает область… если прокрутить ниже то там все отлично»): fewer and
+ * smaller frames, soft from the upscaling alone — a CSS blur over a canvas that changes every frame was redone each frame.
+ */
+const PHONE_FRAME_MS = 1000 / 20
+const PHONE_SCALE = 0.3
 // Enough overlapping puffs that the column reads as one continuous plume, not a stack of separate balls.
 const PUFFS = 64
 const STILL_TIME = PERIOD * 0.4
@@ -138,6 +145,9 @@ function SmokeLayer() {
     const layer = layerRef.current, canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!layer || !canvas || !ctx) return
+    const phone = isMobileLayout()
+    const SCALE = phone ? PHONE_SCALE : DESKTOP_SCALE
+    const FRAME_MS = phone ? PHONE_FRAME_MS : DESKTOP_FRAME_MS
     const puffs = makePuffs()
     let baked: HTMLImageElement[] = [], bakedGlow: HTMLImageElement | null = null, bakedKey = ''
     let sprites: Sprite[] = [], topSprites: Sprite[] = [], glow: Sprite | null = null

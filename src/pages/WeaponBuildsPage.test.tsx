@@ -127,11 +127,11 @@ describe('«Сборка оружия»: the three lists', () => {
 // Owner, 15.11.2026: «если вернуть по уровню персонажа… показывает модули, которые доступны на барахолке в зависимости от его
 // уровня… кнопку «Барахолка доступна» убирай».
 describe('«Сборка оружия»: the flea by the character level', () => {
+  // the module window at the cell (src/arsenal/ModGrid.tsx) lists every module, the shut ones greyed
   const magazines = () => {
     fireEvent.click(screen.getAllByRole('button').find((entry) => entry.classList.contains('wb-cell') && entry.textContent?.includes('STANAG'))!)
-    const picker = screen.getByRole('region', { name: 'Магазин' })
-    fireEvent.click(within(picker).getByRole('checkbox', { name: 'Можно купить' }))
-    return within(picker).getAllByRole('option').find((entry) => entry.textContent?.includes('D-60'))!
+    const window = screen.getByRole('dialog', { name: 'Магазин' })
+    return within(window).getAllByRole('option').find((entry) => entry.textContent?.includes('D-60'))!
   }
   const d60 = catalog.mods.get(FX.mag60)!
   afterEach(() => { catalog.mods.set(FX.mag60, d60) })
@@ -207,30 +207,51 @@ describe('«Сборка оружия»: what opens a module', () => {
   const openMagazines = () => {
     const stanag = screen.getAllByRole('button').find((entry) => entry.classList.contains('wb-cell') && entry.textContent?.includes('STANAG'))
     fireEvent.click(stanag!)
-    return screen.getByRole('region', { name: 'Магазин' })
+    return screen.getByRole('dialog', { name: 'Магазин' })
   }
 
-  it('lists what can be bought now and counts the rest; unticked, the rest says what opens it', () => {
+  it('the module window lists every module; one that cannot be bought yet is greyed and says what opens it', () => {
     state.access = access(5)
     renderPage()
-    const picker = openMagazines()
-    const options = () => within(picker).getAllByRole('option')
-    expect(within(picker).getByRole('checkbox', { name: 'Можно купить' })).toBeChecked()
-    expect(options().map((entry) => entry.textContent)).not.toContainEqual(expect.stringContaining('D-60'))
-    expect(picker.querySelector('.wb-picker-closed')).toHaveTextContent('ещё закрыто: 1')
-    fireEvent.click(within(picker).getByRole('checkbox', { name: 'Можно купить' }))
-    const locked = options().find((entry) => entry.textContent?.includes('D-60'))!
+    const window = openMagazines()
+    const locked = within(window).getAllByRole('option').find((entry) => entry.textContent?.includes('D-60'))!
     expect(locked).toHaveClass('is-locked')
     expect(locked.querySelector('.wb-part-lock')).toHaveTextContent(/Миротворец 3|барахолка с 15 ур\./)
-    expect(picker.querySelector('.wb-picker-closed')).toBeNull()
-    expect(localStorage.getItem('raid-os-gun-buyable-v1')).toBe('all')
+    // what can be bought comes first
+    const options = within(window).getAllByRole('option')
+    expect(options.indexOf(locked)).toBe(options.length - 1)
+  })
+
+  // owner, 20.11.2026: «правой кнопкой он должен сниматься просто. А по нажатию левой открывается окно»
+  it('a right click on the cell of a module takes it off; a left click opens its window; a required one stays', () => {
+    state.access = access(40)
+    renderPage()
+    const cell = (slot: string) => screen.getAllByRole('button').find((entry) => entry.getAttribute('data-cell') === slot)!
+    expect(cell('mod_pistol_grip')).toHaveClass('is-filled')
+    fireEvent.contextMenu(cell('mod_pistol_grip'))
+    expect(cell('mod_pistol_grip')).not.toHaveClass('is-filled')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.contextMenu(cell('mod_magazine'))
+    expect(cell('mod_magazine')).toHaveClass('is-filled')
+    fireEvent.click(cell('mod_pistol_grip'))
+    expect(screen.getByRole('dialog', { name: 'Пистолетная рукоятка' })).toBeInTheDocument()
+  })
+
+  it('«Показать все модули» opens every module whatever the level', () => {
+    state.access = access(5)
+    renderPage()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Показать все модули' }))
+    const open = within(openMagazines()).getAllByRole('option').find((entry) => entry.textContent?.includes('D-60'))!
+    expect(open).not.toHaveClass('is-locked')
+    expect(open.querySelector('.wb-part-lock')).toBeNull()
+    localStorage.removeItem('raidos-wb-all-modules')
   })
 
   it('at the conditions reached the module is open', () => {
     state.access = access(40, { traderLevels: { peacekeeper: 3 } })
     renderPage()
-    const picker = openMagazines()
-    const open = within(picker).getAllByRole('option').find((entry) => entry.textContent?.includes('D-60'))!
+    const window = openMagazines()
+    const open = within(window).getAllByRole('option').find((entry) => entry.textContent?.includes('D-60'))!
     expect(open).not.toHaveClass('is-locked')
     expect(open.querySelector('.wb-part-lock')).toBeNull()
   })

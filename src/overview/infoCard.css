@@ -45,3 +45,12 @@ button.info-line:hover span { color: var(--text); }
 .info-line strong { color: var(--text); font-size: 15px; font-weight: 800; }
 .info-line.is-raid strong { color: var(--brass-strong); }
 .info-line.is-late strong { color: #e0806b; }
+
+/* The clocks never wrap (owner, 20.11.2026, the iPhone's half-wide card: «Нужно что бы время стояло нормально без переноса на строку ниже,
+   сделай шрифт меньше»): the time's size follows the card's width (the clocks' row is the measure), never under 13 px. */
+.info-clock strong { white-space: nowrap; }
+.info-tarkov-time .info-clocks { container-type: inline-size; }
+/* the same on the PC, where a card stands a quarter, a third or half of a column wide (overviewFreeLayout.ts) */
+.info-tarkov-time.is-combined .info-clock { column-gap: clamp(3px, 2cqi, 6px); }
+.info-tarkov-time.is-combined .info-clock svg { width: clamp(13px, 8cqi, 18px); height: clamp(13px, 8cqi, 18px); flex: none; }
+.info-tarkov-time.is-combined .info-clock strong { font-size: 18px; font-size: clamp(13px, calc((100cqi - 52px) / 6.3), 32px); }

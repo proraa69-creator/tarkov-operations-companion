@@ -73,8 +73,8 @@ describe('«Оружейник → Посмотреть все»', () => {
     expect(screen.queryByRole('button', { name: 'Открыть сборку на весь экран' })).toBeNull()
     expect(document.body.innerHTML).not.toContain(GUIDE_IMAGE)
     expect(document.body.textContent).not.toMatch(SITE_NAME)
-    // The whole rifle: its default preset's picture from the mod data.
-    await waitFor(() => expect(document.querySelector('.gs-weapon img')?.getAttribute('src')).toMatch(/m4/))
+    // The whole rifle in the bench of «Сборка оружия» (owner, 20.11.2026): its default preset's picture while the parts' are not there.
+    await waitFor(() => expect(document.querySelector('.gs-weapon img')?.getAttribute('src')).toContain(FX.preset))
   })
 
   it('shows the owner\'s own screenshot of the build; one that does not load gives way to the weapon', () => {

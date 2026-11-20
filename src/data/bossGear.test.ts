@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bossGear, classLabel } from './bossGear'
+import { bossGear, bossRetinue, classLabel, retinueGear, retinueSize } from './bossGear'
 import { BOSS_INFO } from './bossInfo'
 
 describe('bosses\' rounds and plates (report 178: «сборка + патрон… бронежилеты и их плиты»)', () => {
@@ -36,5 +36,29 @@ describe('bosses\' rounds and plates (report 178: «сборка + патрон�
   it('a class or a range', () => {
     expect(classLabel([6, 6])).toBe('6')
     expect(classLabel([4, 5])).toBe('4–5')
+  })
+})
+
+describe('«Свита» (owner, 20.11.2026)', () => {
+  it('names each kind of guard with how many come on which map, and his kit', () => {
+    const reshala = bossRetinue('reshala')!
+    expect(reshala.members.map((member) => [member.name.ru, member.counts.map((count) => [count.maps, count.min, count.max])]))
+      .toEqual([['Охранник', [[['customs'], 2, 4], [['terminal'], 4, 4]]]])
+    expect(retinueSize(reshala)).toEqual([2, 4])
+    const guard = retinueGear(reshala.members[0]!)!
+    expect(guard.weapons.length).toBeGreaterThan(2)
+    expect(guard.weapons.every((weapon) => weapon.ammo.length > 0 || /нож|knife/i.test(weapon.name.en))).toBe(true)
+    // Glukhar's three kinds: six on Reserve, three on Terminal
+    expect(bossRetinue('glukhar')!.members.map((member) => member.name.ru)).toEqual(['Штурмовик', 'Служба безопасности', 'Разведчик'])
+    expect(retinueSize(bossRetinue('glukhar')!)).toEqual([3, 6])
+    expect(retinueSize(bossRetinue('kaban')!)).toEqual([7, 8])
+  })
+
+  it('the Goons name the other two, with the kit of their own pages; a boss alone has none', () => {
+    const birdeye = bossRetinue('goon-1')!
+    expect(birdeye.squad).toBe(true)
+    expect(birdeye.members.map((member) => member.ref)).toEqual(['goon-2', 'goon-3'])
+    expect(retinueGear(birdeye.members[0]!)).toBe(bossGear('goon-2')!.groups[0])
+    expect(bossRetinue('killa')).toBeUndefined()
   })
 })

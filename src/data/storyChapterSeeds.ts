@@ -95,7 +95,8 @@ export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
       { en: 'Hand over the flash drive to Prapor', ru: 'Передать флешку Прапору', mapIds: [] },
       { en: 'Wait for information from Prapor', ru: 'Дождаться информации от Прапора', mapIds: [] },
       { en: 'Retrieve the plane\'s flight recorder', ru: 'Забрать бортовой самописец самолёта', mapIds: ['woods'], points: [{ mapId: 'woods', x: -248.18, z: -21.98 }] },
-      { en: 'Leave the flight recorder in the specified spot', ru: 'Оставить бортовой самописец в указанном месте', mapIds: ['shoreline'], points: [{ mapId: 'shoreline', x: 242.75, z: 427.24 }] },
+      // owner, 19.11.2026 (screenshot with the spot marked): inside the long house at its south-west corner, not by its north-east one
+      { en: 'Leave the flight recorder in the specified spot', ru: 'Оставить бортовой самописец в указанном месте', mapIds: ['shoreline'], points: [{ mapId: 'shoreline', x: 250.83, z: 440.89 }] },
       { en: 'Visit Prapor', ru: 'Посетить Прапора', mapIds: [] },
       { en: 'Hand over the item to Prapor: Rechargeable battery', ru: 'Передать Прапору предмет: аккумуляторная батарея', mapIds: [], steps: [{ en: 'Find the item in raid: Rechargeable battery', ru: 'Найти в рейде: аккумуляторная батарея' }] },
       { en: 'Hand over the item to Prapor: Printed circuit board', ru: 'Передать Прапору предмет: печатная плата', mapIds: [], steps: [{ en: 'Find the item in raid: Printed circuit board', ru: 'Найти в рейде: печатная плата' }] },

@@ -7,6 +7,7 @@ import { useEconomySnapshot } from '../data/useEconomy'
 import { craftRows, formatDuration, fuelCostPerHour, matchesSearch, sortByNumber, type CraftContext, type CraftRow } from '../domain/economy'
 import { formatPrice, timeAgo } from '../shared/format'
 import { EconomyStatus, EconomyTabs, ItemLines, ProfitCell } from '../components/EconomyParts'
+import { useModeModules } from '../hideout/hideoutModulesStore'
 
 type CraftSort = 'perHour' | 'profit' | 'percent' | 'duration'
 const SORTS: Array<[CraftSort, string]> = [['perHour', 'Прибыль в час'], ['profit', 'Прибыль ₽'], ['percent', 'Прибыль %'], ['duration', 'Время']]
@@ -32,7 +33,9 @@ export function CraftsPage() {
   }), [data])
   const fuelPerHour = useMemo(() => data ? fuelCostPerHour(data.items, baseContext) : null, [baseContext, data])
   const context: CraftContext = useMemo(() => ({ ...baseContext, stationLevels, fuelPerHour: withFuel ? fuelPerHour : 0 }), [baseContext, fuelPerHour, stationLevels, withFuel])
-  const allRows = useMemo(() => data ? craftRows(data, context) : [], [context, data])
+  // no crafts of a module the owner turned off in this mode («Модули убежища»)
+  const turnedOff = useModeModules(state.raidMode).hidden
+  const allRows = useMemo(() => data ? craftRows(data, context).filter((row) => !turnedOff.has(row.stationId)) : [], [context, data, turnedOff])
   const stations = useMemo(() => {
     const byId = new Map<string, { id: string; name: string; maxLevel: number }>()
     for (const row of allRows) {

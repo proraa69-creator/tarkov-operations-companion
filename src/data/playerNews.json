@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.326","date":"2026-11-20","items":[
+    {"kind":"added","ru":"Убежище: вид сверху со всеми модулями","en":"Hideout: a view from above with every module"},
+    {"kind":"improved","ru":"Полностью переработанная сборка оружия","en":"Weapon builds completely reworked"}
+  ]},
   {"version":"0.6.0.321","date":"2026-11-19","items":[
     {"kind":"improved","ru":"«Ключи»: список сам переключается на открытую карту","en":"«Keys»: the list follows the open map"},
     {"kind":"improved","ru":"Оптимизация карты в рейде","en":"Map optimisation in raid"}

@@ -150,3 +150,64 @@ for (const [key, { groups, guards, elsewhere }] of Object.entries(BOSSES)) {
 const file = join(root, 'src/data/bossGear.json')
 await writeFile(file, `${JSON.stringify(out, null, 1)}\n`)
 console.log(file, Object.keys(out).length)
+
+// The retinue of every boss who has one (owner, 20.11.2026: «боссам, у которых есть свита, нужно добавить в описание… какая
+// свита, сколько человек, какая броня, оружие и какие у них патроны бывают»): each kind of guard with how many come on each map
+// (`maps` → `bosses[*].escorts` of the boss's own spawn entries) and the kit of its loadouts, as the boss's own above. Names
+// from the game's locale (json.tarkov.dev `maps_ru` / `maps_en`), shortened under the boss («Охранник Глухаря (разведчик)» →
+// «Разведчик»). The loadouts are a sample (about fifteen per bot) drawn anew by tarkov.dev: a new run changes the lists a little.
+const member = (mob, ru, en, fixed) => ({ mob, name: { ru, en }, ...(fixed ? { fixed } : {}) })
+/** One of the Goons: his kit is the one on his own page (`ref`), not a second sample. */
+const goon = (ref, mob, ru, en, fixed) => ({ ...member(mob, ru, en, fixed), ref })
+const GOONS = ['bossKnight']
+const RETINUE = {
+  reshala: { boss: ['bossBully'], members: [member('followerBully', 'Охранник', 'Guard')] },
+  shturman: { boss: ['bossKojaniy'], members: [member('followerKojaniy', 'Охранник', 'Guard')] },
+  sanitar: { boss: ['bossSanitar'], members: [member('followerSanitar', 'Охранник', 'Guard')] },
+  glukhar: { boss: ['bossGluhar'], members: [member('followerGluharAssault', 'Штурмовик', 'Assault'), member('followerGluharSecurity', 'Служба безопасности', 'Security'), member('followerGluharScout', 'Разведчик', 'Scout')] },
+  kaban: { boss: ['bossBoar'], members: [member('followerBoar', 'Охранник', 'Guard'), member('followerBoarClose1', 'Башмак', 'Basmach'), member('followerBoarClose2', 'Гусь', 'Gus'), member('bossBoarSniper', 'Снайпер', 'Sniper')] },
+  kollontay: { boss: ['bossKolontay'], members: [member('followerKolontayAssault', 'Штурмовик', 'Assault'), member('followerKolontaySecurity', 'Служба безопасности', 'Security')] },
+  wadge: { boss: ['bossWedgeLab'], members: [member('followerWedgeLab', 'Охранник', 'Guard')] },
+  'cultist-priest': { boss: ['sectantPriest'], members: [member('sectantWarrior', 'Сектант-воин', 'Cultist warrior')] },
+  // The Goons walk as three: each one's page names the other two (on Icebreaker the Knight comes with Rogues: left out)
+  'goon-1': { squad: true, boss: GOONS, members: [goon('goon-2', 'bossKnight', 'Рыцарь', 'Knight', 1), goon('goon-3', 'followerBigPipe', 'Биг Пайп', 'Big Pipe')] },
+  'goon-2': { squad: true, boss: GOONS, members: [goon('goon-3', 'followerBigPipe', 'Биг Пайп', 'Big Pipe'), goon('goon-1', 'followerBirdEye', 'Бёрдай', 'Birdeye')] },
+  'goon-3': { squad: true, boss: GOONS, members: [goon('goon-2', 'bossKnight', 'Рыцарь', 'Knight', 1), goon('goon-1', 'followerBirdEye', 'Бёрдай', 'Birdeye')] },
+}
+
+/** The app's map ids: the dark Lab is the Lab, Night Factory the Factory, Ground Zero 21+ Ground Zero. */
+const MAP_ALIAS = { 'the-lab-dark': 'the-lab', 'night-factory': 'factory', 'ground-zero-21': 'ground-zero' }
+const mapId = (map) => MAP_ALIAS[map.normalizedName] ?? map.normalizedName
+/** How many of this kind come with the boss, by map: maps with the same count as one row, the most maps first. */
+function countsOf(bossMobs, mob, fixed) {
+  const byMap = new Map()
+  for (const map of Object.values(maps.maps)) for (const boss of map.bosses ?? []) {
+    if (!bossMobs.includes(boss.mob) || byMap.has(mapId(map))) continue
+    const escorts = boss.escorts ?? []
+    // the Goons: only where the Knight walks with the other two
+    if (bossMobs === GOONS && !escorts.some((escort) => escort.mob === 'followerBigPipe')) continue
+    const counts = fixed ? [fixed] : escorts.filter((escort) => escort.mob === mob).flatMap((escort) => escort.amount.map((amount) => amount.count))
+    if (counts.length) byMap.set(mapId(map), [Math.min(...counts), Math.max(...counts)])
+  }
+  const rows = new Map()
+  for (const [id, [min, max]] of byMap) {
+    const key = `${min}-${max}`
+    rows.set(key, { min, max, maps: [...(rows.get(key)?.maps ?? []), id].sort() })
+  }
+  return [...rows.values()].sort((a, b) => b.maps.length - a.maps.length || a.min - b.min)
+}
+
+const retinue = {}
+for (const [key, { boss, members, squad }] of Object.entries(RETINUE)) {
+  retinue[key] = {
+    ...(squad ? { squad: true } : {}),
+    members: members.map(({ mob, name, fixed, ref }) => {
+      const counts = countsOf(boss, mob, fixed)
+      if (!counts.length) throw new Error(`no counts ${key} ${mob}`)
+      return { name, counts, ...(ref ? { ref } : gear([mob])) }
+    }),
+  }
+}
+const retinueFile = join(root, 'src/data/bossRetinue.json')
+await writeFile(retinueFile, `${JSON.stringify(retinue, null, 1)}\n`)
+console.log(retinueFile, Object.keys(retinue).length)

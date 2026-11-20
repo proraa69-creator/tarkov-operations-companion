@@ -18,6 +18,7 @@ import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearScanFrames } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
 import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
+import { createGunPartResponder } from './gunParts.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { setMapFloorWheel, startMapFloorWheel, stopMapFloorWheel } from './mapFloorWheel.js'
@@ -28,7 +29,7 @@ import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
-import { buildEdition, isOwnerBuild } from './buildEdition.js'
+import { buildEdition, isOwnerBuild, isTestBuild, TEST_BUILD_APP_NAME, TEST_BUILD_DATA_FOLDER } from './buildEdition.js'
 import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
 import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
@@ -58,6 +59,8 @@ const LEGACY_USER_DATA = join(app.getPath('appData'), 'Tarkov Operations Compani
 const USER_DATA = join(app.getPath('appData'), 'Tarkov Operator')
 // The test build for friends is a separate app with its own data folder (electron/trial.ts).
 if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_DATA_FOLDER)) }
+// A test build (electron/buildEdition.ts isTestBuild) too: it runs beside the real app and never touches its data.
+else if (isTestBuild()) { app.setName(TEST_BUILD_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TEST_BUILD_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
 // One copy at a time (electron/singleInstance.ts), checked after the data folder is set: the lock belongs to that folder.
 // A copy the app started itself takes the lock in `whenReady`, once the copy it replaces has gone.
@@ -332,7 +335,12 @@ app.whenReady().then(async () => {
     { name: 'raidos.app (Chromium)', url: (path) => `${MAP_FILE_ORIGIN}${path}`, fetch: chromiumFetch },
     { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: chromiumFetch },
   ])
-  protocol.handle(ITEM_IMAGE_SCHEME, (request) => new URL(request.url).hostname === 'map' ? answerMapFile(request.url) : answerItemImage(request.url))
+  // «Сборка оружия»: the part pictures inside the app (electron/gunParts.ts)
+  const answerGunPart = createGunPartResponder(join(dirname(APP_INDEX_FILE), 'gun-parts'))
+  protocol.handle(ITEM_IMAGE_SCHEME, (request) => {
+    const host = new URL(request.url).hostname
+    return host === 'map' ? answerMapFile(request.url) : host === 'parts' ? answerGunPart(request.url) : answerItemImage(request.url)
+  })
   // What the page may ask for (security review, 03.11.2026): copying text, the owner panel's notifications, full screen
   // for a video. Camera, microphone, the screen, location, USB and the rest are refused without asking — the app runs as
   // administrator, and Electron would otherwise grant them all.
@@ -361,7 +369,7 @@ app.whenReady().then(async () => {
   // The server laptop: no game features, the window waits minimized (closing it stops the server).
   if (serverMode) mainWindow?.minimize()
   // A friend's (or the owner's gaming) copy updates itself from the server laptop's site.
-  else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: async () => {
+  else if (!isTrialBuild() && !isTestBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: async () => {
     // No game running = no raid, whatever the last log says (a game closed or crashed mid-raid never logs the end).
     if (await isTarkovRunning() === false) return false
     if (logWatcher.raidState().inRaid) return true

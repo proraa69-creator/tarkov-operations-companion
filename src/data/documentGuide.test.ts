@@ -56,6 +56,9 @@ describe('the photos of the battle pass documents', () => {
     expect(pointPhotos(guide, 'customs', [0, 0], ['financial'])).toEqual([])
     expect(pointPhotos(null, 'customs', [-186.2, 317.6], ['financial'])).toEqual([])
     expect(pointPhotos(guide, 'icebreaker', [0, 0], ['pmc-files'])).toEqual([])
+    // owner, 20.11.2026: the Shoreline hangar between the village and the car exit is not «the white house in front of the T-90»
+    expect(pointPhotos(guide, 'shoreline', [-232.5, -627.6], ['technical'])).toEqual([])
+    expect(guide.maps.shoreline!.technical).toContain('fa4c79d9e970f24e')
   })
 
   it('the picture comes from our server', () => {

@@ -24,7 +24,10 @@ function renderDashboard() {
   client.setQueryData(['tarkov-companion-data', 'pvp'], demoDataset)
   return render(<LocaleProvider><QueryClientProvider client={client}><AppStateProvider><DataProvider><MemoryRouter><DashboardPage /></MemoryRouter></DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>)
 }
-const order = (container: HTMLElement, selector: string) => [...container.querySelectorAll(selector)].map((element) => element.getAttribute('data-block'))
+const order = (container: HTMLElement) => [...container.querySelectorAll('.overview-free > .overview-block')].map((element) => element.getAttribute('data-block')!)
+/** The cards, and the blocks of the old right column, in the order they stand on the free grid. */
+const cards = (container: HTMLElement) => order(container).filter((id) => id.startsWith('stat-'))
+const narrow = (container: HTMLElement) => order(container).filter((id) => ['favorites', 'tasks', 'gunsmith'].includes(id))
 
 beforeEach(() => {
   localStorage.clear()
@@ -40,15 +43,15 @@ describe('DashboardPage with the owner\'s blocks', () => {
   it('shows the owner\'s order, hides his hidden blocks and uses his headings; a change arrives live', () => {
     setOverviewDefaults(OWNER)
     const { container } = renderDashboard()
-    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-kappa', 'stat-screen', 'stat-conditions'])
+    expect(cards(container)).toEqual(['stat-kappa', 'stat-screen', 'stat-conditions'])
     expect(container.querySelector('.goon-card')).toBeNull()
-    expect(order(container, '.dashboard-column:last-child > .overview-block')).toEqual(['favorites', 'tasks', 'gunsmith'])
+    expect(narrow(container)).toEqual(['favorites', 'tasks', 'gunsmith'])
     expect(screen.getByText('Мой рынок')).toHaveClass('panel-title')
     expect(screen.getByText('Задачи')).toHaveClass('stat-label')
 
     act(() => setOverviewDefaults(sanitizeOverviewDefaults({ hidden: ['favorites'], titles: {} })))
-    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons'])
-    expect(order(container, '.dashboard-column:last-child > .overview-block')).toEqual(['tasks', 'gunsmith'])
+    expect(cards(container)).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons'])
+    expect(narrow(container)).toEqual(['tasks', 'gunsmith'])
     expect(screen.queryByText('Мой рынок')).toBeNull()
   })
 
@@ -56,8 +59,8 @@ describe('DashboardPage with the owner\'s blocks', () => {
     localStorage.setItem(OVERVIEW_LAYOUT_KEY, JSON.stringify({ stats: ['stat-goons', 'stat-conditions', 'stat-screen', 'stat-kappa'], rows: ['stats', 'columns'], left: ['raid', 'squad', 'requirements'], right: ['gunsmith', 'tasks', 'favorites'] }))
     setOverviewDefaults(OWNER)
     const { container } = renderDashboard()
-    expect(order(container, '.stat-grid > .overview-block')).toEqual(['stat-conditions', 'stat-screen', 'stat-kappa'])
-    expect(order(container, '.dashboard-column:last-child > .overview-block')).toEqual(['gunsmith', 'tasks', 'favorites'])
+    expect(cards(container)).toEqual(['stat-conditions', 'stat-screen', 'stat-kappa'])
+    expect(narrow(container)).toEqual(['gunsmith', 'tasks', 'favorites'])
   })
 
   it('in English: the owner\'s English heading, or the standard one when he wrote none', () => {

@@ -76,7 +76,8 @@ async function loadGunCatalog(mode: RaidMode, locale: AppLocale, onNewer?: (cata
 }
 
 /** Loaded only by the builder page (lazy): nothing is fetched until it is opened. */
-export function useGunCatalog(mode: RaidMode, locale: AppLocale) {
+/** `enabled`: false keeps it from loading (the tier list loads it on its «Оружие» tab only). */
+export function useGunCatalog(mode: RaidMode, locale: AppLocale, enabled = true) {
   const client = useQueryClient()
   const queryKey = ['gun-builder-catalog', mode, locale]
   return useQuery({
@@ -87,5 +88,6 @@ export function useGunCatalog(mode: RaidMode, locale: AppLocale) {
     // a busy server (429 / 503 while it prepares the data) gets two more tries, 1 s and 2 s later
     retry: 2,
     refetchOnWindowFocus: false,
+    enabled,
   })
 }

@@ -124,7 +124,7 @@ import { setQuestKeyFavorite, useQuestKeyFavorites } from '../quests/questKeyFav
 import { SpotPhotos } from '../maps/SpotPhotos'
 import { LockedNote } from '../maps/LockedNote'
 import { behindLockedDoor, lockedRooms, lockedRoomsAt } from '../data/mapRoomSigns'
-import { keysOfPoint, neededKeysOf, questKeysOnMap, setNeededKeysOnly, useNeededKeysOnly } from '../maps/neededKeys'
+import { keysOfPoint, neededKeysOf, questKeysOfPoint, questKeysOnMap, setNeededKeysOnly, useNeededKeysOnly } from '../maps/neededKeys'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
@@ -648,7 +648,9 @@ export function MapsPage() {
   // «Требования рейда» on the Overview (?quest=…&objective=<id>): the point of that objective, e.g. where to plant the item.
   const focusedObjectiveId = params.get('objective')
   // «Барахолка» → a key's «Показать дверь на карте» (?lock=<marker id>): that door, on its floor, even with «Двери» off.
-  const focusedLockId = params.get('lock')
+  // «Требования рейда» → the flare of an exit (?point=<marker id>, owner 20.11.2026: «при нажатии на него должен подсвечиваться
+  // выход на карте»): that exit the same way, even with its layer off.
+  const focusedLockId = params.get('lock') ?? params.get('point')
   // ?key=<item id>: the key whose curated lock that marker stands for (data/keyDoors.ts keyDoorFocusCard).
   const focusedLockKey = params.get('key')
   // «Ключи локации» (report 186): ?keyDoors=<key id> lights every door that key opens here, ?door=<marker id> flies to one.
@@ -1000,8 +1002,10 @@ export function MapsPage() {
       setSelectedMarker((current) => (current && answers(current) ? current : marker))
       return
     }
+    // a quest with no point here that names the place itself (?point=, the exit «Прекратить огонь!» leaves by): that place's card
+    if (focusedLockId && plottedMarkers.some((entry) => entry.id === focusedLockId)) return
     if (quest) setSelectedMarker(questInfoMarker(quest, activeMap.id))
-  }, [focusedQuestId, focusedStage, focusedObjectiveId, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress, navigationType, location.key])
+  }, [focusedQuestId, focusedStage, focusedObjectiveId, focusedLockId, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress, navigationType, location.key])
 
   // ?lock=<marker id>: select the door and switch to its floor once, when the map's markers are known.
   const focusedLock = useMemo(() => (focusedLockId ? plottedMarkers.find((marker) => marker.id === focusedLockId) : undefined), [focusedLockId, plottedMarkers])
@@ -1167,6 +1171,7 @@ export function MapsPage() {
     if (marker.id !== focusedLockId) {
       next.delete('lock')
       next.delete('key')
+      next.delete('point')
     }
     if (marker.questId) {
       next.set('quest', marker.questId)
@@ -1584,7 +1589,7 @@ export function MapsPage() {
                       entry={lockedPoint(marker) ? <LockedNote rooms={roomsOf(marker)} items={itemsById} entry /> : undefined}
                       item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
                       boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
-                      keys={marker.questId ? keysByQuest.get(marker.questId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
+                      keys={marker.questId ? questKeysOfPoint(keysByQuest.get(marker.questId), marker.objectiveId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
                       spotKeys={layerId === 'loot.key' && (marker.keyCount ?? 1) > 1 ? <KeySpotKeys keyIds={keysShown(marker)} items={itemsById} owned={ownedKeys} compact tiers={keyTierMap} /> : undefined}
                       photo={marker.questId && marker.objectiveId ? <MarkerPlacePhoto questId={marker.questId} objectiveId={marker.objectiveId} onOpen={placePhotos.open} /> : undefined}
                     />

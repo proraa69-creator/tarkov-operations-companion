@@ -5,7 +5,7 @@ import { storyGuideChapterId } from '../data/storyChapterGuide'
 import type { DeferredQuest, DeferredQuests } from '../progression/deferredQuests'
 import { isLiveGameQuest, questFaction } from '../progression/questBasics'
 import type { TaskAvailability } from '../progression/requirementEngine'
-import { keyUsed, usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
+import { keyUsed, requirementObjectiveIds, usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
 
 /**
  * «Ключи для квестов» (a player's proposal №52, owner 05.11.2026: «Сделай отдельный раздел ключей для квестов. Туда добавь все ключи,
@@ -26,6 +26,11 @@ export interface QuestKeyUse {
   used?: boolean
   /** The quest asks to plant this key (report №154: «Супервайзер» — the Goshan, IDEA and OLI till keys). */
   planted?: boolean
+  /**
+   * The objectives the key is for; none: the whole quest. A point of the quest shows only its own objective's keys (owner, 20.11.2026,
+   * «Нужно больше энергии»: the keys of the west wing stood on the east wing's generator too).
+   */
+  objectiveIds?: string[]
 }
 
 export type QuestKeyState = 'needed' | 'deferred' | 'done'
@@ -39,7 +44,7 @@ export interface QuestKeyRow {
   mapIds: string[]
 }
 
-interface QuestKeyNeed { itemId: string; mapIds: string[]; alternatives: string[]; planted?: boolean }
+interface QuestKeyNeed { itemId: string; mapIds: string[]; alternatives: string[]; planted?: boolean; objectiveIds?: string[]; wholeQuest?: boolean }
 
 /** More keys than this among a quest's required items: a hand-in of any key («Ключевой партнёр»: any of 214), which makes none of them a quest key. */
 const ANY_KEY_LIST = 12
@@ -53,6 +58,9 @@ function traderQuestKeys(quest: Quest, items: ReadonlyMap<string, Item>): QuestK
   for (const need of requirements) {
     const own = needs.get(need.itemId) ?? { itemId: need.itemId, mapIds: [], alternatives: [] }
     if (planted(need)) own.planted = true
+    const objectives = requirementObjectiveIds(need)
+    if (objectives.length) own.objectiveIds = [...new Set([...(own.objectiveIds ?? []), ...objectives])]
+    else own.wholeQuest = true
     own.mapIds = [...new Set([...own.mapIds, ...(need.mapIds ?? [])])]
     if ((need.alternatives ?? 1) > 1) {
       const others = requirements.filter((other) => other.itemId !== need.itemId && other.objectiveId === need.objectiveId).map((other) => other.itemId)
@@ -116,7 +124,8 @@ export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string
       const entry = deferred.get(quest.id)
       const list = uses.get(need.itemId) ?? []
       list.push({ quest, mapIds: need.mapIds, alternatives: need.alternatives, ...(status ? { status } : {}), ...(entry ? { entry } : {}),
-        ...(used.has(need.itemId) || (need.planted && placed.has(need.itemId)) ? { used: true } : {}), ...(need.planted ? { planted: true } : {}) })
+        ...(used.has(need.itemId) || (need.planted && placed.has(need.itemId)) ? { used: true } : {}), ...(need.planted ? { planted: true } : {}),
+        ...(need.objectiveIds?.length && !need.wholeQuest ? { objectiveIds: need.objectiveIds } : {}) })
       uses.set(need.itemId, list)
     }
   }

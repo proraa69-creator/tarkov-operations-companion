@@ -51,10 +51,15 @@ export function installSoftMotion(): () => void {
 
   // The place in the page by the offsets, which a glide under way (a translate) does not change, so a block caught mid-glide
   // is measured where it really stands.
+  // Inside a block of the PC Overview's free grid: the place in its block. The grid glides its blocks itself (overview/useOverviewEditor.ts);
+  // measured in the page, what is inside a block moved there would glide a second time.
   const spotOf = (element: Element): Spot => {
     const html = element as HTMLElement
     let x = 0, y = 0
-    for (let node: HTMLElement | null = html; node; node = node.offsetParent as HTMLElement | null) { x += node.offsetLeft; y += node.offsetTop }
+    for (let node: HTMLElement | null = html; node; node = node.offsetParent as HTMLElement | null) {
+      if (node.matches('.overview-free > .overview-block')) break
+      x += node.offsetLeft; y += node.offsetTop
+    }
     return { x, y, w: html.offsetWidth, h: html.offsetHeight }
   }
   const tracked = () => [...document.querySelectorAll(BLOCKS)].filter((element) => !element.closest(SKIP) && (element as HTMLElement).offsetParent !== null)

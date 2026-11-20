@@ -4,6 +4,7 @@ import type { Item, Quest } from '../domain/types'
 import type { DeferredQuest } from '../progression/deferredQuests'
 import type { TaskAvailability } from '../progression/requirementEngine'
 import { STORY_CHAPTER_SEEDS } from '../data/storyChapterSeeds'
+import { questKeysOfPoint, questKeysOnMap } from '../maps/neededKeys'
 import { questKeyRows } from './questKeys'
 
 const item = (id: string, name: string, category: Item['category'] = 'Ключ') => ({ id, name, shortName: name, category }) as unknown as Item
@@ -136,5 +137,24 @@ describe('«Ключи для квестов»: keys a quest asks to plant (repo
   it('a key only optional in the quest is still not a quest key', () => {
     const rows = questKeyRows([quest('q', [find('k3')], { requiredItems: ['k3'] })], ITEMS, PROGRESS, status({ q: 'active' }), NONE)
     expect(rows).toEqual([])
+  })
+})
+
+describe('«Ключи для квестов» on a quest point (owner, 20.11.2026: «Нужно больше энергии»)', () => {
+  it('a point shows its own objective\'s keys and the whole quest\'s, never another objective\'s', () => {
+    const west = 'Найти генераторы в западном крыле', east = 'Найти генераторы в восточном крыле'
+    const quests = [quest('energy', [key('k1', { objectiveId: west, alternatives: 2 }), key('k2', { objectiveId: west, alternatives: 2 })], { requiredItems: ['k3'] })]
+    const rows = questKeyRows(quests, ITEMS, PROGRESS, status({ energy: 'active' }), NONE)
+    const keys = questKeysOnMap(rows, 'customs').get('energy')
+    expect(questKeysOfPoint(keys, west)?.map((entry) => entry.id).sort()).toEqual(['k1', 'k2', 'k3'])
+    expect(questKeysOfPoint(keys, east)?.map((entry) => entry.id)).toEqual(['k3'])
+    // a point naming no objective: every key of the quest
+    expect(questKeysOfPoint(keys, undefined)?.map((entry) => entry.id).sort()).toEqual(['k1', 'k2', 'k3'])
+  })
+
+  it('a key one requirement ties to an objective and another to none is for the whole quest', () => {
+    const quests = [quest('q', [key('k1', { objectiveId: 'a' }), key('k1')])]
+    const keys = questKeysOnMap(questKeyRows(quests, ITEMS, PROGRESS, status({ q: 'active' }), NONE), 'customs').get('q')
+    expect(questKeysOfPoint(keys, 'b')?.map((entry) => entry.id)).toEqual(['k1'])
   })
 })

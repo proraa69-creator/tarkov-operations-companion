@@ -154,3 +154,13 @@ describe('the owner\'s Customs reading of 19.11.2026 (Season, 3440×1440, one O)
     expect([...states.dim].sort()).toEqual(['boat', 'bunker', 'gas', 'reserve', 'ruaf', 'zb1011'])
   })
 })
+
+// The game's list on Customs read by the app's own steps from a full screenshot (20.11.2026): one of three reads gave «ВС» as Latin
+// «BC», and «Блокпост ВС РФ» stayed dark.
+describe('Latin letters drawn like Cyrillic ones in the reading', () => {
+  it('«Блокпост BC РФ» is «Блокпост ВС РФ»', () => {
+    const exits = [{ id: 'ruaf', title: 'Блокпост ВС РФ', titles: ['Блокпост ВС РФ', 'RUAF Roadblock'] }, { id: 'gas', title: 'Старая заправка', titles: ['Старая заправка', 'Old Gas Station'] }]
+    expect([...exitsInText('ВЫХОДО5 Блокпост BC РФ P|', exits)]).toEqual(['ruaf'])
+    expect([...matchListedExits(parseExtractList('ВЫХОДО5 Блокпост BC РФ P|'), exits)]).toEqual(['ruaf'])
+  })
+})

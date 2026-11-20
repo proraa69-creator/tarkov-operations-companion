@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { BellRing, ClipboardList, FileText, LayoutDashboard, LayoutGrid, Megaphone, MessagesSquare, Newspaper, Power, ShieldCheck, Target } from 'lucide-react'
+import { BellRing, ClipboardList, FileText, House, LayoutDashboard, LayoutGrid, Megaphone, MessagesSquare, Newspaper, Power, ShieldCheck, Target } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
 import { OwnerNoticeTools } from '../notices/OwnerNoticeTools'
@@ -8,6 +8,7 @@ import { AdminSurveyResults } from '../admin/AdminSurveyResults'
 import { AdminFeaturesSection } from '../admin/AdminFeaturesSection'
 import { AdminQuestsSection } from '../admin/AdminQuestsSection'
 import { AdminBlocksSection } from '../admin/AdminBlocksSection'
+import { AdminHideoutModules } from '../admin/AdminHideoutModules'
 import { AdminNewsEditor } from '../admin/AdminNewsEditor'
 import { ownerRequest, useOwnerAccess } from '../admin/ownerAccess'
 import { OwnerReportsTable } from './RequestsPage'
@@ -21,7 +22,7 @@ import '../admin/adminPanel.css'
 /** «Сводка»: the site's admin tabs with the site's sheets, loaded only when opened (src/admin/SiteAdminSummary.tsx). */
 const SiteAdminSummary = lazy(() => import('../admin/SiteAdminSummary').then((module) => ({ default: module.SiteAdminSummary })))
 
-export type AdminSectionId = 'summary' | 'reports' | 'chat' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'news'
+export type AdminSectionId = 'summary' | 'reports' | 'chat' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'hideout' | 'news'
 
 /**
  * «Сводка» first (admin statistics), then «Отчёты» and «Чат», each on its own (owner, 15.11.2026: «Блок «Отчёты» снизу перенести наверх, в «Админ панель»…
@@ -39,6 +40,8 @@ const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: s
   { id: 'features', label: 'Функции', hint: 'Включить или выключить у всех', icon: Power },
   { id: 'quests', label: 'Квесты', hint: 'Ивент-квесты и конструктор', icon: Target },
   { id: 'blocks', label: 'Блоки', hint: '«Обзор» для всех', icon: LayoutGrid },
+  // «Модули убежища» (owner, 20.11.2026): per mode, a module there from the start or turned off (routes/hideoutModules.ts).
+  { id: 'hideout', label: 'Модули убежища', hint: 'Со старта или выключить', icon: House },
   { id: 'news', label: 'Обновление', hint: 'Тексты для игроков', icon: Newspaper },
 ]
 
@@ -58,6 +61,7 @@ const isSection = (value: string | null): value is AdminSectionId => ADMIN_SECTI
  * - «Функции»: switches for everybody (the position on the map);
  * - «Квесты»: the event quests and the quest constructor on the map;
  * - «Блоки»: the Overview every player starts from (routes/overviewDefaults.ts).
+ * - «Модули убежища»: per mode, the hideout modules there from the start or turned off (routes/hideoutModules.ts).
  * - «Обновление»: what players read about each release, edited here (routes/playerNews.ts).
  * The section is in the address (?tab=…), so a link can open it.
  */
@@ -166,6 +170,8 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
       return <AdminQuestsSection />
     case 'blocks':
       return <AdminBlocksSection request={request} />
+    case 'hideout':
+      return <AdminHideoutModules request={request} />
     case 'news':
       return (
         <section className="panel admin-section" aria-labelledby="admin-news-title">

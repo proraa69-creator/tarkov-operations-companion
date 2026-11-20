@@ -66,11 +66,16 @@
   border-radius: 10px;
   background: rgba(7, 9, 9, .92);
   isolation: isolate;
-  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease;
+  /* closed, not drawn at all (it lay invisible over the smoke, its buttons composited every frame: a player's report,
+     20.11.2026 «лагает область»); hidden only once the closing has played */
+  visibility: hidden;
+  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease, visibility 0s linear .35s;
 }
 .raid-map-picker.is-open {
   max-height: 232px;
   opacity: 1;
+  visibility: visible;
+  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease, visibility 0s;
   margin: 0 0 14px;
   border-color: #4a5038;
   box-shadow: 0 14px 34px rgb(0 0 0 / 38%);
@@ -89,7 +94,7 @@
   overflow: auto;
   padding: 12px;
 }
-.raid-map-picker button{display:flex;align-items:center;gap:7px;min-height:34px;border:1px solid rgb(255 255 255 / 9%);border-radius:7px;background:rgb(14 20 16 / 62%);color:var(--text);padding:7px 9px;cursor:pointer;text-align:left;backdrop-filter:blur(6px);text-shadow:0 1px 2px rgb(0 0 0 / 70%);transition:border-color .24s var(--ease-soft),background-color .24s var(--ease-soft),scale .28s var(--ease-soft)}.raid-map-picker button:hover:not(:disabled){border-color:var(--brass);background:rgb(32 31 23 / 78%)}.raid-map-picker button:disabled{opacity:.48;cursor:not-allowed}.raid-map-picker .map-color{width:7px;height:7px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 6px currentColor}.raid-map-picker svg{margin-left:auto}
+.raid-map-picker button{display:flex;align-items:center;gap:7px;min-height:34px;border:1px solid rgb(255 255 255 / 9%);border-radius:7px;background:rgb(14 20 16 / 62%);color:var(--text);padding:7px 9px;cursor:pointer;text-align:left;text-shadow:0 1px 2px rgb(0 0 0 / 70%);transition:border-color .24s var(--ease-soft),background-color .24s var(--ease-soft),scale .28s var(--ease-soft)}.raid-map-picker button:hover:not(:disabled){border-color:var(--brass);background:rgb(32 31 23 / 78%)}.raid-map-picker button:disabled{opacity:.48;cursor:not-allowed}.raid-map-picker .map-color{width:7px;height:7px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 6px currentColor}.raid-map-picker svg{margin-left:auto}
 .map-slideshow { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .map-slide {
   position: absolute;
@@ -655,6 +660,9 @@ a.quest-stage:hover { color: var(--text); }
 .segmented-filter button.active { color: var(--text); background: #29392e; }
 .quest-catalog-card { min-height: 58px; padding: 11px 14px; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; overflow: hidden; }
 .quest-catalog-card.quest-map-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+/* a row's tags («Текущее», «капа», a hand-set mark) side by side in one cell, so every row keeps one height */
+.quest-row-tags { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
+.quest-row-tags:empty { display: none; }
 /* «Квесты на карте»: «Сделал в этом рейде» — the player's own note for the raid, not quest progress (QuestRaidCheck). */
 .quest-catalog-card.quest-map-row.has-raid-check { grid-template-columns: minmax(0, 1fr) auto; }
 .quest-raid-check { width: 32px; height: 32px; flex: 0 0 auto; padding: 0; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: transparent; color: var(--green); cursor: pointer; transition: background-color .18s var(--ease-soft), border-color .18s var(--ease-soft), color .18s var(--ease-soft); }

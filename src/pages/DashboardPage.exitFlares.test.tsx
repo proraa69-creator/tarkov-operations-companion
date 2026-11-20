@@ -73,6 +73,8 @@ describe('«Требования рейда»: the flare of an exit', () => {
     expect(flareRows()[0]).toHaveTextContent('Реактивный сигнальный патрон РСП-30 (Зеленый)')
     expect(flareRows()[0]).toHaveTextContent('Для выхода · ЖД проход')
     expect(flareRows()[0]).toHaveTextContent('+1')
+    // owner, 20.11.2026: «при нажатии на него должен подсвечиваться выход на карте»
+    expect(within(flareRows()[0]).getAllByRole('link')[0]).toHaveAttribute('href', '/maps/customs?point=customs-extract-rail')
   })
 
   it('«Прекратить огонь!» current: its flare only, no line for the exit', () => {
@@ -80,6 +82,8 @@ describe('«Требования рейда»: the flare of an exit', () => {
     expect(flareRows()).toHaveLength(1)
     expect(flareRows()[0]).toHaveTextContent('Подать сигнал · Прекратить огонь!')
     expect(flareRows()[0]).not.toHaveTextContent('Для выхода')
+    // no point of the quest here: its row lights the exit it leaves by
+    expect(within(flareRows()[0]).getAllByRole('link')[0]).toHaveAttribute('href', '/maps/customs?quest=ceasefire&point=customs-extract-rail')
   })
 
   it('«Прекратить огонь!» put aside or not yet taken: the exit\'s line is back', () => {

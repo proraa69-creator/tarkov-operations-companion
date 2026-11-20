@@ -429,6 +429,8 @@ async function lookupItem(test: boolean) {
             return run
           })
       },
+      // A picture answer ends the grabs only once the tooltip has been read: it names exactly the hovered item and replaces
+      // a wrong picture below (report 202).
       done: () => state.shown !== null,
     })
     const run = state.picture ? await state.picture : null

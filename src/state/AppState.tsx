@@ -277,8 +277,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     // localStorage and no re-render of the app, although the scanner reads the Tasks table every few seconds.
     setStoryChapter: (selectedMode, questId, change, choices) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
-      const at = new Date().toISOString()
       const layers = inputsOf(current, selectedMode)
+      // A choice by hand is the newest word on the chapter: never older than a reading this device holds already, whatever the
+      // clock of the PC that read it (a player's report, 20.11.2026: on the phone the stage and the chapter went back at once —
+      // a reading timed ahead of the phone's clock won again at every sync).
+      const known = [layers.story[questId]?.updatedAt, current.taskProgress[questId]?.updatedAt]
+        .map((time) => Date.parse(time ?? '')).filter((time) => Number.isFinite(time))
+      const at = new Date(Math.max(Date.now(), ...known.map((time) => time + 1))).toISOString()
       // In the story layer, as a reading of the game would be: the map, the Overview and the other devices follow it. Without the
       // read objectives, or the stage they name would win over the one the player chose.
       const record = { taskId: questId, status: change.status, source: 'screen-scan' as const, updatedAt: at, currentStageIndex: change.stageIndex }

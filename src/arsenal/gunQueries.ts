@@ -78,6 +78,16 @@ export function asFraction(value: unknown): number {
 }
 
 /**
+ * A recoil or accuracy modifier as a fraction. The properties always give fractions — the 12/70 «Магнум» is +1.15, i.e. +115 %,
+ * which the guess by size (asFraction) took for percent and showed as +1.15 % (the check against the game's own data, 20.11.2026:
+ * an MP-133 with it showed recoil 294/387 instead of 746/981); the item's own field (an older path, a barrel's accuracy) is percent.
+ */
+export function modifierOf(fraction: unknown, percent: unknown): number {
+  if (fraction !== undefined && fraction !== null && fraction !== '') return num(fraction)
+  return num(percent) / 100
+}
+
+/**
  * Buy offers; the flea one at the current lowest offer (`lastLowPrice`) when there is one, not the 24-hour average —
  * unless that offer is a lone listing at more than twice the average (itemPrices.ts steadyFleaPrice: a 115 000 ₽ grip
  * whose day average is a third of it is not what it costs).
@@ -132,8 +142,8 @@ function basePart(item: Json, properties: Json): GunPart {
     ...(text(item.baseImageLink) ? { baseImageLink: text(item.baseImageLink) } : {}),
     weight: num(item.weight),
     ergonomics: num(properties.ergonomics ?? item.ergonomicsModifier),
-    recoilModifier: asFraction(properties.recoilModifier ?? item.recoilModifier),
-    accuracyModifier: asFraction(properties.accuracyModifier ?? item.accuracyModifier),
+    recoilModifier: modifierOf(properties.recoilModifier, item.recoilModifier),
+    accuracyModifier: modifierOf(properties.accuracyModifier, item.accuracyModifier),
     centerOfImpact: optional(properties.centerOfImpact),
     capacity: optional(properties.capacity),
     ...fieldOptics(item, properties, types),
@@ -259,8 +269,9 @@ export function adaptAmmo(payload: unknown): AmmoStats[] {
       fragmentationChance: num(entry.fragmentationChance),
       initialSpeed: num(entry.initialSpeed),
       projectileCount: num(entry.projectileCount) || 1,
-      recoilModifier: asFraction(entry.recoilModifier),
-      accuracyModifier: asFraction(entry.accuracyModifier),
+      // a round's modifiers are fractions however large (the «Магнум» +1.15, SuperFormance's accuracy +1.7)
+      recoilModifier: num(entry.recoilModifier),
+      accuracyModifier: num(entry.accuracyModifier),
       tracer: entry.tracer === true,
       ...(optional(entry.bulletMassGrams) ? { bulletMassGrams: optional(entry.bulletMassGrams) } : {}),
       ...(optional(entry.bulletDiameterMilimeters) ? { bulletDiameterMm: optional(entry.bulletDiameterMilimeters) } : {}),

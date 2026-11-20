@@ -175,3 +175,15 @@ span.gs-part { cursor: default; }
 .gunsmith-weapon-count { margin: 0; padding: 18px 20px 0; color: var(--brass-strong); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .gunsmith-weapon-count.is-compact { margin: 10px 0 4px; padding: 0; }
 @media (prefers-reduced-motion: reduce) { .gs-build .gs-weapon .gs-build-image img { transition: none; } .gs-build .gs-build-image:hover img { transform: none; } }
+
+/* A Gunsmith task's build in the bench of «Сборка оружия», the screenshot small below it */
+.gs-weapon.is-bench { gap: 6px; }
+.gs-guide { display: grid; gap: 8px; }
+.gs-guide .wb-stage-scroll { margin-top: 0; }
+.gs-guide-tools { display: flex; justify-content: flex-end; }
+.gs-guide-shot { display: grid; gap: 4px; width: min(240px, 100%); margin: 0; }
+.gs-guide-shot figcaption { color: var(--text-dim); font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.gs-guide-shot .gs-build-image { border-radius: 6px; }
+.gs-weapon-name { margin: 0; }
+.gs-weapon-name strong { display: block; font-size: 13.5px; }
+.gs-weapon-name small { color: var(--text-dim); font-size: 11px; }

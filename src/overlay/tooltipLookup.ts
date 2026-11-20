@@ -35,7 +35,11 @@ export interface TooltipLookupSteps<Answer, Shot extends TooltipShot> {
   onTooltip?: (shot: Shot, rect: Rect) => void
   /** Every grab, with the tooltip found in it (and its UI unit) or null — the picture search starts from the first. */
   onShot?: (shot: Shot, rect: Rect | null, unit: number | null) => void
-  /** The lookup is answered already (by the item's picture): no more grabs; the tooltip in hand is still read. */
+  /**
+   * The lookup is answered already (by the item's picture): no more grabs once a tooltip has been read. Until then the
+   * grabs go on, so the tooltip — which names exactly the hovered item — can still replace a wrong picture (report 202,
+   * 20.11.2026: «Кейс для инъекторов» stayed on the card for a «Золотой петух» whose name the game showed a moment later).
+   */
   done?: () => boolean
   now?: () => number
   sleep?: (ms: number) => Promise<void>
@@ -82,7 +86,7 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
   let latest: Shot | null = null
   let grabs = 0
   for (;;) {
-    if (steps.done?.()) break
+    if (read.size > 0 && steps.done?.()) break
     const shot = await steps.grab().catch(() => null)
     // At most two of the game's interface scales a grab: the last one found first.
     const found = shot ? findTooltipAtScales(shot.image, shot.cursor, shot.unit, tooltipScaleSchedule(grabs, scales.factor)) : null
