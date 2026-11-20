@@ -270,23 +270,8 @@
 .overview-add-item svg { color: var(--brass); }
 .overview-add-item:hover, .overview-add-item:focus-visible { background: color-mix(in srgb, var(--brass) 14%, transparent); outline: none; }
 
-/* «Настроить блоки» on the PC: the blocks jiggle as on an iPhone (owner, 20.11.2026: «чтобы они чуть-чуть… тряслись, как в айфоне»;
-   then «более быструю, инертную, чтобы чувствовалось… все блоки трясутся в разнобой»): a quick turn one way and the other with a little
-   hop between, each block its own turn, speed, start and way round (--jiggle*, set by useOverviewEditor). The «rotate» and «translate»
-   properties, apart from the drag's transform and the lift's scale. Not the block carried. */
-.overview-free > .overview-block.is-editing:not(.is-lifted) {
-  animation: overview-jiggle var(--jiggle-time, .28s) linear var(--jiggle-delay, 0s) infinite var(--jiggle-way, normal);
-}
-@keyframes overview-jiggle {
-  0% { rotate: calc(var(--jiggle, .8deg) * -1); translate: 0 0; animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  24% { rotate: calc(var(--jiggle, .8deg) * .15); translate: .5px -.7px; animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  50% { rotate: var(--jiggle, .8deg); translate: 0 0; animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  76% { rotate: calc(var(--jiggle, .8deg) * -.15); translate: -.5px .7px; animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  100% { rotate: calc(var(--jiggle, .8deg) * -1); translate: 0 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .overview-free > .overview-block.is-editing { animation: none; }
-}
+/* «Настроить блоки» on the PC: the blocks stand still (owner, 20.11.2026: «Тряску нужно убрать, которая нажимаешь настроить блоки, и
+   появляется тряска блока… не надо, чтобы она тряслась»). The iPhone-like jiggle is gone. */
 
 /* A card of the free PC Overview stands a quarter, a third or half of a column wide; in a narrow one nothing may run over its edge or
    over another thing (owner, 20.11.2026: «Проверь, чтобы каждый блок при подстраивании под место не были нарушены границы, чтобы все

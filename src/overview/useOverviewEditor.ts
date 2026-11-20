@@ -7,6 +7,7 @@ import {
 } from './overviewFreeLayout'
 import { baseOverviewLayout, withoutHiddenBlocks } from './overviewDefaults'
 import { useOverviewDefaults } from './overviewDefaultsStore'
+import { nextStageWidth } from '../arsenal/stageLayout'
 
 /** Between blocks, as the Overview always had. */
 const GAP = 14
@@ -16,12 +17,21 @@ const GAP = 14
  * (src/app/richMotion.ts) and one taken off sinks away as a pressed button does. The lift (a little bigger, a shadow) is the
  * stylesheet's spring (styles/overviewEdit.css).
  */
-const GLIDE = { duration: 420, easing: 'cubic-bezier(.22, 1.2, .36, 1)' }
-const SETTLE = { duration: 380, easing: 'cubic-bezier(.22, 1.2, .36, 1)' }
+// No overshoot (owner, 20.11.2026: «убери тряску вообще и сделай более плавный перенос, что бы было не так чувствительно и резко»):
+// a block slides to its place and stops there, it does not swing past it and back.
+const GLIDE = { duration: 460, easing: 'cubic-bezier(.25, .8, .25, 1)' }
+const SETTLE = { duration: 380, easing: 'cubic-bezier(.25, .8, .25, 1)' }
 const ENTER = { duration: 560, easing: EASE_OUT }
 const LEAVE = { duration: 200, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' as const }
-/** A press turns into a drag only after this many pixels: a click on the block stays a click. */
-const DRAG_THRESHOLD = 4
+/** Sizes set within one frame before the next measure waits for the next frame (React's update depth is 50). */
+const MEASURES_PER_FRAME = 6
+/** A press turns into a drag only after this many pixels: a click on the block stays a click, a hand's tremor does not lift it. */
+const DRAG_THRESHOLD = 8
+/** The carried block's place is worked out at most this often (ms), not on every move of the pointer: the others do not twitch. */
+const RETARGET_EVERY = 140
+/** A carried block trades places with a neighbour only past its middle by this share of its height (at most HYSTERESIS_MAX px). */
+const HYSTERESIS = 0.2
+const HYSTERESIS_MAX = 48
 /** Near the window's top or bottom edge the page scrolls by itself while a block is carried. */
 const EDGE = 72
 const EDGE_SPEED = 16
@@ -45,6 +55,9 @@ interface Drag {
   handle: HTMLElement
   /** Takes the window's listeners off. */
   unlisten: () => void
+  /** When the place was last worked out, and the later one waiting (RETARGET_EVERY). */
+  retargetAt?: number
+  retargetTimer?: number
 }
 
 
@@ -128,9 +141,19 @@ export function useOverviewEditor() {
     else observer.current.unobserve(element)
   }, [])
   useEffect(() => () => { observer.current?.disconnect(); cancelAnimationFrame(frame.current) }, [])
+  /**
+   * Sizes taken within one frame. A size that flips back and forth (a height that follows the width, the width that follows the page's
+   * scrollbar) would be measured and set again and again in one go, and React stops with «Maximum update depth exceeded» (#185, the
+   * owner's 0.6.0.331): past a few in a frame, the next measure waits for the next frame, so the Overview settles instead of failing.
+   */
+  const burst = useRef(0)
+  const later = useCallback(() => {
+    if (!frame.current) frame.current = requestAnimationFrame(() => { frame.current = 0; setTick((value) => value + 1) })
+  }, [])
   // After every render on purpose: a block's height follows its content; state is set only when a size really changed.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
+    if (burst.current >= MEASURES_PER_FRAME) { later(); return }
     let changed = Object.keys(heights).length !== elements.current.size
     const next: Record<string, number> = {}
     for (const [id, element] of elements.current) {
@@ -150,10 +173,18 @@ export function useOverviewEditor() {
         for (const [id, element] of elements.current) before.set(id, element.getBoundingClientRect())
         pending.current = before
       }
+      if (burst.current++ === 0) requestAnimationFrame(() => { burst.current = 0 })
       setHeights(next)
     }
+    // A page scrollbar coming and going changes the width by its own: a narrower width is taken at once, a wider one only from
+    // 24 px, or the Overview is laid out again and again (blocks jumping, then React's «Maximum update depth exceeded», #185 in
+    // 0.6.0.331; owner's video 20.11.2026; report 208: a block over another). As the weapon build's stage (stageLayout.ts).
     const now = container.current?.clientWidth ?? 0
-    if (Math.abs(now - width) > 0.5) setWidth(now)
+    const steady = nextStageWidth(width, now)
+    if (Math.abs(steady - width) > 0.5) {
+      if (burst.current++ === 0) requestAnimationFrame(() => { burst.current = 0 })
+      setWidth(steady)
+    }
   })
 
   /** OverviewBlock registers its element from a layout effect (and removes it when it goes). */
@@ -284,9 +315,11 @@ export function useOverviewEditor() {
       const to = Math.max(...parts.map((place) => place.x + place.w))
       return single || (from < x + w && x < to) ? [{ ids: each.ids, y: parts[0]!.y, h: parts[0]!.h }] : []
     })
+    // past the middle with a margin both ways: a block held near a neighbour's middle does not swap with it back and forth
     const above = near.filter((each) => {
       const middle = each.y + each.h / 2
-      return now.order.indexOf(each.ids[0]!) < current ? top >= middle : top + own.h > middle
+      const margin = Math.min(HYSTERESIS_MAX, each.h * HYSTERESIS)
+      return now.order.indexOf(each.ids[0]!) < current ? top >= middle - margin : top + own.h > middle + margin
     })
     const last = above[above.length - 1]
     const wanted = last ? others.indexOf(last.ids[last.ids.length - 1]!) + 1 : near.length ? others.indexOf(near[0]!.ids[0]!) : current
@@ -314,6 +347,12 @@ export function useOverviewEditor() {
   const finish = useCallback((restore: boolean) => {
     const d = drag.current
     if (!d) return
+    // a place still waiting its turn (RETARGET_EVERY): worked out now, so the block lands where it was let go
+    if (d.retargetTimer !== undefined) {
+      window.clearTimeout(d.retargetTimer)
+      d.retargetTimer = undefined
+      if (!restore && d.started) retarget(d)
+    }
     drag.current = null
     d.unlisten()
     cancelAnimationFrame(d.frame)
@@ -339,7 +378,7 @@ export function useOverviewEditor() {
     const done = () => { element.style.transformOrigin = ''; element.style.zIndex = '' }
     settle.onfinish = done
     settle.oncancel = done
-  }, [apply])
+  }, [apply, retarget])
 
   /** The pointer moved while a block is held. */
   const carry = useCallback((d: Drag, clientX: number, clientY: number) => {
@@ -357,7 +396,20 @@ export function useOverviewEditor() {
       autoScroll(d)
     }
     follow(d)
-    retarget(d)
+    // the block follows the pointer at once; where the others stand is worked out at most every RETARGET_EVERY ms
+    const now = performance.now()
+    const wait = (d.retargetAt ?? 0) + RETARGET_EVERY - now
+    if (wait <= 0) {
+      d.retargetAt = now
+      retarget(d)
+    } else if (d.retargetTimer === undefined) {
+      d.retargetTimer = window.setTimeout(() => {
+        d.retargetTimer = undefined
+        if (drag.current !== d) return
+        d.retargetAt = performance.now()
+        retarget(d)
+      }, wait)
+    }
   }, [autoScroll, follow, retarget])
 
   /** Up and down past the next block of its columns; left and right a card along its row, a block to the other column. */
@@ -402,7 +454,7 @@ export function useOverviewEditor() {
       if (event.button !== 0 || drag.current) return
       const element = elements.current.get(id)
       if (!element) return
-      // a glide under way ends where it goes; the jiggle (endless) is left alone: finishing it throws and the drag never began
+      // a glide under way ends where it goes (an endless animation, if any, is left alone: finishing it throws)
       for (const animation of animationsOf(element)) {
         if (!Number.isFinite(Number(animation.effect?.getComputedTiming().endTime))) continue
         try { animation.finish() } catch { /* one that cannot finish keeps running */ }
@@ -478,24 +530,16 @@ export function useOverviewEditor() {
   }, [apply, base, baseZones])
 
   /**
-   * A block's place on the grid (left, top, width; a card as tall as its row's tallest) and its jiggle in «Настроить блоки»: each block
-   * its own speed and step, so that they shake out of time with each other (owner, 20.11.2026: «все блоки трясутся в разнобой»), and
-   * its own turn, so that the edge of a wide block moves as little as a card's (a few pixels).
+   * A block's place on the grid (left, top, width; a card as tall as its row's tallest). No jiggle in «Настроить блоки» any more (owner,
+   * 20.11.2026: «Тряску нужно убрать… не надо, чтобы она тряслась»): the blocks stand still until one is carried.
    */
   const styleOf = useCallback((id: string): CSSProperties | undefined => {
     const place = places.find((each) => each.id === id)
     if (!place) return undefined
     const own = heights[id] ?? 0
     const pixels = Math.max(0, place.w * unit - GAP)
-    const style: CSSProperties & Record<`--${string}`, string> = { left: place.x * unit, top: place.y, width: pixels }
+    const style: CSSProperties = { left: place.x * unit, top: place.y, width: pixels }
     if (place.h > own + 0.5) style.minHeight = place.h
-    const seed = [...id].reduce((hash, letter) => (hash * 31 + letter.charCodeAt(0)) >>> 0, 7)
-    const random = (shift: number) => ((seed >>> shift) % 1000) / 1000
-    const turn = Math.min(1.6, Math.max(0.35, (2.6 / Math.max(40, pixels / 2)) * (180 / Math.PI)))
-    style['--jiggle'] = `${(turn * (0.85 + random(3) * 0.3)).toFixed(3)}deg`
-    style['--jiggle-time'] = `${(0.24 + random(7) * 0.1).toFixed(3)}s`
-    style['--jiggle-delay'] = `${(-random(11) * 0.4).toFixed(3)}s`
-    style['--jiggle-way'] = random(13) < 0.5 ? 'normal' : 'reverse'
     return style
   }, [heights, places, unit])
 
