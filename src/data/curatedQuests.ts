@@ -46,8 +46,11 @@ type CuratedPlace =
 
 export type CuratedSpot = CuratedPlace & { building?: boolean; floor?: [bottom: number, top: number] }
 
-/** A place a community map marks (game coordinates, no height); `id` names the marker it came from. */
-export interface MarkedPoint { id: string; x: number; z: number }
+/**
+ * A place a community map marks (game coordinates, no height); `id` names the marker it came from. `y`: the height, when the
+ * point was measured in the game itself (the offline copy) — it then shows on its own level of the map.
+ */
+export interface MarkedPoint { id: string; x: number; z: number; y?: number }
 
 /** A zone of tarkov.dev's shape (game coordinates) as tarkov.dev published it. */
 export interface ArchivedZone {
@@ -1777,8 +1780,11 @@ function spotZoneId(spot: CuratedSpot) {
  * heights instead of the room's height).
  */
 function zoneAt(spot: CuratedSpot, spots: SpotIndex): JsonRecord | undefined {
-  // a marked point: its position only (the community map gives no height)
-  if ('point' in spot) return { id: spotZoneId(spot), map: spot.map, position: { x: spot.point.x, z: spot.point.z } }
+  // a marked point: its position only (the community map gives no height; one measured in the game has it)
+  if ('point' in spot) {
+    const { x, y, z } = spot.point
+    return { id: spotZoneId(spot), map: spot.map, position: y === undefined ? { x, z } : { x, y, z } }
+  }
   const place = 'archived' in spot ? spot.archived as unknown as JsonRecord : spots.get(spotKey(spot))
   const position = asRecord(place?.position)
   if (!place || typeof position.x !== 'number' || typeof position.z !== 'number') return undefined

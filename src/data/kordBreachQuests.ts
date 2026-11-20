@@ -1,4 +1,4 @@
-import type { CuratedObjective, CuratedQuest, CuratedSeries } from './curatedQuests'
+import type { CuratedObjective, CuratedQuest, CuratedSeries, CuratedSpot } from './curatedQuests'
 
 /**
  * «KORD BREACH»: the story line of Season 1 (seasonal mode only, since August 2026), 21 quests from Prapor to Lightkeeper.
@@ -107,6 +107,21 @@ const SHORELINE = ['shoreline']
 const GROUND_ZERO = ['ground-zero', 'ground-zero-21']
 const STREETS = ['streets-of-tarkov']
 
+/**
+ * The four spots of the WI-FI cameras («Забросить невод» puts them, «Задняя передача» takes them back; report 204: «Не
+ * отображаются места закладки»; owner, 20.11.2026: «можешь через SPT сам найти в игре эти точки»). Found in the offline copy of
+ * the game, each matching its picture in tarkov.help's guide: the Ural by the power station's substation, the excavator by the
+ * stream, the cargo truck's tractor on the ramp to Mira Ave, the yellow bus underground. Positions of these objects in the
+ * game's world, with their heights (E:\SPT-photo\approved\kord-breach\places.json).
+ */
+const cameraSpots = (maps: string[], id: string, x: number, y: number, z: number): CuratedSpot[] => maps.map((map) => ({ map, point: { id: `kb-camera-${id}`, x, y, z } }))
+const CAMERA_SPOTS = {
+  ural: cameraSpots(SHORELINE, 'ural', -180.39, -38.31, 141.08),
+  excavator: cameraSpots(SHORELINE, 'excavator', -603.54, -28.33, -203.79),
+  truck: cameraSpots(GROUND_ZERO, 'truck', 118.59, 23.46, 63.41),
+  bus: cameraSpots(GROUND_ZERO, 'bus', 82.02, 15.49, 121.42),
+}
+
 const BD = { targets: ['blackDivision'] }
 
 /** A Black Division item to find in raid and hand over («На волне популярности»). */
@@ -181,10 +196,10 @@ const quests: CuratedQuest[] = [
     after: [K.uninvitedGuests2],
     experience: 11_000,
     objectives: [
-      { type: 'plantItem', maps: SHORELINE, items: [WIFI_CAMERA], text: { ru: 'Закрепить Wi-Fi камеру на грузовике «Урал» рядом с ГЭС на локации Берег', en: 'Plant a WI-FI Camera in the Ural truck near the hydroelectric power station on Shoreline' } },
-      { type: 'plantItem', maps: SHORELINE, items: [WIFI_CAMERA], text: { ru: 'Закрепить Wi-Fi камеру на экскаваторе у ручья, протекающего под базой контрабандистов на локации Берег', en: 'Plant a WI-FI Camera in the excavator at the stream near the smugglers\' base on Shoreline' } },
-      { type: 'plantItem', maps: GROUND_ZERO, items: [WIFI_CAMERA], text: { ru: 'Закрепить Wi-Fi камеру на кабине фуры, стоящей на спуске к проспекту Мира на локации Эпицентр', en: 'Plant a WI-FI Camera in the cargo truck cabin near Mira Ave on Ground Zero' } },
-      { type: 'plantItem', maps: GROUND_ZERO, items: [WIFI_CAMERA], text: { ru: 'Закрепить Wi-Fi камеру внутри жёлтого автобуса на подземном уровне на локации Эпицентр', en: 'Plant a WI-FI Camera inside the yellow bus in the underground tunnel on Ground Zero' } },
+      { type: 'plantItem', maps: SHORELINE, spots: CAMERA_SPOTS.ural, items: [WIFI_CAMERA], text: { ru: 'Закрепить Wi-Fi камеру на грузовике «Урал» рядом с ГЭС на локации Берег', en: 'Plant a WI-FI Camera in the Ural truck near the hydroelectric power station on Shoreline' } },
+      { type: 'plantItem', maps: SHORELINE, spots: CAMERA_SPOTS.excavator, items: [WIFI_CAMERA], text: { ru: 'Закрепить Wi-Fi камеру на экскаваторе у ручья, протекающего под базой контрабандистов на локации Берег', en: 'Plant a WI-FI Camera in the excavator at the stream near the smugglers\' base on Shoreline' } },
+      { type: 'plantItem', maps: GROUND_ZERO, spots: CAMERA_SPOTS.truck, items: [WIFI_CAMERA], text: { ru: 'Закрепить Wi-Fi камеру на кабине фуры, стоящей на спуске к проспекту Мира на локации Эпицентр', en: 'Plant a WI-FI Camera in the cargo truck cabin near Mira Ave on Ground Zero' } },
+      { type: 'plantItem', maps: GROUND_ZERO, spots: CAMERA_SPOTS.bus, items: [WIFI_CAMERA], text: { ru: 'Закрепить Wi-Fi камеру внутри жёлтого автобуса на подземном уровне на локации Эпицентр', en: 'Plant a WI-FI Camera inside the yellow bus in the underground tunnel on Ground Zero' } },
     ],
     startRewards: [[WIFI_CAMERA, 6]],
     rewards: [[ROUBLES, 180_000], [FIERCE_HATCHLING, 2]],
@@ -218,13 +233,13 @@ const quests: CuratedQuest[] = [
     delay: [0, 7_200],
     experience: 11_000,
     objectives: [
-      { type: 'findQuestItem', maps: SHORELINE, text: { ru: 'Найти WI-FI камеру с грузовика «Урал» рядом с ГЭС на локации Берег', en: 'Locate and obtain the WI-FI Camera from the Ural truck near the hydroelectric power station on Shoreline' } },
+      { type: 'findQuestItem', maps: SHORELINE, spots: CAMERA_SPOTS.ural, text: { ru: 'Найти WI-FI камеру с грузовика «Урал» рядом с ГЭС на локации Берег', en: 'Locate and obtain the WI-FI Camera from the Ural truck near the hydroelectric power station on Shoreline' } },
       { type: 'giveQuestItem', text: { ru: 'Передать найденную камеру', en: 'Hand over the camera' } },
-      { type: 'findQuestItem', maps: SHORELINE, text: { ru: 'Найти WI-FI камеру с экскаватора на территории контрабандистов на локации Берег', en: 'Locate and obtain the WI-FI Camera from the excavator at the stream near the smugglers\' base on Shoreline' } },
+      { type: 'findQuestItem', maps: SHORELINE, spots: CAMERA_SPOTS.excavator, text: { ru: 'Найти WI-FI камеру с экскаватора на территории контрабандистов на локации Берег', en: 'Locate and obtain the WI-FI Camera from the excavator at the stream near the smugglers\' base on Shoreline' } },
       { type: 'giveQuestItem', text: { ru: 'Передать найденную камеру', en: 'Hand over the camera' } },
-      { type: 'findQuestItem', maps: GROUND_ZERO, text: { ru: 'Найти WI-FI камеру с кабины фуры на спуске к проспекту Мира на локации Эпицентр', en: 'Locate and obtain the WI-FI Camera from the cargo truck cabin near Mira Ave on Ground Zero' } },
+      { type: 'findQuestItem', maps: GROUND_ZERO, spots: CAMERA_SPOTS.truck, text: { ru: 'Найти WI-FI камеру с кабины фуры на спуске к проспекту Мира на локации Эпицентр', en: 'Locate and obtain the WI-FI Camera from the cargo truck cabin near Mira Ave on Ground Zero' } },
       { type: 'giveQuestItem', text: { ru: 'Передать найденную камеру', en: 'Hand over the camera' } },
-      { type: 'findQuestItem', maps: GROUND_ZERO, text: { ru: 'Найти WI-FI камеру с жёлтого автобуса на подземном уровне на локации Эпицентр', en: 'Locate and obtain the WI-FI Camera from the yellow bus in the underground tunnel on Ground Zero' } },
+      { type: 'findQuestItem', maps: GROUND_ZERO, spots: CAMERA_SPOTS.bus, text: { ru: 'Найти WI-FI камеру с жёлтого автобуса на подземном уровне на локации Эпицентр', en: 'Locate and obtain the WI-FI Camera from the yellow bus in the underground tunnel on Ground Zero' } },
       { type: 'giveQuestItem', text: { ru: 'Передать найденную камеру', en: 'Hand over the camera' } },
     ],
     rewards: [[ROUBLES, 180_000], [ARMOR_6B23_2_FLORA, 2], [BRIEFCASE_WITH_DOCUMENTS, 1]],

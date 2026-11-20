@@ -482,4 +482,23 @@ describe('«KORD BREACH» (Season 1): the season line tarkov.dev lacks', () => {
       { task: KORD_BREACH_IDS.finalStretch, status: ['complete', 'failed'] }, { task: KORD_BREACH_IDS.consequences, status: ['complete', 'failed'] },
     ])
   })
+
+  // report 204 (20.11.2026): «Не отображаются места закладки» — the camera spots found in the offline copy of the game
+  it('the four WI-FI camera spots: where «Забросить невод» puts them and «Задняя передача» takes them, with their heights', async () => {
+    const quest = (id: string) => KORD_BREACH.quests.find((entry) => entry.id === id)!
+    const spots = (id: string) => quest(id).objectives.filter((objective) => objective.spots?.length)
+      .map((objective) => objective.spots!.map((spot) => ('point' in spot ? `${spot.map} ${spot.point.x} ${spot.point.y} ${spot.point.z}` : '')))
+    const cameras = [
+      ['shoreline -180.39 -38.31 141.08'],
+      ['shoreline -603.54 -28.33 -203.79'],
+      ['ground-zero 118.59 23.46 63.41', 'ground-zero-21 118.59 23.46 63.41'],
+      ['ground-zero 82.02 15.49 121.42', 'ground-zero-21 82.02 15.49 121.42'],
+    ]
+    expect(spots(KORD_BREACH_IDS.castTheNet)).toEqual(cameras)
+    expect(spots(KORD_BREACH_IDS.reverseGear)).toEqual(cameras)
+    // in the catalog the point keeps its height (the map's level), on the maps the feed has
+    const catalog = await build('seasonal', 'ru')
+    const zones = catalog.quests.find((entry) => entry.id === KORD_BREACH_IDS.castTheNet)!.objectiveDetails![0]!.zones
+    expect(zones).toEqual([{ id: 'point-kb-camera-ural', mapId: 'shoreline', position: { x: -180.39, y: -38.31, z: 141.08 } }])
+  })
 })
