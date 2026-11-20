@@ -8395,3 +8395,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Не выпущено, не запушено, VPS не трогали. Риски: включение работает без обновления только у приложений с этим кодом и на
   сервере с этим адресом — нужно выпустить до сезона; требования других модулей на выключенный модуль остаются строками
   (данные игры); вживую в окне приложения не смотрели (только тесты).
+
+## 2026-11-20 — Claude: 0.6.0.325 published; release 0.6.0.326 (players' news, hideout modules by mode, KORD BREACH points)
+- 0.6.0.325 (fb821535): the gate failed once on the flaky server test «two storages on one folder» (23 of 24 slots), re-run
+  green; published 17:04 (358 blobs prefetched into the partial mirror first, ~6 min).
+- Found: releases 0.6.0.322–0.6.0.325 had no entry in `src/data/playerNews.json`, so players saw no news and the admin's
+  player-news could not take the owner's text (it only rewrites versions in that file). 0.6.0.326 carries the owner's lines
+  (owner, 20.11.2026, «да»): added «Убежище: вид сверху со всеми модулями», improved «Полностью переработанная сборка оружия».
+- 0.6.0.326 also brings: hideout modules per mode switched from the server (claude/season-hideout-modules cdb7bbe2, merged
+  741de2d9; nothing switched on — `scripts/hideout-season-start.js` opens the gym and the bitcoin farm in the Season on the
+  owner's word), the server mirror lock fix (cc99deef), KORD BREACH points: the weather station's case and the first west breach
+  of «Капкан» (8a8c3c81; the power station's case left out until certain, 42140d14). Their photos are on the server already
+  (3 photos, 2 `describe` edits; the temporary folder in website/dist removed).
+- Not in it: the module window as in the game (1/3 of the screen, one level at a time, crafts with names), the Illumination
+  light in the empty hideout and the Christmas tree — the hideout session, next update.
