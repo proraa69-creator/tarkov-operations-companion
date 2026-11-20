@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Minimize2 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { isMobileLayout } from '../platform'
-import { STATS_WINDOW_MOVED } from './BuildStage'
 import { useBenchBackdrop } from './benchBackdrop'
 import { signed } from './gunFormat'
 import type { BuildStats } from './buildStats'
@@ -22,13 +21,6 @@ export function Delta({ value, better, digits = 0, unit = '' }: { value: number;
   return <span className={`wb-delta ${good ? 'is-good' : 'is-bad'}`}>{signed(value, digits)}{unit}</span>
 }
 
-const STATS_WINDOW_KEY = 'raidos-wb-stats-window'
-function readStatsWindow(): { x: number; y: number } | null {
-  try {
-    const value = JSON.parse(localStorage.getItem(STATS_WINDOW_KEY) ?? 'null') as { x?: unknown; y?: unknown } | null
-    return value && typeof value.x === 'number' && typeof value.y === 'number' ? { x: value.x, y: value.y } : null
-  } catch { return null }
-}
 
 /**
  * The full screen (owner, 20.11.2026: «кнопку «Открыть на весь экран»… подобную Таркову»): the build over the whole window, the
@@ -100,39 +92,11 @@ export function FullBench({ weapon, stats, stock, selected, onSelect, onClose, c
 }
 
 /**
- * The build's stats in a small window over the full screen, held anywhere and dragged where it suits, on a PC and a phone; it stays
- * where it was left, and the module cells lay round it (src/arsenal/BuildStage.tsx). `compact` (a phone): narrower, without the deltas.
+ * The build's stats over the full screen: a small window that stays at the top left, out of the build's way (owner, 21.11.2026: «При
+ * перетаскивании вылезает ошибка, сделай это окно меньше и зафиксируй при полноэкранном режиме, слева сверху»). The module cells lay
+ * round it (src/arsenal/BuildStage.tsx). `compact` (a phone): narrower, without the deltas.
  */
 function StatsWindow({ stats, stock, compact }: { stats: BuildStats; stock: BuildStats; compact?: boolean }) {
-  const box = useRef<HTMLDivElement>(null)
-  // a phone starts below the top's buttons, a PC at the top left
-  const [at, setAt] = useState(() => readStatsWindow() ?? { x: 12, y: compact ? 52 : 16 })
-  const drag = useRef<{ dx: number; dy: number } | null>(null)
-  const clamp = useCallback((x: number, y: number) => {
-    const element = box.current
-    const width = element?.offsetWidth ?? 220
-    const height = element?.offsetHeight ?? 160
-    return { x: Math.round(Math.max(0, Math.min(window.innerWidth - width, x))), y: Math.round(Math.max(0, Math.min(window.innerHeight - height, y))) }
-  }, [])
-  // a window left outside a smaller screen comes back inside
-  useEffect(() => {
-    const fit = () => setAt((current) => clamp(current.x, current.y))
-    fit()
-    window.addEventListener('resize', fit)
-    return () => window.removeEventListener('resize', fit)
-  }, [clamp])
-  const down = (event: ReactPointerEvent<HTMLDivElement>) => {
-    drag.current = { dx: event.clientX - at.x, dy: event.clientY - at.y }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-  const move = (event: ReactPointerEvent<HTMLDivElement>) => { if (drag.current) setAt(clamp(event.clientX - drag.current.dx, event.clientY - drag.current.dy)) }
-  // the module cells lay round the window wherever it is (src/arsenal/BuildStage.tsx)
-  useLayoutEffect(() => { window.dispatchEvent(new Event(STATS_WINDOW_MOVED)) }, [at])
-  const up = () => {
-    if (!drag.current) return
-    drag.current = null
-    try { localStorage.setItem(STATS_WINDOW_KEY, JSON.stringify(at)) } catch { /* the place is a convenience */ }
-  }
   const ergoDelta = stats.ergonomicsRaw - stock.ergonomicsRaw
   const rows: Array<{ label: string; value: string; delta: number; better: 'lower' | 'higher'; digits?: number }> = [
     { label: 'Эргономика', value: String(stats.ergonomics), delta: ergoDelta, better: 'higher', digits: Math.round(Math.abs(ergoDelta) * 10) % 10 ? 1 : 0 },
@@ -141,9 +105,7 @@ function StatsWindow({ stats, stock, compact }: { stats: BuildStats; stock: Buil
     { label: 'Гориз. отдача', value: String(stats.recoilHorizontal), delta: stats.recoilHorizontal - stock.recoilHorizontal, better: 'lower' },
     { label: 'Скорость пули', value: stats.velocity ? `${Math.round(stats.velocity)} ${uiText('м/с')}` : '—', delta: (stats.velocity ?? 0) - (stock.velocity ?? 0), better: 'higher' },
   ]
-  // held anywhere and moved, on a PC and a phone (owner, 20.11.2026: «блок характеристик можно было зажать и перемещать»)
-  return <div className={`wb-stats-window is-handle${compact ? ' is-compact' : ''}`} ref={box} style={{ left: at.x, top: at.y }}
-    onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} title={uiText('Перетащите окно, куда удобно')}>
+  return <div className={`wb-stats-window${compact ? ' is-compact' : ''}`}>
     <div className="wb-stats-window-title">{uiText('Характеристики')}</div>
     {rows.map((row) => <div className="wb-stats-window-row" key={row.label}>
       <span>{uiText(row.label)}</span>
