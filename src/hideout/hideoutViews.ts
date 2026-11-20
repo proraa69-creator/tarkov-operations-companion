@@ -63,6 +63,16 @@ export function modulePiece(stationId: string, level: number, light: number): Pi
   return { url, left: rect[0]! / pictureSize.width, top: rect[1]! / pictureSize.height, width: rect[2]! / pictureSize.width, height: rect[3]! / pictureSize.height }
 }
 
+/**
+ * The light nearest to the given one (brighter first) under which a level has a piece. In the dark (Illumination 0 or 1) most
+ * levels differ from the bare room by too little to have one, so a level looked at in the module's window is shown under that light
+ * (owner, 20.11.2026: «При нажатии на уровень модуля в самом убежище меняется модуль визуально»).
+ */
+export function nearestLight(stationId: string, level: number, light: number): number | undefined {
+  return [...(file.lights ?? [])].sort((a, b) => Math.abs(a - light) - Math.abs(b - light) || b - a)
+    .find((other) => modulePiece(stationId, level, other))
+}
+
 export const roomsPicture = () => byName.get('rooms')
 
 /** The rooms behind the defective wall are closed while the wall is below the breach (the game draws them only from it). */

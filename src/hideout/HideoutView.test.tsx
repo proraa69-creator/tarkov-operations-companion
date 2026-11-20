@@ -41,6 +41,9 @@ const state = vi.hoisted(() => ({ mode: 'pvp', levels: {} as Record<string, numb
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { items: [item(BANDAGE, 'Бинт'), item(WIRE, 'Провода'), item(BOLTS, 'Болты')], hideout: stations, quests: [] } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode, activeProfile: { id: 'p1', modes: { [state.mode]: { hideoutLevels: state.levels } } }, setHideoutLevel: state.setHideoutLevel }) }))
 vi.mock('../data/useEconomy', () => ({ useEconomySnapshot: () => ({ data: { crafts, barters } }) }))
+// the med station's level II has no piece in the dark (under 2): it differs from the bare room by too little there
+const piece = vi.hoisted(() => (id: string, level: number, light: number) => (id === 'med-station' && level === 2 && light < 2) || (id !== 'med-station' && id !== 'gym')
+  ? undefined : { url: `${id}-${level}-L${light}.webp`, left: 0.2, top: 0.4, width: 0.1, height: 0.2 })
 vi.mock('./hideoutViews', () => ({
   pictureSize: { width: 1000, height: 500 },
   lightStation: 'illumination',
@@ -48,7 +51,9 @@ vi.mock('./hideoutViews', () => ({
   lightOf: (level: number) => Math.min(level, 3),
   basePicture: (light: number) => `base-L${light}.webp`,
   moduleSpot: (id: string) => ({ 'med-station': { x: 0.25, y: 0.5 }, 'work-bench': { x: 0.75, y: 0.4 }, gym: { x: 0.1, y: 0.1 } } as Record<string, { x: number; y: number }>)[id],
-  modulePiece: (id: string, level: number, light: number) => (id === 'med-station' || id === 'gym' ? { url: `${id}-${level}-L${light}.webp`, left: 0.2, top: 0.4, width: 0.1, height: 0.2 } : undefined),
+  modulePiece: piece,
+  nearestLight: (id: string, level: number, light: number) => [0, 1, 2, 3].sort((a, b) => Math.abs(a - light) - Math.abs(b - light) || b - a)
+    .find((other) => piece(id, level, other)),
   roomsPicture: () => 'rooms.webp',
   christmasPiece: (light: number) => ({ url: `christmas-1-L${light}.webp`, left: 0.5, top: 0.5, width: 0.05, height: 0.1 }),
   christmasSeason: () => false,
@@ -84,6 +89,15 @@ describe('«Убежище» как в игре', () => {
     expect(localStorage.getItem('raidos-hideout-christmas')).toBe('on')
   })
 
+  it("the player's own level stays under their light, without a piece where the dark shows none", () => {
+    state.levels = { [MED]: 2 }
+    renderView()
+    expect(pictures()).toEqual(['base-L0.webp', 'rooms.webp'])
+    fireEvent.click(screen.getByRole('button', { name: /Медблок, уровень 2/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /Уровень II$/ }))
+    expect(pictures()).toEqual(['base-L0.webp', 'rooms.webp'])
+  })
+
   it('opens the rooms behind the wall once it is broken', () => {
     state.levels = { [WALL]: 5, [GYM]: 1 }
     renderView()
@@ -112,7 +126,11 @@ describe('«Убежище» как в игре', () => {
     expect(screen.getByRole('button', { name: /Провода/ })).toHaveTextContent('1/3')
     expect(screen.getByText(/Верстак ур. 1/)).toBeInTheDocument()
     expect(screen.getByText(/Лояльность: Терапевт ур. 2/)).toBeInTheDocument()
-    expect(pictures()).toContain(`${MED}-2-L0.webp`)
+    // no light built: level II has no piece in the dark, so a spot round the module shows it under the nearest light that has one
+    expect(pictures()).not.toContain(`${MED}-2-L0.webp`)
+    const lit = document.querySelector<HTMLElement>('.hv-lit')!
+    expect([...lit.querySelectorAll('img')].map((image) => image.getAttribute('src'))).toEqual(['base-L2.webp', `${MED}-2-L2.webp`, 'rooms.webp'])
+    expect(lit.style.maskImage).toContain('at 25% 50%')
     // the crafts of that level, by name and count: what goes in, what comes out
     const craft = document.querySelector('#hv-craft-med-craft')!
     expect(craft).toHaveTextContent('Нужно')
@@ -123,6 +141,7 @@ describe('«Убежище» как в игре', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Уровень I$/ }))
     expect(screen.getAllByRole('heading', { name: /Для уровня/ }).map((heading) => heading.textContent)).toEqual(['Для уровня I построен'])
     expect(pictures()).toContain(`${MED}-1-L0.webp`)
+    expect(document.querySelector('.hv-lit')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Снять уровень I/ }))
     expect(state.setHideoutLevel).toHaveBeenCalledWith(MED, 0)
     fireEvent.click(screen.getByRole('tab', { name: /Уровень II/ }))
