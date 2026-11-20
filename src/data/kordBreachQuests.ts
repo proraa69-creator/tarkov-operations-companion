@@ -124,13 +124,16 @@ const CAMERA_SPOTS = {
 /** The reception desk on the TerraGroup office's second floor («Звонки без ответа»), found the same way: the desk the guide's arrow shows. */
 const TG_RECEPTION = foundSpots(GROUND_ZERO, 'tg-reception', -37.02, 30.73, 64.97)
 /**
- * «Незваные гости. Часть 1»: one of the case's three places matches the guide's picture — the weather station's second floor by the
- * filing cabinet. The shack by the Sordi tower was not found in the offline copy (0.16.9) and the power station's place is not
- * certain yet (about 5 m off the first guess), so those have no point.
+ * «Незваные гости. Часть 1»: two of the case's three places match the guide's pictures — the weather station's second floor by the
+ * filing cabinet, the power station's gallery at the left edge of the blue shack (found again: 8.4 m off the first guess, whose
+ * ray had started from another frame's camera). The shack by the Sordi tower was not found in the offline copy (0.16.9).
  */
 const CASE_SPOTS = {
   weatherStation: foundSpots(SHORELINE, 'case-weather-station', -506.08, -21.48, 234.41),
+  powerStation: foundSpots(SHORELINE, 'case-power-station', -220.27, -34.11, 195.17),
 }
+/** «Разрыв цепи»: the transmitter on the top of the tall factory chimney by the unfinished building on Customs, matching the guide. */
+const CHIMNEY_TRANSMITTER = foundSpots(['customs'], 'transmitter-chimney', 124.84, 68.01, -63.57)
 /** «Капкан»: the first fence breach by the health resort's west wing, matching the guide's picture (the second one was not found). */
 const WEST_WING_BREACH = foundSpots(SHORELINE, 'breach-west-wing-1', -128.23, -4.26, -98.77)
 
@@ -153,7 +156,7 @@ const quests: CuratedQuest[] = [
       { type: 'findQuestItem', maps: SHORELINE, text: { ru: 'Найти кейс с военным оборудованием', en: 'Locate and obtain the case with military equipment' } },
       { type: 'visit', optional: true, maps: SHORELINE, text: { ru: 'Осмотреть помещение рядом с вышкой Sordi на локации Берег', en: 'Investigate the shack next to the Sordi tower on Shoreline' } },
       { type: 'visit', optional: true, maps: SHORELINE, spots: CASE_SPOTS.weatherStation, text: { ru: 'Осмотреть второй этаж здания метеостанции на локации Берег', en: 'Investigate the second floor of the weather station building on Shoreline' } },
-      { type: 'visit', optional: true, maps: SHORELINE, text: { ru: 'Осмотреть ГЭС на локации Берег', en: 'Investigate the hydroelectric power station on Shoreline' } },
+      { type: 'visit', optional: true, maps: SHORELINE, spots: CASE_SPOTS.powerStation, text: { ru: 'Осмотреть ГЭС на локации Берег', en: 'Investigate the hydroelectric power station on Shoreline' } },
     ],
     rewards: [[ROUBLES, 18_000], [RPK16, 1], [AK74_6L23_MAG, 3], [PP_GS_PACK_120, 1]],
     note: {
@@ -439,7 +442,7 @@ const quests: CuratedQuest[] = [
     after: [K.desperateAssault],
     experience: 30_000,
     objectives: [
-      { type: 'visit', maps: ['customs'], text: { ru: 'Уничтожить ретранслятор на заводской трубе рядом с незаконченной стройкой на локации Таможня', en: 'Destroy the transmitter on the factory chimney near the unfinished construction site on Customs' } },
+      { type: 'visit', maps: ['customs'], spots: CHIMNEY_TRANSMITTER, text: { ru: 'Уничтожить ретранслятор на заводской трубе рядом с незаконченной стройкой на локации Таможня', en: 'Destroy the transmitter on the factory chimney near the unfinished construction site on Customs' } },
       { type: 'visit', maps: ['customs'], text: { ru: 'Уничтожить ретранслятор на вышке ЛЭП на локации Таможня', en: 'Destroy the transmitter on the power line tower on Customs' } },
       { type: 'visit', maps: ['woods'], text: { ru: 'Уничтожить ретранслятор на вершине скалы на локации Лес', en: 'Destroy the transmitter on top of the mountain on Woods' } },
       { type: 'visit', maps: ['woods'], text: { ru: 'Уничтожить ретранслятор на вышке сотовой связи на локации Лес', en: 'Destroy the transmitter on the cell tower on Woods' } },

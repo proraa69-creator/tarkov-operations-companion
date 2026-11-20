@@ -502,10 +502,11 @@ describe('«KORD BREACH» (Season 1): the season line tarkov.dev lacks', () => {
     expect(zones).toEqual([{ id: 'point-kb-camera-ural', mapId: 'shoreline', position: { x: -180.39, y: -38.31, z: 141.08 } }])
   })
 
-  it('the case of «Незваные гости» at the weather station, the first breach of «Капкан»', () => {
+  it('the case of «Незваные гости» at the weather station and the power station, the first breach of «Капкан», the chimney transmitter', () => {
     const quest = (id: string) => KORD_BREACH.quests.find((entry) => entry.id === id)!
     const spots = (id: string) => quest(id).objectives.map((objective) => (objective.spots ?? []).map((spot) => ('point' in spot ? `${spot.map} ${spot.point.x} ${spot.point.y} ${spot.point.z}` : '')))
-    expect(spots(KORD_BREACH_IDS.uninvitedGuests1)).toEqual([[], [], ['shoreline -506.08 -21.48 234.41'], []])
+    expect(spots(KORD_BREACH_IDS.uninvitedGuests1)).toEqual([[], [], ['shoreline -506.08 -21.48 234.41'], ['shoreline -220.27 -34.11 195.17']])
+    expect(spots(KORD_BREACH_IDS.breakTheChain).flat()).toContain('customs 124.84 68.01 -63.57')
     expect(spots(KORD_BREACH_IDS.stayClear)).toEqual([['shoreline -128.23 -4.26 -98.77'], [], []])
   })
 })
