@@ -100,27 +100,38 @@ describe('«Убежище» как в игре', () => {
     expect(screen.getByRole('button', { name: /Верстак, не построен/ })).toBeInTheDocument()
   })
 
-  it('a module shows below the picture: its level is set by a press, the next level\'s needs and its crafts', () => {
+  it('a module opens beside the picture; a level button shows that level alone and the module at it on the picture', () => {
     localStorage.setItem('raidos-hideout-found-v1:p1:pvp', JSON.stringify({ [WIRE]: 1 }))
     renderView()
     fireEvent.click(screen.getByRole('button', { name: /Медблок, уровень 1/ }))
-    expect(screen.getByRole('heading', { name: /Для уровня II/ })).toBeInTheDocument()
+    // the next level first: its needs only, not every level at once
+    expect(screen.getAllByRole('heading', { name: /Для уровня/ }).map((heading) => heading.textContent)).toEqual(['Для уровня II'])
     expect(screen.getByRole('button', { name: /Провода/ })).toHaveTextContent('1/3')
     expect(screen.getByText(/Верстак ур. 1/)).toBeInTheDocument()
     expect(screen.getByText(/Лояльность: Терапевт ур. 2/)).toBeInTheDocument()
-    expect(document.querySelector('#hv-craft-med-craft')).toHaveClass('is-locked')
-    const levels = screen.getByRole('group', { name: 'Мой уровень' })
-    fireEvent.click(within(levels).getByRole('button', { name: 'II' }))
-    expect(state.setHideoutLevel).toHaveBeenCalledWith(MED, 2)
+    expect(pictures()).toContain(`${MED}-2-L0.webp`)
+    // the crafts of that level, by name and count: what goes in, what comes out
+    const craft = document.querySelector('#hv-craft-med-craft')!
+    expect(craft).toHaveTextContent('Нужно')
+    expect(craft).toHaveTextContent('Бинт×1')
+    expect(craft).toHaveTextContent('Получите')
+    expect(craft).toHaveTextContent('Болты×1')
+    // level I: built, the picture back at the player's own level
+    fireEvent.click(screen.getByRole('tab', { name: /Уровень I$/ }))
+    expect(screen.getAllByRole('heading', { name: /Для уровня/ }).map((heading) => heading.textContent)).toEqual(['Для уровня I построен'])
+    expect(pictures()).toContain(`${MED}-1-L0.webp`)
+    fireEvent.click(screen.getByRole('button', { name: /Снять уровень I/ }))
+    expect(state.setHideoutLevel).toHaveBeenCalledWith(MED, 0)
+    fireEvent.click(screen.getByRole('tab', { name: /Уровень II/ }))
     fireEvent.click(screen.getByRole('button', { name: /Построил II/ }))
     expect(state.setHideoutLevel).toHaveBeenLastCalledWith(MED, 2)
   })
 
-  it('shows every level in turn; an item wanted found in raid says at once where it is crafted and from what, not the barters', () => {
+  it('an item wanted found in raid says at once where it is crafted and from what, not the barters', () => {
     state.levels = {}
     renderView()
     fireEvent.click(screen.getByRole('button', { name: /Медблок, не построен/ }))
-    expect(screen.getAllByRole('heading', { name: /Для уровня/ }).map((heading) => heading.textContent)).toEqual(['Для уровня I', 'Для уровня II'])
+    expect(screen.getAllByRole('heading', { name: /Для уровня/ }).map((heading) => heading.textContent)).toEqual(['Для уровня I'])
     const bandage = screen.getByRole('button', { name: /Бинт/ }).closest('li')!
     expect(within(bandage).getByRole('button', { name: /Скрафтить: Верстак, ур. I ×2/ })).toHaveAttribute('aria-expanded', 'true')
     expect(within(bandage).getByText('Провода').closest('li')).toHaveTextContent('×3')
@@ -133,6 +144,7 @@ describe('«Убежище» как в игре', () => {
     fireEvent.click(screen.getByRole('button', { name: /Провода/ }))
     fireEvent.click(screen.getByRole('button', { name: /Скрафтить: Верстак, ур. I/ }))
     expect(screen.getByRole('link', { name: 'Открыть модуль' })).toHaveAttribute('href', `/hideout?module=${BENCH}&craft=wire-craft`)
-    expect(screen.getByText('Болты').closest('li')).toHaveTextContent('×2')
+    const wire = screen.getByRole('button', { name: /Провода/ }).closest('li')!
+    expect(within(wire).getByText('Болты').closest('li')).toHaveTextContent('×2')
   })
 })

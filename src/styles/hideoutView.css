@@ -50,7 +50,7 @@
 .hv-items { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .hv-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surf-1); color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .hv-items li.is-picked > .hv-item { border-color: color-mix(in srgb, var(--brass) 55%, transparent); }
-.hv-item-picture img, .hv-source-picture img, .hv-craft-item img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
+.hv-item-picture img, .hv-source-picture img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
 .hv-item-picture { width: 40px; height: 40px; }
 .hv-item-name { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; font-weight: 700; text-overflow: ellipsis; }
 .hv-fir { flex: none; color: #b8e0bd; }
@@ -82,16 +82,6 @@
 @media (hover: hover) and (pointer: fine) { .hv-source-row:hover, .hv-item:hover { border-color: var(--line-strong); } }
 
 /* the module's crafts: what goes in → what comes out, the level and the time */
-.hv-crafts ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.hv-crafts li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 6px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surf-1); }
-.hv-crafts li.is-locked { opacity: .55; }
-.hv-crafts li.is-target { border-color: var(--brass-strong); }
-.hv-craft-level { min-width: 24px; color: var(--brass-strong); font-size: 11px; font-weight: 850; text-align: center; }
-.hv-craft-lines { display: flex; flex-wrap: wrap; gap: 3px; }
-.hv-craft-item { position: relative; width: 34px; height: 34px; }
-.hv-craft-item small { position: absolute; right: 1px; bottom: 0; color: #fff; font-size: 9px; font-weight: 850; text-shadow: 0 1px 2px #000; }
-.hv-craft-arrow { color: var(--text-dim); }
-.hv-craft-time { margin-left: auto; font-size: 11px; }
 
 @media (max-width: 700px) {
   /* the phone: the picture wider than the screen, moved sideways with a finger */
@@ -108,5 +98,31 @@
 .hv-locked-note { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-muted); font-size: 12px; }
 /* the Christmas tree's switch, at the picture's top right */
 .hv { position: relative; }
-.hv-tree { position: absolute; z-index: 4; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 99px; background: rgb(10 13 11 / 80%); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.hv-tree { position: absolute; z-index: 4; top: 10px; left: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 99px; background: rgb(10 13 11 / 80%); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .hv-tree.is-on { border-color: #4f8a57; color: #b9e3bf; }
+
+/* The module's window as in the game: a third of the width over the picture's right side, the picture still in sight (on a narrow
+   screen under it). */
+.hv-view { position: relative; }
+@media (min-width: 1000px) {
+  .hv-view > .hv-panel { position: absolute; z-index: 5; top: 10px; right: 10px; bottom: 10px; width: min(34%, 460px); overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 8px 28px rgb(0 0 0 / 55%); }
+}
+@media (max-width: 999px) { .hv-view > .hv-panel { margin-top: 12px; } }
+/* one level at a time */
+.hv-level-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.hv-level-tabs button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--surf-1); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.hv-level-tabs button.is-built { border-color: #39503e; color: #9fc2a4; }
+.hv-level-tabs button.is-shown { border-color: var(--brass-strong); background: color-mix(in srgb, var(--brass) 18%, var(--surf-1)); color: var(--text); box-shadow: 0 0 0 1px var(--brass-strong); }
+.hv-done-mark { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; color: var(--success); letter-spacing: 0; text-transform: none; }
+/* crafts: what goes in, what comes out, by name and count */
+.hv-crafts > ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.hv-crafts.is-locked .hv-craft { opacity: .6; }
+.hv-craft { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
+.hv-craft.is-target { border-color: var(--brass-strong); }
+.hv-craft-label { display: block; margin-bottom: 3px; color: var(--brass); font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.hv-craft-lines { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.hv-craft-lines li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: 12px; }
+.hv-craft-picture { width: 30px; height: 30px; }
+.hv-craft-picture img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
+.hv-craft-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hv-craft-time { margin: 0; font-size: 11px; }
