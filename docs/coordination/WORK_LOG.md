@@ -8285,3 +8285,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   exitFlares, DashboardPage, MapsPage.keyDoor / objectiveFocus pass; MapsPage.autoFloor / deferred / raidChecks time out only
   under the parallel run (pass with `--no-file-parallelism`). typecheck, `tsc -p tsconfig.electron.json`, eslint clean.
 - Not checked in the running app (tests only). For the next release: merge this branch.
+- Release 0.6.0.324 prepared on claude/quest-row-tags (owner, 20.11.2026: «выпускай одним выпуском»): the weapon builder on the
+  game's part pictures (public/gun-parts now in the repo, 25 MB), Gunsmith benches, stocks laid straight, right click takes a
+  module off; reports 202–204; story stage/chapter on the phone (68b7034a); the phone's Overview without the per-frame smoke blur
+  (4347d0b8); quest point photos one at a time (07557a54); the flare row lights its exit (merge of claude/exit-flare-map-focus,
+  525c93da); KORD BREACH camera and reception spots. Photos on the server (quest-point overrides, 14 points, 8 photos) already.
+  Local full test run on Windows: the failures were CRLF/path/tar environment tests and timeouts under load (all pass alone with
+  --testTimeout=30000); lint errors only in files release/production already had.
