@@ -16,7 +16,6 @@
 .hv-spot-dot { display: block; width: 40%; aspect-ratio: 1; margin: 30% auto 0; border-radius: 50%; background: #f5f2ec; box-shadow: 0 0 3px #000; }
 .hv-spot-level { position: absolute; left: 88%; bottom: -4%; display: flex; align-items: center; color: #f2efe8; font-family: "Consolas", "Lucida Console", ui-monospace, monospace; font-size: max(10px, 0.9cqw); font-weight: 700; line-height: 1; white-space: nowrap; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 1px 2px #000; }
 .hv-spot.is-ready img { filter: drop-shadow(0 0 1px rgb(0 0 0 / 95%)) drop-shadow(0 0 5px rgb(223 189 112 / 95%)); }
-.hv-spot.is-locked img { filter: grayscale(1) brightness(.75) drop-shadow(0 0 1px rgb(0 0 0 / 95%)) drop-shadow(0 0 2px rgb(0 0 0 / 80%)); }
 .hv-spot.is-open { z-index: 3; }
 .hv-spot.is-open img { filter: drop-shadow(0 0 1px rgb(0 0 0 / 95%)) drop-shadow(0 0 6px rgb(255 140 50 / 100%)) drop-shadow(0 0 3px rgb(255 140 50 / 100%)); }
 @media (hover: hover) and (pointer: fine) { .hv-spot:hover { z-index: 2; transform: translate(-50%, -50%) scale(1.15); } }
