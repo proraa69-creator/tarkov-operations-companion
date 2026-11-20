@@ -8556,3 +8556,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   phone right over the tab bar, the whole card a button to the map: a tap meant for the page opened the map. Now taps are ignored
   for 700 ms after it comes; on a phone a tap only closes it, the map from its own «Карта» button. Other automatic map openings
   checked: PhoneMapsPage follows the PC's position only while the map is open; useFollowRaidMap is the PC's; no remote paging.
+- 34822af9 full screen: the fold button fixed right under «Свернуть» (owner's phone shot on 331: a tall build — 6P29M with a grip,
+  PRS GEN3 — made the bench taller than the screen, its fold button slid under the exit); the still stats window's title is the
+  weapon's name and the bench label is hidden there (it sat under the window). Checked 932×430, 430×932, 1600×1000: no overlap.
+- c0042488 the AS VAL MOD.4 receiver drawn from the game (owner: «у нас нет вот этой модели. Зайди в игру»), open and folded. The
+  offline SPT copy drew it turned and moved (older animation bundles) and white below (older VAL texture bundle):
+  assets/content/weapons/val/{client_assets,textures/client_assets}.bundle and their Windows.json entries copied read-only from
+  the installed game into E:\SPT (backups *.bak-mod4-20261121); RaidOsGuns job option «level» { tpl: slot } turns the model so that
+  slot stands at -90° about X and writes the points in that frame (E:\SPT-photo\weapons\plugin, backup *.bak-level-20261121).
+  Packed into public/gun-parts and E:\SPT-photo\weapons\assets (index fs mod_stock). Still without pictures: MXLR, АК-308, ТКПД,
+  NL545 DI/GP, SR-25 tau, QBZ-191, HK416 RAL, Type 20 (same way would work if their texture bundles are taken too).
+- Player news drafted for the next release and shown to the owner (not written yet): Gunsmith full screen and fold, large cells,
+  Overview smooth carrying, compact stats window, straighter grips and stocks, the phone's «Карта» button, «Небеса в огне» hint,
+  AS VAL MOD.4 from parts, technical update.
