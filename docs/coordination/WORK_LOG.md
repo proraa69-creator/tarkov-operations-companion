@@ -8522,3 +8522,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   archive went through). Sent again as one password-protected RAR with encrypted names (-hp, password in the letter
   text), RaidOS_iOS_AppStore_build5.part01–06.rar, same content (Xcode build 5 + both «Сборка оружия» pictures); all six
   accepted (200). Not confirmed that Gmail lets them through: Resend's key here can only send.
+
+## 2026-11-20 — Claude: 0.6.0.331 live 23:40 (phone «Назад» one step back); Falling Skies point note
+- 0.6.0.331 (72286417, release/production fast-forward from a2bca1b1): 873ebf34 «Назад» one step back in any section,
+  eb56adfa «ADS time»; news «Техническое обновление». Gate green, publisher started by hand, site 0.6.0-331 at 23:40.
+- Support (GOMERsapiens): «Небеса в огне» flash drive «не в доме, а у выхода ЧВК Тоннель, на черном гелентвагене». Our
+  point (shoreline 336.57/317.87) is on the black SUV at the road ~40 m from the Tunnel extract (tarkov.dev main_summer
+  tiles z6, the wiki's FallingSkiesGWagonUSBMap): the player most likely took Elektronik's flash drive (stage 15, in a
+  village house) for it. 1fa6b3e1 (not released): the point says «Флешка — на подножке чёрного «Гелендвагена» у выхода
+  «Тоннель»», its 1 cm duplicate removed. Reply to the player drafted for the owner, not sent.
