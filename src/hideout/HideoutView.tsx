@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Hammer, Lock, X } from 'lucide-react'
+import { Check, Hammer, Lock, TreePine, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
@@ -13,10 +13,11 @@ import { useHideoutFound } from './hideoutFound'
 import { DOLLARS, EUROS, ROUBLES } from './hideoutNeeds'
 import { withSeasonFoundInRaid } from './seasonFoundInRaid'
 import { stationIcon } from './stationIcons'
-import { basePicture, lightOf, lightStation, modulePiece, moduleSpot, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
+import { basePicture, christmasPiece, christmasSeason, lightOf, lightStation, modulePiece, moduleSpot, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
 import { ItemSources } from './WhereToGet'
 import '../styles/hideoutView.css'
 
+const CHRISTMAS_KEY = 'raidos-hideout-christmas'
 const roman = (level: number) => ['0', 'I', 'II', 'III', 'IV', 'V', 'VI'][level] ?? String(level)
 const number = (value: number) => new Intl.NumberFormat('ru-RU').format(value)
 const MONEY: Record<string, string> = { [ROUBLES]: '₽', [DOLLARS]: '$', [EUROS]: '€' }
@@ -44,7 +45,7 @@ export function HideoutView() {
 }
 
 /** The player's hideout from above: the base of their light, the pieces of their built levels, the closed rooms black. */
-export function HideoutPicture({ stations, built }: { stations: readonly HideoutStation[]; built: Readonly<Record<string, number>> }) {
+export function HideoutPicture({ stations, built, christmas = false }: { stations: readonly HideoutStation[]; built: Readonly<Record<string, number>>; christmas?: boolean }) {
   const light = lightOf(lightStation ? built[lightStation] ?? 0 : 0)
   const base = basePicture(light)
   const closed = roomsClosed(built)
@@ -58,6 +59,11 @@ export function HideoutPicture({ stations, built }: { stations: readonly Hideout
         style={{ left: `${piece.left * 100}%`, top: `${piece.top * 100}%`, width: `${piece.width * 100}%`, height: `${piece.height * 100}%` }} />
     })}
     {closed && roomsPicture() && <img className="hv-piece hv-rooms" src={roomsPicture()} alt="" draggable={false} />}
+    {christmas && (() => {
+      const tree = christmasPiece(light)
+      return tree && <img className="hv-piece" src={tree.url} alt="" draggable={false}
+        style={{ left: `${tree.left * 100}%`, top: `${tree.top * 100}%`, width: `${tree.width * 100}%`, height: `${tree.height * 100}%` }} />
+    })()}
   </>
 }
 
@@ -74,6 +80,17 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
   const stations = useMemo(() => withSeasonFoundInRaid(data.hideout.filter((station) => station.levels?.length), mode), [data.hideout, mode])
   const station = stations.find((entry) => entry.id === openId)
   const closed = roomsClosed(built)
+  // The Christmas tree and garlands (owner, 20.11.2026: «сделай елку и гирлянду как там»): on by itself in the game's season,
+  // a press turns it on or off (kept on this device).
+  const hasTree = [0, 1, 2, 3].some((light) => christmasPiece(light))
+  const [christmas, setChristmas] = useState(() => {
+    try { const kept = localStorage.getItem(CHRISTMAS_KEY); if (kept === 'on' || kept === 'off') return kept === 'on' } catch { /* storage unavailable */ }
+    return christmasSeason()
+  })
+  const toggleChristmas = () => setChristmas((value) => {
+    try { localStorage.setItem(CHRISTMAS_KEY, value ? 'off' : 'on') } catch { /* storage unavailable */ }
+    return !value
+  })
   // A phone shows the picture wider than the screen (the buttons would crowd), opened at its middle.
   const scroller = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -93,7 +110,7 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
   return <section className="hv" aria-label={uiText('Убежище')}>
     <div className="hv-stage-scroll" ref={scroller}>
       <div className="hv-stage" style={{ aspectRatio: `${size.width} / ${size.height}` }}>
-        <HideoutPicture stations={stations} built={built} />
+        <HideoutPicture stations={stations} built={built} christmas={hasTree && christmas} />
         {stations.map((entry) => {
           const spot = moduleSpot(entry.id)
           // a module behind the wall not broken yet is not shown at all (owner, 20.11.2026: «если стена не снесена, значит,
@@ -114,6 +131,9 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
         })}
       </div>
     </div>
+    {hasTree && <button type="button" className={`hv-tree${christmas ? ' is-on' : ''}`} aria-pressed={christmas} onClick={toggleChristmas}>
+      <TreePine size={14} aria-hidden="true" /> {uiText('Ёлка')}
+    </button>}
     {station && <ModulePanel key={station.id} locked={closed && behindWall(station.id)} station={station} stations={stations} built={built} found={found} items={items} economy={economy.data}
       craftId={params.get('craft')} onClose={() => open(null)} onLevel={(level) => state.setHideoutLevel(station.id, level)} />}
   </section>

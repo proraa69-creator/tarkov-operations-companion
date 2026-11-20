@@ -106,3 +106,7 @@
 /* the levels side by side under the picture (one under another on a narrow screen) */
 .hv-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; align-items: start; }
 .hv-locked-note { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-muted); font-size: 12px; }
+/* the Christmas tree's switch, at the picture's top right */
+.hv { position: relative; }
+.hv-tree { position: absolute; z-index: 4; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 99px; background: rgb(10 13 11 / 80%); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.hv-tree.is-on { border-color: #4f8a57; color: #b9e3bf; }

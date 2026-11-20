@@ -69,3 +69,12 @@ export const roomsPicture = () => byName.get('rooms')
 export function roomsClosed(built: Readonly<Record<string, number>>) {
   return Boolean(file.rooms?.station) && (built[file.rooms!.station!] ?? 0) < file.rooms!.openLevel
 }
+
+/** The Christmas tree and its garlands (the game's own seasonal area), a piece like a module's: «christmas», level 1. */
+export const christmasPiece = (light: number) => modulePiece('christmas', 1, light)
+
+/** The season the game puts the tree up: 1 December to 15 January. */
+export function christmasSeason(now = new Date()) {
+  const month = now.getMonth(), day = now.getDate()
+  return month === 11 || (month === 0 && day <= 15)
+}

@@ -24,6 +24,8 @@ const dataFile = join(root, 'src/data/hideoutViews.json')
 const MAX_WIDTH = 1920
 /** The wall's level from which the rooms behind it are open (the breach: level 5 of the defective wall). */
 const WALL_OPEN_LEVEL = 5
+/** Pixels round the Christmas tree's icon point that make its piece. */
+const TREE_RADIUS = 90
 /**
  * The modules really behind the wall: their buttons wait for the breach. The med station, rest space and booze generator are shot on
  * the broken wall too (the game draws their room only from it) but are built before it (owner, 20.11.2026: «Все, что за стеной,
@@ -221,10 +223,16 @@ for (const light of lights) {
   await writePicture(base.data, 3, base.width, base.height, box, join(assets, `base-L${light}.webp`), 80)
   for (const file of readdirSync(dir).filter((name) => /^\w+-\d+\.png$/.test(name)).sort()) {
     const [, type, levelText] = /^(\w+)-(\d+)\.png$/.exec(file)
-    const id = idOf.get(type)
-    if (!id || SKIP.has(type)) continue
+    // the Christmas tree is no station of the app: its piece goes under «christmas» (shown in the season, hideout/hideoutViews.ts)
+    const id = type === 'ChristmasIllumination' ? 'christmas' : idOf.get(type)
+    if (!id || (SKIP.has(type) && type !== 'ChristmasIllumination')) continue
     const meta = JSON.parse(readFileSync(join(dir, file.replace(/\.png$/, '.json')), 'utf8'))
-    const region = union(toPixels(meta.level0, base.width, base.height), toPixels(meta.rect, base.width, base.height))
+    // The tree's area also holds the garlands under the ceiling: their shadows lie over the whole hall, so its piece is the tree
+    // alone, round the game's icon point of the area (it stands right there).
+    const treeAt = type === 'ChristmasIllumination' ? (baseMeta.areas ?? []).find((area) => area.type === type) : undefined
+    const region = treeAt
+      ? [Math.round(treeAt.x * base.width) - TREE_RADIUS, Math.round(treeAt.y * base.height) - TREE_RADIUS, Math.round(treeAt.x * base.width) + TREE_RADIUS, Math.round(treeAt.y * base.height) + TREE_RADIUS]
+      : union(toPixels(meta.level0, base.width, base.height), toPixels(meta.rect, base.width, base.height))
     if (!region) continue
     const against = bases[meta.base ?? 'base'] ? meta.base ?? 'base' : 'base'
     if (against === 'base-wall') inside.add(id)

@@ -49,6 +49,8 @@ vi.mock('./hideoutViews', () => ({
   moduleSpot: (id: string) => ({ 'med-station': { x: 0.25, y: 0.5 }, 'work-bench': { x: 0.75, y: 0.4 }, gym: { x: 0.1, y: 0.1 } } as Record<string, { x: number; y: number }>)[id],
   modulePiece: (id: string, level: number, light: number) => (id === 'med-station' || id === 'gym' ? { url: `${id}-${level}-L${light}.webp`, left: 0.2, top: 0.4, width: 0.1, height: 0.2 } : undefined),
   roomsPicture: () => 'rooms.webp',
+  christmasPiece: (light: number) => ({ url: `christmas-1-L${light}.webp`, left: 0.5, top: 0.5, width: 0.05, height: 0.1 }),
+  christmasSeason: () => false,
   roomsClosed: (built: Record<string, number>) => (built['defective-wall'] ?? 0) < 5,
 }))
 
@@ -69,6 +71,14 @@ describe('«Убежище» как в игре', () => {
     expect(pictures()).toEqual(['base-L2.webp', `${MED}-2-L2.webp`, 'rooms.webp'])
     const piece = document.querySelector(`img[src="${MED}-2-L2.webp"]`)
     expect(piece).toHaveStyle({ left: '20%', top: '40%', width: '10%', height: '20%' })
+  })
+
+  it('puts the Christmas tree up by a press, out of season too, and remembers it', () => {
+    renderView()
+    expect(pictures()).not.toContain('christmas-1-L0.webp')
+    fireEvent.click(screen.getByRole('button', { name: /Ёлка/ }))
+    expect(pictures()).toContain('christmas-1-L0.webp')
+    expect(localStorage.getItem('raidos-hideout-christmas')).toBe('on')
   })
 
   it('opens the rooms behind the wall once it is broken', () => {
