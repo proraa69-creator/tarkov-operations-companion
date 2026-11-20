@@ -8409,3 +8409,14 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (3 photos, 2 `describe` edits; the temporary folder in website/dist removed).
 - Not in it: the module window as in the game (1/3 of the screen, one level at a time, crafts with names), the Illumination
   light in the empty hideout and the Christmas tree — the hideout session, next update.
+
+## 2026-11-20 — Claude: 0.6.0.326 published; the next update ready locally, held by the owner («выпустим позже»)
+- 0.6.0.326 (bcdea2c5) live 17:39: the players' news entry is on the server, `/v1/accounts/me/admin/hideout-modules` answers
+  `{ modules: null }`, the announcement carries `hideoutModules: null` (nothing switched on).
+- Merged locally into claude/quest-row-tags, NOT pushed: claude/hideout-view a0a427b5 (0272557e: the module window as in the
+  game — a third of the width over the picture, one level at a time, crafts «Нужно / Получите» by name; the Illumination light
+  in the empty hideout; the Christmas tree, 1 Dec – 15 Jan or by its button) and 4f8cecad (3211676b: a level looked at in the
+  dark shows in a spot of light). Full vitest (only the known Windows false failures), server 597/597, typecheck and build clean;
+  browser 1440: the window and level II checked.
+- To release: bump to 0.6.0.327 (package.json, package-lock ×2, website/src/config.ts), updateHistory.json AND playerNews.json
+  entries (show the owner the lines first), then push to release/production on the owner's word only.
