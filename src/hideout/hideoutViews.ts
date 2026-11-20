@@ -80,8 +80,14 @@ export function roomsClosed(built: Readonly<Record<string, number>>) {
   return Boolean(file.rooms?.station) && (built[file.rooms!.station!] ?? 0) < file.rooms!.openLevel
 }
 
-/** The Christmas tree and its garlands (the game's own seasonal area), a piece like a module's: «christmas», level 1. */
-export const christmasPiece = (light: number) => modulePiece('christmas', 1, light)
+/**
+ * The Christmas tree and its garlands (the game's own seasonal area), a piece like a module's: «christmas», level 1. Its garlands
+ * glow by themselves: under no Illumination yet (no piece shot so dark) it is the dimmest one shot, so a new player sees it too.
+ */
+export const christmasPiece = (light: number) => {
+  const shot = nearestLight('christmas', 1, light)
+  return shot === undefined ? undefined : modulePiece('christmas', 1, shot)
+}
 
 /** The season the game puts the tree up: 1 December to 15 January. */
 export function christmasSeason(now = new Date()) {

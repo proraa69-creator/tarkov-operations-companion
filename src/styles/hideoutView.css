@@ -115,8 +115,9 @@
   .hv-view > .hv-panel .hv-panel-head img { width: 32px; height: 32px; }
 }
 /* one level at a time */
-.hv-level-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
-.hv-level-tabs button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--surf-1); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+/* the levels: one row of plain rectangular tabs, equal widths (owner, 20.11.2026: «значки уровня… ужасные. Сделали их прямоугольные») */
+.hv-level-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; align-items: stretch; }
+.hv-level-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; box-sizing: border-box; height: 32px; min-width: 0; margin: 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surf-1); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 800; line-height: 1; white-space: nowrap; aspect-ratio: auto; cursor: pointer; }
 .hv-level-tabs button.is-built { border-color: #39503e; color: #9fc2a4; }
 .hv-level-tabs button.is-shown { border-color: var(--brass-strong); background: color-mix(in srgb, var(--brass) 18%, var(--surf-1)); color: var(--text); box-shadow: 0 0 0 1px var(--brass-strong); }
 .hv-done-mark { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; color: var(--success); letter-spacing: 0; text-transform: none; }
