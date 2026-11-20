@@ -87,16 +87,17 @@ export function FullBench({ weapon, stats, stock, selected, onSelect, onClose, c
         <div className="wb-full-stage-room" ref={stageBox}>{children(room)}</div>
       </div>
     </div>
-    <StatsWindow stats={stats} stock={stock} compact={docked} />
+    <StatsWindow title={weapon.shortName} stats={stats} stock={stock} compact={docked} />
   </div>, document.body)
 }
 
 /**
  * The build's stats over the full screen: a small window that stays at the top left, out of the build's way (owner, 21.11.2026: «При
  * перетаскивании вылезает ошибка, сделай это окно меньше и зафиксируй при полноэкранном режиме, слева сверху»). The module cells lay
- * round it (src/arsenal/BuildStage.tsx). `compact` (a phone): narrower, without the deltas.
+ * round it (src/arsenal/BuildStage.tsx). `compact` (a phone): narrower, without the deltas. Its title is the weapon's name: the bench's
+ * own label (name and weight) would be under the window at the same corner, and the weight is one of the rows.
  */
-function StatsWindow({ stats, stock, compact }: { stats: BuildStats; stock: BuildStats; compact?: boolean }) {
+function StatsWindow({ title, stats, stock, compact }: { title: string; stats: BuildStats; stock: BuildStats; compact?: boolean }) {
   const ergoDelta = stats.ergonomicsRaw - stock.ergonomicsRaw
   const rows: Array<{ label: string; value: string; delta: number; better: 'lower' | 'higher'; digits?: number }> = [
     { label: 'Эргономика', value: String(stats.ergonomics), delta: ergoDelta, better: 'higher', digits: Math.round(Math.abs(ergoDelta) * 10) % 10 ? 1 : 0 },
@@ -106,7 +107,7 @@ function StatsWindow({ stats, stock, compact }: { stats: BuildStats; stock: Buil
     { label: 'Скорость пули', value: stats.velocity ? `${Math.round(stats.velocity)} ${uiText('м/с')}` : '—', delta: (stats.velocity ?? 0) - (stock.velocity ?? 0), better: 'higher' },
   ]
   return <div className={`wb-stats-window${compact ? ' is-compact' : ''}`}>
-    <div className="wb-stats-window-title">{uiText('Характеристики')}</div>
+    <div className="wb-stats-window-title" title={title}>{title}</div>
     {rows.map((row) => <div className="wb-stats-window-row" key={row.label}>
       <span>{uiText(row.label)}</span>
       <strong>{row.value}</strong>

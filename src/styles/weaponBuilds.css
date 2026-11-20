@@ -336,7 +336,7 @@ button.wb-trader-auto { color: var(--brass); }
 /* The stats over the full screen: small and still at the top left (owner, 21.11.2026: «сделай это окно меньше и зафиксируй… слева
    сверху, сделай такого размера что бы не мешал сборке оружия»); nothing to hold or drag. */
 .wb-stats-window { position: fixed; z-index: 4510; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); width: 184px; border: 1px solid color-mix(in srgb, var(--brass) 30%, var(--line)); border-radius: 7px; background: rgba(14, 18, 16, .9); box-shadow: 0 8px 22px rgba(0, 0, 0, .45); backdrop-filter: blur(6px); overflow: hidden; pointer-events: none; user-select: none; -webkit-user-select: none; }
-.wb-stats-window-title { padding: 4px 8px; border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .03); color: var(--text-dim); font-size: 9px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.wb-stats-window-title { overflow: hidden; padding: 4px 8px; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .03); color: var(--text-dim); font-size: 9px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
 .wb-stats-window-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: baseline; gap: 5px; padding: 2px 8px; font-size: 10.5px; line-height: 1.35; }
 .wb-stats-window-row + .wb-stats-window-row { border-top: 1px solid rgba(255, 255, 255, .04); }
 .wb-stats-window-row > span { color: var(--text-muted); white-space: nowrap; }
@@ -411,7 +411,10 @@ button.wb-trader-auto { color: var(--brass); }
 .wb-stage-fold { position: absolute; top: 8px; right: 140px; z-index: 3; height: 26px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: rgba(12, 16, 14, .8); color: var(--text-muted); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
 .wb-stage-fold.is-on { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); color: var(--brass-strong); }
 @media (hover: hover) and (pointer: fine) { .wb-stage-fold:hover { color: var(--text); } }
-.wb-full .wb-stage-fold { right: 8px; top: 44px; }
+/* over the full screen: right under «Свернуть», wherever the bench is (a tall build pushed it under the button) */
+.wb-full .wb-stage-fold { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 42px); right: max(12px, env(safe-area-inset-right)); }
+/* the name is the stats window's title there (src/arsenal/FullBench.tsx), the window is at this corner */
+.wb-full .wb-stage-label { display: none; }
 @media (max-width: 640px) { .wb-stage-fold { right: 46px; } }
 
 /* The bench's backdrop: a place of the game for the colour scheme, blurred and dark under the weapon (src/arsenal/benchBackdrop.ts) */
