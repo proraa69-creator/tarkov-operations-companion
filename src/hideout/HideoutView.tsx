@@ -13,6 +13,7 @@ import { useHideoutFound } from './hideoutFound'
 import { DOLLARS, EUROS, ROUBLES } from './hideoutNeeds'
 import { withSeasonFoundInRaid } from './seasonFoundInRaid'
 import { stationIcon } from './stationIcons'
+import { stationColor } from './stationColors'
 import { basePicture, lightOf, lightStation, modulePiece, moduleSpot, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
 import { ItemSources } from './WhereToGet'
 import '../styles/hideoutView.css'
@@ -74,8 +75,12 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
   // A phone shows the picture wider than the screen (the buttons would crowd), opened at its middle.
   const scroller = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const element = scroller.current
-    if (element && element.scrollWidth > element.clientWidth) element.scrollLeft = (element.scrollWidth - element.clientWidth) / 2
+    // after the first layout: the picture's width is known only then
+    const frame = requestAnimationFrame(() => {
+      const element = scroller.current
+      if (element && element.scrollWidth > element.clientWidth) element.scrollLeft = (element.scrollWidth - element.clientWidth) / 2
+    })
+    return () => cancelAnimationFrame(frame)
   }, [])
   const open = (id: string | null) => setParams((current) => {
     const next = new URLSearchParams(current)
@@ -83,7 +88,7 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
     if (id) next.set('module', id); else next.delete('module')
     return next
   })
-  return <section className={`hv${station ? ' has-module' : ''}`} aria-label={uiText('Убежище')}>
+  return <section className="hv" aria-label={uiText('Убежище')}>
     <div className="hv-stage-scroll" ref={scroller}>
       <div className="hv-stage" style={{ aspectRatio: `${size.width} / ${size.height}` }}>
         <HideoutPicture stations={stations} built={built} />
@@ -96,7 +101,7 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
           const locked = closed && Boolean(roomsInfo?.inside?.includes(entry.id))
           const icon = stationIcon(entry)
           return <button key={entry.id} type="button" className={`hv-spot${level >= max ? ' is-max' : ready ? ' is-ready' : level === 0 ? ' is-none' : ''}${locked ? ' is-locked' : ''}${entry.id === openId ? ' is-open' : ''}`}
-            style={{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%` }} onClick={() => open(entry.id === openId ? null : entry.id)} aria-pressed={entry.id === openId}
+            style={{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%`, ['--hv-module' as string]: stationColor(entry.normalizedName) }} onClick={() => open(entry.id === openId ? null : entry.id)} aria-pressed={entry.id === openId}
             title={`${uiText(entry.name)} · ${level ? `${uiText('ур.')} ${roman(level)}` : uiText('не построен')}${locked ? `\n${uiText('За аварийной стеной')}` : ready ? `\n${uiText('Всё для улучшения собрано')}` : ''}`}
             aria-label={`${uiText(entry.name)}, ${level ? `${uiText('уровень')} ${level}` : uiText('не построен')}`}>
             {icon ? <img src={icon} alt="" /> : <span className="hv-spot-dot" />}
@@ -105,13 +110,15 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
         })}
       </div>
     </div>
-    {station && <ModulePanel key={station.id} station={station} stations={stations} built={built} found={found} items={items} economy={economy.data}
+    {station && <ModulePanel key={station.id} locked={closed && Boolean(roomsInfo?.inside?.includes(station.id))} station={station} stations={stations} built={built} found={found} items={items} economy={economy.data}
       craftId={params.get('craft')} onClose={() => open(null)} onLevel={(level) => state.setHideoutLevel(station.id, level)} />}
   </section>
 }
 
 interface ModulePanelProps {
   station: HideoutStation
+  /** In a room behind the defective wall, still closed. */
+  locked: boolean
   stations: readonly HideoutStation[]
   built: Record<string, number>
   found: ReadonlyMap<string, number>
@@ -127,7 +134,7 @@ interface ModulePanelProps {
  * по этапам. Первый уровень, второй, третий. И для каждого уровня, что нужно»): the built level set by a press (the picture follows),
  * then every level in turn with what it takes, the built ones folded; its crafts below.
  */
-function ModulePanel({ station, stations, built, found, items, economy, craftId, onClose, onLevel }: ModulePanelProps) {
+function ModulePanel({ station, locked, stations, built, found, items, economy, craftId, onClose, onLevel }: ModulePanelProps) {
   const level = built[station.id] ?? 0
   const max = station.levels?.length ?? 0
   const stages = [...(station.levels ?? [])].sort((a, b) => a.level - b.level)
@@ -141,16 +148,17 @@ function ModulePanel({ station, stations, built, found, items, economy, craftId,
         <span className="dim">{level ? `${uiText('Построен')}: ${uiText('ур.')} ${roman(level)} / ${roman(max)}` : uiText('Не построен')}</span>
       </div>
     </header>
+    {locked && <p className="hv-locked-note"><Lock size={12} aria-hidden="true" /> {uiText('За аварийной стеной: откроется с её уровня')} {roman(roomsInfo!.openLevel)}</p>}
     <div className="hv-built" role="group" aria-label={uiText('Мой уровень')}>
       <span className="dim">{uiText('Мой уровень')}</span>
       {Array.from({ length: max + 1 }, (_, value) => <button key={value} type="button" aria-pressed={value === level}
         className={`${value === level ? 'is-current' : ''}${value <= level && value > 0 ? ' is-built' : ''}`} onClick={() => onLevel(value)}
         title={value === 0 ? uiText('Не построен') : `${uiText('Построен уровень')} ${roman(value)}`}>{value === 0 ? '·' : roman(value)}</button>)}
     </div>
-    {stages.map((stage) => stage.level <= level
+    <div className="hv-stages">{stages.map((stage) => stage.level <= level
       ? <p key={stage.level} className="hv-stage-done"><Check size={13} aria-hidden="true" /> {uiText('Уровень')} {roman(stage.level)} · {uiText('построен')}</p>
       : <Requirements key={`${station.id}:${stage.level}`} stage={stage} stations={stations} built={built} found={found} items={items} economy={economy}
-        next={stage.level === level + 1} onBuilt={() => onLevel(stage.level)} />)}
+        next={stage.level === level + 1} onBuilt={() => onLevel(stage.level)} />)}</div>
     {level >= max && <p className="hv-max"><Check size={14} aria-hidden="true" /> {uiText('Максимальный уровень')}</p>}
     {crafts.length > 0 && <Crafts crafts={crafts} level={level} items={items} craftId={craftId} />}
   </aside>

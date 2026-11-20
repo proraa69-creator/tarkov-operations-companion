@@ -173,7 +173,7 @@ const outWidth = Math.round(box.width * scale), outHeight = Math.round(box.heigh
 const place = (x, y, w, h) => [Math.round((x - box.left) * scale), Math.round((y - box.top) * scale), Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale))]
 
 // Buttons that would lie on one another are pushed apart a little (the generator, the vents and the solar panel are a hand apart).
-const SPACING = 0.042
+const SPACING = 0.05
 const aspect = outHeight / outWidth
 const placed = Object.entries(rawSpots).map(([id, [x, y]]) => ({ id, x: (x * brightBase.width - box.left) / box.width, y: ((y * brightBase.height - box.top) / box.height) * aspect }))
 for (let round = 0; round < 300; round += 1) {
