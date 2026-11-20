@@ -24,6 +24,12 @@ const dataFile = join(root, 'src/data/hideoutViews.json')
 const MAX_WIDTH = 1920
 /** The wall's level from which the rooms behind it are open (the breach: level 5 of the defective wall). */
 const WALL_OPEN_LEVEL = 5
+/**
+ * The modules really behind the wall: their buttons wait for the breach. The med station, rest space and booze generator are shot on
+ * the broken wall too (the game draws their room only from it) but are built before it (owner, 20.11.2026: «Все, что за стеной,
+ * открывается после сноса стены… Все, что до этого, показывается»).
+ */
+const BEHIND_WALL = ['Gym', 'PlaceOfFame', 'EquipmentPresetsStand']
 /** Pixels round a module's own objects where a change still counts as the module's (light it throws, its shadow). */
 const MARGIN = 28
 /** A change below LOW (0–255, after a light blur) is the game's noise; at HIGH and above the piece is fully opaque. */
@@ -236,7 +242,8 @@ for (const light of lights) {
   }
 }
 
-const rooms = inside.size ? { openLevel: WALL_OPEN_LEVEL, station: idOf.get('EmergencyWall'), inside: [...inside] } : undefined
+const behind = BEHIND_WALL.map((type) => idOf.get(type)).filter((id) => id && inside.has(id))
+const rooms = inside.size ? { openLevel: WALL_OPEN_LEVEL, station: idOf.get('EmergencyWall'), inside: [...inside], behind } : undefined
 
 const json = { size: [outWidth, outHeight], lights, lightStation: idOf.get('Illumination'), spots, pieces, ...(rooms ? { rooms } : {}) }
 writeFileSync(dataFile, JSON.stringify(json) + '\n')

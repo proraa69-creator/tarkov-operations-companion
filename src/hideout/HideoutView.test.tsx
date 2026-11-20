@@ -43,7 +43,7 @@ vi.mock('../data/useEconomy', () => ({ useEconomySnapshot: () => ({ data: { craf
 vi.mock('./hideoutViews', () => ({
   pictureSize: { width: 1000, height: 500 },
   lightStation: 'illumination',
-  roomsInfo: { station: 'defective-wall', openLevel: 5, inside: ['gym'] },
+  roomsInfo: { station: 'defective-wall', openLevel: 5, inside: ['gym', 'work-bench'], behind: ['gym'] },
   lightOf: (level: number) => Math.min(level, 3),
   basePicture: (light: number) => `base-L${light}.webp`,
   moduleSpot: (id: string) => ({ 'med-station': { x: 0.25, y: 0.5 }, 'work-bench': { x: 0.75, y: 0.4 }, gym: { x: 0.1, y: 0.1 } } as Record<string, { x: number; y: number }>)[id],
@@ -86,6 +86,8 @@ describe('«Убежище» как в игре', () => {
     expect(within(med).getByText('01')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Верстак, не построен/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Спортзал/ })).not.toBeInTheDocument()
+    // in the rooms' picture but built before the wall (the med station, rest space, booze generator): shown
+    expect(screen.getByRole('button', { name: /Верстак, не построен/ })).toBeInTheDocument()
   })
 
   it('a module shows below the picture: its level is set by a press, the next level\'s needs and its crafts', () => {
