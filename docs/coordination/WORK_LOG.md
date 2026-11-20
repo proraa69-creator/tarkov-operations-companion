@@ -8353,3 +8353,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Risk for the server owner: the mirror has ~5900 packs and its auto gc fails every run («Packfile doesn't have full closure»,
   `gc.log`, 74 `tmp_pack` leftovers, 6 GB in `objects/pack`). Not repaired: needs the owner's decision (repack or a fresh mirror,
   outside a release).
+
+## 2026-11-20 — Claude: hideout icons without the plate, modules behind the wall hidden until the breach (in 0.6.0.325)
+- Merged claude/hideout-view e3386888 (12fed833 + e3386888: the coloured module icons alone, no hexagon plate) — 0601b79a.
+- Owner: «если стена не снесена, значит, модули за этой стенкой не отображаются», then «Показывай эти модули всегда…
+  Все, что за стеной, открывается после сноса стены… Все, что до этого, показывается»: 7e66ee50 + 732b7b42 — `rooms.behind`
+  (gym, hall of fame, gear rack) have no button and the «За аварийной стеной» note until the wall's level 5; the med station,
+  rest space and booze generator (pictures still black until the breach, `rooms.inside`) keep their buttons from the start.
+- Checks: vitest src/hideout 26/26 (+ src/i18n 65/65), eslint clean, typecheck and build clean; full vitest run — only the known
+  Windows false failures plus ObjectivePhotos under load (passes alone, 7/7). Browser (dev, 1280): 20 buttons with the wall intact.
+- Not done here: the Illumination levels look the same (base-L0..L3 mean brightness 36.8–37.2) — reshoot with the lights on,
+  passed to the hideout session for the next update; the Season's modules switched on from the server — a helper on
+  claude/season-hideout-modules.
