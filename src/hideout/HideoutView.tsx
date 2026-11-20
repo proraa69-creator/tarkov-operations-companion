@@ -13,7 +13,6 @@ import { useHideoutFound } from './hideoutFound'
 import { DOLLARS, EUROS, ROUBLES } from './hideoutNeeds'
 import { withSeasonFoundInRaid } from './seasonFoundInRaid'
 import { stationIcon } from './stationIcons'
-import { stationColor } from './stationColors'
 import { basePicture, lightOf, lightStation, modulePiece, moduleSpot, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
 import { ItemSources } from './WhereToGet'
 import '../styles/hideoutView.css'
@@ -101,11 +100,12 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
           const locked = closed && Boolean(roomsInfo?.inside?.includes(entry.id))
           const icon = stationIcon(entry)
           return <button key={entry.id} type="button" className={`hv-spot${level >= max ? ' is-max' : ready ? ' is-ready' : level === 0 ? ' is-none' : ''}${locked ? ' is-locked' : ''}${entry.id === openId ? ' is-open' : ''}`}
-            style={{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%`, ['--hv-module' as string]: stationColor(entry.normalizedName) }} onClick={() => open(entry.id === openId ? null : entry.id)} aria-pressed={entry.id === openId}
+            style={{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%` }} onClick={() => open(entry.id === openId ? null : entry.id)} aria-pressed={entry.id === openId}
             title={`${uiText(entry.name)} · ${level ? `${uiText('ур.')} ${roman(level)}` : uiText('не построен')}${locked ? `\n${uiText('За аварийной стеной')}` : ready ? `\n${uiText('Всё для улучшения собрано')}` : ''}`}
             aria-label={`${uiText(entry.name)}, ${level ? `${uiText('уровень')} ${level}` : uiText('не построен')}`}>
             {icon ? <img src={icon} alt="" /> : <span className="hv-spot-dot" />}
-            <span className="hv-spot-level">{locked ? <Lock size={10} aria-hidden="true" /> : String(level).padStart(2, '0')}</span>
+            {/* the level beside it, only once built (owner: «уровень, если он нужен, — маленькой подписью») */}
+            {(locked || level > 0) && <span className="hv-spot-level">{locked ? <Lock size={10} aria-hidden="true" /> : String(level).padStart(2, '0')}</span>}
           </button>
         })}
       </div>

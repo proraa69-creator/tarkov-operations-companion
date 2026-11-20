@@ -5,32 +5,27 @@
 .hv-picture { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
 .hv-picture.is-empty { display: grid; place-items: center; color: var(--text-dim); font-size: 13px; }
 
-/* A module's button (owner, 20.11.2026: «иконки, как в самой игре, только они должны быть цветные, раскрашенные… крупнее»): the game's
-   hexagon standing on a point, filled with the module's own colour (--hv-color, hideout/stationColors.ts), its glyph light, the level
-   («03») inside at the bottom; it stands on the module itself and grows with the picture (sizes in the stage's width, cqw), so the
-   buttons never crowd closer than in the picture. The picked one is the game's orange. */
+/* A module's button (owner, 20.11.2026: «иконки, как в самой игре, только они должны быть цветные, раскрашенные»; «не должны быть
+   в черном фоне… оставь только сами иконки»): the module's own coloured picture alone, centred on the module, a thin dark shadow
+   round its outline so it reads on any part of the picture, the level a small figure beside it, no plate. It grows with the
+   picture (cqw), so the buttons never crowd closer than in the picture. Picked: an orange glow; all collected: a gold one;
+   behind the closed wall: grey with a lock. */
 .hv-stage { container-type: inline-size; }
-.hv-spot { --hv-color: var(--hv-module, #8a8478); position: absolute; width: 4.3cqw; min-width: 30px; aspect-ratio: 0.866; padding: 0; border: 0; background: none; transform: translate(-50%, -50%); cursor: pointer; filter: drop-shadow(0 0 .45cqw color-mix(in srgb, var(--hv-color) 55%, transparent)) drop-shadow(0 1px 2px rgb(0 0 0 / 80%)); transition: transform 120ms ease, filter 120ms ease; }
-.hv-spot::before, .hv-spot::after { content: ""; position: absolute; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+.hv-spot { position: absolute; width: 3.8cqw; min-width: 26px; aspect-ratio: 1; padding: 0; border: 0; background: none; transform: translate(-50%, -50%); cursor: pointer; transition: transform 120ms ease; }
+.hv-spot img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 1px rgb(0 0 0 / 95%)) drop-shadow(0 0 2px rgb(0 0 0 / 80%)) drop-shadow(0 1px 3px rgb(0 0 0 / 60%)); transition: filter 120ms ease; }
+.hv-spot-dot { display: block; width: 40%; aspect-ratio: 1; margin: 30% auto 0; border-radius: 50%; background: #f5f2ec; box-shadow: 0 0 3px #000; }
+.hv-spot-level { position: absolute; left: 88%; bottom: -4%; display: flex; align-items: center; color: #f2efe8; font-family: "Consolas", "Lucida Console", ui-monospace, monospace; font-size: max(10px, 0.9cqw); font-weight: 700; line-height: 1; white-space: nowrap; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 1px 2px #000; }
+.hv-spot.is-ready img { filter: drop-shadow(0 0 1px rgb(0 0 0 / 95%)) drop-shadow(0 0 5px rgb(223 189 112 / 95%)); }
+.hv-spot.is-locked img { filter: grayscale(1) brightness(.75) drop-shadow(0 0 1px rgb(0 0 0 / 95%)) drop-shadow(0 0 2px rgb(0 0 0 / 80%)); }
+.hv-spot.is-open { z-index: 3; }
+.hv-spot.is-open img { filter: drop-shadow(0 0 1px rgb(0 0 0 / 95%)) drop-shadow(0 0 6px rgb(255 140 50 / 100%)) drop-shadow(0 0 3px rgb(255 140 50 / 100%)); }
+@media (hover: hover) and (pointer: fine) { .hv-spot:hover { z-index: 2; transform: translate(-50%, -50%) scale(1.15); } }
+.hv-spot:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; border-radius: 6px; }
+.hv-stage { container-type: inline-size; }
 /* the rim (the module's colour, lighter) and the face (the colour, darker) */
-.hv-spot::before { inset: 0; background: color-mix(in srgb, var(--hv-color) 75%, white); }
-.hv-spot::after { inset: 1.5px; background: linear-gradient(180deg, color-mix(in srgb, var(--hv-color) 62%, black), color-mix(in srgb, var(--hv-color) 40%, black)); }
-.hv-spot img { position: absolute; z-index: 1; left: 50%; top: 42%; width: 58%; height: auto; aspect-ratio: 1; object-fit: contain; transform: translate(-50%, -50%); filter: brightness(0) invert(.96) drop-shadow(0 1px 1px rgb(0 0 0 / 55%)); }
-.hv-spot-dot { position: absolute; z-index: 1; left: 50%; top: 42%; width: 22%; aspect-ratio: 1; border-radius: 50%; background: #f5f2ec; transform: translate(-50%, -50%); }
-.hv-spot-level { position: absolute; z-index: 1; left: 50%; bottom: 13%; display: flex; align-items: center; color: #fff; font-family: "Consolas", "Lucida Console", ui-monospace, monospace; font-size: max(9px, 0.95cqw); font-weight: 700; line-height: 1; transform: translateX(-50%); text-shadow: 0 1px 1px rgb(0 0 0 / 80%); }
 /* everything for the next level collected: a gold rim */
-.hv-spot.is-ready::before { background: var(--brass-strong); }
 /* behind the closed wall: grey and locked */
-.hv-spot.is-locked { --hv-color: #5c5c5c; }
-.hv-spot.is-open { z-index: 3; --hv-color: #c4692a; }
-@media (hover: hover) and (pointer: fine) { .hv-spot:hover { z-index: 2; transform: translate(-50%, -50%) scale(1.12); } }
-.hv-spot:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; }
 /* the other two looks offered to the owner: the game's black hexagon with the coloured glyph, or the coloured glyph alone */
-.hv.icons-black .hv-spot::before { background: #c8c3b9; }
-.hv.icons-black .hv-spot::after { background: #090909; }
-.hv.icons-black .hv-spot img { filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%)); }
-.hv.icons-plain .hv-spot::before, .hv.icons-plain .hv-spot::after { display: none; }
-.hv.icons-plain .hv-spot img { top: 50%; width: 90%; filter: drop-shadow(0 0 3px rgb(0 0 0 / 90%)); }
 /* everything for the next level collected: the halo gold */
 
 /* the picture is built up: the base, the pieces of the built levels on it, the closed rooms black on top */
