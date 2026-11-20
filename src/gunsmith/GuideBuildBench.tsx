@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { BuildBench, pathKey, shownLayout } from '../arsenal/BuildBench'
-import { installReplacing, removePart } from '../arsenal/buildModel'
+import { installReplacing, presetBuild, removePart } from '../arsenal/buildModel'
+import { FullBench } from '../arsenal/FullBench'
 import { useBuildDrawing } from '../arsenal/BuildPicture'
 import { computeStats, type PurchaseAccess } from '../arsenal/buildStats'
 import type { GunCatalog, Weapon } from '../arsenal/gunTypes'
@@ -31,8 +32,15 @@ export function GuideBuildBench({ weapon, catalog, partIds, access, screenshot, 
   const build = state.guide === guide ? state.build : guide
   const setBuild = (next: typeof build) => setState({ guide, build: next })
   const [selected, setSelected] = useState<string | null>(null)
-  const drawing = useBuildDrawing(build)
+  // «На весь экран» and «Сложить приклад» as in «Сборка оружия» (owner, 21.11.2026: «Здесь нужно сделать кнопку «Открыть во весь
+  // экран», сложить приклад»)
+  const [folded, setFolded] = useState(false)
+  const [full, setFull] = useState(false)
+  const closeFull = useCallback(() => setFull(false), [])
+  const drawing = useBuildDrawing(build, folded)
   const stats = computeStats(build, weapon, catalog)
+  const stock = useMemo(() => presetBuild(weapon, catalog).build, [catalog, weapon])
+  const stockStats = computeStats(stock, weapon, catalog)
   const layout = shownLayout(build, weapon, catalog, selected)
   const selectedCell = layout.cells.find((cell) => pathKey(cell.path) === selected)
   const changed = build !== guide
@@ -43,9 +51,14 @@ export function GuideBuildBench({ weapon, catalog, partIds, access, screenshot, 
       onRemove={() => { setBuild(removePart(build, selectedCell.path)); setSelected(null) }}
       onClose={() => setSelected(null)} />
     : null
+  const bench = (size: 'normal' | 'full', maxHeight?: number) => <BuildBench layout={layout} weapon={weapon} stats={stats} selected={selected} onSelect={setSelected}
+    onRemove={(path) => { setBuild(removePart(build, path)); setSelected(null) }} drawn={drawing.drawn} size={size} maxHeight={maxHeight} noAmmo
+    onExpand={size === 'normal' ? () => setFull(true) : undefined} folded={folded} onFold={setFolded} popover={(size === 'full') === full ? pickAt : undefined} largeCells />
   return <div className="gs-guide">
-    <BuildBench layout={layout} weapon={weapon} stats={stats} selected={selected} onSelect={setSelected} onRemove={(path) => { setBuild(removePart(build, path)); setSelected(null) }}
-      drawn={drawing.drawn} size="normal" noAmmo popover={pickAt} />
+    {bench('normal')}
+    {full && <FullBench weapon={weapon} stats={stats} stock={stockStats} selected={selected} onSelect={setSelected} onClose={closeFull}>
+      {(maxHeight) => bench('full', maxHeight)}
+    </FullBench>}
     {changed && <div className="gs-guide-tools">
       <button type="button" className="button small" onClick={() => { setBuild(guide); setSelected(null) }} title={uiText('Вернуть сборку из задания')}><RotateCcw size={13} />{uiText('Сборка из задания')}</button>
     </div>}

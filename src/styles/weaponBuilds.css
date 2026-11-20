@@ -312,7 +312,7 @@ button.wb-trader-auto { color: var(--brass); }
 .build-stage .wb-cell-slot { font-size: 7px; }
 .build-stage:is(.is-phone, .is-phoneFull) .wb-cell.is-filled > .gb-icon { inset: 1px 1px 10px; width: calc(100% - 2px); height: calc(100% - 11px); }
 .build-stage:is(.is-phone, .is-phoneFull) .wb-cell-name { font-size: 7.5px; }
-.build-stage.is-full .wb-cell-name { font-size: 9px; }
+:is(.build-stage.is-full, .build-stage.is-large) .wb-cell-name { font-size: 9px; }
 
 /* «На весь экран»: the build over the whole window, the chosen cell's modules at the side, the stats in a window of their own. */
 .wb-full { position: fixed; inset: 0; z-index: 4500; display: flex; flex-direction: column; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #1a231e 0%, #0c0f0e 70%); color: var(--text); }

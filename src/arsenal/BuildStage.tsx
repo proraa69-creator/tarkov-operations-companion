@@ -18,6 +18,9 @@ const SIZES = {
   phone: { cell: 44, gap: 4, reach: 16, maxScale: 1.4 },
   normal: { cell: 50, gap: 4, reach: 22, maxScale: 1.15 },
   full: { cell: 58, gap: 6, reach: 34, maxScale: 1.6 },
+  // the Gunsmith task's bench on a PC: the full screen's cells, the modules' pictures as large (owner, 21.11.2026: «в ячейках модулей…
+  // сделать картинки побольше, как у нас сделано в режиме сборки оружия. Такого же размера полноценного»)
+  large: { cell: 58, gap: 5, reach: 26, maxScale: 1.15 },
   // a phone's full screen: the weapon from edge to edge, no larger than it is drawn (owner, 20.11.2026: «оружие должно быть от края
   // до края… если оно влезает нормально, то не нужно его растягивать сильнее»), every cell above or below it
   phoneFull: { cell: 44, gap: 4, reach: 22, maxScale: 1 },
@@ -26,19 +29,44 @@ const SIZES = {
 /** The stats window over the full screen (src/pages/WeaponBuildsPage.tsx) tells where it went: the cells lay round it again. */
 export const STATS_WINDOW_MOVED = 'wb-stats-window-moved'
 
-/** Where the full screen's stats window is on the stage (CSS pixels from the stage's corner), when it is over it. */
+/**
+ * The full screen's stats window, measured apart from the stage's own layout (a stage laid round the window changes its height; centred
+ * in its room it then moves, the window seemed to move on it, the stage was laid again… — React's «Maximum update depth exceeded»,
+ * #185, on a phone moving the window or turning, owner 21.11.2026): the window across from the stage's left (the stage never moves
+ * sideways) and down from the room's top, with what turns that into the stage's own top for any stage height (statsWindowOnStage).
+ */
+interface StatsWindowPlace {
+  /** left and right from the stage's left, top and bottom from the room's top */
+  left: number; right: number; top: number; bottom: number
+  roomHeight: number
+  /** the stage centred in the room (else at its top) */
+  centered: boolean
+  /** the bench round the stage: its height above and below the stage, and the stage's own top in the bench */
+  chrome: number
+  inset: number
+}
+
 function useStatsWindowOver(box: RefObject<HTMLDivElement | null>, on: boolean) {
-  const [over, setOver] = useState<[number, number, number, number] | null>(null)
+  const [over, setOver] = useState<StatsWindowPlace | null>(null)
   useLayoutEffect(() => {
     if (!on) return
     const measure = () => {
       const stage = box.current
-      const window_ = stage?.closest('.wb-full')?.querySelector('.wb-stats-window')
-      if (!stage || !window_) { setOver(null); return }
-      const a = stage.getBoundingClientRect()
-      const b = window_.getBoundingClientRect()
-      const next: [number, number, number, number] = [b.left - a.left, b.top - a.top, b.right - a.left, b.bottom - a.top]
-      setOver((current) => (current && current.every((value, index) => Math.abs(value - next[index]!) < 3) ? current : next))
+      const full = stage?.closest('.wb-full')
+      const window_ = full?.querySelector('.wb-stats-window')
+      const room = stage?.closest('.wb-full-stage-room')
+      const bench = stage?.closest('.wb-stage-scroll') ?? stage?.parentElement
+      if (!stage || !window_ || !room || !bench) { setOver(null); return }
+      const s = stage.getBoundingClientRect()
+      const w = window_.getBoundingClientRect()
+      const r = room.getBoundingClientRect()
+      const b = bench.getBoundingClientRect()
+      const next: StatsWindowPlace = {
+        left: w.left - s.left, right: w.right - s.left, top: w.top - r.top, bottom: w.bottom - r.top,
+        roomHeight: room.clientHeight, centered: getComputedStyle(room).alignItems === 'center',
+        chrome: Math.round(b.height - s.height), inset: Math.round(s.top - b.top),
+      }
+      setOver((current) => (current && (Object.keys(next) as Array<keyof StatsWindowPlace>).every((key) => typeof next[key] === 'boolean' ? next[key] === current[key] : Math.abs((next[key] as number) - (current[key] as number)) < 3) ? current : next))
     }
     measure()
     const frame = requestAnimationFrame(measure)
@@ -48,6 +76,13 @@ function useStatsWindowOver(box: RefObject<HTMLDivElement | null>, on: boolean) 
   })
   return on ? over : null
 }
+
+/** The stats window on a stage `height` tall: [left, top, right, bottom] from the stage's corner. */
+function statsWindowOnStage(place: StatsWindowPlace, height: number): [number, number, number, number] {
+  const top = (place.centered ? (place.roomHeight - (height + place.chrome)) / 2 : 0) + place.inset
+  return [place.left, place.top - top, place.right, place.bottom - top]
+}
+
 export type StageSize = keyof typeof SIZES
 
 /** A picture's size once loaded (a flat picture of the weapon); 1000 × 350 until then. */
@@ -137,9 +172,13 @@ export function BuildStage({ drawn, flat, slots, size, selected, renderCell, max
       if (!statsOver) return laidOut
       let top = laidOut.picture.y
       for (let pass = 0; pass < 6; pass++) {
-        laidOut = layStage(picture, inputs, { ...options, maxScale: scale, pictureTop: top, avoid: [statsOver] })
-        if (laidOut.picture.y <= top + 0.5) break
-        top = laidOut.picture.y
+        // where the window is on a stage as tall as the last layout: a few passes settle the height and the picture's top together
+        const avoid = statsWindowOnStage(statsOver, laidOut.height)
+        const next = layStage(picture, inputs, { ...options, maxScale: scale, pictureTop: top, avoid: [avoid] })
+        const settled = next.picture.y <= top + 0.5 && Math.abs(next.height - laidOut.height) < 1
+        laidOut = next
+        if (settled) break
+        top = Math.max(top, next.picture.y)
       }
       return laidOut
     }

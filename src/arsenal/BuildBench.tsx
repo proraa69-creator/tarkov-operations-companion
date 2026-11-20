@@ -14,6 +14,9 @@ import { PartIcon, signedExact, signedPercent } from './gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 import { SlotSilhouette } from './SlotSilhouette'
 import { slotPicture } from './slotPictures'
+// The bench's own look wherever it stands: «Сборка оружия» and the Gunsmith task (opened first, it had none: cells huge, over the
+// page; owner's phone, 21.11.2026)
+import '../styles/weaponBuilds.css'
 
 /**
  * The bench of «Сборка оружия»: the build drawn from the game's part pictures, small cells around it at their places
@@ -48,7 +51,7 @@ export function shownLayout(build: Build, weapon: Weapon, catalog: Pick<GunCatal
  * The bench: the build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx);
  * the board of cells (Board) while a part of the build has no picture yet.
  */
-export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSelect, onRemove, drawn, size, maxHeight, onExpand, popover, folded, onFold }: {
+export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSelect, onRemove, drawn, size, maxHeight, onExpand, popover, folded, onFold, largeCells }: {
   layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; selected: string | null; onSelect: (key: string | null) => void
   /** A right click on a module's cell takes it off (owner, 20.11.2026: «правой кнопкой он должен сниматься просто»). */
   onRemove?: (path: string[]) => void
@@ -58,6 +61,8 @@ export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSe
   folded?: boolean
   onFold?: (folded: boolean) => void
   drawn: Drawn | null; size: 'normal' | 'full'; maxHeight?: number; onExpand?: () => void
+  /** The normal bench with the full screen's cells (the Gunsmith task's, BuildStage `large`). */
+  largeCells?: boolean
   /**
    * The chosen cell's modules in a window at the cell (`anchor` finds the cell's button); `avoid`: where the part being changed is on
    * the screen with what is on it, and its cell — the window never covers them.
@@ -114,7 +119,7 @@ export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSe
       <strong>{weapon.shortName}</strong>
       <span>{stats.weightLoaded.toFixed(2)} {uiText('кг')}</span>
     </div>
-    <BuildStage drawn={drawn} flat={drawn ? undefined : weaponPicture(weapon)} slots={slots} size={size === 'full' ? (phone ? 'phoneFull' : 'full') : phone ? 'phone' : 'normal'} selected={selected} maxHeight={stageHeight}
+    <BuildStage drawn={drawn} flat={drawn ? undefined : weaponPicture(weapon)} slots={slots} size={size === 'full' ? (phone ? 'phoneFull' : 'full') : phone ? 'phone' : largeCells ? 'large' : 'normal'} selected={selected} maxHeight={stageHeight}
       renderCell={(key, style) => {
         if (key === 'ammo') return <AmmoCellButton ammo={ammo} active={selected === 'ammo'} style={style} onClick={() => toggle('ammo')} />
         const cell = cells.get(key)
