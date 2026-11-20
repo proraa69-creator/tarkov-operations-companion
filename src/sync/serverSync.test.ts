@@ -461,12 +461,13 @@ describe('server sync with the desktop gateway', () => {
       local = { characterId: CHARACTER, records: [tour, batya] }
       await syncStory('pvp')
       expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { characterId: CHARACTER, records: [] })
-      // No catalog of the mode: nothing at all. No character known: only the server's chapters are asked for.
+      // No catalog of the mode: nothing at all. No character known (the phone): its new chapters still go, for the server's
+      // character (a player's report, 20.11.2026: the phone's own stage went back to the PC's one).
       await syncStory('pve')
       expect(serviceRequest).toHaveBeenCalledTimes(2)
       local = { characterId: undefined, records: [{ ...tour, updatedAt: '2026-10-03T10:00:00.000Z' }] }
       await syncStory('pvp')
-      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { records: [] })
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { records: [{ ...tour, updatedAt: '2026-10-03T10:00:00.000Z' }] })
     } finally { bindStorySync(null) }
   })
   it('«Отложенные квесты»: sends what changed of a mode, applies every quest the server keeps with the mode\'s reset', async () => {

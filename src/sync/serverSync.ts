@@ -665,8 +665,10 @@ export function bindStorySync(binding: StorySyncBinding | null) {
 }
 
 /**
- * P9: sends this mode's new chapter readings (only with a character this app knows: its logs, or the server's scope it
- * pulled) and applies every chapter the server keeps for that character — a second PC and the phone show them too.
+ * P9: sends this mode's new chapter readings and applies every chapter the server keeps for the character — a second PC and the
+ * phone show them too. A device that knows no character (the phone: no logs) sends its chapters as well, for the character the
+ * server synced last: the stage and chapter chosen there by hand (a player's report, 20.11.2026: on the phone «Перейти на
+ * следующий этап» and «Изменить главу» went back to the PC's chapter) reach the server and the PC instead of being undone by them.
  */
 export async function syncStory(mode: RaidMode) {
   const binding = storyBinding
@@ -678,7 +680,7 @@ export async function syncStory(mode: RaidMode) {
     const key = `${accountKey()}|${local.characterId ?? ''}`
     if (storySent[mode]?.key !== key) storySent[mode] = { key, chapters: new Map() }
     const sent = storySent[mode]!.chapters
-    const records = local.characterId ? local.records.filter((record) => sent.get(record.chapterId) !== record.updatedAt) : []
+    const records = local.records.filter((record) => sent.get(record.chapterId) !== record.updatedAt)
     const answer = parseStoryAnswer(await meRequest('POST', `/v1/me/story/${mode}`, { ...(local.characterId ? { characterId: local.characterId } : {}), records }))
     if (!answer) return
     for (const record of [...records, ...answer.records]) sent.set(record.chapterId, record.updatedAt)
