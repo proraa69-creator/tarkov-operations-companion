@@ -8258,3 +8258,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Still in work: 204 «Забросить невод [KORD BREACH]» — no point for the four camera spots anywhere open (tarkov.help's map is
   premium-only, szepiz/tarkov-quest-data has no KORD BREACH points; its guide has only in-game pictures); 202 — the item key showed
   «Кейс для инъекторов» while the cursor was on «Золотой петух» (the injector case sat in the pouch on the same screen).
+- f7713be9, report 202 («в рейде часто предмет распознается как инъекторница»; the card said «Кейс для инъекторов» for a
+  «Золотой петух» whose name the game showed): the picture search answered within milliseconds of the first grab and its
+  answer stopped the grabs (`done`), so the tooltip, meant to replace a different picture, was never read. Now the grabs go on
+  until a tooltip has been read once (src/overlay/tooltipLookup.ts); test added; 169 overlay/experimental tests, typecheck, lint
+  pass. Why the picture took the rooster's cell for the injector case is not known (the player's lookup logs stay on their PC).
+  Report 202 closed with +1 day. Not released. In work now: 204 only (camera spots of «Забросить невод»: no open source).
