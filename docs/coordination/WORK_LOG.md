@@ -8476,3 +8476,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - 0.6.0.329 (2170793b, not pushed while 0.6.0.328 publishes): every game account of the logs offered in turn, the newest first,
   until the server takes one (0ef296a3) — 0.6.0.327 locked out a player whose second game account played last (support
   chat Armyash93); KORD BREACH: the power station's case found again, the Customs chimney transmitter.
+
+## 2026-11-20 — Claude: 0.6.0.329 live 20:52; release 0.6.0.330 (the build stage no longer bounces)
+- 0.6.0.328 published 20:26 after the VPS lost github.com for ~30 min (only 140.82.121.4; api/codeload fine) — the publisher
+  failed at its first ls-remote and was restarted once GitHub answered. 0.6.0.329 (ad5761f3) live 20:52.
+- Armyash93 (support): the owner had his game-account binding removed (admin unbind, only his account).
+- Lock check on the server (read-only, counts only): 1475 device reports, 1412 fine; 59 «in use» (56 with the holder on the same
+  device, 53 without a game account of their own — a second Raid OS account, by the rule); 9 possibly wrong, mostly early Nov.
+- Prizrak337 (support, PC): «интерфейс основной страницы… бегает вверх и вниз (как понимаю оружейник летает)». The build stage
+  (the «Оружейник» block on «Обзор») was laid out on every width change; a page scrollbar coming and going looped it. A
+  narrower width is taken at once, a wider one from 24 px (536f8d81's parent, nextStageWidth in stageLayout.ts, test
+  stageWidth.test.ts). Not reproduced on the owner's data (no Gunsmith part taken in the dev profile); checked the weapon
+  builds page: stable, 717 → 481 → 717 px on resize.
