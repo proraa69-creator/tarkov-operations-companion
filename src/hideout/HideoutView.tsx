@@ -31,7 +31,7 @@ function levelReady(stage: Stage | undefined, found: ReadonlyMap<string, number>
 /**
  * «Убежище» as in the game (owner, 20.11.2026): the hideout from above in one picture, always the same angle, built up from the
  * player's own levels — the base at level 0 under the light of the built Illumination, each built module's piece laid on it, the
- * rooms behind the defective wall black until it is broken. A button on every module; the module's levels are set below the picture
+ * rooms behind the defective wall black, their modules without buttons, until it is broken. A button on every module; the module's levels are set below the picture
  * («ставишь, что ты выставляешь уровень, и он тебе показывает всю информацию»): what the next level takes (have/need), its crafts and,
  * for every item, where it comes from (WhereToGet.tsx). The pictures come from the offline game copy (hideoutViews.ts); with none,
  * nothing is drawn.
@@ -93,19 +93,20 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
         <HideoutPicture stations={stations} built={built} />
         {stations.map((entry) => {
           const spot = moduleSpot(entry.id)
-          if (!spot) return null
+          // a module behind the wall not broken yet is not shown at all (owner, 20.11.2026: «если стена не снесена, значит,
+          // модули за этой стенкой не отображаются»)
+          if (!spot || (closed && roomsInfo?.inside?.includes(entry.id))) return null
           const level = built[entry.id] ?? 0
           const max = entry.levels?.length ?? 0
           const ready = level < max && levelReady(entry.levels?.find((stage) => stage.level === level + 1), found)
-          const locked = closed && Boolean(roomsInfo?.inside?.includes(entry.id))
           const icon = stationIcon(entry)
-          return <button key={entry.id} type="button" className={`hv-spot${level >= max ? ' is-max' : ready ? ' is-ready' : level === 0 ? ' is-none' : ''}${locked ? ' is-locked' : ''}${entry.id === openId ? ' is-open' : ''}`}
+          return <button key={entry.id} type="button" className={`hv-spot${level >= max ? ' is-max' : ready ? ' is-ready' : level === 0 ? ' is-none' : ''}${entry.id === openId ? ' is-open' : ''}`}
             style={{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%` }} onClick={() => open(entry.id === openId ? null : entry.id)} aria-pressed={entry.id === openId}
-            title={`${uiText(entry.name)} · ${level ? `${uiText('ур.')} ${roman(level)}` : uiText('не построен')}${locked ? `\n${uiText('За аварийной стеной')}` : ready ? `\n${uiText('Всё для улучшения собрано')}` : ''}`}
+            title={`${uiText(entry.name)} · ${level ? `${uiText('ур.')} ${roman(level)}` : uiText('не построен')}${ready ? `\n${uiText('Всё для улучшения собрано')}` : ''}`}
             aria-label={`${uiText(entry.name)}, ${level ? `${uiText('уровень')} ${level}` : uiText('не построен')}`}>
             {icon ? <img src={icon} alt="" /> : <span className="hv-spot-dot" />}
             {/* the level beside it, only once built (owner: «уровень, если он нужен, — маленькой подписью») */}
-            {(locked || level > 0) && <span className="hv-spot-level">{locked ? <Lock size={10} aria-hidden="true" /> : String(level).padStart(2, '0')}</span>}
+            {level > 0 && <span className="hv-spot-level">{String(level).padStart(2, '0')}</span>}
           </button>
         })}
       </div>

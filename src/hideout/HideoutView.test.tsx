@@ -76,16 +76,16 @@ describe('«Убежище» как в игре', () => {
     renderView()
     expect(pictures()).not.toContain('rooms.webp')
     expect(pictures()).toContain(`${GYM}-1-L0.webp`)
-    expect(screen.getByRole('button', { name: /Спортзал/ })).not.toHaveClass('is-locked')
+    expect(screen.getByRole('button', { name: /Спортзал/ })).toBeInTheDocument()
   })
 
-  it('puts a button on every module with its level; a module behind the closed wall is locked', () => {
+  it('puts a button on every module with its level; a module behind the wall not broken yet has none', () => {
     renderView()
     const med = screen.getByRole('button', { name: /Медблок, уровень 1/ })
     expect(med).toHaveStyle({ left: '25%', top: '50%' })
     expect(within(med).getByText('01')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Верстак, не построен/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Спортзал/ })).toHaveClass('is-locked')
+    expect(screen.queryByRole('button', { name: /Спортзал/ })).not.toBeInTheDocument()
   })
 
   it('a module shows below the picture: its level is set by a press, the next level\'s needs and its crafts', () => {
