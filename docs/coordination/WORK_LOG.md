@@ -8504,3 +8504,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   address the owner gave; all six accepted (200). The key can only send, delivery status not readable.
 - Weapon builds on the phone (430×932) checked in the App Store dev build: page, «Готовые сборки», the part picker, full
   screen with the stats window — fine.
+- Screenshot 03 replaced at the owner's choice: the new build window full screen (stats window, the weapon edge to edge,
+  the parts around it), titled «Сборка оружия» / «Weapon builds» (one line, owner: «Типа сборка оружия напиши»), RU/EN,
+  1320×2868 and 1284×2778. Mailed alone as RaidOS_AppStore_screenshot03.rar (6.4 MB), accepted (200); it replaces
+  03_3-gunsmith-build.png of the build 4 pack. Rejected on the way: the page view and the owner's own phone screenshot.
