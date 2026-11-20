@@ -27,6 +27,5 @@ scratch-out.txt
 android/local.properties
 website/.prerender/
 
-# Part pictures rendered by the game (E:\SPT-photo\weapons); served from the server, not the repo
-public/gun-parts/
+# Test exe packs (TEST_BUILD=1); the weapon part pictures (public/gun-parts) are in the repo: they ship in the app
 release-test/
