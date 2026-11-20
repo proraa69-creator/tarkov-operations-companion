@@ -8264,3 +8264,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   until a tooltip has been read once (src/overlay/tooltipLookup.ts); test added; 169 overlay/experimental tests, typecheck, lint
   pass. Why the picture took the rooster's cell for the injector case is not known (the player's lookup logs stay on their PC).
   Report 202 closed with +1 day. Not released. In work now: 204 only (camera spots of «Забросить невод»: no open source).
+- c7667858, report 204 («Забросить невод [KORD BREACH]»: «Не отображаются места закладки»): the four WI-FI camera spots found
+  in the offline copy of the game by the helper (RaidOsPhoto), each matching its picture in tarkov.help's guide (owner: «можешь
+  через SPT сам найти в игре эти точки»): Ural by the substation (-180.39, -38.31, 141.08) and the excavator by the stream
+  (-603.54, -28.33, -203.79) on Shoreline, the truck's tractor on the ramp to Mira Ave (118.59, 23.46, 63.41) and the yellow bus
+  (82.02, 15.49, 121.42, the Garage level) on Ground Zero (both maps). Cast the Net and Reverse Gear. MarkedPoint takes `y`.
+  Preview sent to the owner (E:\SPT-photo\approved\kord-breach\preview-cameras.jpg). Report 204 closed with +1 day; «В процессе»
+  empty. Not released. The other 25 KORD BREACH places: the helper's search goes on (places.json there).
