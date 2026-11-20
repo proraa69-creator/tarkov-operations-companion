@@ -80,7 +80,9 @@ export function computeStats(build: Build, weapon: Weapon, catalog: Pick<GunCata
   const weight = weapon.weight + sum(parts.map((part) => part.weight))
   const capacity = Math.max(0, ...parts.map((part) => part.capacity ?? 0))
   const weightLoaded = weight + (ammo?.weight ?? 0) * capacity
-  const velocityModifierSum = sum(parts.map((part) => part.velocity ?? 0))
+  // the weapon's own change counts too: a fixed short barrel (AKS-74U −17.9 %: 731 m/s with PS, not 890; the check against the
+  // game's own data, 20.11.2026, 77 weapons)
+  const velocityModifierSum = (weapon.velocity ?? 0) + sum(parts.map((part) => part.velocity ?? 0))
   const moa = centerOfImpact ? approximateMoa(centerOfImpact, partAccuracy, ammo?.accuracyModifier ?? 0) : undefined
   const evoErgo = evoErgoDelta(ergonomicsRaw, weightLoaded, options.ergoPenaltyPercent)
   return {

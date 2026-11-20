@@ -10,7 +10,7 @@ import type { BuildStats } from './buildStats'
 import type { Drawn } from './BuildPicture'
 import { BuildStage, type StageSlot } from './BuildStage'
 import { useBenchBackdrop } from './benchBackdrop'
-import { PartIcon, signed, signedExact } from './gunFormat'
+import { PartIcon, signedExact, signedPercent } from './gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 import { SlotSilhouette } from './SlotSilhouette'
 import { slotPicture } from './slotPictures'
@@ -172,7 +172,7 @@ export function SlotCellButton({ cell, active, linked, style, onClick, onRemove 
     {!part && !slotPicture(slot.nameId, cell.kind) && <span className="wb-cell-slot">{slot.name}</span>}
     {part ? <>
       {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signedExact(part.ergonomics)}</span>}
-      {part.recoilModifier !== 0 && <span className={`wb-cell-recoil ${part.recoilModifier < 0 ? 'is-good' : 'is-bad'}`}>{signed(part.recoilModifier * 100, Math.abs(part.recoilModifier * 100) % 1 ? 1 : 0)}</span>}
+      {part.recoilModifier !== 0 && <span className={`wb-cell-recoil ${part.recoilModifier < 0 ? 'is-good' : 'is-bad'}`}>{signedPercent(part.recoilModifier)}</span>}
       <CellPicture part={part} />
       <span className="wb-cell-name">{part.shortName}</span>
       {part.slots.length > 0 && <span className="wb-cell-badge" title={uiText('Свои ячейки')}><Layers size={8} />{part.slots.length}</span>}

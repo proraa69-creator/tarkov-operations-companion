@@ -38,9 +38,19 @@ export const signed = (value: number, digits = 0) => {
 }
 
 /** Fraction → «−5 %». */
-/** With the tenths a game value has (ergonomics +0.5, not «+1» — owner, 18.10.2026: «у модулей неверные показатели»). */
-export const signedExact = (value: number) => signed(value, Math.round(Math.abs(value) * 10) % 10 ? 1 : 0)
-export const formatModifier = (fraction: number) => `${signed(fraction * 100, Math.abs(fraction * 100) % 1 ? 1 : 0)} %`
+/**
+ * As many decimals as a game value has, at most two: −7 % (not «−7.0 %» from −0.07 × 100 = −7.000000000000001), −3.25 %, a rail's
+ * ergonomics −0.15 (not «−0.1»), +0.5 (the check against the game's own data, 20.11.2026).
+ */
+export const decimalsOf = (value: number) => {
+  const hundredths = Math.round(Math.abs(value) * 100)
+  return hundredths % 100 === 0 ? 0 : hundredths % 10 === 0 ? 1 : 2
+}
+/** With the decimals a game value has (ergonomics +0.5, not «+1» — owner, 18.10.2026: «у модулей неверные показатели»). */
+export const signedExact = (value: number) => signed(value, decimalsOf(value))
+/** A fraction as a signed percent, its decimals as the game has them: −7, −3.25, +115. */
+export const signedPercent = (fraction: number) => signed(fraction * 100, decimalsOf(fraction * 100))
+export const formatModifier = (fraction: number) => `${signedPercent(fraction)} %`
 
 /** Caliber556x45NATO → 5.56x45 NATO, Caliber127x55 → 12.7x55, Caliber1143x23ACP → 11.43x23 ACP. */
 export function prettyCaliber(value: string) {
