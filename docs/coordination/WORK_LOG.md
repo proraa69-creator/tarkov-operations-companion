@@ -8341,3 +8341,6 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   кусков совпадает с кадром игры без видимых стыков. Ветка claude/hideout-view (a2c20760 и этот коммит), не выпущено — в 0.6.0.325.
 - Риски: снимки из 0.16.9 (в живой 1.3 модули могут выглядеть иначе); сундук Дикого сверху не виден (куска нет); при свете 0
   у части модулей нет кусков (не отличаются от тьмы); стена ур. 5 с модулями, снятыми при ур. 6, — возможна мелкая разница у пролома.
+- Release 0.6.0.325 prepared (owner, 20.11.2026: the hideout «в ближайшем обновлении… по готовности»): the hideout in one view
+  from above (merge of claude/hideout-view 9f515178, 216 pictures, 3.1 MB) and the weapon parameters fixed after the check
+  against the game's own data (405bb8e2; report E:\SPT-photo\params-check\report.md). Pushed only after 0.6.0.324 went live.
