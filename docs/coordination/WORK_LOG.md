@@ -8344,3 +8344,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Release 0.6.0.325 prepared (owner, 20.11.2026: the hideout «в ближайшем обновлении… по готовности»): the hideout in one view
   from above (merge of claude/hideout-view 9f515178, 216 pictures, 3.1 MB) and the weapon parameters fixed after the check
   against the game's own data (405bb8e2; report E:\SPT-photo\params-check\report.md). Pushed only after 0.6.0.324 went live.
+
+## 2026-11-20 — Claude: publishing 0.6.0.324 sped up on the VPS (no code, no state change)
+- The publisher compared the 5139 changed files one by one; the release mirror `/opt/raidos-release-mirror.git` is a partial clone
+  (`blob:none`), so each new gun-part picture was a separate lazy fetch from GitHub (~35 files/min, ~2.5 hours for 5033 pictures).
+- Fetched the 3914 missing blobs in one `git fetch --stdin` (11 s, objects only: no refs, no FETCH_HEAD, no state file touched);
+  the loop went to ~220 files/min.
+- Risk for the server owner: the mirror has ~5900 packs and its auto gc fails every run («Packfile doesn't have full closure»,
+  `gc.log`, 74 `tmp_pack` leftovers, 6 GB in `objects/pack`). Not repaired: needs the owner's decision (repack or a fresh mirror,
+  outside a release).
