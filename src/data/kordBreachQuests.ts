@@ -123,6 +123,17 @@ const CAMERA_SPOTS = {
 }
 /** The reception desk on the TerraGroup office's second floor («Звонки без ответа»), found the same way: the desk the guide's arrow shows. */
 const TG_RECEPTION = foundSpots(GROUND_ZERO, 'tg-reception', -37.02, 30.73, 64.97)
+/**
+ * «Незваные гости. Часть 1»: two of the case's three places, each matching the guide's picture — the weather station's second floor
+ * by the filing cabinet, the power station's second floor at the blue shack. The shack by the Sordi tower was not found in the
+ * offline copy (0.16.9), so that place has no point.
+ */
+const CASE_SPOTS = {
+  weatherStation: foundSpots(SHORELINE, 'case-weather-station', -506.08, -21.48, 234.41),
+  powerStation: foundSpots(SHORELINE, 'case-power-station', -228.41, -34.08, 193.37),
+}
+/** «Капкан»: the first fence breach by the health resort's west wing, matching the guide's picture (the second one was not found). */
+const WEST_WING_BREACH = foundSpots(SHORELINE, 'breach-west-wing-1', -128.23, -4.26, -98.77)
 
 const BD = { targets: ['blackDivision'] }
 
@@ -142,8 +153,8 @@ const quests: CuratedQuest[] = [
     objectives: [
       { type: 'findQuestItem', maps: SHORELINE, text: { ru: 'Найти кейс с военным оборудованием', en: 'Locate and obtain the case with military equipment' } },
       { type: 'visit', optional: true, maps: SHORELINE, text: { ru: 'Осмотреть помещение рядом с вышкой Sordi на локации Берег', en: 'Investigate the shack next to the Sordi tower on Shoreline' } },
-      { type: 'visit', optional: true, maps: SHORELINE, text: { ru: 'Осмотреть второй этаж здания метеостанции на локации Берег', en: 'Investigate the second floor of the weather station building on Shoreline' } },
-      { type: 'visit', optional: true, maps: SHORELINE, text: { ru: 'Осмотреть ГЭС на локации Берег', en: 'Investigate the hydroelectric power station on Shoreline' } },
+      { type: 'visit', optional: true, maps: SHORELINE, spots: CASE_SPOTS.weatherStation, text: { ru: 'Осмотреть второй этаж здания метеостанции на локации Берег', en: 'Investigate the second floor of the weather station building on Shoreline' } },
+      { type: 'visit', optional: true, maps: SHORELINE, spots: CASE_SPOTS.powerStation, text: { ru: 'Осмотреть ГЭС на локации Берег', en: 'Investigate the hydroelectric power station on Shoreline' } },
     ],
     rewards: [[ROUBLES, 18_000], [RPK16, 1], [AK74_6L23_MAG, 3], [PP_GS_PACK_120, 1]],
     note: {
@@ -411,7 +422,7 @@ const quests: CuratedQuest[] = [
     afterAccepted: [K.desperateAssault],
     experience: 30_000,
     objectives: [
-      { type: 'plantItem', maps: SHORELINE, items: [TP200], text: { ru: 'Заложить тротиловую шашку ТП-200 у первого пролома в заборе рядом с западным крылом санатория «Лазурный берег»', en: 'Plant a TP-200 TNT brick at the first fence breach by the west wing of the Health Resort on Shoreline' } },
+      { type: 'plantItem', maps: SHORELINE, spots: WEST_WING_BREACH, items: [TP200], text: { ru: 'Заложить тротиловую шашку ТП-200 у первого пролома в заборе рядом с западным крылом санатория «Лазурный берег»', en: 'Plant a TP-200 TNT brick at the first fence breach by the west wing of the Health Resort on Shoreline' } },
       { type: 'plantItem', maps: SHORELINE, items: [TP200], text: { ru: 'Заложить тротиловую шашку ТП-200 у второго пролома в заборе рядом с западным крылом санатория «Лазурный берег»', en: 'Plant a TP-200 TNT brick at the second fence breach by the west wing of the Health Resort on Shoreline' } },
       { type: 'plantItem', maps: SHORELINE, items: [TP200], text: { ru: 'Заложить тротиловую шашку ТП-200 у пролома в заборе рядом с восточным крылом санатория «Лазурный берег»', en: 'Plant a TP-200 TNT brick at the fence breach by the east wing of the Health Resort on Shoreline' } },
     ],
