@@ -8239,3 +8239,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Streets (daynight, steel), Customs rusty warehouse (rust); src/assets/bench-backgrounds/<theme>.webp 1280×720, blurred and darkened
   in CSS under the weapon (src/arsenal/benchBackdrop.ts), following the scheme live. rust, crimson, steel, alcantara and perforated
   cannot be picked now (src/theme/theme.ts): their shots wait.
+- Stocks standing up (owner's screenshots of test exe 2, 20.11.2026: AKMS and G36 «приклады стояли горизонтально, а не
+  вертикально… пройдись по всему оружию»). Test exe 2 predates the game's own turns (9189997e), which already put the AKMS and G36
+  stocks straight. Every one of the 291 stocks laid on a weapon it fits (default preset, or through a tube/adapter;
+  scratchpad stock_lay.py ports layBuild): 8 more stand up like the measured ones and get the same −90° about X — the G36 KV,
+  Uzi type 6, Uzi Pro buttstock and brace, SR-2MP, PS90, the SV-98 CNC OV chassis (and the M12B on it), the AX GTAC PB adapter.
+  Seen on pictures unfolded and folded, and in the app (AKMS, G36 with KV). Data only: E:\SPT-photo\weapons\fixes.json (42, the
+  8 marked `source: picture`; backup fixes.json.bak-stocks-20261120) and public/gun-parts/index.json (gitignored, ships in the exe).
+  What still stands tall is meant to: butt pads and the MP5 end caps.
+- 87b0a417: a right click on a module's cell takes it off (owner: «правой кнопкой он должен сниматься просто. А по нажатию левой
+  открывается окно»), any but a required slot's, as the window's «Снять»; the shopping list named a quest by its id
+  («квест «67a097379f2068e746…»») — now by its name from the game data, else «квест». Tests 244 in arsenal/gunsmith/pages/screen,
+  typecheck, lint pass. Not released.
