@@ -8546,3 +8546,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   the next level's badge, compact level window; hideout module pictures per level without light stripes or stale rocks (SPT);
   theme buttons textured (Стекло, чёрный мультикам, тельняшка); bug report dialog without the bug icon; «Алтын» a helmet picture
   (memory altyn-helmet-picture).
+- aed140c2 full screen: the stats window small (184 px PC, 148 px phone) and still at the top left, nothing to drag (owner: «При
+  перетаскивании вылезает ошибка, сделай это окно меньше и зафиксируй… слева сверху»). #185 reproduced on 330 at 430×932 and
+  932×430 by dragging, none after (also 390×844, 844×390).
+- 2f072959 weapon pictures: grips on the 6P29M (its side, quarter-turned foregrip slot — the only one in the index) drawn hanging
+  below the mount, not standing up; the VAL NB stock adapter tube lv -6.07 (level; also in stock-level-applied.json). The 21 tubes
+  of stock-level.json: only this one off. Checked in the app: AS VAL + 6P29M + RK-2 + NB tube, before/after.
