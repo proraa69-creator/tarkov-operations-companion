@@ -13,6 +13,8 @@ import { circleRows, circleTime, stackCount, type CircleExchange, type CircleRow
 import { hideoutNeeds } from '../hideout/hideoutNeeds'
 import { useHideoutFound } from '../hideout/hideoutFound'
 import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { useHideoutModules } from '../hideout/hideoutModulesStore'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questNeeds } from '../quests/questItemNeeds'
 import { StashPicture } from './HideoutStashPage'
@@ -74,6 +76,7 @@ export function CultistCirclePage() {
   const mode = state.raidMode
   const progress = state.activeProfile.modes[mode]
   const found = useHideoutFound(state.activeProfile.id, mode)
+  const modules = useHideoutModules()
   const [query, setQuery] = useState('')
   const [neededOnly, setNeededOnly] = useState(false)
   // `?open=<exchange>`: the exchange a «Где взять» row of «Убежище» points to (hideout/WhereToGet.tsx)
@@ -91,13 +94,13 @@ export function CultistCirclePage() {
         if (!use.done && (status === 'active' || status === 'available')) add(need.itemId, { key: `quest:${use.stationId}`, label: use.stationName, questId: use.stationId })
       }
     }
-    const stations = withSeasonFoundInRaid(data.hideout.filter((station) => station.levels?.length), mode)
+    const stations = applyHideoutModules(withSeasonFoundInRaid(data.hideout.filter((station) => station.levels?.length), mode), mode, modules)
     for (const need of hideoutNeeds(stations, progress.hideoutLevels, found).items) {
       if (need.remaining <= 0) continue
       for (const use of need.uses) add(need.itemId, { key: `hideout:${use.stationId}:${use.level}`, label: `${use.stationName} · ${locale === 'en' ? 'level' : 'ур.'} ${use.level}` })
     }
     return byItem
-  }, [data.quests, data.hideout, progress, found, mode, locale])
+  }, [data.quests, data.hideout, progress, found, mode, locale, modules])
   const isNeeded = useCallback((row: CircleRow) => row.rewards.some(([id]) => needs.has(id)), [needs])
   const rows = useMemo(() => {
     const title = (row: CircleRow) => dropsTitle(row, items)

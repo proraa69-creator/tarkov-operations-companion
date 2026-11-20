@@ -7,6 +7,8 @@ import { useAppState } from '../state/AppState'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { COLLECTOR_CHANGED_EVENT, loadCollected } from '../kappa/collector'
 import { computeKeepList, filterKeepRows, type KeepReason, type KeepRow, type KeepSource } from '../raidprep/keepList'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { useHideoutModules } from '../hideout/hideoutModulesStore'
 import '../styles/raidPrep.css'
 
 type SourceFilter = 'all' | KeepSource
@@ -34,9 +36,10 @@ export function KeepItemsPage() {
   }, [raidMode])
 
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
+  const modules = useHideoutModules()
   const rows = useMemo(
-    () => computeKeepList({ quests: data.quests, hideout: data.hideout, items: data.items, progress, availability, collectorCollected: collected }),
-    [data.quests, data.hideout, data.items, progress, availability, collected],
+    () => computeKeepList({ quests: data.quests, hideout: applyHideoutModules(data.hideout, raidMode, modules), items: data.items, progress, availability, collectorCollected: collected }),
+    [data.quests, data.hideout, data.items, progress, availability, collected, raidMode, modules],
   )
   const shown = useMemo(
     () => filterKeepRows(rows, { kinds: source === 'all' ? undefined : [source], foundInRaidOnly: firOnly, search: query, hideDone }),
@@ -161,12 +164,14 @@ function HideoutLevels() {
   const { data } = useTarkovData()
   const state = useAppState()
   const levels = state.activeProfile.modes[state.raidMode].hideoutLevels
-  if (!data.hideout.length) return null
+  const modules = useHideoutModules()
+  const stations = useMemo(() => applyHideoutModules(data.hideout, state.raidMode, modules), [data.hideout, state.raidMode, modules])
+  if (!stations.length) return null
   return (
     <details className="panel keep-hideout">
       <summary className="panel-header"><span className="panel-title">{uiText('Уровни убежища')}</span><small className="dim">{uiText('Указываются вручную — игра не пишет их в журналы')}</small></summary>
       <div className="panel-body keep-hideout-grid">
-        {data.hideout.map((station) => {
+        {stations.map((station) => {
           const level = levels[station.id] ?? 0
           const max = station.maxLevel ?? station.levels?.length ?? 0
           return (

@@ -131,7 +131,7 @@ describe('«Админ панель» sections', () => {
     const request = await desktop()
     renderPage('/admin?tab=notices')
     const tabs = screen.getByRole('tablist', { name: 'Разделы админ панели' })
-    expect(within(tabs).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Сводка', 'Отчёты', 'Чат', 'Объявления', 'Опросы', 'Баннер', 'Функции', 'Квесты', 'Блоки', 'Обновление'])
+    expect(within(tabs).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Сводка', 'Отчёты', 'Чат', 'Объявления', 'Опросы', 'Баннер', 'Функции', 'Квесты', 'Блоки', 'Модули убежища', 'Обновление'])
     // Owner, 15.11.2026: «Отчёты» and «Чат» apart; «Убрать блок «История обновлений»».
     expect(screen.queryByText('История обновлений')).toBeNull()
     expect(await screen.findByText('Скидка')).toBeInTheDocument()
@@ -210,6 +210,14 @@ describe('«Админ панель» sections', () => {
     expect(screen.getByRole('status', { name: 'адрес' })).toHaveTextContent('/maps?edit=1')
   })
 
+  it('«Модули убежища» is a section of its own, read from the owner\'s route', async () => {
+    const request = await desktop()
+    renderPage('/admin?tab=hideout')
+    expect(await screen.findByText('Модули убежища', { selector: '.panel-title' })).toBeInTheDocument()
+    await waitFor(() => expect(calls(request, 'GET', '/v1/accounts/me/admin/hideout-modules')).toHaveLength(1))
+    expect(screen.getByRole('tab', { name: /Модули убежища/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('«Блоки»: hide a block, rename one, move one and save for everybody; this app shows it at once', async () => {
     const user = userEvent.setup()
     const request = await desktop()
@@ -281,7 +289,7 @@ describe('«Админ панель» sections', () => {
     await desktop()
     renderPage('/admin?tab=features')
     expect(screen.getByRole('heading', { name: 'Admin panel' })).toBeInTheDocument()
-    expect(within(screen.getByRole('tablist')).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Summary', 'Reports', 'Chat', 'Announcements', 'Surveys', 'Banner', 'Features', 'Tasks', 'Blocks', 'Update'])
+    expect(within(screen.getByRole('tablist')).getAllByRole('tab').map((tab) => tab.querySelector('strong')?.textContent)).toEqual(['Summary', 'Reports', 'Chat', 'Announcements', 'Surveys', 'Banner', 'Features', 'Tasks', 'Blocks', 'Hideout modules', 'Update'])
     expect(await screen.findByText('Off for everybody')).toBeInTheDocument()
     expect(screen.getByText('Position on the map')).toBeInTheDocument()
   })

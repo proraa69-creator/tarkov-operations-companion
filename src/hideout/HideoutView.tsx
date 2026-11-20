@@ -12,6 +12,8 @@ import { StashPicture } from '../pages/HideoutStashPage'
 import { useHideoutFound } from './hideoutFound'
 import { DOLLARS, EUROS, ROUBLES } from './hideoutNeeds'
 import { withSeasonFoundInRaid } from './seasonFoundInRaid'
+import { applyHideoutModules } from './hideoutModules'
+import { useHideoutModules, useModeModules } from './hideoutModulesStore'
 import { stationIcon } from './stationIcons'
 import { basePicture, lightOf, lightStation, modulePiece, moduleSpot, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
 import { ItemSources } from './WhereToGet'
@@ -34,7 +36,9 @@ function levelReady(stage: Stage | undefined, found: ReadonlyMap<string, number>
  * rooms behind the defective wall black, their modules without buttons, until it is broken. A button on every module; the module's levels are set below the picture
  * («ставишь, что ты выставляешь уровень, и он тебе показывает всю информацию»): what the next level takes (have/need), its crafts and,
  * for every item, where it comes from (WhereToGet.tsx). The pictures come from the offline game copy (hideoutViews.ts); with none,
- * nothing is drawn.
+ * nothing is drawn. The owner's «Модули убежища» of the mode (hideoutModules.ts): a module turned off is not there at all; one open
+ * from the start has its button and window even behind the wall not broken yet, without its piece of the picture until then (its
+ * room is black, as the med station's before the breach).
  */
 /** Really behind the defective wall: no button and a note until the breach (the rooms' other modules are built before it). */
 const behindWall = (stationId: string) => Boolean((roomsInfo?.behind ?? roomsInfo?.inside)?.includes(stationId))
@@ -71,9 +75,13 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
   const [params, setParams] = useSearchParams()
   const openId = params.get('module')
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
-  const stations = useMemo(() => withSeasonFoundInRaid(data.hideout.filter((station) => station.levels?.length), mode), [data.hideout, mode])
+  const modules = useHideoutModules()
+  const openFromStart = useModeModules(mode).open
+  const stations = useMemo(() => applyHideoutModules(withSeasonFoundInRaid(data.hideout.filter((station) => station.levels?.length), mode), mode, modules), [data.hideout, mode, modules])
   const station = stations.find((entry) => entry.id === openId)
   const closed = roomsClosed(built)
+  // still behind the wall not broken yet: not open from the start in this mode
+  const walledIn = (stationId: string) => closed && behindWall(stationId) && !openFromStart.has(stationId)
   // A phone shows the picture wider than the screen (the buttons would crowd), opened at its middle.
   const scroller = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -98,7 +106,7 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
           const spot = moduleSpot(entry.id)
           // a module behind the wall not broken yet is not shown at all (owner, 20.11.2026: «если стена не снесена, значит,
           // модули за этой стенкой не отображаются… Все, что до этого, показывается»)
-          if (!spot || (closed && behindWall(entry.id))) return null
+          if (!spot || walledIn(entry.id)) return null
           const level = built[entry.id] ?? 0
           const max = entry.levels?.length ?? 0
           const ready = level < max && levelReady(entry.levels?.find((stage) => stage.level === level + 1), found)
@@ -114,7 +122,7 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
         })}
       </div>
     </div>
-    {station && <ModulePanel key={station.id} locked={closed && behindWall(station.id)} station={station} stations={stations} built={built} found={found} items={items} economy={economy.data}
+    {station && <ModulePanel key={station.id} locked={walledIn(station.id)} station={station} stations={stations} built={built} found={found} items={items} economy={economy.data}
       craftId={params.get('craft')} onClose={() => open(null)} onLevel={(level) => state.setHideoutLevel(station.id, level)} />}
   </section>
 }

@@ -11,6 +11,8 @@ import { hideoutNeeds, type HideoutNeed, type HideoutNeedsFilter } from '../hide
 import { setHideoutFound, useHideoutFound } from '../hideout/hideoutFound'
 import { stationIcon } from '../hideout/stationIcons'
 import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { useHideoutModules } from '../hideout/hideoutModulesStore'
 import { isMobileLayout } from '../platform'
 import { useScreenSync } from '../stashScan/useScreenSync'
 import { RemoteScanButton } from '../stashScan/RemoteScanButton'
@@ -71,7 +73,9 @@ export function HideoutStashPage() {
   const [firOnly, setFirOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
-  const stations = useMemo(() => withSeasonFoundInRaid([...data.hideout].filter((entry) => entry.levels?.length), mode).sort((a, b) => a.name.localeCompare(b.name, 'ru')), [data.hideout, mode])
+  // without the modules the owner turned off in this mode («Модули убежища»)
+  const modules = useHideoutModules()
+  const stations = useMemo(() => applyHideoutModules(withSeasonFoundInRaid([...data.hideout].filter((entry) => entry.levels?.length), mode), mode, modules).sort((a, b) => a.name.localeCompare(b.name, 'ru')), [data.hideout, mode, modules])
   const filter = useMemo((): HideoutNeedsFilter | undefined => (focus ? { level: focus } : picked.size ? { stations: picked } : undefined), [focus, picked])
   const needs = useMemo(() => hideoutNeeds(stations, built, found, filter), [stations, built, found, filter])
   const everything = useMemo(() => filter ? hideoutNeeds(stations, built, found) : needs, [filter, stations, built, found, needs])

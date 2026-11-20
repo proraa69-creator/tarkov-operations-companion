@@ -87,6 +87,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
+  // «Админ панель» → «Модули убежища» (server/src/routes/hideoutModules.ts): per mode, the modules open from the start or turned
+  // off. The apps read it with the notice; the owner keeps it here.
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/hideout-modules$/ },
   // «История обновлений» (server/src/routes/ownerAdmin.ts): the server answers 404 to everybody but the owner.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/update-history$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).

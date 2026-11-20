@@ -24,6 +24,11 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Позиция игрока по скриншотам игры на «Картах» и в телефоне. Выключено — ни у кого нет позиции, приложение не следит за папкой скриншотов.', 'The player’s position from the game’s screenshots on “Maps” and on the phone. Off — nobody has a position and the app does not watch the screenshots folder.'],
   ['Включено у всех', 'On for everybody'], ['Выключено у всех', 'Off for everybody'], ['Последнее изменение', 'Last change'],
   ['Приложения игроков узнают о переключении в течение нескольких минут или сразу, когда окно снова в фокусе.', 'Players’ apps learn about the switch within a few minutes, or at once when their window gets the focus back.'],
+  // «Модули убежища» (src/admin/AdminHideoutModules.tsx)
+  ['Модули убежища', 'Hideout modules'], ['Со старта или выключить', 'From the start or off'], ['Убежище у всех игроков', 'The hideout for every player'],
+  ['Со старта — строится сразу, без других модулей. Выключен — модуля нет в убежище этого режима.', 'From the start: built at once, no other modules needed. Off: the module is not in this mode’s hideout.'],
+  ['Как в игре', 'As in the game'], ['Со старта', 'From the start'], ['Выключен', 'Off'],
+  ['Сохранено. У игроков — в течение нескольких минут.', 'Saved. Players get it within a few minutes.'],
   // «Квесты»
   ['Точки, тексты и требования квестов', 'Quest points, texts and requirements'],
   ['Изменения в конструкторе сохраняются сразу и видны всем игрокам — обновлять приложение или сервер не нужно.', 'Constructor changes are saved at once and every player sees them — no app or server update needed.'],

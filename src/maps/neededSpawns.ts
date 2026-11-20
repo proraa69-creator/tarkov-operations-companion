@@ -5,6 +5,8 @@ import { useAppState } from '../state/AppState'
 import { hideoutNeeds } from '../hideout/hideoutNeeds'
 import { useHideoutFound } from '../hideout/hideoutFound'
 import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { useHideoutModules } from '../hideout/hideoutModulesStore'
 import { questNeeds } from '../quests/questItemNeeds'
 import { useQuestFound } from '../quests/questFound'
 import { questAvailabilityOf } from '../quests/questReadModel'
@@ -42,13 +44,14 @@ export function useNeededLootIds(): ReadonlySet<string> {
   const progress = state.activeProfile.modes[mode]
   const hideoutFound = useHideoutFound(profileId, mode)
   const questFound = useQuestFound(profileId, mode)
+  const modules = useHideoutModules()
   return useMemo(() => {
-    const stations = withSeasonFoundInRaid([...data.hideout].filter((entry) => entry.levels?.length), mode)
+    const stations = applyHideoutModules(withSeasonFoundInRaid([...data.hideout].filter((entry) => entry.levels?.length), mode), mode, modules)
     const hideout = hideoutNeeds(stations, progress.hideoutLevels, hideoutFound)
     const rounds = new Set(data.items.filter((item) => item.category === 'Боеприпас' || item.types?.includes('ammo')).map((item) => item.id))
     const quests = questNeeds(data.quests, progress, questAvailabilityOf(data.quests, progress), questFound, undefined, rounds)
     return new Set([...hideout.items, ...quests.items].filter((need) => need.remaining > 0).map((need) => need.itemId))
-  }, [data.hideout, data.items, data.quests, mode, progress, hideoutFound, questFound])
+  }, [data.hideout, data.items, data.quests, mode, progress, hideoutFound, questFound, modules])
 }
 
 /** Whether a loot spot is shown with «только нужные» on: a spot of known items holds one still needed; any other spot stays. */
