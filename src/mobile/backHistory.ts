@@ -67,6 +67,15 @@ export function recordPage(index: number, pathname: string, push: boolean) {
   pathListeners.forEach((listener) => listener())
 }
 
+/**
+ * What a history entry counts as for «Назад»: its path, or — for a step of its own within a page, the Gunsmith part's
+ * window (GunsmithPage.openPart, `state.gunsmithList`) — a page of its own, so «Назад» returns to the list of weapons
+ * first, not past it to «Обзор» (owner, 20.11.2026: «Сделай, чтобы шаг назад был, то есть к списку оружия»).
+ */
+export function pageOf(location: { pathname: string; state?: unknown }) {
+  return (location.state as { gunsmithList?: unknown } | null)?.gunsmithList ? `${location.pathname}#step` : location.pathname
+}
+
 /** How many steps back the previous page is (a negative delta for navigate), or null when there is none. */
 export function backDelta(index = historyIndex()): number | null {
   const here = pathAt[index]
@@ -109,7 +118,7 @@ export function useScrollMemory(enabled: boolean) {
   }, [enabled])
 
   useLayoutEffect(() => {
-    recordPage(historyIndex(), location.pathname, type === 'PUSH')
+    recordPage(historyIndex(), pageOf(location), type === 'PUSH')
     // The key moves first, so the scroll events of the switch are kept for the new entry, not the page left.
     const previousKey = keyRef.current
     keyRef.current = key
