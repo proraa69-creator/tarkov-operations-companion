@@ -8488,3 +8488,19 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   narrower width is taken at once, a wider one from 24 px (536f8d81's parent, nextStageWidth in stageLayout.ts, test
   stageWidth.test.ts). Not reproduced on the owner's data (no Gunsmith part taken in the dev profile); checked the weapon
   builds page: stable, 717 → 481 → 717 px on resize.
+
+## 2026-11-20 — Claude: 0.6.0.330 live; iPhone App Store pack build 4 mailed to the owner's publisher
+- 0.6.0.330 (a2bca1b1) published 21:47; raidos.app/download/version.json shows 0.6.0-330.
+- App Store pack (owner: the freshest iPhone version, only the Xcode files, a new «Сборка оружия» picture): branch
+  test/ios-ipa-appstore-1120 = 0.6.0.330 + the App Store settings (ffe65f5d as 571da5e2) + version 1.0 / build 4 (d442925e)
+  + eb56adfa (as 94630d4f). Both CI test IPA runs green (44755000678, 44758469665: unsigned device build of the project).
+  Pack-only changes as on 16.11 (not committed): Bundle ID com.raidos.app (the App Store Connect record; the repo keeps
+  com.tarkovoperator.app) and Package.swift plugin paths ../../../node_modules/@capacitor/…
+- eb56adfa (claude/quest-row-tags): «Прицеливание» on the weapon builds page read «Aim Drills» in English — the game's quest
+  names are looked up before the interface's words; the handling row now prefers the interface dictionary.
+- Screenshot 03_3-gunsmith-build.png (RU/EN, 1320×2868 and 1284×2778): M4A1 top build («Готовые сборки» → «Топовая
+  сборка» with «Показать все модули», plus SpecterDR and AN/PEQ-15), the iPhone layout at 3x, laid out like the 16.11 pack.
+- Mailed via the server's Resend sender: RaidOS_iOS_build4.part01–06.rar (19 MB volumes, ~102 MB) to the publisher's
+  address the owner gave; all six accepted (200). The key can only send, delivery status not readable.
+- Weapon builds on the phone (430×932) checked in the App Store dev build: page, «Готовые сборки», the part picker, full
+  screen with the stats window — fine.
