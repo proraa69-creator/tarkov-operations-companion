@@ -79,6 +79,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Узнать, как выбраться из Таркова', 'Find out how to get out of Tarkov'],
   ['Разговоры с торговцами в меню, точки на карте нет.', 'Talks with traders in the menu, no map point.'],
   ['Найти вход в секретный объект на локации Завод', 'Locate the entrance to the facility on Factory'],
+  ['Флешка — на подножке чёрного «Гелендвагена» у выхода «Тоннель»', 'Flash drive: on the running board of the black G-Wagon by the Tunnel extract'],
   ['Найти вход в секретный объект на локации Улицы Таркова', 'Locate the entrance to the facility on Streets of Tarkov'],
   ['Осмотреть офисы топ-менеджеров (O21, 2-й уровень)', 'Search the top management offices (O21, level 2)'],
   ['Осмотреть серверную (2-й уровень, у ангара)', 'Search the server room (level 2, by the hangar)'],

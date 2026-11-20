@@ -91,7 +91,9 @@ export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
       { en: 'Reach Loyalty Level 2 with Prapor', ru: 'Достичь 2-го уровня лояльности у Прапора', mapIds: [] },
       { en: 'Ask Prapor about the fallen plane', ru: 'Расспросить Прапора об упавшем самолёте', mapIds: [] },
       { en: 'Hand over the cash to Therapist', ru: 'Передать деньги Терапевту', mapIds: [], steps: [{ en: 'Collect the required amount in USD', ru: 'Собрать нужную сумму в долларах' }, { en: 'Learn details about the SUV from Therapist', ru: 'Узнать у Терапевта подробности о внедорожнике' }] },
-      { en: 'Retrieve the flash drive from one of the G-Wagon SUVs', ru: 'Забрать флешку из одного из внедорожников G-Wagon', mapIds: ['shoreline'], steps: [{ en: 'Locate the right G-Wagon SUV', ru: 'Найти нужный внедорожник G-Wagon' }], points: [{ mapId: 'shoreline', x: 336.57, z: 317.87 }, { mapId: 'shoreline', x: 336.58, z: 317.88 }] },
+      // a player, 20.11.2026: «флешка находится не в доме, а у выхода ЧВК Тоннель, на черном гелентвагене» — the point is on that
+      // SUV (tarkov.dev top view; the wiki: the driver side running board); Elektronik's flash drive (stage 15) is the one in a house
+      { en: 'Retrieve the flash drive from one of the G-Wagon SUVs', ru: 'Забрать флешку из одного из внедорожников G-Wagon', mapIds: ['shoreline'], steps: [{ en: 'Locate the right G-Wagon SUV', ru: 'Найти нужный внедорожник G-Wagon' }], points: [{ mapId: 'shoreline', x: 336.57, z: 317.87, note: 'Флешка — на подножке чёрного «Гелендвагена» у выхода «Тоннель»' }] },
       { en: 'Hand over the flash drive to Prapor', ru: 'Передать флешку Прапору', mapIds: [] },
       { en: 'Wait for information from Prapor', ru: 'Дождаться информации от Прапора', mapIds: [] },
       { en: 'Retrieve the plane\'s flight recorder', ru: 'Забрать бортовой самописец самолёта', mapIds: ['woods'], points: [{ mapId: 'woods', x: -248.18, z: -21.98 }] },
