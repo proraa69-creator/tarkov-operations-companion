@@ -8,35 +8,52 @@ import { HideoutView } from './HideoutView'
 
 const MED = 'med-station'
 const BENCH = 'work-bench'
+const LIGHT = 'illumination'
+const WALL = 'defective-wall'
+const GYM = 'gym'
 const BANDAGE = 'bandage'
 const WIRE = 'wire'
 const BOLTS = 'bolts'
 
 const item = (id: string, name: string): Item => ({ id, name, shortName: name, category: 'Бартер', description: '', iconUrl: '', types: [], prices: [] }) as unknown as Item
+const station = (id: string, name: string, levels: NonNullable<HideoutStation['levels']>): HideoutStation =>
+  ({ id, name, level: 0, status: 'locked', requirements: [], bonus: '', levels }) as HideoutStation
+const plain = (level: number) => ({ level, requirements: [], itemRequirements: [], bonus: '' })
 const stations: HideoutStation[] = [
-  { id: MED, name: 'Медблок', normalizedName: 'medstation', level: 0, status: 'locked', requirements: [], bonus: '', levels: [
-    { level: 1, requirements: ['Бинт × 2'], itemRequirements: [{ itemId: BANDAGE, count: 2 }], bonus: '' },
+  station(MED, 'Медблок', [
+    { level: 1, requirements: ['Бинт × 2'], itemRequirements: [{ itemId: BANDAGE, count: 2, foundInRaid: true }], bonus: '' },
     { level: 2, requirements: ['Провода × 3', 'Лояльность: Терапевт ур. 2'], stationRequirements: ['Верстак ур. 1'], itemRequirements: [{ itemId: WIRE, count: 3 }], bonus: '' },
-  ] },
-  { id: BENCH, name: 'Верстак', normalizedName: 'workbench', level: 0, status: 'locked', requirements: [], bonus: '', levels: [{ level: 1, requirements: [], itemRequirements: [], bonus: '' }] },
+  ]),
+  station(BENCH, 'Верстак', [plain(1)]),
+  station(LIGHT, 'Освещение', [plain(1), plain(2), plain(3)]),
+  station(WALL, 'Аварийная стена', [plain(1), plain(2), plain(3), plain(4), plain(5), plain(6)]),
+  station(GYM, 'Спортзал', [plain(1)]),
 ]
 const crafts: Craft[] = [
   { id: 'wire-craft', stationId: BENCH, stationName: 'Верстак', level: 1, duration: 7200, requiredItems: [{ itemId: BOLTS, count: 2 }], rewardItems: [{ itemId: WIRE, count: 1 }] },
   { id: 'med-craft', stationId: MED, stationName: 'Медблок', level: 2, duration: 3600, requiredItems: [{ itemId: BANDAGE, count: 1 }], rewardItems: [{ itemId: BOLTS, count: 1 }] },
+  { id: 'bandage-craft', stationId: BENCH, stationName: 'Верстак', level: 1, duration: 600, requiredItems: [{ itemId: WIRE, count: 3 }], rewardItems: [{ itemId: BANDAGE, count: 2 }] },
 ]
+const barters = [{ id: 'bandage-barter', traderId: 'therapist', traderName: 'Терапевт', level: 1, requiredItems: [{ itemId: BOLTS, count: 1 }], rewardItems: [{ itemId: BANDAGE, count: 1 }] }]
 
 const state = vi.hoisted(() => ({ levels: {} as Record<string, number>, setHideoutLevel: vi.fn() }))
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { items: [item(BANDAGE, 'Бинт'), item(WIRE, 'Провода'), item(BOLTS, 'Болты')], hideout: stations, quests: [] } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: 'pvp', activeProfile: { id: 'p1', modes: { pvp: { hideoutLevels: state.levels } } }, setHideoutLevel: state.setHideoutLevel }) }))
-vi.mock('../data/useEconomy', () => ({ useEconomySnapshot: () => ({ data: { crafts, barters: [] } }) }))
+vi.mock('../data/useEconomy', () => ({ useEconomySnapshot: () => ({ data: { crafts, barters } }) }))
 vi.mock('./hideoutViews', () => ({
-  overviewPicture: () => 'overview.webp',
-  overviewSize: { width: 1920, height: 1080 },
-  moduleSpot: (id: string) => (id === MED ? { x: 0.25, y: 0.5 } : id === BENCH ? { x: 0.75, y: 0.4 } : undefined),
-  modulePicture: (id: string, level: number) => `${id}-${level}.webp`,
+  pictureSize: { width: 1000, height: 500 },
+  lightStation: 'illumination',
+  roomsInfo: { station: 'defective-wall', openLevel: 5, inside: ['gym'] },
+  lightOf: (level: number) => Math.min(level, 3),
+  basePicture: (light: number) => `base-L${light}.webp`,
+  moduleSpot: (id: string) => ({ 'med-station': { x: 0.25, y: 0.5 }, 'work-bench': { x: 0.75, y: 0.4 }, gym: { x: 0.1, y: 0.1 } } as Record<string, { x: number; y: number }>)[id],
+  modulePiece: (id: string, level: number, light: number) => (id === 'med-station' ? { url: `${id}-${level}-L${light}.webp`, left: 0.2, top: 0.4, width: 0.1, height: 0.2 } : undefined),
+  roomsPicture: () => 'rooms.webp',
+  roomsClosed: (built: Record<string, number>) => (built['defective-wall'] ?? 0) < 5,
 }))
 
 const renderView = () => render(<LocaleProvider><MemoryRouter initialEntries={['/hideout']}><HideoutView /></MemoryRouter></LocaleProvider>)
+const pictures = () => [...document.querySelectorAll('.hv-stage img.hv-picture, .hv-stage img.hv-piece')].map((image) => image.getAttribute('src'))
 
 beforeEach(() => {
   localStorage.clear()
@@ -45,37 +62,62 @@ beforeEach(() => {
 })
 
 describe('«Убежище» как в игре', () => {
-  it('puts a button on every module of the overview, with its level', () => {
+  it('builds the picture from the base of the player\'s light and the pieces of the built levels, the closed rooms black', () => {
+    state.levels = { [MED]: 2, [LIGHT]: 2 }
+    renderView()
+    expect(pictures()).toEqual(['base-L2.webp', `${MED}-2-L2.webp`, 'rooms.webp'])
+    const piece = document.querySelector(`img[src="${MED}-2-L2.webp"]`)
+    expect(piece).toHaveStyle({ left: '20%', top: '40%', width: '10%', height: '20%' })
+  })
+
+  it('opens the rooms behind the wall once it is broken', () => {
+    state.levels = { [WALL]: 5 }
+    renderView()
+    expect(pictures()).not.toContain('rooms.webp')
+    expect(screen.getByRole('button', { name: /Спортзал/ })).not.toHaveClass('is-locked')
+  })
+
+  it('puts a button on every module with its level; a module behind the closed wall is locked', () => {
     renderView()
     const med = screen.getByRole('button', { name: /Медблок, уровень 1/ })
     expect(med).toHaveStyle({ left: '25%', top: '50%' })
-    expect(within(med).getByText('I')).toBeInTheDocument()
+    expect(within(med).getByText('01')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Верстак, не построен/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Спортзал/ })).toHaveClass('is-locked')
   })
 
-  it('a module opens its picture at the built level, what the next level takes and its crafts', () => {
+  it('a module shows below the picture: its level is set by a press, the next level\'s needs and its crafts', () => {
     localStorage.setItem('raidos-hideout-found-v1:p1:pvp', JSON.stringify({ [WIRE]: 1 }))
     renderView()
-    fireEvent.click(screen.getByRole('button', { name: /Медблок/ }))
-    expect(screen.getByRole('img', { name: /Медблок · I/ })).toHaveAttribute('src', `${MED}-1.webp`)
+    fireEvent.click(screen.getByRole('button', { name: /Медблок, уровень 1/ }))
     expect(screen.getByRole('heading', { name: /Для уровня II/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Провода/ })).toHaveTextContent('1/3')
     expect(screen.getByText(/Верстак ур. 1/)).toBeInTheDocument()
     expect(screen.getByText(/Лояльность: Терапевт ур. 2/)).toBeInTheDocument()
     expect(document.querySelector('#hv-craft-med-craft')).toHaveClass('is-locked')
-    // another level picked shows its picture
-    fireEvent.click(screen.getByRole('button', { name: 'II' }))
-    expect(screen.getByRole('img', { name: /Медблок · II/ })).toHaveAttribute('src', `${MED}-2.webp`)
-    fireEvent.click(screen.getByRole('button', { name: /Построил II/ }))
+    const levels = screen.getByRole('group', { name: 'Мой уровень' })
+    fireEvent.click(within(levels).getByRole('button', { name: 'II' }))
     expect(state.setHideoutLevel).toHaveBeenCalledWith(MED, 2)
+    fireEvent.click(screen.getByRole('button', { name: /Построил II/ }))
+    expect(state.setHideoutLevel).toHaveBeenLastCalledWith(MED, 2)
+  })
+
+  it('shows every level in turn; an item wanted found in raid says at once where it is crafted and from what, not the barters', () => {
+    state.levels = {}
+    renderView()
+    fireEvent.click(screen.getByRole('button', { name: /Медблок, не построен/ }))
+    expect(screen.getAllByRole('heading', { name: /Для уровня/ }).map((heading) => heading.textContent)).toEqual(['Для уровня I', 'Для уровня II'])
+    const bandage = screen.getByRole('button', { name: /Бинт/ }).closest('li')!
+    expect(within(bandage).getByRole('button', { name: /Скрафтить: Верстак, ур. I ×2/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(within(bandage).getByText('Провода').closest('li')).toHaveTextContent('×3')
+    expect(within(bandage).queryByText(/Обменять/)).toBeNull()
   })
 
   it('an item says where to get it, and the row opens what it takes', () => {
     renderView()
     fireEvent.click(screen.getByRole('button', { name: /Медблок/ }))
     fireEvent.click(screen.getByRole('button', { name: /Провода/ }))
-    const row = screen.getByRole('button', { name: /Скрафтить: Верстак, ур. I/ })
-    fireEvent.click(row)
+    fireEvent.click(screen.getByRole('button', { name: /Скрафтить: Верстак, ур. I/ }))
     expect(screen.getByRole('link', { name: 'Открыть модуль' })).toHaveAttribute('href', `/hideout?module=${BENCH}&craft=wire-craft`)
     expect(screen.getByText('Болты').closest('li')).toHaveTextContent('×2')
   })

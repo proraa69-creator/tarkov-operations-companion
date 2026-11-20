@@ -19,6 +19,8 @@ const roman = (level: number) => ['0', 'I', 'II', 'III', 'IV', 'V', 'VI'][level]
 
 interface ItemSourcesProps {
   itemId: string
+  /** The item is wanted found in raid: only what gives it so (crafts, the circle), every row open. */
+  foundInRaid?: boolean
   economy?: Pick<EconomySnapshot, 'crafts' | 'barters'>
   items: ReadonlyMap<string, Item>
   stations: readonly HideoutStation[]
@@ -30,19 +32,21 @@ interface ItemSourcesProps {
  * Либо… можно добыть в круге сектантов… каждая строка нажимается»): one row per craft, barter and circle exchange that gives the
  * item; a row opens what it takes, and from there the module or the circle.
  */
-export function ItemSources({ itemId, economy, items, stations, built }: ItemSourcesProps) {
-  const [openKey, setOpenKey] = useState<string | null>(null)
+export function ItemSources({ itemId, foundInRaid = false, economy, items, stations, built }: ItemSourcesProps) {
+  // the rows pressed: open ones (closed ones when all start open)
+  const [pressed, setPressed] = useState<ReadonlySet<string>>(() => new Set())
   const circleId = stations.find((station) => station.normalizedName === CIRCLE)?.id
-  const sources = itemSources(itemId, economy)
+  const sources = itemSources(itemId, economy).filter((source) => !foundInRaid || source.kind !== 'barter')
   if (!economy && !sources.length) return null
+  const press = (key: string) => setPressed((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next })
   return <div className="hv-sources">
     <h4>{uiText('Где взять')}</h4>
     {sources.length ? <ul>
       {sources.map((source) => {
         const open = sourceOpen(source, built, circleId)
-        const expanded = openKey === source.key
+        const expanded = foundInRaid !== pressed.has(source.key)
         return <li key={source.key} className={`${open ? '' : 'is-locked'}${expanded ? ' is-open' : ''}`}>
-          <button type="button" className="hv-source-row" aria-expanded={expanded} onClick={() => setOpenKey(expanded ? null : source.key)}>
+          <button type="button" className="hv-source-row" aria-expanded={expanded} onClick={() => press(source.key)}>
             <SourceIcon source={source} />
             <span className="hv-source-text">{sourceTitle(source, stations)}</span>
             {!open && <Lock size={11} aria-label={uiText('Не построено')} />}
@@ -51,7 +55,7 @@ export function ItemSources({ itemId, economy, items, stations, built }: ItemSou
           {expanded && <SourceDetail source={source} items={items} />}
         </li>
       })}
-    </ul> : <p className="dim hv-sources-none">{uiText('Не крафтится и не меняется — только найти или купить.')}</p>}
+    </ul> : <p className="dim hv-sources-none">{uiText(foundInRaid ? 'Не крафтится — только найти в рейде.' : 'Не крафтится и не меняется — только найти или купить.')}</p>}
   </div>
 }
 
