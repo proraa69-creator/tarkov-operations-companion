@@ -24,6 +24,8 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Для текущих квестов не нужен', 'Not needed for current quests'],
   // «Ключи рядом» and «Настройки карты» (src/maps/NearbyKeysPanel.tsx, src/maps/MapPanels.tsx)
   ['Ключи рядом', 'Keys nearby'], ['Показывать только нужные спавны', 'Show only the spawns I need'], ['Где', 'Where'], ['Настройки карты', 'Map settings'], ['Показывать уведомления о ближайших ключах', 'Tell me of keys spawning nearby'],
+  // «Настройки карты» → «Местоположение» (src/maps/PlayerFollowSetting.tsx)
+  ['Приближать карту к точке', 'Bring the map to my dot'],
   ['Рядом с вашим квестом спавн ключа — проверьте', 'A key spawns near your quest: check it'],
   ['Звуковой сигнал', 'Sound'], ['Торговля', 'Trading'], ['Звук, когда рейд начался', 'A sound when the raid begins'], ['Итог распознавания предметов по клавише', 'What the item scan by hotkey found'],
   ['Торговцы — в «Настройках»', 'Traders: in «Settings»'], ['Цена упала или выросла', 'Price dropped or rose'], ['Купленные предметы', 'Bought items'], ['Можно продавать, цена дошла', 'Time to sell, price reached'],
