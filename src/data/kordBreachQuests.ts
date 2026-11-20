@@ -114,13 +114,15 @@ const STREETS = ['streets-of-tarkov']
  * stream, the cargo truck's tractor on the ramp to Mira Ave, the yellow bus underground. Positions of these objects in the
  * game's world, with their heights (E:\SPT-photo\approved\kord-breach\places.json).
  */
-const cameraSpots = (maps: string[], id: string, x: number, y: number, z: number): CuratedSpot[] => maps.map((map) => ({ map, point: { id: `kb-camera-${id}`, x, y, z } }))
+const foundSpots = (maps: string[], id: string, x: number, y: number, z: number): CuratedSpot[] => maps.map((map) => ({ map, point: { id: `kb-${id}`, x, y, z } }))
 const CAMERA_SPOTS = {
-  ural: cameraSpots(SHORELINE, 'ural', -180.39, -38.31, 141.08),
-  excavator: cameraSpots(SHORELINE, 'excavator', -603.54, -28.33, -203.79),
-  truck: cameraSpots(GROUND_ZERO, 'truck', 118.59, 23.46, 63.41),
-  bus: cameraSpots(GROUND_ZERO, 'bus', 82.02, 15.49, 121.42),
+  ural: foundSpots(SHORELINE, 'camera-ural', -180.39, -38.31, 141.08),
+  excavator: foundSpots(SHORELINE, 'camera-excavator', -603.54, -28.33, -203.79),
+  truck: foundSpots(GROUND_ZERO, 'camera-truck', 118.59, 23.46, 63.41),
+  bus: foundSpots(GROUND_ZERO, 'camera-bus', 82.02, 15.49, 121.42),
 }
+/** The reception desk on the TerraGroup office's second floor («Звонки без ответа»), found the same way: the desk the guide's arrow shows. */
+const TG_RECEPTION = foundSpots(GROUND_ZERO, 'tg-reception', -37.02, 30.73, 64.97)
 
 const BD = { targets: ['blackDivision'] }
 
@@ -172,7 +174,7 @@ const quests: CuratedQuest[] = [
     afterAccepted: [K.uninvitedGuests1],
     experience: 11_000,
     objectives: [
-      { type: 'plantQuestItem', maps: GROUND_ZERO, text: { ru: 'Заложить послание Терапевта у стойки регистрации на втором этаже главного офиса TerraGroup на локации Эпицентр (за один рейд)', en: 'Stash Therapist\'s letter at the reception desk on the second floor of the TerraGroup office on Ground Zero (in one raid)' } },
+      { type: 'plantQuestItem', maps: GROUND_ZERO, spots: TG_RECEPTION, text: { ru: 'Заложить послание Терапевта у стойки регистрации на втором этаже главного офиса TerraGroup на локации Эпицентр (за один рейд)', en: 'Stash Therapist\'s letter at the reception desk on the second floor of the TerraGroup office on Ground Zero (in one raid)' } },
       {
         type: 'extract', maps: GROUND_ZERO,
         spots: [

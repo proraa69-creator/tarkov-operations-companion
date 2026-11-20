@@ -63,8 +63,8 @@ for Season only: `src/data/kordBreachQuests.ts`, series `KORD_BREACH` in `CURATE
 
 ## Not done yet
 
-- **Map points:** the transits (18, 19), the two Ground Zero exits (3) and the four WI-FI camera spots (4, 6; found in the
-  offline copy of the game by tarkov.help's pictures, 20.11.2026, report 204). The case spots, transmitters, fence breaches and
+- **Map points:** the transits (18, 19), the two Ground Zero exits (3), the four WI-FI camera spots (4, 6) and the reception
+  desk of «Звонки без ответа» (3) — found in the offline copy of the game by tarkov.help's pictures, 20.11.2026. The case spots, transmitters, fence breaches and
   stash spots have no point yet: the same search runs for them (E:\SPT-photo\approved\kord-breach\places.json).
 - **Quest items** of the line (the case, Therapist's letter, the laptops, the carbon fiber case) have no item ids in
   tarkov.dev. The objectives name them in their text only.
