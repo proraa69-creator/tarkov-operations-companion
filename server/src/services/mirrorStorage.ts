@@ -89,6 +89,14 @@ const pause = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolv
 
 /** The locks this process holds now (their tokens): a lock of this process that is not among them is a leftover. */
 const heldLocks = new Set<string>()
+/**
+ * This process's turns at each lock file, one at a time: two storages on one folder in one process took each other's lock
+ * for a leftover — the holder had dropped its token but not yet the file (or a newer holder had just made it), the other
+ * removed it, and a third publish ran beside a holder and replaced active.json without its slot (the gate's
+ * «two storages on one folder» test, 20.11.2026: 23 slots of 24, 2 runs in 15). In turn, a lock of this process seen by a
+ * contender is always a leftover; between processes the O_EXCL lock decides as before.
+ */
+const localTurns = new Map<string, Promise<void>>()
 
 /** The owner of a lock file (`<pid> <token> <time>`) is gone: a dead process, or this one without that lock now. */
 function lockOwnerGone(text: string) {
@@ -260,6 +268,19 @@ export class MirrorStorage {
    */
   private async acrossProcesses<T>(work: () => Promise<T>): Promise<T> {
     const lock = `${this.activePath}.lock`
+    const previous = localTurns.get(lock) ?? Promise.resolve()
+    let done!: () => void
+    const turn = previous.then(() => new Promise<void>((resolve) => { done = resolve }))
+    localTurns.set(lock, turn)
+    await previous
+    try { return await this.holdingLock(lock, work) }
+    finally {
+      done()
+      if (localTurns.get(lock) === turn) localTurns.delete(lock)
+    }
+  }
+
+  private async holdingLock<T>(lock: string, work: () => Promise<T>): Promise<T> {
     await mkdir(dirname(lock), { recursive: true })
     const started = Date.now()
     const token = randomUUID()
