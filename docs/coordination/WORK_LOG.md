@@ -8552,3 +8552,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - 2f072959 weapon pictures: grips on the 6P29M (its side, quarter-turned foregrip slot — the only one in the index) drawn hanging
   below the mount, not standing up; the VAL NB stock adapter tube lv -6.07 (level; also in stock-level-applied.json). The 21 tubes
   of stock-level.json: only this one off. Checked in the app: AS VAL + 6P29M + RK-2 + NB tube, before/after.
+- 3c848e8e phone: the map «opened by itself» (owner, 21.11) — the «Рейд начался» card comes when the PC's raid begins, across the
+  phone right over the tab bar, the whole card a button to the map: a tap meant for the page opened the map. Now taps are ignored
+  for 700 ms after it comes; on a phone a tap only closes it, the map from its own «Карта» button. Other automatic map openings
+  checked: PhoneMapsPage follows the PC's position only while the map is open; useFollowRaidMap is the PC's; no remote paging.
