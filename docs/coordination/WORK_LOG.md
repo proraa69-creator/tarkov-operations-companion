@@ -8460,3 +8460,19 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (cc99deef). News: 0.6.0.328 «Обновили убежище», 0.6.0.327 «Техническое обновление» (owner's words).
 - Checks: full vitest — only the known Windows false failures; typecheck clean; server 597/597; build 0.6.0-328.
 - Not in it: boss and cultist spawn points (a helper reads E:\SPT; the owner places them on the server, no release needed).
+
+## 2026-11-20 — Claude: boss and cultist spawn points from SPT; 0.6.0.329 prepared (game account offered in turn)
+- Owner: «Поищи в игре в СПТ места спавна сектантов и проверь места спавна всех боссов… в меру… один на районе… для всех режимов».
+  A helper read E:\SPT\SPT_Runtime\SPT_Data\database\locations\*\base.json (BossLocationSpawn → BossZone → SpawnPointParams):
+  one point per zone, axes as the app's (checked on the owner's own placements). 9 placed on the server for every mode
+  (POST /v1/accounts/me/admin/map-bosses, 71 → 80): cultists Customs fortress, Woods ZoneMiniHouse, Shoreline west/east wing
+  and the forest north of the swamp, Factory central hall (night only in the game); Glukhar Reserve «Белый конь» and the
+  barracks; Vengeful Killa Labyrinth centre. Left out: Lighthouse Knight/Rogues at the treatment plant (SPT 0.16.9 is older
+  than 1.1.5, live has them at the chalet), Ground Zero cultists (64 points over the whole map), Partisan (no zone).
+  Files: E:\SPT-photo\bosses\ (placements.json, <map>.jpg, scripts). Report 207 («места спавна сектантов») answered by this;
+  closing it with a day was refused by the permission check — left for the owner.
+- Report 206 (PvE «Городской жандарм. Прерванный сеанс» still shown): no data error; the quest ends its chain, and the logs show
+  only taken / failed / handed in — not handed in yet, or handed in before the oldest log; no logs attached.
+- 0.6.0.329 (2170793b, not pushed while 0.6.0.328 publishes): every game account of the logs offered in turn, the newest first,
+  until the server takes one (0ef296a3) — 0.6.0.327 locked out a player whose second game account played last (support
+  chat Armyash93); KORD BREACH: the power station's case found again, the Customs chimney transmitter.
