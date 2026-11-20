@@ -9,6 +9,7 @@ import { boardLayout, hiddenTwins, type BoardLayout, type PlacedCell } from './b
 import type { BuildStats } from './buildStats'
 import type { Drawn } from './BuildPicture'
 import { BuildStage, type StageSlot } from './BuildStage'
+import { useBenchBackdrop } from './benchBackdrop'
 import { PartIcon, signed, signedExact } from './gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 import { SlotSilhouette } from './SlotSilhouette'
@@ -62,6 +63,7 @@ export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSe
   popover?: (anchor: () => Element | null, avoid: () => DOMRect | null) => ReactNode
 }) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
+  const backdrop = useBenchBackdrop()
   const anchor = useCallback(() => (selected && root ? root.querySelector(`[data-cell="${CSS.escape(selected)}"]`) : null), [root, selected])
   // owner, 20.11.2026: «окно… не должно перекрывать модуль, который будет меняться, чтобы я визуально видел, что поменялось»
   const avoid = useCallback(() => {
@@ -102,7 +104,8 @@ export function BuildBench({ layout, weapon, stats, ammo, noAmmo, selected, onSe
   const fold = onFold && drawn?.laid.foldable && <button type="button" className={`wb-stage-fold${folded ? ' is-on' : ''}`} onClick={() => onFold(!folded)} aria-pressed={Boolean(folded)}>
     {uiText(folded ? 'Разложить приклад' : 'Сложить приклад')}
   </button>
-  return <div className={`wb-stage-scroll is-${size}`} ref={setRoot}>
+  return <div className={`wb-stage-scroll is-${size}${backdrop ? ' has-backdrop' : ''}`} ref={setRoot}>
+    {backdrop && <div className="wb-stage-backdrop" style={{ backgroundImage: `url("${backdrop}")` }} aria-hidden="true" />}
     {expand}
     {fold}
     <div className="wb-stage-label">

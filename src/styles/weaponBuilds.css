@@ -402,3 +402,9 @@ button.wb-trader-auto { color: var(--brass); }
 @media (hover: hover) and (pointer: fine) { .wb-stage-fold:hover { color: var(--text); } }
 .wb-full .wb-stage-fold { right: 8px; top: 44px; }
 @media (max-width: 640px) { .wb-stage-fold { right: 46px; } }
+
+/* The bench's backdrop: a place of the game for the colour scheme, blurred and dark under the weapon (src/arsenal/benchBackdrop.ts) */
+.wb-stage-scroll.has-backdrop { isolation: isolate; background: #0d110f; }
+.wb-stage-backdrop { position: absolute; inset: -24px; z-index: -1; background-position: center; background-size: cover; filter: blur(14px) brightness(.42) saturate(.9); transform: scale(1.04); pointer-events: none; }
+.wb-stage-scroll.has-backdrop::after { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(6, 8, 7, .55) 100%); pointer-events: none; }
+.wb-full-stage-room > .wb-stage-scroll.has-backdrop { border-radius: 10px; }
