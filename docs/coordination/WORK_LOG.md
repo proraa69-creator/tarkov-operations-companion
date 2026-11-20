@@ -8271,3 +8271,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (82.02, 15.49, 121.42, the Garage level) on Ground Zero (both maps). Cast the Net and Reverse Gear. MarkedPoint takes `y`.
   Preview sent to the owner (E:\SPT-photo\approved\kord-breach\preview-cameras.jpg). Report 204 closed with +1 day; «В процессе»
   empty. Not released. The other 25 KORD BREACH places: the helper's search goes on (places.json there).
+
+## 2026-11-20 — «Требования рейда»: the flare row lights its exit on the map (branch claude/exit-flare-map-focus, not released)
+
+- Owner (20.11.2026): «Еще до сих пор не работает кнопка… реактивный сигнальный патрон… При нажатии на него должен подсвечиваться
+  выход на карте… Добавь это вот сейчас обновление, которое будет.» The exit row (0.6.0.319) only opened the map.
+- `src/pages/MapsPage.tsx`: `?point=<marker id>` focuses a point the way `?lock=` focuses a door — selected with its card, flown to,
+  its floor, lit (`is-focused`) even with its layer off; picking another point drops it. With `?quest=` too, a quest with no point of
+  its own on this map leaves the card to that point instead of its info card.
+- `src/pages/DashboardPage.tsx`: the exit's flare row → `/maps/<map>?point=<exit marker>`; a quest's flare that is an exit's flare
+  («Прекратить огонь!») with no point of the quest here → `?quest=…&point=<exit marker>`. `src/raidprep/exitFlares.ts`: `exitsFiredBy`.
+- Tests: `src/pages/MapsPage.exitPoint.test.tsx` (2: ?point=, ?quest=&point=), links in `DashboardPage.exitFlares.test.tsx`;
+  exitFlares, DashboardPage, MapsPage.keyDoor / objectiveFocus pass; MapsPage.autoFloor / deferred / raidChecks time out only
+  under the parallel run (pass with `--no-file-parallelism`). typecheck, `tsc -p tsconfig.electron.json`, eslint clean.
+- Not checked in the running app (tests only). For the next release: merge this branch.
