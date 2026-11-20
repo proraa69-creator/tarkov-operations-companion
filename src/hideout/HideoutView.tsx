@@ -15,7 +15,7 @@ import { withSeasonFoundInRaid } from './seasonFoundInRaid'
 import { applyHideoutModules } from './hideoutModules'
 import { useHideoutModules, useModeModules } from './hideoutModulesStore'
 import { stationIcon } from './stationIcons'
-import { basePicture, christmasPiece, christmasSeason, lightOf, lightStation, modulePiece, moduleSpot, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
+import { basePicture, christmasPiece, christmasSeason, lightOf, lightStation, modulePiece, moduleSpot, nearestLight, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
 import { ItemSources } from './WhereToGet'
 import '../styles/hideoutView.css'
 
@@ -48,21 +48,37 @@ export function HideoutView() {
   return pictureSize && basePicture(lightOf(0)) ? <HideoutScene size={pictureSize} /> : null
 }
 
-/** The player's hideout from above: the base of their light, the pieces of their built levels, the closed rooms black. */
-export function HideoutPicture({ stations, built, christmas = false }: { stations: readonly HideoutStation[]; built: Readonly<Record<string, number>>; christmas?: boolean }) {
-  const light = lightOf(lightStation ? built[lightStation] ?? 0 : 0)
+/**
+ * The player's hideout from above: the base of their light, the pieces of their built levels, the closed rooms black. `preview`:
+ * the module whose level is looked at in its window; when the player's light has no piece of that level (the dark hides it), a soft
+ * spot round the module shows the hideout under the nearest light that has one. `light` forces the light (that spot).
+ */
+export function HideoutPicture({ stations, built, christmas = false, preview, light: forced }: {
+  stations: readonly HideoutStation[]; built: Readonly<Record<string, number>>; christmas?: boolean; preview?: string; light?: number
+}) {
+  const light = forced ?? lightOf(lightStation ? built[lightStation] ?? 0 : 0)
   const base = basePicture(light)
   const closed = roomsClosed(built)
+  const shown = (stationId: string) => (built[stationId] ?? 0) > 0 && !(closed && roomsInfo?.inside?.includes(stationId))
+  const previewLevel = preview ? built[preview] ?? 0 : 0
+  const lit = forced === undefined && preview && shown(preview) && !modulePiece(preview, previewLevel, light) ? nearestLight(preview, previewLevel, light) : undefined
+  const litPiece = preview && lit !== undefined ? modulePiece(preview, previewLevel, lit) : undefined
   return <>
     {base && <img className="hv-picture" src={base} alt="" draggable={false} />}
-    {stations.map((station) => {
-      const level = built[station.id] ?? 0
+    {/* the wall's piece first: it brings the rooms behind it at level 0, and their modules' pieces (shot on the broken wall) lie on it */}
+    {[...stations].sort((a, b) => Number(b.id === roomsInfo?.station) - Number(a.id === roomsInfo?.station)).map((station) => {
       // a module in a room still closed is not there yet
-      const piece = level > 0 && !(closed && roomsInfo?.inside?.includes(station.id)) ? modulePiece(station.id, level, light) : undefined
+      const piece = shown(station.id) ? modulePiece(station.id, built[station.id] ?? 0, light) : undefined
       return piece && <img key={station.id} className="hv-piece" src={piece.url} alt="" draggable={false}
         style={{ left: `${piece.left * 100}%`, top: `${piece.top * 100}%`, width: `${piece.width * 100}%`, height: `${piece.height * 100}%` }} />
     })}
     {closed && roomsPicture() && <img className="hv-piece hv-rooms" src={roomsPicture()} alt="" draggable={false} />}
+    {litPiece && (() => {
+      const mask = `radial-gradient(${litPiece.width * 80}% ${litPiece.height * 80}% at ${(litPiece.left + litPiece.width / 2) * 100}% ${(litPiece.top + litPiece.height / 2) * 100}%, #000 60%, transparent)`
+      return <div className="hv-lit" style={{ maskImage: mask, WebkitMaskImage: mask }}>
+        <HideoutPicture stations={stations} built={built} light={lit} />
+      </div>
+    })()}
     {christmas && (() => {
       const tree = christmasPiece(light)
       return tree && <img className="hv-piece" src={tree.url} alt="" draggable={false}
@@ -137,7 +153,7 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
     <div className="hv-view">
       <div className="hv-stage-scroll" ref={scroller}>
         <div className="hv-stage" style={{ aspectRatio: `${size.width} / ${size.height}` }}>
-          <HideoutPicture stations={stations} built={view} christmas={hasTree && christmas} />
+          <HideoutPicture stations={stations} built={view} christmas={hasTree && christmas} preview={station && shownLevel !== builtLevel ? station.id : undefined} />
           {stations.map((entry) => {
             const spot = moduleSpot(entry.id)
             // a module behind the wall not broken yet is not shown at all (owner, 20.11.2026: «если стена не снесена, значит,

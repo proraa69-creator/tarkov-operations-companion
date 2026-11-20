@@ -29,6 +29,8 @@
 
 /* the picture is built up: the base, the pieces of the built levels on it, the closed rooms black on top */
 .hv-piece { position: absolute; display: block; pointer-events: none; user-select: none; }
+/* the level looked at in the dark: a soft spot of the nearest light that shows it */
+.hv-lit { position: absolute; inset: 0; pointer-events: none; }
 .hv-rooms { inset: 0; width: 100%; height: 100%; }
 
 /* a module picked: its window under the picture (the picture keeps its whole width, the buttons do not crowd) */
