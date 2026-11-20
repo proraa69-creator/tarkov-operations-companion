@@ -1,0 +1,107 @@
+/* «Убежище» as in the game (src/hideout/HideoutView.tsx): the whole hideout in one picture with a button on every module; a module
+   opens its own picture beside a panel like the game's area panel. Item pictures keep their own frame (no second one). */
+.hv { margin-bottom: 18px; }
+.hv-stage { position: relative; width: 100%; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #07090a; }
+.hv-picture { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+.hv-picture.is-empty { display: grid; place-items: center; color: var(--text-dim); font-size: 13px; }
+
+/* A module's button as the game draws it (owner, 20.11.2026: «иконки в убежище такие же, как в игре»): a black hexagon standing on
+   a point with a soft light halo, the module's glyph flat light grey, the level as two digits («03») at the lower right; the picked
+   one turns the game's orange. The glyph keeps the module's own colour (owner, 20.11.2026: «такие же, как в Таркове, только покрашены
+   в соответствии с модулем», hideout/stationIcons.ts). */
+.hv-spot { position: absolute; width: 44px; height: 50px; padding: 0; border: 0; background: none; transform: translate(-50%, -50%); cursor: pointer; filter: drop-shadow(0 0 5px rgb(235 230 220 / 38%)); transition: transform 120ms ease, filter 120ms ease; }
+.hv-spot::before { content: ""; position: absolute; inset: 0; background: #050505; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); transition: background-color 120ms ease; }
+.hv-spot img { position: relative; display: block; width: 30px; height: 30px; margin: 10px auto 0; object-fit: contain; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%)); }
+.hv-spot-dot { position: relative; display: block; width: 10px; height: 10px; margin: 20px auto 0; border-radius: 50%; background: #cfcac2; }
+.hv-spot-level { position: absolute; right: -9px; bottom: 1px; display: flex; align-items: center; color: #d6e2ec; font-family: "Consolas", "Lucida Console", ui-monospace, monospace; font-size: 12px; font-weight: 700; letter-spacing: .02em; line-height: 1; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 1px 1px #000; }
+.hv-spot.is-none img, .hv-spot.is-none .hv-spot-dot { opacity: .45; }
+.hv-spot.is-none .hv-spot-level { color: #8d949a; }
+/* everything for the next level collected: the halo gold */
+.hv-spot.is-ready { filter: drop-shadow(0 0 6px rgb(223 189 112 / 75%)); }
+.hv-spot.is-locked img { opacity: .3; }
+.hv-spot.is-locked .hv-spot-level { color: #8d949a; }
+.hv-spot.is-open { z-index: 3; filter: drop-shadow(0 0 7px rgb(235 230 220 / 55%)); }
+.hv-spot.is-open::before { background: #6b3f1f; }
+@media (hover: hover) and (pointer: fine) { .hv-spot:hover { z-index: 2; transform: translate(-50%, -50%) scale(1.1); } .hv-spot:not(.is-open):hover::before { background: #4a2d17; } }
+.hv-spot:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; }
+
+/* the picture is built up: the base, the pieces of the built levels on it, the closed rooms black on top */
+.hv-piece { position: absolute; display: block; pointer-events: none; user-select: none; }
+.hv-rooms { inset: 0; width: 100%; height: 100%; }
+
+/* a module picked: the picture and its panel side by side (under it on a narrow screen) */
+.hv.has-module { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.hv-built { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.hv-built > span { margin-right: 6px; font-size: 12px; }
+.hv-built button { min-width: 34px; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 99px; background: var(--surf-1); color: var(--text-dim); font: inherit; font-size: 12px; font-weight: 850; cursor: pointer; }
+.hv-built button.is-built { border-color: #39503e; background: #17251b; color: #9fc2a4; }
+.hv-built button.is-current { border-color: var(--brass-strong); color: var(--brass-strong); box-shadow: 0 0 0 1px var(--brass-strong); }
+
+.hv-panel { position: relative; display: grid; gap: 12px; padding: 14px; max-height: calc(100vh - var(--topbar) - 24px); overflow-y: auto; overscroll-behavior: contain; }
+.hv-panel-close { position: absolute; top: 8px; right: 8px; }
+.hv-panel-head { display: flex; align-items: center; gap: 10px; padding-right: 30px; }
+.hv-panel-head img { width: 40px; height: 40px; object-fit: contain; }
+.hv-panel-head h2 { margin: 0; font-size: 17px; }
+.hv-panel h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; color: var(--brass); font-size: 10px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+.hv-max { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--success); font-size: 13px; font-weight: 750; }
+.hv-requirements { display: grid; gap: 6px; }
+.hv-items { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.hv-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surf-1); color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.hv-items li.is-picked > .hv-item { border-color: color-mix(in srgb, var(--brass) 55%, transparent); }
+.hv-item-picture img, .hv-source-picture img, .hv-craft-item img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
+.hv-item-picture { width: 40px; height: 40px; }
+.hv-item-name { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; font-weight: 700; text-overflow: ellipsis; }
+.hv-fir { flex: none; color: #b8e0bd; }
+.hv-item-count { color: #e08a6f; font-variant-numeric: tabular-nums; }
+.hv-items li.is-have .hv-item-count { color: var(--success); }
+.hv-money { margin: 0; color: #d4bc83; font-size: 12px; font-weight: 800; }
+.hv-others { display: grid; gap: 3px; margin: 0; padding: 0; color: var(--text-muted); font-size: 12px; list-style: none; }
+.hv-others li { display: flex; align-items: center; gap: 6px; }
+.hv-others li.is-have { color: var(--success); }
+.hv-time { margin: 0; font-size: 12px; }
+.hv-mark { justify-self: start; }
+
+/* «Где взять»: one row per craft, barter and circle exchange; a row opens what it takes */
+.hv-sources { margin: 4px 0 6px; padding: 8px; border-left: 2px solid var(--brass); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--surf-0); }
+.hv-sources h4 { margin: 0 0 6px; color: var(--text-muted); font-size: 11px; font-weight: 850; }
+.hv-sources ul { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.hv-source-row { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 30px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.hv-source-text { flex: 1; min-width: 0; }
+.hv-source-chevron { color: var(--text-dim); transition: transform 120ms ease; }
+.hv-sources li.is-open .hv-source-chevron { transform: rotate(180deg); }
+.hv-sources li.is-locked .hv-source-row { color: var(--text-muted); }
+.hv-source-detail { display: grid; gap: 6px; padding: 6px 4px 4px 26px; }
+.hv-source-detail p { margin: 0; font-size: 11px; }
+.hv-source-detail .button { justify-self: start; }
+.hv-source-lines { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.hv-source-lines li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: 12px; }
+.hv-source-picture { width: 28px; height: 28px; }
+.hv-sources-none { margin: 0; font-size: 12px; }
+@media (hover: hover) and (pointer: fine) { .hv-source-row:hover, .hv-item:hover { border-color: var(--line-strong); } }
+
+/* the module's crafts: what goes in → what comes out, the level and the time */
+.hv-crafts ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.hv-crafts li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 6px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surf-1); }
+.hv-crafts li.is-locked { opacity: .55; }
+.hv-crafts li.is-target { border-color: var(--brass-strong); }
+.hv-craft-level { min-width: 24px; color: var(--brass-strong); font-size: 11px; font-weight: 850; text-align: center; }
+.hv-craft-lines { display: flex; flex-wrap: wrap; gap: 3px; }
+.hv-craft-item { position: relative; width: 34px; height: 34px; }
+.hv-craft-item small { position: absolute; right: 1px; bottom: 0; color: #fff; font-size: 9px; font-weight: 850; text-shadow: 0 1px 2px #000; }
+.hv-craft-arrow { color: var(--text-dim); }
+.hv-craft-time { margin-left: auto; font-size: 11px; }
+
+@media (max-width: 1100px) {
+  .hv.has-module { grid-template-columns: minmax(0, 1fr); }
+  .hv-panel { max-height: none; }
+}
+@media (max-width: 700px) {
+  /* the phone: the picture wider than the screen, moved sideways with a finger */
+  .hv-stage-scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; border-radius: var(--radius-sm); }
+  .hv-stage-scroll .hv-stage { width: 720px; max-width: none; }
+}
+
+/* the module's window: every level in turn, the built ones folded, the next one marked */
+.hv-stage-done { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--success); font-size: 12px; font-weight: 750; }
+.hv-requirements { padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.hv-requirements.is-next { border-color: color-mix(in srgb, var(--brass) 55%, transparent); }

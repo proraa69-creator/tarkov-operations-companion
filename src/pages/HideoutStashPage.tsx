@@ -14,6 +14,7 @@ import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
 import { isMobileLayout } from '../platform'
 import { useScreenSync } from '../stashScan/useScreenSync'
 import { RemoteScanButton } from '../stashScan/RemoteScanButton'
+import { ItemSourcesBlock } from '../hideout/WhereToGet'
 import { UNNEEDED_PATH } from '../stashScan/unneededPath'
 import '../styles/hideoutStash.css'
 
@@ -255,5 +256,6 @@ function ItemDetail({ need, item, profileId }: { need: HideoutNeed; item?: Item;
       {need.uses.map((use) => <li key={`${use.stationId}-${use.level}`}><span>{use.stationName}</span><span className="hs-use-level">{roman(use.level)}</span><strong>×{use.count}</strong>{use.foundInRaid && <Check size={11} className="hs-use-fir" aria-label={uiText('найден в рейде')} />}</li>)}
     </ul>
     {item?.fleaPrice ? <p className="dim hs-detail-price">{uiText('Барахолка')}: {number(item.fleaPrice)} ₽ {uiText('за шт.')}</p> : null}
+    <ItemSourcesBlock itemId={need.itemId} />
   </div>
 }

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HideoutStation, Item, LocalProfile, Quest, RaidMode } from '../domain/types'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
@@ -237,7 +238,8 @@ describe('«Круг сектантов»', () => {
   })
 
   it('«Убежище и квесты» has its own button', () => {
-    render(<LocaleProvider><MemoryRouter><HideoutHubPage /></MemoryRouter></LocaleProvider>)
+    // the hideout's picture above the buttons loads the mode's crafts (hideout/HideoutView.tsx)
+    render(<QueryClientProvider client={new QueryClient()}><LocaleProvider><MemoryRouter><HideoutHubPage /></MemoryRouter></LocaleProvider></QueryClientProvider>)
     expect(screen.getByRole('link', { name: /Круг сектантов/ })).toHaveAttribute('href', '/hideout/cultist-circle')
   })
 

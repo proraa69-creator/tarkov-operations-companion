@@ -12,6 +12,7 @@ import { questNeeds, type QuestNeed } from '../quests/questItemNeeds'
 import { storyNeeds, storyUseQuestId } from '../quests/storyItemNeeds'
 import { setQuestFound, useQuestFound } from '../quests/questFound'
 import { number, span, StashPicture, stashRows } from './HideoutStashPage'
+import { ItemSourcesBlock } from '../hideout/WhereToGet'
 import { useScreenSync } from '../stashScan/useScreenSync'
 import { RemoteScanButton } from '../stashScan/RemoteScanButton'
 import { UNNEEDED_PATH } from '../stashScan/unneededPath'
@@ -182,5 +183,6 @@ function QuestItemDetail({ need, item, profileId }: { need: QuestNeed; item?: It
       </li>)}
     </ul>
     {item?.fleaPrice ? <p className="dim hs-detail-price">{uiText('Барахолка')}: {number(item.fleaPrice)} ₽ {uiText('за шт.')}</p> : null}
+    <ItemSourcesBlock itemId={need.itemId} />
   </div>
 }
