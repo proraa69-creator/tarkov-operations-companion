@@ -6,6 +6,6 @@ export const HIDEOUT_VIEW_PHRASES: Array<[string, string]> = [
   ['Обменять', 'Barter'], ['Скрафтить', 'Craft'], ['Открыть круг', 'Open the circle'], ['Открыть модуль', 'Open the module'],
   ['Снимка пока нет', 'No picture yet'], ['Снять уровень', 'Unmark level'], ['Строится', 'Builds in'],
   ['Уровень на снимке', 'Level in the picture'], ['возможно', 'maybe'],
-  ['Мой уровень', 'My level'], ['За аварийной стеной: откроется с её уровня', 'Behind the defective wall: opens from its level'], ['построен', 'built'],
+  ['Мой уровень', 'My level'], ['Уровни', 'Levels'], ['Крафты уровня', 'Crafts of level'], ['Получите', 'You get'], ['Ёлка', 'Christmas tree'], ['За аварийной стеной: откроется с её уровня', 'Behind the defective wall: opens from its level'], ['построен', 'built'],
   ['Не крафтится — только найти в рейде.', 'Not crafted: find it in a raid.'],
 ]
