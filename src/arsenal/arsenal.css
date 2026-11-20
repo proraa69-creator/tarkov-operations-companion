@@ -72,6 +72,10 @@
 :root[data-layout="mobile"] .restock-toasts { bottom: calc(var(--tabbar, 70px) + 10px); left: 12px; right: 12px; }
 .restock-toast { display: flex; align-items: flex-start; gap: 10px; min-width: 260px; max-width: 360px; padding: 11px 13px; border: 1px solid var(--amber, #d9a45e); border-radius: 10px; background: var(--surf-2, var(--panel-2)); box-shadow: 0 12px 30px rgb(0 0 0 / 45%); font-size: 13px; }
 .restock-toast button { margin-left: auto; }
+/* «Рейд начался» on a phone: the card closes on a tap, the map opens from its own small button (owner, 21.11.2026) */
+.raid-start-toast > .quest-keys-toast-body { flex: 1; margin-left: 0; }
+.raid-start-toast > .raid-start-toast-map { flex: none; align-self: center; margin-left: 0; display: inline-flex; align-items: center; gap: 5px; }
+.raid-start-toast > .icon-button { margin-left: 0; }
 .restock-settings .trader-checks { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
 .restock-settings .trader-check { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--text-muted); font-size: 12px; cursor: pointer; }
 .restock-settings .trader-check.on { border-color: var(--brass); color: var(--text); }

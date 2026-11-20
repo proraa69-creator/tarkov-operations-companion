@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Crosshair, X } from 'lucide-react'
+import { Crosshair, Map as MapIcon, X } from 'lucide-react'
+import { isMobileLayout } from '../platform'
 import { useRaidState } from '../app/useRaidState'
 import { useOptionalTarkovData } from '../data/DataProvider'
 import { canonicalMapId } from '../data/mapIds'
@@ -9,7 +10,7 @@ import { useRemoteScreen } from '../screen/screenRemote'
 import { useServerStatus } from '../sync/serverSync'
 import { TOAST_MS } from './ToastDock'
 import { addNotification } from './notificationCenter'
-import { takeRaidStart, useRaidStartNotice } from './raidStartNotice'
+import { RAID_TOAST_ARM_MS, takeRaidStart, useRaidStartNotice } from './raidStartNotice'
 import { notificationOn } from './notificationKinds'
 import { playTimerChime } from '../shared/uiSound'
 import { rememberLastRaid } from '../overview/infoCardClock'
@@ -28,19 +29,26 @@ function RaidStartToast({ mapId, onClose }: { mapId?: string; onClose: () => voi
   const navigate = useNavigate()
   const maps = useOptionalTarkovData()?.data.maps ?? NO_MAPS
   const map = mapId ? maps.find((entry) => entry.id === mapId) : undefined
+  const [armed, setArmed] = useState(false)
   useEffect(() => {
     const timer = window.setTimeout(onClose, TOAST_MS)
-    return () => window.clearTimeout(timer)
+    const arm = window.setTimeout(() => setArmed(true), RAID_TOAST_ARM_MS)
+    return () => { window.clearTimeout(timer); window.clearTimeout(arm) }
   }, [onClose])
+  // The phone: the card lies across the screen over the tab bar, where a finger is anyway; a tap on it only closes it, the map opens
+  // from its own small button. A PC keeps the whole card as the way to the map.
+  const phone = isMobileLayout()
+  const openMap = () => { if (!armed) return; onClose(); if (map) navigate(`/maps/${map.id}`) }
   return (
     <div className="restock-toasts" role="status" aria-live="polite">
       <div className="restock-toast raid-start-toast">
         <Crosshair size={16} aria-hidden="true" />
-        <button type="button" className="quest-keys-toast-body" onClick={() => { onClose(); if (map) navigate(`/maps/${map.id}`) }}>
+        <button type="button" className="quest-keys-toast-body" onClick={() => { if (!armed) return; if (phone) onClose(); else openMap() }}>
           <strong>{uiText('Рейд начался')}</strong>
           {map && <span>{uiText(map.name)}</span>}
         </button>
-        <button type="button" className="icon-button" aria-label={uiText('Закрыть')} onClick={onClose}><X size={14} aria-hidden="true" /></button>
+        {phone && map && <button type="button" className="button small raid-start-toast-map" onClick={openMap}><MapIcon size={13} aria-hidden="true" />{uiText('Карта')}</button>}
+        <button type="button" className="icon-button" aria-label={uiText('Закрыть')} onClick={() => { if (armed) onClose() }}><X size={14} aria-hidden="true" /></button>
       </div>
     </div>
   )

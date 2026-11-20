@@ -51,3 +51,9 @@ export function takeRaidStart(begun: number | undefined, now = Date.now()): bool
   try { localStorage.setItem(ANNOUNCED_KEY, String(begun)) } catch { /* storage unavailable */ }
   return true
 }
+
+/**
+ * A tap within this long of the «Рейд начался» card's coming is one meant for what was under it (owner, 21.11.2026: «на мобильном
+ * приложении… что-то жмешь, делаешь, и рандомно просто включается карта»): the card ignores it.
+ */
+export const RAID_TOAST_ARM_MS = 700
