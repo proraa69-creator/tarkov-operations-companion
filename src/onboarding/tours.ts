@@ -133,7 +133,7 @@ export const SECTIONS: TourSection[] = [
     { id: 'hub', tip: {
       title: { ru: 'Убежище и квесты', en: 'Hideout & quests' },
       text: () => ({ ru: 'Что собрать для убежища и квестов, и какие предметы из схрона больше не нужны.', en: 'What to collect for the hideout and quests, and which stash items are no longer needed.' }),
-      target: '.hideout-hub-choices',
+      target: '.hideout-tabs',
     } },
   ] },
   { id: 'tier-lists', matches: same('/tier-lists'), steps: [

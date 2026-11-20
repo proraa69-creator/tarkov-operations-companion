@@ -8,4 +8,5 @@ export const HIDEOUT_VIEW_PHRASES: Array<[string, string]> = [
   ['Уровень на снимке', 'Level in the picture'], ['возможно', 'maybe'],
   ['Мой уровень', 'My level'], ['Уровни', 'Levels'], ['Крафты уровня', 'Crafts of level'], ['Получите', 'You get'], ['Ёлка', 'Christmas tree'], ['За аварийной стеной: откроется с её уровня', 'Behind the defective wall: opens from its level'], ['построен', 'built'],
   ['Не крафтится — только найти в рейде.', 'Not crafted: find it in a raid.'],
+  ['Предметы для убежища', 'Hideout items'],
 ]

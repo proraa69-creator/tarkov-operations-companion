@@ -37,7 +37,7 @@ describe('one window at a time', () => {
     requestWindowTurn('announcement')
     render(<MemoryRouter initialEntries={['/hideout']}>
       <FeatureTours />
-      <main className="content"><div className="page"><div className="hideout-hub-choices"><a className="hideout-hub-choice" href="/hideout/stash">Схрон</a></div></div></main>
+      <main className="content"><div className="page"><nav className="hideout-tabs"><a className="hideout-tab" href="/hideout/stash">Схрон</a></nav></div></main>
     </MemoryRouter>)
     await settle()
     await settle()

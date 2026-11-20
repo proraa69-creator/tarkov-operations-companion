@@ -103,22 +103,40 @@
 .hv-tree { position: absolute; z-index: 4; top: 10px; left: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 99px; background: rgb(10 13 11 / 80%); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .hv-tree.is-on { border-color: #4f8a57; color: #b9e3bf; }
 
-/* The module's window as in the game: a third of the width over the picture's right side, the picture still in sight (on a narrow
-   screen under it). */
-.hv-view { position: relative; }
-@media (min-width: 1000px) {
-  .hv-view > .hv-panel { position: absolute; z-index: 5; top: 10px; right: 10px; bottom: 10px; width: min(34%, 460px); overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 8px 28px rgb(0 0 0 / 55%); }
+/* The module's window as in the game: a small window over the picture, never under it (owner, 20.11.2026: «окно… должно появляться
+   поверх этого убежища. То есть небольшое окошечко, оно не должно появляться внизу»): a third of the width at the right, the picture
+   still in sight; on the phone a sheet over the picture's lower part. The view keeps the screen's width (a grid item grows to the
+   picture's 720px otherwise, and the phone's picture no longer scrolls sideways). */
+.hv-view { position: relative; min-width: 0; }
+.hv-view > .hv-panel { position: absolute; z-index: 5; top: 10px; right: 10px; bottom: 10px; width: min(34%, 460px); overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 8px 28px rgb(0 0 0 / 55%); }
+@media (max-width: 999px) { .hv-view > .hv-panel { width: min(48%, 400px); } }
+@media (max-width: 700px) {
+  .hv-view > .hv-panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 74%; gap: 10px; padding: 10px; }
+  .hv-view > .hv-panel .hv-panel-head img { width: 32px; height: 32px; }
 }
-@media (max-width: 999px) { .hv-view > .hv-panel { margin-top: 12px; } }
 /* one level at a time */
 .hv-level-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
 .hv-level-tabs button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--surf-1); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
 .hv-level-tabs button.is-built { border-color: #39503e; color: #9fc2a4; }
 .hv-level-tabs button.is-shown { border-color: var(--brass-strong); background: color-mix(in srgb, var(--brass) 18%, var(--surf-1)); color: var(--text); box-shadow: 0 0 0 1px var(--brass-strong); }
 .hv-done-mark { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; color: var(--success); letter-spacing: 0; text-transform: none; }
+/* crafts: folded under «Крафты» (owner, 20.11.2026: «Не нужно этот список изначально раскладывать от верху до низу»); open, one row per
+   craft (what comes out), and a row opens what goes in */
+.hv-crafts-toggle { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); color: var(--text); font: inherit; font-size: 13px; font-weight: 800; text-align: left; cursor: pointer; }
+.hv-crafts-toggle > svg:first-child { color: var(--brass); }
+.hv-crafts-toggle .hv-crafts-count { margin-left: auto; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.hv-crafts-toggle .hv-source-chevron { transition: transform 120ms ease; }
+.hv-crafts-toggle[aria-expanded="true"] .hv-source-chevron { transform: rotate(180deg); }
+.hv-crafts > ul { margin-top: 6px !important; }
+.hv-craft-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto 14px; align-items: center; gap: 7px; width: 100%; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.hv-craft-row .hv-craft-name { font-weight: 750; }
+.hv-craft-row .hv-craft-time { color: var(--text-muted); white-space: nowrap; }
+.hv-craft.is-open .hv-craft-row .hv-source-chevron { transform: rotate(180deg); }
+.hv-craft-detail { display: grid; gap: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 /* crafts: what goes in, what comes out, by name and count */
 .hv-crafts > ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.hv-crafts.is-locked .hv-craft { opacity: .6; }
+/* a level not built yet: its crafts dimmed, the rows themselves solid (the picture never shows through the window) */
+.hv-crafts.is-locked .hv-craft > * { opacity: .62; }
 .hv-craft { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
 .hv-craft.is-target { border-color: var(--brass-strong); }
 .hv-craft-label { display: block; margin-bottom: 3px; color: var(--brass); font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }

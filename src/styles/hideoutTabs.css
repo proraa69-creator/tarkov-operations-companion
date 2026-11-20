@@ -1,0 +1,23 @@
+/* «Убежище и квесты»: the three buttons at the very top (src/hideout/HideoutTabs.tsx), over every page they switch. */
+.hideout-tabs { display: flex; flex-wrap: wrap; gap: 8px; max-width: 1580px; margin: 0 auto 14px; }
+.hideout-tab-group { display: flex; }
+.hideout-tab { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); color: var(--text-muted); font-size: 14px; font-weight: 800; text-decoration: none; white-space: nowrap; transition: border-color 120ms ease, color 120ms ease, background 120ms ease; }
+.hideout-tab > svg { flex: none; color: var(--brass); }
+.hideout-tab.is-active { border-color: var(--brass-strong); background: color-mix(in srgb, var(--brass) 16%, var(--surf-1)); color: var(--text); }
+.hideout-tab:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 2px; }
+/* «Убежище» and its list button: one button in two parts */
+.hideout-tab-group > .hideout-tab:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.hideout-tab-items { padding: 0 11px; border-left-color: transparent; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.hideout-tab-group.is-active > .hideout-tab-items { border-color: var(--brass-strong); border-left-color: color-mix(in srgb, var(--brass-strong) 45%, transparent); }
+.hideout-tab-items:not(.is-active) > svg { color: var(--text-muted); }
+@media (hover: hover) and (pointer: fine) { .hideout-tab:hover { border-color: var(--line-strong); color: var(--text); } .hideout-tab.is-active:hover { border-color: var(--brass-strong); } }
+
+/* the phone: the three side by side across the screen */
+@media (max-width: 560px) {
+  .hideout-tabs { display: grid; grid-template-columns: 1.25fr 1fr 1.15fr; gap: 6px; margin-bottom: 10px; }
+  .hideout-tab { gap: 5px; min-height: 40px; padding: 0 8px; font-size: 12.5px; }
+  .hideout-tab > svg { width: 14px; height: 14px; }
+  .hideout-tab-group > .hideout-tab:first-child { flex: 1; min-width: 0; }
+  .hideout-tab-items { padding: 0 8px; }
+}
+@media (max-width: 380px) { .hideout-tab:not(.hideout-tab-items) > svg { display: none; } }

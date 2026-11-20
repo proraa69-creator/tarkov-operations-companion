@@ -60,7 +60,7 @@ vi.mock('./hideoutViews', () => ({
   roomsClosed: (built: Record<string, number>) => (built['defective-wall'] ?? 0) < 5,
 }))
 
-const renderView = () => render(<LocaleProvider><MemoryRouter initialEntries={['/hideout']}><HideoutView /></MemoryRouter></LocaleProvider>)
+const renderView = (entry = '/hideout') => render(<LocaleProvider><MemoryRouter initialEntries={[entry]}><HideoutView /></MemoryRouter></LocaleProvider>)
 const pictures = () => [...document.querySelectorAll('.hv-stage img.hv-picture, .hv-stage img.hv-piece')].map((image) => image.getAttribute('src'))
 
 beforeEach(() => {
@@ -131,7 +131,12 @@ describe('«Убежище» как в игре', () => {
     const lit = document.querySelector<HTMLElement>('.hv-lit')!
     expect([...lit.querySelectorAll('img')].map((image) => image.getAttribute('src'))).toEqual(['base-L2.webp', `${MED}-2-L2.webp`, 'rooms.webp'])
     expect(lit.style.maskImage).toContain('at 25% 50%')
-    // the crafts of that level, by name and count: what goes in, what comes out
+    // the crafts of that level folded under «Крафты»; open, a row per craft (what comes out), and the row opens what goes in
+    expect(document.querySelector('#hv-craft-med-craft')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Крафты уровня II/ }))
+    const row = screen.getByRole('button', { name: /Болты ×1/ })
+    expect(row).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(row)
     const craft = document.querySelector('#hv-craft-med-craft')!
     expect(craft).toHaveTextContent('Нужно')
     expect(craft).toHaveTextContent('Бинт×1')
@@ -158,6 +163,18 @@ describe('«Убежище» как в игре', () => {
     expect(within(bandage).getByRole('button', { name: /Скрафтить: Верстак, ур. I ×2/ })).toHaveAttribute('aria-expanded', 'true')
     expect(within(bandage).getByText('Провода').closest('li')).toHaveTextContent('×3')
     expect(within(bandage).queryByText(/Обменять/)).toBeNull()
+  })
+
+  it("a craft asked for («Открыть модуль» in «Где взять») comes open in its module's window", () => {
+    // (jsdom has no scrolling)
+    Element.prototype.scrollIntoView = vi.fn()
+    renderView(`/hideout?module=${BENCH}&craft=wire-craft`)
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /Крафты уровня I/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /Провода ×1/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(document.querySelector('#hv-craft-wire-craft')).toHaveTextContent('Болты×2')
+    // the other crafts of the level stay folded
+    expect(screen.getByRole('button', { name: /Бинт ×2/ })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('an item says where to get it, and the row opens what it takes', () => {
