@@ -34,3 +34,26 @@ describe('a folded stock', () => {
     expect(layBuild(build, index(false), { folded: true }).parts.find((entry) => entry.tpl === 'stock')!.x).toBeCloseTo(0.12)
   })
 })
+
+describe('a stock stands level', () => {
+  // owner, 20.11.2026: «АК… смотрит чуть-чуть наверх… у Скара, МК-17… смотрит вниз… У УЗИ… горизонтально должен стоять»
+  const tilted = (lv?: number): PartsIndex => ({
+    ppm: 1000,
+    parts: {
+      gun: part({ w: 300, d: [-0.003, 0.18], s: { mod_stock: [0.12, 0, 0.15, -0.72892, 0, 0, 0.68459] } }),
+      stock: part(lv === undefined ? {} : { lv }),
+    },
+  })
+  const angleOf = (index: PartsIndex) => {
+    const stock = layBuild(build, index).parts.find((entry) => entry.tpl === 'stock')!
+    return (Math.atan2(stock.m[3], stock.m[0]) * 180) / Math.PI
+  }
+
+  it('the slot\'s own small tilt is taken off (the AK-74M\'s 3.59°)', () => {
+    expect(angleOf(tilted())).toBeCloseTo(0, 5)
+  })
+
+  it('a stock with a drooping top edge is turned by it', () => {
+    expect(angleOf(tilted(15.8))).toBeCloseTo(-15.8, 3)
+  })
+})

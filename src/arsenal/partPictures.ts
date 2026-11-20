@@ -20,6 +20,11 @@ export interface PartAsset {
   fs?: string
   /** The game's own extra turn of the part on its slot (xyzw, in the part's frame), measured on the game's assembled presets. */
   fix?: number[]
+  /**
+   * A stock: the slope of its top edge (degrees, down to the back positive) as laid on the weapon, its slot's own tilt taken off
+   * (E:\SPT-photo\weapons\stock_level.py): the stock is turned by it to stand level.
+   */
+  lv?: number
 }
 export interface PartsIndex { ppm: number; parts: Record<string, PartAsset> }
 
@@ -39,6 +44,32 @@ const apply = (a: Mat3, v: [number, number, number]): [number, number, number] =
   [a[0] * v[0] + a[1] * v[1] + a[2] * v[2], a[3] * v[0] + a[4] * v[1] + a[5] * v[2], a[6] * v[0] + a[7] * v[1] + a[8] * v[2]]
 /** The turn of most slot bones (-90° about X): it holds a part upright. */
 const STANDARD_BACK = transpose(quat([-0.70711, 0, 0, 0.70711]))
+
+/** A stock's slot (`mod_stock`, `mod_stock_000`, `mod_stock_akms`…). */
+const isStockSlot = (path: string) => (path.split('/').pop() ?? '').startsWith('mod_stock')
+/** The largest tilt of a slot taken off a stock (the AK family's 3.6°, VAL 6°, APB 10°): more is a real turn (a fold). */
+const MAX_TILT = Math.PI / 12
+/** The largest top-edge slope levelled (UZI 25°): more is the stock's shape, not its lie. */
+const MAX_LEVEL = (35 * Math.PI) / 180
+/** `turn` turned about the view by `angle`: the part's picture turns by −angle in the picture's plane (pixels, y down). */
+function aboutView(turn: Mat3, angle: number): Mat3 {
+  const [c, s] = [Math.cos(angle), Math.sin(angle)]
+  return mul([1, 0, 0, 0, c, -s, 0, s, c], turn)
+}
+
+/**
+ * A stock laid level (owner, 20.11.2026: «некоторые приклады встают под углом… Они должны стоять ровно… АК… смотрит чуть-чуть
+ * наверх… у Скара, МК-17… смотрит вниз… У УЗИ приклад разложен вниз… горизонтально должен стоять»): the small tilt of its slot is
+ * taken off (the game's AK-74M stock slot is turned 3.59°, and the game draws it so) and, unfolded, its top edge levelled (`lv`).
+ */
+function levelStock(turn: Mat3, level: number | undefined): Mat3 {
+  const angle = Math.atan2(turn[5], turn[8])
+  const tilt = angle - (Math.PI / 2) * Math.round(angle / (Math.PI / 2))
+  let levelled = Math.abs(tilt) > 1e-6 && Math.abs(tilt) <= MAX_TILT ? aboutView(turn, tilt) : turn
+  const slope = level === undefined ? 0 : (level * Math.PI) / 180
+  if (slope && Math.abs(slope) <= MAX_LEVEL) levelled = aboutView(levelled, slope)
+  return levelled
+}
 
 /** The nearest turn about the view alone: the part's own length (its Z) kept where it points in the picture's plane, its side up. */
 function flatten(turn: Mat3): Mat3 {
@@ -124,11 +155,16 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     // A part turned towards the eye (on a side rail; owner, 20.11.2026: «предметы, которые ставятся на боковое крепление, должны
     // показываться… с правой стороны… на боковом креплении с той стороны»): laid in the picture's plane, its length along the weapon as
     // it is, at its own place along the view — on the near side it is drawn over the weapon, on the far side behind it.
-    const turn = Math.abs(Math.abs(fixed[0]) - 1) > 1e-3 ? flatten(fixed) : fixed
+    const laidTurn = Math.abs(Math.abs(fixed[0]) - 1) > 1e-3 ? flatten(fixed) : fixed
     // folded: the weapon in its folded look, and the stock in the folding slot in its own when it has one
     const foldsHere = folded && (path === '' || path === foldSlot) && Boolean(plain?.fold)
     const asset = foldsHere ? plain!.fold! : plain
     if (!asset) { missing.push(tpl); return }
+    // a stock stands level; its top edge is levelled only unfolded and only on the first stock of the chain (a stock on a buffer
+    // tube follows the tube)
+    const firstStock = isStockSlot(path) && !path.split('/').slice(0, -1).some((segment) => segment.startsWith('mod_stock'))
+    const inFold = folded && Boolean(foldSlot) && (path === foldSlot || path.startsWith(`${foldSlot}/`))
+    const turn = isStockSlot(path) ? levelStock(laidTurn, firstStock && !inFold ? plain?.lv : undefined) : laidTurn
     // the X axis (the view) kept or turned round: the picture turns in its plane; any other turn faces the part towards the eye
     // a local (y, z) goes to turn·(y, z); in pixels right is -z, down is -y
     const [a, b, d, e] = [turn[8], turn[7], turn[5], turn[4]]
