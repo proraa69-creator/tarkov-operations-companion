@@ -118,6 +118,7 @@ import { KeySpotKeys } from '../maps/KeySpotKeys'
 import { KeySpotCard } from '../maps/KeySpotCard'
 import { keyTiers } from '../keys/locationKeysList'
 import { NearbyKeysPanel, NearbyKeysSetting, NeededSpawnsSetting } from '../maps/NearbyKeysPanel'
+import { PlayerFollowSetting } from '../maps/PlayerFollowSetting'
 import { spotIsNeeded, useNeededLootIds, useNeededSpawnsOnly } from '../maps/neededSpawns'
 import { closeNearbyKeys, foldNearbyKeys, nearbyKeys, useNearbyKeysClosedFor, useNearbyKeysFoldedFor, useNearbyKeysOn } from '../maps/nearbyKeys'
 import { setQuestKeyFavorite, useQuestKeyFavorites } from '../quests/questKeyFavorites'
@@ -1331,7 +1332,7 @@ export function MapsPage() {
         {panelsOn && <div className="map-panel-tools">
           {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
           <span className="map-panel-tools-gap" />
-          <MapPanelsSettings layout={panels.layout}><MapSkillTimerSettings /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
+          <MapPanelsSettings layout={panels.layout}><PlayerFollowSetting /><MapSkillTimerSettings /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
           <MapPanelEye side="left" hidden={leftHidden} />
         </div>}
         <div className="map-side-maps">
