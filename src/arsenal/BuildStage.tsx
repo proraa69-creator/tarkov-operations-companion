@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { BuildCanvas, type Drawn } from './BuildPicture'
 import type { SlotKind, Zone } from './boardLayout'
-import { layStage, type StageCellInput } from './stageLayout'
+import { layStage, nextStageWidth, type StageCellInput } from './stageLayout'
 
 export interface StageSlot {
   key: string
@@ -84,8 +84,11 @@ export function BuildStage({ drawn, flat, slots, size, selected, renderCell, max
   useLayoutEffect(() => {
     const element = box.current
     if (!element) return
-    // a window that measures nothing (tests) lays out at a PC's width
-    const measure = () => setWidth(element.clientWidth || 960)
+    // a window that measures nothing (tests) lays out at a PC's width. A narrower width is taken at once, a wider one only when it is
+    // clearly wider: a page scrollbar coming and going (about 10 px) laid the stage out again and again — the cells moved to the
+    // sides and back, the page grew and shrank, the scrollbar came and went (support chat, 20.11.2026: «интерфейс основной
+    // страницы… бегает вверх и вниз (как понимаю оружейник летает)»)
+    const measure = () => setWidth((current) => nextStageWidth(current, element.clientWidth || 960))
     measure()
     if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(measure)

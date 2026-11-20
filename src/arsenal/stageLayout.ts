@@ -222,3 +222,11 @@ export function layStage(picture: StagePicture, inputs: StageCellInput[], option
   for (const entry of cells) { entry.y -= top; entry.point[1] -= top; entry.from[1] -= top }
   return { width, height: Math.ceil(bottom - top), picture: { x: pictureX, y: -top, scale }, cell, cells }
 }
+
+/** A wider stage is laid out again only from this much wider (a page scrollbar is about 10 px). */
+const WIDER_BY = 24
+
+/** The width the stage is laid out at: narrower at once, wider only when clearly so; a first measure always. */
+export function nextStageWidth(current: number, measured: number) {
+  return current === 0 || measured < current || measured - current >= WIDER_BY ? measured : current
+}
