@@ -8420,3 +8420,29 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   browser 1440: the window and level II checked.
 - To release: bump to 0.6.0.327 (package.json, package-lock ×2, website/src/config.ts), updateHistory.json AND playerNews.json
   entries (show the owner the lines first), then push to release/production on the owner's word only.
+
+## 2026-11-20 — Claude: «Настройки карты» → «Приближать карту к точке» (не выпущено)
+- Ветка `claude/map-follow-toggle` от `claude/quest-row-tags` (85721dd6), коммит 8b5d83c0; не запушено, не выпущено. Слова
+  владельца (20.11.2026): включено — по клавише местоположения карта идёт к точке персонажа; выключено — карта остаётся как
+  есть, появляется только точка; «включи в следующий выпуск».
+- Где: шестерёнка над локациями на карте ПК («Настройки карты») → блок «Местоположение» → «Приближать карту к точке»
+  (EN: «Position» → «Bring the map to my dot»). Только в приложении ПК и пока местоположение включено у всех (`features.minimap`);
+  в браузере и на телефоне переключателя нет. По умолчанию включено (как было).
+- Хранение: `localStorage 'raidos-map-follow-player-v1'` ('off' — выключено), на этом устройстве, как соседние переключатели
+  меню (ключи рядом, нужные спавны, таймер) — они тоже не синхронизируются (`NEARBY_KEYS_SYNC` хотя и объявлен, в
+  `sync/playerStateStores.ts` не подключён).
+- Что меняет: только `useFollowPlayer` в `src/components/LivePlayerMarker.tsx` (центр на первой точке, сдвиг у края). Выключено —
+  ни setView, ни panTo; включили снова — карта не прыгает, следующий скриншот центрирует. Не меняет: открытие карты рейда
+  (`useOpenMapOnScreenshot`, `useFollowRaidMap`) и этаж игрока (`useAutoFloor`) — без них точки не видно. Телефон
+  (`ServerPlayerMarker`: +1,5 масштаба на первой точке, «Ко мне», перетаскивание останавливает) не тронут. Оверлея с картой
+  больше нет. На ПК «как сейчас» — центрирование без увеличения масштаба (увеличение есть только на телефоне).
+- Файлы: новые `src/maps/playerFollow.ts`, `src/maps/PlayerFollowSetting.tsx`, `src/maps/playerFollow.test.tsx`,
+  `src/pages/MapsPage.playerFollow.test.tsx`; правки `src/components/LivePlayerMarker.tsx`, `src/pages/MapsPage.tsx`,
+  `src/i18n/uiEnglishOverview.ts`.
+- Проверки: `npm run typecheck` чисто; vitest новых тестов (10) и затронутого (i18n, LivePlayerMarker, MapsPage.panels/autoFloor,
+  NearbyKeysPanel, MapSkillTimer, src/app) — зелёно, кроме известного appVersion (пробел в пути); MapsPage.autoFloor под нагрузкой
+  дважды упал по таймауту 5 с, отдельно и на исходной ветке проходит (~3 с). Без защиты тесты «выключено» падают (проверено).
+  eslint изменённых файлов — 0.
+- Вживую не смотрели: в браузере база не грузится без входа с подпиской (только тесты). Мой vite один раз пересобрал общий
+  `node_modules/.vite/deps` (node_modules — ссылка на raidos-kord-breach); кэш цел, сервер 5571 отвечает; если у него ошибка
+  зависимостей — перезапустить его vite.
