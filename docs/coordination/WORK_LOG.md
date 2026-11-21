@@ -8642,3 +8642,14 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     fixed the map's detail tabs, layer buttons, the stash item count. Not opened by the scan: a quest card (no taken quests in
     the test profile) and the phone's bug report.
   - Quest photo tour paused by the owner at 14:56: Customs quests 21/37 (memory photo-tour-paused).
+- 21.11 evening, reports 212 and 213 (claude/quest-row-tags, held for 0.6.0.333 with 211):
+  - c7bcff53 + c31e8564 report 212 (laptop): «Настройте клавишу скриншота» at the first start filled the screen's height and
+    «Понятно» stood below its edge, no scroll to see, no ✕, Escape only while the focus stayed in the layer. Only the middle
+    scrolls now; ✕ in the corner and «Понятно» at the bottom always show; Escape on the window. Checked (Playwright, the window
+    rendered over the loaded app) 1093×560, 910×480, 1366×657, 1280×720, EN + large font at 1093×560: ✕ and the button in
+    view, wheel scrolls the middle, Escape after a click on the dim closes it.
+  - 523a25d9 report 213 (Season, «Обновка. Часть 1» twice): the faction is guessed from one-faction quests in the progress;
+    the player's logs are all BEAR (Витамины, Текстиль 1-2, Обновка 2, Должник), but «Оружейник» of both factions and two USEC
+    quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
+    game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
+    uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.
