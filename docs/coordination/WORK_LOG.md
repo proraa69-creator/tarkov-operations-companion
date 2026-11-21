@@ -8605,3 +8605,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   340 ↔ 512 and «Оружейник» lay 150 px over the tasks. Now boxes from offsets (no transform), the measure waits 120 ms after the
   last size change and waits while «Рынок» overlaps the list's block. Checked: 512 px steady for 20 s, no overlap; the left
   column shortened to 560 → 312 px at once and steady. Not released (report 211 to list on the next release's history row).
+- Owner on d5d21486 + 45b931f1: «Выпускай, но позже… Следующее исправление… там и выпустишь» — held; they go out with the next
+  fix's release (history row with "reports":[211]). Nothing pushed to release/production.
