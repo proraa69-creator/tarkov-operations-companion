@@ -8711,3 +8711,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     item spots have no photo slot yet. Server guideImages 8/8, documentGuide tests updated, tsc clean.
   - 07b9fbdb phone map quest window (owner's screenshots): «Назад» hidden while the window is open and the 48 px kept for it
     gone (window 8 px from the map's edge); the gear's list opens up when the room below is short, scrolls when neither fits.
+  - d403c066 weapon build pictures protected (owner: «не смогли вытащить и скачать снимки сборки оружия»): the 5055 part renders
+    ship as one AES-256-CTR pack dist/gun-parts.pack (src/arsenal/partPack.ts; vite plugin gunPartsPack packs dist/gun-parts at
+    closeBundle and deletes the folder, the dev server packs public/gun-parts on demand); PC: electron/gunParts.ts opens files from
+    the pack behind raidos-img://parts/; phone/browser: BuildPicture fetches the pack once. raidos.app never served the pictures
+    (unknown paths get the site's page). Checked: build 13.6 MB pack, no plain folder, no WEBP/PNG signature; M4A1 bench draws in
+    the browser from the pack. Not checked in a packaged PC app or on a phone. The key is in the app (no lock against reverse
+    engineering), screenshots can always be taken.
