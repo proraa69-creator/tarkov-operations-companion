@@ -365,16 +365,19 @@ export function DashboardPage() {
   // as it is (owner: «Сделай как есть экран, пресеты, задания для капы, сбор на рейд и кочевники»).
   const phoneChoices = (here: string): BlockChoice[] => PHONE_BLOCKS.filter((id) => phoneBlocks[id]).map((id) => ({ id, label: labelOf(id, phoneBlocks), state: id === here ? 'here' : order.includes(id) ? 'shown' : 'hidden' }))
   // «Взял» on the items (report 157): one set of marks for the whole page, its menus included.
+  // «Настроить блоки» and «Открыть карту» look the same (owner, 28.10.2026: «вид кнопки должен быть одинаковый»). On the phone it
+  // stands at the right end of the heading (owner, 21.11.2026), «Промокоды» and «Открыть карту» share the row under it.
+  const blocksButton = <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
   return <TakenItemsProvider profileId={state.activeProfile.id} mode={state.raidMode} isKey={isRaidKey}><div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
+      {mobile && blocksButton}
       <div className="overview-header-actions">
-        <div className="overview-layout-actions">
+        {(!mobile || layoutEditor.editing) && <div className="overview-layout-actions">
           {!mobile && editor.editing && <AddBlockMenu choices={editor.addable.map((id) => ({ id, label: labelOf(id, pcBlocks) }))} onAdd={editor.add} />}
           {layoutEditor.editing && <button type="button" className="button" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={16} />{uiText(' Сбросить')}</button>}
-          {/* «Настроить блоки» and «Открыть карту» look the same (owner, 28.10.2026: «вид кнопки должен быть одинаковый»). */}
-          <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
-        </div>
+          {!mobile && blocksButton}
+        </div>}
         <PromoCodesButton />
         <button type="button" className="button" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
