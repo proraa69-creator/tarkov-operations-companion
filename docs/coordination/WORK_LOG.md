@@ -8622,3 +8622,23 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     end). Checked: AKS-74U PT-1, PT-3, frame + ST-EF; AS VAL NB + PRS GEN3, M4A1, AK-74M unchanged. Arsenal tests 123/123.
   - Next: re-shoot the hideout in SPT (every module level beside every neighbour's, fresh floors and walls) — the owner: in about
     an hour.
+- 21.11 afternoon (all on claude/quest-row-tags, held for the next release with 211, nothing on release/production):
+  - 2c5269f2 Overview jumping on a window made full screen (owner's videos IMG_1268/1269): «Требования рейда»'s ThumbScroll
+    showed a thumb on the box's scrollHeight (a hidden hover card below the rows counted), the track narrowed the grid, a row
+    more, overflow gone, round and round (441 ↔ 517 px twice a second). The thumb now follows the list's own height; a list with
+    a row limit keeps the track's room. Checked 1100×720 → 1920/1680/1440/1536/1280/1707/2048 widths: no moves.
+  - 13793cfe every gun part picture cut to its alpha box (+2 px), w/h/o moved (both index.json; E: backup
+    assets-bak-crop-20261121): the stage centres the build by the pictures' boxes, the M1911A1 stood at the left on a phone.
+  - dc6cd1c9 + 63298316 hideout re-shot (RaidOsHideout `sweep` + new `pairs` action, E:\SPT-photo\hideout\worker\Worker.cs,
+    backup *.bak-pairs-20261121; out/sweep-20261120 kept): 1747 pair frames of neighbouring modules at every pair of levels whose
+    pieces overlap and differ (lists from the scratchpad's hideout-conflicts.mjs); hideout-views.mjs keeps a pair's real frame
+    where the two pieces overlap when either stacking is off (1593, PAIR_PIXELS 200, q72); the app lays them over both pieces
+    (pairPieces). Pictures 5.5 → 33 MB. Against the game's own all-max frame: big differences −14%.
+  - 9fbc884a phone: no map opened by itself on the PC's screenshots (the PC rule of 20.10 also ran on the phone).
+  - 33983594 every <select> popup dark green (color-scheme dark, options in the app's colours).
+  - 9ab1ec30 «Опубликовать»: «Публикуем…» with a spinner, «Опубликовано» stays (server took both of the owner's presses, 201).
+  - 8643c51b «Размер шрифта» (Стандартный / Увеличенный ×1.12): PostCSS step src/theme/fontScaleCss.ts in vite.config.ts,
+    src/theme/fontSize.ts; scans of 33 pages ×3 sizes and the windows (scratchpad font/scan.mjs, windows.mjs, windows2.mjs):
+    fixed the map's detail tabs, layer buttons, the stash item count. Not opened by the scan: a quest card (no taken quests in
+    the test profile) and the phone's bug report.
+  - Quest photo tour paused by the owner at 14:56: Customs quests 21/37 (memory photo-tour-paused).
