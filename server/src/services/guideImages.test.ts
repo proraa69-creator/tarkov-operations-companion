@@ -108,6 +108,26 @@ test('quest walkthrough photos: only the files of the wiki list, full size and t
   assert.equal(asked.length, 1)
 })
 
+test('our own photos of the places (22.11.2026): served from the folder when there, never downloaded, absent otherwise', async (t) => {
+  const { isOwnGuidePhoto, listedGuidePhotos, wikiGuideSource } = await import('./guideImages.js')
+  const photos = (await import('../../../src/data/questGuidePhotos.json')).default as { files: Record<string, { file: string; own?: boolean }> }
+  const own = Object.keys(photos.files).filter((id) => photos.files[id]!.own)
+  assert.ok(own.length > 0)
+  const [first, second] = own
+  assert.ok(isOwnGuidePhoto(`wiki-${first}.jpg`) && isOwnGuidePhoto(`wiki-${first}-t.jpg`))
+  assert.equal(wikiGuideSource(`wiki-${first}.jpg`), undefined)
+  assert.ok(!listedGuidePhotos().some((name) => name.startsWith(`wiki-${first}`)))
+
+  const directory = await mkdtemp(join(tmpdir(), 'raidos-own-guides-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await writeFile(join(directory, `wiki-${first}.jpg`), JPEG)
+  const asked: string[] = []
+  const mirror = new GuideImageMirror({ directory, publicBase: 'https://raidos.app/v1/guide-images', fetcher: (async (url: string) => { asked.push(url); return new Response(JPEG, { status: 200 }) }) as unknown as typeof fetch })
+  assert.equal(await mirror.file(`wiki-${first}.jpg`), join(directory, `wiki-${first}.jpg`))
+  assert.equal(await mirror.file(`wiki-${second ?? first}-t.jpg`), undefined)
+  assert.deepEqual(asked, [])
+})
+
 test('the Halloween 2026 quests\' photos: the files of their own list, from tarkov.help\'s picture host, the thumbnail the picture itself', async (t) => {
   const { wikiGuideSource } = await import('./guideImages.js')
   const photos = (await import('../../../src/data/eventGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
@@ -134,8 +154,10 @@ test('quest photos are kept on our server ahead of the players: every listed nam
   // The exits' photos too (src/data/extractGuide.json); a file both lists hold is one photo.
   const exits = (await import('../../../src/data/extractGuide.json')).default as { files: Record<string, { url: string; file: string }> }
   const documents = (await import('../../../src/data/documentGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
-  assert.equal(listed.length, 2 * new Set([...Object.keys(wiki.files), ...Object.keys(event.files), ...Object.keys(exits.files), ...Object.keys(documents.files)]).size)
-  assert.ok(Object.keys(documents.files).every((id) => listed.some((name) => name.startsWith(`wiki-${id}`))))
+  // our own photos of the places (`own`, no address) are put in the folder by hand, never fetched
+  const fetched = (files: Record<string, { own?: boolean }>) => Object.keys(files).filter((id) => !files[id]!.own)
+  assert.equal(listed.length, 2 * new Set([...fetched(wiki.files), ...fetched(event.files), ...fetched(exits.files), ...fetched(documents.files)]).size)
+  assert.ok(fetched(documents.files).every((id) => listed.some((name) => name.startsWith(`wiki-${id}`))))
   assert.ok(Object.entries(exits.files).every(([id]) => listed.some((name) => name.startsWith(`wiki-${id}`))))
   assert.ok(listed.every((name) => /^wiki-[0-9a-f]{16}(-t)?\.(png|jpg|webp)$/.test(name)))
   // The walkthrough picture the wiki deleted («Знакомство») is no longer listed.

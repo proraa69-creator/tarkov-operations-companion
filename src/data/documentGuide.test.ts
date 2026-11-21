@@ -9,13 +9,18 @@ import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
 const guide = GUIDE as unknown as DocumentGuide
 
 describe('the photos of the battle pass documents', () => {
-  it('every photo has its file on the wiki\'s host, its kind and a caption in both languages; no maps among them', () => {
+  it('every photo has its file on the wiki\'s host (or is our own frame of the place), its kind and a caption in both languages; no maps among them', () => {
     const ids = Object.keys(guide.files)
     expect(ids.length).toBeGreaterThan(300)
     for (const id of ids) {
       expect(id).toMatch(/^[0-9a-f]{16}$/)
-      expect(guide.files[id]!.url).toMatch(/^https:\/\/static\.wikia\.nocookie\.net\/.+\/scale-to-width-down\/1280\?cb=/)
-      expect(guide.files[id]!.file).toMatch(/_spawn_\d+\.(png|jpe?g|webp)$/i)
+      const file = guide.files[id]! as { url?: string; file: string; own?: boolean }
+      // our own photos (22.11.2026): the offline game's frames of the place, kept on our server, no address of their own
+      if (file.own) expect(file.file).toMatch(/\.jpg$/)
+      else {
+        expect(file.url).toMatch(/^https:\/\/static\.wikia\.nocookie\.net\/.+\/scale-to-width-down\/1280\?cb=/)
+        expect(file.file).toMatch(/_spawn_\d+\.(png|jpe?g|webp)$/i)
+      }
       expect(BATTLE_PASS_DOCUMENT_KINDS[guide.photos[id]!.kind]).toBeDefined()
       expect(guide.photos[id]!.en).toBeTruthy()
       expect(guide.photos[id]!.ru).toMatch(/[а-яё]/i)
@@ -49,8 +54,8 @@ describe('the photos of the battle pass documents', () => {
     expect(financial.map((id) => guide.photos[id]!.en)).toEqual(['On the desk inside old gas station building.'])
     const project = pointPhotos(guide, 'customs', [-179.9, 316], ['project'])
     expect(project.map((id) => guide.photos[id]!.en)).toEqual(['Inside the old gas station building next to the entrance door.'])
-    // A point with both kinds shows both, and the same photo once.
-    expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(4)
+    // A point with both kinds shows both, and the same photo once (and since 22.11.2026 our frame of the way there).
+    expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(5)
     // Too far from anything of this kind.
     expect(pointPhotos(guide, 'customs', [-186.2, 317.6], ['medical'])).toEqual([])
     expect(pointPhotos(guide, 'customs', [0, 0], ['financial'])).toEqual([])
@@ -63,8 +68,8 @@ describe('the photos of the battle pass documents', () => {
 
   it('the picture comes from our server', () => {
     const [id] = pointPhotos(guide, 'customs', [-186.2, 317.6], ['financial'])
-    expect(documentPhotoUrl(guide, id!, true)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}-t\.png\?v=\d+$/)
-    expect(documentPhotoUrl(guide, id!, false)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}\.png\?v=\d+$/)
+    expect(documentPhotoUrl(guide, id!, true)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}-t\.(png|jpg)\?v=\d+$/)
+    expect(documentPhotoUrl(guide, id!, false)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}\.(png|jpg)\?v=\d+$/)
   })
 
   it('knows what a marker stands for: a pin placed by hand or a point of the live feed', () => {
