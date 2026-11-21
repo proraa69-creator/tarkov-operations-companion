@@ -8692,3 +8692,13 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (the LootItem had to be activated; the «seen» ray now skips foreign triggers). Checked on 3 empty Customs spawn points: items
   lie within 3 cm, 2 of 3 seen (the third is behind a locker door in the game too).
 - Re-shooting Customs from 22:34 (runs customs-quests-2 / -documents-2 / -spawns-2), then Woods quests (2 of 37 done before).
+- 22.11 night: Customs re-shot in daylight (runs customs-quests-2 / -documents-2 / -spawns-2, client on the second monitor,
+  `-monitor 2`; the SPT server had hung at 23:36 and was restarted). Approved after looking at every sheet: quests 46 frames /
+  28 points (was 41 / 27), documents 24 / 18 (was 22 / 17), spawns 48 / 23 points (was 8 / 3; 47 items laid by the mod).
+  Refused by eye (E:\SPT-photo\eval\manual-reject.json, now per run): two borderline guide matches (152, 156), three approaches
+  with foliage at the lens, two «Особое сорокоградусное топливо» items hanging above the road. Worker: a laid item now goes down
+  onto the surface under the point (backup Worker.cs.bak-ground-20261122). Previews sent to the owner. Woods quests running.
+- Support (Zavisim): «Батя» → «Найти следы предателей» on Lighthouse done elsewhere than marked. Our BEAR camp point
+  (78.73, 163.37, from szepiz/tarkov-quest-data, unchanged since 11.08) is ~360 m from the camp the wikiwiki.jp map circles
+  (by the road east of the Side Tunnel extract; ≈ x −103, z 475 from fitting that map to nine tarkov.dev extracts, ±30 m).
+  Not changed yet: asked the owner whether to fix it as a server override or in the next release; reply to the player drafted.
