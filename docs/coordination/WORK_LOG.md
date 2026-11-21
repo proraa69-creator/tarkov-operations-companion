@@ -8677,3 +8677,18 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Bundle ID com.raidos.app and Package.swift paths ../../../node_modules/@capacitor/… as before. Desktop
   `RaidOS_iOS_AppStore_build6.rar` (122 163 048 B, SHA-256 f4e3c686fd0722b1…), the Xcode project and its readmes only
   (screenshots unchanged since build 5). Not mailed.
+- Reports 211–213 closed by the server at 19:33 (implemented, authors notified).
+
+## 2026-11-21 — Claude: quest place photos (offline SPT, E:\SPT-photo — nothing in src, nothing on the server)
+- Owner after 0.6.0.333: «продолжи делать скрины квестовых мест и предметов». Customs shot 19:29–22:00 (quests 37, documents
+  28, spawns 82): approved 41 / 22 / 8 frames; previews sent. select_photos.py: «ref-low» frames (under the threshold, kept only
+  to look at) had passed unchecked — now rejected; manual-reject.json for frames refused by eye (a brick wall matched to a room,
+  foliage at the lens).
+- Owner: «половина кадров с виньеткой… переснять в светлое время… чтобы еда и вода не кончалась… рейд сколько нужно… помести
+  сразу на карту квестовые предметы». Causes: the SPT profile entered raids with energy 0/110 and water 0/100 (exhaustion's dark
+  edges) and the game clock runs 7× (13:00 → night over a 2.5 h tour). RaidOsPhoto worker (E:\SPT-photo\photo2\worker,
+  backups *.bak-fresh / *.bak-place-20261121): energy/water drain 0 and refilled before every point, negative effects removed,
+  clock back to 13:00, the raid extended by 6 h when under 2 h are left, a missing quest item laid at the game's coordinates
+  (the LootItem had to be activated; the «seen» ray now skips foreign triggers). Checked on 3 empty Customs spawn points: items
+  lie within 3 cm, 2 of 3 seen (the third is behind a locker door in the game too).
+- Re-shooting Customs from 22:34 (runs customs-quests-2 / -documents-2 / -spawns-2), then Woods quests (2 of 37 done before).
