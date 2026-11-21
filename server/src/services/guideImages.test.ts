@@ -88,7 +88,7 @@ test('guide images: the route serves the stored picture to the app', async (t) =
 
 test('quest walkthrough photos: only the files of the wiki list, full size and thumbnail, from the wiki\'s image host', async (t) => {
   const { wikiGuideSource } = await import('./guideImages.js')
-  const photos = (await import('../../../src/data/questGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const photos = (await import('../../../src/data/questGuidePhotos.json')).default as unknown as { files: Record<string, { url: string; file: string; own?: boolean }> }
   const [id, entry] = Object.entries(photos.files)[0]!
   const ext = entry.file.split('.').pop()!.toLowerCase()
   assert.equal(wikiGuideSource(`wiki-${id}.${ext}`), entry.url)
@@ -130,7 +130,7 @@ test('our own photos of the places (22.11.2026): served from the folder when the
 
 test('the Halloween 2026 quests\' photos: the files of their own list, from tarkov.help\'s picture host, the thumbnail the picture itself', async (t) => {
   const { wikiGuideSource } = await import('./guideImages.js')
-  const photos = (await import('../../../src/data/eventGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const photos = (await import('../../../src/data/eventGuidePhotos.json')).default as unknown as { files: Record<string, { url: string; file: string; own?: boolean }> }
   const [id, entry] = Object.entries(photos.files)[0]!
   const ext = entry.file.split('.').pop()!.toLowerCase()
   assert.match(entry.url, /^https:\/\/minio\.tarkov\.help\/production\/img\/articles\//)
@@ -147,15 +147,15 @@ test('the Halloween 2026 quests\' photos: the files of their own list, from tark
 
 test('quest photos are kept on our server ahead of the players: every listed name, the stored ones skipped, a Halloween thumbnail copied (03.11.2026)', async (t) => {
   const { listedGuidePhotos } = await import('./guideImages.js')
-  const wiki = (await import('../../../src/data/questGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
-  const event = (await import('../../../src/data/eventGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const wiki = (await import('../../../src/data/questGuidePhotos.json')).default as unknown as { files: Record<string, { url: string; file: string; own?: boolean }> }
+  const event = (await import('../../../src/data/eventGuidePhotos.json')).default as unknown as { files: Record<string, { url: string; file: string; own?: boolean }> }
   const listed = listedGuidePhotos()
   // Each photo full size and as a thumbnail, by the names the apps ask for («.jpeg» asked as «.jpg»).
   // The exits' photos too (src/data/extractGuide.json); a file both lists hold is one photo.
-  const exits = (await import('../../../src/data/extractGuide.json')).default as { files: Record<string, { url: string; file: string }> }
-  const documents = (await import('../../../src/data/documentGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const exits = (await import('../../../src/data/extractGuide.json')).default as unknown as { files: Record<string, { url: string; file: string; own?: boolean }> }
+  const documents = (await import('../../../src/data/documentGuidePhotos.json')).default as unknown as { files: Record<string, { url: string; file: string; own?: boolean }> }
   // our own photos of the places (`own`, no address) are put in the folder by hand, never fetched
-  const fetched = (files: Record<string, { own?: boolean }>) => Object.keys(files).filter((id) => !files[id]!.own)
+  const fetched = (files: Record<string, { own?: boolean }>): string[] => Object.keys(files).filter((id) => !files[id]!.own)
   assert.equal(listed.length, 2 * new Set([...fetched(wiki.files), ...fetched(event.files), ...fetched(exits.files), ...fetched(documents.files)]).size)
   assert.ok(fetched(documents.files).every((id) => listed.some((name) => name.startsWith(`wiki-${id}`))))
   assert.ok(Object.entries(exits.files).every(([id]) => listed.some((name) => name.startsWith(`wiki-${id}`))))
@@ -180,7 +180,7 @@ test('quest photos are kept on our server ahead of the players: every listed nam
 })
 
 test('quest photos ahead: a photo its host refuses counts as failed and is tried again on a later run', async (t) => {
-  const wiki = (await import('../../../src/data/questGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const wiki = (await import('../../../src/data/questGuidePhotos.json')).default as unknown as { files: Record<string, { url: string; file: string; own?: boolean }> }
   const [id] = Object.entries(wiki.files).find(([, entry]) => entry.file.endsWith('.png'))!
   let answer = new Response('gone', { status: 404 })
   const { directory, asked, mirror, later } = await setup(t, () => answer)
