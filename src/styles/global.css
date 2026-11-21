@@ -11,6 +11,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 button, input, select { font: inherit; }
+/* Native lists (owner, 21.11.2026, the module window's «Меньше отдача»: «нужно сделать в нашем зелёном стиле. Когда оно сделано вот
+   так серо-белым, все надписи теряются»): Windows drew every <select>'s popup white with the app's light text on it. A dark scheme
+   and the app's own colours for the options, the chosen one in green. */
+select { color-scheme: dark; }
+select option, select optgroup { background-color: #131a15; color: var(--text, #e6ebe4); }
+select option:checked { background-color: color-mix(in srgb, var(--green, #7fa183) 42%, #131a15); color: #fff; }
+select option:disabled { color: var(--text-dim, #7d877f); }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; text-decoration: none; }
 button { color: inherit; }
