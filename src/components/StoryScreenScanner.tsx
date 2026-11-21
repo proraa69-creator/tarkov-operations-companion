@@ -3,6 +3,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { confirmStoryFrame, matchStoryChapters, tasksScreenKind, type StoryConfirmation, type StoryScanMatch } from '../import/storyScan'
 import { matchQuestsFromOcr } from '../import/questOcr'
+import { playerFaction } from '../progression/questBasics'
 import { tableMatches } from '../import/screenScanSync'
 import { noteFleaReading } from '../data/screenFleaPrices'
 import { createScanSession, recordTableView, tableView, type QuestScanSession } from '../import/questSession'
@@ -229,7 +230,8 @@ export function StoryScreenScanner() {
           if (!held && !tasksFromLogs) delay = STORY_PANE_MS
           // A row whose status was not read counts only on the table itself, never on a trader's own Tasks tab (audit P13).
           // A title two factions share is told by the row's location, else by the faction the profile knows (report 209).
-          const faction = mode ? stateRef.current.activeProfile.modes?.[mode]?.faction : undefined
+          const modeProgress = mode ? stateRef.current.activeProfile.modes?.[mode] : undefined
+          const faction = modeProgress ? playerFaction(modeProgress, questsRef.current) : undefined
           const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current, { faction })).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)
           session = recordTableView(session, tableView(frame.text, matches, questsRef.current, frame.observedAt ?? 0))
