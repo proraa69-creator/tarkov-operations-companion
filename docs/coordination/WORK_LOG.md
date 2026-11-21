@@ -8702,3 +8702,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (78.73, 163.37, from szepiz/tarkov-quest-data, unchanged since 11.08) is ~360 m from the camp the wikiwiki.jp map circles
   (by the road east of the Side Tunnel extract; ≈ x −103, z 475 from fitting that map to nine tarkov.dev extracts, ±30 m).
   Not changed yet: asked the owner whether to fix it as a server override or in the next release; reply to the player drafted.
+- 22.11 morning (claude/quest-row-tags, not released; 0.6.0.334 waits for the owner's «да»):
+  - b3b8fcb7 + d62e6ddf Customs places' photos from the offline game (owner: «На таможне заменил уже скриншоты?» → «Да»): 31
+    quest places and 19 document spots take our approved frame in place of the wiki photo it was matched to (captions kept), 11
+    approaches, 4 items and 5 document approaches added after their place. Listed `own: true`, no url; the server serves them from
+    /var/lib/raidos/map-mirror/images/guides (140 files wiki-<sha1:16>[-t].jpg, 1280/400 px, installed raidos-api 600) and never
+    downloads them. Players see them once 334 is out (new server code + lists). Spawn frames (23 points) not placed: the map's
+    item spots have no photo slot yet. Server guideImages 8/8, documentGuide tests updated, tsc clean.
+  - 07b9fbdb phone map quest window (owner's screenshots): «Назад» hidden while the window is open and the 48 px kept for it
+    gone (window 8 px from the map's edge); the gear's list opens up when the room below is short, scrolls when neither fits.
