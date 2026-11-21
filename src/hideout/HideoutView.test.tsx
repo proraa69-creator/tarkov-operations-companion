@@ -58,6 +58,10 @@ vi.mock('./hideoutViews', () => ({
   christmasPiece: (light: number) => ({ url: `christmas-1-L${light}.webp`, left: 0.5, top: 0.5, width: 0.05, height: 0.1 }),
   christmasSeason: () => false,
   roomsClosed: (built: Record<string, number>) => (built['defective-wall'] ?? 0) < 5,
+  // one pair: the med station at level 3 beside the illumination at level 3, only both shown
+  pairPieces: (built: Record<string, number>, light: number, shown: (id: string) => boolean) =>
+    built['med-station'] === 3 && built.illumination === 3 && shown('med-station') && shown('illumination')
+      ? [{ url: `pair-med-station-3-illumination-3-L${light}.webp`, left: 0.25, top: 0.4, width: 0.05, height: 0.1 }] : [],
 }))
 
 const renderView = (entry = '/hideout') => render(<LocaleProvider><MemoryRouter initialEntries={[entry]}><HideoutView /></MemoryRouter></LocaleProvider>)
@@ -79,6 +83,23 @@ describe('«Убежище» как в игре', () => {
     expect(pictures()).toEqual(['base-L2.webp', `${MED}-2-L2.webp`, 'rooms.webp'])
     const piece = document.querySelector(`img[src="${MED}-2-L2.webp"]`)
     expect(piece).toHaveStyle({ left: '20%', top: '40%', width: '10%', height: '20%' })
+  })
+
+  it('lays a pair of neighbours shot together over both their pieces (owner, 21.11.2026)', () => {
+    state.levels = { [MED]: 3, [LIGHT]: 3 }
+    renderView()
+    const laid = pictures()
+    const pair = laid.indexOf('pair-med-station-3-illumination-3-L3.webp')
+    // over the base and the modules' own pieces, under the closed rooms' black
+    expect(pair).toBe(laid.length - 2)
+    expect(laid.at(-1)).toBe('rooms.webp')
+    expect(document.querySelector('img[src="pair-med-station-3-illumination-3-L3.webp"]')).toHaveStyle({ left: '25%', top: '40%', width: '5%', height: '10%' })
+  })
+
+  it('lays no pair when one of the two stands at another level', () => {
+    state.levels = { [MED]: 2, [LIGHT]: 3 }
+    renderView()
+    expect(pictures().some((src) => src?.startsWith('pair-'))).toBe(false)
   })
 
   it('puts the Christmas tree up by a press, out of season too, and remembers it', () => {
