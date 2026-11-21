@@ -38,7 +38,11 @@ export function ThumbScroll({ rows, className, children }: { rows?: number; clas
 
   const place = useCallback(() => {
     const box = boxRef.current, track = trackRef.current
-    if (!box || !track || box.scrollHeight <= box.clientHeight + 1) { setThumbSize(null); return }
+    // Whether the list itself is taller than the box: not the box's scrollHeight, which also counts anything laid out beyond the
+    // rows (a hidden hover card): that made the thumb come, the grid narrower by its track and a row taller, the overflow gone and
+    // the thumb with it, round and round («Требования рейда» on a full-screen window, owner 21.11.2026: «начало прыгать»).
+    const list = box?.firstElementChild as HTMLElement | null
+    if (!box || !track || !list || list.offsetHeight <= box.clientHeight + 1) { setThumbSize(null); return }
     const room = track.clientHeight
     const size = Math.max(MIN_THUMB, Math.round(room * box.clientHeight / box.scrollHeight))
     const offset = (room - size) * box.scrollTop / (box.scrollHeight - box.clientHeight)
@@ -103,7 +107,8 @@ export function ThumbScroll({ rows, className, children }: { rows?: number; clas
   }
   const release = (event: ReactPointerEvent<HTMLSpanElement>) => { if (drag.current?.pointer === event.pointerId) drag.current = null }
 
-  return <div className={`thumb-scroll${thumbSize ? ' has-thumb' : ''}${className ? ` ${className}` : ''}`}>
+  // `has-rows`: the track's room is kept whether the thumb shows or not (thumbScroll.css)
+  return <div className={`thumb-scroll${rows ? ' has-rows' : ''}${thumbSize ? ' has-thumb' : ''}${className ? ` ${className}` : ''}`}>
     <div ref={boxRef} className="thumb-scroll-box" style={limit ? { maxHeight: limit } : undefined} onScroll={place}>{children}</div>
     <div ref={trackRef} className="thumb-scroll-track" aria-hidden="true" onPointerDown={scrollBy}>
       {thumbSize && <span ref={thumbRef} className="thumb-scroll-thumb" style={{ height: thumbSize }}
