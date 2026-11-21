@@ -3,28 +3,50 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { isDesktopShell } from '../platform'
 import type { Build } from './gunTypes'
 import { layBuild, type LaidBuild, type PartsIndex } from './partPictures'
+import { openPartPack, PART_PACK_NAME, type PartPack } from './partPack'
 
 /**
- * Where the part pictures are (`index.json`, `<id>.webp` colour, `<id>.d.png` depth): dist/gun-parts next to the page (public/ in
- * development). The PC's page is a file:// page, where fetch cannot read files: the app's own scheme reads them (electron/gunParts.ts).
+ * Where the part pictures are (`index.json`, `<id>.webp` colour, `<id>.d.png` depth): one encrypted pack next to the page,
+ * gun-parts.pack (src/arsenal/partPack.ts; owner, 22.11.2026: no plain pictures for anyone to copy out of the apps). The PC's page
+ * is a file:// page, where fetch cannot read files: the app's own scheme opens them from the pack (electron/gunParts.ts); the phone
+ * and the browser fetch the pack once and open each picture in memory.
  */
-export const PART_PICTURES_BASE = isDesktopShell() ? 'raidos-img://parts/' : `${import.meta.env.BASE_URL}gun-parts/`
+export const PART_PICTURES_BASE = 'raidos-img://parts/'
+
+let packLoad: Promise<PartPack | null> | null = null
+function partPack(): Promise<PartPack | null> {
+  packLoad ??= fetch(`${import.meta.env.BASE_URL}${PART_PACK_NAME}`)
+    .then((answer) => (answer.ok ? answer.arrayBuffer() : null))
+    .then((bytes) => (bytes ? openPartPack(new Uint8Array(bytes)) : null))
+    .catch(() => null)
+  return packLoad
+}
+
+/** A file of the part pictures by its name, or null. */
+async function partFile(name: string): Promise<Blob | null> {
+  if (isDesktopShell()) {
+    const answer = await fetch(`${PART_PICTURES_BASE}${name}`).catch(() => null)
+    return answer?.ok ? answer.blob() : null
+  }
+  const bytes = await (await partPack())?.file(name)
+  return bytes ? new Blob([bytes as Uint8Array<ArrayBuffer>], { type: name.endsWith('.json') ? 'application/json' : name.endsWith('.png') ? 'image/png' : 'image/webp' }) : null
+}
 
 let indexLoad: Promise<PartsIndex | null> | null = null
-export function loadPartsIndex(base = PART_PICTURES_BASE): Promise<PartsIndex | null> {
-  indexLoad ??= fetch(`${base}index.json`).then((answer) => (answer.ok ? answer.json() as Promise<PartsIndex> : null)).catch(() => null)
+export function loadPartsIndex(): Promise<PartsIndex | null> {
+  indexLoad ??= partFile('index.json').then((blob) => (blob ? blob.text().then((text) => JSON.parse(text) as PartsIndex) : null)).catch(() => null)
   return indexLoad
 }
 
 const pictures = new Map<string, Promise<ImageBitmap | null>>()
 /** A picture as its bytes are (no premultiplying, no colour change: a depth picture's numbers must stay as they are). */
-function bitmap(url: string): Promise<ImageBitmap | null> {
-  let load = pictures.get(url)
+function bitmap(name: string): Promise<ImageBitmap | null> {
+  let load = pictures.get(name)
   if (!load) {
-    load = fetch(url).then((answer) => (answer.ok ? answer.blob() : Promise.reject(new Error(String(answer.status)))))
-      .then((blob) => createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }))
+    load = partFile(name)
+      .then((blob) => (blob ? createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }) : null))
       .catch(() => null)
-    pictures.set(url, load)
+    pictures.set(name, load)
   }
   return load
 }
@@ -175,8 +197,8 @@ export function useBuildDrawing(build: Build, folded = false): { laid: LaidBuild
     if (!laid || !drawable) return
     let alive = true
     void Promise.all([
-      Promise.all(laid.parts.map((part) => bitmap(`${PART_PICTURES_BASE}${part.tpl}${part.fold ? '.fold' : ''}.webp`))),
-      Promise.all(laid.parts.map((part) => bitmap(`${PART_PICTURES_BASE}${part.tpl}${part.fold ? '.fold' : ''}.d.png`))),
+      Promise.all(laid.parts.map((part) => bitmap(`${part.tpl}${part.fold ? '.fold' : ''}.webp`))),
+      Promise.all(laid.parts.map((part) => bitmap(`${part.tpl}${part.fold ? '.fold' : ''}.d.png`))),
     ]).then(([colors, depths]) => { if (alive && colors.every(Boolean) && depths.every(Boolean)) setDrawn({ laid, colors, depths }) })
     return () => { alive = false }
   }, [laid, drawable])

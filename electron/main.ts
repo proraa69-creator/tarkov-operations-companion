@@ -335,8 +335,8 @@ app.whenReady().then(async () => {
     { name: 'raidos.app (Chromium)', url: (path) => `${MAP_FILE_ORIGIN}${path}`, fetch: chromiumFetch },
     { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: chromiumFetch },
   ])
-  // «Сборка оружия»: the part pictures inside the app (electron/gunParts.ts)
-  const answerGunPart = createGunPartResponder(join(dirname(APP_INDEX_FILE), 'gun-parts'))
+  // «Сборка оружия»: the part pictures inside the app, one encrypted pack (electron/gunParts.ts)
+  const answerGunPart = createGunPartResponder(join(dirname(APP_INDEX_FILE), 'gun-parts.pack'))
   protocol.handle(ITEM_IMAGE_SCHEME, (request) => {
     const host = new URL(request.url).hostname
     return host === 'map' ? answerMapFile(request.url) : host === 'parts' ? answerGunPart(request.url) : answerItemImage(request.url)
