@@ -212,6 +212,101 @@ async function writePicture(raw, channels, width, height, crop, file, quality) {
 
 const pieces = {}
 let pieceCount = 0
+/** Every module piece as cut (full-frame pixels, RGBA), by «TYPE-level-Llight»: the pairs are checked against them. */
+const cuts = new Map()
+/** Station id pair «a|b» → «la|lb» → light → [x, y, width, height]: the pairs' corrections (pairPieces). */
+const pairs = {}
+let pairCount = 0
+/** A pair's correction is kept only when one of the two stackings is off by HIGH on at least this many pixels. */
+const PAIR_PIXELS = 200
+
+/**
+ * Two neighbouring modules shot together (owner, 21.11.2026: «Каждый модуль с каждым, все вариации, которые находятся рядом. Чтобы
+ * старые снимки не накладывались на новые. Полы должны быть новые, стены»): the plugin's `pairs` frames (L<light>/pairs/A-la+B-lb.png).
+ * Where both modules' pieces cover the picture, the app lays them one over the other, and the upper one brings the lower module as it
+ * was at level 0 (its floor, its walls, its light). Here the real frame of the two together is compared, in that overlap, with both
+ * stackings of the pieces; when either is visibly off, the frame's overlap (widened and soft edged) becomes the pair's correction,
+ * laid over both pieces whatever their order.
+ */
+async function pairPieces(light, dir, bases) {
+  const folder = join(dir, 'pairs')
+  if (!existsSync(folder)) return 0
+  let count = 0
+  const at = (cut, x, y) => {
+    if (!cut || x < cut.x || y < cut.y || x >= cut.x + cut.width || y >= cut.y + cut.height) return null
+    return ((y - cut.y) * cut.width + (x - cut.x)) * 4
+  }
+  for (const file of readdirSync(folder).filter((name) => /^\w+-\d+\+\w+-\d+\.png$/.test(name)).sort()) {
+    const [, typeA, la, typeB, lb] = /^(\w+)-(\d+)\+(\w+)-(\d+)\.png$/.exec(file)
+    const idA = idOf.get(typeA), idB = idOf.get(typeB)
+    const A = cuts.get(`${typeA}-${la}-L${light}`), B = cuts.get(`${typeB}-${lb}-L${light}`)
+    if (!idA || !idB || !A || !B) continue
+    const x0 = Math.max(A.x, B.x, box.left), y0 = Math.max(A.y, B.y, box.top)
+    const x1 = Math.min(A.x + A.width, B.x + B.width, box.left + box.width), y1 = Math.min(A.y + A.height, B.y + B.height, box.top + box.height)
+    if (x1 <= x0 || y1 <= y0) continue
+    const meta = JSON.parse(readFileSync(join(folder, file.replace(/\.png$/, '.json')), 'utf8'))
+    const base = bases[meta.base ?? 'base'] ?? bases.base
+    const frame = await rgb(join(folder, file))
+    const { width } = frame
+    // the overlap of the two pieces (alpha), and how far each stacking is from the real frame there
+    const w = x1 - x0, h = y1 - y0
+    const both = new Float32Array(w * h)
+    let off = 0
+    for (let y = y0; y < y1; y += 1) for (let x = x0; x < x1; x += 1) {
+      const ia = at(A, x, y), ib = at(B, x, y)
+      const aa = ia === null ? 0 : A.data[ia + 3] / 255, ab = ib === null ? 0 : B.data[ib + 3] / 255
+      if (aa < 0.15 || ab < 0.15) continue
+      both[(y - y0) * w + (x - x0)] = Math.min(aa, ab)
+      const f = (y * width + x) * 3
+      let worst = 0
+      for (let c = 0; c < 3; c += 1) {
+        const under = base.data[f + c]
+        const pa = A.data[ia + c], pb = B.data[ib + c]
+        const aThenB = (under * (1 - aa) + pa * aa) * (1 - ab) + pb * ab
+        const bThenA = (under * (1 - ab) + pb * ab) * (1 - aa) + pa * aa
+        worst = Math.max(worst, Math.abs(aThenB - frame.data[f + c]), Math.abs(bThenA - frame.data[f + c]))
+      }
+      if (worst >= HIGH) off += 1
+    }
+    if (off < PAIR_PIXELS) continue
+    // the overlap widened by 6 px and smoothed over 7×7: the correction's alpha
+    const wide = new Float32Array(w * h)
+    for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) {
+      let most = 0
+      for (let dy = -6; dy <= 6; dy += 2) for (let dx = -6; dx <= 6; dx += 2) {
+        const yy = y + dy, xx = x + dx
+        if (yy >= 0 && xx >= 0 && yy < h && xx < w) most = Math.max(most, both[yy * w + xx])
+      }
+      wide[y * w + x] = most
+    }
+    let left = w, top = h, right = -1, bottom = -1
+    const alpha = new Uint8Array(w * h)
+    for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) {
+      let sum = 0, n = 0
+      for (let dy = -3; dy <= 3; dy += 1) for (let dx = -3; dx <= 3; dx += 1) {
+        const yy = y + dy, xx = x + dx
+        if (yy >= 0 && xx >= 0 && yy < h && xx < w) { sum += wide[yy * w + xx]; n += 1 }
+      }
+      const value = Math.round(255 * clamp(sum / n, 0, 1))
+      alpha[y * w + x] = value
+      if (value > 6) { left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y) }
+    }
+    if (right < 0) continue
+    const pw = right - left + 1, ph = bottom - top + 1
+    const out = Buffer.alloc(pw * ph * 4)
+    for (let y = 0; y < ph; y += 1) for (let x = 0; x < pw; x += 1) {
+      const from = ((y + top + y0) * width + (x + left + x0)) * 3
+      const to = (y * pw + x) * 4
+      out[to] = frame.data[from]; out[to + 1] = frame.data[from + 1]; out[to + 2] = frame.data[from + 2]
+      out[to + 3] = alpha[(y + top) * w + (x + left)]
+    }
+    await writePicture(out, 4, pw, ph, null, join(assets, `pair-${idA}-${la}-${idB}-${lb}-L${light}.webp`), 72)
+    ;((pairs[`${idA}|${idB}`] ??= {})[`${la}|${lb}`] ??= {})[light] = place(x0 + left, y0 + top, pw, ph)
+    count += 1
+  }
+  console.log(`L${light}: ${count} pair corrections`)
+  return count
+}
 /** Modules in the rooms behind the defective wall (shot on the base with the wall broken). */
 const inside = new Set()
 for (const light of lights) {
@@ -246,13 +341,15 @@ for (const light of lights) {
     const level = Number(levelText)
     await writePicture(cut.data, 4, cut.width, cut.height, { left: x0 - cut.x, top: y0 - cut.y, width: x1 - x0, height: y1 - y0 }, join(assets, `${id}-${level}-L${light}.webp`), 82)
     ;((pieces[id] ??= {})[level] ??= {})[light] = place(x0, y0, x1 - x0, y1 - y0)
+    cuts.set(`${type}-${level}-L${light}`, cut)
     pieceCount += 1
   }
+  pairCount += await pairPieces(light, dir, bases)
 }
 
 const behind = BEHIND_WALL.map((type) => idOf.get(type)).filter((id) => id && inside.has(id))
 const rooms = inside.size ? { openLevel: WALL_OPEN_LEVEL, station: idOf.get('EmergencyWall'), inside: [...inside], behind } : undefined
 
-const json = { size: [outWidth, outHeight], lights, lightStation: idOf.get('Illumination'), spots, pieces, ...(rooms ? { rooms } : {}) }
+const json = { size: [outWidth, outHeight], lights, lightStation: idOf.get('Illumination'), spots, pieces, ...(pairCount ? { pairs } : {}), ...(rooms ? { rooms } : {}) }
 writeFileSync(dataFile, JSON.stringify(json) + '\n')
-console.log(`picture ${outWidth}x${outHeight} (cut ${JSON.stringify(box)}), ${lights.length} lights, ${Object.keys(spots).length} buttons, ${pieceCount} pieces, ${inside.size} modules behind the wall`)
+console.log(`picture ${outWidth}x${outHeight} (cut ${JSON.stringify(box)}), ${lights.length} lights, ${Object.keys(spots).length} buttons, ${pieceCount} pieces, ${pairCount} pair corrections, ${inside.size} modules behind the wall`)

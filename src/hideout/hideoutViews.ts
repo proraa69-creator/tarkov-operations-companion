@@ -27,6 +27,12 @@ export interface HideoutViewsFile {
   /** Station id → level → light → [x, y, width, height] of its piece in pixels. */
   pieces?: Record<string, Record<string, Record<string, number[]>>>
   /**
+   * Two neighbouring modules shot together (owner, 21.11.2026: «Каждый модуль с каждым… Чтобы старые снимки не накладывались на
+   * новые»): «a|b» station ids → «la|lb» levels → light → [x, y, width, height] of the real frame where their pieces overlap, laid over
+   * both (`pair-<a>-<la>-<b>-<lb>-L<light>.webp`).
+   */
+  pairs?: Record<string, Record<string, Record<string, number[]>>>
+  /**
    * The rooms behind the defective wall: the wall's station, the level that opens them, the stations whose pictures are in them
    * (black until then) and those really behind the wall, without a button until then (the gym, the hall of fame, the gear rack —
    * the med station, rest space and booze generator are built before it).
@@ -61,6 +67,25 @@ export function modulePiece(stationId: string, level: number, light: number): Pi
   const url = byName.get(`${stationId}-${level}-L${light}`)
   if (!rect || rect.length !== 4 || !url || !pictureSize) return undefined
   return { url, left: rect[0]! / pictureSize.width, top: rect[1]! / pictureSize.height, width: rect[2]! / pictureSize.width, height: rect[3]! / pictureSize.height }
+}
+
+/**
+ * The corrections of the module pairs built at those very levels (both shown), placed in fractions of the picture: laid over the
+ * modules' own pieces, so where two pieces overlap the picture is the two together, not the upper one's old look of the lower one.
+ */
+export function pairPieces(built: Readonly<Record<string, number>>, light: number, shown: (stationId: string) => boolean): PicturePiece[] {
+  const out: PicturePiece[] = []
+  if (!pictureSize) return out
+  for (const [key, byLevels] of Object.entries(file.pairs ?? {})) {
+    const [a, b] = key.split('|') as [string, string]
+    if (!shown(a) || !shown(b)) continue
+    const la = built[a] ?? 0, lb = built[b] ?? 0
+    const rect = byLevels[`${la}|${lb}`]?.[String(light)]
+    const url = byName.get(`pair-${a}-${la}-${b}-${lb}-L${light}`)
+    if (!rect || rect.length !== 4 || !url) continue
+    out.push({ url, left: rect[0]! / pictureSize.width, top: rect[1]! / pictureSize.height, width: rect[2]! / pictureSize.width, height: rect[3]! / pictureSize.height })
+  }
+  return out
 }
 
 /**

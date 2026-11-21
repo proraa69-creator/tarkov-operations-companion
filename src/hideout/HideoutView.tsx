@@ -15,7 +15,7 @@ import { withSeasonFoundInRaid } from './seasonFoundInRaid'
 import { applyHideoutModules } from './hideoutModules'
 import { useHideoutModules, useModeModules } from './hideoutModulesStore'
 import { stationIcon } from './stationIcons'
-import { basePicture, christmasPiece, christmasSeason, lightOf, lightStation, modulePiece, moduleSpot, nearestLight, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
+import { basePicture, christmasPiece, christmasSeason, lightOf, lightStation, modulePiece, moduleSpot, nearestLight, pairPieces, pictureSize, roomsClosed, roomsInfo, roomsPicture } from './hideoutViews'
 import { ItemSources } from './WhereToGet'
 import '../styles/hideoutView.css'
 
@@ -72,6 +72,9 @@ export function HideoutPicture({ stations, built, christmas = false, preview, li
       return piece && <img key={station.id} className="hv-piece" src={piece.url} alt="" draggable={false}
         style={{ left: `${piece.left * 100}%`, top: `${piece.top * 100}%`, width: `${piece.width * 100}%`, height: `${piece.height * 100}%` }} />
     })}
+    {/* where two built modules' pieces overlap: the two shot together (hideoutViews.ts pairPieces) */}
+    {pairPieces(built, light, shown).map((pair) => <img key={pair.url} className="hv-piece" src={pair.url} alt="" draggable={false}
+      style={{ left: `${pair.left * 100}%`, top: `${pair.top * 100}%`, width: `${pair.width * 100}%`, height: `${pair.height * 100}%` }} />)}
     {closed && roomsPicture() && <img className="hv-piece hv-rooms" src={roomsPicture()} alt="" draggable={false} />}
     {litPiece && (() => {
       const mask = `radial-gradient(${litPiece.width * 80}% ${litPiece.height * 80}% at ${(litPiece.left + litPiece.width / 2) * 100}% ${(litPiece.top + litPiece.height / 2) * 100}%, #000 60%, transparent)`
