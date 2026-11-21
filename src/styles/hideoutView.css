@@ -110,8 +110,10 @@
 .hv-view { position: relative; min-width: 0; }
 .hv-view > .hv-panel { position: absolute; z-index: 5; top: 10px; right: 10px; bottom: 10px; width: min(34%, 460px); overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 8px 28px rgb(0 0 0 / 55%); }
 @media (max-width: 999px) { .hv-view > .hv-panel { width: min(48%, 400px); } }
+/* The phone (owner, 21.11.2026: «окно нужно переместить вниз… чтобы это окно открывалось не поверх модуля убежища»): under the
+   picture, the whole hideout in sight above it, the window scrolled inside (its height down to the tab bar, HideoutView.tsx). */
 @media (max-width: 700px) {
-  .hv-view > .hv-panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 74%; gap: 10px; padding: 10px; }
+  .hv-view > .hv-panel { position: relative; inset: auto; width: auto; max-height: 240px; margin-top: 10px; gap: 10px; padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
   .hv-view > .hv-panel .hv-panel-head img { width: 32px; height: 32px; }
 }
 /* one level at a time */

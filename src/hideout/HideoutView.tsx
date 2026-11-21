@@ -184,6 +184,19 @@ function HideoutScene({ size }: { size: { width: number; height: number } }) {
   </section>
 }
 
+/** The phone's module window: at least so tall, and this far above the tab bar. */
+const PHONE_ROOM = 240
+const PHONE_GAP = 10
+
+/** The element the page scrolls in (the app's main pane or the document). */
+function scrollingParent(element: HTMLElement): Element | null {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node
+  }
+  return document.scrollingElement
+}
+
 interface ModulePanelProps {
   station: HideoutStation
   /** In a room behind the defective wall, still closed. */
@@ -212,7 +225,21 @@ function ModulePanel({ station, locked, stations, built, found, items, economy, 
   const stages = [...(station.levels ?? [])].sort((a, b) => a.level - b.level)
   const stage = stages.find((entry) => entry.level === shownLevel)
   const crafts = (economy?.crafts ?? []).filter((craft) => craft.stationId === station.id && craft.level === shownLevel).sort((a, b) => a.duration - b.duration)
-  return <aside className="panel hv-panel" aria-label={uiText(station.name)}>
+  // The phone (owner, 21.11.2026: «окно… открывалось не поверх модуля убежища… убежище должно быть видно»): the window under the
+  // picture, as tall as the room down to the tab bar, scrolled inside; with less than PHONE_ROOM there, the page comes up by the rest.
+  const panel = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const node = panel.current
+    if (!node || typeof window === 'undefined' || !window.matchMedia?.('(max-width: 700px)').matches) return
+    const room = () => Math.floor((document.querySelector('.mobile-tabbar')?.getBoundingClientRect().top ?? window.innerHeight) - PHONE_GAP - node.getBoundingClientRect().top)
+    const short = PHONE_ROOM - room()
+    if (short > 0) scrollingParent(node)?.scrollBy({ top: short })
+    const fit = () => { node.style.maxHeight = `${Math.max(PHONE_ROOM, room())}px` }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [station.id])
+  return <aside ref={panel} className="panel hv-panel" aria-label={uiText(station.name)}>
     <button type="button" className="icon-button hv-panel-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={16} /></button>
     <header className="hv-panel-head">
       {stationIcon(station) && <img src={stationIcon(station)} alt="" />}
