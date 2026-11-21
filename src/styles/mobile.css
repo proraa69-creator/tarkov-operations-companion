@@ -137,8 +137,14 @@
   font-size: 10.5px; font-weight: 700; line-height: 1.1; text-align: center; cursor: pointer; background-color: transparent;
 }
 /* One line each: «Оружейник» is the longest label and must not break in the middle of the word. */
-:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab span {
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab span:not(.nav-badge) {
   display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: clip; font-size: 10px; letter-spacing: -.01em;
+}
+/* The count on a tab (owner, 21.11.2026: «криво появляется значок уведомлений… сделай аккуратно»): the labels' block display made
+   it a box with the figure at its top, over the icon's lines; now a round badge on the icon's top right corner, the figure centred. */
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab > .nav-badge {
+  display: grid; place-items: center; position: absolute; top: 2px; left: calc(50% + 8px); right: auto; margin: 0;
+  min-width: 18px; height: 18px; padding: 0 5px; font-size: 10.5px; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums;
 }
 :root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab svg { width: 20px; height: 20px; flex: 0 0 auto; }
 /* No stripes or bar over the active tab (owner, 13.10.2026: «убери эти полосы»): its own background marks it. */
@@ -199,7 +205,7 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   min-height: 66px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
   text-align: center; font-size: 12px; line-height: 1.15; border: 1px solid var(--line);
 }
-.mobile-more-grid .nav-link.mobile-more-link span { display: block; overflow-wrap: anywhere; }
+.mobile-more-grid .nav-link.mobile-more-link span:not(.nav-badge) { display: block; overflow-wrap: anywhere; }
 .mobile-more-grid .nav-link.mobile-more-link.active::before { display: none; }
 /* «Чат с поддержкой» opens a sheet, not a page: a button that looks like the links. */
 .mobile-more-grid button.nav-link.mobile-more-link { font-family: inherit; background-color: transparent; cursor: pointer; }
