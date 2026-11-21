@@ -47,6 +47,8 @@ const STANDARD_BACK = transpose(quat([-0.70711, 0, 0, 0.70711]))
 
 /** A stock's slot (`mod_stock`, `mod_stock_000`, `mod_stock_akms`…). */
 const isStockSlot = (path: string) => (path.split('/').pop() ?? '').startsWith('mod_stock')
+/** A part in a stock slot shorter than this (metres along the weapon) is a lock or adapter, not a stock: the stock on it is levelled. */
+const ADAPTER_LENGTH = 0.06
 /** The largest tilt of a slot taken off a stock (the AK family's 3.6°, VAL 6°, APB 10°): more is a real turn (a fold). */
 const MAX_TILT = Math.PI / 12
 /** The largest top-edge slope levelled (UZI 25°): more is the stock's shape, not its lie. */
@@ -162,11 +164,25 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     const foldsHere = folded && (path === '' || path === foldSlot) && Boolean(plain?.fold)
     const asset = foldsHere ? plain!.fold! : plain
     if (!asset) { missing.push(tpl); return }
-    // a stock stands level; its top edge is levelled only unfolded and only on the first stock of the chain (a stock on a buffer
-    // tube follows the tube)
-    const firstStock = isStockSlot(path) && !path.split('/').slice(0, -1).some((segment) => segment.startsWith('mod_stock'))
+    // A stock stands level; its top edge is levelled only unfolded and only on the first stock of the chain. A short lock or adapter
+    // under it (the Zenit PT lock, 2.4 cm) is no stock of the chain: the PT-1 and PT-3 are the stocks there (owner, 21.11.2026, the
+    // AKS-74U with the PT lock: «проблема с прикладом, он стоит криво» — the game draws them on the receiver's 3.59° slot, which their
+    // own shape makes up for; with that turn taken off they rose 3.8–4.3° to the back). Anything on a real stock or tube follows it
+    // as the game puts it (the ST-EF 74 pad on the AKS-74U frame stock: «подушка… стоит криво, там щель» — levelled on its own it
+    // stood off the frame's 3.5° end).
+    const stockAbove = (() => {
+      const segments = path.split('/')
+      for (let at = segments.length - 1; at > 0; at -= 1) {
+        const above = segments.slice(0, at).join('/')
+        if (!isStockSlot(above)) continue
+        const part = placed[partPaths.lastIndexOf(above)]
+        if (!part || part.asset.w / ppm >= ADAPTER_LENGTH) return true
+      }
+      return false
+    })()
+    const firstStock = isStockSlot(path) && !stockAbove
     const inFold = folded && Boolean(foldSlot) && (path === foldSlot || path.startsWith(`${foldSlot}/`))
-    const turn = isStockSlot(path) ? levelStock(laidTurn, firstStock && !inFold ? plain?.lv : undefined) : laidTurn
+    const turn = firstStock ? levelStock(laidTurn, !inFold ? plain?.lv : undefined) : laidTurn
     // the X axis (the view) kept or turned round: the picture turns in its plane; any other turn faces the part towards the eye
     // a local (y, z) goes to turn·(y, z); in pixels right is -z, down is -y
     const [a, b, d, e] = [turn[8], turn[7], turn[5], turn[4]]
