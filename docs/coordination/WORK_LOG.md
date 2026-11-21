@@ -8607,3 +8607,18 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   column shortened to 560 → 312 px at once and steady. Not released (report 211 to list on the next release's history row).
 - Owner on d5d21486 + 45b931f1: «Выпускай, но позже… Следующее исправление… там и выпустишь» — held; they go out with the next
   fix's release (history row with "reports":[211]). Nothing pushed to release/production.
+- Owner's phone shots 21.11.2026 (not released, held for the next release with 211):
+  - d2f9b2c4 Overview (phone): the blocks button at the right end of the heading (heading min(24px, 4.8vw)); «Промокоды» and
+    «Открыть карту» in two halves with the blocks' 10 px gap; «Сбросить» on its own row while arranging.
+  - ae2adb8d tab bar badge: `.mobile-tab span { display: block }` caught the badge (figure at the top, over the menu icon); now
+    left out, round, on the icon's top right corner (left 50%+8px); the same exclusion for the «Ещё» sheet's links.
+  - 0beb7221 hideout (phone): the module window under the picture, max-height = room down to the tab bar (≥240 px, the page
+    scrolls by the rest), scrolled inside — the whole hideout picture stays in sight.
+  - 7c7540da hideout items: the stash's --cell fitted to the grid's width (round(cols)), the dense flow fills the right column
+    (phone 430: 7 × 54.3 px instead of 6 × 56 px and an empty strip).
+  - 26033c2d weapon builds: a part under 6 cm in a stock slot (the Zenit PT lock, 2.4 cm) is no longer the chain's stock, so the
+    PT-1 / PT-3 on it are levelled (`lv` -3.83 / -4.34 added to E:\SPT-photo\weapons\stock-level-applied.json and both index.json,
+    backups *.bak-ptlv-20261121); a stock on a real stock or tube follows it (the ST-EF 74 pad flush on the AKS-74U frame's 3.5°
+    end). Checked: AKS-74U PT-1, PT-3, frame + ST-EF; AS VAL NB + PRS GEN3, M4A1, AK-74M unchanged. Arsenal tests 123/123.
+  - Next: re-shoot the hideout in SPT (every module level beside every neighbour's, fresh floors and walls) — the owner: in about
+    an hour.
