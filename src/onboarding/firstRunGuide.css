@@ -146,7 +146,30 @@
 
 /* «Местоположение на карте» (ScreenshotKeyGuide.tsx): the game's settings, step by step, the parts marked by a bright frame
  * with a bouncing arrow over it (in place of the owner's red circles). */
-.frg-card.skg-card { width: min(620px, calc(100vw - 24px)); padding: 20px 22px 22px; }
+/* Only the middle scrolls (report 212, a laptop: «Понятно» stood below the screen's edge): «✕» and «Понятно» always show. */
+.frg-card.skg-card { display: flex; flex-direction: column; width: min(620px, calc(100vw - 24px)); padding: 0; overflow: hidden; }
+.skg-body {
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 22px 0;
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--brass) 55%, transparent) transparent;
+}
+.skg-body::-webkit-scrollbar { width: 8px; }
+.skg-body::-webkit-scrollbar-thumb { border-radius: 4px; background: color-mix(in srgb, var(--brass) 55%, transparent); }
+.skg-body .frg-eyebrow { padding-right: 36px; }
+.skg-foot { flex: none; padding: 12px 22px 18px; border-top: 1px solid color-mix(in srgb, var(--brass) 22%, var(--line)); }
+.skg-close {
+  position: absolute; top: 10px; right: 10px; z-index: 1; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 1px solid var(--line); border-radius: 8px; color: var(--text-muted); background: color-mix(in srgb, var(--panel) 88%, transparent); cursor: pointer;
+}
+.skg-close:hover, .skg-close:focus-visible { color: var(--text); border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); }
+/* a laptop's screen: the pictures and the gaps a little smaller, so most of it shows without a scroll */
+@media (max-height: 640px) {
+  .skg-body { padding-top: 14px; }
+  .skg-body h2 { margin: 4px 0 8px; }
+  .skg-body p { margin-bottom: 10px; }
+  .skg-steps { gap: 10px; margin-bottom: 10px; }
+  .skg-shot { max-width: 460px; }
+  .skg-foot { padding: 10px 22px 14px; }
+}
 .skg-steps { display: grid; gap: 14px; margin: 0 0 14px; padding: 0; list-style: none; }
 .skg-steps > li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; color: var(--text); font-size: 14px; line-height: 1.45; }
 .skg-num {
