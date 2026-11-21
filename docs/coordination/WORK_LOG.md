@@ -8587,3 +8587,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   files now). Packed with pack_one.py into public/gun-parts and E:\SPT-photo\weapons\assets (index 2480 parts; backup
   index.json.bak-guns9-20261121). Checked in the app: all nine draw from parts, no flat picture, no page errors. Every gun of
   the catalogue now has its receiver picture. Not released.
+- 14aa0168 + bfa7641a Release 0.6.0.332 (owner: «Да» to the news list): version in package.json, package-lock.json (×2),
+  website/src/config.ts; playerNews.json (Gunsmith full screen and fold, large cells, Overview smooth carrying, compact stats
+  window, straighter grips and stocks, every weapon from parts incl. AS VAL MOD.4, the phone's «Карта» button, Falling Skies hint,
+  technical update); updateHistory.json in four lines (the test allows four) with "reports":[209,210] (closed by the server once
+  the version is live). Local checks: typecheck (app, electron, server), server tests 597/597, website build; vitest 7 failures
+  only of this Windows checkout (path with a space, CRLF, Linux updater tests) plus the history row, fixed. Production Gate green
+  10:38; raidos-release started by hand 10:39 Bangkok, live 10:49: /download/version.json 0.6.0-332 bfa7641a, release success,
+  databaseReplaced false. The phone builds run from the same push (ios-ipa / ios-app-store workflows).
