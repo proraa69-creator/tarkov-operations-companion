@@ -62,15 +62,13 @@ export function ScreenshotKeyGuide({ onDone }: { onDone: () => void }) {
   const { locale } = useLocale()
   const say = (phrase: Phrase) => phrase[locale === 'en' ? 'en' : 'ru']
   const button = useRef<HTMLButtonElement>(null)
-  const done = useRef(onDone)
-  done.current = onDone
   useEffect(() => { button.current?.focus({ preventScroll: true }) }, [])
   // on the window, not the layer: a click on the dim takes the focus out of the layer
   useEffect(() => {
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') done.current() }
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') onDone() }
     window.addEventListener('keydown', close)
     return () => window.removeEventListener('keydown', close)
-  }, [])
+  }, [onDone])
   return createPortal(
     <div className="frg-layer">
       <div className="frg-dim" />
