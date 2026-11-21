@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Check, ChevronDown, Heart, Layers, Lock, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Heart, Layers, LoaderCircle, Lock, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { exactUiText } from '../i18n/uiEnglish'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -429,7 +429,13 @@ function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: 
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
-  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 2600); return () => window.clearTimeout(timer) }, [notice])
+  // The build last published from here (owner, 21.11.2026: «при нажатии «Опубликовать» кнопка зависает… потом она куда-то исчезает,
+  // опять появляется кнопка, и только после этого ещё раз нажимаешь»): the request may wait a few seconds behind the app's syncs, and
+  // the form then closed with a notice gone in 2.6 s, so the first press looked lost and the build went out twice. Now the button
+  // turns «Публикуем…» with a spinner, and «Опубликовано» stays on it while the build is the same.
+  const [published, setPublished] = useState('')
+  const isPublished = Boolean(code) && published === code
+  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 5000); return () => window.clearTimeout(timer) }, [notice])
   const finalName = () => name.trim() || savedHere?.name || weapon.shortName
   const save = (favorite: boolean) => {
     if (!code) return
@@ -445,10 +451,14 @@ function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: 
     try {
       await publishBuild(raidMode, { weaponId: build.weaponId, name: finalName(), code })
       setNaming(null)
-      setNotice('Сборка в каталоге')
+      setPublished(code)
+      setNotice('Опубликовано в «Сборки игроков»')
       onPublished()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось опубликовать')
+      const message = error instanceof Error ? error.message : 'Не удалось опубликовать'
+      // the same build is there already (an earlier press went through): it is published
+      if (/уже в каталоге/.test(message)) { setNaming(null); setPublished(code) }
+      setNotice(message)
     } finally {
       setBusy(false)
     }
@@ -463,12 +473,14 @@ function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: 
     {naming
       ? <form className="wb-save-form" onSubmit={(event) => { event.preventDefault(); if (naming === 'save') save(false); else void publish() }}>
         <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder={uiText('Название сборки')} aria-label={uiText('Название сборки')} autoFocus maxLength={48} />
-        <button className="button small primary" type="submit" disabled={busy}>{naming === 'save' ? <><Save size={13} />{uiText('Сохранить')}</> : <><Upload size={13} />{uiText('Опубликовать')}</>}</button>
+        <button className="button small primary" type="submit" disabled={busy} aria-busy={busy}>{naming === 'save' ? <><Save size={13} />{uiText('Сохранить')}</> : busy ? <><LoaderCircle className="spin" size={13} aria-hidden="true" />{uiText('Публикуем…')}</> : <><Upload size={13} />{uiText('Опубликовать')}</>}</button>
         <button className="icon-button" type="button" onClick={() => setNaming(null)} aria-label={uiText('Отмена')}><X size={14} /></button>
       </form>
       : <>
         <button className="button small primary" onClick={() => open('save')} disabled={!code}><Save size={13} />{uiText(savedHere?.code === code ? 'Сохранено' : 'Сохранить')}</button>
-        <button className="button small" onClick={() => open('publish')} disabled={!code} title={uiText('Выложить сборку в «Сборки игроков» для всех игроков')}><Upload size={13} />{uiText('Опубликовать')}</button>
+        {isPublished
+          ? <button className="button small is-done" disabled title={uiText('Эта сборка уже в «Сборки игроков»')}><Check size={13} />{uiText('Опубликовано')}</button>
+          : <button className="button small" onClick={() => open('publish')} disabled={!code} title={uiText('Выложить сборку в «Сборки игроков» для всех игроков')}><Upload size={13} />{uiText('Опубликовать')}</button>}
       </>}
     <button className={`icon-button wb-star${savedHere?.favorite ? ' is-starred' : ''}`} onClick={star} disabled={!code} aria-pressed={Boolean(savedHere?.favorite)} title={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')} aria-label={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={15} /></button>
   </div>
