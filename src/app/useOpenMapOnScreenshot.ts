@@ -4,7 +4,6 @@ import { useRemoteFeatures } from '../announcement/features'
 import { useTarkovData } from '../data/DataProvider'
 import { canonicalMapId } from '../data/mapIds'
 import type { RaidState } from '../import/raidState'
-import { useLiveFeed } from '../mobile/livePosition'
 import type { RaidMode } from '../domain/types'
 import { useAppState } from '../state/AppState'
 
@@ -17,7 +16,7 @@ const onMapsPage = (path: string) => path === '/maps' || path.startsWith('/maps/
  * A new game screenshot opens «Карты» from any page, on the raid's map (owner, 20.10.2026: «у меня открыт обзор или
  * квесты, я нажимаю на скриншот, и у меня открывается автоматически карта, на которой я сейчас нахожусь, с правильным
  * местоположением»). On «Карты» itself the page follows the raid (components/LivePlayerMarker.tsx useFollowRaidMap,
- * mobile/PhoneMapsPage.tsx). Desktop: the screenshot itself, during a raid; phone: each new position the PC sends.
+ * mobile/PhoneMapsPage.tsx). Desktop only: the screenshot itself, during a raid; the phone never leaves its page for the map.
  */
 export function useOpenMapOnScreenshot(mobile: boolean, raidMode: RaidMode) {
   const navigate = useNavigate()
@@ -64,15 +63,9 @@ export function useOpenMapOnScreenshot(mobile: boolean, raidMode: RaidMode) {
     return () => { offPosition(); offRaid?.() }
   }, [mobile])
 
-  // Phone: a position the PC sent after the feed of this mode first answered (what it held then came before).
-  const feed = useLiveFeed(raidMode)
-  const seen = useRef<{ mode: RaidMode; at: number } | null>(null)
-  useEffect(() => {
-    if (!mobile || feed.loading) return
-    const at = feed.position?.at ?? 0
-    if (seen.current?.mode !== raidMode) { seen.current = { mode: raidMode, at }; return }
-    if (!feed.position || at <= seen.current.at) return
-    seen.current = { mode: raidMode, at }
-    openRef.current(feed.position.map ?? '')
-  }, [mobile, raidMode, feed.loading, feed.position])
+  // The phone opens nothing by itself (owner, 21.11.2026: «Проблема с рандомным открытием карты не решена… находился в стенде с
+  // пистолетом… и у меня просто сама открылась карта»): every screenshot on the PC sent a position, and the phone left whatever page
+  // was open for «Карты». The position is on the map when the player opens it, and an open map still follows the raid
+  // (mobile/PhoneMapsPage.tsx). `raidMode` stays in the signature for the callers.
+  void raidMode
 }
