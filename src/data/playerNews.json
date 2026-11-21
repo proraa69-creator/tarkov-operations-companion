@@ -1,4 +1,15 @@
 [
+  {"version":"0.6.0.332","date":"2026-11-21","items":[
+    {"kind":"added","ru":"«Оружейник»: сборку задания можно открыть на весь экран и сложить приклад","en":"«Gunsmith»: open the task's build full screen and fold the stock"},
+    {"kind":"improved","ru":"«Оружейник»: в ячейках модулей крупные картинки","en":"«Gunsmith»: large module pictures in the cells"},
+    {"kind":"improved","ru":"«Обзор»: блоки переносятся плавно и не дрожат","en":"«Overview»: blocks move smoothly, no shaking"},
+    {"kind":"improved","ru":"Сборка на весь экран: компактное окно характеристик, сборке не мешает","en":"Full-screen build: a compact stats window that stays out of the way"},
+    {"kind":"improved","ru":"Сборка оружия: рукоятки и приклады встают ровнее","en":"Weapon builds: grips and stocks sit straighter"},
+    {"kind":"improved","ru":"Сборка оружия: из деталей теперь собирается всё оружие, в том числе АС «Вал» MOD.4","en":"Weapon builds: every weapon now built part by part, AS VAL MOD.4 included"},
+    {"kind":"improved","ru":"Телефон: в уведомлении о начале рейда — кнопка «Карта»","en":"Phone: a «Map» button in the raid start notice"},
+    {"kind":"improved","ru":"«Небеса в огне»: точнее сказано, где лежит флешка","en":"«Falling Skies»: a clearer hint where the flash drive is"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
   {"version":"0.6.0.331","date":"2026-11-20","items":[
     {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
   ]},
