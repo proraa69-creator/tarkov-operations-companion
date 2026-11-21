@@ -8653,3 +8653,27 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
     game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
     uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.
+
+## 2026-11-21 — Claude: 0.6.0.333 live 19:23 (reports 211–213), App Store pack build 6
+- a91507a1 «Release 0.6.0.333» (release/production fast-forward from bfa7641a, pushed 16:32): font size, Overview steady on
+  full screen and «Оружейник» off the tasks list (211), hideout re-shot with pairs, centred builds and level PT stocks,
+  «Опубликовать» progress, green drop-downs, phone Overview / hideout window / stash, screenshot key window on a laptop (212),
+  faction from the game first (213). History row `"reports":[211,212,213]`, playerNews entry shown to the owner («Да»).
+  Owner asked afterwards to see the news to correct them: the player news can be rewritten through the admin player-news
+  route without a release; the history row only with the next version.
+- Local vitest: 4354 passed, 16 failed — the known environment ones (path with a space, linux updater, stale server,
+  AdminPanelPage, release-policy, cache-item-images is node:test) and map/Overview/ManualMarks/App timeouts under the full
+  load, all passing alone. Gate 44890058362 green, iOS IPA and TestFlight (skipped, no secrets) green.
+- Publisher, first run 16:51: the blob:none mirror fetched the 3763 new blobs one by one — prefetched in one batch at 17:33
+  (memory publisher-partial-mirror-prefetch). It then stopped at 18:01 «Production diverged: src/assets/hideout-views/
+  5d494a445b56502f18c98a10-3-L1.webp»: the three -3-L1/L2/L3 pictures added in a2c20760 (20.11, release 330) were missing
+  from /opt/tarkov-operations-companion. A read-only check of all 6926 changed deploy paths found only those three; they were
+  restored from bfa7641a (root:root 644, hashes match) and the publisher started again at 18:32 → version.json 0.6.0-333,
+  build 1795263497722, commit a91507a1…-production at 19:23; /api/health 200, /download/windows serves. Why the three were
+  missing after 330 is not known.
+- App Store pack build 6 (owner: «собери новый файл для апп стор»): branch test/ios-ipa-appstore-1121 (worktree
+  C:/Users/BANGKOK PC/raidos-appstore-1121) = a91507a1 + the App Store settings (571da5e2 as 995f7c1f) + version 1.0 / build 6
+  (2a6c32a6), pushed; CI «RaidOS iOS test IPA» green. VITE_APP_STORE=1 renderer, admin pages stubbed, cap sync ios; pack-only
+  Bundle ID com.raidos.app and Package.swift paths ../../../node_modules/@capacitor/… as before. Desktop
+  `RaidOS_iOS_AppStore_build6.rar` (122 163 048 B, SHA-256 f4e3c686fd0722b1…), the Xcode project and its readmes only
+  (screenshots unchanged since build 5). Not mailed.
