@@ -228,7 +228,9 @@ export function StoryScreenScanner() {
           confirmation = null
           if (!held && !tasksFromLogs) delay = STORY_PANE_MS
           // A row whose status was not read counts only on the table itself, never on a trader's own Tasks tab (audit P13).
-          const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current)).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
+          // A title two factions share is told by the row's location, else by the faction the profile knows (report 209).
+          const faction = mode ? stateRef.current.activeProfile.modes?.[mode]?.faction : undefined
+          const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current, { faction })).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)
           session = recordTableView(session, tableView(frame.text, matches, questsRef.current, frame.observedAt ?? 0))
           if (mode && matches.length) applyQuestsRef.current(mode, matches, questsRef.current, [...previous])
