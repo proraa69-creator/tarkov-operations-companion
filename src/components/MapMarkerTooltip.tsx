@@ -10,6 +10,7 @@ import { bossBustFor, isGenericPortrait } from '../assets/bossBusts'
 import { extractGuideOf, extractPhotoUrl } from '../data/extractGuide'
 import { useLocale } from '../i18n/LocaleProvider'
 import { MarkerHintBlock } from './QuestCuratedInfo'
+import { servedItemPicture } from '../data/servedItemPicture'
 
 interface MapMarkerTooltipProps {
   marker: MapMarker
@@ -174,7 +175,7 @@ function BossBlock({ boss, title, guaranteed }: { boss: BossInfo; title: string;
         <div className="mmt-gear">
           {uiText(boss.gear.slice(0, 5).map((entry) => (
             <span className="mmt-gear-item" key={`${entry.slot ?? ''}${entry.name}`} title={uiText(entry.name)}>
-              {uiText(entry.iconUrl && <img src={entry.iconUrl} alt={uiText("")} loading="lazy" />)}
+              {uiText(entry.iconUrl && <img src={servedItemPicture(entry.iconUrl)} alt={uiText("")} loading="lazy" />)}
               {uiText(entry.name)}
             </span>
           )))}
