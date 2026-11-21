@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, Settings } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { QUEST_SHEET_VIEW_LABELS, QUEST_SHEET_VIEWS, setQuestSheetView, useQuestSheetView } from './questSheetView'
@@ -18,6 +18,25 @@ export function QuestSheetViewButton({ phone = false }: { phone?: boolean }) {
   const portrait = usePortrait()
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
+  // Where the list fits (owner, 22.11.2026: a low window at the bottom of the phone's map sent it off the screen): down from
+  // the gear, or up when the room below is short and above is larger; the room it gets, scrolling inside past that.
+  // Set on the list itself before it is painted, so it never shows in the wrong place first.
+  useLayoutEffect(() => {
+    const list = menu.current
+    const gear = box.current?.querySelector('.quest-sheet-view-button')
+    if (!open || !phone || !list || !gear) return
+    const frame = gear.closest('.map-stage')?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
+    const at = gear.getBoundingClientRect()
+    const below = frame.bottom - at.bottom - 8
+    const above = at.top - frame.top - 8
+    const needed = list.scrollHeight
+    const up = needed > below && above > below
+    const room = Math.floor(up ? above : below)
+    list.classList.toggle('is-up', up)
+    list.classList.toggle('is-fitted', needed > room)
+    list.style.maxHeight = needed > room ? `${Math.max(120, room)}px` : ''
+  }, [open, phone])
   useEffect(() => {
     if (!open) return
     const outside = (event: PointerEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false) }
@@ -44,7 +63,7 @@ export function QuestSheetViewButton({ phone = false }: { phone?: boolean }) {
         <Settings size={17} aria-hidden="true" />
       </button>
       {open && (
-        <div className="quest-sheet-view-menu" role="menu" aria-label={uiText('Вид окна')}>
+        <div ref={menu} className="quest-sheet-view-menu" role="menu" aria-label={uiText('Вид окна')}>
           {phone && <div className="quest-sheet-view-heading">{uiText('Вид окна')}</div>}
           {entries.map(item)}
           {heights.length > 0 && <>

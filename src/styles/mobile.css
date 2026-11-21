@@ -546,6 +546,11 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"]:has(.phone-back.is-bottom-right) { --map-room-br: 48px; --map-reserve-br: 116px; }
 :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-left) { --map-room-tl: 48px; }
 :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) { --map-room-tr: 48px; }
+/* A quest's window open on the map: «Назад» steps away and nothing is kept for it, the window lies at the very bottom; closed,
+   «Назад» is back (owner, 22.11.2026: «кнопка назад его поднимает выше и снизу щель… должна выключаться когда открыто окно
+   квеста, как только закрывается она появляется»). */
+:root[data-layout="mobile"]:has(.map-stage .map-quest-sheet.is-open) .phone-back { display: none; }
+:root[data-layout="mobile"]:has(.map-stage .map-quest-sheet.is-open) { --map-room-bl: 0px; --map-room-br: 0px; --map-reserve-br: 56px; }
 /* «Назад» at the top: the page starts below it (see above), so the map is that much lower. */
 :root[data-layout="mobile"]:has(.phone-back:is(.is-top-left, .is-top-right)) { --back-top-extra: 48px; }
 
@@ -606,6 +611,10 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-quest-sheet-head .map-quest-sheet-eyebrow { padding: 0; min-height: 0; line-height: 1.2; font-size: 10.5px; }
 :root[data-layout="mobile"] .map-quest-sheet-head .map-quest-sheet-title { margin: 1px 0 0; font-size: 15px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root[data-layout="mobile"] .map-quest-sheet-head .quest-sheet-view-menu { top: 40px; left: 0; }
+/* the gear's list opens up when the room below is short — a low window at the bottom (owner, 22.11.2026: «окно уезжает вниз
+   за экран и не видно кнопок») — and scrolls when neither way has room (QuestSheetViewButton.tsx) */
+:root[data-layout="mobile"] .map-quest-sheet-head .quest-sheet-view-menu.is-up { top: auto; bottom: 40px; }
+.quest-sheet-view-menu.is-fitted { overflow-y: auto; overscroll-behavior: contain; }
 /* «Шторка»: a handle on the head's top edge (a tap or a swipe up and down). */
 .map-quest-sheet-handle { display: none; }
 :root[data-layout="mobile"] .map-quest-sheet-handle {
