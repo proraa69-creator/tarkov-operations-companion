@@ -8595,3 +8595,13 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   only of this Windows checkout (path with a space, CRLF, Linux updater tests) plus the history row, fixed. Production Gate green
   10:38; raidos-release started by hand 10:39 Bangkok, live 10:49: /download/version.json 0.6.0-332 bfa7641a, release success,
   databaseReplaced false. The phone builds run from the same push (ios-ipa / ios-app-store workflows).
+- 0.6.0.332 after the release: reports 209 and 210 closed by the server by themselves (implemented).
+- d5d21486 the top bar's search field without the «Ctrl K» hint (owner: «это надо удалить»); Ctrl+K still opens the search.
+- 45b931f1 report 211 («Баг вернулся», 0.6.0.332; same player and same picture as 208 on 331): on the Overview «Оружейник» drawn
+  over «Текущие задания». Cause: useAlignedListHeight (the list grows so «Рынок» is level with «Требования рейда») measured
+  between the list's change and the Overview's re-layout a frame later, or mid-glide (getBoundingClientRect with the FLIP
+  transform): «Рынок» inside the grown block → «not below» → the list shrank, the blocks moved back, again and again. Reproduced
+  with 14 Customs tasks and the left column at 760 px (a squad block makes it taller for the player): the list flipped
+  340 ↔ 512 and «Оружейник» lay 150 px over the tasks. Now boxes from offsets (no transform), the measure waits 120 ms after the
+  last size change and waits while «Рынок» overlaps the list's block. Checked: 512 px steady for 20 s, no overlap; the left
+  column shortened to 560 → 312 px at once and steady. Not released (report 211 to list on the next release's history row).
