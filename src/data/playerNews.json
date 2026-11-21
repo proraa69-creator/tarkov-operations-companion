@@ -1,4 +1,14 @@
 [
+  {"version":"0.6.0.333","date":"2026-11-21","items":[
+    {"kind":"added","ru":"Настройки: размер шрифта — стандартный или увеличенный","en":"Settings: font size, standard or large"},
+    {"kind":"improved","ru":"«Обзор»: блоки не прыгают, когда окно разворачивается на весь экран","en":"«Overview»: blocks no longer jump when the window goes full screen"},
+    {"kind":"improved","ru":"Убежище: картинка переснята, соседние модули сняты вместе","en":"Hideout: the picture re-shot, neighbouring modules shot together"},
+    {"kind":"improved","ru":"Сборка оружия: сборка стоит по центру, приклады ПТ-1 и ПТ-3 ровные","en":"Weapon builds: the build centred, PT-1 and PT-3 stocks level"},
+    {"kind":"improved","ru":"Сборка оружия: видно, что сборка публикуется","en":"Weapon builds: you see the build being published"},
+    {"kind":"improved","ru":"Выпадающие списки — в зелёном стиле приложения","en":"Drop-down lists in the app's green style"},
+    {"kind":"improved","ru":"Телефон: «Обзор», окно модуля убежища и схрон удобнее","en":"Phone: «Overview», the hideout module window and the stash fit better"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
   {"version":"0.6.0.332","date":"2026-11-21","items":[
     {"kind":"added","ru":"«Оружейник»: сборку задания можно открыть на весь экран и сложить приклад","en":"«Gunsmith»: open the task's build full screen and fold the stock"},
     {"kind":"improved","ru":"«Оружейник»: в ячейках модулей крупные картинки","en":"«Gunsmith»: large module pictures in the cells"},
