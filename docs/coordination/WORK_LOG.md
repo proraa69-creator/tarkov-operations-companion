@@ -8569,3 +8569,21 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Player news drafted for the next release and shown to the owner (not written yet): Gunsmith full screen and fold, large cells,
   Overview smooth carrying, compact stats window, straighter grips and stocks, the phone's «Карта» button, «Небеса в огне» hint,
   AS VAL MOD.4 from parts, technical update.
+- 21df60ca report 210 (bosses, «Не прогружаются иконки оружия»: Решала's «Сайга FA», «ТТ Золотой», cap broken on the map card):
+  the server swaps only catalogue items' pictures (server/src/services/itemImageCache.ts); a map marker's boss gear kept
+  assets.tarkov.dev, which the players' app cancels (electron/main.ts). nginx showed the player's app fetching other item pictures
+  fine and never these. src/data/servedItemPicture.ts asks raidos.app/v1/item-images for the same file on the gateway route.
+- 2075294b report 209 (PvE phone, «Путь охотника. Администратор»: «не хватает точки» at Lighthouse's collection point): the title
+  is BEAR at Reserve (639136df) and USEC at Lighthouse (6a452080); the Tasks-table reader took the catalogue's first (BEAR), the
+  player then counted as BEAR and the USEC version with its points was hidden (the account's mirror: 639136df active from
+  screen-scan, faction unknown). Now the row's location cell picks the version, else the profile's known faction; a told row
+  replaces the version an earlier guess wrote; a guess does not go over the version being done. Tests in screenScanSync.test.ts.
+  Reports 209/210 not closed and no days given (the admin pane's sign-in was gone; owner's call). 206 still the owner's.
+- 72f754b1 the last nine receivers drawn from parts (owner: «Делай картинки»): MXLR, АК-308, ТКПД, NL545 DI/GP, SR-25 (Taupe),
+  QBZ-191, HK 416A5 (RAL 8000), Type 20. RaidOsGuns job «parts» with «level» mod_magazine for each (they were rendered standing up
+  on 20.11). SR-25 tau rendered empty and HK416 RAL white with the offline copy's bundles: sr25 (container, client_assets,
+  textures), hk416 (container, assets, client_assets, textures) and m4a1 (client_assets, textures) plus their Windows.json entries
+  were copied from the installed game for the render and put back afterwards (backups *.bak-guns9-20261121 on E:, same as the
+  files now). Packed with pack_one.py into public/gun-parts and E:\SPT-photo\weapons\assets (index 2480 parts; backup
+  index.json.bak-guns9-20261121). Checked in the app: all nine draw from parts, no flat picture, no page errors. Every gun of
+  the catalogue now has its receiver picture. Not released.
