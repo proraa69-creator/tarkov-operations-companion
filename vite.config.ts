@@ -3,6 +3,7 @@ import { configDefaults, defineConfig } from 'vitest/config'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { scopeSiteCss } from './src/shared/scopeSiteCss.ts'
+import { fontScaleCss } from './src/theme/fontScaleCss.ts'
 
 /**
  * The OCR engine of «Синхронизация по фото» (src/stashPhoto/browser.ts) served from the app itself under ocr/, never
@@ -108,6 +109,8 @@ function startupIntro(): Plugin {
 export default defineConfig({
   base: './',
   plugins: [appStoreStubs(), scopedSiteCss(), react(), ocrAssets(), startupIntro()],
+  // «Размер шрифта» (src/theme/fontSize.ts): every font size in px times var(--font-scale, 1)
+  css: { postcss: { plugins: [fontScaleCss()] } },
   build: {
     // Release renderer (docs/subscription-protection.md): no source maps next to the bundle, no console output or
     // `debugger` statements left in it.

@@ -28,6 +28,7 @@ import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
 import { isBenignWindowError } from './app/windowErrors'
 import { installNativeConfirm } from './app/nativeConfirm'
 import { removeStartupIntro } from './startup/startupIntro'
+import { applyFontSize } from './theme/fontSize'
 import './styles/windowActions.css'
 
 function showStartupError(error: unknown) {
@@ -95,6 +96,8 @@ installNativeConfirm()
 if (isNative()) installNoPageZoom()
 applyAppearance()
 clearRemovedAppearanceSettings()
+// «Размер шрифта» before the first paint (src/theme/fontSize.ts)
+applyFontSize()
 // a style picked on another device arrives as a stored value and this event: shown here too
 window.addEventListener(STYLE_CHANGED_EVENT, () => {
   if ((document.documentElement.getAttribute('data-style') ?? 'plain') !== (currentStyle() === 'glass' ? 'glass' : 'plain')) applyAppearance()

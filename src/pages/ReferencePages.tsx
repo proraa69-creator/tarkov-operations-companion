@@ -711,6 +711,7 @@ import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
 import { SettingHelp } from "../components/SettingHelp";
 import { ClickVolumeSetting } from "../components/ClickVolumeSetting";
+import { FONT_SIZES, FONT_SIZE_LABELS, setFontSize, useFontSize } from "../theme/fontSize";
 import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
 
 /** «Поддержка»: the chat, a bug report with its reward, an idea, and the donation card. */
@@ -746,6 +747,21 @@ function PhoneGunsmithSetting() {
       </span>
       <div className="locale-switch" role="radiogroup" aria-label={uiText("Квест оружейника")}>
         {PHONE_GUNSMITH_VIEWS.map((id) => <button type="button" role="radio" aria-checked={view === id} key={id} className={view === id ? "active" : ""} onClick={() => setPhoneGunsmithView(id)}>{uiText(PHONE_GUNSMITH_VIEW_LABELS[id])}</button>)}
+      </div>
+    </div>
+  );
+}
+
+/** «Размер шрифта» (owner, 21.11.2026): the standard text or a little larger, on this device (src/theme/fontSize.ts). */
+function FontSizeSetting() {
+  const size = useFontSize();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Размер шрифта")}<SettingHelp id="fontSize" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Размер шрифта")}>
+        {FONT_SIZES.map((id) => <button type="button" role="radio" aria-checked={size === id} key={id} className={size === id ? "active" : ""} onClick={() => setFontSize(id)}>{uiText(FONT_SIZE_LABELS[id])}</button>)}
       </div>
     </div>
   );
@@ -853,6 +869,7 @@ export function SettingsPage() {
         </div>}
         <MapFollowSetting />
         <RaidStartSetting />
+        <FontSizeSetting />
         <ClickVolumeSetting />
         {!isMobileLayout() && <CurrentTasksViewSetting />}
         <GuideReplaySetting />

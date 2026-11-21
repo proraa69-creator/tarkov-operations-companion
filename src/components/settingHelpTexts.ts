@@ -59,6 +59,10 @@ export const SETTING_HELP = {
     ru: 'На каком языке приложение показывает надписи: русский или английский.',
     en: 'The language of the app\'s labels: Russian or English.',
   },
+  fontSize: {
+    ru: 'Размер текста во всём приложении. Стандартный — как было, увеличенный — немного крупнее.',
+    en: 'The size of the text across the app. Standard is as it was, large is a little bigger.',
+  },
   clickVolume: {
     ru: 'Громкость звука при нажатии на кнопки. В крайнем левом положении щелчков нет.',
     en: 'How loud buttons click when pressed. At the far left there are no clicks.',

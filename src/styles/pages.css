@@ -172,7 +172,9 @@
 .map-layers-all-button:active:not(:disabled) { transform: scale(.97); }
 .map-layers-all-button:disabled { opacity: .45; cursor: default; }
 .layer-button.is-kind { min-height: 30px; font-size: 12px; }
-.layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; }
+.layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; flex: none; }
+/* a label wider than the side panel (the larger font, a narrow window) wraps instead of pushing its count out of the button */
+.layer-button > span { min-width: 0; overflow-wrap: anywhere; }
 .layer-icon { width: 22px; height: 22px; object-fit: contain; opacity: .35; filter: grayscale(.8) drop-shadow(0 1px 1px rgb(0 0 0 / 60%)); transition: opacity .26s var(--ease-soft), filter .26s var(--ease-soft); }
 .layer-button.active .layer-icon { opacity: 1; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 60%)); }
 .map-stage { position: relative; min-width: 0; background: var(--surf-0); }
