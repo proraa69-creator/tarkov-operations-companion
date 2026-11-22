@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FIGURE_HEIGHT } from './rangeHitboxes'
 import { RangeScene, type SceneProps } from './RangeTarget'
-import { fovMrad, mradToCm, type ScopeMode } from './rangeScope'
+import { fovMrad, mradToCm, reticleAt, type ScopeMode } from './rangeScope'
 
 /**
  * The target seen through a scope (owner, 22.11.2026: «в режиме прицела… выставлять персонажей на дистанции… я поставил 600
@@ -10,14 +10,17 @@ import { fovMrad, mradToCm, type ScopeMode } from './rangeScope'
  * distance, the reticle fixed in the middle. A click takes the mouse (Esc gives it back); moving it turns the view; holding the
  * button fires. The recoil turns the view as it turns the barrel.
  */
-export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl, boreCm, viewCm, onFireStart, onFireEnd, onAim, lang }: {
+export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, onFireStart, onFireEnd, onAim, lang }: {
   scene: SceneProps
   distance: number
   mode: ScopeMode
   /** The magnification now (a variable scope's wheel). */
   zoom: number
   onZoom: (zoom: number) => void
-  reticleUrl?: string
+  /** The reticle pictures' addresses by file. */
+  reticleUrls: Record<string, string>
+  /** The bullet against the sight line at the target, cm: where it lands is shown under the reticle. */
+  dropCm: number
   /** The barrel's and the view's turn by the recoil, centimetres at the target (the reticle is on the barrel). */
   boreCm: { x: number; y: number }
   viewCm: { x: number; y: number }
@@ -37,7 +40,9 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
   // the reticle moves on the screen by how far the barrel is off the view
   const reticleShift = { x: (boreCm.x - viewCm.x) / fovCm * 100, y: -(boreCm.y - viewCm.y) / fovCm * 100 }
   // a first focal plane reticle grows with the magnification; a second focal plane one keeps its size on the screen
-  const reticleShare = mode.reticleMrad ? (mode.ffp ? mode.reticleMrad / fov : mode.reticleMrad / fovMrad(mode.fovDeg)) : 1
+  const reticle = reticleAt(mode, zoom)
+  const reticleUrl = reticle.file ? reticleUrls[reticle.file] : undefined
+  const reticleShare = reticle.mrad ? (mode.ffp ? reticle.mrad / fov : reticle.mrad / fovMrad(mode.fovDeg)) : 1
 
   const aimRef = useRef(aim)
   useEffect(() => { aimRef.current = aim; onAim(aim) }, [aim, onAim])
@@ -75,10 +80,12 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
       onZoom(Math.max(mode.zoom, Math.min(mode.zoomMax, zoom - Math.sign(event.deltaY) * step)))
     }}
   >
-    <svg className="range-scope-world" viewBox={`${centre.x - half} ${FIGURE_HEIGHT - centre.y - half} ${fovCm} ${fovCm}`} preserveAspectRatio="xMidYMid slice">
+    <svg className={`range-scope-world${mode.night ? ' is-night' : ''}${mode.thermal ? ' is-thermal' : ''}`} viewBox={`${centre.x - half} ${FIGURE_HEIGHT - centre.y - half} ${fovCm} ${fovCm}`} preserveAspectRatio="xMidYMid slice">
       <rect x={centre.x - fovCm * 2} y={FIGURE_HEIGHT - centre.y - fovCm * 2} width={fovCm * 4} height={fovCm * 4} className="range-scope-sky" />
       <rect x={centre.x - fovCm * 2} y={FIGURE_HEIGHT} width={fovCm * 4} height={fovCm * 4} className="range-scope-grass" />
       <RangeScene {...scene} markRadius={markRadius} />
+      {/* where the bullet lands now: the reticle's centre with the drop at this distance */}
+      <circle cx={centre.x + (boreCm.x - viewCm.x)} cy={FIGURE_HEIGHT - (centre.y + (boreCm.y - viewCm.y) + dropCm)} r={Math.max(0.8, fovCm / 180)} className="range-scope-impact" />
     </svg>
     {reticleUrl
       ? <img className="range-scope-reticle" src={reticleUrl} alt="" style={{ width: `${reticleShare * 100}%`, height: `${reticleShare * 100}%`, left: `${50 + reticleShift.x}%`, top: `${50 + reticleShift.y}%` }} />

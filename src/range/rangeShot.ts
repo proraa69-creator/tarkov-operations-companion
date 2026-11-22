@@ -58,7 +58,7 @@ export function behindCover(cover: Cover, x: number, y: number) {
   switch (cover) {
     case 'left': return x < 2
     case 'right': return x > -2
-    case 'low': return y < 108
+    case 'low': return y < 108 && Math.abs(x) < 80
     case 'window': return y < 118 || y > 186 || Math.abs(x) > 34
     default: return false
   }

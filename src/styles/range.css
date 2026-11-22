@@ -161,3 +161,9 @@
 .range-holdover { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: var(--surf-1); font-size: 12.5px; color: var(--text-muted); }
 .range-holdover b { color: var(--brass, #d8c27a); font-size: 14px; }
 .range-scope-select { max-width: 220px; }
+.range-cover-seam { stroke: #1f2a12; stroke-width: 1.2; fill: none; }
+.range-scope-impact { fill: none; stroke: #ff4a3a; stroke-width: .35; vector-effect: non-scaling-stroke; }
+.range-scope-world.is-night { filter: grayscale(1) sepia(1) hue-rotate(55deg) saturate(3.2) brightness(1.1); }
+.range-scope-world.is-thermal { filter: grayscale(1) invert(1) contrast(1.6) brightness(1.1); }
+.range-stage > .range-holdover, .range-stage > .range-armor-hp { grid-column: 1 / -1; }
+.range-target-wrap:has(.range-scope) { display: grid; place-items: center; padding: 10px; background: #070807; }

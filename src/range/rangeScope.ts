@@ -18,6 +18,18 @@ export interface ScopeMode {
   reticleMrad?: number
   /** First focal plane: the reticle keeps its angular size at every magnification. */
   ffp?: boolean
+  /** A first focal plane reticle drawn at the highest magnification (thinner lines) and the angle it covers, mrad. */
+  reticleMax?: string
+  reticleMaxMrad?: number
+  /** A night vision or thermal scope. */
+  night?: boolean
+  thermal?: boolean
+}
+
+/** The reticle picture for a magnification and the angle it covers: a first focal plane one's high-zoom picture past the middle. */
+export function reticleAt(mode: ScopeMode, zoom: number): { file?: string; mrad?: number } {
+  if (mode.ffp && mode.reticleMax && mode.reticleMaxMrad && mode.zoomMax && zoom >= Math.sqrt(mode.zoom * mode.zoomMax)) return { file: mode.reticleMax, mrad: mode.reticleMaxMrad }
+  return { file: mode.reticle, mrad: mode.reticleMrad }
 }
 
 export interface ScopeData {

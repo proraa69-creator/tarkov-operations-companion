@@ -5,7 +5,8 @@ import type { Cover, FiredShot } from './rangeShot'
 import { markOf } from './rangeView'
 import { partLabelPoints, type FigurePicture } from './rangeFigures'
 import type { PartMasks } from './partMasks'
-import { CoverShape, type CoverTextures } from './RangeCover'
+import { CoverShape } from './RangeCover'
+import type { CoverTextures } from './rangeCoverData'
 
 const VIEW_BOX = '-44 -10 88 196'
 /** The pictured figure stands a little taller (a helmet) and wider (the arms). */

@@ -15,6 +15,7 @@ import { figureLayers } from './rangeFigures'
 import { useFigureIndex, useFigureUrls, useRangeJson } from './rangeFigureSource'
 import { RangeScopeView } from './RangeScopeView'
 import { holdover, type ScopeData } from './rangeScope'
+import { COVER_TEXTURE_FILES } from './rangeCoverData'
 import { RangeTarget } from './RangeTarget'
 import { CLASS_COLORS, markOf, spreadAt } from './rangeView'
 import { flightAt } from './rangeFlight'
@@ -152,7 +153,9 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const scopeMode = scope?.modes[Math.min(scopeModeIndex, scope.modes.length - 1)]
   const [zoomState, setZoom] = useState<{ key: string; zoom: number }>({ key: '', zoom: 1 })
   const zoom = zoomState.key === `${scopeId}|${scopeModeIndex}` ? zoomState.zoom : scopeMode?.zoom ?? 1
-  const reticleUrls = useFigureUrls(scopeMode?.reticle ? [scopeMode.reticle] : [])
+  const reticleUrls = useFigureUrls([scopeMode?.reticle, scopeMode?.reticleMax].filter((file): file is string => Boolean(file)))
+  const textureUrls = useFigureUrls(Object.values(COVER_TEXTURE_FILES))
+  const coverTextures = { brick: textureUrls[COVER_TEXTURE_FILES.brick], container: textureUrls[COVER_TEXTURE_FILES.container], crate: textureUrls[COVER_TEXTURE_FILES.crate] }
   const zeros = scope?.zeros?.length ? scope.zeros : ZEROS
   const [zeroChoice, setZero] = useState(100)
   const zero = zeros.includes(zeroChoice) ? zeroChoice : zeros[0] ?? 100
@@ -310,7 +313,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const maxTotal = totalHealth(body.max)
   const flash = last?.outcome && last.target === live.number ? { part: last.outcome.part, n: last.n } : undefined
   const hold = flight ? holdover(flight.drop, distance, scope) : undefined
-  const scene = { view, body, marks, cover, figure: shownFigure ? { ...shownFigure, urls: figureUrls } : undefined, masks, flash }
+  const scene = { view, body, marks, cover, coverTextures, figure: shownFigure ? { ...shownFigure, urls: figureUrls } : undefined, masks, flash }
 
   return <div className="range-layout">
     <aside className="range-side">
@@ -444,7 +447,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         <div className="range-target-wrap">
           {scope && scopeMode
             ? <RangeScopeView scene={scene} distance={distance} mode={scopeMode} zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })}
-              reticleUrl={scopeMode.reticle ? reticleUrls[scopeMode.reticle] : undefined} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} lang={lang}
+              reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} lang={lang}
               onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
             : <RangeTarget {...scene} labels={hpLabels} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined}
               muzzle={recoilState && toggles.recoil ? { x: recoilState.aim.x + recoilCm(recoilNow, 'bore').x, y: recoilState.aim.y + recoilCm(recoilNow, 'bore').y } : undefined}

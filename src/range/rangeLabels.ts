@@ -74,5 +74,5 @@ export const pick = (pair: Pair, locale: string) => pair[locale === 'en' ? 1 : 0
  */
 export const COVER_NAMES: Record<'none' | 'left' | 'right' | 'low' | 'window', Pair> = {
   none: ['Нет', 'None'], left: ['Укрытие слева', 'Cover on the left'], right: ['Укрытие справа', 'Cover on the right'],
-  low: ['Ящик', 'Crate'], window: ['Окно в здании', 'Window in a building'],
+  low: ['Ящики', 'Crates'], window: ['Окно в здании', 'Window in a building'],
 }
