@@ -509,8 +509,10 @@ describe('«Торговля»', () => {
       state.items = [...state.items as Item[], item('brake', 'Дульный тормоз', 95_554)]
       state.level = 40
       state.snapshot = { ...snapshot([row('egg')]), modules: [module()] }
+      // the player's Mechanic is 4 (set by hand): a level-4 offer is open (owner, 19.11.2026: only what he can buy)
+      localStorage.setItem('raid-os-trader-levels-v2', JSON.stringify({ pvp: { mechanic: 4 }, pve: { mechanic: 4 }, seasonal: { mechanic: 4 } }))
     })
-    afterEach(() => { state.traders = [] })
+    afterEach(() => { state.traders = []; localStorage.removeItem('raid-os-trader-levels-v2') })
     const open = () => fireEvent.click(screen.getByRole('button', { name: 'Продажа модулей' }))
 
     it('stands to the right of the period, and lists what to buy from whom and what it brings after the fee', () => {
@@ -543,6 +545,8 @@ describe('«Торговля»', () => {
 
     it('hides what the trader or the market has not opened at the player’s level', () => {
       state.level = 30
+      // nothing set by hand or read on the traders' screen: the lowest level the estimate allows, never the highest
+      localStorage.removeItem('raid-os-trader-levels-v2')
       renderPage()
       open()
       expect(document.querySelector('.trading-modules')).toBeNull()

@@ -2,7 +2,9 @@
 :root[data-theme="daynight"] body {
   background:
     radial-gradient(ellipse 70% 60% at 78% -12%, var(--dn-glow), transparent 70%),
-    linear-gradient(180deg, color-mix(in srgb, var(--dn-sky) 55%, var(--bg)) 0%, var(--bg) 46rem);
+    linear-gradient(180deg, color-mix(in srgb, var(--dn-sky) 80%, var(--bg)) 0%, var(--bg) 52rem);
   background-attachment: fixed;
 }
-:root[data-theme="daynight"] .topbar { background: color-mix(in srgb, var(--dn-sky) 18%, var(--bg-elevated)); }
+:root[data-theme="daynight"] .topbar { background: color-mix(in srgb, var(--dn-sky) 30%, var(--bg-elevated)); }
+/* the sky's colour on the menu too, so day and night are told at a glance */
+:root[data-theme="daynight"] .sidebar { background: linear-gradient(180deg, color-mix(in srgb, var(--dn-sky) 34%, var(--bg-elevated)), var(--bg-elevated) 70%); }

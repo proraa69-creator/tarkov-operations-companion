@@ -6,7 +6,8 @@ import { captureScreenRegion, foregroundGame, gameCaptureAvailable } from './exp
 import { isGameWindowTitle } from './experimental/gameWindow.js'
 import { raidLikely } from './experimental/raidSignals.js'
 import { bgraToPgm, bgraToPpm, picturePrint } from './ocrPicture.js'
-import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
+import { TOOLTIP_OCR_PARAMETERS, tooltipForOcr } from '../src/overlay/tooltipDetect.js'
+import { createFleaWatch, type FleaLook, type FleaRect } from '../src/import/fleaReading.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING, unchangedFrame } from '../src/import/storyScanTiming.js'
@@ -133,6 +134,12 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
     if (backgroundScansHeld(now)) return { text: '', sourceName: '', gameWindow: true, busy: true, freshGame, gameSince }
     if (freshGame) warmQuestWorker()
     const shot = grabGameDisplay()
+    if (shot && !identity) {
+      // The flea market (docs/flea-prices-from-players.md): its prices are read from this same copy, and the quest
+      // scanner has nothing to read there — no whole-screen pass (~6 s of a core) while the player browses the flea.
+      const flea = await lookAtFlea(shot)
+      if (flea.flea) return { text: '', sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: Date.now(), freshGame, gameSince, flea: { ...(flea.reading ? { reading: flea.reading } : {}) } }
+    }
     if (shot) {
       // The print straight from the copy's bytes: an unchanged screen costs no image work at all.
       const fine = picturePrint(shot.data, shot.width, shot.height)
@@ -285,6 +292,47 @@ export async function recognizeTooltip(pixels: { width: number; height: number; 
  * after 5 idle minutes) waits about a second longer for its reading.
  */
 const touchTooltip = idleRelease(5 * 60_000, dropTooltipEngine)
+
+/** One flea line: longer than this and the engine is taken to have hung (the item card's limit). */
+const FLEA_LINE_TIMEOUT_MS = TOOLTIP_OCR_TIMEOUT_MS
+
+/** The copy the flea lines of the current look are cut from. */
+let fleaShot: GameShot | null = null
+const fleaWatch = createFleaWatch((rect, unit) => recognizeFleaLine(rect, unit))
+
+async function lookAtFlea(shot: GameShot): Promise<FleaLook> {
+  fleaShot = shot
+  try {
+    return await fleaWatch.look({ width: shot.width, height: shot.height, data: shot.data, channels: 4, bgr: true })
+  } catch {
+    // An engine that failed: the list is read again on the next look.
+    fleaWatch.reset()
+    return { flea: true }
+  } finally {
+    fleaShot = null
+  }
+}
+
+/**
+ * One line of the flea's list (a seller, a name, «Всего 1 ⚒ 40/40», the version line) by the item card's engine — one
+ * line of text, black on white, as a tooltip — at background priority: an item lookup goes first (electron/ocrQueue.ts).
+ * Scaled to the size the card's text is read at (×3 of 1080p).
+ */
+async function recognizeFleaLine(rect: FleaRect, unit: number) {
+  const shot = fleaShot
+  if (!shot) return ''
+  const picture = tooltipForOcr(shot, rect, Math.max(1, Math.round(12 / unit) / 4))
+  const ocr = await tooltipOcr()
+  try {
+    const result = await runOcrJob(() => ocr.recognize(bgraToPgm(picture.data, picture.width, picture.height)), 'background', FLEA_LINE_TIMEOUT_MS)
+    return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
+  } catch (error) {
+    if (isOcrTimeout(error)) dropTooltipEngine()
+    throw error
+  } finally {
+    touchTooltip()
+  }
+}
 
 /** Loads the OCR model ahead of the first lookup. */
 export async function warmUpOcr() {

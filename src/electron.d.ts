@@ -6,6 +6,7 @@ import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemO
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
 import type { ModeSelectCard, TraderScreenReading } from './import/modeSelectScreen'
+import type { FleaReading } from './import/fleaReading'
 import type { LogSearchReport } from './import/logSearchReport'
 import type { ScreenTuningApi } from './screen/screenApi'
 
@@ -246,7 +247,7 @@ interface TarkovDesktopApi {
   openProfileBackup: () => Promise<string | null>
   getVersion: () => Promise<string>
   /** A system notification (trader restock reminders); false when the OS does not support them. */
-  notify?: (title: string, body: string, icon?: string) => Promise<boolean>
+  notify?: (title: string, body: string, icon?: string, silent?: boolean) => Promise<boolean>
   /** window.confirm() as a main-process dialog (src/app/nativeConfirm.ts). Missing when the main process is older. */
   confirm?: (message: string, locale: 'ru' | 'en') => boolean
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
@@ -258,7 +259,7 @@ interface TarkovDesktopApi {
    * nothing was copied. `busy`: an item lookup or a Kappa scan runs (electron/ocrQueue.ts), nothing was copied. `freshGame`: the
    * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
    */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number; flea?: { reading?: FleaReading } }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
   /**
    * The locked app's identity reader (electron/screenOcr.ts captureIdentityFrame): only right after a new game window

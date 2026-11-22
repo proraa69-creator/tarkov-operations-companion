@@ -196,3 +196,37 @@ describe('OCR text folding', () => {
     expect(looseDigits('10')).not.toBe(looseDigits('20'))
   })
 })
+
+describe('long names read in part and slashed letters (logged lookups, 11.2026)', () => {
+  const named = (id: string, name: string) => ({ id, name, shortName: '', prices: [] }) as unknown as Item
+  const items = [
+    named('vepr', 'Карабин Молот ВПО-101 "Вепрь-Хантер" 7.62x51'),
+    named('vepr-preset', 'Карабин Молот ВПО-101 "Вепрь-Хантер" 7.62x51 По умолчанию'),
+    named('osprey-a', 'Чехол для бронеплит CQC Osprey MK4A (Assault, MTP)'),
+    named('osprey-a-preset', 'Чехол для бронеплит CQC Osprey MK4A (Assault, MTP) По умолчанию'),
+    named('osprey-p', 'Чехол для бронеплит CQC Osprey MK4A (Protection, MTP)'),
+    named('ctr-black', 'Приклад Magpul "CTR Carbine" для AR-15 (Черный)'),
+    named('ctr-fde', 'Приклад Magpul "CTR Carbine" для AR-15 (FDE)'),
+    named('mepro', 'Крепление MeproLight для прицелов "Mepro"'),
+    named('wd100', 'WD-40 (100мл)'),
+    named('wd400', 'WD-40 (400мл)'),
+  ]
+  const match = createTooltipMatcher(items)
+
+  it('names an item read whole, not the longer preset names it starts', () => {
+    expect(match('Чехол для бронеплит СОС Osprey MK4A (Assault, MTP)')?.id).toBe('osprey-a')
+    expect(match('Карабин Молот ВПО-101 "Вепрь-Хантер" 762х51')?.id).toBe('vepr')
+  })
+
+  it('names a long name from its start only when no other name starts so', () => {
+    expect(match('Крепление MeproLight для прицелов')?.id).toBe('mepro')
+    // The first line only, and the colour on the second: black or FDE — no guess.
+    expect(match('Приклад Magpul "CTR Carbine" для AR- 15')).toBeNull()
+    expect(match('Карабин Молот ВПО-101 "Вепрь-Хантер"')).toBeNull()
+  })
+
+  it('reads a backslash and slash as W', () => {
+    expect(match(String.raw`\/0-48 (100мл)`)?.id).toBe('wd100')
+    expect(match('WD-48 (400мл)')?.id).toBe('wd400')
+  })
+})

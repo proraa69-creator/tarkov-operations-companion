@@ -10,6 +10,7 @@ import { bossBustFor, isGenericPortrait } from '../assets/bossBusts'
 import { extractGuideOf, extractPhotoUrl } from '../data/extractGuide'
 import { useLocale } from '../i18n/LocaleProvider'
 import { MarkerHintBlock } from './QuestCuratedInfo'
+import { servedItemPicture } from '../data/servedItemPicture'
 
 interface MapMarkerTooltipProps {
   marker: MapMarker
@@ -24,6 +25,8 @@ interface MapMarkerTooltipProps {
   spotKeys?: ReactNode
   /** A point behind a locked door: the key of the room, on top of the card (maps/LockedNote.tsx). */
   entry?: ReactNode
+  /** A quest's point: the place's photo, small (QuestGuidePhotos.tsx MarkerPlacePhoto; report 167). */
+  photo?: ReactNode
 }
 
 /** Screenshots live in public/extract-shots/<mapId>/<extractId>.jpg — see docs/extract-screenshots.md. */
@@ -37,7 +40,7 @@ function ExtractShot({ url, alt }: { url: string; alt: string }) {
   return <img className="mmt-shot" src={url} alt={alt} loading="lazy" onError={() => setMissing(true)} />
 }
 
-export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, keys, spotKeys, entry }: MapMarkerTooltipProps) {
+export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, keys, spotKeys, entry, photo }: MapMarkerTooltipProps) {
   const { locale } = useLocale()
   // A battle pass document: its picture, its name and the floor, nothing else (owner, 05.11.2026: «нужно только название… и этаж»).
   const documentKinds = marker.layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
@@ -71,7 +74,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, 
         </span>
       </div>
 
-      {shot && <ExtractShot key={shot} url={shot} alt={uiText(marker.title)} />}
+      {photo ?? (shot && <ExtractShot key={shot} url={shot} alt={uiText(marker.title)} />)}
 
       {uiText(boss ? <BossBlock boss={boss} title={marker.title} guaranteed={marker.guaranteedSpawn === true} /> : (
         <div className="mmt-title-row">
@@ -172,7 +175,7 @@ function BossBlock({ boss, title, guaranteed }: { boss: BossInfo; title: string;
         <div className="mmt-gear">
           {uiText(boss.gear.slice(0, 5).map((entry) => (
             <span className="mmt-gear-item" key={`${entry.slot ?? ''}${entry.name}`} title={uiText(entry.name)}>
-              {uiText(entry.iconUrl && <img src={entry.iconUrl} alt={uiText("")} loading="lazy" />)}
+              {uiText(entry.iconUrl && <img src={servedItemPicture(entry.iconUrl)} alt={uiText("")} loading="lazy" />)}
               {uiText(entry.name)}
             </span>
           )))}

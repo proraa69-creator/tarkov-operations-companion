@@ -9,6 +9,7 @@ import './styles/global.css'
 import './styles/pages.css'
 import './styles/theme-gear.css'
 import './styles/theme-bloodmoon.css'
+import './styles/style-glass.css'
 import './styles/mobile.css'
 import './styles/themeMotion.css'
 import './styles/theme-daynight.css'
@@ -17,15 +18,17 @@ import { createPageTransitionHistory, markViewTransitions } from './app/pageTran
 import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
 import { LocaleProvider } from './i18n/LocaleProvider'
-import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
+import { STYLE_CHANGED_EVENT, applyAppearance, clearRemovedAppearanceSettings, currentStyle } from './theme/theme'
 import { installLayoutAttributes, isNative } from './platform'
 import { installSoftMotion } from './app/softMotion'
+import { installRichMotion } from './app/richMotion'
 import { installNoPageZoom } from './mobile/noPageZoom'
 import { installTarkovFetchGuard } from './data/tarkovApi'
 import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
 import { isBenignWindowError } from './app/windowErrors'
 import { installNativeConfirm } from './app/nativeConfirm'
 import { removeStartupIntro } from './startup/startupIntro'
+import { applyFontSize } from './theme/fontSize'
 import './styles/windowActions.css'
 
 function showStartupError(error: unknown) {
@@ -84,12 +87,21 @@ void purgeLegacyPlaintextCaches()
 installLayoutAttributes()
 // Soft presses and gliding blocks on the phone; off with SOFT_MOTION = false in src/app/softMotion.ts (owner, 12.11.2026).
 installSoftMotion()
+// The PC app in motion: pages, numbers, charts, the menu's highlight; off with RICH_MOTION = false in src/app/richMotion.ts
+// (owner, 18.11.2026).
+installRichMotion()
 // Desktop app: confirm() through the main process, so the window still takes typed keys after it (src/app/nativeConfirm.ts).
 installNativeConfirm()
 // Android / iPhone app: an accidental double tap or pinch never zooms the whole interface out of the screen.
 if (isNative()) installNoPageZoom()
 applyAppearance()
 clearRemovedAppearanceSettings()
+// «Размер шрифта» before the first paint (src/theme/fontSize.ts)
+applyFontSize()
+// a style picked on another device arrives as a stored value and this event: shown here too
+window.addEventListener(STYLE_CHANGED_EVENT, () => {
+  if ((document.documentElement.getAttribute('data-style') ?? 'plain') !== (currentStyle() === 'glass' ? 'glass' : 'plain')) applyAppearance()
+})
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } })
 // Page changes crossfade (owner, 12.10.2026: «сделай нам так же плавно все приложение»).

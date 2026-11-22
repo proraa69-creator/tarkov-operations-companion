@@ -49,9 +49,8 @@ export function rememberedBoxes(key: string) {
 }
 
 /**
- * The pages of the history by position: «Назад» goes to the last one with another path, so opening a quest, a card or
- * a point within a page (?selected=…, ?quest=…) adds no «Назад» (owner, 17.10.2026: «именно в меню, но не при
- * развертывании квестов»).
+ * The pages of the history by position (their paths), so «Назад» shows only when the app has a screen to return to.
+ * It was «the last one with another path» (owner, 17.10.2026); now it is one step in any section (backDelta).
  */
 const pathAt: string[] = []
 const pathListeners = new Set<() => void>()
@@ -67,13 +66,14 @@ export function recordPage(index: number, pathname: string, push: boolean) {
   pathListeners.forEach((listener) => listener())
 }
 
-/** How many steps back the previous page is (a negative delta for navigate), or null when there is none. */
+/**
+ * How many steps back «Назад» goes (a negative delta for navigate), or null when there is nothing to return to: one step,
+ * in any section — a weapon, a quest or a card opened within a page returns to the list it was opened from, not past the
+ * page to «Обзор» (owner, 20.11.2026: «Сделай, чтобы шаг назад был, то есть к списку оружия… должен делаться шаг назад
+ * в любом блоке, независимо от оружейник или еще какой-то»).
+ */
 export function backDelta(index = historyIndex()): number | null {
-  const here = pathAt[index]
-  for (let at = index - 1; at >= 0; at--) {
-    if (pathAt[at] !== undefined && pathAt[at] !== here) return at - index
-  }
-  return null
+  return index > 0 && pathAt[index - 1] !== undefined ? -1 : null
 }
 
 /**

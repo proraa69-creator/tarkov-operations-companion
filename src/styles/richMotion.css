@@ -1,0 +1,48 @@
+/*
+  The app in motion on the PC (src/app/richMotion.ts, owner 18.11.2026). Only under :root[data-rich-motion] and outside the
+  phone layout: with RICH_MOTION off none of this applies. Presses use the `scale` property, never `transform`, so they add to
+  whatever a button already moves by.
+*/
+
+/* The gliding highlight: drawn under the items of its group, in the look of the item it goes to. */
+:root[data-rich-motion] .motion-glide { position: absolute; z-index: 0; pointer-events: none; }
+:root[data-rich-motion] :is(.mode-switch, .locale-switch, .style-switch, .segmented-filter, [role="tablist"]) > :not(.motion-glide) { position: relative; }
+/* while it glides, the item it goes to shows no highlight of its own (it takes over when the glide ends) */
+:root[data-rich-motion] .motion-glide-target { background: transparent !important; box-shadow: none !important; transition: none !important; }
+:root[data-rich-motion] .motion-glide-target::before { opacity: 0; }
+:root[data-rich-motion] .nav-link::before { transition: opacity .25s ease .2s; }
+
+/* Presses: down fast, back with a little overshoot. Not the map's points (Leaflet moves them by `transform`). */
+:root[data-rich-motion]:not([data-layout="mobile"]) :is(button, .button, .icon-button, a.nav-link, [role="tab"], .profile-chip):not(.leaflet-marker-icon):not(:disabled) {
+  /* the moves a button already had (a knob, a turning chevron) keep a glide of their own */
+  transition-property: scale, transform, translate, top, right, bottom, left, width, background-color, border-color, color, opacity, box-shadow, filter;
+  transition-duration: .42s, .2s, .3s, .3s, .3s, .3s, .3s, .3s, .2s, .2s, .2s, .2s, .2s, .18s;
+  transition-timing-function: cubic-bezier(.34, 1.6, .5, 1), ease, cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), ease, ease, ease, ease, ease, ease;
+}
+:root[data-rich-motion]:not([data-layout="mobile"]) :is(button, .button, .icon-button, a.nav-link, [role="tab"], .profile-chip):not(.leaflet-marker-icon):not(:disabled):is(:active, [data-motion-pressed]) {
+  scale: .94;
+  filter: brightness(.92);
+  transition-duration: .08s, .2s, .3s, .3s, .3s, .3s, .3s, .3s, .1s, .1s, .1s, .1s, .1s, .08s;
+  transition-timing-function: cubic-bezier(.3, 0, .6, 1);
+}
+/* the menu's rows and big rows sink less than a small button */
+:root[data-rich-motion]:not([data-layout="mobile"]) :is(a.nav-link, .quest-row):not(:disabled):is(:active, [data-motion-pressed]) { scale: .97; }
+/* under the pointer a button lifts its light a little before it is pressed */
+:root[data-rich-motion]:not([data-layout="mobile"]) :is(.button, .icon-button, .profile-chip):not(:disabled):hover { filter: brightness(1.08); }
+
+/* Cards that can be picked rise a little under the pointer. */
+:root[data-rich-motion]:not([data-layout="mobile"]) :is(.stat-card, .catalog-card, .map-priority-tile, .kappa-cell) {
+  transition: translate .32s cubic-bezier(.22, 1, .36, 1), box-shadow .32s ease, border-color .2s ease;
+}
+:root[data-rich-motion]:not([data-layout="mobile"]) :is(.stat-card, .catalog-card, .map-priority-tile, .kappa-cell):hover {
+  translate: 0 -2px;
+  box-shadow: 0 10px 26px rgb(0 0 0 / 28%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-rich-motion] * { scale: none !important; translate: none !important; }
+  :root[data-rich-motion] .motion-glide { display: none; }
+}
+
+/* A closing window's still copy (richMotion.ts fadeOut): it only fades; nothing in it moves or answers. */
+[data-motion-ghost], [data-motion-ghost] * { animation: none !important; transition: none !important; pointer-events: none !important; }

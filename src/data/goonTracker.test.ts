@@ -42,6 +42,16 @@ describe('Goons server snapshot', () => {
     expect(offline.location?.source).toBe('community')
     expect(offline.stats.map((row) => [row.mapId, row.count])).toEqual([['customs', 1], ['woods', 1]])
   })
+
+  it('shows the map and counts own sightings for the whole day, nothing older (owner, 16.11.2026)', () => {
+    const now = Date.parse('2026-09-28T12:00:00.000Z')
+    const own = [{ mapId: 'shoreline' as const, reportedAt: '2026-09-28T02:00:00.000Z', sent: false }]
+    const ten = mergeGoonView({ server: null, community: null, own, now })
+    expect(ten.location?.mapId).toBe('shoreline')
+    expect(ten.stats.map((row) => [row.mapId, row.count])).toEqual([['shoreline', 1]])
+    // A community report older than the day is no answer: «Отметок нет».
+    expect(mergeGoonView({ server: null, community: { mapId: 'woods', reportedAt: '2026-09-27T11:00:00.000Z', source: 'community' }, own: [], now }).location).toBeNull()
+  })
 })
 
 describe('who saw them', () => {

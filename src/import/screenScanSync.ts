@@ -1,6 +1,7 @@
 import type { ModeProgress, Quest, TaskProgressRecord } from '../domain/types'
 import { latinize } from './modeSelectScreen'
 import { ocrKey, rowStatus, type QuestRowStatus } from './questOcr'
+import { questFaction } from '../progression/questBasics'
 
 /** Screens that mention quests but are not the Tasks list: messenger, trading, flea market. */
 const NOT_TASKS_SCREEN = /сообщени[яй]|отправить|барахолк|купить|продать/
@@ -123,7 +124,7 @@ export interface ScreenScanOptions {
  * A row of the Tasks table: the quest, the stage its title named (if any), the status cell (if read) and how surely the
  * title was read (src/import/questOcr.ts: 1 — exactly a quest's title).
  */
-export interface ScreenScanMatch { questId: string; stageIndex?: number; status?: QuestRowStatus; score?: number }
+export interface ScreenScanMatch { questId: string; stageIndex?: number; status?: QuestRowStatus; score?: number; twin?: 'row' | 'faction' | 'guess' }
 
 /**
  * One Tasks-table frame applied to a mode's records. Story chapters are not read here (the story pane has its reader,
@@ -133,7 +134,8 @@ export interface ScreenScanMatch { questId: string; stageIndex?: number; status?
  *
  * It only adds (owner, 05.11.2026). A row read «провалено» takes nothing away: the player takes that quest again. Nor does the
  * next quest of a chain on the screen: the reading may be wrong, and a hand-in shows in the logs by itself. A quest the screen
- * alone knows leaves by those logs (src/quests/questChain.ts) or the player's right click.
+ * alone knows leaves by those logs (src/quests/questChain.ts) or the player's right click. One exception: the other
+ * faction's version of a title, which an earlier frame guessed, goes once a row's location (or the faction) tells them apart.
  */
 export function applyScreenScanProgress(
   progress: ModeProgress,
@@ -153,9 +155,26 @@ export function applyScreenScanProgress(
     if (taskProgress === progress.taskProgress) taskProgress = { ...progress.taskProgress }
     taskProgress[taskId] = record
   }
+  const drop = (taskId: string) => {
+    if (taskProgress === progress.taskProgress) taskProgress = { ...progress.taskProgress }
+    delete taskProgress[taskId]
+  }
+  /** The other faction's quest of the same title (report 209: «Путь охотника. Администратор», BEAR at Reserve, USEC at Lighthouse). */
+  const factionTwins = (taskId: string) => {
+    const quest = byId.get(taskId)
+    const own = questFaction(quest?.faction)
+    if (!quest || !own) return []
+    return quests.filter((other) => other.id !== taskId && other.name === quest.name && questFaction(other.faction) && questFaction(other.faction) !== own).map((other) => other.id)
+  }
 
   for (const match of current) {
     const taskId = match.questId
+    const twins = match.twin ? factionTwins(taskId) : []
+    // A shared title neither the row's location nor the faction told: not over the version already being done.
+    if (match.twin === 'guess' && twins.some((id) => taskProgress[id]?.status === 'active')) continue
+    // Told by them: the other version goes when only an earlier guess of this scanner wrote it.
+    const accepted = !(options?.requireConfirmation && !previous.has(taskId) && match.status !== 'active' && (match.score ?? 0) < 1)
+    if (accepted && (match.twin === 'row' || match.twin === 'faction')) for (const id of twins) if (taskProgress[id]?.source === 'screen-scan') drop(id)
     const record = taskProgress[taskId]
     // Messages / reward screens repeat finished quest names, so only a table row with an explicit
     // «активно!» / «выполнено!» status can bring back a quest the scanner itself moved to completed.

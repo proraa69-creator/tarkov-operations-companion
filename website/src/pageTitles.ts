@@ -12,6 +12,8 @@ export const TITLES: Record<string, string> = {
   '/legal/offer': 'Публичная оферта — Raid OS',
   '/legal/privacy': 'Политика обработки персональных данных — Raid OS',
   '/app/privacy': 'Политика обработки персональных данных — Raid OS',
+  '/privacy': 'Политика конфиденциальности — Raid OS',
+  '/support': 'Поддержка — Raid OS',
   '/legal/consent': 'Согласие на обработку персональных данных — Raid OS',
   '/legal/cookies': 'Cookie и хранилище браузера — Raid OS',
 }

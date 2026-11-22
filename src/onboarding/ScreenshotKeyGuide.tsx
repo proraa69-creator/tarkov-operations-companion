@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDown, MapPin, TriangleAlert } from 'lucide-react'
+import { ArrowDown, MapPin, TriangleAlert, X } from 'lucide-react'
 import { useLocale } from '../i18n/LocaleProvider'
 import controlsTab from '../assets/guide/game-settings-controls.webp'
 import screenshotRow from '../assets/guide/game-settings-screenshot-key.webp'
@@ -28,6 +28,7 @@ const WARN: Phrase = {
   en: 'take the screenshot only with this key of the game. Screenshots of Windows, Steam, NVIDIA and other programs will not do: they have no coordinates.',
 }
 const OK: Phrase = { ru: 'Понятно', en: 'Got it' }
+const CLOSE: Phrase = { ru: 'Закрыть', en: 'Close' }
 const TAB_ALT: Phrase = { ru: 'Настройки игры, вкладка «Управление»', en: 'The game’s settings, the Controls tab' }
 const ROW_ALT: Phrase = { ru: 'Управление игры, строка «Сделать скриншот» и её клавиша', en: 'The game’s controls, the Take screenshot line and its key' }
 
@@ -53,16 +54,27 @@ function GameShot({ src, alt, marks }: { src: string; alt: string; marks: Mark[]
  * Raid OS?» whatever the answer — how to set the game's screenshot key, the screenshots marked by the app's own pointers
  * in place of the owner's red circles, and that only the game's own key will do (its screenshots carry the coordinates).
  * When it is due: src/onboarding/tours.ts screenshotKeyDue; shown by FeatureTours, one window at a time.
+ * On a low screen (report 212, a laptop: «во весь экран, закрыть не реально» — «Понятно» stood below the screen's edge
+ * with no sign of a scroll) only the middle scrolls: «✕» in the corner and «Понятно» at the bottom always show, and
+ * Escape closes it wherever the focus went.
  */
 export function ScreenshotKeyGuide({ onDone }: { onDone: () => void }) {
   const { locale } = useLocale()
   const say = (phrase: Phrase) => phrase[locale === 'en' ? 'en' : 'ru']
   const button = useRef<HTMLButtonElement>(null)
   useEffect(() => { button.current?.focus({ preventScroll: true }) }, [])
+  // on the window, not the layer: a click on the dim takes the focus out of the layer
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') onDone() }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [onDone])
   return createPortal(
-    <div className="frg-layer" onKeyDown={(event) => { if (event.key === 'Escape') onDone() }}>
+    <div className="frg-layer">
       <div className="frg-dim" />
       <div className="frg-card is-placed is-center skg-card" role="dialog" aria-modal="true" aria-labelledby="skg-title" aria-describedby="skg-why">
+        <button type="button" className="skg-close" onClick={onDone} aria-label={say(CLOSE)} title={say(CLOSE)}><X size={18} aria-hidden="true" /></button>
+        <div className="skg-body">
         <div className="frg-eyebrow"><MapPin size={13} aria-hidden="true" /> {say(EYEBROW)}</div>
         <h2 id="skg-title">{say(TITLE)}</h2>
         <p id="skg-why">{say(WHY)}</p>
@@ -72,7 +84,8 @@ export function ScreenshotKeyGuide({ onDone }: { onDone: () => void }) {
           <li><span className="skg-num">3</span><div><span>{say(STEP_RAID)}</span></div></li>
         </ol>
         <div className="skg-warn" role="note"><TriangleAlert size={18} aria-hidden="true" /><span><strong>{say(MAIN)}</strong> {say(WARN)}</span></div>
-        <button ref={button} type="button" className="button primary frg-accept" onClick={onDone}>{say(OK)}</button>
+        </div>
+        <div className="skg-foot"><button ref={button} type="button" className="button primary frg-accept" onClick={onDone}>{say(OK)}</button></div>
       </div>
     </div>,
     document.body,

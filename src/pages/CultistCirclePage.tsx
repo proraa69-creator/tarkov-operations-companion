@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Search, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
@@ -13,6 +13,8 @@ import { circleRows, circleTime, stackCount, type CircleExchange, type CircleRow
 import { hideoutNeeds } from '../hideout/hideoutNeeds'
 import { useHideoutFound } from '../hideout/hideoutFound'
 import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { useHideoutModules } from '../hideout/hideoutModulesStore'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questNeeds } from '../quests/questItemNeeds'
 import { StashPicture } from './HideoutStashPage'
@@ -74,9 +76,12 @@ export function CultistCirclePage() {
   const mode = state.raidMode
   const progress = state.activeProfile.modes[mode]
   const found = useHideoutFound(state.activeProfile.id, mode)
+  const modules = useHideoutModules()
   const [query, setQuery] = useState('')
   const [neededOnly, setNeededOnly] = useState(false)
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  // `?open=<exchange>`: the exchange a «Где взять» row of «Убежище» points to (hideout/WhereToGet.tsx)
+  const [params] = useSearchParams()
+  const [selectedKey, setSelectedKey] = useState<string | null>(() => params.get('open'))
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const needs = useMemo(() => {
     const byItem = new Map<string, CircleNeed[]>()
@@ -89,13 +94,13 @@ export function CultistCirclePage() {
         if (!use.done && (status === 'active' || status === 'available')) add(need.itemId, { key: `quest:${use.stationId}`, label: use.stationName, questId: use.stationId })
       }
     }
-    const stations = withSeasonFoundInRaid(data.hideout.filter((station) => station.levels?.length), mode)
+    const stations = applyHideoutModules(withSeasonFoundInRaid(data.hideout.filter((station) => station.levels?.length), mode), mode, modules)
     for (const need of hideoutNeeds(stations, progress.hideoutLevels, found).items) {
       if (need.remaining <= 0) continue
       for (const use of need.uses) add(need.itemId, { key: `hideout:${use.stationId}:${use.level}`, label: `${use.stationName} · ${locale === 'en' ? 'level' : 'ур.'} ${use.level}` })
     }
     return byItem
-  }, [data.quests, data.hideout, progress, found, mode, locale])
+  }, [data.quests, data.hideout, progress, found, mode, locale, modules])
   const isNeeded = useCallback((row: CircleRow) => row.rewards.some(([id]) => needs.has(id)), [needs])
   const rows = useMemo(() => {
     const title = (row: CircleRow) => dropsTitle(row, items)

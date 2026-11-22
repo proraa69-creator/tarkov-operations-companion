@@ -152,3 +152,23 @@ export function rowSpans(counts: number[]): Array<{ start: number; span: number 
     return { start, span: end - start + 1 }
   })
 }
+
+/** Kinds a part has one of: a second empty slot of the kind beside a filled one is not a place of its own on the board. */
+const ONE_OF: ReadonlySet<SlotKind> = new Set(['charge', 'handguard', 'barrel', 'gas', 'receiver', 'magazine', 'grip', 'stock'])
+
+/**
+ * Empty slots hidden behind a filled twin (owner, 20.11.2026: «если стоит стандартное цевье, то не должно быть второй кнопки… Нужно
+ * нажать на первое цевье и поставить нужное»): an empty slot of a part whose other slot of the same kind is filled — the M4A1's
+ * second charging handle slot (the B.A.D. lever) beside its charging handle, a stock tube's second stock slot beside its stock.
+ * Each hidden slot's key → the filled twin's key; it shows while its twin (or itself) is the chosen cell.
+ */
+export function hiddenTwins(cells: PlacedCell[], key: (path: string[]) => string): Map<string, string> {
+  const out = new Map<string, string>()
+  const owner = (cell: PlacedCell) => cell.path.slice(0, -1).join('/')
+  for (const cell of cells) {
+    if (cell.part || !ONE_OF.has(cell.kind)) continue
+    const twin = cells.find((other) => other !== cell && other.part && other.kind === cell.kind && owner(other) === owner(cell))
+    if (twin) out.set(key(cell.path), key(twin.path))
+  }
+  return out
+}

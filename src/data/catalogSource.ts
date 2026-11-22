@@ -11,6 +11,7 @@ import { withQuestTransits } from './questTransits'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails, type WikiQuestSync } from './wikiQuestCatalog'
 import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
+import { withOwnerGuides } from './ownerGunsmithGuides'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import { applyQuestCorrections } from './questCorrections'
@@ -21,6 +22,7 @@ import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiv
 import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
 import { gearStatsOf, presetIndex } from './gearStats'
+import { questOfferUnlocks, withOfferUnlocks } from './questOfferUnlocks'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -72,7 +74,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const rawItems: RawEndpoint = {}
   // The tasks untranslated: the game's keys of a kill objective's body parts and targets (src/data/objectiveConditions.ts).
   const rawTasks: RawEndpoint = {}
-  const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
+  const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki, barters] = await Promise.all([
     fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher, rawTasks),
     fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, rawItems),
     fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
@@ -81,12 +83,19 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     fetchMapRenderingConfigs(fetcher).catch(() => new Map<string, Partial<GameMap>>()),
     // The quest wiki used for details is Russian; the English catalog keeps tarkov.dev's own English text.
     (locale === 'ru' ? (options.wiki ?? fetchWikiQuestSync)() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
+    // The barters only add what a quest opens for items (src/data/questOfferUnlocks.ts): without them the rest stays.
+    fetchEnvelope(`${BASE_URL}/${upstreamMode}/barters`, fetcher).then((envelope) => envelope.data).catch(() => undefined),
   ])
+
+  // Season: the quests its data lacks, from the PvP data (SEASON_BORROWED_TASKS); without the PvP data, Season as it is.
+  const seasonTasks = upstreamMode === 'pvp-season'
+    ? withSeasonTaskFixes(await borrowRegularTasks(upstreamTasks, rawTasks, locale, fetcher).catch(() => upstreamTasks), rawTasks, locale)
+    : upstreamTasks
 
   // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
   const now = options.now ?? Date.now()
   const series = eventSeriesWith(options.eventQuests?.() ?? [])
-  const curated = withCuratedTasks(upstreamTasks, { mode, locale, maps, traders, series, now })
+  const curated = withCuratedTasks(seasonTasks, { mode, locale, maps, traders, series, now })
   const tasks = curated.tasks
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
@@ -105,10 +114,10 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
       : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
     return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const questRows = applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
+  const questRows = withOfferUnlocks(applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale)), locale), curated.added, locale, itemById, series, now)
+  ), locale)), locale, mode), curated.added, locale, itemById, series, now), questOfferUnlocks(tasks, items, barters))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const questItems = adaptQuestItems(tasks, questRows)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
@@ -155,12 +164,13 @@ async function withBuildGuides(
   englishResolver: () => Promise<(name: string) => string | undefined>,
 ): Promise<Quest[]> {
   const isBuild = (quest: Quest) => quest.objectiveDetails?.some((objective) => objective.build) ?? false
-  if (locale !== 'ru' || !quests.some(isBuild)) return quests
+  // The parts the sites leave out of a build, at the end of their list (src/data/ownerGunsmithGuides.ts).
+  if (locale !== 'ru' || !quests.some(isBuild)) return withOwnerGuides(quests, locale !== 'ru')
   const rawTasks = asRecord(tasksRoot.tasks)
   const traderOf = (quest: Quest) => traders.get(text(asRecord(rawTasks[quest.id]).trader))?.normalizedName
   const help = await fetchTarkovHelpGuides(quests.filter(isBuild).map((quest) => ({ id: quest.id, name: quest.name, trader: traderOf(quest) })))
   const isWeapon = (itemId: string) => (items.get(itemId)?.types ?? []).some((type) => type === 'gun' || type === 'preset')
-  const guided = withHelpGuides(quests, help, isWeapon)
+  const guided = withOwnerGuides(withHelpGuides(quests, help, isWeapon))
   // The wiki only for the tasks tarkov.help has no build for.
   const pages = guided.flatMap((quest) => {
     const title = quest.objectiveDetails?.some((objective) => objective.build && !objective.build.guide) ? wikiPageTitle(quest.wikiLink) : undefined
@@ -204,6 +214,96 @@ export type ConditionSources = (taskId: string) => ObjectiveConditionSource
 
 /** An endpoint as upstream serves it: the data with translation keys for its texts, and the dictionary of the locale. */
 interface RawEndpoint { data?: unknown; dictionary?: JsonRecord }
+
+/**
+ * Quests the game gives in Season that the Season data (tarkov.dev `pvp-season`) lacks: the 0.16 branch between Skier and
+ * the BTR driver (reports 184, 185, 17.11.2026: a Season player had «Выбирай друзей правильно» active in the game and found it
+ * nowhere in the app). From «Задержка поставки» and «Навести мосты», both in Season: «Спросить дорогу» → «Стабилизировать
+ * бизнес» → «Поменять батарейку» (Ragman's way) → «Цена независимости», and Skier's «Выше головы» → «Отклонение от
+ * маршрута» → «Подстелить соломку» → «Ключевой партнёр» → «Убойный аргумент» → «Выбирай друзей правильно»; «Цена
+ * независимости» and «Выбирай друзей правильно» fail each other. Every quest they need is in Season already.
+ */
+export const SEASON_BORROWED_TASKS: readonly string[] = [
+  '674492b6909d2013670a347a', '6744a4717e3818d5bb0680bb', '6744a9dfef61d56e020b5c4a', '6744af0969a58fceba101fed', '6745cbee909d2013670a4a55',
+  '6745fae369a58fceba10343d', '674600a366e6a521aa05eb66', '674602307e3818d5bb069489', '6746053b5b555b53460d9896', '674605df60a98cad1b0ec799',
+  '67460662d0fbbc74ca0f7229',
+]
+
+/** `root`'s tasks with the borrowed ones `from` has and `root` has not, and their quest items. */
+export function withBorrowedTasks(root: JsonRecord, from: JsonRecord, ids: readonly string[] = SEASON_BORROWED_TASKS): JsonRecord {
+  const tasks = asRecord(root.tasks)
+  const source = asRecord(from.tasks)
+  const borrowed = ids.filter((id) => !tasks[id] && source[id])
+  if (!borrowed.length) return root
+  const questItems = { ...asRecord(from.questItems), ...asRecord(root.questItems) }
+  return { ...root, questItems, tasks: { ...tasks, ...Object.fromEntries(borrowed.map((id) => [id, source[id]])) } }
+}
+
+interface SeasonTaskFix {
+  /** By the objective's id: its count, kill targets (the game's keys) and line, as the game's Season gives them. */
+  objectives: Record<string, { count?: number; targetNames?: string[]; description?: Record<AppLocale, string> }>
+  /** The game's Season version opens nothing at the traders. */
+  noOfferUnlock?: boolean
+}
+
+/**
+ * Quests the game gives otherwise in Season than tarkov.dev's `pvp-season` data, a copy of the PvP version. Report 192
+ * (18.11.2026, the game's own Season screen): «Освободить помещение» asks to eliminate 24 PMC operatives in the Labyrinth,
+ * not any 36 targets, and its rewards open no «Алтын» at Ragman's.
+ */
+export const SEASON_TASK_FIXES: Readonly<Record<string, SeasonTaskFix>> = {
+  '67d03be712fb5f8fd2096332': {
+    objectives: {
+      '67d03be712fb5f8fd2096334': {
+        count: 24,
+        targetNames: ['AnyPmc'],
+        description: { ru: 'Устранить бойцов ЧВК в Лабиринте', en: 'Eliminate PMC operatives inside The Labyrinth' },
+      },
+    },
+    noOfferUnlock: true,
+  },
+}
+
+/**
+ * `tasks` (translated) with SEASON_TASK_FIXES applied, and the untranslated ones in `raw` likewise (the kill conditions are
+ * read from those). Objectives are found by their id in the untranslated data (the translated one has its text as id).
+ */
+export function withSeasonTaskFixes(tasks: JsonRecord, raw: RawEndpoint, locale: AppLocale, fixes: Readonly<Record<string, SeasonTaskFix>> = SEASON_TASK_FIXES): JsonRecord {
+  const translated = asRecord(tasks.tasks)
+  const rawRoot = asRecord(raw.data)
+  const rawTasks = asRecord(rawRoot.tasks)
+  const dictionary = raw.dictionary ?? {}
+  const fixedTranslated: JsonRecord = {}
+  const fixedRaw: JsonRecord = {}
+  for (const [id, fix] of Object.entries(fixes)) {
+    const rawTask = asRecord(rawTasks[id])
+    const task = asRecord(translated[id])
+    if (!translated[id] || !rawTasks[id]) continue
+    const rawObjectives = asArray(rawTask.objectives).map(asRecord)
+    const objectives = asArray(task.objectives).map(asRecord)
+    const patch = (objective: JsonRecord, change: SeasonTaskFix['objectives'][string] | undefined, translate: boolean) => change ? {
+      ...objective,
+      ...(change.count !== undefined ? { count: change.count } : {}),
+      ...(change.targetNames ? { targetNames: translate ? change.targetNames.map((name) => (typeof dictionary[name] === 'string' ? dictionary[name] : name)) : change.targetNames } : {}),
+      ...(change.description && translate ? { description: change.description[locale] } : {}),
+    } : objective
+    const changes = rawObjectives.map((objective) => fix.objectives[text(objective.id)])
+    const noUnlock = (value: unknown) => (fix.noOfferUnlock ? { ...asRecord(value), offerUnlock: [] } : value)
+    fixedRaw[id] = { ...rawTask, objectives: rawObjectives.map((objective, at) => patch(objective, changes[at], false)), finishRewards: noUnlock(rawTask.finishRewards) }
+    fixedTranslated[id] = { ...task, objectives: objectives.map((objective, at) => patch(objective, changes[at], true)), finishRewards: noUnlock(task.finishRewards) }
+  }
+  if (!Object.keys(fixedTranslated).length) return tasks
+  raw.data = { ...rawRoot, tasks: { ...rawTasks, ...fixedRaw } }
+  return { ...tasks, tasks: { ...translated, ...fixedTranslated } }
+}
+
+async function borrowRegularTasks(seasonTasks: JsonRecord, rawSeason: RawEndpoint, locale: AppLocale, fetcher: typeof fetch): Promise<JsonRecord> {
+  const rawRegular: RawEndpoint = {}
+  const regular = await fetchTranslated('regular', 'tasks', locale, undefined, fetcher, rawRegular)
+  // the untranslated tasks too: a kill objective's conditions are read from them (conditionSourceOf)
+  rawSeason.data = withBorrowedTasks(asRecord(rawSeason.data), asRecord(rawRegular.data))
+  return withBorrowedTasks(seasonTasks, regular)
+}
 
 async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version: { version?: string } | undefined, fetcher: typeof fetch, raw?: RawEndpoint): Promise<JsonRecord> {
   const path = `${mode}/${endpoint}`

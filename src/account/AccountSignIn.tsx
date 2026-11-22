@@ -13,6 +13,7 @@ import { postService, useCooldown, waitFrom, type CodeChallenge } from './codeRe
 import { EmailSignInForm, EmailSignInLinks } from './EmailAccount'
 import { PhoneSignInForm, PhoneSignInLinks } from './PhoneAccount'
 import { QrSignIn } from './QrSignIn'
+import { googleSignInOffered } from '../shared/googleRegion'
 import './account.css'
 
 type Nicknames = Partial<Record<RaidMode, string>>
@@ -43,7 +44,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
   const [tab, setTab] = useState<AccountGateTab>(initialTab)
   const [emailMode, setEmailMode] = useState<'login' | 'reset' | null>(null)
   const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
-  const [qrMode, setQrMode] = useState(false)
+  const [qrMode, setQrMode] = useState<false | 'qr' | 'google'>(false)
   const online = status?.online ?? false
   // The server out of reach: asked again by itself (owner, 09.11.2026: «Кнопку «Проверить» убери, она не нужна»).
   const unreachable = Boolean(status && !online)
@@ -59,7 +60,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
 
   let body
   if (qrMode) {
-    body = <QrSignIn onSignedIn={signedIn} onBack={() => setQrMode(false)} />
+    body = <QrSignIn onSignedIn={signedIn} onBack={() => setQrMode(false)} google={qrMode === 'google'} />
   } else if (emailMode) {
     body = <>
       <h2>{uiText(emailMode === 'login' ? 'Вход по коду из письма' : 'Восстановление пароля')}</h2>
@@ -79,7 +80,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
       </div>
       <div id="account-gate-panel" role="tabpanel" aria-labelledby={`account-gate-tab-${tab}`}>
         {tab === 'login'
-          ? <PasswordSignIn online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onPickEmail={setEmailMode} onPickPhone={setPhoneMode} onPickQr={() => setQrMode(true)} onRegister={() => setTab('register')} />
+          ? <PasswordSignIn online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onPickEmail={setEmailMode} onPickPhone={setPhoneMode} onPickQr={() => setQrMode('qr')} onPickGoogle={() => setQrMode('google')} onRegister={() => setTab('register')} />
           : <Registration online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onLogin={() => setTab('login')} />}
       </div>
     </>
@@ -99,8 +100,9 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
   )
 }
 
-function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPhone, onPickQr, onRegister }: {
+function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPhone, onPickQr, onPickGoogle, onRegister }: {
   onPickQr: () => void
+  onPickGoogle: () => void
   online: boolean
   onSigningIn: () => void
   onSignedIn: (nicknames?: Nicknames) => void
@@ -117,6 +119,8 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
   // approves (QrSignIn.tsx; owner, 28.10.2026).
   // Not in the iPhone app for now (owner, 12.11.2026: «вход по qr удали позже мы их добавим»).
   const qr = !appStoreRules() && ((usesWebAccount() && !isDesktopShell()) || Boolean(window.tarkovDesktop?.account?.qrStart))
+  // «Войти через Google» on the PC (owner, 15.11.2026): not in Russia (src/shared/googleRegion.ts); the browser does the Google part.
+  const google = !appStoreRules() && Boolean(window.tarkovDesktop?.account?.qrStart) && googleSignInOffered()
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -147,6 +151,7 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
       <button className="button primary account-gate-submit" type="submit" disabled={busy || !online}>
         {busy ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}{uiText(busy ? 'Входим…' : 'Войти')}
       </button>
+      {google && <button type="button" className="button account-gate-google" disabled={!online} onClick={onPickGoogle}><GoogleMark />{uiText('Войти через Google')}</button>}
       {qr && <button type="button" className="button ghost account-gate-qr" onClick={onPickQr}><QrCode size={16} />{uiText('Войти по QR-коду')}</button>}
       <EmailSignInLinks online={online} onPick={onPickEmail} />
       {PHONE_AUTH_UI && <PhoneSignInLinks online={online} onPick={onPickPhone} resetLabel="Сбросить пароль по SMS" />}
@@ -337,4 +342,14 @@ function ConsentText() {
   return locale === 'en'
     ? <span>I accept the {link('offer', 'terms of the offer')} and give my {link('consent', 'consent to the processing of personal data')} under the {link('privacy', 'privacy policy')}</span>
     : <span>Я принимаю условия {link('offer', 'оферты')} и даю {link('consent', 'согласие на обработку персональных данных')} в соответствии с {link('privacy', 'политикой конфиденциальности')}</span>
+}
+
+/** Google's «G» in the brand's four colours (Google's sign-in guidelines ask for it on a «Sign in with Google» button). */
+function GoogleMark() {
+  return <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+  </svg>
 }

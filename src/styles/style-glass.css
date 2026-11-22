@@ -1,0 +1,116 @@
+/*
+ * The «Стекло» style (owner, 18–19.11.2026: «Стиль тоже такой стеклянный нужно сделать»; «у каждой темы должен быть олива, потом
+ * тельняшка… в стиле в обычном и в стекле»). On any colour scheme: everything is scoped to :root[data-style="glass"] and takes its
+ * colours from the scheme's own variables (--bg, --panel-2, --brass…), so «Олива», «Тельняшка», «Кровавая луна» each are glass in
+ * their own colours. The selectors repeat the attribute ([data-style][data-style]) to stand above the schemes' own panel looks.
+ *
+ * The page lies on a satellite photo of the Tarkov region; the menu, the top bar, the panels and the cards are frosted glass over it:
+ * a tint over the same photo blurred beforehand (assets/textures/glass), fixed to the window, so each pane shows what is behind it,
+ * blurred. No backdrop-filter: blurring live under the moving blocks (src/app/richMotion.ts) makes motion rough. Accents are pills
+ * in the scheme's accent with dark text, the edges a thin light rim.
+ */
+:root[data-style="glass"][data-style] {
+  --glass-photo: url("../assets/textures/glass/glass-bg.webp");
+  --glass-frost: url("../assets/textures/glass/glass-frost.webp");
+  --glass-tint: linear-gradient(160deg, color-mix(in srgb, var(--panel-2) 62%, transparent), color-mix(in srgb, var(--bg) 72%, transparent));
+  --glass-tint-pane: linear-gradient(160deg, color-mix(in srgb, var(--panel-2) 74%, transparent), color-mix(in srgb, var(--bg) 82%, transparent));
+  --glass-tint-strong: linear-gradient(160deg, color-mix(in srgb, var(--panel-2) 78%, transparent), color-mix(in srgb, var(--bg) 84%, transparent));
+  --glass-rim: inset 0 1px 0 rgb(255 255 255 / 10%), inset 0 0 0 1px rgb(255 255 255 / 3%);
+  --glass-shadow: 0 18px 44px rgb(0 0 0 / 30%);
+  --glass-accent: linear-gradient(135deg, var(--brass-strong), var(--brass));
+  --glass-ink: color-mix(in srgb, var(--bg) 88%, #000);
+  --radius-md: 18px;
+}
+
+/* ---------- the photo under everything, in the scheme's dark ---------- */
+:root[data-style="glass"][data-style] { background: var(--bg); }
+:root[data-style="glass"][data-style] body { background: transparent; }
+/* one layer of its own under the whole app (owner, 19.11.2026: «чтобы они не тупили, не лагали, не подвисали»): the page scrolls
+   over it and nothing is painted again; a fixed background on every pane was repainted on each scrolled frame */
+:root[data-style="glass"][data-style] body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 0%, rgb(255 240 200 / 6%), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg) 42%, transparent), color-mix(in srgb, var(--bg) 68%, transparent)),
+    var(--glass-photo) center / cover no-repeat,
+    var(--bg);
+}
+
+/* ---------- frosted panes ---------- */
+:root[data-style="glass"][data-style] :is(.sidebar, .topbar, .panel, .stat-card, .search-dialog, .item-drawer, .location-keys, .detail-panel) {
+  /* the panes that scroll: tinted glass only (cheap to move); the menu and the top bar, which never scroll, carry the frost */
+  background: var(--glass-tint-pane);
+  backdrop-filter: none;
+  border-color: rgb(255 255 255 / 9%);
+  box-shadow: var(--glass-rim), var(--glass-shadow);
+}
+:root[data-style="glass"][data-style] .sidebar { background: var(--glass-tint-strong), var(--glass-frost) center / cover fixed; box-shadow: var(--glass-rim); }
+:root[data-style="glass"][data-style] .topbar { background: var(--glass-tint-strong), var(--glass-frost) center / cover fixed; box-shadow: inset 0 -1px 0 rgb(255 255 255 / 6%); }
+:root[data-style="glass"][data-style] :is(.panel, .stat-card) { border-radius: var(--radius-md); }
+/* a pane inside a pane: a lighter layer of the same glass, no second photo */
+:root[data-style="glass"][data-style] :is(.panel, .stat-card, .detail-panel) :is(.panel, .stat-card) {
+  background: linear-gradient(160deg, rgb(255 255 255 / 6%), rgb(255 255 255 / 2%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+:root[data-style="glass"][data-style] .search-overlay { backdrop-filter: none; background: color-mix(in srgb, var(--bg) 62%, transparent); }
+
+/* ---------- the menu: an accent pill for the page open ---------- */
+:root[data-style="glass"][data-style] .nav-link { border-radius: 12px; }
+:root[data-style="glass"][data-style] .nav-link:hover { background: rgb(255 255 255 / 6%); }
+:root[data-style="glass"][data-style] .nav-link.active::before { display: none; }
+:root[data-style="glass"][data-style] .nav-link.active svg { opacity: 1; }
+
+/* ---------- switches: a glass track, the choice an accent pill ---------- */
+:root[data-style="glass"][data-style] :is(.mode-switch, .locale-switch) { border-radius: 999px; border-color: rgb(255 255 255 / 10%); background: rgb(0 0 0 / 22%); }
+:root[data-style="glass"][data-style] :is(.mode-switch, .locale-switch) button { border-radius: 999px; }
+:root[data-style="glass"][data-style] .toggle { background: rgb(255 255 255 / 10%); }
+
+/* ---------- buttons, fields, chips ---------- */
+:root[data-style="glass"][data-style] .button { border-radius: 12px; border-color: rgb(255 255 255 / 12%); background: rgb(255 255 255 / 6%); }
+:root[data-style="glass"][data-style] .button:hover { border-color: rgb(255 255 255 / 22%); background: rgb(255 255 255 / 10%); }
+:root[data-style="glass"][data-style] .button.primary:hover { filter: brightness(1.06); }
+:root[data-style="glass"][data-style] .button.ghost { background: transparent; }
+:root[data-style="glass"][data-style] :is(.icon-button, .search-trigger) { border-radius: 12px; border-color: rgb(255 255 255 / 10%); background: rgb(255 255 255 / 5%); }
+:root[data-style="glass"][data-style] .search-trigger:hover { background: rgb(255 255 255 / 9%); }
+:root[data-style="glass"][data-style] .search-trigger kbd { background: rgb(0 0 0 / 30%); border-color: rgb(255 255 255 / 12%); }
+:root[data-style="glass"][data-style] :is(.input, input[type="text"], input[type="search"], select, textarea) { border-radius: 12px; border-color: rgb(255 255 255 / 11%); background-color: rgb(0 0 0 / 24%); }
+:root[data-style="glass"][data-style] .tag { border-radius: 999px; }
+:root[data-style="glass"][data-style] .tag.brass { background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass-strong); }
+
+/*
+ * Glass buttons (owner, 19.11.2026: «все кнопки… одним цветом подсвечиваются, они должны быть как стеклянные… на черном мультикаме
+ * в обычном режиме стекло очень хорошо передается. Сделать в таком стиле кнопки во всех стеклянных темах»): every button a pane of
+ * glass with its light edge on top and its shade below, the way «Чёрный мультикам» raises its buttons; the one picked — the menu's
+ * page, a switch's choice, a tab — the same glass tinted with the scheme's accent and a glowing rim instead of a solid fill.
+ */
+:root[data-style="glass"][data-style] {
+  --glass-button: linear-gradient(180deg, rgb(255 255 255 / 11%), rgb(255 255 255 / 3%) 55%, rgb(0 0 0 / 8%));
+  --glass-button-hover: linear-gradient(180deg, rgb(255 255 255 / 17%), rgb(255 255 255 / 6%) 55%, rgb(0 0 0 / 6%));
+  --glass-button-edge: inset 0 1px 0 rgb(255 255 255 / 22%), inset 0 -1px 0 rgb(0 0 0 / 35%), 0 3px 10px rgb(0 0 0 / 28%);
+  --glass-picked: linear-gradient(180deg, color-mix(in srgb, var(--brass) 34%, rgb(255 255 255 / 8%)), color-mix(in srgb, var(--brass) 12%, transparent) 60%, color-mix(in srgb, var(--brass) 6%, rgb(0 0 0 / 10%)));
+  --glass-picked-edge: inset 0 1px 0 rgb(255 255 255 / 30%), inset 0 -1px 0 rgb(0 0 0 / 30%), inset 0 0 0 1px color-mix(in srgb, var(--brass) 55%, transparent), 0 0 18px color-mix(in srgb, var(--brass) 22%, transparent), 0 4px 12px rgb(0 0 0 / 30%);
+}
+:root[data-style="glass"][data-style] :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button) {
+  background: var(--glass-button); border: 1px solid rgb(255 255 255 / 13%); box-shadow: var(--glass-button-edge); outline: none; color: var(--text);
+}
+:root[data-style="glass"][data-style] :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):hover:not(:disabled) {
+  background: var(--glass-button-hover); border-color: rgb(255 255 255 / 22%);
+}
+:root[data-style="glass"][data-style] :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button):active:not(:disabled) {
+  box-shadow: inset 0 2px 6px rgb(0 0 0 / 45%), inset 0 0 0 1px rgb(255 255 255 / 8%);
+}
+:root[data-style="glass"][data-style] .button.ghost { background: transparent; box-shadow: none; border-color: rgb(255 255 255 / 10%); }
+/* the picked one: tinted glass, a glowing rim, the accent's own light text */
+:root[data-style="glass"][data-style] :is(.button.primary, .nav-link.active, .map-option.active, .layer-button.active, .mode-switch button.active, .locale-switch button.active, .style-switch button.active, .segmented-filter button.active, [role="tab"][aria-selected="true"]) {
+  background: var(--glass-picked); border-color: transparent; box-shadow: var(--glass-picked-edge); outline: none;
+  color: color-mix(in srgb, var(--brass-strong) 70%, #fff); text-shadow: 0 1px 2px rgb(0 0 0 / 55%);
+}
+:root[data-style="glass"][data-style] .nav-link.active svg { color: var(--brass-strong); }
+:root[data-style="glass"][data-style] .nav-link { border: 1px solid transparent; outline: none; }
+:root[data-style="glass"][data-style] .nav-link:hover:not(.active) { background: var(--glass-button); border-color: rgb(255 255 255 / 10%); box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%); outline: none; }
+/* the switches' track: a recess in the glass */
+:root[data-style="glass"][data-style] :is(.mode-switch, .locale-switch, .style-switch, .segmented-filter) { background: rgb(0 0 0 / 26%); border: 1px solid rgb(255 255 255 / 9%); box-shadow: inset 0 2px 5px rgb(0 0 0 / 45%), 0 1px 0 rgb(255 255 255 / 6%); }
+:root[data-style="glass"][data-style] .toggle { background: rgb(0 0 0 / 30%); box-shadow: inset 0 2px 5px rgb(0 0 0 / 50%), 0 1px 0 rgb(255 255 255 / 7%); }
+:root[data-style="glass"][data-style] .toggle span { background: linear-gradient(180deg, rgb(255 255 255 / 85%), rgb(220 225 220 / 65%)); box-shadow: 0 2px 4px rgb(0 0 0 / 45%); }
+:root[data-style="glass"][data-style] .toggle.on { background: var(--glass-picked); box-shadow: var(--glass-picked-edge); }
+:root[data-style="glass"][data-style] .toggle.on span { background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--brass-strong) 40%, #fff)); }

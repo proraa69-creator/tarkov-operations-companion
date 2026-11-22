@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { EftCasesTable } from '../reports/EftCasesTable'
 import { useMemo, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Gift, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, Reply, Users } from 'lucide-react'
@@ -6,7 +7,7 @@ import { uiText } from '../i18n/renderText'
 import { isOwnerApp } from '../app/buildEdition'
 import { useOptionalTarkovData } from '../data/DataProvider'
 import { useQuestPointWriter } from '../data/questPointOverrides'
-import { useOwnerChatActions, useOwnerReportActions, useOwnerReportTable, type OwnerReport, type OwnerReportRow } from '../data/ownerRequests'
+import { ownerEftCases, useOwnerChatActions, useOwnerReportActions, useOwnerReportTable, useOwnerRequestCounts, type OwnerReport, type OwnerReportRow } from '../data/ownerRequests'
 import { SupportComposer, SupportReportCard } from '../support/SupportChat'
 import { ReportsTable } from '../reports/ReportsTable'
 import { cleanIpcError } from '../sync/serverSync'
@@ -96,6 +97,9 @@ export function RequestsPage() {
 /** The table with the owner app's data and its details; also in «Админ панель» → «Отчёты». */
 export function OwnerReportsTable({ onOpenChat, focusId }: { onOpenChat: (accountId: string) => void; focusId?: number | null }) {
   const [view, setView] = useState<ReportTableView>('active')
+  // «Аккаунты Таркова» (owner, 15.11.2026): the tab next to the three lists, its count from the same long polling.
+  const [eftSelected, setEftSelected] = useState(false)
+  const counts = useOwnerRequestCounts()
   const table = useOwnerReportTable(view)
   const actions = useOwnerReportActions()
   const data = useOptionalTarkovData()?.data
@@ -108,7 +112,13 @@ export function OwnerReportsTable({ onOpenChat, focusId }: { onOpenChat: (accoun
     <ReportsTable
       page={page}
       view={view}
-      onView={setView}
+      onView={(next) => { setView(next); setEftSelected(false) }}
+      eft={{
+        count: counts?.eftCases ?? 0,
+        selected: eftSelected,
+        onSelect: () => setEftSelected(true),
+        content: <EftCasesTable load={ownerEftCases.list} setStatus={ownerEftCases.setStatus} t={uiText} reloadKey={(counts?.open ?? 0) * 1000 + (counts?.eftCases ?? 0)} />,
+      }}
       t={uiText}
       focusId={focusId}
       error={error}

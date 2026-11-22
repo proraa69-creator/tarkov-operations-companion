@@ -31,7 +31,7 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
   /** «Обычный», «Вкладки по этапам» or «Шкала этапов» (components/questSheetView.ts). */
   view?: QuestSheetView
   /** An item of «Требуемые предметы» that opens a window of its own (a key: quests/QuestKeyDialog.tsx). */
-  openNeed?: { can: (itemId: string) => boolean; open: (itemId: string) => void }
+  openNeed?: NeedOpener
 }) {
   const root = useRef<HTMLDivElement>(null)
   const photos = useObjectivePhotos(questId)
@@ -94,7 +94,7 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
                     quest shown before in the next one (owner, 20.10.2026: «подзадачи гуляют из квеста в квест»). */}
                 {group.objectives.map((objective, index) => {
                   const own = photos.photosOf(objective)
-                  return <li key={`${index}:${objective.id}`} {...photos.rowProps(`${group.kind}:${index}`, own)} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}${own.length ? ' has-photos' : ''}`}>
+                  return <li key={`${index}:${objective.id}`} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}${own.length ? ' has-photos' : ''}`}>
                     {/* the map under the pin and the box (owner, 11.11.2026: «Карту пиши под ячейками… А текст всегда должен ложиться
                         ровно»): every line's text starts in one column */}
                     <span className="sheet-objective-side">
@@ -208,7 +208,10 @@ const STAGE_ICON: Record<SheetStageKind, ReactNode> = {
 }
 
 /** The items a line needs, each with its picture, its count and what it is for. */
-function SheetNeeds({ needs, open, bare }: { needs: readonly SheetNeed[]; open?: { can: (itemId: string) => boolean; open: (itemId: string) => void }; bare?: boolean }) {
+/** A need that can be pressed (a key): `expanded` is the one open right under its row, drawn by `render` (owner, 19.11.2026). */
+export interface NeedOpener { can: (itemId: string) => boolean; open: (itemId: string) => void; expanded?: string | null; render?: (itemId: string) => ReactNode }
+
+function SheetNeeds({ needs, open, bare }: { needs: readonly SheetNeed[]; open?: NeedOpener; bare?: boolean }) {
   return (
     <ul className="sheet-needs" aria-label={uiText('Требования рейда')}>
       {needs.map((need) => {
@@ -219,8 +222,9 @@ function SheetNeeds({ needs, open, bare }: { needs: readonly SheetNeed[]; open?:
             {!bare && <small>{uiText(need.label)}{need.foundInRaid ? ` · ${uiText('найден в рейде')}` : ''}</small>}
           </span>
         </>
+        const expanded = open?.expanded === need.itemId && open.render
         return open?.can(need.itemId)
-          ? <li key={`${need.itemId}:${need.label}`}><button type="button" className="sheet-need is-button" title={uiText(need.name)} onClick={() => open.open(need.itemId)}>{body}</button></li>
+          ? <li key={`${need.itemId}:${need.label}`} className={expanded ? 'is-expanded' : undefined}><button type="button" className="sheet-need is-button" title={uiText(need.name)} aria-expanded={Boolean(expanded)} onClick={() => open.open(need.itemId)}>{body}</button>{expanded ? open.render!(need.itemId) : null}</li>
           : <li key={`${need.itemId}:${need.label}`} className="sheet-need" title={uiText(need.name)}>{body}</li>
       })}
     </ul>

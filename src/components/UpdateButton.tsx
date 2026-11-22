@@ -7,6 +7,7 @@ import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import type { UpdateStatus } from '../electron'
 import '../styles/updateOverlay.css'
+import { useNotificationKinds } from '../notifications/notificationKinds'
 
 type Step = 'download' | 'verify' | 'install'
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -138,7 +139,9 @@ export function LiveUpdateToast({ version }: { version?: string }) {
   // Announced before this page mounted (the same version after a reload or a remount is not announced again).
   const [seen] = useState(liveShown)
   const [closed, setClosed] = useState<string | null>(null)
-  const shown = version && version !== seen && version !== closed ? version : null
+  // switched off in «Уведомления» → «Настроить»
+  const on = useNotificationKinds()['app-updated']
+  const shown = on && version && version !== seen && version !== closed ? version : null
   useEffect(() => {
     if (!shown) return
     try { localStorage.setItem(LIVE_SHOWN_KEY, shown) } catch { /* shown again next time */ }

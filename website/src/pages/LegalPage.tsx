@@ -45,6 +45,33 @@ export function AppPrivacyPage() {
   )
 }
 
+/**
+ * /privacy — the privacy policy the site's footer links to (owner, 17.11.2026: «Главное, чтобы в политике не было упоминания о
+ * ценах и о тарифах… о подписках»): the same text as /app/privacy (legal/appPrivacy.ts), in the site's frame, without the
+ * documents' row («Тарифы, оплата и возврат»). The whole /legal/privacy stays where a payment or a sign-up links to it.
+ */
+export function PrivacyPage() {
+  const doc = appPrivacyDocument()
+  return (
+    <div className="page page-in">
+      <div className="container narrow legal">
+        <h1 className="page-title">{doc.title}</h1>
+        <p className="page-subtitle">Редакция от {LEGAL_VERSION_LABEL}</p>
+        {siteLocale() === 'en' && <p className="legal-language-note" lang="en">{tr('Условия и документы доступны только на русском языке: они составлены по законодательству РФ.')}</p>}
+        <article className="panel legal-doc">
+          {doc.sections.map((section) => (
+            <section key={section.title}>
+              <h2>{section.title}</h2>
+              {section.paragraphs?.map((text) => <p key={text}>{text}</p>)}
+              {section.items && <ul>{section.items.map((text) => <li key={text}>{text}</li>)}</ul>}
+            </section>
+          ))}
+        </article>
+      </div>
+    </div>
+  )
+}
+
 /** /legal — the buyer's page (tariffs, payment, access, refund, contacts, seller); /legal/:slug — one document. */
 export function LegalPage() {
   const { slug } = useParams()

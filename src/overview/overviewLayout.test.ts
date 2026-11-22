@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultOverviewLayout, isDefaultLayout, loadOverviewLayout, moveBlock, OVERVIEW_LAYOUT_KEY, sanitizeOverviewLayout, saveOverviewLayout } from './overviewLayout'
+import { defaultOverviewLayout, isDefaultLayout, loadOverviewLayout, moveBlock, OVERVIEW_LAYOUT_KEY, removeBlock, sanitizeOverviewLayout, saveOverviewLayout } from './overviewLayout'
 
 const memory = () => {
   const data = new Map<string, string>()
@@ -60,5 +60,28 @@ describe('Overview layout (owner, 12.10.2026: «Настроить блоки»)
     storage.setItem(OVERVIEW_LAYOUT_KEY, '{not json')
     expect(isDefaultLayout(loadOverviewLayout(storage))).toBe(true)
   })
-})
 
+  it('a removed block stays off after a reload, the rest close up; the starting layout brings it back (owner, 17.11.2026)', () => {
+    const storage = memory()
+    const removed = removeBlock(removeBlock(defaultOverviewLayout(), 'stat-goons'), 'squad')
+    expect(removed.stats).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa'])
+    expect(removed.left).toEqual(['raid', 'requirements'])
+    expect(isDefaultLayout(removed)).toBe(false)
+    saveOverviewLayout(removed, storage)
+    const loaded = loadOverviewLayout(storage)
+    expect(loaded.stats).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa'])
+    expect(loaded.left).toEqual(['raid', 'requirements'])
+    expect([...loaded.removed!].sort()).toEqual(['squad', 'stat-goons'])
+    // «Сбросить» applies the starting layout: saved as default, nothing removed any more.
+    saveOverviewLayout(defaultOverviewLayout(), storage)
+    expect(storage.data.has(OVERVIEW_LAYOUT_KEY)).toBe(false)
+    expect(loadOverviewLayout(storage).stats).toContain('stat-goons')
+  })
+
+  it('the card row and the columns themselves cannot be removed; unknown removed ids are dropped', () => {
+    const layout = defaultOverviewLayout()
+    expect(removeBlock(layout, 'stats')).toBe(layout)
+    expect(removeBlock(layout, 'nope')).toBe(layout)
+    expect(sanitizeOverviewLayout({ removed: ['columns', 'nope', 'stat-tasks'] }).removed).toEqual(['stat-screen'])
+  })
+})

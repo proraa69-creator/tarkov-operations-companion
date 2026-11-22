@@ -110,7 +110,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   saveProfileBackup: (json) => ipcRenderer.invoke('profile:save-backup', json),
   openProfileBackup: () => ipcRenderer.invoke('profile:open-backup'),
   getVersion: () => ipcRenderer.invoke('app:version'),
-  notify: (title, body, icon) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? ''), icon),
+  notify: (title, body, icon, silent) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? ''), icon, silent === true),
   confirm: (message, locale) => ipcRenderer.sendSync('app:confirm', String(message ?? ''), locale === 'en' ? 'en' : 'ru') === true,
   resolvePlayerProfile: (mode, nickname) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
@@ -131,6 +131,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     deletePreset: (id) => ipcRenderer.invoke('screen:delete-preset', String(id ?? '')),
     renamePreset: (id, name) => ipcRenderer.invoke('screen:rename-preset', String(id ?? ''), String(name ?? '')),
     restorePresets: () => ipcRenderer.invoke('screen:restore-presets'),
+    reorderPresets: (ids) => ipcRenderer.invoke('screen:reorder-presets', Array.isArray(ids) ? ids.map(String) : []),
     revertPreset: (id) => ipcRenderer.invoke('screen:revert-preset', String(id ?? '')),
     edit: (profile) => ipcRenderer.invoke('screen:edit', profile ?? null),
     frame: (kind) => ipcRenderer.invoke('screen:frame', kind === 'game' || kind === 'screenshot' ? kind : 'last'),
@@ -155,6 +156,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     onPosition: (callback) => subscribe('experimental:position', callback),
     onItem: (callback) => subscribe('experimental:item', callback),
     onCollectorScan: (callback) => subscribe('experimental:collector-scan', () => callback()),
+    /** The game's exit list read after O (electron/extractsReader.ts): without it the map never got a reading. */
+    onRaidExtracts: (callback) => subscribe('game:raid-extracts', callback),
   },
 })
 

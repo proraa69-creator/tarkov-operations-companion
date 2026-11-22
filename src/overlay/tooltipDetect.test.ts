@@ -110,6 +110,22 @@ describe('game item tooltip', () => {
     expect(Math.abs(rect.x - 303)).toBeLessThanOrEqual(1)
   })
 
+  it('finds a wrapped name in the game\'s fixed-width box, far from its right edge (report 172)', () => {
+    // 1440p: the box is 300 px wide at 1080p whatever the name; its first line ends ~70 px short of the right frame.
+    const unit = 1440 / 1080
+    const image = canvas(900, 300)
+    for (let x = 20; x < 880; x += 84) for (let y = 120; y < 290; y += 84) cell(image, x, y, 83)
+    const [x, y, w, h] = [70, 20, 400, 70]
+    fill(image, x, y, w, 1, 88); fill(image, x, y + h - 1, w, 1, 88); fill(image, x, y, 1, h, 88); fill(image, x + w - 1, y, 1, h, 88)
+    fill(image, x + 1, y + 1, w - 2, h - 2, 0)
+    for (let letter = x + 14; letter + 6 <= x + 330; letter += 11) fill(image, letter, y + 14, 6, 16, 225)
+    for (let letter = x + 14; letter + 6 <= x + 200; letter += 11) fill(image, letter, y + 40, 6, 16, 225)
+    const rect = findTooltip(image, { x: 55, y: 105 }, unit)
+    expect(rect).not.toBeNull()
+    expect(Math.abs(rect!.x - (x + 3))).toBeLessThanOrEqual(2)
+    expect(Math.abs(rect!.width - (w - 6))).toBeLessThanOrEqual(4)
+  })
+
   it('prepares black text on white, upscaled smoothly, with a margin', () => {
     const image = canvas(300, 100)
     tooltip(image, 20, 20, 120, 36)

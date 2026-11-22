@@ -1,6 +1,6 @@
-import { useMemo, useRef } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, Lock, Trophy, Wrench } from 'lucide-react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Check, Lock, Trophy, Wrench, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -11,6 +11,8 @@ import type { ModeProgress, RaidMode } from '../domain/types'
 import { gunsmithSteps, gunsmithSummary, stepStatus, type GunsmithStep } from '../gunsmith/gunsmith'
 import { GunsmithQuestPlan } from '../gunsmith/GunsmithQuestPlan'
 import { useFitBelow } from '../app/useFitBelow'
+import { useMobileLayout } from '../platform'
+import { usePhoneGunsmithView } from '../gunsmith/phoneGunsmithView'
 import '../gunsmith/gunsmith.css'
 
 /**
@@ -32,9 +34,45 @@ export function GunsmithPage() {
   const fallback = summary.active[0] ?? summary.next ?? steps[0]
   const selected = steps.find((step) => step.quest.id === requestedQuest) ?? steps.find((step) => step.part === requestedPart) ?? fallback
   const select = (step: GunsmithStep) => setParams((current) => { const next = new URLSearchParams(current); next.delete('part'); next.set('quest', step.quest.id); return next }, { replace: true })
+  // The phone (owner, 16.11.2026): a part opens only when it is pressed (or asked for by a link), as a window with «Назад»
+  // or, if so chosen in «Настройки», unfolded under its row with a cross (src/gunsmith/phoneGunsmithView.ts).
+  const phone = useMobileLayout()
+  const phoneView = usePhoneGunsmithView()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const opened = phone ? steps.find((step) => step.quest.id === requestedQuest) ?? steps.find((step) => step.part === requestedPart) : undefined
+  const listScroll = useRef<number | null>(null)
+  const closePart = () => {
+    if ((location.state as { gunsmithList?: boolean } | null)?.gunsmithList) navigate(-1)
+    else setParams((current) => { const next = new URLSearchParams(current); next.delete('part'); next.delete('quest'); return next }, { replace: true })
+  }
+  const openPart = (step: GunsmithStep) => {
+    if (opened?.part === step.part) { closePart(); return }
+    if (phoneView === 'window') listScroll.current = scrollerOf(layout.current)?.scrollTop ?? 0
+    // The window is a step of its own in the history: «Назад» and the phone's back button return to the list.
+    const pushed = phoneView === 'window' || !opened
+    setParams((current) => { const next = new URLSearchParams(current); next.delete('part'); next.set('quest', step.quest.id); return next },
+      pushed ? { state: { gunsmithList: true } } : { replace: true, state: location.state })
+  }
+  const windowed = phone && phoneView === 'window' && opened
+  // Back from the window: the list where it was left; into the window: its top.
+  useLayoutEffect(() => {
+    if (!phone || phoneView !== 'window') return
+    const scroller = scrollerOf(layout.current ?? document.querySelector('.gunsmith-page'))
+    if (!scroller) return
+    if (windowed) scroller.scrollTop = 0
+    else if (listScroll.current !== null) { scroller.scrollTop = listScroll.current; listScroll.current = null }
+  }, [phone, phoneView, windowed])
   // Both columns end at the bottom of the window: the parts and the part's card scroll inside, the page stays put.
   const layout = useRef<HTMLDivElement>(null)
   useFitBelow(layout, steps.length > 0)
+
+  if (windowed) return <div className="page gunsmith-page is-part-window">
+    <div className="gunsmith-window-bar">
+      <button type="button" className="button ghost" onClick={closePart}><ArrowLeft size={15} />{uiText(' Назад')}</button>
+    </div>
+    <PartDetail key={opened.part} step={opened} playerLevel={progress.playerLevel} mode={state.raidMode} progress={progress} />
+  </div>
 
   return <div className="page gunsmith-page">
     <header className="page-header">
@@ -55,22 +93,37 @@ export function GunsmithPage() {
           <div className="panel-header"><div className="panel-title"><Wrench size={15} aria-hidden="true" /> {uiText('Части')}</div></div>
           {summary.unknown > 0 && <p className="gunsmith-parts-hint">{uiText('Отметьте галочкой части, которые вы сделали раньше: игра хранит логи несколько недель, и более старые части приложение не видит.')}</p>}
           <ol className="gunsmith-parts">
-            {steps.map((step) => <li key={step.part}>
-              <PartRow step={step} selected={step.part === selected?.part} playerLevel={progress.playerLevel} onSelect={() => select(step)} />
-              <PartCheck step={step} mode={state.raidMode} progress={progress} />
-            </li>)}
+            {steps.map((step) => {
+              const unfolded = phone && phoneView === 'expand' && opened?.part === step.part
+              return <li key={step.part} className={unfolded ? 'is-unfolded' : undefined}>
+                <PartRow step={step} selected={phone ? opened?.part === step.part : step.part === selected?.part} playerLevel={progress.playerLevel}
+                  onSelect={() => (phone ? openPart(step) : select(step))} closable={unfolded} />
+                <PartCheck step={step} mode={state.raidMode} progress={progress} />
+                {unfolded && <div className="gunsmith-unfolded"><PartDetail step={step} playerLevel={progress.playerLevel} mode={state.raidMode} progress={progress} /></div>}
+              </li>
+            })}
           </ol>
         </section>
-        {selected && <PartDetail key={selected.part} step={selected} playerLevel={progress.playerLevel} mode={state.raidMode} progress={progress} />}
+        {!phone && selected && <PartDetail key={selected.part} step={selected} playerLevel={progress.playerLevel} mode={state.raidMode} progress={progress} />}
       </div>}
   </div>
 }
 
-function PartRow({ step, selected, playerLevel, onSelect }: { step: GunsmithStep; selected: boolean; playerLevel: number; onSelect: () => void }) {
+/** What scrolls the page: the nearest scrolling box around it, else the document. */
+function scrollerOf(element: Element | null): HTMLElement | null {
+  for (let node = element?.parentElement; node; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowY
+    if ((overflow === 'auto' || overflow === 'scroll') && node.scrollHeight > node.clientHeight) return node
+  }
+  return document.scrollingElement as HTMLElement | null
+}
+
+function PartRow({ step, selected, playerLevel, onSelect, closable }: { step: GunsmithStep; selected: boolean; playerLevel: number; onSelect: () => void; closable?: boolean }) {
   const { data } = useTarkovData()
   const { locale } = useLocale()
   const weapon = step.build ? data.items.find((item) => item.id === step.build!.weaponId) : undefined
-  return <button type="button" className={`gunsmith-part-row is-${step.status}${selected ? ' is-selected' : ''}`} aria-current={selected || undefined} onClick={onSelect}>
+  return <button type="button" className={`gunsmith-part-row is-${step.status}${selected ? ' is-selected' : ''}${closable ? ' has-close' : ''}`} aria-current={selected || undefined}
+    aria-expanded={closable || undefined} onClick={onSelect}>
     <span className="gunsmith-part-index">{step.status === 'completed' ? <Check size={12} aria-hidden="true" /> : step.part}</span>
     {weapon?.presetImageUrl || weapon?.iconUrl ? <img className="gunsmith-part-thumb" src={weapon.presetImageUrl ?? weapon.iconUrl} alt="" loading="lazy" /> : <span className="gunsmith-part-thumb" />}
     <span className="gunsmith-part-copy">
@@ -78,6 +131,8 @@ function PartRow({ step, selected, playerLevel, onSelect }: { step: GunsmithStep
       <small>{uiText(weapon?.shortName ?? '')}{weapon ? ' · ' : ''}{uiText(`ур. ${step.quest.level}`)}</small>
     </span>
     {step.status !== 'unknown' && <span className="gunsmith-part-status">{step.status === 'locked' && <Lock size={10} aria-hidden="true" />}{stepStatus(step, playerLevel, locale)}</span>}
+    {/* The unfolded part's cross (phone, «Раскладывать»): the row closes it. */}
+    {closable && <span className="gunsmith-part-close" aria-label={uiText('Закрыть')}><X size={18} aria-hidden="true" /></span>}
   </button>
 }
 

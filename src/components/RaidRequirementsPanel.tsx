@@ -8,6 +8,7 @@ import { useHoverCard } from './useHoverCard'
 import { ThumbScroll } from './ThumbScroll'
 import type { DeferMenuState } from './QuestDeferDialog'
 import { TakenCheck, useItemTaken, useTakenItemsMarks } from '../overview/TakenItems'
+import type { FlareCard } from '../raidprep/exitFlares'
 
 export interface RaidNeedRow {
   key: string
@@ -24,8 +25,13 @@ export interface RaidNeedRow {
   /** The other items the row's objective accepts, shown in its hover card (any 7.62x51 pack, the other ELCAN colour). */
   /** `turn`: either key opens the door — the picture and the name take turns every few seconds (report №90). */
   alternatives?: { title: string; items: Array<{ id: string; name: string; iconUrl?: string }>; badge?: string; turn?: boolean }
-  /** A key: the player has it («Есть в схроне») or not («Нет в наличии»); none before any key is found or added. */
-  stock?: 'owned' | 'missing'
+  /**
+   * A key: the player has it («Есть в схроне»), said so with «Взял» and no scan has seen it yet («Есть в наличии», `known`), or not
+   * («Нет в наличии»); none before any key is found or added.
+   */
+  stock?: 'owned' | 'known' | 'missing'
+  /** A flare of any colour: its hover card shows the pistol it is fired from and the calibre (raidprep/exitFlares.ts). */
+  flare?: FlareCard
 }
 
 /** How long each key of «either key» stays on its card (owner, 07.11.2026: «каждые 3 секунды менялась картинка, тот и тот ключ»). */
@@ -43,7 +49,7 @@ function useTurn(count: number, on: boolean) {
 }
 
 const PURPOSES: Record<string, string> = {
-  place: 'Заложить', pickUp: 'Поднять и заложить', mark: 'Пометить', key: 'Открыть дверь', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде', signal: 'Подать сигнал', use: 'Использовать в рейде',
+  place: 'Заложить', pickUp: 'Поднять и заложить', mark: 'Пометить', key: 'Открыть дверь', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде', signal: 'Подать сигнал', use: 'Использовать в рейде', exit: 'Для выхода',
 }
 
 /**
@@ -78,13 +84,31 @@ function rowQuests(row: RaidNeedRow) {
   return [...quests.values()]
 }
 
+/**
+ * A flare's hover card (owner, 19.11.2026: «сигнальный пистолет с патроном и его калибр»): the pistol and the 26x75 cartridges of the
+ * row it fires, then the RSP-30 of the row, fired from the hand.
+ */
+function FlareHover({ flare }: { flare: FlareCard }) {
+  const line = (item: { id: string; name: string; iconUrl?: string }) => <li key={item.id}><img src={item.iconUrl} alt="" /><span>{uiText(item.name)}</span></li>
+  return <>
+    {flare.cartridges.length > 0 && <>
+      <p className="hover-card-title">{uiText('Сигнальный пистолет')} · {flare.caliber}</p>
+      <ul className="hover-card-items">{[flare.pistol, ...flare.cartridges].map(line)}</ul>
+    </>}
+    {flare.handFlares.length > 0 && <>
+      <p className="hover-card-title">{uiText('Без пистолета')}</p>
+      <ul className="hover-card-items">{flare.handFlares.map(line)}</ul>
+    </>}
+  </>
+}
+
 function RaidNeed({ row, onDefer, compact = false }: { row: RaidNeedRow; onDefer?: (menu: DeferMenuState) => void; compact?: boolean }) {
   // «Either key»: the key on the card now, the others in its hover card.
   const shownItems = [{ id: row.itemId ?? row.key, name: row.name, iconUrl: row.iconUrl }, ...(row.alternatives?.turn ? row.alternatives.items : [])]
   const turn = useTurn(shownItems.length, Boolean(row.alternatives?.turn))
   const shown = shownItems[turn] ?? shownItems[0]
   const others = row.alternatives?.turn ? shownItems.filter((_, index) => index !== turn) : row.alternatives?.items ?? []
-  const { anchorProps, card } = useHoverCard(row.alternatives && <>
+  const { anchorProps, card } = useHoverCard(row.flare ? <FlareHover flare={row.flare} /> : row.alternatives && <>
     <p className="hover-card-title">{uiText(row.alternatives.title)}</p>
     <ul className="hover-card-items">
       {others.map((item) => <li key={item.id}><img src={item.iconUrl} alt="" /><span>{uiText(item.name)}</span></li>)}
@@ -120,8 +144,8 @@ function RaidNeed({ row, onDefer, compact = false }: { row: RaidNeedRow; onDefer
       <span className="raid-need-copy">
         <Link to={row.href} className="raid-need-link"><strong>{uiText(formatItemCountLabel(shown.name, row.count))}{row.alternatives?.badge && <span className="tag raid-need-badge">{row.alternatives.badge}</span>}</strong></Link>
         {/* A key ticked «Взял» is with the player now (owner, 15.11.2026: «статус «Нет в наличии» снимается, ставится «Есть в наличии»»),
-            and in «Ключи в схроне» too: «Не взял» brings back what was before. */}
-        {row.stock && <small className={`raid-need-stock is-${taken ? 'owned' : row.stock}`}>{uiText(taken ? 'Есть в наличии' : row.stock === 'owned' ? 'Есть в схроне' : 'Нет в наличии')}</small>}
+            and in «Ключи в схроне» too; «Не взял» leaves it there (owner, 16.11.2026: «ключ должен остаться «в наличии»»). */}
+        {row.stock && <small className={`raid-need-stock is-${taken || row.stock === 'known' ? 'owned' : row.stock}`}>{uiText(taken || row.stock === 'known' ? 'Есть в наличии' : row.stock === 'owned' ? 'Есть в схроне' : 'Нет в наличии')}</small>}
         {row.fromRaidListOnly
           ? <small>{uiText('Добавлено с барахолки')}</small>
           : row.lines.map((line) => (split && line.quests?.length

@@ -248,3 +248,36 @@ describe('a Tasks frame that shows nothing new changes nothing (audit P5f)', () 
     expect(next.taskProgress.side).toBe(progress.taskProgress.side)
   })
 })
+
+// Report 209 (PvE): «Путь охотника. Администратор» is one title for BEAR (Reserve) and USEC (Lighthouse).
+describe('a title two factions share', () => {
+  const administrator = (id: string, faction: string, mapId: string): Quest => ({
+    id, name: 'Путь охотника. Администратор', nameEn: 'The Huntsman Path - Administrator', trader: 'Егерь', level: 17, kappa: false, description: '', objectives: [], rewards: [], faction, mapId,
+  })
+  const twins = [administrator('admin-bear', 'BEAR', 'reserve'), administrator('admin-usec', 'USEC', 'lighthouse')]
+  const read = (text: string, faction?: 'usec' | 'bear' | 'unknown') => tableMatches(text, matchQuestsFromOcr(text, twins, { faction }))
+
+  it('is the version whose location the row shows, else the profile faction, else a guess', () => {
+    expect(read('Путь охотника. Администратор Маяк активно! 0%').map((match) => [match.questId, match.twin])).toEqual([['admin-usec', 'row']])
+    expect(read('Путь охотника. Администратор Резерв активно! 0%').map((match) => [match.questId, match.twin])).toEqual([['admin-bear', 'row']])
+    expect(read('The Huntsman Path - Administrator Lighthouse active!').map((match) => [match.questId, match.twin])).toEqual([['admin-usec', 'row']])
+    expect(read('Путь охотника. Администратор активно! 0%', 'usec').map((match) => [match.questId, match.twin])).toEqual([['admin-usec', 'faction']])
+    expect(read('Путь охотника. Администратор активно! 0%').map((match) => match.twin)).toEqual(['guess'])
+  })
+
+  it('a row that tells them apart replaces the version an earlier guess wrote; a guess does not go over the one being done', () => {
+    const progress = createModeProgress()
+    progress.taskProgress['admin-bear'] = { taskId: 'admin-bear', status: 'active', source: 'screen-scan', updatedAt: '2026-11-15T11:58:24.110Z' }
+    const fixed = applyScreenScanProgress(progress, read('Путь охотника. Администратор Маяк активно! 0%'), twins, { now: Date.parse('2026-11-21T00:00:00Z') })
+    expect(Object.keys(fixed.taskProgress)).toEqual(['admin-usec'])
+    const again = applyScreenScanProgress(fixed, read('Путь охотника. Администратор активно! 0%'), twins, { now: Date.parse('2026-11-21T00:01:00Z') })
+    expect(again).toBe(fixed)
+  })
+
+  it('leaves a version the logs wrote', () => {
+    const progress = createModeProgress()
+    progress.taskProgress['admin-bear'] = { taskId: 'admin-bear', status: 'active', source: 'eft-log', updatedAt: '2026-11-15T11:58:24.110Z' }
+    const next = applyScreenScanProgress(progress, read('Путь охотника. Администратор Маяк активно! 0%'), twins)
+    expect(Object.keys(next.taskProgress).sort()).toEqual(['admin-bear', 'admin-usec'])
+  })
+})

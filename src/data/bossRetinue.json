@@ -1,0 +1,2528 @@
+{
+ "reshala": {
+  "members": [
+   {
+    "name": {
+     "ru": "Охранник",
+     "en": "Guard"
+    },
+    "counts": [
+     {
+      "min": 2,
+      "max": 4,
+      "maps": [
+       "customs"
+      ]
+     },
+     {
+      "min": 4,
+      "max": 4,
+      "maps": [
+       "terminal"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "62e14904c2699c0ec93adc47",
+      "name": {
+       "ru": "СР-2М",
+       "en": "SR-2M"
+      },
+      "ammo": [
+       {
+        "id": "5a26ac0ec4a28200741e1e18",
+        "name": {
+         "ru": "БТ",
+         "en": "BT"
+        }
+       },
+       {
+        "id": "5a269f97c4a282000b151807",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59984ab886f7743e98271174",
+      "name": {
+       "ru": "ПП-19-01",
+       "en": "PP-19-01"
+      },
+      "ammo": [
+       {
+        "id": "5c3df7d588a4501f290594e5",
+        "name": {
+         "ru": "GT",
+         "en": "GT"
+        }
+       },
+       {
+        "id": "5c925fa22e221601da359b7b",
+        "name": {
+         "ru": "AP 6.3",
+         "en": "AP 6.3"
+        }
+       }
+      ]
+     },
+     {
+      "id": "651450ce0e00edc794068371",
+      "name": {
+       "ru": "СР-3М",
+       "en": "SR-3M"
+      },
+      "ammo": [
+       {
+        "id": "5c0d688c86f77413ae3407b2",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       },
+       {
+        "id": "57a0dfb82459774d3078b56c",
+        "name": {
+         "ru": "СП-5",
+         "en": "SP-5"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac4cd105acfc40016339859",
+      "name": {
+       "ru": "АК-74М",
+       "en": "AK-74M"
+      },
+      "ammo": [
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       },
+       {
+        "id": "56dfef82d2720bbd668b4567",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "583990e32459771419544dd2",
+      "name": {
+       "ru": "АКС-74УН",
+       "en": "AKS-74UN"
+      },
+      "ammo": [
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       },
+       {
+        "id": "56dfef82d2720bbd668b4567",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5ab8dced86f774646209ec87",
+      "name": {
+       "ru": "ANA M2",
+       "en": "ANA M2"
+      }
+     },
+     {
+      "id": "5ab8e79e86f7742d8b372e78",
+      "name": {
+       "ru": "Гжель-К",
+       "en": "Gzhel-K"
+      }
+     },
+     {
+      "id": "69d28cdc274c032dd804afe0",
+      "name": {
+       "ru": "Гладиатор-С",
+       "en": "Gladiator-S"
+      }
+     }
+    ],
+    "armored": 0.93,
+    "plates": {
+     "front": [
+      3,
+      6
+     ],
+     "back": [
+      3,
+      6
+     ],
+     "side": [
+      5,
+      6
+     ]
+    },
+    "helmet": [
+     3,
+     5
+    ],
+    "helmetId": "5b432d215acfc4771e1c6624",
+    "helmeted": 0.8
+   }
+  ]
+ },
+ "shturman": {
+  "members": [
+   {
+    "name": {
+     "ru": "Охранник",
+     "en": "Guard"
+    },
+    "counts": [
+     {
+      "min": 2,
+      "max": 4,
+      "maps": [
+       "woods"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "5c501a4d2e221602b412b540",
+      "name": {
+       "ru": "ВПО-101 \"Вепрь-Хантер\"",
+       "en": "VPO-101"
+      },
+      "ammo": [
+       {
+        "id": "5e023e88277cce2b522ff2b1",
+        "name": {
+         "ru": "Ultra Nosler",
+         "en": "Ultra Nosler"
+        }
+       },
+       {
+        "id": "5e023e53d4353e3302577c4c",
+        "name": {
+         "ru": "БПЗ FMJ",
+         "en": "BCP FMJ"
+        }
+       }
+      ]
+     },
+     {
+      "id": "54491c4f4bdc2db1078b4568",
+      "name": {
+       "ru": "MP-133",
+       "en": "MP-133"
+      },
+      "ammo": [
+       {
+        "id": "560d5e524bdc2d25448b4571",
+        "name": {
+         "ru": "7мм",
+         "en": "7mm"
+        }
+       }
+      ]
+     },
+     {
+      "id": "56dee2bdd2720bc8328b4567",
+      "name": {
+       "ru": "MP-153",
+       "en": "MP-153"
+      },
+      "ammo": [
+       {
+        "id": "560d5e524bdc2d25448b4571",
+        "name": {
+         "ru": "7мм",
+         "en": "7mm"
+        }
+       }
+      ]
+     },
+     {
+      "id": "606dae0ab0e443224b421bb7",
+      "name": {
+       "ru": "MP-155",
+       "en": "MP-155"
+      },
+      "ammo": [
+       {
+        "id": "560d5e524bdc2d25448b4571",
+        "name": {
+         "ru": "7мм",
+         "en": "7mm"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5c46fbd72e2216398b5a8c9c",
+      "name": {
+       "ru": "СВДС",
+       "en": "SVDS"
+      },
+      "ammo": [
+       {
+        "id": "560d61e84bdc2da74d8b4571",
+        "name": {
+         "ru": "СНБ",
+         "en": "SNB"
+        }
+       },
+       {
+        "id": "64b8f7b5389d7ffd620ccba2",
+        "name": {
+         "ru": "SP BT",
+         "en": "SP BT"
+        }
+       },
+       {
+        "id": "59e77a2386f7742ee578960a",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "587e02ff24597743df3deaeb",
+      "name": {
+       "ru": "ОП-СКС",
+       "en": "OP-SKS"
+      },
+      "ammo": [
+       {
+        "id": "64b7af5a8532cf95ee0a0dbd",
+        "name": {
+         "ru": "FMJ",
+         "en": "FMJ"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5b44d22286f774172b0c9de8",
+      "name": {
+       "ru": "Кираса-N",
+       "en": "Kirasa-N"
+      }
+     },
+     {
+      "id": "5c0e5bab86f77461f55ed1f3",
+      "name": {
+       "ru": "6B23-1 ЕМР",
+       "en": "6B23-1 EMR"
+      }
+     },
+     {
+      "id": "5c0e57ba86f7747fa141986d",
+      "name": {
+       "ru": "6Б23-2 ГФЛ",
+       "en": "6B23-2 MF"
+      }
+     }
+    ],
+    "armored": 0.87,
+    "plates": {
+     "front": [
+      3,
+      5
+     ],
+     "back": [
+      3,
+      5
+     ]
+    },
+    "helmeted": 0
+   }
+  ]
+ },
+ "sanitar": {
+  "members": [
+   {
+    "name": {
+     "ru": "Охранник",
+     "en": "Guard"
+    },
+    "counts": [
+     {
+      "min": 2,
+      "max": 4,
+      "maps": [
+       "shoreline"
+      ]
+     },
+     {
+      "min": 3,
+      "max": 3,
+      "maps": [
+       "terminal"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "59d6088586f774275f37482f",
+      "name": {
+       "ru": "АКМ",
+       "en": "AKM"
+      },
+      "ammo": [
+       {
+        "id": "64b7af5a8532cf95ee0a0dbd",
+        "name": {
+         "ru": "FMJ",
+         "en": "FMJ"
+        }
+       },
+       {
+        "id": "59e4cf5286f7741778269d8a",
+        "name": {
+         "ru": "Т-45М1",
+         "en": "T-45M1"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5839a40f24597726f856b511",
+      "name": {
+       "ru": "АКС-74УБ",
+       "en": "AKS-74UB"
+      },
+      "ammo": [
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59e6152586f77473dc057aa1",
+      "name": {
+       "ru": "ВПО-136",
+       "en": "VPO-136"
+      },
+      "ammo": [
+       {
+        "id": "64b7af434b75259c590fa893",
+        "name": {
+         "ru": "ПП",
+         "en": "PP"
+        }
+       },
+       {
+        "id": "64b7af5a8532cf95ee0a0dbd",
+        "name": {
+         "ru": "FMJ",
+         "en": "FMJ"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5c501a4d2e221602b412b540",
+      "name": {
+       "ru": "ВПО-101 \"Вепрь-Хантер\"",
+       "en": "VPO-101"
+      },
+      "ammo": [
+       {
+        "id": "5e023e88277cce2b522ff2b1",
+        "name": {
+         "ru": "Ultra Nosler",
+         "en": "Ultra Nosler"
+        }
+       }
+      ]
+     },
+     {
+      "id": "576165642459773c7a400233",
+      "name": {
+       "ru": "Сайга-12К исп.10",
+       "en": "Saiga-12K"
+      },
+      "ammo": [
+       {
+        "id": "5d6e68d1a4b93622fe60e845",
+        "name": {
+         "ru": "SFormance",
+         "en": "SFormance"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5e9dacf986f774054d6b89f4",
+      "name": {
+       "ru": "Дефендер-2",
+       "en": "Defender-2"
+      }
+     },
+     {
+      "id": "5f5f41476bdad616ad46d631",
+      "name": {
+       "ru": "Корунд-ВМ",
+       "en": "Korund-VM"
+      }
+     },
+     {
+      "id": "5ab8e79e86f7742d8b372e78",
+      "name": {
+       "ru": "Гжель-К",
+       "en": "Gzhel-K"
+      }
+     }
+    ],
+    "armored": 0.87,
+    "plates": {
+     "front": [
+      5,
+      5
+     ],
+     "back": [
+      5,
+      5
+     ],
+     "side": [
+      5,
+      5
+     ]
+    },
+    "helmet": [
+     4,
+     4
+    ],
+    "helmetId": "5aa7e4a4e5b5b000137b76f2",
+    "helmeted": 0.6
+   }
+  ]
+ },
+ "glukhar": {
+  "members": [
+   {
+    "name": {
+     "ru": "Штурмовик",
+     "en": "Assault"
+    },
+    "counts": [
+     {
+      "min": 2,
+      "max": 2,
+      "maps": [
+       "reserve"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "54491c4f4bdc2db1078b4568",
+      "name": {
+       "ru": "MP-133",
+       "en": "MP-133"
+      },
+      "ammo": [
+       {
+        "id": "560d5e524bdc2d25448b4571",
+        "name": {
+         "ru": "7мм",
+         "en": "7mm"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac66d725acfc43b321d4b60",
+      "name": {
+       "ru": "АК-104",
+       "en": "AK-104"
+      },
+      "ammo": [
+       {
+        "id": "59e4cf5286f7741778269d8a",
+        "name": {
+         "ru": "Т-45М1",
+         "en": "T-45M1"
+        }
+       }
+      ]
+     },
+     {
+      "id": "56dee2bdd2720bc8328b4567",
+      "name": {
+       "ru": "MP-153",
+       "en": "MP-153"
+      },
+      "ammo": [
+       {
+        "id": "560d5e524bdc2d25448b4571",
+        "name": {
+         "ru": "7мм",
+         "en": "7mm"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59d6088586f774275f37482f",
+      "name": {
+       "ru": "АКМ",
+       "en": "AKM"
+      },
+      "ammo": [
+       {
+        "id": "59e4cf5286f7741778269d8a",
+        "name": {
+         "ru": "Т-45М1",
+         "en": "T-45M1"
+        }
+       }
+      ]
+     },
+     {
+      "id": "57d14d2524597714373db789",
+      "name": {
+       "ru": "ПП-91 \"Кедр\"",
+       "en": "PP-91 Kedr"
+      },
+      "ammo": [
+       {
+        "id": "57372140245977611f70ee91",
+        "name": {
+         "ru": "СП7",
+         "en": "SP7"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5a0ec13bfcdbcb00165aa685",
+      "name": {
+       "ru": "АКМН",
+       "en": "AKMN"
+      },
+      "ammo": [
+       {
+        "id": "59e4cf5286f7741778269d8a",
+        "name": {
+         "ru": "Т-45М1",
+         "en": "T-45M1"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5c0e51be86f774598e797894",
+      "name": {
+       "ru": "6Б13 ФЛ",
+       "en": "6B13 FL"
+      }
+     },
+     {
+      "id": "5c0e53c886f7747fa54205c7",
+      "name": {
+       "ru": "6Б13 ЕМР",
+       "en": "6B13 EMR"
+      }
+     },
+     {
+      "id": "5c0e57ba86f7747fa141986d",
+      "name": {
+       "ru": "6Б23-2 ГФЛ",
+       "en": "6B23-2 MF"
+      }
+     }
+    ],
+    "armored": 0.93,
+    "plates": {
+     "front": [
+      4,
+      4
+     ],
+     "back": [
+      4,
+      4
+     ],
+     "side": [
+      5,
+      5
+     ]
+    },
+    "helmet": [
+     3,
+     3
+    ],
+    "helmetId": "5a7c4850e899ef00150be885",
+    "helmeted": 0.8
+   },
+   {
+    "name": {
+     "ru": "Служба безопасности",
+     "en": "Security"
+    },
+    "counts": [
+     {
+      "min": 2,
+      "max": 2,
+      "maps": [
+       "reserve"
+      ]
+     },
+     {
+      "min": 3,
+      "max": 3,
+      "maps": [
+       "terminal"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "57d14d2524597714373db789",
+      "name": {
+       "ru": "ПП-91 \"Кедр\"",
+       "en": "PP-91 Kedr"
+      },
+      "ammo": [
+       {
+        "id": "57372140245977611f70ee91",
+        "name": {
+         "ru": "СП7",
+         "en": "SP7"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac66d725acfc43b321d4b60",
+      "name": {
+       "ru": "АК-104",
+       "en": "AK-104"
+      },
+      "ammo": [
+       {
+        "id": "59e4cf5286f7741778269d8a",
+        "name": {
+         "ru": "Т-45М1",
+         "en": "T-45M1"
+        }
+       },
+       {
+        "id": "5656d7c34bdc2d9d198b4587",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "54491c4f4bdc2db1078b4568",
+      "name": {
+       "ru": "MP-133",
+       "en": "MP-133"
+      },
+      "ammo": [
+       {
+        "id": "5c0d591486f7744c505b416f",
+        "name": {
+         "ru": "RIP",
+         "en": "RIP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "65268d8ecb944ff1e90ea385",
+      "name": {
+       "ru": "РПДН",
+       "en": "RPDN"
+      },
+      "ammo": [
+       {
+        "id": "64b7af5a8532cf95ee0a0dbd",
+        "name": {
+         "ru": "FMJ",
+         "en": "FMJ"
+        }
+       },
+       {
+        "id": "64b7af434b75259c590fa893",
+        "name": {
+         "ru": "ПП",
+         "en": "PP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "576165642459773c7a400233",
+      "name": {
+       "ru": "Сайга-12К исп.10",
+       "en": "Saiga-12K"
+      },
+      "ammo": [
+       {
+        "id": "5c0d591486f7744c505b416f",
+        "name": {
+         "ru": "RIP",
+         "en": "RIP"
+        }
+       },
+       {
+        "id": "560d5e524bdc2d25448b4571",
+        "name": {
+         "ru": "7мм",
+         "en": "7mm"
+        }
+       }
+      ]
+     },
+     {
+      "id": "56dee2bdd2720bc8328b4567",
+      "name": {
+       "ru": "MP-153",
+       "en": "MP-153"
+      },
+      "ammo": [
+       {
+        "id": "5c0d591486f7744c505b416f",
+        "name": {
+         "ru": "RIP",
+         "en": "RIP"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5f5f41476bdad616ad46d631",
+      "name": {
+       "ru": "Корунд-ВМ",
+       "en": "Korund-VM"
+      }
+     },
+     {
+      "id": "61bcc89aef0f505f0c6cd0fc",
+      "name": {
+       "ru": "Strandhogg",
+       "en": "Strandhogg"
+      }
+     },
+     {
+      "id": "5ab8e79e86f7742d8b372e78",
+      "name": {
+       "ru": "Гжель-К",
+       "en": "Gzhel-K"
+      }
+     }
+    ],
+    "armored": 0.47,
+    "plates": {
+     "front": [
+      4,
+      5
+     ],
+     "back": [
+      4,
+      5
+     ],
+     "side": [
+      5,
+      5
+     ]
+    },
+    "helmet": [
+     4,
+     4
+    ],
+    "helmetId": "5aa7e454e5b5b0214e506fa2",
+    "helmeted": 0.8
+   },
+   {
+    "name": {
+     "ru": "Разведчик",
+     "en": "Scout"
+    },
+    "counts": [
+     {
+      "min": 2,
+      "max": 2,
+      "maps": [
+       "reserve"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "5ac4cd105acfc40016339859",
+      "name": {
+       "ru": "АК-74М",
+       "en": "AK-74M"
+      },
+      "ammo": [
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       }
+      ]
+     },
+     {
+      "id": "62e14904c2699c0ec93adc47",
+      "name": {
+       "ru": "СР-2М",
+       "en": "SR-2M"
+      },
+      "ammo": [
+       {
+        "id": "6576f93989f0062e741ba952",
+        "name": {
+         "ru": "7У4",
+         "en": "7U4"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59984ab886f7743e98271174",
+      "name": {
+       "ru": "ПП-19-01",
+       "en": "PP-19-01"
+      },
+      "ammo": [
+       {
+        "id": "5c3df7d588a4501f290594e5",
+        "name": {
+         "ru": "GT",
+         "en": "GT"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59ff346386f77477562ff5e2",
+      "name": {
+       "ru": "АКМС",
+       "en": "AKMS"
+      },
+      "ammo": [
+       {
+        "id": "59e4cf5286f7741778269d8a",
+        "name": {
+         "ru": "Т-45М1",
+         "en": "T-45M1"
+        }
+       }
+      ]
+     },
+     {
+      "id": "576a581d2459771e7b1bc4f1",
+      "name": {
+       "ru": "MP-443 \"Грач\"",
+       "en": "MP-443 Grach"
+      },
+      "ammo": [
+       {
+        "id": "56d59d3ad2720bdb418b4577",
+        "name": {
+         "ru": "Пст",
+         "en": "Pst"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5448bd6b4bdc2dfc2f8b4569",
+      "name": {
+       "ru": "ПМ",
+       "en": "PM"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "64be79e2bf8412471d0d9bcc",
+      "name": {
+       "ru": "Кора-Кулон ЕМР",
+       "en": "Kora-Kulon EMR"
+      }
+     },
+     {
+      "id": "5b44d22286f774172b0c9de8",
+      "name": {
+       "ru": "Кираса-N",
+       "en": "Kirasa-N"
+      }
+     },
+     {
+      "id": "5c0e53c886f7747fa54205c7",
+      "name": {
+       "ru": "6Б13 ЕМР",
+       "en": "6B13 EMR"
+      }
+     }
+    ],
+    "armored": 1,
+    "plates": {
+     "front": [
+      3,
+      3
+     ],
+     "back": [
+      3,
+      3
+     ]
+    },
+    "helmet": [
+     3,
+     3
+    ],
+    "helmetId": "65719f0775149d62ce0a670b",
+    "helmeted": 1
+   }
+  ]
+ },
+ "kaban": {
+  "members": [
+   {
+    "name": {
+     "ru": "Охранник",
+     "en": "Guard"
+    },
+    "counts": [
+     {
+      "min": 4,
+      "max": 4,
+      "maps": [
+       "streets-of-tarkov"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "62e14904c2699c0ec93adc47",
+      "name": {
+       "ru": "СР-2М",
+       "en": "SR-2M"
+      },
+      "ammo": [
+       {
+        "id": "5a26abfac4a28232980eabff",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       },
+       {
+        "id": "5a269f97c4a282000b151807",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac66d725acfc43b321d4b60",
+      "name": {
+       "ru": "АК-104",
+       "en": "AK-104"
+      },
+      "ammo": [
+       {
+        "id": "64b7af434b75259c590fa893",
+        "name": {
+         "ru": "ПП",
+         "en": "PP"
+        }
+       },
+       {
+        "id": "59e4cf5286f7741778269d8a",
+        "name": {
+         "ru": "Т-45М1",
+         "en": "T-45M1"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5e848cc2988a8701445df1e8",
+      "name": {
+       "ru": "КС-23М",
+       "en": "KS-23M"
+      },
+      "ammo": [
+       {
+        "id": "5e85a9a6eacf8c039e4e2ac1",
+        "name": {
+         "ru": "Шрап-10",
+         "en": "Shrap-10"
+        }
+       },
+       {
+        "id": "5e85aa1a988a8701445df1f5",
+        "name": {
+         "ru": "Баррикада",
+         "en": "Barrikada"
+        }
+       }
+      ]
+     },
+     {
+      "id": "57d14d2524597714373db789",
+      "name": {
+       "ru": "ПП-91 \"Кедр\"",
+       "en": "PP-91 Kedr"
+      },
+      "ammo": [
+       {
+        "id": "57372140245977611f70ee91",
+        "name": {
+         "ru": "СП7",
+         "en": "SP7"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59f98b4986f7746f546d2cef",
+      "name": {
+       "ru": "СР-1МП",
+       "en": "SR-1MP"
+      },
+      "ammo": [
+       {
+        "id": "5a26abfac4a28232980eabff",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5a17f98cfcdbcb0980087290",
+      "name": {
+       "ru": "АПС",
+       "en": "APS"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5ab8e79e86f7742d8b372e78",
+      "name": {
+       "ru": "Гжель-К",
+       "en": "Gzhel-K"
+      }
+     },
+     {
+      "id": "5c0e51be86f774598e797894",
+      "name": {
+       "ru": "6Б13 ФЛ",
+       "en": "6B13 FL"
+      }
+     },
+     {
+      "id": "5f5f41476bdad616ad46d631",
+      "name": {
+       "ru": "Корунд-ВМ",
+       "en": "Korund-VM"
+      }
+     }
+    ],
+    "armored": 0.93,
+    "plates": {
+     "front": [
+      3,
+      5
+     ],
+     "back": [
+      3,
+      5
+     ],
+     "side": [
+      5,
+      5
+     ]
+    },
+    "helmet": [
+     3,
+     5
+    ],
+    "helmetId": "5b432d215acfc4771e1c6624",
+    "helmeted": 1
+   },
+   {
+    "name": {
+     "ru": "Башмак",
+     "en": "Basmach"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 1,
+      "maps": [
+       "streets-of-tarkov"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "5ea03f7400685063ec28bfa8",
+      "name": {
+       "ru": "ППШ-41",
+       "en": "PPSh41"
+      },
+      "ammo": [
+       {
+        "id": "573603562459776430731618",
+        "name": {
+         "ru": "Пст",
+         "en": "Pst"
+        }
+       },
+       {
+        "id": "5735fdcd2459776445391d61",
+        "name": {
+         "ru": "АКБС",
+         "en": "AKBS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac4cd105acfc40016339859",
+      "name": {
+       "ru": "АК-74М",
+       "en": "AK-74M"
+      },
+      "ammo": [
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       },
+       {
+        "id": "56dff3afd2720bba668b4567",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5beed0f50db834001c062b12",
+      "name": {
+       "ru": "РПК-16",
+       "en": "RPK-16"
+      },
+      "ammo": [
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       },
+       {
+        "id": "56dff3afd2720bba668b4567",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59e6687d86f77411d949b251",
+      "name": {
+       "ru": "ВПО-209",
+       "en": "VPO-209"
+      },
+      "ammo": [
+       {
+        "id": "59e6542b86f77411dc52a77a",
+        "name": {
+         "ru": "FMJ",
+         "en": "FMJ"
+        }
+       },
+       {
+        "id": "5f0596629e22f464da6bbdd9",
+        "name": {
+         "ru": "БП-М",
+         "en": "AP-M"
+        }
+       }
+      ]
+     },
+     {
+      "id": "579204f224597773d619e051",
+      "name": {
+       "ru": "ПМ (г)",
+       "en": "PM (t)"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5448bd6b4bdc2dfc2f8b4569",
+      "name": {
+       "ru": "ПМ",
+       "en": "PM"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [],
+    "armored": 0,
+    "plates": {},
+    "helmeted": 0
+   },
+   {
+    "name": {
+     "ru": "Гусь",
+     "en": "Gus"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 1,
+      "maps": [
+       "streets-of-tarkov"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "6499849fc93611967b034949",
+      "name": {
+       "ru": "АК-12",
+       "en": "AK-12"
+      },
+      "ammo": [
+       {
+        "id": "56dff3afd2720bba668b4567",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       },
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       },
+       {
+        "id": "56dfef82d2720bbd668b4567",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac66d015acfc400180ae6e4",
+      "name": {
+       "ru": "АК-102",
+       "en": "AK-102"
+      },
+      "ammo": [
+       {
+        "id": "59e68f6f86f7746c9f75e846",
+        "name": {
+         "ru": "M856",
+         "en": "M856"
+        }
+       }
+      ]
+     },
+     {
+      "id": "57d14d2524597714373db789",
+      "name": {
+       "ru": "ПП-91 \"Кедр\"",
+       "en": "PP-91 Kedr"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       },
+       {
+        "id": "57372140245977611f70ee91",
+        "name": {
+         "ru": "СП7",
+         "en": "SP7"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ea03f7400685063ec28bfa8",
+      "name": {
+       "ru": "ППШ-41",
+       "en": "PPSh41"
+      },
+      "ammo": [
+       {
+        "id": "573603562459776430731618",
+        "name": {
+         "ru": "Пст",
+         "en": "Pst"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59f98b4986f7746f546d2cef",
+      "name": {
+       "ru": "СР-1МП",
+       "en": "SR-1MP"
+      },
+      "ammo": [
+       {
+        "id": "5a26abfac4a28232980eabff",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     },
+     {
+      "id": "579204f224597773d619e051",
+      "name": {
+       "ru": "ПМ (г)",
+       "en": "PM (t)"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [],
+    "armored": 0,
+    "plates": {},
+    "helmeted": 0
+   },
+   {
+    "name": {
+     "ru": "Снайпер",
+     "en": "Sniper"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 2,
+      "maps": [
+       "streets-of-tarkov"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "643ea5b23db6f9f57107d9fd",
+      "name": {
+       "ru": "СВТ-40",
+       "en": "SVT-40"
+      },
+      "ammo": [
+       {
+        "id": "5887431f2459777e1612938f",
+        "name": {
+         "ru": "ЛПС",
+         "en": "LPS"
+        }
+       },
+       {
+        "id": "59e77a2386f7742ee578960a",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "61f7c9e189e6fb1a5e3ea78d",
+      "name": {
+       "ru": "MP-18",
+       "en": "MP-18"
+      },
+      "ammo": [
+       {
+        "id": "64b8f7968532cf95ee0a0dbf",
+        "name": {
+         "ru": "FMJ",
+         "en": "FMJ"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5de652c31b7e3716273428be",
+      "name": {
+       "ru": "ВПО-215 \"Горностай\"",
+       "en": "VPO-215 Gornostay"
+      },
+      "ammo": [
+       {
+        "id": "5f0596629e22f464da6bbdd9",
+        "name": {
+         "ru": "БП-М",
+         "en": "AP-M"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5c501a4d2e221602b412b540",
+      "name": {
+       "ru": "ВПО-101 \"Вепрь-Хантер\"",
+       "en": "VPO-101"
+      },
+      "ammo": [
+       {
+        "id": "58dd3ad986f77403051cba8f",
+        "name": {
+         "ru": "M80",
+         "en": "M80"
+        }
+       },
+       {
+        "id": "5a608bf24f39f98ffc77720e",
+        "name": {
+         "ru": "M62",
+         "en": "M62"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5a17f98cfcdbcb0980087290",
+      "name": {
+       "ru": "АПС",
+       "en": "APS"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5abccb7dd8ce87001773e277",
+      "name": {
+       "ru": "АПБ",
+       "en": "APB"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5b44d22286f774172b0c9de8",
+      "name": {
+       "ru": "Кираса-N",
+       "en": "Kirasa-N"
+      }
+     },
+     {
+      "id": "5df8a2ca86f7740bfe6df777",
+      "name": {
+       "ru": "6Б2",
+       "en": "6B2"
+      }
+     },
+     {
+      "id": "64be79c487d1510151095552",
+      "name": {
+       "ru": "Кора-Кулон",
+       "en": "Kora-Kulon"
+      }
+     }
+    ],
+    "armored": 0.93,
+    "plates": {
+     "front": [
+      3,
+      4
+     ],
+     "back": [
+      3,
+      4
+     ]
+    },
+    "helmeted": 0
+   }
+  ]
+ },
+ "kollontay": {
+  "members": [
+   {
+    "name": {
+     "ru": "Штурмовик",
+     "en": "Assault"
+    },
+    "counts": [
+     {
+      "min": 2,
+      "max": 2,
+      "maps": [
+       "streets-of-tarkov"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "57dc2fa62459775949412633",
+      "name": {
+       "ru": "АКС-74У",
+       "en": "AKS-74U"
+      },
+      "ammo": [
+       {
+        "id": "56dfef82d2720bbd668b4567",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       },
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       },
+       {
+        "id": "56dff2ced2720bb4668b4567",
+        "name": {
+         "ru": "ПП",
+         "en": "PP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac66d725acfc43b321d4b60",
+      "name": {
+       "ru": "АК-104",
+       "en": "AK-104"
+      },
+      "ammo": [
+       {
+        "id": "5656d7c34bdc2d9d198b4587",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "59d6088586f774275f37482f",
+      "name": {
+       "ru": "АКМ",
+       "en": "AKM"
+      },
+      "ammo": [
+       {
+        "id": "59e4cf5286f7741778269d8a",
+        "name": {
+         "ru": "Т-45М1",
+         "en": "T-45M1"
+        }
+       }
+      ]
+     },
+     {
+      "id": "576165642459773c7a400233",
+      "name": {
+       "ru": "Сайга-12К исп.10",
+       "en": "Saiga-12K"
+      },
+      "ammo": [
+       {
+        "id": "5d6e68b3a4b9361bca7e50b5",
+        "name": {
+         "ru": "CSP",
+         "en": "CSP"
+        }
+       },
+       {
+        "id": "5d6e689ca4b9361bc8618956",
+        "name": {
+         "ru": "Полева-6у",
+         "en": "Poleva-6u"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5a17f98cfcdbcb0980087290",
+      "name": {
+       "ru": "АПС",
+       "en": "APS"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5448bd6b4bdc2dfc2f8b4569",
+      "name": {
+       "ru": "ПМ",
+       "en": "PM"
+      },
+      "ammo": [
+       {
+        "id": "573719762459775a626ccbc1",
+        "name": {
+         "ru": "П",
+         "en": "P"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5b44d22286f774172b0c9de8",
+      "name": {
+       "ru": "Кираса-N",
+       "en": "Kirasa-N"
+      }
+     },
+     {
+      "id": "5648a7494bdc2d9d488b4583",
+      "name": {
+       "ru": "PACA",
+       "en": "PACA"
+      }
+     },
+     {
+      "id": "609e8540d5c319764c2bc2e9",
+      "name": {
+       "ru": "THOR CRV",
+       "en": "THOR CRV"
+      }
+     }
+    ],
+    "armored": 1,
+    "plates": {
+     "front": [
+      3,
+      5
+     ],
+     "back": [
+      3,
+      5
+     ]
+    },
+    "helmet": [
+     3,
+     4
+    ],
+    "helmetId": "5645bc214bdc2d363b8b4571",
+    "helmeted": 0.33
+   },
+   {
+    "name": {
+     "ru": "Служба безопасности",
+     "en": "Security"
+    },
+    "counts": [
+     {
+      "min": 2,
+      "max": 2,
+      "maps": [
+       "streets-of-tarkov"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "54491c4f4bdc2db1078b4568",
+      "name": {
+       "ru": "MP-133",
+       "en": "MP-133"
+      },
+      "ammo": [
+       {
+        "id": "5d6e6772a4b936088465b17c",
+        "name": {
+         "ru": "5.25мм",
+         "en": "5.25mm"
+        }
+       },
+       {
+        "id": "5d6e6911a4b9361bd5780d52",
+        "name": {
+         "ru": "Флешетта",
+         "en": "Flechette"
+        }
+       },
+       {
+        "id": "64b8ee384b75259c590fa89b",
+        "name": {
+         "ru": "Пиранья",
+         "en": "Piranha"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5e848cc2988a8701445df1e8",
+      "name": {
+       "ru": "КС-23М",
+       "en": "KS-23M"
+      },
+      "ammo": [
+       {
+        "id": "5e85a9a6eacf8c039e4e2ac1",
+        "name": {
+         "ru": "Шрап-10",
+         "en": "Shrap-10"
+        }
+       },
+       {
+        "id": "5f647f31b6238e5dd066e196",
+        "name": {
+         "ru": "Шрап-25",
+         "en": "Shrap-25"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac4cd105acfc40016339859",
+      "name": {
+       "ru": "АК-74М",
+       "en": "AK-74M"
+      },
+      "ammo": [
+       {
+        "id": "56dfef82d2720bbd668b4567",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       },
+       {
+        "id": "56dff061d2720bb5668b4567",
+        "name": {
+         "ru": "БT",
+         "en": "BT"
+        }
+       },
+       {
+        "id": "56dff2ced2720bb4668b4567",
+        "name": {
+         "ru": "ПП",
+         "en": "PP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "57c44b372459772d2b39b8ce",
+      "name": {
+       "ru": "АС \"Вал\"",
+       "en": "AS VAL"
+      },
+      "ammo": [
+       {
+        "id": "57a0dfb82459774d3078b56c",
+        "name": {
+         "ru": "СП-5",
+         "en": "SP-5"
+        }
+       }
+      ]
+     },
+     {
+      "id": "56dee2bdd2720bc8328b4567",
+      "name": {
+       "ru": "MP-153",
+       "en": "MP-153"
+      },
+      "ammo": [
+       {
+        "id": "5d6e6772a4b936088465b17c",
+        "name": {
+         "ru": "5.25мм",
+         "en": "5.25mm"
+        }
+       },
+       {
+        "id": "5d6e6911a4b9361bd5780d52",
+        "name": {
+         "ru": "Флешетта",
+         "en": "Flechette"
+        }
+       }
+      ]
+     },
+     {
+      "id": "57d14d2524597714373db789",
+      "name": {
+       "ru": "ПП-91 \"Кедр\"",
+       "en": "PP-91 Kedr"
+      },
+      "ammo": [
+       {
+        "id": "573719df2459775a626ccbc2",
+        "name": {
+         "ru": "ПБМ",
+         "en": "PBM"
+        }
+       },
+       {
+        "id": "573720e02459776143012541",
+        "name": {
+         "ru": "РГ028",
+         "en": "RG028"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5b44d22286f774172b0c9de8",
+      "name": {
+       "ru": "Кираса-N",
+       "en": "Kirasa-N"
+      }
+     },
+     {
+      "id": "5f5f41476bdad616ad46d631",
+      "name": {
+       "ru": "Корунд-ВМ",
+       "en": "Korund-VM"
+      }
+     },
+     {
+      "id": "64be79c487d1510151095552",
+      "name": {
+       "ru": "Кора-Кулон",
+       "en": "Kora-Kulon"
+      }
+     }
+    ],
+    "armored": 0.93,
+    "plates": {
+     "front": [
+      3,
+      5
+     ],
+     "back": [
+      3,
+      5
+     ],
+     "side": [
+      5,
+      5
+     ]
+    },
+    "helmet": [
+     2,
+     4
+    ],
+    "helmetId": "59e7711e86f7746cae05fbe1",
+    "helmeted": 1
+   }
+  ]
+ },
+ "wadge": {
+  "members": [
+   {
+    "name": {
+     "ru": "Охранник",
+     "en": "Guard"
+    },
+    "counts": [
+     {
+      "min": 3,
+      "max": 3,
+      "maps": [
+       "the-lab"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "5fbcc1d9016cce60e8341ab3",
+      "name": {
+       "ru": "MCX .300 BLK",
+       "en": "MCX"
+      },
+      "ammo": [
+       {
+        "id": "5fd20ff893a8961fc660a954",
+        "name": {
+         "ru": "AP",
+         "en": "AP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5447a9cd4bdc2dbd208b4567",
+      "name": {
+       "ru": "M4A1",
+       "en": "M4A1"
+      },
+      "ammo": [
+       {
+        "id": "59e690b686f7746c9f75e848",
+        "name": {
+         "ru": "M995",
+         "en": "M995"
+        }
+       },
+       {
+        "id": "601949593ae8f707c4608daa",
+        "name": {
+         "ru": "SSA AP",
+         "en": "SSA AP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "618428466ef05c2ce828f218",
+      "name": {
+       "ru": "Mk 16",
+       "en": "Mk 16"
+      },
+      "ammo": [
+       {
+        "id": "59e690b686f7746c9f75e848",
+        "name": {
+         "ru": "M995",
+         "en": "M995"
+        }
+       },
+       {
+        "id": "601949593ae8f707c4608daa",
+        "name": {
+         "ru": "SSA AP",
+         "en": "SSA AP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5bb2475ed4351e00853264e3",
+      "name": {
+       "ru": "HK 416A5",
+       "en": "HK 416A5"
+      },
+      "ammo": [
+       {
+        "id": "601949593ae8f707c4608daa",
+        "name": {
+         "ru": "SSA AP",
+         "en": "SSA AP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "6193a720f8ee7e52e42109ed",
+      "name": {
+       "ru": "USP .45",
+       "en": "USP .45"
+      },
+      "ammo": [
+       {
+        "id": "5efb0cabfb3e451d70735af5",
+        "name": {
+         "ru": "AP",
+         "en": "AP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5d3eb3b0a4b93615055e84d2",
+      "name": {
+       "ru": "FN 5-7",
+       "en": "FN 5-7"
+      },
+      "ammo": [
+       {
+        "id": "5cc80f38e4a949001152b560",
+        "name": {
+         "ru": "SS190",
+         "en": "SS190"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "689479eb30cc5ba7be00f5ff",
+      "name": {
+       "ru": "LV-119",
+       "en": "LV-119"
+      }
+     },
+     {
+      "id": "689479cb47e5acd1e10be986",
+      "name": {
+       "ru": "FCPC V5",
+       "en": "FCPC V5"
+      }
+     }
+    ],
+    "armored": 1,
+    "plates": {
+     "front": [
+      5,
+      5
+     ],
+     "back": [
+      5,
+      5
+     ]
+    },
+    "helmet": [
+     4,
+     4
+    ],
+    "helmetId": "5e4bfc1586f774264f7582d3",
+    "helmeted": 1
+   }
+  ]
+ },
+ "cultist-priest": {
+  "members": [
+   {
+    "name": {
+     "ru": "Сектант-воин",
+     "en": "Cultist warrior"
+    },
+    "counts": [
+     {
+      "min": 3,
+      "max": 4,
+      "maps": [
+       "ground-zero",
+       "shoreline"
+      ]
+     },
+     {
+      "min": 4,
+      "max": 4,
+      "maps": [
+       "customs",
+       "woods"
+      ]
+     },
+     {
+      "min": 2,
+      "max": 3,
+      "maps": [
+       "factory"
+      ]
+     }
+    ],
+    "weapons": [
+     {
+      "id": "583990e32459771419544dd2",
+      "name": {
+       "ru": "АКС-74УН",
+       "en": "AKS-74UN"
+      },
+      "ammo": [
+       {
+        "id": "56dff026d2720bb8668b4567",
+        "name": {
+         "ru": "БС",
+         "en": "BS"
+        }
+       },
+       {
+        "id": "56dfef82d2720bbd668b4567",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       },
+       {
+        "id": "56dff3afd2720bba668b4567",
+        "name": {
+         "ru": "ПС",
+         "en": "PS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5ac66d9b5acfc4001633997a",
+      "name": {
+       "ru": "АК-105",
+       "en": "AK-105"
+      },
+      "ammo": [
+       {
+        "id": "56dfef82d2720bbd668b4567",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       },
+       {
+        "id": "5c0d5e4486f77478390952fe",
+        "name": {
+         "ru": "ППБС",
+         "en": "PPBS"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5a0ec13bfcdbcb00165aa685",
+      "name": {
+       "ru": "АКМН",
+       "en": "AKMN"
+      },
+      "ammo": [
+       {
+        "id": "59e0d99486f7744a32234762",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5fb64bc92b1b027b1f50bcf2",
+      "name": {
+       "ru": "Vector .45ACP",
+       "en": "Vector .45ACP"
+      },
+      "ammo": [
+       {
+        "id": "5e81f423763d9f754677bf2e",
+        "name": {
+         "ru": "FMJ",
+         "en": "FMJ"
+        }
+       }
+      ]
+     },
+     {
+      "id": "574d967124597745970e7c94",
+      "name": {
+       "ru": "СКС",
+       "en": "SKS"
+      },
+      "ammo": [
+       {
+        "id": "59e0d99486f7744a32234762",
+        "name": {
+         "ru": "БП",
+         "en": "BP"
+        }
+       }
+      ]
+     },
+     {
+      "id": "5e00903ae9dc277128008b87",
+      "name": {
+       "ru": "MP9",
+       "en": "MP9"
+      },
+      "ammo": [
+       {
+        "id": "5efb0da7a29a85116f6ea05f",
+        "name": {
+         "ru": "ПБП",
+         "en": "PBP"
+        }
+       }
+      ]
+     }
+    ],
+    "armor": [
+     {
+      "id": "5f5f41476bdad616ad46d631",
+      "name": {
+       "ru": "Корунд-ВМ",
+       "en": "Korund-VM"
+      }
+     },
+     {
+      "id": "66b6296d7994640992013b17",
+      "name": {
+       "ru": "SP PC V2",
+       "en": "SP PC V2"
+      }
+     },
+     {
+      "id": "5e4abb5086f77406975c9342",
+      "name": {
+       "ru": "Slick",
+       "en": "Slick"
+      }
+     }
+    ],
+    "armored": 0.8,
+    "plates": {
+     "front": [
+      4,
+      6
+     ],
+     "back": [
+      4,
+      6
+     ],
+     "side": [
+      5,
+      5
+     ]
+    },
+    "helmeted": 0,
+    "face": [
+     3,
+     3
+    ]
+   }
+  ]
+ },
+ "goon-1": {
+  "squad": true,
+  "members": [
+   {
+    "name": {
+     "ru": "Рыцарь",
+     "en": "Knight"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 1,
+      "maps": [
+       "customs",
+       "lighthouse",
+       "shoreline",
+       "woods"
+      ]
+     }
+    ],
+    "ref": "goon-2"
+   },
+   {
+    "name": {
+     "ru": "Биг Пайп",
+     "en": "Big Pipe"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 1,
+      "maps": [
+       "customs",
+       "lighthouse",
+       "shoreline",
+       "woods"
+      ]
+     }
+    ],
+    "ref": "goon-3"
+   }
+  ]
+ },
+ "goon-2": {
+  "squad": true,
+  "members": [
+   {
+    "name": {
+     "ru": "Биг Пайп",
+     "en": "Big Pipe"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 1,
+      "maps": [
+       "customs",
+       "lighthouse",
+       "shoreline",
+       "woods"
+      ]
+     }
+    ],
+    "ref": "goon-3"
+   },
+   {
+    "name": {
+     "ru": "Бёрдай",
+     "en": "Birdeye"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 1,
+      "maps": [
+       "customs",
+       "lighthouse",
+       "shoreline",
+       "woods"
+      ]
+     }
+    ],
+    "ref": "goon-1"
+   }
+  ]
+ },
+ "goon-3": {
+  "squad": true,
+  "members": [
+   {
+    "name": {
+     "ru": "Рыцарь",
+     "en": "Knight"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 1,
+      "maps": [
+       "customs",
+       "lighthouse",
+       "shoreline",
+       "woods"
+      ]
+     }
+    ],
+    "ref": "goon-2"
+   },
+   {
+    "name": {
+     "ru": "Бёрдай",
+     "en": "Birdeye"
+    },
+    "counts": [
+     {
+      "min": 1,
+      "max": 1,
+      "maps": [
+       "customs",
+       "lighthouse",
+       "shoreline",
+       "woods"
+      ]
+     }
+    ],
+    "ref": "goon-1"
+   }
+  ]
+ }
+}

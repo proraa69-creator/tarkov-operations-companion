@@ -73,6 +73,8 @@ export interface Account {
  */
 export interface AuthConfig {
   emailEnabled?: boolean; email?: { codeLength: number; codeTtlSeconds: number; resendSeconds: number }
+  /** «Войти через Google»: the server's Google client (absent on an older server: no button). */
+  googleClientId?: string
 }
 /** A code was requested: what the next step sends back. The e-mail itself holds the code. */
 export interface CodeChallenge { challengeId: string; expiresAt: string; resendSeconds: number }
@@ -347,7 +349,7 @@ export interface AdminOverview {
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
   /**
    * Servers of 15.11.2026 on: `activeRepeat` — of `active`, paid twice or more; `trialsDead` / `trialsAlive` — of `trials`,
-   * «мёртвые» (not in the account for 3 weeks, or no raid yet) and «реальные».
+   * «мёртвые» (21 days registered without the free days used) and «реальные».
    */
   subscriptions: { active: number; activeRepeat?: number; trials: number; trialsDead?: number; trialsAlive?: number; autopay: number; streamers: number }
   /** «Оплатили повторно»: people with two or more paid payments, all the time (servers before 12.11.2026 omit it). */
@@ -433,6 +435,16 @@ export interface AdminUser {
 }
 /** «Онлайн сейчас»: accounts in the PC or phone app within the last `windowMinutes` (server/src/services/presence.ts). */
 export interface AdminOnline { online: number; pc: number; phone: number; windowMinutes: number; at: string }
+/** «Телефоны» of «Сводка» (server/src/routes/ownerAdmin.ts GET /me/admin/phones): signed in all the time, and in the app now. */
+export interface AdminPhoneCount { accounts: number; devices: number }
+export interface AdminPhones {
+  users: number
+  phones: AdminPhoneCount
+  android: AdminPhoneCount & { online: number }
+  ios: AdminPhoneCount & { online: number }
+  online: { phone: number; pc: number; all: number; windowMinutes: number }
+  at: string
+}
 /** `regions`: users per region tab within the search and the status filter (servers before the country omit it). */
 export interface AdminUserList { users: AdminUser[]; total: number; regions?: Record<AdminUserRegion, number> }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
@@ -633,6 +645,8 @@ export const api = {
   emailVerifyStart: (token: string) => request<CodeChallenge>('/me/email/start', { method: 'POST', token, body: {} }),
   emailVerifyConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/email/confirm', { method: 'POST', token, body: { challengeId, code } }),
   login: (email: string, password: string) => request<AuthResult>('/login', { method: 'POST', body: { email, password } }),
+  /** «Войти через Google» (server/src/routes/google.ts): 409 asks the country of a new account. */
+  googleSignIn: (body: { credential: string; country?: string; referralCode?: string }) => request<AuthResult & { created: boolean; referralApplied: boolean }>('/google', { method: 'POST', body }),
   logout: (token: string) => request<void>('/logout', { method: 'POST', token }),
   me: (token: string) => request<Account>('/me', { token }),
   /** «Сменить пароль»: every other session ends; the answer holds a new session for this browser. */
@@ -663,6 +677,7 @@ export const api = {
   ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
   adminOnline: (token: string) => request<AdminOnline>('/me/admin/online', { token }),
+  adminPhones: (token: string) => request<AdminPhones>('/me/admin/phones', { token }),
   adminOnlineStats: (token: string, days = 30) => request<AdminOnlineStats>(`/me/admin/online-stats?days=${days}`, { token }),
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),

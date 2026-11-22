@@ -4,6 +4,8 @@ import { useAppState } from '../state/AppState'
 import { collectorEntries } from '../kappa/collector'
 import { createScreenSync, screenSyncSummary, type ScreenSyncTargets } from './screenSync'
 import { hideoutNeeds } from '../hideout/hideoutNeeds'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { hideoutModules } from '../hideout/hideoutModulesStore'
 import { questNeeds } from '../quests/questItemNeeds'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import type { AppDataset } from '../domain/types'
@@ -18,16 +20,23 @@ export function screenSyncTargets(data: AppDataset, state: ReturnType<typeof use
   const kappa = collectorEntries(data.quests, data.items)
   const quests = questNeeds(data.quests, progress, questAvailabilityOf(data.quests, progress), new Map()).items
   const open = new Map(quests.map((need) => [need.itemId, need.uses.filter((use) => !use.done).reduce((sum, use) => sum + use.count, 0)]))
+  // without the modules the owner turned off in this mode («Модули убежища»)
+  const stations = applyHideoutModules(data.hideout, mode, hideoutModules())
   const known = new Set([
     ...kappa.map(({ item }) => item.id),
-    ...hideoutNeeds(data.hideout, {}, new Map()).items.map((need) => need.itemId),
+    ...hideoutNeeds(stations, {}, new Map()).items.map((need) => need.itemId),
     ...quests.map((need) => need.itemId),
   ])
-  return { mode, profileId: state.activeProfile.id, kappa, stations: data.hideout, built: progress.hideoutLevels, items: data.items, quests: open, known }
+  return { mode, profileId: state.activeProfile.id, kappa, stations, built: progress.hideoutLevels, items: data.items, quests: open, known }
 }
 
-/** One press scans for this long, so a whole stash can be scrolled through. */
-const SCAN_WINDOW_MS = 45_000
+/**
+ * One press scans for this long after the last labels new on screen, so a whole stash can be scrolled through and its
+ * containers opened one after another, one over another (owner, 19.11.2026: «может быть несколько тайников… открывают
+ * друг за другом»), and at most SCAN_MAX_MS in all.
+ */
+export const SCAN_WINDOW_MS = 45_000
+export const SCAN_MAX_MS = 5 * 60_000
 /** Rest between passes, so the game keeps the processor (a pass reads only labels new on screen: electron/collectorScan.ts). */
 const PASS_PAUSE_MS = 600
 const WAIT_PAUSE_MS = 1000
@@ -74,20 +83,22 @@ export function useScreenSync(button: string, onKappaAdded?: (ids: string[]) => 
 }
 
 /**
- * One scan: pass after pass for SCAN_WINDOW_MS while `running()` (a second press stops it), each line said through
- * `onMessage`; the last one is returned. The buttons of «Каппа» and «Убежище» and the phone's «Сканировать на ПК»
- * (src/screen/screenRemote.ts) run the same.
+ * One scan: pass after pass while `running()` (a second press stops it) until SCAN_WINDOW_MS pass with no label new on
+ * screen (SCAN_MAX_MS at most), each line said through `onMessage`; the last one is returned. The game's whole picture is
+ * read: the stash and every container window open on it, in any order. The buttons of «Каппа» and «Убежище» and the
+ * phone's «Сканировать на ПК» (src/screen/screenRemote.ts) run the same.
  */
-export async function scanScreen(targets: ScreenSyncTargets, options: { button: string; running: () => boolean; onPass?: () => void; onMessage: (text: string) => void; onKappaAdded?: (ids: string[]) => void }) {
-  const sync = createScreenSync(targets)
+export async function scanScreen(targets: ScreenSyncTargets, options: { button: string; running: () => boolean; onPass?: () => void; onMessage: (text: string) => void; onKappaAdded?: (ids: string[]) => void }, sync: Pick<ReturnType<typeof createScreenSync>, 'pass'> = createScreenSync(targets)) {
   const started = Date.now()
+  let until = started + SCAN_WINDOW_MS
   let kappa = 0, hideout = 0, quests = 0, read = 0
   let sawGame = false
   let last = ''
   const say = (text: string) => { last = text; options.onMessage(text) }
   try {
-    for (let pass = 0; options.running() && Date.now() - started < SCAN_WINDOW_MS; pass += 1) {
+    for (let pass = 0; options.running() && Date.now() < until; pass += 1) {
       const result = await sync.pass(pass === 0)
+      if (result.ok && result.read > 0) until = Math.min(started + SCAN_MAX_MS, Math.max(until, Date.now() + SCAN_WINDOW_MS))
       if (!result.ok) { say('Сканирование работает только в приложении для Windows.'); return last }
       options.onPass?.()
       if (result.kappaAdded.length) { kappa += result.kappaAdded.length; options.onKappaAdded?.(result.kappaAdded) }

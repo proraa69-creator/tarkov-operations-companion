@@ -14,7 +14,9 @@
  *                                            game and the tracking; the window over the game alone)
  *
  * `overview` (routes/overviewDefaults.ts, «Админ панель» → «Блоки», 16.10.2026): the Overview every player starts from,
- * or null for the built-in one; `extra` adds it, so the apps get it with their usual check.
+ * or null for the built-in one; `extra` adds it, so the apps get it with their usual check. `hideoutModules`
+ * (routes/hideoutModules.ts, «Админ панель» → «Модули убежища», 20.11.2026) the same way: per mode, the hideout modules open
+ * from the start and the ones turned off, or null for every mode as in the game.
  *
  * `features` (services/featureSwitchStore.ts, owner, 14.10.2026): the minimap over the game and the position tracking,
  * off until the owner turns them on («после обновления приложения у всех по стандарту функция миникарты выключена»).

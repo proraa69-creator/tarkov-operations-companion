@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, LoaderCircle, LogIn, Monitor, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react'
+import { AlertTriangle, ExternalLink, LoaderCircle, LogIn, Monitor, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react'
 import type { ServerAccountStatus } from '../electron'
 import { uiText } from '../i18n/renderText'
 import { QrCode } from '../components/QrCode'
@@ -15,12 +15,17 @@ const POLL_MS = 2000
  *   approves (mobile/DeepLinkLogin.tsx PhoneApprove), and this PC signs in by itself (electron/serviceGateway.ts);
  * - the phone app explains the other way: the PC app signed in → Профиль → «Войти в мобильную версию», then the camera.
  */
-export function QrSignIn({ onSignedIn, onBack }: { onSignedIn: (next: ServerAccountStatus) => void; onBack: () => void }) {
+export function QrSignIn({ onSignedIn, onBack, google = false }: { onSignedIn: (next: ServerAccountStatus) => void; onBack: () => void; google?: boolean }) {
   const desktop = Boolean(window.tarkovDesktop?.account?.qrStart)
-  return desktop ? <DesktopQrSignIn onSignedIn={onSignedIn} onBack={onBack} /> : <PhoneQrSteps onBack={onBack} />
+  return desktop ? <DesktopQrSignIn onSignedIn={onSignedIn} onBack={onBack} google={google} /> : <PhoneQrSteps onBack={onBack} />
 }
 
-function DesktopQrSignIn({ onSignedIn, onBack }: { onSignedIn: (next: ServerAccountStatus) => void; onBack: () => void }) {
+/**
+ * `google`: «Войти через Google» on the PC (owner, 15.11.2026: «для всех стран, кроме России»). The same one-time request,
+ * but its page opens in the browser: the player signs in with Google there (website pages/AppLoginPage.tsx), types the code
+ * shown here and confirms — this PC then signs in by itself, as with the phone.
+ */
+function DesktopQrSignIn({ onSignedIn, onBack, google }: { onSignedIn: (next: ServerAccountStatus) => void; onBack: () => void; google: boolean }) {
   const api = window.tarkovDesktop?.account
   const { refresh } = useServerAccount()
   const [request, setRequest] = useState<{ code: string; expiresAt: string; url: string } | null>(null)
@@ -35,6 +40,9 @@ function DesktopQrSignIn({ onSignedIn, onBack }: { onSignedIn: (next: ServerAcco
     api.qrStart().then((value) => { if (active) { setRequest(value); setExpired(false); setError('') } }, (reason: unknown) => { if (active) setError(cleanIpcError(reason)) })
     return () => { active = false }
   }, [api, attempt])
+
+  // The browser opens once per code (a new code opens it again).
+  useEffect(() => { if (google && request) window.open(request.url, '_blank', 'noopener') }, [google, request])
 
   useEffect(() => {
     if (!request || expired || !api?.qrPoll) return
@@ -62,14 +70,17 @@ function DesktopQrSignIn({ onSignedIn, onBack }: { onSignedIn: (next: ServerAcco
   const renew = () => { setRequest(null); setError(''); setAttempt((value) => value + 1) }
   return (
     <div className="stack account-qr-signin">
-      <h2>{uiText('Вход по QR-коду')}</h2>
-      <p className="muted">{uiText('Наведите камеру телефона, где открыт Raid OS с вашим аккаунтом, на QR-код. В приложении введите код с этого экрана и нажмите «Разрешить вход» — компьютер войдёт сам.')}</p>
-      {request && <div className={`account-qr-frame${expired ? ' is-expired' : ''}`}><QrCode value={request.url} label={uiText('QR-код для входа')} /></div>}
+      <h2>{uiText(google ? 'Вход через Google' : 'Вход по QR-коду')}</h2>
+      <p className="muted">{uiText(google
+        ? 'В браузере войдите через Google, введите код с этого экрана и нажмите «Подтвердить» — компьютер войдёт сам.'
+        : 'Наведите камеру телефона, где открыт Raid OS с вашим аккаунтом, на QR-код. В приложении введите код с этого экрана и нажмите «Разрешить вход» — компьютер войдёт сам.')}</p>
+      {!google && request && <div className={`account-qr-frame${expired ? ' is-expired' : ''}`}><QrCode value={request.url} label={uiText('QR-код для входа')} /></div>}
       {!request && !error && <div className="account-qr-frame"><LoaderCircle className="spin" size={40} color="#333" /></div>}
       {request && <div className="account-qr-code" aria-label={uiText('Код для телефона')}>{request.code}</div>}
-      {request && <div className="account-qr-timer">{expired ? uiText('Код истёк') : `${uiText('Ждём подтверждения с телефона')} · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}</div>}
+      {request && <div className="account-qr-timer">{expired ? uiText('Код истёк') : `${uiText(google ? 'Ждём подтверждения в браузере' : 'Ждём подтверждения с телефона')} · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}</div>}
+      {google && request && !expired && <button type="button" className="button ghost" onClick={() => window.open(request.url, '_blank', 'noopener')}><ExternalLink size={15} />{uiText('Открыть сайт ещё раз')}</button>}
       {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
-      {(expired || error) && <button type="button" className="button primary" onClick={renew}><RefreshCw size={15} />{uiText('Новый QR-код')}</button>}
+      {(expired || error) && <button type="button" className="button primary" onClick={renew}><RefreshCw size={15} />{uiText(google ? 'Новый код' : 'Новый QR-код')}</button>}
       <div className="import-note"><ShieldCheck size={14} />{uiText('В QR-коде нет пароля: только одноразовый код на 2 минуты.')}</div>
       <button type="button" className="button ghost" onClick={onBack}><LogIn size={15} />{uiText('Войти по e-mail и паролю')}</button>
     </div>

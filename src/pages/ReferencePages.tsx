@@ -37,6 +37,8 @@ import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
 import { BulletDropPanel } from "../arsenal/BulletDrop";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
+import { setRaidStartNotice, useRaidStartNotice } from "../notifications/raidStartNotice";
+import { PHONE_GUNSMITH_VIEWS, PHONE_GUNSMITH_VIEW_LABELS, setPhoneGunsmithView, usePhoneGunsmithView } from "../gunsmith/phoneGunsmithView";
 
 export function EconomyPage() {
   const { data, source } = useTarkovData();
@@ -709,6 +711,7 @@ import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
 import { SettingHelp } from "../components/SettingHelp";
 import { ClickVolumeSetting } from "../components/ClickVolumeSetting";
+import { FONT_SIZES, FONT_SIZE_LABELS, setFontSize, useFontSize } from "../theme/fontSize";
 import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
 
 /** «Поддержка»: the chat, a bug report with its reward, an idea, and the donation card. */
@@ -731,6 +734,36 @@ function SupportPanel() {
         {!hidesPayments() && <div className="support-row"><DonateCard /></div>}
       </div>
     </section>
+  );
+}
+
+/** «Оружейник» on the phone (owner, 16.11.2026): a part opens as a window with «Назад» or unfolds under its row. */
+function PhoneGunsmithSetting() {
+  const view = usePhoneGunsmithView();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Квест оружейника")}<SettingHelp id="phoneGunsmithView" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Квест оружейника")}>
+        {PHONE_GUNSMITH_VIEWS.map((id) => <button type="button" role="radio" aria-checked={view === id} key={id} className={view === id ? "active" : ""} onClick={() => setPhoneGunsmithView(id)}>{uiText(PHONE_GUNSMITH_VIEW_LABELS[id])}</button>)}
+      </div>
+    </div>
+  );
+}
+
+/** «Размер шрифта» (owner, 21.11.2026): the standard text or a little larger, on this device (src/theme/fontSize.ts). */
+function FontSizeSetting() {
+  const size = useFontSize();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Размер шрифта")}<SettingHelp id="fontSize" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Размер шрифта")}>
+        {FONT_SIZES.map((id) => <button type="button" role="radio" aria-checked={size === id} key={id} className={size === id ? "active" : ""} onClick={() => setFontSize(id)}>{uiText(FONT_SIZE_LABELS[id])}</button>)}
+      </div>
+    </div>
   );
 }
 
@@ -765,6 +798,29 @@ function MapFollowSetting() {
         aria-label={uiText("Перемещать карту к точке")}
         className={`toggle ${follow ? "on" : ""}`}
         onClick={() => setMapFollowEnabled(!follow)}
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+
+/** «Рейд начался» (owner, 15.11.2026): the small card when the raid itself begins (src/notifications/RaidStartNotifier.tsx). */
+function RaidStartSetting() {
+  const on = useRaidStartNotice();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Уведомление о начале рейда")}<SettingHelp id="raidStartNotice" /></strong>
+        <small>{uiText("Когда загрузка закончилась и рейд начался")}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={uiText("Уведомление о начале рейда")}
+        className={`toggle ${on ? "on" : ""}`}
+        onClick={() => setRaidStartNotice(!on)}
       >
         <span />
       </button>
@@ -812,10 +868,13 @@ export function SettingsPage() {
           <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
         </div>}
         <MapFollowSetting />
+        <RaidStartSetting />
+        <FontSizeSetting />
         <ClickVolumeSetting />
         {!isMobileLayout() && <CurrentTasksViewSetting />}
         <GuideReplaySetting />
         {isMobileLayout() && <BackButtonSettings />}
+        {isMobileLayout() && <PhoneGunsmithSetting />}
       </div>
     </section>
   );

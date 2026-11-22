@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   Archive, Backpack, Bomb, Crosshair, Gem, HardHat, Headphones, HeartPulse, KeyRound, Package, RectangleVertical,
   RefreshCw, Search, Shield, ShieldHalf, Syringe, UtensilsCrossed, Wrench, type LucideIcon,
@@ -12,6 +14,9 @@ import { useLivePrices, withLivePrices } from '../data/livePrices'
 import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats } from '../arsenal/ammoSource'
 import { effectiveArmorClass } from '../arsenal/ballistics'
 import { useHoverCard } from '../components/useHoverCard'
+import { usePopupMenu } from '../components/usePopupMenu'
+import { useGunCatalog } from '../arsenal/gunCatalog'
+import { buildableWeapon } from '../arsenal/tieredBuilds'
 import './tierLists.css'
 import { mirrorMode } from '../data/tarkovDataset'
 import { useAppState } from '../state/AppState'
@@ -101,7 +106,7 @@ function useCatalogExtras(mode: RaidMode, needed: boolean) {
  * name, the picture and the facts as label — value rows. The picture tries the next address when one does not load
  * (tierLists.ts tilePictures); `onMissing` once none does.
  */
-function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon }: { row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void; visor?: string; presetIcon?: string }) {
+function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon, onMenu }: { row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void; visor?: string; presetIcon?: string; onMenu?: (event: ReactMouseEvent) => void }) {
   const urls = tilePictures(row.item, row.gear, presetIcon)
   const [at, setAt] = useState(0)
   const url = !missing ? urls[at] : undefined
@@ -121,13 +126,33 @@ function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon }:
     </div>,
   )
   return (
-    <div className={`tier-tile${weapon ? ' is-weapon' : ''}`} tabIndex={0} {...anchorProps}>
+    <div className={`tier-tile${weapon ? ' is-weapon' : ''}`} tabIndex={0} {...anchorProps} onContextMenu={onMenu}>
       {url ? <img key={url} src={url} alt="" loading="lazy" onError={fail} /> : <span className="tier-no-icon" />}
       {visor && <img className="tier-tile-visor" src={visor} alt="" loading="lazy" />}
       <span className="tier-name">{uiText(row.item.shortName)}</span>
       <span className="tier-metric">{metric}</span>
       {card}
     </div>
+  )
+}
+
+/**
+ * The right click on a weapon of the tier list (owner, 20.11.2026: «нажатие правой кнопкой по оружию, и появляется кнопка перейти к
+ * сборке оружия… только у того оружия, которое есть в списке сборка оружия»): «Перейти к сборке оружия». Escape or a click
+ * elsewhere closes it.
+ */
+function WeaponMenu({ menu, onClose }: { menu: { x: number; y: number; weaponId: string; title: string } | null; onClose: () => void }) {
+  const ref = usePopupMenu(menu, onClose)
+  const navigate = useNavigate()
+  if (!menu) return null
+  const left = Math.max(8, Math.min(menu.x, window.innerWidth - 268))
+  const top = Math.max(8, Math.min(menu.y, window.innerHeight - 90))
+  return createPortal(
+    <div ref={ref} className="point-menu" role="menu" aria-label={uiText('Меню оружия')} style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
+      <div className="point-menu-title">{uiText(menu.title)}</div>
+      <button type="button" role="menuitem" onClick={() => { onClose(); navigate(`/arsenal/builds?weapon=${encodeURIComponent(menu.weaponId)}`) }}><Wrench size={13} aria-hidden="true" />{uiText('Перейти к сборке оружия')}</button>
+    </div>,
+    document.body,
   )
 }
 
@@ -154,6 +179,11 @@ export function TierListPanel() {
   const en = locale === 'en'
   const say = (ru: string, english: string) => en ? english : ru
   const [category, setCategory] = useState<PriceCategory>('barter')
+  // Which weapons «Сборка оружия» lists (no flare or rocket guns, no grenade launchers): its catalogue, on the «Оружие» tab only
+  const guns = useGunCatalog(raidMode, locale, category === 'weapons')
+  const buildable = useMemo(() => new Set((guns.data?.weapons ?? []).filter((weapon) => buildableWeapon(weapon)).map((weapon) => weapon.id)), [guns.data])
+  const [weaponMenu, setWeaponMenu] = useState<{ x: number; y: number; weaponId: string; title: string } | null>(null)
+  const closeWeaponMenu = useCallback(() => setWeaponMenu(null), [])
   const [basis, setBasis] = useState<Basis>('stats')
   // Owner, 05.11.2026: «не нужно писать цену за слот… за какую цену сколько энергии получает человек и воды то же самое».
   const [foodBasis, setFoodBasis] = useState<FoodBasis>('energy')
@@ -286,7 +316,9 @@ export function TierListPanel() {
     if (gear?.kind !== 'helmet' || !gear.visorId || gear.presetId) return undefined
     return byId.get(gear.visorId)?.iconUrl
   }
-  const tile = (row: TierRow) => <TierTile key={row.item.id} row={row} metric={metric(row)} facts={facts(row)} missing={missing.has(row.item.id)}
+  // «Перейти к сборке оружия» on a weapon «Сборка оружия» lists
+  const menuOf = (row: TierRow) => buildable.has(row.item.id) ? (event: ReactMouseEvent) => { event.preventDefault(); setWeaponMenu({ x: event.clientX, y: event.clientY, weaponId: row.item.id, title: row.item.name }) } : undefined
+  const tile = (row: TierRow) => <TierTile key={row.item.id} row={row} onMenu={menuOf(row)} metric={metric(row)} facts={facts(row)} missing={missing.has(row.item.id)}
     onMissing={() => setMissing((set) => new Set(set).add(row.item.id))} visor={visorOf(row)} presetIcon={row.gear?.presetId ? byId.get(row.gear.presetId)?.iconUrl : undefined} />
 
   return (
@@ -339,6 +371,7 @@ export function TierListPanel() {
         })}
       </div>
     </section>
+    <WeaponMenu menu={weaponMenu} onClose={closeWeaponMenu} />
     </>
   )
 }

@@ -137,8 +137,14 @@
   font-size: 10.5px; font-weight: 700; line-height: 1.1; text-align: center; cursor: pointer; background-color: transparent;
 }
 /* One line each: «Оружейник» is the longest label and must not break in the middle of the word. */
-:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab span {
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab span:not(.nav-badge) {
   display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: clip; font-size: 10px; letter-spacing: -.01em;
+}
+/* The count on a tab (owner, 21.11.2026: «криво появляется значок уведомлений… сделай аккуратно»): the labels' block display made
+   it a box with the figure at its top, over the icon's lines; now a round badge on the icon's top right corner, the figure centred. */
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab > .nav-badge {
+  display: grid; place-items: center; position: absolute; top: 2px; left: calc(50% + 8px); right: auto; margin: 0;
+  min-width: 18px; height: 18px; padding: 0 5px; font-size: 10.5px; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums;
 }
 :root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab svg { width: 20px; height: 20px; flex: 0 0 auto; }
 /* No stripes or bar over the active tab (owner, 13.10.2026: «убери эти полосы»): its own background marks it. */
@@ -164,7 +170,9 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 22%), linear-gradient(0deg, #000 58%, transparent 96%);
   mask-image: linear-gradient(90deg, transparent 0%, #000 22%), linear-gradient(0deg, #000 58%, transparent 96%);
 }
-:root[data-layout="mobile"] .raid-smoke > canvas { filter: blur(2px); }
+/* no CSS blur on the phone: redone every frame of the smoke it made the top of «Обзор» lag (a player's report, 20.11.2026);
+   the canvas is drawn smaller there and its upscaling softens it */
+:root[data-layout="mobile"] .raid-smoke > canvas { filter: none; }
 :root[data-layout="mobile"] .raid-content {
   padding: 14px; pointer-events: none;
   background: linear-gradient(0deg, color-mix(in srgb, var(--surf-1) 88%, transparent) 0%, color-mix(in srgb, var(--surf-1) 52%, transparent) 34%, transparent 64%);
@@ -197,7 +205,7 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   min-height: 66px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
   text-align: center; font-size: 12px; line-height: 1.15; border: 1px solid var(--line);
 }
-.mobile-more-grid .nav-link.mobile-more-link span { display: block; overflow-wrap: anywhere; }
+.mobile-more-grid .nav-link.mobile-more-link span:not(.nav-badge) { display: block; overflow-wrap: anywhere; }
 .mobile-more-grid .nav-link.mobile-more-link.active::before { display: none; }
 /* «Чат с поддержкой» opens a sheet, not a page: a button that looks like the links. */
 .mobile-more-grid button.nav-link.mobile-more-link { font-family: inherit; background-color: transparent; cursor: pointer; }
@@ -226,6 +234,7 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-layer-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 :root[data-layout="mobile"] .map-layer-group > .map-side-title { grid-column: 1 / -1; }
 :root[data-layout="mobile"] .layer-button { min-height: 42px; }
+:root[data-layout="mobile"] .map-layers-all-button { min-height: 40px; font-size: 13px; }
 /* The page scrolls under the top bar and the tab bar: the map's own layers (Leaflet panes, z-index 400+) stay inside the
    map instead of being drawn over both bars. */
 /* The owner's notice above the page takes its height from the map, so the whole map still fits under it. */
@@ -495,6 +504,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .photo-sync-backdrop { padding-bottom: 0; }
 /* The sheets from the bottom of «Заменить блок» and «Кочевники» (11.11.2026) sit on the screen's lower edge. */
 :root[data-layout="mobile"] :is(.block-chooser-backdrop, .goon-sheet-backdrop) { padding-bottom: 0; }
+/* A part's card from «Оружейник» (components/ItemDrawer.tsx, report 171): a sheet from the bottom, its top on that level. */
+:root[data-layout="mobile"] .item-drawer-backdrop .item-drawer { max-height: calc(100dvh - var(--window-top) - var(--tabbar, 0px)); }
 :root[data-layout="mobile"] .frg-card { max-height: var(--window-room); }
 /* The full-size picture: the cross on that level, the picture under it. */
 :root[data-layout="mobile"] .requests-viewer { padding-top: calc(var(--window-top) + 48px); padding-bottom: calc(var(--window-bottom) + 62px); }

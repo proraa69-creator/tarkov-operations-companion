@@ -162,7 +162,10 @@ export const PHOTO_SPOTS = {
       4: [[93.6, 116.6]], 5: [[-219.1, -87], [-181, -80.4]], 6: [[-270.4, -102.7]],
       7: [[-312, -77.9]], 8: [[-274.3, -140.3]], 9: [[-536.4, -336.2]],
       10: [[412.8, 160.9]], 11: [[-219.1, -87], [-181, -80.4]], 12: [[-707.5, 96.7]],
-      13: [[-511.2, 264]], 14: [[-212.3, 19.8]], 15: [[-627.6, -232.5]],
+      13: [[-511.2, 264]], 14: [[-212.3, 19.8]],
+      // 15 («inside the white house in front of the T-90 in the village») answers to no point of the feed: the one it was given by
+      // elimination, [-627.6, -232.5], is a long green-roofed hangar between the village and the car exit (owner, 20.11.2026, report
+      // 203: «место одно, а фото вообще другое»). The photo stays in the map's «Все места».
     },
     'test-docs': {
       1: [[-319.4, 496.5]], 2: [[-180.7, 374.1]], 3: [[-512.7, 236.5]],

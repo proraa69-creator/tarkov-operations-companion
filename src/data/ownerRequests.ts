@@ -1,3 +1,4 @@
+import type { EftCasesPage, EftCaseStatus } from '../reports/EftCasesTable'
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { serviceClient } from '../account/nicknameBinding'
@@ -70,7 +71,7 @@ const RETRY_MS = 30_000
 type Request = NonNullable<ReturnType<typeof serviceClient>>
 
 /** Open reports and conversations with unseen messages (0 from a server before the support chat). */
-export interface OwnerRequestCounts { open: number; unreadChats: number }
+export interface OwnerRequestCounts { open: number; unreadChats: number; eftCases: number }
 
 /**
  * Long polling of GET /v1/accounts/me/admin/requests/events: `onCount` gets the counts on every answer (at once, then
@@ -78,7 +79,7 @@ export interface OwnerRequestCounts { open: number; unreadChats: number }
  * since the previous answer. Runs until `signal` aborts.
  */
 export function watchOwnerRequests(request: Request, onCount: (counts: OwnerRequestCounts, changed: boolean) => void, signal: AbortSignal, retryMs = RETRY_MS) {
-  return watchReportEvents((path) => request('GET', path), ({ open, unreadChats }, changed) => onCount({ open, unreadChats }, changed), signal, retryMs)
+  return watchReportEvents((path) => request('GET', path), ({ open, unreadChats, eftCases }, changed) => onCount({ open, unreadChats, eftCases }, changed), signal, retryMs)
 }
 
 /**
@@ -292,4 +293,18 @@ export function useOwnerChatActions() {
       return message
     }, [client]),
   }
+}
+
+/** «Аккаунты Таркова» (server/src/routes/eftCases.ts) through the owner app's gateway. */
+export const ownerEftCases = {
+  list: async (view: EftCaseStatus): Promise<EftCasesPage> => {
+    const request = serviceClient()
+    if (!request) throw new Error('Нет связи с сервером')
+    return await request('GET', `/v1/accounts/me/admin/eft-cases?view=${view}&limit=100`) as EftCasesPage
+  },
+  setStatus: async (id: number, status: EftCaseStatus) => {
+    const request = serviceClient()
+    if (!request) throw new Error('Нет связи с сервером')
+    return request('POST', `/v1/accounts/me/admin/eft-cases/${id}/status`, { status })
+  },
 }

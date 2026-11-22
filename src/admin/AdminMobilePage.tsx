@@ -1,9 +1,10 @@
+import { EftCasesTable } from '../reports/EftCasesTable'
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import {
   Activity, ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LineChart, LoaderCircle,
-  Maximize2, Megaphone, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Sticker, Trash2, UserPlus, Users, Wifi, WifiOff, X,
+  Maximize2, Megaphone, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Smartphone, Sticker, Trash2, UserPlus, Users, Wifi, WifiOff, X,
 } from 'lucide-react'
 import { uiLabel, uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
@@ -14,7 +15,7 @@ import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../su
 import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from '../support/supportChatTools'
 import { useLocale } from '../i18n/LocaleProvider'
 import {
-  adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
+  adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPhones, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
   type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
   type AdminUserFilter, type AdminUserRegion, type BugReportDetail,
   type PaymentStatus, type PlanId,
@@ -118,6 +119,9 @@ export function AdminMobilePage() {
   const [customDates, setCustomDates] = useState(() => ({ from: ownerDayAgo(29), to: ownerDayAgo(0) }))
   const [selected, setSelected] = useState<AdminUserDetail | null>(null)
   const [reportView, setReportView] = useState<ReportTableView>('active')
+  // «Аккаунты Таркова» (owner, 15.11.2026): the tab next to the three lists and its count of new cases.
+  const [eftSelected, setEftSelected] = useState(false)
+  const [eftCount, setEftCount] = useState(0)
   const [focusReport, setFocusReport] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
@@ -155,12 +159,15 @@ export function AdminMobilePage() {
   // «Сводка» loads at the start and on «Обновить» only, not again with every tab (owner, 03.11.2026: «долго загружает»);
   // each part on its own, so one slow answer never holds or hides the others.
   const loadOnline = useCallback(() => adminApi.online(), [])
+  const loadPhones = useCallback(() => adminApi.phones(), [])
   const loadUsers = useCallback(() => adminApi.users(query, userFilter, userRegion), [query, userFilter, userRegion])
   const loadPayments = useCallback(() => adminApi.payments(period, paymentFilter), [period, paymentFilter])
   const loadReports = useCallback(() => adminApi.reportTable(reportView), [reportView])
   const loadThreads = useCallback(() => adminApi.supportThreads(), [])
   const overview = useAdminAnswer(adminPaths.overview(), adminApi.overview, version)
   const online = useAdminAnswer(adminPaths.online(), loadOnline, `${version}:${onlineTick}`)
+  // «Телефоны»: with «Статистика онлайна», every minute (its «сейчас» is the last few minutes)
+  const phones = useAdminAnswer(section === 'summary' ? adminPaths.phones() : null, loadPhones, `${version}:${onlineTick}`)
   const users = useAdminAnswer(section === 'users' ? adminPaths.users(query, userFilter, userRegion) : null, loadUsers, version, { keepPrevious: true })
   const payments = useAdminAnswer(section === 'payments' ? adminPaths.payments(period, paymentFilter) : null, loadPayments, version, { keepPrevious: true })
   const reports = useAdminAnswer(section === 'requests' ? adminPaths.reportTable(reportView) : null, loadReports, `${version}:${reportsTick}`, { keepPrevious: true })
@@ -176,7 +183,7 @@ export function AdminMobilePage() {
   useEffect(() => {
     if (section !== 'requests') return
     const stop = new AbortController()
-    void adminApi.watchReports(reportsChanged, stop.signal)
+    void adminApi.watchReports(reportsChanged, stop.signal, setEftCount)
     return () => stop.abort()
   }, [section, reportsChanged])
 
@@ -333,6 +340,7 @@ export function AdminMobilePage() {
         <RevenueCards data={overview.data} />
         {overview.data?.plans && <PlanTable title="Подписки по срокам" columns={[{ title: 'Этот месяц', plans: overview.data.plans.month }, { title: 'За всё время', plans: overview.data.plans.all }]} />}
         {overview.data?.squads && <SquadStats squads={overview.data.squads} />}
+        {phones.data && <PhoneStatsBlock data={phones.data} />}
         <OnlineStatsBlock data={online.data} />
         <RegistrationsBlock refreshKey={version} />
         <p className="admin-summary-note">{uiText('Время — по Бангкоку (UTC+7). Выданные вручную дни подписки не считаются выручкой.')}</p>
@@ -351,7 +359,13 @@ export function AdminMobilePage() {
             <ReportsTable
               page={reports.data}
               view={reportView}
-              onView={setReportView}
+              onView={(next) => { setReportView(next); setEftSelected(false) }}
+              eft={{
+                count: eftCount,
+                selected: eftSelected,
+                onSelect: () => setEftSelected(true),
+                content: <EftCasesTable load={adminApi.eftCases} setStatus={adminApi.eftStatus} t={uiText} reloadKey={reportsTick} />,
+              }}
               t={uiText}
               focusId={focusReport}
               onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}
@@ -499,7 +513,7 @@ function OverviewCards({ data, refreshKey }: { data: AdminOverview | null; refre
     <section className="admin-overview" aria-label={uiText('Сводка')}>
       <article><span><Users size={16} />{uiText('Пользователи')}</span><strong>{users ? count.format(users.total) : '—'}</strong><small>{uiText(users ? `сегодня +${users.today} · 7 дн. +${users.days7}${users.blocked ? ` · заблокировано ${users.blocked}` : ''}` : '')}</small></article>
       <article><span><ShieldCheck size={16} />{uiText('Платные подписки')}</span><strong>{data ? count.format(data.subscriptions.active) : '—'}</strong><small>{uiText(data?.subscriptions.activeRepeat === undefined ? 'только те, кто оплатил и подписка идёт' : `из них повторных: ${count.format(data.subscriptions.activeRepeat)}`)}</small></article>
-      {/* «мёртвых» — not in the account for 3 weeks or no raid yet; «реальных» — the rest (owner, 15.11.2026). */}
+      {/* «мёртвых» — 21 days registered without the free days used; «реальных» — the rest (owner, 16.11.2026). */}
       <article><span><Gift size={16} />{uiText('Пробный период')}</span><strong>{data ? count.format(data.subscriptions.trials) : '—'}</strong><small>{uiText(data?.subscriptions.trialsDead === undefined || data.subscriptions.trialsAlive === undefined ? 'сейчас на пробном' : `мёртвых ${count.format(data.subscriptions.trialsDead)} · реальных ${count.format(data.subscriptions.trialsAlive)}`)}</small></article>
       <button type="button" className={`admin-overview-pick${choosing ? ' is-open' : ''}`} aria-expanded={choosing} aria-label={uiText(`${current.title}: ${value ?? '…'}. Выбрать период`)} onClick={() => setChoosing((open) => !open)}>
         <span><UserPlus size={16} />{uiText(current.title)}<ChevronDown size={14} className="admin-overview-caret" /></span>
@@ -558,6 +572,21 @@ function SquadStats({ squads }: { squads: NonNullable<AdminOverview['squads']> }
   </section>
 }
 
+/**
+ * «Телефоны» (owner, 23.11.2026: «сколько с андроида установило и зашло, сколько с айфона установило и зашло, и сколько в
+ * данный момент онлайн с телефонов с каждого вида»): accounts signed in from the phone app by system, and who is in it now.
+ */
+function PhoneStatsBlock({ data }: { data: AdminPhones }) {
+  return <section className="admin-block" aria-label={uiText('Телефоны')}>
+    <div className="admin-block-heading"><Smartphone size={15} /><span>{uiText('Телефоны')}</span><small>{uiText(`всего пользователей ${count.format(data.users)}`)}</small></div>
+    <div className="admin-mini-grid admin-squad-grid">
+      <article><span>{uiText('Вошли с телефона')}</span><strong>{count.format(data.phones.accounts)}</strong><small>{uiText(`телефонов: ${count.format(data.phones.devices)}`)}</small></article>
+      <article><span>{uiText('Онлайн с телефонов')}</span><strong>{count.format(data.online.phone)}</strong><small>{uiText(`за ${data.online.windowMinutes} мин`)}</small></article>
+      <article><span>Android</span><strong>{count.format(data.android.accounts)}</strong><small>{uiText(`установили и вошли · онлайн ${count.format(data.android.online)}`)}</small></article>
+      <article><span>iPhone</span><strong>{count.format(data.ios.accounts)}</strong><small>{uiText(`установили и вошли · онлайн ${count.format(data.ios.online)}`)}</small></article>
+    </div>
+  </section>
+}
 
 function OnlineStatsBlock({ data }: { data: AdminOnlineStats | null }) {
   const today = data?.today

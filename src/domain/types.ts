@@ -407,6 +407,8 @@ export interface MapMarker {
   keyCount?: number
   /** The key spots of one locked room drawn as one point: how many spots the room has (src/maps/lockedRoomSpots.ts). */
   roomSpots?: number
+  /** A spot players described (where on it the item lies): its own point at any zoom, never one of a heap (lockedRoomSpots.ts). */
+  ownSpot?: boolean
   /** A loose key spot: every key that may lie there («Нужные ключи» filters by them). */
   keyIds?: string[]
   /** A loose loot spot: every item that may lie there («Найти точку…» finds them by name, src/maps/mapSearch.ts). */
@@ -700,6 +702,8 @@ export interface Quest {
   objectives: string[]
   stages?: QuestStage[]
   rewards: string[]
+  /** What the quest opens at the traders once it is done (src/data/questOfferUnlocks.ts): items, parts, ammo. */
+  offerUnlocks?: QuestOfferUnlock[]
   requiredItems?: string[]
   previous?: string[]
   requirements?: TaskRequirement[]
@@ -771,6 +775,15 @@ export interface PriceQuote {
   kind?: 'flea' | 'trader' | 'base'
   /** Flea quotes: the current lowest offer (`lastLowPrice`) or, when there is none, the 24-hour average. */
   basis?: 'last-low' | 'avg-24h'
+}
+
+/** An item a quest opens at a trader: on sale from this loyalty level once the quest is done (`barter`: for items only). */
+export interface QuestOfferUnlock {
+  itemId: string
+  /** The catalog's trader id. */
+  traderId: string
+  level: number
+  barter?: boolean
 }
 
 export interface Item {

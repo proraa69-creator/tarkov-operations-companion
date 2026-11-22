@@ -22,6 +22,10 @@ let commit = ''
 try { commit = execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim() } catch { /* not a git checkout */ }
 mkdirSync(join(root, 'dist-electron'), { recursive: true })
 const trialLaunches = Math.max(0, Math.floor(Number(process.env.TRIAL_LAUNCHES) || 0))
+// TEST_BUILD=1: a build only for testing a change (owner, 20.11.2026: «сделай тестовый режим в подключении к нашему серверу»):
+// the server and the account as usual, but no updates, never the update staged for the real app, its own data folder
+// (electron/buildEdition.ts isTestBuild).
+const testBuild = process.env.TEST_BUILD === '1'
 const edition = process.env.OWNER_BUILD === '1' ? 'owner' : 'client'
 // Both editions connect to the owner's permanent address (site + API under /v1) unless told otherwise;
 // TARKOV_DEFAULT_SERVER_URL= (empty) builds one without it (this PC only). The owner's app still uses its own local
@@ -53,5 +57,5 @@ if (!entitlementKey && process.env.RAIDOS_ENTITLEMENT_PUBLIC_KEY_FILE) {
 if (entitlementKey && !/^[A-Za-z0-9_-]{43}$/.test(entitlementKey)) throw new Error('RAIDOS_ENTITLEMENT_PUBLIC_KEY: expected the 43-character Ed25519 key from /v1/entitlement/public-key')
 if (entitlementKey && !defaultServerUrl) throw new Error('RAIDOS_ENTITLEMENT_PUBLIC_KEY needs TARKOV_DEFAULT_SERVER_URL (the server the key belongs to)')
 const entitlementKeys = entitlementKey ? { [defaultServerUrl]: entitlementKey } : undefined
-writeFileSync(join(root, 'dist-electron', 'build-info.json'), JSON.stringify({ version, build: Date.now(), commit, edition, ...(defaultServerUrl ? { defaultServerUrl } : {}), ...(ownerEmails.length ? { ownerEmails } : {}), ...(trialLaunches ? { trialLaunches } : {}), ...(entitlementKeys ? { entitlementKeys } : {}) }))
-console.log(`Build ${version} ${commit} · ${edition}${defaultServerUrl ? ` · server ${defaultServerUrl}` : ''}${entitlementKeys ? ' · entitlement key built in' : ''}${ownerEmails.length ? ` · owner e-mails: ${ownerEmails.length}` : ''}${trialLaunches ? ` (test build: ${trialLaunches} launches)` : ''} → dist-electron/build-info.json`)
+writeFileSync(join(root, 'dist-electron', 'build-info.json'), JSON.stringify({ version, build: Date.now(), commit, edition, ...(defaultServerUrl ? { defaultServerUrl } : {}), ...(ownerEmails.length ? { ownerEmails } : {}), ...(trialLaunches ? { trialLaunches } : {}), ...(entitlementKeys ? { entitlementKeys } : {}), ...(testBuild ? { testBuild: true } : {}) }))
+console.log(`Build ${version} ${commit} · ${edition}${defaultServerUrl ? ` · server ${defaultServerUrl}` : ''}${entitlementKeys ? ' · entitlement key built in' : ''}${ownerEmails.length ? ` · owner e-mails: ${ownerEmails.length}` : ''}${trialLaunches ? ` (test build: ${trialLaunches} launches)` : ''}${testBuild ? ' · test build: own data folder, no updates' : ''} → dist-electron/build-info.json`)

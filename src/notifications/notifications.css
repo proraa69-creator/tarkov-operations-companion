@@ -14,3 +14,17 @@ button.notification-entry:hover { border-color: var(--brass); }
 .toast-dock :is(.support-notice, .update-live-toast.panel) { position: static; }
 :root[data-layout="mobile"] .toast-dock { left: 12px; right: 12px; bottom: calc(var(--tabbar, 70px) + 10px); justify-items: stretch; }
 :root[data-layout="mobile"] .toast-dock :is(.restock-toasts, .mode-reset-toasts, .support-notice, .update-live-toast.panel) { left: auto; right: auto; top: auto; bottom: auto; }
+
+/* «Настроить» (NotificationSettings.tsx): a small square button beside the title, and the switches in the same window. */
+.news-head .notifications-settings-button, .news-head .notifications-back { flex: none; width: 30px; height: 30px; min-height: 30px; padding: 0; display: grid; place-items: center; border-radius: 8px; }
+.notification-settings { display: grid; gap: 2px; min-height: 0; overflow: auto; padding-right: 4px; }
+.notification-setting { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.notification-setting:last-of-type { border-bottom: 0; }
+.notification-setting.is-sub { padding-left: 34px; grid-template-columns: 24px minmax(0, 1fr) auto; }
+.notification-setting.is-disabled { opacity: .45; cursor: default; }
+.notification-setting-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--surf-1); color: var(--brass-strong); }
+.notification-setting.is-sub .notification-setting-icon { width: 24px; height: 24px; }
+.notification-setting-text { display: grid; gap: 2px; min-width: 0; }
+.notification-setting-text strong { font-size: 14px; }
+.notification-setting-text small { color: var(--text-dim); font-size: 12px; }
+.notification-settings-note { display: flex; align-items: center; gap: 7px; margin: 10px 4px 0; color: var(--text-dim); font-size: 12px; }

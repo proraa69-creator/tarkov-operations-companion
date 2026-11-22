@@ -42,7 +42,7 @@ function run(screens: Array<TooltipShot>, read: (index: number) => string, known
 }
 
 describe('reading the game tooltip after the key press', () => {
-  it('grabs the area around the cursor every 120 ms, never the whole display: 9 grabs at most without a tooltip', async () => {
+  it('grabs the area around the cursor every 160 ms, never the whole display: 11 grabs at most without a tooltip', async () => {
     let time = 0
     const at: number[] = []
     const result = await readGameTooltip({
@@ -52,10 +52,10 @@ describe('reading the game tooltip after the key press', () => {
       now: () => time,
       sleep: async (ms) => { time += ms },
     })
-    expect(TOOLTIP_TIMING.intervalMs).toBe(120)
+    expect(TOOLTIP_TIMING.intervalMs).toBe(160)
     expect(result.answer).toBeNull()
-    expect(at).toHaveLength(9)
-    for (let index = 1; index < at.length; index += 1) expect(at[index]! - at[index - 1]!).toBe(120)
+    expect(at).toHaveLength(11)
+    for (let index = 1; index < at.length; index += 1) expect(at[index]! - at[index - 1]!).toBe(160)
   })
   it('waits for the tooltip the game shows a moment after pointing, reading only once it is there', async () => {
     const screens = [screen(null), screen(null), screen(null), screen(null), screen(0)]
@@ -65,13 +65,44 @@ describe('reading the game tooltip after the key press', () => {
     expect(result.shown).toEqual([4])
   })
 
+  // report 202 (20.11.2026): the picture answered «Кейс для инъекторов» at the first grab, the game showed «Золотой петух» a
+  // moment later — and was never read, the grabs had stopped
+  it('a picture answer stops the grabs only once a tooltip has been read: a later tooltip still names the item', async () => {
+    let time = 0
+    let grabs = 0
+    const ocr: number[] = []
+    const screens = [screen(null), screen(null), screen(null), screen(0)]
+    const result = await readGameTooltip({
+      grab: async () => screens[Math.min(grabs++, screens.length - 1)]!,
+      recognize: async () => { ocr.push(grabs - 1); return 'Золотой петух' },
+      match: async (text) => (text === 'Золотой петух' ? 'golden-rooster' : null),
+      done: () => true,
+      now: () => time,
+      sleep: async (ms) => { time += ms },
+    })
+    expect(result.answer).toBe('golden-rooster')
+    expect(ocr).toEqual([3])
+    // a tooltip read without a match ends it at once
+    let more = 0
+    const unread = await readGameTooltip({
+      grab: async () => { more += 1; return screen(0) },
+      recognize: async () => 'шум',
+      match: async () => null,
+      done: () => true,
+      now: () => time,
+      sleep: async (ms) => { time += ms },
+    })
+    expect(unread.answer).toBeNull()
+    expect(more).toBe(1)
+  })
+
   it('gives up when no tooltip appears in time', async () => {
     const result = await run([screen(null)], () => '', {})
     expect(result.answer).toBeNull()
     expect(result.rect).toBeNull()
     expect(result.ocr).toEqual([])
-    expect(result.time).toBeGreaterThanOrEqual(900)
-    expect(result.time).toBeLessThan(1000)
+    expect(result.time).toBeGreaterThanOrEqual(1600)
+    expect(result.time).toBeLessThan(1800)
   })
 
   it('reads a changed tooltip again (the previous item’s name first, then this one’s)', async () => {
@@ -88,7 +119,7 @@ describe('reading the game tooltip after the key press', () => {
     expect(result.answer).toBeNull()
     expect(result.rect).not.toBeNull()
     expect(result.tries).toEqual(['Шум', 'Шум', 'Шум'])
-    expect(result.time).toBeGreaterThanOrEqual(1800)
+    expect(result.time).toBeGreaterThanOrEqual(TOOLTIP_TIMING.totalMs)
   })
 
   it('keeps the first grab with the tooltip for the picture — before the app’s own card could show', async () => {
@@ -107,7 +138,7 @@ describe('reading the game tooltip after the key press', () => {
     const result = await run([screen(null)], () => '', {})
     expect(result.first).toBeNull()
     expect(result.latest).not.toBeNull()
-    expect(result.grabs).toBe(9)
+    expect(result.grabs).toBe(11)
   })
 })
 

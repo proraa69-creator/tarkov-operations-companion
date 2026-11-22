@@ -5,6 +5,7 @@ import { parseOverviewAnswer, overviewDefaults, reloadOverviewDefaultsForTests, 
 import { defaultOverviewLayout, OVERVIEW_LAYOUT_KEY } from './overviewLayout'
 import { PHONE_LAYOUT_KEY } from './phoneLayout'
 import { useOverviewEditor } from './useOverviewEditor'
+import { FREE_LAYOUT_KEY, freeFromZones } from './overviewFreeLayout'
 import { usePhoneOverview } from './usePhoneOverview'
 import { followAnnouncement } from '../announcement/announcement'
 
@@ -79,15 +80,17 @@ describe('the owner\'s Overview defaults', () => {
 
 describe('the Overview follows them', () => {
   it('on the PC: a player who never arranged the blocks gets the owner\'s order at once, hidden blocks go', () => {
+    // the PC's free grid (owner, 20.11.2026) laid out from the zones' order
     const { result } = renderHook(() => useOverviewEditor())
-    expect(result.current.layout).toEqual(defaultOverviewLayout())
+    expect(result.current.layout).toEqual(freeFromZones(defaultOverviewLayout()))
     act(() => setOverviewDefaults(sanitizeOverviewDefaults(OWNER)))
-    expect(result.current.layout).toEqual({ ...OWNER.layout, right: ['favorites', 'tasks'] })
+    expect(result.current.layout).toEqual(freeFromZones({ ...OWNER.layout, right: ['favorites', 'tasks'] }))
     expect(result.current.isDefault).toBe(true)
     // following the owner stores nothing of the player's own
     expect(localStorage.getItem(OVERVIEW_LAYOUT_KEY)).toBeNull()
+    expect(localStorage.getItem(FREE_LAYOUT_KEY)).toBeNull()
     act(() => setOverviewDefaults(null))
-    expect(result.current.layout).toEqual(defaultOverviewLayout())
+    expect(result.current.layout).toEqual(freeFromZones(defaultOverviewLayout()))
   })
 
   it('on the PC: the player\'s own order wins, hidden blocks stay hidden; «Сбросить» goes back to the owner\'s order', () => {
@@ -95,11 +98,12 @@ describe('the Overview follows them', () => {
     localStorage.setItem(OVERVIEW_LAYOUT_KEY, JSON.stringify(own))
     setOverviewDefaults(sanitizeOverviewDefaults(OWNER))
     const { result } = renderHook(() => useOverviewEditor())
-    expect(result.current.layout).toEqual({ ...own, right: ['tasks', 'favorites'] })
+    expect(result.current.layout).toEqual(freeFromZones({ ...own, right: ['tasks', 'favorites'] }))
     expect(result.current.isDefault).toBe(false)
     act(() => result.current.reset())
-    expect(result.current.layout).toEqual({ ...OWNER.layout, right: ['favorites', 'tasks'] })
+    expect(result.current.layout).toEqual(freeFromZones({ ...OWNER.layout, right: ['favorites', 'tasks'] }))
     expect(localStorage.getItem(OVERVIEW_LAYOUT_KEY)).toBeNull()
+    expect(localStorage.getItem(FREE_LAYOUT_KEY)).toBeNull()
   })
 
   it('on the phone: the owner\'s order until the player\'s own one', () => {

@@ -6,7 +6,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   // The rooms over the map (src/components/MapRoomMarks.tsx, src/data/mapRoomSigns.ts) and the Labyrinth's keys and tools.
   ['Комнаты', 'Rooms'], ['Комнаты через ключ-карты', 'Keycard rooms'], ['Ловушки и комнаты', 'Traps and rooms'], ['Названия комнат', 'Room names'], ['Синяя маркировка', 'Blue marking'],
   ['Ключи и инструменты', 'Keys and tools'], ['Ключ или инструмент', 'Key or tool'],
-  ['Открывает проход в комнате 1.', 'Opens the way in room 1.'], ['Открывает проход в комнате 2.', 'Opens the way in room 2.'], ['Открывает проход в комнате 3.', 'Opens the way in room 3.'], ['Открывает проход в комнате 4.', 'Opens the way in room 4.'],
+  ['Открывает проход в комнате 1.', 'Opens the way in room 1.'], ['Открывает проход в комнате 2.', 'Opens the way in room 2.'], ['Открывает проход в комнате 3.', 'Opens the way in room 3.'], ['Открывает проход в комнате 4.', 'Opens the way in room 4.'], ['Лежит на лопате.', 'Lies on the shovel.'],
   ['Вскрывает двери в комнатах 3 и 5.', 'Cuts the doors in rooms 3 and 5.'], ['Отключает пар в комнате 2.', 'Turns off the steam in room 2.'], ['Открывает помещение с телами.', 'Opens the corpse room.'], ['Открывает комнату наблюдения.', 'Opens the observation room.'],
   ['Кнопка ловушки. Комната 1', 'Trap button. Room 1'], ['Вентиль ловушки. Комната 2', 'Trap valve. Room 2'], ['Кнопка ловушки. Комната 3', 'Trap button. Room 3'], ['Дверь под резак. Комната 3', 'Door for the torch. Room 3'], ['Рычаг ловушки. Комната 4', 'Trap lever. Room 4'], ['Рычаг ловушки. Комната 5', 'Trap lever. Room 5'], ['Дверь под резак. Комната 5', 'Door for the torch. Room 5'],
   ['Отключает токсичный бассейн.', 'Turns off the toxic pool.'], ['Нужен штурвал вентиля. Отключает пар.', 'Needs the valve handwheel. Turns off the steam.'], ['Отключает огонь.', 'Turns off the fire.'], ['Нужен газовый резак.', 'Needs the gas torch.'], ['Отключает обрезы.', 'Turns off the shotguns.'], ['Отключает токсичную лужу.', 'Turns off the toxic puddle.'],
@@ -79,6 +79,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Узнать, как выбраться из Таркова', 'Find out how to get out of Tarkov'],
   ['Разговоры с торговцами в меню, точки на карте нет.', 'Talks with traders in the menu, no map point.'],
   ['Найти вход в секретный объект на локации Завод', 'Locate the entrance to the facility on Factory'],
+  ['Флешка — на подножке чёрного «Гелендвагена» у выхода «Тоннель»', 'Flash drive: on the running board of the black G-Wagon by the Tunnel extract'],
   ['Найти вход в секретный объект на локации Улицы Таркова', 'Locate the entrance to the facility on Streets of Tarkov'],
   ['Осмотреть офисы топ-менеджеров (O21, 2-й уровень)', 'Search the top management offices (O21, level 2)'],
   ['Осмотреть серверную (2-й уровень, у ангара)', 'Search the server room (level 2, by the hangar)'],

@@ -16,7 +16,10 @@ export const ECONOMY_PHRASES: Array<[string, string]> = [
   ['Откройте игру с контейнером ключей: поиск идёт, пока окно игры видно на экране.', 'Open the game with the key container: the search runs while the game window is on screen.'],
   ['Окно игры не найдено. Откройте в игре контейнер с ключами и нажмите «Найти ключи» ещё раз.', 'The game window was not found. Open the key container in the game and press «Find keys» again.'],
   // «Ключи для квестов»: the price and the barters of a key (quests/QuestKeyMarket.tsx, 07.11.2026)
-  ['Нет на барахолке', 'Not on the flea market'], ['у вас', 'yours'], ['Откроется после квеста', 'Opens after the quest'], ['Отдать', 'Give'],
+  ['Нет на барахолке', 'Not on the flea market'], ['Купить · ', 'Buy · '], ['доступно', 'available'], ['с уровня персонажа', 'from character level'], ['нужен ур.', 'needs lvl'],
+  ['после квеста', 'after the quest'], ['лимит', 'limit'], ['за', 'for'], ['шт.', 'pcs'], ['Недоступно на барахолке', 'Not available on the flea market'], ['с ур.', 'from lvl'],
+  ['Загружаем цены…', 'Loading prices…'], ['Не удалось загрузить цены покупки.', 'Could not load the buy prices.'],
+  ['Купить сейчас негде: только найти в рейде или получить за квест.', 'Nowhere to buy now: find it in a raid or get it for a quest.'], ['у вас', 'yours'], ['Откроется после квеста', 'Opens after the quest'], ['Отдать', 'Give'],
   // «Что собрать для убежища»: the ticks under the modules and one level by a right click (pages/HideoutStashPage.tsx, 07.11.2026)
   ['Показать предметы этого модуля', 'Show this module’s items'], ['Показать предметы модуля', 'Show the items of the module'],
   ['Правый клик — что нужно для этого уровня', 'Right click: what this level needs'], ['Показать все уровни', 'Show every level'],

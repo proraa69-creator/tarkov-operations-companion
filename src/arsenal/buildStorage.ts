@@ -135,3 +135,12 @@ export function toggleSavedFavorite(mode: RaidMode, id: string): SavedBuild[] {
   writeAll({ ...all, [mode]: list })
   return list
 }
+
+/** A new name for a saved build (owner, 19.11.2026: «эти названия можно изменять»); its place in time stays. */
+export function renameSavedBuild(mode: RaidMode, id: string, name: string): SavedBuild[] {
+  const all = readAll()
+  const clean = name.trim().slice(0, 48)
+  const list = (all[mode] ?? []).map((entry): SavedBuild => (entry.id === id && clean ? { ...entry, name: clean } : entry))
+  writeAll({ ...all, [mode]: list })
+  return list
+}

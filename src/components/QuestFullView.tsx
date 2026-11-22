@@ -19,6 +19,7 @@ import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import { QuestGuideImages, QuestPointHints, RaidOsMark } from './QuestCuratedInfo'
 import { openRequiredItems, usedQuestKeys } from '../raidprep/objectives'
+import { QuestOfferUnlocks } from '../quests/QuestOfferUnlocks'
 import './traderQuests.css'
 
 interface QuestFullViewProps {
@@ -216,9 +217,9 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
 
     <div className="detail-section">
       <h4>{uiText('Награды')}</h4>
-      {quest.rewards.length
-        ? <div className="quest-full-rewards">{quest.rewards.map((reward) => <span key={reward}><Trophy size={14} />{uiText(reward)}</span>)}</div>
-        : <p className="dim">{uiText('Награды не указаны.')}</p>}
+      {quest.rewards.length > 0 && <div className="quest-full-rewards">{quest.rewards.map((reward) => <span key={reward}><Trophy size={14} />{uiText(reward)}</span>)}</div>}
+      <QuestOfferUnlocks quest={quest} />
+      {!quest.rewards.length && !quest.offerUnlocks?.length && <p className="dim">{uiText('Награды не указаны.')}</p>}
     </div>
 
     {next.length > 0 && <div className="detail-section">

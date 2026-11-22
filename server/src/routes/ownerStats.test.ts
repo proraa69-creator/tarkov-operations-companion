@@ -180,8 +180,8 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     assert.deepEqual(stats.revenue.byPlan, { '1m': { count: 3, amount: 850 }, '3m': { count: 1, amount: 800 }, '6m': { count: 0, amount: 0 }, '12m': { count: 0, amount: 0 } })
     assert.deepEqual(stats.revenue.refunds, { count: 1, amount: 300 })
     assert.deepEqual(stats.referrals, { friendInvited: 1, friendInvitedInRange: 1, friendPaid: 1, friendPaidDiscount: 0, streamerReferred: 0, rewardsByStatus: { pending: 0, review: 0, granted: 1, canceled: 0 } })
-    // kz1 (paid since) has no visit on record: dead; us1 was in the account an hour ago: real.
-    assert.deepEqual(stats.trialConversion, { trialStarted: 2, laterPaid: 1, rate: 0.5, dead: 1, alive: 1 })
+    // Dead or real: every user registered in the range (the streamer is not one); a week old, none is dead (owner, 16.11.2026).
+    assert.deepEqual(stats.trialConversion, { trialStarted: 2, laterPaid: 1, rate: 0.5, dead: 0, alive: 5 })
 
     // A range before the payments: no revenue, the state «now» stays the same. The August payment of ru1 is there.
     const august = (await t.call<Stats>('GET', '/accounts/me/admin/stats?from=2026-08-01&to=2026-08-31', t.owner)).json
@@ -261,7 +261,7 @@ test('«Оплатили повторно» (owner, 12.11.2026): people with two
   } finally { await t.close() }
 })
 
-test('«Повторные» и «мёртвые» (owner, 15.11.2026): repeat paid subscriptions and payments, dead / real free periods, now and for a period', async () => {
+test('«Повторные» и «мёртвые» (owner, 15–16.11.2026): repeat paid subscriptions and payments, dead / real registrations, now and for a period', async () => {
   const t = await setup('2026-11-01T10:00:00.000Z')
   try {
     const twice = await t.user('twice@example.com', 'RU')
@@ -279,13 +279,14 @@ test('«Повторные» и «мёртвые» (owner, 15.11.2026): repeat p
     trial.run(now + DAY, null, null, now - 60 * 60 * 1000, alive.id)
     trial.run(now + 8 * DAY, 2 * DAY, now + 6 * DAY, now - 60 * 60 * 1000, noRaid.id)
     trial.run(now + DAY, null, null, now - 22 * DAY, away.id)
+    // Owner, 16.11.2026: dead only when 21 days passed without the free days used; four days old, nobody is.
     const owner = await t.login('owner@example.com')
 
     type Overview = { subscriptions: { active: number; activeRepeat: number; trials: number; trialsDead: number; trialsAlive: number }; revenue: Record<'today' | 'month' | 'all', { payments: number; repeat: number }> }
     const overview = async () => (await t.call<Overview>('GET', '/accounts/me/admin/overview', owner)).json
-    let o = await overview()
+    const o = await overview()
     assert.deepEqual([o.subscriptions.active, o.subscriptions.activeRepeat], [2, 1])
-    assert.deepEqual([o.subscriptions.trials, o.subscriptions.trialsDead, o.subscriptions.trialsAlive], [3, 2, 1])
+    assert.deepEqual([o.subscriptions.trials, o.subscriptions.trialsDead, o.subscriptions.trialsAlive], [3, 0, 3])
     assert.deepEqual([o.revenue.today.payments, o.revenue.today.repeat], [1, 1])
     assert.deepEqual([o.revenue.month.payments, o.revenue.month.repeat], [3, 1])
     assert.deepEqual([o.revenue.all.payments, o.revenue.all.repeat], [3, 1])
@@ -299,14 +300,19 @@ test('«Повторные» и «мёртвые» (owner, 15.11.2026): repeat p
     const all = await range('2026-11-01', '2026-11-05')
     assert.deepEqual([all.revenue.payments, all.revenue.repeatPayments], [3, 1])
     assert.deepEqual([all.subscriptions.activePaid, all.subscriptions.activePaidRepeat], [2, 1])
-    assert.deepEqual([all.subscriptions.trials, all.subscriptions.trialsDead, all.subscriptions.trialsAlive], [3, 2, 1])
-    assert.deepEqual([all.trialConversion.trialStarted, all.trialConversion.dead, all.trialConversion.alive], [3, 2, 1])
+    assert.deepEqual([all.subscriptions.trials, all.subscriptions.trialsDead, all.subscriptions.trialsAlive], [3, 0, 3])
+    // Every registration of the range is dead or real: the two payers and the owner's own account too.
+    assert.deepEqual([all.trialConversion.trialStarted, all.trialConversion.dead, all.trialConversion.alive], [3, 0, 6])
 
-    // Back in a raid and back in the account: both are real again.
-    assert.equal(t.accounts.firstRaid(noRaid.id), true)
-    t.db.prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?').run(now, away.id)
-    o = await overview()
-    assert.deepEqual([o.subscriptions.trials, o.subscriptions.trialsDead, o.subscriptions.trialsAlive], [3, 0, 3])
+    // 21 days on: the one still waiting for the first raid is dead, and the owner's own account that never started them;
+    // the one away all that time used them and the payers paid (their free days never started), so they stay real.
+    t.set('2026-11-23T10:00:00.000Z')
+    const later = await range('2026-11-01', '2026-11-05')
+    assert.deepEqual([later.trialConversion.dead, later.trialConversion.alive], [2, 4])
+    // Its first raid (past the wait, the days had run by themselves): used, real.
+    t.accounts.firstRaid(noRaid.id)
+    const raided = await range('2026-11-01', '2026-11-05')
+    assert.deepEqual([raided.trialConversion.dead, raided.trialConversion.alive], [1, 5])
   } finally { await t.close() }
 })
 

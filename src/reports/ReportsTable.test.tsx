@@ -51,6 +51,40 @@ describe('«Готово» asks «Выдать 1 день?» (owner, 08.11.2026)
   })
 })
 
+describe('«Выдать дни» in the row itself (owner, 18.11.2026)', () => {
+  it('the number typed and «Выдать» give those days without «Подробнее»; the row says it at once, with the date', async () => {
+    const onReward = vi.fn(async () => undefined)
+    render(<ReportsTable page={page([row()])} view="working" onView={() => {}} onAct={vi.fn(async () => undefined)} onReward={onReward} />)
+    expect(screen.getByText('Дни не выдавались')).toBeInTheDocument()
+    // «Готово» and «Вернуть в активные» stand in the row too
+    expect(screen.getByRole('button', { name: 'Готово' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Вернуть в активные' })).toBeInTheDocument()
+    const give = screen.getByRole('button', { name: 'Выдать' })
+    expect(give).toBeDisabled()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Сколько дней выдать' }), { target: { value: '3д' } })
+    expect(screen.getByRole('textbox', { name: 'Сколько дней выдать' })).toHaveValue('3')
+    await act(async () => { fireEvent.click(give) })
+    expect(onReward).toHaveBeenCalledWith(100, 3)
+    expect(screen.getByText(/Выдано дней: 3 · \d\d\.\d\d\.\d\d/)).toBeInTheDocument()
+    expect(screen.queryByText('Дни не выдавались')).toBeNull()
+  })
+
+  it('days given before: how many and when; no author: no grant at all', () => {
+    render(<ReportsTable page={page([row({ rewardDays: 2, rewardedAt: '2026-11-17T10:00:00Z' }), row({ id: 101, email: undefined })])} view="working" onView={() => {}} onAct={vi.fn(async () => undefined)} onReward={vi.fn(async () => undefined)} />)
+    expect(screen.getByText('Выдано дней: 2 · 17.11.26')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Выдать' })).toHaveLength(1)
+  })
+
+  it('a refusal of the server shows on the row and gives nothing', async () => {
+    const onReward = vi.fn(async () => { throw new Error('Аккаунт не найден') })
+    render(<ReportsTable page={page([row()])} view="working" onView={() => {}} onAct={vi.fn(async () => undefined)} onReward={onReward} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Сколько дней выдать' }), { target: { value: '5' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Выдать' })) })
+    expect(screen.getByRole('alert')).toHaveTextContent('Аккаунт не найден')
+    expect(screen.getByText('Дни не выдавались')).toBeInTheDocument()
+  })
+})
+
 describe('«Принять точку» (owner, 10.11.2026: «Добавить точку»)', () => {
   const pointRow = (extra: Partial<ReportRow> = {}) => row({
     kind: 'idea', topic: 'Точка: Рубильник — У ворот', description: '', work: { status: 'review' },

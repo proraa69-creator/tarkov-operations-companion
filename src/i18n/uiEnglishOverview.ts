@@ -1,6 +1,6 @@
 /** English for the Overview additions: the Kappa card and its «Квесты» dialog (src/components/KappaProgress.tsx). */
 export const OVERVIEW_PHRASES: Array<[string, string]> = [
-  ['Задания для Капы', 'Kappa-required tasks'], ['Квесты', 'Tasks'],
+  ['Задания для Каппы', 'Kappa-required tasks'], ['Удалить блок', 'Remove block'], ['Показать только сюжетные', 'Show story only'], ['Главы', 'Chapters'], ['Все главы', 'All chapters'], ['Сюжету больше ничего не нужно', 'The story needs nothing more'], ['Квесты', 'Tasks'],
   ['Скупщик выдаёт «Коллекционера», когда выполнены три условия:', 'Fence gives out “The Collector” once three conditions are met:'],
   ['Лояльность 4 (корона)', 'Loyalty level 4 (crown)'],
   ['у Прапора, Терапевта, Лыжника, Миротворца, Механика, Барахольщика и Егеря', 'with Prapor, Therapist, Skier, Peacekeeper, Mechanic, Ragman and Jaeger'],
@@ -10,12 +10,27 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   // the owner's names, shown when the loaded catalog has no such task (the catalog itself comes in the app's language)
   ['Реагент. Часть 4', 'Chemical - Part 4'], ['Стрелок от бога', 'Shooter Born in Heaven'],
   ['Тарковский стрелок. Часть 4', 'The Tarkov Shooter - Part 4'], ['Шить — не тужить. Часть 4', 'Sew it Good - Part 4'],
-  ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'], ['Можно и этим ключом', 'This key works too'], ['Можно и этими ключами', 'These keys work too'],
+  ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'],
+  // the flare an exit needs and a flare's hover card in «Требования рейда» (src/raidprep/exitFlares.ts)
+  ['Для выхода', 'For the exit'], ['Сигнальный пистолет', 'Signal pistol'], ['Без пистолета', 'No pistol needed'], ['Можно и этим ключом', 'This key works too'], ['Можно и этими ключами', 'These keys work too'],
   // «Требования рейда» without the quests put aside in «Отложенные квесты» (src/components/RaidRequirementsPanel.tsx)
   ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
   // «Отложить квест» from a right click on an item (src/components/QuestDeferDialog.tsx); the texts with numbers are built
   // in the app's language there
-  ['Уведомления', 'Notifications'], ['Уведомлений пока нет.', 'No notifications yet.'], ['Избранные ключи', 'Favorite keys'], ['Показать только избранные', 'Show favorites only'], ['В этом разделе нет избранных ключей.', 'No favorite keys in this section.'], ['В избранные ключи', 'Add to favorite keys'], ['Убрать из избранных ключей', 'Remove from favorite keys'], ['Нажмите звёздочку на ключе, и он будет здесь.', 'Press the star on a key to keep it here.'], ['Больше не нужен', 'No longer needed'], ['Отложен', 'Put aside'],
+  ['Уведомления', 'Notifications'], ['Уведомлений пока нет.', 'No notifications yet.'],
+  // «Уведомления» → «Настроить» (src/notifications/NotificationSettings.tsx)
+  ['Настройка уведомлений', 'Notification settings'], ['Сообщение, когда закончилась загрузка рейда', 'A message when the raid has loaded'],
+  ['Стиль', 'Style'], ['Стекло', 'Glass'], ['Обычный или стеклянный, для любой цветовой схемы', 'Standard or glass, for any colour scheme'],
+  ['Для текущих квестов не нужен', 'Not needed for current quests'],
+  // «Ключи рядом» and «Настройки карты» (src/maps/NearbyKeysPanel.tsx, src/maps/MapPanels.tsx)
+  ['Ключи рядом', 'Keys nearby'], ['Показывать только нужные спавны', 'Show only the spawns I need'], ['Где', 'Where'], ['Настройки карты', 'Map settings'], ['Показывать уведомления о ближайших ключах', 'Tell me of keys spawning nearby'],
+  // «Настройки карты» → «Местоположение» (src/maps/PlayerFollowSetting.tsx)
+  ['Приближать карту к точке', 'Bring the map to my dot'],
+  ['Рядом с вашим квестом спавн ключа — проверьте', 'A key spawns near your quest: check it'],
+  ['Звуковой сигнал', 'Sound'], ['Торговля', 'Trading'], ['Звук, когда рейд начался', 'A sound when the raid begins'], ['Итог распознавания предметов по клавише', 'What the item scan by hotkey found'],
+  ['Торговцы — в «Настройках»', 'Traders: in «Settings»'], ['Цена упала или выросла', 'Price dropped or rose'], ['Купленные предметы', 'Bought items'], ['Можно продавать, цена дошла', 'Time to sell, price reached'],
+  ['Напоминание о ключах в избранном', 'A reminder of your favorite keys'], ['Ответ поддержки', 'Support reply'], ['Новое сообщение в чате поддержки', 'A new message in the support chat'],
+  ['Приложение обновлено', 'App updated'], ['Новая версия загрузилась', 'A new version has loaded'], ['Сообщения от Raid OS приходят всегда', 'Messages from Raid OS always come'], ['Избранные ключи', 'Favorite keys'], ['Показать только избранные', 'Show favorites only'], ['В этом разделе нет избранных ключей.', 'No favorite keys in this section.'], ['В избранные ключи', 'Add to favorite keys'], ['Убрать из избранных ключей', 'Remove from favorite keys'], ['Нажмите звёздочку на ключе, и он будет здесь.', 'Press the star on a key to keep it here.'], ['Больше не нужен', 'No longer needed'], ['Отложен', 'Put aside'],
   ['Включить уведомления', 'Turn notifications on'], ['Выключить уведомления', 'Turn notifications off'], ['Сообщит, когда 10 и больше избранных ключей больше не нужны.', 'Tells you when 10 or more favorite keys are no longer needed.'],
   ['Ключи для квестов', 'Quest keys'], ['Какие ключи показать', 'Which keys to show'], ['Нужны', 'Needed'], ['Отложены', 'Put aside'], ['Больше не нужны', 'No longer needed'], ['Текущий', 'Current'], ['Доступен', 'Available'], ['Ещё не открыт', 'Not open yet'],
   ['Ключ нужен, пока не выполнены цели, которые он открывает.', 'A key is needed until the objectives it opens are done.'], ['Поиск ключа или квеста…', 'Search a key or a quest…'], ['Все карты', 'All maps'],
@@ -48,10 +63,14 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Удерживайте блок пальцем и перенесите на место другого — они поменяются местами. За уголок справа внизу меняется размер.', 'Hold a block and drop it on another to swap them. Drag the bottom-right corner to resize.'],
   ['Выше', 'Up'], ['Ниже', 'Down'], ['Узкий блок', 'Half width'], ['Во всю ширину', 'Full width'],
   ['Изменить размер', 'Resize'], ['Размер по умолчанию', 'Default size'],
-  ['Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.',
-    'Drag a block with the mouse — the others slide out of the way. A block only goes where it keeps its shape. Esc — done.'],
+  ['Перетащите блок куда угодно — мешающие блоки сдвинутся вниз. Esc — готово.', 'Drag a block anywhere — the blocks in its way move down. Esc — done.'],
+  ['Добавить блок', 'Add block'],
   ['перемещаемый блок', 'movable block'], ['Перетащите мышью или двигайте стрелками.', 'Drag it with the mouse or move it with the arrow keys.'],
   ['сейчас скрыт', 'hidden right now'],
   ['Ивент: Вторжение Scourge', 'Event: Scourge Invasion'],
   ['Хеллоуин', 'Halloween'],
+  // The first small block's views (src/overview/InfoStatCard.tsx)
+  ['Время в Таркове', 'Time in Tarkov'], ['Сброс торговцев', 'Trader resets'], ['Таймер рейда', 'Raid timer'], ['Что показывать', 'What to show'],
+  ['Нет данных о сбросе', 'No reset data'], ['загрузка', 'loading'], ['осталось', 'left'],
+  ['время вышло', 'time is up'], ['Рейд не идёт', 'Not in a raid'], ['Прошлый рейд', 'Last raid'], ['Таймеры', 'Timers'],
 ]

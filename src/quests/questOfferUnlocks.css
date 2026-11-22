@@ -1,0 +1,26 @@
+/* «Открывает у торговцев» in a quest's «Награды» and «Открывается после квеста» in an item's card (QuestOfferUnlocks.tsx). */
+.quest-unlocks { margin-top: 10px; display: grid; gap: 6px; }
+.quest-unlocks-title { margin: 0; color: var(--text-muted); font-size: 12px; font-weight: 600; }
+.quest-unlocks-group { display: grid; gap: 4px; }
+.quest-unlocks-kind { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.quest-unlocks ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.quest-unlock { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text); text-decoration: none; }
+.quest-unlock:hover, .quest-unlock:focus-visible { border-color: var(--line-strong); }
+.quest-unlock img, .quest-unlock-empty { width: 34px; height: 34px; object-fit: contain; border-radius: 6px; }
+.quest-unlock-empty { display: grid; place-items: center; color: var(--text-dim); }
+.quest-unlock-copy { display: grid; min-width: 0; }
+.quest-unlock-copy strong, .quest-unlock-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quest-unlock-copy strong { font-size: 13px; }
+.quest-unlock-copy small { color: var(--text-dim); font-size: 11px; }
+.quest-unlock-trader { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+@media (max-width: 520px) {
+  .quest-unlock { grid-template-columns: 34px minmax(0, 1fr); }
+  .quest-unlock-trader { grid-column: 2; }
+}
+
+.item-quest-unlocks ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.item-quest-unlocks li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
+.item-quest-unlocks li > span:nth-child(2) { display: grid; min-width: 0; }
+.item-quest-link { color: var(--brass-strong); font-weight: 600; text-decoration: none; }
+.item-quest-link:hover, .item-quest-link:focus-visible { text-decoration: underline; }
+.item-quest-done { display: inline-flex; align-items: center; gap: 3px; }

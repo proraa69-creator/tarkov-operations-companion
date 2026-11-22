@@ -26,3 +26,6 @@ scratch-out.txt
 *.key.pem
 android/local.properties
 website/.prerender/
+
+# Test exe packs (TEST_BUILD=1); the weapon part pictures (public/gun-parts) are in the repo: they ship in the app
+release-test/

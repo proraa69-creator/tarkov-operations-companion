@@ -1,11 +1,13 @@
 import { uiText, uiLabel } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
-import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
+import { Check, ChevronRight, Clock3, KeyRound, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
+import { locationKeys, useLocationKeys } from '../keys/locationKeysStore'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { useOwnedKeys } from '../quests/ownedKeys'
+import { useKeysAddedByTaken } from '../progression/takenItems'
 import { formatPrice } from '../shared/format'
 import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
@@ -14,6 +16,8 @@ import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesClosed, markerObjectiveDone } from '../progression/mapObjectives'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
+import { exitFlareNeeds, exitsFiredBy, flareCardOf, flareExitsOn, GREEN_FLARE_IDS, SIGNAL_PISTOL_ID } from '../raidprep/exitFlares'
+import { exitShortName } from '../data/exitShortNames'
 import { storyRaidNeedsAhead } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
@@ -44,8 +48,9 @@ import { useCurrentTasksView } from '../overview/currentTasksView'
 import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
 import { BlockChooser, type BlockChoice } from '../overview/BlockChooser'
+import { AddBlockMenu } from '../overview/AddBlockMenu'
 import { PHONE_BLOCKS } from '../overview/phoneLayout'
-import { ScreenStatCard } from '../screen/ScreenStatCard'
+import { InfoStatCard } from '../overview/InfoStatCard'
 import { ControlCard } from '../overview/ControlCard'
 import { usePhoneOverview } from '../overview/usePhoneOverview'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
@@ -71,7 +76,7 @@ export function DashboardPage() {
   const { locale } = useLocale()
   // «Настроить блоки» (owner, 12.10.2026): every block but the big map can be moved, each keeps its shape.
   const editor = useOverviewEditor()
-  const { layout } = editor
+  const { layout, container: placeGrid, single: oneColumn, height: gridHeight, styleOf } = editor
   const tasksView = useCurrentTasksView()
   // The phone: one column where every block moves up or down (overview/phoneLayout.ts).
   const mobile = useMobileLayout()
@@ -177,6 +182,9 @@ export function DashboardPage() {
   // требованиях рейда, открываться должен квест на карте. в то место где нужно заложить предмет»), and so does the line of
   // each quest under it: per quest, a point of that objective here first, then any point of the quest here; planting or
   // marking before a key. The row takes the best of its quests.
+  // A quest's flare that opens an exit («Прекратить огонь!») and no point of the quest here: the row lights that exit on the map
+  // (owner, 20.11.2026: «при нажатии на него должен подсвечиваться выход на карте»).
+  const flareExitsHere = flareExitsOn(data.markers, selectedMap.id)
   const targetsOf = (itemId: string) => {
     const targets = new Map<string, { href: string; rank: number }>()
     for (const requirement of grouped.requirements) {
@@ -187,15 +195,22 @@ export function DashboardPage() {
         ?? (requirement.objectiveId && points.some((marker) => marker.objectiveId === requirement.objectiveId) ? requirement.objectiveId : undefined)
       const rank = (objectiveId ? 0 : points.length ? 2 : 4) + (requirement.purpose === 'key' ? 1 : 0)
       const known = targets.get(requirement.quest.id)
-      if (!known || rank < known.rank) targets.set(requirement.quest.id, { href: questOnMap(requirement.quest, objectiveId), rank })
+      const exit = !points.length ? exitsFiredBy(requirement, flareExitsHere)[0] : undefined
+      const href = questOnMap(requirement.quest, objectiveId) + (exit ? `&point=${encodeURIComponent(exit.id)}` : '')
+      if (!known || rank < known.rank) targets.set(requirement.quest.id, { href, rank })
     }
     return targets
   }
   // The keys the player has (owner, 07.11.2026: «если он у меня есть… пишется «Есть в схроне». Если нету, то пишется «Нет в наличии»»);
   // nothing said before the first scan or key added by hand, so a player who never scanned is not told every key is missing.
+  // A key «Взял» put there and no scan has seen yet stays «Есть в наличии», ticked or not (owner, 16.11.2026).
   const ownedKeys = useOwnedKeys(state.activeProfile.id, state.raidMode)
-  const keyStock = (row: { lines: Array<{ purpose: string }> }, ids: readonly string[]): RaidNeedRow['stock'] => (
-    ownedKeys.size && row.lines.some((line) => line.purpose === 'key') ? (ids.some((id) => ownedKeys.has(id)) ? 'owned' : 'missing') : undefined)
+  const keysFromTaken = useKeysAddedByTaken(state.activeProfile.id, state.raidMode)
+  const keyStock = (row: { lines: Array<{ purpose: string }> }, ids: readonly string[]): RaidNeedRow['stock'] => {
+    if (!ownedKeys.size || !row.lines.some((line) => line.purpose === 'key')) return undefined
+    const owned = ids.filter((id) => ownedKeys.has(id))
+    return !owned.length ? 'missing' : owned.every((id) => keysFromTaken.has(id)) ? 'known' : 'owned'
+  }
   const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds, (itemId) => raidItem(itemId)?.keyUses).flatMap((row): RaidNeedRow[] => {
     const targets = targetsOf(row.itemId)
     const best = [...targets.values()].sort((a, b) => a.rank - b.rank)[0]
@@ -225,6 +240,29 @@ export function DashboardPage() {
     const item = raidItem(row.itemId)
     return item ? [{ ...row, lines, key: item.id, itemId: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id), stock: keyStock(row, [item.id]) }] : []
   })
+  // The green flare of each exit of this map opened by one, a row of its own next to a quest's flare (owner, 19.11.2026: «если этот
+  // патрон уже есть в требованиях… добавить ещё одну отдельную строку для выхода»); none for the exit a current quest leaves by
+  // («Прекратить огонь!»), whose own row is that flare.
+  const lang = locale === 'en' ? 'en' : 'ru'
+  const exitFlareRows: RaidNeedRow[] = exitFlareNeeds(data.markers, selectedMap.id, requirements).flatMap((exit): RaidNeedRow[] => {
+    const options = GREEN_FLARE_IDS.flatMap((id) => raidItem(id) ?? [])
+    // the owner's «Реактивный сигнальный патрон (зелёный)»: RSP-30 on the row, 26x75 in its card
+    const main = options[0]
+    if (!main) return []
+    const others = options.slice(1).map((item) => ({ id: item.id, name: item.name, iconUrl: item.iconUrl }))
+    return [{
+      key: `exit-flare:${exit.id}`, itemId: main.id, name: main.name, iconUrl: main.iconUrl, href: `/maps/${selectedMap.id}?point=${encodeURIComponent(exit.id)}`, count: 1,
+      lines: [{ purpose: 'exit', questNames: [exitShortName(exit.title, lang)] }], fromRaidListOnly: false,
+      ...(others.length ? { alternatives: { title: 'Подходит и', items: others, badge: `+${others.length}` } } : {}),
+    }]
+  })
+  // Every flare, of any colour and wherever it comes from, tells in its hover card the pistol it is fired from and the calibre.
+  const signalPistol = itemById.get(SIGNAL_PISTOL_ID)
+  const raidNeedRows = [...neededRows, ...exitFlareRows].map((row): RaidNeedRow => {
+    const ids = [row.itemId, ...(row.alternatives?.items.map((item) => item.id) ?? [])]
+    const flare = flareCardOf(ids.flatMap((id) => (id ? raidItem(id) ?? [] : [])), signalPistol, lang)
+    return flare ? { ...row, flare } : row
+  })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   const favoriteActions = useFavoriteActions()
   // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition;
@@ -234,12 +272,16 @@ export function DashboardPage() {
     const quests = mapConditions.quests.filter((entry) => !deferred.has(entry.quest.id))
     return quests.length === mapConditions.quests.length ? mapConditions : { tier: quests.length ? 'active' as const : 'none' as const, quests }
   }, [deferred, mapConditions])
-  // «Задания для Капы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
+  // «Задания для Каппы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
   const kappaRows = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const kappaDone = kappaRows.filter((row) => row.state === 'completed').length
   const openKappa = () => setKappaOpen(true)
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
 
+  const keysWindow = useLocationKeys()
+  // another map picked here while the keys are open: they follow it (the window's own switch changes it after)
+  const keysOpen = keysWindow.open
+  useEffect(() => { if (keysOpen) locationKeys.showMap(selectedMap.id) }, [keysOpen, selectedMap.id])
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
 
   // «Геопозиция» in the phone's quest card: only a quest with a point of its own on this raid's map.
@@ -253,10 +295,11 @@ export function DashboardPage() {
   const priorityStrip = <MapPriority inline maps={data.maps} selectedId={selectedMap.id} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !deferred.has(quest.id) && !mapObjectivesClosed(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
   const statCards: Blocks = {
     // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
-    'stat-screen': { label: 'Экран', node: <ScreenStatCard /> },
+    // «Время в Таркове», «Сброс торговцев», «Таймер рейда» by its square gear; on the phone its «Пресеты экрана» too (owner, 15.11.2026)
+    'stat-screen': { label: 'Таймеры', node: <InfoStatCard phone={mobile} /> },
     'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`}
       deferredCount={mapConditions.quests.length - conditionQuests.quests.length} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
-    'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
+    'stat-kappa': { label: 'Задания для Каппы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }
   const leftBlocks: Blocks = {
@@ -281,16 +324,19 @@ export function DashboardPage() {
           </div>
           <MapPicker open={mapPickerOpen} maps={data.maps} firstMapId={selectedMap.id}
             onPick={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
-            <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
+            <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button>
+              {/* «Ключи» (report 186; owner 18.11.2026: «выбираю резерв, и рядом кнопка… открывает мне сразу ключи резерва»): the keys of the map
+                  picked here, in the window that stays over the app */}
+              <button type="button" className={`button location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(selectedMap.id)}><KeyRound size={16} />{uiText(' Ключи')}</button></div>
         </div>
       </section>,
     },
     squad: { label: 'Отряд', node: <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} /> },
-    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} deferredQuests={deferredHere} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
+    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={raidNeedRows} deferredQuests={deferredHere} onDefer={setDeferMenu} compactRows={mobile ? 2 : undefined} /> },
   }
   const rightBlocks: Blocks = {
     tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={listedQuests} anyMapQuests={listedAnyMap} questLink={questOnMap} details={questCard} compactRows={mobile ? 4 : undefined}
-      onDefer={deferTask} deferredCount={deferredTasks} scrollable={!mobile && tasksView === 'scroll'} layoutKey={`${layoutEditor.editing}|${layout.left.join()}|${layout.right.join()}`} /> },
+      onDefer={deferTask} deferredCount={deferredTasks} scrollable={!mobile && tasksView === 'scroll'} layoutKey={`${layoutEditor.editing}|${layout.order.map((id) => `${id}:${layout.x[id]}`).join()}`} /> },
     gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
     favorites: {
       label: 'Рынок · избранное',
@@ -309,18 +355,8 @@ export function DashboardPage() {
   }
   const labelOf = (id: string, blocks: Blocks) => ownTitle(id) ?? blocks[id]?.label ?? id
   const titled = (id: string, node: ReactNode) => <BlockTitleProvider title={defaults?.titles[id]}>{node}</BlockTitleProvider>
-  const block = (zone: 'stats' | 'rows' | 'left' | 'right', blocks: Blocks) => (id: string) =>
-    <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={labelOf(id, blocks)}>{titled(id, blocks[id]?.node)}</OverviewBlock>
-  const rows: Blocks = {
-    stats: { label: 'Карточки', node: <section className="stat-grid">{layout.stats.map(block('stats', statCards))}</section> },
-    columns: {
-      label: '',
-      node: <div className="dashboard-layout">
-        <div className="dashboard-column">{layout.left.map(block('left', leftBlocks))}</div>
-        <div className="dashboard-column">{layout.right.map(block('right', rightBlocks))}</div>
-      </div>,
-    },
-  }
+  // The PC: every block on one free grid (owner, 20.11.2026: «свободную секцию обзора, все блоки можно перемешать и передвигать»).
+  const pcBlocks: Blocks = { ...statCards, ...leftBlocks, ...rightBlocks }
 
   // «Управление» is the phone's own block (owner, 11.11.2026: «Этот блок должен быть только на телефоне»).
   const phoneBlocks: Blocks = { ...statCards, ...leftBlocks, ...rightBlocks, 'stat-control': { label: 'Управление', node: <ControlCard /> } }
@@ -329,15 +365,19 @@ export function DashboardPage() {
   // as it is (owner: «Сделай как есть экран, пресеты, задания для капы, сбор на рейд и кочевники»).
   const phoneChoices = (here: string): BlockChoice[] => PHONE_BLOCKS.filter((id) => phoneBlocks[id]).map((id) => ({ id, label: labelOf(id, phoneBlocks), state: id === here ? 'here' : order.includes(id) ? 'shown' : 'hidden' }))
   // «Взял» on the items (report 157): one set of marks for the whole page, its menus included.
+  // «Настроить блоки» and «Открыть карту» look the same (owner, 28.10.2026: «вид кнопки должен быть одинаковый»). On the phone it
+  // stands at the right end of the heading (owner, 21.11.2026), «Промокоды» and «Открыть карту» share the row under it.
+  const blocksButton = <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
   return <TakenItemsProvider profileId={state.activeProfile.id} mode={state.raidMode} isKey={isRaidKey}><div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
+      {mobile && blocksButton}
       <div className="overview-header-actions">
-        <div className="overview-layout-actions">
+        {(!mobile || layoutEditor.editing) && <div className="overview-layout-actions">
+          {!mobile && editor.editing && <AddBlockMenu choices={editor.addable.map((id) => ({ id, label: labelOf(id, pcBlocks) }))} onAdd={editor.add} />}
           {layoutEditor.editing && <button type="button" className="button" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={16} />{uiText(' Сбросить')}</button>}
-          {/* «Настроить блоки» and «Открыть карту» look the same (owner, 28.10.2026: «вид кнопки должен быть одинаковый»). */}
-          <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
-        </div>
+          {!mobile && blocksButton}
+        </div>}
         <PromoCodesButton />
         <button type="button" className="button" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
@@ -345,11 +385,14 @@ export function DashboardPage() {
     {!mobile && <PositionSetupNotice />}
     {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
       ? 'Удерживайте блок пальцем и перенесите на место другого — они поменяются местами. Шестерёнка — заменить блок.'
-      : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
+      : 'Перетащите блок куда угодно — мешающие блоки сдвинутся вниз. Esc — готово.')}</p>}
 
     {mobile
       ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={labelOf(id, phoneBlocks)} index={index} count={order.length}>{titled(id, phoneBlocks[id].node)}</PhoneOverviewBlock>)}</div>
-      : <div className="overview-rows">{layout.rows.filter((id) => id !== 'stats' || layout.stats.length > 0).map(block('rows', rows))}</div>}
+      : <div ref={placeGrid} className={`overview-free${oneColumn ? ' is-single' : ''}`} style={{ height: gridHeight }}>
+        {layout.order.map((id) => pcBlocks[id] && <OverviewBlock key={id} editor={editor} id={id} label={labelOf(id, pcBlocks)} style={styleOf(id)}
+          className={statCards[id] ? 'is-card' : undefined}>{titled(id, pcBlocks[id].node)}</OverviewBlock>)}
+      </div>}
     {mobile && phone.choosing && <BlockChooser title={labelOf(phone.choosing, phoneBlocks)} choices={phoneChoices(phone.choosing)} onPick={(id) => phone.replace(phone.choosing!, id)} onClose={() => phone.setChoosing(null)} />}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
     <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} />

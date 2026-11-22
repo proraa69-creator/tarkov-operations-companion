@@ -15,8 +15,12 @@ import type { Item } from '../domain/types'
 import { setRecognisedItem } from '../items/recognisedItem'
 import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa/collector'
 import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { useHideoutModules } from '../hideout/hideoutModulesStore'
 import { mateNamesFor, mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
 import { featureEnabled } from '../app/archivedFeatures'
+import { setFleaCatalog } from '../data/screenFleaPrices'
+import { notificationOn } from '../notifications/notificationKinds'
 
 /** Readings the second attempt found an item for (one list for the app, see createLookupMemory). */
 const lookupMemory = createLookupMemory(() => window.localStorage, foldTooltipText)
@@ -49,6 +53,24 @@ function rankReadings(matcher: TooltipMatcher, texts: string[]) {
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, PICTURE_MATCH.candidates)
 }
 
+/**
+ * The text candidates plus the closest pictures of the whole catalog (the picture index), each of those with how well
+ * the readings name it (0 when not among the names they suggest at all): the picture then chooses only among items the
+ * text finds plausible too (decideByPicture), so a bad reading of a long name still finds its item by its picture.
+ */
+function withNearby(matcher: TooltipMatcher, items: Map<string, Item>, ranked: TooltipCandidate[], texts: string[], nearby: string[]) {
+  const known = new Set(ranked.map(({ item }) => item.id))
+  const extra = nearby.filter((id) => !known.has(id) && items.has(id))
+  if (!extra.length) return ranked
+  const scores = new Map<string, number>()
+  for (const text of texts) {
+    for (const candidate of matcher.rank(text, NEARBY_RANK)) scores.set(candidate.item.id, Math.max(scores.get(candidate.item.id) ?? 0, candidate.score))
+  }
+  return [...ranked, ...extra.map((id) => ({ item: items.get(id)!, score: scores.get(id) ?? 0 }))]
+}
+/** How deep the readings' ranking is searched for the score of a picture candidate. */
+const NEARBY_RANK = 120
+
 /** Why an item's picture cannot be compared, if it cannot. */
 function pictureObstacle(item: Item): 'weapon' | 'no-size' | 'no-icon' | null {
   if (item.types?.includes('gun')) return 'weapon'
@@ -66,7 +88,13 @@ function rememberReadings(matcher: TooltipMatcher, texts: string[], item: Item) 
 
 /** The picture check of the second attempt (src/overlay/iconMatch.ts): which candidate the item under the cursor is. */
 async function checkPicture(matcher: TooltipMatcher, items: Map<string, Item>, input: PictureQuery) {
-  const ranked = rankReadings(matcher, input.texts)
+  // Signatures from the picture index need no download.
+  for (const [id, signature] of Object.entries(input.signatures ?? {})) {
+    if (iconSignatures.has(id)) continue
+    if (iconSignatures.size >= ICON_SIGNATURES_KEPT) iconSignatures.delete(iconSignatures.keys().next().value!)
+    iconSignatures.set(id, signature)
+  }
+  const ranked = withNearby(matcher, items, rankReadings(matcher, input.texts), input.texts, input.nearby ?? [])
   // New icons are decoded together (off the main thread in the browser), then kept by item id.
   await Promise.all(ranked.map(async ({ item }) => {
     const bytes = input.icons[item.id]
@@ -119,12 +147,13 @@ export function ExperimentalBridge() {
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   // «Что не продавать» of the selected mode, for the badge on the item card (computed once per progress change).
   const progressNow = state.activeProfile.modes[state.raidMode]
+  const modules = useHideoutModules()
   // Archived with the «Что не продавать» page: the item card shows only «Каппа» and «MATE» then.
   const keepRows = useMemo(() => {
     if (!window.tarkovDesktop?.experimental || !featureEnabled('keepItems')) return new Map<string, KeepRow>()
-    const rows = computeKeepList({ quests: data.quests, hideout: data.hideout, items: data.items, progress: progressNow, collectorCollected: loadCollected(state.raidMode) })
+    const rows = computeKeepList({ quests: data.quests, hideout: applyHideoutModules(data.hideout, state.raidMode, modules), items: data.items, progress: progressNow, collectorCollected: loadCollected(state.raidMode) })
     return new Map(rows.map((row) => [row.item.id, row]))
-  }, [data.quests, data.hideout, data.items, progressNow, state.raidMode])
+  }, [data.quests, data.hideout, data.items, progressNow, state.raidMode, modules])
   const latest = useRef({ data, state, matcher, tooltipMatcher, itemsById, keepRows })
   // Friends' / squad mates' needed items for the «MATE» badge (refreshed periodically and on raid start).
   useMateNeedsRefresh(state.raidMode, data.quests)
@@ -132,6 +161,12 @@ export function ExperimentalBridge() {
   useEffect(() => {
     latest.current = { data, state, matcher, tooltipMatcher, itemsById, keepRows }
   })
+
+  // The flea's rows read on the player's screen name their items by the item card's matcher (src/data/screenFleaPrices.ts).
+  useEffect(() => {
+    setFleaCatalog({ match: (name) => tooltipMatcher(name) })
+    return () => setFleaCatalog(null)
+  }, [tooltipMatcher])
 
   useEffect(() => {
     const api = window.tarkovDesktop?.experimental
@@ -160,6 +195,11 @@ export function ExperimentalBridge() {
           if (item && !remembered && input.remember?.length) rememberReadings(tooltipMatcher, input.remember, item)
         } else item = (input.lines?.length ? matchNearest(matcher, input.lines) : null) ?? matcher(input.text)
         void api.answer(query.id, item ? card(item, source) : { state: 'not-found', text: input.text } satisfies ItemOverlayPayload)
+        return
+      }
+      if (query.kind === 'item-id') {
+        const item = itemsById.get(query.input.id)
+        void api.answer(query.id, item ? card(item, 'picture') : { state: 'not-found' } satisfies ItemOverlayPayload)
         return
       }
       if (query.kind === 'item-candidates') {
@@ -199,6 +239,8 @@ export function ExperimentalBridge() {
       const { data, state } = latest.current
       // Pressed in the game, so the system message does not come: what the scan found waits in «Уведомления».
       const notify = (message: string, keep = true) => {
+        // switched off in «Уведомления» → «Настроить»
+        if (!notificationOn('collector')) return
         if (keep) addNotification({ title: 'Коллекционер', text: message, open: '/kappa-items' })
         void window.tarkovDesktop?.notify?.('Коллекционер', message).catch(() => {})
       }

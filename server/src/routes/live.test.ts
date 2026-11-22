@@ -225,6 +225,12 @@ test('«Пресеты экрана»: the PC publishes its presets, the phone s
     const seen = await (await call('GET', `/v1/live/screen?since=${empty.version}`, phone)).json() as { version: number; pc: { state: typeof state } }
     assert.deepEqual(seen.pc.state, state)
     assert.equal(((await (await call('GET', '/v1/live/screen', { token: other, device: PC })).json()) as { pc: unknown }).pc, null, 'another account sees nothing')
+    // «Рейд начался» on the phone (15.11.2026): the PC's raid start and its map ride along
+    const raid = { ...state, inRaid: true, raidBegun: 1_794_700_000_000, raidLocation: 'bigmap' }
+    assert.equal((await call('PUT', '/v1/live/screen/state', { ...pc, body: raid })).status, 200)
+    assert.deepEqual(((await (await call('GET', '/v1/live/screen', phone)).json()) as { pc: { state: typeof raid } }).pc.state, raid)
+    assert.equal((await call('PUT', '/v1/live/screen/state', { ...pc, body: { ...raid, raidBegun: -1 } })).status, 400)
+    assert.equal((await call('PUT', '/v1/live/screen/state', { ...pc, body: state })).status, 200)
 
     // The PC starts: only the number to wait from (no replay), then it waits; the phone's tap answers it at once.
     const start = await (await call('GET', '/v1/live/screen/pc', pc)).json() as { last: number; commands: unknown[] }

@@ -7,7 +7,7 @@ import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../..
 import { captureScreenRegion, foregroundDisplayMode, foregroundGame, isVirtualKeyDown, visibleGameRect, wasVirtualKeyPressed } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
-import { activePreset, allPresets, presetShown, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
+import { activePreset, allPresets, presetShown, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
 import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeStatus, parseOptimizeBackup, POWERSHELL, revert, type OptimizeBackup, type OptimizeItemId, type OptimizeOpenTarget } from './optimizer.js'
 import { readPcInfo, type PcInfo } from './pcInfo.js'
 import { followGameFront } from '../gamePriority.js'
@@ -336,6 +336,7 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
   })
   ipcMain.handle('screen:rename-preset', (_event, id: unknown, name: unknown) => change(renamePreset(settings, String(id ?? ''), name)))
   ipcMain.handle('screen:delete-preset', (_event, id: unknown) => change(deletePreset(settings, String(id ?? ''))))
+  ipcMain.handle('screen:reorder-presets', (_event, ids: unknown) => change(reorderPresets(settings, ids)))
   ipcMain.handle('screen:restore-presets', () => change(restoreBuiltIns(settings)))
   ipcMain.handle('screen:revert-preset', (_event, id: unknown) => change(revertBuiltIn(settings, String(id ?? ''))))
   ipcMain.handle('screen:edit', (_event, profile: unknown) => {

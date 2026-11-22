@@ -5,6 +5,7 @@ import { featureEnabled } from './archivedFeatures'
 import { isOwnerApp } from './buildEdition'
 import { interfaceVersion } from './appVersion'
 import { AppShell } from './AppShell'
+import { HideoutSection } from '../hideout/HideoutTabs'
 import { DashboardPage } from '../pages/DashboardPage'
 import { MapsPage } from '../pages/MapsPage'
 import { QuestsPage } from '../pages/QuestsPage'
@@ -20,6 +21,7 @@ import { UiSounds } from '../components/UiSounds'
 import { RestockNotifier } from '../restock/RestockWidgets'
 import { TradingNotifier } from '../trading/TradingNotifier'
 import { QuestKeysReminder } from '../quests/QuestKeysReminder'
+import { LastRaidRecorder, PhoneRaidStartNotifier, RaidStartNotifier } from '../notifications/RaidStartNotifier'
 import { TradingPage } from '../pages/TradingPage'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
@@ -46,10 +48,10 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { AppTooltips } from './AppTooltips'
 import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
 import { removeStartupIntro } from '../startup/startupIntro'
+import { LocationKeysWindow } from '../keys/LocationKeysWindow'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 // «Общая карта»: every location on one canvas (src/maps/worldMap.ts), loaded when opened.
-const WorldMapPage = lazy(() => import('../pages/WorldMapPage').then((module) => ({ default: module.WorldMapPage })))
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
 const HideoutStashPage = lazy(() => import('../pages/HideoutStashPage').then((module) => ({ default: module.HideoutStashPage })))
 const HideoutHubPage = lazy(() => import('../pages/HideoutHubPage').then((module) => ({ default: module.HideoutHubPage })))
@@ -80,7 +82,7 @@ export function App() {
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AppTooltips /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><FirstRaidReport /><RaidExtractsBridge /><GameRestartNotice /></>}<UiSounds /><AppTooltips /><AccountNotices /><div className="toast-dock"><RestockNotifier /><TradingNotifier /><QuestKeysReminder /></div><DeviceLimitNotice /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><FirstRaidReport /><RaidExtractsBridge /><GameRestartNotice /></>}<UiSounds /><AppTooltips /><AccountNotices /><div className="toast-dock"><RestockNotifier /><TradingNotifier /><QuestKeysReminder />{desktop ? <><RaidStartNotifier /><LastRaidRecorder /></> : mobile ? <PhoneRaidStartNotifier /> : null}</div><DeviceLimitNotice /><LocationKeysWindow /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
     {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
     <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
@@ -93,7 +95,6 @@ export function App() {
     <Route path="/briefing" element={featureEnabled('raidBriefing') ? <RaidBriefingPage /> : <Navigate to="/" replace />} />
     <Route path="/" element={<DashboardPage />} />
     <Route path="/maps" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
-    <Route path="/maps/world" element={<Suspense fallback={null}><WorldMapPage /></Suspense>} />
     <Route path="/maps/:mapId" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
     <Route path="/quest-keys" element={<QuestKeysPage />} />
@@ -119,11 +120,14 @@ export function App() {
     <Route path="/ammo" element={<Navigate to="/ballistics" replace />} />
     <Route path="/ballistics" element={<AmmoPage />} />
     {/* «Убежище» (owner, 17.10.2026: «добавляй новую функцию убежище, что бы можно было отмечать найденые предметы»). */}
-    {/* «Убежище и квесты»: two buttons, the hideout's stash and the quests' items (owner, 28.10.2026). */}
-    <Route path="/hideout" element={<Suspense fallback={null}><HideoutHubPage /></Suspense>} />
-    <Route path="/hideout/stash" element={<Suspense fallback={null}><HideoutStashPage /></Suspense>} />
-    <Route path="/hideout/quests" element={<Suspense fallback={null}><QuestItemsPage /></Suspense>} />
-    <Route path="/hideout/cultist-circle" element={<Suspense fallback={null}><CultistCirclePage /></Suspense>} />
+    {/* «Убежище и квесты»: the hideout, its items, the quests' items and the cultist circle under three buttons at the top that stay
+        put (owner, 28.10.2026 and 20.11.2026; hideout/HideoutTabs.tsx). */}
+    <Route element={<HideoutSection />}>
+      <Route path="/hideout" element={<Suspense fallback={null}><HideoutHubPage /></Suspense>} />
+      <Route path="/hideout/stash" element={<Suspense fallback={null}><HideoutStashPage /></Suspense>} />
+      <Route path="/hideout/quests" element={<Suspense fallback={null}><QuestItemsPage /></Suspense>} />
+      <Route path="/hideout/cultist-circle" element={<Suspense fallback={null}><CultistCirclePage /></Suspense>} />
+    </Route>
     <Route path="/hideout/unneeded" element={<Suspense fallback={null}><UnneededItemsPage /></Suspense>} />
     <Route path="/traders" element={<TradersPage />} />
     {/* The old «Сборщик оружия» became «Сборка оружия» (owner, 17.10.2026). */}

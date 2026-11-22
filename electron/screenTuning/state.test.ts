@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { gammaRamp, NEUTRAL, screenTables } from '../../src/screen/screenCurve'
-import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, MAX_PRESETS, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
+import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, MAX_PRESETS, nextPresetId, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
+import { BUILT_IN_PRESETS } from '../../src/screen/screenCurve'
+
+const BUILT_IN_DAYLIGHT = () => ({ ...BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-daylight')!, builtIn: undefined })
 
 let counter = 0
 const newId = () => `own-${++counter}`
@@ -141,5 +144,41 @@ describe('our presets named by number', () => {
     expect(pick(tuned, 'builtin-owner-bright-room')).toMatchObject({ name: 'Пресет 2', gamma: 1.5 })
     const keeps = savePreset(renamed, { ...NEUTRAL, id: 'builtin-owner-bright', name: 'Мой вечер', gamma: 1.6 }, () => 'own').settings
     expect(pick(keeps, 'builtin-owner-bright')).toMatchObject({ name: 'Мой вечер', gamma: 1.6 })
+  })
+})
+
+describe('«Настройка экрана»: the player\'s order of the presets (report 179)', () => {
+  const ids = (settings: ReturnType<typeof cleanSettings>) => allPresets(settings).map((preset) => preset.id)
+
+  it('a preset moved up stays there; the next-preset key follows the new order; the file keeps it', () => {
+    const own = savePreset(DEFAULT_SETTINGS, { ...BUILT_IN_DAYLIGHT(), id: '', name: 'Легкий' }, newId)
+    const before = ids(own.settings)
+    expect(before.at(-1)).toBe(own.preset.id)
+    const moved = reorderPresets(own.settings, [own.preset.id, ...before.slice(0, -1)])
+    expect(ids(moved)[0]).toBe(own.preset.id)
+    expect(nextPresetId({ ...moved, activeId: own.preset.id })).toBe(before[0])
+    // saved and read back
+    expect(ids(cleanSettings(JSON.parse(JSON.stringify(moved))))).toEqual(ids(moved))
+  })
+
+  it('a new preset goes at the end; a deleted one leaves the order; ids that are not presets are dropped', () => {
+    const first = savePreset(DEFAULT_SETTINGS, { ...BUILT_IN_DAYLIGHT(), id: '', name: 'A' }, newId)
+    const moved = reorderPresets(first.settings, [first.preset.id, 'nothing', first.preset.id])
+    expect(ids(moved)[0]).toBe(first.preset.id)
+    const second = savePreset(moved, { ...BUILT_IN_DAYLIGHT(), id: '', name: 'B' }, newId)
+    expect(ids(second.settings).at(-1)).toBe(second.preset.id)
+    const gone = deletePreset(second.settings, first.preset.id)
+    expect(gone.order).not.toContain(first.preset.id)
+    expect(cleanSettings({ order: ['nothing', 42, 'builtin-daylight'] }).order).toEqual(['builtin-daylight'])
+  })
+
+  it('one of ours taken off and put back comes at the end; «Вернуть стандартные» keeps the order', () => {
+    const list = ids(DEFAULT_SETTINGS)
+    const reversed = reorderPresets(DEFAULT_SETTINGS, [...list].reverse())
+    expect(ids(reversed)).toEqual([...list].reverse())
+    expect(ids(restoreBuiltIns(reversed))).toEqual([...list].reverse())
+    const hidden = deletePreset(reversed, list[0]!)
+    expect(ids(hidden)).not.toContain(list[0])
+    expect(ids(restoreBuiltIns(hidden))).toEqual([...list].reverse())
   })
 })

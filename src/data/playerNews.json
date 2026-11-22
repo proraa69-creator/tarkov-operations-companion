@@ -1,4 +1,122 @@
 [
+  {"version":"0.6.0.333","date":"2026-11-21","items":[
+    {"kind":"added","ru":"Настройки: размер шрифта — стандартный или увеличенный","en":"Settings: font size, standard or large"},
+    {"kind":"improved","ru":"«Обзор»: блоки не прыгают, когда окно разворачивается на весь экран","en":"«Overview»: blocks no longer jump when the window goes full screen"},
+    {"kind":"improved","ru":"Убежище: картинка переснята, соседние модули сняты вместе","en":"Hideout: the picture re-shot, neighbouring modules shot together"},
+    {"kind":"improved","ru":"Сборка оружия: сборка стоит по центру, приклады ПТ-1 и ПТ-3 ровные","en":"Weapon builds: the build centred, PT-1 and PT-3 stocks level"},
+    {"kind":"improved","ru":"Сборка оружия: видно, что сборка публикуется","en":"Weapon builds: you see the build being published"},
+    {"kind":"improved","ru":"Выпадающие списки — в зелёном стиле приложения","en":"Drop-down lists in the app's green style"},
+    {"kind":"improved","ru":"Телефон: «Обзор», окно модуля убежища и схрон удобнее","en":"Phone: «Overview», the hideout module window and the stash fit better"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.332","date":"2026-11-21","items":[
+    {"kind":"added","ru":"«Оружейник»: сборку задания можно открыть на весь экран и сложить приклад","en":"«Gunsmith»: open the task's build full screen and fold the stock"},
+    {"kind":"improved","ru":"«Оружейник»: в ячейках модулей крупные картинки","en":"«Gunsmith»: large module pictures in the cells"},
+    {"kind":"improved","ru":"«Обзор»: блоки переносятся плавно и не дрожат","en":"«Overview»: blocks move smoothly, no shaking"},
+    {"kind":"improved","ru":"Сборка на весь экран: компактное окно характеристик, сборке не мешает","en":"Full-screen build: a compact stats window that stays out of the way"},
+    {"kind":"improved","ru":"Сборка оружия: рукоятки и приклады встают ровнее","en":"Weapon builds: grips and stocks sit straighter"},
+    {"kind":"improved","ru":"Сборка оружия: из деталей теперь собирается всё оружие, в том числе АС «Вал» MOD.4","en":"Weapon builds: every weapon now built part by part, AS VAL MOD.4 included"},
+    {"kind":"improved","ru":"Телефон: в уведомлении о начале рейда — кнопка «Карта»","en":"Phone: a «Map» button in the raid start notice"},
+    {"kind":"improved","ru":"«Небеса в огне»: точнее сказано, где лежит флешка","en":"«Falling Skies»: a clearer hint where the flash drive is"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.331","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.330","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.329","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.328","date":"2026-11-20","items":[
+    {"kind":"changed","ru":"Обновили убежище","en":"The hideout updated"}
+  ]},
+  {"version":"0.6.0.327","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.326","date":"2026-11-20","items":[
+    {"kind":"added","ru":"Убежище: вид сверху со всеми модулями","en":"Hideout: a view from above with every module"},
+    {"kind":"improved","ru":"Полностью переработанная сборка оружия","en":"Weapon builds completely reworked"}
+  ]},
+  {"version":"0.6.0.321","date":"2026-11-19","items":[
+    {"kind":"improved","ru":"«Ключи»: список сам переключается на открытую карту","en":"«Keys»: the list follows the open map"},
+    {"kind":"improved","ru":"Оптимизация карты в рейде","en":"Map optimisation in raid"}
+  ]},
+  {"version":"0.6.0.320","date":"2026-11-19","items":[
+    {"kind":"added","ru":"«Стекло»: новый стиль для любой цветовой схемы","en":"«Glass»: a new style for any colour scheme"},
+    {"kind":"added","ru":"Плавные анимации во всём приложении, кнопки отзываются на нажатие","en":"Smooth animations across the app; buttons respond to every press"},
+    {"kind":"added","ru":"Уведомления: каждое можно отключить, звук начала рейда","en":"Notifications: each one can be turned off; a raid start sound"},
+    {"kind":"added","ru":"Карта: «Ключи рядом» — спавны ключей возле точек ваших квестов","en":"Map: «Keys nearby» — key spawns near your quest points"},
+    {"kind":"added","ru":"Карта: «Показывать только нужные спавны»","en":"Map: «Show only the spawns I need»"},
+    {"kind":"added","ru":"Ключ на карте и в квесте: цена, бартеры, тир и квесты","en":"A key on the map and in a quest: price, barters, tier and quests"},
+    {"kind":"added","ru":"Сборка оружия: «Избранные» — сборки можно переименовать и пересохранить","en":"Gunsmith: «Favorites» — builds can be renamed and saved again"},
+    {"kind":"added","ru":"Обзор: время в Таркове, сбросы торговцев и таймер рейда в одном блоке","en":"Overview: Tarkov time, trader resets and the raid timer in one block"},
+    {"kind":"added","ru":"Требования рейда: ракетница, нужная для выхода","en":"Raid requirements: the flare an exit needs"},
+    {"kind":"improved","ru":"«Смена дня и ночи»: ночь стала фиолетовой","en":"«Day and night»: the night is violet now"},
+    {"kind":"improved","ru":"«Ключи локации» сразу отсортированы по тиру","en":"«Location keys» are sorted by tier"},
+    {"kind":"improved","ru":"Торговля: товары учитывают уровень торговца в вашем режиме","en":"Trading: offers follow your trader level in the current mode"},
+    {"kind":"improved","ru":"Убежище и предметы для квестов: строки не прыгают при подсчёте","en":"Hideout and quest items: rows stay in place while you count"},
+    {"kind":"improved","ru":"Оптимизирована скорость приложения","en":"The app runs faster"}
+  ]},
+  {"version":"0.6.0.319","date":"2026-11-18","items":[
+    {"kind":"added","ru":"«Ключи локации»: у каждого ключа цена и буква тир-листа","en":"«Location keys»: each key shows its price and tier-list letter"},
+    {"kind":"added","ru":"Карточка ключа: что лежит в комнате за его дверью","en":"Key card: what spawns in the room behind its door"},
+    {"kind":"added","ru":"«Ключи для квестов»: ключ «Нет в наличии» можно сразу добавить в схрон","en":"«Quest keys»: a key «Not in stash» can be added to the stash right away"},
+    {"kind":"improved","ru":"Документы боевого пропуска видны на всех этажах карты","en":"Battle pass documents show on every floor of the map"},
+    {"kind":"improved","ru":"Сезон: у «Освободить помещение» цель и награды как в игре","en":"Season: «Vacate the Premises» objective and rewards match the game"}
+  ]},
+  {"version":"0.6.0.318","date":"2026-11-18","items":[
+    {"kind":"improved","ru":"Квесты: задания USEC и BEAR больше не показываются дважды","en":"Quests: USEC and BEAR versions of a quest no longer show twice"}
+  ]},
+  {"version":"0.6.0.317","date":"2026-11-18","items":[
+    {"kind":"improved","ru":"«Ключи локации»: в бартере видно, с какого уровня предмет продаётся на барахолке","en":"«Location keys»: barters show the level each item opens at on the flea"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.315","date":"2026-11-18","items":[
+    {"kind":"added","ru":"«Ключи локации»: все ключи карты в окне поверх приложения, двери подсвечиваются на карте","en":"«Location keys»: every key of a map in a window over the app, its doors lit on the map"},
+    {"kind":"added","ru":"Карточка предмета: где купить — торговцы, барахолка и бартеры по вашим уровням","en":"Item card: where to buy — traders, the flea and barters by your levels"},
+    {"kind":"added","ru":"«Сборка оружия»: галочка «Цена оружия» — в итог входит и само оружие","en":"«Gun builder»: «Gun price» adds the gun itself to the total"},
+    {"kind":"improved","ru":"«Боссы»: у Тени Тагиллы — документы и ключ-карта Labrys, у Бёрдая — его рюкзак","en":"«Bosses»: Shadow of Tagilla — Labrys reports and keycard, Birdeye — his backpack"}
+  ]},
+  {"version":"0.6.0.314","date":"2026-11-17","items":[
+    {"kind":"improved","ru":"«Кочевники»: отметить можно раз в 10 минут, на ПК — раз за рейд","en":"«Goons»: one sighting every 10 minutes, on the PC once a raid"},
+    {"kind":"improved","ru":"«Кочевники»: повторные отметки одного игрока больше не засоряют список","en":"«Goons»: one player’s repeated sightings no longer clutter the list"},
+    {"kind":"improved","ru":"«Все локации», «Спутник»: Улицы Таркова целиком, Эпицентр без дыр","en":"«All locations», «Satellite»: the whole of Streets of Tarkov, Ground Zero without holes"},
+    {"kind":"improved","ru":"«Боссы»: мягкая подсветка частей тела, название патрона при наведении","en":"«Bosses»: soft highlight of body parts, the round’s name on hover"},
+    {"kind":"improved","ru":"«Настройки» → «Клавиши»: кнопки компактнее, всё в одну строку","en":"«Settings» → «Keys»: smaller buttons, all on one line"}
+  ]},
+  {"version":"0.6.0.313","date":"2026-11-17","items":[
+    {"kind":"added","ru":"Сайт: чат поддержки — кнопка справа внизу, можно писать и без аккаунта","en":"Site: a support chat — the button bottom right, no account needed"},
+    {"kind":"improved","ru":"«Квесты», «Сезон»: развилка Лыжника и Водителя БТР — вся цепочка до «Цены независимости»","en":"«Quests», Season: the Skier / BTR Driver branch — the whole chain"}
+  ]},
+  {"version":"0.6.0.312","date":"2026-11-17","items":[
+    {"kind":"added","ru":"«Боссы»: броня с классом плит спереди, сзади и по бокам, оружие с патронами","en":"«Bosses»: armour with plate classes front, back and sides, guns with their rounds"},
+    {"kind":"added","ru":"«Настройка экрана»: пресеты можно менять местами — зажмите и перетащите","en":"«Screen tuning»: hold a preset and drag it to change the order"},
+    {"kind":"added","ru":"«Карты»: кнопки «Скрыть все» и «Показать все» для точек на карте","en":"«Maps»: «Hide all» and «Show all» for the map markers"},
+    {"kind":"added","ru":"Таймер усталости навыка: тихий сигнал в конце, по желанию","en":"Skill fatigue timer: a quiet chime at the end, if you like"}
+  ]},
+  {"version":"0.6.0.311","date":"2026-11-17","items":[
+    {"kind":"added","ru":"«Квесты»: кнопка «Показать только сюжетные» — предметы, которые нужно сдать по сюжету","en":"«Quests»: «Show story only» — the items the story asks you to hand over"},
+    {"kind":"added","ru":"«Обзор»: лишние блоки можно удалить, вернуть их — кнопкой «Сбросить»","en":"«Overview»: remove the blocks you do not need, «Reset» brings them back"},
+    {"kind":"improved","ru":"«Кочевники»: отметки и список, кто их видел, хранятся целые сутки","en":"«Goons»: sightings and who saw them are kept for a whole day"},
+    {"kind":"improved","ru":"«Тактика боя»: свита Тени Тагиллы — как она воюет и что носит","en":"«Boss tactics»: Shadow of Tagilla's retinue — how it fights and what it carries"}
+  ]},
+  {"version":"0.6.0.310","date":"2026-11-16","items":[
+    {"kind":"added","ru":"Уведомление «Рейд начался», когда загрузка закончилась","en":"A «Raid started» notification once the loading is over"},
+    {"kind":"improved","ru":"Обзор: первый блок — время в Таркове, сброс торговцев или таймер рейда","en":"Overview: the first block shows the time in Tarkov, trader resets or a raid timer"},
+    {"kind":"improved","ru":"Цветовая схема меняется плавнее и до самых краёв","en":"The colour scheme changes more smoothly, right to the edges"},
+    {"kind":"improved","ru":"«Оружейник. АКМ»: в сборке теперь приклад ПТ-1 и замок ПТ АКМ","en":"«Gunsmith. AKM»: the build now has the PT-1 stock and the PT lock"},
+    {"kind":"improved","ru":"«Квесты»: в наградах видно, какой модуль открывается у торговцев","en":"«Quests»: rewards show which module unlocks at the traders"},
+    {"kind":"improved","ru":"Улучшили распознание поиска предмета","en":"Improved item lookup recognition"}
+  ]},
+  {"version":"0.6.0.309","date":"2026-11-15","items":[
+    {"kind":"added","ru":"Вход через Google","en":"Sign in with Google"},
+    {"kind":"added","ru":"Таймер усталости навыка на карте","en":"A skill fatigue timer on the map"},
+    {"kind":"improved","ru":"Фото места — небольшим окошком у метки на карте","en":"Place photos in a small window at the map point"},
+    {"kind":"improved","ru":"Окно задания на карте: высоту можно настроить","en":"The task window on the map: its height can be set"},
+    {"kind":"improved","ru":"Связь с сервером стабильнее при медленном интернете","en":"A steadier link to the server on a slow connection"}
+  ]},
   {"version":"0.6.0.308","date":"2026-11-15","items":[
     {"kind":"added","ru":"Общая карта: все локации и ваши текущие задания на одной карте","en":"World map: every location and your current tasks on one map"},
     {"kind":"improved","ru":"Задание появляется на карте следующей цели, когда предыдущая выполнена","en":"A task shows on the map of its next objective once the one before is done"},

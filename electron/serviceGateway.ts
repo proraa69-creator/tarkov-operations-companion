@@ -10,6 +10,7 @@
  *   never sent to the renderer, never logged. Login / logout / status have their own IPC (see main.ts).
  * - A server that is not running is reported as `ServiceUnavailableError`, so callers can fall back to local work.
  */
+import { hedgedFetch, warmConnection, type HedgeOptions } from './hedgedFetch.js'
 import { app, safeStorage } from 'electron'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -39,6 +40,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
   // The minute prices (src/data/livePrices.ts, src/data/tarkovDataset.ts) and the statistics of «Торговля» (src/data/tradingApi.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/data/(?:prices|trading)/${MODE}$`) },
+  // Flea prices the player's screen showed (src/data/screenFleaPrices.ts, server/src/services/playerPrices.ts).
+  { methods: ['POST'], path: new RegExp(`^/v1/data/prices/${MODE}/sightings$`) },
   // One item's price history (src/data/economyApi.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/data/price-history/${MODE}/[a-z0-9]{16,48}\\?days=\\d{1,4}$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
@@ -84,6 +87,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
+  // «Админ панель» → «Модули убежища» (server/src/routes/hideoutModules.ts): per mode, the modules open from the start or turned
+  // off. The apps read it with the notice; the owner keeps it here.
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/hideout-modules$/ },
   // «История обновлений» (server/src/routes/ownerAdmin.ts): the server answers 404 to everybody but the owner.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/update-history$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
@@ -105,10 +111,15 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // screenshots as base64 JSON, close / reopen and «Начислить дни». The server answers 404 to everybody but the owner.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
+  // «Телефоны» of «Сводка» (owner, 23.11.2026): phones signed in by system and who is in each app now.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/phones$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\?status=(?:open|closed)&limit=\d{1,3}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
   // «Отчёты» (src/reports/ReportsTable.tsx): the table, the owner's buttons and his corrections to the plan.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/table\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
+  // «Отчёты» → «Аккаунты Таркова» (server/src/routes/eftCases.ts)
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/eft-cases\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/eft-cases\/\d{1,12}\/status$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward|work|plan|point)$/ },
   // «Доступ Claude к заявкам» (src/requests/ClaudeAccessPanel.tsx, server/src/routes/agentRequests.ts): the state of the
   // owner's read-only key, a new key (shown once) and revoking it. The reports read with the key never pass here.
@@ -421,20 +432,35 @@ async function clearSession() {
 // HTTP
 // --------------------------------------------------------------------------------------------------------------
 
-async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string; headers?: Record<string, string> } = {}) {
+/** When the last answer came: fetch keeps that connection a few seconds, so a write soon after needs no new one. */
+let lastAnswerAt = 0
+const CONNECTION_KEPT_MS = 3_000
+
+/**
+ * `hedge`: a read with no answer after a moment goes again on a new connection (electron/hedgedFetch.ts; reads only — a
+ * long wait for news, `false`, must not run twice). A write first brings a connection up the same way when none is kept.
+ */
+async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string; headers?: Record<string, string>; hedge?: false | HedgeOptions } = {}) {
   await loadServerUrl()
+  const base = apiBaseUrl()
+  const init = {
+    method,
+    signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
+    headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  }
   let response: Response
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
-      method,
-      signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    })
+    if (method === 'GET' && options.hedge !== false) response = await hedgedFetch(`${base}${path}`, init, options.hedge ?? {})
+    else {
+      if (method !== 'GET' && Date.now() - lastAnswerAt > CONNECTION_KEPT_MS) await warmConnection(base)
+      response = await fetch(`${base}${path}`, init)
+    }
   } catch (error) {
     // a timed-out request may have reached the server; anything else never left this PC
     throw new ServiceUnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
+  lastAnswerAt = Date.now()
   // 204 No Content and 304 Not Modified carry no body (and no content type).
   const empty = response.status === 204 || response.status === 304
   if (!empty && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
@@ -477,7 +503,7 @@ function withCatalogVersion(result: unknown, etag: string | null) {
  * build only (the server answers 404 to anybody but the owner anyway). Path parts are ids and codes only (no dots, so
  * no «..»); the CSV files are not here: they are downloaded on the site.
  */
-const OWNER_SITE_ADMIN = /^\/v1\/accounts\/me\/admin\/(?:overview|online|online-stats|calendar|day|series|stats|bezebee|payments|users|streamers|streamer-settings|streamer-stats|streamer-invites|payouts|payout-limits|invite-rewards|referrals)(?:\/[A-Za-z0-9_-]{1,128}){0,4}(?:\?[A-Za-z0-9%._~=&+@-]{0,2000})?$/
+const OWNER_SITE_ADMIN = /^\/v1\/accounts\/me\/admin\/(?:overview|online|online-stats|phones|calendar|day|series|stats|bezebee|payments|users|streamers|streamer-settings|streamer-stats|streamer-invites|payouts|payout-limits|invite-rewards|referrals)(?:\/[A-Za-z0-9_-]{1,128}){0,4}(?:\?[A-Za-z0-9%._~=&+@-]{0,2000})?$/
 const OWNER_SITE_METHODS: readonly Method[] = ['GET', 'POST', 'PUT']
 export function ownerSiteAdminAllowed(method: string, path: string, owner = isOwnerBuild()) {
   return owner && OWNER_SITE_METHODS.includes(method as Method) && OWNER_SITE_ADMIN.test(path)
@@ -498,7 +524,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
-  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}), hedge: LIVE_WAIT.test(path) ? false : gated ? { hedgeMs: 3_000, attempts: 2 } : {} })
   const { response, result } = retriesWhileRestarting(method, path)
     ? await retryWhileRestarting(request, (error) => error instanceof ServiceUnavailableError && error.notTaken)
     : await request()
@@ -648,10 +674,11 @@ export async function accountStatus(): Promise<AccountStatus> {
   let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> = {}
   try {
     serverUrl = apiBaseUrl()
-    const health = await send('GET', '/health', { timeoutMs: 3000 })
+    // 10 s with new connections every 1.5 s (electron/hedgedFetch.ts): 3 s took a slow first connection for «нет связи».
+    const health = await send('GET', '/health', { timeoutMs: 10_000 })
     online = health.response.ok
     if (online && sessionToken) {
-      const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
+      const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 10_000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
         const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; storeReview?: unknown }

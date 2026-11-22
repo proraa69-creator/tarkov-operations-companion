@@ -35,7 +35,7 @@ export interface OverviewDefaults {
 export const OVERVIEW_BLOCKS: ReadonlyArray<{ id: string; label: string; zone: OverviewZoneId }> = [
   { id: 'stat-screen', label: 'Экран', zone: 'stats' },
   { id: 'stat-conditions', label: 'Сбор на рейд', zone: 'stats' },
-  { id: 'stat-kappa', label: 'Задания для Капы', zone: 'stats' },
+  { id: 'stat-kappa', label: 'Задания для Каппы', zone: 'stats' },
   { id: 'stat-goons', label: 'Кочевники', zone: 'stats' },
   { id: 'raid', label: 'План рейда', zone: 'left' },
   { id: 'squad', label: 'Отряд', zone: 'left' },
@@ -101,7 +101,7 @@ export function withoutHiddenBlocks(layout: OverviewLayout, hidden: readonly str
   if (!hidden.length) return layout
   const off = new Set(hidden)
   const keep = (id: string) => FIXED_BLOCKS.has(id) || !off.has(id)
-  return { stats: layout.stats.filter(keep), rows: layout.rows.filter(keep), left: layout.left.filter(keep), right: layout.right.filter(keep) }
+  return { stats: layout.stats.filter(keep), rows: layout.rows.filter(keep), left: layout.left.filter(keep), right: layout.right.filter(keep), ...(layout.removed ? { removed: layout.removed } : {}) }
 }
 
 /** The PC's starting Overview: the owner's order (or the built-in one) without the hidden blocks. */

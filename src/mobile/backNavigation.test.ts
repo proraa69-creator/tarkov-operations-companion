@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { backDelta, recordPage } from './backHistory'
 
+// owner, 20.11.2026: «нажимаю кнопку назад справа внизу, а меня выкидывает не в список оружия, а в обзор… должен делаться
+// шаг назад в любом блоке»
 describe('«Назад» on the phone', () => {
-  it('goes back to the last page with another path, skipping changes within a page', () => {
+  it('goes one step back in any section: from a weapon, a quest or a card to the list it was opened from', () => {
     recordPage(0, '/', true)
-    recordPage(1, '/quests', true)
-    recordPage(2, '/quests', true) // ?selected=…
-    recordPage(3, '/quests', true)
-    expect(backDelta(3)).toBe(-3)
+    recordPage(1, '/gunsmith', true)
+    recordPage(2, '/gunsmith', true) // ?quest=… — a Gunsmith weapon opened
+    expect(backDelta(2)).toBe(-1)
+    expect(backDelta(1)).toBe(-1)
     expect(backDelta(0)).toBeNull()
   })
 
@@ -17,6 +19,6 @@ describe('«Назад» on the phone', () => {
     recordPage(2, '/flea', true)
     recordPage(1, '/maps', false) // back
     recordPage(2, '/maps', true) // ?quest=… replaces the forward entries
-    expect(backDelta(2)).toBe(-2)
+    expect(backDelta(2)).toBe(-1)
   })
 })

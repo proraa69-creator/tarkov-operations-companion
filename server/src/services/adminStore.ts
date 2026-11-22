@@ -56,18 +56,23 @@ const SCHEMA = `
 
 export type AuditAction =
   | 'news.edit'
+  | 'eft.rebind-case' | 'eft.case-status'
   | 'subscription.grant' | 'subscription.revoke' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
   | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
-  | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
+  | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'hideout.modules' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke' | 'bug.work' | 'bug.point'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
   | 'users.export' | 'subscription.bulk-grant'
   | 'stickers.pack' | 'stickers.publish' | 'stickers.sticker'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
+
+/** Phones that signed in, and their accounts, all the time (AdminStore.phoneStats). */
+export interface PhoneCount { accounts: number; devices: number }
+export interface PhoneStats { users: number; phones: PhoneCount; android: PhoneCount; ios: PhoneCount }
 
 export type UserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 /** The billing regions requested by the owner; the old Europe/other values stay accepted by older web clients. */
@@ -268,15 +273,18 @@ const REPEAT_PAYERS_SQL = `SELECT COUNT(*) AS n FROM accounts a WHERE a.deleted_
 const REPEAT_PAYMENT_SQL = `p.status = 'succeeded' AND p.amount > 0 AND EXISTS (SELECT 1 FROM payments q WHERE q.account_id = p.account_id AND q.status = 'succeeded' AND q.amount > 0
   AND (COALESCE(q.paid_at, q.created_at) < COALESCE(p.paid_at, p.created_at) OR (COALESCE(q.paid_at, q.created_at) = COALESCE(p.paid_at, p.created_at) AND q.rowid < p.rowid)))`
 /**
- * A «мёртвый» free period (owner, 15.11.2026: «не заходил в аккаунт больше 3 недель… или так и не зашёл в рейд»): no
- * request from the account for TRIAL_DEAD_MS, or its free days still wait for the first raid (trial_raid_ms is cleared
- * only by the raid). Back in the account or in a raid, it is «реальный» again. Accounts joined as `a`.
+ * A «мёртвый» registration (owner, 16.11.2026: «добавлять в мертвые только тех кто не использовал пробный период в течении
+ * 21 дня»; «За 15 число 178 регистраций, а написано 149 реальных»): TRIAL_DEAD_MS since it registered and its free days
+ * never used — not started in the app (trial_pending_ms, or no trial_ends_at), still waiting for the first raid
+ * (trial_raid_ms is cleared only by the raid) or refused — and never paid. A newer one is «реальный», whatever it did so
+ * far; so are one that used them and one that paid. Accounts joined as `a`.
  */
 /** A free period running now (accounts `a`, subscriptions `s`; args: now, now): a user's, not refused, not under a paid period. */
 const TRIAL_NOW_SQL = "a.kind = 'user' AND a.deleted_at IS NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)"
 export const TRIAL_DEAD_MS = 21 * DAY_MS
-const TRIAL_DEAD_SQL = '(a.trial_raid_ms IS NOT NULL OR a.last_seen_at IS NULL OR a.last_seen_at < ?)'
-const trialDead = (row: Row, now: number) => row.trial_raid_ms != null || row.last_seen_at == null || Number(row.last_seen_at) < now - TRIAL_DEAD_MS
+const TRIAL_DEAD_SQL = `(a.created_at < ? AND (a.trial_pending_ms IS NOT NULL OR a.trial_ends_at IS NULL OR a.trial_raid_ms IS NOT NULL OR COALESCE(a.trial_denied, 0) <> 0) AND NOT EXISTS (SELECT 1 FROM payments p WHERE ${MONEY_PAYMENT_SQL}))`
+const trialDead = (row: Row, now: number) => Number(row.created_at) < now - TRIAL_DEAD_MS
+  && (row.trial_pending_ms != null || row.trial_ends_at == null || row.trial_raid_ms != null || Boolean(Number(row.trial_denied ?? 0))) && !(Number(row.money_count) > 0)
 
 /** Accounts (joined as `a`) of a payment region: RU, CIS without Russia, WORLD (every other country, «XX» too), none. */
 function payRegionCondition(region: PayRegion): { sql: string; args: string[] } {
@@ -451,6 +459,30 @@ export class AdminStore {
 
   onlineStats(days = 30) {
     return this.online.summary(days)
+  }
+
+  /**
+   * «Телефоны» of «Сводка» (owner, 23.11.2026: «сколько у нас пользователей, сколько телефонов… сколько с андроида установило
+   * и зашло, сколько с айфона установило и зашло»): the users, and the phones that signed in to an account — the phone app
+   * registers its device at sign-in as «Android · Raid OS» or «iOS · Raid OS» (src/sync/webEntitlement.ts) — and their
+   * accounts, all the time (a device signed out later still counts; deleted accounts do not). Who is in the app now comes
+   * from the heartbeat (services/presence.ts, routes/ownerAdmin.ts).
+   */
+  phoneStats(): PhoneStats {
+    const users = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE deleted_at IS NULL').get() as Row).n)
+    const empty = { accounts: 0, devices: 0 }
+    if (!this.tableExists('account_devices')) return { users, phones: { ...empty }, android: { ...empty }, ios: { ...empty } }
+    const from = "FROM account_devices d JOIN accounts a ON a.id = d.account_id AND a.deleted_at IS NULL"
+    const platform = "CASE WHEN d.name LIKE 'Android%' THEN 'android' WHEN d.name LIKE 'iOS%' THEN 'ios' END"
+    const rows = this.db.prepare(`SELECT ${platform} AS platform, COUNT(*) AS devices, COUNT(DISTINCT d.account_id) AS accounts ${from}
+      WHERE d.name LIKE 'Android%' OR d.name LIKE 'iOS%' GROUP BY platform`).all() as Row[]
+    const of = (name: string) => {
+      const row = rows.find((entry) => entry.platform === name)
+      return row ? { accounts: Number(row.accounts), devices: Number(row.devices) } : { ...empty }
+    }
+    const phones = this.db.prepare(`SELECT COUNT(*) AS devices, COUNT(DISTINCT d.account_id) AS accounts ${from}
+      WHERE d.name LIKE 'Android%' OR d.name LIKE 'iOS%'`).get() as Row
+    return { users, phones: { accounts: Number(phones.accounts), devices: Number(phones.devices) }, android: of('android'), ios: of('ios') }
   }
 
   /** Registrations and payments per owner's day (last 31), month (last 12) or year (all), newest first. */
@@ -676,7 +708,7 @@ export class AdminStore {
     // repeatPaid: «Оплатили повторно», all the time (as in overview); repeatInRange: a second or later payment in range.
     const payers = { everPaid: 0, paidInRange: 0, newInRange: 0, repeatPaid: 0, repeatInRange: 0 }
     const referrals = { friendInvited: 0, friendInvitedInRange: 0, friendPaid: 0, friendPaidDiscount: 0, streamerReferred: 0, rewardsByStatus: { pending: 0, review: 0, granted: 0, canceled: 0 } as Record<string, number> }
-    // dead / alive: of trialStarted, as the free periods now (TRIAL_DEAD_SQL), whether they paid since or not.
+    // dead / alive: every registration of the range (users), as TRIAL_DEAD_SQL now: dead + alive = the registrations.
     const trialConversion = { trialStarted: 0, laterPaid: 0, rate: 0, dead: 0, alive: 0 }
     for (const row of accounts) {
       const source = sourceOf(row, now)
@@ -723,8 +755,8 @@ export class AdminStore {
       if (isNew && row.kind === 'user' && row.trial_ends_at != null && !Number(row.trial_denied ?? 0)) {
         trialConversion.trialStarted++
         if (paid) trialConversion.laterPaid++
-        trialConversion[trialDead(row, now) ? 'dead' : 'alive']++
       }
+      if (isNew && row.kind === 'user') trialConversion[trialDead(row, now) ? 'dead' : 'alive']++
     }
     trialConversion.rate = trialConversion.trialStarted ? Math.round(trialConversion.laterPaid / trialConversion.trialStarted * 10_000) / 10_000 : 0
     users.deletedExcluded = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE deleted_at IS NOT NULL').get() as Row).n)

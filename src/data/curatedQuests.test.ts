@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
 import { BALANCE_SHIFT, BALANCE_SHIFT_QUEST_IDS, HALLOWEEN_QUEST_IDS, LIGHTHOUSE_BTR_QUEST_IDS, PAY_THE_FARE_ID, PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
+import { KORD_BREACH, KORD_BREACH_IDS } from './kordBreachQuests'
 import { definitionOfBuiltIn, eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import { SCOURGE_EVENT_END } from '../events/scourgeEvent'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
@@ -21,7 +22,7 @@ const ORDER = [
 ]
 const SERIES = new Set<string>(ORDER)
 /** The other curated series (Scourge's event quests), left out where only «На свет» is counted. */
-const OTHER_CURATED = new Set<string>([...Object.values(SCOURGE_QUEST_IDS), ...Object.values(BALANCE_SHIFT_QUEST_IDS), ...Object.values(LIGHTHOUSE_BTR_QUEST_IDS), PAY_THE_FARE_ID, ...Object.values(HALLOWEEN_QUEST_IDS)])
+const OTHER_CURATED = new Set<string>([...Object.values(SCOURGE_QUEST_IDS), ...Object.values(BALANCE_SHIFT_QUEST_IDS), ...Object.values(LIGHTHOUSE_BTR_QUEST_IDS), PAY_THE_FARE_ID, ...Object.values(HALLOWEEN_QUEST_IDS), ...Object.values(KORD_BREACH_IDS)])
 const RESEARCH_NOTE = /tarkov\.(help|dev)|tarkov-?dev|wiki|вики|fandom|координат|coordinat|источник(и|а|ов)? (не|даёт)|no source|игра \d|game \d/i
 
 const RU_NAMES = [
@@ -89,7 +90,8 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
         expect(others.length).toBe(without.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length)
         expect(catalog.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length).toBe(without.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length + 11)
         // Mechanic's side task of «Вторжение Scourge» needs Mechanic and «Облегчить переезд» Peacekeeper: two more without the series' traders
-        expect(catalog.metadata?.counts?.quests).toBe(without.quests.length + 11 + 2)
+        // and in Season the four Mechanic quests of «KORD BREACH»
+        expect(catalog.metadata?.counts?.quests).toBe(without.quests.length + 11 + 2 + (mode === 'seasonal' ? 4 : 0))
       })
     }
   }
@@ -443,5 +445,68 @@ describe('«Ивент-квесты»: the owner\'s definitions over the built-i
     const result = withCuratedTasks(tasks, { mode: 'pvp', locale: 'ru', maps: {}, traders, series: eventSeriesWith([renamed]), now: DURING_EVENT })
     expect(result.added.has(SCOURGE_QUEST_IDS.coordination)).toBe(false)
     expect(result.added.has(SCOURGE_QUEST_IDS.simpleTask)).toBe(true)
+  })
+})
+
+describe('«KORD BREACH» (Season 1): the season line tarkov.dev lacks', () => {
+  const traders = Object.fromEntries([...new Set(KORD_BREACH.quests.map((quest) => quest.trader))].map((id) => [id, { id }]))
+  const added = (mode: RaidMode) => withCuratedTasks({ tasks: {} }, { mode, locale: 'ru', maps: {}, traders }).added
+
+  it('all 21 quests in Season only, with the game\'s ids the owner\'s log of 19.11.2026 names', () => {
+    expect(KORD_BREACH.quests).toHaveLength(21)
+    expect([...added('seasonal')].filter((id) => Object.values(KORD_BREACH_IDS).includes(id as never))).toHaveLength(21)
+    expect([...added('pvp')].some((id) => Object.values(KORD_BREACH_IDS).includes(id as never))).toBe(false)
+    expect([...added('pve')].some((id) => Object.values(KORD_BREACH_IDS).includes(id as never))).toBe(false)
+    // taken in Season at 12:53 and 12:58 (Prapor, the BTR Driver, Therapist); Digital Puzzle is the condition of its season reward
+    for (const id of ['6a4f528221e50974ab006f6f', '6a4f53f6be2cd3a87c0b708d', '6a4f83001b7350af050b2e1f', '6a4f7a63e41198323708563b']) {
+      expect(Object.values(KORD_BREACH_IDS)).toContain(id)
+    }
+  })
+
+  it('the chain: every previous quest is in the line and comes earlier in it', () => {
+    const order = KORD_BREACH.quests.map((quest) => quest.id)
+    for (const [index, quest] of KORD_BREACH.quests.entries()) {
+      for (const previous of [...quest.after ?? [], ...quest.afterAccepted ?? [], ...quest.afterDecided ?? []]) {
+        expect(order.indexOf(previous)).toBeGreaterThanOrEqual(0)
+        expect(order.indexOf(previous)).toBeLessThan(index)
+      }
+      for (const line of [quest.note.ru, quest.note.en]) expect(line).not.toMatch(RESEARCH_NOTE)
+    }
+    const first = KORD_BREACH.quests[0]
+    expect(first.id).toBe(KORD_BREACH_IDS.uninvitedGuests1)
+    expect(first.after ?? []).toEqual([])
+    const tasks = withCuratedTasks({ tasks: {} }, { mode: 'seasonal', locale: 'ru', maps: {}, traders }).tasks.tasks as Record<string, { name: string; taskRequirements: unknown[] }>
+    expect(tasks[KORD_BREACH_IDS.uninvitedGuests1].name).toBe('Незваные гости. Часть 1 [KORD BREACH]')
+    expect(tasks[KORD_BREACH_IDS.unansweredCalls].taskRequirements).toEqual([{ task: KORD_BREACH_IDS.uninvitedGuests1, status: ['active', 'complete'] }])
+    expect(tasks[KORD_BREACH_IDS.desperateAssault].taskRequirements).toEqual([
+      { task: KORD_BREACH_IDS.finalStretch, status: ['complete', 'failed'] }, { task: KORD_BREACH_IDS.consequences, status: ['complete', 'failed'] },
+    ])
+  })
+
+  // report 204 (20.11.2026): «Не отображаются места закладки» — the camera spots found in the offline copy of the game
+  it('the four WI-FI camera spots: where «Забросить невод» puts them and «Задняя передача» takes them, with their heights', async () => {
+    const quest = (id: string) => KORD_BREACH.quests.find((entry) => entry.id === id)!
+    const spots = (id: string) => quest(id).objectives.filter((objective) => objective.spots?.length)
+      .map((objective) => objective.spots!.map((spot) => ('point' in spot ? `${spot.map} ${spot.point.x} ${spot.point.y} ${spot.point.z}` : '')))
+    const cameras = [
+      ['shoreline -180.39 -38.31 141.08'],
+      ['shoreline -603.54 -28.33 -203.79'],
+      ['ground-zero 118.59 23.46 63.41', 'ground-zero-21 118.59 23.46 63.41'],
+      ['ground-zero 82.02 15.49 121.42', 'ground-zero-21 82.02 15.49 121.42'],
+    ]
+    expect(spots(KORD_BREACH_IDS.castTheNet)).toEqual(cameras)
+    expect(spots(KORD_BREACH_IDS.reverseGear)).toEqual(cameras)
+    // in the catalog the point keeps its height (the map's level), on the maps the feed has
+    const catalog = await build('seasonal', 'ru')
+    const zones = catalog.quests.find((entry) => entry.id === KORD_BREACH_IDS.castTheNet)!.objectiveDetails![0]!.zones
+    expect(zones).toEqual([{ id: 'point-kb-camera-ural', mapId: 'shoreline', position: { x: -180.39, y: -38.31, z: 141.08 } }])
+  })
+
+  it('the case of «Незваные гости» at the weather station and the power station, the first breach of «Капкан», the chimney transmitter', () => {
+    const quest = (id: string) => KORD_BREACH.quests.find((entry) => entry.id === id)!
+    const spots = (id: string) => quest(id).objectives.map((objective) => (objective.spots ?? []).map((spot) => ('point' in spot ? `${spot.map} ${spot.point.x} ${spot.point.y} ${spot.point.z}` : '')))
+    expect(spots(KORD_BREACH_IDS.uninvitedGuests1)).toEqual([[], [], ['shoreline -506.08 -21.48 234.41'], ['shoreline -220.27 -34.11 195.17']])
+    expect(spots(KORD_BREACH_IDS.breakTheChain).flat()).toContain('customs 124.84 68.01 -63.57')
+    expect(spots(KORD_BREACH_IDS.stayClear)).toEqual([['shoreline -128.23 -4.26 -98.77'], [], []])
   })
 })

@@ -6,6 +6,7 @@ import { prepareTheme, type ThemeOrigin } from '../theme/themeTransition'
 import '../styles/themePicker.css'
 import { StitchChooser } from '../theme/alcantara/StitchChooser'
 import { SettingHelp } from './SettingHelp'
+import { StyleSwitch } from '../theme/StyleSwitch'
 
 /** Thumbnails of the real interface in every theme (scripts/theme-previews.mjs). */
 const previews = import.meta.glob<string>('../assets/theme-previews/*.webp', { eager: true, import: 'default' })
@@ -38,6 +39,10 @@ export function ThemePicker() {
 
   return (
     <div className="theme-chooser">
+      <div className="setting-row theme-style-row">
+        <span><strong>{uiText('Стиль')}<SettingHelp id="style" /></strong><small>{uiText('Обычный или стеклянный, для любой цветовой схемы')}</small></span>
+        <StyleSwitch />
+      </div>
       <div className="setting-row theme-chooser-row">
         <span>
           <strong>{uiText('Цветовая схема')}<SettingHelp id="theme" /></strong>

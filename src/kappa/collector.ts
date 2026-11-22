@@ -1,6 +1,6 @@
 import type { Item, Quest } from '../domain/types'
 import { ITEM_TEXT_MIN_SCORE, itemTextScore, normalizeOcr } from '../overlay/itemMatch'
-import { labelScore } from './collectorMatch'
+import { labelFold, labelScore } from './collectorMatch'
 
 const COLLECTOR_NAME = /^\s*(коллекционер|collector)\s*$/i
 
@@ -70,11 +70,46 @@ export function screenScore({ item, ambiguous }: CollectorEntry, ocrText: string
  * A word in capitals alone is a brand printed on an item's picture, not the label, when the item's own label has small
  * letters (owner, 31.10.2026: «показывает что нашел 3 аптечки salewa а у меня в схроне их нету» — three Surv12 kits were
  * in the stash, their pictures' print read as «SALEWA»). Such words are taken out before that item is looked for; labels
- * in capitals («AFAK», «CMS») are looked for as before.
+ * in capitals («AFAK», «CMS») are looked for as before, and so are labels with a word in capitals of their own («СВДС пер.»,
+ * «BEAR Buddy»: owner, 19.11.2026 — «CBAC пер.» on screen was taken out as a print and the adapter never found).
  */
 export function withoutPrintedCaps(ocrText: string, shortName: string | undefined) {
-  if (!shortName || !/\p{Ll}/u.test(shortName)) return ocrText
-  return ocrText.replace(/[\p{L}\p{N}]+/gu, (word) => (word.length >= 4 && /\p{Lu}/u.test(word) && !/\p{Ll}/u.test(word) ? ' ' : word))
+  // The game's own captions are never an item («УБЕЖИЩЕ» of the menu is not the item «Убежище»).
+  if (ocrText.split(/\r?\n/).some(isGameCaption)) ocrText = ocrText.split(/\r?\n/).map((line) => (isGameCaption(line) ? '' : line)).join('\n')
+  if (!shortName || !/\p{Ll}/u.test(shortName) || (shortName.match(WORDS) ?? []).some(inCapitals)) return ocrText
+  // A word of a label of several words read in capitals stays («Зп ПОДС.» for «ЭП подс.»); a label of one word in capitals
+  // is the print on the picture («SALEWA»).
+  const words = shortName.match(WORDS) ?? []
+  const own = new Set(words.length > 1 ? words.map((word) => labelFold(word)) : [])
+  return ocrText.replace(WORDS, (word) => (inCapitals(word) && !CYRILLIC.test(word) && !own.has(labelFold(word)) ? ' ' : word))
+}
+
+const WORDS = /[\p{L}\p{N}]+/gu
+const inCapitals = (word: string) => word.length >= 4 && /\p{Lu}/u.test(word) && !/\p{Ll}/u.test(word)
+/**
+ * The prints are Latin brands; a Cyrillic word in capitals is a label the engine read so (the game's small letters look
+ * like capitals: «ЯИЦО» for «Яйцо», «ПОДС» for «подс»).
+ */
+const CYRILLIC = /\p{Script=Cyrillic}/u
+
+/**
+ * The captions in capitals of the game's screens around the stash (the menu at the bottom, the character's tabs and
+ * slots, the quick slots), Russian and English: read as label strips too, and some name items (owner's frame of
+ * 19.11.2026: «УБЕЖИЩЕ», «БЫСТРЫЙ ДОСТУП»). Kept out since Cyrillic capitals are labels as well (CYRILLIC).
+ */
+const GAME_CAPTIONS = new Set([
+  'ГЛАВНОЕ МЕНЮ', 'УБЕЖИЩЕ', 'ПЕРСОНАЖ', 'ТОРГОВЦЫ', 'БАРАХОЛКА', 'СБОРКИ', 'СПРАВОЧНИК', 'СООБЩЕНИЯ', 'ОПРОС', 'РАСШИРЕНИЯ',
+  'БЫСТРЫЙ ДОСТУП', 'ОБЩЕЕ', 'ВЕЩИ', 'ЗДОРОВЬЕ', 'УМЕНИЯ', 'КАРТА', 'ЗАДАНИЯ', 'ДОСТИЖЕНИЯ', 'НАЗАД', 'ГОЛОВА', 'ЛИЦО', 'ГЛАЗА',
+  'БРОНЯ', 'РАЗГРУЗКА', 'КОБУРА', 'КАРМАНЫ', 'СПЕЦ СЛОТЫ', 'НА РЕМНЕ', 'НА СПИНЕ', 'РЮКЗАК', 'НОЖНЫ', 'ПОВЯЗКА', 'ЖЕТОН', 'ПОИСК',
+  'MAIN MENU', 'HIDEOUT', 'CHARACTER', 'TRADERS', 'FLEA MARKET', 'BUILDS', 'HANDBOOK', 'MESSENGER', 'SURVEY', 'QUICK ACCESS',
+  'OVERALL', 'GEAR', 'HEALTH', 'SKILLS', 'MAP', 'TASKS', 'ACHIEVEMENTS', 'BACK', 'HEADWEAR', 'EARPIECE', 'FACE COVER', 'EYEWEAR',
+  'ARMBAND', 'BODY ARMOR', 'TACTICAL RIG', 'HOLSTER', 'POCKETS', 'SPECIAL SLOTS', 'ON SLING', 'ON BACK', 'BACKPACK', 'SCABBARD',
+  'SECURE CONTAINER', 'POUCH', 'SEARCH',
+].map((caption) => normalizeOcr(caption)))
+
+const isGameCaption = (line: string) => {
+  const text = line.trim()
+  return Boolean(text) && !/\p{Ll}/u.test(text) && GAME_CAPTIONS.has(normalizeOcr(text))
 }
 
 const STORAGE_PREFIX = 'tarkov-collector-items-v1:'

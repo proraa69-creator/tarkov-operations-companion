@@ -80,7 +80,9 @@ export function computeStats(build: Build, weapon: Weapon, catalog: Pick<GunCata
   const weight = weapon.weight + sum(parts.map((part) => part.weight))
   const capacity = Math.max(0, ...parts.map((part) => part.capacity ?? 0))
   const weightLoaded = weight + (ammo?.weight ?? 0) * capacity
-  const velocityModifierSum = sum(parts.map((part) => part.velocity ?? 0))
+  // the weapon's own change counts too: a fixed short barrel (AKS-74U −17.9 %: 731 m/s with PS, not 890; the check against the
+  // game's own data, 20.11.2026, 77 weapons)
+  const velocityModifierSum = (weapon.velocity ?? 0) + sum(parts.map((part) => part.velocity ?? 0))
   const moa = centerOfImpact ? approximateMoa(centerOfImpact, partAccuracy, ammo?.accuracyModifier ?? 0) : undefined
   const evoErgo = evoErgoDelta(ergonomicsRaw, weightLoaded, options.ergoPenaltyPercent)
   return {
@@ -250,7 +252,7 @@ export function cheapestOffer(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLev
 }
 
 /** What opens a part the player cannot buy yet (owner, 04.11.2026: «модули должны быть открыты при достижении этих условий»). */
-export type UnlockHint = { kind: 'trader'; vendorName: string; level: number } | { kind: 'task'; task: string } | { kind: 'flea'; level: number }
+export type UnlockHint = { kind: 'trader'; vendorName: string; level: number } | { kind: 'task'; task: string; taskId: string } | { kind: 'flea'; level: number }
 
 /** The nearest way: a trader's next loyalty level, then a quest, the flea market's level, a loyalty further off. Nothing when nobody sells it. */
 export function unlockHint(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'>, access: PurchaseAccess): UnlockHint | undefined {
@@ -271,7 +273,7 @@ export function unlockHint(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'
   }
   const loyalty: UnlockHint | undefined = trader && { kind: 'trader', vendorName: trader.vendorName, level: trader.minTraderLevel ?? 1 }
   if (loyalty && next) return loyalty
-  if (task?.taskUnlock) return { kind: 'task', task: task.taskUnlock.name }
+  if (task?.taskUnlock) return { kind: 'task', task: task.taskUnlock.name, taskId: task.taskUnlock.id }
   return flea !== undefined ? { kind: 'flea', level: flea } : loyalty
 }
 

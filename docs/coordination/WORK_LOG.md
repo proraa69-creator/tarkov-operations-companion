@@ -7300,3 +7300,1356 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Fixed on the way: updateHistory row ≤ 4 lines; curatedQuests «Getting Acquainted» test now leaves the quest item requirements of report 162 apart.
 - Checks: tsc -b clean. src+website vitest: 3459 passed; left: appVersion and AdminPanelPage (known), the two fixed above (pass now). Server 565/566; mirrorStorage «two storages on one folder» failed once in the full run and passes 3/3 alone. eslint: 4 errors, all in code that is already in 0.6.0.307 (SubscriptionExpiryNotice effect, MapSlideshow, screenScanSync, questText). No android/ or ios/ paths.
 - After the release: the server worker unit/cpu.conf/env line are installed by hand (claude/server-worker WORK_LOG); admin chat «Редактировать» works once this server is live; RaidOS builds the admin iPhone IPA; the PC owner build goes to the owner's desktop from this tree.
+
+## 2026-11-15 — Item key: picture search over the whole catalog alongside the OCR, long names read whole (branch claude/item-lookup-fast, not released)
+
+- Owner 15.11: the item price «не работает» on PC and phone; long names never found, short ones slow; search by the picture and the name at once. The server price mirror was healthy; the lookup was not recognising items.
+- Causes found in the 30 logged lookups (AppData item-lookups, players at 1440p): (1) the game wraps a long name onto two lines; one-line OCR (psm 7) read garbage or one line only, the second attempt's line split rescued some after 2–3 s, the rest «not found»; at the screen's own scale such a box failed the one-line text check, so it was found only at a wrong UI scale (1.25×–2×), (2) that wrong scale was remembered and tried first by the next lookups, and at 2× an inventory cell with its label passed for a tooltip («Гвозди», «ТПЗ SP» → «no-candidates»), (3) the picture check then measured cells with a 2× pitch (wrong layouts) and only compared the OCR's candidates, (4) the matcher rejected a first-line-only reading of a long name, (5) «WD-40» read «\/0-48».
+- Fixes: tooltipDetect — two-line boxes accepted at the screen's scale (TWO_LINES_MAX, a row gap must split two lines), the two lines put side by side for the OCR (ocrVariants/sideBySide), a box taller than one line and not twice as wide is a cell, never a tooltip; tooltipLookup — the UI scale is remembered only after a tooltip at it named an item, totalMs 1800 → 1500, hooks onShot/done; tooltipMatch — the start of a long name (≥16 chars) names it when no other name starts so (one slip more than a whole reading, so presets «… По умолчанию» never win over the name read whole), «\/» read as W.
+- Picture search (new): scripts/build-item-signatures.mjs computes iconSignature (same code) for every catalog item except guns/presets → public/item-signatures.bin (src/overlay/signatureIndex.ts codec, 94 bytes per item): 4826 items, 453 660 bytes (277 KB gzipped); icons from the app's image cache, raidos.app, 151 from assets.tarkov.dev. Main process (electron/experimental/index.ts): on the first grab of a key press the item's frame is found around the cursor (itemCell.findItemFrames: frame lines a whole number of cells apart, borders under the tooltip allowed, rigs/pockets without a common grid), its picture compared with all index items of that size (pictureIndex.rankByIndex, PICTURE_MATCH limits 0.15 / margin 0.08) — with the item's tinted background painted as the icons' backdrop (iconMatch.withBackdrop: a grey-backed «Изолента» 0.32 → 0.16). A sure picture shows the card at once (query 'item-id'), the OCR stops grabbing; a tooltip read later that names another item replaces it. No sure answer: the second attempt runs the picture check first (no OCR), now with index signatures (no icon downloads) and the closest catalog pictures as candidates the readings must find plausible, then the other OCR readings. Items missing from the index use the old icon fetch. Log: each lookup's `index` (reason, nearby, layouts) and a crop of ±160 px around the cursor.
+- Measured on the logged crops (this PC, Node + the app's Tesseract settings): before — named only via retry in 2.15–3.42 s (8 lookups) or never (12; 6 of those were cells taken for tooltips), first readings never named a long name. After — all 14 real item tooltips (ELCAN, ВПО-101 ×2, CTR, Osprey, Кобра, Phantom, Mepro, T-45M1, AX-15, S&B ×3, WD-40) named from the first OCR reading, 110–200 ms of OCR+match; 0 wrong; the 6 cell boxes no longer found. Picture search 7–270 ms per grab (avg ~100, main thread); on 13 logged item positions: 4 answered by picture alone (паштет, шприц, гвозди, Grizzly), all right, 0 wrong; the right item ranked first in ~8.
+- Prices: describeItem on the live catalog (fetchLiveCatalog pvp/pve, 15.11) gives flea + best trader for the found items, different per mode (WD-40 18 000 / 19 800, S&B 3-20x50 40 000 / 35 000, Osprey A 76 666 / 50 000…).
+- Files: electron/experimental/index.ts, electron/experimental/noOverlay.test.ts, src/components/ExperimentalBridge.tsx, src/overlay/{iconMatch,itemCell,tooltipDetect,tooltipLookup,tooltipMatch,types}.ts, new src/overlay/{pictureIndex,signatureIndex}.ts, tests tooltipLookup/tooltipMatch (+), new signatureIndex.test.ts, itemLookupLogged.test.ts (+ 6 logged crops in src/overlay/__fixtures__/item-lookup-logged, ~140 KB), public/item-signatures.bin, scripts/build-item-signatures.mjs.
+- Tests: src/overlay + electron/experimental + src/components 565 passed; the 5 positionTracker failures are this PC's EFT folder (fail on the base too). typecheck (tsc -b) clean, eslint clean on the touched files.
+- Not verified / risks: not run in the real game or the packaged app (no game here; real shell opens the owner's data). Picture search runs on the main thread (up to ~270 ms for big layouts). Picture distances on real frames are 0.06–0.35 for the right item, so the picture alone answers only when clearly sure; most help comes from the text fix. The index must be rebuilt for new items (they fall back to the text path). It also ships in the phone build (public/, 454 KB). Rigs with irregular slots may still give wrong layouts (then no picture answer, not a wrong one).
+
+## 2026-11-15 — 0.6.0.308 live (c75f6f05): publisher refusal fixed, item key in, timer paused and restored
+
+- 11:27 UTC the owner said «Выкладываю обновление сейчас»; the publisher refused 7cc9adb9: «Unsupported deployment path: deploy/linux/background/raidos-api-cpu.conf» (server-worker). ccfc5e0b moved both unit files to docs/coordination/ops-reference/background/ (docs/linux-server.md updated); all changed paths checked against release-policy.mjs (VPS copy same hash): 0 refused.
+- Owner: «Раз она не опубликована… чини информацию о предметах с ценами… выпускай все вместе» — `systemctl stop raidos-release.timer` (kept enabled) so the 20:00 window would not publish without the fix. Item key fix 01dd439a (claude/item-lookup-fast: picture index of 4826 items, two-line tooltips, long-name prefix match) and c75f6f05 (owner «навел и тут же нажал»: wait up to 1.6 s for the tooltip, every 160 ms, 11 grabs at most).
+- Gate green → `systemctl start --no-block raidos-release.service` by hand; version.json 0.6.0-308 c75f6f05 at ~13:09 UTC, setup.json too; raidos-release.timer started again (active), raidos-api active, health 200.
+- Desktop: PC owner exe 0.6.0-308 (session «Общая карта», from c75f6f05), admin iPhone IPA 0.6.0-308 d3d6ccb5 (from 3b0ffcfd; the later commits change no admin-app code).
+- Risks: the item key was checked on the logged crops only, not in the game; the picture index needs a rebuild (scripts/build-item-signatures.mjs) when the game adds items.
+
+## 2026-11-15 — Production DB: an Escape from Tarkov account moved to the player's new Raid OS account (owner's word)
+
+- Owner (screenshot «Этот аккаунт Escape from Tarkov уже используется»): the player forgot the e-mail of his first account and registered again; «Найди по этому номеру старый аккаунт и удали его, и сделай доступ на вот эту почту… нужно перезаписать».
+- Found read-only: the new account's EFT report (hint ••••323) is bound to an account from 01.11 (last seen that day, no payments or subscriptions, trial used). Backup `/var/lib/raidos/backups/manual-eft-rebind-1794748460486.sqlite` (VACUUM INTO), then one transaction: the old account's quest mirror and game mode moved to the new one (it had none), the old account erased exactly as AccountStore.deleteAccount (anonymous stub), the EFT binding inserted for the new account, `owner_audit_log` action `eft.rebind`. The EFT trial claim stays on the old (deleted) account, so no second trial. No e-mails in this log.
+## 2026-11-15 — Server link: reads go again on a new connection, writes get a connection first (branch claude/server-connection, not released)
+
+- Owner 15.11: the app loads data slowly; the link to the server drops — players cannot write to support or send a screenshot without restarting.
+- Measured: from the owner's PC (Cloudflare WARP, DNS warp-svc) a new TCP connection to raidos.app took ~20 s in two tries of three (0.28 s in the third); TLS + answer then 0.3–0.8 s. check-host.net TCP to raidos.app:443 from 12 countries (AT, FR, ID, IR, IT, NL×2, PL, RS, UA, UK, US): 0.10–0.30 s. Google/GitHub/Yandex from the same PC: 0.09–0.3 s. Server: load 0.3, 6 GB free, nginx backlog 511, somaxconn 4096; 31 SYN_RECV at the moment, one «Possible SYN flooding on port 443» (14.11 21:38); no support/upload errors in 3 days of logs, 2 upstream resets in nginx. So the server answers fast; some players' paths (VPN/WARP) lose the first packets of a new connection, and the app gave /health 3 s and /v1/accounts/me 5 s → «нет связи».
+- electron/hedgedFetch.ts (new): `hedgedFetch` — a GET with no answer after 1.5 s goes again on a new connection, up to 4 tries, the first answer wins, the rest are aborted; a try that fails at once is followed at once. `warmConnection` — the same for /health, read to the end, so the write that follows reuses that connection.
+- electron/serviceGateway.ts send(): GETs hedged (long-poll LIVE_WAIT not hedged; gated catalog reads 3 s × 2); writes (support messages, screenshots, reports…) first warm a connection when none answered in the last 3 s, then go once. accountStatus: /health 3 s → 10 s, /me 5 s → 10 s.
+- Not changed: the phone/website path (src/sync/webAccount.ts, /health 4 s) — same idea can follow; the owner's own PC still pays the WARP path for the first connection (now ~1.5–3 s instead of 20 s when a hedge gets through).
+- Tests: new electron/hedgedFetch.test.ts (5); electron/serviceGateway* + entitlement 41/41; typecheck clean; eslint clean.
+## 2026-11-15 — «Войти через Google» for every country but Russia (branch claude/google-signin, not released)
+
+- Owner 15.11: Google sign-in for players outside Russia. Google Cloud set up the same day with the owner signed in (project `raidos-app`, Google Auth Platform External, In production, branding raidos.app + /legal/privacy + /legal/offer, web client «Raid OS sign-in» 216349713238-prr825vbjd4f60obfrt6541uj0o2shnk.apps.googleusercontent.com, origins https://raidos.app and http://localhost:5202). The client secret was closed unread and is not kept: the server checks Google's ID token itself.
+- Server: services/googleSignIn.ts (RS256 against Google's JWKS, kept per Cache-Control, refetched for an unknown kid; iss, aud = our client, exp/iat ±60 s, email_verified), routes/google.ts POST /v1/accounts/google { credential, country?, referralCode? } → 200 session | 409 needCountry | 401 | 403 (rate 20/10 min per IP), AccountStore.googleSignIn (existing address → session, e-mail marked confirmed; new → country required, account with confirmed e-mail and a random password; refused: country RU / account of RU, owner addresses). /auth-config now names googleClientId.
+- Russia: no GeoIP on the VPS (raidos.app is not behind Cloudflare, so CF-IPCountry never comes), so the button hides on a device in a Russian time zone (src/shared/googleRegion.ts) and the server refuses RU accounts / RU for a new account.
+- Website: components/GoogleSignIn.tsx (Google Identity Services button, popup; for a new address the country and the documents' consent, recorded like a registration) on /login, /register (with the referral code) and /app-login#approve (signed out: sign in with Google there, then confirm the PC's code).
+- PC app: «Войти через Google» on the sign-in screen (not Russian time zones, not App Store builds): the existing QR request, its page opened in the browser; the player signs in with Google there and confirms the code shown on the PC, which then signs in by itself. Phone app: no button (Apple 4.8 would need Sign in with Apple too).
+- Tests: server src/routes/google.test.ts 5 (in the npm test list) + accounts/phone/email/loginCodes 65/65; website GoogleSignIn.test.tsx 4, all website 189/189; src/account 87/87 (QrSignIn Google test); i18n 39/39; typecheck (app, server, website) clean; eslint clean.
+- Not verified: the real Google popup (needs the live server with this code, or a local server at http://localhost:5202), and the PC flow end to end in the packaged app.
+- Owner 15.11 («Да, в выпуск»): goes into the next release. The release integrator merges claude/google-signin; after the publish, check the Google button on https://raidos.app/login and one PC sign-in.
+## 2026-11-15 — «Отчёты» → «Аккаунты Таркова»: a game account back on a new account after a deletion (branch claude/eft-account-ledger, not released)
+
+- Owner 15.11: keep the history of game accounts across deleted Raid OS accounts; when a game account of a deleted account is bound to a new account, notify him in «Отчёты» and list it in a tab «Аккаунты Таркова» (active / in progress / closed) with the first account, its e-mail, the current one and the game account.
+- Server: services/eftLedger.ts — eft_account_history (never purged, no FK: game account digest + last 3 digits, Raid OS account, masked e-mail «pl•••@gmail.com», bound/gone time and reason) and eft_rebind_cases (a binding while an earlier account of that game account was deleted; one per game account + account; status active/working/closed). Backfilled on start from eft_accounts and, for deleted accounts, eft_trial_claims. AccountStore: bindEftAccount → ledger.bound (onEftRebind → audit eft.rebind-case + the reports' long polling), deleteAccount → gone('deleted', e-mail masked), unbindEftAccount → gone('unbound'; the owner's own rebinding makes no case, it stays in the history). routes/eftCases.ts: GET /v1/accounts/me/admin/eft-cases?view&limit&offset, POST …/:id/status (owner only, audit eft.case-status). /admin/requests/events: `open` counts new cases too (the red badge on «Админ панель»), `eftCases` separately.
+- Privacy: the e-mail of a deleted account is kept masked only (deleting removes personal data; the privacy policy says so); the game account is kept as before — digest and last 3 digits («••••543», plus the digest's first 8 characters to match cases), never the whole number. A second free period for the same game account is already refused (eft_trial_claims); the case shows whether it was.
+- UI: src/reports/EftCasesTable.tsx (its own active/in progress/closed lists; rows: №/time, ••••NNN, the account now — e-mail, created, linked, free days given/refused —, the earlier accounts — masked e-mail, linked, deleted/unlinked, took free days —, «Взять / Закрыть / Вернуть»); ReportsTable `eft` prop adds the tab with the count of new cases. Hosts: website AdminBugReports, owner app RequestsPage (OwnerReportsTable; gateway ROUTES for both paths), admin app AdminMobilePage. reportEvents carry `eftCases`.
+- Tests: server src/routes/eftCases.test.ts 4 (in the npm test list) + accounts/eftAccounts/ownerAdmin/bugReports 72; UI src/reports/EftCasesTable.test.tsx 2; src/reports + src/i18n + src/admin + RequestsPage + website admin 201/201; electron/serviceGateway 32/32; typecheck (app, server, website) clean; eslint clean.
+- Not verified: on the live database (the backfill of past deletions has only what eft_trial_claims kept: game accounts of deleted accounts that took a free period).
+## 2026-11-15 — Report 167: the place's photo in the quest point's card on the map (branch claude/marker-photo-167, not released)
+
+- Report 167 (0.6.0.308): «сделайте над меткой фотку и поменьше, фото слишком большое, перегораживает всю карту». Owner 15.11: no photo on hover over an objective line any more; hovering the point on the map shows a small card with the place's photo; the mouse can go right onto that photo and open the photos; only this place's photos, not the whole quest's.
+- QuestGuidePhotos.tsx: the line hover popup (ObjectivePhotoPopup, timers, anchor) removed; useObjectivePhotos keeps the line's camera → full-size view of that place's photos. New MarkerPlacePhoto (first photo of the objective as `.mmt-shot` in the card, «+N»; a click opens only that objective's photos, «+N» from the second; mousedown/click/dblclick/wheel stopped natively so the map neither drags nor gets the click), usePlacePhotoViewer (the viewer lives on the map page, so closing the card does not close it), preloadQuestGuidePhotos (the map loads the photo list as it opens, desktop only).
+- New src/maps/holdTooltip.ts: a quest point's card waits 350 ms after the mouse leaves the point (Leaflet's own mouseout→closeTooltip removed for those markers) and stays while the mouse is on the photo; MapsPage calls it on tooltipopen of points with questId+objectiveId. Only `.mmt-place-photo` takes the mouse (pointer-events: auto); the rest of the card stays see-through as before.
+- MapMarkerTooltip: `photo` prop shown where an exit's shot goes. CSS: popup styles removed, `.mmt-place-photo` added (questGuidePhotos.css). Phone: unchanged (quest points have no card there; the camera opens the photos).
+- Tests: ObjectivePhotos.test.tsx rewritten (no hover popup, camera → own photos with arrows, marker photo/«+N»/click/no map click), new holdTooltip.test.ts (real Leaflet in jsdom). src/components + src/maps 497 passed before the hold change; ObjectivePhotos + holdTooltip 10/10 after. typecheck (tsc -b) clean; eslint 0 errors (warnings only: react-refresh exports).
+- Size: owner 15.11 asked twice for smaller; the photo is 110 × 62 (was 220 × 124, then 190 × 107), centred in the card. Checked in the dev server (Streets, «Перепись населения»): the card shows it with «+11». Not checked by eye: moving onto the photo and the click (the preview closed); covered by the tests. Photos are tied to an objective, not to one point: every point of the objective shows the same photos.
+## 2026-11-15 — «Точки на карте»: every button checked on every map; a point's card goes with its layer (branch claude/layer-toggles, not released)
+
+- Owner 15.11: players say the map's point buttons «тупят» (Shoreline) and the battle pass documents' one too; «ненужные ключи на карте исчезают, но маркер сам, где ты нажимаешь, он не гаснет»; check every button on every map.
+- Checked (dev server 0.6.0.308 code, Playwright Chromium, a fresh profile): all 13 maps, every row of «Точки на карте» (27–47 per map, container kinds, «Нужные ключи», «Названия комнат/мест», «Сектора обстрела») pressed twice — each button goes out and lights up again, the map's points (canvas points read from MarkerCanvasLayer's props, DOM icons, labels) leave and come back, the list does not move. Two rows flagged in the batch run (Streets documents, Lighthouse safes) work when run alone (31→61, 11→13 points): the batch read the canvas before React committed. Scripts in the session scratchpad (layer-audit.mjs, picked-point.mjs, streets-docs.mjs).
+- Found: a point pressed on the map kept its card open after its layer was turned off (keys, containers…): the point left the map, the card stayed. Fixed: turning a layer (or a container kind) off, or «Нужные ключи» off, closes the card of a point that leaves the map; a quest's point keeps its card.
+- Speed: the rows counted their points with one pass over all the map's points per row on every render (~45 passes over up to 2 000 points); now one pass (pointsByLayer) and the «Нужные ключи» count from it. Dev-mode clicks measured 30–100 ms in Chromium on this PC (most of it React's dev JSX); the production build could not be timed in a browser (the data gate wants an account).
+- Not changed, for the owner to decide: with «Ключи» on, «Нужные ключи» lights up but the map does not change (owner 11.11: the two switches work apart; the layer already shows every key).
+- Tests: new src/pages/MapsPage.layerToggles.test.tsx (every row out/in, the card closes with its layer, another layer leaves it). src/pages/MapsPage* + LootContainerRows + MapKills: 52/53, the one (raidChecks) passes alone (known load timeouts). typecheck clean, eslint clean.
+## 2026-11-15 — «Все локации» inside «Карты» (branch claude/all-locations from release/production 0.6.0.308, not released)
+
+- Owner (through RaidOS): «общая карта должна называться все локации… просто в этом же окне, ничего не меняя, должна включиться вся локация Таркова»; a location picked there: «начинает приближаться к резерву, и включается… карта резерва»; «сделать еще режим спутника»; «эта карта под низом… начинает прыгать… они должны быть склеены и не двигаться вообще».
+- The separate page is gone (src/pages/WorldMapPage.tsx removed, its route too): `/maps/world` is «Карты» itself with src/maps/WorldMapView.tsx in the place of the map. «Все локации» stands under the locations (PC list, phone picker); the list, «Точки на карте» and the right panel stay. From a location the region opens on that location and zooms out (0.9 s); a location picked there (list or its name on the map) is flown to (0.8 s) and its own map comes up (opacity .25→1, scale .985→1, 0.36 s). The flight ends on the very view the location's map opens with (`openingRect`: its bounds on the canvas). Ледокол has no place: it opens at once. No «Назад» for these switches (noteSidebarNavigation). The location's floor buttons are hidden while the region is shown.
+- Glued: the drawing and every location picture are drawn into ONE canvas (src/maps/WorldPicturesLayer.tsx, a Leaflet Renderer) instead of separate image overlays that were each placed and rounded on their own. During a wheel/button zoom the canvas scales as one; during a flight it is drawn anew each frame (no stretched first frame, no blank edges or blur); while dragging it is drawn again once a frame.
+- «Спутник»: the region in ground colours with a fine grain (src/assets/world-map/region-satellite.webp, same script with `--satellite`, our own drawing over the stencil), each location from its render tiles stitched (plain <img>, no CORS needed; black around a render made clear by an SVG colour filter, never read back). The region follows the view the maps actually show (plan.view): a catalog without renders stays all scheme.
+- Speed: pictures stay canvases (no WebP encode, which took up to a third of a second of the page's time when a location came close), kept by what and how big (40 kept); the zoom-out waits up to 0.6 s for the location's first picture. Fixed a render loop (a new stitched-tiles object every render: «Maximum update depth exceeded»).
+- Measured in Chromium (Playwright, d3d11), warm: zoom out median 7 ms/frame, 2 frames over 25 ms (max 153 ms, the page switch); fly in 1 over 25 ms (83 ms); wheel zoom median 6.9 ms. Video for the owner: side-session notes all-locations-transitions-ru.mp4, frame-stepped at 60 fps (fake clock, CSS animations stepped).
+- Tests: MapsPage.allLocations.test.tsx (2), worldMap openingRect (1); maps/app/mobile/i18n/MapsPage 273 run, only the known appVersion failure. Typecheck clean, eslint clean on the touched files.
+- Seen on the way (reported to RaidOS, not touched here): about half of the TCP connections to raidos.app take ~20 s to open (curl conn 19.7 s, others 0.3 s); the app's maps.json fetch has a 20 s timeout, so floors/renders can be missing for players.
+- Not checked: «Спутник» of the locations live after the last changes (maps.json kept timing out in the browser from this PC); the phone on a real device.
+## 2026-11-15 — «Карты»: a kill quest opens «Устранения»; a grip sets the quest window's greatest height (branch claude/kills-tab-sheet-height from release/production 0.6.0.308, not released)
+
+- Owner (through RaidOS): «Тарковский стрелок, часть 5… нажал показать на карте… справа… открываются актуальные квесты, а должно открываться устранение». The PC's right panel now opens on «Устранения» when the quest opened on the map (`?quest=`) is one this map lists there (killOnly / movesToKills); a tab picked by hand for that quest stays. A quest with points stays on «Актуальные квесты». (MapsPage `tabPick`, no effect.)
+- Owner: «на краю этого блока сверху можно нажать на край, и эту шторку квеста можно выставить вверх или вниз… больше выставленного они не будут». The PC's quest window at the bottom of the map has a grip along its top edge (src/maps/questSheetGrip.tsx): a drag sets the window's greatest height (between 120 px and what the map leaves), kept on this device (`raidos-map-quest-sheet-max-v1`); a bigger quest scrolls inside, a smaller one keeps its own height; ↑/↓ on the grip step 24 px, a double click gives back the usual height. While dragging the window takes that height so the size is seen. The phone keeps its own drawer.
+- Tests: MapsPage.kills.test.tsx 2 new, questSheetGrip.test.tsx 2 new. Checked in Chromium (Playwright): «Компромат» 360 → 486 px dragged up, → 232 px dragged down, saved. Screenshot: side-session notes quest-sheet-grip.jpg.
+- RaidOS's branches claude/layer-toggles and claude/marker-photo-167 also touch MapsPage.tsx; this branch changes the right panel's tab state and the quest window's opening tag only.
+## 2026-11-15 — Player report 155: a silent skill-fatigue timer on the PC map (branch claude/report-155-skill-timer, not released)
+
+- Player (idea, 0.6.0.301, Windows): a silent countdown on the map, 0:00 when idle, 200 s or a picked length from a press, to wait out «усталость навыка» (a tired skill gives almost no XP until it rests).
+- Owner 15.11: turned on in the map's gear menu (beside «Расположение панелей»), length picked there, 200 s by default; an hourglass button left of «Отложенные квесты»; a «?» circle with the explanation.
+- Built: src/components/skillTimer.ts (clamp 5–3600 s, m:ss, on/off + length + running end in localStorage, so it keeps counting off the map page and after an interface reload), src/components/MapSkillTimer.tsx (map button + gear-menu section), mapSkillTimer.css; MapPanelsSettings takes children; MapsPage renders both, PC only (the phone HUD is full and the phone has its own timer). Help text skillTimer, EN strings.
+- Files: src/components/{MapSkillTimer.tsx,MapSkillTimer.test.tsx,mapSkillTimer.css,skillTimer.ts,settingHelpTexts.ts,deferredQuests.css}, src/maps/MapPanels.tsx, src/pages/MapsPage.tsx, src/i18n/uiEnglishFeatures.ts.
+- Tests: MapSkillTimer 10 passed; src/i18n + SettingHelp + MapsPage.* pass (some MapsPage files time out at 5 s only when run all together, pass alone). typecheck (tsc -b) clean, eslint clean (only the old fast-refresh warnings in MapPanels/MapTools).
+- Seen in the renderer dev server at 1440×900: RU and EN, on/off, countdown 3:20 → 0:00, help on hover.
+- Not verified / risks: not in the packaged app. The gear menu is cut on its left by the sidebar's scroll box (was so before; to be fixed with the panel rework the owner asked for next).
+## 2026-11-15 — maps.json sent again on a slow connection (branch claude/maps-json-hedged from release/production 0.6.0.308, not released)
+
+- From this PC (Cloudflare WARP) about two new connections in three to raidos.app take ~20 s (the first packet lost; RaidOS checked: the server is fine, 15 outside nodes connect in 0.1–0.3 s). maps.json had a 20 s limit, so it failed there and the maps lost their floors and renders — «Все локации» showed no schemes. Players behind such networks would see the same.
+- src/data/mapConfigClient.ts `hedgedGet`: while no copy has answered, maps.json goes again after 1.5, 4 and 9 s on a fresh request; the first answer wins, the others are aborted; fails only when every copy failed; 45 s in all. The same idea as RaidOS's electron/hedgedFetch.ts (claude/server-connection) for the desktop gateway.
+- Tests: mapConfigClient.test.ts 2 new (5 pass). Typecheck and eslint clean.
+
+## 2026-11-16 — Release 0.6.0.309 (integrated on claude/release-309, pushed to release/production)
+
+- Owner 15.11: «проверь все задачи… выпускай обновление на сервер сейчас»; news approved with items 1, 6 and 8 removed («Первый пункт. Шестой пункт. И восьмой пункт удали»). One release integrator: this session (RaidOS).
+- Merged on c75f6f05 (0.6.0.308): claude/item-lookup-fast (work logs), claude/server-connection, claude/google-signin, claude/eft-account-ledger, claude/marker-photo-167, claude/layer-toggles, claude/all-locations, claude/kills-tab-sheet-height, claude/report-155-skill-timer, claude/maps-json-hedged. Conflicts: WORK_LOG (both sides kept), server/package.json test list (both tests), MapsPage.tsx (all-locations' `</div>}` + the place photo viewer; imports of both).
+- Not in it: the theme wave to the far corners and slower (owner's video 15.11) — its session stopped before any change (branch claude/theme-wave-slow-corners is empty); next.
+- Version 0.6.0-309. News RU/EN: Google sign-in, skill fatigue timer, the place photo at the point, the task window's height, a steadier server link. History row: four lines (the photo and the task window in one), reports [155, 167].
+- Checks: tsc -b, server and website typecheck clean. Release policy: 0 of 71 changed paths refused. Server 575/575. vitest src+website+electron: 3982 passed, 21 failed in 11 files; run alone, 6 of those files pass (MapsPage autoFloor/deferred/raidChecks, ManualMarks, SupportChat, mapConfigClient — the last ran before the maps.json merge, 5/5 after); still failing, this PC only, files untouched by the release: positionTracker (EFT folder), electron/linux/updater (Windows tar), staleServer, appVersion (path with a space), AdminPanelPage (CRLF).
+## 2026-11-16 — «Рейд начался»: a small card when the raid itself begins, PC and phone (branch claude/raid-start-notice from release/production 0.6.0.308, not released)
+
+- Owner, 15.11.2026: «человек свернул игру и ждет, пока у него идет загрузка. Как только рейд начинается, должно всплывать уведомление в приложении… маленькое сбоку, аккуратное… пока без звука… на телефоне можешь сделать уведомление небольшое».
+- The raid state had no line between loading and the raid (inRaid from LocationLoaded/MatchingCompleted). src/import/raidState.ts now gives `begun`: the first «|application|GameStarted» of the raid; electron/logWatcher.ts sends the state again when it appears.
+- src/notifications/RaidStartNotifier.tsx: once per raid (the start kept on the device, `raidos-raid-start-announced`), only while fresh (10 min), the corner card «Рейд начался» + the map name (a press opens its map), a line in «Уведомления», and on the PC the Windows notification (held back by the main process while the game is in front). The phone: the PC's screen relay (`PUT /v1/live/screen/state`) carries `raidBegun` and `raidLocation`; the phone's watcher reads `GET /v1/live/screen` when signed in and shows the same card. Server schema: both fields optional.
+- «Настройки»: «Уведомление о начале рейда», on by default (`raidos-raid-start-notice`, per device). No sound yet (the owner's word).
+- RU/EN: «Рейд начался» / «Raid started» and the switch's texts (src/i18n/uiEnglishNotices.ts).
+- Tests: raidState `begun` (1), RaidStartNotifier (3), server live screen state with raidBegun (in the screen test). Notifications/screen/import/settings/i18n/App: 430 passed. Typecheck clean, eslint clean.
+- Note for the release: the PC sends the new fields only during a raid; an older server answers 400 to them (strict schema) until it is updated with this release.
+- Not seen live: the card in the real desktop app and on a real phone (a stand-in desktop bridge crashes the renderer preview).
+
+## 2026-11-16 — The Overview's first block: «Время в Таркове», «Сброс торговцев», «Таймер рейда» (branch claude/overview-info-card on claude/raid-start-notice, not released)
+
+- Owner: «в этом блоке будет кнопка маленькая, квадратная, настроек. И там можно выбрать время в Таркове, сбросов торговцев, таймер рейда… сколько длился прошлый рейд и на какой карте. А пресеты оттуда убери… и на телефоне, и на ПК. Хотя на телефоне оставь еще на выбор пресетов».
+- The block `stat-screen` (layout id kept, editor label «Таймеры») is src/overview/InfoStatCard.tsx: a square gear opens «Что показывать». PC: time in Tarkov (default), trader resets, raid timer — no screen presets. Phone: the same plus «Пресеты экрана» (default there, the old card with the gear beside it). The choice is per device (`raidos-overview-info-card`).
+- Time in Tarkov (src/overview/infoCardClock.ts): ×7, Moscow base, the second clock +12 h; sun/moon, «ночь через / день через» (night 22:00–5:00).
+- Trader resets: the next three, the nearest big; fetched for the card even with restock notifications off; a press opens «Торговцы».
+- Raid timer: PC from the logs (`begun`, else the loading start with «загрузка»), the time since it began and «осталось» of the map's raid time (red under 5 min); between raids «Прошлый рейд: Таможня · 34 мин» (LastRaidRecorder in the toast dock remembers a raid that ends, `raidos-last-raid-v1`; an end within a minute of the start is not kept). Phone: from the PC's screen relay (`raidBegun`, `raidLocation`), «Нет связи с ПК» without it.
+- RU/EN in src/i18n/uiEnglishOverview.ts. Tests: InfoStatCard.test.tsx (6). i18n/Dashboard/screen 147 passed; typecheck clean; eslint: no new problems. Checked in Chromium on the PC layout (screenshot in the side-session notes, overview-info-card.jpg); the phone layout needs a sign-in in the browser, so only its test covers it.
+
+## 2026-11-16 — Theme circle: opens the finished scheme, to the far corners, slower (branch claude/theme-wave-corners, not released)
+
+- Owner 15.11 (video of 0.6.0.308): «она должна доходить до конца плавно и слева такая же проблема. Она должна идти медленно смена темы». The first session on it stopped before any change (claude/theme-wave-slow-corners is empty).
+- Cause: the view transition took the new picture right after the scheme attribute changed. A scheme whose texture was not decoded yet (or whose pieces render after the attribute) opened inside the circle without it, and at the end the live page showed the texture over the whole screen at once — the edges looked never reached. CSS transitions in the new scheme (the sidebar's active item) froze at their start in the picture the same way.
+- src/theme/themeTransition.ts: the change's callback now waits (settle, at most SETTLE_MS 1.5 s) for the scheme's pictures (prepareTheme), two turns for the pieces that follow `data-theme`, and the pictures they added; `data-theme-switching` turns CSS transitions off until the circle is over; the radius reaches 1.06× the farthest corner + 8 px. themeMotion.css: 1200 ms, cubic-bezier(.3, .3, .55, 1) (was 720 ms).
+- Checked: a frame-stepped 60 fps video (dev server, animations at 1/10 speed via CDP, a picture every 1/60 s of animation time) olive → black multicam: the texture is inside the circle from the first frame, the circle reaches every corner, the sidebar changes as the edge passes it, nothing appears after. Sent to the owner.
+- Tests: src/theme 29/29 (settle waits for the scheme's and the added pictures, not for those already on the page; never longer than SETTLE_MS); typecheck clean; eslint clean. Not checked in the packaged app on the owner's wide screen.
+
+## 2026-11-16 — Promo code 1YEAROFESCAPING added on the live server (database only)
+
+- Owner 16.11: «новый промо 1YEAROFESCAPING». Added straight to `promo_codes` on the VPS (no release): mode NULL (every mode), last_seen_at = now + 14 days (shown until ~30.11 unless the source pages list it, after which the server keeps it as any other). Backup first: /var/lib/raidos/backups/manual-promo-1yearofescaping-1794773748844.sqlite. Live /v1/promo-codes: 26 codes with it; apps read the list every 30 min.
+- Web check the same night: every code on PCGamesN, Dexerto, Beebom, Gamespec, Shane the Gamer, Guided.news, Skycoach was already in the app (25).
+
+## 2026-11-16 — «Оружейник. АКМ»: tarkov.help's build back, plus ПТ АКМ and ПТ-1; a note under every Gunsmith build
+
+- Owner 16.11: the report's screenshot was wrong («он тупит сам»); keep the AKM picture he added; tarkov.help's list is right, only the stock and its lock were missing. `src/data/ownerGunsmithGuides.ts` no longer replaces the site's build: it adds the ПТ АКМ lock and the ПТ-1 stock at the end of the site's list (Б-10М+Б-19, «Гексагон», SAW, PMAG GEN M3, Shift, Short Mount, Prism 2.5x, «Бастион»), only when the site lacks them; its screenshot and the app's own picture stay. `BuildGuide.source` back to tarkov.help | wiki.
+- Under the parts of every Gunsmith build (`BuildPartCards`): «Оружие должно быть целое, без патронов.» (owner's words) / «The weapon must be complete, with no ammo.»
+- News and update history of 0.6.0.310: the AKM line now says the PT-1 stock and the PT lock.
+- Tests: ownerGunsmithGuides, WeaponBuildDetails (note in RU and EN), src/gunsmith, src/data; typecheck. Not released.
+
+## 2026-11-16 — Phone «Оружейник»: a part as a window with «Назад» or unfolded with a cross; admin «мёртвые» counted as the owner asked
+
+- Owner 16.11 (phone only): a pressed part opened at the bottom of the list. Now `src/pages/GunsmithPage.tsx` on the phone shows the list alone; a part opens as a window with «Назад» (default; a history step, so the phone's back works too; the list comes back where it was), or, with «Настройки → Квест оружейника → Раскладывать» (`src/gunsmith/phoneGunsmithView.ts`, kept on the device), unfolds right under its row with a cross on the right. PC unchanged. Tests: `src/pages/GunsmithPage.phone.test.tsx`; SettingHelp rows 7. Checked at 375 px in the dev renderer: window, back to the same scroll, unfold, cross, settings row RU/EN.
+- Admin «Пробный период — мёртвых / реальных» (owner: «добавлять в мертвые только тех кто не использовал пробный период в течении 21 дня»; «За 15 число 178 регистраций, а написано 149 реальных»). `server/src/services/adminStore.ts`: dead = registered 21+ days ago, free days never used (not started, still waiting for the first raid, or refused) and never paid; the visit time no longer counts. For a range, dead + real = every registration of the range (users). Live DB 15.11 (Bangkok): 178 registrations, 152 free periods started (21 never opened the app, 5 refused); the old rule showed 68 dead (no raid yet), the new one 0 dead / 178 real. Server tests ownerStats/ownerAdmin/owner/trialDays pass. Live only with the next release.
+
+## 2026-11-16 — Report 172: the item key missed every long name (wrapped onto two lines)
+
+- Report 172 («Примерно половина предметов не отображается в рейде», a friend too; screenshot «Предмет не распознан»); owner: «очень долго грузится». The owner's own failed-lookup log (`%APPDATA%/Tarkov Operations Companion Beta/item-lookups`, 15.11, 1440p) shows the game's tooltip on screen in the crops, but every one a long name wrapped onto two lines («Тактическая рукоятка Stark "SE-5 Express Forward"», «Разгрузочная нагрудная система WARTECH "MK3 TV-104" (MultiCam)»): the game keeps such a box at a fixed width (~300 px at 1080p), so the first line ends ~50–60 px short of the right frame, and `readTextLayout` (`src/overlay/tooltipDetect.ts`) threw out any box with more than 34 px of right padding. Each such press waited the full 1.6 s for a tooltip and ended «не распознан».
+- Fix: for two lines only the left padding is checked, and the text must reach past the box's middle. On the real crops (top frame restored) the box is now found and the OCR reads both lines exactly. Test in `tooltipDetect.test.ts` (fails without the fix). src/overlay 124 tests, typecheck, lint pass. Not released (0.6.0.310).
+- Left: some crops show no tooltip at all within the 1.6 s (the game had not drawn it); the OCR engine still unloads after 5 idle minutes, so the first press after a pause loads it (~1–2 s).
+
+## 2026-11-16 — «Не взял» keeps a key «Есть в наличии» (branch claude/key-taken-owned from release/production 0.6.0.309, not released)
+
+- Owner 16.11: a key «Нет в наличии» ticked «Взял» becomes «Есть в наличии»; taking the tick back made it «Нет в наличии» again. It must stay: the stash was not scanned, but the player knows the key is there; «Не взял» means only «not taking it into this raid».
+- «Взял» on a key not in «Ключи в схроне» already put it there (per profile and mode, synced 'owned-keys') and remembered it in `raidos-taken-keys-added-v1:<profile>:<mode>`. Now «Не взял» removes only the mark (src/overview/TakenItems.tsx), and the list of keys «Взял» added is no longer cut after a raid (progression/takenItems.ts clearTakenItemsBefore).
+- Status: such a key reads «Есть в наличии» ticked or not (RaidNeedRow.stock 'known', DashboardPage keyStock + useKeysAddedByTaken). A key the player had before keeps «Есть в схроне» after «Взял»/«Не взял», as before.
+- Stash scan: «Найти ключи» only adds keys (addSeenKeys), so it never takes such a key away; a scan that sees one makes it a stash key, «Есть в схроне» (keyScan.ts → forgetKeysAddedByTaken).
+- Files: src/overview/TakenItems.tsx, src/progression/takenItems.ts (+takenItems.test.ts new), src/quests/keyScan.ts (+keyScan.test.ts new), src/pages/DashboardPage.tsx, src/pages/DashboardPage.test.tsx (the two «Взял» key tests now expect the key kept), src/components/RaidRequirementsPanel.tsx.
+- Checks: typecheck (tsc -b) clean; eslint on the changed files: 0 errors (the old fast-refresh warnings only); `npm run lint` has 4 errors in files this branch does not touch (SubscriptionExpiryNotice, MapSlideshow, screenScanSync, questText). Tests: the changed files and src/quests 220 passed. Full `npx vitest run`: 4011 passed, 15 failed — none in the changed code: positionTracker, linux/updater, staleServer, appVersion, AdminPanelPage (this PC), MapsPage autoFloor/deferred (pass alone); 18 files did not load because `server/node_modules` (cors) is missing in this worktree, two are node:test files. Seen in the renderer dev server (a throwaway page with the real panel, styles and «Взял» menu entry): RU and EN, 1440×900 and 375×812 (mobile layout): «Нет в наличии» → «Взял» «Есть в наличии» ✓ → «Не взял» «Есть в наличии», kept after a reload; a stash key stays «Есть в схроне».
+- Risks: the «added by Взял» list is kept on this device only (owned keys sync), so the phone shows such a key as «Есть в схроне». EN keeps the released wording «With you» for «Есть в наличии».
+
+## 2026-11-16 — Report 171: what each quest opens at the traders, «Оружейник» and «Барахолка» (branch claude/quest-unlocks-171 from release/production 0.6.0.309, not released)
+
+- Owner 16.11: in every quest's «Награды» (Quests page — «Текущие», «Все»… — and the traders' quest board) say which items, parts and ammo the quest opens at a trader; in «Оружейник» a part opened by a quest becomes available once the quest is done, and a click on a part opens the item's card on the right as on «Барахолка»; «Барахолка»: the list a little narrower, the item's card wider; in the item's card, after which quest it goes on sale, the name opening the quest in «Квесты» («Текущие» when it is there, else «Все»). No data source named anywhere in the interface (owner).
+- Data: new src/data/questOfferUnlocks.ts joins three places of the mode's files that do not always agree — the quest's own rewards (`finishRewards.offerUnlock`), the traders' offers for money that wait for a quest (`buyFromTrader[].taskUnlock`) and the barters that do (`barters.taskUnlock`, the barters file now read with the catalog, optional). One row per item+trader per quest, the lowest level, `barter` only when the quest opens no purchase there. `Quest.offerUnlocks` (src/domain/types.ts), set in fetchLiveCatalog per mode: PvP, PvE and Season never mix. Real files 16.11: PvP 146 quests / 200 rows, PvE 146 / 202, Season 143 / 195; 5 quests differ PvP↔PvE, 17 PvP↔Season. The server builds the catalog with the same code: the field reaches the players' apps with the server's next catalog after a release.
+- UI: src/quests/QuestOfferUnlocks.tsx (+ questOfferUnlockIndex.ts, questOfferUnlocks.css): «Открывает у торговцев» under «Награды» grouped «Модули / Патроны / Предметы» (one group: no heading), each row the item's picture and names, the trader's badge and «Прапор, ур. 3» (« · бартер»), a click opens it on «Барахолка»; ItemQuestUnlocks — «Открывается после квеста(ов)» in the item's card with the quest link (`/quests?selected=…&find=1`) and «выполнен» for a done one. QuestsPage `find`: stays on the tab when the quest is listed there, else «Все»; the list scrolls to it. Both rewards blocks (QuestsPage, QuestFullView) say «Награды не указаны» only when there is neither.
+- «Барахолка»: the item's card is now src/components/FleaItemDetail.tsx (same content, plus the quest block after the description); the grid's card column clamp(400px, 38%, 520px) instead of 340px (1440×900: 434 px card, list narrower).
+- «Оружейник»: a part card is a button opening src/components/ItemDrawer.tsx (the same FleaItemDetail on the right over the page; Escape, its cross or a click beside it closes; the phone shows it as a bottom sheet). partSellers keeps `questId` (mod data `taskUnlock`, or the catalog's quest for the guide's sellers at that trader and level); the hover «Продают» says «после квеста «…»» with a lock until it is done (useGunsmithAccess `taskDone`; the solver already took quest offers only once done, src/arsenal/buildStats.ts offerAccess). Found on real data: PMAG D60 (М4A1, Мастер 9) after «Конфиденциальная информация», SE-5 and Ergo (Мастер 11), 6П29М (АС «Вал»), REAP-IR (Мастер 9).
+- Merge note for release 310: BuildPartCards.tsx changes the imports, the sellers' useMemo, PartCard's link and Sellers only — not the lines claude/release-310 touches (the note under the parts). GunsmithPage.tsx's own «Награды» (Gunsmith page) is not touched here (another session is changing the page): the quests' block is on the Quests page and the traders' board.
+- Checked in the dev server with the live PvP files: «Барахолка» 9x21 БТ гж → «Нефтянка», «Тряхнуть кассира» (Прапор, ур. 3); the link opened «Нефтянка» in «Все» with «Открывает у торговцев: БТ»; «Оружейник. М4A1» → PMAG D60 card on the right, Escape closes; EN «Humanitarian Supplies»: Parts (Hexagon AK-74, Skier LL1) and Ammo (Warmageddon, Peacekeeper LL2).
+- Phone (375×812): the quest card's «Награды» shows the block (the trader under the item); a part in «Оружейник» opens its card as a sheet from the bottom, top on --window-top (styles/mobile.css windows block, so mobileWindows.test passes).
+- Tests: new src/data/questOfferUnlocks.test.ts (2), src/quests/QuestOfferUnlocks.test.tsx (5, RU and EN), src/pages/QuestsPage.questUnlocks.test.tsx (2), partSellers 1 new; GunsmithPage/GunsmithPanel tests follow the button and check the drawer. vitest src+website+electron: everything touched passes; failing on this PC only, files not touched: positionTracker, linux/updater, staleServer, appVersion, AdminPanelPage, and the electron files that import server/src/app.ts (this worktree has no server/node_modules: «Cannot find package 'cors'»); MapsPage autoFloor/deferred and ManualMarks time out in the full run, pass alone. typecheck (tsc -b) clean; eslint: 0 errors in the changed files (4 errors in untouched files are on release/production already).
+- Not done / risks: not released (owner's word). Until the server builds a catalog with this code the players' apps get no `offerUnlocks` (the blocks simply do not show). The game files disagree in places (one item opened by different quests at different traders): every quest that opens it is listed. The Gunsmith page's own «Награды» has no block yet (GunsmithPage.tsx is being changed elsewhere).
+
+## 2026-11-16 — 0.6.0.310: «Ключ в требованиях рейда» and report 171 merged in
+
+- Owner's answer «2» (the question: add the two finished branches to the release). Merged `refs/heads/claude/key-taken-owned` (ab3338a1: «Не взял» keeps a key «Есть в наличии») and `refs/heads/claude/quest-unlocks-171` (540f0442: what each quest opens at the traders — Quests, Gunsmith, flea) into `claude/release-310`; only the work log conflicted (both entries kept). The side branches themselves were not pushed.
+- Checks: typecheck passes; `npm test` 4086 passed, 13 failed in files the merges do not touch (staleServer, positionTracker, linux updater, appVersion, AdminPanelPage sidebar order, release-policy, cache-item-images — this PC's environment / older expectations); two MapsPage tests failed once and pass when run again.
+- Not released. News for the two merged features and report 172 still wait for the owner's approval.
+
+## 2026-11-16 — 0.6.0.310 news: modules in quest rewards, item lookup
+
+- Owner 16.11: of the three proposed news items he removed the keys one and the item-key one, then dictated «Улучшили распознание поиска предмета» (kept word for word). `src/data/playerNews.json` 0.6.0.310: «Квесты»: в наградах видно, какой модуль открывается у торговцев / «Quests»: rewards show which module unlocks at the traders; «Улучшили распознание поиска предмета» / Improved item lookup recognition. `src/data/updateHistory.json` keeps 4 lines: overview and colour scheme joined, quest rewards joined with the AKM line, the item lookup line. No report numbers. News tests pass. Not released.
+
+## 2026-11-16 — «Кочевники»: the map, the counts and «кто видел» for the whole day kept (branch claude/goons-always-map, next build)
+
+- Owner 16.11: «нужно, чтобы показывало всегда, даже если больше 5 часов прошло… По прошествию суток записи удаляются… отметок нет, пиши. А так пишется список, кто во сколько видел. Это будет уже в следующую сборку.»
+- Server `services/goonStore.ts`: `GOON_STATS_WINDOW_MS` = the 24 h retention (was 5 h), `GOON_RECENT_LIMIT` 20 (was 8); the answer keeps the field name `last5h` for the apps already out. Client `src/data/goonTracker.ts`: the same day window for own sightings; a community report older than a day is dropped. `GoonCard`: nothing for the day → «Отметок нет» / «No sightings» (was «Нет данных»).
+- Tests: server goons/persistence 10/10, client goonTracker/GoonCard/i18n 58; typecheck (app, server), lint. Dev renderer: «ОТМЕТОК НЕТ» / «NO SIGHTINGS». Not merged into a release; server and app go out together with the next one.
+
+## 2026-11-16 — App Store pack from 0.6.0.310 (owner: «Собери мне свежую сборку для App Store публикации»)
+
+- Built from 48f1adf5 (0.6.0.310) + the App Store settings (d2a43272), local branch test/ios-ipa-appstore-1116a = ffe65f5d (not pushed). VITE_APP_STORE=1 bundle, no admin pages in it. Desktop `RaidOS_для_публикации.rar`, 122 521 845 B, SHA-256 f206bb47…7c3b. Bundle ID com.raidos.app, version 1.0, build 3 (was 2, so an upload never repeats a build number already sent); readmes say Build 3. App Store texts and screenshots unchanged. The TestFlight workflow still skips (no App Store Connect secrets). Not opened in Xcode.
+- 16.11: the pack sent to the owner (Telegram Web on this PC is a Chrome window, not controllable; owner away): 5 × 25 MB volumes into the Claude chat, then 6 × 20 MB RAR volumes by e-mail to the address the owner gave, from the server sender (Resend, noreply@raidos.app; all six accepted, 200). Delivery is not visible: the key may only send. Parts removed from the VPS.
+
+## 2026-11-17 — Reports 173 and 174, the map settings menu, «Время в Таркове», the admin day window (branch claude/goons-always-map, next build)
+
+- Report 173 (idea: Shadow of Tagilla's retinue), 30c38c21: «Тактика боя» RU and EN get the retinue: up to 6 fighters named after Greek gods, geared above Raiders, all converge once one sees you; they drop-shot (the player) and keep arriving during the raid (the player; wikiwiki.jp: back about 4 min before the end); what they carry (Ariadne key, Labrys notes, xTG-12). Sources added: wikiwiki.jp THE LABYRINTH, tarkov.help «Железный авторитет».
+- Report 174 («"Каппы", опечатка»), 6eca9a0c: «Задания для Капы» → «Задания для Каппы» (and «Задания Каппы»); the owner's own block titles on the server have none. Read-only check of the player's Season history (user_quest_mirror, level 59, records from 23.10 on): «Реагент. Часть 4» completed (27.10), «Стрелок от бога» active, «Тарковский стрелок. Часть 4» and «Шить — не тужить. Часть 4» never in the logs (nor their chains, nor anything they unlock), «Коллекционер» not received — «1 из 4» matches what the game reported. No Kappa: «Коллекционер» needs «Стрелок от бога», still active. Chains finished before 23.10 cannot be seen from the logs.
+- Owner 17.11 «окно сломано и открывается не правильно», 2aeaef9d: the maps' panels settings (gear) menu is portalled to the page with fixed position under the gear, clamped into the window; the locations panel's scroll box no longer cuts its left side. Checked in Chromium on the dev renderer (RU/EN, 1280×800): whole menu visible, layout choice and outside click work.
+- Owner 17.11 «Просто пиши время и все», 6cda9444: «Время в Таркове» shows only the two clocks.
+- Owner 17.11 calendar day window off screen in the PC owner app, b3d483b1: `AdminCalendar` imports `payments.css` (its `.pay-dialog-backdrop` / `.pay-dialog`); nothing else loaded it in the app. Built CSS of SiteAdminSummary now has the fixed backdrop. Not seen in the owner app itself (needs the owner's sign-in).
+- Tests: typecheck, lint (no errors), 53 related files / 281 tests. Full run: the same environment-only failures as before (electron position tracker, stale server, linux updater, release-policy paths, appVersion path, AdminPanelPage source match); the three map page tests that timed out under the full load pass alone. Not released.
+
+## 2026-11-17 — Release 0.6.0.311 (owner: «Ну все, выпускай. 8 утра обновление»)
+
+- `claude/goons-always-map` → 24c95f7c, fast-forward of release/production 48f1adf5, pushed to release/production at ~01:55 Bangkok. Version by `scripts/set-version.mjs 0.6.0.311` (package, lock, website/src/config.ts).
+- In it: «Кочевники» for the whole day (server goonStore + app), «Тактика боя» Shadow of Tagilla's retinue (173), «Задания для Каппы» (174), the map settings menu over the page, «Время в Таркове» only the clocks, the admin calendar day window's sheet.
+- News: «Кочевники»: отметки и список, кто их видел, хранятся целые сутки; «Тактика боя»: свита Тени Тагиллы — как она воюет и что носит (RU/EN). Owner 17.11: nothing about «ночь через / день через». History: four lines, reports [173, 174].
+- Checks: typecheck; server tests 575/575 (an earlier run had one timing failure, 19 vs 24, that passed on the rerun); app tests as in the entry above; no android/ios/tests paths.
+- Publishing: the timer's next window is 13:00 Bangkok, so a background script on this PC waits for the green RaidOS Production Gate and starts `raidos-release.service` by hand at 08:00 Bangkok, then watches `download/version.json` for 0.6.0-311. This entry is committed to claude/goons-always-map only; release/production is not moved before the publish.
+- Owner 17.11 «добавь кнопку удаления… блоков… Вернуть их можно будет кнопкой «Сбросить»… оставшиеся… распределяются по площади»: ba833e57 (PC Overview; the phone already has «Заменить блок»). A cross at the top right of each movable block in «Настроить блоки»; the layout keeps `removed` (not added back by sanitize), «Сбросить» brings all back; the card row shares its width (`--stat-count`), a column with no blocks goes and the other takes the full width. Unit tests + Chromium on the dev renderer RU/EN (cards 316→645 px, raid block 795→1302 px, kept after reload, back after «Сбросить»). News line added (57b9271a): «Обзор»: лишние блоки можно удалить, вернуть их — кнопкой «Сбросить»; history kept at four lines.
+- release/production → 57b9271a (02:05 Bangkok). The first waiting script was wrong: `TZ=Asia/Bangkok` is unknown to Git Bash and means GMT, so it judged 08:00 past and tried to start the publisher at once — the ssh call failed on the unquoted key path (space in the home folder); checked: publisher inactive, no journal entries, site still 0.6.0-310. Replaced by one using the PC's own clock (+0700), a quoted key path, and a refusal if 08:00 is more than 10 min past.
+- Report 176 («Хайкинг», PvE Woods: «не отображается на карте зоны убийств»): the game's zone `woods_kills_northwest` is 37 % of the map, so the 08.11 rule (no zone over 30 %) left it off. Owner 17.11 «Значит показывай эту зону»: 1927defe `WIDE_ZONE_QUESTS` = {hiking} (normalizedName) is drawn whatever its size and stands alone — it never joins or swallows the smaller zones inside it (USEC camp etc.); other oversized zones (Shoreline «Долгая дорога») stay off. Unit test; a live check on the dev renderer did not get the PvE catalog (tarkov.dev did not answer), so the zone was not seen on screen. History line + report 176 (28d54fb0); no news line.
+
+## 2026-11-17 — «Показать только сюжетные» on «Что собрать для квестов» (branch claude/goons-always-map, not in release/production)
+
+- Owner 17.11 (a player asked for tracking of all story items): commit above. 16 items / 30 pieces now: «Небеса в огне» (G-Wagon flash drive, 3 batteries, 5 PCBs, 2 toolsets, transcript, Elektronik's drive, armored case), «Неизвестные» (decrypted Sliderkey drive), «Синий огонь» (2 unknown-device segments), «Они уже здесь» (ARRS drive), «Лабиринт» (cassette), «Борей» (3 Ultralink, 4 Memento, 2 IBX, AMG-10, Kirasa-N). Left out: money (250 000 ₽, 5 000 000 ₽, 8 000 $, 1 000 000 $ — the page shows no money), «Билет» (all its hand-overs depend on the route), one-route items, the hand-overs without an item id (5 building materials, 5 PMC dogtags).
+- Checks: unit tests (3), typecheck, lint; Chromium on the dev renderer RU and EN (switched by the EN button: the English catalog does not load directly in dev). Owner 17.11 «Если будет готово добавь в выпуск в 8:00»: news line «Квесты»: кнопка «Показать только сюжетные» — предметы, которые нужно сдать по сюжету (RU/EN), history line merged with the Overview one; in release/production for 08:00.
+- Published 17.11: gate green 03:47, publisher started by hand at 08:00 Bangkok, `download/version.json` 0.6.0-311 845b5d07 at 08:09 (signed, client). Reports 173, 174, 176 go out with it. This line is on claude/goons-always-map only; release/production stays at 845b5d07.
+
+## 2026-11-17 — «Все локации» on «Спутник»: one whole map without black squares (branch claude/world-satellite-seamless, not released)
+
+- Owner 17.11 (iPhone screenshot, PvE): «нужно оптимизировать эту карту, что бы не было отдельных кусков, сделай основную карту под цвет наших карт и не должно быть черных кусков, сделай в точности как на схеме, только под нашу цветовую схему спутника».
+- Causes: (1) WebKit has no canvas `filter`: the SVG filter that cleared the black around a render and the blur of every fade mask did nothing on the iPhone — black L-blocks (Customs, Interchange, Streets) and hard squares; reproduced in Chromium by disabling `CanvasRenderingContext2D.filter`. (2) region-satellite.webp was much brighter and greener (meadow 88/98/62) than the renders (olive 49/53/36, 60/61/47), so each render stood out as a dark square even on the PC. (3) Terminal has no render: its scheme's light-blue sea stood out.
+- 32e4ba34: worldMapPictures.ts — tiles load with `crossOrigin` (our map copy answers `Access-Control-Allow-Origin: *`; without CORS a plain image as before), the mask is read from the pixels (black → clear as 6·(r+g+b) − 0.18, as the filter did), blurred in code (`blurMask`, 3 box passes, outside empty); a render fades wholly inwards over 3.5 % (`RENDER_FEATHER`); the filter path stays as the fallback. A scheme on «Спутник» is toned onto the renders' ramp, its water onto their water (`satelliteColour`). scripts/world-map/make-world-map.py: new SATELLITE palette from k-means of seven main renders; region-satellite.webp redrawn from the same stencil (tarkov.dev openworld-2d, 4096 px, 0.9 MB). «Схема» unchanged.
+- Checks: src/maps 99/99 (new worldMapPictures.test.ts), MapsPage.allLocations + src/mobile 54/54, typecheck, eslint. Chromium on the dev renderer, 430×932 with canvas filters off (as WebKit) and on, 1440×900: the whole region one picture, no black, Customs close up seamless; «Схема» looks as before.
+- Not verified: a real iPhone (WebKit itself); PvE catalog (the shots are PvP — same renders).
+
+## 2026-11-17 — Player report 177: a one-time quiet chime for the map's fatigue timer (branch claude/report-177-timer-chime, not released)
+
+- Player (idea, 0.6.0.310, Windows): «простенький разовый сигнал по окончанию таймера, негромкий и тихий… проиграла один раз… а не ждёт… кнопку нажать». Owner 17.11 «Да, делай» to: a switch «Сигнал в конце» in the gear menu, off by default (report 155 asked for a silent timer), one short quiet sound, volume shared with the clicks.
+- 0351c4f2: skillTimer.ts (chime on/off in localStorage, `useSkillTimerChime`), MapSkillTimer.tsx (the switch; the chime once as the countdown reaches zero, guarded against several ticks before a re-render; a countdown that ran out while the map was closed stays silent; turning the switch on plays the chime as a sample), uiSound.ts (`playTimerChime`: 880 + 1318.5 Hz sine, peak 0.1 × click volume, ~0.9 s; clicks at 0 do not silence it — the chime then plays at full click level; `readyContext` shared with `playUiSound`), help text skillTimer shortened to fit 170 chars, EN «Chime at the end».
+- Checks: MapSkillTimer + uiSound + ClickVolumeSetting + SettingHelp + src/i18n 78/78; typecheck; eslint on the changed files. Chromium on the dev renderer (1440×900): RU and EN labels, the sample on turning on (2 notes), a 5 s countdown gives exactly one chime and nothing after.
+- Not verified: the sound by ear and in the packaged app; it plays only while the map page is open (the timer button lives there).
+
+## 2026-11-17 — Reports 177–183 and «Спутник» gathered as 0.6.0.312 (local branch claude/release-312, not pushed)
+
+- Owner 17.11: «Возьми в работу все заявки… кочевники с других сайтов… только не указывай, что мы их откуда-то берем…
+  добавь возможность менять местами пресеты экрана… Соблюдай все анимации». Branches (each from release/production 845b5d07, pushed):
+  - 178 claude/report-178-boss-armor bbebf8e8: «Боссы» — rounds per gun, «Броня» (plate classes front/back/sides, helmet, face,
+    vests, guards); src/data/bossGear.json from json.tarkov.dev bot loadouts (scripts/bosses/boss-gear.mjs, not automatic).
+    Player's facts checked: Tagilla/Shadow front 6 back 4 — yes; BD Labs class 4 — yes (Icebreaker too); BD elsewhere 5–6 (Terminal).
+  - 179 claude/report-179-preset-order e3998760 + 5f7eadb7: screen-tuning `order`, IPC screen:reorder-presets (preload.ts and .cjs),
+    useHoldToReorder (hold 0.32 s, others move aside, glide in, Esc, Alt+↑/↓). An older main process: no dragging.
+  - 180 claude/report-180-goon-feeds dfbba3c0 + apiEnv: server/src/services/goonFeeds.ts — every 3 min tarkov.help (PvP, nicknames)
+    and tarkov-goon-tracker.com (PvP + PvE) into the goon store; dedupe 3 min by map + nickname; rude/bot/site names dropped;
+    nothing in the app names a source. RAIDOS_GOON_FEEDS=0 stops it; off on the owner's PC.
+  - 181 claude/report-181-show-hide-all 8819f686 → 9a8ee832 (owner: no «Вернуть»): «Скрыть все» keeps the player's choice and
+    takes every row off; «Показать все» brings that choice back.
+  - 182 claude/report-182-labyrinth-key 2bfbe902: «Ключ 01» on the shovel by «Комната 1» — own icon, never merged with neighbours.
+  - 183 claude/report-183-trader-tooltip b132eac5: trader tooltips — the yellow price row is no longer read as a second name line.
+  - 177 chime (0351c4f2) and «Спутник» (32e4ba34) merged too; version 0.6.0.312; news 8 lines, history 4 lines, reports 177–183.
+- Checks: full vitest — failures only in the 10 tests that fail the same on clean 0.6.0.311 here (paths with a space, tar,
+  file watching) and map-page timeouts under the parallel run (pass alone); typecheck clean; server tests 580/581 (support-chat
+  upload ECONNRESET, unrelated). Feeds dry run from this PC: 32 sightings. Browser: presets drag (isolated page), boss panels,
+  map buttons, Labyrinth card (helpers' screenshots).
+- Not verified: real Electron app and game; feeds on the VPS until released; rare boss guns beyond ~15 sampled loadouts.
+- Owner 17.11: news only lines 1–4 (bosses, presets order, «Скрыть все»/«Показать все», chime) — nothing about Goons, the trader price,
+  «Спутник», «Ключ 01»; history the same four. «Выкладывай выпуск прямо сейчас»: c53278aa pushed to release/production 18:26,
+  gate green 18:38, raidos-release.service started by hand, `download/version.json` 0.6.0-312 at 18:46 Bangkok. Goons feeds live
+  on the VPS (PvP and PvE sightings with nicknames in /v1/goons). Reports 177–183 close on release.
+
+
+## 2026-11-17 — Site: privacy policy in the footer, «Поддержка» chat for guests (branch claude/site-privacy-support)
+
+- Owner 17.11: «нету политики конфиденциальности. Добавь ее срочно… поддержка в чат… кружочек… можно войти как гость».
+- 459aa586: footer link «Политика конфиденциальности» (/legal/privacy; the page existed, its link was taken out 13.11);
+  policy ред. 24 (LEGAL_VERSION 2026-11-17.1, src/account/authFeatures.ts too): Google sign-in, the support chat, guests,
+  «raidos-support-guest». Server: /v1/support/guest… (guest ids shaped like accounts' → «Гость N» in the owner's «Чаты»,
+  old owner apps too). Site: components/SupportWidget.tsx (button bottom right, panel, polling 8 s / 60 s, badge).
+- Checks: server chat 27/27, site + account + support 327/327, typechecks; browser against a throwaway in-memory API
+  (guest → owner answer → shown; signed in; phone width; policy page).
+- Not released: needs the server and the site out (a release); the owner answers guests in the owner app as any chat.
+
+## 2026-11-17 — Reports 184, 185: Season lacked the Skier / BTR driver branch (branch claude/report-184-season-branch)
+
+- One Season player (all his app data is «seasonal»): «Выбирай друзей правильно» and «Цена независимости» not in search or the tree.
+  Both are in PvP and PvE (feed and the server's quest base); tarkov.dev `pvp-season` lacks 41 of `regular`'s tasks, the whole
+  0.16 branch among them.
+- f3b69515: catalogSource.ts — for Season, SEASON_BORROWED_TASKS (11 tasks of that branch) taken from `regular` when missing
+  (translated and raw tasks, quest items); their prerequisites («Задержка поставки», «Навести мосты», «Поменять батарейку»,
+  «Переиграть и уничтожить») are in Season already. Live: Season 507 quests, all 11 in the tree RU/EN, 0 unresolved.
+- Checks: src/data + src/quests + src/progression 837/837, typecheck, eslint; server 580/581 (mirror-storage test, flaky,
+  passed in the run before).
+- Not borrowed (not confirmed in Season): arena «[PVP ZONE]», prestige «Новое начало», Fence's «Возмещение ущерба».
+- Not released yet: reaches players with the server's quest base after a release.
+
+## 2026-11-17 — Server check after «сегодняшней атаки хакеров» (read-only, nothing changed)
+
+- 18:50 Bangkok: raidos-api, nginx, ssh active, no failed units, API restarts 0 since 11:46 UTC; site, /health, /v1/goons, version.json 200.
+- nginx today 1.31 M requests (normal app polling); 502 only at the two release restarts (01:07–01:08 and 11:46 UTC); 7 scanner
+  requests; logins 58 (22 × 401, 5 × 429). No sign of a successful break-in: SSH logins for 7 days only by key from 104.28.x (WARP).
+- SSH: 2455 failed password tries today (top 77.239.124.157: 613). PasswordAuthentication yes, PermitRootLogin yes, no fail2ban,
+  ufw inactive — hardening proposed to the owner, waiting for his word.
+- Owner 17.11 («давай делай тогда по ключу»): /etc/ssh/sshd_config.d/00-raidos-keys-only.conf — PasswordAuthentication no,
+  KbdInteractiveAuthentication no, PermitRootLogin prohibit-password (read before 50-cloud-init.conf, which still says yes).
+  Backup /root/sshd-backup-20261117; `sshd -t` ok, `systemctl reload ssh`; a 10-minute auto-rollback timer was armed and
+  stopped after the check. Checked: a new key login works, a password login gets «Permission denied (publickey)»; api, nginx up.
+  The root password still works in the Timeweb web console. fail2ban / ufw not touched.
+
+## 2026-11-17 — 0.6.0.313 live (site chat with guest name/e-mail, /privacy without payments, Season branch)
+
+- Owner: «Да» + «В первую очередь выпускай сайт» + «Делай щас». 3a71e51a pushed 20:45; gate failed once on
+  src/components/ObjectivePhotos.test.tsx (passes 3/3 here; single-worker CI timing), failed job re-run 20:58, green;
+  raidos-release.service started by hand; `download/version.json` 0.6.0-313 at 21:18 Bangkok. /privacy and
+  /v1/support/guest answer on raidos.app. Reports 184, 185 close on release.
+- Not verified on the live site: a real guest writing and getting a letter (Resend) — the owner's first answer will show.
+
+## 2026-11-17 — raidos.app/support for the App Store card (site only, branch claude/site-support-page)
+
+- Owner: «Дай мне отдельную ссылку для App Store с поддержкой, окно поддержки». 84c131b2: /support — the chat open on its
+  own page (SupportWidget inline), e-mail and Telegram under it, no header/menu/footer (like /app/privacy).
+- Put on raidos.app by hand (no app release, per the site-only rule): build with VITE_API_URL=/api, bundle checked
+  (no «Program Files», `/api`), dist-next-manual → dist, old one dist-old-1794926497053; /support, /, /privacy,
+  version.json, /download/windows 200; checked live in the browser.
+- The NEXT RELEASE must merge claude/site-support-page, or the publisher's site build drops /support again.
+
+## 2026-11-17 — 0.6.0.314 live
+
+- Owner «выпускай»: 6d1375a2 (goons spam guard: 10 min per account, once a raid on the PC, one nickname's repeats hidden
+  for 50 min; /support kept; «Боссы» soft zones and round tips, smaller health card; compact hotkey rows; «Все локации»
+  Streets' negative tiles, Ground Zero holes asphalt). Pushed 22:53, gate green first time, publisher started by hand,
+  `download/version.json` 0.6.0-314 at 23:18 Bangkok; /support and /privacy 200; /v1/goons/pvp shows repeats folded.
+- Not verified live: hotkey rows in the PC app, «Все локации» zoomed on Streets / Ground Zero in the app.
+
+## 2026-11-18: Claude, карта на телефоне — точки открываются, без окна у точки
+
+- Статус: completed, не выпущено. Ветка `claude/phone-map-taps` от `release/production` 0.6.0.315, коммит `6667a202`.
+- Причина: касание точки на холсте (документы БП, двери, спавны ключей) выбирало её, а `click` карты того же касания тут же снимал выбор (`wasCanvasPick` не видел метку на другом событии). Теперь `src/maps/canvasPick.ts` помнит время выбора (450 мс).
+- На телефоне у точек (выходы и все прочие) больше нет всплывающего окна у самой точки; карточка только снизу (`src/pages/MapsPage.tsx`).
+- Файлы: `src/maps/canvasPick.ts`, `src/maps/canvasPick.test.ts`, `src/maps/MarkerCanvasLayer.tsx`, `src/pages/MapsPage.tsx`.
+- Тесты: `src/maps` и `src/pages/MapsPage*` зелёные (deferred/autoFloor/raidChecks по отдельности), typecheck и eslint чистые. Проверено в браузере 375×812: ключ на холсте и выход открывают нижнюю карточку, тултипов 0.
+- Риск: на живом iPhone не проверено — только эмуляция в браузере.
+- Выпуск только для телефонов 0.6.0.316 (владелец, 18.11.2026: «выпусти новую версию только для телефона. Для ПК не надо»): ветка `mobile/release` (коммит `cbfd04a9`), `ios-ipa.yml` и `ios-app-store.yml` запускаются и на ней; публикатор VPS смотрит только `release/production`, Windows-версия остаётся 0.6.0.315. Новостей игрокам в сборке нет. TestFlight пропускается — секретов App Store нет (так было и раньше).
+- Следующий выпуск ПК — не ниже 0.6.0.317 (тег `mobile-v0.6.0-316` занят, сервер берёт телефонный выпуск только с более новой версией). Правку карты влить в `release/production` вместе с ним.
+- Вышло 18.11.2026 ~13:00 по Бангкоку: `mobile/release` на `c0557203`, выпуск `mobile-v0.6.0-316`, raidos.app отдаёт APK 0.6.0.316 и архив iPhone; Windows `version.json` остаётся 0.6.0.315. По пути: в CI пропущена загрузка CUDA для onnxruntime-node (файл на GitHub отдаёт 404, иначе `npm ci` падает — то же коснулось бы и проверки выпуска ПК); в «Историю обновлений» добавлена строка 0.6.0.316. В `mobile/release` больше не пушить без нового выпуска: каждый пуш пересобирает и перезаписывает выпуск.
+
+## 2026-11-18: Claude, бартеры ключей, промокоды из канала, выходы по одной «O»
+
+- Статус: completed, не выпущено (ждёт слова владельца, следующий выпуск ПК — не ниже 0.6.0.317). Три ветки от `release/production` 0.6.0.315:
+  - `claude/key-barter-flea-level` (`6375f40d`): под каждым предметом бартера — «доступно», замок «с ур. N» (уровень барахолки или собственный `minLevelForFlea` предмета, больший из двух) или «нет на барахолке»; предмет, закрытый на барахолке, считается только по торговцам; строка «Барахолка» самого предмета тоже учитывает его уровень. Карточка ключа из «Ключи локации» без таблицы «Цены» и истории цен. Проверено по данным tarkov.dev: 36 бартеров ключей, 63 предмета, 37 открываются позже 15 ур. (20–40), 3 не продаются (Биткоин, медаль Lega, монета GP). Проверено в браузере (ключ 114: «с ур. 20» у трёх предметов).
+  - `claude/promo-telegram` (`fc1912b6`): источник «Тарковское Метадвижение» (t.me/metadvij) через RSS-зеркало `tg.i-c-a.su/rss/metadvij` — Telegram с VPS не открывается. Код из поста канала берётся сразу (без второго сайта) и показывается 14 дней от поста. Проверка по-прежнему раз в 2 часа. insider-gaming отвечает VPS 403 всегда, beebom — через раз.
+  - `claude/exits-single-o` (`4b5da31b`): одно нажатие O → чтение угла через 3 с (и 3,7 с); страница ищет в тексте названия выходов карты (оба языка), короткие — целым словом, длинные — с 1–2 ошибками OCR. На живой игре не проверено.
+- База на VPS: READ80LV добавлен вручную в `promo_codes` (все режимы, 14 дней), копия `/var/lib/raidos/backups/manual-promo-read80lv-1794983537454.sqlite` (chmod 600). raidos.app его отдаёт.
+- Тесты: `src/trading`, `src/keys`, `src/maps/raidExtracts`, `electron/extractsReader`, `server promoCodes` (9) зелёные; typecheck и eslint чистые.
+- Риск: папка `/var/lib/raidos/backups` 755, старые копии базы 644 — читаемы любым пользователем VPS.
+
+## 2026-11-18 — Flea prices from players' screens: plan (branch claude/flea-prices-from-screens, no code)
+
+- Owner: players on the flea in the stash → the top (lowest) price on screen updates our base for everyone at once;
+  «приоритет цены будет с экрана пользователя». docs/flea-prices-from-players.md: what is read and when, the client's
+  checks (one item, prices rising, rubles, two readings agree, mode from the screen = the logs' mode, not the
+  «copies differ» items), what is sent (mode, item id, price, time — no pictures), the server (POST
+  /v1/prices/sightings + ROUTES line; a third source in priceMirror; a player's price over the others for 30 min;
+  plausibility band, a second account for jumps, limits, trust), stages and risks.
+- Measured here (i5-10400F): whole-screen pass 6 065 ms; a ~12-row column 640–950 ms; a price column ~245 ms; the
+  menu bar ~420 ms. No flea frames on this PC: stage 0 is the owner's screenshots of the flea (10–15 frames).
+- Nothing built, nothing deployed. Next: the owner's frames, then the reader on them.
+- Update, same day: the owner's 16 flea screenshots (1920×1080, PvE). Layout fixed (rows 72 px at 1080p); the player's
+  filters («Сост. от 100», «Кроме бартера», currency) change the top price; trader offers on the flea («Терапевт»,
+  «(лимит 6)»); «Неизвестный предмет» for unexamined items; $/€/GP by the sign's colour. OCR of the header and the
+  mode right on every frame (30–55 ms), names ~60 ms a line; **prices by OCR 22/36 at best** (0↔8, 3↔4, 11 000 →
+  11 200), **prices by digit shapes 72/72** leave-one-frame-out, ~2 ms a price (best distance ≤ 0.072, runner-up
+  ≥ 0.052 further). The plan now reads prices by shape, never by OCR. Still needed: PvP, 3440×1440/2560×1440, no
+  condition filter, a scrolled list.
+- Found: electron/experimental/positionTracker.test.ts writes into the real EFT Screenshots folder (it redirects only
+  OneDrive; `screenshotsFolder()` picks the profile's Documents). This session's test run left 3 empty fake position
+  screenshots there (named 2026-10-12, coordinates 42.5/43.5/46.5); removed (each 0–3 bytes). The test needs its own
+  folder — not fixed here.
+- Owner: the flea price's mode is the mode the app already tracks and switches to by itself. The plan takes
+  `screenReadingMode` (src/import/screenReadingMode.ts: the game's mode from its logs, as the story and Tasks readings),
+  nothing sent until the logs name it; the «… | PvE» label on the screen only as a second check.
+- PvP/Season frames (18 more, 14:56–14:59): the mode label is «| PvE», «| PvP S» (Season, 10 frames) or nothing (plain
+  PvP, 2 frames, level 12 with the flea locked behind an orange «from level 15» banner); OCR reads it on all 34. Trader
+  offers mixed in with players' (often cheaper), dim «ЗАКРЫТО» rows. Digit shapes trained on PvE only: 155 price rows,
+  141 read sure and all 141 right (checked by eye on crops), 14 flagged unsure (banner/GP, and «1» touching its
+  neighbour: «14 000», «17»); cutting touching pairs at the thinnest column fixed «743» and «74 888».
+- Stage 1 built (owner: «Да, делай»), not wired, nothing sent: src/import/fleaDigits.ts (digit shapes, no imports — the
+  build script loads it), fleaDigitShapes.ts (78 samples, scripts/build-flea-digits.mjs, deterministic), fleaScreen.ts
+  (tab lit, «Цена» chevron up, scrollbar at the top, level-15 banner, each row's price/currency/dim, mode from the
+  version line, `fleaSightings`: traders passed over, stop at the first row not read for sure, other currency / worn /
+  excluded items give no price). Fixtures: 15 masked frames (0.79 MB webp, scripts/make-flea-fixtures.mjs). Tests 15/15:
+  no price read wrong for sure; 108/108 on the training frames, 37/37 on 5 held-out PvP/Season frames, 12/12 on a frame
+  resampled to 3440×1440. typecheck, eslint clean; vitest src/import 305/305.
+- Next (1b): OCR of the seller/name/info lines and name matching, wired to the screen copy with the «when it runs»
+  conditions; then the server (stage 2). Not checked: a real 3440×1440 or 2560×1440 frame, a list scrolled down.
+- Owner: every price in roubles only — an offer in euros (or dollars) converted at the game's rate. `fleaSightings`
+  now takes `rates` (`fleaRates`: the handbook price of Dollars/Euros in the player's mode's catalog) and gives
+  `price` in roubles with `listed` {value, currency} kept; no rate yet or GP → no price. The owner's Season frame bounds
+  the euro at 183.5–194.7 ₽ (336 € between 61 666 ₽ and 65 420 ₽). Tests 18/18, vitest src/import 308/308, typecheck,
+  eslint clean. To check when wired: the catalog's Euros basePrice falls in that band (tarkov.dev was down today).
+- Stage 1b (owner: «Да, подключай»), not released, nothing sent to the server: src/import/fleaReading.ts (the flea
+  looked at on the quest scanner's own GDI copy: not the flea → nothing; the flea → no whole-screen quest pass; a list
+  settled over two looks and not read before → filter chips, seller/info/name per row, version line by the item card's
+  engine at background priority), electron/screenOcr.ts (`lookAtFlea`, `recognizeFleaLine`), StoryScreenScanner
+  (flea frame → `noteFleaReading` with the logs' mode, menus' pace, no screenshot fallback), src/data/screenFleaPrices.ts
+  (names → items by the tooltip matcher, `leaveOut`, rates, the player's prices over the server's for 30 min in
+  `useLivePrices`), ExperimentalBridge registers the matcher. preload/electron.d.ts: `flea` in the frame answer.
+- Found on the owner's frames with the app's own engine (rus+eng): the version line reads «РУЕ» / «РУР 5» (was
+  taken for plain PvP → letters folded); traders beside a level badge («99 Прапор»); condition «40/48», «90/980»
+  (0 read as 8/9/6 tolerated, an extra digit not); «Валюта EUR/USD/GP» filter chips (the top row then is not the
+  item's lowest: such lists are left alone — chips found by their «×» boxes, read one by one, 34/34 right).
+- The game's rate is the traders' price of the money, not the handbook: Season frame 336 € between 61 666 ₽ and
+  65 420 ₽ → 183.5–194.7 ₽; Skier's euro 188 ₽ (handbook 132 ₽). Asked hourly per mode through the data gateway.
+- Owner: keys count only with all their uses («8 из 10… не рассматриваем»): `keyAllUses` — the info line's uses whole
+  and equal to the catalog's `keyUses`.
+- End to end on the owner's 34 screenshots (real OCR, json.tarkov.dev catalog, not committed): 35 prices, all equal to
+  the screen; currency-filtered and level-15-locked lists not taken.
+- Checks: typecheck, `tsc -p tsconfig.electron.json` (it caught extensionless imports `npm run typecheck` does not
+  check), eslint clean; vitest src/import, src/data, src/components, src/overlay, pages Flea/QuestKeys/Trading,
+  electron/ocrQueue + experimental: 1538 passed, 5 failed = positionTracker (unfixed in this branch: it wrote 3 empty
+  fake screenshots into the owner's Screenshots folder again, deleted; fix is 8ec20dea). electron/serviceGateway*
+  suites fail to load here (no `cors` in the junctioned node_modules), unrelated.
+- Not checked in the running app/game; not checked on a real 2560/3440×1440 frame or a scrolled list.
+- Stage 2, the server (owner: «Да, делай сервер»), not deployed: server/src/services/playerPrices.ts (rules:
+  ±50 % of the mirror's price at once, else a second account within 10 % in 15 min; 120/h per account, 24 a request,
+  repeats within 2 min refused; noFlea / malformed / older than 10 min refused; accounts often outside the band lose
+  «at once»; accepted prices stand 30 min; all in memory, no accounts in the status). routes/data.ts:
+  `POST /v1/data/prices/:mode/sightings` behind the paid-data guard; `GET /v1/data/prices/:mode` lays the standing
+  players' prices over the mirror file (re-rendered when the file, an accepted price or the standing set changes) —
+  in the API process, so it works with RAIDOS_BACKGROUND=external too. Mirror status: `players`. App:
+  screenFleaPrices sends what it applied (gateway only, the same price not again within 2 min), ROUTES line in
+  electron/serviceGateway.ts.
+- Tests: server 595/595 (playerPrices.test.ts in the list; route end to end in routes/data.test.ts), client and
+  gateway 1411/1411 (src/data, src/import, src/components, pages Flea/Trading/QuestKeys, electron/serviceGateway*,
+  ocrQueue; positionTracker left out), typecheck, tsc electron, eslint clean.
+- Remaining: deploy of the server and a release of the app (≥ 0.6.0.318) on the owner's word; check in the game.
+
+## 2026-11-18 — item key: no more 5–6 s waits behind the quest scanner (branch claude/item-lookup-speed-1118, not released)
+
+- Owner: «информация о предмете — очень долго ищет некоторые предметы, может грузиться 5-6 секунд». The logged slow
+  lookups (6111 ms, 1 grab; 5519 ms, 3 grabs) spent almost everything on their 3 readings. Measured here (i5-10400F,
+  tesseract.js, the logs' own crops): a tooltip line reads in 25–135 ms, the tooltip engine loads in 0.5 s, but the
+  quest scanner's whole-screen pass (1421×1080, word boxes) takes 6065 ms — and the OCR queue never started a lookup's
+  reading while a background one ran. A key pressed during such a pass waited for its end.
+- electron/ocrQueue.ts: two lanes — a reading the player waits for (item card, Collector scan) starts at once beside a
+  running background one (its own engine/thread); interactive readings still go one at a time, background ones one at a
+  time and never start while an interactive one runs or waits or while held. Tests: electron/ocrQueue.test.ts (the old
+  queue fails the new ones).
+- electron/experimental/index.ts: the item-lookups log keeps each reading's OCR time (`ocrMs`) and each match's
+  (`matchMs`), and also lookups found by text after ≥ 2.5 s (`outcome: "slow"`), which were not kept before.
+- Checks: `npm run typecheck`, eslint on the 3 files clean; vitest electron/ocrQueue + electron/experimental +
+  src/overlay + ocrPicture/questScreenshot: 175 passed, only the known positionTracker failures.
+- Not verified in the game. Remaining: two readings at once during a lookup in the menus (short: the lookup's few lines);
+  the quest scanner's 6 s whole-screen pass itself is still that long (a separate task). Release only with a new app
+  version ≥ 0.6.0.318 on the owner's word.
+- Follow-up (owner «УСКОРЯЙ»): the picture search (on the main process, logged 57–843 ms in the game; a reading done
+  meanwhile waited for it) spent most of its time in screenPicture — 18 passes over the item's pixels per layout
+  (3 thumbnails × 3 turns × with/without backdrop). src/overlay/iconSignature.ts `pictureSignatures`: all three grids in
+  one pass, every turn from them; src/overlay/iconMatch.ts uses it. Measured on the logged cells: 110–208 ms → 20–56 ms
+  (×4), the whole picture search ~250 → ~70 ms. Same numbers to the bit: compared with the old code on 167 layouts of the
+  logged crops, and a test with the old code as reference (noise, transparency, covered parts, turns 0–3). The picture
+  index (scripts/build-item-signatures.mjs) needs no rebuild. typecheck, eslint clean; vitest src/overlay +
+  src/components + ocrQueue 562 passed.
+
+## 2026-11-18 — report 191 (USEC / BEAR quests twice) and release 0.6.0.318
+
+- Report 191 (Season): «Обновка. Часть 2» and «Текстиль» shown twice with different rewards. They are the game's
+  USEC and BEAR versions (tarkov.dev factionName); without a Tarkov.dev profile `progress.faction` stayed unknown and
+  the tree and lists showed both. src/progression/questBasics.ts `playerFaction` (profile, else the faction of a
+  one-faction quest the player took; both seen → unknown) and `ofFaction`; src/pages/QuestsPage.tsx uses them for the
+  lists and the tree; the tree marks one-faction quests «USEC» / «BEAR» (questTreeText `factionTag`). Commit 2cb2bcc7,
+  test src/progression/questBasics.faction.test.ts.
+- Other same-name pairs in one mode are distinct game quests and stay: «Новое начало» (per prestige), Ref's
+  «Поменять батарейку» / «Цена независимости» (mutually exclusive branches), and two «Тарковский стрелок. Часть 5»
+  (5bc4826c… night Customs Scavs, 5bc48369… Sniper Scavs; the production logs show players completing both).
+- Release 0.6.0.318 (749e1578, branch claude/release-318): 2cb2bcc7 + claude/item-lookup-speed-1118 (942f7db1).
+  News (owner: nothing about prices or screen scanning): «Квесты: задания USEC и BEAR больше не показываются дважды».
+- PC 0.6.0.317 was never published: the VPS publisher refused «Workflow changed» because production.yml gained the
+  `npm_config_onnxruntime_node_install_cuda: skip` env (CUDA tgz 404 on GitHub since 18.11). With the owner's approval
+  `/etc/raidos/release-config.json` workflowHash: dc482156… → dcbb8c53… (sha256 of production.yml at 749e1578), backup
+  `/etc/raidos/release-config.json.bak-1795000586`.
+- Tests: typecheck clean; vitest quests/progression/pages/overlay/ocrQueue/experimental: only the known
+  positionTracker failures, AdminPanelPage source-text check (CRLF in the working copy, unrelated) and
+  MapsPage.deferred under load (passes alone).
+- First publisher run on 749e1578 failed in its own `npm ci` (same onnxruntime CUDA 404). Fix 6b1f27b5: root `.npmrc`
+  `onnxruntime-node-install-cuda=skip` (npm passes it to install scripts as npm_config_…; only an «Unknown project
+  config» warning). Gate 44296182135 green; publisher run succeeded 11:54 UTC: version.json 0.6.0-318 (commit
+  6b1f27b5), mobile.json 0.6.0-318 (Android and iPhone).
+- Remaining: faction fix and item speed not checked in the game; VPS release mirror gc warnings (missing object).
+
+## 2026-11-18 — report 192 («Освободить помещение» in Season), not released
+
+- Owner: take the next report and fix it, but hold the release; it goes with the next version.
+- Report 192 (Season, 0.6.0.318): «В наградах Алтына нету». The player's game screen: objective «Устранить бойцов ЧВК в
+  Лабиринте» 0/24, no «Алтын» unlock; the app showed «Устранить любую цель в Лабиринте» 0/36 and «Алтын» at Ragman 4.
+  tarkov.dev `pvp-season/tasks` (and pve) carry the PvP version unchanged.
+- Fix a0c9d72c on `claude/report-192-season` (from a8fd6edf): `SEASON_TASK_FIXES` / `withSeasonTaskFixes` in
+  src/data/catalogSource.ts patch the Season tasks, both translated and raw (kill target AnyPmc, count 24, no offerUnlock).
+  `applyQuestCorrections` takes the mode, and a Season-only correction changes «лишних людей» to «ЧВК» in the description.
+- Checked against live tarkov.dev: Season RU/EN show 24 PMC, no unlock, ЧВК in the text; PvP unchanged (any 36, «Алтын»).
+  The game's 336 462 ₽ against our 275 000 ₽ is the player's hideout money bonus, not a data error.
+- Tests: src/data/seasonTaskFixes.test.ts (4) passed; src/data, src/quests, src/progression 849 passed; typecheck clean;
+  eslint clean.
+- Not released: no version bump and no news yet. Proposed news line: «Сезон: у «Освободить помещение» цели и награды как в
+  игре» / «Season: «Vacate the Premises» objectives and rewards match the game».
+- Report 192 status in the DB is unchanged (taken).
+
+## 2026-11-18 — «Ключи» window: price and tier-list letter of each key, not released
+
+- Owner: the map's key list should show each key's name, the map pin, its price and its tier-list letter (like «Информация
+  о предмете»). Hold the release; it goes with the next version, together with report 192.
+- b21c98bd on `claude/report-192-season`: `keyTiers()` / `shortRoubles()` in src/keys/locationKeysList.ts. The letter and
+  the price come from `slotTierRows(items, mode, 'keys')`, the same as «Тир-листы» → «Ключи» in the chosen mode, so they
+  always agree. LocationKeysWindow shows the letter on the picture's corner (tier-list colours), and the pin with a short
+  price beside it (full price in the tooltip). A key with no price shows neither. The window is now 470 px (was 440) so
+  «206 тыс ₽» fits next to a pin with a door count. Under 420 px it shows two keys per row.
+- Checked in the browser pane (vite dev, app-310): PvP RU, Season EN, phone 390 px; the pin still opens the map with the
+  key's doors. Tests: src/keys 7 passed; typecheck and eslint clean.
+- Proposed news line: «Ключи карты: у каждого ключа цена и буква тир-листа» / «Map keys: each key shows its price and
+  tier-list letter».
+
+## 2026-11-18 — key card «Что в комнате», not released
+
+- Owner: a key's card should show what spawns in the room the key opens. Same branch `claude/report-192-season`; goes with the
+  next version.
+- src/data/keyRoomLoot.ts collects the map points inside the rooms of the key's doors (lockedRooms / lockedRoomsAt, the
+  padlock rooms of report №114), on every map. Points in the padlock layers are counted: loot, containers, documents, keys,
+  stationary weapons. src/components/KeyRoomLoot.tsx shows it on every key card (FleaItemDetail). Containers are tags with
+  ×N. Items are pictures with short names, dearest first, 12 shown before «Ещё N»; the picture keeps only its own frame.
+  Doors with no room box show no section.
+- Checked in the browser pane: Customs «Общ 110» shows a safe and 17 valuables. Tests: keyRoomLoot (2); src/data, keys,
+  components and i18n 994 passed; typecheck and eslint clean.
+- Known: the «Ключи» window stays above the key card (z-index 1200, as before), so it can cover the card's top on a small
+  screen.
+
+## 2026-11-18 — battle pass documents on every floor (player chat), not released
+
+- Player chat (PC, PvE): documents «не показывают при нажатии» on Shoreline, Woods and Reserve (also 15.11), and only
+  2 of them on Ground Zero. Data checked: 28–36 per map in every mode; no «Нашёл» marks synced; a click on a point opens
+  its card, fire sectors on as well. The cause is in his settings: «tracking» is on, so useAutoFloor moves the map to the
+  player's floor by screenshot, and a chosen floor shows only its own points. Reproduced: Ground Zero «Гараж» showed 2 of
+  30 while the layer row said 30.
+- Owner: «Да, на всех этажах». Fix on `claude/report-192-season`: markerVisibleOnFloor keeps `loot.documents` on every
+  floor, as for exits and quest points (the icons already have the floor badge). Test added in mapProjection.test.ts.
+  Checked in the browser pane: «Гараж» now shows all documents.
+- Tests: mapProjection passed; the MapsPage, Dashboard and AdminPanel tests that failed under load pass when run one by
+  one. The exception is AdminPanelPage «stands right above «Обзор»», which already failed because of CRLF in the
+  working copy. Typecheck clean.
+- Suggested reply to the player sent to the owner. Not released.
+## 2026-11-18 — «Ключи для квестов»: «Нет в наличии» → «Добавить в наличие» (branch claude/quest-keys-add-to-stash, not released)
+
+- Owner: «Если у нас горит кнопка „Нет в наличии“, на нее можно нажать, появится окно, и можно нажать „Добавить в наличие“».
+  The tag is a button now (same look, pointer); it opens a window with the key and «Добавить в наличие», which puts one
+  piece in the stash of this profile and mode (`setOwnedKey`) — the row then says «Есть в схроне». Esc / ✕ / outside:
+  nothing changes.
+- Files: src/quests/QuestKeyStockDialog.tsx (new), src/pages/QuestKeysPage.tsx, src/quests/questKeys.css,
+  src/pages/QuestKeysPage.test.tsx. EN: «Not in stash» / «Mark as owned» (existing translations).
+- Tests: QuestKeysPage 17/17 (2 new), typecheck, eslint clean. Look checked in the browser on injected markup (the button
+  computes the same as the old tag; the window); the real page could not load the catalog: tarkov.dev GraphQL was down.
+- Not deployed. Release only with a new app version, on the owner's word.
+
+## 2026-11-18 — positionTracker tests no longer write into the player's real Screenshots folder (branch claude/position-test-own-folder, not released)
+
+- Found while reading the owner's flea screenshots: electron/experimental/positionTracker.test.ts moved only `OneDrive`
+  into its temporary folder; `screenshotFolderCandidates()` also uses `homedir()` and `OneDriveConsumer` /
+  `OneDriveCommercial`. On a PC whose real Screenshots folder holds newer screenshots than the tests' (the owner's),
+  the lookup chose the real folder: 5 tests failed (the «known positionTracker failures») and two of them wrote empty
+  fake coordinate screenshots there (three found and removed 18.11.2026).
+- Fix (test only): `node:os` homedir mocked to the temporary folder, all three OneDrive variables replaced and restored,
+  and a first test that every candidate and watched folder lies inside the temporary folder.
+- Checks: positionTracker 10/10 (was 5 failing), electron/experimental 40/40; the real Screenshots folder listing
+  (names, sizes, times) identical before and after the run; typecheck, eslint clean.
+
+## 2026-11-19 — test build: motion like the owner's reference, «Стекло», notification switches (branch claude/motion-vinora, not released)
+
+- Owner, 18.11.2026 (a reference dashboard video): the same animations in the app, the glass style, and in «Уведомления» a
+  square «настроить» with a switch for every notification and a sound switch for «Рейд начался». A test build on the desktop.
+- 2ada37fb: src/app/richMotion.ts (RICH_MOTION, desktop layout only) and styles/richMotion.css.
+  - Panels rise one after another; inside them big numbers count up, bars grow, chart lines draw and list rows stagger.
+  - The highlight of the menu and the switches glides in the scheme's own look. Windows pop; presses spring.
+  - «Стекло» (styles/theme-glass.css): a satellite photo of the region under the app, with frosted panes from a
+    pre-blurred copy fixed to the window. There is no backdrop-filter under moving blocks.
+  - Glass comes on once for everyone (`tarkov-app-glass-shown`); a later pick stands.
+- 434e3760: NotificationSettings in the notifications window. Raid start + sound, Collector, restocks, trading, quest
+  keys, support reply, app updated. Existing switches are reused; new ones are in notificationKinds.ts, synced in
+  prefs. The raid start plays the app's chime; its Windows notification is silent (`app:notify` `silent`, a main
+  process change). The owner's messages always come.
+- Test exe: «Raid OS Стекло тест.exe» on the desktop (owner build 0.6.0-319, 434e3760). The first test exe was built
+  without RAIDOS_ENTITLEMENT_PUBLIC_KEY, so the owner saw «Нужна подписка / Сервер недоступен». Rebuilt with the key
+  from /v1/entitlement/public-key ("entitlement key built in"). Packed to `raidos-motion-vinora-release`: electron-builder hit EPERM
+  renaming release/win-unpacked.tmp in the worktree.
+- Video: stepped at 60 fps (film-rich.cjs in the session scratchpad), «Raid OS стекло и анимации.mp4».
+- Tests: richMotion (2), notificationKinds (2), notifications 10/10, i18n/sync/support pass; typecheck and eslint
+  clean. Real-time check in headless Chromium: one gold item in the menu after each glide.
+- Not done or not checked: the phone layout keeps its own soft motion; the glass theme is not tuned page by page (maps
+  page, owner windows); not checked in the real exe on the owner's monitor; not released.
+
+## 2026-11-19 — test build 2: styles for every scheme, soft windows, trading levels, stable hideout grid, key spot card
+
+- «Стекло» had vanished after the scheme button: a Python replace that silently did not apply left it out of THEMES.
+  `PYTHONUTF8=1` is now used for every scripted edit with Cyrillic, and every replace is asserted.
+- 4088966c: style «Обычный» / «Стекло» is apart from the scheme (theme.ts STYLES, `data-style`, styles/style-glass.css
+  takes each scheme's colours). It is picked in the scheme button's right-click menu and in Settings, and synced.
+  Windows and their dark layer fade in. Windows, menus and side panels close as a fading still copy (richMotion fadeOut).
+  The blocks of a page glide on the PC too (softMotion DESKTOP_GLIDE).
+  «Продажа модулей» compares the offer's level with the trader level the app holds (trading/moduleAccess.ts), never
+  with the estimate's highest.
+- Hideout and quest items: the order no longer changes while counting; `total`, then id, replaces `remaining`.
+- d5378dee: map key spot card (maps/KeySpotCard.tsx). It shows tier letter, stock, price, ItemBuySection (flea from its
+  level, traders, barters with items and price) and the quests that need the key. A star beside the cross adds it to
+  «Избранные ключи». A spot of several keys picks one by its picture.
+- Stash scan misses (КШС in the stash itself, several nested containers): passed to the item-lookup session.
+- Checks: headless walk of every menu page, windows (notifications, settings, news, search, scheme menu, location keys,
+  item card) and every scheme in both styles: no page errors. Typecheck and eslint clean. Trading 146/146, notifications,
+  key spots and maps pass (map tests one by one).
+- Test exe on the desktop: owner build 0.6.0-319 (d5378dee, entitlement key built in). Not released.
+
+## 2026-11-19 — test build 3: keys everywhere, «Ключи рядом», needed spawns (claude/motion-vinora, not released)
+
+- 0ff513e2: a key of «Требуемые предметы» in the quest window opens right under its row (quests/QuestKeyInline.tsx:
+  stock, tier, price, star, ItemBuySection with barters and their items' flea levels). It replaces the QuestKeyDialog
+  window on the map. «Ключи локации» sorts by tier (byTier).
+- e1a22a9f: «Ключи рядом» (maps/nearbyKeys.ts, NearbyKeysPanel). In a raid only: needed keys not in the stash, spawn
+  within 50 m of a current quest point on the same storey, with a bottom window, «Свернуть» / «Закрыть» (per raid) and
+  lit spawns shown even with the keys layer off. The gear menu is now «Настройки карты», with a switch (on).
+- a locked room's key in a point card opens in place; tier letters on the keys of locked notes and key spots.
+- ad9d40ec: «Показывать только нужные спавны» (maps/neededSpawns.ts, off by default). It keeps loot and key spots that
+  hold a hideout or quest item still needed, or a key the quests need, and the layer counts follow it. Containers have
+  no content data and stay. The owner was told so; container loot is not shown for the same reason.
+- Tests: maps 114, nearbyKeys, neededSpawns, KeySpotKeys, panels (gear renamed) pass; typecheck clean.
+- Test exe: «Raid OS Стекло тест 2.exe» on the desktop (ad9d40ec); the first test exe was running and could not be
+  replaced. Stash scan fix waits on refs/heads/claude/stash-scan-short-labels (4a78349b), not merged: no owner word yet.
+## 2026-11-19 — exits by «O»: read from the game's screen, not the pointer's (branch claude/raid-exits-o-key, not released)
+
+- Owner: «Функция обнаружения выходов по кнопке О… ничего не происходит с выходами и не отмечаются». Checked on his
+  screenshots of 19.11 00:02–00:12 (3440×1440, Customs PvE): the list reads right with the app's own steps (header
+  64 % ≥ 45 %, all 7 exits; matched to 10 Customs exits lit, 18 dimmed); the logs give the raid (bigmap since 23:59:33);
+  the app running is 0.6.0.318. His PC has two screens: 3440×1440 (the game) and 1920×1080 to its right — the reader
+  copied the display under the pointer, which the game hides in a raid. Now it copies the game's own window
+  (`visibleGameRect`), the pointer's display only when the window is not found (`listArea`, `cornerRect`,
+  `headerStripRect`).
+- Each reading is now kept for a look (`%APPDATA%/…/raid-exits`, the last 20: what started it — key or header — where it
+  copied, how long, what it read, and the picture; or «exclusive-full-screen»).
+- Also seen: 3 of the 5 screenshots show only the raid timer — one short O shows the time; the list comes with a double
+  O (or by itself at the raid's start).
+- Tests: electron/extractsReader + src/maps 113/113 (3 new), typecheck, tsc electron, eslint clean.
+- Not checked in the game: one raid with a double O, then the raid-exits folder tells the rest.
+
+## 2026-11-19 — stash scan: «КШС» and other short labels (branch claude/stash-scan-short-labels, not released)
+
+- Owner (Season, «Что собрать для убежища», scan on): «КШС… на экране он есть… не находит. И еще много других
+  предметов»; the app said «Прочитано подписей: 646 · Убежище +0». Checked with the app's own steps (labelBoxes,
+  labelReader, Tesseract rus+eng PSM 11, countScreenItems) on a real 3440×1440 stash frame of his (the item lookup's
+  log, 15.11, with «КШС» in it) and 4 inventory screenshots; catalog: the game's ru names of 13.11.
+- Causes found and fixed:
+  - OCR reads «КШС» as «KLUC» or «KWC» (Ш as LU / LLI / W); 1 as l or i («Survil2»), Э as 3 («3KO»), п as n
+    («CBAC nep.»). collectorMatch.ts `labelFold` folds these on both sides of labelScore (names of ≤3 letters still
+    only whole).
+  - Labels whose letters fall apart were not labels at all: «SE-5» (SE, -, 5), «SSVFK» (SS), «ПБС-1» (-1), «GRAL-S».
+    labelScan.ts joins such fragments to the label beside them, or into a label of their own when they stand as
+    letters on one line (two or more, letter height, same top and bottom) — not round marks, icons or art (checked on
+    the Kappa container: 37 strips as before; same speed on full frames, 45–120 ms).
+  - withoutPrintedCaps took «CBAC» out of «CBAC пер.» as a brand printed on a picture: a label with a word in capitals
+    of its own («СВДС пер.», «BEAR Buddy») keeps it (the Surv12/SALEWA case unchanged).
+  - A label of several words read whole beats one of its words («TK FAST MT» is the helmet, not «FAST» or «FAST MT»);
+    countScreenItems looks for names over two lines only in the lines no item took (before, «TK FAST MT» also counted
+    the FAST visor and the FAST MT helmets).
+- On the frame: 23 of 23 visible labels found (КШС, SE-5, SSVFK, ПБС-1, GRAL-S, Surv12, ЭКО, СВДС пер., TK FAST MT…),
+  nothing else among the look-alikes in the test catalog. Left: ambiguous labels (M856A1, «Флешетта»: 3–4 items each)
+  stay unmatched as before; «Razor HD» read «Кагог НО» unmatched; a tooltip's «Stark» still counts as the «Star» bullet
+  (stray-mark rule, as before).
+- Tests: src/kappa/stashLabels.test.ts (new, 7: real frame and Tesseract, fixtures stash-1440p.webp, stash-items.json);
+  src/kappa, src/stashScan, src/overlay 161/161; src/quests, src/items, pages, screen, state 299/300 (ManualMarks «in
+  English» timed out under load, passes alone 7/7 and on the base); typecheck, tsc electron, eslint clean.
+- Not checked in the game; not released.
+- Owner's clarification: «КШС» lay in the main stash grid, not found there either; and several containers may be open,
+  one after another, one over another. The frame checked above is the main stash grid (КШС beside «Евро») — found now.
+  The scan already copies the game's whole window and looks for labels anywhere in it: the stash and every container
+  window, in any order; a label under another window is read when it comes into view (only the changed part of the
+  screen is searched again). What stopped it was time: one press scanned 45 s. Now (useScreenSync.ts scanScreen) it
+  goes on 45 s after the last labels new on screen, 5 min at most; «Остановить» stops it as before. Test:
+  src/stashScan/scanScreen.test.ts (3, fake timers). src/stashScan + src/screen 89/89, typecheck, eslint clean.
+- Risk: a screen whose labels re-key every frame (pixel noise) keeps the scan going the full 5 min; the owner's report
+  (646 labels read in 16 passes) may be that or scrolling — not checked in the game.
+- The owner's in-game screenshot of 19.11 02:51 (3440×1440: stash, «Хлам», F5 Switchblade and a case open, one beside
+  another): 321 label strips, read with the app's steps and matched against the whole catalog. Containers read as well
+  as the stash. Fixed after it: «КШС» in the junk box read «KLC» (Ш as one L: now folded so too); «PM II 3-28x5@» was the
+  syringe «L1» (1/i not folded for names of 2–3 letters); «ЯЙЦО» and «3n ПОДС.» were taken out as prints — Cyrillic
+  capitals are now kept (the game's small Cyrillic letters read as capitals; prints are Latin brands), the game's own
+  captions in capitals («УБЕЖИЩЕ», «БЫСТРЫЙ ДОСТУП», tabs, slots; RU and EN) are kept out by list; a name of several
+  words scores above its words only when the line is that name. Frame: 171 → 173 of 321 strips matched, the six
+  changes all right (Яйцо, RFB конт., PM II 3-20x50, КШС, ЭП подс.; a wrong «ШГ-2» gone). Unmatched by design: labels of
+  several items (FMJ, ПС, Т-45М1, Плакат, Барельеф, ULACH…).
+- Tests: stashLabels.test.ts 7 (new cases: KLC, ЯИЦО, Зп ПОДС., PM II not L1); src/kappa, src/stashScan, src/overlay,
+  keyScan 165/165; typecheck, eslint clean.
+## 2026-11-19 — «Требования рейда»: сигнальный патрон для выхода; пистолет, патрон и калибр в окне ракеты (branch claude/exit-flare-requirements, not released)
+
+- Owner (19.11.2026): on every map with an exit opened by a flare, «Требования рейда» shows the cartridge the exit needs as its own
+  row «Для выхода»; a quest's own flare (same cartridge) does not absorb it — a second row; none while the current quest is the one
+  leaving through that exit («Прекратить огонь!»); back once that quest is done, not yet open or put aside. A flare's hover card
+  shows the pistol it is fired from with the cartridge and the calibre, for every colour.
+- `src/raidprep/exitFlares.ts` (new): flare exits of a map from the extract markers — name «… (Сигнал)/(Flare)» or our exit guide
+  (Icebreaker's helicopter): Таможня, Лес, Развязка, Улицы, Эпицентр, Ледокол; the Scavs' twin not twice. `exitFlareNeeds` drops the
+  exit whose flare a current quest line already asks for (a `signal` line of an `extract` objective; its zone, when it names one,
+  must be this exit). `flareCardOf`: any 26x75 / RSP-30 / ROP-30 item → ZiD SP-81 26x75 (`620109578d82e67e7911abf2`) with the
+  row's 26x75 cartridges, calibre 26x75, and «Без пистолета» for RSP-30 (fired from the hand).
+- `src/pages/DashboardPage.tsx`: exit rows (RSP-30 green on the row, 26x75 green «+1» in the card, «Для выхода · <short exit name>»,
+  opens the map) after the quest rows; every row gets its flare card. `src/components/RaidRequirementsPanel.tsx`: purpose `exit`,
+  `FlareHover`. `src/i18n/uiEnglishOverview.ts`: «Для выхода», «Сигнальный пистолет», «Без пистолета».
+- PvP / PvE / Season: rows come from the selected mode's markers and that mode's quest progress and deferrals.
+- Tests: `src/raidprep/exitFlares.test.ts` (10), `src/pages/DashboardPage.exitFlares.test.tsx` (6: no quest, «Прекратить огонь!»
+  current, put aside, another quest's green flare, hover card green and red, English). typecheck (`npm run typecheck`,
+  `tsc -p tsconfig.electron.json`), eslint on the changed files clean. Full `npm test` (Windows): 4174/4191; the 16 failures are
+  load timeouts (all pass when rerun alone: DashboardPage, App, MapsPage.*, ManualMarks), Windows-only tar / path-with-space
+  (electron/linux/updater, appVersion, staleServer) and AdminPanelPage «stands right above «Обзор»» (reads AppShell.tsx with CRLF
+  line endings) — none touch this change; CI on Linux decides.
+- Not checked in the running app (tests only). Risks: «Взял» is kept per item, so ticking the exit's RSP-30 also ticks a quest row
+  of the same RSP-30; the exit row needs the green flares in the loaded catalog (always there in tarkov.dev's items).
+## 2026-11-18 — release 0.6.0.319
+
+- Owner: wait for the flea reading, then release everything («Ждать барахолку», then «Добавляй»).
+- claude/release-319 = claude/report-192-season merged with refs/heads/claude/flea-prices-from-screens (73b82269:
+  flea prices from players' screens, server playerPrices + POST /v1/data/prices/:mode/sightings, already in the
+  electron ROUTES; «Нет в наличии» → «Добавить в наличие»; positionTracker test fix). Only WORK_LOG conflicted (union).
+  Release commit 9f5307bc: version 0.6.0-319, news (owner approved; nothing about prices or screen reading): key price and
+  tier letter, «Что в комнате», quest keys add to stash, documents on every floor, Season «Освободить помещение».
+- Checks: typecheck and electron tsc clean; server 594/595 (supportChat ECONNRESET once, 24/24 alone); vitest 4205
+  passed, 12 failed. 8 of those fail on 318 too (appVersion, AdminPanelPage CRLF, staleServer, linux/updater ×3,
+  release-policy, cache-item-images). MapsPage autoFloor, deferred, raidChecks and ObjectivePhotos pass alone (18/18).
+- Pushed 9f5307bc to release/production (fast-forward; no workflow or native files). Gate 44343861635 green. The
+  publisher was started by hand at 16:23 UTC on the owner's word and succeeded 16:32 UTC: version.json 0.6.0-319
+  (9f5307bc). The sightings route answers 401 without auth, so it is live. Phone builds: TestFlight run success, iOS IPA
+  run in progress at 16:35.
+- Also today: player chat about «нет соединения с сервером» on PC. The server is fine, but there were no desktop requests
+  at all from the player's address (site and Android only). Likely an antivirus, firewall or VPN on the PC; a reply was
+  drafted for the owner. The VPS SSH and /health timed out once each from this PC (WARP); fine on retry.
+- Remaining: nothing of 319 checked in the game (flea reading at 2560×1440 / 3440×1440, key windows, documents);
+  release mirror gc warnings.
+
+## 2026-11-19 — Claude: Season line «KORD BREACH» (21 quests) in the quest base
+
+- Owner: «этого квеста нету у нас в базе, добавь его … собери цепочку» (screenshots of «Незваные гости. Часть 1» and
+  «Звонки без ответа», Season). tarkov.dev has none of the 21 quests in any mode.
+- Branch claude/kord-breach-quests from release/production 4d8c3174. Files: src/data/kordBreachQuests.ts (new),
+  src/data/curatedQuests.ts (series added), src/data/curatedQuests.test.ts, docs/quests/kord-breach.md (chain, ids,
+  source disagreements).
+- 17 game ids (7 confirmed in the owner's logs of 19.11; Digital Puzzle's id read from the season reward conditions);
+  4 quests without a published id use `kord-breach-…` placeholders until a log names them.
+- Checks: typecheck clean; vitest src/data, src/quests, src/progression 861 passed; questBase server test 11/11; dev
+  build in Season shows all 21 in ru and en.
+- Not deployed. Remaining: map points for most objectives, quest-item ids, the 4 missing game ids.
+
+## 2026-11-19 — Claude: exits after O reach the map again; «Ключи рядом» window; release 0.6.0.321 prepared
+
+- Exits (owner: «Выходы на карте до сих пор не обнаруживаются», Customs, Season): the PC app read the list correctly
+  (raid-exits log in `%APPDATA%\Tarkov Operations Companion Beta`, three readings 13:28–13:32, raid since 13:25 by the
+  logs) and the matching lights all six exits, but `electron/preload.cjs` had no `onRaidExtracts`, so the page never got a
+  reading. Commit 4ee19ae2: preload.cjs, a sync test over `subscribe()` events, the owner's Customs reading as a test.
+- «Ключи рядом» (owner's list of 19.11): commit 50aa58b6. The spawns glow like a chosen quest (no circle); a wide, low
+  window at the bottom left; keys only, a key's card over the list; «Свернуть» takes the glow off and keeps the spawns
+  until the raid ends (remembered per raid), «Закрыть» as before.
+- Release 0.6.0.321 (KORD BREACH + both above) prepared on claude/kord-breach-quests. Checks: typecheck clean. Full vitest
+  failures are the 320 ones (appVersion, AdminPanelPage, staleServer, cache-item-images); MapsPage tests under load pass
+  alone. Server 594/595 (mirrorStorage once under load, 10/10 alone).
+- Not verified in the game: the exits fix and the window need the built app.
+- Later the same day: the «Ключи» window lost its location picker and follows the map page's map (`locationKeys.followMap`,
+  a key's open doors kept); a map without keys says so instead of showing the first map's keys. Added to 0.6.0.321.
+- Released 0.6.0.321: 861aa944 pushed to release/production (fast-forward from 4d8c3174) at 06:58 UTC, gate
+  44476049917 green, publisher started by hand at 07:44 UTC on the owner's go-ahead; version.json and mobile.json show
+  0.6.0-321 (861aa944). News: two lines only on the owner's word («Ключи» follows the map, «Оптимизация карты в рейде»).
+- Remaining: check exits after O and «Ключи рядом» in a real raid; the four KORD BREACH ids; map points of the line.
+
+## 2026-11-19 — Claude: «Что-то мне это напоминает...» back on every map and in the raid requirements
+- Player chat (PC, PvE): the WI-FI cameras of Fence's «Что-то мне это напоминает...» were missing from «Требования рейда»
+  and the quest was not on the map; only a squad mate's copy showed. The quest was active from the logs, not put aside,
+  no objective ticked (server mirror; reproduced in a dev window with that player's PvE quest statuses, data removed after).
+- Cause: the report 165 rule (de52ec71, 15.11) made an objective wait for an earlier one on another map that shares an item.
+  All 27 objectives plant the same camera, so every map waited for Streets and the quest stayed on Streets only.
+- Fix (`src/progression/mapObjectives.ts`): only an earlier find (findItem / findQuestItem) holds a later objective back.
+  Test in `mapObjectives.test.ts`. Checked in the dev window: Customs requirements «WI-FI Камера ×7» (3 for this quest),
+  the quest in Lighthouse's list. typecheck clean; progression/maps/pages tests pass (three MapsPage files only alone, as before).
+- Branch claude/cameras-every-map; not released (needs an app version, the owner decides).
+- Released 0.6.0.322 on the owner's word («Выпусти»): 92437986 (version, history row, no player news) fast-forwarded
+  release/production 861aa944 → 92437986 at ~10:16 UTC; Production Gate 44504352551 green; publisher started by hand at
+  10:29 UTC; version.json 0.6.0-322 (924379863c58…-production) at ~10:37 UTC, /v1/downloads/mobile.json 0.6.0.322.
+
+## 2026-11-19 — Claude: map points and kill zones no longer jump on a zoom or a click (all maps)
+- Owner's video (Shoreline, Season): after a press on a battle pass document the map moved back to it again and again,
+  the documents and the «Чужое добро» kill zone «ездить, прыгать туда-сюда»; on a zoom the icons slid and snapped.
+- `FocusOnMarker` (`src/pages/MapsPage.tsx`) flew to the picked point on every rebuild of its marker object (data, squad,
+  scanner updates); it now flies once per point (id + position), and again only when asked («Показать точку на карте»).
+- `src/maps/MarkerCanvasLayer.tsx`: the canvas of points scaled as one picture during a zoom. A flight or pinch now redraws
+  each frame at its own zoom; Leaflet's CSS zoom repaints the icons each frame at the inverse of the canvas scale, so they keep
+  size and place. Checked in the dev page: canvas at 2× → icons drawn at ½ (24 → 12 px), a frame zoom redraws at scale 1.
+- Kill zones are SVG polygons and follow the map; their jumping was the map flying back. The layer switches report of
+  Prizrak337 is still not reproduced (PvE, «Стекло», Shoreline: 30 documents, switches work, nothing covers the buttons).
+- typecheck clean; src/maps + MapsPage tests pass (MapsPage.deferred only alone, as before). Not released.
+- Released 0.6.0.323 on the owner's word («Да, выпускай»): 0dba4c89 on release/production; the gate's first run failed
+  on the known flaky server test «mirror storage: two storages on one folder» (client-only change), rerun of the failed
+  job green (44530897532 attempt 2); the timer started the publisher; version.json 0.6.0-323, mobile.json 0.6.0.323.
+
+## 2026-11-20 — Claude: quest rows keep one height with the Kappa tag
+- Owner (photo of «Квесты» → «Текущие»): a current Kappa quest's row was taller — its second tag («капа») dropped to a grid row
+  of its own. `src/pages/QuestsPage.tsx`: the row's tags (status, «капа», the hand-set mark) sit in one cell `.quest-row-tags`
+  (`src/styles/pages.css`, inline-flex, no wrap). Checked in the dev page: four current Kappa quests, rows 61 px each, tags side
+  by side. typecheck clean, QuestsPage tests pass. Branch claude/quest-row-tags, not released.
+- «Небеса в огне», stage 8 «Оставить бортовой самописец в указанном месте» (Shoreline): the owner marked the right spot on a
+  screenshot — inside the long house at its south-west corner, 17 m from our point by its north-east corner. The spot was
+  measured by rebuilding the same satellite view in the dev page (the old point read back within 0.1 m) and moved in
+  `src/data/storyChapterSeeds.ts` to x 250.83, z 440.89; no server override exists for it. The dev map shows the stage's
+  marker there; story tests pass. Same branch claude/quest-row-tags, not released.
+- Exits after O: the game's list photographed in SPT (Customs, bright sky behind the list) and run through the app's own steps
+  (corner crop, `listForOcr`, tesseract rus+eng psm 6, `parseExtractList`/`exitsInText`): every listed exit whose name matches
+  the live game's was found; one of three reads gave «ВС» as Latin «BC». `src/maps/raidExtracts.ts` `matchKey` now treats
+  Latin letters drawn like Cyrillic ones as the same letter (test added; 14 exit tests pass). The live pipeline (O key → corner
+  → map) is still not seen working in a live raid since 0.6.0.321: the PC had no live raid after it.
+- «Нужно больше энергии» (Shoreline): the card of the east-wing generator point named the west wing's keys (Сан219, Сан220)
+  too. A quest key now keeps the objectives its requirements name (`src/quests/questKeys.ts`, `objectiveIds`; a key some
+  requirement gives no objective stays for the whole quest), `questKeysOnMap` carries them, and `questKeysOfPoint`
+  (`src/maps/neededKeys.ts`) gives a point only its own objective's keys and the whole quest's (MapsPage tooltip). Checked in
+  the dev page: the east-wing card shows no key, the west-wing card shows both. Tests added; typecheck clean; map and quest
+  tests pass (the AdminPanel source test fails in this checkout only because of CRLF line endings). Branch
+  claude/quest-row-tags, not released.
+- Bosses: «Свита» in each boss's description (Gallery, `src/gallery/BossInfoPanel.tsx`): every kind of guard, how many on which
+  map (Reshala 2–4 on Customs, 4 on Terminal; Glukhar's assault/security/scouts 2+2+2 on Reserve, 3 security on Terminal;
+  Kaban's 4 guards, Bashmak, Gus and 1–2 snipers; Kollontay's 2+2; the Wedge's 3 Lab guards; the Cultist Priest's 2–4 by map),
+  each with his guns and their rounds, plate classes, helmet and armour. The Goons show the other two («Вместе с») with the
+  kit of their own pages. Generated by `scripts/bosses/boss-gear.mjs` into `src/data/bossRetinue.json` from json.tarkov.dev
+  (`maps` escorts and loadouts, guard names from the game's locale). `bossGear.json` was left as it was: a new run draws a new
+  loadout sample. The old «Охрана» armour row is gone (the retinue names each kind). Tests added; typecheck clean; checked in
+  the dev page (Reshala, Glukhar, Kaban, Birdeye). Branch claude/quest-row-tags, not released.
+- Overview on the PC: a free layout (owner: «свободную секцию обзора, все блоки можно перемешать и передвигать… остальные
+  блоки сдвинутся вниз, которые мешают»). `src/overview/overviewFreeLayout.ts`: a 24-column grid; each block keeps its width
+  (cards share the row, 4 → a quarter each, a card taken off → the rest widen, as on 17.11; left blocks 15, right 9) and stands
+  at any column (every third) and any height; blocks are laid from the top in their order, so a block put above others pushes
+  down only the ones it would cover. `useOverviewEditor.ts` rewritten for it (drag anywhere with FLIP, arrows up/down/left/right,
+  Esc, the cross, «Сбросить»; heights measured, cards side by side as tall as the tallest; one column under 820 px). Saved under
+  `raidos-overview-free-v1`; a player without it starts from their old zone order or the owner's «Блоки» default, so nothing
+  changes until a block is moved. The phone Overview is unchanged. «Текущие задания» still lines «Рынок» up with «Требования
+  рейда» while they stand side by side. Checked in the dev page: «Требования рейда» to the top pushes the three cards under it
+  down and leaves «Кочевники»; «Рынок» to the top left; «Сбросить» brings the old look back and clears the saved layout. Tests
+  updated/added (130 pass), typecheck and lint clean. Branch claude/quest-row-tags, not released.
+- Overview free layout, owner's second round (20.11.2026): cards keep a quarter of the row (the 17.11 rule «делят ряд поровну»
+  is gone: a card taken off leaves its place, the blocks of its row to its right move left); every block rises into the highest
+  gap it fits (first fit, «сдвигаются выше»); «Добавить блок» (src/overview/AddBlockMenu.tsx, shown while something is off the
+  Overview) puts a block back where it stands highest without moving others, a card back into the row of cards. Motion on the
+  springs of «Стекло»: glide 420 ms cubic-bezier(.22,1.2,.36,1) (softMotion GLIDE), settle 380 ms, lift as a CSS scale spring,
+  an added block comes in like a page's blocks (560 ms), a removed one sinks away (200 ms); height changes glide too.
+  softMotion no longer glides what is inside a block of the free grid a second time (spots measured within the block).
+  Video for the owner, stepped at 60 fps: «Raid OS обзор перетаскивание блоков.mp4» (film-overview.cjs in the session scratchpad).
+  Tests: overview 86 pass, DashboardPage 39 pass alone; typecheck and lint clean. Not released.
+- Overview free layout, round three (owner, 20.11.2026): cards stand in rows that move as one («Кочевники» stays beside the others,
+  the same size); a row fills its lane (four cards the whole width, three the width of the map's column, one or two at the right
+  the right column); a card carried onto a row joins it. Blocks have no size of their own: each takes the room where it stands (the
+  corner resize was tried and taken out on the owner's word). The jiggle in «Настроить блоки» is quick and uneven, each block its own
+  turn, speed, phase and way round (--jiggle* from useOverviewEditor.styleOf, CSS rotate/translate). Fixes found on the way: an
+  endless jiggle made finish() throw so a drag never began (only finite animations are finished now); a tall block put above a short
+  row went back and forth (the others' places are read with the carried block in place).
+- Fit in every width (owner: «Проверь… все вариации»): a headless check of every block at 1000/1280/1600/1920 px in six layouts
+  (default, columns swapped, 3+1, 2+2, 1+1+2, requirements on top) for anything out of its block, cut or off screen
+  (check-fit.cjs in the session scratchpad). Fixed: the clocks scale with the card (container units, 13–32 px, no wrap: the phone's
+  half-wide card too), the Kappa buttons go under the title under 300 px, the narrow «Кочевники» card shows the title and «Отметок нет»
+  whole with «Видел» at the bottom (as the phone), the empty «Сбор на рейд» words read over dimmed pictures; «Текущие задания» and the
+  map priority tiles are one height on the PC (the strip scrolls by the wheel, its bar hidden). Left: the «Тактика боя» hover hint
+  of the boss figures is a few px wider than its figure (a tooltip, not cut). Overview tests 87 + DashboardPage 39 pass; typecheck
+  and lint clean. Not released.
+- «Сборка оружия» (owner's phone screenshot, 20.11.2026): the recoil note under the board is gone («про отдачу убери вообще»); the
+  module search no longer takes the focus on a phone or a touch screen, so tapping a module opens no keyboard («только когда нажимаешь
+  на ручной поиск»). The bigger one-screen phone board waits: the owner wants it on the new picture made of the game's part renders,
+  with modules changed live. Weapon builder tests 122 pass; typecheck and lint clean. Not released.
+- «Сборка оружия» on the game's own part pictures (owner, 20.11.2026: «по картинке модуля, с заменой модулей прямо в прямом эфире»;
+  «оружие сделать больше, а квадратики… поменьше… вокруг оружия»; «как в Таркове… окно прям возле ячейки»): the build is drawn live
+  from per-part renders made in the offline SPT copy on E: (RaidOsGuns plugin; 2138 of 2486 parts, 10.2 MB WebP + depth PNG,
+  E:\SPT-photo\weapons\assets → public/gun-parts/, gitignored; hosting for the app is still to decide: a server route + a ROUTES entry
+  in electron/serviceGateway.ts). src/arsenal/partPictures.ts lays a build by slot points (anchors/centres per slot path),
+  BuildPicture.tsx draws it with WebGL2 per-pixel depth (Canvas2D fallback), stageLayout.ts puts small cells around the weapon each
+  near its part, never over a part or another cell (tests), BuildStage.tsx draws picture + faint lines + cells, ModGrid.tsx is the
+  game-like window of module squares at the cell (picture, short name, ergonomics, recoil, price; closed ones greyed). A build with a
+  part that has no picture falls back to the old board and side list. «На весь экран»: only the build, a draggable stats window
+  (ergonomics, weight, recoil, velocity; a phone: at the top left, on its side at the left), one «Свернуть» button; on the PC the
+  window goes full screen too (Esc kept by the page via keyboard.lock). A second empty slot of a kind beside a filled one (the M4A1's
+  B.A.D. slot by its charging handle) is hidden until its twin is chosen (boardLayout.hiddenTwins). «Показать все модули» next to
+  «Цена оружия»: every trader at the top, the flea open — any build can be made. Tests: arsenal + weapon builds + i18n 166 pass;
+  typecheck and lint clean. Not released. Left: 348 parts newer than the offline copy (a helper copies their bundles from the
+  installed game, read-only, into E:), side-mounted parts turned to the eye are not drawn yet (the build falls back to the board).
+- Test exe for the owner (20.11.2026, «собери приложение тестовое… добавь все модули»): owner build of claude/quest-row-tags at
+  608733bb («Build 0.6.0-323 608733bb · owner · owner e-mails: 1»), copied to the desktop as «Raid OS тест сборки оружия.exe»
+  (193 MB); app.asar holds dist/gun-parts (4277 files: 2138 parts) and the raidos-img://parts responder (electron/gunParts.ts,
+  2 tests). Not started here (the real shell opens the owner's data); not released. Incident on the way: removing the
+  node_modules junction from Git Bash failed silently and `npm ci` in raidos-kord-breach emptied most of
+  raidos-map-tiles-negative/node_modules through it (460 → 81); restored with `npm install` there (460 again; electron, koffi,
+  sharp checked), raidos-kord-breach now has its own node_modules (npm ci, 461).
+- Test exe again (20.11.2026, the owner could not sign in to the first one: «не может подключиться к серверу»). Causes: no
+  entitlement key built in (the subscription check cannot pass: «Нужна подписка / Сервер недоступен»), and a packaged exe boots the
+  update staged for the real app (%APPDATA%\Raid OS Updates, one staged at 03:38) instead of itself, sharing the owner's data folder.
+  95d1df11: TEST_BUILD=1 → build-info testBuild: boot.ts skips the staged build, main.ts uses %APPDATA%\Raid OS Test Build (runs
+  beside the real app) and starts no update checks; server and account as usual. Rebuilt «Raid OS тест сборки оружия.exe» (owner,
+  entitlement key from /v1/entitlement/public-key, test build, 194 MB) with 2470 part pictures (the helper drew 332 of the 348 newer
+  parts from bundles copied read-only out of the installed game into the offline copy on E:; 16 not: 10 base receivers drawn
+  turned or empty by the old client, the P90 SMC-90 stock, 5 helmet items). Tests: buildEdition, deltaBoot, gunParts pass.
+  Not released; not started here.
+- Players' reports (owner, 20.11.2026: «все заявки… если они уже сделаны, закрой и начисли по одному дню… если база обновится и данные
+  по квестам, не нужно два раза работать»): in the admin panel (raidos.app/admin?tab=bugs, the owner signed in in the built-in browser)
+  №194, 195, 197, 198, 199 (fixed in c0498f13 on claude/reports-194-199, not released yet) got +1 day each and «Готово» («Нет» in the
+  «Выдать 1 день?» window: the day was given already). №200 («Провокация»: the reward) went to the SPT quest check session, №201
+  (Glukhar's escort: flashlights) to the boss escort session — they stay «В процессе» until those are done.
+- Weapon builds, more: the module window stands beside the part it changes with what is on it, never over it (left or right first,
+  else below or above; partPictures `boxes` by path); the tier list's right click on a weapon «Сборка оружия» lists opens it
+  («Перейти к сборке оружия»; the gun catalogue loads on the «Оружие» tab only).
+- Folding stocks (owner, 20.11.2026: «кнопки сложить, разложить… приклад… на каком оружии и на каких модулях можно сложить»): the
+  helper read Foldable / FoldedSlot from the SPT templates (E:\SPT-photo\weapons\foldable.json: 46 weapons, 9 mods) and had the
+  game fold them before a render (FoldableStockView: UnfoldedRotation → FoldedRotation; RaidOsGuns modes fold / foldWith): 46 folded
+  pictures (`<id>.fold.webp/.fold.d.png`), index.json `fold` and `fs` (the slot that folds) on 42 weapons. «Сложить приклад» /
+  «Разложить приклад» on the bench of a weapon whose stock folds: the weapon in its folded look, the stock in the folding slot in its
+  own. Not done: MP7A1/A2 (the stock slides, no bone turns), the M3 telescopic stock, the Vltor/JMAC/FAB AKMS adapters.
+- A part that lists the weapon itself among its conflicts never goes on it (owner's photo, 20.11.2026: AK-105 with the Vltor CMRD
+  and a PBS-4 going into it): the CMRD lists the AK-102, AK-104 and AK-105, the game never puts it on them; canInstall checked only
+  the parts on the weapon, now the weapon too (22 parts in the game ban some weapons: CQR, TRAX 2, Hexagon AK, CMRD…). The PBS-4 has
+  no conflicts: with a handguard that allows it, the game shows it running into the handguard the same way (no collisions in the game).
+- Test exe 2 (20.11.2026, 06:03): «Raid OS тест сборки оружия 2.exe» on the desktop (owner, test build, entitlement key, 69c2a514; the
+  first one was running, not replaced): side-rail parts, folding stocks (5033 part files with the folded ones), the CMRD ban, the
+  Gunsmith benches. electron-builder hit EPERM renaming win-unpacked.tmp inside the worktree twice (release/ and release-test/);
+  packed to C:\Users\BANGKOK PC\raidos-pack-test instead (release-test/ added to .gitignore). Still open: SPEAR 6.8, T-5000M,
+  M3 Super 90 and AXMC have parts standing across (the game drew them turned); a helper waits for the offline game to measure the
+  game's own assembled presets and write a `fix` turn per part.
+- Reports №200 and №201 closed with +1 day each (20.11.2026, «Готово» → «Да»): №200 «Провокация» fixed by the SPT quest check
+  (70f65c0b on claude/spt-quest-sync), №201 Glukhar's escort by the SPT escort session (3baa0bdf on claude/boss-retinue-spt); none
+  released. «В процессе» is empty, 194–201 all «Выдано дней: 1».
+- The game's own turn per part (20.11.2026): the helper's RaidOsGuns mode `assembled` put 147 of 148 default presets together in the
+  offline game and wrote where each part stood (768 parts); compute_fix.py compared with layBuild: 34 parts need one and the same
+  extra turn, −90° about X in their own frame (the game puts them straight on the slot's bone), whatever the weapon — `fix` in
+  index.json. layBuild applies it (HINGED_BARRELS gone: its turn was this one). Fixed by it: the SPEAR 6.8 receiver, the T-5000M
+  chassis, the M3 forend, the AXMC receiver, the MP-18/PKM/RPD/Pecheneg barrels, stocks of SCAR, SA58, MP7, TOZ-106, UZI, 9A-91, G36,
+  VSS, Desert Eagle/Glock 18C/M1911A1 slides, P90, the M60E6 box. Check of the 151 drawn weapons and the 30 Gunsmith builds: nothing
+  across or away from its parent (the SCAR butt plate is tall by itself). Not covered: parts in no default preset.
+- The bench's backdrop per colour scheme (owner, 20.11.2026): 12 places shot in the offline game (RaidOsScenes plugin, E:\SPT-photo\
+  backgrounds, originals 1920×1080 and every take there) — Woods day (tarkov), Woods at dusk (blackmc), Shoreline sea (telnyashka),
+  Reserve concrete (slate), Factory halls (gear, alcantara, perforated), Lighthouse red night and gold sunset (bloodmoon, crimson),
+  Streets (daynight, steel), Customs rusty warehouse (rust); src/assets/bench-backgrounds/<theme>.webp 1280×720, blurred and darkened
+  in CSS under the weapon (src/arsenal/benchBackdrop.ts), following the scheme live. rust, crimson, steel, alcantara and perforated
+  cannot be picked now (src/theme/theme.ts): their shots wait.
+- Stocks standing up (owner's screenshots of test exe 2, 20.11.2026: AKMS and G36 «приклады стояли горизонтально, а не
+  вертикально… пройдись по всему оружию»). Test exe 2 predates the game's own turns (9189997e), which already put the AKMS and G36
+  stocks straight. Every one of the 291 stocks laid on a weapon it fits (default preset, or through a tube/adapter;
+  scratchpad stock_lay.py ports layBuild): 8 more stand up like the measured ones and get the same −90° about X — the G36 KV,
+  Uzi type 6, Uzi Pro buttstock and brace, SR-2MP, PS90, the SV-98 CNC OV chassis (and the M12B on it), the AX GTAC PB adapter.
+  Seen on pictures unfolded and folded, and in the app (AKMS, G36 with KV). Data only: E:\SPT-photo\weapons\fixes.json (42, the
+  8 marked `source: picture`; backup fixes.json.bak-stocks-20261120) and public/gun-parts/index.json (gitignored, ships in the exe).
+  What still stands tall is meant to: butt pads and the MP5 end caps.
+- 87b0a417: a right click on a module's cell takes it off (owner: «правой кнопкой он должен сниматься просто. А по нажатию левой
+  открывается окно»), any but a required slot's, as the window's «Снять»; the shopping list named a quest by its id
+  («квест «67a097379f2068e746…»») — now by its name from the game data, else «квест». Tests 244 in arsenal/gunsmith/pages/screen,
+  typecheck, lint pass. Not released.
+- 1a548333, report 203 (owner, 20.11.2026: «место одно, а фото вообще другое»): the Shoreline «Эксплуатационная документация»
+  point at (-627.6, -232.5) — a green-roofed hangar between the village and the car exit — showed the wiki's photo 15 «inside the
+  white house in front of the T-90 in the village», given to it by elimination; none of the feed's 15 points (unchanged since
+  05.11) answers to that photo, so it stays only in «Все места». Report 203 closed with +1 day. Ships with the next app version.
+  Still in work: 204 «Забросить невод [KORD BREACH]» — no point for the four camera spots anywhere open (tarkov.help's map is
+  premium-only, szepiz/tarkov-quest-data has no KORD BREACH points; its guide has only in-game pictures); 202 — the item key showed
+  «Кейс для инъекторов» while the cursor was on «Золотой петух» (the injector case sat in the pouch on the same screen).
+- f7713be9, report 202 («в рейде часто предмет распознается как инъекторница»; the card said «Кейс для инъекторов» for a
+  «Золотой петух» whose name the game showed): the picture search answered within milliseconds of the first grab and its
+  answer stopped the grabs (`done`), so the tooltip, meant to replace a different picture, was never read. Now the grabs go on
+  until a tooltip has been read once (src/overlay/tooltipLookup.ts); test added; 169 overlay/experimental tests, typecheck, lint
+  pass. Why the picture took the rooster's cell for the injector case is not known (the player's lookup logs stay on their PC).
+  Report 202 closed with +1 day. Not released. In work now: 204 only (camera spots of «Забросить невод»: no open source).
+- c7667858, report 204 («Забросить невод [KORD BREACH]»: «Не отображаются места закладки»): the four WI-FI camera spots found
+  in the offline copy of the game by the helper (RaidOsPhoto), each matching its picture in tarkov.help's guide (owner: «можешь
+  через SPT сам найти в игре эти точки»): Ural by the substation (-180.39, -38.31, 141.08) and the excavator by the stream
+  (-603.54, -28.33, -203.79) on Shoreline, the truck's tractor on the ramp to Mira Ave (118.59, 23.46, 63.41) and the yellow bus
+  (82.02, 15.49, 121.42, the Garage level) on Ground Zero (both maps). Cast the Net and Reverse Gear. MarkedPoint takes `y`.
+  Preview sent to the owner (E:\SPT-photo\approved\kord-breach\preview-cameras.jpg). Report 204 closed with +1 day; «В процессе»
+  empty. Not released. The other 25 KORD BREACH places: the helper's search goes on (places.json there).
+
+## 2026-11-20 — «Требования рейда»: the flare row lights its exit on the map (branch claude/exit-flare-map-focus, not released)
+
+- Owner (20.11.2026): «Еще до сих пор не работает кнопка… реактивный сигнальный патрон… При нажатии на него должен подсвечиваться
+  выход на карте… Добавь это вот сейчас обновление, которое будет.» The exit row (0.6.0.319) only opened the map.
+- `src/pages/MapsPage.tsx`: `?point=<marker id>` focuses a point the way `?lock=` focuses a door — selected with its card, flown to,
+  its floor, lit (`is-focused`) even with its layer off; picking another point drops it. With `?quest=` too, a quest with no point of
+  its own on this map leaves the card to that point instead of its info card.
+- `src/pages/DashboardPage.tsx`: the exit's flare row → `/maps/<map>?point=<exit marker>`; a quest's flare that is an exit's flare
+  («Прекратить огонь!») with no point of the quest here → `?quest=…&point=<exit marker>`. `src/raidprep/exitFlares.ts`: `exitsFiredBy`.
+- Tests: `src/pages/MapsPage.exitPoint.test.tsx` (2: ?point=, ?quest=&point=), links in `DashboardPage.exitFlares.test.tsx`;
+  exitFlares, DashboardPage, MapsPage.keyDoor / objectiveFocus pass; MapsPage.autoFloor / deferred / raidChecks time out only
+  under the parallel run (pass with `--no-file-parallelism`). typecheck, `tsc -p tsconfig.electron.json`, eslint clean.
+- Not checked in the running app (tests only). For the next release: merge this branch.
+- Release 0.6.0.324 prepared on claude/quest-row-tags (owner, 20.11.2026: «выпускай одним выпуском»): the weapon builder on the
+  game's part pictures (public/gun-parts now in the repo, 25 MB), Gunsmith benches, stocks laid straight, right click takes a
+  module off; reports 202–204; story stage/chapter on the phone (68b7034a); the phone's Overview without the per-frame smoke blur
+  (4347d0b8); quest point photos one at a time (07557a54); the flare row lights its exit (merge of claude/exit-flare-map-focus,
+  525c93da); KORD BREACH camera and reception spots. Photos on the server (quest-point overrides, 14 points, 8 photos) already.
+  Local full test run on Windows: the failures were CRLF/path/tar environment tests and timeouts under load (all pass alone with
+  --testTimeout=30000); lint errors only in files release/production already had.
+
+## 2026-11-20 — Claude: «Убежище» как в игре — общий вид одним кадром, модули по уровням, «Где взять»
+- Владелец (20.11): «3D-визуализацию, как при входе в убежище… всё убежище было видно в одном кадре… каждый модуль, если
+  прокачался, визуально меняется, как в игре… сделай себе мод… какие предметы нужны, какие есть… можно скрафтить на верстаке,
+  в санузле… добыть в круге сектантов… каждая строка нажимается».
+- Снимки (офлайн-копия E:\SPT, SPT 4.1.6 / клиент 0.16.9; живая игра на D: не тронута): свой плагин BepInEx RaidOsHideout —
+  исходники E:\SPT-photo\hideout (README там же). Загрузчик ждёт go.flag и каждый раз заново грузит worker.dll, так что правки
+  не требуют перезапуска игры. Уровни модулей переключаются только в картинке (AreaData.CurrentLevel + HideoutArea.SwitchAreaLevels,
+  статус NotSet на кадр — без дыма стройки), профиль не меняется, в конце всё возвращается. Кадр — снимок экрана с выключенным
+  интерфейсом (камера игры в свою текстуру даёт чёрный кадр), надпись версии SPT и подсветка под мышью тоже убираются.
+  Общий вид: ракурс входа игры (наклон 55°), повёрнут на 140° и отодвинут, чтобы в кадр вошли круг сектантов, спортзал, тир
+  (дальний конец тира обрезан); потолки игра сама не рисует сверху. Модули — своей камерой игры на каждом уровне (0 — не построен);
+  «Освещение» снято со своим светом (свечи → лампы → дневной свет), остальные при дневном свете.
+- Приложение (ветка claude/hideout-view от release/production 0dba4c89): `scripts/hideout-views.mjs` → `src/assets/hideout-views/*.webp`
+  (общий вид + 94 снимка, 3,4 МБ) и `src/data/hideoutViews.json` (места кнопок = точки иконок модулей игры, раздвинуты, если налезают).
+  Тёмные снимки осветлены одной гаммой на модуль (уровни сравнимы); альфа игры отброшена до масштабирования.
+  `src/hideout/HideoutView.tsx` на «Убежище и квесты» над тремя кнопками: общий вид с кнопками модулей (уровень, «всё собрано»);
+  модуль — его снимок нужного уровня (переключатель уровней), «Для уровня N»: предметы есть/нужно (найденное для убежища),
+  деньги, модули/торговцы/навыки, время стройки, «Построил N» / «Снять уровень»; крафты модуля (выше уровня — тусклые).
+  `src/hideout/itemSources.ts` + `WhereToGet.tsx` — «Где взять»: крафты (модуль, уровень, замок, если не построен), бартеры
+  торговцев, круг сектантов; строка раскрывается (что положить, время) и ведёт в модуль (`/hideout?module=…&craft=…`) или
+  в круг (`/hideout/cultist-circle?open=…`). Тот же блок в карточках «Что собрать для убежища» и «Квесты».
+  На телефоне общий вид шире экрана с прокруткой вбок. Английский: `src/i18n/uiEnglishHideoutView.ts`.
+- Тесты: `src/hideout/itemSources.test.ts`, `src/hideout/HideoutView.test.tsx`; `CultistCirclePage.test.tsx` — хаб в QueryClientProvider.
+  typecheck и eslint (изменённые файлы) чистые. Проверено в браузере (dev, ПК 1440 и телефон 375, RU и EN).
+- Не выпускалось. Риски: снимки из 0.16.9 (в живой игре 1.3 модули могут выглядеть иначе); вторая оружейная стойка и ёлка
+  не сняты (их нет среди модулей приложения); у вентиляции и сундука Дикого уровни различаются слабо — так в игре.
+
+## 2026-11-20 — Claude: «Убежище» — один вид сверху, модули кусками по уровням игрока (ответ владельца), значки как в игре
+- Владелец (20.11): «вид должен быть только вот такой сверху… картинка вставляется с новым модулем, прям кусок картинки, только чтобы
+  все стыки, все совпадало. Постоянно один ракурс, но модули разные»; комнаты за проломом стены закрыты, пока его нет; окно модуля —
+  все уровни по порядку, у предметов «найти в рейде» сразу где скрафтить, из чего и круг сектантов; «Открыть модуль» — тот же вид
+  сверху с окном модуля; значки «такие же, как в Таркове, только покрашены в соответствии с модулем».
+- Съёмка (E:\SPT, плагин RaidOsHideout, действие `sweep`): одна камера (общий вид, 55°/140°); для света «Освещения» 0–3 — основа со всеми
+  модулями на уровне 0 и каждый модуль на каждом уровне отдельно (среднее 4 кадров). Игра сама не рисует комнаты за аварийной стеной до
+  её 5-го уровня — медблок, комната отдыха, зал славы, самогонный аппарат, спортзал и стойка снаряжения сняты на своей основе «стена
+  проломлена» (base-wall). Профиль не менялся, уровни возвращены.
+- `scripts/hideout-views.mjs`: кусок каждого уровня — разница с основой рядом с объектами модуля, мягкая альфа (порог шума 7, полная
+  24 из 255), обрезка; общий вид обрезан по содержимому; все картинки осветлены одной кривой. → `src/assets/hideout-views/`
+  (base-L<свет>.webp, <id>-<уровень>-L<свет>.webp) и `src/data/hideoutViews.json` (размер, свет, кнопки, места кусков, модули за стеной).
+- Приложение: `HideoutPicture` кладёт на основу света игрока куски построенных уровней; модули за стеной — только с её 5-го уровня
+  (кнопки с замком). `ModulePanel` под/рядом с картинкой: «Мой уровень», все уровни (построенные свёрнуты), крафты; `WhereToGet`
+  с `foundInRaid` — крафты и круг (бартер не даёт «найдено в рейде»), строки раскрыты. Значки — чёрный шестиугольник с ореолом,
+  уровень «03», значок в цвете модуля, выбранный — оранжевый. Снимки модулей с собственного ракурса убраны.
+- Проверки: vitest src/hideout + CultistCirclePage + HideoutStashPage + i18n — 81/81; `npm run typecheck` и eslint изменённых файлов
+  чистые; в браузере (dev): основа «с нуля», замки у модулей за стеной, стена VI открывает комнаты; сборка «всё на максимуме» из
+  кусков совпадает с кадром игры без видимых стыков. Ветка claude/hideout-view (a2c20760 и этот коммит), не выпущено — в 0.6.0.325.
+- Риски: снимки из 0.16.9 (в живой 1.3 модули могут выглядеть иначе); сундук Дикого сверху не виден (куска нет); при свете 0
+  у части модулей нет кусков (не отличаются от тьмы); стена ур. 5 с модулями, снятыми при ур. 6, — возможна мелкая разница у пролома.
+- Release 0.6.0.325 prepared (owner, 20.11.2026: the hideout «в ближайшем обновлении… по готовности»): the hideout in one view
+  from above (merge of claude/hideout-view 9f515178, 216 pictures, 3.1 MB) and the weapon parameters fixed after the check
+  against the game's own data (405bb8e2; report E:\SPT-photo\params-check\report.md). Pushed only after 0.6.0.324 went live.
+
+## 2026-11-20 — Claude: publishing 0.6.0.324 sped up on the VPS (no code, no state change)
+- The publisher compared the 5139 changed files one by one; the release mirror `/opt/raidos-release-mirror.git` is a partial clone
+  (`blob:none`), so each new gun-part picture was a separate lazy fetch from GitHub (~35 files/min, ~2.5 hours for 5033 pictures).
+- Fetched the 3914 missing blobs in one `git fetch --stdin` (11 s, objects only: no refs, no FETCH_HEAD, no state file touched);
+  the loop went to ~220 files/min.
+- Risk for the server owner: the mirror has ~5900 packs and its auto gc fails every run («Packfile doesn't have full closure»,
+  `gc.log`, 74 `tmp_pack` leftovers, 6 GB in `objects/pack`). Not repaired: needs the owner's decision (repack or a fresh mirror,
+  outside a release).
+
+## 2026-11-20 — Claude: hideout icons without the plate, modules behind the wall hidden until the breach (in 0.6.0.325)
+- Merged claude/hideout-view e3386888 (12fed833 + e3386888: the coloured module icons alone, no hexagon plate) — 0601b79a.
+- Owner: «если стена не снесена, значит, модули за этой стенкой не отображаются», then «Показывай эти модули всегда…
+  Все, что за стеной, открывается после сноса стены… Все, что до этого, показывается»: 7e66ee50 + 732b7b42 — `rooms.behind`
+  (gym, hall of fame, gear rack) have no button and the «За аварийной стеной» note until the wall's level 5; the med station,
+  rest space and booze generator (pictures still black until the breach, `rooms.inside`) keep their buttons from the start.
+- Checks: vitest src/hideout 26/26 (+ src/i18n 65/65), eslint clean, typecheck and build clean; full vitest run — only the known
+  Windows false failures plus ObjectivePhotos under load (passes alone, 7/7). Browser (dev, 1280): 20 buttons with the wall intact.
+- Not done here: the Illumination levels look the same (base-L0..L3 mean brightness 36.8–37.2) — reshoot with the lights on,
+  passed to the hideout session for the next update; the Season's modules switched on from the server — a helper on
+  claude/season-hideout-modules.
+
+## 2026-11-20 — Claude: «Модули убежища» по режимам — со старта или выключен, без обновления приложения (не выпущено)
+- Владелец (20.11): к ближайшему сезону спортзал и биткоин-ферма будут «сразу со старта»; «Включение любого модуля и выключение…
+  по команде… сразу же без обновления приложения появится». Ветка `claude/season-hideout-modules` от `claude/quest-row-tags`
+  (42140d14), worktree `C:/Users/BANGKOK PC/raidos-season-modules`, коммит cdb7bbe2. Ничего не включено: настройка пустая.
+- Общее: `src/hideout/hideoutModules.ts` — по режиму `open` (кнопка и окно даже за целой аварийной стеной; требования других модулей
+  у всех уровней сняты, предметы, лояльность и навыки остаются) и `hidden` (модуля нет в убежище режима); 26 известных id
+  (json.tarkov.dev, 20.11.2026). Биткоин-ферма — `5d494a445b56502f18c98a10`, спортзал — `6377a9b9a93bde8fa30eb79a`.
+- Сервер: `server/src/services/hideoutModulesStore.ts` (SQLite `hideout_modules`), `server/src/routes/hideoutModules.ts`:
+  `GET/PUT /v1/accounts/me/admin/hideout-modules` (`{ mode, open, hidden }`, один режим за запись, другие сохраняются; пустые списки —
+  режим как в игре), 401/404, 60 записей/мин, zod (известные модули или из каталога сервера, без повторов, не в обоих списках),
+  аудит `hideout.modules`. Игрокам — полем `hideoutModules` в `GET /v1/announcement` (null — как в игре). Адрес добавлен в `ROUTES`
+  (`electron/serviceGateway.ts`).
+- Приложение: `src/hideout/hideoutModulesStore.ts` (из объявления, как `overview`, кэш `raidos.hideoutModules.v1`). Применяется:
+  вид сверху (HideoutView: `open` — кнопка и окно без «За аварийной стеной», кусок картинки не рисуется, пока комнаты закрыты —
+  как у медблока до пролома; `hidden` — ни кнопки, ни куска), «Что собрать для убежища», круг сектантов, нужное на картах,
+  «Что не продавать» и уровни там, значок на карточке предмета, синхронизация по экрану, «Где взять» (крафты выключенного модуля
+  и круг), «Прибыль крафтов».
+- Админка: «Админ панель» → «Модули убежища» (`src/admin/AdminHideoutModules.tsx`): режим, «Как в игре» / «Со старта» / «Выключен»,
+  «Сохранить»; RU и EN (`uiEnglishAdminPanel.ts`).
+- Команда для владельца: `scripts/hideout-season-start.js` — вставить в консоль вкладки raidos.app со входом владельца (вход из
+  `localStorage 'toc.session'`, не печатается); `})(false)` в конце — вернуть как в игре. Проверена на локальном сервере в обе стороны.
+- Тесты: новые `src/hideout/hideoutModules.test.ts`, `hideoutModulesStore.test.ts`, `src/admin/AdminHideoutModules.test.tsx`,
+  `electron/serviceGateway.hideoutModules.test.ts`, `server/src/routes/hideoutModules.test.ts`; дополнены `HideoutView.test.tsx`,
+  `AdminPanelPage.test.tsx`. `npm run typecheck` и `tsc` сервера чистые; vitest затронутого — всё зелёное, кроме известного CRLF
+  в AdminPanelPage (AppShell); `npm run server:test` 596/597 — упал «support chat screenshots», отдельно проходит (нагрузка, не наш
+  код); eslint изменённых файлов — 0 ошибок (старые предупреждения HideoutStashPage).
+- Не выпущено, не запушено, VPS не трогали. Риски: включение работает без обновления только у приложений с этим кодом и на
+  сервере с этим адресом — нужно выпустить до сезона; требования других модулей на выключенный модуль остаются строками
+  (данные игры); вживую в окне приложения не смотрели (только тесты).
+
+## 2026-11-20 — Claude: 0.6.0.325 published; release 0.6.0.326 (players' news, hideout modules by mode, KORD BREACH points)
+- 0.6.0.325 (fb821535): the gate failed once on the flaky server test «two storages on one folder» (23 of 24 slots), re-run
+  green; published 17:04 (358 blobs prefetched into the partial mirror first, ~6 min).
+- Found: releases 0.6.0.322–0.6.0.325 had no entry in `src/data/playerNews.json`, so players saw no news and the admin's
+  player-news could not take the owner's text (it only rewrites versions in that file). 0.6.0.326 carries the owner's lines
+  (owner, 20.11.2026, «да»): added «Убежище: вид сверху со всеми модулями», improved «Полностью переработанная сборка оружия».
+- 0.6.0.326 also brings: hideout modules per mode switched from the server (claude/season-hideout-modules cdb7bbe2, merged
+  741de2d9; nothing switched on — `scripts/hideout-season-start.js` opens the gym and the bitcoin farm in the Season on the
+  owner's word), the server mirror lock fix (cc99deef), KORD BREACH points: the weather station's case and the first west breach
+  of «Капкан» (8a8c3c81; the power station's case left out until certain, 42140d14). Their photos are on the server already
+  (3 photos, 2 `describe` edits; the temporary folder in website/dist removed).
+- Not in it: the module window as in the game (1/3 of the screen, one level at a time, crafts with names), the Illumination
+  light in the empty hideout and the Christmas tree — the hideout session, next update.
+
+## 2026-11-20 — Claude: 0.6.0.326 published; the next update ready locally, held by the owner («выпустим позже»)
+- 0.6.0.326 (bcdea2c5) live 17:39: the players' news entry is on the server, `/v1/accounts/me/admin/hideout-modules` answers
+  `{ modules: null }`, the announcement carries `hideoutModules: null` (nothing switched on).
+- Merged locally into claude/quest-row-tags, NOT pushed: claude/hideout-view a0a427b5 (0272557e: the module window as in the
+  game — a third of the width over the picture, one level at a time, crafts «Нужно / Получите» by name; the Illumination light
+  in the empty hideout; the Christmas tree, 1 Dec – 15 Jan or by its button) and 4f8cecad (3211676b: a level looked at in the
+  dark shows in a spot of light). Full vitest (only the known Windows false failures), server 597/597, typecheck and build clean;
+  browser 1440: the window and level II checked.
+- To release: bump to 0.6.0.327 (package.json, package-lock ×2, website/src/config.ts), updateHistory.json AND playerNews.json
+  entries (show the owner the lines first), then push to release/production on the owner's word only.
+
+## 2026-11-20 — Claude: «Настройки карты» → «Приближать карту к точке» (не выпущено)
+- Ветка `claude/map-follow-toggle` от `claude/quest-row-tags` (85721dd6), коммит 8b5d83c0; не запушено, не выпущено. Слова
+  владельца (20.11.2026): включено — по клавише местоположения карта идёт к точке персонажа; выключено — карта остаётся как
+  есть, появляется только точка; «включи в следующий выпуск».
+- Где: шестерёнка над локациями на карте ПК («Настройки карты») → блок «Местоположение» → «Приближать карту к точке»
+  (EN: «Position» → «Bring the map to my dot»). Только в приложении ПК и пока местоположение включено у всех (`features.minimap`);
+  в браузере и на телефоне переключателя нет. По умолчанию включено (как было).
+- Хранение: `localStorage 'raidos-map-follow-player-v1'` ('off' — выключено), на этом устройстве, как соседние переключатели
+  меню (ключи рядом, нужные спавны, таймер) — они тоже не синхронизируются (`NEARBY_KEYS_SYNC` хотя и объявлен, в
+  `sync/playerStateStores.ts` не подключён).
+- Что меняет: только `useFollowPlayer` в `src/components/LivePlayerMarker.tsx` (центр на первой точке, сдвиг у края). Выключено —
+  ни setView, ни panTo; включили снова — карта не прыгает, следующий скриншот центрирует. Не меняет: открытие карты рейда
+  (`useOpenMapOnScreenshot`, `useFollowRaidMap`) и этаж игрока (`useAutoFloor`) — без них точки не видно. Телефон
+  (`ServerPlayerMarker`: +1,5 масштаба на первой точке, «Ко мне», перетаскивание останавливает) не тронут. Оверлея с картой
+  больше нет. На ПК «как сейчас» — центрирование без увеличения масштаба (увеличение есть только на телефоне).
+- Файлы: новые `src/maps/playerFollow.ts`, `src/maps/PlayerFollowSetting.tsx`, `src/maps/playerFollow.test.tsx`,
+  `src/pages/MapsPage.playerFollow.test.tsx`; правки `src/components/LivePlayerMarker.tsx`, `src/pages/MapsPage.tsx`,
+  `src/i18n/uiEnglishOverview.ts`.
+- Проверки: `npm run typecheck` чисто; vitest новых тестов (10) и затронутого (i18n, LivePlayerMarker, MapsPage.panels/autoFloor,
+  NearbyKeysPanel, MapSkillTimer, src/app) — зелёно, кроме известного appVersion (пробел в пути); MapsPage.autoFloor под нагрузкой
+  дважды упал по таймауту 5 с, отдельно и на исходной ветке проходит (~3 с). Без защиты тесты «выключено» падают (проверено).
+  eslint изменённых файлов — 0.
+- Вживую не смотрели: в браузере база не грузится без входа с подпиской (только тесты). Мой vite один раз пересобрал общий
+  `node_modules/.vite/deps` (node_modules — ссылка на raidos-kord-breach); кэш цел, сервер 5571 отвечает; если у него ошибка
+  зависимостей — перезапустить его vite.
+
+## 2026-11-20 — Claude: 0.6.0.327 hotfix out; release 0.6.0.328 (hideout tabs and window, light, tree; stocks; full screen; map follow)
+- 0.6.0.327 (claude/hotfix-eft-327, b61a3c19, live 18:45): the game account from the logs is the one that played last
+  (eftAccountLink.ts), not «PvP first» — two players on one PC, one in the Season, locked out. Merged back (b822e2e8).
+- 0.6.0.328: the hideout session's claude/hideout-view (module window over the picture, one level at a time, crafts by name,
+  Illumination light in the empty hideout, the Christmas tree 1 Dec – 15 Jan or by its button, tabs «Убежище / Квесты / Круг
+  сектантов» at the top, crafts folded) + level tabs as rectangles and the tree under Illumination 0 (0f4f6bac's parent);
+  weapon builds: a folded stock outside the receiver (85721dd6), stocks level (093115fc: slot tilt off every stock, the SCAR
+  and UZI 3/5/6 top edges levelled, `lv` in index.json, E:\SPT-photo\weapons\stock-level-applied.json merged by pack_parts.py),
+  full screen (bdb62200: backdrop on the whole screen, the stats window dragged anywhere on a PC and a phone, cells round it,
+  a phone's weapon edge to edge); «Приближать карту к точке» (claude/map-follow-toggle 8b5d83c0); the server mirror lock
+  (cc99deef). News: 0.6.0.328 «Обновили убежище», 0.6.0.327 «Техническое обновление» (owner's words).
+- Checks: full vitest — only the known Windows false failures; typecheck clean; server 597/597; build 0.6.0-328.
+- Not in it: boss and cultist spawn points (a helper reads E:\SPT; the owner places them on the server, no release needed).
+
+## 2026-11-20 — Claude: boss and cultist spawn points from SPT; 0.6.0.329 prepared (game account offered in turn)
+- Owner: «Поищи в игре в СПТ места спавна сектантов и проверь места спавна всех боссов… в меру… один на районе… для всех режимов».
+  A helper read E:\SPT\SPT_Runtime\SPT_Data\database\locations\*\base.json (BossLocationSpawn → BossZone → SpawnPointParams):
+  one point per zone, axes as the app's (checked on the owner's own placements). 9 placed on the server for every mode
+  (POST /v1/accounts/me/admin/map-bosses, 71 → 80): cultists Customs fortress, Woods ZoneMiniHouse, Shoreline west/east wing
+  and the forest north of the swamp, Factory central hall (night only in the game); Glukhar Reserve «Белый конь» and the
+  barracks; Vengeful Killa Labyrinth centre. Left out: Lighthouse Knight/Rogues at the treatment plant (SPT 0.16.9 is older
+  than 1.1.5, live has them at the chalet), Ground Zero cultists (64 points over the whole map), Partisan (no zone).
+  Files: E:\SPT-photo\bosses\ (placements.json, <map>.jpg, scripts). Report 207 («места спавна сектантов») answered by this;
+  closing it with a day was refused by the permission check — left for the owner.
+- Report 206 (PvE «Городской жандарм. Прерванный сеанс» still shown): no data error; the quest ends its chain, and the logs show
+  only taken / failed / handed in — not handed in yet, or handed in before the oldest log; no logs attached.
+- 0.6.0.329 (2170793b, not pushed while 0.6.0.328 publishes): every game account of the logs offered in turn, the newest first,
+  until the server takes one (0ef296a3) — 0.6.0.327 locked out a player whose second game account played last (support
+  chat Armyash93); KORD BREACH: the power station's case found again, the Customs chimney transmitter.
+
+## 2026-11-20 — Claude: 0.6.0.329 live 20:52; release 0.6.0.330 (the build stage no longer bounces)
+- 0.6.0.328 published 20:26 after the VPS lost github.com for ~30 min (only 140.82.121.4; api/codeload fine) — the publisher
+  failed at its first ls-remote and was restarted once GitHub answered. 0.6.0.329 (ad5761f3) live 20:52.
+- Armyash93 (support): the owner had his game-account binding removed (admin unbind, only his account).
+- Lock check on the server (read-only, counts only): 1475 device reports, 1412 fine; 59 «in use» (56 with the holder on the same
+  device, 53 without a game account of their own — a second Raid OS account, by the rule); 9 possibly wrong, mostly early Nov.
+- Prizrak337 (support, PC): «интерфейс основной страницы… бегает вверх и вниз (как понимаю оружейник летает)». The build stage
+  (the «Оружейник» block on «Обзор») was laid out on every width change; a page scrollbar coming and going looped it. A
+  narrower width is taken at once, a wider one from 24 px (536f8d81's parent, nextStageWidth in stageLayout.ts, test
+  stageWidth.test.ts). Not reproduced on the owner's data (no Gunsmith part taken in the dev profile); checked the weapon
+  builds page: stable, 717 → 481 → 717 px on resize.
+
+## 2026-11-20 — Claude: 0.6.0.330 live; iPhone App Store pack build 4 mailed to the owner's publisher
+- 0.6.0.330 (a2bca1b1) published 21:47; raidos.app/download/version.json shows 0.6.0-330.
+- App Store pack (owner: the freshest iPhone version, only the Xcode files, a new «Сборка оружия» picture): branch
+  test/ios-ipa-appstore-1120 = 0.6.0.330 + the App Store settings (ffe65f5d as 571da5e2) + version 1.0 / build 4 (d442925e)
+  + eb56adfa (as 94630d4f). Both CI test IPA runs green (44755000678, 44758469665: unsigned device build of the project).
+  Pack-only changes as on 16.11 (not committed): Bundle ID com.raidos.app (the App Store Connect record; the repo keeps
+  com.tarkovoperator.app) and Package.swift plugin paths ../../../node_modules/@capacitor/…
+- eb56adfa (claude/quest-row-tags): «Прицеливание» on the weapon builds page read «Aim Drills» in English — the game's quest
+  names are looked up before the interface's words; the handling row now prefers the interface dictionary.
+- Screenshot 03_3-gunsmith-build.png (RU/EN, 1320×2868 and 1284×2778): M4A1 top build («Готовые сборки» → «Топовая
+  сборка» with «Показать все модули», plus SpecterDR and AN/PEQ-15), the iPhone layout at 3x, laid out like the 16.11 pack.
+- Mailed via the server's Resend sender: RaidOS_iOS_build4.part01–06.rar (19 MB volumes, ~102 MB) to the publisher's
+  address the owner gave; all six accepted (200). The key can only send, delivery status not readable.
+- Weapon builds on the phone (430×932) checked in the App Store dev build: page, «Готовые сборки», the part picker, full
+  screen with the stats window — fine.
+- Screenshot 03 replaced at the owner's choice: the new build window full screen (stats window, the weapon edge to edge,
+  the parts around it), titled «Сборка оружия» / «Weapon builds» (one line, owner: «Типа сборка оружия напиши»), RU/EN,
+  1320×2868 and 1284×2778. Mailed alone as RaidOS_AppStore_screenshot03.rar (6.4 MB), accepted (200); it replaces
+  03_3-gunsmith-build.png of the build 4 pack. Rejected on the way: the page view and the owner's own phone screenshot.
+- Phone «Назад» (owner: «выкидывает не в список оружия, а в обзор… должен делаться шаг назад в любом блоке»): 873ebf34
+  (after 09bb8d18, a Gunsmith-only first try) — backDelta is one step back whenever there is a screen to return to,
+  not the last entry with another path. Checked at 440×956: Gunsmith weapon → «Назад» → the list → «Назад» → «Обзор».
+  Not released yet on PC/Android/site: goes with the next release from claude/quest-row-tags.
+- App Store pack build 5 (test/ios-ipa-appstore-1120 at 2fee6ea6: 0.6.0.330 + eb56adfa + 873ebf34 + build 5), CI test IPA
+  green (44767250245). Screenshots «Сборка оружия» (one line, «какие модули ставить» crossed out by the owner): 03 = the
+  owner's own phone screenshot of the build page (status bar made 9:41, the update banner removed and the top bar put
+  back; EN rendered by the app at 440 pt with the safe areas), 03b = the build full screen. Mailed as
+  RaidOS_iOS_build5.part01–06.rar, all six accepted (200); it replaces the build 4 letters.
+- The owner asked again for «саму сборку… Xcode приложение» — the publisher most likely could not download the Xcode
+  volumes: the project has 45 .js files (the built app), and Gmail blocks archives with .js inside (the screenshot-only
+  archive went through). Sent again as one password-protected RAR with encrypted names (-hp, password in the letter
+  text), RaidOS_iOS_AppStore_build5.part01–06.rar, same content (Xcode build 5 + both «Сборка оружия» pictures); all six
+  accepted (200). Not confirmed that Gmail lets them through: Resend's key here can only send.
+
+## 2026-11-20 — Claude: 0.6.0.331 live 23:40 (phone «Назад» one step back); Falling Skies point note
+- 0.6.0.331 (72286417, release/production fast-forward from a2bca1b1): 873ebf34 «Назад» one step back in any section,
+  eb56adfa «ADS time»; news «Техническое обновление». Gate green, publisher started by hand, site 0.6.0-331 at 23:40.
+- Support (GOMERsapiens): «Небеса в огне» flash drive «не в доме, а у выхода ЧВК Тоннель, на черном гелентвагене». Our
+  point (shoreline 336.57/317.87) is on the black SUV at the road ~40 m from the Tunnel extract (tarkov.dev main_summer
+  tiles z6, the wiki's FallingSkiesGWagonUSBMap): the player most likely took Elektronik's flash drive (stage 15, in a
+  village house) for it. 1fa6b3e1 (not released): the point says «Флешка — на подножке чёрного «Гелендвагена» у выхода
+  «Тоннель»», its 1 cm duplicate removed. Reply to the player drafted for the owner, not sent.
+
+## 2026-11-21 — Claude: React #185, the Overview jiggle, the Gunsmith bench (not released yet)
+- 379636b9 Overview: no jiggle in «Настроить блоки», glides without overshoot, a drag from 8 px, the carried block's place every
+  140 ms with a swap margin; the layout width taken narrower at once / wider from 24 px (page scrollbar loop); at most 6 sizes per
+  frame. Checked: edit → «Сбросить» → «Готово» at 1600 px, nothing moves or overlaps; a slow drag with tremor swaps once.
+- ae6de982 the build bench: the full screen's stats window measured against the room, not the centred stage — reproduced
+  «Maximum update depth exceeded» + the crash screen on 330 by carrying the window over the M4A1 (owner's video IMG_1247), none
+  after. The bench imports weaponBuilds.css (the Gunsmith page opened first had no bench styles: huge cells over the page, owner's
+  phone). Gunsmith task bench: «На весь экран», «Сложить/Разложить приклад», 58 px cells (FullBench moved to src/arsenal/FullBench.tsx).
+- Not reproduced here: the phone turning (headless has no real safe areas/fullscreen); IMG_1255/1256 (Overview «Ещё 18 заданий» and
+  the Gunsmith rows expanding) need the owner's layout.
+- Queue from the owner (21.11): Val grip RK-2 upwards and crooked stock tubes; hideout window fixed (no scrolling), «Построил» under
+  the next level's badge, compact level window; hideout module pictures per level without light stripes or stale rocks (SPT);
+  theme buttons textured (Стекло, чёрный мультикам, тельняшка); bug report dialog without the bug icon; «Алтын» a helmet picture
+  (memory altyn-helmet-picture).
+- aed140c2 full screen: the stats window small (184 px PC, 148 px phone) and still at the top left, nothing to drag (owner: «При
+  перетаскивании вылезает ошибка, сделай это окно меньше и зафиксируй… слева сверху»). #185 reproduced on 330 at 430×932 and
+  932×430 by dragging, none after (also 390×844, 844×390).
+- 2f072959 weapon pictures: grips on the 6P29M (its side, quarter-turned foregrip slot — the only one in the index) drawn hanging
+  below the mount, not standing up; the VAL NB stock adapter tube lv -6.07 (level; also in stock-level-applied.json). The 21 tubes
+  of stock-level.json: only this one off. Checked in the app: AS VAL + 6P29M + RK-2 + NB tube, before/after.
+- 3c848e8e phone: the map «opened by itself» (owner, 21.11) — the «Рейд начался» card comes when the PC's raid begins, across the
+  phone right over the tab bar, the whole card a button to the map: a tap meant for the page opened the map. Now taps are ignored
+  for 700 ms after it comes; on a phone a tap only closes it, the map from its own «Карта» button. Other automatic map openings
+  checked: PhoneMapsPage follows the PC's position only while the map is open; useFollowRaidMap is the PC's; no remote paging.
+- 34822af9 full screen: the fold button fixed right under «Свернуть» (owner's phone shot on 331: a tall build — 6P29M with a grip,
+  PRS GEN3 — made the bench taller than the screen, its fold button slid under the exit); the still stats window's title is the
+  weapon's name and the bench label is hidden there (it sat under the window). Checked 932×430, 430×932, 1600×1000: no overlap.
+- c0042488 the AS VAL MOD.4 receiver drawn from the game (owner: «у нас нет вот этой модели. Зайди в игру»), open and folded. The
+  offline SPT copy drew it turned and moved (older animation bundles) and white below (older VAL texture bundle):
+  assets/content/weapons/val/{client_assets,textures/client_assets}.bundle and their Windows.json entries copied read-only from
+  the installed game into E:\SPT (backups *.bak-mod4-20261121); RaidOsGuns job option «level» { tpl: slot } turns the model so that
+  slot stands at -90° about X and writes the points in that frame (E:\SPT-photo\weapons\plugin, backup *.bak-level-20261121).
+  Packed into public/gun-parts and E:\SPT-photo\weapons\assets (index fs mod_stock). Still without pictures: MXLR, АК-308, ТКПД,
+  NL545 DI/GP, SR-25 tau, QBZ-191, HK416 RAL, Type 20 (same way would work if their texture bundles are taken too).
+- Player news drafted for the next release and shown to the owner (not written yet): Gunsmith full screen and fold, large cells,
+  Overview smooth carrying, compact stats window, straighter grips and stocks, the phone's «Карта» button, «Небеса в огне» hint,
+  AS VAL MOD.4 from parts, technical update.
+- 21df60ca report 210 (bosses, «Не прогружаются иконки оружия»: Решала's «Сайга FA», «ТТ Золотой», cap broken on the map card):
+  the server swaps only catalogue items' pictures (server/src/services/itemImageCache.ts); a map marker's boss gear kept
+  assets.tarkov.dev, which the players' app cancels (electron/main.ts). nginx showed the player's app fetching other item pictures
+  fine and never these. src/data/servedItemPicture.ts asks raidos.app/v1/item-images for the same file on the gateway route.
+- 2075294b report 209 (PvE phone, «Путь охотника. Администратор»: «не хватает точки» at Lighthouse's collection point): the title
+  is BEAR at Reserve (639136df) and USEC at Lighthouse (6a452080); the Tasks-table reader took the catalogue's first (BEAR), the
+  player then counted as BEAR and the USEC version with its points was hidden (the account's mirror: 639136df active from
+  screen-scan, faction unknown). Now the row's location cell picks the version, else the profile's known faction; a told row
+  replaces the version an earlier guess wrote; a guess does not go over the version being done. Tests in screenScanSync.test.ts.
+  Reports 209/210 not closed and no days given (the admin pane's sign-in was gone; owner's call). 206 still the owner's.
+- 72f754b1 the last nine receivers drawn from parts (owner: «Делай картинки»): MXLR, АК-308, ТКПД, NL545 DI/GP, SR-25 (Taupe),
+  QBZ-191, HK 416A5 (RAL 8000), Type 20. RaidOsGuns job «parts» with «level» mod_magazine for each (they were rendered standing up
+  on 20.11). SR-25 tau rendered empty and HK416 RAL white with the offline copy's bundles: sr25 (container, client_assets,
+  textures), hk416 (container, assets, client_assets, textures) and m4a1 (client_assets, textures) plus their Windows.json entries
+  were copied from the installed game for the render and put back afterwards (backups *.bak-guns9-20261121 on E:, same as the
+  files now). Packed with pack_one.py into public/gun-parts and E:\SPT-photo\weapons\assets (index 2480 parts; backup
+  index.json.bak-guns9-20261121). Checked in the app: all nine draw from parts, no flat picture, no page errors. Every gun of
+  the catalogue now has its receiver picture. Not released.
+- 14aa0168 + bfa7641a Release 0.6.0.332 (owner: «Да» to the news list): version in package.json, package-lock.json (×2),
+  website/src/config.ts; playerNews.json (Gunsmith full screen and fold, large cells, Overview smooth carrying, compact stats
+  window, straighter grips and stocks, every weapon from parts incl. AS VAL MOD.4, the phone's «Карта» button, Falling Skies hint,
+  technical update); updateHistory.json in four lines (the test allows four) with "reports":[209,210] (closed by the server once
+  the version is live). Local checks: typecheck (app, electron, server), server tests 597/597, website build; vitest 7 failures
+  only of this Windows checkout (path with a space, CRLF, Linux updater tests) plus the history row, fixed. Production Gate green
+  10:38; raidos-release started by hand 10:39 Bangkok, live 10:49: /download/version.json 0.6.0-332 bfa7641a, release success,
+  databaseReplaced false. The phone builds run from the same push (ios-ipa / ios-app-store workflows).
+- 0.6.0.332 after the release: reports 209 and 210 closed by the server by themselves (implemented).
+- d5d21486 the top bar's search field without the «Ctrl K» hint (owner: «это надо удалить»); Ctrl+K still opens the search.
+- 45b931f1 report 211 («Баг вернулся», 0.6.0.332; same player and same picture as 208 on 331): on the Overview «Оружейник» drawn
+  over «Текущие задания». Cause: useAlignedListHeight (the list grows so «Рынок» is level with «Требования рейда») measured
+  between the list's change and the Overview's re-layout a frame later, or mid-glide (getBoundingClientRect with the FLIP
+  transform): «Рынок» inside the grown block → «not below» → the list shrank, the blocks moved back, again and again. Reproduced
+  with 14 Customs tasks and the left column at 760 px (a squad block makes it taller for the player): the list flipped
+  340 ↔ 512 and «Оружейник» lay 150 px over the tasks. Now boxes from offsets (no transform), the measure waits 120 ms after the
+  last size change and waits while «Рынок» overlaps the list's block. Checked: 512 px steady for 20 s, no overlap; the left
+  column shortened to 560 → 312 px at once and steady. Not released (report 211 to list on the next release's history row).
+- Owner on d5d21486 + 45b931f1: «Выпускай, но позже… Следующее исправление… там и выпустишь» — held; they go out with the next
+  fix's release (history row with "reports":[211]). Nothing pushed to release/production.
+- Owner's phone shots 21.11.2026 (not released, held for the next release with 211):
+  - d2f9b2c4 Overview (phone): the blocks button at the right end of the heading (heading min(24px, 4.8vw)); «Промокоды» and
+    «Открыть карту» in two halves with the blocks' 10 px gap; «Сбросить» on its own row while arranging.
+  - ae2adb8d tab bar badge: `.mobile-tab span { display: block }` caught the badge (figure at the top, over the menu icon); now
+    left out, round, on the icon's top right corner (left 50%+8px); the same exclusion for the «Ещё» sheet's links.
+  - 0beb7221 hideout (phone): the module window under the picture, max-height = room down to the tab bar (≥240 px, the page
+    scrolls by the rest), scrolled inside — the whole hideout picture stays in sight.
+  - 7c7540da hideout items: the stash's --cell fitted to the grid's width (round(cols)), the dense flow fills the right column
+    (phone 430: 7 × 54.3 px instead of 6 × 56 px and an empty strip).
+  - 26033c2d weapon builds: a part under 6 cm in a stock slot (the Zenit PT lock, 2.4 cm) is no longer the chain's stock, so the
+    PT-1 / PT-3 on it are levelled (`lv` -3.83 / -4.34 added to E:\SPT-photo\weapons\stock-level-applied.json and both index.json,
+    backups *.bak-ptlv-20261121); a stock on a real stock or tube follows it (the ST-EF 74 pad flush on the AKS-74U frame's 3.5°
+    end). Checked: AKS-74U PT-1, PT-3, frame + ST-EF; AS VAL NB + PRS GEN3, M4A1, AK-74M unchanged. Arsenal tests 123/123.
+  - Next: re-shoot the hideout in SPT (every module level beside every neighbour's, fresh floors and walls) — the owner: in about
+    an hour.
+- 21.11 afternoon (all on claude/quest-row-tags, held for the next release with 211, nothing on release/production):
+  - 2c5269f2 Overview jumping on a window made full screen (owner's videos IMG_1268/1269): «Требования рейда»'s ThumbScroll
+    showed a thumb on the box's scrollHeight (a hidden hover card below the rows counted), the track narrowed the grid, a row
+    more, overflow gone, round and round (441 ↔ 517 px twice a second). The thumb now follows the list's own height; a list with
+    a row limit keeps the track's room. Checked 1100×720 → 1920/1680/1440/1536/1280/1707/2048 widths: no moves.
+  - 13793cfe every gun part picture cut to its alpha box (+2 px), w/h/o moved (both index.json; E: backup
+    assets-bak-crop-20261121): the stage centres the build by the pictures' boxes, the M1911A1 stood at the left on a phone.
+  - dc6cd1c9 + 63298316 hideout re-shot (RaidOsHideout `sweep` + new `pairs` action, E:\SPT-photo\hideout\worker\Worker.cs,
+    backup *.bak-pairs-20261121; out/sweep-20261120 kept): 1747 pair frames of neighbouring modules at every pair of levels whose
+    pieces overlap and differ (lists from the scratchpad's hideout-conflicts.mjs); hideout-views.mjs keeps a pair's real frame
+    where the two pieces overlap when either stacking is off (1593, PAIR_PIXELS 200, q72); the app lays them over both pieces
+    (pairPieces). Pictures 5.5 → 33 MB. Against the game's own all-max frame: big differences −14%.
+  - 9fbc884a phone: no map opened by itself on the PC's screenshots (the PC rule of 20.10 also ran on the phone).
+  - 33983594 every <select> popup dark green (color-scheme dark, options in the app's colours).
+  - 9ab1ec30 «Опубликовать»: «Публикуем…» with a spinner, «Опубликовано» stays (server took both of the owner's presses, 201).
+  - 8643c51b «Размер шрифта» (Стандартный / Увеличенный ×1.12): PostCSS step src/theme/fontScaleCss.ts in vite.config.ts,
+    src/theme/fontSize.ts; scans of 33 pages ×3 sizes and the windows (scratchpad font/scan.mjs, windows.mjs, windows2.mjs):
+    fixed the map's detail tabs, layer buttons, the stash item count. Not opened by the scan: a quest card (no taken quests in
+    the test profile) and the phone's bug report.
+  - Quest photo tour paused by the owner at 14:56: Customs quests 21/37 (memory photo-tour-paused).
+- 21.11 evening, reports 212 and 213 (claude/quest-row-tags, held for 0.6.0.333 with 211):
+  - c7bcff53 + c31e8564 report 212 (laptop): «Настройте клавишу скриншота» at the first start filled the screen's height and
+    «Понятно» stood below its edge, no scroll to see, no ✕, Escape only while the focus stayed in the layer. Only the middle
+    scrolls now; ✕ in the corner and «Понятно» at the bottom always show; Escape on the window. Checked (Playwright, the window
+    rendered over the loaded app) 1093×560, 910×480, 1366×657, 1280×720, EN + large font at 1093×560: ✕ and the button in
+    view, wheel scrolls the middle, Escape after a click on the dim closes it.
+  - 523a25d9 report 213 (Season, «Обновка. Часть 1» twice): the faction is guessed from one-faction quests in the progress;
+    the player's logs are all BEAR (Витамины, Текстиль 1-2, Обновка 2, Должник), but «Оружейник» of both factions and two USEC
+    quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
+    game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
+    uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.

@@ -35,6 +35,10 @@ export const SETTING_HELP = {
     ru: 'При нажатии на метку и после галочки в квесте карта сама переходит к точке. Кнопка «Показать точку» ведёт к точке всегда.',
     en: 'A tap on a marker or a tick in a quest moves the map to the point. The «Show the point» button always does.',
   },
+  raidStartNotice: {
+    ru: 'Когда загрузка закончилась и рейд начался, появляется карточка с картой рейда. На телефоне — уведомление.',
+    en: 'When the loading is over and the raid begins, a card with the map of the raid shows. On the phone, a notification.',
+  },
   raidSmoke: {
     ru: 'Украшение: зелёный дым за фигурами боссов в карточке рейда на «Обзоре». Выключите, чтобы снизить нагрузку.',
     en: 'A decoration: green smoke behind the boss figures on the Overview raid card. Turn it off to reduce the load.',
@@ -42,6 +46,10 @@ export const SETTING_HELP = {
   theme: {
     ru: 'Оформление всего приложения. Нажмите на схему: она сразу применится и сохранится.',
     en: 'The look of the whole app. Tap a scheme: it applies and saves at once.',
+  },
+  style: {
+    ru: 'Обычный или стеклянный вид. Работает с любой цветовой схемой.',
+    en: 'A standard or glass look. Works with any colour scheme.',
   },
   stitch: {
     ru: 'Цвет ниток на швах. Есть только в схеме «Алькантара».',
@@ -51,6 +59,10 @@ export const SETTING_HELP = {
     ru: 'На каком языке приложение показывает надписи: русский или английский.',
     en: 'The language of the app\'s labels: Russian or English.',
   },
+  fontSize: {
+    ru: 'Размер текста во всём приложении. Стандартный — как было, увеличенный — немного крупнее.',
+    en: 'The size of the text across the app. Standard is as it was, large is a little bigger.',
+  },
   clickVolume: {
     ru: 'Громкость звука при нажатии на кнопки. В крайнем левом положении щелчков нет.',
     en: 'How loud buttons click when pressed. At the far left there are no clicks.',
@@ -58,6 +70,10 @@ export const SETTING_HELP = {
   tabTips: {
     ru: 'Короткие подсказки о главном на вкладках. Нажмите «Показать снова», и каждая вкладка покажет их ещё раз, когда вы её откроете.',
     en: 'Short tips about the main things on the tabs. Press «Show again» and each tab shows them once more when you open it.',
+  },
+  phoneGunsmithView: {
+    ru: 'Как открывается квест на странице «Оружейник». Окно: квест на весь экран и кнопка «Назад». Раскладывать: квест под строкой, крестик справа закрывает.',
+    en: 'How a quest opens on the «Gunsmith» page. Window: the quest on the whole screen and a «Back» button. Unfold: the quest under its row, the cross closes it.',
   },
   currentTasksView: {
     ru: 'Как показывать длинный список на «Обзоре». Прокручивать: весь список в окне, крутите колесом мыши. Разворачивать: первые задания и кнопка «Ещё».',
@@ -141,8 +157,8 @@ export const SETTING_HELP = {
     en: 'Takes a frame from the game window to compare the picture before and after. The game must be visible on screen.',
   },
   screenPresets: {
-    ru: 'Готовые настройки картинки: нажмите на строку, чтобы выбрать. Кнопки справа настраивают, переименовывают и убирают пресет.',
-    en: 'Ready-made picture settings: click a row to choose one. The buttons on the right tune, rename and remove a preset.',
+    ru: 'Готовые настройки картинки: нажмите на строку, чтобы выбрать. Зажмите строку и перетащите выше или ниже, чтобы поменять порядок.',
+    en: 'Ready-made picture settings: click a row to choose one. Hold a row and drag it up or down to change the order.',
   },
   screenAddPreset: {
     ru: 'Создаёт ваш пресет из настроек выбранного. Таких можно сделать сколько угодно.',
@@ -296,6 +312,10 @@ export const SETTING_HELP = {
   optimizeHeavy: {
     ru: 'Запущенные сейчас программы, которые заметно нагружают компьютер. Приложение их не закрывает.',
     en: 'Programs running now that load the PC noticeably. The app does not close them.',
+  },
+  skillTimer: {
+    ru: 'Часы на карте, слева от «Отложенных квестов». Устал навык — опыт почти не идёт. Нажмите часы и переждите отсчёт. По желанию — тихий сигнал в конце.',
+    en: 'An hourglass on the map, left of «Deferred quests». A tired skill gives almost no XP: press it and wait out the countdown. A quiet chime at the end, if you like.',
   },
 } as const satisfies Record<string, { ru: string; en: string }>
 

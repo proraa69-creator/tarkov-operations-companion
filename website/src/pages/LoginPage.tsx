@@ -7,6 +7,7 @@ import { Notice } from '../components/Notice'
 import { LoginQr } from '../components/LoginQr'
 import { useAuthConfig } from '../components/authConfig'
 import { EmailSignIn } from '../components/EmailAuth'
+import { GoogleSignIn } from '../components/GoogleSignIn'
 import { tr } from '../i18n'
 import { qrLogin, type QrLoginRequest } from '../qrLogin'
 import '../qrLogin.css'
@@ -65,6 +66,7 @@ export function LoginPage() {
             </button>
           </form>
           <div className="auth-divider">{tr('или')}</div>
+          <GoogleSignIn clientId={config?.googleClientId} />
           <button type="button" className="button large block" onClick={() => setMethod('qr')}><QrCode aria-hidden="true" />{tr('Войти по QR-коду')}</button>
           {config?.emailEnabled && <button type="button" className="button large block" style={{ marginTop: 10 }} onClick={() => setMethod('email')}><Mail aria-hidden="true" />{tr('Войти по коду из письма')}</button>}
         </>}

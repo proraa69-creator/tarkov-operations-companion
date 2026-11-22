@@ -24,4 +24,13 @@ describe('«Ключи»: a spot of several keys as pictures (owner, 09.11.2026)
     expect(screen.getByText('+2')).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  it('on the map card each key can be picked to see it in full, and picked again to fold it (owner, 19.11.2026)', () => {
+    const picked: string[] = []
+    const { rerender } = render(<KeySpotKeys keyIds={ids.slice(0, 3)} items={items} onPick={(id) => picked.push(id)} />)
+    fireEvent.click(screen.getByRole('button', { name: /К1/ }))
+    expect(picked).toEqual(['k1'])
+    rerender(<KeySpotKeys keyIds={ids.slice(0, 3)} items={items} picked="k1" onPick={(id) => picked.push(id)} />)
+    expect(screen.getByRole('button', { name: /К1/ }).getAttribute('aria-pressed')).toBe('true')
+  })
 })

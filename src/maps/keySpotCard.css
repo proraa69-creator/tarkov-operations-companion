@@ -1,0 +1,30 @@
+/* A key of a key spot on the map (maps/KeySpotCard.tsx): small, the buy section and the quests packed tight. */
+.key-spot-card { display: grid; gap: 8px; margin-top: 6px; }
+.key-spot-card-favorite { position: absolute; top: 12px; right: 52px; width: 32px; height: 32px; display: grid; place-items: center; color: var(--text-muted); }
+.key-spot-card-favorite.is-on { color: var(--brass-strong); }
+.key-spot-card-head { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 10px; }
+.key-spot-card-picture { position: relative; display: grid; place-items: center; width: 48px; height: 48px; }
+/* the key's picture keeps only its own frame: rounded corners, nothing round it */
+.key-spot-card-picture img { max-width: 48px; max-height: 48px; object-fit: contain; border-radius: 6px; }
+.key-spot-card-name { display: grid; gap: 4px; min-width: 0; }
+.key-spot-card-name strong { overflow: hidden; font-size: 13.5px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.key-spot-card-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.key-spot-card-stock { padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.key-spot-card-stock.is-owned { border-color: color-mix(in srgb, var(--green, #8fc48a) 50%, transparent); color: var(--green, #8fc48a); }
+.key-spot-card-price { color: var(--text); font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.key-spot-card .detail-section { margin: 0; padding: 8px 0 0; border-top: 1px solid var(--line); }
+.key-spot-card .detail-section h4 { margin-bottom: 6px; }
+.key-spot-card .item-buy-list { gap: 4px; }
+.key-spot-card .item-buy-list li { padding: 5px 0; font-size: 12px; }
+.key-spot-card .item-buy-source img { width: 22px; height: 22px; }
+.key-spot-card-quests ul { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.key-spot-card-quests li { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11.5px; }
+.key-spot-card-quests li.is-deferred { opacity: .7; }
+.key-spot-card-quests p { margin: 0; font-size: 12px; }
+/* the keys of a spot that holds several: each picked to see it */
+.key-spot-keys button.key-spot-keys-pick { all: unset; display: grid; justify-items: center; gap: 3px; width: 100%; cursor: pointer; border-radius: 8px; }
+.key-spot-keys li.is-picked button.key-spot-keys-pick { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* the tier-list letter on each key of a spot, on the picture's corner */
+.key-spot-keys li { position: relative; }
+.key-spot-keys-tier { position: absolute !important; top: 0; left: 4px; }

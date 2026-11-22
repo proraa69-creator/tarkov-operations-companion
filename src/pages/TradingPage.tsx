@@ -9,6 +9,7 @@ import { fleaRenewedAt } from '../domain/itemPrices'
 import { askForNet, fleaNet, floorForAsk, MARKET_LEVEL, moduleDeal, openAtLevel, peakForecast, reliabilityTier, rowScans, sellForecast, tradingStale, type ModuleDeal, type TraderOffer, type TradingKind, type TradingModule, type TradingRow } from '../domain/trading'
 import type { Item, RaidMode } from '../domain/types'
 import { useTraderLevels } from '../gunsmith/traderLevels'
+import { traderOfferOpen } from '../trading/moduleAccess'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { questAvailabilityOf } from '../quests/questReadModel'
@@ -542,12 +543,7 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
   const statusOf = useCallback((questId: string) => availability.get(questId)?.status, [availability])
   const { infos } = useTraderLevels(mode, data.traders, data.quests, statusOf, progress.playerLevel, progress.logCharacterId)
   const entries = useMemo(() => {
-    const isOpen = (offer: TraderOffer) => {
-      if (level === undefined) return true
-      const info = infos.find((entry) => entry.trader.id === offer.traderId)
-      if (info && offer.level > info.max) return false
-      return !offer.questId || statusOf(offer.questId) === 'completed'
-    }
+    const isOpen = (offer: TraderOffer) => level === undefined || traderOfferOpen(offer, infos, statusOf)
     return modules.flatMap((module): ModuleEntry[] => {
       const item = items.get(module.id)
       if (!item || (level !== undefined && !openAtLevel(module.level, level))) return []

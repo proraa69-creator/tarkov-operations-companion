@@ -41,9 +41,53 @@ interface RawExtent {
   bounds?: unknown[]
 }
 
+/** When the next copy of a request goes out if none has answered yet, ms from the first; and how long the whole may take. */
+export const HEDGE_AFTER_MS = [1500, 4000, 9000]
+const MAPS_JSON_TIMEOUT_MS = 45_000
+
+/**
+ * A GET sent again on a fresh connection while no copy has answered (15.11.2026: from a network that loses the first packet of a
+ * new connection — Cloudflare WARP here — about two connections in three to raidos.app took ~20 s to open, and maps.json, with its
+ * 20 s limit, failed: the maps lost their floors and renders). The first answer wins and the others are stopped; nothing is sent
+ * twice that changes anything. The same idea as the desktop gateway's electron/hedgedFetch.ts.
+ */
+export async function hedgedGet(fetcher: typeof fetch, url: string, init: RequestInit, timeoutMs = MAPS_JSON_TIMEOUT_MS, delays = HEDGE_AFTER_MS): Promise<Response> {
+  const controllers: AbortController[] = []
+  const timers: number[] = []
+  const deadline = AbortSignal.timeout(timeoutMs)
+  const stopAll = (except?: AbortController) => { for (const controller of controllers) if (controller !== except) controller.abort() }
+  try {
+    return await new Promise<Response>((resolve, reject) => {
+      let failures = 0
+      let settled = false
+      const attempt = () => {
+        if (settled) return
+        const controller = new AbortController()
+        controllers.push(controller)
+        const signal = AbortSignal.any ? AbortSignal.any([controller.signal, deadline]) : controller.signal
+        fetcher(url, { ...init, signal }).then((response) => {
+          if (settled) return
+          settled = true
+          stopAll(controller)
+          resolve(response)
+        }, (error: unknown) => {
+          failures += 1
+          // every copy sent has failed and no more will go: the last error
+          if (!settled && (failures >= delays.length + 1 || deadline.aborted)) { settled = true; reject(error) }
+        })
+      }
+      attempt()
+      for (const delay of delays) timers.push(Number(globalThis.setTimeout(attempt, delay)))
+      deadline.addEventListener('abort', () => { if (!settled) { settled = true; stopAll(); reject(new Error('maps.json: timed out')) } }, { once: true })
+    })
+  } finally {
+    for (const timer of timers) globalThis.clearTimeout(timer)
+  }
+}
+
 export async function fetchMapRenderingConfigs(fetcher: typeof fetch = fetch): Promise<Map<string, Partial<GameMap>>> {
   const init = { headers: { accept: 'application/json' } }
-  const response = await fetcher(mirroredMapsJsonUrl(), { ...init, signal: AbortSignal.timeout(20_000) })
+  const response = await hedgedGet(fetcher, mirroredMapsJsonUrl(), init)
   if (!response.ok) throw new Error(`maps.json: HTTP ${response.status}`)
   const roots = await response.json() as RawMapConfigRoot[]
   return adaptMapRenderingConfigs(Array.isArray(roots) ? roots : [])

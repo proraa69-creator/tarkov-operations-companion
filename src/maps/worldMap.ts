@@ -140,6 +140,20 @@ export function toWorld(placement: WorldPlacement, map: Pick<GameMap, 'transform
   return toWorldPixel(placement, locationPixel(map, position))
 }
 
+/**
+ * Where the location's own map opens on the canvas (its `bounds`, as «Карты» fits them; the scheme's bounds when it has none):
+ * a flight into it ends on the very picture its map then opens with.
+ */
+export function openingRect(placement: WorldPlacement, map: Pick<GameMap, 'transform' | 'coordinateRotation' | 'bounds' | 'svgBounds'>): [WorldPoint, WorldPoint] {
+  const box = map.bounds ?? map.svgBounds
+  if (!box) return placement.rect
+  const [[x1, z1], [x2, z2]] = box
+  const corners = [[z1, x1], [z1, x2], [z2, x1], [z2, x2]].map(([z, x]) => toWorld(placement, map, [z!, x!]))
+  const xs = corners.map(([x]) => x)
+  const ys = corners.map(([, y]) => y)
+  return [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]]
+}
+
 /** The canvas is drawn with Leaflet's CRS.Simple: lat = -y, lng = x. */
 export const worldLatLng = ([x, y]: WorldPoint): [number, number] => [-y, x]
 
@@ -165,9 +179,10 @@ export function worldTiles(map: Pick<GameMap, 'tileUrl' | 'tileSize' | 'minZoom'
   const zoom = Math.max(map.minZoom ?? 0, Math.min(map.maxZoom ?? wanted, wanted))
   const step = size / 2 ** zoom
   const tiles: WorldTile[] = []
+  // A render may lie on both sides of its origin: Streets' tiles go from x = −1 (owner, 17.11.2026: «Половина карты улиц
+  // Таркова… не отображается… левой не видно» — the negative ones were skipped). A tile that does not exist just fails to load.
   for (let i = Math.floor(px1 / step); i * step < px2; i += 1) {
     for (let j = Math.floor(py1 / step); j * step < py2; j += 1) {
-      if (i < 0 || j < 0) continue
       tiles.push({
         url: map.tileUrl.replace('{z}', String(zoom)).replace('{x}', String(i)).replace('{y}', String(j)),
         rect: [toWorldPixel(placement, [i * step, j * step]), toWorldPixel(placement, [(i + 1) * step, (j + 1) * step])],

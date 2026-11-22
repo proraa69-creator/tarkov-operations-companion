@@ -22,7 +22,7 @@
 .hs-station.is-active { border-color: color-mix(in srgb, var(--brass) 55%, transparent); background: #261f13; }
 .hs-station-pick { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .hs-station-pick img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%)); }
-.hs-station-dot { width: 26px; height: 26px; border-radius: 6px; background: var(--surf-2); }
+.hs-station-dot { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--surf-2); color: var(--text-dim); }
 .hs-station-name { flex: 1; min-width: 0; overflow: hidden; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .hs-station-left { color: var(--brass-strong); font-size: 11px; font-weight: 850; font-variant-numeric: tabular-nums; }
 .hs-station.is-complete .hs-station-left { color: var(--success); }
@@ -64,6 +64,8 @@
 /* «+» / «−»: under the pointer on a desktop, always on a touch screen. */
 .hs-item-controls { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 2px; padding: 2px; background: rgb(8 10 9 / 88%); opacity: 0; transform: translateY(4px); transition: opacity 140ms ease, transform 160ms var(--ease-out); pointer-events: none; }
 .hs-item-controls span { color: var(--text-muted); font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* the count between − and + on a one-cell item: no room to grow with «Увеличенный» шрифт (it spilled over the buttons) */
+.hs-item-controls { --font-scale: 1; }
 .hs-item-controls button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surf-2); color: var(--text); cursor: pointer; }
 .hs-item-controls button:disabled { opacity: .35; cursor: default; }
 .hs-item:hover .hs-item-controls, .hs-item:focus-within .hs-item-controls { opacity: 1; transform: none; pointer-events: auto; }
@@ -98,14 +100,6 @@
 }
 @media (prefers-reduced-motion: reduce) { .hs-progress-bar span, .hs-item-controls { transition: none; } }
 
-/* «Убежище и квесты» (HideoutHubPage.tsx): two big buttons. */
-.hideout-hub-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; max-width: 900px; }
-.hideout-hub-choice { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 22px 20px; color: var(--text); text-decoration: none; transition: border-color .2s ease, transform .2s ease; }
-.hideout-hub-choice:hover { border-color: var(--brass); transform: translateY(-1px); }
-.hideout-hub-choice > svg:first-child { color: var(--brass); }
-.hideout-hub-choice > span { display: grid; gap: 4px; min-width: 0; }
-.hideout-hub-choice strong { font-size: 18px; }
-.hideout-hub-choice small { color: var(--text-muted); font-size: 13px; line-height: 1.4; }
 /* «Назад» above the title of both stashes. */
 /* A key the quest asks to bring (QuestItemsPage.tsx). */
 .hs-item-key { position: absolute; left: 4px; bottom: 4px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: rgb(0 0 0 / 60%); color: var(--brass); }

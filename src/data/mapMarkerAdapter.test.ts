@@ -810,3 +810,26 @@ describe('report 123: «Умный в гору не пойдёт» — Customs\'
     expect(points.find((marker) => marker.id.endsWith('smugglers-boat'))?.position).toEqual([122.67, -41.51])
   })
 })
+
+describe('Лабиринт: «Ключ 01» on the shovel (report 182, 17.11.2026)', () => {
+  const KEY_01 = '679baa2c61f588ae2b062a24'
+  const items = new Map<string, Item>([[KEY_01, { id: KEY_01, name: 'Ключ 01', shortName: 'Ключ 01', category: 'Ключ' } as Item]])
+  const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() }
+  const lootLoose = [
+    { position: { x: -44.7063045, y: 1.6026986500000002, z: 59.787786 }, items: [KEY_01] },
+    { position: { x: -42.565002, y: 0.50310004, z: 64.84801 }, items: [KEY_01] },
+  ]
+  const spots = adaptLiveMapMarkers({ maps: { a: { normalizedName: 'the-labyrinth', lootLoose } } }, {}, context)
+    .filter((marker) => marker.id.includes('route-item'))
+
+  it('the feed spot by the toxic pool says where the key lies and keeps its own point; the other spot says nothing more', () => {
+    expect(spots).toHaveLength(2)
+    const shovel = spots.find((marker) => marker.position[1] === -42.565002)!
+    expect(shovel.description).toBe('Открывает проход в комнате 1. Лежит на лопате.')
+    expect(shovel.ownSpot).toBe(true)
+    const other = spots.find((marker) => marker !== shovel)!
+    expect(other.description).toBe('Открывает проход в комнате 1.')
+    expect(other.ownSpot).toBeUndefined()
+    expect(translateUiText(shovel.description)).toBe('Opens the way in room 1. Lies on the shovel.')
+  })
+})

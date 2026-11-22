@@ -34,6 +34,10 @@ const CANDIDATES = 80
 const NUMBER_SLIP = 0.02
 /** Names whose numbers disagree with the line still rank for the picture check, this far behind (never answered by text). */
 const NUMBER_CONFLICT = 0.1
+/** A reading this long (folded) may be the start of a longer name… */
+const PREFIX_MIN = 16
+/** …at this cost (a whole reading of the name stays ahead). */
+const PREFIX_COST = 0.06
 
 /** OCR mixes look-alike Cyrillic and Latin letters, so both sides are folded to one alphabet (digits stay digits). */
 const HOMOGLYPHS: Record<string, string> = {
@@ -89,7 +93,18 @@ function without(list: string[], other: string[]) {
 
 /** The OCR line folded the way the names are (see foldName) — also the key under which a line is remembered. */
 export function foldTooltipText(ocrText: string) {
-  return foldName(repairOcrNumbers(ocrText))
+  return foldName(repairOcrNumbers(repairOcrLetters(ocrText)))
+}
+
+/**
+ * Letters the OCR draws with slashes in the game's font: W as «\/\/», or «\/» before a digit or D (logged:
+ * «WD-40 (100мл)» read «\/0-48 (160мл)»), otherwise «\/» is V.
+ */
+const SLASH_W = /\\\/\\\//g
+const SLASH_W_BEFORE = /\\\/(?=[0-9OoDdО])/g
+const SLASH_V = /\\\//g
+export function repairOcrLetters(value: string) {
+  return value.replace(SLASH_W, 'W').replace(SLASH_W_BEFORE, 'W').replace(SLASH_V, 'V')
 }
 
 /**
@@ -304,6 +319,17 @@ export function createTooltipMatcher(items: Item[], alternates?: ReadonlyMap<str
       if (!entry.short && loose.length > entry.loose.length && loose.length - entry.loose.length <= 4) {
         const inner = partialSimilarity(entry.loose, loose) - 0.03
         if (inner > score) { score = inner; slips = Math.round((1 - inner - 0.03) * entry.loose.length) + 1 }
+      }
+      // A long name read only in part — the first line of a name the game wrapped (logged: «Карабин Молот ВПО-101
+      // "Вепрь-Хантер"» of «… 7.62x51») — reads like the start of the name. Its lost numbers cost nothing more than
+      // the shortening; names sharing that start are rivals, so an ambiguous start answers nothing.
+      if (!entry.short && loose.length >= PREFIX_MIN && entry.loose.length > loose.length) {
+        const head = entry.loose.slice(0, loose.length)
+        const prefixSlips = levenshtein(head, loose)
+        const prefix = 1 - prefixSlips / loose.length - PREFIX_COST
+        // One slip more than a whole reading: a name read whole («… (Assault, MTP)») beats the longer names it starts
+        // («… (Assault, MTP) По умолчанию», the preset).
+        if (prefix > score) { score = prefix; slips = prefixSlips + 1 }
       }
       const penalty = (entry.short ? 0.04 : 0) + (entry.numbers === numbers ? 0 : 0.01) + NUMBER_SLIP * (extra.length + missing.length)
       scored.push({ entry, score: score - penalty, slips, extra })

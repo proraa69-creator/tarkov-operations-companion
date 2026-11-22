@@ -33,6 +33,13 @@ type ViewTransitionDocument = Document & { startViewTransition?: (update: () => 
 
 /** The longest a press waits for the new scheme's pictures; then the circle starts anyway. */
 const PREPARE_WAIT_MS = 900
+/**
+ * Inside the change: how long the old picture may stay while the new scheme finishes — its pictures decoded and the
+ * scheme's own pieces (decorations that follow `data-theme`, their pictures) drawn — before the circle opens it (owner,
+ * 15.11.2026, video: «она должна доходить до конца плавно и слева такая же проблема»: the circle opened a scheme still
+ * without its texture, and the texture then came over the whole screen at once, so the edges looked never reached).
+ */
+export const SETTLE_MS = 1500
 
 function centreOf(element: Element) {
   const box = element.getBoundingClientRect()
@@ -69,7 +76,7 @@ function screenSize() {
  */
 export function circleRadius(point: { x: number; y: number }, size: { width: number; height: number }) {
   const far = Math.hypot(Math.max(point.x, size.width - point.x), Math.max(point.y, size.height - point.y))
-  return Math.ceil(far * 1.03 + 4)
+  return Math.ceil(far * 1.06 + 8)
 }
 
 let pendingChange = 0
@@ -92,14 +99,41 @@ export function withThemeTransition(apply: () => void, { origin, prepared }: { o
     root.style.setProperty('--vt-y', `${Math.round(point.y)}px`)
     root.style.setProperty('--vt-r', `${circleRadius(point, screenSize())}px`)
     root.setAttribute('data-theme-motion', 'circle')
-    const transition = doc.startViewTransition!(apply)
-    void transition.finished.catch(() => {}).finally(() => { if (change === pendingChange) root.removeAttribute('data-theme-motion') })
+    // No CSS transitions inside the change: the new picture is taken at once, and a colour still fading in it would finish
+    // only after the circle, as a jump (the sidebar's highlighted item did). Back on when the circle is over.
+    root.setAttribute('data-theme-switching', '')
+    // The pictures on the page now: the ones the new scheme adds are waited for (settle).
+    const before = new Set(Array.from(document.images))
+    const transition = doc.startViewTransition!(async () => {
+      apply()
+      await settle(prepared, before)
+    })
+    void transition.finished.catch(() => {}).finally(() => { if (change === pendingChange) { root.removeAttribute('data-theme-motion'); root.removeAttribute('data-theme-switching') } })
   }
   if (!prepared || prepared.done) { start(); return }
   let started = false
   const once = () => { if (!started) { started = true; start() } }
   void prepared.promise.then(once, once)
   window.setTimeout(once, PREPARE_WAIT_MS)
+}
+
+/**
+ * The new scheme, finished: its pictures decoded (`prepared`), the pieces that follow `data-theme` rendered (a
+ * MutationObserver and React need a turn or two) and the pictures they added decoded — at most SETTLE_MS. Until then the
+ * browser keeps showing the old picture; the circle then opens the whole new scheme, with nothing left to appear after.
+ */
+export async function settle(prepared: PreparedTheme | undefined, before: ReadonlySet<HTMLImageElement>) {
+  const turn = () => new Promise<void>((resolve) => { window.setTimeout(resolve, 0) })
+  let timer = 0
+  const limit = new Promise<void>((resolve) => { timer = window.setTimeout(resolve, SETTLE_MS) })
+  const ready = (async () => {
+    await turn()
+    await turn()
+    const added = Array.from(document.images).filter((image) => !before.has(image) && !image.complete)
+    await Promise.all([prepared?.promise ?? Promise.resolve(), ...added.map((image) => image.decode().catch(() => {}))])
+  })()
+  await Promise.race([ready, limit])
+  window.clearTimeout(timer)
 }
 
 /* ---------- The pictures of a scheme, decoded before it is put on ---------- */

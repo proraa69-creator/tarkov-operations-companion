@@ -5,7 +5,7 @@ import { uiText } from '../../i18n/renderText'
 import type { QuestTreeAvailability } from './QuestTreeView'
 import { isChipLink, type QuestTreeLane, type QuestTreeModel } from './questTreeModel'
 import { StatusMark } from './StatusMark'
-import { questTreeStatus, stepLabel } from './questTreeText'
+import { factionTag, questTreeStatus, stepLabel } from './questTreeText'
 
 const MAX_INDENT = 6
 
@@ -49,7 +49,7 @@ function OutlineLane({ lane, model, availability, found, showTitle, selectedId, 
           <StatusMark status={status.key} />
           <span className="quest-tree-row-copy">
             <strong>{uiText(quest.name)}</strong>
-            <small>{uiText(`ур. ${quest.level}`)}{status.text ? ` · ${uiText(status.text)}` : ''}{quest.kappa ? ` · ${uiText('капа')}` : ''}</small>
+            <small>{uiText(`ур. ${quest.level}`)}{factionTag(quest)}{status.text ? ` · ${uiText(status.text)}` : ''}{quest.kappa ? ` · ${uiText('капа')}` : ''}</small>
           </span>
           <ChevronRight size={15} aria-hidden="true" />
         </button>

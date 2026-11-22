@@ -16,6 +16,7 @@
  * without Express. `server/src/routes/accounts.ts` adapts them to an Express router.
  * Passwords are never logged or returned; only salted scrypt hashes are kept. Session tokens are stored as SHA-256.
  */
+import { EftLedger } from './eftLedger.js'
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
@@ -287,6 +288,9 @@ export const COUNTRY_INVALID_MESSAGE = 'Неизвестная страна. В�
 export const MANUAL_COUNTRY_MESSAGE = 'Название страны: до 60 символов, только буквы, пробелы и дефисы.'
 /** «Укажите страну» once the account has one: changing it is «Страна» in the cabinet. */
 export const COUNTRY_ALREADY_SET = 'Страна уже указана. Изменить её после регистрации нельзя — если она указана неверно, напишите в поддержку.'
+/** «Войти через Google» is not offered in Russia (owner, 15.11.2026; Russian sites may not use a foreign sign-in). */
+export const GOOGLE_RUSSIA_MESSAGE = 'Вход через Google недоступен для России. Войдите по e-mail и паролю.'
+export const GOOGLE_OWNER_MESSAGE = 'Для этого аккаунта вход через Google недоступен. Войдите по e-mail и паролю.'
 export const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.'
 
 /**
@@ -611,6 +615,11 @@ export class AccountStore {
    */
   private readonly trialFromFirstRaid: boolean
 
+  /** Every Raid OS account a game account was bound to, and the cases of a game account back after a deletion (services/eftLedger.ts). */
+  readonly eftLedger: EftLedger
+  /** Told of a new case (app.ts: the owner's «Отчёты» badge and table). */
+  onEftRebind?: (caseId: number) => void
+
   constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; storeReviewEmails?: readonly string[]; streamerTrial?: boolean; trialFromFirstRaid?: boolean } = {}) {
     this.now = options.now ?? Date.now
     this.streamerTrial = options.streamerTrial ?? true
@@ -657,6 +666,8 @@ export class AccountStore {
     this.db.exec(`INSERT OR IGNORE INTO eft_trial_claims (eft_digest, account_id, at)
       SELECT e.eft_digest, e.account_id, e.bound_at FROM eft_accounts e JOIN accounts a ON a.id = e.account_id
       WHERE a.trial_ends_at IS NOT NULL AND a.trial_denied IS NULL`)
+    // «Аккаунты Таркова» (services/eftLedger.ts): after the columns above, so the backfill sees deleted_at.
+    this.eftLedger = new EftLedger(this.db, this.now)
   }
 
   /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
@@ -714,6 +725,32 @@ export class AccountStore {
     const code = storedCountry(country)
     if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
     return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp, code, linkNet, ad)
+  }
+
+  /**
+   * «Войти через Google» (services/googleSignIn.ts; owner, 15.11.2026: for every country but Russia). Google has proved the
+   * address: an account with it gets a new session (and its e-mail counts as confirmed); a new address gets an account with
+   * the e-mail confirmed and a random password — «Забыли пароль?» sets a real one. A new account needs its country first
+   * (`needCountry`, the same question as registration). Refused: Russia (an account of Russia, or Russia chosen for a new
+   * one — GOOGLE_RUSSIA_MESSAGE) and the owner's addresses, which sign in with their password only.
+   */
+  async googleSignIn(rawEmail: string, input: { country?: string; referralCode?: string; ip?: string; ad?: AdMark } = {}): Promise<{ token: string; created: boolean; referralApplied: boolean } | { needCountry: true }> {
+    const key = rawEmail.trim().toLowerCase()
+    if (this.ownerEmails.has(key)) throw new AccountError(403, GOOGLE_OWNER_MESSAGE)
+    const existing = this.findByEmail(key)
+    if (existing) {
+      if (existing.country === 'RU') throw new AccountError(403, GOOGLE_RUSSIA_MESSAGE)
+      const token = this.startSession(existing.id)
+      this.db.prepare('UPDATE accounts SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL').run(this.now(), existing.id)
+      return { token, created: false, referralApplied: false }
+    }
+    const country = input.country === undefined || input.country.trim() === '' ? null : storedCountry(input.country)
+    if (!country) return { needCountry: true }
+    if (country === 'RU') throw new AccountError(403, GOOGLE_RUSSIA_MESSAGE)
+    const { salt, hash } = await newPasswordHash(randomBytes(24).toString('base64url'))
+    const ip = input.ip
+    const result = this.insertAccount(key, salt, hash, input.referralCode || undefined, this.now(), ip === undefined ? undefined : signupDigest(ip), country, ip === undefined ? undefined : linkNetDigest(ip), input.ad)
+    return { token: result.token, created: true, referralApplied: result.referralApplied }
   }
 
   /**
@@ -951,6 +988,9 @@ export class AccountStore {
     // The Apple reviewer's account takes no game account: it is signed in on the owner's PC with his game.
     if (!holder && own === undefined && !this.isStoreReview(account.id)) {
       this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?)').run(account.id, digest, hint, this.now())
+      // «Аккаунты Таркова»: a game account back on a new account after its earlier one was deleted (owner, 15.11.2026).
+      const caseId = this.eftLedger.bound(account.id, digest, hint, account.email)
+      if (caseId !== undefined) { try { this.onEftRebind?.(caseId) } catch { /* the case is saved; the badge catches up */ } }
     }
     if (this.eftDigestOf(account.id) === digest) this.claimTrialByEft(account.id, digest)
     return this.eftAccountOf(account.id)
@@ -991,6 +1031,7 @@ export class AccountStore {
   unbindEftAccount(accountId: string) {
     const account = this.mustGet(accountId)
     const removed = Number(this.db.prepare('DELETE FROM eft_accounts WHERE account_id = ?').run(account.id).changes)
+    if (removed > 0) this.eftLedger.gone(account.id, 'unbound')
     this.db.prepare('DELETE FROM eft_reports WHERE account_id = ?').run(account.id)
     return removed > 0
   }
@@ -1484,6 +1525,8 @@ export class AccountStore {
     const progressOwner = `user:${account.id}`
     this.db.exec('BEGIN')
     try {
+      // «Аккаунты Таркова» keeps the game accounts of the deleted account, its e-mail only masked (services/eftLedger.ts).
+      this.eftLedger.gone(account.id, 'deleted', account.email)
       // «Топ сборок»: other players' likes on this account's builds go with the builds (services/buildCatalogStore.ts).
       if (has('shared_builds') && has('shared_build_likes')) this.db.prepare('DELETE FROM shared_build_likes WHERE build_id IN (SELECT id FROM shared_builds WHERE account_id = ?)').run(account.id)
       for (const [table, column] of remove) {

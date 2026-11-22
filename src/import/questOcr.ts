@@ -1,4 +1,6 @@
 import { normalizeQuestKey } from '../data/wikiQuestCatalog'
+import { canonicalMapId, MAP_DISPLAY_NAMES } from '../data/mapIds'
+import { questFaction } from '../progression/questBasics'
 import { STORY_CHAPTER_SEEDS } from '../data/storyChapterSeeds'
 import type { Quest } from '../domain/types'
 import { inferStoryStageIndex, storyStageEvidence, storyStageHits } from './storyStageOcr'
@@ -83,6 +85,11 @@ export interface OcrQuestMatch {
   stageIndex?: number
   /** Status column of the Tasks table row, when it was read on the same OCR line. */
   status?: QuestRowStatus
+  /**
+   * The quest shares its title with another one (a BEAR and a USEC version on different maps, report 209): how this one
+   * was told from it — the row's location cell, the player's faction, or neither (the catalogue's first, a guess).
+   */
+  twin?: 'row' | 'faction' | 'guess'
 }
 
 export type QuestRowStatus = 'active' | 'ready' | 'available' | 'locked' | 'failed'
@@ -230,6 +237,8 @@ interface Catalog {
   /** The numbered titles among the keys, and each chain's numbers (by its stem). */
   parts: Map<string, TitlePart>
   chains: Map<string, Set<string>>
+  /** A trader quest whose title another quest has too: all of them by each one's id (itself included). */
+  twins: Map<string, CatalogEntry[]>
 }
 const catalogCache = new WeakMap<readonly Quest[], Catalog>()
 
@@ -277,7 +286,20 @@ function questCatalog(quests: Quest[]): Catalog {
     }
   }
   const storyTitles = new Set(all.filter((entry) => entry.quest.kind === 'story').flatMap((entry) => entry.titles))
-  const catalog = { all, trader, exact, byLength, storyTitles, parts, chains }
+  const sameTitle = new Map<string, CatalogEntry[]>()
+  for (const entry of trader) {
+    for (const key of entry.titles) {
+      const list = sameTitle.get(key)
+      if (!list) sameTitle.set(key, [entry])
+      else if (!list.some((other) => other.quest.id === entry.quest.id)) list.push(entry)
+    }
+  }
+  const twins = new Map<string, CatalogEntry[]>()
+  for (const list of sameTitle.values()) {
+    if (list.length < 2) continue
+    for (const entry of list) twins.set(entry.quest.id, [...new Set([...(twins.get(entry.quest.id) ?? []), ...list])])
+  }
+  const catalog = { all, trader, exact, byLength, storyTitles, parts, chains, twins }
   catalogCache.set(quests, catalog)
   return catalog
 }
@@ -297,14 +319,16 @@ function partAgrees(row: RowPart | undefined, candidate: string, catalog: Catalo
   return (catalog.chains.get(own.stem)?.size ?? 0) <= 1
 }
 
-export function matchQuestsFromOcr(frame: string, quests: Quest[]) {
+export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { faction?: 'usec' | 'bear' | 'unknown' } = {}) {
   // Before anything splits the rows: «|» also parts a row's cells.
   const text = frame.replace(PART_ONE_STROKE, '$1 1')
   const catalogs = questCatalog(quests)
   const { all: catalog, trader: traderCatalog, exact: exactTitles } = catalogs
   const found = new Map<string, OcrQuestMatch>()
 
-  const remember = (match: OcrQuestMatch) => {
+  /** A trader row's reading: a title two quests share is the one its row (or the player's faction) tells. */
+  const remember = (reading: OcrQuestMatch, rawLine?: string) => {
+    const match = rawLine === undefined ? reading : pickTwin(reading, rawLine, catalogs, options.faction)
     const previous = found.get(match.questId)
     // Equal confidence cannot justify skipping an earlier stage.
     const betterStage = match.stageIndex != null && previous?.stageIndex != null && match.stageIndex < previous.stageIndex
@@ -367,7 +391,7 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[]) {
 
       const exact = exactTitles.get(key)
       if (exact) {
-        remember({ questId: exact.quest.id, name: exact.quest.name, score: 1, line, status, stageIndex: resolveStageIndex(exact.quest, text, key) })
+        remember({ questId: exact.quest.id, name: exact.quest.name, score: 1, line, status, stageIndex: resolveStageIndex(exact.quest, text, key) }, rawLine)
         exactly = true
         continue
       }
@@ -417,8 +441,8 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[]) {
         line: rawLine.trim(),
         status,
         stageIndex: resolveStageIndex(start.entry.quest, text, start.key),
-      })
-    } else for (const match of loose) remember(match)
+      }, rawLine)
+    } else for (const match of loose) remember(match, rawLine)
     if (exactly || start || loose.length) namedRows.add(row)
   })
 
@@ -447,11 +471,37 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[]) {
       const row = rowPart(rowKey)
       if (!hit.keys.some((candidate) => holds(candidate) && partAgrees(row, candidate, catalogs))) continue
       if (found.has(hit.quest.id)) continue
-      remember({ questId: hit.quest.id, name: hit.quest.name, score: 0.9, line: chunk, status, stageIndex: resolveStageIndex(hit.quest, text, key) })
+      remember({ questId: hit.quest.id, name: hit.quest.name, score: 0.9, line: chunk, status, stageIndex: resolveStageIndex(hit.quest, text, key) }, rawLine)
     }
   })
 
   return [...found.values()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
+}
+
+/**
+ * Report 209 (PvE, «Путь охотника. Администратор»: «не хватает точки» at Lighthouse's collection point): the game has the
+ * title twice, for BEAR at Reserve and for USEC at Lighthouse, and a row always became the catalogue's first one — then
+ * the player counted as BEAR and the USEC version, with its points, was hidden. The row's location cell tells them
+ * apart; without it, the player's known faction; otherwise the reading stays a guess.
+ */
+function pickTwin(match: OcrQuestMatch, rawLine: string, catalogs: Catalog, faction?: 'usec' | 'bear' | 'unknown'): OcrQuestMatch {
+  const group = catalogs.twins.get(match.questId)
+  if (!group) return match
+  // The row without the title (a title may hold a map's name)
+  let rest = ocrKey(rawLine)
+  for (const key of [...group[0]!.titles].sort((a, b) => b.length - a.length)) rest = rest.replace(key, '')
+  const onRow = group.filter((entry) => questMapKeys(entry.quest).some((key) => rest.includes(key)))
+  const mine = faction === 'usec' || faction === 'bear' ? group.filter((entry) => questFaction(entry.quest.faction) === faction) : []
+  const [chosen, twin] = onRow.length === 1 ? [onRow[0]!, 'row' as const] : mine.length === 1 ? [mine[0]!, 'faction' as const] : [undefined, 'guess' as const]
+  if (!chosen || chosen.quest.id === match.questId) return { ...match, twin }
+  return { ...match, questId: chosen.quest.id, name: chosen.quest.name, twin }
+}
+
+/** A quest's map as the Tasks table's location cell says it, in Russian and in English. */
+function questMapKeys(quest: Quest) {
+  const id = quest.mapId ? canonicalMapId(quest.mapId) : ''
+  if (!id) return []
+  return [MAP_DISPLAY_NAMES[id], id.replace(/-/g, ' ')].filter((name): name is string => Boolean(name)).map(ocrKey).filter((key) => key.length >= 3)
 }
 
 /** Lines that can name a story chapter — map-only labels outside the story tab are excluded. */

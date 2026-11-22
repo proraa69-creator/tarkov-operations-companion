@@ -18,6 +18,8 @@ export interface DataMirrorRouteOptions {
   legacyGraphql?: Status<LegacyGraphqlBuilder>
   priceHistory?: Status<PriceHistoryMirror>
   trading?: Status<TradingStats>
+  /** Flea prices from the players' screens: counts by mode, no accounts (services/playerPrices.ts). */
+  players?: { status(): unknown }
 }
 
 /** Public operational status. It intentionally exposes no local paths, upstream URLs or credentials. */
@@ -34,6 +36,7 @@ export function createDataMirrorRouter(options: DataMirrorRouteOptions = {}) {
         legacyGraphql: options.legacyGraphql?.status() ?? { state: 'idle' },
         priceHistory: options.priceHistory?.status() ?? { state: 'idle' },
         trading: options.trading?.status() ?? { state: 'idle' },
+        players: options.players?.status() ?? { state: 'idle' },
       })
     } catch (error) { next(error) }
   })

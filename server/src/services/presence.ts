@@ -19,11 +19,20 @@ export const PRESENCE_WINDOW_MS = 5 * 60 * 1000
 export const PRESENCE_HEARTBEAT_MS = 60 * 1000
 
 export type PresenceClient = 'pc' | 'phone'
+/** The phone app's system (owner, 23.11.2026: «сколько в данный момент онлайн с телефонов с каждого вида»). */
+export type PhonePlatform = 'android' | 'ios'
 
 /** The app behind a device name (see the file comment), or undefined for the browser and anything unknown. */
 export function presenceClientOf(deviceName: string): PresenceClient | undefined {
   if (/^(?:Windows|macOS|Linux)(?:\s|$)/.test(deviceName)) return 'pc'
   if (/^(?:Android|iOS)(?:\s|$)/.test(deviceName)) return 'phone'
+  return undefined
+}
+
+/** The phone app's system by its device name («Android · Raid OS», «iOS · Raid OS»), or undefined for anything else. */
+export function phonePlatformOf(deviceName: string): PhonePlatform | undefined {
+  if (/^Android(?:\s|$)/.test(deviceName)) return 'android'
+  if (/^iOS(?:\s|$)/.test(deviceName)) return 'ios'
   return undefined
 }
 
@@ -33,12 +42,15 @@ export interface OnlineCount {
   /** Of them: seen in the PC app / in the phone app (an account in both counts in both, and once in `online`). */
   pc: number
   phone: number
+  /** Of `phone`: in the Android app / in the iPhone app (servers of 23.11.2026 on). */
+  android: number
+  ios: number
   windowMinutes: number
   at: string
 }
 
 export class PresenceTracker {
-  private readonly seen = new Map<string, Partial<Record<PresenceClient, number>>>()
+  private readonly seen = new Map<string, Partial<Record<PresenceClient | PhonePlatform, number>>>()
   private readonly now: () => number
   private readonly windowMs: number
   private prunedAt = 0
@@ -48,11 +60,12 @@ export class PresenceTracker {
     this.windowMs = options.windowMs ?? PRESENCE_WINDOW_MS
   }
 
-  /** This account is in the app of this kind right now. */
-  note(accountId: string, client: PresenceClient) {
+  /** This account is in the app of this kind (and, for the phone app, on this system) right now. */
+  note(accountId: string, client: PresenceClient, platform?: PhonePlatform) {
     const now = this.now()
     const entry = this.seen.get(accountId) ?? {}
     entry[client] = now
+    if (client === 'phone' && platform) entry[platform] = now
     this.seen.set(accountId, entry)
     // Accounts gone for longer than the window are dropped now and then, so the map holds about the online ones only.
     if (now - this.prunedAt >= this.windowMs) this.prune(now)
@@ -64,20 +77,25 @@ export class PresenceTracker {
     let online = 0
     let pc = 0
     let phone = 0
+    let android = 0
+    let ios = 0
+    const within = (at: number | undefined) => at !== undefined && now - at < this.windowMs
     for (const entry of this.seen.values()) {
-      const inPc = entry.pc !== undefined && now - entry.pc < this.windowMs
-      const inPhone = entry.phone !== undefined && now - entry.phone < this.windowMs
+      const inPc = within(entry.pc)
+      const inPhone = within(entry.phone)
       if (inPc) pc++
       if (inPhone) phone++
       if (inPc || inPhone) online++
+      if (within(entry.android)) android++
+      if (within(entry.ios)) ios++
     }
-    return { online, pc, phone, windowMinutes: Math.round(this.windowMs / 60_000), at: new Date(now).toISOString() }
+    return { online, pc, phone, android, ios, windowMinutes: Math.round(this.windowMs / 60_000), at: new Date(now).toISOString() }
   }
 
   private prune(now: number) {
     this.prunedAt = now
     for (const [accountId, entry] of this.seen) {
-      const latest = Math.max(entry.pc ?? 0, entry.phone ?? 0)
+      const latest = Math.max(entry.pc ?? 0, entry.phone ?? 0, entry.android ?? 0, entry.ios ?? 0)
       if (now - latest >= this.windowMs) this.seen.delete(accountId)
     }
   }

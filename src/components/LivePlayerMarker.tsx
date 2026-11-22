@@ -14,6 +14,7 @@ import { playerMarkerSvg, type PlayerMarkerStyle } from '../overlay/playerMarker
 import { useLivePositionContext, type LivePositionValue } from '../mobile/livePosition'
 import { useRemoteFeatures } from '../announcement/features'
 import { placePlayer, type PlayerMapReason } from '../overlay/positionMap'
+import { usePlayerFollowOn } from '../maps/playerFollow'
 import '../styles/playerMarker.css'
 
 /**
@@ -161,13 +162,15 @@ function ServerPlayerMarker({ player }: { player: Extract<LivePlayer, { source: 
 /**
  * Keeps the PC's player in view: the first position on this map centres on it, a later one pans only when the player
  * nears the edge. Dragging the map does not stop it: the next screenshot is the player's own request to see the dot.
+ * `enabled` off («Настройки карты» → «Приближать карту к точке», maps/playerFollow.ts): the map keeps its zoom and place, only
+ * the dot is drawn; turned on again, the next screenshot centres on the dot (turning it on alone moves nothing).
  */
-function useFollowPlayer(position: PlayerPosition | null, onThisMap: boolean) {
+export function useFollowPlayer(position: PlayerPosition | null, onThisMap: boolean, enabled = true) {
   const map = useMap()
   const centred = useRef(false)
   const at = position?.at
   useEffect(() => {
-    if (!position || !onThisMap) return
+    if (!position || !onThisMap || !enabled) return
     const target = latLng(position.z, position.x)
     if (!centred.current) { centred.current = true; map.setView(target, map.getZoom(), { animate: false }); return }
     if (!map.getBounds().pad(-0.2).contains(target)) map.panTo(target, { animate: true, duration: 0.5 })
@@ -199,7 +202,7 @@ function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source:
 
   const angle = useScreenAngle(position)
   const icon = useMemo(() => divIcon({ className: 'ov-player live-player is-desktop', html: playerMarkerSvg(style, angle), iconSize: [26, 26], iconAnchor: [13, 13] }), [angle, style])
-  useFollowPlayer(position, onThisMap)
+  useFollowPlayer(position, onThisMap, usePlayerFollowOn())
 
   if (!position || !onThisMap) return null
   return (

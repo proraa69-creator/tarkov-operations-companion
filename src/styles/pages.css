@@ -66,11 +66,16 @@
   border-radius: 10px;
   background: rgba(7, 9, 9, .92);
   isolation: isolate;
-  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease;
+  /* closed, not drawn at all (it lay invisible over the smoke, its buttons composited every frame: a player's report,
+     20.11.2026 «лагает область»); hidden only once the closing has played */
+  visibility: hidden;
+  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease, visibility 0s linear .35s;
 }
 .raid-map-picker.is-open {
   max-height: 232px;
   opacity: 1;
+  visibility: visible;
+  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease, visibility 0s;
   margin: 0 0 14px;
   border-color: #4a5038;
   box-shadow: 0 14px 34px rgb(0 0 0 / 38%);
@@ -89,7 +94,7 @@
   overflow: auto;
   padding: 12px;
 }
-.raid-map-picker button{display:flex;align-items:center;gap:7px;min-height:34px;border:1px solid rgb(255 255 255 / 9%);border-radius:7px;background:rgb(14 20 16 / 62%);color:var(--text);padding:7px 9px;cursor:pointer;text-align:left;backdrop-filter:blur(6px);text-shadow:0 1px 2px rgb(0 0 0 / 70%);transition:border-color .24s var(--ease-soft),background-color .24s var(--ease-soft),scale .28s var(--ease-soft)}.raid-map-picker button:hover:not(:disabled){border-color:var(--brass);background:rgb(32 31 23 / 78%)}.raid-map-picker button:disabled{opacity:.48;cursor:not-allowed}.raid-map-picker .map-color{width:7px;height:7px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 6px currentColor}.raid-map-picker svg{margin-left:auto}
+.raid-map-picker button{display:flex;align-items:center;gap:7px;min-height:34px;border:1px solid rgb(255 255 255 / 9%);border-radius:7px;background:rgb(14 20 16 / 62%);color:var(--text);padding:7px 9px;cursor:pointer;text-align:left;text-shadow:0 1px 2px rgb(0 0 0 / 70%);transition:border-color .24s var(--ease-soft),background-color .24s var(--ease-soft),scale .28s var(--ease-soft)}.raid-map-picker button:hover:not(:disabled){border-color:var(--brass);background:rgb(32 31 23 / 78%)}.raid-map-picker button:disabled{opacity:.48;cursor:not-allowed}.raid-map-picker .map-color{width:7px;height:7px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 6px currentColor}.raid-map-picker svg{margin-left:auto}
 .map-slideshow { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .map-slide {
   position: absolute;
@@ -156,8 +161,20 @@
 .layer-button:hover { background: var(--surf-2); color: var(--text); }
 .layer-button.active { color: #d6ded7; }
 .layer-kinds { display: grid; padding-left: 12px; }
+/* Report 181: «Показать все» / «Скрыть все» over «Точки на карте». Side by side;
+   in the narrow side panel of the PC, one under the other, so the words are never cut. */
+.map-layers-all-box { container-type: inline-size; margin: 0 2px 10px; }
+.map-layers-all { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+@container (max-width: 250px) { .map-layers-all { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+.map-layers-all-button { min-height: 32px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; background: var(--surf-1); color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; transition: background-color .2s var(--ease-soft), border-color .2s var(--ease-soft), color .2s var(--ease-soft), opacity .26s var(--ease-soft), transform .2s var(--ease-soft); }
+.map-layers-all-button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-layers-all-button:hover:not(:disabled) { background: var(--surf-2); border-color: var(--line-strong); color: var(--text); }
+.map-layers-all-button:active:not(:disabled) { transform: scale(.97); }
+.map-layers-all-button:disabled { opacity: .45; cursor: default; }
 .layer-button.is-kind { min-height: 30px; font-size: 12px; }
-.layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; }
+.layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; flex: none; }
+/* a label wider than the side panel (the larger font, a narrow window) wraps instead of pushing its count out of the button */
+.layer-button > span { min-width: 0; overflow-wrap: anywhere; }
 .layer-icon { width: 22px; height: 22px; object-fit: contain; opacity: .35; filter: grayscale(.8) drop-shadow(0 1px 1px rgb(0 0 0 / 60%)); transition: opacity .26s var(--ease-soft), filter .26s var(--ease-soft); }
 .layer-button.active .layer-icon { opacity: 1; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 60%)); }
 .map-stage { position: relative; min-width: 0; background: var(--surf-0); }
@@ -195,6 +212,13 @@
   opacity: 1;
   pointer-events: auto;
 }
+/* The PC: the grip along the window's top edge sets its greatest height (src/maps/questSheetGrip.tsx, owner 15.11.2026: «на краю
+   этого блока сверху можно нажать на край, и эту шторку квеста можно выставить вверх или вниз»). */
+.map-quest-sheet-grip { position: absolute; top: -6px; left: 14px; right: 14px; height: 12px; z-index: 3; display: flex; align-items: center; justify-content: center; cursor: ns-resize; touch-action: none; outline: none; }
+.map-quest-sheet-grip span { width: 46px; height: 4px; border-radius: 2px; background: #5d6450; box-shadow: 0 1px 2px rgb(0 0 0 / 50%); transition: background-color .15s ease, width .15s ease; }
+.map-quest-sheet-grip:hover span, .map-quest-sheet-grip:focus-visible span, .map-quest-sheet.is-sizing .map-quest-sheet-grip span { width: 64px; background: var(--brass); }
+.map-quest-sheet.is-sizing { transition: none; }
+.map-quest-sheet.is-sizing .map-quest-sheet-body { flex: 1 1 auto; }
 .map-quest-sheet-body {
   position: relative;
   min-height: 0;
@@ -360,7 +384,7 @@
   mix-blend-mode: normal;
 }
 .map-hud { position: absolute; left: 14px; top: 14px; z-index: 600; display: flex; gap: 7px; pointer-events: none; }
-.map-hud > span { min-height: 30px; padding: 0 10px; display: flex; align-items: center; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; backdrop-filter: blur(10px); }
+.map-hud > span, .map-hud-title > span { min-height: 30px; padding: 0 10px; display: flex; align-items: center; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; backdrop-filter: blur(10px); }
 .marker-style-menu { position: relative; pointer-events: auto; }
 .marker-style-trigger { min-height: 30px; padding: 0 9px 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; cursor: pointer; backdrop-filter: blur(10px); }
 .marker-style-trigger:hover, .marker-style-menu.is-open .marker-style-trigger { border-color: #5f553a; color: #f1ece0; }
@@ -638,6 +662,9 @@ a.quest-stage:hover { color: var(--text); }
 .segmented-filter button.active { color: var(--text); background: #29392e; }
 .quest-catalog-card { min-height: 58px; padding: 11px 14px; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; overflow: hidden; }
 .quest-catalog-card.quest-map-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+/* a row's tags («Текущее», «капа», a hand-set mark) side by side in one cell, so every row keeps one height */
+.quest-row-tags { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
+.quest-row-tags:empty { display: none; }
 /* «Квесты на карте»: «Сделал в этом рейде» — the player's own note for the raid, not quest progress (QuestRaidCheck). */
 .quest-catalog-card.quest-map-row.has-raid-check { grid-template-columns: minmax(0, 1fr) auto; }
 .quest-raid-check { width: 32px; height: 32px; flex: 0 0 auto; padding: 0; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: transparent; color: var(--green); cursor: pointer; transition: background-color .18s var(--ease-soft), border-color .18s var(--ease-soft), color .18s var(--ease-soft); }
@@ -838,7 +865,8 @@ a.quest-stage:hover { color: var(--text); }
 .profile-delete{width:42px;border:0;border-left:1px solid var(--line);background:transparent;color:var(--text-dim);cursor:pointer}
 .profile-delete:hover{color:#d27b7b;background:rgba(210,123,123,.08)}
 .flea-layout{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
-.flea-layout.with-detail{grid-template-columns:minmax(0,1fr) 340px}
+/* Owner 16.11.2026 (report 171): the list a little narrower, the item's card wider, taking the room from the left. */
+.flea-layout.with-detail{grid-template-columns:minmax(0,1fr) clamp(400px,38%,520px)}
 .flea-detail{position:relative;position:sticky;top:82px}
 .quest-scan-panel { margin: 0 0 14px; padding: 16px 18px; }
 .quest-scan-copy { display: flex; gap: 12px; align-items: flex-start; }
@@ -941,6 +969,11 @@ a.quest-stage:hover { color: var(--text); }
 /* Icon style menu: compact, opens downwards and stays within the HUD column */
 /* The right of the first line stays free for «Отложенные квесты» (.map-deferred), the zoom buttons are under it. */
 .map-hud { flex-wrap: wrap; align-items: flex-start; max-width: calc(100% - 230px); }
+/* the map's name with «Ключи» under it (report 186) */
+.map-hud-title { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+.map-hud-keys { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 0 10px; border: 1px solid var(--line-soft); border-radius: 7px;
+  background: rgb(10 16 12 / 88%); color: #d8c08a; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; backdrop-filter: blur(8px); transition: background-color .18s, border-color .18s, color .18s; }
+.map-hud-keys:hover, .map-hud-keys.is-open { border-color: color-mix(in srgb, var(--brass) 55%, var(--line-soft)); background: rgb(24 30 20 / 92%); color: var(--brass-strong); }
 .marker-style-list { flex-direction: column; gap: 2px; min-width: 156px; padding: 4px; border-radius: 8px; }
 .marker-style-option { min-height: 30px; padding: 0 10px 0 6px; background: transparent; font-size: 11.5px; }
 .marker-style-preview .layer-icon.is-preview, .marker-style-preview .layer-glyph.is-preview { width: 18px; height: 18px; }
@@ -1636,3 +1669,10 @@ a.quest-stage:hover { color: var(--text); }
 .sheet-objective-counter button:disabled { opacity: .35; cursor: default; }
 .sheet-objective-counter.is-read strong { min-width: 0; }
 .sheet-objective.is-done .sheet-objective-counter strong { color: var(--green, #7fbf7f); }
+/* The key of a locked room in a point's card: pressed, it opens right under it (maps/LockedNote.tsx, QuestKeyInline). */
+.map-locked-key-block { display: grid; gap: 4px; }
+.map-locked-key.is-button { width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.map-locked-key.is-button:hover { border-color: var(--line-strong); background: rgb(255 255 255 / 4%); }
+.map-locked-key .map-locked-chevron { margin-left: auto; color: var(--text-dim); transition: rotate .2s ease; }
+.map-locked-key[aria-expanded="true"] .map-locked-chevron { rotate: 180deg; }
+.map-locked-tier { position: static !important; flex: none; }

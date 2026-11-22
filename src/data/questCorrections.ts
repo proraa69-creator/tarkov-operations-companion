@@ -1,4 +1,4 @@
-import type { Quest } from '../domain/types'
+import type { Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 
 /**
@@ -10,6 +10,8 @@ interface QuestCorrection {
   /** Where the corrected values come from and when the owner checked them. */
   source: string
   checkedAt: string
+  /** The modes it is for; every mode when absent. */
+  modes?: readonly RaidMode[]
   apply: (quest: Quest, locale: AppLocale) => Quest
 }
 
@@ -73,13 +75,21 @@ const CORRECTIONS: Record<string, QuestCorrection> = {
   // level of Prapor: its holders below it are months-old records against a level read now, not takes at that level.
   '60e71b62a0beca400d69efc4': { source: LEVELS_SOURCE, checkedAt: '2026-11-04', apply: (quest) => ({ ...quest, level: 36 }) },
   '60e71e8ed54b755a3b53eb67': { source: LEVELS_SOURCE, checkedAt: '2026-11-04', apply: (quest) => ({ ...quest, level: 33 }) },
+  // «Освободить помещение» in Season (report 192, the game's screen): Ragman wants the PMCs driven out, not «лишних людей»
+  // (the PvP text); its objective and rewards are corrected in the Season data (SEASON_TASK_FIXES, src/data/catalogSource.ts).
+  '67d03be712fb5f8fd2096332': {
+    source: 'the game (Season), player report',
+    checkedAt: '2026-11-18',
+    modes: ['seasonal'],
+    apply: (quest) => ({ ...quest, description: quest.description.replace('лишних людей оттуда погонял', 'ЧВК оттуда погонял') }),
+  },
 }
 
 /** The catalog's quests with the pinned corrections applied (both languages), each marked with `manualCorrection`. */
-export function applyQuestCorrections(quests: Quest[], locale: AppLocale): Quest[] {
+export function applyQuestCorrections(quests: Quest[], locale: AppLocale, mode?: RaidMode): Quest[] {
   return quests.map((quest) => {
     const correction = CORRECTIONS[quest.id]
-    if (!correction) return quest
+    if (!correction || (correction.modes && (!mode || !correction.modes.includes(mode)))) return quest
     return { ...correction.apply(quest, locale), manualCorrection: { source: correction.source, checkedAt: correction.checkedAt } }
   })
 }

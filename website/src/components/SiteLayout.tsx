@@ -10,6 +10,7 @@ import { LanguageSwitch } from './LanguageSwitch'
 import { siteLocale, tr } from '../i18n'
 import { SubscriptionDialog } from './SubscriptionDialog'
 import { CountryGateDialog } from './CountryGateDialog'
+import { SupportWidget } from './SupportWidget'
 import '../brand.css'
 
 /**
@@ -111,10 +112,13 @@ export function SiteLayout() {
           </nav>
           {/* The documents themselves stay in Russian (owner, 11.10.2026); only their names are translated. */}
           <nav className="legal-links" aria-label={tr('Документы')}>
+            <Link to="/privacy">{tr('Политика конфиденциальности')}</Link>
             <Link to="/legal/cookies">Cookie</Link>
-            {/* Only «Cookie» for now (owner, 13.11.2026): no «Публичная оферта», «Политика конфиденциальности», «Согласие на
-                обработку ПД» or «Тарифы, оплата и возврат» — «это будет палево, что у нас оплата». The pages stay at /legal/…,
-                linked from the sign-up form; the iPhone app opens /app/privacy. */}
+            {/* «Cookie» and, again, the privacy policy (owner, 17.11.2026: «нету политики конфиденциальности. Добавь ее срочно»), the
+                version without prices, plans or subscriptions (/privacy; «Главное, чтобы в политике не было упоминания о ценах»);
+                still no «Публичная оферта», «Согласие на обработку ПД» or «Тарифы, оплата и возврат» (owner, 13.11.2026: «это
+                будет палево, что у нас оплата»). Those pages stay at /legal/…, linked from the sign-up form; the iPhone app
+                opens /app/privacy. */}
           </nav>
         </div>
       </footer>
@@ -122,6 +126,7 @@ export function SiteLayout() {
       {/* «Укажите страну» (owner, 15.10.2026): the cabinet and the admin panel wait for the country of an account without one. */}
       {(pathname.startsWith('/cabinet') || pathname.startsWith('/admin')) && <CountryGateDialog />}
       <CookieNotice />
+      <SupportWidget />
     </div>
   )
 }

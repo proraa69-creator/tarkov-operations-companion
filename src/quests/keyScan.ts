@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Item, RaidMode } from '../domain/types'
 import { screenEntries } from '../kappa/collector'
 import { countScreenItems } from '../stashScan/screenSync'
+import { forgetKeysAddedByTaken } from '../progression/takenItems'
 import { addSeenKeys } from './ownedKeys'
 
 /**
@@ -42,6 +43,8 @@ export function createKeyScan(input: { items: Item[]; wanted: readonly string[];
     const frame = await api.scanScreenText(restart ? { restart: true, names } : {})
     for (const [id, pieces] of countScreenItems(entries, frame.text)) seen.set(id, (seen.get(id) ?? 0) + pieces)
     added += seen.size ? addSeenKeys(input.profileId, input.mode, seen) : 0
+    // a key «Взял» put in the list and seen now: «Есть в схроне»
+    if (seen.size) forgetKeysAddedByTaken(input.profileId, input.mode, seen.keys())
     return {
       ok: true,
       gameWindow: frame.gameWindow,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Check, Minus, PackageX, Plus, ScanSearch, Search, Warehouse, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
@@ -11,9 +11,12 @@ import { hideoutNeeds, type HideoutNeed, type HideoutNeedsFilter } from '../hide
 import { setHideoutFound, useHideoutFound } from '../hideout/hideoutFound'
 import { stationIcon } from '../hideout/stationIcons'
 import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
+import { applyHideoutModules } from '../hideout/hideoutModules'
+import { useHideoutModules } from '../hideout/hideoutModulesStore'
 import { isMobileLayout } from '../platform'
 import { useScreenSync } from '../stashScan/useScreenSync'
 import { RemoteScanButton } from '../stashScan/RemoteScanButton'
+import { ItemSourcesBlock } from '../hideout/WhereToGet'
 import { UNNEEDED_PATH } from '../stashScan/unneededPath'
 import '../styles/hideoutStash.css'
 
@@ -70,7 +73,9 @@ export function HideoutStashPage() {
   const [firOnly, setFirOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
-  const stations = useMemo(() => withSeasonFoundInRaid([...data.hideout].filter((entry) => entry.levels?.length), mode).sort((a, b) => a.name.localeCompare(b.name, 'ru')), [data.hideout, mode])
+  // without the modules the owner turned off in this mode («Модули убежища»)
+  const modules = useHideoutModules()
+  const stations = useMemo(() => applyHideoutModules(withSeasonFoundInRaid([...data.hideout].filter((entry) => entry.levels?.length), mode), mode, modules).sort((a, b) => a.name.localeCompare(b.name, 'ru')), [data.hideout, mode, modules])
   const filter = useMemo((): HideoutNeedsFilter | undefined => (focus ? { level: focus } : picked.size ? { stations: picked } : undefined), [focus, picked])
   const needs = useMemo(() => hideoutNeeds(stations, built, found, filter), [stations, built, found, filter])
   const everything = useMemo(() => filter ? hideoutNeeds(stations, built, found) : needs, [filter, stations, built, found, needs])
@@ -93,7 +98,9 @@ export function HideoutStashPage() {
   })
   // Still to find first, the biggest first (they pack the grid like a real stash); the collected ones after.
   const size = (need: HideoutNeed) => span(items.get(need.itemId)?.width, 3) * stashRows(items.get(need.itemId), 3)
-  const open = visible.filter((need) => need.remaining > 0).sort((a, b) => size(b) - size(a) || b.remaining - a.remaining)
+  // A place that never changes while the player counts (owner, 19.11.2026: «Перемещаться предметы не должны вообще… если собраны все,
+  // они перемещаются в собранном»): by the size, then what is needed in all, never what is left.
+  const open = visible.filter((need) => need.remaining > 0).sort((a, b) => size(b) - size(a) || b.total - a.total || a.itemId.localeCompare(b.itemId))
   const done = visible.filter((need) => need.remaining === 0)
   const selected = needs.items.find((need) => need.itemId === selectedId) ?? everything.items.find((need) => need.itemId === selectedId)
   const share = everything.total ? (everything.total - everything.remaining) / everything.total : 0
@@ -101,6 +108,7 @@ export function HideoutStashPage() {
   // телефона у нас не будет»); it starts the PC's scan (RemoteScanButton).
   const phone = isMobileLayout()
   const screenSync = useScreenSync(SCREEN_SYNC)
+  const stashWrap = useFittedCells()
 
   return <div className="page hideout-stash">
     <header className="page-header hs-header">
@@ -146,7 +154,7 @@ export function HideoutStashPage() {
           onLevelItems={(level) => setFocus((current) => (current?.stationId === entry.id && current.level === level ? null : { stationId: entry.id, level }))} />)}
       </aside>
 
-      <section className="hs-stash-wrap">
+      <section ref={stashWrap} className="hs-stash-wrap">
         <div className="hs-toolbar">
           <label className="hs-search"><Search size={14} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти предмет…')} aria-label={uiText('Найти предмет')} /></label>
           <button type="button" className={`hs-chip${firOnly ? ' is-active' : ''}`} aria-pressed={firOnly} onClick={() => setFirOnly((value) => !value)}><Check size={12} aria-hidden="true" /> {uiText('Только «найдено в рейде»')}</button>
@@ -215,6 +223,37 @@ function StationRow({ station, level, active, ticked, focusLevel, left, onPick, 
   </div>
 }
 
+/**
+ * The stash's cells sized to fill its width (owner, 21.11.2026, the phone: «справа строка пустая… помещай туда маленькие предметы по
+ * одной клетке»): the grid took as many whole cells as fit and left the rest of the width empty, a column's worth on the phone. Now the
+ * cells are as many as fit best (one more and a little smaller when over half a cell is left, a little bigger otherwise), so the last
+ * column is a real one and the dense flow fills it with the one-cell items.
+ */
+function useFittedCells() {
+  const ref = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const wrap = ref.current
+    if (!wrap || typeof ResizeObserver === 'undefined') return
+    const fit = () => {
+      const grid = wrap.querySelector<HTMLElement>('.hs-stash')
+      if (!grid) return
+      const base = parseFloat(getComputedStyle(wrap.parentElement ?? wrap).getPropertyValue('--cell')) || 64
+      const style = getComputedStyle(grid)
+      const gap = parseFloat(style.columnGap) || 0
+      const inner = grid.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0)
+      if (inner <= base) return
+      const columns = Math.max(1, Math.round((inner + gap) / (base + gap)))
+      const cell = Math.floor(((inner - (columns - 1) * gap) / columns) * 100) / 100
+      if (wrap.style.getPropertyValue('--cell') !== `${cell}px`) wrap.style.setProperty('--cell', `${cell}px`)
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(wrap)
+    return () => observer.disconnect()
+  }, [])
+  return ref
+}
+
 function StashItem({ need, item, selected, onSelect, profileId }: { need: HideoutNeed; item?: Item; selected: boolean; onSelect: () => void; profileId: string }) {
   const { raidMode } = useAppState()
   const w = span(item?.width, 3)
@@ -253,5 +292,6 @@ function ItemDetail({ need, item, profileId }: { need: HideoutNeed; item?: Item;
       {need.uses.map((use) => <li key={`${use.stationId}-${use.level}`}><span>{use.stationName}</span><span className="hs-use-level">{roman(use.level)}</span><strong>×{use.count}</strong>{use.foundInRaid && <Check size={11} className="hs-use-fir" aria-label={uiText('найден в рейде')} />}</li>)}
     </ul>
     {item?.fleaPrice ? <p className="dim hs-detail-price">{uiText('Барахолка')}: {number(item.fleaPrice)} ₽ {uiText('за шт.')}</p> : null}
+    <ItemSourcesBlock itemId={need.itemId} />
   </div>
 }

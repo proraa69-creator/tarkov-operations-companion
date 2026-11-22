@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { exitHighlights, exitKey, isStayReading, isUncertainExit, matchListedExits, parseExtractList } from './raidExtracts'
+import { exitHighlights, exitKey, exitsInText, isStayReading, isUncertainExit, matchListedExits, parseExtractList } from './raidExtracts'
 
 // Report №105 (Reserve, the player's screenshot) as the OCR gives it, a slip or two included.
 const READ = `Найдите зону выхода 0:39:54
@@ -118,5 +118,49 @@ describe('the exit list of real raids (owner, 11.11.2026: «Мы делали э
     const reading = { names: ['Подвалы', 'Ворота 3'], at: 1_000_000 }
     expect(exitHighlights(reading, undefined, exits, 1_000_000 + 49 * 60_000)?.dim).toEqual(new Set(['c']))
     expect(exitHighlights(reading, undefined, exits, 1_000_000 + 51 * 60_000)).toBeNull()
+  })
+
+  it('one O, then the map own exit names sought in the text read (owner, 18.11.2026): no «ВЫХОД» word needed', () => {
+    // the list's first words lost to the scenery, a name or two slipped; the transits and the header stay out
+    const ocr = ['= ‹ Найдите зону выхода 0:39:54', '7 Бронепоезд ??:??:??', '@@ Д-2', 'xx Гермозатвор бункеpа', 'Спуск со скалы 0:12:00',
+      'ПЕРЕХОД01 Переход на Таможню 0:00:54', 'Exfil Sewer Manhole'].join('\n')
+    expect([...exitsInText(ocr, RESERVE)].sort()).toEqual(['cliff', 'd2', 'hermetic', 'sewer', 'train'])
+    // a short name only as a whole word: «Д-23» or «КД-2» is not «Д-2»
+    expect(exitsInText('Ворота Д-23\nКД-2 корпус', RESERVE).has('d2')).toBe(false)
+    const highlights = exitHighlights({ names: [], text: ocr, at: 2000 }, 1000, RESERVE)!
+    expect([...highlights.lit].sort()).toEqual(['cliff', 'd2', 'hermetic', 'sewer', 'train'])
+    expect([...highlights.dim].sort()).toEqual(['exit-hole', 'vex', 'wild'])
+    // one name of this map in the text is no list of it
+    expect(exitHighlights({ names: [], text: 'Спуск со скалы', at: 2000 }, 1000, RESERVE)).toBeNull()
+  })
+})
+
+describe('the owner\'s Customs reading of 19.11.2026 (Season, 3440×1440, one O)', () => {
+  // as the PC app read it (raid-exits log): «ВЫХОДОВ!», «35-1213» for «ЗБ-1013», «ПЕРЕХОДВ4А»
+  const TEXT = 'ВЫХОДОВ! А-Выход у общаги 22:2?:2?\nВЫХОДВ2 35-1213\n\nВЫХОДЯЗ Перекресток\n\nВЫХОДВ4 Трейлерный парк\n\n'
+    + 'ВЫХОДО5 Проход через ЖД пути (Сигнал)\n\nВЫХОДОб Подвал котельной (Совм)\n\nПЕРЕХОДОВ! Перехсд на Резерв\n\n'
+    + 'ПЕРЕХОДО2 Переход на Завод\n\nПЕРЕХОДОЗ Переход на Развязку\n\nПЕРЕХОДВ4А Переход на Берег\n'
+  const CUSTOMS = [
+    ['dorms', 'А-Выход у общаги', 'Dorms V-Ex'], ['zb1013', 'ЗБ-1013', 'ZB-1013'], ['zb1011', 'ЗБ-1011', 'ZB-1011'],
+    ['crossroads', 'Перекресток', 'Crossroads'], ['trailer', 'Трейлерный парк', 'Trailer Park'],
+    ['rail', 'Проход через ЖД пути (Сигнал)', 'Railroad Passage (Flare)'], ['boiler', 'Подвал котельной (Совм.)', 'Boiler Room Basement (Co-op)'],
+    ['reserve', 'ЖД к Резерву', 'Railroad to Reserve'], ['ruaf', 'Блокпост ВС РФ', 'RUAF Roadblock'], ['gas', 'Старая заправка', 'Old Gas Station'],
+    ['boat', 'Лодка Контрабандистов', 'Smugglers\' Boat'], ['bunker', 'Бункер Контрабандистов (ЗБ-1012)', 'Smugglers\' Bunker (ZB-1012)'],
+  ].map(([id, ru, en]) => ({ id: id!, title: ru!, titles: [ru!, en!] }))
+
+  it('lights the six exits of the list and dims the other six', () => {
+    const states = exitHighlights({ names: parseExtractList(TEXT), text: TEXT, at: 2000 }, 1000, CUSTOMS)!
+    expect([...states.lit].sort()).toEqual(['boiler', 'crossroads', 'dorms', 'rail', 'trailer', 'zb1013'])
+    expect([...states.dim].sort()).toEqual(['boat', 'bunker', 'gas', 'reserve', 'ruaf', 'zb1011'])
+  })
+})
+
+// The game's list on Customs read by the app's own steps from a full screenshot (20.11.2026): one of three reads gave «ВС» as Latin
+// «BC», and «Блокпост ВС РФ» stayed dark.
+describe('Latin letters drawn like Cyrillic ones in the reading', () => {
+  it('«Блокпост BC РФ» is «Блокпост ВС РФ»', () => {
+    const exits = [{ id: 'ruaf', title: 'Блокпост ВС РФ', titles: ['Блокпост ВС РФ', 'RUAF Roadblock'] }, { id: 'gas', title: 'Старая заправка', titles: ['Старая заправка', 'Old Gas Station'] }]
+    expect([...exitsInText('ВЫХОДО5 Блокпост BC РФ P|', exits)]).toEqual(['ruaf'])
+    expect([...matchListedExits(parseExtractList('ВЫХОДО5 Блокпост BC РФ P|'), exits)]).toEqual(['ruaf'])
   })
 })

@@ -46,7 +46,8 @@ describe('«Оружейник» on the Overview', () => {
     expect(screen.getByRole('img', { name: 'HK 416A5 5.56x45' })).toHaveAttribute('src', 'https://assets.tarkov.dev/hk416-512.webp')
     expect(screen.getByText('Эффективная дальность')).toBeInTheDocument()
     expect(screen.getByText('≤ 4 кг')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /SOCOM556-RC2/ })).toHaveAttribute('href', '/flea?selected=rc2')
+    // A part opens its card from «Барахолка» on the right (report 171), no longer a link to the page.
+    expect(screen.getByRole('button', { name: /SOCOM556-RC2/ })).toHaveAttribute('aria-haspopup', 'dialog')
     expect(screen.getByRole('link', { name: /Как собрать/ })).toHaveAttribute('href', '/gunsmith?quest=gs2')
   })
 

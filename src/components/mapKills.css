@@ -17,6 +17,10 @@
 /* The count: a plain number on the label's line, no circle (owner, 10.11.2026: «цифры ровно… без кружка»); same-width digits. */
 .map-detail-tab small { display: inline-block; font-size: 12px; font-weight: 800; line-height: 1; letter-spacing: 0; color: var(--text-muted); font-variant-numeric: tabular-nums lining-nums; }
 .map-detail-tab.active small { color: var(--brass); }
+/* «Увеличенный» шрифт (owner, 21.11.2026: «чтобы нигде… ничего не вылезало»): a label too long for its tab gives way with an
+   ellipsis, its count always inside. */
+.map-detail-tab > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.map-detail-tab small { flex: none; }
 
 /* The phone's HUD button. */
 .map-kills-button { white-space: nowrap; pointer-events: auto; }

@@ -12,7 +12,8 @@ export const isGoonMap = (value: unknown): value is GoonMapId => typeof value ==
 /** Our server is polled this often; the tarkov.dev community feed is an extra, slower source. */
 export const GOON_REFRESH_MS = 30_000
 const COMMUNITY_REFRESH_MS = 60_000
-export const GOON_STATS_WINDOW_MS = 5 * 60 * 60 * 1000
+/** Counts and «кто видел» cover the day the sightings are kept (owner, 16.11.2026; server/src/services/goonStore.ts). */
+export const GOON_STATS_WINDOW_MS = 24 * 60 * 60 * 1000
 /** Unsent own sightings are retried on every refresh while they are still this fresh. */
 /** An unsent sighting is sent again with every refresh for this long. */
 export const GOON_RETRY_UNSENT_MS = 15 * 60_000
@@ -40,9 +41,10 @@ export interface OwnGoonSighting { mapId: GoonMapId; reportedAt: string; sent: b
 export type GoonConnection = 'server' | 'offline' | 'local-only'
 /**
  * signin: no account session · nickname: the account has no Tarkov nickname for this mode · later: the server's spam
- * protection (one sighting a minute per account, routes/goons.ts) — the app sends it again by itself.
+ * protection (one sighting a minute per account, routes/goons.ts) — the app sends it again by itself · wait: one sighting
+ * every 10 minutes per account (owner, 17.11.2026): refused, not kept, not sent again.
  */
-export type GoonReportResult = 'sent' | 'duplicate' | 'unsent' | 'later' | 'local' | 'signin' | 'nickname'
+export type GoonReportResult = 'sent' | 'duplicate' | 'unsent' | 'later' | 'local' | 'signin' | 'nickname' | 'wait'
 
 export function parseGoonReport(value: unknown): GoonLocation | null {
   const reports = Array.isArray(value) ? value : [value]
@@ -94,9 +96,11 @@ const sortStats = (rows: GoonMapStat[]) => rows.sort((a, b) => b.count - a.count
 export function mergeGoonView(input: { server: GoonSnapshot | null; community: GoonLocation | null; own: OwnGoonSighting[]; now: number }) {
   const { server, community, own, now } = input
   const ownShown = server ? own.filter((entry) => !entry.sent) : own
+  // Nothing older than the day the sightings are kept: then «Отметок нет».
+  const fresh = (location: { reportedAt: string }) => now - Date.parse(location.reportedAt) <= GOON_STATS_WINDOW_MS
   const candidates: GoonLocation[] = [
     ...(server?.latest ? [{ ...server.latest, source: 'server' as const }] : []),
-    ...(community ? [community] : []),
+    ...(community && fresh(community) ? [community] : []),
     ...ownShown.map((entry) => ({ mapId: entry.mapId, reportedAt: entry.reportedAt, source: 'local' as const, ...(entry.sent ? {} : { unsent: true }) })),
   ]
   const location = candidates.sort((a, b) => b.reportedAt.localeCompare(a.reportedAt))[0] ?? null
@@ -141,6 +145,12 @@ export function resolveGoonTransport(): Transport | null {
 const ownKey = (mode: RaidMode) => `goon-sightings-v2-${mode}`
 const legacyKey = (mode: RaidMode) => `goon-sighting-v1-${mode}`
 
+/** This player's newest sighting in any mode (the server's 10 minutes count across the modes). */
+export function lastOwnSightingAt(now = Date.now()): number | undefined {
+  const times = (['pvp', 'pve', 'seasonal'] as RaidMode[]).flatMap((mode) => readOwnSightings(mode, now).map((entry) => Date.parse(entry.reportedAt)))
+  return times.length ? Math.max(...times) : undefined
+}
+
 export function readOwnSightings(mode: RaidMode, now = Date.now()): OwnGoonSighting[] {
   try {
     const raw = JSON.parse(localStorage.getItem(ownKey(mode)) ?? 'null') as unknown
@@ -166,7 +176,7 @@ async function postSighting(transport: Transport, mode: RaidMode, mapId: GoonMap
   const answer = await transport('POST', `/v1/goons/${mode}/sightings`, { mapId }) as { accepted?: unknown; reason?: unknown; snapshot?: unknown } | null
   if (!answer) return null
   const refused = answer.accepted === false ? answer.reason : undefined
-  const rejected: 'signin' | 'nickname' | undefined = refused === 'signin' ? 'signin' : refused === 'nickname' ? 'nickname' : undefined
+  const rejected: 'signin' | 'nickname' | 'wait' | undefined = refused === 'signin' ? 'signin' : refused === 'nickname' ? 'nickname' : refused === 'wait' ? 'wait' : undefined
   return { duplicate: refused === 'duplicate', rejected, snapshot: parseGoonSnapshot(answer.snapshot) }
 }
 

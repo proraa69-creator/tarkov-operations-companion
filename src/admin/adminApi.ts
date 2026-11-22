@@ -1,3 +1,4 @@
+import type { EftCasesPage, EftCaseStatus } from '../reports/EftCasesTable'
 import { watchReportEvents } from '../reports/reportEvents'
 import type { ReportPage, ReportRow } from '../reports/ReportsTable'
 import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
@@ -35,6 +36,16 @@ export interface AdminOverview {
 
 export interface AdminOnlineDay { date: string; users: number; minimum: number; maximum: number; average: number; samples: number }
 export interface AdminOnlineStats { generatedAt: string; windowMinutes: number; current: number; today: AdminOnlineDay | null; history: AdminOnlineDay[] }
+/** «Телефоны» (server/src/routes/ownerAdmin.ts GET /me/admin/phones, servers of 23.11.2026 on). */
+export interface AdminPhoneCount { accounts: number; devices: number }
+export interface AdminPhones {
+  users: number
+  phones: AdminPhoneCount
+  android: AdminPhoneCount & { online: number }
+  ios: AdminPhoneCount & { online: number }
+  online: { phone: number; pc: number; all: number; windowMinutes: number }
+  at: string
+}
 
 /** «Регистрации и оплаты» of «Сводка» (server/src/services/adminStore.ts): the owner's days (Bangkok), months, years. */
 export type StatsPeriod = 'day' | 'month' | 'year'
@@ -229,6 +240,7 @@ export const adminPaths = {
   overview: () => '/v1/accounts/me/admin/overview',
   /** «Статистика онлайна»: two requests, kept together. */
   online: () => 'online',
+  phones: () => '/v1/accounts/me/admin/phones',
   users: (search: string, filter: AdminUserFilter, region: AdminUserRegion = 'all', limit = 100, offset = 0) => `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, region, limit, offset })}`,
   payments: (period: AdminPaymentPeriod, filter: AdminPaymentQuery, limit = 100, offset = 0, now = new Date()) => `/v1/accounts/me/admin/payments${query({ ...paymentDates(period, now, filter.custom), status: filter.status === 'all' ? undefined : filter.status, plan: filter.plan, q: filter.q?.trim(), limit, offset })}`,
   bugReports: (status: BugReportStatus, limit = 100, offset = 0) => `/v1/accounts/me/admin/bug-reports${query({ status, limit, offset })}`,
@@ -301,14 +313,19 @@ export const adminApi = {
   ),
   reportPlan: (id: number, plan: string) => request<{ report: BugReportDetail }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/plan`, { plan }),
   /** Waits on the server for the next change of the table, until `signal` aborts; `changed` asks the table again. */
-  watchReports: (onChange: () => void, signal: AbortSignal) => watchReportEvents((path) => ask('GET', path), (_event, changed) => {
+  watchReports: (onChange: () => void, signal: AbortSignal, onEftCases?: (count: number) => void) => watchReportEvents((path) => ask('GET', path), (event, changed) => {
+    onEftCases?.(event.eftCases)
     if (!changed) return
     fresh.delete(adminPaths.reportTable('active'))
     fresh.delete(adminPaths.reportTable('working'))
     fresh.delete(adminPaths.reportTable('closed'))
     onChange()
   }, signal),
+  /** «Отчёты» → «Аккаунты Таркова» (server/src/routes/eftCases.ts). */
+  eftCases: (view: EftCaseStatus) => request<EftCasesPage>('GET', `/v1/accounts/me/admin/eft-cases?view=${view}&limit=100`),
+  eftStatus: (id: number, status: EftCaseStatus) => request<unknown>('POST', `/v1/accounts/me/admin/eft-cases/${id}/status`, { status }),
   overview: () => request<AdminOverview>('GET', adminPaths.overview(), undefined, keep),
+  phones: () => request<AdminPhones>('GET', adminPaths.phones(), undefined, keep),
   online: async (days = 30) => {
     const [history, live] = await Promise.all([
       request<AdminOnlineStats>('GET', `/v1/accounts/me/admin/online-stats?days=${days}`),

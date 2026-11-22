@@ -4,8 +4,11 @@ import { z } from 'zod'
 import { ipRateKey } from '../services/securityGuard.js'
 import { GOON_MAP_IDS, GOON_MODES, GOON_RETENTION_MS, MemoryGoonStore, summarizeGoons, type GoonMode, type GoonNicknameOf, type GoonStore } from '../services/goonStore.js'
 
-/** One accepted report per client address per minute. */
-export const GOON_RATE_LIMIT_MS = 60_000
+/**
+ * One accepted sighting per reporter (account; anonymous: address) every 10 minutes, any map and mode (owner, 17.11.2026:
+ * «защиту от спама в кочевниках… нельзя несколько раз подряд… раз в 10 минут»).
+ */
+export const GOON_RATE_LIMIT_MS = 10 * 60_000
 /** The same address repeating the same map is ignored for two minutes. */
 export const GOON_DEDUPE_MS = 2 * 60_000
 
@@ -34,9 +37,11 @@ export interface GoonsRouterOptions {
 
 /**
  * Public Goons sightings API, mounted at /v1/goons.
- *   GET  /v1/goons/:mode            → { latest, last5h, recent: [{ mapId, reportedAt, nickname? }] }
+ *   GET  /v1/goons/:mode            → { latest, last5h (the last 24 h, name kept), recent: [{ mapId, reportedAt, nickname? }] }
  *   POST /v1/goons/:mode/sightings  { mapId } (Bearer) → { accepted, reason?, snapshot }
- *        reason: 'duplicate' (same map within 2 minutes), 'signin' (no session), 'nickname' (no nickname for the mode)
+ *        reason: 'duplicate' (same map within 2 minutes), 'signin' (no session), 'nickname' (no nickname for the mode),
+ *        'wait' (less than 10 minutes after the reporter's last sighting; `retryAfter` seconds). Not a 429: an older app
+ *        sends a refused sighting again for 15 minutes and would get it through once the 10 minutes are over.
  * Client addresses are only kept as salted hashes for rate limiting and dedupe; the reporting account id is stored with
  * the sighting (never returned) so the nickname shown is always his current one.
  * Behind a reverse proxy the app must set `trust proxy`, otherwise every client shares the proxy address.
@@ -92,7 +97,7 @@ export function createGoonsRouter(store: GoonStore = new MemoryGoonStore(), opti
     const previous = store.lastByReporter(reporter)
     if (previous && time - Date.parse(previous.reportedAt) < GOON_RATE_LIMIT_MS) {
       const retryAfter = Math.ceil((GOON_RATE_LIMIT_MS - (time - Date.parse(previous.reportedAt))) / 1000)
-      res.status(429).set('retry-after', String(retryAfter)).json({ error: 'Слишком частые отметки. Повторите через минуту.' }); return
+      res.json({ accepted: false, reason: 'wait', retryAfter, snapshot: snapshot(mode.data, time) }); return
     }
     if (options.identify && addressLimited(addressOf(req), time)) {
       res.status(429).set('retry-after', String(Math.ceil(GOON_ADDRESS_WINDOW_MS / 1000))).json({ error: 'Слишком много отметок с этого адреса. Повторите позже.' }); return
