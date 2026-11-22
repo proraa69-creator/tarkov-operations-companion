@@ -8793,3 +8793,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   E:\SPT-photo\backup\live-clothes-20261122). 147 clothes pictures (53 tops + 31 bottoms a side, 21 shared by both). Builder: a PMC
   is bottom + top + head + armour; «Верх»/«Низ» lists of the side, names in index.json labels. Pack 21.6 MB. Sheets sent. Test exe on
   the desktop (2f5e6611). Woods tour paused at 33/37 for the restart and resumed.
+- 22.11 Woods photo tour done (no code change): woods-quests-2 37/37 points shot, woods-spawns 33/33. Selection
+  (E:\SPT-photo\eval\select_photos.py) after looking at every sheet: quests 31 pictures for 18 points, spawns 14 for 7. Manual
+  rejects in E:\SPT-photo\eval\manual-reject.json (backup .bak-woods2): quests 3 (car hidden by grass, dark table, branches over half
+  the frame), spawns 10 (blood sample behind a car door, KOSA in thick bushes, dark Prapor parcel, all 3 M-LOK handguard points —
+  only a vice, drill and radio on the bench). Sheets sent to the owner (approved\woods\quests and \spawns preview-*.jpg). Nothing
+  published to the server; release 334 still held.
