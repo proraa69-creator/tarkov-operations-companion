@@ -127,26 +127,27 @@
 .range-compare-table td.is-never { color: var(--text-dim); }
 .range-compare-table td.is-wait { color: var(--text-dim); }
 
-/* «Конструктор»: the PMC turning round, armour and helmets put on and off */
+/* «Конструктор»: a character from the front and the back, armour, helmets, masks and glasses put on and changed by a button */
 .range-outfit { display: grid; grid-template-columns: minmax(270px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
-.range-outfit-list { display: grid; gap: 4px; max-height: 34vh; overflow-y: auto; padding-right: 2px; }
+.range-card-title small { margin-left: 6px; color: var(--text-dim); font-size: 11px; letter-spacing: 0; }
+.range-outfit-search { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
+.range-outfit-search .input { height: 32px; width: 100%; }
+.range-outfit-list { display: grid; gap: 4px; max-height: 30vh; overflow-y: auto; padding-right: 2px; }
 .range-outfit-choice { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text-muted); font-size: 12.5px; text-align: left; cursor: pointer; }
 .range-outfit-choice:hover { color: var(--text); border-color: var(--line-strong); }
 .range-outfit-choice.is-on { color: var(--text); border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); background: color-mix(in srgb, var(--brass) 14%, var(--surf-1)); }
 .range-outfit-stage { padding: 12px; display: grid; gap: 10px; }
-.range-outfit-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.range-outfit-tools .button { min-height: 32px; padding: 0 11px; font-size: 12px; }
-.range-outfit-tools input[type="range"] { flex: 1 1 200px; accent-color: var(--brass); }
-.range-outfit-view { position: relative; height: min(74vh, 720px); max-width: 100%; aspect-ratio: 120 / 212; margin: 0 auto; border-radius: 12px; cursor: grab; touch-action: none; user-select: none;
-  background: radial-gradient(ellipse at 50% 92%, rgb(0 0 0 / 30%), transparent 38%), radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--panel-3, var(--panel)) 80%, transparent), transparent 70%); }
-.range-outfit-view:active { cursor: grabbing; }
+.range-outfit-views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.range-outfit-view { position: relative; margin: 0; width: 100%; max-height: 76vh; aspect-ratio: 120 / 212; justify-self: center; border-radius: 12px; user-select: none;
+  background: radial-gradient(ellipse at 50% 93%, rgb(0 0 0 / 32%), transparent 30%), radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--panel-3, var(--panel)) 80%, transparent), transparent 70%); }
 .range-outfit-view img { position: absolute; pointer-events: none; }
-.range-outfit-view.is-loading img { opacity: .55; }
-.range-outfit-wait { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); color: var(--text-muted); font-size: 12px; }
+.range-outfit-view figcaption { position: absolute; left: 12px; top: 10px; color: var(--text-muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
 .range-outfit-facts { display: grid; gap: 6px; }
 .range-outfit-fact { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); font-size: 12.5px; }
 .range-outfit-fact img { width: 44px; height: 44px; object-fit: contain; }
+.range-outfit-fact > div { flex: 1 1 auto; min-width: 0; }
 .range-outfit-fact small { display: block; color: var(--text-muted); }
+.range-outfit-fact .button { min-height: 30px; padding: 0 10px; font-size: 12px; }
 
 @media (max-width: 1380px) {
   .range-layout { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); }
