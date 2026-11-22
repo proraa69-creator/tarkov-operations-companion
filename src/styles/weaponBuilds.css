@@ -310,7 +310,9 @@ button.wb-trader-auto { color: var(--brass); }
 .build-stage .wb-cell { z-index: 1; padding-top: 10px; }
 .build-stage .wb-cell-name { font-size: 8px; }
 .build-stage .wb-cell-slot { font-size: 7px; }
-.build-stage:is(.is-phone, .is-phoneFull) .wb-cell.is-filled > .gb-icon { inset: 1px 1px 10px; width: calc(100% - 2px); height: calc(100% - 11px); }
+/* the phone: the module's picture over the whole cell, its name laid over the bottom (owner, 22.11.2026: «картинки модулей по
+   прежнему маленькие» — a tall part, a magazine or a grip, fitted to the 31 px above the name was a sliver) */
+.build-stage:is(.is-phone, .is-phoneFull) .wb-cell.is-filled > .gb-icon { inset: 1px; width: calc(100% - 2px); height: calc(100% - 2px); }
 .build-stage:is(.is-phone, .is-phoneFull) .wb-cell-name { font-size: 7.5px; }
 :is(.build-stage.is-full, .build-stage.is-large) .wb-cell-name { font-size: 9px; }
 

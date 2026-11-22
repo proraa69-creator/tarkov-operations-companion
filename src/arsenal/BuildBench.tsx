@@ -14,6 +14,7 @@ import { PartIcon, signedExact, signedPercent } from './gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 import { SlotSilhouette } from './SlotSilhouette'
 import { slotPicture } from './slotPictures'
+import { trimmedPicture } from './trimmedPicture'
 // The bench's own look wherever it stands: «Сборка оружия» and the Gunsmith task (opened first, it had none: cells huge, over the
 // page; owner's phone, 21.11.2026)
 import '../styles/weaponBuilds.css'
@@ -153,8 +154,17 @@ export function baseImageOf(iconLink?: string) {
 export function CellPicture({ part }: { part: Pick<GunPart, 'iconLink' | 'baseImageLink' | 'gridImageLink'> }) {
   const sources = [part.baseImageLink, part.gridImageLink, part.iconLink].filter((src): src is string => Boolean(src))
   const [attempt, setAttempt] = useState(0)
-  if (attempt >= sources.length) return <PartIcon />
-  return <img className="gb-icon wb-cell-picture" src={sources[attempt]} alt="" loading="lazy" draggable={false} onError={() => setAttempt((value) => value + 1)} />
+  const source = sources[attempt]
+  // the picture cut to the part (src/arsenal/trimmedPicture.ts), the whole one until then or when it cannot be cut
+  const [cut, setCut] = useState<{ source: string; url: string } | null>(null)
+  useEffect(() => {
+    if (!source) return
+    let alive = true
+    void trimmedPicture(source).then((url) => { if (alive && url) setCut({ source, url }) })
+    return () => { alive = false }
+  }, [source])
+  if (!source) return <PartIcon />
+  return <img className="gb-icon wb-cell-picture" src={cut?.source === source ? cut.url : source} alt="" loading="lazy" draggable={false} onError={() => setAttempt((value) => value + 1)} />
 }
 
 export function AmmoCellButton({ ammo, active, style, onClick }: { ammo?: AmmoStats; active: boolean; style?: CSSProperties; onClick: () => void }) {
