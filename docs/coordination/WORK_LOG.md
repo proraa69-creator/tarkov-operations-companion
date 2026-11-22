@@ -8839,3 +8839,29 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (`src/data/catalogSource.ts`) adds up a quest's reward entries of the same item (7 more quests had repeated lines; none
   now, PvP/PvE/Season, RU/EN). Standing and crafts are still not reward lines of tarkov.dev quests — left to the owner.
   Test: `src/data/catalogSource.test.ts`.
+
+## 2026-11-20 — Claude: the retinue from SPT — what they wear, their lights, what dear they may drop (report 201)
+- Owner (20.11.2026): from SPT, each boss's retinue — how many, what they wear, guns, rounds, and the dear things they may drop
+  («если с них падает фигня всякая, это не нужно показывать»; no «тир-лист S/A» in the interface).
+- SPT (offline copy E:\SPT, SPT 4.1.6, client 0.16.9; read only, the server left running) was read by the new
+  `scripts/bosses/spt-bots.mjs` (BossLocationSpawn escorts and Supports, bot weights, plates, ammo, loot generation). It is older
+  than the live game (1.3): the live data stays the source where it exists, SPT gives only Zryachiy's two followers (Lighthouse:
+  SV-98/SVDS, AKS-74U/PP-19-01, no armour), which the live data lacks. Every difference is in
+  `docs/bosses/retinue-spt-2026-11-20.md` (Russian, for the owner; rebuilt by `scripts/bosses/retinue-spt-report.mjs`).
+- `scripts/bosses/boss-gear.mjs`: `--retinue` (only bossRetinue.json), `--add` (keeps the last run's fields: the live loadout
+  sample of ~15 bots changes on every download — Basmach's four long guns all differed the next morning), `--spt=`. New per
+  guard: `helmets`, `rigs`, `lights` (share of long guns with a device / white light / IR, the devices) and `loot` (live
+  prevalence ≥ 1 %, money and rounds out; PvE equal to PvP on 20.11, `lootPve` only where it differs).
+- Gallery → boss → «Свита» (`src/gallery/BossInfoPanel.tsx`): rows «Шлем / Броня / Разгрузка / Фонарь» with small pictures,
+  each guard's maps line when the retinue spans several maps, «Может выпасть» tiles with the mode's price — only tier S and A of
+  the item's category in the mode on screen (`src/gallery/retinueLoot.ts`, as the item card's tier letter), six then «Ещё».
+- Report 201 («Свита слепит фонарями сильно чаще других NPC»): confirmed — a light or laser on 97 % / 79 % / 100 % of Glukhar's
+  assault / security / scouts' guns (other guards 27–60 %; SPT: a tactical slot at 100 %). Their «Фонарь» row names the devices
+  and «Почти всегда с фонарём или ИК: свет слепит вблизи, ИК — в ПНВ» (`lightsWarning`, from 75 %). Not closed in the admin
+  panel (the main session does that).
+- Fixed: in English the «Свита» heading read «The Wedge (Labs) Guard» (the game's bot name «Свита» in the runtime catalog).
+- Tests: `src/data/bossGear.test.ts`, `src/gallery/retinueLoot.test.ts` (13 pass); typecheck clean; eslint clean. Checked in the
+  dev page (port 5611) at 1440 px and 375 px, Russian and English: Glukhar, Zryachiy, Kaban, Kollontay, Reshala, Sanitar,
+  Shturman, Cultist Priest, the Wedge, the Goons. Branch claude/boss-retinue-spt (from b40f674a on claude/quest-row-tags), not
+  released. Merge note: it touches BossInfoPanel.tsx / bossInfoPanel.css / bossGear.ts / bossRetinue.json only — the tier list
+  files are imported, not changed.

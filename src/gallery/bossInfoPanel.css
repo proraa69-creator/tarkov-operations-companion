@@ -87,4 +87,19 @@
 .boss-retinue .boss-retinue-name { display: flex; align-items: baseline; gap: 6px; color: var(--text); font-size: 12.5px; }
 .boss-retinue .boss-retinue-name b { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
 .boss-retinue-maps { display: block; margin: -3px 0 8px; color: var(--text-muted); font-size: 11px; font-weight: 600; }
-.boss-retinue .is-guns + .boss-gear-classes { margin-top: 8px; }
+.boss-retinue .is-guns + .boss-gear-classes, .boss-retinue .is-guns + .boss-info-text { margin-top: 8px; }
+/* what a guard wears: «Шлем / Броня / Разгрузка», a small picture with each name (the icon keeps its own frame, corners rounded) */
+.boss-retinue-wear { display: grid; gap: 5px; margin: 8px 0 0; }
+.boss-retinue-wear-row { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: start; gap: 8px; }
+.boss-retinue-wear dt { padding-top: 4px; color: var(--text-dim); font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.boss-retinue-wear dd { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.boss-retinue-wear-item { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 8px 0 2px; border-radius: 8px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); font-size: 11.5px; font-weight: 700; line-height: 1.2; }
+.boss-retinue-wear-item img { width: 22px; height: 22px; border-radius: 4px; object-fit: contain; }
+/* report 201: what his lights blind, under the rows */
+.boss-retinue-lights { margin-top: 6px; padding: 0; color: var(--brass-strong); font-weight: 700; }
+/* «Может выпасть»: the dear things he may carry, tiles as the boss's own loot */
+.boss-retinue-loot { margin-top: 10px; }
+.boss-retinue-loot-title { display: flex; align-items: center; gap: 5px; margin: 0 0 6px; color: var(--text-muted); font-size: 11px; font-weight: 800; }
+.boss-retinue-loot-title svg { color: var(--brass); }
+.boss-retinue-loot-more { margin-top: 6px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.boss-retinue-loot-more:hover, .boss-retinue-loot-more:focus-visible { border-color: color-mix(in srgb, var(--brass) 45%, transparent); color: var(--text); }
