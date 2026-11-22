@@ -8865,3 +8865,21 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Shturman, Cultist Priest, the Wedge, the Goons. Branch claude/boss-retinue-spt (from b40f674a on claude/quest-row-tags), not
   released. Merge note: it touches BossInfoPanel.tsx / bossInfoPanel.css / bossGear.ts / bossRetinue.json only — the tier list
   files are imported, not changed.
+
+## 2026-11-20 — Claude: «Стекло» keeps the cloth of «Чёрный мультикам», «Тельняшка» and «Снаряжение»
+- Owner, 20.11.2026: in the glass style the black multicam and the telnyashka must stay on the buttons and the windows,
+  «как будто бы под стеклом»; then «Тема снаряжения тоже в стекле должна быть текстура мультикам».
+- New `src/styles/style-glass-cloth.css` (imported after style-glass.css in `src/main.tsx`), scoped to
+  `:root[data-style="glass"]` and those three schemes only: the menu, the top bar, panels, cards, the search window, the
+  phone's tab bar and «Ещё» sheet, and every button lay the scheme's cloth under a smoked tint, a top-left light and the
+  glass rim; the picked one is the accent-tinted glass over the cloth. The page keeps the satellite photo. No fixed
+  backgrounds, no filters (the glass rule against rough motion stands).
+- Cloth: «Тельняшка» the crumpled knit (its per-button tiles), «Снаряжение» its multicam cordura, «Чёрный мультикам» a
+  lifted copy of its near-black tile, `src/assets/textures/glass/blackmc-cloth.webp` (89 KB, made by
+  `scripts/textures/glass-cloth.mjs`); its menu rows are clear glass over the menu's own multicam, like the plain scheme.
+- Checked in the dev page with Playwright (1440×900 and a 390×844 phone), all three schemes, glass and plain: the plain
+  look is pixel-identical apart from the clock and the menu sticker; text stays readable. Before/after pictures in the
+  side-session notes (glass-cloth-2026-11-20).
+- typecheck clean; eslint clean on the changed files (the 4 errors of `npm run lint` are in untouched files, as in
+  release/production); src/styles + src/theme tests pass (41).
+- Branch claude/glass-texture from release/production 0dba4c89; not released (needs an app version, the owner decides).

@@ -1,0 +1,147 @@
+/*
+ * «Стекло» over «Чёрный мультикам», «Тельняшка» and «Снаряжение»: the scheme's cloth under the glass (owner, 20.11.2026: «у черного
+ * мультикама и у тельняшки тебе нужно оставить текстуру… на кнопках и на окнах, чтобы они были и как стекло, и отдавали текстуру…
+ * как будто бы под стеклом»; «Тема снаряжения тоже в стекле должна быть текстура мультикам»). The page keeps the glass style's
+ * satellite photo (style-glass.css); the menu, the top bar, the windows and the buttons lay the scheme's cloth — the black multicam,
+ * the crumpled telnyashka knit, the multicam cordura — under a smoked tint, a light falling on the glass from the top-left and the
+ * thin light rim of the glass. Each element carries its cloth in its own box: no fixed backgrounds and no filters, so the page
+ * scrolls and moves as smoothly as the plain glass. Other schemes are not touched.
+ */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) {
+  /* the light on the glass: a soft glow at the top-left corner and a sheen fading down */
+  --cloth-sheen: radial-gradient(ellipse 80% 60% at 10% 0%, rgb(255 255 255 / 8%), transparent 70%),
+    linear-gradient(165deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 1.5%) 40%, transparent 62%);
+}
+/* the black multicam is near black: the glass shows a lifted copy of it (scripts/textures/glass-cloth.mjs) */
+:root[data-style="glass"][data-style][data-theme="blackmc"] {
+  --cloth-tex: url("../assets/textures/glass/blackmc-cloth.webp");
+  /* a button shows a small patch: the camouflage at a smaller scale there, so each patch catches the edge of a blot */
+  --cloth-scale: .68;
+  --cloth-pane-smoke: linear-gradient(160deg, rgb(10 10 11 / 24%), rgb(3 3 4 / 46%));
+  --cloth-side-smoke: linear-gradient(180deg, rgb(4 4 5 / 34%), rgb(4 4 5 / 46%));
+  --cloth-bar-smoke: linear-gradient(180deg, rgb(10 10 11 / 50%), rgb(4 4 5 / 62%));
+  /* buttons: brighter glass over the cloth, so they stand off the window they sit on */
+  --cloth-button-smoke: linear-gradient(180deg, rgb(8 8 9 / 10%), rgb(4 4 5 / 30%));
+  --cloth-button-smoke-hover: linear-gradient(180deg, rgb(8 8 9 / 0%), rgb(4 4 5 / 14%));
+  --cloth-well-smoke: linear-gradient(180deg, rgb(0 0 0 / 66%), rgb(0 0 0 / 56%));
+}
+/* «Снаряжение»: its light multicam cordura under darker smoke, so the text over it stays easy to read */
+:root[data-style="glass"][data-style][data-theme="gear"] {
+  --cloth-tex: var(--gear-cordura);
+  --cloth-sheen: radial-gradient(ellipse 80% 60% at 10% 0%, rgb(255 238 200 / 9%), transparent 70%),
+    linear-gradient(165deg, rgb(255 238 200 / 7%), rgb(255 238 200 / 1.5%) 40%, transparent 62%);
+  --cloth-pane-smoke: linear-gradient(160deg, rgb(20 21 15 / 72%), rgb(12 13 9 / 82%));
+  --cloth-side-smoke: linear-gradient(180deg, rgb(14 15 10 / 74%), rgb(10 11 7 / 80%));
+  --cloth-bar-smoke: linear-gradient(180deg, rgb(18 19 13 / 76%), rgb(10 11 7 / 82%));
+  --cloth-button-smoke: linear-gradient(180deg, rgb(20 21 14 / 60%), rgb(10 11 7 / 70%));
+  --cloth-button-smoke-hover: linear-gradient(180deg, rgb(20 21 14 / 46%), rgb(10 11 7 / 58%));
+  --cloth-well-smoke: linear-gradient(180deg, rgb(8 9 6 / 84%), rgb(8 9 6 / 76%));
+}
+/* «Тельняшка»: crumpled telnyashka under dark smoked glass */
+:root[data-style="glass"][data-style][data-theme="telnyashka"] {
+  --cloth-pane-smoke: linear-gradient(160deg, rgb(20 19 18 / 80%), rgb(9 8 7 / 87%));
+  --cloth-side-smoke: linear-gradient(90deg, rgb(12 11 10 / 82%), rgb(12 11 10 / 76%));
+  --cloth-bar-smoke: linear-gradient(180deg, rgb(14 13 12 / 80%), rgb(9 8 7 / 86%));
+  --cloth-button-smoke: linear-gradient(180deg, rgb(14 13 12 / 64%), rgb(8 7 6 / 74%));
+  --cloth-button-smoke-hover: linear-gradient(180deg, rgb(14 13 12 / 48%), rgb(8 7 6 / 60%));
+  --cloth-well-smoke: linear-gradient(180deg, rgb(6 5 4 / 84%), rgb(6 5 4 / 78%));
+}
+
+/* where the cloth lies on each element, resolved on the element so neighbours differ */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="gear"]) {
+  --cloth-side: var(--cloth-tex) 61% 23% / 1300px;
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="gear"]) :is(.panel, .stat-card, .search-dialog, .item-drawer, .location-keys, .detail-panel, .theme-scheme-menu) {
+  --cloth-pane: var(--cloth-tex) var(--cloth-pos, 23% 11%) / 1100px;
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="gear"]) :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button, .mode-switch, .locale-switch, .style-switch, .segmented-filter) {
+  --cloth: var(--cloth-tex) var(--cloth-pos, 17% 83%) / var(--cloth-size, calc(640px * var(--cloth-scale, 1)));
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="gear"]) :is(.panel, .stat-card, .nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):nth-child(3n+1) { --cloth-pos: 13% 57%; }
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="gear"]) :is(.panel, .stat-card, .nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):nth-child(3n+2) { --cloth-pos: 58% 42%; }
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="gear"]) :is(.panel, .stat-card, .nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):nth-child(3n) { --cloth-pos: 81% 19%; }
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="gear"]) :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):nth-child(4n+2) { --cloth-size: calc(560px * var(--cloth-scale, 1)); }
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="gear"]) :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):nth-child(4n+3) { --cloth-size: calc(760px * var(--cloth-scale, 1)); }
+/* telnyashka: the knit tile, offset and scale the scheme already picks per element (themes.css), with its defaults elsewhere */
+:root[data-style="glass"][data-style][data-theme="telnyashka"] {
+  --cloth-pane: var(--knit-b) 31% 22% / 620px;
+  --cloth-side: var(--knit-c) 12% 40% / 560px;
+}
+:root[data-style="glass"][data-style][data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button, .mode-switch, .locale-switch, .style-switch, .segmented-filter) {
+  --cloth: var(--knit-tex, var(--knit-a)) var(--knit-pos, 0 0) / var(--knit-size, 450px);
+}
+
+/* ---------- windows: the menu, the top bar, panels, cards and the search window ---------- */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.panel, .stat-card, .search-dialog, .item-drawer, .location-keys, .detail-panel, .theme-scheme-menu) {
+  background: var(--cloth-sheen), var(--cloth-pane-smoke), var(--cloth-pane);
+  border-color: rgb(255 255 255 / 12%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 14%), inset 0 0 0 1px rgb(255 255 255 / 3%), inset 0 -12px 26px rgb(0 0 0 / 22%), var(--glass-shadow);
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) .sidebar {
+  background: var(--cloth-sheen), var(--cloth-side-smoke), var(--cloth-side);
+  box-shadow: var(--glass-rim), inset -1px 0 0 rgb(255 255 255 / 8%);
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) .topbar {
+  background: var(--cloth-sheen), var(--cloth-bar-smoke), var(--cloth-side);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), inset 0 -1px 0 rgb(255 255 255 / 7%);
+}
+/* the telnyashka band along a window's top stays, under the glass */
+:root[data-style="glass"][data-style][data-theme="telnyashka"] .panel:not(.panel .panel) {
+  background: var(--cloth-sheen), var(--tel-band) 0 0 / 100% 6px no-repeat, var(--cloth-pane-smoke), var(--cloth-pane);
+}
+/* a pane inside a pane: the same light layer of glass as before, the cloth of the outer window showing through */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.panel, .stat-card, .detail-panel) :is(.panel, .stat-card) {
+  background: linear-gradient(160deg, rgb(255 255 255 / 6%), rgb(255 255 255 / 2%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+/* ---------- buttons: a pane of glass over its own patch of cloth ---------- */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button) {
+  background: var(--glass-button), var(--cloth-button-smoke), var(--cloth);
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):hover:not(:disabled) {
+  background: var(--glass-button-hover), var(--cloth-button-smoke-hover), var(--cloth);
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) .button.ghost { background: transparent; }
+/* the menu on the PC: every row a pane of glass over the cloth; on the phone the bar itself is the glass */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]):not([data-layout="mobile"]) .nav-link:not(.active) {
+  background: var(--glass-button), var(--cloth-button-smoke), var(--cloth);
+  border-color: rgb(255 255 255 / 9%); box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%), inset 0 -1px 0 rgb(0 0 0 / 30%), 0 2px 6px rgb(0 0 0 / 30%);
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]):not([data-layout="mobile"]) .nav-link:hover:not(.active) {
+  background: var(--glass-button-hover), var(--cloth-button-smoke-hover), var(--cloth);
+  border-color: rgb(255 255 255 / 18%); box-shadow: var(--glass-button-edge);
+}
+/* the picked one: the scheme's accent tinting the glass, the cloth still under it */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button.primary, .nav-link.active, .map-option.active, .layer-button.active) {
+  background: var(--glass-picked), var(--cloth-button-smoke), var(--cloth);
+  border-color: transparent; box-shadow: var(--glass-picked-edge); outline: none;
+  color: color-mix(in srgb, var(--brass-strong) 70%, #fff); text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button.primary, .map-option.active, .layer-button.active):hover:not(:disabled) {
+  background: var(--glass-picked), var(--cloth-button-smoke-hover), var(--cloth);
+}
+/* «Чёрный мультикам»: the menu's rows are clear glass over the menu's own multicam, so the camouflage runs on under them unbroken
+   (the scheme's plain menu, which the owner holds up as the glass done right, is built the same way); a row's own small patch
+   of the near-black cloth was mostly black */
+:root[data-style="glass"][data-style][data-theme="blackmc"] .sidebar .nav-link {
+  --cloth: linear-gradient(transparent, transparent);
+  --cloth-button-smoke: linear-gradient(rgb(255 255 255 / 2%), rgb(255 255 255 / 2%));
+  --cloth-button-smoke-hover: linear-gradient(rgb(255 255 255 / 5%), rgb(255 255 255 / 5%));
+}
+/* the switches' track: a recess in the glass with the cloth deep in it */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.mode-switch, .locale-switch, .style-switch, .segmented-filter) {
+  background: var(--cloth-well-smoke), var(--cloth);
+}
+/* telnyashka and the light multicam: the label keeps a dark halo over the light cloth */
+:root[data-style="glass"][data-style]:is([data-theme="telnyashka"], [data-theme="gear"]) :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button) { text-shadow: 0 1px 2px #000, 0 0 6px rgb(0 0 0 / 70%); }
+
+/* ---------- phone ---------- */
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"])[data-layout="mobile"] .sidebar.mobile-tabbar {
+  background: var(--cloth-sheen), var(--cloth-bar-smoke), var(--cloth-side);
+  border-top-color: rgb(255 255 255 / 12%); box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%), 0 -10px 26px rgb(0 0 0 / 45%);
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"])[data-layout="mobile"] :is(.mobile-tabbar .nav-link.mobile-tab, .mobile-more-grid .nav-link.mobile-more-link).active {
+  background: var(--glass-picked), var(--cloth-button-smoke), var(--cloth);
+  border-color: transparent; box-shadow: var(--glass-picked-edge); color: color-mix(in srgb, var(--brass-strong) 70%, #fff); text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
+}
