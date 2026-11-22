@@ -8770,3 +8770,14 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   - Test exe on the owner's desktop: «Raid OS тест Тир.exe» (5b134975, test build, entitlement key, range-figures.pack inside).
     Checked: 22 range tests, tsc, eslint, dev browser (Killa = bare + 6B13 KE + Maska-1Sch with visor, hits by zones). Not checked:
     the packaged exe's pictures (raidos-img://range). Items newer than the offline copy (0.16.9) have no layer yet.
+- 22.11 owner: «бронежилеты и каски и бронеразгрузки только из оригинальной игры», «Залезть в оригинальную игру не запуская ее, возьми
+  от туда модели нужные и сделай скриншоты», «Сделай мне 3д модель чвк и несколько бронежилетов … и несколько касок … конструктор»:
+  claude/range 3f9b89ed. E:\SPT-photo\studio\live_swap.py copied the live game's bundles of every armour, rig, helmet, mask and pair of
+  glasses (451 bundles, 1.74 GB, read only from C:\Battlestate Games; shaders/cubemaps/physics/animations untouched; backup
+  E:\SPT-photo\backup\live-armour-20261122) into E:\SPT; the 36 live items the offline copy lacked (6Б45, PLATEminus V2, Black Division,
+  JPC, ЖПЦ, Гладиатор-С, TV-115, Stich, ANA M1/M2, LV-119 MCB, Strandhogg MCB…) added as templates through the RaidOsParts server mod's
+  parts.json (the SPT server refuses a changed items.json). All 36 checked against the live catalogue's pictures. Re-rendered: 49 body
+  armours, 59 armoured rigs, 100 helmets, 30 masks/glasses (worn, the body now an occluder so arms hide what is behind them), 37
+  dressed characters. «Конструктор» tab: USEC/BEAR + 11 armours/rigs + 9 helmets from 36 sides, drag or auto-turn. Pack 20.7 MB.
+  No meshes extracted (pictures only). Test exe on the desktop (3f9b89ed). Woods photo tour paused at 30/37 for the swap and
+  resumed after.
