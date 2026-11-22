@@ -7,9 +7,11 @@ This is the source of truth for the payment-region UI and the «Создать �
 - `RU` — Russia. Payment method: ЮKassa (the methods enabled for the shop, `YOOKASSA_PAYMENT_METHODS`). The owner may
   open BZB's CIS pages to one Russian account that cannot pay through ЮKassa (02.11.2026: admin «Пользователи» →
   «Оплата через BZB (СНГ)»; ЮKassa stays for it).
-- `CIS` — the CIS countries except Russia, Asia, the low-income countries and Ukraine (`CIS_PAYMENT_COUNTRIES`; Ukraine by the
-  owner, 08.11.2026: «Переведи Украину в СНГ-сегмент… и в рублях, и в долларах… Не $7, а … 3,5»). Payment method: BZB in
-  roubles, or in US dollars by a foreign card ($3.5 a month). Ukraine stays Europe in the admin regions and notices' language.
+- `CIS` — the CIS countries except Russia, Asia, the low-income countries, Ukraine, Latvia and Lithuania (`CIS_PAYMENT_COUNTRIES`;
+  Ukraine by the owner, 08.11.2026: «Переведи Украину в СНГ-сегмент… и в рублях, и в долларах… Не $7, а … 3,5»; Latvia and
+  Lithuania, 23.11.2026: «Латвия литва тоже в снг и соответствующие тарифы»). Payment method: BZB in roubles, or in US dollars
+  by a foreign card ($3.5 a month). The admin panel counts the three in «СНГ» (23.11.2026); the players' country picker keeps
+  them in Europe.
   Belarus (`BY`) gets the rouble pages only (owner, 11.11.2026): its cards are refused by the dollar pages' processor,
   while the rouble pages' Russian acquiring takes them, Belkart included (BZB's answer). `NO_CARD_COUNTRIES` in
   `server/src/services/bezebee.ts`: no `card` offer, and `POST /v1/payments/bezebee { card: true }` answers 409

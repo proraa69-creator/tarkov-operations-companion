@@ -8667,3 +8667,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     server tsc, eslint. Offered to the release session for 0.6.0.334 (server part needs an app release to go live).
   - iPhone admin IPA: claude/admin-ipa 3d3b1e4f (merge of dcbcc102 into the 0.6.0.308 IPA branch, no conflicts) pushed; workflow
     «Admin Panel iOS IPA» builds it. Until the server of this branch is live the block stays hidden in the IPA.
+- 23.11.2026 ~02:15, owner: «почему игроки которые регистрируются из Украины, в админ панели числятся в мире а не в снг»; «Латвия
+  литва тоже в снг и соответствующие тарифы». 6392c7de + 52a8d827 on claude/admin-phone-stats: ADMIN_CIS_COUNTRIES (CIS + UA,
+  LV, LT) for the admin tabs/counts/labels; OWNER_CIS_PRICE_COUNTRIES = UA, LV, LT (BZB roubles or $3.5 by card instead of
+  $7). Players' country picker unchanged. Server tests 64/64, vitest 304/304, tsc/eslint clean. 0.6.0.334 (f7842546) went out
+  without this branch: handed to the release session for 0.6.0.335 once 334 is live (publisher must not see the head move).
+- Support, mitya.tagintsev@mail.ru (black window at start, Windows 11 x64, account 21.11, paid to 21.12, no device ever
+  signed in): the 01:00 advice (wait, driver, shortcut with --disable-gpu) did not help (02:04). 334's fallback also draws
+  without the graphics card, so it may not help either; the app has no start log and no did-fail-load handling.

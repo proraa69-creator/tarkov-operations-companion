@@ -61,6 +61,9 @@ test('region from the saved country: RU, CIS without Russia, WORLD for everythin
   for (const code of ['GE', 'TR', 'CN', 'IN', 'JP', 'NG']) assert.equal(paymentRegionOf(code), 'CIS', code)
   // Ukraine: the CIS price, in roubles and in dollars (owner, 08.11.2026: «Переведи Украину в СНГ-сегмент»).
   assert.equal(paymentRegionOf('UA'), 'CIS')
+  // Latvia and Lithuania too (owner, 23.11.2026: «Латвия литва тоже в снг и соответствующие тарифы»).
+  assert.equal(paymentRegionOf('LV'), 'CIS')
+  assert.equal(paymentRegionOf('LT'), 'CIS')
   // The rest of Europe, the USA and a country typed by hand: WORLD.
   for (const code of ['DE', 'PL', 'US', 'BR', 'XX']) assert.equal(paymentRegionOf(code), 'WORLD', code)
   for (const value of [undefined, null, '', 'R', 'RUS']) assert.equal(paymentRegionOf(value), undefined)

@@ -15,5 +15,9 @@ describeLow('the CIS price for Asia and the low-income countries', () => {
     for (const code of ['DE', 'US', 'BR', 'CY', 'XX']) expectLow(regionOfLow(code), code).toBe('WORLD')
     // Ukraine: the CIS price, in roubles and in dollars (owner, 08.11.2026: «Переведи Украину в СНГ-сегмент»)
     expectLow(regionOfLow('UA')).toBe('CIS')
+    // Latvia and Lithuania too (owner, 23.11.2026: «Латвия литва тоже в снг и соответствующие тарифы»); Estonia stays world
+    expectLow(regionOfLow('LV')).toBe('CIS')
+    expectLow(regionOfLow('LT')).toBe('CIS')
+    expectLow(regionOfLow('EE')).toBe('WORLD')
   })
 })
