@@ -8804,3 +8804,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   the right one of the row above or below. New E:\SPT-photo\eval\sheets.py (select_photos.py calls it; backup
   select_photos.py.bak-sheets-20261122): one row a place — guide picture, place, approach, item — each frame once. Woods sheets
   redrawn and sent. The frames and the selection did not change.
+- 22.11 Shoreline photo tour: quests started 13:41 (build_quests_spt.py shoreline Shoreline, 56 points). 16:25 SPT.Server stopped
+  answering (ping timed out) at point 41; server and client restarted 16:34, the run resumed 16:39 and stood still on the same point.
+  Owner 16:49: «Останови все запомни где закончил и выключи спт» — stopped (stop.flag), offline client and SPT.Server closed,
+  GAME-BUSY flag removed. Stopped at shoreline-quests 40/56, next point «Серьёзные обвинения» quest HDD (…66760b3deb51b08bd40c2b08-6);
+  then shoreline-spawns (98). Resume only on the owner's word (memory photo-tour-paused).
