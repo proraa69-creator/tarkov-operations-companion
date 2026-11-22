@@ -8653,3 +8653,22 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
     game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
     uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.
+- 22.11 evening, story chapter «Батя» points, a player's support chat (claude/story-points-batya from release/production a91507a1,
+  worktree C:\Users\BANGKOK PC\raidos-story-points; NOT pushed, NOT published, release 0.6.0.334 still on hold):
+  - The player: «Найти следы предателей» completes on Lighthouse elsewhere — «база бир теперь на скале, на против смотрителя
+    маяка»; «На резерве не отмечается круг сектантов». Our points came from szepiz/tarkov-quest-data mapdata/story.json (no change
+    since 11.08.2026; the tarkovtracker overlay repo is gone, TarkovTracker's story data and tarkov.dev have no positions).
+  - Source used instead: the live client's scenes, read only (C:\Battlestate Games\…\EscapeFromTarkov_Data\levelN, Unity 2022.3,
+    no type trees; a minimal reader of GameObject/Transform/BoxCollider and the trigger's id string). Quest zones: batya_8_visit
+    on Reserve (command bunker), Interchange (BEAR camp) and Lighthouse; batya_9_visit on Customs (dorm circle), Woods, Reserve ×3
+    (all three triggers carry the id batya_9_visit, so any counts) and Lighthouse. Props around each confirm it: Lighthouse
+    batya_8 sits by BEAR_camp_replace_v2 (tents, bonfire, radio); the batya_9 ones by candles, cultist signs, a BEAR corpse.
+    Reserve and Customs points matched the known ones, so the coordinate space is the same.
+  - src/data/storyChapterSeeds.ts: Lighthouse BEAR camp 78.73/163.37 → -64.79/452.41 (the trigger box as outline); cultist
+    circle on Reserve added (3 points: command bunker y -13.07 and Black Pawn basement y -8.38 → «Бункеры», barracks by the
+    train station on the ground); Woods circle 198.05/-7.69 (the Halloween circle of «Секта») → -128.64/-686.14 (Cultist
+    Village). Shoreline left as it was: the client has no batya_9 zone there, unconfirmed. src/i18n/uiEnglishMap.ts: 3 notes.
+  - Tests: storyQuestMarkers.floors (3 new: positions, Reserve floors from tarkov.dev's config), storyChapters,
+    storyChapterGuide, src/i18n — 60/60; npm run typecheck clean; eslint on the 3 files clean. Pictures and the scene reader:
+    side-session-notes/local_dd4db8c9-…/story-points-batya-2026-11-22.
+  - Not done: the owner decides whether it goes out; the player is answered by the owner (nothing written to him).
