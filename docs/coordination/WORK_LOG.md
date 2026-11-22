@@ -8653,3 +8653,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
     game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
     uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.
+
+## 22.11.2026 — Weapon builds: stock tubes and the stocks on them level (claude/stock-chain-level)
+
+- Owner: «приклады до сих пор кривые на ак 12 и всех других автоматах, приклады и труба приклада»; «проверь все трубы прикладов, что бы именно они были ровные».
+- Cause: the game lays the AK-12 / RPK-16 / AKTS tubes on the receiver's 3.59° stock slot and their models rise 3.6–5° to the back (level in the game); the stock on such a tube is turned 4.2° back up. Taking the slot's tilt off the tube made the tube rise and every stock on it stand 4.2° off it.
+- Commit 2712ecbd (`src/arsenal/partPictures.ts`, its test, `public/gun-parts/index.json`): every stock tube (15–30 cm, ≤ 8 cm tall) and every stock on a tube or a short lock is levelled about its own slot point; five tubes get their picture's top edge levelled (`lv`: AK-12 −3.6°, RPK-16 −4.21°, AKTS AK-74 −5.02°, SAG −1.04°, AKTS −0.79°; source `E:\SPT-photo\weapons\stock-level-applied.json`, backup `.bak-tubes-20261122`). SCAR body and cheek on the hinge, UAS butt on the SKS chassis, ST-EF pad follow as before.
+- Checked: the app's own layBuild on 871 builds of every firearm class, before/after (62 changed, all with a tube); every tube's top edge within 0.5° of level (M4-AKMS reads 1.4° from its collar step); `vitest src/arsenal` + WeaponBuildsPage 143/143, `npm run typecheck`, eslint; dev page AK-12 unfolded and folded. Test exe for the owner. Not released, not pushed; release 334 still held.
