@@ -682,10 +682,11 @@ export interface Quest {
    */
   gameConditions?: Array<'dialogue' | 'progress' | 'badStanding'>
   /**
-   * The quest's data was corrected by hand from a checked source (src/data/questCorrections.ts) and is pinned: catalog
-   * and server updates do not overwrite it.
+   * The quest's data was corrected by hand from a checked source (src/data/questCorrections.ts, and the quests listed in
+   * src/data/manualQuests.json) and is pinned: catalog and server updates do not overwrite it. `changes`: what was changed and
+   * when, from the list.
    */
-  manualCorrection?: { source: string; checkedAt: string }
+  manualCorrection?: { source: string; checkedAt: string; changes?: string[] }
   /**
    * A quest the game has and tarkov.dev does not, added from Raid OS's own data (src/data/curatedQuests.ts): the id of
    * its series. The owner's event quests are laid over these (src/data/eventQuests.ts).

@@ -362,6 +362,12 @@ test('quest base renames: the earlier title of the same id becomes an OCR alias,
   await advance(t, questBase, 0)
   const first = questBase.version('pvp')!
   assert.deepEqual(questBase.report().modes.pvp.changes, { since: null, added: [], removed: [], renamed: [] })
+  // the quests changed by hand (src/data/manualQuests.json): one the data no longer has is named, in the report and the log
+  const manual = questBase.report().modes.pvp.manualQuests!
+  assert.equal(manual.marked, 0)
+  assert.ok(manual.unmatched.some((fix) => fix.questId === '5b478eca86f7744642012254' && fix.name === 'Витамины' && !fix.objectiveId))
+  assert.ok(!manual.unmatched.some((fix) => fix.questId === '67d03be712fb5f8fd2096332'), 'a Season-only fix is not looked for in PvP')
+  assert.ok(lines.some((line) => line.includes('hand fixes the data no longer matches') && line.includes('Витамины')))
 
   titles = [['q1', 'Новое имя', 'New name'], ['q3', 'Третье', 'Third']]
   await advance(t, questBase, PERIOD)

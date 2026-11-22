@@ -7,6 +7,7 @@ import { STORY_CHAPTER_SEEDS, TOUR_STAGE_POINTS } from '../../../src/data/storyC
 import { STORY_QUEST_INDEX } from '../../../src/data/storyQuestIndex'
 import { normalizeQuestKey } from '../../../src/data/wikiQuestParse'
 import { catalogForWire } from '../../../src/data/catalogWire'
+import { unmatchedManualFixes, type UnmatchedManualFix } from '../../../src/data/manualQuests'
 import { TEMPORARY_SUFFIX, writeFileAtomic } from './atomicFile.js'
 import { CATALOG_RETRY_MS, hashWithoutLoadedAt, isUsableCatalog, type CatalogLocale } from './catalogCache.js'
 
@@ -87,7 +88,13 @@ export interface QuestBaseManifest {
   /** Every title change of a quest id over the versions (its `from` titles are the quest's OCR aliases). */
   renames: Record<string, QuestRename[]>
   changes: QuestBaseChanges
+  /**
+   * The quests changed by hand (src/data/manualQuests.json): how many this version marks, and the fixes it no longer matches
+   * (the game changed the quest; owner, 23.11.2026: «при обновлениях из базы их не трогай» — such a fix is looked at again, not lost).
+   */
+  manualQuests?: QuestBaseManualQuests
 }
+export interface QuestBaseManualQuests { marked: number; unmatched: UnmatchedManualFix[] }
 
 export interface QuestBaseModeReport {
   version: string | null
@@ -96,6 +103,8 @@ export interface QuestBaseModeReport {
   sources: QuestBaseSources | null
   counts: Record<string, number>
   changes: QuestBaseChanges | null
+  /** The quests changed by hand: marked, and the fixes the data no longer matches. */
+  manualQuests: QuestBaseManualQuests | null
   /** Quests with an earlier title. */
   renamedQuests: number
   state: { building: boolean; failures: number; lastError: string | null; lastAttemptAt: string | null; lastBuildMs: number | null; nextBuildAt: string | null; savedToDisk: boolean }
@@ -197,6 +206,11 @@ function questTitles(ru: AppDataset, en: AppDataset, previous: Record<string, Qu
     titles[id] = { ...(ruTitle ? { ru: ruTitle } : {}), ...(enTitle ? { en: enTitle } : {}) }
   }
   return titles
+}
+
+/** The hand-changed quests of a build (src/data/manualQuests.ts): the marked ones and the fixes the data no longer matches. */
+function manualQuestsOf(catalog: AppDataset, mode: RaidMode): QuestBaseManualQuests {
+  return { marked: catalog.quests.filter((quest) => quest.manualCorrection).length, unmatched: unmatchedManualFixes(catalog.quests, mode) }
 }
 
 /** Title changes of the same id against the previous version (case, «ё» and punctuation do not count). */
@@ -418,6 +432,7 @@ export class QuestBase {
         sources: manifest?.sources ?? null,
         counts: manifest?.counts ?? {},
         changes: manifest?.changes ?? null,
+        manualQuests: manifest?.manualQuests ?? null,
         renamedQuests: manifest ? Object.keys(manifest.renames).length : 0,
         state: {
           building: state.building,
@@ -513,6 +528,8 @@ export class QuestBase {
       const what = changed ? `new version${changes.since ? ` (since ${changes.since}: +${changes.added.length} −${changes.removed.length} ~${changes.renamed.length})` : ''}` : 'unchanged'
       const wiki = sources.wiki && typeof sources.wiki.state === 'string' ? `, wiki ${sources.wiki.state}` : ''
       this.log(`quest base ${mode}: ${manifest.version} ${what}; ${manifest.counts.quests} quests, ${manifest.counts.bothTitles} with both titles; ru ${((ruDone - started) / 1000).toFixed(1)} s, en ${((enDone - ruDone) / 1000).toFixed(1)} s${wiki}${state.saved ? '' : '; not saved to disk'}`)
+      const unmatched = manifest.manualQuests?.unmatched ?? []
+      if (unmatched.length) this.log(`quest base ${mode}: hand fixes the data no longer matches: ${unmatched.map((fix) => `${fix.name} (${fix.questId}${fix.objectiveId ? `, objective ${fix.objectiveId}` : ', quest gone'})`).join('; ')}`)
     } catch (error) {
       state.failures += 1
       state.lastError = describe(error)
@@ -567,7 +584,7 @@ export class QuestBase {
     }
     if (state.current && previous?.version === version) {
       // A snapshot that never reached the disk (a full disk) is written now; otherwise only the check is recorded.
-      const manifest: QuestBaseManifest = { ...previous, checkedAt: at, sources, ...(state.saved ? {} : { files }) }
+      const manifest: QuestBaseManifest = { ...previous, checkedAt: at, sources, manualQuests: manualQuestsOf(ruBuilt, mode), ...(state.saved ? {} : { files }) }
       state.current = { ...state.current, manifest }
       await this.save(mode, manifest, state.saved ? undefined : texts)
       return { changed: false, manifest }
@@ -577,6 +594,7 @@ export class QuestBase {
     const manifest: QuestBaseManifest = {
       format: 1, mode, version, builtAt: at, checkedAt: at, files, sources, counts: countsOf(ru, en), titles, renames,
       changes: changesOf(previous, titles, renamed),
+      manualQuests: manualQuestsOf(ruBuilt, mode),
     }
     // Served from memory at once, even if the disk write fails (it is tried again with the next build).
     state.current = { ru: stamped(ru, version), en: stamped(en, version), manifest }

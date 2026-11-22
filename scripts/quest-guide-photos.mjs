@@ -24,11 +24,15 @@
  * one («PopulationCensusMap.png»), and the few maps found by eye with neither, are left out. A caption the Russian wiki
  * does not have comes from src/data/questGuideCaptionsRu.json (owner: «где то пишется на английском … что бы был перевод»).
  *
+ * The quests changed by hand (src/data/manualQuests.json; owner, 23.11.2026: «при обновлениях из базы их не трогай») keep their
+ * photos as the list has them: a rebuild and --link-places leave them alone (--drop-maps applies our own rules, these included).
+ *
  * Wiki text and pictures: EFT Wiki contributors, CC BY-SA; the screenshots are of Escape from Tarkov (Battlestate Games).
  * After a new list has reached the server, its new photos need cropping: scripts/crop-guide-photos.mjs (docs/linux-server.md).
  */
 import { createHash } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { heldLine, keepManualEntries, manualQuest } from './manualQuests.mjs'
 
 const UA = 'RaidOS/1.0 (https://raidos.app; raidosapp@gmail.com)'
 const EN_API = 'https://escapefromtarkov.fandom.com/api.php'
@@ -46,6 +50,14 @@ const MAP_WORD_EN = /\bmaps?\b/i
 export function isMapPicture({ file, caption = '', captionEn = '' }) {
   return MAP_FILES.has(file.toLowerCase()) || /map/i.test(file) || MAP_WORD_RU.test(caption) || MAP_WORD_EN.test(caption) || MAP_WORD_EN.test(captionEn)
 }
+
+/**
+ * Pictures of a quest's older version the wiki still shows on its page (owner, 23.11.2026: «В квесте витамины почему то фото мчс
+ * на развязке» — «Витамины» had its 2nd and 3rd containers in the EMERCOM post on Interchange; now the one container is on
+ * Factory). By quest id, the files left out.
+ */
+const OLD_VERSION_PICTURES = { '5b478eca86f7744642012254': ['emercom outside.png'] }
+export const isOldVersionPicture = (questId, file) => Boolean(OLD_VERSION_PICTURES[questId]?.includes(file.toLowerCase()))
 
 /** A caption in Russian: the Russian wiki's, else our translation of the English one. */
 const russianCaption = (english) => CAPTIONS_RU[english] ?? english
@@ -226,7 +238,8 @@ async function linkPlaces() {
   const ruNames = (await (await fetch('https://json.tarkov.dev/regular/tasks_ru', { headers: { 'user-agent': UA } })).json()).data
   // An objective's `description` is a key of these lists; the English wiki's headings speak the English one.
   const enNames = (await (await fetch('https://json.tarkov.dev/regular/tasks_en', { headers: { 'user-agent': UA } })).json()).data
-  const list = (Array.isArray(tasks) ? tasks : Object.values(tasks)).filter((task) => out.quests[task.id])
+  // the quests changed by hand keep their photos' places as they are (scripts/manualQuests.mjs)
+  const list = (Array.isArray(tasks) ? tasks : Object.values(tasks)).filter((task) => out.quests[task.id] && !manualQuest(task.id))
   const titleOf = (task) => decodeURIComponent(String(task.wikiLink ?? '').replace(/^.*\/wiki\//, '').replace(/_/g, ' ')).trim()
   const english = await pages(EN_API, [...new Set(list.map(titleOf).filter(Boolean))], true)
   const russian = await pages(RU_API, [...new Set([...english.values()].map((page) => page.ru).filter(Boolean))])
@@ -283,7 +296,7 @@ async function main() {
     const pictures = [...enPictures, ...ruPictures.filter((picture) => !enPictures.some((other) => other.file.toLowerCase() === picture.file.toLowerCase()))]
     if (!pictures.length) continue
     const objectives = (task.objectives ?? []).map((objective) => ({ id: objective.id, type: objective.type, zoned: Boolean(objective.zones?.length), text: `${ruNames[objective.description] ?? ''} ${objective.description ?? ''} ${(objective.questItem?.name ? ruNames[objective.questItem.name] ?? '' : '')}` }))
-    const photos = pictures.filter((picture) => !isMapPicture({ file: picture.file, caption: ruCaption.get(picture.file.toLowerCase()) || '', captionEn: picture.caption })).map((picture) => {
+    const photos = pictures.filter((picture) => !isMapPicture({ file: picture.file, caption: ruCaption.get(picture.file.toLowerCase()) || '', captionEn: picture.caption }) && !isOldVersionPicture(task.id, picture.file)).map((picture) => {
       const id = createHash('sha1').update(picture.file.toLowerCase()).digest('hex').slice(0, 16)
       files[id] = { file: picture.file }
       const caption = ruCaption.get(picture.file.toLowerCase()) || russianCaption(picture.caption)
@@ -310,6 +323,13 @@ async function main() {
   // Pictures the wiki no longer has go.
   for (const quest of Object.values(quests)) quest.photos = quest.photos.filter((photo) => files[photo.id]?.url)
   for (const [id, quest] of Object.entries(quests)) if (!quest.photos.length) delete quests[id]
+  // The quests changed by hand keep their photos and files as the list has them (scripts/manualQuests.mjs).
+  const previous = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : { quests: {}, files: {} }
+  const held = keepManualEntries(quests, previous.quests)
+  for (const [id, quest] of Object.entries(quests)) {
+    if (!manualQuest(id)) continue
+    for (const photo of quest.photos) if (previous.files?.[photo.id]) files[photo.id] = previous.files[photo.id]
+  }
   const used = new Set(Object.values(quests).flatMap((quest) => quest.photos.map((photo) => photo.id)))
   for (const id of Object.keys(files)) if (!used.has(id)) delete files[id]
 
@@ -318,16 +338,17 @@ async function main() {
   const photos = Object.values(quests).reduce((sum, quest) => sum + quest.photos.length, 0)
   const tied = Object.values(quests).reduce((sum, quest) => sum + quest.photos.filter((photo) => photo.objectiveId).length, 0)
   console.log(`quests with photos ${Object.keys(quests).length} / ${list.length}, photos ${photos}, tied to an objective ${tied}, files ${Object.keys(files).length}`)
+  console.log(heldLine(held, 'photos'))
 }
 
-/** The rules above on the list as it is: maps out, English-only captions translated, files no photo uses dropped. */
+/** The rules above on the list as it is: maps and old versions' pictures out, English-only captions translated, files no photo uses dropped. */
 function dropMaps() {
   const out = JSON.parse(readFileSync(OUT, 'utf8'))
   let removed = 0
   let translated = 0
   for (const [id, quest] of Object.entries(out.quests)) {
     const before = quest.photos.length
-    quest.photos = quest.photos.filter((photo) => !isMapPicture({ file: out.files[photo.id]?.file ?? '', caption: photo.caption, captionEn: photo.captionEn }))
+    quest.photos = quest.photos.filter((photo) => !isMapPicture({ file: out.files[photo.id]?.file ?? '', caption: photo.caption, captionEn: photo.captionEn }) && !isOldVersionPicture(id, out.files[photo.id]?.file ?? ''))
     removed += before - quest.photos.length
     for (const photo of quest.photos) {
       if (photo.captionEn || !photo.caption || /[а-яё]/i.test(photo.caption) || !CAPTIONS_RU[photo.caption]) continue

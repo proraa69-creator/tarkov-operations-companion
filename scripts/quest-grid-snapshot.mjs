@@ -10,7 +10,11 @@
 //   used until now.
 //
 // Usage: node scripts/quest-grid-snapshot.mjs [--from <dir>]   (--from: a folder with the same files already downloaded)
+//
+// The quests changed by hand (src/data/manualQuests.json; owner, 23.11.2026: «при обновлениях из базы их не трогай») keep their
+// entries of the snapshot as they were, per mode (scripts/manualQuests.mjs); the comparison still shows the sites as they are.
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { heldLine, keepManualEntries } from './manualQuests.mjs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -152,6 +156,13 @@ for (const node of helpNodes.values()) {
 }
 
 // ---------------------------------------------------------------- lines and their order per trader
+const APP_MODE = { regular: 'pvp', pve: 'pve', 'pvp-season': 'seasonal' }
+const previousSnapshot = await readFile(SNAPSHOT, 'utf8').then(JSON.parse).catch(() => undefined)
+const previousMode = (mode) => {
+  const entry = previousSnapshot?.modes?.[mode]
+  return entry === 'regular' ? previousSnapshot.modes.regular : entry
+}
+const held = []
 const modes = {}
 for (const mode of MODES) {
   const { rows } = dev[mode]
@@ -163,6 +174,7 @@ for (const mode of MODES) {
     tasks[row.id] = { ...(unlock.lines.length ? { lines: unlock.lines } : {}), ...(unlock.dialogue ? { dialogue: true } : {}) }
     for (const [line, level] of unlock.lines) lineQuests.set(line, [...(lineQuests.get(line) ?? []), { row, level }])
   }
+  if (previousSnapshot) held.push(...keepManualEntries(tasks, previousMode(mode)?.tasks ?? {}, APP_MODE[mode]))
   const lines = {}
   const perTrader = new Map()
   for (const [line, members] of lineQuests) {
@@ -186,6 +198,11 @@ function sortKeys(object) {
   return Object.fromEntries(Object.entries(object).sort(([a], [b]) => a.localeCompare(b)))
 }
 
+// tarkov.help's view is of PvP; the report below compares the site as it is (`help`), the snapshot keeps the hand-changed quests
+const snapshotHelp = { ...help }
+if (previousSnapshot) held.push(...keepManualEntries(snapshotHelp, previousSnapshot.help ?? {}, 'pvp'))
+console.log(heldLine(held, 'quest grid'))
+
 const snapshot = {
   format: 1,
   generatedAt: new Date().toISOString(),
@@ -195,7 +212,7 @@ const snapshot = {
   },
   // A mode whose lines are the same as PvP's only names it.
   modes: Object.fromEntries(MODES.map((mode) => [mode, mode !== 'regular' && JSON.stringify(modes[mode]) === JSON.stringify(modes.regular) ? 'regular' : modes[mode]])),
-  help: sortKeys(help),
+  help: sortKeys(snapshotHelp),
   history: history.sort((a, b) => a.trader.localeCompare(b.trader, 'ru') || a.name.localeCompare(b.name, 'ru')),
 }
 await mkdir(dirname(SNAPSHOT), { recursive: true })
