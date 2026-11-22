@@ -18,6 +18,11 @@ export const FIRST_PAINT_MS = 25_000
 export interface GpuFallbackState {
   /** Drawing in software since a start that drew nothing. */
   softwareDrawing: boolean
+  /**
+   * Started without Chromium's sandbox since a start that drew nothing in software either (owner, 23.11.2026: 0.6.0.335 still dark
+   * for a player who had tried --disable-gpu): security software that blocks the sandboxed page process leaves the window dark.
+   */
+  noSandbox?: boolean
   reason?: string
   at?: string
 }
@@ -27,14 +32,19 @@ export function readGpuFallback(dataFolder: string): GpuFallbackState {
   if (!existsSync(file)) return { softwareDrawing: false }
   try {
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<GpuFallbackState>
-    return { softwareDrawing: parsed.softwareDrawing === true, ...(typeof parsed.reason === 'string' ? { reason: parsed.reason } : {}), ...(typeof parsed.at === 'string' ? { at: parsed.at } : {}) }
+    return {
+      softwareDrawing: parsed.softwareDrawing === true,
+      ...(parsed.noSandbox === true ? { noSandbox: true } : {}),
+      ...(typeof parsed.reason === 'string' ? { reason: parsed.reason } : {}),
+      ...(typeof parsed.at === 'string' ? { at: parsed.at } : {}),
+    }
   } catch {
     return { softwareDrawing: false }
   }
 }
 
-export function writeGpuFallback(dataFolder: string, reason: string, now = new Date()) {
-  const state: GpuFallbackState = { softwareDrawing: true, reason, at: now.toISOString() }
+export function writeGpuFallback(dataFolder: string, reason: string, now = new Date(), noSandbox = false) {
+  const state: GpuFallbackState = { softwareDrawing: true, ...(noSandbox ? { noSandbox: true } : {}), reason, at: now.toISOString() }
   writeFileSync(join(dataFolder, GPU_FALLBACK_FILE), JSON.stringify(state))
   return state
 }
@@ -50,12 +60,18 @@ export type DrawingTrouble =
 /** Reasons a process ends that are no failure of the card. */
 const CLEAN_ENDS = new Set(['clean-exit'])
 
+
+/** What a start that drew nothing does next: draw in software, then start without the sandbox, then say why and stop. */
+export type StartStep = 'software' | 'no-sandbox' | 'report'
+
 /**
- * Whether this trouble starts the app again in software: only once (never while already drawing in software), and only before
- * the page's first picture (a card that has drawn the page works; a later failure Chromium recovers from itself).
+ * The next step for a trouble before the page's first picture (after it nothing: a page that has drawn works): software drawing
+ * first (unless --disable-gpu already does it), then no sandbox, then the report the player can copy for support.
  */
-export function shouldDrawInSoftware(trouble: DrawingTrouble, state: { softwareDrawing: boolean; painted: boolean; disabledByArgument: boolean }) {
-  if (state.softwareDrawing || state.disabledByArgument || state.painted) return false
-  if (trouble.kind === 'no-picture') return true
-  return !CLEAN_ENDS.has(trouble.reason)
+export function nextStartStep(trouble: DrawingTrouble, state: { softwareDrawing: boolean; noSandbox: boolean; painted: boolean; disabledByArgument: boolean }): StartStep | undefined {
+  if (state.painted) return undefined
+  if (trouble.kind !== 'no-picture' && CLEAN_ENDS.has(trouble.reason)) return undefined
+  if (!state.softwareDrawing && !state.disabledByArgument) return 'software'
+  if (!state.noSandbox) return 'no-sandbox'
+  return 'report'
 }
