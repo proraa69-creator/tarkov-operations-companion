@@ -29,6 +29,8 @@ type ResultTab = 'damage' | 'armor' | 'flight' | 'log'
 const ZEROS = [50, 100, 150, 200, 300, 400]
 const BURST: Record<string, number> = { burst: 3, doublet: 2 }
 const AUTO = new Set(['fullauto'])
+/** Grenades, flares and the like: not for shooting at a character's armour. */
+const NOT_AT_TARGETS = new Set(['Caliber40x46', 'Caliber40mmRU', 'Caliber30x29', 'Caliber26x75', 'Caliber20x1mm'])
 
 /**
  * «Тир» (owner, 22.11.2026: «https://tarkov-lab.com/#range — изучи всю систему … нужно сделать так же у нас … в тестовом
@@ -68,7 +70,7 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
 
   // ——— weapon, build, round
-  const weapons = useMemo(() => catalog.weapons.filter((weapon) => catalog.ammo.some((round) => round.caliber === weapon.caliber)).sort((a, b) => a.shortName.localeCompare(b.shortName)), [catalog])
+  const weapons = useMemo(() => catalog.weapons.filter((weapon) => !NOT_AT_TARGETS.has(weapon.caliber) && catalog.ammo.some((round) => round.caliber === weapon.caliber)).sort((a, b) => a.shortName.localeCompare(b.shortName)), [catalog])
   const calibers = useMemo(() => [...new Set(weapons.map((weapon) => weapon.caliber))].sort((a, b) => prettyCaliber(a).localeCompare(prettyCaliber(b))), [weapons])
   const [caliber, setCaliber] = useState(() => calibers.includes('Caliber556x45NATO') ? 'Caliber556x45NATO' : calibers[0] ?? '')
   const caliberWeapons = useMemo(() => weapons.filter((weapon) => weapon.caliber === caliber), [weapons, caliber])
