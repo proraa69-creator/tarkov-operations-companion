@@ -45,7 +45,13 @@
 :root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch { display: flex; flex: 1 1 auto; max-width: 230px; min-width: 0; }
 :root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch button { flex: 1 1 0; min-height: 34px; min-width: 0; padding: 0 6px; font-size: 12px; }
 :root[data-layout="mobile"] .topbar.mobile-topbar :is(.icon-button, .profile-chip) { width: 40px; height: 40px; min-height: 40px; padding: 0; flex: 0 0 auto; display: grid; place-items: center; }
-:root[data-layout="mobile"] .topbar.mobile-topbar .profile-chip span { display: none; }
+/* Only the nickname hides: the prestige badge is a span too, and hiding every span left the button empty on the phone
+   (owner, 19.11.2026). */
+:root[data-layout="mobile"] .topbar.mobile-topbar .profile-chip > span:not(.op-prestige-chip) { display: none; }
+:root[data-layout="mobile"] .topbar.mobile-topbar .profile-chip > .op-prestige-chip { display: grid; place-items: center; margin: 0; }
+/* The buttons stand together beside the profile at the right (owner, 20.11.2026: on the turned phone they stood far apart). */
+:root[data-layout="mobile"] .topbar.mobile-topbar { justify-content: flex-start; }
+:root[data-layout="mobile"] .topbar.mobile-topbar .mobile-profile { margin-left: auto; }
 
 /* ---------- content ---------- */
 :root[data-layout="mobile"] .content {
@@ -192,14 +198,25 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   display: flex; align-items: flex-end; animation: mobile-fade .18s ease both;
 }
 .mobile-more-sheet {
-  width: 100%; margin: 0 0 var(--tabbar); padding: 8px calc(14px + var(--safe-right)) 16px calc(14px + var(--safe-left));
-  border-radius: 16px 16px 0 0; max-height: calc(100dvh - var(--tabbar) - var(--window-top)); overflow: auto;
+  width: 100%; margin: 0 0 var(--tabbar); padding: 8px calc(14px + var(--safe-right)) 0 calc(14px + var(--safe-left));
+  border-radius: 16px 16px 0 0; max-height: calc(100dvh - var(--tabbar) - var(--window-top)); overflow: hidden;
+  display: flex; flex-direction: column;
   animation: mobile-sheet-in .22s var(--ease-soft) both;
 }
-.mobile-more-grip { width: 42px; height: 4px; margin: 2px auto 8px; border-radius: 4px; background: var(--line-strong); }
-.mobile-more-head { display: flex; align-items: center; justify-content: space-between; }
-.mobile-more-head .nav-label { display: block; padding-left: 2px; }
-.mobile-more-head .icon-button { width: 44px; height: 44px; }
+.mobile-more-grip { flex: none; width: 42px; height: 4px; margin: 2px auto 8px; border-radius: 4px; background: var(--line-strong); }
+/* «Назад», the title and «×» on one line inside the sheet, the same height; the sections scroll under them. */
+.mobile-more-head { flex: none; display: flex; align-items: center; gap: 10px; padding-bottom: 4px; }
+.mobile-more-head .nav-label { display: block; flex: 1 1 auto; min-width: 0; padding-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-more-head .icon-button { flex: none; width: 44px; height: 44px; }
+.mobile-more-back {
+  flex: none; display: inline-flex; align-items: center; gap: 7px; height: 44px; padding: 0 14px 0 11px;
+  border: 1px solid var(--line-strong, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--bg-elevated, #121712) 92%, transparent);
+  color: var(--text); font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; cursor: pointer;
+}
+.mobile-more-back:active { transform: scale(.97); }
+.mobile-more-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-bottom: 16px; }
+/* the floating «Назад» would stand over the sheet: the sheet has its own */
+:root[data-layout="mobile"]:has(.mobile-more-backdrop) .phone-back { display: none; }
 .mobile-more-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 6px 0 14px; }
 .mobile-more-grid .nav-link.mobile-more-link {
   min-height: 66px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
@@ -230,7 +247,6 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-sidebar .map-option { flex: 0 0 auto; width: auto; min-height: 40px; white-space: nowrap; margin: 0; }
 :root[data-layout="mobile"] .map-sidebar > div:nth-child(2) { display: none; }
 :root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > div:nth-child(2) { display: block; }
-:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > div:nth-child(2) > .map-side-title:first-child { margin-top: 8px !important; }
 :root[data-layout="mobile"] .map-layer-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 :root[data-layout="mobile"] .map-layer-group > .map-side-title { grid-column: 1 / -1; }
 :root[data-layout="mobile"] .layer-button { min-height: 42px; }
@@ -343,29 +359,6 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 @keyframes phone-peek-fade { from { opacity: 0; } }
 @keyframes phone-peek-pop { from { opacity: 0; transform: scale(.96); } }
 @media (prefers-reduced-motion: reduce) { .phone-quest-peek-backdrop, .phone-quest-peek { animation: none; } :root[data-layout="mobile"] .phone-map-panel { transition: none; } }
-/* The page scroll strip at the right edge of the map (pages/MapsPage.tsx MapScrollRail): below the zoom buttons, under
-   the quest window; a finger on it scrolls the page, not the map. A slim pill that says «Листать» between its arrows
-   (owner, 20.10.2026: «чтобы человек понимал, что туда можно нажать и пролистать»); the arrows nudge twice on arrival. */
-:root[data-layout="mobile"] .map-scroll-rail {
-  position: absolute; top: 150px; right: 14px; bottom: 8px; z-index: 720; width: 36px;
-  display: flex; flex-direction: column; align-items: center; padding: 3px 0;
-  border: 1px solid rgb(196 166 101 / 30%); border-radius: 99px;
-  background: linear-gradient(180deg, rgb(10 16 12 / 80%), rgb(10 16 12 / 66%));
-  box-shadow: 0 6px 18px rgb(0 0 0 / 32%), inset 0 1px 0 rgb(255 255 255 / 5%);
-  backdrop-filter: blur(8px); touch-action: pan-y; overscroll-behavior: auto;
-}
-:root[data-layout="mobile"] .map-scroll-rail-arrow { flex: 0 0 auto; display: grid; place-items: center; width: 30px; height: 34px; padding: 0; border: 0; border-radius: 99px; background: transparent; color: #e6d6ad; touch-action: pan-y; }
-:root[data-layout="mobile"] .map-scroll-rail-arrow:active { background: rgb(196 166 101 / 18%); }
-:root[data-layout="mobile"] .map-scroll-rail-arrow:first-child svg { animation: map-rail-nudge-up .9s var(--ease-soft) .5s 2; }
-:root[data-layout="mobile"] .map-scroll-rail-arrow:last-child svg { animation: map-rail-nudge-down .9s var(--ease-soft) .5s 2; }
-:root[data-layout="mobile"] .map-scroll-rail-grip { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; margin: 4px 0; overflow: hidden; }
-:root[data-layout="mobile"] .map-scroll-rail-grip::before, :root[data-layout="mobile"] .map-scroll-rail-grip::after {
-  content: ''; flex: 1 1 0; min-height: 0; width: 2px; border-radius: 2px;
-  background: repeating-linear-gradient(180deg, rgb(201 209 202 / 34%) 0 3px, transparent 3px 7px);
-}
-:root[data-layout="mobile"] .map-scroll-rail-label { flex: 0 0 auto; writing-mode: vertical-rl; rotate: 180deg; color: #b9c3bb; font-size: 9.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
-@keyframes map-rail-nudge-up { 40% { transform: translateY(-3px); } }
-@keyframes map-rail-nudge-down { 40% { transform: translateY(3px); } }
 /* «Карта на весь экран» (MapsPage PhoneMapFullscreenToggle) at the top right; the zoom buttons sit under it. */
 .phone-map-fullscreen { display: none; }
 :root[data-layout="mobile"] .phone-map-fullscreen {
@@ -383,7 +376,6 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-stage.is-fullscreen { position: fixed; inset: 0; z-index: 70; height: auto; min-height: 0; border-radius: 0; animation: phone-map-full-in .18s ease-out; }
 @keyframes phone-map-full-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  :root[data-layout="mobile"] .map-scroll-rail-arrow svg { animation: none !important; }
   :root[data-layout="mobile"] .map-stage.is-fullscreen { animation: none; }
 }
 :root[data-layout="mobile"] .map-quest-sheet { z-index: 760; }
@@ -416,8 +408,29 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .sheet-objective-point { flex: none; width: 30px; height: 30px; margin: 0; border-width: 1.5px; border-radius: 8px; vertical-align: top; }
 :root[data-layout="mobile"] .sheet-objective-text { padding-top: 4px; }
 :root[data-layout="mobile"] .sheet-objective > .sheet-objective-photos { justify-self: start; }
-/* «Закрыть» of the list «Слои»: stays in reach while the list scrolls. */
-:root[data-layout="mobile"] .map-layers-close { position: fixed; top: calc(var(--topbar) + var(--announcement-height, 0px) + 18px); right: calc(var(--gutter) + var(--safe-right) + 12px); z-index: 44; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surf-2); color: var(--text); cursor: pointer; }
+/* «Слои» on the phone: a window over the map on the whole screen between the bars, or on the whole screen on the full-screen
+   map, in every map mode (owner, 20.11.2026: «слои должны упираться вниз… это как открывается отдельная вкладка… нажимаешь
+   крестик, и только тогда появляется карта»; then «точки на карте блок должен быть до верхнего блока. Не на него, а до
+   верхнего»). The page under it keeps its size; only the list scrolls, «×» stays at its top right. The floating «Назад»
+   steps away while it is open (it stood in the way); sideways it stands in the top bar and stays. */
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar {
+  position: fixed; z-index: 43; display: flex; flex-direction: column; padding: 0; overflow: hidden;
+  top: calc(var(--topbar) + var(--announcement-height, 0px)); bottom: var(--tabbar); left: 0; right: 0;
+  border: 0; border-block: 1px solid var(--line-strong, var(--line)); border-radius: 0; box-shadow: none;
+  animation: map-layers-in .2s var(--ease-soft) both;
+}
+:root[data-layout="mobile"][data-map-fullscreen] .map-shell.layers-open .map-sidebar { z-index: 75; inset: 0; border: 0; }
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > .map-side-layers {
+  flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain;
+  padding: 12px calc(var(--gutter) + var(--safe-right) + 2px) 16px calc(var(--gutter) + var(--safe-left) + 2px);
+}
+:root[data-layout="mobile"][data-map-fullscreen] .map-shell.layers-open .map-sidebar > .map-side-layers { padding-top: calc(var(--safe-top) + 12px); padding-bottom: calc(var(--safe-bottom) + 16px); }
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > .map-side-layers > .map-side-title:first-child { display: flex; align-items: center; min-height: 42px; margin-top: 0 !important; padding-right: 52px; }
+:root[data-layout="mobile"] .map-layers-close { position: absolute; top: 12px; right: calc(var(--gutter) + var(--safe-right) + 2px); z-index: 2; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surf-2); color: var(--text); cursor: pointer; }
+:root[data-layout="mobile"][data-map-fullscreen] .map-layers-close { top: calc(var(--safe-top) + 12px); }
+:root[data-layout="mobile"]:has(.map-shell.layers-open) .phone-back { display: none; }
+@keyframes map-layers-in { from { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) { :root[data-layout="mobile"] .map-shell.layers-open .map-sidebar { animation: none; } }
 :root[data-layout="mobile"] .sheet-objective-point svg { width: 16px; height: 16px; }
 
 /* ---------- the player's position on the phone map (mobile/PhoneMapsPage.tsx) ---------- */
@@ -541,7 +554,7 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
    «Назад» stands in a corner of the map and nothing lies under it: the map's own buttons in that corner step aside by
    --map-room-* (the button and a gap). Upright the quest window lies at the bottom; turned sideways it stands on the right
    and the map narrows beside it, with the bars or on the full screen. The +/− at the bottom right, above «Назад» there. */
-:root[data-layout="mobile"] { --map-room-tl: 0px; --map-room-tr: 0px; --map-room-bl: 0px; --map-room-br: 0px; --back-top-extra: 0px; --map-reserve-br: 56px; }
+:root[data-layout="mobile"] { --map-room-tl: 0px; --map-room-tr: 0px; --map-room-bl: 0px; --map-room-br: 0px; --map-side-l: 0px; --map-side-r: 0px; --back-top-extra: 0px; --map-reserve-br: 56px; }
 :root[data-layout="mobile"]:has(.phone-back.is-bottom-left) { --map-room-bl: 48px; }
 :root[data-layout="mobile"]:has(.phone-back.is-bottom-right) { --map-room-br: 48px; --map-reserve-br: 116px; }
 :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-left) { --map-room-tl: 48px; }
@@ -569,8 +582,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   height: calc(100dvh - var(--topbar) - 12px - var(--back-top-extra) - var(--tabbar) - var(--gutter) - 2px - var(--announcement-height, 0px)); min-height: 220px;
 }
 :root[data-layout="mobile"] .map-stage.is-fullscreen { --edge-t: var(--safe-top); --edge-r: var(--safe-right); --edge-b: var(--safe-bottom); --edge-l: var(--safe-left); height: auto; min-height: 0; }
-:root[data-layout="mobile"] .map-stage .map-hud { top: calc(8px + var(--edge-t) + var(--map-room-tl)); left: calc(8px + var(--edge-l)); max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r)); }
-:root[data-layout="mobile"] .map-stage .phone-map-fullscreen { top: calc(8px + var(--edge-t) + var(--map-room-tr)); right: calc(8px + var(--edge-r)); }
+:root[data-layout="mobile"] .map-stage .map-hud { top: calc(8px + var(--edge-t) + var(--map-room-tl)); left: calc(8px + var(--edge-l) + var(--map-side-l)); max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r) - var(--map-side-l) - var(--map-side-r)); }
+:root[data-layout="mobile"] .map-stage .phone-map-fullscreen { top: calc(8px + var(--edge-t) + var(--map-room-tr)); right: calc(8px + var(--edge-r) + var(--map-side-r)); }
 /* «Квесты» and the floors side by side at the bottom left (owner, 12.11.2026: «они должны быть рядом»); a narrow screen puts
    the floors over «Квесты». The row keeps clear of the +/− and «Назад» at the bottom right. */
 :root[data-layout="mobile"] .map-stage .phone-map-bottom {
@@ -667,8 +680,35 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
     top: calc(max(var(--hud-h, 84px) + var(--map-room-tl), 44px + var(--map-room-tr)) + 16px + var(--edge-t));
   }
   :root[data-layout="mobile"] .map-stage.is-fullscreen:has(.map-quest-sheet.is-open) .map-canvas-keyboard { width: 100%; }
-  :root[data-layout="mobile"] .map-stage.is-fullscreen:has(.map-quest-sheet.is-open) .phone-map-fullscreen { top: calc(8px + var(--edge-t) + var(--map-room-tr)); right: calc(8px + var(--edge-r)); }
-  :root[data-layout="mobile"] .map-stage.is-fullscreen:has(.map-quest-sheet.is-open) .map-hud { max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r)); }
-  :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) .map-stage.is-fullscreen:has(.map-quest-sheet.is-open) .map-hud { max-width: calc(100% - 136px - var(--edge-l) - var(--edge-r)); }
+  :root[data-layout="mobile"] .map-stage.is-fullscreen:has(.map-quest-sheet.is-open) .phone-map-fullscreen { top: calc(8px + var(--edge-t) + var(--map-room-tr)); right: calc(8px + var(--edge-r) + var(--map-side-r)); }
+  :root[data-layout="mobile"] .map-stage.is-fullscreen:has(.map-quest-sheet.is-open) .map-hud { max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r) - var(--map-side-l) - var(--map-side-r)); }
+  :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) .map-stage.is-fullscreen:has(.map-quest-sheet.is-open) .map-hud { max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r) - var(--map-side-l) - var(--map-side-r)); }
   :root[data-layout="mobile"] .map-stage.is-fullscreen:has(.map-quest-sheet.is-open) .leaflet-bottom.leaflet-right { bottom: var(--edge-b); right: calc(var(--side-w) + 16px + var(--edge-r)); }
+  /* «Назад» at the top of the full screen sideways (owner, 19.11.2026: the buttons stood a row lower under it and left an
+     empty band under the status bar): the map's top row starts beside it, on the same line, every button 8 px off the
+     screen's safe edges. «Назад» keeps one width in both languages, so the room beside it is known. */
+  :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-left) { --map-room-tl: 0px; --map-side-l: 112px; }
+  :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) { --map-room-tr: 0px; --map-side-r: 112px; }
+  :root[data-layout="mobile"][data-map-fullscreen] .phone-back:is(.is-top-left, .is-top-right) { width: 104px; padding-inline: 10px; justify-content: center; }
+  :root[data-layout="mobile"][data-map-fullscreen]:has(.phone-back.is-top-right) .map-stage .map-hud { max-width: calc(100% - 64px - var(--edge-l) - var(--edge-r) - var(--map-side-l) - var(--map-side-r)); }
+  /* Sideways «Назад» always stands in the top bar between the logo and PvP, whichever corner was chosen (owner, 20.11.2026:
+     «сделай кнопку назад между эмблемой RaidOS и кнопкой PvP… теперь везде в горизонтальном режиме там у нас будет кнопка
+     назад появляться»). Its place is kept when there is none, so PvP/PvE/Сезон never move; the page and the map keep the
+     whole height under the bar. The full-screen map keeps it in the screen's corner (above). */
+  :root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch { margin-left: 112px; }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back) { --back-top-extra: 0px; --map-room-bl: 0px; --map-room-br: 0px; --map-reserve-br: 56px; }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.phone-back) .content { padding-top: calc(var(--topbar) + 12px); }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]) .phone-back:is(.is-top-left, .is-top-right, .is-bottom-left, .is-bottom-right) {
+    top: calc(var(--safe-top) + 5px); bottom: auto; left: calc(var(--gutter) + var(--safe-left) + 42px); right: auto;
+    width: 104px; height: 36px; padding-inline: 10px; justify-content: center; box-shadow: none;
+  }
+  :root[data-layout="mobile"]:not([data-map-fullscreen]):has(.map-shell.layers-open) .phone-back:is(.is-top-left, .is-top-right, .is-bottom-left, .is-bottom-right) { display: inline-flex; }
+  /* The map from the top bar down to the tab bar and from edge to edge, no gaps (owner, 20.11.2026); its buttons keep
+     inside the screen's safe edges. */
+  :root[data-layout="mobile"]:not([data-map-fullscreen]) .content:has(> .map-page) { padding: var(--topbar) 0 var(--tabbar); }
+  :root[data-layout="mobile"] .map-page .map-shell { border: 0; border-radius: 0; box-shadow: none; }
+  :root[data-layout="mobile"] .map-stage:not(.is-fullscreen) {
+    --edge-l: var(--safe-left); --edge-r: var(--safe-right);
+    height: calc(100dvh - var(--topbar) - var(--tabbar) - var(--announcement-height, 0px)); border-radius: 0;
+  }
 }

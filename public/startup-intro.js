@@ -31,8 +31,9 @@
   root.setAttribute('data-startup-intro', played ? 'still' : 'play')
   // The PC app: a small logo in the middle of the window, a little bigger than the one at the top left.
   if (window.tarkovDesktop) root.setAttribute('data-startup-intro-size', 'small')
-  // The iPhone app, the way Capacitor itself tells it (@capacitor/core getPlatformId): a third of the phone's size.
-  else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge) root.setAttribute('data-startup-intro-size', 'third')
+  // The phone apps, the way Capacitor itself tells them (@capacitor/core getPlatformId): a third of the full size. The
+  // iPhone first (07.11.2026); Android the same (owner, 20.11.2026: «сделай его аккуратным, как на iPhone… на Android оно очень большое»).
+  else if (window.androidBridge || (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge)) root.setAttribute('data-startup-intro-size', 'third')
 
   var removeIntro = function () {
     var intro = document.getElementById('startup-intro')

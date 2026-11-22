@@ -73,7 +73,7 @@ html { background: #0d1110 }
 [data-startup-intro-size="small"] .si-spin, [data-startup-intro-size="third"] .si-spin { --si-m: var(--si-m7) }
 [data-startup-intro-size="small"] .si-lockup { flex-direction: row }
 
-/* The iPhone app (public/startup-intro.js; owner, 07.11.2026: «В 3 раза сделай меньше ее»): a third of the sizes above. */
+/* The phone apps (public/startup-intro.js; owner, 07.11.2026, iPhone: «В 3 раза сделай меньше ее»; 20.11.2026, Android the same): a third of the sizes above. */
 [data-startup-intro-size="third"] #startup-intro { --si-t: calc(40vmin / 3); --si-nh: calc(15.5vmin / 3); --si-gap: 2vmin }
 @media (max-aspect-ratio: 5/4) {
   [data-startup-intro-size="third"] #startup-intro { --si-t: calc(50vmin / 3); --si-nh: calc(14.5vmin / 3); --si-gap: calc(7vmin / 3) }

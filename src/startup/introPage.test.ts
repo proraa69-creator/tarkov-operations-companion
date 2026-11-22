@@ -60,7 +60,7 @@ describe('the intro\'s size (owner, 06.11.2026)', () => {
   })
   afterEach(() => { delete (window as { tarkovDesktop?: unknown }).tarkovDesktop })
 
-  it('a third on the iPhone: the way Capacitor itself tells it, and neither on Android nor in a browser', () => {
+  it('a third on the iPhone and on Android: the way Capacitor itself tells them, and not in a browser', () => {
     vi.stubGlobal('navigator', { ...navigator, webdriver: false })
     vi.stubGlobal('webkit', { messageHandlers: { bridge: {} } })
     run()
@@ -69,6 +69,9 @@ describe('the intro\'s size (owner, 06.11.2026)', () => {
     vi.stubGlobal('webkit', { messageHandlers: {} })
     run()
     expect(size()).toBeNull()
+    vi.stubGlobal('androidBridge', { postMessage: () => {} })
+    run()
+    expect(size()).toBe('third')
     vi.unstubAllGlobals()
     expect(css).toContain('--si-t: calc(50vmin / 3); --si-nh: calc(14.5vmin / 3); --si-gap: calc(7vmin / 3)')
     expect(css).toContain('--si-t: 50vmin; --si-nh: 14.5vmin; --si-gap: 7vmin')

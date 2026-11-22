@@ -8925,3 +8925,54 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   `EscapeFromTarkov.exe -token=<profile id> -config={"BackendUrl":"https://127.0.0.1:6969",…}` directly); released to the hideout
   session after the renders.
 - Not released. Remaining: Vulkan-5's visor side shows black in the game's icon renderer (the game draws it so).
+## 2026-11-20 — Claude: phone layout fixes from the owner's Android 0.6.0.323 screenshots
+- Top bar: the profile button was an empty square. The phone rule hid every `span` in `.profile-chip`, and with prestige > 0
+  the badge sits in a span (`op-prestige-chip`); now only the nickname hides (`src/styles/mobile.css`).
+- Overview: «Текущие задания N» and the map priority tiles beside it are stretched to one height on the phone
+  (`src/styles/overviewEdit.css`, phone rules only).
+- Maps: the «Листать» page-scroll strip at the map's right edge is removed (component, CSS, four English strings; the
+  MapsPage.keyDoor test now checks it is absent).
+- «Ещё» sheet: the head («Назад», «РАЗДЕЛЫ», «×») stays fixed inside the sheet and only the sections scroll; the sheet has its
+  own «Назад» (`SheetBackButton`, `src/mobile/backNavigation.tsx`) and the floating one hides while the sheet is open.
+- Full-screen map sideways: with «Назад» at the top the map's top row now starts beside it on the same line (`--map-side-l/-r`,
+  «Назад» one width there) instead of a row lower; upright layout unchanged.
+- Checked with a Playwright script against the dev renderer (412×915 and 915×412, Android-like safe-area insets, prestige 2,
+  RU and EN, «Назад» in all four corners); before→after pictures in the side-session notes folder
+  (`android-layout-0-6-0-323/`). Not checked on a real phone.
+- typecheck clean; 36 related test files pass (MapsPage.keyDoor, mobile, styles, App, Dashboard, MapPriority, i18n). Not released.
+- Commit c82645f6 on branch claude/quirky-bassi-d8f754 (pushed nowhere); a phone-only release would go via mobile/release.
+
+## 2026-11-20 — Claude: «Слои» as a window over the map, Android start intro like the iPhone's
+- Owner (19–20.11.2026, relayed by the RaidOS session): on the phone «Слои» opened inline above the map and stretched the
+  page (the map only at the very bottom); on the full-screen map it did not open at all (the list lay under the fixed map).
+- `src/styles/mobile.css`: with «Слои» open the map's sidebar is a fixed window from the page's level down to the tab bar
+  (on the full screen: inside the screen's safe edges, below/above «Назад»), only its list scrolls, «×» at its top right;
+  the page keeps its size. `src/pages/MapsPage.tsx`: «×» just closes it (no scrolling to the map any more).
+- Start intro: `public/startup-intro.js` gives Android (`window.androidBridge`, as Capacitor's getPlatformId) the iPhone's
+  «third» size; `src/startup/intro.css` comment; `introPage.test.ts` covers Android.
+- Checked with the Playwright script (dev renderer, 412×915 / 915×412, Android-like insets): «Слои» upright and sideways,
+  normal and full-screen map, RU and EN; intro with a faked Android/iPhone bridge. Pictures 5–7 in the side-session notes
+  folder `android-layout-0-6-0-323/`. Not checked on a real phone.
+- typecheck clean; src/startup, MapsPage*, MapItemCard, styles, mobile tests pass (MapsPage.deferred alone, as before). Not released.
+
+## 2026-11-20 — Claude: top bar buttons together, «Назад» in the bar sideways, «Точки на карте» up to the top bar
+- Owner (on picture 6): sideways the top bar's buttons stood far apart — now they stand together beside the profile
+  (`justify-content: flex-start`, the profile `margin-left: auto`; upright nothing moves). Sideways «Назад» (top places)
+  stands in the top bar between the logo and PvP, so the page and the map get the height under the bar back.
+- «Точки на карте» («Слои») on the phone: from the top bar down to the tab bar, edge to edge; on the full-screen map the whole
+  screen (its list inside the safe edges). The floating «Назад» hides while it is open (sideways it stays in the bar).
+- `src/styles/mobile.css` only. Checked with the Playwright script, RU and EN, upright and sideways, normal and full-screen map,
+  overview; pictures 8–9 in `android-layout-0-6-0-323/`. typecheck clean; startup, MapsPage.keyDoor, MapItemCard, styles,
+  mobile, App, desktopBack tests pass. Not released; not checked on a real phone.
+
+## 2026-11-20 — Claude: sideways — «Назад» always in the top bar, the map edge to edge, overview header in two columns
+- Owner: sideways PvP/PvE/Сезон must not jump when «Назад» comes and goes — the top bar keeps «Назад»'s place (112 px)
+  always; «Назад» stands there in every chosen corner (the full-screen map keeps its corner).
+- The map page sideways: no gaps — the map from the top bar down to the tab bar, edge to edge (content padding 0, no frame);
+  its buttons keep inside the safe edges (`--edge-l/-r`). Measured: stage left 0, top = top bar, bottom = tab bar.
+- Overview sideways (`src/styles/overviewEdit.css`): «Настроить блоки» on the line of «Следующий рейд начинается здесь» at
+  its right; «Промокоды» and «Открыть карту» each as wide as «Экран» / «Кочевники» under them (two columns, 10 px gap).
+- `src/styles/mobile.css`, `src/styles/overviewEdit.css`. Checked with the Playwright script, RU and EN, «Назад» top-left and
+  bottom-right, overview / map / «Слои» / full screen / quests sideways, overview and map upright (unchanged); picture 10 in
+  `android-layout-0-6-0-323/`. typecheck clean; Dashboard, MapsPage.keyDoor, styles, mobile, App, desktopBack, startup tests
+  pass. Not released; not checked on a real phone.
