@@ -20,7 +20,7 @@ async function rangeFile(name: string): Promise<Blob | null> {
     return answer?.ok ? answer.blob() : null
   }
   const bytes = await (await pack())?.file(name)
-  return bytes ? new Blob([bytes as Uint8Array<ArrayBuffer>], { type: name.endsWith('.json') ? 'application/json' : 'image/webp' }) : null
+  return bytes ? new Blob([bytes as Uint8Array<ArrayBuffer>], { type: name.endsWith('.json') ? 'application/json' : name.endsWith('.png') ? 'image/png' : 'image/webp' }) : null
 }
 
 let indexLoad: Promise<FigureIndex | null> | null = null
@@ -63,4 +63,21 @@ export function useFigureUrls(files: string[]) {
     return () => { alive = false }
   }, [key])
   return loaded
+}
+
+const jsons = new Map<string, Promise<unknown>>()
+/** A JSON file of the pack (the scopes' data), or null while it loads or when the build has none. */
+export function useRangeJson<T>(name: string) {
+  const [value, setValue] = useState<T | null>(null)
+  useEffect(() => {
+    let alive = true
+    let load = jsons.get(name)
+    if (!load) {
+      load = rangeFile(name).then((blob) => (blob ? blob.text().then((text) => JSON.parse(text) as unknown) : null)).catch(() => null)
+      jsons.set(name, load)
+    }
+    void load.then((loaded) => { if (alive) setValue(loaded as T | null) })
+    return () => { alive = false }
+  }, [name])
+  return value
 }

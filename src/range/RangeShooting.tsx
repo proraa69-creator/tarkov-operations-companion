@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle, RotateCcw, Shuffle, Eraser, Crosshair, Lock } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -12,7 +12,9 @@ import { defaultPlates, kitPieces, likelyKit, randomKit, RANGE_TARGETS, type Arm
 import { BODY_PARTS, cloneKit, freshBody, PMC_HEALTH, totalHealth, type ArmorPiece, type BodyPart, type BodyState, type Health, type Round } from './rangeModel'
 import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type FiredShot } from './rangeShot'
 import { figureLayers } from './rangeFigures'
-import { useFigureIndex, useFigureUrls } from './rangeFigureSource'
+import { useFigureIndex, useFigureUrls, useRangeJson } from './rangeFigureSource'
+import { RangeScopeView } from './RangeScopeView'
+import { holdover, type ScopeData } from './rangeScope'
 import { RangeTarget } from './RangeTarget'
 import { CLASS_COLORS, markOf, spreadAt } from './rangeView'
 import { flightAt } from './rangeFlight'
@@ -141,7 +143,18 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const figureUrls = useFigureUrls(shownFigure ? [shownFigure.base, ...shownFigure.layers].map((picture) => picture.file) : [])
   const masks = usePartMasks(shownFigure, figureUrls)
   const [distance, setDistance] = useState(50)
-  const [zero, setZero] = useState(100)
+  // a scope: its reticle and the target at the distance seen through it (src/range/RangeScopeView.tsx)
+  const scopes = useRangeJson<ScopeData[]>('scopes.json')
+  const [scopeId, setScopeId] = useState('')
+  const scope = scopes?.find((entry) => entry.id === scopeId)
+  const [scopeModeIndex, setScopeModeIndex] = useState(0)
+  const scopeMode = scope?.modes[Math.min(scopeModeIndex, scope.modes.length - 1)]
+  const [zoomState, setZoom] = useState<{ key: string; zoom: number }>({ key: '', zoom: 1 })
+  const zoom = zoomState.key === `${scopeId}|${scopeModeIndex}` ? zoomState.zoom : scopeMode?.zoom ?? 1
+  const reticleUrls = useFigureUrls(scopeMode?.reticle ? [scopeMode.reticle] : [])
+  const zeros = scope?.zeros?.length ? scope.zeros : ZEROS
+  const [zeroChoice, setZero] = useState(100)
+  const zero = zeros.includes(zeroChoice) ? zeroChoice : zeros[0] ?? 100
   const [cover, setCover] = useState<Cover>('none')
   const [toggles, setToggles] = useState({ spread: true, recoil: true, sway: false, sound: true })
 
@@ -227,6 +240,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     }
   }
   const fireEnd = () => { if (AUTO.has(mode)) stop() }
+  const onScopeAim = useCallback((point: { x: number; y: number }) => { aimRef.current = point }, [])
 
   const body = live.body
   const kit = live.kit
@@ -236,6 +250,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const total = totalHealth(body.current)
   const maxTotal = totalHealth(body.max)
   const flash = last?.outcome && last.target === live.number ? { part: last.outcome.part, n: last.n } : undefined
+  const hold = flight ? holdover(flight.drop, distance, scope) : undefined
+  const scene = { view, body, marks, cover, figure: shownFigure ? { ...shownFigure, urls: figureUrls } : undefined, masks, flash }
 
   return <div className="range-layout">
     <aside className="range-side">
@@ -333,6 +349,15 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         <div className="segmented-filter">
           {fireModes.map((value) => <button key={value} type="button" className={mode === value ? 'active' : ''} onClick={() => setFireMode(value)}>{pick(FIRE_MODE_NAMES[value] ?? [value, value], lang)}</button>)}
         </div>
+        <label className="range-inline"><span>{t('Прицел', 'Scope')}</span>
+          <select className="select range-scope-select" value={scopeId} onChange={(event) => { setScopeId(event.target.value); setScopeModeIndex(0) }}>
+            <option value="">{t('Без оптики', 'No optic')}</option>
+            {(scopes ?? []).map((entry) => <option key={entry.id} value={entry.id}>{lang === 'en' ? entry.en : entry.ru}</option>)}
+          </select>
+        </label>
+        {scope && scope.modes.length > 1 && <div className="segmented-filter">
+          {scope.modes.map((entry, index) => <button key={index} type="button" className={index === scopeModeIndex ? 'active' : ''} onClick={() => setScopeModeIndex(index)}>×{entry.zoom}{entry.zoomMax && entry.zoomMax > entry.zoom ? `–${entry.zoomMax}` : ''}</button>)}
+        </div>}
         <label className="range-inline"><span>{t('Укрытие', 'Cover')}</span>
           <select className="select" value={cover} onChange={(event) => setCover(event.target.value as Cover)}>
             {COVERS.map((value) => <option key={value} value={value}>{pick(COVER_NAMES[value], lang)}</option>)}
@@ -353,10 +378,17 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
             <button type="button" className="button" onClick={() => setMarks([])}><Eraser size={14} /> {t('Убрать отметки', 'Clear marks')}</button>
           </div>
         </div>
+        {scope && scopeMode && hold && <div className="range-holdover">
+          <b>{t('Вынос', 'Hold')} {hold.mrad >= 0 ? t('вверх', 'up') : t('вниз', 'down')} {Math.abs(hold.mrad).toFixed(1)} {t('мрад', 'mrad')} · {Math.abs(hold.moa).toFixed(1)} MOA{hold.marks !== undefined ? ` · ${Math.abs(hold.marks).toFixed(1)} ${t('рис.', 'marks')}` : ''}</b>
+          <span>{t('пуля у цели', 'the bullet at the target')} {hold.dropCm >= 0 ? '+' : ''}{hold.dropCm.toFixed(1)} {t('см от линии прицела', 'cm off the sight line')} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')} · {distance} {t('м', 'm')} · ×{zoom.toFixed(zoom % 1 ? 1 : 0)}</span>
+        </div>}
         <div className="range-target-wrap">
-          <RangeTarget view={view} kit={kit} body={body} marks={marks} cover={cover} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined}
-            onFireStart={fireStart} onFireEnd={fireEnd} onAimMove={(point) => { aimRef.current = point }} labels={hpLabels}
-            figure={shownFigure ? { ...shownFigure, urls: figureUrls } : undefined} masks={masks} flash={flash} />
+          {scope && scopeMode
+            ? <RangeScopeView scene={scene} distance={distance} mode={scopeMode} zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })}
+              reticleUrl={scopeMode.reticle ? reticleUrls[scopeMode.reticle] : undefined} recoilCm={{ x: 0, y: 0 }} lang={lang}
+              onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
+            : <RangeTarget {...scene} labels={hpLabels} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined}
+              onFireStart={fireStart} onFireEnd={fireEnd} onAimMove={(point) => { aimRef.current = point }} />}
           {body.dead && <div className="range-dead">
             <b>{t('Убит', 'Killed')}</b>
             <span>{killedAt ? `${killedAt} ${t('выстр.', 'shots')} · ${weapon?.fireRate ? `${((killedAt - 1) * 60 / weapon.fireRate + (flight?.time ?? 0)).toFixed(2)} ${t('с', 's')}` : ''}` : ''}</span>

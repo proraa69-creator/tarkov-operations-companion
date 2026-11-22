@@ -140,3 +140,24 @@
 .range-armor-hp { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .range-armor-hp .range-hp-row { grid-template-columns: minmax(0, 150px) minmax(0, 1fr) 70px; }
 .range-armor-hp .range-hp-row span { display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the covers as things (src/range/RangeCover.tsx) */
+.range-cover-post { fill: #1f3a4a; }
+.range-cover-frame { fill: #5b4630; stroke: #2c2116; stroke-width: .6; }
+.range-cover-sill { fill: #8a8378; }
+/* where the barrel points with the recoil */
+.range-muzzle { fill: #ff5a4a; stroke: #fff; stroke-width: .35; }
+/* the view through a scope (src/range/RangeScopeView.tsx) */
+.range-scope { position: relative; width: min(100%, 72vh); aspect-ratio: 1; margin: 0 auto; border-radius: 50%; overflow: hidden; cursor: crosshair; user-select: none;
+  background: #0b0d0c; box-shadow: 0 0 0 10px #050605, 0 0 40px 18px rgb(0 0 0 / 70%) inset; }
+.range-scope.is-locked { cursor: none; }
+.range-scope-world { position: absolute; inset: 0; width: 100%; height: 100%; }
+.range-scope-sky { fill: #8fa9b5; }
+.range-scope-grass { fill: #6c6a45; }
+.range-scope-reticle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; image-rendering: auto; }
+.range-scope-reticle.is-drawn { width: 100%; height: 100%; }
+.range-scope-reticle.is-drawn path { stroke: #111; stroke-width: .35; fill: none; }
+.range-scope::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; box-shadow: inset 0 0 60px 26px rgb(0 0 0 / 85%); }
+.range-scope-hint { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); padding: 6px 10px; border-radius: 8px; background: rgb(0 0 0 / 60%); color: #e8e4d8; font-size: 12px; white-space: nowrap; z-index: 1; }
+.range-holdover { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: var(--surf-1); font-size: 12.5px; color: var(--text-muted); }
+.range-holdover b { color: var(--brass, #d8c27a); font-size: 14px; }
+.range-scope-select { max-width: 220px; }
