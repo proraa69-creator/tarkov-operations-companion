@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } 
 import { QuestKeysPage } from '../pages/QuestKeysPage'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { featureEnabled } from './archivedFeatures'
+import { rangeEnabled } from './rangeFeature'
 import { isOwnerApp } from './buildEdition'
 import { interfaceVersion } from './appVersion'
 import { AppShell } from './AppShell'
@@ -59,6 +60,7 @@ const QuestItemsPage = lazy(() => import('../pages/QuestItemsPage').then((module
 const CultistCirclePage = lazy(() => import('../pages/CultistCirclePage').then((module) => ({ default: module.CultistCirclePage })))
 const UnneededItemsPage = lazy(() => import('../stashScan/UnneededItems').then((module) => ({ default: module.UnneededItemsPage })))
 const WeaponBuildsPage = lazy(() => import('../pages/WeaponBuildsPage').then((module) => ({ default: module.WeaponBuildsPage })))
+const RangePage = lazy(() => import('../pages/RangePage').then((module) => ({ default: module.RangePage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const ScreenTuningPage = lazy(() => import('../screen/ScreenTuningPage').then((module) => ({ default: module.ScreenTuningPage })))
 const MobileScreenPresets = lazy(() => import('../screen/MobileScreenPresets').then((module) => ({ default: module.MobileScreenPresets })))
@@ -134,6 +136,8 @@ export function App() {
     <Route path="/arsenal/builder" element={<Navigate to="/arsenal/builds" replace />} />
     {/* «Сборка оружия»: shown to the owner before it goes in the menu (src/app/archivedFeatures.ts weaponBuilds). */}
     <Route path="/arsenal/builds" element={featureEnabled('weaponBuilds') || import.meta.env.DEV ? <Suspense fallback={null}><WeaponBuildsPage /></Suspense> : <Navigate to="/ballistics" replace />} />
+    {/* «Тир»: test builds only (src/app/rangeFeature.ts). */}
+    <Route path="/arsenal/range" element={rangeEnabled() ? <Suspense fallback={null}><RangePage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
     {/* «Настройка экрана» and «Оптимизировать компьютер»: the PC app; elsewhere «Пресеты экрана» of the PC (src/screen/MobileScreenPresets.tsx). */}
     <Route path="/screen" element={<Suspense fallback={null}>{window.tarkovDesktop?.screen ? <ScreenTuningPage /> : <MobileScreenPresets />}</Suspense>} />

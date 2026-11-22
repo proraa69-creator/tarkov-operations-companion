@@ -144,6 +144,8 @@ function startupIntro(): Plugin {
 
 export default defineConfig({
   base: './',
+  // A test build (TEST_BUILD=1, scripts/write-build-info.mjs) shows the pages still being tested (src/app/rangeFeature.ts).
+  define: { __RAIDOS_TEST_BUILD__: JSON.stringify(process.env.TEST_BUILD === '1') },
   plugins: [appStoreStubs(), scopedSiteCss(), react(), ocrAssets(), startupIntro(), gunPartsPack()],
   // «Размер шрифта» (src/theme/fontSize.ts): every font size in px times var(--font-scale, 1)
   css: { postcss: { plugins: [fontScaleCss()] } },

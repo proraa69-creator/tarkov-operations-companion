@@ -7,6 +7,7 @@ import { SidebarOperator } from '../components/SidebarOperator'
 import { useTradingSignalCount } from '../trading/tradingClock'
 import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
+import { rangeEnabled } from './rangeFeature'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
 import { InstallerOffer } from '../components/InstallerOffer'
@@ -112,6 +113,7 @@ const economyNavigation = economyNavigationAll.filter((item) => !item.feature ||
 const arsenalNavigation = [
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
   ...(previewed('weaponBuilds') ? [{ to: '/arsenal/builds', ru: 'Сборка оружия', en: 'Weapon builds', icon: Wrench }] : []),
+  ...(rangeEnabled() ? [{ to: '/arsenal/range', ru: 'Тир', en: 'Range', icon: Target }] : []),
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {

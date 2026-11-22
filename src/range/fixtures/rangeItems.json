@@ -1,0 +1,729 @@
+{
+ "source": "json.tarkov.dev regular/items and items_ru, 20.11.2026, trimmed to the range test",
+ "items": {
+  "5c0e874186f7745dc7616606": {
+   "id": "5c0e874186f7745dc7616606",
+   "name": "5c0e874186f7745dc7616606 Name",
+   "shortName": "5c0e874186f7745dc7616606 ShortName",
+   "types": [
+    "helmet",
+    "wearable"
+   ],
+   "properties": {
+    "bluntThroughput": 0.1726,
+    "class": 4,
+    "durability": 108,
+    "repairCost": 606,
+    "speedPenalty": 0,
+    "turnPenalty": -0.01,
+    "ergoPenalty": -0.04,
+    "blindnessProtection": 0,
+    "armorType": "Heavy",
+    "slots": [
+     {
+      "nameId": "mod_equipment",
+      "filters": {
+       "allowedItems": [
+        "5c0919b50db834001b7ce3b9",
+        "5c0e842486f77443a74d2976",
+        "697c7a457c3b0223c30d16e6"
+       ]
+      }
+     }
+    ],
+    "armorSlots": [
+     {
+      "nameId": "Helmet_top",
+      "bluntThroughput": 0.1726,
+      "class": 4,
+      "durability": 36,
+      "repairCost": 168,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type ParietalHead"
+      ],
+      "armorType": "Heavy",
+      "ricochetX": 0.4,
+      "ricochetY": 0.9,
+      "ricochetZ": 70,
+      "baseValue": 19675,
+      "name": "6571133d22996eaf11088200 Name",
+      "armorMaterial": "ArmoredSteel"
+     },
+     {
+      "nameId": "Helmet_back",
+      "bluntThroughput": 0.1726,
+      "class": 4,
+      "durability": 36,
+      "repairCost": 168,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type BackHead"
+      ],
+      "armorType": "Heavy",
+      "ricochetX": 0.4,
+      "ricochetY": 0.9,
+      "ricochetZ": 70,
+      "baseValue": 19675,
+      "name": "6571138e818110db4600aa71 Name",
+      "armorMaterial": "ArmoredSteel"
+     },
+     {
+      "nameId": "Helmet_ears",
+      "bluntThroughput": 0.1726,
+      "class": 4,
+      "durability": 36,
+      "repairCost": 168,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type Ears"
+      ],
+      "armorType": "Heavy",
+      "ricochetX": 0.4,
+      "ricochetY": 0.9,
+      "ricochetZ": 70,
+      "baseValue": 19675,
+      "name": "657112fa818110db4600aa6b Name",
+      "armorMaterial": "ArmoredSteel"
+     }
+    ],
+    "ricochetX": 0.4,
+    "ricochetY": 0.9,
+    "ricochetZ": 70,
+    "propertiesType": "ItemPropertiesHelmet",
+    "deafening": "High",
+    "blocksHeadset": false,
+    "blocksEyewear": false,
+    "blocksHeadwear": false,
+    "zones": [
+     "Collider Type ParietalHead",
+     "Collider Type BackHead",
+     "Collider Type Ears"
+    ],
+    "material": "ArmoredSteel"
+   }
+  },
+  "5c0e842486f77443a74d2976": {
+   "id": "5c0e842486f77443a74d2976",
+   "name": "5c0e842486f77443a74d2976 Name",
+   "shortName": "5c0e842486f77443a74d2976 ShortName",
+   "types": [
+    "glasses",
+    "wearable"
+   ],
+   "properties": {
+    "bluntThroughput": 0.0792,
+    "class": 6,
+    "durability": 50,
+    "repairCost": 128,
+    "speedPenalty": 0,
+    "turnPenalty": 0,
+    "ergoPenalty": -0.13,
+    "blindnessProtection": 0.35,
+    "armorType": "None",
+    "slots": [],
+    "armorSlots": [],
+    "ricochetX": 0.4,
+    "ricochetY": 0.9,
+    "ricochetZ": 70,
+    "propertiesType": "ItemPropertiesArmorAttachment",
+    "blocksEyewear": true,
+    "blocksHeadwear": false,
+    "zones": [
+     "Collider Type HeadCommon",
+     "Collider Type Eyes",
+     "Collider Type Jaw"
+    ],
+    "material": "ArmoredSteel"
+   }
+  },
+  "5c0e541586f7747fa54205c9": {
+   "id": "5c0e541586f7747fa54205c9",
+   "name": "5c0e541586f7747fa54205c9 Name",
+   "shortName": "5c0e541586f7747fa54205c9 ShortName",
+   "types": [
+    "armor",
+    "wearable"
+   ],
+   "properties": {
+    "speedPenalty": -0.01,
+    "turnPenalty": 0,
+    "ergoPenalty": 0,
+    "propertiesType": "ItemPropertiesArmor",
+    "bluntThroughput": 0.2376,
+    "class": 5,
+    "durability": 249,
+    "repairCost": 703,
+    "zones": [
+     "Armor Zone Plate_Korund_chest",
+     "Armor Zone Plate_6B13_back",
+     "Collider Type RibcageLow",
+     "Collider Type RibcageUp",
+     "Collider Type SpineDown",
+     "Collider Type SpineTop",
+     "Collider Type LeftSideChestDown",
+     "Collider Type RightSideChestDown",
+     "Collider Type NeckFront",
+     "Collider Type NeckBack",
+     "Collider Type Pelvis"
+    ],
+    "armorType": "Light",
+    "armorSlots": [
+     {
+      "nameId": "Front_plate",
+      "zones": [
+       "Armor Zone Plate_Korund_chest"
+      ],
+      "allowedPlates": [
+       "656f63c027aed95beb08f62c",
+       "656f57dc27aed95beb08f628",
+       "656f611f94b480b8a500c0db",
+       "656f603f94b480b8a500c0d6"
+      ],
+      "name": "Front_plate"
+     },
+     {
+      "nameId": "Back_plate",
+      "zones": [
+       "Armor Zone Plate_6B13_back"
+      ],
+      "allowedPlates": [
+       "654a4a964b446df1ad03f192",
+       "656efaf54772930db4031ff5",
+       "656efd66034e8e01c407f35c"
+      ],
+      "name": "Back_plate"
+     },
+     {
+      "nameId": "Soft_armor_front",
+      "bluntThroughput": 0.33,
+      "class": 3,
+      "durability": 48,
+      "repairCost": 271,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type RibcageLow",
+       "Collider Type RibcageUp"
+      ],
+      "armorType": "Light",
+      "ricochetX": 0,
+      "ricochetY": 0,
+      "ricochetZ": 80,
+      "baseValue": 45061,
+      "name": "6575ea3060703324250610da Name",
+      "armorMaterial": "Aramid"
+     },
+     {
+      "nameId": "Soft_armor_back",
+      "bluntThroughput": 0.33,
+      "class": 3,
+      "durability": 48,
+      "repairCost": 271,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type SpineDown",
+       "Collider Type SpineTop"
+      ],
+      "armorType": "Light",
+      "ricochetX": 0,
+      "ricochetY": 0,
+      "ricochetZ": 80,
+      "baseValue": 45061,
+      "name": "6575ea4cf6a13a7b7100adc4 Name",
+      "armorMaterial": "Aramid"
+     },
+     {
+      "nameId": "Soft_armor_left",
+      "bluntThroughput": 0.33,
+      "class": 3,
+      "durability": 10,
+      "repairCost": 271,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type LeftSideChestDown"
+      ],
+      "armorType": "Light",
+      "ricochetX": 0,
+      "ricochetY": 0,
+      "ricochetZ": 80,
+      "baseValue": 8408,
+      "name": "6575ea5cf6a13a7b7100adc8 Name",
+      "armorMaterial": "Aramid"
+     },
+     {
+      "nameId": "soft_armor_right",
+      "bluntThroughput": 0.33,
+      "class": 3,
+      "durability": 10,
+      "repairCost": 271,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type RightSideChestDown"
+      ],
+      "armorType": "Light",
+      "ricochetX": 0,
+      "ricochetY": 0,
+      "ricochetZ": 80,
+      "baseValue": 8408,
+      "name": "6575ea6760703324250610de Name",
+      "armorMaterial": "Aramid"
+     },
+     {
+      "nameId": "Collar",
+      "bluntThroughput": 0.33,
+      "class": 3,
+      "durability": 18,
+      "repairCost": 271,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type NeckFront",
+       "Collider Type NeckBack"
+      ],
+      "armorType": "Light",
+      "ricochetX": 0,
+      "ricochetY": 0,
+      "ricochetZ": 80,
+      "baseValue": 16124,
+      "name": "6575ea719c7cad336508e418 Name",
+      "armorMaterial": "Aramid"
+     },
+     {
+      "nameId": "Groin",
+      "bluntThroughput": 0.33,
+      "class": 3,
+      "durability": 20,
+      "repairCost": 271,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type Pelvis"
+      ],
+      "armorType": "Light",
+      "ricochetX": 0,
+      "ricochetY": 0,
+      "ricochetZ": 80,
+      "baseValue": 18053,
+      "name": "6575ea7c60703324250610e2 Name",
+      "armorMaterial": "Aramid"
+     }
+    ],
+    "material": "Aramid"
+   }
+  },
+  "656f611f94b480b8a500c0db": {
+   "id": "656f611f94b480b8a500c0db",
+   "name": "656f611f94b480b8a500c0db Name",
+   "shortName": "656f611f94b480b8a500c0db ShortName",
+   "types": [
+    "armorPlate",
+    "wearable"
+   ],
+   "properties": {
+    "bluntThroughput": 0.28,
+    "class": 5,
+    "durability": 50,
+    "repairCost": 191,
+    "speedPenalty": -0.02,
+    "turnPenalty": -0.015,
+    "ergoPenalty": -0.01,
+    "blindnessProtection": 0,
+    "armorType": "Heavy",
+    "slots": [],
+    "armorSlots": [],
+    "ricochetX": 0,
+    "ricochetY": 0,
+    "ricochetZ": 80,
+    "propertiesType": "ItemPropertiesArmorAttachment",
+    "blocksEyewear": false,
+    "blocksHeadwear": false,
+    "zones": [
+     "Armor Zone Plate_Korund_chest"
+    ],
+    "material": "Ceramic"
+   }
+  },
+  "656efaf54772930db4031ff5": {
+   "id": "656efaf54772930db4031ff5",
+   "name": "656efaf54772930db4031ff5 Name",
+   "shortName": "656efaf54772930db4031ff5 ShortName",
+   "types": [
+    "armorPlate",
+    "noFlea",
+    "wearable"
+   ],
+   "properties": {
+    "bluntThroughput": 0.29,
+    "class": 5,
+    "durability": 45,
+    "repairCost": 191,
+    "speedPenalty": -0.01,
+    "turnPenalty": -0.01,
+    "ergoPenalty": -0.01,
+    "blindnessProtection": 0,
+    "armorType": "Heavy",
+    "slots": [],
+    "armorSlots": [],
+    "ricochetX": 0,
+    "ricochetY": 0,
+    "ricochetZ": 80,
+    "propertiesType": "ItemPropertiesArmorAttachment",
+    "blocksEyewear": false,
+    "blocksHeadwear": false,
+    "zones": [
+     "Armor Zone Plate_6B13_back"
+    ],
+    "material": "Ceramic"
+   }
+  },
+  "603409c80ca681766b6a0fb2": {
+   "id": "603409c80ca681766b6a0fb2",
+   "name": "603409c80ca681766b6a0fb2 Name",
+   "shortName": "603409c80ca681766b6a0fb2 ShortName",
+   "types": [
+    "glasses",
+    "wearable"
+   ],
+   "properties": {
+    "propertiesType": "ItemPropertiesGlasses",
+    "bluntThroughput": 0.315,
+    "class": 1,
+    "durability": 25,
+    "repairCost": 75,
+    "blindnessProtection": 0.1,
+    "speedPenalty": 0,
+    "turnPenalty": 0,
+    "ergoPenalty": -0.01,
+    "material": "Glass"
+   }
+  },
+  "5e4abb5086f77406975c9342": {
+   "id": "5e4abb5086f77406975c9342",
+   "name": "5e4abb5086f77406975c9342 Name",
+   "shortName": "5e4abb5086f77406975c9342 ShortName",
+   "types": [
+    "armor",
+    "wearable"
+   ],
+   "properties": {
+    "speedPenalty": 0,
+    "turnPenalty": 0,
+    "ergoPenalty": 0,
+    "propertiesType": "ItemPropertiesArmor",
+    "bluntThroughput": 0.2259,
+    "class": 6,
+    "durability": 200,
+    "repairCost": 757,
+    "zones": [
+     "Armor Zone Plate_Granit_SAPI_chest",
+     "Armor Zone Plate_Granit_SAPI_back",
+     "Collider Type RibcageUp",
+     "Collider Type SpineTop"
+    ],
+    "armorType": "Light",
+    "armorSlots": [
+     {
+      "nameId": "Front_plate",
+      "zones": [
+       "Armor Zone Plate_Granit_SAPI_chest"
+      ],
+      "allowedPlates": [
+       "656f9d5900d62bcd2e02407c",
+       "656fa8d700d62bcd2e024084",
+       "656fa99800d62bcd2e024088",
+       "656fae5f7c2d57afe200c0d7",
+       "656faf0ca0dce000a2020f77",
+       "656fa0fb498d1b7e3e071d9c",
+       "656fafe3498d1b7e3e071da4",
+       "656fa76500d62bcd2e024080",
+       "656fa25e94b480b8a500c0e0",
+       "656fad8c498d1b7e3e071da0",
+       "656fa61e94b480b8a500c0e8",
+       "656fb21fa0dce000a2020f7c",
+       "656fac30c6baea13cd07e10c",
+       "656fb0bd7c2d57afe200c0dc",
+       "656f9fa0498d1b7e3e071d98",
+       "656fa53d94b480b8a500c0e4",
+       "655746010177119f4a097ff7",
+       "64afdcb83efdfea28601d041",
+       "6943c85be2f21398e70378cc"
+      ],
+      "name": "Front_plate"
+     },
+     {
+      "nameId": "Back_plate",
+      "zones": [
+       "Armor Zone Plate_Granit_SAPI_back"
+      ],
+      "allowedPlates": [
+       "656f9d5900d62bcd2e02407c",
+       "656fa8d700d62bcd2e024084",
+       "656fa99800d62bcd2e024088",
+       "656fae5f7c2d57afe200c0d7",
+       "656faf0ca0dce000a2020f77",
+       "656fa0fb498d1b7e3e071d9c",
+       "656fafe3498d1b7e3e071da4",
+       "656fa76500d62bcd2e024080",
+       "656fa25e94b480b8a500c0e0",
+       "656fad8c498d1b7e3e071da0",
+       "656fa61e94b480b8a500c0e8",
+       "656fb21fa0dce000a2020f7c",
+       "656fac30c6baea13cd07e10c",
+       "656fb0bd7c2d57afe200c0dc",
+       "656f9fa0498d1b7e3e071d98",
+       "656fa53d94b480b8a500c0e4",
+       "655746010177119f4a097ff7",
+       "64afdcb83efdfea28601d041",
+       "6943c85be2f21398e70378cc"
+      ],
+      "name": "Back_plate"
+     },
+     {
+      "nameId": "Soft_armor_front",
+      "bluntThroughput": 0.33,
+      "class": 3,
+      "durability": 50,
+      "repairCost": 88,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type RibcageUp"
+      ],
+      "armorType": "Light",
+      "ricochetX": 0,
+      "ricochetY": 0,
+      "ricochetZ": 80,
+      "baseValue": 30495,
+      "name": "6575e71760703324250610c3 Name",
+      "armorMaterial": "Aramid"
+     },
+     {
+      "nameId": "Soft_armor_back",
+      "bluntThroughput": 0.33,
+      "class": 3,
+      "durability": 50,
+      "repairCost": 88,
+      "speedPenalty": 0,
+      "turnPenalty": 0,
+      "ergoPenalty": 0,
+      "zones": [
+       "Collider Type SpineTop"
+      ],
+      "armorType": "Light",
+      "ricochetX": 0,
+      "ricochetY": 0,
+      "ricochetZ": 80,
+      "baseValue": 30495,
+      "name": "6575e72660703324250610c7 Name",
+      "armorMaterial": "Aramid"
+     }
+    ],
+    "material": "Aramid"
+   }
+  },
+  "656fa76500d62bcd2e024080": {
+   "id": "656fa76500d62bcd2e024080",
+   "name": "656fa76500d62bcd2e024080 Name",
+   "shortName": "656fa76500d62bcd2e024080 ShortName",
+   "types": [
+    "armorPlate",
+    "noFlea",
+    "wearable"
+   ],
+   "properties": {
+    "bluntThroughput": 0.18,
+    "class": 6,
+    "durability": 50,
+    "repairCost": 300,
+    "speedPenalty": -0.03,
+    "turnPenalty": -0.015,
+    "ergoPenalty": -0.015,
+    "blindnessProtection": 0,
+    "armorType": "Heavy",
+    "slots": [],
+    "armorSlots": [],
+    "ricochetX": 0.8,
+    "ricochetY": 0.3,
+    "ricochetZ": 80,
+    "propertiesType": "ItemPropertiesArmorAttachment",
+    "blocksEyewear": false,
+    "blocksHeadwear": false,
+    "zones": [
+     "Armor Zone Plate_Granit_SAPI_chest",
+     "Armor Zone Plate_Granit_SAPI_back"
+    ],
+    "material": "ArmoredSteel"
+   }
+  },
+  "54527ac44bdc2d36668b4567": {
+   "id": "54527ac44bdc2d36668b4567",
+   "name": "54527ac44bdc2d36668b4567 Name",
+   "shortName": "54527ac44bdc2d36668b4567 ShortName",
+   "types": [
+    "ammo",
+    "noFlea"
+   ],
+   "properties": {
+    "propertiesType": "ItemPropertiesAmmo",
+    "ballisticCoeficient": 0.233,
+    "bulletDiameterMilimeters": 5.7,
+    "bulletMassGrams": 4,
+    "caliber": "Caliber556x45NATO",
+    "stackMaxSize": 80,
+    "tracer": false,
+    "tracerColor": "red",
+    "ammoType": "bullet",
+    "projectileCount": 1,
+    "damage": 49,
+    "armorDamage": 47,
+    "fragmentationChance": 0.44,
+    "ricochetChance": 0.38,
+    "penetrationChance": 0.55,
+    "penetrationPower": 44,
+    "penetrationPowerDeviation": 1.375,
+    "accuracyModifier": -0.05,
+    "recoilModifier": 0.05,
+    "initialSpeed": 945,
+    "heavyBleedModifier": 0,
+    "lightBleedModifier": 0,
+    "durabilityBurnFactor": 1.34,
+    "heatFactor": 1.71,
+    "staminaBurnPerDamage": 0.144,
+    "misfireChance": 0.175,
+    "failureToFeedChance": 0.094
+   }
+  }
+ },
+ "armorMaterials": {
+  "Aluminium": {
+   "id": "Aluminium",
+   "name": "MatAluminium",
+   "destructibility": 0.45,
+   "explosionDestructibility": 0.45,
+   "maxRepairDegradation": 0.1,
+   "maxRepairKitDegradation": 0.09,
+   "minRepairDegradation": 0.06,
+   "minRepairKitDegradation": 0.055
+  },
+  "Aramid": {
+   "id": "Aramid",
+   "name": "MatAramid",
+   "destructibility": 0.1875,
+   "explosionDestructibility": 0.15,
+   "maxRepairDegradation": 0.07,
+   "maxRepairKitDegradation": 0.065,
+   "minRepairDegradation": 0.03,
+   "minRepairKitDegradation": 0.025
+  },
+  "ArmoredSteel": {
+   "id": "ArmoredSteel",
+   "name": "MatArmoredSteel",
+   "destructibility": 0.525,
+   "explosionDestructibility": 0.45,
+   "maxRepairDegradation": 0.03,
+   "maxRepairKitDegradation": 0.025,
+   "minRepairDegradation": 0.01,
+   "minRepairKitDegradation": 0.005
+  },
+  "Ceramic": {
+   "id": "Ceramic",
+   "name": "MatCeramic",
+   "destructibility": 0.6,
+   "explosionDestructibility": 0.525,
+   "maxRepairDegradation": 0.22,
+   "maxRepairKitDegradation": 0.2,
+   "minRepairDegradation": 0.17,
+   "minRepairKitDegradation": 0.155
+  },
+  "Combined": {
+   "id": "Combined",
+   "name": "MatCombined",
+   "destructibility": 0.375,
+   "explosionDestructibility": 0.2,
+   "maxRepairDegradation": 0.15,
+   "maxRepairKitDegradation": 0.14,
+   "minRepairDegradation": 0.1,
+   "minRepairKitDegradation": 0.09
+  },
+  "Glass": {
+   "id": "Glass",
+   "name": "MatGlass",
+   "destructibility": 0.6,
+   "explosionDestructibility": 0.6,
+   "maxRepairDegradation": 0.42,
+   "maxRepairKitDegradation": 0.38,
+   "minRepairDegradation": 0.23,
+   "minRepairKitDegradation": 0.21
+  },
+  "Titan": {
+   "id": "Titan",
+   "name": "MatTitan",
+   "destructibility": 0.4125,
+   "explosionDestructibility": 0.375,
+   "maxRepairDegradation": 0.1,
+   "maxRepairKitDegradation": 0.09,
+   "minRepairDegradation": 0.06,
+   "minRepairKitDegradation": 0.055
+  },
+  "UHMWPE": {
+   "id": "UHMWPE",
+   "name": "MatUHMWPE",
+   "destructibility": 0.3375,
+   "explosionDestructibility": 0.3,
+   "maxRepairDegradation": 0.03,
+   "maxRepairKitDegradation": 0.025,
+   "minRepairDegradation": 0.01,
+   "minRepairKitDegradation": 0.005
+  }
+ },
+ "names": {
+  "5c0e874186f7745dc7616606 Name": "Бронешлем \"Маска-1Щ\" (Killa Edition)",
+  "5c0e874186f7745dc7616606 ShortName": "Маска-1Щ (KE)",
+  "6571133d22996eaf11088200 Name": "Баллистическая сталь",
+  "6571138e818110db4600aa71 Name": "Баллистическая сталь",
+  "657112fa818110db4600aa6b Name": "Баллистическая сталь",
+  "5c0e842486f77443a74d2976 Name": "Бронезабрало для шлема \"Маска-1Щ\" (Killa Edition)",
+  "5c0e842486f77443a74d2976 ShortName": "Маска-1Щ",
+  "5c0e541586f7747fa54205c9 Name": "Бронежилет модифицированный 6Б13 М (Killa Edition)",
+  "5c0e541586f7747fa54205c9 ShortName": "6Б13 KE",
+  "Front_plate": "ПЕРЕД. ПЛИТА",
+  "Back_plate": "СПИН. ПЛИТА",
+  "6575ea3060703324250610da Name": "Арамидный пакет",
+  "6575ea4cf6a13a7b7100adc4 Name": "Арамидный пакет",
+  "6575ea5cf6a13a7b7100adc8 Name": "Арамидный пакет",
+  "6575ea6760703324250610de Name": "Арамидный пакет",
+  "6575ea719c7cad336508e418 Name": "Арамидный пакет",
+  "6575ea7c60703324250610e2 Name": "Арамидный пакет",
+  "656f611f94b480b8a500c0db Name": "Бронеплита Гранит 4 (Грудь)",
+  "656f611f94b480b8a500c0db ShortName": "Гранит 4 Грудь",
+  "656efaf54772930db4031ff5 Name": "Бронеплиты Гранит 4 (Спина)",
+  "656efaf54772930db4031ff5 ShortName": "Гранит 4 Спина",
+  "603409c80ca681766b6a0fb2 Name": "Защитные очки НПП КлАСС \"Кондор\"",
+  "603409c80ca681766b6a0fb2 ShortName": "Кондор",
+  "5e4abb5086f77406975c9342 Name": "Бронежилет LBT-6094A Slick Plate Carrier (Черный)",
+  "5e4abb5086f77406975c9342 ShortName": "Slick",
+  "6575e71760703324250610c3 Name": "Арамидный пакет",
+  "6575e72660703324250610c7 Name": "Арамидный пакет",
+  "656fa76500d62bcd2e024080 Name": "Бронеплита Kiba Arms Steel",
+  "656fa76500d62bcd2e024080 ShortName": "KA Steel",
+  "54527ac44bdc2d36668b4567 Name": "5.56x45мм M855A1",
+  "54527ac44bdc2d36668b4567 ShortName": "M855A1"
+ }
+}
