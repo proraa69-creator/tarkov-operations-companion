@@ -23,6 +23,8 @@ export interface AimSetup {
   recoilHorizontal: number
   /** The bullet's height against the line of sight at the distance, cm (negative below). */
   dropCm: number
+  /** Where the game's recoil turned the barrel as the bullet left, cm at the target (src/range/rangeRecoil.ts). */
+  recoilOffset?: { x: number; y: number }
 }
 
 export type Cover = 'none' | 'left' | 'right' | 'low' | 'window'
@@ -39,6 +41,10 @@ export function landing(aim: { x: number; y: number }, setup: AimSetup, burstInd
   if (setup.recoil && burstIndex > 0) {
     y += setup.recoilVertical * 0.5 * scale * (1 - Math.exp(-burstIndex / 2.5))
     x += normal(random, 0, setup.recoilHorizontal * 0.08 * scale * Math.min(1, burstIndex / 3))
+  }
+  if (setup.recoilOffset) {
+    x += setup.recoilOffset.x
+    y += setup.recoilOffset.y
   }
   if (setup.sway) {
     x += normal(random, 0, 2.5 * scale)

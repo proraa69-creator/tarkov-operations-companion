@@ -21,6 +21,7 @@ import { flightAt } from './rangeFlight'
 import { COLLIDER_NAMES, COVER_NAMES, FIRE_MODE_NAMES, GROUP_NAMES, OUTCOME_NAMES, PART_NAMES, PART_SHORT, pick, pieceLabel, START_STATES } from './rangeLabels'
 import { buildPartMasks, type PartMasks } from './partMasks'
 import { playShot } from './rangeSound'
+import { createRecoil, degreesToCm, RECOIL_TICK, weaponRecoil, type RecoilReading, type RecoilSim } from './rangeRecoil'
 import { RangeBuild } from './RangeBuild'
 import { decodeSaved, MODE_NAMES, savedBuildsOf } from './rangeBuilds'
 import type { View } from './rangeHitboxes'
@@ -158,17 +159,34 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const [cover, setCover] = useState<Cover>('none')
   const [toggles, setToggles] = useState({ spread: true, recoil: true, sway: false, sound: true })
 
-  const flight = useMemo(() => ammo ? flightAt(ammo, stats?.velocity, zero, distance) : undefined, [ammo, stats?.velocity, zero, distance])
+  const flight = ammo ? flightAt(ammo, stats?.velocity, zero, distance) : undefined
   const round: Round | undefined = ammo ? {
     damage: flight?.damage ?? ammo.damage,
     penetration: flight?.penetration ?? ammo.penetration,
     armorDamage: (ammo.armorDamage ?? 0) / 100,
     penetrationDeviation: armor.deviation[ammo.id],
   } : undefined
+  // the game's own recoil (src/range/rangeRecoil.ts): the bullet goes where the barrel points as it leaves
   const setup: AimSetup = {
-    distance, moa: stats?.moa, spread: toggles.spread, recoil: toggles.recoil, sway: toggles.sway,
+    distance, moa: stats?.moa, spread: toggles.spread, recoil: false, sway: toggles.sway,
     recoilVertical: stats?.recoilVertical ?? 0, recoilHorizontal: stats?.recoilHorizontal ?? 0, dropCm: flight?.drop ?? 0,
   }
+  const recoilData = useMemo(() => weapon ? weaponRecoil(weapon.id) : undefined, [weapon])
+  const roundRecoil = ammo?.recoilModifier ?? 0
+  const modsRecoil = stats ? stats.recoilModifierSum - roundRecoil : 0
+  const simKey = `${weapon?.id}|${modsRecoil.toFixed(4)}|${roundRecoil.toFixed(4)}`
+  const simRef = useRef<{ key: string; sim: RecoilSim } | null>(null)
+  const recoilSim = () => {
+    if (!recoilData || !weapon) return undefined
+    if (simRef.current?.key !== simKey) simRef.current = { key: simKey, sim: createRecoil(recoilData, modsRecoil, roundRecoil, Math.random, weapon.recoilVertical || recoilData.up) }
+    return simRef.current.sim
+  }
+  /** The recoil now, and the aim it was read at (for the barrel's mark). */
+  const [recoilState, setRecoilNow] = useState<{ reading: RecoilReading; aim: { x: number; y: number } } | null>(null)
+  const recoilNow = recoilState?.reading ?? null
+  const recoilCm = (reading: RecoilReading | null | undefined, key: 'bore' | 'view') => reading && toggles.recoil
+    ? { x: degreesToCm(reading[key].right, distance), y: degreesToCm(reading[key].up, distance) }
+    : { x: 0, y: 0 }
 
   // ——— firing: a full magazine for each weapon, round and magazine size
   const magKey = `${weapon?.id}|${ammo?.id}|${capacity}`
@@ -177,10 +195,10 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const mag = magazine.key === magKey ? magazine.left : capacity
   const aimRef = useRef<{ x: number; y: number }>({ x: 0, y: 135 })
   const burstRef = useRef(0)
-  const timer = useRef<number | undefined>(undefined)
   const shotNumber = useRef(0)
-  const stop = () => { if (timer.current !== undefined) window.clearInterval(timer.current); timer.current = undefined; burstRef.current = 0 }
-  useEffect(() => () => { if (timer.current !== undefined) window.clearInterval(timer.current) }, [])
+  /** The trigger: held, the shots it has left, the time on the 1/60 s ticks of the game's recoil, the next shot's time. */
+  const trigger = useRef({ held: false, left: 0, time: 0, next: 0, frame: undefined as number | undefined, last: 0, spare: 0 })
+  useEffect(() => () => { if (trigger.current.frame !== undefined) cancelAnimationFrame(trigger.current.frame) }, [])
   const reload = () => setMagazine({ key: magKey, left: capacity })
   const reloadRef = useRef(reload)
   useEffect(() => { reloadRef.current = reload })
@@ -201,12 +219,17 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     const body = cloneBody(live.body)
     setMagazine({ key: magKey, left: mag - 1 })
     if (toggles.sound) playShot(0.45)
+    // where the barrel points as the bullet leaves; then this shot's own kick
+    const sim = recoilSim()
+    const bore = recoilCm(sim?.read(), 'bore')
+    const shotSetup = { ...setup, recoilOffset: bore }
+    sim?.shot()
     const pellets = Math.max(1, ammo.projectileCount ?? 1)
     const fired: FiredShot[] = []
     for (let pellet = 0; pellet < pellets; pellet++) {
       // buckshot: each pellet its own bullet, about 3 cm per metre across round the aim
       const aim = pellets > 1 ? { x: aimRef.current.x + gauss() * 0.75 * distance, y: aimRef.current.y + gauss() * 0.75 * distance } : aimRef.current
-      fired.push(shootOnce(kit, body, view, aim, setup, round, cover, burstRef.current, Math.random, geometry))
+      fired.push(shootOnce(kit, body, view, aim, shotSetup, round, cover, burstRef.current, Math.random, geometry))
     }
     burstRef.current += 1
     shotNumber.current += 1
@@ -221,25 +244,61 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     setLive({ ...live, kit, body, shots: live.shots + 1, ...(killed ? { killedAt: live.shots + 1 } : {}) })
     return !body.dead && mag - 1 > 0
   }
-  // the timer of a burst or of automatic fire calls the latest closure (this render's magazine and target)
+  // the ticks call the latest closures (this render's magazine, target and recoil)
   const fireRef = useRef(fireOnce)
   useEffect(() => { fireRef.current = fireOnce })
+  const simRefFn = useRef(recoilSim)
+  useEffect(() => { simRefFn.current = recoilSim })
+
+  /**
+   * The game's 1/60 s ticks while the trigger is held and until the weapon has come back to rest: a shot when its time comes (the
+   * weapon's fire rate), then the recoil's tick. At most one shot a frame (each shot changes the target's state for the next).
+   */
+  const run = () => {
+    const state = trigger.current
+    if (state.frame !== undefined) return
+    state.last = performance.now()
+    state.spare = 0
+    const frame = (now: number) => {
+      state.spare += Math.min(0.1, (now - state.last) / 1000)
+      state.last = now
+      const sim = simRefFn.current()
+      let shotThisFrame = false
+      while (state.spare >= RECOIL_TICK) {
+        if (state.held && state.left > 0 && state.time >= state.next - 1e-9) {
+          if (shotThisFrame) break
+          shotThisFrame = true
+          const interval = 60 / (weapon?.fireRate && weapon.fireRate > 0 ? weapon.fireRate : 600)
+          if (fireRef.current()) { state.left -= 1; state.next += interval } else state.left = 0
+          if (state.left <= 0 && !AUTO.has(mode)) state.held = false
+        }
+        state.spare -= RECOIL_TICK
+        state.time += RECOIL_TICK
+        sim?.tick(state.held && state.left > 0)
+      }
+      if (sim) setRecoilNow({ reading: sim.read(), aim: { ...aimRef.current } })
+      if (!state.held && (!sim || sim.resting())) { state.frame = undefined; setRecoilNow(null); return }
+      state.frame = requestAnimationFrame(frame)
+    }
+    state.frame = requestAnimationFrame(frame)
+  }
 
   const fireStart = (point: { x: number; y: number }) => {
     aimRef.current = point
-    stop()
     if (live.body.dead) return
     burstRef.current = 0
-    if (!fireOnce()) return
+    const state = trigger.current
     const rate = weapon?.fireRate && weapon.fireRate > 0 ? weapon.fireRate : 600
-    const interval = 60_000 / rate
-    if (AUTO.has(mode)) timer.current = window.setInterval(() => { if (!fireRef.current()) stop() }, interval)
-    else if (BURST[mode]) {
-      let left = BURST[mode]! - 1
-      timer.current = window.setInterval(() => { if (left-- <= 0 || !fireRef.current()) stop() }, interval)
-    }
+    state.held = true
+    state.time = 0
+    state.next = 60 / rate
+    // automatic fire: shots until the trigger is let go; a burst its shots; a single shot just this one
+    state.left = AUTO.has(mode) ? Number.POSITIVE_INFINITY : BURST[mode] ? BURST[mode]! - 1 : 0
+    if (!fireOnce()) state.left = 0
+    if (state.left <= 0 && !AUTO.has(mode)) state.held = false
+    run()
   }
-  const fireEnd = () => { if (AUTO.has(mode)) stop() }
+  const fireEnd = () => { if (AUTO.has(mode)) trigger.current.held = false }
   const onScopeAim = useCallback((point: { x: number; y: number }) => { aimRef.current = point }, [])
 
   const body = live.body
@@ -385,9 +444,10 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         <div className="range-target-wrap">
           {scope && scopeMode
             ? <RangeScopeView scene={scene} distance={distance} mode={scopeMode} zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })}
-              reticleUrl={scopeMode.reticle ? reticleUrls[scopeMode.reticle] : undefined} recoilCm={{ x: 0, y: 0 }} lang={lang}
+              reticleUrl={scopeMode.reticle ? reticleUrls[scopeMode.reticle] : undefined} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} lang={lang}
               onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
             : <RangeTarget {...scene} labels={hpLabels} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined}
+              muzzle={recoilState && toggles.recoil ? { x: recoilState.aim.x + recoilCm(recoilNow, 'bore').x, y: recoilState.aim.y + recoilCm(recoilNow, 'bore').y } : undefined}
               onFireStart={fireStart} onFireEnd={fireEnd} onAimMove={(point) => { aimRef.current = point }} />}
           {body.dead && <div className="range-dead">
             <b>{t('Убит', 'Killed')}</b>

@@ -10,7 +10,7 @@ import { fovMrad, mradToCm, type ScopeMode } from './rangeScope'
  * distance, the reticle fixed in the middle. A click takes the mouse (Esc gives it back); moving it turns the view; holding the
  * button fires. The recoil turns the view as it turns the barrel.
  */
-export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl, recoilCm, onFireStart, onFireEnd, onAim, lang }: {
+export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl, boreCm, viewCm, onFireStart, onFireEnd, onAim, lang }: {
   scene: SceneProps
   distance: number
   mode: ScopeMode
@@ -18,8 +18,9 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
   zoom: number
   onZoom: (zoom: number) => void
   reticleUrl?: string
-  /** The barrel's turn by the recoil, centimetres at the target. */
-  recoilCm: { x: number; y: number }
+  /** The barrel's and the view's turn by the recoil, centimetres at the target (the reticle is on the barrel). */
+  boreCm: { x: number; y: number }
+  viewCm: { x: number; y: number }
   onFireStart: (point: { x: number; y: number }) => void
   onFireEnd: () => void
   /** Where the reticle's centre is on the target's plane (figure centimetres, without the recoil). */
@@ -32,7 +33,9 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
   // the view's width in mrad at the magnification now: the field of view narrows as the magnification grows
   const fov = fovMrad(mode.fovDeg) * (mode.zoom / zoom)
   const fovCm = mradToCm(fov, distance)
-  const centre = { x: aim.x + recoilCm.x, y: aim.y + recoilCm.y }
+  const centre = { x: aim.x + viewCm.x, y: aim.y + viewCm.y }
+  // the reticle moves on the screen by how far the barrel is off the view
+  const reticleShift = { x: (boreCm.x - viewCm.x) / fovCm * 100, y: -(boreCm.y - viewCm.y) / fovCm * 100 }
   // a first focal plane reticle grows with the magnification; a second focal plane one keeps its size on the screen
   const reticleShare = mode.reticleMrad ? (mode.ffp ? mode.reticleMrad / fov : mode.reticleMrad / fovMrad(mode.fovDeg)) : 1
 
@@ -78,8 +81,8 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
       <RangeScene {...scene} markRadius={markRadius} />
     </svg>
     {reticleUrl
-      ? <img className="range-scope-reticle" src={reticleUrl} alt="" style={{ width: `${reticleShare * 100}%`, height: `${reticleShare * 100}%` }} />
-      : <svg className="range-scope-reticle is-drawn" viewBox="-50 -50 100 100"><path d="M-50 0H-3M3 0H50M0 -50V-3M0 3V50" /></svg>}
+      ? <img className="range-scope-reticle" src={reticleUrl} alt="" style={{ width: `${reticleShare * 100}%`, height: `${reticleShare * 100}%`, left: `${50 + reticleShift.x}%`, top: `${50 + reticleShift.y}%` }} />
+      : <svg className="range-scope-reticle is-drawn" viewBox="-50 -50 100 100" style={{ left: `${50 + reticleShift.x}%`, top: `${50 + reticleShift.y}%` }}><path d="M-50 0H-3M3 0H50M0 -50V-3M0 3V50" /></svg>}
     {!locked && <div className="range-scope-hint">{lang === 'en' ? 'Click to take the mouse · Esc gives it back · hold to fire' : 'Щелчок — захватить мышь · Esc — вернуть · зажать — огонь'}</div>}
   </div>
 }
