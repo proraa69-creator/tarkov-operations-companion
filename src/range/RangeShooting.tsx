@@ -1,76 +1,67 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LoaderCircle, RotateCcw, Shuffle, Eraser, Crosshair } from 'lucide-react'
+import { LoaderCircle, RotateCcw, Shuffle, Eraser, Crosshair, Lock } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useGunCatalog } from '../arsenal/gunCatalog'
 import { installedParts, presetBuild } from '../arsenal/buildModel'
 import { computeStats } from '../arsenal/buildStats'
-import { decodeBuild, loadSavedBuilds } from '../arsenal/buildStorage'
 import { prettyCaliber } from '../arsenal/gunFormat'
-import type { TrajectoryPoint } from '../arsenal/ballistics'
-import type { AmmoStats, Build, GunCatalog } from '../arsenal/gunTypes'
-import { useArmorCatalog } from '../range/rangeArmorSource'
-import { defaultPlates, kitPieces, likelyKit, randomKit, RANGE_TARGETS, type ArmorCatalog, type KitChoice, type RangeItem, type RangeTargetData } from '../range/rangeArmor'
-import { BODY_PARTS, cloneKit, freshBody, PMC_HEALTH, totalHealth, type ArmorPiece, type BodyPart, type BodyState, type Health, type Round } from '../range/rangeModel'
-import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type FiredShot } from '../range/rangeShot'
-import { figureLayers } from '../range/rangeFigures'
-import { useFigureIndex, useFigureUrls } from '../range/rangeFigureSource'
-import { RangeTarget } from '../range/RangeTarget'
-import { CLASS_COLORS, markOf, spreadAt } from '../range/rangeView'
-import { RangeCompare } from '../range/RangeCompare'
-import { RangeOutfit } from '../range/RangeOutfit'
-import { flightAt } from '../range/rangeFlight'
-import { COLLIDER_NAMES, FIRE_MODE_NAMES, GROUP_NAMES, OUTCOME_NAMES, PART_NAMES, PART_SHORT, pick, pieceLabel, START_STATES } from '../range/rangeLabels'
-import type { View } from '../range/rangeHitboxes'
+import type { Build, GunCatalog } from '../arsenal/gunTypes'
+import { useArmorCatalog } from './rangeArmorSource'
+import { defaultPlates, kitPieces, likelyKit, randomKit, RANGE_TARGETS, type ArmorCatalog, type KitChoice, type RangeItem, type RangeTargetData } from './rangeArmor'
+import { BODY_PARTS, cloneKit, freshBody, PMC_HEALTH, totalHealth, type ArmorPiece, type BodyPart, type BodyState, type Health, type Round } from './rangeModel'
+import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type FiredShot } from './rangeShot'
+import { figureLayers } from './rangeFigures'
+import { useFigureIndex, useFigureUrls } from './rangeFigureSource'
+import { RangeTarget } from './RangeTarget'
+import { CLASS_COLORS, markOf, spreadAt } from './rangeView'
+import { flightAt } from './rangeFlight'
+import { COLLIDER_NAMES, COVER_NAMES, FIRE_MODE_NAMES, GROUP_NAMES, OUTCOME_NAMES, PART_NAMES, PART_SHORT, pick, pieceLabel, START_STATES } from './rangeLabels'
+import { buildPartMasks, type PartMasks } from './partMasks'
+import { playShot } from './rangeSound'
+import { RangeBuild } from './RangeBuild'
+import { decodeSaved, MODE_NAMES, savedBuildsOf } from './rangeBuilds'
+import type { View } from './rangeHitboxes'
 import '../styles/range.css'
 
 type Locale = 'ru' | 'en'
 type Group = 'all' | 'pmc' | 'scav' | 'boss' | 'follower'
 type KitMode = 'character' | 'random' | 'custom'
-type ResultTab = 'damage' | 'armor' | 'flight' | 'log'
 
 const ZEROS = [50, 100, 150, 200, 300, 400]
 const BURST: Record<string, number> = { burst: 3, doublet: 2 }
 const AUTO = new Set(['fullauto'])
 /** Grenades, flares and the like: not for shooting at a character's armour. */
 const NOT_AT_TARGETS = new Set(['Caliber40x46', 'Caliber40mmRU', 'Caliber30x29', 'Caliber26x75', 'Caliber20x1mm'])
+/**
+ * Bosses and their guards wear what they always wear (owner, 22.11.2026: «все предметы, которые на боссах идут стандартно, их нельзя
+ * снять и поменять на другие предметы, чтобы не было видно лица… килла, тагила, рыцарь, все должны быть в масках»): their usual kit,
+ * a visor lowered, nothing to change.
+ */
+const LOCKED_GROUPS = new Set(['boss', 'follower'])
+const COVERS: Cover[] = ['none', 'left', 'right', 'low', 'window']
 
 /**
- * «Тир» (owner, 22.11.2026: «https://tarkov-lab.com/#range — изучи всю систему … нужно сделать так же у нас … в тестовом
- * приложении, не публикуй»): shoot a character in armour with a weapon, a build and a round; every hit goes through the
- * game's own armour and health rules (src/range/rangeModel.ts). Test builds only (src/app/rangeFeature.ts).
+ * «Тир» in «Баллистика» (owner, 22.11.2026: «Тир у нас будет в баллистике… В тире у нас будет только стрельба»): shoot a character
+ * in armour with a weapon, a build and a round; every hit goes through the game's own armour and health rules
+ * (src/range/rangeModel.ts). Test builds only (src/app/rangeFeature.ts).
  */
-export function RangePage() {
+export function RangeShooting() {
   const { raidMode } = useAppState()
   const { locale } = useLocale()
   const lang: Locale = locale === 'en' ? 'en' : 'ru'
   const guns = useGunCatalog(raidMode, locale)
   const armor = useArmorCatalog(raidMode, locale)
-  const [tab, setTab] = useState<'shoot' | 'compare' | 'outfit'>('shoot')
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
-
-  return <div className="page range-page">
-    <header className="page-header">
-      <div>
-        <h1 className="page-title">{t('Тир', 'Range')}</h1>
-        <p className="page-subtitle">{t('Стрельба по персонажам в броне: пробитие, урон и износ — по формулам игры.', 'Shoot characters in armour: penetration, damage and wear by the game’s own rules.')}</p>
-      </div>
-      <div className="segmented-filter" role="tablist">
-        <button type="button" className={tab === 'shoot' ? 'active' : ''} onClick={() => setTab('shoot')}>{t('Стрельба', 'Shooting')}</button>
-        <button type="button" className={tab === 'compare' ? 'active' : ''} onClick={() => setTab('compare')}>{t('Сравнение', 'Compare')}</button>
-        <button type="button" className={tab === 'outfit' ? 'active' : ''} onClick={() => setTab('outfit')}>{t('Конструктор', 'Outfit')}</button>
-      </div>
-    </header>
-    {(!guns.data || !armor.data) && <div className="panel range-loading">
-      {guns.error || armor.error
-        ? <span>{t('Не удалось загрузить данные. Попробуйте позже.', 'Could not load the data. Try again later.')}</span>
-        : <><LoaderCircle className="spin" size={18} /> <span>{t('Загружаем оружие и броню…', 'Loading weapons and armour…')}</span></>}
-    </div>}
-    {guns.data && armor.data && <Range catalog={guns.data} armor={armor.data} lang={lang} tab={tab} raidMode={raidMode} />}
+  if (!guns.data || !armor.data) return <div className="panel range-loading">
+    {guns.error || armor.error
+      ? <span>{t('Не удалось загрузить данные. Попробуйте позже.', 'Could not load the data. Try again later.')}</span>
+      : <><LoaderCircle className="spin" size={18} /> <span>{t('Загружаем оружие и броню…', 'Loading weapons and armour…')}</span></>}
   </div>
+  return <Range catalog={guns.data} armor={armor.data} lang={lang} />
 }
 
-function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; armor: ArmorCatalog; lang: Locale; tab: 'shoot' | 'compare' | 'outfit'; raidMode: Parameters<typeof loadSavedBuilds>[0] }) {
+function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCatalog; lang: Locale }) {
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
 
   // ——— weapon, build, round
@@ -80,13 +71,16 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
   const caliberWeapons = useMemo(() => weapons.filter((weapon) => weapon.caliber === caliber), [weapons, caliber])
   const [weaponId, setWeaponId] = useState(() => caliberWeapons.find((weapon) => weapon.id === '5447a9cd4bdc2dbd208b4567')?.id ?? caliberWeapons[0]?.id ?? '')
   const weapon = caliberWeapons.find((entry) => entry.id === weaponId) ?? caliberWeapons[0]
-  const savedBuilds = useMemo(() => weapon ? loadSavedBuilds(raidMode).filter((entry) => entry.weaponId === weapon.id) : [], [weapon, raidMode])
+  const savedBuilds = useMemo(() => weapon ? savedBuildsOf(weapon.id) : [], [weapon])
   const [buildKey, setBuildKey] = useState('preset')
-  const build: Build | undefined = useMemo(() => {
+  const startBuild: Build | undefined = useMemo(() => {
     if (!weapon) return undefined
-    const saved = savedBuilds.find((entry) => entry.id === buildKey)
-    return (saved && decodeBuild(saved.code, catalog)) || presetBuild(weapon, catalog).build
+    const saved = savedBuilds.find((entry) => `${entry.mode}:${entry.id}` === buildKey)
+    return decodeSaved(saved, catalog) ?? presetBuild(weapon, catalog).build
   }, [weapon, savedBuilds, buildKey, catalog])
+  // the build as changed in the small window
+  const [edited, setEdited] = useState<{ start?: Build; build?: Build }>({})
+  const build = edited.start === startBuild && edited.build ? edited.build : startBuild
   const rounds = useMemo(() => catalog.ammo.filter((round) => round.caliber === caliber).sort((a, b) => b.penetration - a.penetration), [catalog, caliber])
   const [ammoId, setAmmoId] = useState('')
   const ammo = rounds.find((round) => round.id === ammoId) ?? rounds.find((round) => round.id === weapon?.defaultAmmoId) ?? rounds[0]
@@ -104,6 +98,7 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
   const targets = useMemo(() => RANGE_TARGETS.filter((target) => group === 'all' || target.group === group), [group])
   const [targetKey, setTargetKey] = useState('pmcusec')
   const target: RangeTargetData = targets.find((entry) => entry.key === targetKey) ?? targets[0] ?? RANGE_TARGETS[0]!
+  const locked = LOCKED_GROUPS.has(target.group)
   const [variant, setVariant] = useState(0)
   const health: Health = useMemo(() => {
     const raw = target.health[Math.min(variant, target.health.length - 1)] ?? PMC_HEALTH
@@ -112,7 +107,9 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
   const [startKey, setStartKey] = useState('healthy')
   const blackedOut = START_STATES.find((state) => state.key === startKey)?.parts ?? []
   const [kitMode, setKitMode] = useState<KitMode>('character')
-  const [choice, setChoice] = useState<KitChoice>(() => likelyKit(armor, target))
+  const [chosen, setChoice] = useState<KitChoice>(() => likelyKit(armor, target))
+  const lockedKit = useMemo(() => likelyKit(armor, target), [armor, target])
+  const choice = locked ? lockedKit : chosen
   const chooseTarget = (key: string) => {
     setTargetKey(key)
     setVariant(0)
@@ -142,11 +139,11 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
   const geometry = useMemo(() => figures ? figureGeometry({ front: figures.front?.base.zones, back: figures.back?.base.zones }) : SCHEMATIC, [figures])
   const shownFigure = figures?.[view]
   const figureUrls = useFigureUrls(shownFigure ? [shownFigure.base, ...shownFigure.layers].map((picture) => picture.file) : [])
+  const masks = usePartMasks(shownFigure, figureUrls)
   const [distance, setDistance] = useState(50)
   const [zero, setZero] = useState(100)
   const [cover, setCover] = useState<Cover>('none')
-  const [toggles, setToggles] = useState({ spread: true, recoil: true, sway: false, armor: true })
-  const [resultTab, setResultTab] = useState<ResultTab>('damage')
+  const [toggles, setToggles] = useState({ spread: true, recoil: true, sway: false, sound: true })
 
   const flight = useMemo(() => ammo ? flightAt(ammo, stats?.velocity, zero, distance) : undefined, [ammo, stats?.velocity, zero, distance])
   const round: Round | undefined = ammo ? {
@@ -190,6 +187,7 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
     const kit = cloneKit(live.kit)
     const body = cloneBody(live.body)
     setMagazine({ key: magKey, left: mag - 1 })
+    if (toggles.sound) playShot(0.45)
     const pellets = Math.max(1, ammo.projectileCount ?? 1)
     const fired: FiredShot[] = []
     for (let pellet = 0; pellet < pellets; pellet++) {
@@ -237,16 +235,7 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
   const hpLabels = Object.fromEntries(BODY_PARTS.map((part) => [part, `${Math.max(0, Math.round(body.current[part]))}`])) as Record<BodyPart, string>
   const total = totalHealth(body.current)
   const maxTotal = totalHealth(body.max)
-
-  if (tab === 'outfit') return figureIndex
-    ? <RangeOutfit index={figureIndex} armor={armor} lang={lang} />
-    : <div className="panel range-loading"><LoaderCircle className="spin" size={18} /> <span>{t('Загружаем снимки…', 'Loading the pictures…')}</span></div>
-
-  if (tab === 'compare') return <RangeCompare
-    lang={lang} catalog={catalog} armor={armor} rounds={rounds} ammo={ammo} weapon={weapon} stats={stats} health={health} blackedOut={blackedOut}
-    choice={choice} kit={freshKit} distance={distance} zero={zero} setup={setup} mode={mode} targetName={pick([target.ru, target.en], lang)}
-    geometry={geometry}
-  />
+  const flash = last?.outcome && last.target === live.number ? { part: last.outcome.part, n: last.n } : undefined
 
   return <div className="range-layout">
     <aside className="range-side">
@@ -264,8 +253,8 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
         </label>
         <label className="range-field"><span>{t('Сборка', 'Build')}</span>
           <select className="select" value={buildKey} onChange={(event) => setBuildKey(event.target.value)}>
-            <option value="preset">{t('Заводская', 'Default')}</option>
-            {savedBuilds.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+            <option value="preset">{weapon?.shortName ?? ''} · {t('заводская', 'default')}</option>
+            {savedBuilds.map((entry) => <option key={`${entry.mode}:${entry.id}`} value={`${entry.mode}:${entry.id}`}>{weapon?.shortName ?? ''} · {pick(MODE_NAMES[entry.mode], lang)} · {entry.name}</option>)}
           </select>
         </label>
         <label className="range-field"><span>{t('Патрон', 'Round')}</span>
@@ -280,6 +269,7 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
           <Fact label={t('Скорость', 'Velocity')} value={stats?.velocity ? `${Math.round(stats.velocity)} ${t('м/с', 'm/s')}` : '—'} />
           <Fact label="MOA" value={stats?.moa ? `≈${stats.moa.toFixed(2)}` : '—'} />
           <Fact label={t('Отдача', 'Recoil')} value={stats ? `${stats.recoilVertical} / ${stats.recoilHorizontal}` : '—'} />
+          <Fact label={t('Эргономика', 'Ergonomics')} value={stats ? `${Math.round(stats.ergonomics)}` : '—'} />
           <Fact label={t('Скорострельность', 'Fire rate')} value={weapon?.fireRate ? `${weapon.fireRate}` : '—'} />
           <Fact label={t('Магазин', 'Magazine')} value={`${capacity}`} />
         </div>
@@ -305,19 +295,26 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
             {START_STATES.map((state) => <option key={state.key} value={state.key}>{lang === 'en' ? state.en : state.ru}</option>)}
           </select>
         </label>
-        <div className="range-field"><span>{t('Экипировка', 'Equipment')}</span>
+        {!locked && <div className="range-field"><span>{t('Экипировка', 'Equipment')}</span>
           <div className="segmented-filter">
             <button type="button" className={kitMode === 'character' ? 'active' : ''} onClick={() => { setKitMode('character'); setChoice(likelyKit(armor, target)) }}>{t('Обычная', 'Usual')}</button>
             <button type="button" className={kitMode === 'random' ? 'active' : ''} onClick={() => { setKitMode('random'); setChoice(randomKit(armor, target, Math.random)) }}><Shuffle size={13} /> {t('Случайная', 'Random')}</button>
             <button type="button" className={kitMode === 'custom' ? 'active' : ''} onClick={() => setKitMode('custom')}>{t('Своя', 'Custom')}</button>
           </div>
-        </div>
+        </div>}
       </section>
 
-      <ArmorChooser armor={armor} choice={choice} lang={lang} onChange={editKit} />
+      {locked
+        ? <LockedKit armor={armor} choice={choice} lang={lang} />
+        : <ArmorChooser armor={armor} choice={choice} lang={lang} onChange={editKit} />}
     </aside>
 
     <main className="range-main">
+      {weapon && startBuild && <section className="panel range-card range-build-panel">
+        <h2 className="range-card-title">{t('Сборка', 'Build')} <small>{weapon.shortName}{stats ? ` · ${t('эрго', 'ergo')} ${Math.round(stats.ergonomics)} · ${t('отдача', 'recoil')} ${stats.recoilVertical}/${stats.recoilHorizontal}${stats.moa ? ` · ${stats.moa.toFixed(2)} MOA` : ''}` : ''}</small></h2>
+        <RangeBuild key={`${weapon.id}|${buildKey}`} weapon={weapon} catalog={catalog} start={startBuild} ammo={ammo} lang={lang}
+          onChange={(next) => setEdited({ start: startBuild, build: next })} />
+      </section>}
       <div className="panel range-toolbar">
         <div className="segmented-filter">
           <button type="button" className={view === 'front' ? 'active' : ''} onClick={() => setView('front')}>{t('Спереди', 'Front')}</button>
@@ -326,8 +323,7 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
         <label className="range-distance">
           <span>{t('Дистанция', 'Distance')}</span>
           <input type="range" min={5} max={1000} step={5} value={distance} onChange={(event) => setDistance(Number(event.target.value))} />
-          <input className="input range-number" type="number" min={5} max={1000} value={distance} onChange={(event) => setDistance(Math.max(5, Math.min(1000, Number(event.target.value) || 5)))} />
-          <span>{t('м', 'm')}</span>
+          <b className="range-distance-value">{distance} {t('м', 'm')}</b>
         </label>
         <label className="range-inline"><span>{t('Пристрелка', 'Zero')}</span>
           <select className="select" value={zero} onChange={(event) => setZero(Number(event.target.value))}>
@@ -339,15 +335,11 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
         </div>
         <label className="range-inline"><span>{t('Укрытие', 'Cover')}</span>
           <select className="select" value={cover} onChange={(event) => setCover(event.target.value as Cover)}>
-            <option value="none">{t('Нет', 'None')}</option>
-            <option value="left">{t('Слева', 'Left')}</option>
-            <option value="right">{t('Справа', 'Right')}</option>
-            <option value="low">{t('Низкое', 'Low')}</option>
-            <option value="window">{t('Окно', 'Window')}</option>
+            {COVERS.map((value) => <option key={value} value={value}>{pick(COVER_NAMES[value], lang)}</option>)}
           </select>
         </label>
         <div className="range-toggles">
-          {([['spread', t('Разброс', 'Spread')], ['recoil', t('Отдача', 'Recoil')], ['sway', t('Раскачка', 'Sway')], ['armor', t('Броня', 'Armour')]] as const).map(([key, label]) => <button key={key} type="button" className={`range-chip${toggles[key] ? ' is-on' : ''}`} onClick={() => setToggles((current) => ({ ...current, [key]: !current[key] }))}>{label}</button>)}
+          {([['spread', t('Разброс', 'Spread')], ['recoil', t('Отдача', 'Recoil')], ['sway', t('Раскачка', 'Sway')], ['sound', t('Звук', 'Sound')]] as const).map(([key, label]) => <button key={key} type="button" className={`range-chip${toggles[key] ? ' is-on' : ''}`} onClick={() => setToggles((current) => ({ ...current, [key]: !current[key] }))}>{label}</button>)}
         </div>
       </div>
 
@@ -362,9 +354,9 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
           </div>
         </div>
         <div className="range-target-wrap">
-          <RangeTarget view={view} kit={kit} body={body} marks={marks} showArmor={toggles.armor} cover={cover} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined}
+          <RangeTarget view={view} kit={kit} body={body} marks={marks} cover={cover} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined}
             onFireStart={fireStart} onFireEnd={fireEnd} onAimMove={(point) => { aimRef.current = point }} labels={hpLabels}
-            figure={shownFigure ? { ...shownFigure, urls: figureUrls } : undefined} />
+            figure={shownFigure ? { ...shownFigure, urls: figureUrls } : undefined} masks={masks} flash={flash} />
           {body.dead && <div className="range-dead">
             <b>{t('Убит', 'Killed')}</b>
             <span>{killedAt ? `${killedAt} ${t('выстр.', 'shots')} · ${weapon?.fireRate ? `${((killedAt - 1) * 60 / weapon.fireRate + (flight?.time ?? 0)).toFixed(2)} ${t('с', 's')}` : ''}` : ''}</span>
@@ -378,6 +370,13 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
             <b>{Math.max(0, Math.round(body.current[part]))}/{body.max[part]}</b>
           </div>)}
         </div>
+        {kit.length > 0 && <div className="range-health range-armor-hp">
+          {kit.map((piece) => <div key={piece.key} className={`range-hp-row${piece.durability <= 0 ? ' is-out' : ''}`} title={piece.name}>
+            <span>{classBadge(piece.armorClass)} {pieceLabel(piece.key, piece.name, lang)}</span>
+            <i><s style={{ width: `${Math.max(0, piece.durability / piece.maxDurability) * 100}%`, background: CLASS_COLORS[piece.armorClass] }} /></i>
+            <b>{piece.durability.toFixed(1)}/{piece.maxDurability}</b>
+          </div>)}
+        </div>}
       </div>
 
       <div className="range-counters">
@@ -392,16 +391,31 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
 
     <aside className="range-side range-results">
       <section className="panel range-card">
-        <div className="segmented-filter range-tabs">
-          {([['damage', t('Урон', 'Damage')], ['armor', t('Броня', 'Armour')], ['flight', t('Полёт', 'Flight')], ['log', t('Журнал', 'Log')]] as const).map(([key, label]) => <button key={key} type="button" className={resultTab === key ? 'active' : ''} onClick={() => setResultTab(key)}>{label}</button>)}
-        </div>
-        {resultTab === 'damage' && <DamageResult shot={last} lang={lang} />}
-        {resultTab === 'armor' && <ArmorState kit={kit} lang={lang} />}
-        {resultTab === 'flight' && <FlightResult flight={flight} distance={distance} zero={zero} ammo={ammo} velocity={stats?.velocity} lang={lang} />}
-        {resultTab === 'log' && <ShotLog log={log} lang={lang} />}
+        <h2 className="range-card-title">{t('Урон', 'Damage')}</h2>
+        <DamageResult shot={last} lang={lang} />
       </section>
     </aside>
   </div>
+}
+
+/** The masks of the shown figure's body parts, made again when its pictures change. */
+function usePartMasks(figure: { base: { file: string; zones?: unknown }; layers: Array<{ file: string }> } | undefined, urls: Record<string, string>) {
+  const [masks, setMasks] = useState<{ key: string; masks?: PartMasks }>({ key: '' })
+  const files = figure ? [figure.base, ...figure.layers].map((picture) => picture.file) : []
+  const ready = files.length > 0 && files.every((file) => urls[file])
+  const key = ready ? files.join('|') : ''
+  useEffect(() => {
+    if (!key || !figure) return
+    let live = true
+    const pictures = [figure.base, ...figure.layers] as Parameters<typeof buildPartMasks>[0]
+    buildPartMasks(pictures, urls, (figure.base as Parameters<typeof buildPartMasks>[0][number]).zones ?? [])
+      .then((made) => { if (live) setMasks({ key, masks: made }) })
+      .catch(() => { if (live) setMasks({ key }) })
+    return () => { live = false }
+    // the pictures' files say when the figure changed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+  return masks.key === key ? masks.masks : undefined
 }
 
 interface Live {
@@ -429,6 +443,20 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 function classBadge(armorClass: number) {
   return <span className="range-class" style={{ background: CLASS_COLORS[armorClass] }}>{armorClass}</span>
+}
+
+/** A boss's or guard's own kit: shown, not changed. */
+function LockedKit({ armor, choice, lang }: { armor: ArmorCatalog; choice: KitChoice; lang: Locale }) {
+  const t = (ru: string, en: string) => lang === 'en' ? en : ru
+  const ids = [choice.helmet, choice.visor, choice.module, choice.face, choice.eyewear, choice.body, ...Object.values(choice.plates)].filter((id): id is string => Boolean(id))
+  const items = ids.map((id) => armor.items.get(id)).filter((item): item is RangeItem => Boolean(item))
+  return <section className="panel range-card">
+    <h2 className="range-card-title"><Lock size={13} /> {t('Снаряжение', 'Equipment')}</h2>
+    <p className="range-locked-note">{t('Своё снаряжение босса: не снимается и не меняется.', 'The boss’s own kit: it cannot be taken off or changed.')}</p>
+    {items.length ? <ul className="range-locked-list">
+      {items.map((item) => <li key={item.id}>{classBadge(item.armorClass)} {item.shortName}</li>)}
+    </ul> : <p className="range-empty">{t('Брони нет.', 'No armour.')}</p>}
+  </section>
 }
 
 function ArmorChooser({ armor, choice, lang, onChange }: { armor: ArmorCatalog; choice: KitChoice; lang: Locale; onChange: (patch: Partial<KitChoice>) => void }) {
@@ -481,51 +509,5 @@ function DamageResult({ shot, lang }: { shot?: FiredShot & { n: number }; lang: 
     </div>}
     {outcome.killed && <p className="range-kill">{t('Цель убита.', 'Target killed.')}</p>}
   </div>
-}
-
-function ArmorState({ kit, lang }: { kit: ArmorPiece[]; lang: Locale }) {
-  const t = (ru: string, en: string) => lang === 'en' ? en : ru
-  if (!kit.length) return <p className="range-empty">{t('Брони нет.', 'No armour.')}</p>
-  return <div className="range-armor-list">
-    {kit.map((piece) => <div key={piece.key} className={`range-armor-row${piece.durability <= 0 ? ' is-broken' : ''}`}>
-      <div>{classBadge(piece.armorClass)} <b>{pieceLabel(piece.key, piece.name, lang)}</b></div>
-      <small>{piece.name} · {piece.material}</small>
-      <i><s style={{ width: `${piece.durability / piece.maxDurability * 100}%` }} /></i>
-      <small>{piece.durability.toFixed(1)} / {piece.maxDurability} · {t('тупой урон', 'blunt')} {Math.round(piece.bluntThroughput * 100 * (piece.softReduce ? 0.6 : 1))}%{piece.softReduce ? ` (${t('плита на мягкой вставке', 'plate over soft armour')})` : ''}</small>
-    </div>)}
-  </div>
-}
-
-function FlightResult({ flight, distance, zero, ammo, velocity, lang }: { flight?: TrajectoryPoint; distance: number; zero: number; ammo?: AmmoStats; velocity?: number; lang: Locale }) {
-  const t = (ru: string, en: string) => lang === 'en' ? en : ru
-  if (!ammo) return null
-  if (!flight) return <p className="range-empty">{t('Для этого патрона нет данных полёта.', 'No flight data for this round.')}</p>
-  return <div className="range-facts range-facts-wide">
-    <Fact label={t('Дистанция', 'Distance')} value={`${distance} ${t('м', 'm')}`} />
-    <Fact label={t('Пристрелка', 'Zero')} value={`${zero} ${t('м', 'm')}`} />
-    <Fact label={t('Скорость у цели', 'Speed at target')} value={`${Math.round(flight.speed)} / ${Math.round(velocity ?? ammo.initialSpeed ?? 0)} ${t('м/с', 'm/s')}`} />
-    <Fact label={t('Время полёта', 'Time of flight')} value={`${flight.time.toFixed(3)} ${t('с', 's')}`} />
-    <Fact label={t('Отклонение от прицела', 'Off the sight line')} value={`${flight.drop >= 0 ? '+' : ''}${flight.drop.toFixed(1)} ${t('см', 'cm')}`} />
-    <Fact label={t('Урон у цели', 'Damage at target')} value={`${flight.damage.toFixed(1)} / ${Math.round(ammo.damage)}`} />
-    <Fact label={t('Пробитие у цели', 'Penetration at target')} value={`${flight.penetration.toFixed(1)} / ${Math.round(ammo.penetration)}`} />
-    <Fact label={t('Энергия', 'Energy')} value={`${Math.round(flight.energy)} ${t('Дж', 'J')}`} />
-  </div>
-}
-
-function ShotLog({ log, lang }: { log: Array<FiredShot & { n: number; target: number }>; lang: Locale }) {
-  const t = (ru: string, en: string) => lang === 'en' ? en : ru
-  if (!log.length) return <p className="range-empty">{t('Выстрелов пока нет.', 'No shots yet.')}</p>
-  return <ol className="range-log">
-    {log.map((shot, index) => {
-      const style = markOf(shot)
-      return <li key={index}>
-        <i style={{ background: style.fill }} />
-        <span>#{shot.n}</span>
-        <span>{shot.spot ? pick(COLLIDER_NAMES[shot.spot.collider], lang) : shot.cover ? t('укрытие', 'cover') : t('промах', 'miss')}</span>
-        <span>{shot.outcome ? `${shot.outcome.damage.toFixed(1)}` : ''}</span>
-        {shot.outcome?.killed && <b>{t('убит', 'killed')}</b>}
-      </li>
-    })}
-  </ol>
 }
 

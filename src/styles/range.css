@@ -1,7 +1,7 @@
 /* «Тир» (src/pages/RangePage.tsx): settings on the left, the target in the middle, the hit results on the right. */
 .range-page .page-header { align-items: flex-end; }
 .range-loading { display: flex; align-items: center; gap: 10px; padding: 18px; color: var(--text-muted); }
-.range-loading .spin, .range-compare .spin { animation: range-spin 1s linear infinite; }
+.range-loading .spin { animation: range-spin 1s linear infinite; }
 @keyframes range-spin { to { transform: rotate(360deg); } }
 
 .range-layout { display: grid; grid-template-columns: minmax(270px, 310px) minmax(0, 1fr) minmax(290px, 340px); gap: 14px; align-items: start; }
@@ -26,7 +26,7 @@
 .range-toolbar { padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .range-distance { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex: 1 1 280px; }
 .range-distance input[type="range"] { flex: 1 1 auto; accent-color: var(--brass); }
-.range-number { width: 74px; height: 32px; }
+.range-distance-value { min-width: 58px; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
 .range-inline { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
 .range-inline .select { height: 32px; }
 .range-toggles, .range-zone-picks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -108,54 +108,35 @@
 .range-log li span:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
 .range-log li b { color: #ff8a7d; font-size: 11px; }
 
-.range-compare { display: grid; gap: 12px; }
-.range-compare-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.range-compare-row .button { min-height: 34px; }
 .range-note { margin: 0; color: var(--text-muted); font-size: 12px; }
-.range-compare-table-wrap { overflow-x: auto; }
-.range-compare-table { width: 100%; border-collapse: separate; border-spacing: 0 4px; font-size: 12px; }
-.range-compare-table thead th { padding: 4px 8px; text-align: center; color: var(--text-muted); font-weight: 650; white-space: nowrap; }
-.range-compare-table thead th:first-child { text-align: left; }
-.range-compare-table tbody th { padding: 6px 8px; text-align: left; white-space: nowrap; background: var(--surf-1); border-radius: 8px 0 0 8px; }
-.range-compare-table tbody th b { margin-left: 6px; }
-.range-compare-table tbody th small { margin-left: 8px; color: var(--text-dim); font-weight: 500; }
-.range-compare-table td { padding: 6px 8px; text-align: center; background: var(--surf-1); font-variant-numeric: tabular-nums; }
-.range-compare-table td:last-child { border-radius: 0 8px 8px 0; }
-.range-compare-table td b { display: block; font-size: 13px; }
-.range-compare-table td small { color: var(--text-dim); }
-.range-compare-table td.is-best { background: color-mix(in srgb, var(--success) 20%, var(--surf-1)); }
-.range-compare-table td.is-never { color: var(--text-dim); }
-.range-compare-table td.is-wait { color: var(--text-dim); }
 
-/* «Конструктор»: a character from the front and the back, armour, helmets, masks and glasses put on and changed by a button */
-.range-outfit { display: grid; grid-template-columns: minmax(270px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
 .range-card-title small { margin-left: 6px; color: var(--text-dim); font-size: 11px; letter-spacing: 0; }
-.range-outfit-search { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
-.range-outfit-search .input { height: 32px; width: 100%; }
-.range-outfit-list { display: grid; gap: 4px; max-height: 30vh; overflow-y: auto; padding-right: 2px; }
-.range-outfit-choice { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text-muted); font-size: 12.5px; text-align: left; cursor: pointer; }
-.range-outfit-choice:hover { color: var(--text); border-color: var(--line-strong); }
-.range-outfit-choice.is-on { color: var(--text); border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); background: color-mix(in srgb, var(--brass) 14%, var(--surf-1)); }
-.range-outfit-stage { padding: 12px; display: grid; gap: 10px; }
-.range-outfit-views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.range-outfit-view { position: relative; margin: 0; width: 100%; max-height: 76vh; aspect-ratio: 120 / 212; justify-self: center; border-radius: 12px; user-select: none;
-  background: radial-gradient(ellipse at 50% 93%, rgb(0 0 0 / 32%), transparent 30%), radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--panel-3, var(--panel)) 80%, transparent), transparent 70%); }
-.range-outfit-view img { position: absolute; pointer-events: none; }
-.range-outfit-view figcaption { position: absolute; left: 12px; top: 10px; color: var(--text-muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
-.range-outfit-facts { display: grid; gap: 6px; }
-.range-outfit-fact { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); font-size: 12.5px; }
-.range-outfit-fact img { width: 44px; height: 44px; object-fit: contain; }
-.range-outfit-fact > div { flex: 1 1 auto; min-width: 0; }
-.range-outfit-fact small { display: block; color: var(--text-muted); }
-.range-outfit-fact .button { min-height: 30px; padding: 0 10px; font-size: 12px; }
 
 @media (max-width: 1380px) {
   .range-layout { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); }
   .range-results { grid-column: 1 / -1; }
 }
 @media (max-width: 900px) {
-  .range-layout, .range-outfit { grid-template-columns: minmax(0, 1fr); }
+  .range-layout { grid-template-columns: minmax(0, 1fr); }
   .range-stage { grid-template-columns: minmax(0, 1fr); }
   .range-counters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .range-target { height: 60vh; cursor: crosshair; }
 }
+
+/* a hit body part: its exact outline flashes, its shape darkens as it loses health (owner, 22.11.2026) */
+.range-part-hurt { pointer-events: none; mix-blend-mode: multiply; }
+.range-part-flash { pointer-events: none; filter: drop-shadow(0 0 .9px #ffd65c) drop-shadow(0 0 2px rgb(255 214 92 / 70%)); animation: range-part-flash 1.4s var(--ease-soft) forwards; }
+@keyframes range-part-flash { 0% { opacity: 1; } 70% { opacity: .85; } 100% { opacity: 0; } }
+.range-zone.is-hit { stroke: #ffd65c; stroke-width: .6; }
+/* the chosen build small, its modules changed at their cells */
+.range-build-panel { padding-bottom: 10px; }
+.range-build { display: grid; gap: 6px; }
+.range-build .build-bench { min-height: 0; }
+.range-build-reset { justify-self: start; }
+/* a boss's own kit */
+.range-locked-note { margin: 0 0 8px; font-size: 12px; color: var(--text-muted); }
+.range-locked-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+.range-locked-list li { display: flex; align-items: center; gap: 6px; }
+.range-armor-hp { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.range-armor-hp .range-hp-row { grid-template-columns: minmax(0, 150px) minmax(0, 1fr) 70px; }
+.range-armor-hp .range-hp-row span { display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -1,6 +1,8 @@
 import { setMapFollowEnabled, useMapFollowEnabled } from "../maps/mapFollowSetting";
 import { uiLabel, uiText } from '../i18n/renderText'
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { rangeEnabled } from "../app/rangeFeature";
+import { LoaderCircle } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { TraderQuestBoard } from "../components/TraderQuestBoard";
 import { TraderFigure } from "../components/TraderFigure";
@@ -278,8 +280,12 @@ const BALLISTICS_TABS = [
   { key: "drop", label: "Падение пули" },
   { key: "armor", label: "Пробитие брони" },
   { key: "rounds", label: "Список патронов" },
+  { key: "range", label: "Тир" },
 ] as const;
 type BallisticsTab = (typeof BALLISTICS_TABS)[number]["key"];
+
+// «Тир» (owner, 22.11.2026: «Тир у нас будет в баллистике»): the shooting range, in test builds only (src/app/rangeFeature.ts)
+const RangeShooting = lazy(() => import("../range/RangeShooting").then((module) => ({ default: module.RangeShooting })));
 
 /**
  * «Баллистика» (sidebar group «Арсенал»): live ammo stats, one table at a time (owner, 06.11.2026: «переключаться между таблицами»,
@@ -297,7 +303,8 @@ export function AmmoPage() {
   );
   const { colorOf, ordered } = useMemo(() => caliberColors(ammo), [ammo]);
   const [params, setParams] = useSearchParams();
-  const tab: BallisticsTab = BALLISTICS_TABS.find((entry) => entry.key === params.get("tab"))?.key ?? "scatter";
+  const shownTabs = BALLISTICS_TABS.filter((entry) => entry.key !== "range" || rangeEnabled());
+  const tab: BallisticsTab = shownTabs.find((entry) => entry.key === params.get("tab"))?.key ?? "scatter";
   const openTab = (next: BallisticsTab) => setParams((current) => {
     const value = new URLSearchParams(current);
     if (next === "scatter") value.delete("tab");
@@ -328,11 +335,11 @@ export function AmmoPage() {
       </header>
       <div className="filter-row ballistics-bar">
         <div className="mode-switch ballistics-tabs" role="tablist" aria-label={uiLabel("Баллистика")}>
-          {BALLISTICS_TABS.map((entry) => (
+          {shownTabs.map((entry) => (
             <button key={entry.key} type="button" role="tab" aria-selected={tab === entry.key} className={tab === entry.key ? "active" : ""} onClick={() => openTab(entry.key)}>{uiLabel(entry.label)}</button>
           ))}
         </div>
-        <select
+        {tab !== "range" && <select
           className="select"
           aria-label={uiText("Калибр")}
           value={caliber}
@@ -342,13 +349,14 @@ export function AmmoPage() {
           {ordered.map((entry) => (
             <option key={entry} value={entry}>{caliberLabel(entry)}</option>
           ))}
-        </select>
+        </select>}
         {tab === "rounds" && <div className="mode-switch ammo-order" role="group" aria-label={uiLabel("Сначала")}>
           {AMMO_ORDERS.map((entry) => (
             <button key={entry.key} type="button" className={order === entry.key ? "active" : ""} aria-pressed={order === entry.key} title={uiLabel(entry.title)} onClick={() => setOrder(entry.key)}>{uiText(entry.label)}</button>
           ))}
         </div>}
       </div>
+      {tab === "range" && <Suspense fallback={<div className="panel range-loading"><LoaderCircle className="spin" size={18} /></div>}><RangeShooting /></Suspense>}
       <div className="ballistics-layout">
         {tab === "scatter" && <section className="panel">
           <div className="panel-header">

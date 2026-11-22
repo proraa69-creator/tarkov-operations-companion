@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState, type PointerEvent } from 'react'
-import { bodyOutline, FIGURE_HEIGHT, HEAD, plateRegions, regions, shapePath, type View } from './rangeHitboxes'
-import { COLLIDER_PART, type ArmorPiece, type BodyPart, type BodyState } from './rangeModel'
+import { bodyOutline, FIGURE_HEIGHT, HEAD, regions, shapePath, type View } from './rangeHitboxes'
+import { BODY_PARTS, COLLIDER_PART, type ArmorPiece, type BodyPart, type BodyState } from './rangeModel'
 import type { Cover, FiredShot } from './rangeShot'
-import { CLASS_COLORS, markOf } from './rangeView'
+import { markOf } from './rangeView'
 import { partLabelPoints, type FigurePicture } from './rangeFigures'
+import type { PartMasks } from './partMasks'
 
 const VIEW_BOX = '-44 -10 88 196'
 /** The pictured figure stands a little taller (a helmet) and wider (the arms). */
@@ -16,15 +17,18 @@ export interface TargetFigure {
   urls: Record<string, string>
 }
 
-export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm, onFireStart, onFireEnd, onAimMove, labels, figure }: {
+export function RangeTarget({ view, body, marks, cover, spreadCm, onFireStart, onFireEnd, onAimMove, labels, figure, masks, flash }: {
   view: View
   /** The pictures of the character and its armour; without them the schematic figure. */
   figure?: TargetFigure
   kit: ArmorPiece[]
   body: BodyState
   marks: FiredShot[]
-  showArmor: boolean
   cover: Cover
+  /** The pictured body parts' exact shapes (src/range/partMasks.ts). */
+  masks?: PartMasks
+  /** The part the last shot hit: its outline flashes (owner, 22.11.2026: «обводилась прям конечность… в точности по контурам»). */
+  flash?: { part: BodyPart; n: number }
   /** The group's diameter at the distance, cm (undefined without MOA). */
   spreadCm?: number
   onFireStart: (point: { x: number; y: number }) => void
@@ -36,17 +40,6 @@ export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm
   const [aim, setAim] = useState<{ x: number; y: number } | null>(null)
   const zones = useMemo(() => regions(view), [view])
   const outline = useMemo(() => bodyOutline(), [])
-  const plates = useMemo(() => plateRegions(view), [view])
-  const coverage = useMemo(() => {
-    const best = new Map<string, number>()
-    for (const piece of kit) for (const collider of piece.colliders) if (piece.durability > 0) best.set(collider, Math.max(best.get(collider) ?? 0, piece.armorClass))
-    return best
-  }, [kit])
-  const platePieces = useMemo(() => {
-    const map = new Map<string, ArmorPiece>()
-    for (const piece of kit) for (const zone of piece.plates) map.set(zone, piece)
-    return map
-  }, [kit])
 
   const toFigure = (event: PointerEvent<SVGSVGElement>) => {
     const element = svg.current
@@ -105,33 +98,26 @@ export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm
       {[figure.base, ...figure.layers].map((picture) => figure.urls[picture.file]
         ? <image key={picture.file} href={figure.urls[picture.file]} x={picture.x} y={FIGURE_HEIGHT - picture.top} width={picture.width} height={picture.height} preserveAspectRatio="none" />
         : null)}
-      {zonesOfFigure.filter((zone) => !zone.plate).map((zone, index) => {
-        const share = body.max[zone.part] > 0 ? body.current[zone.part] / body.max[zone.part] : 0
-        const armorClass = showArmor ? coverage.get(zone.type) : undefined
-        const hurt = body.destroyed[zone.part] ? 0.55 : (1 - share) * 0.45
-        return <path key={`${zone.type}-${index}`} d={polyPath(zone.poly)} className="range-figure-zone" fill={`rgb(226 87 76 / ${hurt.toFixed(2)})`} stroke={armorClass ? CLASS_COLORS[armorClass] : undefined} data-collider={zone.type} />
+      {masks && BODY_PARTS.map((part) => {
+        const url = masks.fill[part]
+        if (!url) return null
+        const share = body.max[part] > 0 ? body.current[part] / body.max[part] : 0
+        const hurt = body.destroyed[part] ? 0.55 : (1 - share) * 0.45
+        return hurt > 0.01 ? <image key={`hurt-${part}`} href={url} x={masks.x} y={FIGURE_HEIGHT - masks.top} width={masks.width} height={masks.height} preserveAspectRatio="none" opacity={hurt.toFixed(2)} className="range-part-hurt" /> : null
       })}
-      {showArmor && zonesOfFigure.filter((zone) => zone.plate && platePieces.has(zone.plate)).map((zone, index) => {
-        const piece = platePieces.get(zone.plate!)!
-        return <path key={`${zone.plate}-${index}`} d={polyPath(zone.poly)} className={`range-plate${piece.durability <= 0 ? ' is-broken' : ''}`} fill={CLASS_COLORS[piece.armorClass]} stroke={CLASS_COLORS[piece.armorClass]} />
-      })}
+      {masks && flash && masks.edge[flash.part] && <image key={`flash-${flash.n}`} href={masks.edge[flash.part]} x={masks.x} y={FIGURE_HEIGHT - masks.top} width={masks.width} height={masks.height} preserveAspectRatio="none" className="range-part-flash" />}
     </> : <>
     <path d={outline} className="range-body" />
     <ellipse cx={HEAD.cx} cy={FIGURE_HEIGHT - HEAD.cy} rx={HEAD.rx} ry={HEAD.ry} className="range-body" />
     <g clipPath="url(#range-body-clip)">
     {zones.map((zone) => {
       const part = COLLIDER_PART[zone.collider]
-      const armorClass = showArmor ? coverage.get(zone.collider) : undefined
-      return <path key={zone.collider} d={shapePath(zone.shape)} className="range-zone" fill={partFill(part)} stroke={armorClass ? CLASS_COLORS[armorClass] : undefined} strokeWidth={armorClass ? 0.9 : undefined} data-collider={zone.collider} />
+      return <path key={zone.collider} d={shapePath(zone.shape)} className={`range-zone${flash?.part === part ? ' is-hit' : ''}`} fill={partFill(part)} data-collider={zone.collider} />
     })}
     </g>
     <path d={outline} className="range-body-line" />
     <ellipse cx={HEAD.cx} cy={FIGURE_HEIGHT - HEAD.cy} rx={HEAD.rx} ry={HEAD.ry} className="range-body-line" />
     </>}
-    {!pictured && showArmor && plates.filter((plate) => platePieces.has(plate.zone)).map((plate) => {
-      const piece = platePieces.get(plate.zone)!
-      return <path key={plate.zone} d={shapePath(plate.shape)} className={`range-plate${piece.durability <= 0 ? ' is-broken' : ''}`} fill={CLASS_COLORS[piece.armorClass]} stroke={CLASS_COLORS[piece.armorClass]} />
-    })}
     {partLabels.map((label) => <text key={label.part} x={label.x} y={FIGURE_HEIGHT - label.y} className={`range-hp${body.destroyed[label.part] ? ' is-out' : ''}`} textAnchor="middle">{labels[label.part]}</text>)}
     {cover !== 'none' && <CoverShape cover={cover} />}
     {marks.filter((mark) => mark.view === view).map((mark, index) => {
@@ -146,11 +132,6 @@ export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm
       <line x1={aim.x} x2={aim.x} y1={FIGURE_HEIGHT - aim.y + 0.8} y2={FIGURE_HEIGHT - aim.y + 3} />
     </g>}
   </svg>
-}
-
-/** A polygon of figure centimetres as an SVG path. */
-function polyPath(poly: ReadonlyArray<readonly [number, number]>) {
-  return `M${poly.map(([x, y]) => `${x.toFixed(2)},${(FIGURE_HEIGHT - y).toFixed(2)}`).join('L')}Z`
 }
 
 function CoverShape({ cover }: { cover: Cover }) {
