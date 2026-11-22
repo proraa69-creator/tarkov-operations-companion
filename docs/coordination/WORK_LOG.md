@@ -8826,3 +8826,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     (FOV×zoom constant, FFP/SFP, hold in mrad/MOA, impact point under the reticle, pointer lock aiming).
   - Checked: vitest src/range+src/arsenal 156/156, tsc, eslint (range clean), dev page (Killa locked, leg outline, covers,
     ATACR ×7 at 600 m: hold up 6.8 mrad). Test exe built for the owner. Not pushed, not released.
+- 23.11.2026 ~01:30, owner on the range's scope («Прицел Voodoo при приближении и отдалении искажается… становится овальным»;
+  «не работает щелчок мыши, захватить мышь… Нужно, чтобы кнопка была войти в прицел»; «точку, куда… пуля падать… ярко выраженной
+  красной обводкой»). claude/range 7580bfae (electron/main.ts, src/range/RangeScopeView.tsx, src/styles/range.css):
+  - Pointer lock was refused by the app (PAGE_PERMISSIONS lacked 'pointerLock'; checked in a throwaway Electron window: old
+    list → SecurityError, new list → locked). Now allowed (only on a click); «Войти в прицел» button; where a page may not
+    take the mouse the view turns with the cursor over the scope (Esc / leaving the scope ends it).
+  - Oval reticle: global `img { max-width: 100% }` capped an FFP reticle wider than the scope (Vudu 1–2.5×); max-width: none.
+    Checked: Vudu 1→6× width = height at every step.
+  - Impact mark: red ring + dark halo + dot, over the reticle and the night/thermal filters; wheel zooms without scrolling the
+    page; the hint fades after 3 s. vitest src/range 25/25, tsc, eslint clean. Test exe «Raid OS тест Тир 4». Not pushed.
+- 23.11.2026 01:25, photo tour: Shoreline finished — quests 56/56 (38 frames, 26 points), spawns 98/98 (57 frames, 29
+  points); item frames checked by crops at the item's screen point; sheets sent; SPT client/server closed, GAME-BUSY removed.
+  Next map waits for the owner.
