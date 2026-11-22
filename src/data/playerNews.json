@@ -1,4 +1,15 @@
 [
+  {"version":"0.6.0.335","date":"2026-11-23","items":[
+    {"kind":"improved","ru":"Запуск: вместо пустого окна — причина и кнопка «Перезапустить»","en":"Start: instead of an empty window, the reason and a «Restart» button"},
+    {"kind":"changed","ru":"Латвия и Литва: цены СНГ — от 300 ₽ или $3,5 в месяц","en":"Latvia and Lithuania: CIS prices, from 300 ₽ or $3.5 a month"},
+    {"kind":"added","ru":"Тир-листы: забрало шлема можно опустить или поднять — картинка и характеристики меняются","en":"Tier lists: lower or raise a helmet's visor, the picture and the stats follow"},
+    {"kind":"added","ru":"Боссы: свита — что носят, фонари и ценная добыча","en":"Bosses: the retinue, what they wear, their lights and the valuable loot"},
+    {"kind":"added","ru":"Документы боевого пропуска: дневной лимит — «Найдено сегодня: 10/40»","en":"Battle pass documents: the daily limit, «Found today: 10/40»"},
+    {"kind":"improved","ru":"Лояльность торговцев со скриншота: Реф и Скупщик считываются верно","en":"Trader loyalty from a screenshot: Ref and Fence are read right"},
+    {"kind":"improved","ru":"Награды квестов: одинаковый предмет — одной строкой с общим количеством","en":"Quest rewards: the same item in one line with its total count"},
+    {"kind":"improved","ru":"Стиль «Стекло»: ткань тем «Чёрный мультикам», «Тельняшка» и «Снаряжение» видна под стеклом","en":"«Glass» style: the cloth of «Black multicam», «Telnyashka» and «Gear» under the glass"},
+    {"kind":"improved","ru":"Телефон: удобнее верхняя панель, «Назад» и карта в повёрнутом экране, «Слои» — отдельным окном","en":"Phone: a handier top bar, «Back» and the map when turned sideways, «Layers» in its own window"}
+  ]},
   {"version":"0.6.0.334","date":"2026-11-23","items":[
     {"kind":"improved","ru":"Запуск: если видеокарта не справляется, приложение само переходит на отрисовку без неё","en":"Start: when the graphics card cannot draw the window, the app switches to drawing without it by itself"},
     {"kind":"improved","ru":"Сюжет «Батя»: лагерь BEAR на Маяке и круги культистов на Резерве и в Лесу — на своих местах из игры","en":"Story «Batya»: the BEAR camp on Lighthouse and the cultist circles on Reserve and Woods in their places from the game"},

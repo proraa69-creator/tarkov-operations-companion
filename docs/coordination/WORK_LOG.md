@@ -8998,3 +8998,38 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: traderLevels (Fence), traderLoyalty (second row), documentDailyLimit (4), bossGearSeen (2); related suites 518
   (5 map page tests timed out under load, pass alone); typecheck, tsc electron, eslint clean.
 - Not released; reports not closed or answered (the owner decides). Not checked in the game.
+
+## 23.11.2026 — Claude: 0.6.0.334 released (owner: «выпускаю обновление… только без тира… починку черного экрана… по квестам поправки»)
+- claude/release-334 from release/production a91507a1: merged claude/quest-row-tags (the held 334: bench cells cut to the part, part
+  pictures in an encrypted pack, phone map quest window, Customs photos from the game), claude/stock-chain-level (stock tubes level),
+  claude/gpu-fallback (dark start → software drawing), claude/story-points-batya (Lighthouse BEAR camp, cultist circles on Reserve
+  and Woods from the game's zones), claude/vitamins-old-version (report 215 + hand fixes by the game's objective id, manualQuests).
+  Left out: claude/range (Тир, still in testing; its pointerLock permission too), claude/mask-killa-ng-dec1 (1 December).
+- Conflicts: WORK_LOG (both sides kept); src/data/questGuidePhotos.json merged key by key (theirs: Vitamins' EMERCOM photo out).
+- Release commit f7842546: version 0.6.0-334, updateHistory (reports [215]), playerNews 7 lines; questGuidePhotos.test takes our
+  own frames (`own`, no url) — it failed on claude/quest-row-tags since b3b8fcb7 and would have stopped the gate.
+- Checked: deployPath 50/50 accepted; npm ci; typecheck, electron tsc, server tsc; vitest 4378/4392 → after the two fixes the rest
+  are this PC's (path with a space, CRLF, Windows tar, ECONNRESET in the server's screenshot upload test), none in changed files;
+  node --test release-policy 6/6, cache-item-images 2/2; npm run build ok. Lint: 4 errors in untouched files (not in the gate).
+- Pushed release/production a91507a1 → f7842546 (19:00 UTC). Gate run 45058274843 failed once on TradingPage «the age is held
+  against the server's time» (expected «2 мин назад», got «1 мин» — a clock-edge flake on the slow runner, file untouched);
+  rerun-failed-jobs → green 19:31. Publisher started by hand 19:32 UTC (timer window closed): Result=success, build
+  1795376188184, databaseReplaced false; version.json 0.6.0-334 f7842546 at 19:41 UTC; health 200; raidos-api, timer, nginx
+  active. Server quest base rebuilt: manualQuests marked pvp 15, pve 15, seasonal 27, unmatched 0.
+- Not done / for the owner: the server override 1c8ef8e7 (stage 33, Lighthouse BEAR camp −103/475, from fitting a wiki map) still
+  wins over the game's zone −64.79/452.41 now in the app (44 m apart); fca72e3c (Bogatyrs patch) likewise. Player replies
+  (Zavisim, mitya.tagintsev) drafted earlier, not sent.
+- 23.11.2026 ~03:30, release 0.6.0.335 (owner: «Делай выпуск приложения которое фиксит баг с черным экраном»; «И остальное
+  добавляй в выпуск»). 0.6.0.334 (f7842546) was pushed at 02:00 but never published (raidos-release.service inactive since
+  22.11 13:58 UTC), so 335 = 334 + claude/start-diagnostics (cf99a700) + claude/admin-phone-stats (f4fd98ae) + the finished
+  branches of 19–20.11 that never went out: claude/spt-quest-sync (report 200, SPT quest spots), claude/boss-retinue-spt
+  (report 201), claude/glass-texture, claude/map-docs-valuables, claude/helmet-visor (TierListPanel: the visor menu and the
+  weapon menu both on the right click), claude/quirky-bassi-d8f754 (phone layout; startup-intro.js keeps Android's third-size
+  intro and the failure screen), and c0498f13 from claude/reports-194-199 (reports 194–199). Left out of that branch: the
+  modules' grid window, the phone boss smoke and the Overview tiles (redone later in released code). Not in: claude/range
+  (testing), the Killa NG mask (1 December). Integrated on claude/release-335 by this session; the release session was told to stop.
+  - Start diagnostics: the black window of mitya.tagintsev@mail.ru survived --disable-gpu, so not the card. public/startup-intro.js
+    now shows «Приложение не запустилось» with the reason when the app's code never starts; main: did-fail-load → message with
+    «Попробовать снова», crashed page after paint → reload, version/Windows/GPU/preload error to the screen. Checked in a
+    throwaway offscreen Electron window: normal start unchanged; main module removed → the screen names the file.
+  - News: 9 lines (start, Latvia/Lithuania CIS prices, visors, retinue, documents limit, trader loyalty, rewards, glass, phone).
