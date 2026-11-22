@@ -87,6 +87,22 @@ export function regionOf(code: string): CountryRegion {
   return REGION_OF.get(code.trim().toUpperCase()) ?? 'other'
 }
 
+/**
+ * Countries the owner counts in the admin panel's «СНГ» though they are not in CIS_COUNTRIES (owner, 23.11.2026: «почему
+ * игроки которые регистрируются из Украины, в админ панели числятся в мире а не в снг»; «Латвия литва тоже в снг и
+ * соответствующие тарифы»; the price: OWNER_CIS_PRICE_COUNTRIES in src/shared/paymentRegions.ts).
+ * Only the owner's tabs, counts and labels: the players' country picker and cabinet keep regionOf.
+ */
+export const ADMIN_EXTRA_CIS_COUNTRIES: readonly CountryCode[] = ['UA', 'LV', 'LT']
+/** The admin panel's «Россия» + «СНГ». */
+export const ADMIN_CIS_COUNTRIES: readonly CountryCode[] = [...CIS_COUNTRIES, ...ADMIN_EXTRA_CIS_COUNTRIES]
+
+/** The admin panel's region of a country: regionOf, with ADMIN_EXTRA_CIS_COUNTRIES in «СНГ». */
+export function adminRegionOf(code: string): CountryRegion {
+  const upper = code.trim().toUpperCase()
+  return ADMIN_EXTRA_CIS_COUNTRIES.includes(upper as CountryCode) ? 'cis' : regionOf(upper)
+}
+
 /** The site and the apps speak Russian or English. */
 export type CountryLocale = 'ru' | 'en'
 

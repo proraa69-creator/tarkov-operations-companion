@@ -8780,3 +8780,25 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Not changed: curated quests still step aside when tarkov.dev has the quest (their ids are ours, keeping them would duplicate it); the owner's editor overrides stay in the server DB and are laid over every build as before.
 - Checked: catalog tests fail without the fix (Vitamins, Должник) and pass with it; tsc -b; server tsc; eslint; vitest 4365/4378 — the 12 others are this PC's (CRLF checkout, Windows paths and tar, timeouts under load; MapsPage/ManualMarks pass alone), none in the changed files; server node --test questBase, routes/questBase, catalogCache, questTexts, questRequirements, questPoints 27/27. Not pushed, not deployed, not released (release 334 held): the fixes reach players with the next release and the server's quest base with the next server deploy.
 - Risk: new on the maps once released — «Слежка» points on the 2nd floor, the boat point on Customs; «Витамины» loses its Shoreline point.
+- 23.11.2026 ~02:00, owner: «сколько у нас пользователей, сколько телефонов в общем… сколько с андроида установило и зашло, сколько с
+  айфона установило и зашло, и сколько в данный момент онлайн с телефонов с каждого вида… в админ панель в приложении на ПК, на сайт
+  и обнови iPhone админ приложение». claude/admin-phone-stats dcbcc102 (from 0.6.0.333 a91507a1):
+  - Server: presence tells Android from iOS by the device name; /me/admin/online gains android/ios; GET /me/admin/phones
+    (AdminStore.phoneStats: accounts not deleted, phones from account_devices «Android …»/«iOS …», all the time incl. signed-out
+    devices; there is no per-sign-in log, so «входы» = accounts that signed in from a phone). Live data read-only 23.11:
+    2261 accounts, Android 813 accounts / 830 devices, iOS 20 / 23.
+  - Gateway lists: electron/serviceGateway.ts ROUTES + OWNER_SITE_ADMIN, src/sync/webAccount.ts.
+  - UI: «Телефоны» in the site's «Сводка» (the PC owner app's too) and in the phone admin (AdminMobilePage), every minute; an
+    older server (404) hides the block.
+  - Checked: server presence+ownerAdmin 28/28, vitest src/admin+webAccount+serviceGateway 78/78, website admin 62/62, tsc -b,
+    server tsc, eslint. Offered to the release session for 0.6.0.334 (server part needs an app release to go live).
+  - iPhone admin IPA: claude/admin-ipa 3d3b1e4f (merge of dcbcc102 into the 0.6.0.308 IPA branch, no conflicts) pushed; workflow
+    «Admin Panel iOS IPA» builds it. Until the server of this branch is live the block stays hidden in the IPA.
+- 23.11.2026 ~02:15, owner: «почему игроки которые регистрируются из Украины, в админ панели числятся в мире а не в снг»; «Латвия
+  литва тоже в снг и соответствующие тарифы». 6392c7de + 52a8d827 on claude/admin-phone-stats: ADMIN_CIS_COUNTRIES (CIS + UA,
+  LV, LT) for the admin tabs/counts/labels; OWNER_CIS_PRICE_COUNTRIES = UA, LV, LT (BZB roubles or $3.5 by card instead of
+  $7). Players' country picker unchanged. Server tests 64/64, vitest 304/304, tsc/eslint clean. 0.6.0.334 (f7842546) went out
+  without this branch: handed to the release session for 0.6.0.335 once 334 is live (publisher must not see the head move).
+- Support, mitya.tagintsev@mail.ru (black window at start, Windows 11 x64, account 21.11, paid to 21.12, no device ever
+  signed in): the 01:00 advice (wait, driver, shortcut with --disable-gpu) did not help (02:04). 334's fallback also draws
+  without the graphics card, so it may not help either; the app has no start log and no did-fail-load handling.

@@ -435,6 +435,16 @@ export interface AdminUser {
 }
 /** «Онлайн сейчас»: accounts in the PC or phone app within the last `windowMinutes` (server/src/services/presence.ts). */
 export interface AdminOnline { online: number; pc: number; phone: number; windowMinutes: number; at: string }
+/** «Телефоны» of «Сводка» (server/src/routes/ownerAdmin.ts GET /me/admin/phones): signed in all the time, and in the app now. */
+export interface AdminPhoneCount { accounts: number; devices: number }
+export interface AdminPhones {
+  users: number
+  phones: AdminPhoneCount
+  android: AdminPhoneCount & { online: number }
+  ios: AdminPhoneCount & { online: number }
+  online: { phone: number; pc: number; all: number; windowMinutes: number }
+  at: string
+}
 /** `regions`: users per region tab within the search and the status filter (servers before the country omit it). */
 export interface AdminUserList { users: AdminUser[]; total: number; regions?: Record<AdminUserRegion, number> }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
@@ -667,6 +677,7 @@ export const api = {
   ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
   adminOnline: (token: string) => request<AdminOnline>('/me/admin/online', { token }),
+  adminPhones: (token: string) => request<AdminPhones>('/me/admin/phones', { token }),
   adminOnlineStats: (token: string, days = 30) => request<AdminOnlineStats>(`/me/admin/online-stats?days=${days}`, { token }),
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
