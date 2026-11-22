@@ -8799,3 +8799,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   the frame), spawns 10 (blood sample behind a car door, KOSA in thick bushes, dark Prapor parcel, all 3 M-LOK handguard points —
   only a vice, drill and radio on the bench). Sheets sent to the owner (approved\woods\quests and \spawns preview-*.jpg). Nothing
   published to the server; release 334 still held.
+- 22.11 owner: «Почему все кадры со сдвигом на один?» — the preview sheets, not the frames: the old sheet put our own place frame
+  again on the left of every approach and item row (and the item on the left of a spawn's place row), so each left picture repeated
+  the right one of the row above or below. New E:\SPT-photo\eval\sheets.py (select_photos.py calls it; backup
+  select_photos.py.bak-sheets-20261122): one row a place — guide picture, place, approach, item — each frame once. Woods sheets
+  redrawn and sent. The frames and the selection did not change.
