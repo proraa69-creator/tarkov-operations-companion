@@ -44,6 +44,7 @@ import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, inst
 import { installedExe, removeMigratedPortable, removePortableLeftovers, updatableExe } from './appInstall.js'
 import { abandonStagedBoot, confirmStagedBoot, relaunchWhenClosed } from './deltaUpdate.js'
 import { FIRST_PAINT_MS, readGpuFallback, shouldDrawInSoftware, writeGpuFallback, type DrawingTrouble } from './gpuFallback.js'
+import { shouldReloadAfterCrash, shouldReportLoadFailure, startNotes, startNotesScript } from './startDiagnostics.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
@@ -70,6 +71,49 @@ if (gpuFallback.softwareDrawing) app.disableHardwareAcceleration()
 /** The main window has drawn its page: the graphics card works. */
 let firstPicture = false
 let restartingForSoftwareDrawing = false
+
+/**
+ * A start that cannot show its page says so instead of a dark window (electron/startDiagnostics.ts): the page that could not be
+ * opened, the page's process gone after it drew, and the facts for the page's own failure screen (public/startup-intro.js).
+ */
+function watchStart(window: BrowserWindow) {
+  const contents = window.webContents
+  let loaded = false
+  let preloadError: string | undefined
+  const reloads: number[] = []
+  contents.on('preload-error', (_event, _path, error) => { preloadError = error?.message ?? String(error) })
+  contents.on('did-finish-load', () => { loaded = true })
+  contents.on('dom-ready', () => {
+    let gpu: Record<string, string> | undefined
+    try { gpu = app.getGPUFeatureStatus() as unknown as Record<string, string> } catch { gpu = undefined }
+    const notes = startNotes({ version: app.getVersion(), system: `Windows ${process.getSystemVersion()} ${process.arch}`, gpu, softwareDrawing: gpuFallback.softwareDrawing || gpuOffByArgument, preloadError })
+    void contents.executeJavaScript(startNotesScript(notes)).catch(() => undefined)
+  })
+  contents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
+    if (!shouldReportLoadFailure({ code, isMainFrame, loaded }) || window.isDestroyed()) return
+    if (!window.isVisible()) window.show()
+    void dialog.showMessageBox(window, {
+      type: 'error',
+      title: 'Raid OS',
+      message: 'Raid OS не смог открыть своё окно',
+      detail: `${description} (${code})\n${url}\nВерсия ${app.getVersion()} · Windows ${process.getSystemVersion()}`,
+      buttons: ['Попробовать снова', 'Закрыть'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    }).then(({ response }) => {
+      if (window.isDestroyed()) return
+      if (response === 0) contents.reload()
+      else app.quit()
+    })
+  })
+  contents.on('render-process-gone', (_event, details) => {
+    const now = Date.now()
+    if (window.isDestroyed() || !shouldReloadAfterCrash(details.reason, firstPicture, reloads, now)) return
+    reloads.push(now)
+    contents.reload()
+  })
+}
 
 /**
  * A dark start (owner, 23.11.2026: a player's «черный экран»): note it and start again once in software, the portable exe once
@@ -287,6 +331,7 @@ function createWindow() {
   const noPicture = setTimeout(() => drawInSoftware({ kind: 'no-picture' }), FIRST_PAINT_MS)
   mainWindow.once('ready-to-show', () => { firstPicture = true; clearTimeout(noPicture) })
   mainWindow.webContents.on('render-process-gone', (_event, details) => drawInSoftware({ kind: 'page-gone', reason: details.reason }))
+  watchStart(mainWindow)
   rememberWindow(mainWindow, stateFile)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)

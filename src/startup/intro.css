@@ -89,3 +89,15 @@ html { background: #0d1110 }
   [data-startup-intro] #startup-intro .si-spin i { background: #fbffe9; animation: si-breathe 1.8s ease-in-out infinite !important }
   @keyframes si-out { to { opacity: 0 } }
 }
+
+/* The app's code never started (public/startup-intro.js): its reason and two buttons instead of a dark window. Here, in the
+   page itself, because the app's own styles may be what did not load. */
+#startup-failure { position: fixed; inset: 0; z-index: 2147483647; display: flex; align-items: center; justify-content: center; padding: 16px; background: #0d1110; color: #e8e4d8; font: 14px/1.45 "Segoe UI", system-ui, sans-serif }
+#startup-failure section { width: min(560px, 100%); padding: 20px; border: 1px solid #2c3530; border-radius: 12px; background: #151b18 }
+#startup-failure .sf-eyebrow { color: #b0b896; font-size: 11px; letter-spacing: .14em }
+#startup-failure h1 { margin: 6px 0 8px; font-size: 21px }
+#startup-failure p { margin: 0 0 12px; color: #c9c5b8 }
+#startup-failure pre { max-height: 180px; margin: 0 0 14px; padding: 10px; overflow: auto; border-radius: 8px; background: #0a0e0c; color: #b9b5a8; font-size: 12px; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text }
+#startup-failure .sf-actions { display: flex; flex-wrap: wrap; gap: 8px }
+#startup-failure button { padding: 8px 14px; border: 1px solid #3b4640; border-radius: 8px; background: #222b26; color: #e8e4d8; font: inherit; cursor: pointer }
+#startup-failure button[data-action="restart"] { border-color: #8f9a6c; background: #4b5636 }

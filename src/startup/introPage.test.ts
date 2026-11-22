@@ -144,7 +144,10 @@ describe('public/startup-intro.js decides before anything is drawn', () => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     document.getElementById('startup-intro')?.remove()
+    document.getElementById('startup-failure')?.remove()
     document.documentElement.removeAttribute('data-startup-intro')
+    delete (window as { __raidosAppStarted?: boolean }).__raidosAppStarted
+    delete (window as { __raidosStartNotes?: string[] }).__raidosStartNotes
   })
 
   it('plays once in a window; a reload there shows the finished logo', () => {
@@ -176,5 +179,54 @@ describe('public/startup-intro.js decides before anything is drawn', () => {
     vi.advanceTimersByTime(1)
     expect(document.getElementById('startup-intro')).toBeNull()
     expect(state()).toBeNull()
+  })
+
+  // owner, 23.11.2026: a player's window stayed dark at every start, with the graphics card off too
+  it('with no app code at all, says after 20 seconds that the app did not start, with the version and a restart', () => {
+    vi.stubGlobal('navigator', { ...navigator, language: 'ru-RU' })
+    ;(window as { __raidosStartNotes?: string[] }).__raidosStartNotes = ['Версия 0.6.0-335 · Windows 10.0.26100 x64']
+    run()
+    vi.advanceTimersByTime(19_999)
+    expect(document.getElementById('startup-failure')).toBeNull()
+    vi.advanceTimersByTime(1)
+    const failure = document.getElementById('startup-failure')!
+    expect(failure.getAttribute('role')).toBe('alert')
+    expect(failure.querySelector('h1')!.textContent).toBe('Приложение не запустилось')
+    expect(failure.querySelector('pre')!.textContent).toContain('Версия 0.6.0-335 · Windows 10.0.26100 x64')
+    expect(failure.querySelector('pre')!.textContent).toContain('Ошибок не поймано')
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload })
+    localStorage.setItem('tarkov-operations-ui-v2', '{}')
+    failure.querySelector<HTMLButtonElement>('[data-action="restart"]')!.click()
+    expect(reload).toHaveBeenCalled()
+    expect(localStorage.getItem('tarkov-operations-ui-v2')).toBeNull()
+  })
+
+  it('an error or a file that did not load before the app started: the reason at 8 seconds, ready to copy', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', { ...navigator, language: 'ru-RU', clipboard: { writeText } })
+    run()
+    window.dispatchEvent(new ErrorEvent('error', { message: 'Uncaught TypeError: x is undefined', filename: 'file:///app/dist/assets/index-abc.js', lineno: 12 }))
+    const script = document.createElement('script')
+    script.src = 'file:///app/dist/assets/index-abc.js'
+    document.head.append(script)
+    script.dispatchEvent(new Event('error'))
+    script.remove()
+    vi.advanceTimersByTime(8000)
+    const text = document.querySelector('#startup-failure pre')!.textContent!
+    expect(text).toContain('Uncaught TypeError: x is undefined (index-abc.js:12)')
+    expect(text).toContain('Не загрузился файл: file:///app/dist/assets/index-abc.js')
+    const copy = document.querySelector<HTMLButtonElement>('#startup-failure [data-action="copy"]')!
+    copy.click()
+    await vi.waitFor(() => expect(copy.textContent).toBe('Скопировано'))
+    expect(writeText).toHaveBeenCalledWith(text)
+  })
+
+  it('once the app\'s code runs, its own screens answer: nothing over them', () => {
+    run()
+    ;(window as { __raidosAppStarted?: boolean }).__raidosAppStarted = true
+    window.dispatchEvent(new ErrorEvent('error', { message: 'later' }))
+    vi.advanceTimersByTime(20_000)
+    expect(document.getElementById('startup-failure')).toBeNull()
   })
 })
