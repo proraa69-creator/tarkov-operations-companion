@@ -8781,3 +8781,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   dressed characters. «Конструктор» tab: USEC/BEAR + 11 armours/rigs + 9 helmets from 36 sides, drag or auto-turn. Pack 20.7 MB.
   No meshes extracted (pictures only). Test exe on the desktop (3f9b89ed). Woods photo tour paused at 30/37 for the swap and
   resumed after.
+- 22.11 owner: «Делай, короче, просто вид спереди и сзади. И чтобы одевалась броня, каска и так далее. Менялась по кнопке»: 3eb02f7a.
+  «Конструктор» without the turn: the character (USEC, BEAR, or any of 35 other range characters bare) front and back side by side,
+  108 armours/rigs, 99 helmets (visor variants), 18 masks, 2 glasses on/off/changed by buttons, search in long lists, «Снять» per
+  item. 36-side pictures dropped from the pack (11.5 MB). Earlier the same day a 9 s turn video was sent from those pictures.
+  Test exe on the desktop (3eb02f7a). Checked in the dev browser; not in the packaged exe.
