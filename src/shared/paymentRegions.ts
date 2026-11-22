@@ -48,11 +48,14 @@ export const LOW_INCOME_PRICE_COUNTRIES: readonly string[] = [
 ]
 
 /**
- * Countries the owner gave the CIS price by name (owner, 08.11.2026: «Переведи Украину в СНГ-сегмент… У них оплата должна
- * быть и в рублях, и в долларах… Не $7, а сколько там, 3,5»): the CIS pages in roubles and the CIS price in dollars by card.
- * Only the price: Ukraine stays Europe in the admin panel's regions and the notices' language (src/shared/countries.ts).
+ * Countries the owner gave the CIS price by name: the CIS pages in roubles and the CIS price in dollars by card.
+ *   - Ukraine (owner, 08.11.2026: «Переведи Украину в СНГ-сегмент… У них оплата должна быть и в рублях, и в долларах… Не $7,
+ *     а сколько там, 3,5»);
+ *   - Latvia and Lithuania (owner, 23.11.2026: «Латвия литва тоже в снг и соответствующие тарифы»).
+ * The admin panel counts them in «СНГ» too (ADMIN_EXTRA_CIS_COUNTRIES in src/shared/countries.ts); the players' country
+ * picker keeps them in Europe.
  */
-export const OWNER_CIS_PRICE_COUNTRIES: readonly string[] = ['UA']
+export const OWNER_CIS_PRICE_COUNTRIES: readonly string[] = ['UA', 'LV', 'LT']
 
 /** The CIS price: the CIS list without Russia (Russia pays through SBP), Asia, the low-income countries and the owner's. */
 export const CIS_PAYMENT_COUNTRIES: readonly string[] = [...new Set([...CIS_COUNTRIES.filter((code) => code !== 'RU'), ...ASIA_PRICE_COUNTRIES, ...LOW_INCOME_PRICE_COUNTRIES, ...OWNER_CIS_PRICE_COUNTRIES])]

@@ -319,7 +319,7 @@ function sourceOf(row: Row, now: number): SubscriptionSource | undefined {
 function regionCondition(region: Exclude<RegionFilter, 'all'>): { sql: string; args: string[] } {
   if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
   if (region === 'russia') return { sql: "a.country = 'RU'", args: [] }
-  // «СНГ» of the admin panel: the CIS and the owner's Ukraine and Latvia (ADMIN_CIS_COUNTRIES); «Мир» is everything else.
+  // «СНГ» of the admin panel: the CIS and the owner's Ukraine, Latvia, Lithuania (ADMIN_CIS_COUNTRIES); «Мир» is the rest.
   if (region === 'cis') {
     const cis = ADMIN_CIS_COUNTRIES.filter((code) => code !== 'RU')
     return { sql: `a.country IN (${placeholders(cis)})`, args: [...cis] }
