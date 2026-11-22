@@ -41,8 +41,9 @@ import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
-import { removeMigratedPortable, removePortableLeftovers } from './appInstall.js'
-import { abandonStagedBoot, confirmStagedBoot } from './deltaUpdate.js'
+import { installedExe, removeMigratedPortable, removePortableLeftovers, updatableExe } from './appInstall.js'
+import { abandonStagedBoot, confirmStagedBoot, relaunchWhenClosed } from './deltaUpdate.js'
+import { FIRST_PAINT_MS, readGpuFallback, shouldDrawInSoftware, writeGpuFallback, type DrawingTrouble } from './gpuFallback.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
@@ -62,6 +63,33 @@ if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData
 // A test build (electron/buildEdition.ts isTestBuild) too: it runs beside the real app and never touches its data.
 else if (isTestBuild()) { app.setName(TEST_BUILD_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TEST_BUILD_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
+// A start that drew nothing turned the graphics card off for this copy (electron/gpuFallback.ts); it must be before the app is ready.
+const gpuFallback = readGpuFallback(app.getPath('userData'))
+const gpuOffByArgument = app.commandLine.hasSwitch('disable-gpu')
+if (gpuFallback.softwareDrawing) app.disableHardwareAcceleration()
+/** The main window has drawn its page: the graphics card works. */
+let firstPicture = false
+let restartingForSoftwareDrawing = false
+
+/**
+ * A dark start (owner, 23.11.2026: a player's «черный экран»): note it and start again once in software, the portable exe once
+ * its launcher has gone (it deletes the unpacked files), the installed one once this copy has.
+ */
+function drawInSoftware(trouble: DrawingTrouble) {
+  if (restartingForSoftwareDrawing || !shouldDrawInSoftware(trouble, { softwareDrawing: gpuFallback.softwareDrawing, painted: firstPicture, disabledByArgument: gpuOffByArgument })) return
+  try {
+    writeGpuFallback(app.getPath('userData'), trouble.kind === 'no-picture' ? trouble.kind : `${trouble.kind}: ${trouble.reason}`)
+  } catch {
+    return // a note that cannot be written would start it again and again
+  }
+  restartingForSoftwareDrawing = true
+  const exe = updatableExe()
+  if (app.isPackaged && exe) relaunchWhenClosed(exe, installedExe() ? process.pid : process.ppid)
+  else app.relaunch()
+  app.quit()
+  setTimeout(() => app.exit(0), 5000).unref()
+}
+app.on('child-process-gone', (_event, details) => { if (details.type === 'GPU') drawInSoftware({ kind: 'gpu-gone', reason: details.reason }) })
 // One copy at a time (electron/singleInstance.ts), checked after the data folder is set: the lock belongs to that folder.
 // A copy the app started itself takes the lock in `whenReady`, once the copy it replaces has gone.
 const takesLockLater = startedByTheApp(process.argv)
@@ -255,6 +283,10 @@ function createWindow() {
   }
   const revealAnyway = setTimeout(reveal, WINDOW_REVEAL_MAX_MS)
   mainWindow.once('ready-to-show', reveal)
+  // Nothing drawn, or the page gone before its first picture: the graphics card is blamed once (electron/gpuFallback.ts)
+  const noPicture = setTimeout(() => drawInSoftware({ kind: 'no-picture' }), FIRST_PAINT_MS)
+  mainWindow.once('ready-to-show', () => { firstPicture = true; clearTimeout(noPicture) })
+  mainWindow.webContents.on('render-process-gone', (_event, details) => drawInSoftware({ kind: 'page-gone', reason: details.reason }))
   rememberWindow(mainWindow, stateFile)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)
