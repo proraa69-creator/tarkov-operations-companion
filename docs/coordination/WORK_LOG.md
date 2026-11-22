@@ -8653,3 +8653,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
     game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
     uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.
+
+## 23.11.2026 — Dark start: drawing without the graphics card (claude/gpu-fallback)
+
+- Support chat (a player, 23.11 00:49): «когда я его запускаю, то появляется черный экран»; his account has no device, so the app never got to sign-in. Owner: «по перезапуску приложения из за черного экрана делай».
+- electron/gpuFallback.ts + electron/main.ts: when at a start the GPU process ends (app child-process-gone, type GPU), the page's process ends, or nothing is drawn for 25 s (no ready-to-show), the app writes gpu-fallback.json in its data folder and starts again once in software (app.disableHardwareAcceleration() before ready; the portable exe through relaunchWhenClosed after its launcher has gone, like the update swap). Only before the first picture, only once, never with --disable-gpu.
+- Checked: electron/gpuFallback.test.ts; tsc; eslint; electron start tests (7 files, 66). Not checked on a PC whose card fails (cannot be reproduced here). Not pushed, not released.
