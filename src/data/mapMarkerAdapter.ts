@@ -6,6 +6,7 @@ import { lootContainerTitle } from './lootContainerKinds'
 import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
 import { isStalePlace } from './stalePlaces'
+import { byObjective } from './objectiveGameIds'
 import sptKeySpots from './sptKeySpots.json'
 import sniperSpots from './sniperSpots.json'
 import gameLootContainers from './gameLootContainers.json'
@@ -1038,8 +1039,12 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
   for (const quest of context.quests) {
     const rawTask = asRecord(asRecord(taskRoot.tasks)[quest.id])
     const questMarkers: MapMarker[] = []
-    for (const objective of asArray(rawTask.objectives)) {
+    const details = quest.objectiveDetails ?? []
+    for (const [objectiveIndex, objective] of asArray(rawTask.objectives).entries()) {
       const objectiveId = text(objective.id)
+      // the hand fixes below are by the game's id; the translated objective has its text as id (src/data/objectiveGameIds.ts)
+      const detail = details[objectiveIndex]?.id === objectiveId ? details[objectiveIndex] : details.find((entry) => entry.id === objectiveId)
+      const gameId = detail?.gameId ?? objectiveId
       const points: QuestPoint[] = []
       for (const zone of asArray(objective.zones)) {
         const map = resolveMap(text(zone.map) || strings(objective.maps)[0], context, maps)
@@ -1047,14 +1052,14 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
         const center = asRecord(zone.position)
         points.push({ kind: 'zone', map, ...pointCoords(center), idSuffix: text(zone.id, objectiveId), zone, position: center })
       }
-      for (const place of QUEST_EXTRA_PLACES[objectiveId] ?? []) {
+      for (const place of byObjective(QUEST_EXTRA_PLACES, gameId, objectiveId) ?? []) {
         const map = maps.get(place.map)
         if (map) points.push({ kind: 'zone', map, ...pointCoords(place.position), idSuffix: place.id, position: place.position })
       }
       // Quest items (findQuestItem) carry exact spawn points instead of zones.
       asArray(objective.possibleLocations).forEach((location, locationIndex) => {
         const map = resolveMap(text(location.map) || strings(objective.maps)[0], context, maps)
-        if (!map || isStalePlace(objectiveId, map.id)) return
+        if (!map || isStalePlace(gameId, map.id)) return
         asArray(location.positions).forEach((position, index) => {
           const idSuffix = `${objectiveId}-${locationIndex ? `${locationIndex}-` : ''}${index}`
           points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position })
@@ -1077,7 +1082,8 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
           const isItem = point.kind === 'item'
           // The floors of the spawns this point stands for: on more than one, the point has no floor of its own.
           const floors = members.length > 1 ? [...new Set(members.map((member) => baseMarker(member.map, 'floor', member.position, undefined, undefined, undefined)?.floor ?? ''))].filter(Boolean) : []
-          const fixedFloor = QUEST_POINT_FLOORS[objectiveId] ? floorNumbered(point.map, QUEST_POINT_FLOORS[objectiveId]!) : undefined
+          const floorNumber = byObjective(QUEST_POINT_FLOORS, gameId, objectiveId)
+          const fixedFloor = floorNumber ? floorNumbered(point.map, floorNumber) : undefined
           questMarkers.push({
             ...base,
             ...(floors.length > 1 ? { floor: undefined } : {}),

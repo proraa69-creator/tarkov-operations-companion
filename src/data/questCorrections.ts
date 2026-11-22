@@ -85,6 +85,9 @@ const CORRECTIONS: Record<string, QuestCorrection> = {
   },
 }
 
+/** The quests a pinned correction is for (each is listed in src/data/manualQuests.json too). */
+export const CORRECTED_QUEST_IDS: readonly string[] = Object.keys(CORRECTIONS)
+
 /** The catalog's quests with the pinned corrections applied (both languages), each marked with `manualCorrection`. */
 export function applyQuestCorrections(quests: Quest[], locale: AppLocale, mode?: RaidMode): Quest[] {
   return quests.map((quest) => {

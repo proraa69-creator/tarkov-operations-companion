@@ -73,6 +73,17 @@ describe('catalog adapter: found-in-raid and structured requirements', () => {
   })
 })
 
+/**
+ * The `_ru` / `_en` dictionaries as tarkov.dev gives them: an objective's id is its description's key, so the translated
+ * objective has its text as id (src/data/objectiveGameIds.ts; the hand fixes are by the game's id).
+ */
+const FEED_DICTIONARIES: Record<string, Record<string, string>> = {
+  tasks: {
+    '5b478f6886f774464201225a': 'Найти химический контейнер на локации Завод',
+    '6a5a9710671cbfe928bbfde2': 'Найти квартиру коменданта частной тюрьмы',
+  },
+}
+
 /** A quest released after the app build: only in the live feed, with objective keys, a quest-item spot and no `maps`. */
 const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
   tasks: { tasks: {
@@ -104,7 +115,8 @@ const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
       id: '5b478eca86f7744642012254', name: 'Витамины', trader: 'tr1', minPlayerLevel: 1, kappaRequired: false,
       neededKeys: [{ map: 'm-customs', keys: ['5a0dc95c86f77452440fc675'] }],
       // report 215: its objective still lists Shoreline too (the old quest's Health Resort spot)
-      objectives: [{ id: '5b478f6886f774464201225a', type: 'findQuestItem', description: 'Найти химический контейнер на локации Завод', maps: ['m-customs', 'm-shoreline'], questItem: { id: 'chem-container' }, requiredKeys: [['5a0dc95c86f77452440fc675']] }],
+      objectives: [{ id: '5b478f6886f774464201225a', type: 'findQuestItem', description: 'Найти химический контейнер на локации Завод', maps: ['m-customs', 'm-shoreline'], questItem: { id: 'chem-container' }, requiredKeys: [['5a0dc95c86f77452440fc675']],
+        possibleLocations: [{ map: 'm-customs', positions: [{ x: 1, y: 0, z: 1 }] }, { map: 'm-shoreline', positions: [{ x: 2, y: 0, z: 2 }] }] }],
     },
   } },
   items: { items: {
@@ -124,7 +136,7 @@ function stubModeFeeds(requested: string[]) {
     const match = /json\.tarkov\.dev\/([a-z-]+)\/([a-z]+)(_[a-z]+)?$/.exec(String(url))
     if (!match || (match[1] !== 'regular' && match[1] !== 'pve')) return new Response('', { status: 404 })
     requested.push(`${match[1]}/${match[2]}${match[3] ?? ''}`)
-    return new Response(JSON.stringify({ data: match[3] ? {} : newQuestFeed(match[1] as 'regular' | 'pve')[match[2]] ?? {} }), { status: 200 })
+    return new Response(JSON.stringify({ data: match[3] ? FEED_DICTIONARIES[match[2]!] ?? {} : newQuestFeed(match[1] as 'regular' | 'pve')[match[2]] ?? {} }), { status: 200 })
   }))
 }
 
@@ -180,7 +192,8 @@ describe('catalog adapter: new quests and markers straight from the live feed', 
     const quest = catalog.quests.find((entry) => entry.id === 'debtor')!
     expect(quest.requiredItems).toContain('63a39fc0af870e651d58e6ae')
     expect(quest.raidRequirements!.filter((requirement) => requirement.purpose === 'key')).toEqual([
-      { itemId: '63a39fc0af870e651d58e6ae', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: '6a5a9710671cbfe928bbfde2' },
+      // the objective as the translated data names it (the wire gives it the game's id, src/data/catalogWire.ts)
+      { itemId: '63a39fc0af870e651d58e6ae', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'Найти квартиру коменданта частной тюрьмы' },
     ])
   })
 
@@ -199,6 +212,12 @@ describe('catalog adapter: new quests and markers straight from the live feed', 
     expect(quest.mapIds).not.toContain('shoreline')
     expect(quest.mapIds).toContain('customs')
     for (const requirement of quest.raidRequirements ?? []) expect(requirement.mapIds).not.toContain('shoreline')
+    // the fix is by the game's objective id; the translated objective has its text as id (owner, 23.11.2026: it never applied)
+    const objective = quest.objectiveDetails!.find((entry) => entry.gameId === '5b478f6886f774464201225a')!
+    expect(objective.id).toBe('Найти химический контейнер на локации Завод')
+    expect(objective.mapIds).toEqual(['customs'])
+    const markers = catalog.markers.filter((marker) => marker.questId === quest.id)
+    expect(markers.map((marker) => marker.mapId)).toEqual(['customs'])
   })
 
   it('marks jewelry by its tarkov.dev category and draws its loose-loot spot on the jewelry layer', async () => {

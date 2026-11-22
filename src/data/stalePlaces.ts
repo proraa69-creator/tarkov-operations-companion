@@ -3,7 +3,7 @@
  * (report of 10.11.2026, «Витамины»: the chemical container is on Factory now; the Shoreline spot in the Health Resort was the
  * old quest's). Neither a point on the map nor a map of the objective.
  */
-const STALE_OBJECTIVE_MAPS: Readonly<Record<string, readonly string[]>> = {
+export const STALE_OBJECTIVE_MAPS: Readonly<Record<string, readonly string[]>> = {
   '5b478f6886f774464201225a': ['shoreline'],
 }
 
