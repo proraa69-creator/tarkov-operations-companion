@@ -4,6 +4,7 @@ import { steadyFleaPrice } from '../domain/itemPrices'
 import { maps as curatedMaps } from './demo'
 import { hideoutPosition } from './hideoutLayout'
 import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
+import { isStalePlace } from './stalePlaces'
 import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
@@ -538,7 +539,7 @@ function adaptTasks(
         itemId,
         count: number(objective.count) || 1,
         purpose,
-        mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)),
+        mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id) && !isStalePlace(text(objective.id), id)),
         foundInRaid: objective.foundInRaid === true || undefined,
         objectiveId,
         alternatives: itemIds.length,
@@ -573,7 +574,9 @@ function adaptTasks(
         return `${item?.name ?? text(reward.item)} × ${number(reward.count) || 1}`
       }),
     ].filter(Boolean)
-    const objectiveMapIds = objectives.flatMap(objectivePlaceMaps)
+    // a place the data keeps from an older version of the quest is no map of it (src/data/stalePlaces.ts; report 215, 23.11.2026:
+    // «Витамины» still listed on Shoreline, «берег не при чем в этом квесте»)
+    const objectiveMapIds = objectives.flatMap((objective) => objectivePlaceMaps(objective).filter((id) => !isStalePlace(text(objective.id), maps.get(id))))
     const rawMapId = text(entry.map) || objectiveMapIds[0]
     const mapIds = [...new Set([rawMapId, ...objectiveMapIds].map((id) => maps.get(id)).filter((id): id is string => Boolean(id)))]
     const name = text(entry.name, 'Неизвестное задание')
@@ -734,7 +737,7 @@ function questItemRequirements(objectives: JsonRecord[], maps: Map<string, strin
       itemId,
       count: number(objective.count) || 1,
       purpose,
-      mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)),
+      mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id) && !isStalePlace(text(objective.id), id)),
       objectiveId: text(objective.id) || undefined,
       optional: objective.optional === true || undefined,
       questItem: true,

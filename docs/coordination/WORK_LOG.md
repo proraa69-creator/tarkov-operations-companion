@@ -8653,3 +8653,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
     game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
     uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.
+
+## 23.11.2026 — «Витамины. Часть 1»: no old version's Shoreline and EMERCOM photo (report 215, claude/vitamins-old-version)
+
+- Report 215 (PvE, 0.6.0.333): «Витамины» shown on Shoreline with no point — «берег не при чем в этом квесте»; the owner: «В квесте витамины почему то фото мчс на развязке».
+- The live data (PvE and PvP snapshots of 22.11) wants the chemical container on Factory, but its objective 5b478f6886f774464201225a still lists Shoreline (the old Health Resort spot). src/data/stalePlaces.ts (10.11) kept it off the map points and the objective's maps only; now `src/data/catalogSource.ts` leaves it out of the quest's maps and of its raid requirements too.
+- The wiki page still shows the old quest's «Медпункт МЧС» (Emercom outside.png, Interchange): `scripts/quest-guide-photos.mjs` OLD_VERSION_PICTURES leaves it out (both from the wiki and with `--drop-maps`); `src/data/questGuidePhotos.json` re-run with `--drop-maps`: that one photo and its file only.
+- Checked: new test fails without the fix; tsc; eslint; vitest src/data + photo components 552/552. Not pushed, not released (reaches players with the next release).

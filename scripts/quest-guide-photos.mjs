@@ -47,6 +47,14 @@ export function isMapPicture({ file, caption = '', captionEn = '' }) {
   return MAP_FILES.has(file.toLowerCase()) || /map/i.test(file) || MAP_WORD_RU.test(caption) || MAP_WORD_EN.test(caption) || MAP_WORD_EN.test(captionEn)
 }
 
+/**
+ * Pictures of a quest's older version the wiki still shows on its page (owner, 23.11.2026: «В квесте витамины почему то фото мчс
+ * на развязке» — «Витамины» had its 2nd and 3rd containers in the EMERCOM post on Interchange; now the one container is on
+ * Factory). By quest id, the files left out.
+ */
+const OLD_VERSION_PICTURES = { '5b478eca86f7744642012254': ['emercom outside.png'] }
+export const isOldVersionPicture = (questId, file) => Boolean(OLD_VERSION_PICTURES[questId]?.includes(file.toLowerCase()))
+
 /** A caption in Russian: the Russian wiki's, else our translation of the English one. */
 const russianCaption = (english) => CAPTIONS_RU[english] ?? english
 
@@ -283,7 +291,7 @@ async function main() {
     const pictures = [...enPictures, ...ruPictures.filter((picture) => !enPictures.some((other) => other.file.toLowerCase() === picture.file.toLowerCase()))]
     if (!pictures.length) continue
     const objectives = (task.objectives ?? []).map((objective) => ({ id: objective.id, type: objective.type, zoned: Boolean(objective.zones?.length), text: `${ruNames[objective.description] ?? ''} ${objective.description ?? ''} ${(objective.questItem?.name ? ruNames[objective.questItem.name] ?? '' : '')}` }))
-    const photos = pictures.filter((picture) => !isMapPicture({ file: picture.file, caption: ruCaption.get(picture.file.toLowerCase()) || '', captionEn: picture.caption })).map((picture) => {
+    const photos = pictures.filter((picture) => !isMapPicture({ file: picture.file, caption: ruCaption.get(picture.file.toLowerCase()) || '', captionEn: picture.caption }) && !isOldVersionPicture(task.id, picture.file)).map((picture) => {
       const id = createHash('sha1').update(picture.file.toLowerCase()).digest('hex').slice(0, 16)
       files[id] = { file: picture.file }
       const caption = ruCaption.get(picture.file.toLowerCase()) || russianCaption(picture.caption)
@@ -320,14 +328,14 @@ async function main() {
   console.log(`quests with photos ${Object.keys(quests).length} / ${list.length}, photos ${photos}, tied to an objective ${tied}, files ${Object.keys(files).length}`)
 }
 
-/** The rules above on the list as it is: maps out, English-only captions translated, files no photo uses dropped. */
+/** The rules above on the list as it is: maps and old versions' pictures out, English-only captions translated, files no photo uses dropped. */
 function dropMaps() {
   const out = JSON.parse(readFileSync(OUT, 'utf8'))
   let removed = 0
   let translated = 0
   for (const [id, quest] of Object.entries(out.quests)) {
     const before = quest.photos.length
-    quest.photos = quest.photos.filter((photo) => !isMapPicture({ file: out.files[photo.id]?.file ?? '', caption: photo.caption, captionEn: photo.captionEn }))
+    quest.photos = quest.photos.filter((photo) => !isMapPicture({ file: out.files[photo.id]?.file ?? '', caption: photo.caption, captionEn: photo.captionEn }) && !isOldVersionPicture(id, out.files[photo.id]?.file ?? ''))
     removed += before - quest.photos.length
     for (const photo of quest.photos) {
       if (photo.captionEn || !photo.caption || /[а-яё]/i.test(photo.caption) || !CAPTIONS_RU[photo.caption]) continue

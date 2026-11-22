@@ -103,7 +103,8 @@ const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
     '5b478eca86f7744642012254': {
       id: '5b478eca86f7744642012254', name: 'Витамины', trader: 'tr1', minPlayerLevel: 1, kappaRequired: false,
       neededKeys: [{ map: 'm-customs', keys: ['5a0dc95c86f77452440fc675'] }],
-      objectives: [{ id: 'v-container', type: 'findQuestItem', description: 'Найти химический контейнер на локации Завод', maps: ['m-customs'], requiredKeys: [['5a0dc95c86f77452440fc675']] }],
+      // report 215: its objective still lists Shoreline too (the old quest's Health Resort spot)
+      objectives: [{ id: '5b478f6886f774464201225a', type: 'findQuestItem', description: 'Найти химический контейнер на локации Завод', maps: ['m-customs', 'm-shoreline'], questItem: { id: 'chem-container' }, requiredKeys: [['5a0dc95c86f77452440fc675']] }],
     },
   } },
   items: { items: {
@@ -113,7 +114,7 @@ const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
   } },
   maps: { maps: { 'm-customs': { id: 'm-customs', name: 'Customs', normalizedName: 'customs', bosses: [
     { mob: 'bossKilla', spawnChance: mode === 'pve' ? 1 : 0.3, spawnLocations: [{ name: 'ZoneDorms', chance: 1, positions: [{ x: mode === 'pve' ? 300 : 100, y: 0, z: 100 }] }] },
-  ], lootLoose: [{ items: ['bolts', 'chain'], position: { x: 9, y: 0, z: 9 } }] } }, mobs: { bossKilla: { name: 'Килла', normalizedName: 'killa', imagePortraitLink: 'x' } } },
+  ], lootLoose: [{ items: ['bolts', 'chain'], position: { x: 9, y: 0, z: 9 } }] }, 'm-shoreline': { id: 'm-shoreline', name: 'Shoreline', normalizedName: 'shoreline' } }, mobs: { bossKilla: { name: 'Килла', normalizedName: 'killa', imagePortraitLink: 'x' } } },
   traders: { tr1: { id: 'tr1', name: 'Прапор' } },
   hideout: {},
 })
@@ -189,6 +190,15 @@ describe('catalog adapter: new quests and markers straight from the live feed', 
     const quest = catalog.quests.find((entry) => entry.id === '5b478eca86f7744642012254')!
     expect(quest.raidRequirements!.filter((requirement) => requirement.purpose === 'key')).toEqual([])
     expect(quest.requiredItems ?? []).not.toContain('5a0dc95c86f77452440fc675')
+  })
+
+  it('a place the data keeps from an older version of a quest is no map of it (report 215: «Витамины» on Shoreline)', async () => {
+    stubModeFeeds([])
+    const catalog = await fetchLiveCatalog('pve', 'ru')
+    const quest = catalog.quests.find((entry) => entry.id === '5b478eca86f7744642012254')!
+    expect(quest.mapIds).not.toContain('shoreline')
+    expect(quest.mapIds).toContain('customs')
+    for (const requirement of quest.raidRequirements ?? []) expect(requirement.mapIds).not.toContain('shoreline')
   })
 
   it('marks jewelry by its tarkov.dev category and draws its loose-loot spot on the jewelry layer', async () => {
