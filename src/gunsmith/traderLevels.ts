@@ -35,6 +35,20 @@ export interface TraderLevelInfo {
 
 const clampLevel = (value: number) => Math.min(MAX_TRADER_LEVEL, Math.max(1, Math.round(value)))
 
+/**
+ * The loyalty levels a trader has in the game. Fence has the first and the crown only (report №199, owner 19.11.2026:
+ * «у скупщика реально только первый уровень и корона, других уровней у него нет»).
+ */
+export function traderLevelChoices(key: string): readonly number[] {
+  return key === 'fence' ? [1, MAX_TRADER_LEVEL] : [1, 2, 3, MAX_TRADER_LEVEL]
+}
+
+/** A level the trader has: the highest of its levels at or below `level` (Fence's «2» or «3» is his first). */
+export function traderLevelOf(key: string, level: number) {
+  const choices = traderLevelChoices(key)
+  return choices.filter((choice) => choice <= clampLevel(level)).at(-1) ?? choices[0]!
+}
+
 export function traderKey(trader: Pick<Trader, 'normalizedName' | 'name'>) {
   return trader.normalizedName || trader.name.toLowerCase().replace(/\s+/g, '-')
 }
@@ -194,9 +208,10 @@ export function traderLevelInfos(traders: Trader[], quests: Quest[], statusOf: (
       const seen = screen[key] ? clampLevel(screen[key]) : undefined
       // The game's screen proves at least its level; the tasks may prove more since, and the bound from the character's
       // level never hides what the game showed.
-      const min = Math.max(estimate.min, seen ?? 1)
-      const max = Math.max(estimate.max, min)
-      return { trader, key, min, max, ...(own ? { manual: own } : {}), ...(seen ? { screen: seen } : {}), level: own ? clampLevel(own) : min }
+      // Only the levels the trader has (Fence: the first and the crown).
+      const min = traderLevelOf(key, Math.max(estimate.min, seen ?? 1))
+      const max = traderLevelOf(key, Math.max(estimate.max, min))
+      return { trader, key, min, max, ...(own ? { manual: own } : {}), ...(seen ? { screen: seen } : {}), level: own ? traderLevelOf(key, own) : min }
     })
     .sort((a, b) => order(a.key) - order(b.key))
 }

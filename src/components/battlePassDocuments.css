@@ -29,3 +29,9 @@
 .leaflet-marker-icon:hover .map-marker.is-document, .leaflet-marker-icon:focus-visible .map-marker.is-document,
 .leaflet-marker-icon:hover .map-marker.is-cutout, .leaflet-marker-icon:focus-visible .map-marker.is-cutout { transform: scale(1.22); }
 .map-document-more { position: absolute; top: -4px; right: -7px; z-index: 2; padding: 0 3px; border-radius: 7px; background: rgb(14 18 16 / 92%); color: #f2ead2; font-size: 9px; font-weight: 800; line-height: 13px; }
+
+/* Today's documents against the daily limit (report №194). */
+.document-day { margin: 6px 0 0; color: var(--muted, #b9b19a); font-size: 12px; }
+.document-day b { color: var(--text, #f2ead2); }
+.document-day.is-full { color: #e0806a; font-weight: 700; }
+.document-layer-details .document-day { margin: 0; font-size: 11px; }

@@ -30,6 +30,7 @@ import type { StoryProgressRecord } from '../sync/storyRecords'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
 import { clearAllFoundDocuments } from '../progression/foundDocuments'
+import { clearDocumentDays } from '../progression/documentDailyLimit'
 import { clearAllTakenItems } from '../progression/takenItems'
 import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
@@ -614,6 +615,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       for (const key of keys) localStorage.removeItem(key)
       clearAllQuestChecks()
       clearAllFoundDocuments()
+      clearDocumentDays()
       clearAllTakenItems()
       clearAllDeferredQuests()
       clearAllQuestKeyFavorites()

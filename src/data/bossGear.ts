@@ -62,7 +62,42 @@ export function lightsWarning(lights: BossLights | undefined): string | undefine
 /** `guards`: all the guards' kit as one (no longer shown: «Свита» below names each kind). */
 export interface BossGear { groups: BossGearGroup[]; guards?: Omit<BossGearGroup, 'maps'> }
 
-const GEAR = data as unknown as Record<string, BossGear>
+/**
+ * Ammo the players met that the bot loadouts do not list (kept here: bossGear.json is generated). Per boss, per weapon id, in
+ * the kit of every map (`maps` unset) or of the kit for the other maps (`elsewhere`):
+ *   - report №198 (19.11.2026): «Умирал от 7Н33 патрона лично» — Shturman's TKPD (the loadouts give SP only; Zryachiy's
+ *     same carbine has 7N33 too). «Полагаю, что и FMJ» is a guess: not added.
+ *   - report №195 (19.11.2026): «Встречаются 855а1 патроны и CBJ Blackout» — Black Division away from Icebreaker and the Lab
+ *     (their Icebreaker / Lab kit has both).
+ */
+const SEEN_AMMO: Record<string, Array<{ weapon: string; ammo: BossGearItem; elsewhere?: true }>> = {
+  shturman: [{ weapon: '68aee763130c00663d08aea8', ammo: { id: '68bad8376cb22acf1107a586', name: { ru: '7Н33', en: '7N33' } } }],
+  'black-division': [
+    { weapon: '5447a9cd4bdc2dbd208b4567', ammo: { id: '54527ac44bdc2d36668b4567', name: { ru: 'M855A1', en: 'M855A1' } }, elsewhere: true },
+    { weapon: '5fbcc1d9016cce60e8341ab3', ammo: { id: '64b8725c4b75259c590fa899', name: { ru: 'CBJ', en: 'CBJ' } }, elsewhere: true },
+  ],
+}
+
+function withSeenAmmo(gear: Record<string, BossGear>): Record<string, BossGear> {
+  const out = { ...gear }
+  for (const [boss, seen] of Object.entries(SEEN_AMMO)) {
+    const known = out[boss]
+    if (!known) continue
+    out[boss] = {
+      ...known,
+      groups: known.groups.map((group) => ({
+        ...group,
+        weapons: group.weapons.map((weapon) => {
+          const extra = seen.filter((entry) => entry.weapon === weapon.id && (entry.elsewhere ? group.elsewhere : !group.maps?.length) && !weapon.ammo.some((ammo) => ammo.id === entry.ammo.id))
+          return extra.length ? { ...weapon, ammo: [...weapon.ammo, ...extra.map((entry) => entry.ammo)] } : weapon
+        }),
+      })),
+    }
+  }
+  return out
+}
+
+const GEAR = withSeenAmmo(data as unknown as Record<string, BossGear>)
 
 export function bossGear(key: string): BossGear | undefined {
   return GEAR[key]

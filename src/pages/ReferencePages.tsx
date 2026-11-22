@@ -6,7 +6,7 @@ import { TraderQuestBoard } from "../components/TraderQuestBoard";
 import { TraderFigure } from "../components/TraderFigure";
 import { traderPortrait } from "../data/traderPortraits";
 import { useGunsmithAccess } from "../gunsmith/useGunsmithAccess";
-import { loyaltyNumeral, type TraderLevelInfo } from "../gunsmith/traderLevels";
+import { loyaltyNumeral, traderLevelChoices, type TraderLevelInfo } from "../gunsmith/traderLevels";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -632,7 +632,7 @@ function TraderLevelBadge({ info, onLevel }: { info: TraderLevelInfo; onLevel: (
       </button>
       {open && (
         <div className="trader-level-menu" role="radiogroup" aria-label={uiText(info.trader.name)}>
-          {[1, 2, 3, 4].map((level) => <button type="button" key={level} role="radio" aria-checked={info.level === level} onClick={() => choose(level)}>{loyaltyGlyph(level)}</button>)}
+          {traderLevelChoices(info.key).map((level) => <button type="button" key={level} role="radio" aria-checked={info.level === level} onClick={() => choose(level)}>{loyaltyGlyph(level)}</button>)}
           {info.manual !== undefined && <button type="button" className="trader-level-auto" onClick={() => choose(null)}>{uiText("из игры")}</button>}
         </div>
       )}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { cheapestOffer, offerAccess, unlockHint } from '../arsenal/buildStats'
 import { unlockLabel } from '../arsenal/gunFormat'
 import type { Quest, TaskProgressStatus, Trader } from '../domain/types'
-import { estimateTraderLevel, loyaltyNumeral, playerAccess, readManualTraderLevels, readScreenTraderLevels, saveScreenTraderLevels, traderLevelInfos } from './traderLevels'
+import { estimateTraderLevel, loyaltyNumeral, playerAccess, readManualTraderLevels, readScreenTraderLevels, saveScreenTraderLevels, traderLevelChoices, traderLevelInfos } from './traderLevels'
 
 const trader = (id: string, normalizedName: string, levelPlayerLevels = [1, 15, 26, 36]): Trader => ({ id, name: normalizedName, normalizedName, role: '', loyalty: 4, accent: '', levelPlayerLevels })
 const quest = (id: string, loyalty: Quest['traderLoyalty']): Quest => ({ id, name: id, trader: '', level: 1, kappa: false, description: '', objectives: [], rewards: [], traderLoyalty: loyalty })
@@ -125,5 +125,20 @@ describe('trader loyalty estimate (EFT logs carry no loyalty)', () => {
 
   it('writes loyalty like the game: I, II, III, then a crown', () => {
     expect([1, 2, 3, 4].map(loyaltyNumeral)).toEqual(['I', 'II', 'III', ''])
+  })
+})
+
+// Report №199 (owner, 19.11.2026): «у скупщика реально только первый уровень и корона, других уровней у него нет».
+describe('Fence: the first level and the crown only', () => {
+  const fence = trader('t-fence', 'fence')
+  it('offers I and the crown to pick, other traders all four', () => {
+    expect(traderLevelChoices('fence')).toEqual([1, 4])
+    expect(traderLevelChoices('prapor')).toEqual([1, 2, 3, 4])
+  })
+  it('never shows his second or third level, whatever the estimate, the screen or an old choice says', () => {
+    expect(traderLevelInfos([fence], [], () => undefined, 40).map((info) => [info.level, info.min, info.max])).toEqual([[1, 1, 4]])
+    expect(traderLevelInfos([fence], [], () => undefined, 40, { fence: 3 })[0]!.level).toBe(1)
+    expect(traderLevelInfos([fence], [], () => undefined, 40, {}, { fence: 4 })[0]!.level).toBe(4)
+    expect(traderLevelInfos([fence], [], () => undefined, 20, {}, { fence: 2 })[0]!.level).toBe(1)
   })
 })

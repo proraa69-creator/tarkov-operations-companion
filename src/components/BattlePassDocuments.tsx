@@ -47,7 +47,7 @@ function DocumentPhotos({ guide, ids }: { guide: DocumentGuide; ids: readonly st
  * photos of this very place (owner, 05.11.2026). The other places of this map are one click away, for a point the photos could not
  * be tied to. No other text: «Нужно только название… и этаж».
  */
-export function BattlePassDocumentCard({ marker, onFound, onAllPlaces }: { marker: MapMarker; onFound: () => void; onAllPlaces: () => void }) {
+export function BattlePassDocumentCard({ marker, onFound, onAllPlaces, today }: { marker: MapMarker; onFound: () => void; onAllPlaces: () => void; today?: { count: number; limit: number } }) {
   const guide = useDocumentGuide()
   const photos = pointPhotos(guide, marker.mapId, marker.position, battlePassDocumentKindsOf(marker))
   return <>
@@ -55,6 +55,7 @@ export function BattlePassDocumentCard({ marker, onFound, onAllPlaces }: { marke
       <button type="button" className="button small primary document-found" title={uiText('Убрать с карты до конца рейда')} onClick={onFound}><Check size={14} aria-hidden="true" />{uiText('Нашёл')}</button>
       <button type="button" className="button small ghost" onClick={onAllPlaces}><Camera size={13} aria-hidden="true" />{uiText('Все места на карте')}</button>
     </div>
+    {today && <DocumentDayLine {...today} />}
     {guide && photos.length > 0 && <DocumentPhotos guide={guide} ids={photos} />}
   </>
 }
@@ -102,13 +103,28 @@ export function BattlePassDocumentGallery({ mapId, onClose }: { mapId: string; o
  * while something is ticked, or a slip of the finger would stay off the map until the raid ends, and on a map without points
  * (Icebreaker) the way to its photos.
  */
-export function DocumentLayerDetails({ mapId, hasPoints, foundCount, onAllPlaces, onBringBack }: { mapId: string; hasPoints: boolean; foundCount: number; onAllPlaces: () => void; onBringBack: () => void }) {
+/**
+ * Today's documents against the daily limit (report №194, progression/documentDailyLimit.ts): «Найдено сегодня: 10/40», and at the
+ * limit «Дневной лимит документов исчерпан».
+ */
+export function DocumentDayLine({ count, limit }: { count: number; limit: number }) {
+  const full = count >= limit
+  return (
+    <p className={`document-day${full ? ' is-full' : ''}`} role="status">
+      {full ? uiText('Дневной лимит документов исчерпан') : <>{uiText('Найдено сегодня')}: <b>{count}/{limit}</b></>}
+    </p>
+  )
+}
+
+export function DocumentLayerDetails({ mapId, hasPoints, foundCount, onAllPlaces, onBringBack, today }: { mapId: string; hasPoints: boolean; foundCount: number; onAllPlaces: () => void; onBringBack: () => void; today?: { count: number; limit: number } }) {
   const guide = useDocumentGuide()
   const photos = Object.values(guide?.maps[mapId] ?? {}).reduce((sum, ids) => sum + (ids?.length ?? 0), 0)
   const allPlaces = !hasPoints && !foundCount && photos > 0
-  if (!allPlaces && !foundCount) return null
+  const counted = Boolean(today && today.count > 0)
+  if (!allPlaces && !foundCount && !counted) return null
   return (
     <div className="document-layer-details">
+      {counted && <DocumentDayLine {...today!} />}
       {allPlaces && <button type="button" className="document-layer-action" onClick={onAllPlaces}><Camera size={12} aria-hidden="true" />{uiText('Все места на карте')} ({photos})</button>}
       {foundCount > 0 && <button type="button" className="document-layer-action" onClick={onBringBack}><Undo2 size={12} aria-hidden="true" />{uiText('Вернуть найденные')} ({foundCount})</button>}
     </div>

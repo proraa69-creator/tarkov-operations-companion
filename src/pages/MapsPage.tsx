@@ -42,6 +42,7 @@ import { LootContainerRows } from '../components/LootContainerRows'
 import { lootContainerKindOf, type LootContainerKind } from '../data/lootContainerKinds'
 import { battlePassDocumentKindsOf, battlePassDocumentTitle, type BattlePassDocumentKind } from '../data/battlePassDocuments'
 import { clearFoundDocuments, markDocumentFound, useFoundDocuments } from '../progression/foundDocuments'
+import { countDocumentFound, DOCUMENT_DAILY_LIMIT, useDocumentDay } from '../progression/documentDailyLimit'
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { exitNames, exitShortName } from '../data/exitShortNames'
 import { exitHighlights, useRaidExtracts } from '../maps/raidExtracts'
@@ -703,6 +704,9 @@ export function MapsPage() {
   const questChecks = useQuestChecks(profileId, raidMode)
   // «Нашёл» on a battle pass document: it leaves the map until this raid ends (progression/foundDocuments.ts).
   const foundDocuments = useFoundDocuments(profileId, raidMode)
+  // and counts against the day's limit of documents (report №194, progression/documentDailyLimit.ts)
+  const documentDay = useDocumentDay(profileId)
+  const documentsToday = { count: documentDay.count, limit: DOCUMENT_DAILY_LIMIT[raidMode] }
   const [documentGallery, setDocumentGallery] = useState(false)
   const hiddenContainerKinds = state.hiddenContainerKinds
   const closeDocumentGallery = useCallback(() => setDocumentGallery(false), [])
@@ -1372,7 +1376,7 @@ export function MapsPage() {
                     <small>{uiText(onLayer.length)}</small>
                   </button>
                   {layerId === 'loot.container' && <LootContainerRows markers={onLayer} layerVisible={visible} hidden={hiddenContainerKinds} onChange={setContainerKinds} />}
-                  {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} />}
+                  {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} today={documentsToday} />}
                 </Fragment>
               }))}
               {/* Owner, 08.11.2026: «добавь на точки на карте. И назови их места устранения… по нажатию они включаются и выключаются». */}
@@ -1732,7 +1736,7 @@ export function MapsPage() {
               {selectedExit
                 ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} />
                 : selectedDocument
-                  ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
+                  ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); countDocumentFound(profileId); setSelectedMarker(null) }} today={documentsToday} />
                   : markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn && keysOfPoint(selectedMarker).length > 0
                     ? <SpotKeyInfo key={selectedMarker.id} keyIds={keysShown(selectedMarker)} render={(picked, pick) => <>
                       {keysOfPoint(selectedMarker).length > 1 && <KeySpotKeys keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} picked={picked} onPick={pick} tiers={keyTierMap} />}

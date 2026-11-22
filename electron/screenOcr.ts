@@ -406,7 +406,15 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
     return { text: full.text, sourceName, ...(profiles.length ? { profiles } : {}) }
   }
   // The traders' screen: the nickname and the level of the mode the game is in (the player is there often).
-  const trader = isTraderScreenText(full.text) ? await readTraderScreen(prepared.image(), full.words) : null
+  // The loyalty badges also on a frame whose «Текущее отношение» or «(вы)» the pass did not read, as long as the strip of
+  // traders' portraits is there (report №197, owner 19.11.2026: «чтобы программа искала чаще уровни… постоянно актуальные
+  // данные»): their shapes cost no OCR.
+  const loyaltyOnly = (): TraderScreenReading | null => {
+    if (traderBadgeRects(full.words, prepared.image().getSize()).length < TRADER_STRIP_MIN) return null
+    const loyalty = readTraderLoyalty(prepared.image(), full.words)
+    return loyalty ? { loyalty } : null
+  }
+  const trader = isTraderScreenText(full.text) ? await readTraderScreen(prepared.image(), full.words) : loyaltyOnly()
   const extra = trader ? { trader } : {}
   // The locked app's identity reader reads the mode selection and the traders' screens only (audit P4a).
   if (identity || !isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }
@@ -541,6 +549,9 @@ async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promis
     touchQuestWorker()
   }
 }
+
+/** The traders' names on one strip that make a frame the traders' portraits (a quest's text names one or two). */
+const TRADER_STRIP_MIN = 5
 
 /** The loyalty badges of the last frames: a level counts once the next frame shows it too (confirmLoyalty). */
 let lastLoyalty: { at: number; levels: Record<string, number> } | null = null

@@ -17,7 +17,7 @@ import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, typ
 import { caliberColors } from '../arsenal/caliberColors'
 import { formatRub, PartIcon, prettyCaliber, weaponIcon, unlockLabel, useQuestNames } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
-import { TRADER_ORDER } from '../gunsmith/traderLevels'
+import { TRADER_ORDER, traderLevelChoices } from '../gunsmith/traderLevels'
 import { BUILD_TIERS, buildableWeapon, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
 import { useOwnerBuilds } from '../arsenal/ownerBuilds'
 import { withLiveGunPrices } from '../arsenal/liveGunPrices'
@@ -285,7 +285,7 @@ function TraderSettings({ shop }: { shop: GunsmithAccess }) {
         {infos.map((info) => <li key={info.key}>
           <span className="wb-trader-name">{info.trader.name}</span>
           <span className="wb-trader-levels" role="radiogroup" aria-label={info.trader.name}>
-            {[1, 2, 3, 4].map((level) => <button key={level} role="radio" aria-checked={info.level === level} className={info.level === level ? 'is-active' : undefined} onClick={() => shop.setLevel(info.key, level)}>{level === 4 ? '★' : ['I', 'II', 'III'][level - 1]}</button>)}
+            {traderLevelChoices(info.key).map((level) => <button key={level} role="radio" aria-checked={info.level === level} className={info.level === level ? 'is-active' : undefined} onClick={() => shop.setLevel(info.key, level)}>{level === 4 ? '★' : ['I', 'II', 'III'][level - 1]}</button>)}
           </span>
           {info.manual !== undefined
             ? <button className="wb-trader-auto" onClick={() => shop.setLevel(info.key, null)} title={uiText('Вернуть уровень из игры')}>{uiText('вручную')} ×</button>

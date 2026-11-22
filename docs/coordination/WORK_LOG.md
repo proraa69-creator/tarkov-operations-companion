@@ -8976,3 +8976,25 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   bottom-right, overview / map / «Слои» / full screen / quests sideways, overview and map upright (unchanged); picture 10 in
   `android-layout-0-6-0-323/`. typecheck clean; Dashboard, MapsPage.keyDoor, styles, mobile, App, desktopBack, startup tests
   pass. Not released; not checked on a real phone.
+## 2026-11-19 — reports in progress №194–199 (branch claude/reports-194-199, on claude/map-docs-valuables, not released)
+
+- Owner: «Проверь все заявки в процессе и что-то почини». Five open, all «taken»:
+  - №199 «У скупщика только два уровня» («Первый и корона»): the level pickers offered I–III and the crown. Fence has the
+    first and the crown only (owner). gunsmith/traderLevels.ts `traderLevelChoices` / `traderLevelOf`: his pickers (the
+    traders' page, «Сборка оружия») show I and the crown; an estimate, a screen reading or an old choice of 2–3 is his I.
+  - №197 «Неверное отображение уровня торговца» («Реф у меня четвертый»): the game's traders' screen has two rows of
+    portraits since 1.0; Реф is in the second, and the reader took only the row most names share — his badge was never
+    read. import/traderLoyalty.ts reads a name one row below in a column of the first row too (not a name elsewhere).
+    And more often (owner: «чтобы программа искала чаще уровни»): electron/screenOcr.ts reads the badges on any frame
+    with a strip of 5+ traders' names, not only when «Текущее отношение» and «(вы)» were read (no OCR: shapes).
+  - №194 daily limit of battle pass documents: progression/documentDailyLimit.ts counts the presses of «Нашёл» per
+    profile, all modes together, against the mode's limit (Season 40, PvP 25, PvE 15 — the EFT wiki; another guide gives
+    other PvP/PvE numbers); the day ends 24 h after its first document (no official reset time; players' reports).
+    The document's card and the layer's row show «Найдено сегодня: 10/40», at the limit «Дневной лимит документов
+    исчерпан». «Удалить все данные» clears it. RU/EN.
+  - №198 «Расширить описание боссов» (7Н33): Shturman's TKPD gets 7Н33 (the bot loadouts give SP; Zryachiy's has 7Н33);
+    «FMJ» is a guess, not added. №195 Black Division away from Icebreaker/Lab: M855A1 (M4A1), CBJ (MCX .300 BLK).
+    data/bossGear.ts SEEN_AMMO over the generated bossGear.json.
+- Tests: traderLevels (Fence), traderLoyalty (second row), documentDailyLimit (4), bossGearSeen (2); related suites 518
+  (5 map page tests timed out under load, pass alone); typecheck, tsc electron, eslint clean.
+- Not released; reports not closed or answered (the owner decides). Not checked in the game.
