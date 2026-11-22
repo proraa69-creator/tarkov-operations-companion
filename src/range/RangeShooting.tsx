@@ -335,6 +335,9 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
             {savedBuilds.map((entry) => <option key={`${entry.mode}:${entry.id}`} value={`${entry.mode}:${entry.id}`}>{weapon?.shortName ?? ''} · {pick(MODE_NAMES[entry.mode], lang)} · {entry.name}</option>)}
           </select>
         </label>
+        {/* the build small, its modules changed at their cells (owner, 22.11.2026: «Сборка оружия должна быть слева в окошечке маленьком, не на весь экран») */}
+        {weapon && startBuild && <RangeBuild key={`${weapon.id}|${buildKey}`} weapon={weapon} catalog={catalog} start={startBuild} ammo={ammo} lang={lang}
+          onChange={(next) => setEdited({ start: startBuild, build: next })} />}
         <label className="range-field"><span>{t('Патрон', 'Round')}</span>
           <select className="select" value={ammo?.id ?? ''} onChange={(event) => setAmmoId(event.target.value)}>
             {rounds.map((entry) => <option key={entry.id} value={entry.id}>{entry.shortName} · {Math.round(entry.damage)}{(entry.projectileCount ?? 1) > 1 ? `×${entry.projectileCount}` : ''} / {Math.round(entry.penetration)} / {Math.round(entry.armorDamage ?? 0)}%</option>)}
@@ -388,11 +391,6 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     </aside>
 
     <main className="range-main">
-      {weapon && startBuild && <section className="panel range-card range-build-panel">
-        <h2 className="range-card-title">{t('Сборка', 'Build')} <small>{weapon.shortName}{stats ? ` · ${t('эрго', 'ergo')} ${Math.round(stats.ergonomics)} · ${t('отдача', 'recoil')} ${stats.recoilVertical}/${stats.recoilHorizontal}${stats.moa ? ` · ${stats.moa.toFixed(2)} MOA` : ''}` : ''}</small></h2>
-        <RangeBuild key={`${weapon.id}|${buildKey}`} weapon={weapon} catalog={catalog} start={startBuild} ammo={ammo} lang={lang}
-          onChange={(next) => setEdited({ start: startBuild, build: next })} />
-      </section>}
       <div className="panel range-toolbar">
         <div className="segmented-filter">
           <button type="button" className={view === 'front' ? 'active' : ''} onClick={() => setView('front')}>{t('Спереди', 'Front')}</button>

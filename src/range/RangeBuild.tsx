@@ -44,7 +44,7 @@ export function RangeBuild({ weapon, catalog, start, ammo, onChange, lang }: {
     : null
   const bench = (size: 'normal' | 'full', maxHeight?: number) => <BuildBench layout={layout} weapon={weapon} stats={stats} ammo={ammo} selected={selected} onSelect={setSelected}
     onRemove={(path) => { setBuild(removePart(build, path)); setSelected(null) }} drawn={drawing.drawn} size={size} maxHeight={maxHeight} noAmmo
-    onExpand={size === 'normal' ? () => setFull(true) : undefined} folded={folded} onFold={setFolded} popover={(size === 'full') === full ? pickAt : undefined} />
+    onExpand={size === 'normal' ? () => setFull(true) : undefined} folded={folded} onFold={setFolded} popover={(size === 'full') === full ? pickAt : undefined} compact={size === 'normal'} />
   return <div className="range-build">
     {bench('normal')}
     {full && <FullBench weapon={weapon} stats={stats} stock={stockStats} selected={selected} onSelect={setSelected} onClose={closeFull}>
