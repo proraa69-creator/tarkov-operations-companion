@@ -153,16 +153,23 @@
 .range-scope-world { position: absolute; inset: 0; width: 100%; height: 100%; }
 .range-scope-sky { fill: #8fa9b5; }
 .range-scope-grass { fill: #6c6a45; }
-.range-scope-reticle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; image-rendering: auto; }
+/* larger than the scope at a first focal plane scope's high magnification: never capped (the global img max-width made it oval) */
+.range-scope-reticle { position: absolute; left: 50%; top: 50%; max-width: none; max-height: none; transform: translate(-50%, -50%); pointer-events: none; image-rendering: auto; }
 .range-scope-reticle.is-drawn { width: 100%; height: 100%; }
 .range-scope-reticle.is-drawn path { stroke: #111; stroke-width: .35; fill: none; }
 .range-scope::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; box-shadow: inset 0 0 60px 26px rgb(0 0 0 / 85%); }
-.range-scope-hint { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); padding: 6px 10px; border-radius: 8px; background: rgb(0 0 0 / 60%); color: #e8e4d8; font-size: 12px; white-space: nowrap; z-index: 1; }
+.range-scope-hint { position: absolute; left: 50%; bottom: 10%; max-width: 70%; transform: translateX(-50%); padding: 5px 9px; border-radius: 8px; background: rgb(0 0 0 / 55%); color: #e8e4d8; font-size: 11.5px; text-align: center; pointer-events: none; z-index: 1; animation: range-scope-hint-out .5s ease 3s forwards; }
+@keyframes range-scope-hint-out { to { opacity: 0; } }
 .range-holdover { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: var(--surf-1); font-size: 12.5px; color: var(--text-muted); }
 .range-holdover b { color: var(--brass, #d8c27a); font-size: 14px; }
 .range-scope-select { max-width: 220px; }
 .range-cover-seam { stroke: #1f2a12; stroke-width: 1.2; fill: none; }
-.range-scope-impact { fill: none; stroke: #ff4a3a; stroke-width: .35; vector-effect: non-scaling-stroke; }
+.range-scope-impact { pointer-events: none; }
+.range-scope-impact circle { vector-effect: non-scaling-stroke; }
+.range-scope-impact .is-halo { fill: none; stroke: rgb(0 0 0 / 75%); stroke-width: 6px; }
+.range-scope-impact .is-ring { fill: rgb(255 36 24 / 14%); stroke: #ff2418; stroke-width: 3px; filter: drop-shadow(0 0 4px rgb(255 36 24 / 90%)); }
+.range-scope-impact .is-dot { fill: #ff2418; stroke: #fff; stroke-width: 1px; }
+.range-scope-enter { position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%); z-index: 2; }
 .range-scope-world.is-night { filter: grayscale(1) sepia(1) hue-rotate(55deg) saturate(3.2) brightness(1.1); }
 .range-scope-world.is-thermal { filter: grayscale(1) invert(1) contrast(1.6) brightness(1.1); }
 .range-stage > .range-holdover, .range-stage > .range-armor-hp { grid-column: 1 / -1; }

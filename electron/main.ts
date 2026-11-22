@@ -74,7 +74,8 @@ function leaveForTheRunningCopy() {
   app.exit(0)
 }
 /** The permissions the app's pages may get (setPermissionRequestHandler below); everything else is refused. */
-const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen'])
+// pointerLock: the range's scope takes the mouse while aiming (src/range/RangeScopeView.tsx), on a click only; Esc gives it back
+const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen', 'pointerLock'])
 let mainWindow: BrowserWindow | null = null
 /**
  * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
