@@ -70,7 +70,7 @@ const USER_FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
 
 const PRIMARY_USER_REGIONS: Array<{ id: Extract<AdminUserRegion, 'russia' | 'cis' | 'world'>; label: string; hint: string }> = [
   { id: 'russia', label: 'Россия', hint: 'Только Россия' },
-  { id: 'cis', label: 'СНГ', hint: 'Все страны СНГ, кроме России' },
+  { id: 'cis', label: 'СНГ', hint: 'СНГ, Украина и Латвия' },
   { id: 'world', label: 'Мир', hint: 'Все страны вне России и СНГ' },
 ]
 

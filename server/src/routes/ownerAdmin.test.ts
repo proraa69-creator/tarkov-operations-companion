@@ -343,28 +343,29 @@ test('users by region: «Все · Россия · СНГ · Мир · Не ук
     }
     const emails = (body: List) => body.users.map((user) => user.email).sort()
     const all = await list()
-    // The owner registered before the question: with the older app's account under «Не указана». Georgia is not Europe.
-    assert.deepEqual(all.regions, { all: 7, russia: 1, cis: 1, world: 3, europe: 2, other: 1, none: 2 })
+    // The owner registered before the question: with the older app's account under «Не указана». Georgia is not Europe;
+    // Ukraine is the admin panel's «СНГ» (owner, 23.11.2026).
+    assert.deepEqual(all.regions, { all: 7, russia: 1, cis: 2, world: 2, europe: 1, other: 1, none: 2 })
     assert.equal(all.total, 7)
     assert.equal(all.users.find((user) => user.email === 'almaty@example.com')!.country, 'KZ')
     assert.equal(all.users.find((user) => user.email === 'old-app@example.com')!.country, undefined)
     const cis = await list('?region=cis')
-    assert.deepEqual([emails(cis), cis.total], [['almaty@example.com'], 1])
+    assert.deepEqual([emails(cis), cis.total], [['almaty@example.com', 'kyiv@example.com'], 2])
     assert.deepEqual(cis.regions, all.regions, 'the counts do not follow the chosen tab')
     assert.deepEqual(emails(await list('?region=russia')), ['moscow@example.com'])
-    assert.deepEqual(emails(await list('?region=world')), ['berlin@example.com', 'kyiv@example.com', 'tbilisi@example.com'])
-    assert.deepEqual(emails(await list('?region=europe')), ['berlin@example.com', 'kyiv@example.com'])
+    assert.deepEqual(emails(await list('?region=world')), ['berlin@example.com', 'tbilisi@example.com'])
+    assert.deepEqual(emails(await list('?region=europe')), ['berlin@example.com'])
     assert.deepEqual(emails(await list('?region=other')), ['tbilisi@example.com'])
     assert.deepEqual(emails(await list('?region=none')), ['old-app@example.com', 'owner@example.com'])
     // The search and the status filter narrow the counts and combine with the region.
-    assert.deepEqual((await list('?q=kyiv')).regions, { all: 1, russia: 0, cis: 0, world: 1, europe: 1, other: 0, none: 0 })
+    assert.deepEqual((await list('?q=kyiv')).regions, { all: 1, russia: 0, cis: 1, world: 0, europe: 0, other: 0, none: 0 })
     assert.deepEqual(emails(await list('?q=example&region=europe&filter=trial')), [])
     assert.deepEqual((await list('?filter=streamers')).regions, { all: 0, russia: 0, cis: 0, world: 0, europe: 0, other: 0, none: 0 })
     assert.equal((await t.call('GET', '/accounts/me/admin/users?region=asia', owner)).status, 400)
     // A player from before the question sets it in the cabinet: he moves from «Не указана» to his region.
     const late = await t.login('old-app@example.com')
     assert.equal((await t.call('PUT', '/accounts/me/country', late, { country: 'AM' })).status, 200)
-    assert.deepEqual((await list()).regions, { all: 7, russia: 1, cis: 2, world: 3, europe: 2, other: 1, none: 1 })
+    assert.deepEqual((await list()).regions, { all: 7, russia: 1, cis: 3, world: 2, europe: 1, other: 1, none: 1 })
     // The user card has the country too.
     const kyiv = all.users.find((user) => user.email === 'kyiv@example.com')!.id
     assert.equal((await t.call<{ user: { country?: string } }>('GET', `/accounts/me/admin/users/${kyiv}`, owner)).json.user.country, 'UA')

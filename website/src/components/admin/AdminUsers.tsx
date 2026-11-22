@@ -1,6 +1,6 @@
 import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, Wallet, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
-import { CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
+import { ADMIN_CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
@@ -29,7 +29,7 @@ const REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
 
 /** «Казахстан · СНГ» for the owner; Russia is deliberately its own billing region. */
 const shownCountry = (code: string, other?: string) => (other ? `«${other}» (вручную)` : countryName(code, 'ru'))
-const countryText = (code: string, other?: string) => `${shownCountry(code, other)} · ${code === 'RU' ? 'Россия' : CIS_COUNTRIES.includes(code as never) ? 'СНГ' : 'Мир'}`
+const countryText = (code: string, other?: string) => `${shownCountry(code, other)} · ${code === 'RU' ? 'Россия' : ADMIN_CIS_COUNTRIES.includes(code as never) ? 'СНГ' : 'Мир'}`
 
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription

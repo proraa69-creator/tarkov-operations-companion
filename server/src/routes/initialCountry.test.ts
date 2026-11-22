@@ -126,6 +126,25 @@ test('the gate: a country typed by hand is checked, stored as XX with the text (
   }
 })
 
+test('the admin panel counts Ukraine and Latvia in «СНГ», not in «Мир» or «Европа» (owner, 23.11.2026)', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    for (const [email, country] of [['kyiv@example.com', 'UA'], ['riga@example.com', 'LV'], ['berlin@example.com', 'DE'], ['almaty@example.com', 'KZ']]) {
+      const player = await t.oldAccount(email)
+      assert.equal((await t.call('POST', '/accounts/me/initial-country', player, { country })).status, 200)
+    }
+    type Users = { users: Array<{ email: string }>; regions: Record<string, number> }
+    const users = async (region: string) => (await t.call<Users>('GET', `/accounts/me/admin/users?region=${region}`, owner)).json
+    assert.deepEqual((await users('all')).regions, { all: 5, russia: 1, cis: 3, world: 1, europe: 1, other: 0, none: 0 })
+    assert.deepEqual((await users('cis')).users.map((user) => user.email).sort(), ['almaty@example.com', 'kyiv@example.com', 'riga@example.com'])
+    assert.deepEqual((await users('world')).users.map((user) => user.email), ['berlin@example.com'])
+    assert.deepEqual((await users('europe')).users.map((user) => user.email), ['berlin@example.com'])
+  } finally {
+    await t.close()
+  }
+})
+
 test('the gate: the owner without a country is asked too, and the owner routes work after the answer', async () => {
   const t = await setup()
   try {

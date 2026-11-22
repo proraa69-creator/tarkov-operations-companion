@@ -13,7 +13,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { AD_SOURCE_LABEL, AD_SOURCES } from '../../../src/shared/adSources'
-import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf, type CountryRegion } from '../../../src/shared/countries'
+import { ADMIN_CIS_COUNTRIES, ADMIN_EXTRA_CIS_COUNTRIES, adminRegionOf, CIS_COUNTRIES, EUROPE_COUNTRIES, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
 import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
 import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
@@ -319,12 +319,16 @@ function sourceOf(row: Row, now: number): SubscriptionSource | undefined {
 function regionCondition(region: Exclude<RegionFilter, 'all'>): { sql: string; args: string[] } {
   if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
   if (region === 'russia') return { sql: "a.country = 'RU'", args: [] }
+  // «СНГ» of the admin panel: the CIS and the owner's Ukraine and Latvia (ADMIN_CIS_COUNTRIES); «Мир» is everything else.
   if (region === 'cis') {
-    const cis = CIS_COUNTRIES.filter((code) => code !== 'RU')
+    const cis = ADMIN_CIS_COUNTRIES.filter((code) => code !== 'RU')
     return { sql: `a.country IN (${placeholders(cis)})`, args: [...cis] }
   }
-  if (region === 'world') return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)})`, args: [...CIS_COUNTRIES] }
-  if (region === 'europe') return { sql: `a.country IN (${placeholders(EUROPE_COUNTRIES)})`, args: [...EUROPE_COUNTRIES] }
+  if (region === 'world') return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(ADMIN_CIS_COUNTRIES)})`, args: [...ADMIN_CIS_COUNTRIES] }
+  if (region === 'europe') {
+    const europe = EUROPE_COUNTRIES.filter((code) => !ADMIN_EXTRA_CIS_COUNTRIES.includes(code))
+    return { sql: `a.country IN (${placeholders(europe)})`, args: [...europe] }
+  }
   const listed = [...CIS_COUNTRIES, ...EUROPE_COUNTRIES]
   return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(listed)})`, args: listed }
 }
@@ -726,7 +730,7 @@ export class AdminStore {
         if (paying) target.paying++
         if (active) target.active++
       }
-      legacyRegion[country ? regionOf(country) : 'none']++
+      legacyRegion[country ? adminRegionOf(country) : 'none']++
       if (source === 'money') { subscriptions.activePaid++; if (Number(row.money_count) >= 2) subscriptions.activePaidRepeat++ }
       if (source === 'grant' || source === 'friend') { subscriptions.activeGranted++; subscriptions.grantedBy[source === 'grant' ? 'owner' : 'friend']++ }
       if (source === 'trial') { subscriptions.trials++; subscriptions[trialDead(row, now) ? 'trialsDead' : 'trialsAlive']++ }
@@ -994,10 +998,10 @@ export class AdminStore {
       regions.all += amount
       if (!country) { regions.none += amount; continue }
       if (country === 'RU') regions.russia += amount
-      else if (CIS_COUNTRIES.includes(country as never)) regions.cis += amount
+      else if (ADMIN_CIS_COUNTRIES.includes(country as never)) regions.cis += amount
       else {
         regions.world += amount
-        regions[regionOf(country)] += amount
+        regions[adminRegionOf(country)] += amount
       }
     }
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n ${USER_FROM} ${all.sql}`).get(...all.args) as Row).n)
