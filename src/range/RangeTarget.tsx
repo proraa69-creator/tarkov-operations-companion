@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type PointerEvent } from 'react'
 import { bodyOutline, FIGURE_HEIGHT, HEAD, regions, shapePath, type View } from './rangeHitboxes'
+import { swayAt, useSwayTime } from './rangeSway'
 import { BODY_PARTS, COLLIDER_PART, type BodyPart, type BodyState } from './rangeModel'
 import type { Cover, FiredShot } from './rangeShot'
 import { markOf } from './rangeView'
@@ -101,11 +102,13 @@ export function RangeScene({ view, figure, body, marks, cover, coverTextures, ma
   </>
 }
 
-export function RangeTarget({ onFireStart, onFireEnd, onAimMove, spreadCm, muzzle, ...scene }: SceneProps & {
+export function RangeTarget({ onFireStart, onFireEnd, onAimMove, spreadCm, muzzle, swayCm, ...scene }: SceneProps & {
   /** The group's diameter at the distance, cm (undefined without MOA). */
   spreadCm?: number
   /** Where the barrel points now, with the recoil (figure centimetres). */
   muzzle?: { x: number; y: number }
+  /** The sway's amplitude at the target, cm (src/range/rangeSway.ts): the cross drifts where the barrel does. */
+  swayCm?: number
   onFireStart: (point: { x: number; y: number }) => void
   onFireEnd: () => void
   onAimMove: (point: { x: number; y: number }) => void
@@ -123,6 +126,9 @@ export function RangeTarget({ onFireStart, onFireEnd, onAimMove, spreadCm, muzzl
     return { x: local.x, y: FIGURE_HEIGHT - local.y }
   }
   const pictured = Boolean(scene.figure && scene.figure.urls[scene.figure.base.file])
+  const swayTime = useSwayTime(Boolean(swayCm && aim))
+  const drift = swayCm && aim ? swayAt(swayTime, swayCm) : { x: 0, y: 0 }
+  const cross = aim ? { x: aim.x + drift.x, y: aim.y + drift.y } : null
   return <svg
     ref={svg}
     className={`range-target${pictured ? ' is-pictured' : ''}`}
@@ -142,12 +148,12 @@ export function RangeTarget({ onFireStart, onFireEnd, onAimMove, spreadCm, muzzl
   >
     <RangeScene {...scene} />
     {muzzle && <circle cx={muzzle.x} cy={FIGURE_HEIGHT - muzzle.y} r={1.3} className="range-muzzle" pointerEvents="none" />}
-    {aim && <g className="range-aim" pointerEvents="none">
-      {spreadCm ? <circle cx={aim.x} cy={FIGURE_HEIGHT - aim.y} r={Math.max(0.6, spreadCm / 2)} className="range-spread" /> : null}
-      <line x1={aim.x - 3} x2={aim.x - 0.8} y1={FIGURE_HEIGHT - aim.y} y2={FIGURE_HEIGHT - aim.y} />
-      <line x1={aim.x + 0.8} x2={aim.x + 3} y1={FIGURE_HEIGHT - aim.y} y2={FIGURE_HEIGHT - aim.y} />
-      <line x1={aim.x} x2={aim.x} y1={FIGURE_HEIGHT - aim.y - 3} y2={FIGURE_HEIGHT - aim.y - 0.8} />
-      <line x1={aim.x} x2={aim.x} y1={FIGURE_HEIGHT - aim.y + 0.8} y2={FIGURE_HEIGHT - aim.y + 3} />
+    {cross && <g className="range-aim" pointerEvents="none">
+      {spreadCm ? <circle cx={cross.x} cy={FIGURE_HEIGHT - cross.y} r={Math.max(0.6, spreadCm / 2)} className="range-spread" /> : null}
+      <line x1={cross.x - 3} x2={cross.x - 0.8} y1={FIGURE_HEIGHT - cross.y} y2={FIGURE_HEIGHT - cross.y} />
+      <line x1={cross.x + 0.8} x2={cross.x + 3} y1={FIGURE_HEIGHT - cross.y} y2={FIGURE_HEIGHT - cross.y} />
+      <line x1={cross.x} x2={cross.x} y1={FIGURE_HEIGHT - cross.y - 3} y2={FIGURE_HEIGHT - cross.y - 0.8} />
+      <line x1={cross.x} x2={cross.x} y1={FIGURE_HEIGHT - cross.y + 0.8} y2={FIGURE_HEIGHT - cross.y + 3} />
     </g>}
   </svg>
 }

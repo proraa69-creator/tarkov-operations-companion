@@ -165,10 +165,14 @@
 .range-scope-select { max-width: 220px; }
 .range-cover-seam { stroke: #1f2a12; stroke-width: 1.2; fill: none; }
 .range-scope-impact { pointer-events: none; }
-.range-scope-impact circle { vector-effect: non-scaling-stroke; }
-.range-scope-impact .is-halo { fill: none; stroke: rgb(0 0 0 / 75%); stroke-width: 6px; }
-.range-scope-impact .is-ring { fill: rgb(255 36 24 / 14%); stroke: #ff2418; stroke-width: 3px; filter: drop-shadow(0 0 4px rgb(255 36 24 / 90%)); }
-.range-scope-impact .is-dot { fill: #ff2418; stroke: #fff; stroke-width: 1px; }
+/* the hold bar: red with a dark rim on a black reticle, black with a light rim on a red one */
+.range-scope-impact line { vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.range-scope-impact .is-halo { stroke-width: 6px; }
+.range-scope-impact .is-bar { stroke-width: 3px; }
+.range-scope-impact.is-red .is-halo { stroke: rgb(0 0 0 / 70%); }
+.range-scope-impact.is-red .is-bar { stroke: #ff2418; }
+.range-scope-impact.is-black .is-halo { stroke: rgb(255 255 255 / 75%); }
+.range-scope-impact.is-black .is-bar { stroke: #050505; }
 .range-scope-enter { position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%); z-index: 2; }
 .range-scope-world.is-night { filter: grayscale(1) sepia(1) hue-rotate(55deg) saturate(3.2) brightness(1.1); }
 .range-scope-world.is-thermal { filter: grayscale(1) invert(1) contrast(1.6) brightness(1.1); }
@@ -176,3 +180,26 @@
 .range-target-wrap:has(.range-scope) { display: grid; place-items: center; padding: 10px; background: #070807; }
 /* the weapon's card holds the small build window */
 .range-build .wb-stage-scroll { border-radius: 10px; }
+
+/* «Выйти из прицела» (owner, 23.11.2026), where the page could not take the mouse */
+.range-scope-leave { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); z-index: 2; }
+/* the keys on the buttons: R reloads, F gives a new target */
+.range-key { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 4px; border: 1px solid var(--line-strong); border-radius: 4px; font: 600 11px/16px var(--font-mono, monospace); text-align: center; color: var(--text-muted); }
+/* the hold: the figures, a «?» with what each means, how to aim */
+.range-hold-main { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.range-hold-aim { color: var(--text); }
+.range-help { position: relative; display: inline-flex; }
+.range-help-mark { width: 18px; height: 18px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surf-2, transparent); color: var(--text-muted); font: 700 11px/16px inherit; cursor: help; }
+.range-help-mark:hover, .range-help-mark:focus-visible { color: var(--text); border-color: var(--brass, #d8c27a); }
+.range-help-text { position: absolute; left: 50%; top: calc(100% + 6px); z-index: 30; width: min(340px, 80vw); padding: 10px 12px; transform: translateX(-50%); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surf-1); box-shadow: 0 14px 34px rgb(0 0 0 / 45%); color: var(--text); font-size: 12.5px; line-height: 1.45; visibility: hidden; opacity: 0; transition: opacity .12s ease; pointer-events: none; }
+.range-help:hover .range-help-text, .range-help:focus-within .range-help-text, .range-help.is-open .range-help-text { visibility: visible; opacity: 1; }
+/* the drop by distance */
+.range-drops { grid-column: 1 / -1; margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: var(--surf-1); font-size: 12.5px; }
+.range-drops summary { cursor: pointer; color: var(--text); font-weight: 600; }
+.range-drops table { width: 100%; margin-top: 8px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.range-drops th, .range-drops td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.range-drops th:first-child, .range-drops td:first-child { text-align: left; }
+.range-drops th { color: var(--text-muted); font-weight: 600; }
+.range-drops tr.is-current td { background: color-mix(in srgb, var(--brass, #d8c27a) 16%, transparent); color: var(--text); }
+.range-drops tr.is-zero td { color: var(--brass, #d8c27a); }
+.range-drops p { margin: 6px 0 0; color: var(--text-muted); }

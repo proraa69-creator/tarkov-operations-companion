@@ -14,7 +14,9 @@ import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type F
 import { figureLayers } from './rangeFigures'
 import { useFigureIndex, useFigureUrls, useRangeJson } from './rangeFigureSource'
 import { RangeScopeView } from './RangeScopeView'
-import { holdover, type ScopeData } from './rangeScope'
+import { cmToMrad, DROP_TABLE_DISTANCES, holdover, markStepAt, mradToMoa, type ScopeData } from './rangeScope'
+import { swayMrad, swayNow } from './rangeSway'
+import { RangeHelpTip } from './RangeHelpTip'
 import { COVER_TEXTURE_FILES } from './rangeCoverData'
 import { RangeTarget } from './RangeTarget'
 import { CLASS_COLORS, markOf, spreadAt } from './rangeView'
@@ -113,7 +115,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const [kitMode, setKitMode] = useState<KitMode>('character')
   const [chosen, setChoice] = useState<KitChoice>(() => likelyKit(armor, target))
   const lockedKit = useMemo(() => likelyKit(armor, target), [armor, target])
-  const choice = locked ? lockedKit : chosen
+  // no masks or glasses on the targets one dresses (owner, 23.11.2026: «маска, очки убери»); bosses and guards keep theirs
+  const choice = locked ? lockedKit : withoutFaceKit(chosen)
   const chooseTarget = (key: string) => {
     setTargetKey(key)
     setVariant(0)
@@ -130,6 +133,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const [live, setLive] = useState<Live>(() => fresh(1))
   const [marks, setMarks] = useState<FiredShot[]>([])
   const newTarget = () => { setLive(fresh(targetCount + 1)); setTargetCount(targetCount + 1); setMarks([]) }
+  const newTargetLatest = useRef(newTarget)
+  useEffect(() => { newTargetLatest.current = newTarget })
   // a new character, kit or start state is a new target
   if (live.signature !== signature) newTarget()
   const [log, setLog] = useState<Array<FiredShot & { n: number; target: number }>>([])
@@ -171,9 +176,11 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   } : undefined
   // the game's own recoil (src/range/rangeRecoil.ts): the bullet goes where the barrel points as it leaves
   const setup: AimSetup = {
-    distance, moa: stats?.moa, spread: toggles.spread, recoil: false, sway: toggles.sway,
+    distance, moa: stats?.moa, spread: toggles.spread, recoil: false, sway: false,
     recoilVertical: stats?.recoilVertical ?? 0, recoilHorizontal: stats?.recoilHorizontal ?? 0, dropCm: flight?.drop ?? 0,
   }
+  // «Раскачка»: the weapon's drift at the target, cm (src/range/rangeSway.ts)
+  const swayCm = toggles.sway ? swayMrad(stats?.ergonomics) * 0.1 * distance : 0
   const recoilData = useMemo(() => weapon ? weaponRecoil(weapon.id) : undefined, [weapon])
   const roundRecoil = ammo?.recoilModifier ?? 0
   const modsRecoil = stats ? stats.recoilModifierSum - roundRecoil : 0
@@ -205,11 +212,14 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const reload = () => setMagazine({ key: magKey, left: capacity })
   const reloadRef = useRef(reload)
   useEffect(() => { reloadRef.current = reload })
+  // R reloads, F gives a new target, in the scope and out of it (owner, 23.11.2026: «Кнопка «Перезарядить» — это R, а кнопка «Новая
+  // цель» — это F… действие основное везде»): by the key itself, so a Russian layout works the same
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'r' && event.key.toLowerCase() !== 'к') return
+      if (event.ctrlKey || event.altKey || event.metaKey || event.repeat) return
       if ((event.target as HTMLElement | null)?.closest('input, select, textarea')) return
-      reloadRef.current()
+      if (event.code === 'KeyR') reloadRef.current()
+      else if (event.code === 'KeyF') { event.preventDefault(); newTargetLatest.current() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -225,7 +235,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     // where the barrel points as the bullet leaves; then this shot's own kick
     const sim = recoilSim()
     const bore = recoilCm(sim?.read(), 'bore')
-    const shotSetup = { ...setup, recoilOffset: bore }
+    const sway = swayCm ? swayNow(swayCm) : { x: 0, y: 0 }
+    const shotSetup = { ...setup, recoilOffset: { x: bore.x + sway.x, y: bore.y + sway.y } }
     sim?.shot()
     const pellets = Math.max(1, ammo.projectileCount ?? 1)
     const fired: FiredShot[] = []
@@ -312,7 +323,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const total = totalHealth(body.current)
   const maxTotal = totalHealth(body.max)
   const flash = last?.outcome && last.target === live.number ? { part: last.outcome.part, n: last.n } : undefined
-  const hold = flight ? holdover(flight.drop, distance, scope) : undefined
+  const markStep = scopeMode ? markStepAt(scopeMode, zoom) : undefined
+  const hold = flight ? holdover(flight.drop, distance, markStep) : undefined
   const scene = { view, body, marks, cover, coverTextures, figure: shownFigure ? { ...shownFigure, urls: figureUrls } : undefined, masks, flash }
 
   return <div className="range-layout">
@@ -433,21 +445,19 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
           <span className="range-mag" title={t('R — перезарядка', 'R — reload')}>{t('Магазин', 'Magazine')} <b>{mag}</b> / {capacity}{mag === 0 && <em> · {t('R — перезарядка', 'R — reload')}</em>}</span>
           <span className="range-total">{t('HP', 'HP')} <b>{Math.max(0, Math.round(total))}</b> / {maxTotal}</span>
           <div className="range-stage-actions">
-            <button type="button" className="button" onClick={reload}><RotateCcw size={14} /> R</button>
-            <button type="button" className="button" onClick={newTarget}><Crosshair size={14} /> {t('Новая цель', 'New target')}</button>
+            <button type="button" className="button" onClick={reload} title={t('Перезарядить — R', 'Reload — R')}><RotateCcw size={14} /> {t('Перезарядить', 'Reload')} <kbd className="range-key">R</kbd></button>
+            <button type="button" className="button" onClick={newTarget} title={t('Новая цель — F', 'New target — F')}><Crosshair size={14} /> {t('Новая цель', 'New target')} <kbd className="range-key">F</kbd></button>
             <button type="button" className="button" onClick={() => setMarks([])}><Eraser size={14} /> {t('Убрать отметки', 'Clear marks')}</button>
           </div>
         </div>
-        {scope && scopeMode && hold && <div className="range-holdover">
-          <b>{t('Вынос', 'Hold')} {hold.mrad >= 0 ? t('вверх', 'up') : t('вниз', 'down')} {Math.abs(hold.mrad).toFixed(1)} {t('мрад', 'mrad')} · {Math.abs(hold.moa).toFixed(1)} MOA{hold.marks !== undefined ? ` · ${Math.abs(hold.marks).toFixed(1)} ${t('рис.', 'marks')}` : ''}</b>
-          <span>{t('пуля у цели', 'the bullet at the target')} {hold.dropCm >= 0 ? '+' : ''}{hold.dropCm.toFixed(1)} {t('см от линии прицела', 'cm off the sight line')} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')} · {distance} {t('м', 'm')} · ×{zoom.toFixed(zoom % 1 ? 1 : 0)}</span>
-        </div>}
+        {scope && scopeMode && hold && <HoldLine hold={hold} markStep={markStep} zero={zero} distance={distance} zoom={zoom} lang={lang} />}
         <div className="range-target-wrap">
           {scope && scopeMode
-            ? <RangeScopeView scene={scene} distance={distance} mode={scopeMode} zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })}
-              reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} lang={lang}
+            ? <RangeScopeView scene={scene} distance={distance} mode={scopeMode} modes={scope.modes} modeIndex={Math.min(scopeModeIndex, scope.modes.length - 1)} onMode={setScopeModeIndex}
+              zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })}
+              reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} swayCm={swayCm} lang={lang}
               onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
-            : <RangeTarget {...scene} labels={hpLabels} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined}
+            : <RangeTarget {...scene} labels={hpLabels} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined} swayCm={swayCm}
               muzzle={recoilState && toggles.recoil ? { x: recoilState.aim.x + recoilCm(recoilNow, 'bore').x, y: recoilState.aim.y + recoilCm(recoilNow, 'bore').y } : undefined}
               onFireStart={fireStart} onFireEnd={fireEnd} onAimMove={(point) => { aimRef.current = point }} />}
           {body.dead && <div className="range-dead">
@@ -456,6 +466,10 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
             <button type="button" className="button primary" onClick={newTarget}>{t('Новая цель', 'New target')}</button>
           </div>}
         </div>
+        {ammo && <DropTable rows={DROP_TABLE_DISTANCES.flatMap((at) => {
+          const point = flightAt(ammo, stats?.velocity, zero, at)
+          return point ? [{ distance: at, ...holdover(point.drop, at, markStep) }] : []
+        })} distance={distance} zero={zero} marks={markStep !== undefined} ammoName={ammo.shortName} lang={lang} />}
         <div className="range-health">
           {BODY_PARTS.map((part) => <div key={part} className={`range-hp-row${body.destroyed[part] ? ' is-out' : ''}`}>
             <span>{pick(PART_SHORT[part], lang)}</span>
@@ -570,9 +584,9 @@ function ArmorChooser({ armor, choice, lang, onChange }: { armor: ArmorCatalog; 
     {select(t('Шлем', 'Helmet'), choice.helmet, of(['helmet']), (id) => onChange({ helmet: id, visor: undefined, module: undefined }))}
     {helmet && helmet.visors.length > 0 && select(t('Забрало', 'Visor'), choice.visor, helmet.visors.map((id) => armor.items.get(id)!).filter(Boolean), (id) => onChange({ visor: id }))}
     {helmet && helmet.modules.length > 0 && select(t('Модуль шлема', 'Helmet module'), choice.module, helmet.modules.map((id) => armor.items.get(id)!).filter(Boolean), (id) => onChange({ module: id }))}
-    {select(t('Маска', 'Mask'), choice.face, of(['face']).filter((item) => !armor.list.some((other) => other.kind === 'helmet' && other.visors.includes(item.id))), (id) => onChange({ face: id }))}
-    {select(t('Очки', 'Glasses'), choice.eyewear, of(['eyewear']), (id) => onChange({ eyewear: id }))}
-    {select(t('Бронежилет или разгрузка', 'Body armour or rig'), choice.body, of(['armor', 'rig']), (id) => onChange({ body: id, plates: defaultPlates(armor, id) }))}
+    {/* owner, 23.11.2026: «маска, очки убери. И в разгрузках оставь только бронеразгрузки… именно те, у которых идут стандартные
+        плиты»; a usual kit's other piece still shows as chosen */}
+    {select(t('Бронеразгрузка', 'Armoured rig'), choice.body, [...of(['rig']).filter((item) => item.plateSlots.length > 0), ...(body && !(body.kind === 'rig' && body.plateSlots.length > 0) ? [body] : [])], (id) => onChange({ body: id, plates: defaultPlates(armor, id) }))}
     {body?.plateSlots.map((slot) => select(pieceLabel(`x:${slot.name}`, slot.name, lang), choice.plates[slot.name], slot.allowed.map((id) => armor.items.get(id)!).filter(Boolean).sort((a, b) => b.armorClass - a.armorClass), (id) => onChange({ plates: { ...choice.plates, [slot.name]: id } })))}
   </section>
 }
@@ -604,3 +618,99 @@ function DamageResult({ shot, lang }: { shot?: FiredShot & { n: number }; lang: 
   </div>
 }
 
+/** A dressed target's kit without a face piece or glasses (owner, 23.11.2026). */
+function withoutFaceKit(choice: KitChoice): KitChoice {
+  if (!choice.face && !choice.eyewear) return choice
+  return { ...choice, face: undefined, eyewear: undefined }
+}
+
+/** A figure with a decimal comma in Russian; never «-0,0». */
+const number = (value: number, lang: Locale, digits = 1) => {
+  const shown = Math.abs(value) < 0.5 * 10 ** -digits ? 0 : value
+  return shown.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+}
+/** Centimetres up to a metre, then metres: «43,4 см», «2,29 м». */
+const length = (cm: number, lang: Locale) => cm < 100 ? `${number(cm, lang)} ${lang === 'en' ? 'cm' : 'см'}` : `${number(cm / 100, lang, 2)} ${lang === 'en' ? 'm' : 'м'}`
+/** «1 риска», «3 риски», «5 рисок», «1,5 риски». */
+function marksWord(count: number, lang: Locale) {
+  if (lang === 'en') return count === 1 ? 'mark' : 'marks'
+  if (!Number.isInteger(count)) return 'риски'
+  const tens = count % 100
+  const ones = count % 10
+  if (tens >= 11 && tens <= 14) return 'рисок'
+  if (ones === 1) return 'риска'
+  if (ones >= 2 && ones <= 4) return 'риски'
+  return 'рисок'
+}
+
+/**
+ * The hold at the distance (owner, 23.11.2026: «вынос вверх 1,5 МРАДа. Там сделай вопросик в кружочке и объясни, что это значит.
+ * Объясни, что нужно выносом целиться на риску ниже… И где МОА пишется у нас, там тоже вопросик. И напиши единицы измерения»):
+ * mrad and MOA with what they mean, the reticle's marks when their step is known, and how to aim with them.
+ */
+function HoldLine({ hold, markStep, zero, distance, zoom, lang }: { hold: ReturnType<typeof holdover>; markStep?: number; zero: number; distance: number; zoom: number; lang: Locale }) {
+  const t = (ru: string, en: string) => lang === 'en' ? en : ru
+  const below = hold.mrad >= 0
+  const none = Math.abs(hold.mrad) < 0.05
+  const marks = hold.marks !== undefined ? Math.round(Math.abs(hold.marks) * 10) / 10 : undefined
+  const aim = none
+    ? t('Цельтесь центром сетки: на этой дистанции пуля приходит в центр.', 'Aim with the centre: at this distance the bullet goes to the centre.')
+    : marks !== undefined
+      ? below
+        ? t(`Поставьте цель на ${number(marks, lang)} ${marksWord(marks, lang)} ниже центра сетки — туда же показывает полоска в прицеле.`, `Put the target ${number(marks, lang)} ${marksWord(marks, lang)} below the centre — the bar in the scope shows the same place.`)
+        : t(`Поставьте цель на ${number(marks, lang)} ${marksWord(marks, lang)} выше центра сетки — туда же показывает полоска в прицеле.`, `Put the target ${number(marks, lang)} ${marksWord(marks, lang)} above the centre — the bar in the scope shows the same place.`)
+      : below
+        ? t('Поставьте цель на полоску в прицеле: она ниже центра ровно на вынос.', 'Put the target on the bar in the scope: it is below the centre by exactly the hold.')
+        : t('Поставьте цель на полоску в прицеле: она выше центра ровно на вынос.', 'Put the target on the bar in the scope: it is above the centre by exactly the hold.')
+  return <div className="range-holdover">
+    <div className="range-hold-main">
+      <b>{none ? t('Вынос не нужен', 'No hold') : `${below ? t('Вынос вверх', 'Hold up') : t('Вынос вниз', 'Hold down')} ${number(Math.abs(hold.mrad), lang)} ${t('мрад', 'mrad')}`}</b>
+      <RangeHelpTip label={t('Что такое вынос', 'What the hold is')}>
+        {t(
+          'Вынос — насколько поднять ствол над целью, чтобы пуля до неё долетела. Пуля летит дугой: дальше дистанции пристрелки она падает ниже точки прицеливания. Поэтому целятся не центром сетки, а риской ниже центра: цель ставят на риску, которая ниже центра на величину выноса. Центр тогда смотрит выше цели, ствол поднят — и пуля попадает. Полоска в прицеле показывает это место. Вместо выноса можно поднять барабан вертикальных поправок на столько же мрад или MOA и целиться центром.',
+          'The hold is how far to raise the barrel above the target for the bullet to reach it. The bullet flies in an arc: past the zero distance it falls below the point of aim. So you aim not with the centre but with a mark below it: put the target on the mark that is below the centre by the hold. The centre then looks above the target, the barrel is raised and the bullet hits. The bar in the scope shows that place. Instead of holding, you can dial the elevation turret by as many mrad or MOA and aim with the centre.',
+        )}
+      </RangeHelpTip>
+      {!none && <b>{number(Math.abs(hold.moa), lang)} MOA</b>}
+      <RangeHelpTip label={t('Что такое мрад и MOA', 'What mrad and MOA are')}>
+        {t(
+          'Мрад и MOA — единицы угла, поэтому в сантиметрах они растут вместе с дистанцией. 1 мрад = 10 см на 100 м, 20 см на 200 м, 50 см на 500 м. 1 MOA = 2,9 см на 100 м, 5,8 см на 200 м, 14,5 см на 500 м. 1 мрад ≈ 3,44 MOA. Считать так: см = мрад × дистанция в метрах ÷ 10. Падение пули растёт быстрее дистанции, поэтому вынос в мрад и MOA тоже растёт с дистанцией — смотрите таблицу ниже.',
+          'Mrad and MOA are angles, so in centimetres they grow with the distance. 1 mrad = 10 cm at 100 m, 20 cm at 200 m, 50 cm at 500 m. 1 MOA = 2.9 cm at 100 m, 5.8 cm at 200 m, 14.5 cm at 500 m. 1 mrad ≈ 3.44 MOA. To count: cm = mrad × distance in metres ÷ 10. The drop grows faster than the distance, so the hold in mrad and MOA grows with it too — see the table below.',
+        )}
+      </RangeHelpTip>
+      {!none && marks !== undefined && markStep !== undefined && <b>{number(marks, lang)} {marksWord(marks, lang)}</b>}
+      {!none && marks !== undefined && markStep !== undefined && <RangeHelpTip label={t('Что такое риски', 'What the marks are')}>
+        {t(
+          `Риски — отметки на вертикальной линии сетки ниже центра. У этой сетки на ×${number(zoom, lang, zoom % 1 ? 1 : 0)} между соседними рисками ${number(markStep, lang, 2)} мрад (${number(mradToMoa(markStep), lang, 2)} MOA). Вынос ${number(Math.abs(hold.mrad), lang)} мрад — это ${number(marks, lang)} ${marksWord(marks, lang)}.`,
+          `The marks are the ticks on the reticle's vertical line below the centre. On this reticle at ×${number(zoom, lang, zoom % 1 ? 1 : 0)} two neighbouring marks are ${number(markStep, lang, 2)} mrad apart (${number(mradToMoa(markStep), lang, 2)} MOA). A hold of ${number(Math.abs(hold.mrad), lang)} mrad is ${number(marks, lang)} ${marksWord(marks, lang)}.`,
+        )}
+      </RangeHelpTip>}
+    </div>
+    <span className="range-hold-aim">{aim}</span>
+    <span>{t('пуля', 'the bullet')} {hold.dropCm <= 0 ? t('ниже', 'below') : t('выше', 'above')} {t('линии прицела на', 'the sight line by')} {length(Math.abs(hold.dropCm), lang)} · {distance} {t('м', 'm')} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')} · ×{number(zoom, lang, zoom % 1 ? 1 : 0)}</span>
+  </div>
+}
+
+/** How far the bullet falls at each distance (owner, 23.11.2026: «Напиши, на сколько… падает пуля на каждой дистанции»). */
+function DropTable({ rows, distance, zero, marks, ammoName, lang }: {
+  rows: Array<{ distance: number } & ReturnType<typeof holdover>>; distance: number; zero: number; marks: boolean; ammoName: string; lang: Locale
+}) {
+  const t = (ru: string, en: string) => lang === 'en' ? en : ru
+  const nearest = rows.reduce<number | undefined>((best, row) => best === undefined || Math.abs(row.distance - distance) < Math.abs(best - distance) ? row.distance : best, undefined)
+  return <details className="range-drops">
+    <summary>{t('Падение пули по дистанциям', 'Bullet drop by distance')} · {ammoName} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')}</summary>
+    <table>
+      <thead><tr>
+        <th>{t('Дистанция', 'Distance')}</th><th>{t('Пуля от линии прицела', 'Bullet vs sight line')}</th><th>{t('Вынос, мрад', 'Hold, mrad')}</th><th>MOA</th>{marks && <th>{t('Рисок', 'Marks')}</th>}
+      </tr></thead>
+      <tbody>{rows.map((row) => <tr key={row.distance} className={row.distance === nearest ? 'is-current' : row.distance === zero ? 'is-zero' : undefined}>
+        <td>{row.distance} {t('м', 'm')}{row.distance === zero ? ` · ${t('пристрелка', 'zero')}` : ''}</td>
+        <td>{Math.abs(row.dropCm) < 0.05 ? '0' : `${row.dropCm < 0 ? '↓' : '↑'} ${length(Math.abs(row.dropCm), lang)}`}</td>
+        <td>{number(Math.abs(cmToMrad(row.dropCm, row.distance)), lang)}</td>
+        <td>{number(Math.abs(row.moa), lang)}</td>
+        {marks && <td>{row.marks !== undefined ? number(Math.abs(row.marks), lang) : '—'}</td>}
+      </tr>)}</tbody>
+    </table>
+    <p>{t('↓ — пуля ниже линии прицела: вынос вверх; ↑ — выше: вынос вниз. Риски — на кратности, что сейчас в прицеле.', '↓ — the bullet below the sight line: hold up; ↑ — above it: hold down. Marks at the magnification in the scope now.')}</p>
+  </details>
+}

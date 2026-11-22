@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FIGURE_HEIGHT } from './rangeHitboxes'
 import { RangeScene, type SceneProps } from './RangeTarget'
 import { fovMrad, mradToCm, reticleAt, type ScopeMode } from './rangeScope'
+import { swayAt, useSwayTime } from './rangeSway'
 
 /**
  * The target seen through a scope (owner, 22.11.2026: «в режиме прицела… выставлять персонажей на дистанции… я поставил 600
@@ -9,13 +10,21 @@ import { fovMrad, mradToCm, reticleAt, type ScopeMode } from './rangeScope'
  * попадаю я или нет»): the field of view of the scope at its magnification, the character at its real angular size for the
  * distance, the reticle fixed in the middle. «Войти в прицел» takes the mouse (owner, 23.11.2026: «Нужно, чтобы кнопка была войти в
  * прицел, и можно было шевелить вверх-вниз, как в игре»): moving it turns the view, holding the left button fires, the wheel
- * turns a variable scope's magnification, Esc leaves. Where the page may not take the mouse, it turns the view while the
- * cursor moves over the scope. The recoil turns the view as it turns the barrel.
+ * turns a variable scope's magnification, Esc, the right button or «Выйти из прицела» leaves. Where the page may not take the
+ * mouse, it turns the view while the cursor moves over the scope. The recoil and the sway turn the view as they turn the barrel.
+ *
+ * The wheel (owner, 23.11.2026: «Регулировка кратности происходит роликом… окно не должно… ездить… Если кратность меняется
+ * только либо 1, либо 6, то меняется кратность… резко. Если… плавно, то… плавно роликом»): a variable mode turns smoothly, a
+ * scope of fixed magnifications steps to the next one; in the scope the page under it never scrolls.
  */
-export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, onFireStart, onFireEnd, onAim, lang }: {
+export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, onFireStart, onFireEnd, onAim, lang }: {
   scene: SceneProps
   distance: number
   mode: ScopeMode
+  /** All the scope's modes and the one in use: the wheel steps between fixed magnifications. */
+  modes: ScopeMode[]
+  modeIndex: number
+  onMode: (index: number) => void
   /** The magnification now (a variable scope's wheel). */
   zoom: number
   onZoom: (zoom: number) => void
@@ -26,6 +35,8 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
   /** The barrel's and the view's turn by the recoil, centimetres at the target (the reticle is on the barrel). */
   boreCm: { x: number; y: number }
   viewCm: { x: number; y: number }
+  /** The sway's amplitude at the target, cm (src/range/rangeSway.ts); 0 or absent: off. */
+  swayCm?: number
   onFireStart: (point: { x: number; y: number }) => void
   onFireEnd: () => void
   /** Where the reticle's centre is on the target's plane (figure centimetres, without the recoil). */
@@ -40,7 +51,9 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
   // the view's width in mrad at the magnification now: the field of view narrows as the magnification grows
   const fov = fovMrad(mode.fovDeg) * (mode.zoom / zoom)
   const fovCm = mradToCm(fov, distance)
-  const centre = { x: aim.x + viewCm.x, y: aim.y + viewCm.y }
+  const swayTime = useSwayTime(Boolean(swayCm))
+  const sway = swayCm ? swayAt(swayTime, swayCm) : { x: 0, y: 0 }
+  const centre = { x: aim.x + viewCm.x + sway.x, y: aim.y + viewCm.y + sway.y }
   // the reticle moves on the screen by how far the barrel is off the view
   const reticleShift = { x: (boreCm.x - viewCm.x) / fovCm * 100, y: -(boreCm.y - viewCm.y) / fovCm * 100 }
   // a first focal plane reticle grows with the magnification; a second focal plane one keeps its size on the screen
@@ -93,21 +106,33 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
     }
   }, [inside, fovCm])
   // the wheel turns the magnification, not the page under the scope (React's wheel listener cannot hold the page)
-  const zoomRef = useRef({ mode, zoom, onZoom })
-  useEffect(() => { zoomRef.current = { mode, zoom, onZoom } }, [mode, zoom, onZoom])
+  const zoomRef = useRef({ mode, modes, modeIndex, onMode, zoom, onZoom, inside })
+  useEffect(() => { zoomRef.current = { mode, modes, modeIndex, onMode, zoom, onZoom, inside } }, [mode, modes, modeIndex, onMode, zoom, onZoom, inside])
   useEffect(() => {
     const element = box.current
     if (!element) return
     const onWheel = (event: WheelEvent) => {
-      const { mode: now, zoom: current, onZoom: change } = zoomRef.current
-      if (!now.zoomMax || now.zoomMax <= now.zoom) return
-      event.preventDefault()
-      const step = (now.zoomMax - now.zoom) / 12
-      change(Math.max(now.zoom, Math.min(now.zoomMax, current - Math.sign(event.deltaY) * step)))
+      const { mode: now, modes: all, modeIndex: index, onMode: switchMode, zoom: current, onZoom: change, inside: entered } = zoomRef.current
+      const up = event.deltaY < 0
+      if (now.zoomMax && now.zoomMax > now.zoom) {
+        event.preventDefault()
+        const step = (now.zoomMax - now.zoom) / 12
+        change(Math.max(now.zoom, Math.min(now.zoomMax, current + (up ? step : -step))))
+        return
+      }
+      // fixed magnifications: the next one up or down, at once (the first mode of each magnification)
+      const next = nextFixedMode(all, index, up)
+      if (next !== undefined) { event.preventDefault(); switchMode(next); return }
+      if (entered) event.preventDefault()
     }
     element.addEventListener('wheel', onWheel, { passive: false })
     return () => element.removeEventListener('wheel', onWheel)
   }, [])
+  const leave = () => {
+    fireEndRef.current()
+    if (document.pointerLockElement === box.current) document.exitPointerLock()
+    else setInside(null)
+  }
   const enter = () => {
     const element = box.current
     if (!element?.requestPointerLock) { setInside('free'); return }
@@ -122,18 +147,23 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
   const half = fovCm / 2
   const markRadius = Math.max(0.6, fovCm / 260)
   const viewBox = `${centre.x - half} ${FIGURE_HEIGHT - centre.y - half} ${fovCm} ${fovCm}`
-  // where the bullet lands now: the reticle's centre with the drop at this distance (owner, 23.11.2026: «более ярко выраженной
-  // красной обводкой»), drawn over the night and thermal filters
+  // where the bullet lands now: the reticle's centre with the drop at this distance, drawn over the night and thermal filters —
+  // a plain bar that stands out from the reticle (owner, 23.11.2026: «Сделай просто полосочку понятную… Если прицел красный,
+  // то сделай ее черной. Если прицел черный, сделай ее красной»)
   const impact = { x: centre.x + (boreCm.x - viewCm.x), y: FIGURE_HEIGHT - (centre.y + (boreCm.y - viewCm.y) + dropCm) }
-  const impactRadius = fovCm * 0.022
+  const barHalf = fovCm * 0.04
   return <div
     ref={box}
     className={`range-scope${locked ? ' is-locked' : ''}`}
     onMouseDown={(event) => {
-      if (event.button !== 0 || !locked) return
+      if (!locked) return
+      // the right button leaves the scope, as aiming ends in the game
+      if (event.button === 2) { event.preventDefault(); leave(); return }
+      if (event.button !== 0) return
       event.preventDefault()
       onFireStart(aimRef.current)
     }}
+    onContextMenu={(event) => { if (locked) event.preventDefault() }}
     onMouseUp={() => { if (locked) onFireEnd() }}
     onMouseLeave={() => {
       if (inside !== 'free') return
@@ -149,13 +179,23 @@ export function RangeScopeView({ scene, distance, mode, zoom, onZoom, reticleUrl
     {reticleUrl
       ? <img className="range-scope-reticle" src={reticleUrl} alt="" style={{ width: `${reticleShare * 100}%`, height: `${reticleShare * 100}%`, left: `${50 + reticleShift.x}%`, top: `${50 + reticleShift.y}%` }} />
       : <svg className="range-scope-reticle is-drawn" viewBox="-50 -50 100 100" style={{ left: `${50 + reticleShift.x}%`, top: `${50 + reticleShift.y}%` }}><path d="M-50 0H-3M3 0H50M0 -50V-3M0 3V50" /></svg>}
-    <svg className="range-scope-world range-scope-impact" viewBox={viewBox} preserveAspectRatio="xMidYMid slice">
-      <circle cx={impact.x} cy={impact.y} r={impactRadius} className="is-halo" />
-      <circle cx={impact.x} cy={impact.y} r={impactRadius} className="is-ring" />
-      <circle cx={impact.x} cy={impact.y} r={impactRadius * 0.16} className="is-dot" />
+    <svg className={`range-scope-world range-scope-impact${mode.reticleRed ? ' is-black' : ' is-red'}`} viewBox={viewBox} preserveAspectRatio="xMidYMid slice">
+      <line x1={impact.x - barHalf} x2={impact.x + barHalf} y1={impact.y} y2={impact.y} className="is-halo" />
+      <line x1={impact.x - barHalf} x2={impact.x + barHalf} y1={impact.y} y2={impact.y} className="is-bar" />
     </svg>
-    {locked
-      ? <div className="range-scope-hint">{lang === 'en' ? 'Left button — fire · wheel — zoom · Esc — leave' : 'ЛКМ — огонь · колесо — кратность · Esc — выйти'}</div>
-      : <button type="button" className="button primary range-scope-enter" onMouseDown={(event) => event.stopPropagation()} onClick={enter}>{lang === 'en' ? 'Enter the scope' : 'Войти в прицел'}</button>}
+    {locked && <div className="range-scope-hint">{lang === 'en' ? 'Left button — fire · wheel — zoom · R — reload · F — new target · right button or Esc — leave' : 'ЛКМ — огонь · колесо — кратность · R — перезарядка · F — новая цель · ПКМ или Esc — выйти'}</div>}
+    {inside === 'free' && <button type="button" className="button range-scope-leave" onMouseDown={(event) => event.stopPropagation()} onClick={leave}>{lang === 'en' ? 'Leave the scope' : 'Выйти из прицела'}</button>}
+    {!locked && <button type="button" className="button primary range-scope-enter" onMouseDown={(event) => event.stopPropagation()} onClick={enter}>{lang === 'en' ? 'Enter the scope' : 'Войти в прицел'}</button>}
   </div>
+}
+
+/** The scope's next fixed magnification up or down from the mode in use (the first mode of each), if any. */
+function nextFixedMode(modes: ScopeMode[], index: number, up: boolean): number | undefined {
+  const current = modes[index]?.zoom
+  if (current === undefined || modes.length < 2) return undefined
+  const firsts = new Map<number, number>()
+  modes.forEach((entry, at) => { if (!firsts.has(entry.zoom)) firsts.set(entry.zoom, at) })
+  const zooms = [...firsts.keys()].sort((a, b) => a - b)
+  const next = zooms[zooms.indexOf(current) + (up ? 1 : -1)]
+  return next === undefined ? undefined : firsts.get(next)
 }
