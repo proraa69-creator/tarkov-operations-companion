@@ -8732,3 +8732,25 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   audit line (written outside the route). Reply to the player Zavisim drafted for the owner, not sent.
 - Photo tour: worker renders at the game's screen size now (black band across forest frames from GrassMotionVectorsRT ≠ frame);
   Woods quests re-shooting (woods-quests-2), then Woods spawns.
+- 22.11 «Тир» (owner: «https://tarkov-lab.com/#range изучи всю систему … сделай так же у нас … реализуй в тестовом приложении, не
+  публикуй»): branch claude/range (from claude/quest-row-tags), 45544881. New page /arsenal/range + «Тир» in «Арсенал», shown only in a
+  dev run and in a TEST_BUILD (vite define __RAIDOS_TEST_BUILD__, src/app/rangeFeature.ts) — a release build has no route or menu item.
+  - Rules read from the game's client code in the offline SPT copy (Assembly-CSharp via a read-only Mono.Cecil IL listing in the
+    scratchpad; nothing injected or run): RealResistance, GetPenetrationChance (incl. 100 % at R ≤ p−15), CF = clamp(p/(R+12),0.6,1),
+    armour wear (0.5–0.9 through / 0.6–1.1 stopped, min 1), blunt × clamp(1−0.03(R−p),0.2,1), ×0.6 for plate slots over soft armour,
+    pieces after the blocker × their blunt, removable before built-in, plate collider then soft insert with damage/pen × CF,
+    ricochet lerp, pen ~ normal(pen, deviation), health ApplyDamage with over-damage (stomach 1.5, arms 0.7, legs 1, ×0.7 received)
+    and death on head/thorax. Not modelled: fragments (now separate shots), skills, bleeding. Neck → thorax and groin → stomach as
+    tarkov-lab shows (the colliders' parts live in the player model, not in code) — to verify in SPT.
+  - Data: armour from the mode's items file (armorSlots inline inserts and helmet parts, plate slots, visors/modules, masks, glasses);
+    src/range/rangeTargets.json from SPT bots/types (37 characters: health per part, weighted helmet/armour/rig/mask/glasses pools,
+    fitted plates and visors) + templates/items (default plate per slot, bluntDamageReduceFromSoftArmor) via
+    scripts/build-range-targets.mjs <SPT_Data/database>.
+  - Page: weapon/caliber/build (default or saved)/round, target groups and character, health variant, start state (blacked limbs),
+    kit usual/random/custom with helmet, visor, module, mask, glasses, armour or rig and each plate; front/back figure with zones
+    clipped to a body outline, armour overlay, distance 5–1000 m, zero, fire modes (single/burst/auto at the fire rate), magazine +
+    R reload, cover, spread (MOA), recoil and sway (estimates), drop vs zero, damage/pen at distance; tabs Урон/Броня/Полёт/Журнал,
+    counters; «Сравнение»: rounds/body armour/helmets/plates × zones, series 100/300/1000, mean shots and TTK.
+  - Checked: 19 range tests, tsc -b, eslint; in the browser (dev, 1600×950) shots, auto fire, kill, back view, EN, comparison
+    (11 rounds × 5 zones × 100 runs < 1 s). src/app/appVersion.test.ts fails on the Windows path with a space (unrelated).
+  - Not done: character pictures from the game (schematic figure for now), moving target, paper target; the test exe build follows.
