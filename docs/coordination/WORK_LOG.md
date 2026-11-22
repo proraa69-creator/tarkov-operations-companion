@@ -9019,17 +9019,13 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Not done / for the owner: the server override 1c8ef8e7 (stage 33, Lighthouse BEAR camp −103/475, from fitting a wiki map) still
   wins over the game's zone −64.79/452.41 now in the app (44 m apart); fca72e3c (Bogatyrs patch) likewise. Player replies
   (Zavisim, mitya.tagintsev) drafted earlier, not sent.
-- 23.11.2026 ~03:30, release 0.6.0.335 (owner: «Делай выпуск приложения которое фиксит баг с черным экраном»; «И остальное
-  добавляй в выпуск»). 0.6.0.334 (f7842546) was pushed at 02:00 but never published (raidos-release.service inactive since
-  22.11 13:58 UTC), so 335 = 334 + claude/start-diagnostics (cf99a700) + claude/admin-phone-stats (f4fd98ae) + the finished
-  branches of 19–20.11 that never went out: claude/spt-quest-sync (report 200, SPT quest spots), claude/boss-retinue-spt
-  (report 201), claude/glass-texture, claude/map-docs-valuables, claude/helmet-visor (TierListPanel: the visor menu and the
-  weapon menu both on the right click), claude/quirky-bassi-d8f754 (phone layout; startup-intro.js keeps Android's third-size
-  intro and the failure screen), and c0498f13 from claude/reports-194-199 (reports 194–199). Left out of that branch: the
-  modules' grid window, the phone boss smoke and the Overview tiles (redone later in released code). Not in: claude/range
-  (testing), the Killa NG mask (1 December). Integrated on claude/release-335 by this session; the release session was told to stop.
-  - Start diagnostics: the black window of mitya.tagintsev@mail.ru survived --disable-gpu, so not the card. public/startup-intro.js
-    now shows «Приложение не запустилось» with the reason when the app's code never starts; main: did-fail-load → message with
-    «Попробовать снова», crashed page after paint → reload, version/Windows/GPU/preload error to the screen. Checked in a
-    throwaway offscreen Electron window: normal start unchanged; main module removed → the screen names the file.
-  - News: 9 lines (start, Latvia/Lithuania CIS prices, visors, retinue, documents limit, trader loyalty, rewards, glass, phone).
+- 20:02 UTC, owner (through the RaidOS session, his words checked in its transcript): «Лагерь Бир где сейчас на других источниках?
+  Туда и добавляй». Sources: only wikiwiki.jp locates the camp (a circle on Jindouz's map, «between the Lighthouse area and the
+  Southern Road Landslide extract»); alucare, thegameslayer, tarkovforge (stump with the patch, note on a metal pole) give no
+  place; fandom (402), mapgenie, igm.gg unreadable. The wiki image fitted to 10 extracts (least squares, worst residual 15–19 m):
+  circle centre ≈ −70…−80 / 464…474, radius ≈ 49 m; the game's zone −64.79 / 452.41 lies 13–26 m from the centre, the old
+  override −103 / 475 24–35 m. Agreed → both overrides moved with QuestPointStore.save (tsx as raidos-api in the server dir):
+  1c8ef8e7 stage-33-1 → −64.79 / 452.41 (now equal to the app's seed of 0.6.0.334), fca72e3c stage-0-3 (Bogatyrs patch; the app's
+  seed still at the old camp) → −65.52 / 453.51 (offset kept). Titles/descriptions unchanged, notes with the sources. Backup
+  /var/lib/raidos/backups/quest-point-overrides-batya-lighthouse-20261123.json. GET /v1/quest-points shows both; apps re-read
+  in ~10 min. No release.
