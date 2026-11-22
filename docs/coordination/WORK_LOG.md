@@ -8718,3 +8718,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     (unknown paths get the site's page). Checked: build 13.6 MB pack, no plain folder, no WEBP/PNG signature; M4A1 bench draws in
     the browser from the pack. Not checked in a packaged PC app or on a phone. The key is in the app (no lock against reverse
     engineering), screenshots can always be taken.
+  - 30e83169 bench cells (owner: «В окне оружейника картинки модулей по прежнему маленькие»): both screens already drew 44 px cells
+    with the same base pictures (40×31 under the name); the game's pictures are a third to half empty. Now each cell picture is cut to
+    its part once (src/arsenal/trimmedPicture.ts, needs CORS: raidos.app answers capacitor:// and https://localhost, the PC's
+    raidos-img answers *; otherwise the whole picture stays) and on the phone fills the cell (40×40). Checked at 430×932 with CORS
+    allowed in the test: every filled cell cut. Not checked in a packaged PC app or on a phone.
