@@ -12,7 +12,9 @@ import type { AmmoStats, Build, GunCatalog } from '../arsenal/gunTypes'
 import { useArmorCatalog } from '../range/rangeArmorSource'
 import { defaultPlates, kitPieces, likelyKit, randomKit, RANGE_TARGETS, type ArmorCatalog, type KitChoice, type RangeItem, type RangeTargetData } from '../range/rangeArmor'
 import { BODY_PARTS, cloneKit, freshBody, PMC_HEALTH, totalHealth, type ArmorPiece, type BodyPart, type BodyState, type Health, type Round } from '../range/rangeModel'
-import { shootOnce, type AimSetup, type Cover, type FiredShot } from '../range/rangeShot'
+import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type FiredShot } from '../range/rangeShot'
+import { figureLayers } from '../range/rangeFigures'
+import { useFigureIndex, useFigureUrls } from '../range/rangeFigureSource'
 import { RangeTarget } from '../range/RangeTarget'
 import { CLASS_COLORS, markOf, spreadAt } from '../range/rangeView'
 import { RangeCompare } from '../range/RangeCompare'
@@ -132,6 +134,12 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
 
   // ——— range settings
   const [view, setView] = useState<View>('front')
+  // the pictures of the character in its kit (test builds carry them), and the game's hit zones laid on that body
+  const figureIndex = useFigureIndex()
+  const figures = useMemo(() => figureIndex ? { front: figureLayers(figureIndex, target.key, choice, 'front'), back: figureLayers(figureIndex, target.key, choice, 'back') } : undefined, [figureIndex, target.key, choice])
+  const geometry = useMemo(() => figures ? figureGeometry({ front: figures.front?.base.zones, back: figures.back?.base.zones }) : SCHEMATIC, [figures])
+  const shownFigure = figures?.[view]
+  const figureUrls = useFigureUrls(shownFigure ? [shownFigure.base, ...shownFigure.layers].map((picture) => picture.file) : [])
   const [distance, setDistance] = useState(50)
   const [zero, setZero] = useState(100)
   const [cover, setCover] = useState<Cover>('none')
@@ -185,7 +193,7 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
     for (let pellet = 0; pellet < pellets; pellet++) {
       // buckshot: each pellet its own bullet, about 3 cm per metre across round the aim
       const aim = pellets > 1 ? { x: aimRef.current.x + gauss() * 0.75 * distance, y: aimRef.current.y + gauss() * 0.75 * distance } : aimRef.current
-      fired.push(shootOnce(kit, body, view, aim, setup, round, cover, burstRef.current, Math.random))
+      fired.push(shootOnce(kit, body, view, aim, setup, round, cover, burstRef.current, Math.random, geometry))
     }
     burstRef.current += 1
     shotNumber.current += 1
@@ -231,6 +239,7 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
   if (tab === 'compare') return <RangeCompare
     lang={lang} catalog={catalog} armor={armor} rounds={rounds} ammo={ammo} weapon={weapon} stats={stats} health={health} blackedOut={blackedOut}
     choice={choice} kit={freshKit} distance={distance} zero={zero} setup={setup} mode={mode} targetName={pick([target.ru, target.en], lang)}
+    geometry={geometry}
   />
 
   return <div className="range-layout">
@@ -348,7 +357,8 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
         </div>
         <div className="range-target-wrap">
           <RangeTarget view={view} kit={kit} body={body} marks={marks} showArmor={toggles.armor} cover={cover} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined}
-            onFireStart={fireStart} onFireEnd={fireEnd} onAimMove={(point) => { aimRef.current = point }} labels={hpLabels} />
+            onFireStart={fireStart} onFireEnd={fireEnd} onAimMove={(point) => { aimRef.current = point }} labels={hpLabels}
+            figure={shownFigure ? { ...shownFigure, urls: figureUrls } : undefined} />
           {body.dead && <div className="range-dead">
             <b>{t('Убит', 'Killed')}</b>
             <span>{killedAt ? `${killedAt} ${t('выстр.', 'shots')} · ${weapon?.fireRate ? `${((killedAt - 1) * 60 / weapon.fireRate + (flight?.time ?? 0)).toFixed(2)} ${t('с', 's')}` : ''}` : ''}</span>

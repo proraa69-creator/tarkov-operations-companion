@@ -11,17 +11,18 @@ import { ITEM_IMAGE_SCHEME } from './itemImages.js'
 const PART_FILE = PART_PACK_FILE
 const TYPES: Record<string, string> = { webp: 'image/webp', png: 'image/png', json: 'application/json' }
 
-export function gunPartFile(url: string): string | null {
+export function gunPartFile(url: string, host = 'parts', pattern: RegExp = PART_FILE): string | null {
   try {
     const parsed = new URL(url)
     const file = parsed.pathname.replace(/^\//, '')
-    return parsed.protocol === `${ITEM_IMAGE_SCHEME}:` && parsed.hostname === 'parts' && !parsed.search && PART_FILE.test(file) ? file : null
+    return parsed.protocol === `${ITEM_IMAGE_SCHEME}:` && parsed.hostname === host && !parsed.search && pattern.test(file) ? file : null
   } catch {
     return null
   }
 }
 
-export function createGunPartResponder(packPath: string, read: (path: string) => Promise<Uint8Array> = readFile) {
+/** Also the range's pictures (src/range/rangeFigures.ts): `raidos-img://range/<file>` from range-figures.pack. */
+export function createGunPartResponder(packPath: string, read: (path: string) => Promise<Uint8Array> = readFile, host = 'parts', pattern: RegExp = PART_FILE) {
   // the pack read once, at the first picture; a pack that could not be read is tried again at the next ask
   let packLoad: Promise<PartPack | null> | null = null
   const pack = () => {
@@ -29,7 +30,7 @@ export function createGunPartResponder(packPath: string, read: (path: string) =>
     return packLoad.then((opened) => { if (!opened) packLoad = null; return opened })
   }
   return async (url: string): Promise<Response> => {
-    const file = gunPartFile(url)
+    const file = gunPartFile(url, host, pattern)
     const headers = { 'access-control-allow-origin': '*' }
     if (!file) return new Response(null, { status: 404, headers })
     try {

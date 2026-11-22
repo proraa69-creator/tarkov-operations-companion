@@ -4,7 +4,7 @@ import type { BuildStats } from '../arsenal/buildStats'
 import type { AmmoStats, GunCatalog, Weapon } from '../arsenal/gunTypes'
 import { defaultPlates, kitPieces, type ArmorCatalog, type KitChoice } from './rangeArmor'
 import { seededRandom, type ArmorPiece, type BodyPart, type Health, type Round } from './rangeModel'
-import { COMPARE_ZONES, series, timeToKill, type AimSetup, type SeriesResult } from './rangeShot'
+import { COMPARE_ZONES, SCHEMATIC, series, timeToKill, type AimSetup, type Geometry, type SeriesResult } from './rangeShot'
 import { flightAt, muzzleSpeed } from './rangeFlight'
 import { CLASS_COLORS } from './rangeView'
 
@@ -22,7 +22,7 @@ const MAX_ROWS = 24
  * armours, helmets and plates against the chosen round — shots to kill on average (median under it) and the time at the
  * weapon's fire rate. Every run is a fresh character in fresh armour; spread and recoil as on the range.
  */
-export function RangeCompare({ lang, armor, rounds, ammo, weapon, stats, health, blackedOut, choice, kit, distance, zero, setup, mode, targetName }: {
+export function RangeCompare({ lang, armor, rounds, ammo, weapon, stats, health, blackedOut, choice, kit, distance, zero, setup, mode, targetName, geometry = SCHEMATIC }: {
   lang: Locale
   catalog: GunCatalog
   armor: ArmorCatalog
@@ -39,6 +39,8 @@ export function RangeCompare({ lang, armor, rounds, ammo, weapon, stats, health,
   setup: AimSetup
   mode: string
   targetName: string
+  /** The target's zones (the pictured body's when there are pictures). */
+  geometry?: Geometry
 }) {
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
   const [subject, setSubject] = useState<Subject>('ammo')
@@ -101,7 +103,7 @@ export function RangeCompare({ lang, armor, rounds, ammo, weapon, stats, health,
         // let the page draw between cells
         await new Promise((resolve) => window.setTimeout(resolve, 0))
         if (job.current !== id) return
-        next[`${row.key}|${zone.key}`] = series(row.kit, health, blackedOut, zone, row.round, setup, runs, seededRandom(runs * 7919 + done), burst)
+        next[`${row.key}|${zone.key}`] = series(row.kit, health, blackedOut, zone, row.round, setup, runs, seededRandom(runs * 7919 + done), burst, geometry)
         done++
         setProgress({ done, total })
         setResults({ ...next })

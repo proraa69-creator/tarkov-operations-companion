@@ -3,11 +3,23 @@ import { bodyOutline, FIGURE_HEIGHT, HEAD, plateRegions, regions, shapePath, typ
 import { COLLIDER_PART, type ArmorPiece, type BodyPart, type BodyState } from './rangeModel'
 import type { Cover, FiredShot } from './rangeShot'
 import { CLASS_COLORS, markOf } from './rangeView'
+import { partLabelPoints, type FigurePicture } from './rangeFigures'
 
 const VIEW_BOX = '-44 -10 88 196'
+/** The pictured figure stands a little taller (a helmet) and wider (the arms). */
+const PICTURE_VIEW_BOX = '-52 -24 104 210'
 
-export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm, onFireStart, onFireEnd, onAimMove, labels }: {
+export interface TargetFigure {
+  base: FigurePicture
+  layers: FigurePicture[]
+  /** Object addresses of the pictures by file. */
+  urls: Record<string, string>
+}
+
+export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm, onFireStart, onFireEnd, onAimMove, labels, figure }: {
   view: View
+  /** The pictures of the character and its armour; without them the schematic figure. */
+  figure?: TargetFigure
   kit: ArmorPiece[]
   body: BodyState
   marks: FiredShot[]
@@ -55,14 +67,20 @@ export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm
     return `rgb(${r} ${g} ${b})`
   }
 
-  const partLabels: Array<{ part: BodyPart; x: number; y: number }> = view === 'front'
+  const baseZones = figure?.base.zones
+  const zonesOfFigure = useMemo(() => baseZones ?? [], [baseZones])
+  const figurePoints = useMemo(() => partLabelPoints(zonesOfFigure), [zonesOfFigure])
+  const pictured = Boolean(figure && figure.urls[figure.base.file])
+  const partLabels: Array<{ part: BodyPart; x: number; y: number }> = pictured
+    ? (Object.entries(figurePoints) as Array<[BodyPart, { x: number; y: number }]>).map(([part, point]) => ({ part, ...point }))
+    : view === 'front'
     ? [{ part: 'Head', x: 0, y: 165 }, { part: 'Chest', x: 0, y: 133 }, { part: 'Stomach', x: 0, y: 108 }, { part: 'LeftArm', x: 22.5, y: 100 }, { part: 'RightArm', x: -22.5, y: 100 }, { part: 'LeftLeg', x: 8.5, y: 40 }, { part: 'RightLeg', x: -8.5, y: 40 }]
     : [{ part: 'Head', x: 0, y: 165 }, { part: 'Chest', x: 0, y: 133 }, { part: 'Stomach', x: 0, y: 108 }, { part: 'LeftArm', x: -22.5, y: 100 }, { part: 'RightArm', x: 22.5, y: 100 }, { part: 'LeftLeg', x: -8.5, y: 40 }, { part: 'RightLeg', x: 8.5, y: 40 }]
 
   return <svg
     ref={svg}
-    className="range-target"
-    viewBox={VIEW_BOX}
+    className={`range-target${pictured ? ' is-pictured' : ''}`}
+    viewBox={pictured ? PICTURE_VIEW_BOX : VIEW_BOX}
     role="img"
     onPointerDown={(event) => {
       const point = toFigure(event)
@@ -82,7 +100,22 @@ export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm
         <ellipse cx={HEAD.cx} cy={FIGURE_HEIGHT - HEAD.cy} rx={HEAD.rx} ry={HEAD.ry} />
       </clipPath>
     </defs>
-    <rect x={-44} y={FIGURE_HEIGHT} width={88} height={6} className="range-ground" />
+    <rect x={-52} y={FIGURE_HEIGHT} width={104} height={6} className="range-ground" />
+    {pictured && figure ? <>
+      {[figure.base, ...figure.layers].map((picture) => figure.urls[picture.file]
+        ? <image key={picture.file} href={figure.urls[picture.file]} x={picture.x} y={FIGURE_HEIGHT - picture.top} width={picture.width} height={picture.height} preserveAspectRatio="none" />
+        : null)}
+      {zonesOfFigure.filter((zone) => !zone.plate).map((zone, index) => {
+        const share = body.max[zone.part] > 0 ? body.current[zone.part] / body.max[zone.part] : 0
+        const armorClass = showArmor ? coverage.get(zone.type) : undefined
+        const hurt = body.destroyed[zone.part] ? 0.55 : (1 - share) * 0.45
+        return <path key={`${zone.type}-${index}`} d={polyPath(zone.poly)} className="range-figure-zone" fill={`rgb(226 87 76 / ${hurt.toFixed(2)})`} stroke={armorClass ? CLASS_COLORS[armorClass] : undefined} data-collider={zone.type} />
+      })}
+      {showArmor && zonesOfFigure.filter((zone) => zone.plate && platePieces.has(zone.plate)).map((zone, index) => {
+        const piece = platePieces.get(zone.plate!)!
+        return <path key={`${zone.plate}-${index}`} d={polyPath(zone.poly)} className={`range-plate${piece.durability <= 0 ? ' is-broken' : ''}`} fill={CLASS_COLORS[piece.armorClass]} stroke={CLASS_COLORS[piece.armorClass]} />
+      })}
+    </> : <>
     <path d={outline} className="range-body" />
     <ellipse cx={HEAD.cx} cy={FIGURE_HEIGHT - HEAD.cy} rx={HEAD.rx} ry={HEAD.ry} className="range-body" />
     <g clipPath="url(#range-body-clip)">
@@ -94,7 +127,8 @@ export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm
     </g>
     <path d={outline} className="range-body-line" />
     <ellipse cx={HEAD.cx} cy={FIGURE_HEIGHT - HEAD.cy} rx={HEAD.rx} ry={HEAD.ry} className="range-body-line" />
-    {showArmor && plates.filter((plate) => platePieces.has(plate.zone)).map((plate) => {
+    </>}
+    {!pictured && showArmor && plates.filter((plate) => platePieces.has(plate.zone)).map((plate) => {
       const piece = platePieces.get(plate.zone)!
       return <path key={plate.zone} d={shapePath(plate.shape)} className={`range-plate${piece.durability <= 0 ? ' is-broken' : ''}`} fill={CLASS_COLORS[piece.armorClass]} stroke={CLASS_COLORS[piece.armorClass]} />
     })}
@@ -112,6 +146,11 @@ export function RangeTarget({ view, kit, body, marks, showArmor, cover, spreadCm
       <line x1={aim.x} x2={aim.x} y1={FIGURE_HEIGHT - aim.y + 0.8} y2={FIGURE_HEIGHT - aim.y + 3} />
     </g>}
   </svg>
+}
+
+/** A polygon of figure centimetres as an SVG path. */
+function polyPath(poly: ReadonlyArray<readonly [number, number]>) {
+  return `M${poly.map(([x, y]) => `${x.toFixed(2)},${(FIGURE_HEIGHT - y).toFixed(2)}`).join('L')}Z`
 }
 
 function CoverShape({ cover }: { cover: Cover }) {

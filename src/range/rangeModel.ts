@@ -52,8 +52,8 @@ export const PLATE_ZONES = [
 export type PlateZone = (typeof PLATE_ZONES)[number]
 
 /**
- * Which body part a collider's damage goes to. The neck counts to the thorax and the groin to the stomach as tarkov-lab
- * shows them («Шея → грудь», «Пах → живот»); the colliders' own body parts sit in the game's player model, not in its code.
+ * Which body part a collider's damage goes to — the game's player model (its BodyPartCollider components, read in the offline copy
+ * 22.11.2026): the neck counts to the thorax, the groin to the stomach.
  */
 export const COLLIDER_PART: Record<Collider, BodyPart> = {
   HeadCommon: 'Head', ParietalHead: 'Head', BackHead: 'Head', Ears: 'Head', Eyes: 'Head', Jaw: 'Head',
@@ -62,6 +62,11 @@ export const COLLIDER_PART: Record<Collider, BodyPart> = {
   RibcageLow: 'Stomach', SpineDown: 'Stomach', LeftSideChestDown: 'Stomach', RightSideChestDown: 'Stomach', Pelvis: 'Stomach', PelvisBack: 'Stomach',
   LeftUpperArm: 'LeftArm', LeftForearm: 'LeftArm', RightUpperArm: 'RightArm', RightForearm: 'RightArm',
   LeftThigh: 'LeftLeg', LeftCalf: 'LeftLeg', RightThigh: 'RightLeg', RightCalf: 'RightLeg',
+}
+
+/** The body part a plate collider passes a stopped bullet's blow to (the game's model: the side plates sit on the stomach). */
+export function platePart(zone: PlateZone): BodyPart {
+  return zone.includes('_side_') ? 'Stomach' : 'Chest'
 }
 
 /** One protecting piece: a plate, a soft insert, a helmet's part, a face shield, armoured glasses. */
@@ -268,7 +273,7 @@ export function piecesOver(kit: ArmorPiece[], spot: { plate?: PlateZone; collide
 
 /** A bullet at a spot of a character in a kit: the plate first when there is one, then the body collider. */
 export function fireAt(kit: ArmorPiece[], body: BodyState, spot: HitSpot, round: Round, random: () => number): ShotOutcome {
-  const part = COLLIDER_PART[spot.collider]
+  let part = COLLIDER_PART[spot.collider]
   const penetration = Math.max(0, round.penetrationDeviation ? normal(random, round.penetration, round.penetrationDeviation) : round.penetration)
   const stages: StageResult[] = []
   let damage = round.damage, pen = penetration, armor = round.armorDamage
@@ -278,7 +283,7 @@ export function fireAt(kit: ArmorPiece[], body: BodyState, spot: HitSpot, round:
   if (platePieces.length) {
     const stage = resolveStage(platePieces, damage, pen, armor, random, { plateStage: true, angle: spot.angle })
     stages.push(stage)
-    if (!stage.continues) { bodyDamage = stage.bodyDamage; penetrated = false }
+    if (!stage.continues) { bodyDamage = stage.bodyDamage; penetrated = false; part = platePart(spot.plate!) }
     damage = stage.damageOut; pen = stage.penetrationOut; armor = stage.armorDamageOut
   }
   if (penetrated) {

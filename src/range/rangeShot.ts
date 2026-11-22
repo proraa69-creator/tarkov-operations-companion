@@ -9,6 +9,7 @@
  */
 import { fireAt, freshBody, normal, cloneKit, type ArmorPiece, type BodyPart, type Collider, type Health, type HitSpot, type PlateZone, type Round, type ShotOutcome } from './rangeModel'
 import { hitAt, zoneCentre, type View } from './rangeHitboxes'
+import { hitOnFigure, type FigureZone } from './rangeFigures'
 
 export const CM_PER_MOA_100M = 2.9089
 
@@ -57,6 +58,26 @@ export function behindCover(cover: Cover, x: number, y: number) {
   }
 }
 
+/** Where the zones of the target are: the schematic figure, or the game's colliders laid on a pictured body (src/range/rangeFigures.ts). */
+export interface Geometry {
+  hit(view: View, x: number, y: number, plates: ReadonlySet<PlateZone>): HitSpot | undefined
+  centre(view: View, collider: Collider): { x: number; y: number } | undefined
+}
+
+export const SCHEMATIC: Geometry = { hit: hitAt, centre: zoneCentre }
+
+export function figureGeometry(zones: Partial<Record<View, FigureZone[]>>): Geometry {
+  return {
+    hit: (view, x, y, plates) => { const list = zones[view]; return list?.length ? hitOnFigure(list, x, y, plates) : hitAt(view, x, y, plates) },
+    centre: (view, collider) => {
+      const zone = zones[view]?.find((entry) => entry.type === collider && !entry.plate)
+      if (!zone) return zoneCentre(view, collider)
+      const xs = zone.poly.map(([x]) => x), ys = zone.poly.map(([, y]) => y)
+      return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 }
+    },
+  }
+}
+
 /** The plate zones a kit lays over the body. */
 export function kitPlateZones(kit: ArmorPiece[]): Set<PlateZone> {
   return new Set(kit.flatMap((piece) => piece.plates))
@@ -73,10 +94,10 @@ export interface FiredShot {
 }
 
 /** One shot at the range: the landing point, what it meets, and the result on the body and the kit (both changed in place). */
-export function shootOnce(kit: ArmorPiece[], body: ReturnType<typeof freshBody>, view: View, aim: { x: number; y: number }, setup: AimSetup, round: Round, cover: Cover, burstIndex: number, random: () => number): FiredShot {
+export function shootOnce(kit: ArmorPiece[], body: ReturnType<typeof freshBody>, view: View, aim: { x: number; y: number }, setup: AimSetup, round: Round, cover: Cover, burstIndex: number, random: () => number, geometry: Geometry = SCHEMATIC): FiredShot {
   const point = landing(aim, setup, burstIndex, random)
   if (behindCover(cover, point.x, point.y)) return { aim, point, view, cover: true }
-  const spot = hitAt(view, point.x, point.y, kitPlateZones(kit))
+  const spot = geometry.hit(view, point.x, point.y, kitPlateZones(kit))
   if (!spot) return { aim, point, view }
   return { aim, point, view, spot, outcome: fireAt(kit, body, spot, round, random) }
 }
@@ -114,8 +135,8 @@ export const SHOT_LIMIT = 150
  * `runs` characters shot at one zone until dead (or SHOT_LIMIT shots), each fresh in a fresh kit. Spread and recoil as set
  * (all shots one burst when recoil is on and the fire mode is automatic is left to the caller: `burst` gives the burst length).
  */
-export function series(kit: ArmorPiece[], health: Health, blackedOut: BodyPart[], zone: { collider: Collider; view: View }, round: Round, setup: AimSetup, runs: number, random: () => number, burst = 1): SeriesResult {
-  const aim = zoneCentre(zone.view, zone.collider) ?? { x: 0, y: 135 }
+export function series(kit: ArmorPiece[], health: Health, blackedOut: BodyPart[], zone: { collider: Collider; view: View }, round: Round, setup: AimSetup, runs: number, random: () => number, burst = 1, geometry: Geometry = SCHEMATIC): SeriesResult {
+  const aim = geometry.centre(zone.view, zone.collider) ?? { x: 0, y: 135 }
   const shots: number[] = []
   let hits = 0, through = 0
   for (let run = 0; run < runs; run++) {
@@ -123,7 +144,7 @@ export function series(kit: ArmorPiece[], health: Health, blackedOut: BodyPart[]
     const body = freshBody(health, blackedOut)
     let count = 0
     while (!body.dead && count < SHOT_LIMIT) {
-      const fired = shootOnce(pieces, body, zone.view, aim, setup, round, 'none', burst > 1 ? count % burst : 0, random)
+      const fired = shootOnce(pieces, body, zone.view, aim, setup, round, 'none', burst > 1 ? count % burst : 0, random, geometry)
       count++
       if (fired.outcome) { hits++; if (fired.outcome.penetrated) through++ }
     }
