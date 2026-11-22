@@ -8809,3 +8809,20 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Owner 16:49: «Останови все запомни где закончил и выключи спт» — stopped (stop.flag), offline client and SPT.Server closed,
   GAME-BUSY flag removed. Stopped at shoreline-quests 40/56, next point «Серьёзные обвинения» quest HDD (…66760b3deb51b08bd40c2b08-6);
   then shoreline-spawns (98). Resume only on the owner's word (memory photo-tour-paused).
+- 22.11 evening, owner's range brief («Тир у нас будет в баллистике… только стрельба…», bosses locked with visors down, recoil as
+  in the game, builds of all modes with a small module window, HP of parts and armour only, damage block only, slider-only
+  distance, real covers, scope reticles with the hold at distance, exact hit outlines, «Укрытие слева/справа», «Ящики», «Окно в
+  здании»). claude/range 8ce3d3ef, fd3bd5bd, a93617cd, b6d07e7c (+ the stock-tube fix cherry-picked, 1bf0dbe4):
+  - «Тир» is the last tab of «Баллистика» in test builds (src/range/RangeShooting.tsx); RangePage/RangeCompare/RangeOutfit gone.
+  - Bosses and guards: their usual kit, locked; 71 helmet+visor layers re-shot with the visor down (studio "visorDown",
+    make_visor_jobs.py; SPT run with the owner's yes, then shut). Killa: Maska-1Sch KE visor, black.
+  - Builds: default + every saved build of the weapon from PvP/PvE/Season labelled; src/range/RangeBuild.tsx (BuildBench small).
+  - Recoil: src/range/rangeRecoil.ts = the game's new recoil from its IL (NewRecoilShotEffect etc.) and prefab values; data
+    scripts/build-range-recoil.mjs → rangeRecoil.json (176 weapons); held fire on 1/60 s ticks at the weapon's rate; checked
+    against the analysis (M4A1 ≈1°/4.7°/plateau ~5°) and in the page (14 shots/s at 800 rpm). Synthesised gunshot (Web Audio).
+  - Hit outline: src/range/partMasks.ts (drawn pixels split by the colliders), flash + hurt tint per part.
+  - Covers and scopes: UnityPy installed with the owner's yes; E:\SPT-photo\range-assets (44 scopes/60 modes reticles + mrad
+    scale, 11 textures), tools/to_app.py → public/range-figures; src/range/RangeCover.tsx, RangeScopeView.tsx, rangeScope.ts
+    (FOV×zoom constant, FFP/SFP, hold in mrad/MOA, impact point under the reticle, pointer lock aiming).
+  - Checked: vitest src/range+src/arsenal 156/156, tsc, eslint (range clean), dev page (Killa locked, leg outline, covers,
+    ATACR ×7 at 600 m: hold up 6.8 mrad). Test exe built for the owner. Not pushed, not released.
