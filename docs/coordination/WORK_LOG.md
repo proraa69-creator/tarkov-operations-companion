@@ -8786,3 +8786,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   108 armours/rigs, 99 helmets (visor variants), 18 masks, 2 glasses on/off/changed by buttons, search in long lists, «Снять» per
   item. 36-side pictures dropped from the pack (11.5 MB). Earlier the same day a 9 s turn video was sent from those pictures.
   Test exe on the desktop (3eb02f7a). Checked in the dev browser; not in the packaged exe.
+- 22.11 owner: «Сними еще одежду разную, футболки штаны что бы можно было менять»: 2f5e6611. Studio action «suit» (E:\SPT-photo\studio):
+  the generated PMC's Customization set to a suit's Body+Hands or Feet, only that part drawn, the rest of the body an occluder; heads
+  apart. Clothes models from the live game (live_swap_clothes.py: 173 character bundles, 0.8 GB; wrist-watch textures under
+  assets/content/hands and defaultmaterial kept offline — they lean into first-person hands and half the weapons; backup
+  E:\SPT-photo\backup\live-clothes-20261122). 147 clothes pictures (53 tops + 31 bottoms a side, 21 shared by both). Builder: a PMC
+  is bottom + top + head + armour; «Верх»/«Низ» lists of the side, names in index.json labels. Pack 21.6 MB. Sheets sent. Test exe on
+  the desktop (2f5e6611). Woods tour paused at 33/37 for the restart and resumed.
