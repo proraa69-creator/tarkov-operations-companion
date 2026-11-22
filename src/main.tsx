@@ -31,6 +31,9 @@ import { removeStartupIntro } from './startup/startupIntro'
 import { applyFontSize } from './theme/fontSize'
 import './styles/windowActions.css'
 
+// The app's code runs: from here on its own errors show its own screen (below), not the one of public/startup-intro.js.
+;(window as Window & { __raidosAppStarted?: boolean }).__raidosAppStarted = true
+
 function showStartupError(error: unknown) {
   removeStartupIntro()
   const root = document.getElementById('root')
