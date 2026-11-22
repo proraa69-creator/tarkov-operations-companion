@@ -19,6 +19,7 @@ import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapter
 import { applyQuestCorrections } from './questCorrections'
 import { markManualQuests } from './manualQuests'
 import { applyCuratedQuestNotes, withCuratedTasks } from './curatedQuests'
+import { withQuestItemSpots } from './questItemSpots'
 import { eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
@@ -99,7 +100,8 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const now = options.now ?? Date.now()
   const series = eventSeriesWith(options.eventQuests?.() ?? [])
   const curated = withCuratedTasks(seasonTasks, { mode, locale, maps, traders, series, now })
-  const tasks = curated.tasks
+  // Quest item spawns tarkov.dev lists only in part, from the SPT database (src/data/questItemSpots.ts).
+  const tasks = withQuestItemSpots(curated.tasks)
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
   const itemRows = adaptItems(items, traderById, mode)
@@ -504,6 +506,20 @@ export function adaptTaskRows(tasksRoot: JsonRecord, traders: readonly Trader[],
   return adaptTasks(tasksRoot, new Map(traders.map((trader) => [trader.id, trader])), new Map(items.map((item) => [item.id, item])), mapIds)
 }
 
+/**
+ * A quest's reward items, one per item with the counts added up, in the feed's order. tarkov.dev lists some rewards as
+ * separate entries of the same item (report 200, «Провокация»: two «Virtex × 1» where the game gives «Virtex × 2»).
+ */
+export function rewardItemTotals(rewards: readonly JsonRecord[]): Array<{ itemId: string; count: number }> {
+  const totals = new Map<string, number>()
+  for (const reward of rewards) {
+    const itemId = refId(reward.item) || text(reward.item)
+    if (!itemId) continue
+    totals.set(itemId, (totals.get(itemId) ?? 0) + (number(reward.count) || 1))
+  }
+  return [...totals].map(([itemId, count]) => ({ itemId, count }))
+}
+
 function adaptTasks(
   root: JsonRecord,
   traders: Map<string, Trader>,
@@ -571,12 +587,12 @@ function adaptTasks(
         raidRequirements.push({ itemId, count: number(objective.count) || 1, purpose: signal ? 'signal' : 'use', mapIds, objectiveId: text(objective.id) || undefined, alternatives: useAny.length, optional: objective.optional === true || undefined })
       }
     }
-    const rewardItems = asArray(asRecord(entry.finishRewards).items)
+    const rewardItems = rewardItemTotals(asArray(asRecord(entry.finishRewards).items))
     const rewards = [
       number(entry.experience) ? `${number(entry.experience).toLocaleString('ru-RU')} опыта` : '',
       ...rewardItems.slice(0, 5).map((reward) => {
-        const item = items.get(text(reward.item))
-        return `${item?.name ?? text(reward.item)} × ${number(reward.count) || 1}`
+        const item = items.get(reward.itemId)
+        return `${item?.name ?? reward.itemId} × ${reward.count}`
       }),
     ].filter(Boolean)
     // a place the data keeps from an older version of the quest is no map of it (src/data/stalePlaces.ts; report 215, 23.11.2026:

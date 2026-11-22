@@ -819,17 +819,73 @@ describe('Лабиринт: «Ключ 01» on the shovel (report 182, 17.11.202
     { position: { x: -44.7063045, y: 1.6026986500000002, z: 59.787786 }, items: [KEY_01] },
     { position: { x: -42.565002, y: 0.50310004, z: 64.84801 }, items: [KEY_01] },
   ]
-  const spots = adaptLiveMapMarkers({ maps: { a: { normalizedName: 'the-labyrinth', lootLoose } } }, {}, context)
+  const all = adaptLiveMapMarkers({ maps: { a: { normalizedName: 'the-labyrinth', lootLoose } } }, {}, context)
     .filter((marker) => marker.id.includes('route-item'))
+  const spots = all.filter((marker) => marker.source === 'json.tarkov.dev/maps')
 
   it('the feed spot by the toxic pool says where the key lies and keeps its own point; the other spot says nothing more', () => {
     expect(spots).toHaveLength(2)
     const shovel = spots.find((marker) => marker.position[1] === -42.565002)!
-    expect(shovel.description).toBe('Открывает проход в комнате 1. Лежит на лопате.')
+    expect(shovel.description).toBe('Открывает проход в комнате 1. Всегда в одной из 6 точек. Лежит на лопате.')
     expect(shovel.ownSpot).toBe(true)
     const other = spots.find((marker) => marker !== shovel)!
-    expect(other.description).toBe('Открывает проход в комнате 1.')
+    expect(other.description).toBe('Открывает проход в комнате 1. Всегда в одной из 6 точек.')
     expect(other.ownSpot).toBeUndefined()
-    expect(translateUiText(shovel.description)).toBe('Opens the way in room 1. Lies on the shovel.')
+    expect(translateUiText(shovel.description)).toBe('Opens the way in room 1. Always at one of 6 spots. Lies on the shovel.')
+  })
+
+  it('adds the spots of the key\'s group the feed has not got (SPT 4.1.6, 20.11.2026)', () => {
+    const added = all.filter((marker) => marker.source === 'raid-statistics')
+    expect(added).toHaveLength(4)
+    expect(new Set(added.map((marker) => marker.id)).size).toBe(4)
+    expect(added.every((marker) => marker.layerId === 'loot.key' && marker.itemId === KEY_01 && marker.description === 'Открывает проход в комнате 1. Всегда в одной из 6 точек.')).toBe(true)
+  })
+})
+
+describe('Лабиринт: the route items always lie at one of a few spots (SPT 4.1.6, 20.11.2026)', () => {
+  const CUTTER = '67ab3d4b83869afd170fdd3f'
+  const WHEEL = '678fa929819ddc4c350c0317'
+  const KEY_01 = '679baa2c61f588ae2b062a24'
+  const KEY_03 = '679baa5a59b8961f370dd685'
+  const items = new Map<string, Item>([
+    [CUTTER, { id: CUTTER, name: 'Газовый резак "Огонёк BBQ-S43"', shortName: 'Огонёк', category: 'Ключ' } as Item],
+    [WHEEL, { id: WHEEL, name: 'Штурвал вентиля', shortName: 'Штурвал', category: 'Ключ' } as Item],
+    [KEY_01, { id: KEY_01, name: 'Ключ 01', shortName: 'Ключ 01', category: 'Ключ' } as Item],
+    [KEY_03, { id: KEY_03, name: 'Ключ 03', shortName: 'Ключ 03', category: 'Ключ' } as Item],
+  ])
+  const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() }
+  // tarkov.dev's spots of 20.11.2026 (json.tarkov.dev regular/maps): the cutter's two groups, the wheel and «Ключ 03»
+  const lootLoose = [
+    { position: { x: -35.04, y: 0.61, z: -18.01 }, items: [CUTTER] },
+    { position: { x: 31.76, y: -0.39, z: 47.07 }, items: [CUTTER] },
+    { position: { x: -2.89, y: 3.91, z: -31 }, items: [WHEEL] },
+    { position: { x: -43.87, y: 0.69, z: -14.98 }, items: [KEY_03] },
+    { position: { x: -50.45, y: 0.76, z: -13.38 }, items: [KEY_03] },
+    { position: { x: -30.6, y: 1.18, z: -15.52 }, items: [KEY_03] },
+    // not a spot of any group: no count
+    { position: { x: 0, y: 0, z: 0 }, items: [KEY_01] },
+  ]
+  const route = adaptLiveMapMarkers({ maps: { a: { normalizedName: 'the-labyrinth', lootLoose } } }, {}, context)
+    .filter((marker) => marker.id.includes('route-item'))
+  const listed = route.filter((marker) => marker.source === 'json.tarkov.dev/maps')
+
+  it('counts each of the cutter\'s two groups on its own and the wheel\'s five spots', () => {
+    const cutter = listed.filter((marker) => marker.itemId === CUTTER)
+    expect(cutter.map((marker) => marker.description)).toEqual(['Вскрывает двери в комнатах 3 и 5. Всегда в одной из 5 точек.', 'Вскрывает двери в комнатах 3 и 5. Всегда в одной из 5 точек.'])
+    expect(route.filter((marker) => marker.itemId === CUTTER)).toHaveLength(10)
+    expect(listed.filter((marker) => marker.itemId === WHEEL).every((marker) => marker.description === 'Отключает пар в комнате 2. Всегда в одной из 5 точек.')).toBe(true)
+  })
+
+  it('takes two spots half a metre apart for one place («Ключ 03»: three, the feed has all three)', () => {
+    expect(route.filter((marker) => marker.itemId === KEY_03)).toHaveLength(3)
+    expect(route.filter((marker) => marker.itemId === KEY_03).every((marker) => marker.description === 'Открывает проход в комнате 3. Всегда в одной из 3 точек.')).toBe(true)
+  })
+
+  it('says nothing more on a spot of no group', () => {
+    expect(listed.find((marker) => marker.itemId === KEY_01)?.description).toBe('Открывает проход в комнате 1.')
+  })
+
+  it('has English for the count', () => {
+    expect(translateUiText('Отключает пар в комнате 2. Всегда в одной из 5 точек.')).toBe('Turns off the steam in room 2. Always at one of 5 spots.')
   })
 })

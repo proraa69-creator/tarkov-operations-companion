@@ -82,3 +82,120 @@ export const GUARANTEED_SPAWNS: readonly GuaranteedSpawn[] = [
     ],
   },
 ]
+
+/**
+ * The Labyrinth's route items (keys 01–04, the corpse room key, the valve handwheel, the gas cutter): one of each lies at one
+ * of a few spots every raid (owner, 20.11.2026: «100% спавна… вытаскивай из СПТ»; docs/quests/spt-sync-2026-11-20.md). From
+ * the offline SPT 4.1.6 database (labyrinth/looseLoot.json): always-spawn groups whose chances add up to one item per raid.
+ * Every spot of tarkov.dev's maps file for these items is one of them (within a metre, PvP, PvE and Season). They are not
+ * drawn on their own: the route items' points (src/data/mapMarkerAdapter.ts, adaptRouteItems) say «одна из N» and get the
+ * group's spots tarkov.dev has not got.
+ */
+export const ROUTE_ITEM_GROUPS: readonly GuaranteedSpawn[] = [
+  {
+    mapId: 'the-labyrinth',
+    itemId: '679baa2c61f588ae2b062a24',
+    name: 'Ключ 01',
+    kind: 'one-of',
+    positions: [
+      { x: -24.11, y: 1.39, z: 64.11 },
+      { x: -45.19, y: 1.17, z: 60.36 },
+      { x: -23.35, y: 1.31, z: 65.19 },
+      { x: -33.49, y: 1.19, z: 70.51 },
+      { x: -42.57, y: 0.5, z: 64.85 },
+      { x: -34.39, y: 1.45, z: 59.98 },
+    ],
+  },
+  {
+    mapId: 'the-labyrinth',
+    itemId: '679baa4f59b8961f370dd683',
+    name: 'Ключ 02',
+    kind: 'one-of',
+    positions: [
+      { x: -1.08, y: 1.37, z: -35.73 },
+      { x: 3.51, y: 0.93, z: -36.33 },
+      { x: 0.04, y: 0.52, z: -31.43 },
+      { x: 7.25, y: 0.73, z: -31.91 },
+    ],
+  },
+  {
+    mapId: 'the-labyrinth',
+    itemId: '679baa5a59b8961f370dd685',
+    name: 'Ключ 03',
+    kind: 'one-of',
+    positions: [
+      { x: -43.87, y: 0.69, z: -14.98 },
+      { x: -50.45, y: 0.76, z: -13.38 },
+      { x: -30.6, y: 1.18, z: -15.52 },
+      { x: -30.65, y: 1.44, z: -15.07 },
+    ],
+  },
+  {
+    mapId: 'the-labyrinth',
+    itemId: '679baa9091966fe40408f149',
+    name: 'Ключ 04',
+    kind: 'one-of',
+    positions: [
+      { x: 22.76, y: 0.06, z: 58.58 },
+      { x: 18.36, y: 0.61, z: 61.93 },
+      { x: 22.97, y: 0.59, z: 62.41 },
+      { x: 19.08, y: 0.04, z: 60.37 },
+      { x: 24.33, y: 0.18, z: 58.94 },
+      { x: 22.41, y: 0.36, z: 58.35 },
+    ],
+  },
+  {
+    mapId: 'the-labyrinth',
+    itemId: '679bab714e9ca6b3d80586b4',
+    name: 'Ключ от помещения с телами',
+    kind: 'one-of',
+    positions: [
+      { x: -2.49, y: 0.52, z: 3.98 },
+      { x: -17.1, y: 0.51, z: 48.15 },
+      { x: -6.39, y: 0.62, z: 14.58 },
+      { x: 4.06, y: 0.86, z: 29.31 },
+      { x: 0.54, y: 0.88, z: 54.32 },
+      { x: 5.35, y: 0.59, z: 40.97 },
+    ],
+  },
+  {
+    mapId: 'the-labyrinth',
+    itemId: '678fa929819ddc4c350c0317',
+    name: 'Штурвал вентиля',
+    kind: 'one-of',
+    positions: [
+      { x: -2.89, y: 3.91, z: -31 },
+      { x: 9.22, y: 4.07, z: -32.39 },
+      { x: 5.31, y: 4.49, z: -36.3 },
+      { x: -11.61, y: 3.85, z: -32.51 },
+      { x: 4.75, y: 5.38, z: -31.4 },
+    ],
+  },
+  // The gas cutter: two groups of five, one cutter in each every raid.
+  {
+    mapId: 'the-labyrinth',
+    itemId: '67ab3d4b83869afd170fdd3f',
+    name: 'Газовый резак "Огонёк BBQ-S43"',
+    kind: 'one-of',
+    positions: [
+      { x: -35.04, y: 0.61, z: -18.01 },
+      { x: -27.84, y: 1.18, z: -15.21 },
+      { x: -29.26, y: 0.45, z: -20.05 },
+      { x: -36.87, y: 0.69, z: -16.72 },
+      { x: -41.42, y: 0.49, z: -18.22 },
+    ],
+  },
+  {
+    mapId: 'the-labyrinth',
+    itemId: '67ab3d4b83869afd170fdd3f',
+    name: 'Газовый резак "Огонёк BBQ-S43"',
+    kind: 'one-of',
+    positions: [
+      { x: 31.76, y: -0.39, z: 47.07 },
+      { x: 38.04, y: -0.49, z: 48.32 },
+      { x: 30.76, y: -0.58, z: 48.53 },
+      { x: 33.86, y: -0.43, z: 55.94 },
+      { x: 37.24, y: -0.54, z: 45.23 },
+    ],
+  },
+]

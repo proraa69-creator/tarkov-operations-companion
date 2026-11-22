@@ -198,6 +198,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
 /** Patterns with a variable part, applied after the phrase table. */
 export const MAP_RULES: Array<[RegExp, string]> = [
   [/^Одна из (\d+) возможных точек спавна\.$/u, 'One of $1 possible spawn spots.'],
+  [/Всегда в одной из (\d+) точек\./gu, 'Always at one of $1 spots.'],
   [/^Ключи: (\d+)$/u, 'Keys: $1'],
   [/^Может лежать один из: (.+)\.$/u, 'May lie here: one of $1.'],
   [/Точек на этой карте:\s*/g, 'Points on this map: '],

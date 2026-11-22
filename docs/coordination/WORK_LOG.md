@@ -8802,3 +8802,40 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Support, mitya.tagintsev@mail.ru (black window at start, Windows 11 x64, account 21.11, paid to 21.12, no device ever
   signed in): the 01:00 advice (wait, driver, shortcut with --disable-gpu) did not help (02:04). 334's fallback also draws
   without the graphics card, so it may not help either; the app has no start log and no did-fail-load handling.
+
+## 2026-11-20 — Claude: quests against the offline SPT database; missing quest item spots and the Labyrinth's «one of N»
+- Owner (20.11.2026): compare the whole quest base (objectives, rewards, experience, chains, achievements, logic) with SPT,
+  add what we lack, take the 100 % spawns out of SPT. Branch `claude/spt-quest-sync` from release/production 0dba4c89
+  (worktree `raidos-spt-quests`). SPT 4.1.6 on E: read only; the live game on D: not started or changed (its logs only read).
+- Finding: SPT 4.1.6's quest data is the game's 0.16.9 (newest quest August 2025); the live game 1.3 reworked rewards, levels,
+  chains and many objectives in 1.0, so almost every difference is SPT out of date (422 of 451 shared PvP quests differ;
+  e.g. «Фельдшер»: ours = wiki = live). No quest to add: SPT's 90 quests we lack in every mode are past events, the old
+  Lightkeeper path (replaced by «На свет») and the removed «Модник». Report: `docs/quests/spt-sync-2026-11-20.md`, every
+  difference per quest/field/mode: `docs/quests/spt-sync-2026-11-20-diff.csv`.
+- Added from SPT, each checked against the EFT wiki or tarkov.dev's live points, the same in PvP, PvE and Season:
+  `src/data/questItemSpots.ts` (new, applied in `src/data/catalogSource.ts` after the curated series) — the quest item spawns
+  tarkov.dev lists in part: «Фельдшер» 3→8, «Перепись населения» 1→5 (was wrongly a «Спавн 100 %» spot), «Городская медицина»
+  2→9, «Земельный вопрос» 3→6; appended after tarkov.dev's and marked `added`; a merged item point (within 15 m) whose centre
+  is now an added spawn keeps the id of the feed's spawn it covers (`adaptQuestZones`), so the owner's point edits still find
+  it — checked on the real catalog: 9 markers before, 14 after, none lost (the 5 new are Paramedic's ambulances).
+  `src/data/guaranteedSpawns.ts` `ROUTE_ITEM_GROUPS` + `src/data/mapMarkerAdapter.ts` `adaptRouteItems`: the Labyrinth's route
+  items (keys 01–04, corpse room key, valve handwheel, gas cutter ×2 groups) say «Всегда в одной из N точек.» and get the group's
+  spot tarkov.dev lacks («Ключ 01»); `src/i18n/uiEnglishMap.ts` English. Tooling: `scripts/spt/` (README).
+- Not added (owner's call / check in the game): an achievements section (131 tarkov.dev, conditions of 53 from SPT); SPT's
+  failure penalties and delays (Gunsmith 21 h) that tarkov.dev does not publish; Collector's achievement reward; three items
+  bound to containers without coordinates (unknown key, reserve hideout key, green flare); «Ревизия. Маяк» PvP vs PvE.
+- Tests: `src/data/questItemSpots.test.ts` (new), `src/data/mapMarkerAdapter.test.ts` (Labyrinth), `src/data/mapRoomSigns.test.ts`
+  (the feed's spots apart from the group's added ones); touched files + map/catalog/i18n tests pass; `npm run typecheck` and
+  `tsc -p tsconfig.electron.json` clean; eslint clean. Full `npx vitest run` in this worktree: 4214 passed, 22 failed — the
+  electron/ and scripts/ files that import server code (no server node_modules in this worktree: «Cannot find package 'cors'»),
+  page tests that time out under the full parallel load and pass alone (MapsPage, Dashboard, App, Cultist circle, ManualMarks,
+  registrationCountry), and two that fail alone too in files this change does not touch: `src/app/appVersion.test.ts` (package
+  version format) and `src/pages/AdminPanelPage.test.tsx` (sidebar order). Not released, not pushed.
+- Risks: SPT's positions are 0.16.9 statistics — counts were checked against the wiki, positions match tarkov.dev where both
+  have them; a later tarkov.dev update listing these spots is not duplicated (spots within 1 m are skipped).
+- Report 200 («Провокация»: «Награда другая», 20.11, 0.6.0.323) — fixed, not closed (the main session closes it): the game,
+  the wiki, tarkov.dev and SPT agree (2 × Virtex, the Lighthouse island stash key, Lightkeeper +0.03, the FLIR RS-32 craft);
+  tarkov.dev lists Virtex as two entries of 1, so the card showed «Virtex × 1» twice. `rewardItemTotals`
+  (`src/data/catalogSource.ts`) adds up a quest's reward entries of the same item (7 more quests had repeated lines; none
+  now, PvP/PvE/Season, RU/EN). Standing and crafts are still not reward lines of tarkov.dev quests — left to the owner.
+  Test: `src/data/catalogSource.test.ts`.
