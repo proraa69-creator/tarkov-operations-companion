@@ -9029,3 +9029,15 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   seed still at the old camp) → −65.52 / 453.51 (offset kept). Titles/descriptions unchanged, notes with the sources. Backup
   /var/lib/raidos/backups/quest-point-overrides-batya-lighthouse-20261123.json. GET /v1/quest-points shows both; apps re-read
   in ~10 min. No release.
+- 23.11.2026 03:22, 0.6.0.335 live (ba793b98, build 1795378639562): gate 45063606467 green; publisher started by hand
+  (`systemctl start --no-block raidos-release.service`, inactive before); /api/v1/accounts/me/admin/phones answers 401 (the new
+  route is there). The release session took 0.6.0.334 live at 02:41 (its log: 7cb56657 in 335, 95e0b2b1 here).
+- Report 216 and the Lighthouse camp (owner: «Ставь по точке которую дал пользователь»; «По его квесту поставь точку»; «А остальные
+  определи сам куда поставить»; «Да, добавь»), server overrides via QuestPointStore.save (tsx in /opt/…/server):
+  - cceec093 lighthouse-story-the-ticket-stage-5 «Лагерь Прапора» → the player's -55.4/467 (inside the game's Camp_prapor box);
+  - fca72e3c lighthouse-story-batya-stage-0-3 (the Bogatyrs patch) → -59.09/457.15, the centre of the game's batya_0_visit;
+  - 7d5b42ce added: «Билет» stage 6 «Найти в лагере улики» → -56.25/461.31, the centre of light_prap1 (by name and place, not
+    confirmed in the game); stage-33-1 stays at batya_8_visit -64.79/452.41 (the release session, 20:02 UTC).
+  Zones from the Batya session's dump of the live Lighthouse scene (QUESTS/Quests_tickets_lighthouse_zone/Camp_prapor,
+  batya_0/8/9_visit, light_prap1). Report 216 not closed, no days given (the owner's call). Still to do in code (next release):
+  src/data/storyChapterSeeds.ts «Билет» stage 5 (78.06/164.55) and «Батя» stage 0 Lighthouse (78/164.47) to these places.
