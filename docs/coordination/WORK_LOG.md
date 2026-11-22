@@ -8754,3 +8754,19 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   - Checked: 19 range tests, tsc -b, eslint; in the browser (dev, 1600×950) shots, auto fire, kill, back view, EN, comparison
     (11 rounds × 5 zones × 100 runs < 1 s). src/app/appVersion.test.ts fails on the Windows path with a space (unrelated).
   - Not done: character pictures from the game (schematic figure for now), moving target, paper target; the test exe build follows.
+- 22.11 «Тир» pictures (owner: «Сделай снимки персонажа спереди сзади, так же всех боссов, бронежилетов, бронеразгрузок, шлемов
+  спереди и сзади»): claude/range fb7b8d46, 5b134975 (+ a7d7e258 no grenade/flare calibers). Rendered in the offline SPT copy by a new
+  studio worker (E:\SPT-photo\studio, README there) loaded through the RaidOsHideout loader (its own worker kept as
+  worker.hideout.dll): the SPT server's bot profiles (LoadBots) dressed by the game's inventory model loader (PlayerModelLoader),
+  pose held, own orthographic camera front/back, true alpha. 37 characters dressed + 37 bare, 2 PMC bodies, 202 worn layers
+  (42 body armour, 30 armoured rigs, 100 helmets with/without visor, 30 masks/glasses) on the same hidden body; every body picture
+  carries the game's own hit colliders (dumped from the raid player: bone path + shape) laid on its bones. From the game: neck →
+  thorax, groin → stomach, side plates → stomach (rangeModel.platePart); penetrationDamageMod is for fragments only.
+  - App: the target draws bare character + kit layers and hits by those zones (nearest collider, plate collider in front);
+    schematic figure as fallback. public/range-figures (gitignored, E:\SPT-photo\studio\pack_figures.py, 241 pictures 9.9 MB) →
+    range-figures.pack only when TEST_BUILD=1 (vite picturePack; release builds drop the folder); PC reads raidos-img://range/.
+  - The game closed once (in raid, ~5 GB after 31 characters): the studio now runs from the main menu, unloads unused assets after
+    each job, skips drawn pictures. The Woods photo tour was cut at 27/37 by that and restarted after the studio.
+  - Test exe on the owner's desktop: «Raid OS тест Тир.exe» (5b134975, test build, entitlement key, range-figures.pack inside).
+    Checked: 22 range tests, tsc, eslint, dev browser (Killa = bare + 6B13 KE + Maska-1Sch with visor, hits by zones). Not checked:
+    the packaged exe's pictures (raidos-img://range). Items newer than the offline copy (0.16.9) have no layer yet.
