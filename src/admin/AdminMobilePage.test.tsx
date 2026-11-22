@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), bugReportImage: vi.fn(), reportTable: vi.fn(), reportWork: vi.fn(), reportPlan: vi.fn(), watchReports: vi.fn(),
+  overview: vi.fn(), online: vi.fn(), phones: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), bugReportImage: vi.fn(), reportTable: vi.fn(), reportWork: vi.fn(), reportPlan: vi.fn(), watchReports: vi.fn(),
   supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(), supportReact: vi.fn(), supportEdit: vi.fn(),
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
@@ -39,6 +39,10 @@ describe('mobile admin dashboard', () => {
       payouts: { paid: 0, pending: 0, pendingRequests: 0, earned: 0 },
     })
     mocks.online.mockResolvedValue({ generatedAt: '2026-10-17T10:00:00.000Z', windowMinutes: 10, current: 4, today: { date: '2026-10-17', users: 9, minimum: 1, maximum: 5, average: 2.5, samples: 10 }, history: [] })
+    mocks.phones.mockResolvedValue({
+      users: 2261, phones: { accounts: 830, devices: 853 }, android: { accounts: 813, devices: 830, online: 41 }, ios: { accounts: 20, devices: 23, online: 2 },
+      online: { phone: 43, pc: 120, all: 160, windowMinutes: 5 }, at: '2026-11-23T01:00:00.000Z',
+    })
     mocks.users.mockResolvedValue({ users: [account], total: 1, regions: { all: 1, russia: 0, cis: 0, world: 1, none: 0 } })
     mocks.user.mockResolvedValue({ user: account, payments: [], grants: [] })
     mocks.payments.mockResolvedValue({ payments: [], total: 0, totals: { succeeded: 0, revenue: 0, yookassa: 0, lava: 0, streamerEarnings: 0 } })
@@ -243,6 +247,28 @@ describe('mobile admin dashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Показать все дни (5)' }))
     expect(container.querySelectorAll('.admin-online-row:not(.header)')).toHaveLength(5)
     expect(mocks.users).not.toHaveBeenCalled()
+  })
+
+  it('«Телефоны»: who signed in on Android and on iPhone, and who is in each app now (owner, 23.11.2026)', async () => {
+    render(<AdminMobilePage />)
+    const block = await screen.findByRole('region', { name: 'Телефоны' })
+    // ru-RU groups thousands with a narrow no-break space
+    expect(within(block).getByText(/^всего пользователей 2\s261$/)).toBeInTheDocument()
+    const tile = (name: string) => within(block).getByText(name).closest('article')!
+    expect(within(tile('Вошли с телефона')).getByText('830')).toBeInTheDocument()
+    expect(within(tile('Вошли с телефона')).getByText('телефонов: 853')).toBeInTheDocument()
+    expect(within(tile('Онлайн с телефонов')).getByText('43')).toBeInTheDocument()
+    expect(within(tile('Android')).getByText('813')).toBeInTheDocument()
+    expect(within(tile('Android')).getByText('установили и вошли · онлайн 41')).toBeInTheDocument()
+    expect(within(tile('iPhone')).getByText('20')).toBeInTheDocument()
+    expect(within(tile('iPhone')).getByText('установили и вошли · онлайн 2')).toBeInTheDocument()
+  })
+
+  it('a server before «Телефоны» shows the rest of «Сводка» without it', async () => {
+    mocks.phones.mockRejectedValue(Object.assign(new Error('Не найдено'), { status: 404 }))
+    render(<AdminMobilePage />)
+    expect(await screen.findByText('Статистика онлайна')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Телефоны' })).not.toBeInTheDocument()
   })
 
   it('marks new requests and chats in the bottom bar', async () => {

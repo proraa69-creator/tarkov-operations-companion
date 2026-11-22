@@ -70,6 +70,10 @@ export type AuditAction =
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
+/** Phones that signed in, and their accounts, all the time (AdminStore.phoneStats). */
+export interface PhoneCount { accounts: number; devices: number }
+export interface PhoneStats { users: number; phones: PhoneCount; android: PhoneCount; ios: PhoneCount }
+
 export type UserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 /** The billing regions requested by the owner; the old Europe/other values stay accepted by older web clients. */
 export type RegionFilter = 'all' | 'russia' | 'cis' | 'world' | 'europe' | 'other' | 'none'
@@ -455,6 +459,30 @@ export class AdminStore {
 
   onlineStats(days = 30) {
     return this.online.summary(days)
+  }
+
+  /**
+   * «Телефоны» of «Сводка» (owner, 23.11.2026: «сколько у нас пользователей, сколько телефонов… сколько с андроида установило
+   * и зашло, сколько с айфона установило и зашло»): the users, and the phones that signed in to an account — the phone app
+   * registers its device at sign-in as «Android · Raid OS» or «iOS · Raid OS» (src/sync/webEntitlement.ts) — and their
+   * accounts, all the time (a device signed out later still counts; deleted accounts do not). Who is in the app now comes
+   * from the heartbeat (services/presence.ts, routes/ownerAdmin.ts).
+   */
+  phoneStats(): PhoneStats {
+    const users = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE deleted_at IS NULL').get() as Row).n)
+    const empty = { accounts: 0, devices: 0 }
+    if (!this.tableExists('account_devices')) return { users, phones: { ...empty }, android: { ...empty }, ios: { ...empty } }
+    const from = "FROM account_devices d JOIN accounts a ON a.id = d.account_id AND a.deleted_at IS NULL"
+    const platform = "CASE WHEN d.name LIKE 'Android%' THEN 'android' WHEN d.name LIKE 'iOS%' THEN 'ios' END"
+    const rows = this.db.prepare(`SELECT ${platform} AS platform, COUNT(*) AS devices, COUNT(DISTINCT d.account_id) AS accounts ${from}
+      WHERE d.name LIKE 'Android%' OR d.name LIKE 'iOS%' GROUP BY platform`).all() as Row[]
+    const of = (name: string) => {
+      const row = rows.find((entry) => entry.platform === name)
+      return row ? { accounts: Number(row.accounts), devices: Number(row.devices) } : { ...empty }
+    }
+    const phones = this.db.prepare(`SELECT COUNT(*) AS devices, COUNT(DISTINCT d.account_id) AS accounts ${from}
+      WHERE d.name LIKE 'Android%' OR d.name LIKE 'iOS%'`).get() as Row
+    return { users, phones: { accounts: Number(phones.accounts), devices: Number(phones.devices) }, android: of('android'), ios: of('ios') }
   }
 
   /** Registrations and payments per owner's day (last 31), month (last 12) or year (all), newest first. */

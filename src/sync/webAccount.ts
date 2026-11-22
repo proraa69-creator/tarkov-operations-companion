@@ -107,6 +107,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/overview$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
+  // «Телефоны» of «Сводка» (owner, 23.11.2026): phones signed in by system and who is in each app now.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/phones$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/(?:amount|refunded)$/ },
   // «Сводка» as on the site: the calendar, a day, the series, «Новые за …» (the owner's days, YYYY-MM-DD).

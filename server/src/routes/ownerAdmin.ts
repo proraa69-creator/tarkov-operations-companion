@@ -58,8 +58,10 @@
  *   POST /me/admin/streamers/:code/revoke                              -> streamer settings (the account becomes a user)
  *   GET  /me/admin/sales-settings                    -> prices, plans, providers (no keys; editing stays in the desktop app)
  *   GET  /me/admin/audit?limit&offset                -> { entries, total }
- *   GET  /me/admin/online                            -> { online, pc, phone, windowMinutes, at } («Онлайн сейчас»: accounts
- *                                                       in the PC or phone app within the window, services/presence.ts)
+ *   GET  /me/admin/online                            -> { online, pc, phone, android, ios, windowMinutes, at } («Онлайн сейчас»:
+ *                                                       accounts in the PC or phone app within the window, services/presence.ts)
+ *   GET  /me/admin/phones                            -> { users, phones, android, ios, online, at } («Телефоны»: phones
+ *                                                       signed in by system, their accounts, who is in each app now)
  *
  *   GET  /me/admin/update-history                    -> { versions: [{ version, date, changes }] } («История обновлений»,
  *                                                       newest first: src/data/updateHistory.json, in no client bundle)
@@ -403,6 +405,18 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.get('/me/admin/online', owner('read', (_req, res) => {
     if (!presence) throw new AccountError(404, 'Не найдено')
     res.json(presence.count())
+  }))
+  // «Телефоны» (owner, 23.11.2026): the users, the phones signed in on Android and iPhone, and who is in each app now.
+  router.get('/me/admin/phones', owner('read', (_req, res) => {
+    const now = presence?.count()
+    const stats = admin.phoneStats()
+    res.json({
+      ...stats,
+      android: { ...stats.android, online: now?.android ?? 0 },
+      ios: { ...stats.ios, online: now?.ios ?? 0 },
+      online: { phone: now?.phone ?? 0, pc: now?.pc ?? 0, all: now?.online ?? 0, windowMinutes: now?.windowMinutes ?? 0 },
+      at: now?.at ?? new Date().toISOString(),
+    })
   }))
 
   router.get('/me/admin/sales-settings', owner('read', (_req, res) => { res.json(admin.salesSettings()) }))

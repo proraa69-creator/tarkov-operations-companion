@@ -12,7 +12,7 @@
 import express from 'express'
 import { bearer, FixedWindowRateLimiter, tokenDigest, type AccountStore } from '../services/accountStore.js'
 import type { EntitlementService } from '../services/entitlement.js'
-import { presenceClientOf, type PresenceTracker } from '../services/presence.js'
+import { phonePlatformOf, presenceClientOf, type PresenceTracker } from '../services/presence.js'
 import { DEVICE_HEADER } from './data.js'
 
 export const PRESENCE_PATH = '/v1/me/presence'
@@ -31,7 +31,7 @@ export function createPresenceRouter(accounts: AccountStore, entitlements: Entit
     if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' }); return }
     const name = entitlements.activeDeviceName(accountId, req.get(DEVICE_HEADER), tokenDigest(token))
     const client = name === undefined ? undefined : presenceClientOf(name)
-    if (client) presence.note(accountId, client)
+    if (client) presence.note(accountId, client, client === 'phone' ? phonePlatformOf(name!) : undefined)
     res.status(204).end()
   })
   return router

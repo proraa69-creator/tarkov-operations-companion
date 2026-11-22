@@ -5,7 +5,7 @@ import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
-import { PRESENCE_WINDOW_MS, presenceClientOf, PresenceTracker } from '../services/presence.js'
+import { phonePlatformOf, PRESENCE_WINDOW_MS, presenceClientOf, PresenceTracker } from '../services/presence.js'
 import { ProgressStore } from '../services/progressStore.js'
 
 const password = 'correct horse battery'
@@ -53,10 +53,19 @@ async function setup() {
   const online = async (owner: string) => {
     const answer = await call('GET', ONLINE, owner)
     assert.equal(answer.status, 200, JSON.stringify(answer.json))
-    return answer.json as { online: number; pc: number; phone: number; windowMinutes: number; at: string }
+    return answer.json as { online: number; pc: number; phone: number; android: number; ios: number; windowMinutes: number; at: string }
+  }
+  const phones = async (owner: string) => {
+    const answer = await call('GET', '/v1/accounts/me/admin/phones', owner)
+    assert.equal(answer.status, 200, JSON.stringify(answer.json))
+    return answer.json as {
+      users: number; phones: { accounts: number; devices: number }
+      android: { accounts: number; devices: number; online: number }; ios: { accounts: number; devices: number; online: number }
+      online: { phone: number; pc: number; all: number; windowMinutes: number }; at: string
+    }
   }
   const close = () => new Promise<void>((resolve) => server.close(() => resolve()))
-  return { call, register, login, device, beat, online, close, advance: (ms: number) => { clock += ms } }
+  return { call, register, login, device, beat, online, phones, close, advance: (ms: number) => { clock += ms } }
 }
 
 const id = (letter: string) => letter.repeat(32)
@@ -70,24 +79,28 @@ test('device names: the PC app, the phone app; the browser and the rest do not c
   assert.equal(presenceClientOf('Браузер · Raid OS'), undefined)
   assert.equal(presenceClientOf('Устройство'), undefined)
   assert.equal(presenceClientOf('Windowsill'), undefined)
+  assert.equal(phonePlatformOf('Android · Raid OS'), 'android')
+  assert.equal(phonePlatformOf('iOS · Raid OS'), 'ios')
+  assert.equal(phonePlatformOf('Windows · DESKTOP-1234 · Raid OS 0.6.0'), undefined)
+  assert.equal(phonePlatformOf('iOSX'), undefined)
 })
 
 test('the tracker counts distinct accounts within the window, PC and phone apart', () => {
   let clock = 0
   const presence = new PresenceTracker({ now: () => clock })
   presence.note('a', 'pc')
-  presence.note('a', 'phone')
+  presence.note('a', 'phone', 'ios')
   presence.note('b', 'pc')
   presence.note('b', 'pc')
-  presence.note('c', 'phone')
-  assert.deepEqual(presence.count(), { online: 3, pc: 2, phone: 2, windowMinutes: 5, at: new Date(0).toISOString() })
+  presence.note('c', 'phone', 'android')
+  assert.deepEqual(presence.count(), { online: 3, pc: 2, phone: 2, android: 1, ios: 1, windowMinutes: 5, at: new Date(0).toISOString() })
   clock = 3 * MINUTE
-  presence.note('c', 'phone')
+  presence.note('c', 'phone', 'android')
   clock = PRESENCE_WINDOW_MS - 1
   assert.equal(presence.count().online, 3)
   clock = PRESENCE_WINDOW_MS
   // a and b were last seen 5 minutes ago: gone; c 2 minutes ago.
-  assert.deepEqual({ ...presence.count(), at: '' }, { online: 1, pc: 0, phone: 1, windowMinutes: 5, at: '' })
+  assert.deepEqual({ ...presence.count(), at: '' }, { online: 1, pc: 0, phone: 1, android: 1, ios: 0, windowMinutes: 5, at: '' })
 })
 
 test('online now: the apps heartbeat with their device, the owner reads the count; website traffic does not count', async () => {
@@ -107,7 +120,7 @@ test('online now: the apps heartbeat with their device, the owner reads the coun
     const bothPhone = await t.device(bothPhoneSession, id('i'), 'iOS · Raid OS')
     const preview = await t.device(browser, id('w'), 'Браузер · Raid OS')
 
-    assert.deepEqual({ ...(await t.online(owner)), at: '' }, { online: 0, pc: 0, phone: 0, windowMinutes: 5, at: '' })
+    assert.deepEqual({ ...(await t.online(owner)), at: '' }, { online: 0, pc: 0, phone: 0, android: 0, ios: 0, windowMinutes: 5, at: '' })
 
     assert.equal((await t.beat(undefined, pc)).status, 401)
     assert.equal((await t.beat(pcPlayer, pc)).status, 204)
@@ -123,8 +136,21 @@ test('online now: the apps heartbeat with their device, the owner reads the coun
     assert.equal((await t.call('GET', '/v1/accounts/me', site)).status, 200)
 
     const counted = await t.online(owner)
-    assert.deepEqual({ online: counted.online, pc: counted.pc, phone: counted.phone, windowMinutes: counted.windowMinutes }, { online: 3, pc: 2, phone: 2, windowMinutes: 5 })
+    assert.deepEqual({ online: counted.online, pc: counted.pc, phone: counted.phone, android: counted.android, ios: counted.ios, windowMinutes: counted.windowMinutes }, { online: 3, pc: 2, phone: 2, android: 1, ios: 1, windowMinutes: 5 })
     assert.equal(counted.at, '2026-10-14T12:00:00.000Z')
+
+    // «Телефоны» (owner, 23.11.2026): every account, the phones signed in by system with their accounts, who is in each app now.
+    const phoneStats = await t.phones(owner)
+    assert.deepEqual({ ...phoneStats, at: '' }, {
+      users: 6,
+      phones: { accounts: 2, devices: 2 },
+      android: { accounts: 1, devices: 1, online: 1 },
+      ios: { accounts: 1, devices: 1, online: 1 },
+      online: { phone: 2, pc: 2, all: 3, windowMinutes: 5 },
+      at: '',
+    })
+    // like every owner route: a player is told it does not exist
+    assert.equal((await t.call('GET', '/v1/accounts/me/admin/phones', pcPlayer)).status, 404)
 
     // Four minutes later only the phone sends again; at five the others drop out.
     t.advance(4 * MINUTE)
@@ -132,7 +158,7 @@ test('online now: the apps heartbeat with their device, the owner reads the coun
     assert.equal((await t.online(owner)).online, 3)
     t.advance(MINUTE)
     const later = await t.online(owner)
-    assert.deepEqual([later.online, later.pc, later.phone], [1, 0, 1])
+    assert.deepEqual([later.online, later.pc, later.phone, later.android, later.ios], [1, 0, 1, 1, 0])
   } finally { await t.close() }
 })
 

@@ -111,6 +111,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // screenshots as base64 JSON, close / reopen and «Начислить дни». The server answers 404 to everybody but the owner.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
+  // «Телефоны» of «Сводка» (owner, 23.11.2026): phones signed in by system and who is in each app now.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/phones$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\?status=(?:open|closed)&limit=\d{1,3}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
   // «Отчёты» (src/reports/ReportsTable.tsx): the table, the owner's buttons and his corrections to the plan.
@@ -501,7 +503,7 @@ function withCatalogVersion(result: unknown, etag: string | null) {
  * build only (the server answers 404 to anybody but the owner anyway). Path parts are ids and codes only (no dots, so
  * no «..»); the CSV files are not here: they are downloaded on the site.
  */
-const OWNER_SITE_ADMIN = /^\/v1\/accounts\/me\/admin\/(?:overview|online|online-stats|calendar|day|series|stats|bezebee|payments|users|streamers|streamer-settings|streamer-stats|streamer-invites|payouts|payout-limits|invite-rewards|referrals)(?:\/[A-Za-z0-9_-]{1,128}){0,4}(?:\?[A-Za-z0-9%._~=&+@-]{0,2000})?$/
+const OWNER_SITE_ADMIN = /^\/v1\/accounts\/me\/admin\/(?:overview|online|online-stats|phones|calendar|day|series|stats|bezebee|payments|users|streamers|streamer-settings|streamer-stats|streamer-invites|payouts|payout-limits|invite-rewards|referrals)(?:\/[A-Za-z0-9_-]{1,128}){0,4}(?:\?[A-Za-z0-9%._~=&+@-]{0,2000})?$/
 const OWNER_SITE_METHODS: readonly Method[] = ['GET', 'POST', 'PUT']
 export function ownerSiteAdminAllowed(method: string, path: string, owner = isOwnerBuild()) {
   return owner && OWNER_SITE_METHODS.includes(method as Method) && OWNER_SITE_ADMIN.test(path)

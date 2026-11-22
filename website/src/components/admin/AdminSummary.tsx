@@ -1,4 +1,4 @@
-import { Activity, ChevronDown, CreditCard, Gift, LineChart, RefreshCw, Shield, UserPlus, Users, Wifi } from 'lucide-react'
+import { Activity, ChevronDown, CreditCard, Gift, LineChart, RefreshCw, Shield, Smartphone, UserPlus, Users, Wifi } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type AdminOnlineStats, type AdminOverview, type AdminRevenue, type StatsPeriod } from '../../api'
 import { Notice } from '../Notice'
@@ -54,6 +54,7 @@ export function AdminSummary() {
           <p className="field-hint" style={{ margin: 0 }}>Время — по Бангкоку (UTC+7). Выданные вручную дни подписки не считаются выручкой.</p>
         </>
       )}
+      <PhoneStats />
       <OnlineStats />
       <SeriesSection />
     </div>
@@ -71,6 +72,40 @@ function SquadStats({ squads }: { squads: NonNullable<AdminOverview['squads']> }
         <Stat icon={Users} label="Играют в отрядах" value={numberFormat.format(squads.players)} meta={squads.active ? `в среднем ${(squads.players / squads.active).toFixed(1)} в отряде` : 'отрядов сейчас нет'} />
         <Stat icon={UserPlus} label="Создано всего" value={numberFormat.format(squads.created)} meta={since ? `учёт с ${since}` : 'учёт идёт с этой версии'} />
         <Stat icon={Activity} label="Расформировано" value={numberFormat.format(squads.disbanded)} meta="распущены или все вышли" />
+      </div>
+    </section>
+  )
+}
+
+/** How often «Телефоны» asks again while «Сводка» is open: its «сейчас» is the last few minutes. */
+const PHONES_REFRESH_MS = 60_000
+
+/**
+ * «Телефоны» (owner, 23.11.2026: «сколько у нас пользователей, сколько телефонов… сколько с андроида установило и зашло,
+ * сколько с айфона установило и зашло, и сколько в данный момент онлайн с телефонов с каждого вида»): accounts that signed
+ * in from the phone app, by system, with their devices, and who is in the phone app now.
+ */
+function PhoneStats() {
+  const stats = useAdminData(useCallback((token: string) => api.adminPhones(token), []))
+  const { reload } = stats
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void reload() }, PHONES_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [reload])
+  const data = stats.data
+  if (stats.error || !data) return null
+  const count = (value: number) => numberFormat.format(value)
+  return (
+    <section className="admin-section" aria-labelledby="admin-phones-title">
+      <div className="admin-section-head">
+        <h2 className="field-label" id="admin-phones-title"><Smartphone aria-hidden="true" /> Телефоны</h2>
+        <button type="button" className="button small ghost" onClick={() => void stats.refresh()} disabled={stats.loading} aria-label="Обновить телефоны"><RefreshCw aria-hidden="true" className={stats.loading ? 'spinner' : undefined} /></button>
+      </div>
+      <div className="stat-grid admin-stats">
+        <Stat icon={Smartphone} label="Вошли с телефона" value={count(data.phones.accounts)} meta={`телефонов ${count(data.phones.devices)} · всего пользователей ${count(data.users)}`} />
+        <Stat icon={Smartphone} label="Android" value={count(data.android.accounts)} meta={`установили и вошли · телефонов ${count(data.android.devices)}`} />
+        <Stat icon={Smartphone} label="iPhone" value={count(data.ios.accounts)} meta={`установили и вошли · телефонов ${count(data.ios.devices)}`} />
+        <Stat icon={Wifi} label="Онлайн с телефонов" value={count(data.online.phone)} meta={`Android ${count(data.android.online)} · iPhone ${count(data.ios.online)} · за ${data.online.windowMinutes} мин`} accent />
       </div>
     </section>
   )
