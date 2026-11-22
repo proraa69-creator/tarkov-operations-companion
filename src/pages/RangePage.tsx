@@ -18,6 +18,7 @@ import { useFigureIndex, useFigureUrls } from '../range/rangeFigureSource'
 import { RangeTarget } from '../range/RangeTarget'
 import { CLASS_COLORS, markOf, spreadAt } from '../range/rangeView'
 import { RangeCompare } from '../range/RangeCompare'
+import { RangeOutfit } from '../range/RangeOutfit'
 import { flightAt } from '../range/rangeFlight'
 import { COLLIDER_NAMES, FIRE_MODE_NAMES, GROUP_NAMES, OUTCOME_NAMES, PART_NAMES, PART_SHORT, pick, pieceLabel, START_STATES } from '../range/rangeLabels'
 import type { View } from '../range/rangeHitboxes'
@@ -45,7 +46,7 @@ export function RangePage() {
   const lang: Locale = locale === 'en' ? 'en' : 'ru'
   const guns = useGunCatalog(raidMode, locale)
   const armor = useArmorCatalog(raidMode, locale)
-  const [tab, setTab] = useState<'shoot' | 'compare'>('shoot')
+  const [tab, setTab] = useState<'shoot' | 'compare' | 'outfit'>('shoot')
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
 
   return <div className="page range-page">
@@ -57,6 +58,7 @@ export function RangePage() {
       <div className="segmented-filter" role="tablist">
         <button type="button" className={tab === 'shoot' ? 'active' : ''} onClick={() => setTab('shoot')}>{t('Стрельба', 'Shooting')}</button>
         <button type="button" className={tab === 'compare' ? 'active' : ''} onClick={() => setTab('compare')}>{t('Сравнение', 'Compare')}</button>
+        <button type="button" className={tab === 'outfit' ? 'active' : ''} onClick={() => setTab('outfit')}>{t('Конструктор', 'Outfit')}</button>
       </div>
     </header>
     {(!guns.data || !armor.data) && <div className="panel range-loading">
@@ -68,7 +70,7 @@ export function RangePage() {
   </div>
 }
 
-function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; armor: ArmorCatalog; lang: Locale; tab: 'shoot' | 'compare'; raidMode: Parameters<typeof loadSavedBuilds>[0] }) {
+function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; armor: ArmorCatalog; lang: Locale; tab: 'shoot' | 'compare' | 'outfit'; raidMode: Parameters<typeof loadSavedBuilds>[0] }) {
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
 
   // ——— weapon, build, round
@@ -235,6 +237,10 @@ function Range({ catalog, armor, lang, tab, raidMode }: { catalog: GunCatalog; a
   const hpLabels = Object.fromEntries(BODY_PARTS.map((part) => [part, `${Math.max(0, Math.round(body.current[part]))}`])) as Record<BodyPart, string>
   const total = totalHealth(body.current)
   const maxTotal = totalHealth(body.max)
+
+  if (tab === 'outfit') return figureIndex
+    ? <RangeOutfit index={figureIndex} armor={armor} lang={lang} />
+    : <div className="panel range-loading"><LoaderCircle className="spin" size={18} /> <span>{t('Загружаем снимки…', 'Loading the pictures…')}</span></div>
 
   if (tab === 'compare') return <RangeCompare
     lang={lang} catalog={catalog} armor={armor} rounds={rounds} ammo={ammo} weapon={weapon} stats={stats} health={health} blackedOut={blackedOut}
