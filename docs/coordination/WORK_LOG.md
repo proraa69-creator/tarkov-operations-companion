@@ -8653,3 +8653,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
     game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
     uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.
+- 23.11.2026 ~02:00, owner: «сколько у нас пользователей, сколько телефонов в общем… сколько с андроида установило и зашло, сколько с
+  айфона установило и зашло, и сколько в данный момент онлайн с телефонов с каждого вида… в админ панель в приложении на ПК, на сайт
+  и обнови iPhone админ приложение». claude/admin-phone-stats dcbcc102 (from 0.6.0.333 a91507a1):
+  - Server: presence tells Android from iOS by the device name; /me/admin/online gains android/ios; GET /me/admin/phones
+    (AdminStore.phoneStats: accounts not deleted, phones from account_devices «Android …»/«iOS …», all the time incl. signed-out
+    devices; there is no per-sign-in log, so «входы» = accounts that signed in from a phone). Live data read-only 23.11:
+    2261 accounts, Android 813 accounts / 830 devices, iOS 20 / 23.
+  - Gateway lists: electron/serviceGateway.ts ROUTES + OWNER_SITE_ADMIN, src/sync/webAccount.ts.
+  - UI: «Телефоны» in the site's «Сводка» (the PC owner app's too) and in the phone admin (AdminMobilePage), every minute; an
+    older server (404) hides the block.
+  - Checked: server presence+ownerAdmin 28/28, vitest src/admin+webAccount+serviceGateway 78/78, website admin 62/62, tsc -b,
+    server tsc, eslint. Offered to the release session for 0.6.0.334 (server part needs an app release to go live).
+  - iPhone admin IPA: claude/admin-ipa 3d3b1e4f (merge of dcbcc102 into the 0.6.0.308 IPA branch, no conflicts) pushed; workflow
+    «Admin Panel iOS IPA» builds it. Until the server of this branch is live the block stays hidden in the IPA.
