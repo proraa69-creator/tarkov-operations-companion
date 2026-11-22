@@ -7,6 +7,7 @@ import { CLASS_COLORS } from './rangeView'
 
 type Locale = 'ru' | 'en'
 type Slot = 'body' | 'helmet' | 'face' | 'eyewear'
+type Clothes = 'upper' | 'lower'
 
 /** The stage in figure centimetres: wide enough for the arms, tall enough for a helmet. */
 const STAGE = { left: -60, width: 120, top: 205, height: 212 }
@@ -45,6 +46,23 @@ export function RangeOutfit({ index, armor, lang }: { index: FigureIndex; armor:
   }, [index, armor, lang])
 
   const [character, setCharacter] = useState(() => characters[0]?.name ?? '')
+  // a PMC wears the clothes chosen here (owner, 22.11.2026: «Сними еще одежду разную, футболки штаны что бы можно было менять»)
+  const side = character === 'body-pmcusec' ? 'usec' : character === 'body-pmcbear' ? 'bear' : ''
+  const clothes = useMemo(() => {
+    const lists: Record<Clothes, Array<{ name: string; label: string }>> = { upper: [], lower: [] }
+    for (const [name, label] of Object.entries(index.labels ?? {})) {
+      const kind = name.startsWith('upper-') ? 'upper' : name.startsWith('lower-') ? 'lower' : undefined
+      if (kind && label.side.split(',').includes(side) && index.pictures[name]?.front) lists[kind].push({ name, label: lang === 'en' ? label.en : label.ru })
+    }
+    for (const list of Object.values(lists)) list.sort((a, b) => a.label.localeCompare(b.label))
+    return lists
+  }, [index, side, lang])
+  const [dressed, setDressed] = useState<Record<string, string>>({})
+  const upper = dressed[`${side}:upper`] ?? clothes.upper[0]?.name ?? ''
+  const lower = dressed[`${side}:lower`] ?? clothes.lower[0]?.name ?? ''
+  const head = side ? `head-pmc${side}` : ''
+  const clothed = Boolean(side && index.pictures[head] && upper && lower)
+  const base = clothed ? [lower, upper, head] : [character]
   const [worn, setWorn] = useState<Record<Slot, string>>(() => ({
     body: choices.body.find((choice) => choice.name === 'worn-5c0e541586f7747fa54205c9')?.name ?? choices.body[0]?.name ?? '',
     helmet: choices.helmet.find((choice) => choice.name.startsWith('worn-5aa7e276e5b5b000171d0647-'))?.name ?? choices.helmet[0]?.name ?? '',
@@ -53,7 +71,7 @@ export function RangeOutfit({ index, armor, lang }: { index: FigureIndex; armor:
   }))
   const put = (slot: Slot, name: string) => setWorn((current) => ({ ...current, [slot]: current[slot] === name ? '' : name }))
 
-  const layers = [character, ...ORDER.map((slot) => worn[slot])].filter(Boolean)
+  const layers = [...base, ...ORDER.map((slot) => worn[slot])].filter(Boolean)
   const files = layers.flatMap((name) => (['front', 'back'] as const).map((view) => index.pictures[name]?.[view]?.file).filter((file): file is string => Boolean(file)))
   const urls = useFigureUrls(files)
   const wornChoices = ORDER.map((slot) => choices[slot].find((choice) => choice.name === worn[slot])).filter((choice): choice is Choice => Boolean(choice))
@@ -69,6 +87,7 @@ export function RangeOutfit({ index, armor, lang }: { index: FigureIndex; armor:
           {characters.map((entry) => <option key={entry.name} value={entry.name}>{entry.label}</option>)}
         </select>
       </section>
+      {clothed && (['upper', 'lower'] as const).map((kind) => <ClothesList key={kind} title={kind === 'upper' ? t('Верх', 'Top') : t('Низ', 'Bottom')} choices={clothes[kind]} value={kind === 'upper' ? upper : lower} onChange={(name) => setDressed((current) => ({ ...current, [`${side}:${kind}`]: name }))} lang={lang} />)}
       {slots.map(([slot, title]) => <OutfitList key={slot} title={title} choices={choices[slot]} value={worn[slot]} onChange={(name) => put(slot, name)} lang={lang} />)}
     </aside>
     <section className="panel range-outfit-stage">
@@ -90,6 +109,20 @@ export function RangeOutfit({ index, armor, lang }: { index: FigureIndex; armor:
       </div>
     </section>
   </div>
+}
+
+function ClothesList({ title, choices, value, onChange, lang }: { title: string; choices: Array<{ name: string; label: string }>; value: string; onChange: (name: string) => void; lang: Locale }) {
+  const [query, setQuery] = useState('')
+  const shown = query.trim() ? choices.filter((choice) => choice.label.toLowerCase().includes(query.trim().toLowerCase())) : choices
+  return <section className="panel range-card">
+    <h2 className="range-card-title">{title} <small>{choices.length}</small></h2>
+    {choices.length > 8 && <label className="range-outfit-search"><Search size={13} /><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={lang === 'en' ? 'Search' : 'Поиск'} /></label>}
+    <div className="range-outfit-list">
+      {shown.map((choice) => <button key={choice.name} type="button" className={`range-outfit-choice${value === choice.name ? ' is-on' : ''}`} onClick={() => onChange(choice.name)}>
+        <span>{choice.label}</span>
+      </button>)}
+    </div>
+  </section>
 }
 
 function OutfitList({ title, choices, value, onChange, lang }: { title: string; choices: Choice[]; value: string; onChange: (name: string) => void; lang: Locale }) {

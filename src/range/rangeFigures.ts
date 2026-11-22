@@ -36,6 +36,8 @@ export interface FigureIndex {
   scale: number
   /** By picture name, then by view: front, back, or r000…r350 (a turn round the body, «Конструктор»). */
   pictures: Record<string, Partial<Record<string, FigurePicture>>>
+  /** The PMC clothes («upper-…», «lower-…»): their names and the sides they are for («usec», «bear» or «usec,bear»). */
+  labels?: Record<string, { ru: string; en: string; side: string }>
 }
 
 /** The pictures a character in a kit is drawn with, bottom first: the bare character, then the armour as it is worn. */
