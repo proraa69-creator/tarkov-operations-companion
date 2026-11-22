@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { LONG_PRESS_MS } from '../components/useHoverCard'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -148,6 +149,107 @@ describe('«Тир листы»', () => {
     expect(screen.getByRole('tab', { name: 'Рюкзаки' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Рюкзаки')
     expect(document.body.textContent).not.toMatch(/tarkov\.dev/i)
+  })
+
+  // Owner, 20.11.2026: «функция опустить, поднять забрало правой кнопкой должно быть в тир-листе… с поднятым забралом характеристики
+  // пишутся без забрала, с опущенным забралом — с забралом… Одна кнопка, которая меняется в зависимости от положения».
+  describe('a helmet’s visor, down and raised', () => {
+    const KILLA = '5c0e874186f7745dc7616606'
+    const VISOR = '5c0e842486f77443a74d2976'
+    const killa = () => item(KILLA, {
+      name: 'Маска-1Щ Killa', shortName: 'Maska Killa', types: ['helmet', 'wearable'], weight: 2.6,
+      gear: {
+        kind: 'helmet', armorClass: 4, durability: 108, material: 'ArmoredSteel', zones: 3, speedPenalty: 0, turnPenalty: -0.01, ergoPenalty: -0.04,
+        deafening: 'High', blocksHeadset: false, faceClass: 6, visorId: VISOR, ricochet: 0.9,
+        visor: { armorClass: 6, durability: 50, zones: 3, ricochet: 0.9, speedPenalty: 0, turnPenalty: 0, ergoPenalty: -0.13, weight: 1.1 },
+      },
+    })
+    const kiver = () => item('Kiver', { types: ['helmet', 'wearable'], gear: { kind: 'helmet', armorClass: 3, durability: 63, zones: 3, faceClass: 0, ricochet: 0.2 } })
+    const visorItem = () => item(VISOR, { name: 'Забрало Killa', shortName: 'Забрало Killa', types: ['glasses', 'wearable'] })
+    const fact = (card: HTMLElement, label: string) => within(card).getByText(label).nextSibling?.textContent
+    const picture = () => tile('Maska Killa').querySelector('img')!.getAttribute('src')
+
+    it('a right click gives one button that lowers or raises it; the picture, the level and the card change, the tier stays', async () => {
+      state.items = [killa(), kiver(), visorItem()]
+      open()
+      fireEvent.click(screen.getByRole('tab', { name: 'Шлемы' }))
+      expect(within(tier('s')).getByText('Maska Killa')).toBeTruthy()
+      expect(picture()).toMatch(new RegExp(`${KILLA}\\.down\\.webp`))
+      expect(within(tile('Maska Killa')).getByText('6LvL · 108')).toBeTruthy()
+      // the picture shows them together: no visor beside it
+      expect(tile('Maska Killa').querySelector('.tier-tile-visor')).toBeNull()
+
+      fireEvent.contextMenu(tile('Maska Killa'), { clientX: 120, clientY: 140 })
+      expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((button) => button.textContent)).toEqual(['Поднять забрало'])
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Поднять забрало' }))
+      expect(screen.queryByRole('menu')).toBeNull()
+      expect(picture()).toMatch(new RegExp(`${KILLA}\\.up\\.webp`))
+      expect(within(tile('Maska Killa')).getByText('4LvL · 108')).toBeTruthy()
+      expect(within(tier('s')).getByText('Maska Killa')).toBeTruthy()
+      await userEvent.hover(tile('Maska Killa'))
+      let card = await screen.findByRole('tooltip')
+      expect(fact(card, 'Уровень')).toBe('4LvL')
+      expect(fact(card, 'Забрало')).toBe('Забрало Killa · поднято')
+      expect(fact(card, 'Зоны попадания')).toBe('3')
+      expect(fact(card, 'Рикошет')).toBe('высокий')
+      // the game counts a raised visor's penalties and weight
+      expect(fact(card, 'Скорость · эрг. · поворот')).toBe('0% · −17% · −1%')
+      expect(fact(card, 'Вес')).toBe('3.7 кг')
+      expect(within(card).queryByText('Уровень с забралом')).toBeNull()
+      expect(card.querySelector('img')!.getAttribute('src')).toMatch(/\.up\.webp/)
+      await userEvent.unhover(tile('Maska Killa'))
+
+      fireEvent.contextMenu(tile('Maska Killa'), { clientX: 120, clientY: 140 })
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Опустить забрало' }))
+      expect(picture()).toMatch(/\.down\.webp/)
+      await userEvent.hover(tile('Maska Killa'))
+      card = await screen.findByRole('tooltip')
+      expect(fact(card, 'Уровень с забралом')).toBe('6LvL')
+      expect(fact(card, 'Забрало')).toBe('Забрало Killa · 6LvL')
+      expect(fact(card, 'Зоны попадания')).toBe('6')
+      expect(fact(card, 'Скорость · эрг. · поворот')).toBe('0% · −17% · −1%')
+    })
+
+    it('only the photographed helmets have the menu; the rest keep the browser’s and the card', () => {
+      state.items = [killa(), kiver(), visorItem()]
+      open()
+      fireEvent.click(screen.getByRole('tab', { name: 'Шлемы' }))
+      expect(fireEvent.contextMenu(tile('Kiver'))).toBe(true)
+      expect(screen.queryByRole('menu')).toBeNull()
+    })
+
+    it('a phone: the long press shows the card, the lifted finger the button', async () => {
+      vi.useFakeTimers()
+      try {
+        state.items = [killa(), visorItem()]
+        open()
+        fireEvent.click(screen.getByRole('tab', { name: 'Шлемы' }))
+        const helmet = tile('Maska Killa')
+        fireEvent.pointerDown(helmet, { pointerType: 'touch', clientX: 10, clientY: 10 })
+        act(() => { vi.advanceTimersByTime(LONG_PRESS_MS) })
+        expect(screen.getByRole('tooltip')).toBeTruthy()
+        // Android's own menu on a held finger does not open ours
+        fireEvent.contextMenu(helmet)
+        expect(screen.queryByRole('menu')).toBeNull()
+        fireEvent.pointerUp(helmet, { pointerType: 'touch', clientX: 10, clientY: 10 })
+        expect(screen.queryByRole('tooltip')).toBeNull()
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Поднять забрало' }))
+        expect(tile('Maska Killa').querySelector('img')!.getAttribute('src')).toMatch(/\.up\.webp/)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('speaks English', () => {
+      localStorage.setItem('tarkov-operations-locale-v1', 'en')
+      state.items = [killa(), visorItem()]
+      open()
+      fireEvent.click(screen.getByRole('tab', { name: 'Helmets' }))
+      fireEvent.contextMenu(tile('Maska Killa'), { clientX: 120, clientY: 140 })
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Raise the visor' }))
+      fireEvent.contextMenu(tile('Maska Killa'), { clientX: 120, clientY: 140 })
+      expect(screen.getByRole('menuitem', { name: 'Lower the visor' })).toBeTruthy()
+    })
   })
 
   it('speaks English', async () => {

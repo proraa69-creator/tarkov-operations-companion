@@ -280,6 +280,53 @@ export function protectionLevel(gear: GearStats) {
   return gear.kind === 'helmet' ? Math.max(gear.armorClass ?? 0, gear.faceClass ?? 0) : gear.armorClass ?? 0
 }
 
+/** A helmet's visor down on the face or raised (owner, 20.11.2026: «опустить, поднять забрало правой кнопкой… в тир-листе»). */
+export type VisorPosition = 'down' | 'up'
+
+/** A helmet as worn, its visor down or raised: what the tile and its card show. */
+export interface HelmetWorn {
+  /** The level it guards the head at: with the visor down the higher of the helmet's and the face's class. */
+  level: number
+  /** The face's class, 0 when nothing guards it. */
+  faceClass: number
+  zones: number
+  ricochet?: number
+  /** The visor's ricochet, while it is down. */
+  visorRicochet?: number
+  speedPenalty: number
+  turnPenalty: number
+  ergoPenalty: number
+  weight: number
+}
+
+/**
+ * A helmet with its visor down or raised, the way the game counts it (Assembly-CSharp of client 0.16.9): a raised visor takes no
+ * shot (CompositeArmorComponent.ShotMatches is false while its TogglableComponent is off), so the face class, its zones and its
+ * ricochet leave; its penalties stay, the game adds up every armor put on whatever its position (Player.RecalculateEquipmentParams),
+ * and so does its weight. A helmet that guards the face itself (Tagilla's masks) has nothing to raise.
+ */
+export function helmetWorn(gear: GearStats, helmetWeight: number | undefined, position: VisorPosition): HelmetWorn {
+  const visor = gear.visor
+  const down = position === 'down' || !visor
+  const faceClass = down ? gear.faceClass ?? 0 : 0
+  return {
+    level: Math.max(gear.armorClass ?? 0, faceClass),
+    faceClass,
+    zones: (gear.zones ?? 0) + (down ? visor?.zones ?? 0 : 0),
+    ricochet: gear.ricochet,
+    visorRicochet: down ? visor?.ricochet : undefined,
+    speedPenalty: (gear.speedPenalty ?? 0) + (visor?.speedPenalty ?? 0),
+    turnPenalty: (gear.turnPenalty ?? 0) + (visor?.turnPenalty ?? 0),
+    ergoPenalty: (gear.ergoPenalty ?? 0) + (visor?.ergoPenalty ?? 0),
+    weight: Math.round(((helmetWeight ?? 0) + (visor?.weight ?? 0)) * 1000) / 1000,
+  }
+}
+
+/** The ricochet chance as the game's inventory names it (ArmorHolderComponent: RicochetParams.y above 0.3 high, above 0.15 medium). */
+export function ricochetLevel(value: number): 'high' | 'medium' | 'low' {
+  return value > 0.3 ? 'high' : value > 0.15 ? 'medium' : 'low'
+}
+
 /** What a level list ranks by: a backpack's cells, else the protection level. */
 export function gearLevel(gear: GearStats) {
   return gear.kind === 'backpack' ? gear.capacity ?? 0 : protectionLevel(gear)
