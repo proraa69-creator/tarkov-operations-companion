@@ -8883,3 +8883,20 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - typecheck clean; eslint clean on the changed files (the 4 errors of `npm run lint` are in untouched files, as in
   release/production); src/styles + src/theme tests pass (41).
 - Branch claude/glass-texture from release/production 0dba4c89; not released (needs an app version, the owner decides).
+
+## 2026-11-19 — map: canvas points that a player does not see (branch claude/map-docs-valuables, from 0.6.0.323, not released)
+
+- A player's report in the support chat (Prizrak337, PC, PvE, 0.6.0.323, screenshot of Shoreline): «Документы боевого
+  пропуска» on and counted 30, not one on the map; «Драгоценности» the same; «Боссы» works. The bosses are page icons,
+  documents and valuables are drawn on the canvas (MarkerCanvasLayer, markerSprites). Not reproduced on a clean dev
+  build (Shoreline PvE, «Схема» and «Спутник»: the documents are drawn) — so something of his computer.
+- Two places that leave canvas points unseen for good, made safe (src/maps/markerSprites.ts):
+  - the icons are drawn through a canvas filter (their drop shadows); some graphics drivers give an empty picture
+    through it: the first icon drawn is checked, and if nothing came out it is drawn again with a plain shadow, and
+    every icon from then on;
+  - a picture that failed to load stayed «loading» in the sprites (null) and was never drawn nor retried: now the map is
+    told to draw again, and such a point gets a plain round mark.
+- Tests: src/maps/markerSprites.test.ts (3, a fake canvas: empty through the filter, filter fine, failed picture);
+  src/maps + map page 162 (MapsPage.raidChecks timed out under load, passes alone 3/3); typecheck, eslint clean. In the
+  dev build the map draws as before.
+- Not certain this is his cause (not reproduced); it is if his canvas filter draws nothing. Not released.
