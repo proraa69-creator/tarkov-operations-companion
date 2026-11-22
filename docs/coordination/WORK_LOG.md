@@ -8723,3 +8723,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     its part once (src/arsenal/trimmedPicture.ts, needs CORS: raidos.app answers capacitor:// and https://localhost, the PC's
     raidos-img answers *; otherwise the whole picture stays) and on the phone fills the cell (40×40). Checked at 430×932 with CORS
     allowed in the test: every filled cell cut. Not checked in a packaged PC app or on a phone.
+- 22.11 morning: owner «Пока не выпускай» (0.6.0.334 held on claude/quest-row-tags). Lighthouse BEAR camp fixed on the server at the
+  owner's «Да» (no release): two quest point overrides written with the map editor's own QuestPointStore.save (tsx on the VPS) —
+  1c8ef8e717de3ec29c98b063 move lighthouse-story-batya-stage-33-1 (stage 33 «Найти следы предателей», «Осмотреть лагерь BEAR на
+  Маяке») 78.73/163.37 → −103/475, and fca72e3c606b60102c977850 move lighthouse-story-batya-stage-0-3 (the Bogatyrs patch in the
+  same camp) 78/164.47 → −103.73/476.1; titles/descriptions RU+EN, note with the source. The app's ids checked against
+  adaptStoryQuestMarkers. GET /v1/quest-points shows both (50 overrides); apps re-read every 10 min. No map-updates signal and no
+  audit line (written outside the route). Reply to the player Zavisim drafted for the owner, not sent.
+- Photo tour: worker renders at the game's screen size now (black band across forest frames from GrassMotionVectorsRT ≠ frame);
+  Woods quests re-shooting (woods-quests-2), then Woods spawns.
