@@ -8839,3 +8839,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - 23.11.2026 01:25, photo tour: Shoreline finished — quests 56/56 (38 frames, 26 points), spawns 98/98 (57 frames, 29
   points); item frames checked by crops at the item's screen point; sheets sent; SPT client/server closed, GAME-BUSY removed.
   Next map waits for the owner.
+- 23.11.2026 ~04:00, range corrections (owner: the wheel in the scope, R / F, «Раскачка», no masks/glasses, armoured rigs only,
+  the hold in marks with «?» and units, the drop at each distance; then «полосочку… Если прицел красный… черной… черный… красной»).
+  claude/range 49b2ca66 (RangeScopeView, RangeShooting, RangeTarget, rangeScope, new rangeSway.ts and RangeHelpTip.tsx, range.css):
+  wheel smooth on a variable mode, steps between fixed magnifications, page never scrolls in the scope; right button / Esc /
+  «Выйти из прицела» leave; KeyR / KeyF everywhere; sway = a slow loop from ergonomics (0.25–1.6 mrad), view and shot follow;
+  kit without face/eyewear, «Бронеразгрузка» = rigs with plate slots; HoldLine (мрад, MOA, рисок with «?» texts) and DropTable
+  (50–1000 m); the hold mark is a bar, black on a red reticle (scopes.json reticleRed), red otherwise.
+  - Reticle data (public/range-figures is not in git): E:\SPT-photo\range-assets\tools\mark_steps.py after to_app.py writes
+    markMrad / markMaxMrad (the game's own drawn step, kept when ≥5 regular marks of 0.08–2.2 mrad: TANGO6T, 3-24x42 FFP,
+    Trihawk, Mark 5HD, PM II 5-25, ATACR) and reticleRed (19 modes). The drawn steps are often not the real 0.1/0.2/1 mrad or
+    1 MOA (ATACR 0.80/0.155): the marks are counted on the game's pictures as drawn.
+  - My slip: I copied the source scopes.json over the app's copy once; restored at once with to_app.py (44 scopes, 60 modes).
+  - Checked in the dev page: Mark 5HD at 500 m «Вынос вверх 4,6 мрад · 15,7 MOA · 4,5 риски», the table, PS-320 ×6↔×1 by
+    the wheel, the wheel prevented, Vudu bar black / Mark 5HD red, the «?» popups, the sway drifting. tsc, eslint, vitest range 25/25.
