@@ -69,6 +69,26 @@ describe('the photos of the battle pass documents', () => {
     expect(guide.maps.shoreline!.technical).toContain('fa4c79d9e970f24e')
   })
 
+  it('on Interchange each blueprint spawn point shows its own room (reports 218/219, 24.11.2026)', () => {
+    const first = (z: number, x: number, kind: 'blueprints' | 'financial') => {
+      const ids = pointPhotos(guide, 'interchange', [z, x], [kind])
+      return ids.length ? guide.photos[ids[0]!]!.en : null
+    }
+    // the offices between Goshan and OLI: two spawn points, two rooms, no photo shared
+    const a = pointPhotos(guide, 'interchange', [53.1, -68.4], ['blueprints'])
+    const b = pointPhotos(guide, 'interchange', [46.0, -79.1], ['blueprints'])
+    expect(a.length).toBeGreaterThan(0)
+    expect(b.length).toBeGreaterThan(0)
+    expect(a.filter((id) => b.includes(id))).toEqual([])
+    // the back of OLI: the PC island, the back office, and a spawn point the offline copy has no desk for — no neighbour's photo there
+    expect(first(126.4, -46.7, 'blueprints')).toBe('In the PC cubicle in the back of OLI.')
+    expect(first(110.6, -91.3, 'blueprints')).toMatch(/back offices of OLI/i)
+    expect(pointPhotos(guide, 'interchange', [112.9, -84.9], ['blueprints'])).toEqual([])
+    // the guide had the Burger Spot sofa and the shelf by the red sofa swapped
+    expect(first(-99.0, -11.6, 'financial')).toMatch(/burger/i)
+    expect(first(-134.0, 27.9, 'financial')).toMatch(/shelf/i)
+  })
+
   it('the picture comes from our server', () => {
     const [id] = pointPhotos(guide, 'customs', [-186.2, 317.6], ['financial'])
     expect(documentPhotoUrl(guide, id!, true)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}-t\.(png|jpg)\?v=\d+$/)
