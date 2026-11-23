@@ -27,6 +27,9 @@ export interface ScopeMode {
    */
   markMrad?: number
   markMaxMrad?: number
+  /** How wide those marks are across, mrad, on `reticle` and `reticleMax` (the hold bar is drawn a little wider, mark_steps.py). */
+  tickMrad?: number
+  tickMaxMrad?: number
   /** The middle of the reticle is red: the hold mark is drawn black on it, red on any other (owner, 23.11.2026). */
   reticleRed?: boolean
   /** A night vision or thermal scope. */
@@ -49,6 +52,24 @@ export function markStepAt(mode: ScopeMode, zoom: number): number | undefined {
   const step = picture.file && picture.file === mode.reticleMax ? mode.markMaxMrad : mode.markMrad
   if (!step) return undefined
   return mode.ffp ? step : step * (mode.zoom / zoom)
+}
+
+/** How wide the reticle's marks are across at this magnification, mrad, as `markStepAt` counts their step. */
+export function tickAt(mode: ScopeMode, zoom: number): number | undefined {
+  const picture = reticleAt(mode, zoom)
+  const width = picture.file && picture.file === mode.reticleMax ? mode.tickMaxMrad : mode.tickMrad
+  if (!width) return undefined
+  return mode.ffp ? width : width * (mode.zoom / zoom)
+}
+
+/**
+ * The hold bar's half width at the target, cm (owner, 23.11.2026: «полоску… сделать меньше намного… практически размером с сетку,
+ * чуть-чуть больше, чтобы она была немного шире самой сетки рисок и чуть-чуть толще»): a quarter wider than the reticle's marks, or
+ * 2.4 % of the view where their width is not known; never under 1.4 % of the view nor over 4 %.
+ */
+export function holdBarHalfCm(fovCm: number, distance: number, tickMrad?: number): number {
+  const wanted = tickMrad ? mradToCm(tickMrad, distance) * 1.25 : fovCm * 0.024
+  return Math.min(fovCm * 0.04, Math.max(fovCm * 0.014, wanted)) / 2
 }
 
 export interface ScopeData {

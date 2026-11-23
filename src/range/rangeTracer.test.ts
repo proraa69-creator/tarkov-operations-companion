@@ -46,8 +46,8 @@ describe('the sight zeroed with the default round of the weapon, as the game doe
   const slow = { ...m855, id: 'slow', initialSpeed: 700 } as unknown as AmmoStats
 
   it('the default round crosses the line of sight at the zero; a slower one is under it there', () => {
-    expect(Math.abs(flightAt(m855, undefined, 100, 100, m855)!.drop)).toBeLessThan(0.05)
+    expect(Math.abs(flightAt(m855, undefined, 100, 100, { zeroAmmo: m855 })!.drop)).toBeLessThan(0.05)
     expect(Math.abs(flightAt(slow, undefined, 100, 100)!.drop)).toBeLessThan(0.05)
-    expect(flightAt(slow, undefined, 100, 100, m855)!.drop).toBeLessThan(-1)
+    expect(flightAt(slow, undefined, 100, 100, { zeroAmmo: m855 })!.drop).toBeLessThan(-1)
   })
 })

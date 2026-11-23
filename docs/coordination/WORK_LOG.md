@@ -8895,3 +8895,21 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   E:\SPT\EscapeFromTarkov_Data\StreamingAssets\Windows\<_props.Prefab.path>); weapons/barrels: look for `fireport`; chain them with
   public/gun-parts/index.json slot transforms. No code changed yet. Work stopped by the owner (limits); handoff file on the
   desktop: «Raid OS — передача работы Claude 23.11.2026 вечер.md».
+- 23.11.2026 ~22:00, «Полигон»: the scope from the weapon build, the sight height per build, the zero with the round fired, a short
+  hold bar (owner: «убрать в разделе баллистика, полигон, выбор прицелов сверху посередине… выбираю оружие, выбираю прицел, и в
+  соответствии с прицелом… меняется сетка прицельная в режиме стрельбы. Также пристрелка должна меняться в зависимости от
+  патрона»; «красная полоска, которая на вынос указывает… сделать ее практически размером с сетку… немного шире самой сетки рисок
+  и чуть-чуть толще»). Branch claude/range, not pushed.
+  - The top scope picker is gone (RangeScopePicker.tsx removed): the scope is the build's first part that scopes.json knows; no
+    scope on the build, the open sights. The zero list is the scope's own CalibrationDistances (the select showed 50–400 for all).
+  - Sight height: E:\SPT-photo\range-assets\tools\sight_points.py reads each sight's `mod_aim_camera` (of several, the one level with
+    its `optic_camera`), each weapon's `aim_camera` and the `fireport` of a weapon or barrel without a muzzle slot from the offline
+    game's bundles (UnityPy, no dependencies, 17 s) → public/range-figures/sights.json (316 aim points, 64 bores; in the range pack).
+    Slots read the same way match public/gun-parts/index.json within 0.44 mm. layBuild now returns every part's frame (`frames`,
+    drawn or not); src/range/rangeSight.ts puts the aim point and the first muzzle slot through them: M4A1 + 260 mm barrel + HAMR =
+    7.13 cm. Unknown: the usual 6.858 cm. Shown in the stage head («Прицел HAMR · над стволом 7,1 см»), the hold line, the drop table.
+  - The zero is computed with the round fired at that sight height (rangeFlight `Zeroing`); the game itself zeroes with the weapon's
+    default round, kept as an option (`zeroAmmo`) for the tests only.
+  - Hold bar: mark_steps.py also measures how wide the reticle's marks are (`tickMrad`, `tickMaxMrad`, 80th percentile of the marks'
+    widest rows); the bar is 1.25× that (2.4 % of the view where unknown, 1.4–4 % of the view), 4 px with a 7 px rim (was 8 % and 3 px).
+  - vitest src/range + ballistics, tsc, eslint clean.

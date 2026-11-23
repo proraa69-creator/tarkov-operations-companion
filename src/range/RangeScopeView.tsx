@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FIGURE_HEIGHT } from './rangeHitboxes'
 import { RangeScene, type SceneProps } from './RangeTarget'
-import { fovMrad, mradToCm, reticleAt, type ScopeMode } from './rangeScope'
+import { fovMrad, holdBarHalfCm, mradToCm, reticleAt, tickAt, type ScopeMode } from './rangeScope'
 import { swayAt, useSwayTime } from './rangeSway'
 import { RangeTracer, type Tracer } from './RangeTracer'
 
@@ -156,7 +156,9 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   // a plain bar that stands out from the reticle (owner, 23.11.2026: «Сделай просто полосочку понятную… Если прицел красный,
   // то сделай ее черной. Если прицел черный, сделай ее красной»)
   const impact = { x: centre.x + (boreCm.x - viewCm.x), y: FIGURE_HEIGHT - (centre.y + (boreCm.y - viewCm.y) + dropCm) }
-  const barHalf = fovCm * 0.04
+  // a little wider than the reticle's marks and a little thicker than its lines (owner, 23.11.2026: «ее нужно сделать меньше намного…
+  // немного шире самой сетки рисок и чуть-чуть толще»)
+  const barHalf = holdBarHalfCm(fovCm, distance, irons ? undefined : tickAt(mode, zoom))
   return <div
     ref={box}
     className={`range-scope${locked ? ' is-locked' : ''}${irons ? ' is-irons' : ''}`}

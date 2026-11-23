@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle, RotateCcw, Shuffle, Eraser, Crosshair, Lock } from 'lucide-react'
 import { useAppState } from '../state/AppState'
+import { SIGHT_HEIGHT } from '../arsenal/ballistics'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useGunCatalog } from '../arsenal/gunCatalog'
 import { installedParts, presetBuild } from '../arsenal/buildModel'
@@ -14,7 +15,6 @@ import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type F
 import { figureLayers } from './rangeFigures'
 import { useFigureIndex, useFigureUrls, useRangeJson } from './rangeFigureSource'
 import { RangeScopeView } from './RangeScopeView'
-import { RangeScopePicker } from './RangeScopePicker'
 import { cmToMrad, DROP_TABLE_DISTANCES, holdover, markStepAt, mradToMoa, type ScopeData, type ScopeMode } from './rangeScope'
 import { RangePicker } from './RangePicker'
 import { drawnVariant, oneOfEachModel } from './rangeLists'
@@ -29,6 +29,7 @@ import { buildPartMasks, type PartMasks } from './partMasks'
 import { playShot } from './rangeSound'
 import { createRecoil, degreesToCm, RECOIL_TICK, similarRecoil, type RecoilReading, type RecoilSim } from './rangeRecoil'
 import { RangeBuild } from './RangeBuild'
+import { sightLine, usePartsIndex, type SightPoints } from './rangeSight'
 import { decodeSaved, MODE_NAMES, savedBuildsOf } from './rangeBuilds'
 import type { View } from './rangeHitboxes'
 import '../styles/range.css'
@@ -175,26 +176,45 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const figureUrls = useFigureUrls(shownFigure ? [shownFigure.base, ...shownFigure.layers].map((picture) => picture.file) : [])
   const masks = usePartMasks(shownFigure, figureUrls)
   const [distance, setDistance] = useState(50)
-  // a scope: its reticle and the target at the distance seen through it (src/range/RangeScopeView.tsx)
+  /**
+   * The scope is the one on the build (owner, 23.11.2026: «сверху нам надо убрать прицелы, а дать возможность выбирать их в сборке
+   * оружия… выбираю оружие, выбираю прицел, и в соответствии с прицелом… меняется сетка прицельная в режиме стрельбы»): its reticle
+   * and the target at the distance seen through it (src/range/RangeScopeView.tsx); none on the build, the open sights.
+   */
   const scopes = useRangeJson<ScopeData[]>('scopes.json')
-  const [scopeId, setScopeId] = useState('')
-  const scope = scopes?.find((entry) => entry.id === scopeId)
-  const [scopeModeIndex, setScopeModeIndex] = useState(0)
+  const scope = useMemo(() => {
+    if (!build || !scopes) return undefined
+    const known = new Map(scopes.map((entry) => [entry.id, entry]))
+    const on = installedParts(build, catalog).find((entry) => known.has(entry.part.id))
+    return on ? known.get(on.part.id) : undefined
+  }, [build, scopes, catalog])
+  const scopeId = scope?.id ?? ''
+  // the sight's height over the bore for this build and sight (src/range/rangeSight.ts)
+  const sightPoints = useRangeJson<SightPoints>('sights.json')
+  const partsIndex = usePartsIndex()
+  const sight = useMemo(() => build && partsIndex && sightPoints ? sightLine(build, partsIndex, sightPoints, scope?.id) : undefined, [build, partsIndex, sightPoints, scope])
+  const sightCm = (sight?.height ?? SIGHT_HEIGHT) * 100
+  const sightName = sight?.sightId && sight.sightId !== weapon?.id ? catalog.mods.get(sight.sightId)?.shortName : undefined
+  const [modeChoice, setModeChoice] = useState({ scope: '', index: 0 })
+  const scopeModeIndex = modeChoice.scope === scopeId ? modeChoice.index : 0
+  const setScopeModeIndex = useCallback((index: number) => setModeChoice({ scope: scopeId, index }), [scopeId])
   const scopeMode = scope?.modes[Math.min(scopeModeIndex, scope.modes.length - 1)]
   const [zoomState, setZoom] = useState<{ key: string; zoom: number }>({ key: '', zoom: 1 })
   const zoom = zoomState.key === `${scopeId}|${scopeModeIndex}` ? zoomState.zoom : scopeMode?.zoom ?? 1
   const reticleUrls = useFigureUrls([scopeMode?.reticle, scopeMode?.reticleMax].filter((file): file is string => Boolean(file)))
   const textureUrls = useFigureUrls(Object.values(COVER_TEXTURE_FILES))
   const coverTextures = { brick: textureUrls[COVER_TEXTURE_FILES.brick], container: textureUrls[COVER_TEXTURE_FILES.container], crate: textureUrls[COVER_TEXTURE_FILES.crate] }
+  // the distances this scope can be zeroed at (the game's CalibrationDistances), the open sights the usual ones
   const zeros = scope?.zeros?.length ? scope.zeros : ZEROS
   const [zeroChoice, setZero] = useState(100)
   const zero = zeros.includes(zeroChoice) ? zeroChoice : zeros[0] ?? 100
   const [cover, setCover] = useState<Cover>('none')
   const [toggles, setToggles] = useState({ spread: true, recoil: true, sway: false, sound: true, trace: true })
 
-  // the sight is zeroed with the weapon's default round, as in the game: another round lands off the zero
-  const zeroAmmo = rounds.find((round) => round.id === weapon?.defaultAmmoId) ?? ammo
-  const flight = ammo ? flightAt(ammo, stats?.velocity, zero, distance, zeroAmmo) : undefined
+  // the sight zeroed with the round fired, at the build's own sight height (owner, 23.11.2026: «пристрелка должна меняться в
+  // зависимости от патрона. Она должна быть не везде одинаковая»)
+  const zeroing = { sightHeight: sightCm / 100 }
+  const flight = ammo ? flightAt(ammo, stats?.velocity, zero, distance, zeroing) : undefined
   // a single shot's bullet in flight (src/range/RangeTracer.tsx)
   const [tracer, setTracer] = useState<Tracer | null>(null)
   const round: Round | undefined = ammo ? {
@@ -290,7 +310,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     }
     // a single shot with «Траектория»: the bullet flies at its own speed and the hole shows when it gets there
     const first = fired[0]
-    const path = toggles.trace && mode === 'single' ? flightPath(ammo, stats?.velocity, zero, distance, zeroAmmo) : undefined
+    const path = toggles.trace && mode === 'single' ? flightPath(ammo, stats?.velocity, zero, distance, zeroing) : undefined
     const tracing = Boolean(path?.length && first)
     const flightMs = (path?.[path.length - 1]?.time ?? 0) * 1000
     if (path?.length && first) {
@@ -485,14 +505,11 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         </div>
         <label className="range-inline"><span>{t('Пристрелка', 'Zero')}</span>
           <select className="select" value={zero} onChange={(event) => setZero(Number(event.target.value))}>
-            {ZEROS.map((value) => <option key={value} value={value}>{value} {t('м', 'm')}</option>)}
+            {zeros.map((value) => <option key={value} value={value}>{value} {t('м', 'm')}</option>)}
           </select>
         </label>
         <div className="segmented-filter">
           {fireModes.map((value) => <button key={value} type="button" className={mode === value ? 'active' : ''} onClick={() => setFireMode(value)}>{pick(FIRE_MODE_NAMES[value] ?? [value, value], lang)}</button>)}
-        </div>
-        <div className="range-inline"><span>{t('Прицел', 'Scope')}</span>
-          <RangeScopePicker scopes={scopes ?? []} value={scopeId} onChange={(id) => { setScopeId(id); setScopeModeIndex(0) }} parts={catalog.mods} lang={lang} />
         </div>
         {scope && scope.modes.length > 1 && <div className="segmented-filter">
           {scope.modes.map((entry, index) => <button key={index} type="button" className={index === scopeModeIndex ? 'active' : ''} onClick={() => setScopeModeIndex(index)}>×{entry.zoom}{entry.zoomMax && entry.zoomMax > entry.zoom ? `–${entry.zoomMax}` : ''}</button>)}
@@ -511,13 +528,16 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         <div className="range-stage-head">
           <span className="range-mag" title={t('R — перезарядка', 'R — reload')}>{t('Магазин', 'Magazine')} <b>{mag}</b> / {capacity}{mag === 0 && <em> · {t('R — перезарядка', 'R — reload')}</em>}</span>
           <span className="range-total">{t('HP', 'HP')} <b>{Math.max(0, Math.round(total))}</b> / {maxTotal}</span>
+          <span className="range-sight" title={t('Прицел ставится в сборке оружия слева', 'The scope is set in the weapon build on the left')}>
+            {t('Прицел', 'Sight')} <b>{scope ? pick([scope.ru, scope.en], lang) : sightName ?? t('штатный', 'open sights')}</b> · {t('над стволом', 'over the bore')} {number(sightCm, lang)} {t('см', 'cm')}
+          </span>
           <div className="range-stage-actions">
             <button type="button" className="button" onClick={reload} title={t('Перезарядить — R', 'Reload — R')}><RotateCcw size={14} /> {t('Перезарядить', 'Reload')} <kbd className="range-key">R</kbd></button>
             <button type="button" className="button" onClick={newTarget} title={t('Новая цель — F', 'New target — F')}><Crosshair size={14} /> {t('Новая цель', 'New target')} <kbd className="range-key">F</kbd></button>
             <button type="button" className="button" onClick={() => setMarks([])}><Eraser size={14} /> {t('Убрать отметки', 'Clear marks')}</button>
           </div>
         </div>
-        {hold && <HoldLine hold={hold} markStep={markStep} zero={zero} distance={distance} zoom={zoom} lang={lang} />}
+        {hold && <HoldLine hold={hold} markStep={markStep} zero={zero} distance={distance} zoom={zoom} sightCm={sightCm} lang={lang} />}
         <div className="range-target-wrap">
           <RangeScopeView scene={scene} distance={distance} mode={scopeMode ?? IRON_SIGHTS} modes={scope?.modes ?? [IRON_SIGHTS]} modeIndex={scope ? Math.min(scopeModeIndex, scope.modes.length - 1) : 0} onMode={setScopeModeIndex}
             zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })} irons={!scope}
@@ -531,9 +551,9 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
           </div>}
         </div>
         {ammo && <DropTable rows={DROP_TABLE_DISTANCES.flatMap((at) => {
-          const point = flightAt(ammo, stats?.velocity, zero, at, zeroAmmo)
+          const point = flightAt(ammo, stats?.velocity, zero, at, zeroing)
           return point ? [{ distance: at, time: point.time, speed: point.speed, energy: point.energy, ...holdover(point.drop, at, markStep) }] : []
-        })} distance={distance} zero={zero} marks={markStep !== undefined} ammoName={ammo.shortName} zeroAmmoName={zeroAmmo && zeroAmmo.id !== ammo.id ? zeroAmmo.shortName : undefined} lang={lang} />}
+        })} distance={distance} zero={zero} marks={markStep !== undefined} ammoName={ammo.shortName} sightCm={sightCm} lang={lang} />}
         <div className="range-health">
           {BODY_PARTS.map((part) => <div key={part} className={`range-hp-row${body.destroyed[part] ? ' is-out' : ''}`}>
             <span>{pick(PART_SHORT[part], lang)}</span>
@@ -728,7 +748,7 @@ function marksWord(count: number, lang: Locale) {
  * Объясни, что нужно выносом целиться на риску ниже… И где МОА пишется у нас, там тоже вопросик. И напиши единицы измерения»):
  * mrad and MOA with what they mean, the reticle's marks when their step is known, and how to aim with them.
  */
-function HoldLine({ hold, markStep, zero, distance, zoom, lang }: { hold: ReturnType<typeof holdover>; markStep?: number; zero: number; distance: number; zoom: number; lang: Locale }) {
+function HoldLine({ hold, markStep, zero, distance, zoom, sightCm, lang }: { hold: ReturnType<typeof holdover>; markStep?: number; zero: number; distance: number; zoom: number; sightCm: number; lang: Locale }) {
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
   const below = hold.mrad >= 0
   const none = Math.abs(hold.mrad) < 0.05
@@ -767,7 +787,7 @@ function HoldLine({ hold, markStep, zero, distance, zoom, lang }: { hold: Return
       </RangeHelpTip>}
     </div>
     <span className="range-hold-aim">{aim}</span>
-    <span>{t('пуля', 'the bullet')} {hold.dropCm <= 0 ? t('ниже', 'below') : t('выше', 'above')} {t('линии прицела на', 'the sight line by')} {length(Math.abs(hold.dropCm), lang)} · {distance} {t('м', 'm')} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')} · ×{number(zoom, lang, zoom % 1 ? 1 : 0)}</span>
+    <span>{t('пуля', 'the bullet')} {hold.dropCm <= 0 ? t('ниже', 'below') : t('выше', 'above')} {t('линии прицела на', 'the sight line by')} {length(Math.abs(hold.dropCm), lang)} · {distance} {t('м', 'm')} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')} · {t('высота прицела', 'sight height')} {number(sightCm, lang)} {t('см', 'cm')} · ×{number(zoom, lang, zoom % 1 ? 1 : 0)}</span>
   </div>
 }
 
@@ -779,13 +799,13 @@ function HoldLine({ hold, markStep, zero, distance, zoom, lang }: { hold: Return
  * 23.11.2026: «исходя из их траектории в игре, вычисли время полета пули, скорость, энергию пули, силу притяжения… на разные
  * дистанции»).
  */
-function DropTable({ rows, distance, zero, marks, ammoName, zeroAmmoName, lang }: {
-  rows: Array<{ distance: number; time: number; speed: number; energy: number } & ReturnType<typeof holdover>>; distance: number; zero: number; marks: boolean; ammoName: string; zeroAmmoName?: string; lang: Locale
+function DropTable({ rows, distance, zero, marks, ammoName, sightCm, lang }: {
+  rows: Array<{ distance: number; time: number; speed: number; energy: number } & ReturnType<typeof holdover>>; distance: number; zero: number; marks: boolean; ammoName: string; sightCm: number; lang: Locale
 }) {
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
   const nearest = rows.reduce<number | undefined>((best, row) => best === undefined || Math.abs(row.distance - distance) < Math.abs(best - distance) ? row.distance : best, undefined)
   return <details className="range-drops" open>
-    <summary>{t('Падение пули по дистанциям', 'Bullet drop by distance')} · {ammoName} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')}{zeroAmmoName ? ` ${t('по', 'with')} ${zeroAmmoName}` : ''}</summary>
+    <summary>{t('Падение пули по дистанциям', 'Bullet drop by distance')} · {ammoName} · {t('пристрелка этим патроном', 'zeroed with this round')} {zero} {t('м', 'm')} · {t('высота прицела', 'sight height')} {number(sightCm, lang)} {t('см', 'cm')}</summary>
     <table>
       <thead><tr>
         <th>{t('Дистанция', 'Distance')}</th><th>{t('Пуля от линии прицела', 'Bullet vs sight line')}</th><th>{t('Вынос, мрад', 'Hold, mrad')}</th><th>MOA</th>{marks && <th>{t('Рисок', 'Marks')}</th>}
