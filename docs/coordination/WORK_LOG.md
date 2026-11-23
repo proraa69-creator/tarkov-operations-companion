@@ -9060,3 +9060,6 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (economy.matchesSearch) and the map's «Найти точку…» (src/maps/mapSearch.ts).
 - Checked in the dev page: the top search «SJ1 боевой стимулятор» → SJ1 and SJ12; Барахолка «SJ12 боевой стимулятор» → SJ12,
   «боевые стимуляторы» → SJ6, SJ9, SJ12, SJ1. tsc clean, eslint (warnings only, old).
+- Owner, 23.11.2026: «да» — into the next release (not released yet; release/production not pushed). News line proposed to the
+  owner: RU «Поиск: находит предмет при любом порядке слов, например «SJ1 боевой стимулятор»», EN «Search: finds an item
+  whatever the word order, e.g. «SJ1 combat stimulant»» — playerNews.json entry goes in with the release's version.
