@@ -9236,3 +9236,13 @@ Not pushed, not released, nothing uploaded.
   a bin, a box into a table's rail or against another box) and refused in eval\manual-reject.json. Those places keep their other
   photos; a re-shoot of their close-ups with the every-edge check is still to do (the worker's quest-item close-up has no such
   check yet; the documents' has, since this entry).
+
+## 2026-11-24 06:00 — Claude: Interchange quests shot again in the offline game
+
+- Run interchange-all2 (42 quest points; its documents went first, see above). Every preview sheet looked at by eye: 21 frames refused
+  in eval\manual-reject.json (three own frames of the wrong spot — stores without their sign, a field by IDEA —, 16 close-ups that show
+  neither the thing nor the place: inside the minibus, bare asphalt, desks with no manifest to make out; a dark approach).
+  Integrated: 34 matched, 1 own place, 14 approaches, 2 close-ups; 10 wiki photos of shot places removed. Tests 581/581, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\interchange (102 files), on the server with this entry.
+- The worker lays a quest item free now (Worker.cs Free: raised out of anything solid in its box, then onto what is under its whole
+  footprint, logged «STILL IN SOMETHING» when it cannot be) and its close-up uses the documents' every-edge check (build out-free).
