@@ -17,9 +17,11 @@ const WHY: Phrase = {
   en: 'Raid OS puts your point on the map from a game screenshot: the game writes your coordinates into it. You set the key once.',
 }
 const STEP_TAB: Phrase = { ru: 'В игре откройте «Настройки» → «Управление».', en: 'In the game, open Settings → Controls.' }
+// not PrtSc nor F12 (owner, 24.11.2026: «нужно назначить на любую другую кнопку, кроме Print Screen, потому что у них, возможно, по
+// этой кнопке делает скриншот сам компьютер Windows… будет делать скриншот не игра, а Windows»; F12 is Steam's own screenshot key)
 const STEP_ROW: Phrase = {
-  ru: 'Найдите строку «Сделать скриншот» и назначьте на неё любую удобную для вас клавишу.',
-  en: 'Find the screenshot line and set any key that suits you.',
+  ru: 'Найдите строку «Сделать скриншот» и назначьте на неё любую удобную клавишу, кроме Print Screen (PrtSc) и F12. Эти клавиши может перехватить сама Windows или Steam: тогда снимок сделает не игра, координат в нём не будет и точка не появится.',
+  en: 'Find the Take screenshot line and set any key that suits you except Print Screen (PrtSc) and F12. Windows or Steam may take these keys for themselves: then the screenshot is not the game’s, it has no coordinates and your point does not show up.',
 }
 const STEP_RAID: Phrase = { ru: 'В рейде нажмите эту клавишу — ваша точка появится на карте Raid OS.', en: 'Press this key in a raid: your point shows up on the Raid OS map.' }
 const MAIN: Phrase = { ru: 'Главное:', en: 'Important:' }

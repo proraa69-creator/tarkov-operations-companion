@@ -9047,3 +9047,18 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   -55.4/467 (report 216), «Батя» stage 0 patch -59.09/457.15 (as the server overrides). News (owner's line verbatim): «Запуск: если
   окно не открывается, приложение само пробует другой способ запуска»; «Маяк: новое место - лагерь Прапора и шеврон «Богатырей»».
   deployPath 11/0; gate steps locally: only the 6 machine-only failures (appVersion, staleServer, linux/updater ×3, AdminPanelPage).
+
+## 2026-11-24 — Claude: the screenshot key window — not PrtSc nor F12 (claude/screenshot-key-windows, not released)
+- A player (account ba57dc43…, PvE, Steam EFT, paid until mid-December) wrote in the support chat on 24.11 that his position stopped
+  working «сегодня», and that there are no screenshots in the folder (he named `…\steamapps\common\Escape from Tarkov\build\Escape from
+  Tarkov\Screenshots`, which is not where the game writes them: the app follows Documents\Escape from Tarkov\Screenshots and its
+  OneDrive variants, electron/experimental/positionTracker.ts). Read on the VPS, read-only (python3 sqlite3 `mode=ro`): no row in
+  `user_positions`, one device (Windows), the latest EFT account report today. The app never deletes screenshots (positionTracker:
+  «Reading does not delete files»); nothing in the position tracking changed since 20.11. Most likely the game makes no screenshot:
+  PrtSc taken by Windows (Windows 11 «Print Screen opens the Snipping Tool») or F12 by Steam.
+- Owner: «нужно назначить на любую другую кнопку, кроме Print Screen, потому что у них, возможно, по этой кнопке делает скриншот сам
+  компьютер Windows… добавь ее во второй пункт». src/onboarding/ScreenshotKeyGuide.tsx step 2 now: «…любую удобную клавишу, кроме Print
+  Screen (PrtSc) и F12. Эти клавиши может перехватить сама Windows или Steam: тогда снимок сделает не игра, координат в нём не будет и
+  точка не появится.» (EN alike; F12 as the owner told the player in the chat). FeatureTours.test.tsx checks the line.
+- The window shows only to new players on the PC app (tours.ts `screenshotKey: 'due'`): this player and others who already ran the app
+  will not see it; tell him in the chat. Checked: vitest src/onboarding (34), tsc, eslint. Not pushed, not released.
