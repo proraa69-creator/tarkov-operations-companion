@@ -9047,3 +9047,42 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   -55.4/467 (report 216), «Батя» stage 0 patch -59.09/457.15 (as the server overrides). News (owner's line verbatim): «Запуск: если
   окно не открывается, приложение само пробует другой способ запуска»; «Маяк: новое место - лагерь Прапора и шеврон «Богатырей»».
   deployPath 11/0; gate steps locally: only the 6 machine-only failures (appVersion, staleServer, linux/updater ×3, AdminPanelPage).
+
+## 23.11.2026 — Claude: every place photo shot again in the offline game (in progress, stopped by the owner at 18:04)
+
+Owner, 23.11.2026: «Каждому документу нужно переснять фото, где он находится. По образцам… вторые фото с разными местами спавна
+документа… там кадры с пистолетом… Все квесты, которые существуют, должны быть пересняты полностью, все фотографии… Также запертая
+дверь или багажник машины нужно переименовать просто багажник машины. Нужен ключ от автомобиля «Жигули»… нужно сделать фото каждой
+машины… ключ от спецтехники… лежит в куртке. Это нужно пометить, записать.» Branch `claude/quest-photos-all` (worktree
+`raidos-quest-photos-all`, from release/production 95398f05), not pushed, not released.
+
+- Found: 994 wiki photos of 237 quests and ~350 of the battle pass documents on 12 maps; own frames only on Customs (54 quest,
+  24 document). The old tour looked for a sample's view within 12 m of the zone and found ~25 % of them; Woods and Shoreline
+  frames of 22-23.11 were never put into the app.
+- 6bfeaa6b: a locked car is «Багажник машины» with «Нужен ключ от автомобиля «<car>».» (src/data/carLocks.ts, the car by the key
+  id: Жигули, Merin, Полиция, SMW, Почта Руси; the «Ключи» list says «Багажник машины» too; English «Car trunk», «Requires the
+  “Zhiguli” car key.»); «Ключ от спецтехники» on Customs: «Лежит в куртке в каждом рейде.»; src/data/placePhotos.json (empty
+  for now) carries our frames of each car by lock id and of a guaranteed spawn's spot, shown as spotPhotos from
+  src/assets/key-spots. Tests: carLocks, mapMarkerAdapter, keyDoors, documentGuide (83 passed); typecheck ok.
+- 07aa1b2f: Woods (19 places, 11 approaches, 1 item) and Shoreline (27, 9, 2) frames of the earlier tours in place of their wiki
+  photos (`own`); the pictures are in E:\SPT-photo\server-upload\woods-old and shoreline-old — they must be put in the server's
+  guide images folder with the release, or the app shows nothing there.
+- New tools on E: (not in git; memory `spt-photo-all-maps`): points\build_all.py (every objective zone and quest item place of
+  every live quest from json.tarkov.dev, document spots with heights from lootLoose, real trunk locks, the jacket), the worker
+  with a wider second search and our own frame where no sample matches, photo2\drive_maps.py (map after map, restarts a quiet
+  game), photo2\start-client.ps1, eval\select_all.py, eval\integrate_all.py, eval\compare_providers.py; move-to-monitor2.ps1
+  now finds the second monitor (the layout changed to 3440×1440 + 1920×1080 at 3440,0).
+- Matching on the video card since 13:41 (owner: «Да, ставь»: onnxruntime-directml only in E:\SPT-photo\venv-dml): scores equal
+  to the CPU's on 48 pairs (≤0.4 %, no verdict change), 16× faster matching; a sample-heavy point 2–3 min instead of 5–9.
+- Stopped at 18:04 (paused 14:10–17:19 before): Customs run customs-all2 91 of 110 points; next
+  customs-quest-item-675c3582f6ddc329a90f9c6d-675f7f224076a741a3061568-0 («Закрытый клуб»). Woods, Shoreline, Interchange,
+  Streets, Reserve, Lighthouse, Factory, Ground Zero, Lab, Labyrinth not started (Icebreaker is not in the offline copy).
+  SPT client and server closed, GAME-BUSY removed.
+- To go on (only on the owner's word): SPT.Server → E:\SPT-photo\photo2\start-client.ps1 → GAME-BUSY-photo-all.txt → go.flag
+  (tour.json still customs-all2, resumes from its manifest) → `pythonw -X utf8 E:\SPT-photo\photo2\drive_maps.py --wait-current`.
+  Per map then: eval\select_all.py (the driver runs it) → look at every preview sheet by eye → eval\integrate_all.py <map>
+  --approved E:\SPT-photo\approved\<map>\all --points E:\SPT-photo\points\<map>-all2.json --done-maps <earlier maps>
+  --out E:\SPT-photo\server-upload\<map> → tests (documentGuide.test.ts expects Customs photo counts that will change) → commit →
+  sheets to the owner. Event quests (eventGuidePhotos.json, 45 tarkov.help photos) are not in build_all yet.
+- Risks: unmatched wiki photos of a shot place are removed and replaced by our own frame (owner's «без чужих»); our frame then
+  shows the place from another angle than the sample — the sheets put the sample next to it. Nothing uploaded to the server.
