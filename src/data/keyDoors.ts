@@ -166,9 +166,9 @@ export function keyDoorFocusCard(marker: MapMarker, keyId: string | null, locale
   return { ...marker, title: locale === 'en' ? via.en : via.ru, description: via.hint ? (locale === 'en' ? via.hint.en : via.hint.ru) : '' }
 }
 
-/** Russian kind label (translated by uiText): «Дверь», «Дверь машины», «Контейнер». */
+/** Russian kind label (translated by uiText): «Дверь», «Багажник машины» (owner, 23.11.2026), «Контейнер». */
 export function keyDoorKindLabel(door: Pick<KeyDoor, 'kind'>) {
-  if (door.kind === 'trunk') return 'Дверь машины'
+  if (door.kind === 'trunk') return 'Багажник машины'
   if (door.kind === 'container') return 'Запертый контейнер'
   return 'Дверь'
 }

@@ -5,6 +5,7 @@ import { KEY_DOOR_EXTRA_LOCKS, keyDoorExcluded } from './keyDoorNames'
 import { lootContainerTitle } from './lootContainerKinds'
 import { GUARANTEED_SPAWNS, ROUTE_ITEM_GROUPS, type GuaranteedSpawn } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
+import { CAR_LOCK_TITLE, CAR_PHOTOS, SPAWN_PHOTOS, carName, carNeedsText } from './carLocks'
 import { isStalePlace } from './stalePlaces'
 import { byObjective } from './objectiveGameIds'
 import sptKeySpots from './sptKeySpots.json'
@@ -878,6 +879,9 @@ function adaptGameContainers(map: GameMap, rawMap: JsonRecord): MapMarker[] {
 export const guaranteedSpawnText = (kind: 'here' | 'one-of', count: number) =>
   kind === 'here' || count < 2 ? 'Лежит здесь в каждом рейде.' : `Одна из ${count} возможных точек спавна.`
 
+/** Our frames of a guaranteed spawn's spot (owner, 23.11.2026: the machinery key's jacket): its own, else the offline game's. */
+const spawnPhotos = (spawn: GuaranteedSpawn, mapId: string) => spawn.photos ?? SPAWN_PHOTOS[`${canonicalMapId(mapId)}/${spawn.itemId}`] ?? []
+
 /** «Спавн 100 %»: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts). */
 function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarker[] {
   return GUARANTEED_SPAWNS.filter((spawn) => spawn.mapId === map.id).flatMap((spawn) => spawn.positions.flatMap((position, index): MapMarker[] => {
@@ -893,9 +897,10 @@ function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarke
       layerId: certain ? 'loot.guaranteed' : 'loot.key',
       ...(certain ? {} : { possibleSpawn: true }),
       title: item?.name ?? spawn.name,
-      description: guaranteedSpawnText(spawn.kind, spawn.positions.length),
+      description: spawn.text ?? guaranteedSpawnText(spawn.kind, spawn.positions.length),
       meta: item?.shortName,
       itemId: spawn.itemId,
+      ...(spawnPhotos(spawn, map.id).length ? { spotPhotos: spawnPhotos(spawn, map.id).map((photo) => ({ ...photo })) } : {}),
       // The badge only where the item always lies; a spot of a group holds it in some raids.
       guaranteedSpawn: spawn.kind === 'here' || spawn.positions.length < 2,
       source: 'raid-statistics',
@@ -970,13 +975,17 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
     const shownName = keyName || (keycard ? KEYCARD_LABELS[keycard] : '')
     const needsPower = Boolean(lock.needsPower)
     const needs = keycard ? `Нужна ключ-карта «${shownName}».` : `Нужен ключ «${shownName}».`
-    const lockLabel = lockType === 'container' ? 'Запертый контейнер' : lockType === 'trunk' ? 'Дверь или багажник машины' : 'Дверь'
+    const lockLabel = lockType === 'container' ? 'Запертый контейнер' : 'Дверь'
+    // A car (owner, 23.11.2026): «Багажник машины. Нужен ключ от автомобиля «Жигули»», with our frame of the car.
+    const car = lockType === 'trunk'
+    const carPhotos = car ? CAR_PHOTOS[text(lock.id)] : undefined
     return [{
       ...base,
       type: 'key' as const,
       layerId: 'key' as const,
-      title: shownName ? `${lockLabel} · открывает: ${shownName}` : lockType === 'door' ? 'Запертая дверь' : lockLabel,
-      description: `${shownName ? needs : 'Требуется ключ.'}${needsPower ? ' Также необходимо питание.' : ''}`,
+      title: car ? CAR_LOCK_TITLE : shownName ? `${lockLabel} · открывает: ${shownName}` : lockType === 'door' ? 'Запертая дверь' : lockLabel,
+      description: `${car && shownName && !keycard ? carNeedsText(carName(keyId, shownName)) : shownName ? needs : 'Требуется ключ.'}${needsPower ? ' Также необходимо питание.' : ''}`,
+      ...(carPhotos?.length ? { spotPhotos: carPhotos.map((photo) => ({ ...photo })) } : {}),
       // Keycard doors show the card colour in the tooltip instead.
       meta: keycard ? undefined : 'Запертая дверь',
       itemId: keyId || undefined,

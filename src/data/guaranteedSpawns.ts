@@ -1,3 +1,5 @@
+import type { KeySpotPhoto } from './extraKeySpots'
+
 /**
  * «100 % спавн» (owner, 09.11.2026: «где 100% лежит конкретный предмет… не квестовые предметы, а предметы для барахолки,
  * убежища»). Loose loot is placed by the game server, so the game files cannot tell; these come from the statistics of live
@@ -12,6 +14,10 @@ export interface GuaranteedSpawn {
   /** `here`: always at this one spot. `one-of`: one per raid, at one of the spots. */
   kind: 'here' | 'one-of'
   positions: ReadonlyArray<{ x: number; y: number; z: number }>
+  /** Where exactly it lies, for the card (owner, 23.11.2026: «Он лежит в куртке. Это нужно пометить, записать»). */
+  text?: string
+  /** Our own frames of the spot (the offline game, src/assets/key-spots). */
+  photos?: readonly KeySpotPhoto[]
 }
 
 export const GUARANTEED_SPAWNS: readonly GuaranteedSpawn[] = [
@@ -24,6 +30,7 @@ export const GUARANTEED_SPAWNS: readonly GuaranteedSpawn[] = [
     name: 'Ключ от спецтехники',
     kind: 'here',
     positions: [{ x: 179.38, y: 3.92, z: 151.08 }],
+    text: 'Лежит в куртке в каждом рейде.',
   },
   // «Ключ от офиса учёных TerraGroup»: the dead lab assistant, Ground Zero (container 6582e6c6edf14c4c6023adf2).
   {

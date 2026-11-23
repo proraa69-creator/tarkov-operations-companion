@@ -25,7 +25,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'],
   // «Спавн 100 %» layer: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts).
-  ['Лежит здесь в каждом рейде.', 'Here every raid.'],
+  ['Лежит здесь в каждом рейде.', 'Here every raid.'], ['Лежит в куртке в каждом рейде.', 'In the jacket every raid.'],
   ['Возможная точка спавна', 'Possible spawn spot'],
   // «Нужные ключи» (reports №112, №113).
   ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],
@@ -149,7 +149,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Вся карта', 'Whole map'], ['Все точки задания', 'All quest points'], ['Снять выбор задания', 'Clear quest selection'],
   // Quest candidate points and locked doors (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx)
   ['Возможное место предмета', 'Possible item location'], ['этажи', 'floors'], ['Возможная точка задания', 'Possible objective point'],
-  ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'],
+  ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'], ['Багажник машины', 'Car trunk'], ['Жигули', 'Zhiguli'], ['Почта Руси', 'Russian Post'], ['Полиция', 'Police'],
   ['Ключ-карта TerraGroup Labs (красная)', 'TerraGroup Labs keycard (Red)'], ['Ключ-карта TerraGroup Labs (зелёная)', 'TerraGroup Labs keycard (Green)'],
   ['Ключ-карта TerraGroup Labs (синяя)', 'TerraGroup Labs keycard (Blue)'], ['Ключ-карта TerraGroup Labs (фиолетовая)', 'TerraGroup Labs keycard (Violet)'],
   ['Ключ-карта TerraGroup Labs (жёлтая)', 'TerraGroup Labs keycard (Yellow)'], ['Ключ-карта TerraGroup Labs (чёрная)', 'TerraGroup Labs keycard (Black)'],
@@ -228,6 +228,7 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/Конкретной точки нет — вся карта\.?/g, 'No specific point: the whole map.'],
   [/Возможная зона появления:\s*/g, 'Possible spawn zone: '],
   [/Дверь:\s*/g, 'Door: '],
+  [/Нужен ключ от автомобиля\s*«([^»]+)»/g, 'Requires the “$1” car key'],
   [/Нужен ключ\s*«([^»]+)»/g, 'Requires key “$1”'],
   [/Требуется:\s*/g, 'Requires: '],
   [/(\d(?:[\d\s\u00a0]*\d)?)\s*опыта/g, '$1 XP'],

@@ -523,6 +523,17 @@ describe('locks the current tarkov.dev feed lost (keyDoorNames.ts KEY_DOOR_EXTRA
     const factory = locks('factory', [{ id: 'gate', lockType: 'door', key: EXIT_KEY, position: { x: 10, y: 0.5, z: 10 } }])
     expect(factory.map((marker) => marker.lock?.keyId)).toEqual([EXIT_KEY])
   })
+
+  it('names a locked car «Багажник машины» and its key by the car (owner, 23.11.2026: «Нужен ключ от автомобиля «Жигули»»)', () => {
+    const ZHIGULI = '5913651986f774432f15d132'
+    const items = new Map([[ZHIGULI, { id: ZHIGULI, name: 'Ключ от автомобиля Жигули', shortName: 'Шоха' } as never]])
+    const [car] = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', locks: [
+      { id: 'zhiguli', lockType: 'trunk', key: ZHIGULI, position: { x: -269.53, y: 1.67, z: -133.86 } },
+    ] } } }, {}, { ...context, items }).filter((marker) => marker.layerId === 'key')
+    expect(car).toMatchObject({ title: 'Багажник машины', description: 'Нужен ключ от автомобиля «Жигули».' })
+    expect(translateUiText('Багажник машины')).toBe('Car trunk')
+    expect(translateUiText('Нужен ключ от автомобиля «Жигули».')).toBe('Requires the “Zhiguli” car key.')
+  })
 })
 
 describe('boss markers are merged within ~100 m (BOSS_MERGE_METRES)', () => {
@@ -715,12 +726,16 @@ describe('«Спавн 100 %» layer and the containers of the game files (09.11
     const lab = markersOf('the-lab')
     expect(lab.some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
     expect(lab.filter((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 11 возможных точек спавна.')).toHaveLength(11)
-    // Report 121: the jacket on the dorms' second floor always holds «Ключ от спецтехники» (SPT statistics).
-    expect(markersOf('customs').filter((marker) => marker.layerId === 'loot.guaranteed').map((marker) => marker.itemId)).toEqual(['5937ee6486f77408994ba448'])
+    // Report 121: the jacket on the dorms' second floor always holds «Ключ от спецтехники» (SPT statistics); the card says so
+    // (owner, 23.11.2026: «Он лежит в куртке. Это нужно пометить, записать»).
+    const machinery = markersOf('customs').filter((marker) => marker.layerId === 'loot.guaranteed')
+    expect(machinery.map((marker) => marker.itemId)).toEqual(['5937ee6486f77408994ba448'])
+    expect(machinery[0]!.description).toBe('Лежит в куртке в каждом рейде.')
   })
 
   it('has English for the new texts', () => {
     expect(translateUiText('Лежит здесь в каждом рейде.')).toBe('Here every raid.')
+    expect(translateUiText('Лежит в куртке в каждом рейде.')).toBe('In the jacket every raid.')
     expect(translateUiText('Одна из 12 возможных точек спавна.')).toBe('One of 12 possible spawn spots.')
     expect(translateUiText('Возможная точка спавна')).toBe('Possible spawn spot')
   })
