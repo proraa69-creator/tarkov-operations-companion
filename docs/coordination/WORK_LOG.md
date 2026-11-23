@@ -8853,3 +8853,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   - My slip: I copied the source scopes.json over the app's copy once; restored at once with to_app.py (44 scopes, 60 modes).
   - Checked in the dev page: Mark 5HD at 500 m «Вынос вверх 4,6 мрад · 15,7 MOA · 4,5 риски», the table, PS-320 ×6↔×1 by
     the wheel, the wheel prevented, Vudu bar black / Mark 5HD red, the «?» popups, the sway drifting. tsc, eslint, vitest range 25/25.
+- 23.11.2026 ~14:30, «Полигон» (owner: the distance without optics, «Разброс, отдача, раскачка… должно… работать всегда», helmets
+  that did not appear, one colour of a model, visors, pictures in the armour lists, body armour and armoured rigs in one list, a
+  quick hint at the hold, scopes by groups; then «кнопку тир… переименуем в полигон», the first tab of «Баллистика»).
+  claude/range 0f654faa (src/range/RangePicker.tsx, rangeLists.ts + test, RangeScopePicker, RangeShooting, RangeScopeView,
+  range.css, src/pages/ReferencePages.tsx + AmmoPage.test.tsx, src/i18n/uiEnglishArsenal.ts):
+  - Without optics the old board drew the character at one size whatever the distance; now the sight's own view at ×1 (40°,
+    wheel to ×4, «Прицелиться»): checked 36 m across at 50 m, 302 m at 415 m.
+  - Recoil on weapons without the game's data (rangeRecoil.json) was off: the estimate from the weapon's figures now kicks
+    whenever «Отдача» is on. Spread and sway are angular, so at 25–50 m they are small by nature.
+  - Helmets 38 (37 with pictures, EXFIL once), body armour + armoured rigs 70 (69 with pictures), only what has a worn picture;
+    visors only those drawn on that helmet; a usual kit's helmet swaps to a drawn colour of its model.
+  - Scopes: in rings (a ring mount takes them: /кольц|ring|NNмм/, no \b for Cyrillic), rail, thermal 5, night 2, service 8.
+  - Quick distances 100–800, the hold also without a scope, the drop table open.
+  - vitest src/range 27/27, AmmoPage 4/4, tsc, eslint clean; dev page checked. Test exe «Raid OS тест Тир 7». Not pushed.
