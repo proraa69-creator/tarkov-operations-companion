@@ -103,7 +103,8 @@ function ReportDetails({ row, onUpdate }: { row: BugReportRow; onUpdate: () => v
   const detail = useAdminData(useCallback((token: string) => bugReportsApi.get(token, id), [id]))
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<Failure | null>(null)
-  const [days, setDays] = useState('1')
+  // 2 days for a confirmed bug (owner, 24.11.2026), an idea's 1 as before
+  const [days, setDays] = useState(row.kind === 'idea' ? '1' : '2')
   const [done, setDone] = useState('')
   const report = detail.data?.report
   const words = WORDS[row.kind]
@@ -156,7 +157,7 @@ function ReportDetails({ row, onUpdate }: { row: BugReportRow; onUpdate: () => v
         {report.accountId
           ? <div className="inline-form admin-bug-reward">
             <input className="input mono admin-days" inputMode="numeric" aria-label={words.daysFor} value={days} disabled={busy} onChange={(e) => setDays(e.target.value.replace(/\D/g, '').slice(0, 3))} />
-            <button type="button" className="button primary small" disabled={busy} onClick={() => void reward()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />}Выдать +{Number(days) || 1} дн.</button>
+            <button type="button" className="button primary small" disabled={busy} onClick={() => void reward()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />}Выдать +{Number(days) || (row.kind === 'idea' ? 1 : 2)} дн.</button>
           </div>
           : <span className="field-hint">Аккаунт отправителя удалён: выдать дни некому.</span>}
         <button type="button" className="button ghost small" disabled={busy} onClick={() => void mail()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}{report.mailedAt ? 'Отправить PDF ещё раз' : 'Отправить PDF на почту'}</button>

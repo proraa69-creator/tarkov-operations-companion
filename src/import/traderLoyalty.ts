@@ -41,7 +41,14 @@ export function traderBadgeRects(words: OcrWordBox[], size: { width: number; hei
   const steps = unique.slice(1).map((entry, index) => entry.x - unique[index]!.x).filter((step) => step > 0).sort((a, b) => a - b)
   const unit = Math.min(size.height, size.width * 9 / 16)
   const step = steps.length ? steps[Math.floor(steps.length / 2)]! : unit * STEP_PER_UNIT
-  return unique.map(({ key, x, y }) => {
+  // The game's screen since 1.0 has a second row of portraits under the first (Смотритель, Гараж… and Реф: report №197,
+  // «Реф у меня четвертый» — the app kept him at I). A name there counts when it stands one row below, in a column of the
+  // first row's cards; a quest's text mentioning a trader stands elsewhere.
+  const columnOf = (x: number) => Math.abs(((x - unique[0]!.x) / step) - Math.round((x - unique[0]!.x) / step)) * step
+  const below = named.filter((entry) => !unique.some((other) => other.key === entry.key)
+    && entry.y - row >= 0.8 * step && entry.y - row <= 1.45 * step && columnOf(entry.x) <= 0.3 * step)
+  const rows = [...unique, ...below.filter((entry, index) => below.findIndex((other) => other.key === entry.key) === index)]
+  return rows.map(({ key, x, y }) => {
     const left = Math.round(x - 0.4325 * step)
     const top = Math.round(y - 0.79 * step)
     const side = Math.round(0.2 * step)

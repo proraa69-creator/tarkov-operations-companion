@@ -14,7 +14,6 @@ import {
   AlertTriangle, ArrowLeft, BadgeCheck, BadgeQuestionMark, Key, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
   FlaskConical, HeartPulse, KeyRound, Layers, LocateFixed, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp, Map as WorldMapIcon,
 } from 'lucide-react'
-import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapFloors, PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
 import { WORLD_MAP_ID, WorldMapView } from '../maps/WorldMapView'
 import { noteSidebarNavigation } from '../app/desktopBack'
@@ -43,6 +42,7 @@ import { LootContainerRows } from '../components/LootContainerRows'
 import { lootContainerKindOf, type LootContainerKind } from '../data/lootContainerKinds'
 import { battlePassDocumentKindsOf, battlePassDocumentTitle, type BattlePassDocumentKind } from '../data/battlePassDocuments'
 import { clearFoundDocuments, markDocumentFound, useFoundDocuments } from '../progression/foundDocuments'
+import { countDocumentFound, DOCUMENT_DAILY_LIMIT, useDocumentDay } from '../progression/documentDailyLimit'
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { exitNames, exitShortName } from '../data/exitShortNames'
 import { exitHighlights, useRaidExtracts } from '../maps/raidExtracts'
@@ -136,7 +136,7 @@ import { MapDragGuard } from '../maps/mapDragGuard'
 import { MapFloorWheel, useGameFloorWheel } from '../maps/mapFloorWheel'
 import { repeatsTitle } from '../maps/repeatsTitle'
 import { useMapFloorWheel } from '../account/trialFeatures'
-import { appStoreRules, isDesktopShell, useMobileLayout } from '../platform'
+import { isDesktopShell, useMobileLayout } from '../platform'
 import { MapPanelEye, MapPanelsSettings, useMapPanels } from '../maps/MapPanels'
 import { MapSkillTimer, MapSkillTimerSettings } from '../components/MapSkillTimer'
 import { useSkillTimerEnabled } from '../components/skillTimer'
@@ -565,10 +565,8 @@ export function MapsPage() {
   const mapId = worldOpen ? undefined : routeParams.mapId
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
-  const closeLayers = () => {
-    setLayersOpen(false)
-    requestAnimationFrame(() => shellRef.current?.querySelector('.map-stage')?.scrollIntoView({ block: 'start' }))
-  }
+  // «Слои» on the phone is a window over the map (styles/mobile.css): «×» closes it and the map is there again, unmoved.
+  const closeLayers = () => setLayersOpen(false)
   const [expanded, setExpanded] = useDesktopMapFullscreen(!mobile)
   const shellRef = useMapFitsWindow(!mobile)
   // Report 158: the panels left and right or above and below the map, and each one hidden by its eye (maps/MapPanels.tsx).
@@ -706,6 +704,9 @@ export function MapsPage() {
   const questChecks = useQuestChecks(profileId, raidMode)
   // «Нашёл» on a battle pass document: it leaves the map until this raid ends (progression/foundDocuments.ts).
   const foundDocuments = useFoundDocuments(profileId, raidMode)
+  // and counts against the day's limit of documents (report №194, progression/documentDailyLimit.ts)
+  const documentDay = useDocumentDay(profileId)
+  const documentsToday = { count: documentDay.count, limit: DOCUMENT_DAILY_LIMIT[raidMode] }
   const [documentGallery, setDocumentGallery] = useState(false)
   const hiddenContainerKinds = state.hiddenContainerKinds
   const closeDocumentGallery = useCallback(() => setDocumentGallery(false), [])
@@ -1375,7 +1376,7 @@ export function MapsPage() {
                     <small>{uiText(onLayer.length)}</small>
                   </button>
                   {layerId === 'loot.container' && <LootContainerRows markers={onLayer} layerVisible={visible} hidden={hiddenContainerKinds} onChange={setContainerKinds} />}
-                  {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} />}
+                  {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} today={documentsToday} />}
                 </Fragment>
               }))}
               {/* Owner, 08.11.2026: «добавь на точки на карте. И назови их места устранения… по нажатию они включаются и выключаются». */}
@@ -1605,8 +1606,6 @@ export function MapsPage() {
           keyCard={(keyId) => itemsById.get(keyId) && <KeySpotCard item={itemsById.get(keyId)!} items={data.items} mode={raidMode} owned={ownedKeys.get(keyId) ?? 0}
             questRow={questKeys.find((row) => row.item.id === keyId)} favorite={favoriteKeys.has(keyId)} onFavorite={() => setQuestKeyFavorite(profileId, raidMode, keyId, !favoriteKeys.has(keyId))} />} />}
         {placePhotos.overlay}
-        {/* not in the iPhone app (owner, 12.11.2026: «на карте удали ползунок справа») */}
-        {mobile && !fullscreen && !appStoreRules() && <MapScrollRail />}
         {mobile && <PhoneMapFullscreenToggle fullscreen={fullscreen} onToggle={() => setFullscreen(!fullscreen)} />}
         {!mobile && <MapExpandToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />}
         {/* The phone: «Квесты» and the floors side by side at the bottom left (owner, 12.11.2026: «они должны быть рядом»). */}
@@ -1737,7 +1736,7 @@ export function MapsPage() {
               {selectedExit
                 ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} />
                 : selectedDocument
-                  ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
+                  ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); countDocumentFound(profileId); setSelectedMarker(null) }} today={documentsToday} />
                   : markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn && keysOfPoint(selectedMarker).length > 0
                     ? <SpotKeyInfo key={selectedMarker.id} keyIds={keysShown(selectedMarker)} render={(picked, pick) => <>
                       {keysOfPoint(selectedMarker).length > 1 && <KeySpotKeys keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} picked={picked} onPick={pick} tiers={keyTierMap} />}
@@ -2218,22 +2217,6 @@ function MapExpandToggle({ expanded, onToggle }: { expanded: boolean; onToggle: 
   return <button type="button" className={`map-expand-toggle${expanded ? ' is-expanded' : ''}`} aria-pressed={expanded} aria-label={label} title={label} onClick={onToggle}>
     {expanded ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}
   </button>
-}
-
-/**
- * Phone: a strip at the right edge of the map that scrolls the page, not the map (owner, 17.10.2026: «когда на весь
- * экран карта, а меню нету в кадре, то невозможно листнуть вниз или вверх, потому что листается карта»). A finger drags
- * the page natively (touch-action: pan-y, outside Leaflet); the arrows move it by most of a screen. 20.10.2026 («сделай
- * аккуратнее, приятнее, чтобы человек понимал, что туда можно нажать и пролистать… мимо неё»): a slim pill that says
- * «Листать» between the arrows.
- */
-function MapScrollRail() {
-  const scrollBy = (direction: 1 | -1) => window.scrollBy({ top: direction * Math.round(window.innerHeight * 0.6), behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
-  return <div className="map-scroll-rail" title={uiText('Здесь страница листается мимо карты')}>
-    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(-1)} aria-label={uiText('Прокрутить страницу вверх')}><ChevronUp size={16} /></button>
-    <span className="map-scroll-rail-grip" aria-hidden="true"><span className="map-scroll-rail-label">{uiText('Листать')}</span></span>
-    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(1)} aria-label={uiText('Прокрутить страницу вниз')}><ChevronDown size={16} /></button>
-  </div>
 }
 
 /**

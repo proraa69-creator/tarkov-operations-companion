@@ -56,6 +56,19 @@ function eventTwin(name: string) {
 }
 
 /** Where a listed photo is downloaded from; undefined for a name neither list holds. */
+/**
+ * Our own photos of the places (owner, 22.11.2026: the offline game's frames of a quest's place, its approach and its item, in
+ * place of the wiki's): listed with `own: true` and no address. They are put in the folder by hand and served from it; never
+ * downloaded, so a missing one is simply absent.
+ */
+const ownFiles = new Set(Object.entries(wikiFiles).filter(([, entry]) => (entry as { own?: boolean }).own).map(([id]) => id))
+
+/** One of our own photos («wiki-<id>.jpg» or its «-t» thumbnail) by the name the apps ask for. */
+export function isOwnGuidePhoto(name: string) {
+  const match = WIKI_GUIDE_FILE.exec(name)
+  return Boolean(match && ownFiles.has(match[1]!))
+}
+
 export function wikiGuideSource(name: string): string | undefined {
   const match = WIKI_GUIDE_FILE.exec(name)
   if (!match) return undefined
@@ -139,8 +152,9 @@ export class GuideImageMirror {
   async file(name: string): Promise<string | undefined> {
     if (!GUIDE_IMAGE_FILE.test(name)) return undefined
     const wiki = WIKI_GUIDE_FILE.test(name)
-    if (wiki && !wikiGuideSource(name)) return undefined
     const path = join(this.options.directory, name)
+    if (isOwnGuidePhoto(name)) return await this.isStored(name) ? path : undefined
+    if (wiki && !wikiGuideSource(name)) return undefined
     if (await this.isStored(name)) return path
     if (!wiki && !this.named.has(name)) return undefined
     return await this.download(name) ? path : undefined

@@ -3,7 +3,7 @@ import type { GearStats, Item, RaidMode } from '../domain/types'
 import { gearStatsIndex, gearStatsOf, stackSizeIndex } from '../data/gearStats'
 import { setDataRouteForTests } from '../data/tarkovApi'
 import type { AmmoStats } from '../arsenal/ammoSource'
-import { itemTier, ammoTierRows, armorScore, ARMOR_STEPS, gearTierRows, headsetScore, helmetsBlocking, isFigurine, marketPrice, pricePerSlot, protectionLevel, shareTiers, slotTierRows, tierOf, tilePictures, foodStatsIndex, foodTierRows } from './tierLists'
+import { itemTier, ammoTierRows, armorScore, ARMOR_STEPS, gearTierRows, headsetScore, helmetsBlocking, helmetWorn, isFigurine, marketPrice, pricePerSlot, protectionLevel, ricochetLevel, shareTiers, slotTierRows, tierOf, tilePictures, foodStatsIndex, foodTierRows } from './tierLists'
 
 const MATERIALS = { Aramid: { destructibility: 0.1875 }, Ceramic: { destructibility: 0.6 } }
 
@@ -233,6 +233,53 @@ describe('tier lists: armor and headsets', () => {
   it('lists backpacks by their cells (owner: «Тир лист рюкзаков составь по количеству ячеек»)', () => {
     const rows = gearTierRows([item('scav'), item('6sh118'), item('t20')], 'pvp', 'backpack', index)
     expect(rows.map((row) => [row.item.id, row.tier])).toEqual([['6sh118', 'S'], ['t20', 'C'], ['scav', 'D']])
+  })
+
+  // Owner, 20.11.2026: «с поднятым забралом характеристики пишутся без забрала, с опущенным забралом — с забралом». Shapes from
+  // json.tarkov.dev regular/items (20.11.2026): Маска-1Щ (Killa Edition) and its visor.
+  describe('a helmet with its visor down and raised, as the game counts it', () => {
+    const killa = { id: 'killa', weight: 2.6, types: ['helmet', 'wearable'], properties: { class: 4, durability: 108, material: 'ArmoredSteel', zones: head, deafening: 'High', speedPenalty: 0, turnPenalty: -0.01, ergoPenalty: -0.04, ricochetX: 0.4, ricochetY: 0.9, ricochetZ: 70, slots: [{ filters: { allowedItems: ['killa-visor'] } }] } }
+    const killaVisor = { id: 'killa-visor', weight: 1.1, types: ['glasses', 'wearable'], properties: { class: 6, durability: 50, material: 'ArmoredSteel', zones: face, speedPenalty: 0, turnPenalty: 0, ergoPenalty: -0.13, ricochetX: 0.4, ricochetY: 0.9, ricochetZ: 70 } }
+    const vulkan = { id: 'vulkan', weight: 4.5, types: ['helmet', 'wearable'], properties: { class: 5, durability: 75, zones: head, speedPenalty: 0, turnPenalty: -0.02, ergoPenalty: -0.03, ricochetY: 0.85, slots: [{ filters: { allowedItems: ['vulkan-visor'] } }] } }
+    const vulkanVisor = { id: 'vulkan-visor', weight: 1.8, types: ['glasses', 'wearable'], properties: { class: 4, durability: 85, material: 'Glass', zones: face, speedPenalty: 0, turnPenalty: -0.05, ergoPenalty: -0.02, ricochetY: 0.12 } }
+    const stats = gearStatsIndex({ items: Object.fromEntries([killa, killaVisor, vulkan, vulkanVisor, ubey, kiver].map((entry) => [entry.id, entry])), armorMaterials: MATERIALS })
+
+    it('reads the visor’s own stats and the ricochet from the items file', () => {
+      expect(stats.get('killa')).toMatchObject({ armorClass: 4, faceClass: 6, visorId: 'killa-visor', ricochet: 0.9, zones: 3 })
+      expect(stats.get('killa')?.visor).toEqual({ armorClass: 6, durability: 50, material: 'ArmoredSteel', zones: 3, ricochet: 0.9, speedPenalty: 0, turnPenalty: 0, ergoPenalty: -0.13, weight: 1.1 })
+      // no visor of its own: Tagilla's mask guards the face itself, a Kiver nothing
+      expect(stats.get('ubey')?.visor).toBeUndefined()
+      expect(stats.get('kiver')?.visor).toBeUndefined()
+      expect(stats.get('kiver')?.ricochet).toBeUndefined()
+    })
+
+    it('down: the face’s class, zones and ricochet count; raised: the helmet alone guards', () => {
+      const gear = stats.get('killa')!
+      expect(helmetWorn(gear, 2.6, 'down')).toMatchObject({ level: 6, faceClass: 6, zones: 6, ricochet: 0.9, visorRicochet: 0.9 })
+      expect(helmetWorn(gear, 2.6, 'up')).toMatchObject({ level: 4, faceClass: 0, zones: 3, ricochet: 0.9, visorRicochet: undefined })
+      const vulkanGear = stats.get('vulkan')!
+      // a class 4 visor on a class 5 helmet: the level stays the helmet’s either way
+      expect(helmetWorn(vulkanGear, 4.5, 'down')).toMatchObject({ level: 5, faceClass: 4, zones: 6, visorRicochet: 0.12 })
+      expect(helmetWorn(vulkanGear, 4.5, 'up')).toMatchObject({ level: 5, faceClass: 0, zones: 3 })
+    })
+
+    it('keeps the visor’s penalties and weight whatever its position (Player.RecalculateEquipmentParams adds up every armor put on)', () => {
+      const gear = stats.get('killa')!
+      for (const position of ['down', 'up'] as const) {
+        expect(helmetWorn(gear, 2.6, position)).toMatchObject({ speedPenalty: 0, turnPenalty: -0.01, weight: 3.7 })
+        expect(helmetWorn(gear, 2.6, position).ergoPenalty).toBeCloseTo(-0.17)
+      }
+    })
+
+    it('has nothing to raise on a helmet without a visor of its own', () => {
+      expect(helmetWorn(stats.get('ubey')!, 1, 'up')).toMatchObject({ level: 5, faceClass: 5, zones: 5 })
+      expect(helmetWorn(stats.get('kiver')!, 1.2, 'up')).toMatchObject({ level: 3, faceClass: 0, zones: 3, weight: 1.2 })
+    })
+
+    it('names the ricochet as the game’s inventory does', () => {
+      expect([0.9, 0.31, 0.3, 0.16, 0.15, 0].map(ricochetLevel)).toEqual(['high', 'high', 'medium', 'medium', 'low', 'low'])
+      expect(ricochetLevel(stats.get('vulkan')!.visor!.ricochet!)).toBe('low')
+    })
   })
 
   it('rates headsets by hearing distance and clarity', () => {

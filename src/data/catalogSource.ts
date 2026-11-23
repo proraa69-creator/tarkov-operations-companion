@@ -4,6 +4,8 @@ import { steadyFleaPrice } from '../domain/itemPrices'
 import { maps as curatedMaps } from './demo'
 import { hideoutPosition } from './hideoutLayout'
 import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
+import { isStalePlace } from './stalePlaces'
+import { byObjective, gameObjectiveIds } from './objectiveGameIds'
 import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
@@ -15,7 +17,9 @@ import { withOwnerGuides } from './ownerGunsmithGuides'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import { applyQuestCorrections } from './questCorrections'
+import { markManualQuests } from './manualQuests'
 import { applyCuratedQuestNotes, withCuratedTasks } from './curatedQuests'
+import { withQuestItemSpots } from './questItemSpots'
 import { eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
@@ -96,7 +100,8 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const now = options.now ?? Date.now()
   const series = eventSeriesWith(options.eventQuests?.() ?? [])
   const curated = withCuratedTasks(seasonTasks, { mode, locale, maps, traders, series, now })
-  const tasks = curated.tasks
+  // Quest item spawns tarkov.dev lists only in part, from the SPT database (src/data/questItemSpots.ts).
+  const tasks = withQuestItemSpots(curated.tasks)
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
   const itemRows = adaptItems(items, traderById, mode)
@@ -114,10 +119,11 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
       : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
     return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const questRows = withOfferUnlocks(applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
+  // the quests changed by hand are marked (src/data/manualQuests.ts)
+  const questRows = withOfferUnlocks(applyCuratedQuestNotes(markManualQuests(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale)), locale, mode), curated.added, locale, itemById, series, now), questOfferUnlocks(tasks, items, barters))
+  ), locale)), locale, mode), mode), curated.added, locale, itemById, series, now), questOfferUnlocks(tasks, items, barters))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const questItems = adaptQuestItems(tasks, questRows)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
@@ -500,6 +506,20 @@ export function adaptTaskRows(tasksRoot: JsonRecord, traders: readonly Trader[],
   return adaptTasks(tasksRoot, new Map(traders.map((trader) => [trader.id, trader])), new Map(items.map((item) => [item.id, item])), mapIds)
 }
 
+/**
+ * A quest's reward items, one per item with the counts added up, in the feed's order. tarkov.dev lists some rewards as
+ * separate entries of the same item (report 200, «Провокация»: two «Virtex × 1» where the game gives «Virtex × 2»).
+ */
+export function rewardItemTotals(rewards: readonly JsonRecord[]): Array<{ itemId: string; count: number }> {
+  const totals = new Map<string, number>()
+  for (const reward of rewards) {
+    const itemId = refId(reward.item) || text(reward.item)
+    if (!itemId) continue
+    totals.set(itemId, (totals.get(itemId) ?? 0) + (number(reward.count) || 1))
+  }
+  return [...totals].map(([itemId, count]) => ({ itemId, count }))
+}
+
 function adaptTasks(
   root: JsonRecord,
   traders: Map<string, Trader>,
@@ -512,6 +532,8 @@ function adaptTasks(
   return recordValues(rawTasks).map((entry) => {
     const stale = STALE_QUEST_KEYS[text(entry.id)]
     const objectives = stale ? asArray(entry.objectives).map((objective) => withoutKeys(objective, stale)) : asArray(entry.objectives)
+    // the hand fixes of an objective are by the game's id; the translated objective has its text as id (src/data/objectiveGameIds.ts)
+    const gameIdOf = gameObjectiveIds(objectives, conditionSources(text(entry.id)).rawObjectives)
     const requirements = asArray(entry.taskRequirements).map((requirement) => ({
       taskId: text(requirement.task) || text(asRecord(requirement.task).id) || text(requirement.taskId),
       allowedStatuses: strings(requirement.status).map((status) => status === 'completed' ? 'complete' : status).filter((status): status is 'complete' | 'failed' | 'active' => status === 'complete' || status === 'failed' || status === 'active'),
@@ -523,7 +545,7 @@ function adaptTasks(
       ...strings(objective.items),
       text(objective.item),
       text(objective.markerItem),
-      ...objectiveKeyGroups(objective).flat(),
+      ...objectiveKeyGroups(objective, gameIdOf(objective)).flat(),
     ]).filter(Boolean)
     const keyGroups = stale ? asArray(entry.neededKeys).map((group) => ({ ...group, keys: strings(group.keys).filter((id) => !stale.includes(id)) })) : asArray(entry.neededKeys)
     const requiredKeys = keyGroups.flatMap((group) => strings(group.keys))
@@ -538,7 +560,7 @@ function adaptTasks(
         itemId,
         count: number(objective.count) || 1,
         purpose,
-        mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)),
+        mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id) && !isStalePlace(gameIdOf(objective), id)),
         foundInRaid: objective.foundInRaid === true || undefined,
         objectiveId,
         alternatives: itemIds.length,
@@ -548,8 +570,8 @@ function adaptTasks(
         dogTagLevel: number(objective.dogTagLevel) || undefined,
       }))
     })
-    raidRequirements.push(...keyRequirements(objectives, keyGroups, maps))
-    raidRequirements.push(...questItemRequirements(objectives, maps))
+    raidRequirements.push(...keyRequirements(objectives, keyGroups, maps, gameIdOf))
+    raidRequirements.push(...questItemRequirements(objectives, maps, gameIdOf))
     // What an objective has the player use in the raid (tarkov.dev `useAny`: a flare, any one of them), and the green flare of an exit
     // opened by one, which the task data does not name (owner, 06.11.2026: «В требования рейда не появляется Сигнальный патрон (Зелёный)»).
     for (const objective of objectives) {
@@ -565,15 +587,17 @@ function adaptTasks(
         raidRequirements.push({ itemId, count: number(objective.count) || 1, purpose: signal ? 'signal' : 'use', mapIds, objectiveId: text(objective.id) || undefined, alternatives: useAny.length, optional: objective.optional === true || undefined })
       }
     }
-    const rewardItems = asArray(asRecord(entry.finishRewards).items)
+    const rewardItems = rewardItemTotals(asArray(asRecord(entry.finishRewards).items))
     const rewards = [
       number(entry.experience) ? `${number(entry.experience).toLocaleString('ru-RU')} опыта` : '',
       ...rewardItems.slice(0, 5).map((reward) => {
-        const item = items.get(text(reward.item))
-        return `${item?.name ?? text(reward.item)} × ${number(reward.count) || 1}`
+        const item = items.get(reward.itemId)
+        return `${item?.name ?? reward.itemId} × ${reward.count}`
       }),
     ].filter(Boolean)
-    const objectiveMapIds = objectives.flatMap(objectivePlaceMaps)
+    // a place the data keeps from an older version of the quest is no map of it (src/data/stalePlaces.ts; report 215, 23.11.2026:
+    // «Витамины» still listed on Shoreline, «берег не при чем в этом квесте»)
+    const objectiveMapIds = objectives.flatMap((objective) => objectivePlaceMaps(objective).filter((id) => !isStalePlace(gameIdOf(objective), maps.get(id))))
     const rawMapId = text(entry.map) || objectiveMapIds[0]
     const mapIds = [...new Set([rawMapId, ...objectiveMapIds].map((id) => maps.get(id)).filter((id): id is string => Boolean(id)))]
     const name = text(entry.name, 'Неизвестное задание')
@@ -702,12 +726,12 @@ export const MISSING_OBJECTIVE_KEYS: Readonly<Record<string, readonly (readonly 
 }
 
 /** `requiredKeys` of an objective as groups of alternatives (ids or `{ id }`); a flat list is one key per group. */
-function objectiveKeyGroups(objective: JsonRecord): string[][] {
+function objectiveKeyGroups(objective: JsonRecord, gameId = text(objective.id)): string[][] {
   const listed = Array.isArray(objective.requiredKeys)
     ? objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
     : []
   if (listed.length) return listed
-  return (MISSING_OBJECTIVE_KEYS[text(objective.id)] ?? []).map((group) => [...group])
+  return (byObjective(MISSING_OBJECTIVE_KEYS, gameId, text(objective.id)) ?? []).map((group) => [...group])
 }
 
 /**
@@ -724,7 +748,7 @@ function objectiveKeyGroups(objective: JsonRecord): string[][] {
  */
 const QUEST_ITEM_PURPOSES: Record<string, 'find' | 'handover' | 'place'> = { findQuestItem: 'find', giveQuestItem: 'handover', plantQuestItem: 'place' }
 
-function questItemRequirements(objectives: JsonRecord[], maps: Map<string, string>): NonNullable<Quest['raidRequirements']> {
+function questItemRequirements(objectives: JsonRecord[], maps: Map<string, string>, gameIdOf: (objective: JsonRecord) => string = (objective) => text(objective.id)): NonNullable<Quest['raidRequirements']> {
   const found = new Set(objectives.filter((objective) => text(objective.type) === 'findQuestItem').map((objective) => refId(objective.questItem)).filter(Boolean))
   return objectives.flatMap((objective) => {
     const purpose = QUEST_ITEM_PURPOSES[text(objective.type)]
@@ -734,7 +758,7 @@ function questItemRequirements(objectives: JsonRecord[], maps: Map<string, strin
       itemId,
       count: number(objective.count) || 1,
       purpose,
-      mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)),
+      mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id) && !isStalePlace(gameIdOf(objective), id)),
       objectiveId: text(objective.id) || undefined,
       optional: objective.optional === true || undefined,
       questItem: true,
@@ -755,7 +779,7 @@ function adaptQuestItems(tasksRoot: JsonRecord, quests: readonly Quest[]): Item[
   })
 }
 
-function keyRequirements(objectives: JsonRecord[], keyGroups: JsonRecord[], maps: Map<string, string>): NonNullable<Quest['raidRequirements']> {
+function keyRequirements(objectives: JsonRecord[], keyGroups: JsonRecord[], maps: Map<string, string>, gameIdOf: (objective: JsonRecord) => string = (objective) => text(objective.id)): NonNullable<Quest['raidRequirements']> {
   const neededMaps = new Map<string, string[]>()
   for (const group of keyGroups) {
     const mapId = maps.get(text(group.map))
@@ -766,7 +790,7 @@ function keyRequirements(objectives: JsonRecord[], keyGroups: JsonRecord[], maps
     const objectiveId = text(objective.id) || undefined
     const objectiveMaps = objectivePlaceMaps(objective).map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id))
     const listed = new Set<string>()
-    for (const group of objectiveKeyGroups(objective)) {
+    for (const group of objectiveKeyGroups(objective, gameIdOf(objective))) {
       for (const itemId of group) {
         if (listed.has(itemId)) continue
         listed.add(itemId)

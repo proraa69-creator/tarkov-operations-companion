@@ -10,6 +10,7 @@ import './styles/pages.css'
 import './styles/theme-gear.css'
 import './styles/theme-bloodmoon.css'
 import './styles/style-glass.css'
+import './styles/style-glass-cloth.css'
 import './styles/mobile.css'
 import './styles/themeMotion.css'
 import './styles/theme-daynight.css'
@@ -30,6 +31,9 @@ import { installNativeConfirm } from './app/nativeConfirm'
 import { removeStartupIntro } from './startup/startupIntro'
 import { applyFontSize } from './theme/fontSize'
 import './styles/windowActions.css'
+
+// The app's code runs: from here on its own errors show its own screen (below), not the one of public/startup-intro.js.
+;(window as Window & { __raidosAppStarted?: boolean }).__raidosAppStarted = true
 
 function showStartupError(error: unknown) {
   removeStartupIntro()

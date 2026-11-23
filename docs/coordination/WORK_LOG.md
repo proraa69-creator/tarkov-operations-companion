@@ -8653,6 +8653,133 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     quests were marked by hand (both variants on screen) → both seen, faction unknown, both shown. playerFaction now trusts
     game records (eft-log, screen-scan, profile-import) first, marks by hand only when the game told nothing; the screen reader
     uses the same faction for a shared title. Tests: questBasics.faction, screenScanSync, questOcr, onboarding.
+
+## 2026-11-21 — Claude: 0.6.0.333 live 19:23 (reports 211–213), App Store pack build 6
+- a91507a1 «Release 0.6.0.333» (release/production fast-forward from bfa7641a, pushed 16:32): font size, Overview steady on
+  full screen and «Оружейник» off the tasks list (211), hideout re-shot with pairs, centred builds and level PT stocks,
+  «Опубликовать» progress, green drop-downs, phone Overview / hideout window / stash, screenshot key window on a laptop (212),
+  faction from the game first (213). History row `"reports":[211,212,213]`, playerNews entry shown to the owner («Да»).
+  Owner asked afterwards to see the news to correct them: the player news can be rewritten through the admin player-news
+  route without a release; the history row only with the next version.
+- Local vitest: 4354 passed, 16 failed — the known environment ones (path with a space, linux updater, stale server,
+  AdminPanelPage, release-policy, cache-item-images is node:test) and map/Overview/ManualMarks/App timeouts under the full
+  load, all passing alone. Gate 44890058362 green, iOS IPA and TestFlight (skipped, no secrets) green.
+- Publisher, first run 16:51: the blob:none mirror fetched the 3763 new blobs one by one — prefetched in one batch at 17:33
+  (memory publisher-partial-mirror-prefetch). It then stopped at 18:01 «Production diverged: src/assets/hideout-views/
+  5d494a445b56502f18c98a10-3-L1.webp»: the three -3-L1/L2/L3 pictures added in a2c20760 (20.11, release 330) were missing
+  from /opt/tarkov-operations-companion. A read-only check of all 6926 changed deploy paths found only those three; they were
+  restored from bfa7641a (root:root 644, hashes match) and the publisher started again at 18:32 → version.json 0.6.0-333,
+  build 1795263497722, commit a91507a1…-production at 19:23; /api/health 200, /download/windows serves. Why the three were
+  missing after 330 is not known.
+- App Store pack build 6 (owner: «собери новый файл для апп стор»): branch test/ios-ipa-appstore-1121 (worktree
+  C:/Users/BANGKOK PC/raidos-appstore-1121) = a91507a1 + the App Store settings (571da5e2 as 995f7c1f) + version 1.0 / build 6
+  (2a6c32a6), pushed; CI «RaidOS iOS test IPA» green. VITE_APP_STORE=1 renderer, admin pages stubbed, cap sync ios; pack-only
+  Bundle ID com.raidos.app and Package.swift paths ../../../node_modules/@capacitor/… as before. Desktop
+  `RaidOS_iOS_AppStore_build6.rar` (122 163 048 B, SHA-256 f4e3c686fd0722b1…), the Xcode project and its readmes only
+  (screenshots unchanged since build 5). Not mailed.
+- Reports 211–213 closed by the server at 19:33 (implemented, authors notified).
+
+## 2026-11-21 — Claude: quest place photos (offline SPT, E:\SPT-photo — nothing in src, nothing on the server)
+- Owner after 0.6.0.333: «продолжи делать скрины квестовых мест и предметов». Customs shot 19:29–22:00 (quests 37, documents
+  28, spawns 82): approved 41 / 22 / 8 frames; previews sent. select_photos.py: «ref-low» frames (under the threshold, kept only
+  to look at) had passed unchecked — now rejected; manual-reject.json for frames refused by eye (a brick wall matched to a room,
+  foliage at the lens).
+- Owner: «половина кадров с виньеткой… переснять в светлое время… чтобы еда и вода не кончалась… рейд сколько нужно… помести
+  сразу на карту квестовые предметы». Causes: the SPT profile entered raids with energy 0/110 and water 0/100 (exhaustion's dark
+  edges) and the game clock runs 7× (13:00 → night over a 2.5 h tour). RaidOsPhoto worker (E:\SPT-photo\photo2\worker,
+  backups *.bak-fresh / *.bak-place-20261121): energy/water drain 0 and refilled before every point, negative effects removed,
+  clock back to 13:00, the raid extended by 6 h when under 2 h are left, a missing quest item laid at the game's coordinates
+  (the LootItem had to be activated; the «seen» ray now skips foreign triggers). Checked on 3 empty Customs spawn points: items
+  lie within 3 cm, 2 of 3 seen (the third is behind a locker door in the game too).
+- Re-shooting Customs from 22:34 (runs customs-quests-2 / -documents-2 / -spawns-2), then Woods quests (2 of 37 done before).
+- 22.11 night: Customs re-shot in daylight (runs customs-quests-2 / -documents-2 / -spawns-2, client on the second monitor,
+  `-monitor 2`; the SPT server had hung at 23:36 and was restarted). Approved after looking at every sheet: quests 46 frames /
+  28 points (was 41 / 27), documents 24 / 18 (was 22 / 17), spawns 48 / 23 points (was 8 / 3; 47 items laid by the mod).
+  Refused by eye (E:\SPT-photo\eval\manual-reject.json, now per run): two borderline guide matches (152, 156), three approaches
+  with foliage at the lens, two «Особое сорокоградусное топливо» items hanging above the road. Worker: a laid item now goes down
+  onto the surface under the point (backup Worker.cs.bak-ground-20261122). Previews sent to the owner. Woods quests running.
+- Support (Zavisim): «Батя» → «Найти следы предателей» on Lighthouse done elsewhere than marked. Our BEAR camp point
+  (78.73, 163.37, from szepiz/tarkov-quest-data, unchanged since 11.08) is ~360 m from the camp the wikiwiki.jp map circles
+  (by the road east of the Side Tunnel extract; ≈ x −103, z 475 from fitting that map to nine tarkov.dev extracts, ±30 m).
+  Not changed yet: asked the owner whether to fix it as a server override or in the next release; reply to the player drafted.
+- 22.11 morning (claude/quest-row-tags, not released; 0.6.0.334 waits for the owner's «да»):
+  - b3b8fcb7 + d62e6ddf Customs places' photos from the offline game (owner: «На таможне заменил уже скриншоты?» → «Да»): 31
+    quest places and 19 document spots take our approved frame in place of the wiki photo it was matched to (captions kept), 11
+    approaches, 4 items and 5 document approaches added after their place. Listed `own: true`, no url; the server serves them from
+    /var/lib/raidos/map-mirror/images/guides (140 files wiki-<sha1:16>[-t].jpg, 1280/400 px, installed raidos-api 600) and never
+    downloads them. Players see them once 334 is out (new server code + lists). Spawn frames (23 points) not placed: the map's
+    item spots have no photo slot yet. Server guideImages 8/8, documentGuide tests updated, tsc clean.
+  - 07b9fbdb phone map quest window (owner's screenshots): «Назад» hidden while the window is open and the 48 px kept for it
+    gone (window 8 px from the map's edge); the gear's list opens up when the room below is short, scrolls when neither fits.
+  - d403c066 weapon build pictures protected (owner: «не смогли вытащить и скачать снимки сборки оружия»): the 5055 part renders
+    ship as one AES-256-CTR pack dist/gun-parts.pack (src/arsenal/partPack.ts; vite plugin gunPartsPack packs dist/gun-parts at
+    closeBundle and deletes the folder, the dev server packs public/gun-parts on demand); PC: electron/gunParts.ts opens files from
+    the pack behind raidos-img://parts/; phone/browser: BuildPicture fetches the pack once. raidos.app never served the pictures
+    (unknown paths get the site's page). Checked: build 13.6 MB pack, no plain folder, no WEBP/PNG signature; M4A1 bench draws in
+    the browser from the pack. Not checked in a packaged PC app or on a phone. The key is in the app (no lock against reverse
+    engineering), screenshots can always be taken.
+  - 30e83169 bench cells (owner: «В окне оружейника картинки модулей по прежнему маленькие»): both screens already drew 44 px cells
+    with the same base pictures (40×31 under the name); the game's pictures are a third to half empty. Now each cell picture is cut to
+    its part once (src/arsenal/trimmedPicture.ts, needs CORS: raidos.app answers capacitor:// and https://localhost, the PC's
+    raidos-img answers *; otherwise the whole picture stays) and on the phone fills the cell (40×40). Checked at 430×932 with CORS
+    allowed in the test: every filled cell cut. Not checked in a packaged PC app or on a phone.
+- 22.11 morning: owner «Пока не выпускай» (0.6.0.334 held on claude/quest-row-tags). Lighthouse BEAR camp fixed on the server at the
+  owner's «Да» (no release): two quest point overrides written with the map editor's own QuestPointStore.save (tsx on the VPS) —
+  1c8ef8e717de3ec29c98b063 move lighthouse-story-batya-stage-33-1 (stage 33 «Найти следы предателей», «Осмотреть лагерь BEAR на
+  Маяке») 78.73/163.37 → −103/475, and fca72e3c606b60102c977850 move lighthouse-story-batya-stage-0-3 (the Bogatyrs patch in the
+  same camp) 78/164.47 → −103.73/476.1; titles/descriptions RU+EN, note with the source. The app's ids checked against
+  adaptStoryQuestMarkers. GET /v1/quest-points shows both (50 overrides); apps re-read every 10 min. No map-updates signal and no
+  audit line (written outside the route). Reply to the player Zavisim drafted for the owner, not sent.
+- Photo tour: worker renders at the game's screen size now (black band across forest frames from GrassMotionVectorsRT ≠ frame);
+  Woods quests re-shooting (woods-quests-2), then Woods spawns.
+## 22.11.2026 — Weapon builds: stock tubes and the stocks on them level (claude/stock-chain-level)
+
+- Owner: «приклады до сих пор кривые на ак 12 и всех других автоматах, приклады и труба приклада»; «проверь все трубы прикладов, что бы именно они были ровные».
+- Cause: the game lays the AK-12 / RPK-16 / AKTS tubes on the receiver's 3.59° stock slot and their models rise 3.6–5° to the back (level in the game); the stock on such a tube is turned 4.2° back up. Taking the slot's tilt off the tube made the tube rise and every stock on it stand 4.2° off it.
+- Commit 2712ecbd (`src/arsenal/partPictures.ts`, its test, `public/gun-parts/index.json`): every stock tube (15–30 cm, ≤ 8 cm tall) and every stock on a tube or a short lock is levelled about its own slot point; five tubes get their picture's top edge levelled (`lv`: AK-12 −3.6°, RPK-16 −4.21°, AKTS AK-74 −5.02°, SAG −1.04°, AKTS −0.79°; source `E:\SPT-photo\weapons\stock-level-applied.json`, backup `.bak-tubes-20261122`). SCAR body and cheek on the hinge, UAS butt on the SKS chassis, ST-EF pad follow as before.
+- Checked: the app's own layBuild on 871 builds of every firearm class, before/after (62 changed, all with a tube); every tube's top edge within 0.5° of level (M4-AKMS reads 1.4° from its collar step); `vitest src/arsenal` + WeaponBuildsPage 143/143, `npm run typecheck`, eslint; dev page AK-12 unfolded and folded. Test exe for the owner. Not released, not pushed; release 334 still held.
+## 23.11.2026 — Dark start: drawing without the graphics card (claude/gpu-fallback)
+
+- Support chat (a player, 23.11 00:49): «когда я его запускаю, то появляется черный экран»; his account has no device, so the app never got to sign-in. Owner: «по перезапуску приложения из за черного экрана делай».
+- electron/gpuFallback.ts + electron/main.ts: when at a start the GPU process ends (app child-process-gone, type GPU), the page's process ends, or nothing is drawn for 25 s (no ready-to-show), the app writes gpu-fallback.json in its data folder and starts again once in software (app.disableHardwareAcceleration() before ready; the portable exe through relaunchWhenClosed after its launcher has gone, like the update swap). Only before the first picture, only once, never with --disable-gpu.
+- Checked: electron/gpuFallback.test.ts; tsc; eslint; electron start tests (7 files, 66). Not checked on a PC whose card fails (cannot be reproduced here). Not pushed, not released.
+- 22.11 evening, story chapter «Батя» points, a player's support chat (claude/story-points-batya from release/production a91507a1,
+  worktree C:\Users\BANGKOK PC\raidos-story-points; NOT pushed, NOT published, release 0.6.0.334 still on hold):
+  - The player: «Найти следы предателей» completes on Lighthouse elsewhere — «база бир теперь на скале, на против смотрителя
+    маяка»; «На резерве не отмечается круг сектантов». Our points came from szepiz/tarkov-quest-data mapdata/story.json (no change
+    since 11.08.2026; the tarkovtracker overlay repo is gone, TarkovTracker's story data and tarkov.dev have no positions).
+  - Source used instead: the live client's scenes, read only (C:\Battlestate Games\…\EscapeFromTarkov_Data\levelN, Unity 2022.3,
+    no type trees; a minimal reader of GameObject/Transform/BoxCollider and the trigger's id string). Quest zones: batya_8_visit
+    on Reserve (command bunker), Interchange (BEAR camp) and Lighthouse; batya_9_visit on Customs (dorm circle), Woods, Reserve ×3
+    (all three triggers carry the id batya_9_visit, so any counts) and Lighthouse. Props around each confirm it: Lighthouse
+    batya_8 sits by BEAR_camp_replace_v2 (tents, bonfire, radio); the batya_9 ones by candles, cultist signs, a BEAR corpse.
+    Reserve and Customs points matched the known ones, so the coordinate space is the same.
+  - src/data/storyChapterSeeds.ts: Lighthouse BEAR camp 78.73/163.37 → -64.79/452.41 (the trigger box as outline); cultist
+    circle on Reserve added (3 points: command bunker y -13.07 and Black Pawn basement y -8.38 → «Бункеры», barracks by the
+    train station on the ground); Woods circle 198.05/-7.69 (the Halloween circle of «Секта») → -128.64/-686.14 (Cultist
+    Village). Shoreline left as it was: the client has no batya_9 zone there, unconfirmed. src/i18n/uiEnglishMap.ts: 3 notes.
+  - Tests: storyQuestMarkers.floors (3 new: positions, Reserve floors from tarkov.dev's config), storyChapters,
+    storyChapterGuide, src/i18n — 60/60; npm run typecheck clean; eslint on the 3 files clean. Pictures and the scene reader:
+    side-session-notes/local_dd4db8c9-…/story-points-batya-2026-11-22.
+  - Not done: the owner decides whether it goes out; the player is answered by the owner (nothing written to him).
+## 23.11.2026 — «Витамины. Часть 1»: no old version's Shoreline and EMERCOM photo (report 215, claude/vitamins-old-version)
+
+- Report 215 (PvE, 0.6.0.333): «Витамины» shown on Shoreline with no point — «берег не при чем в этом квесте»; the owner: «В квесте витамины почему то фото мчс на развязке».
+- The live data (PvE and PvP snapshots of 22.11) wants the chemical container on Factory, but its objective 5b478f6886f774464201225a still lists Shoreline (the old Health Resort spot). src/data/stalePlaces.ts (10.11) kept it off the map points and the objective's maps only; now `src/data/catalogSource.ts` leaves it out of the quest's maps and of its raid requirements too.
+- The wiki page still shows the old quest's «Медпункт МЧС» (Emercom outside.png, Interchange): `scripts/quest-guide-photos.mjs` OLD_VERSION_PICTURES leaves it out (both from the wiki and with `--drop-maps`); `src/data/questGuidePhotos.json` re-run with `--drop-maps`: that one photo and its file only.
+- Checked: new test fails without the fix; tsc; eslint; vitest src/data + photo components 552/552. Not pushed, not released (reaches players with the next release).
+
+## 23.11.2026 — Hand fixes by the game's objective id; the hand-changed quests marked and kept (claude/vitamins-old-version)
+
+- The owner: «Все квесты, которые мы обновляем вот так вручную, вносим изменения, помечай. И при обновлениях из базы их не трогай».
+- Found on the way, checked on the server's quest base (pve/pvp/seasonal, read only): the hand fixes keyed by an objective id never applied. The `_ru` / `_en` dictionaries translate an objective's `id` with its description (the id is its key), so the translated objective the catalog adapts has its text as id. Not applied in production: «Витамины» on Shoreline (10.11 and the 23.11 fix above; the live base still had `mapIds: [factory, shoreline]` and a Shoreline marker), «Должник» key (MISSING_OBJECTIVE_KEYS; the owner's editor override of 08.11 showed it), «Слежка» on the 2nd floor (QUEST_POINT_FLOORS; markers on «Основной»), «Умный в гору не пойдёт» smugglers' boat (QUEST_EXTRA_PLACES; 0 markers).
+- `src/data/objectiveGameIds.ts`: the game's id by the untranslated objective at the same place and type. Used by `catalogSource.ts` (stale places of maps and raid requirements, missing keys), `objectiveDetails.ts` (stale places, now the listed maps too), `mapMarkerAdapter.ts` (stale places, extra places, point floors; by the quest's `objectiveDetails[].gameId`). Marker ids unchanged (still by the translated id).
+- `src/data/manualQuests.json` + `.ts`: the list of hand-changed quests (25: the code's fixes, the pinned corrections, the Season fixes and borrowed quests, the AKM Gunsmith addition, the photos sorted by eye), each fix with date, what, source and objective ids. Every build marks them (`manualCorrection`, `changes` = «date: what»); a test fails when a fix table names a quest or objective the list lacks.
+- Generators keep the listed quests' entries as they were (`scripts/manualQuests.mjs`): `quest-guide-photos.mjs` (rebuild and `--link-places`), `quest-grid-snapshot.mjs` (per mode tasks and tarkov.help view; the report still compares the sites), `update-story-index.mjs`.
+- Server quest base: the manifest and the owner's report carry `manualQuests: { marked, unmatched }` — a listed fix whose quest or objective the data no longer has — and the build logs it, so a game change is looked at, not lost.
+- Not changed: curated quests still step aside when tarkov.dev has the quest (their ids are ours, keeping them would duplicate it); the owner's editor overrides stay in the server DB and are laid over every build as before.
+- Checked: catalog tests fail without the fix (Vitamins, Должник) and pass with it; tsc -b; server tsc; eslint; vitest 4365/4378 — the 12 others are this PC's (CRLF checkout, Windows paths and tar, timeouts under load; MapsPage/ManualMarks pass alone), none in the changed files; server node --test questBase, routes/questBase, catalogCache, questTexts, questRequirements, questPoints 27/27. Not pushed, not deployed, not released (release 334 held): the fixes reach players with the next release and the server's quest base with the next server deploy.
+- Risk: new on the maps once released — «Слежка» points on the 2nd floor, the boat point on Customs; «Витамины» loses its Shoreline point.
 - 23.11.2026 ~02:00, owner: «сколько у нас пользователей, сколько телефонов в общем… сколько с андроида установило и зашло, сколько с
   айфона установило и зашло, и сколько в данный момент онлайн с телефонов с каждого вида… в админ панель в приложении на ПК, на сайт
   и обнови iPhone админ приложение». claude/admin-phone-stats dcbcc102 (from 0.6.0.333 a91507a1):
@@ -8675,3 +8802,747 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Support, mitya.tagintsev@mail.ru (black window at start, Windows 11 x64, account 21.11, paid to 21.12, no device ever
   signed in): the 01:00 advice (wait, driver, shortcut with --disable-gpu) did not help (02:04). 334's fallback also draws
   without the graphics card, so it may not help either; the app has no start log and no did-fail-load handling.
+
+## 2026-11-20 — Claude: quests against the offline SPT database; missing quest item spots and the Labyrinth's «one of N»
+- Owner (20.11.2026): compare the whole quest base (objectives, rewards, experience, chains, achievements, logic) with SPT,
+  add what we lack, take the 100 % spawns out of SPT. Branch `claude/spt-quest-sync` from release/production 0dba4c89
+  (worktree `raidos-spt-quests`). SPT 4.1.6 on E: read only; the live game on D: not started or changed (its logs only read).
+- Finding: SPT 4.1.6's quest data is the game's 0.16.9 (newest quest August 2025); the live game 1.3 reworked rewards, levels,
+  chains and many objectives in 1.0, so almost every difference is SPT out of date (422 of 451 shared PvP quests differ;
+  e.g. «Фельдшер»: ours = wiki = live). No quest to add: SPT's 90 quests we lack in every mode are past events, the old
+  Lightkeeper path (replaced by «На свет») and the removed «Модник». Report: `docs/quests/spt-sync-2026-11-20.md`, every
+  difference per quest/field/mode: `docs/quests/spt-sync-2026-11-20-diff.csv`.
+- Added from SPT, each checked against the EFT wiki or tarkov.dev's live points, the same in PvP, PvE and Season:
+  `src/data/questItemSpots.ts` (new, applied in `src/data/catalogSource.ts` after the curated series) — the quest item spawns
+  tarkov.dev lists in part: «Фельдшер» 3→8, «Перепись населения» 1→5 (was wrongly a «Спавн 100 %» spot), «Городская медицина»
+  2→9, «Земельный вопрос» 3→6; appended after tarkov.dev's and marked `added`; a merged item point (within 15 m) whose centre
+  is now an added spawn keeps the id of the feed's spawn it covers (`adaptQuestZones`), so the owner's point edits still find
+  it — checked on the real catalog: 9 markers before, 14 after, none lost (the 5 new are Paramedic's ambulances).
+  `src/data/guaranteedSpawns.ts` `ROUTE_ITEM_GROUPS` + `src/data/mapMarkerAdapter.ts` `adaptRouteItems`: the Labyrinth's route
+  items (keys 01–04, corpse room key, valve handwheel, gas cutter ×2 groups) say «Всегда в одной из N точек.» and get the group's
+  spot tarkov.dev lacks («Ключ 01»); `src/i18n/uiEnglishMap.ts` English. Tooling: `scripts/spt/` (README).
+- Not added (owner's call / check in the game): an achievements section (131 tarkov.dev, conditions of 53 from SPT); SPT's
+  failure penalties and delays (Gunsmith 21 h) that tarkov.dev does not publish; Collector's achievement reward; three items
+  bound to containers without coordinates (unknown key, reserve hideout key, green flare); «Ревизия. Маяк» PvP vs PvE.
+- Tests: `src/data/questItemSpots.test.ts` (new), `src/data/mapMarkerAdapter.test.ts` (Labyrinth), `src/data/mapRoomSigns.test.ts`
+  (the feed's spots apart from the group's added ones); touched files + map/catalog/i18n tests pass; `npm run typecheck` and
+  `tsc -p tsconfig.electron.json` clean; eslint clean. Full `npx vitest run` in this worktree: 4214 passed, 22 failed — the
+  electron/ and scripts/ files that import server code (no server node_modules in this worktree: «Cannot find package 'cors'»),
+  page tests that time out under the full parallel load and pass alone (MapsPage, Dashboard, App, Cultist circle, ManualMarks,
+  registrationCountry), and two that fail alone too in files this change does not touch: `src/app/appVersion.test.ts` (package
+  version format) and `src/pages/AdminPanelPage.test.tsx` (sidebar order). Not released, not pushed.
+- Risks: SPT's positions are 0.16.9 statistics — counts were checked against the wiki, positions match tarkov.dev where both
+  have them; a later tarkov.dev update listing these spots is not duplicated (spots within 1 m are skipped).
+- Report 200 («Провокация»: «Награда другая», 20.11, 0.6.0.323) — fixed, not closed (the main session closes it): the game,
+  the wiki, tarkov.dev and SPT agree (2 × Virtex, the Lighthouse island stash key, Lightkeeper +0.03, the FLIR RS-32 craft);
+  tarkov.dev lists Virtex as two entries of 1, so the card showed «Virtex × 1» twice. `rewardItemTotals`
+  (`src/data/catalogSource.ts`) adds up a quest's reward entries of the same item (7 more quests had repeated lines; none
+  now, PvP/PvE/Season, RU/EN). Standing and crafts are still not reward lines of tarkov.dev quests — left to the owner.
+  Test: `src/data/catalogSource.test.ts`.
+
+## 2026-11-20 — Claude: the retinue from SPT — what they wear, their lights, what dear they may drop (report 201)
+- Owner (20.11.2026): from SPT, each boss's retinue — how many, what they wear, guns, rounds, and the dear things they may drop
+  («если с них падает фигня всякая, это не нужно показывать»; no «тир-лист S/A» in the interface).
+- SPT (offline copy E:\SPT, SPT 4.1.6, client 0.16.9; read only, the server left running) was read by the new
+  `scripts/bosses/spt-bots.mjs` (BossLocationSpawn escorts and Supports, bot weights, plates, ammo, loot generation). It is older
+  than the live game (1.3): the live data stays the source where it exists, SPT gives only Zryachiy's two followers (Lighthouse:
+  SV-98/SVDS, AKS-74U/PP-19-01, no armour), which the live data lacks. Every difference is in
+  `docs/bosses/retinue-spt-2026-11-20.md` (Russian, for the owner; rebuilt by `scripts/bosses/retinue-spt-report.mjs`).
+- `scripts/bosses/boss-gear.mjs`: `--retinue` (only bossRetinue.json), `--add` (keeps the last run's fields: the live loadout
+  sample of ~15 bots changes on every download — Basmach's four long guns all differed the next morning), `--spt=`. New per
+  guard: `helmets`, `rigs`, `lights` (share of long guns with a device / white light / IR, the devices) and `loot` (live
+  prevalence ≥ 1 %, money and rounds out; PvE equal to PvP on 20.11, `lootPve` only where it differs).
+- Gallery → boss → «Свита» (`src/gallery/BossInfoPanel.tsx`): rows «Шлем / Броня / Разгрузка / Фонарь» with small pictures,
+  each guard's maps line when the retinue spans several maps, «Может выпасть» tiles with the mode's price — only tier S and A of
+  the item's category in the mode on screen (`src/gallery/retinueLoot.ts`, as the item card's tier letter), six then «Ещё».
+- Report 201 («Свита слепит фонарями сильно чаще других NPC»): confirmed — a light or laser on 97 % / 79 % / 100 % of Glukhar's
+  assault / security / scouts' guns (other guards 27–60 %; SPT: a tactical slot at 100 %). Their «Фонарь» row names the devices
+  and «Почти всегда с фонарём или ИК: свет слепит вблизи, ИК — в ПНВ» (`lightsWarning`, from 75 %). Not closed in the admin
+  panel (the main session does that).
+- Fixed: in English the «Свита» heading read «The Wedge (Labs) Guard» (the game's bot name «Свита» in the runtime catalog).
+- Tests: `src/data/bossGear.test.ts`, `src/gallery/retinueLoot.test.ts` (13 pass); typecheck clean; eslint clean. Checked in the
+  dev page (port 5611) at 1440 px and 375 px, Russian and English: Glukhar, Zryachiy, Kaban, Kollontay, Reshala, Sanitar,
+  Shturman, Cultist Priest, the Wedge, the Goons. Branch claude/boss-retinue-spt (from b40f674a on claude/quest-row-tags), not
+  released. Merge note: it touches BossInfoPanel.tsx / bossInfoPanel.css / bossGear.ts / bossRetinue.json only — the tier list
+  files are imported, not changed.
+
+## 2026-11-20 — Claude: «Стекло» keeps the cloth of «Чёрный мультикам», «Тельняшка» and «Снаряжение»
+- Owner, 20.11.2026: in the glass style the black multicam and the telnyashka must stay on the buttons and the windows,
+  «как будто бы под стеклом»; then «Тема снаряжения тоже в стекле должна быть текстура мультикам».
+- New `src/styles/style-glass-cloth.css` (imported after style-glass.css in `src/main.tsx`), scoped to
+  `:root[data-style="glass"]` and those three schemes only: the menu, the top bar, panels, cards, the search window, the
+  phone's tab bar and «Ещё» sheet, and every button lay the scheme's cloth under a smoked tint, a top-left light and the
+  glass rim; the picked one is the accent-tinted glass over the cloth. The page keeps the satellite photo. No fixed
+  backgrounds, no filters (the glass rule against rough motion stands).
+- Cloth: «Тельняшка» the crumpled knit (its per-button tiles), «Снаряжение» its multicam cordura, «Чёрный мультикам» a
+  lifted copy of its near-black tile, `src/assets/textures/glass/blackmc-cloth.webp` (89 KB, made by
+  `scripts/textures/glass-cloth.mjs`); its menu rows are clear glass over the menu's own multicam, like the plain scheme.
+- Checked in the dev page with Playwright (1440×900 and a 390×844 phone), all three schemes, glass and plain: the plain
+  look is pixel-identical apart from the clock and the menu sticker; text stays readable. Before/after pictures in the
+  side-session notes (glass-cloth-2026-11-20).
+- typecheck clean; eslint clean on the changed files (the 4 errors of `npm run lint` are in untouched files, as in
+  release/production); src/styles + src/theme tests pass (41).
+- Branch claude/glass-texture from release/production 0dba4c89; not released (needs an app version, the owner decides).
+
+## 2026-11-19 — map: canvas points that a player does not see (branch claude/map-docs-valuables, from 0.6.0.323, not released)
+
+- A player's report in the support chat (Prizrak337, PC, PvE, 0.6.0.323, screenshot of Shoreline): «Документы боевого
+  пропуска» on and counted 30, not one on the map; «Драгоценности» the same; «Боссы» works. The bosses are page icons,
+  documents and valuables are drawn on the canvas (MarkerCanvasLayer, markerSprites). Not reproduced on a clean dev
+  build (Shoreline PvE, «Схема» and «Спутник»: the documents are drawn) — so something of his computer.
+- Two places that leave canvas points unseen for good, made safe (src/maps/markerSprites.ts):
+  - the icons are drawn through a canvas filter (their drop shadows); some graphics drivers give an empty picture
+    through it: the first icon drawn is checked, and if nothing came out it is drawn again with a plain shadow, and
+    every icon from then on;
+  - a picture that failed to load stayed «loading» in the sprites (null) and was never drawn nor retried: now the map is
+    told to draw again, and such a point gets a plain round mark.
+- Tests: src/maps/markerSprites.test.ts (3, a fake canvas: empty through the filter, filter fine, failed picture);
+  src/maps + map page 162 (MapsPage.raidChecks timed out under load, passes alone 3/3); typecheck, eslint clean. In the
+  dev build the map draws as before.
+- Not certain this is his cause (not reproduced); it is if his canvas filter draws nothing. Not released.
+
+## 2026-11-20 — Claude: helmet visors down and up in «Тир листы» (branch claude/helmet-visor)
+- Owner (20.11.2026): pictures of Маска-1Щ (Killa Edition), Маска-1Щ, Рысь-Т, Алтын, Вулкан-5, ЛШЗ-2ДТМ with the visor that suits
+  each, down and raised; in the tier list a right click (a long press on the phone) gives one button, «Опустить забрало» or
+  «Поднять забрало», and the picture and the stats follow the position.
+- Pictures: own BepInEx plugin RaidOsHelmets in the offline SPT copy (`E:\SPT\BepInEx\plugins\RaidOsHelmets`, sleeps without
+  `go.flag`, waits while RaidOsGuns renders). The helmet is built with its built-in plates and its visor (ItemFactory), the visor's
+  `TogglableComponent.On` set, and drawn by the game's own inventory icon renderer (`ItemIconCreator.GetItemSpriteAsync`): the pose
+  is the inventory icon's, the same as the tier list's current pictures. 12 webp, 128 px on the inventory cell's background, in
+  `src/assets/helmet-visors/`; sources and steps in `scripts/helmet-visors/`. Full-size PNGs: `E:\SPT-photo\helmets\renders`.
+- Stats as the game counts them (Assembly-CSharp 0.16.9, read with Mono.Cecil): a raised visor takes no shot
+  (`CompositeArmorComponent.ShotMatches` needs `Togglable.On`), so the face class, its zones and its ricochet leave; its speed,
+  ergonomics and turn penalties and its weight stay (`Player.RecalculateEquipmentParams` adds up every armor put on whatever its
+  position). Ricochet named like the inventory (`RicochetParams.y` > 0.3 high, > 0.15 medium). `src/screen/tierLists.ts`
+  `helmetWorn`, `ricochetLevel`; `src/data/gearStats.ts` reads the visor's own stats and the helmet's `ricochetY`.
+- The list still ranks helmets with the visor down (Killa stays in S when raised). Every helmet with a visor now shows the visor's
+  penalties and weight in its card. The catalog needs the new `gear.ricochet`/`gear.visor`: until the server runs this code the
+  panel reads them from the items file, as it did before the visors (one more request on «Шлемы»).
+- `src/components/useHoverCard.tsx`: `onHoldEnd`, the lifted finger after a long press (opens the menu on the phone).
+- Tests: tierLists, helmetVisors, TierListPanel (toggle, stats, long press, English), useHoverCard; typecheck and eslint of the
+  changed files clean. Checked on the dev server with live data (Playwright): PC RU/EN, Pixel 7 (long press → card → button).
+- Offline game: restarted at 05:43 when RaidOsGuns had been idle since 04:58 (the launcher stuck on its server list; started
+  `EscapeFromTarkov.exe -token=<profile id> -config={"BackendUrl":"https://127.0.0.1:6969",…}` directly); released to the hideout
+  session after the renders.
+- Not released. Remaining: Vulkan-5's visor side shows black in the game's icon renderer (the game draws it so).
+## 2026-11-20 — Claude: phone layout fixes from the owner's Android 0.6.0.323 screenshots
+- Top bar: the profile button was an empty square. The phone rule hid every `span` in `.profile-chip`, and with prestige > 0
+  the badge sits in a span (`op-prestige-chip`); now only the nickname hides (`src/styles/mobile.css`).
+- Overview: «Текущие задания N» and the map priority tiles beside it are stretched to one height on the phone
+  (`src/styles/overviewEdit.css`, phone rules only).
+- Maps: the «Листать» page-scroll strip at the map's right edge is removed (component, CSS, four English strings; the
+  MapsPage.keyDoor test now checks it is absent).
+- «Ещё» sheet: the head («Назад», «РАЗДЕЛЫ», «×») stays fixed inside the sheet and only the sections scroll; the sheet has its
+  own «Назад» (`SheetBackButton`, `src/mobile/backNavigation.tsx`) and the floating one hides while the sheet is open.
+- Full-screen map sideways: with «Назад» at the top the map's top row now starts beside it on the same line (`--map-side-l/-r`,
+  «Назад» one width there) instead of a row lower; upright layout unchanged.
+- Checked with a Playwright script against the dev renderer (412×915 and 915×412, Android-like safe-area insets, prestige 2,
+  RU and EN, «Назад» in all four corners); before→after pictures in the side-session notes folder
+  (`android-layout-0-6-0-323/`). Not checked on a real phone.
+- typecheck clean; 36 related test files pass (MapsPage.keyDoor, mobile, styles, App, Dashboard, MapPriority, i18n). Not released.
+- Commit c82645f6 on branch claude/quirky-bassi-d8f754 (pushed nowhere); a phone-only release would go via mobile/release.
+
+## 2026-11-20 — Claude: «Слои» as a window over the map, Android start intro like the iPhone's
+- Owner (19–20.11.2026, relayed by the RaidOS session): on the phone «Слои» opened inline above the map and stretched the
+  page (the map only at the very bottom); on the full-screen map it did not open at all (the list lay under the fixed map).
+- `src/styles/mobile.css`: with «Слои» open the map's sidebar is a fixed window from the page's level down to the tab bar
+  (on the full screen: inside the screen's safe edges, below/above «Назад»), only its list scrolls, «×» at its top right;
+  the page keeps its size. `src/pages/MapsPage.tsx`: «×» just closes it (no scrolling to the map any more).
+- Start intro: `public/startup-intro.js` gives Android (`window.androidBridge`, as Capacitor's getPlatformId) the iPhone's
+  «third» size; `src/startup/intro.css` comment; `introPage.test.ts` covers Android.
+- Checked with the Playwright script (dev renderer, 412×915 / 915×412, Android-like insets): «Слои» upright and sideways,
+  normal and full-screen map, RU and EN; intro with a faked Android/iPhone bridge. Pictures 5–7 in the side-session notes
+  folder `android-layout-0-6-0-323/`. Not checked on a real phone.
+- typecheck clean; src/startup, MapsPage*, MapItemCard, styles, mobile tests pass (MapsPage.deferred alone, as before). Not released.
+
+## 2026-11-20 — Claude: top bar buttons together, «Назад» in the bar sideways, «Точки на карте» up to the top bar
+- Owner (on picture 6): sideways the top bar's buttons stood far apart — now they stand together beside the profile
+  (`justify-content: flex-start`, the profile `margin-left: auto`; upright nothing moves). Sideways «Назад» (top places)
+  stands in the top bar between the logo and PvP, so the page and the map get the height under the bar back.
+- «Точки на карте» («Слои») on the phone: from the top bar down to the tab bar, edge to edge; on the full-screen map the whole
+  screen (its list inside the safe edges). The floating «Назад» hides while it is open (sideways it stays in the bar).
+- `src/styles/mobile.css` only. Checked with the Playwright script, RU and EN, upright and sideways, normal and full-screen map,
+  overview; pictures 8–9 in `android-layout-0-6-0-323/`. typecheck clean; startup, MapsPage.keyDoor, MapItemCard, styles,
+  mobile, App, desktopBack tests pass. Not released; not checked on a real phone.
+
+## 2026-11-20 — Claude: sideways — «Назад» always in the top bar, the map edge to edge, overview header in two columns
+- Owner: sideways PvP/PvE/Сезон must not jump when «Назад» comes and goes — the top bar keeps «Назад»'s place (112 px)
+  always; «Назад» stands there in every chosen corner (the full-screen map keeps its corner).
+- The map page sideways: no gaps — the map from the top bar down to the tab bar, edge to edge (content padding 0, no frame);
+  its buttons keep inside the safe edges (`--edge-l/-r`). Measured: stage left 0, top = top bar, bottom = tab bar.
+- Overview sideways (`src/styles/overviewEdit.css`): «Настроить блоки» on the line of «Следующий рейд начинается здесь» at
+  its right; «Промокоды» and «Открыть карту» each as wide as «Экран» / «Кочевники» under them (two columns, 10 px gap).
+- `src/styles/mobile.css`, `src/styles/overviewEdit.css`. Checked with the Playwright script, RU and EN, «Назад» top-left and
+  bottom-right, overview / map / «Слои» / full screen / quests sideways, overview and map upright (unchanged); picture 10 in
+  `android-layout-0-6-0-323/`. typecheck clean; Dashboard, MapsPage.keyDoor, styles, mobile, App, desktopBack, startup tests
+  pass. Not released; not checked on a real phone.
+## 2026-11-19 — reports in progress №194–199 (branch claude/reports-194-199, on claude/map-docs-valuables, not released)
+
+- Owner: «Проверь все заявки в процессе и что-то почини». Five open, all «taken»:
+  - №199 «У скупщика только два уровня» («Первый и корона»): the level pickers offered I–III and the crown. Fence has the
+    first and the crown only (owner). gunsmith/traderLevels.ts `traderLevelChoices` / `traderLevelOf`: his pickers (the
+    traders' page, «Сборка оружия») show I and the crown; an estimate, a screen reading or an old choice of 2–3 is his I.
+  - №197 «Неверное отображение уровня торговца» («Реф у меня четвертый»): the game's traders' screen has two rows of
+    portraits since 1.0; Реф is in the second, and the reader took only the row most names share — his badge was never
+    read. import/traderLoyalty.ts reads a name one row below in a column of the first row too (not a name elsewhere).
+    And more often (owner: «чтобы программа искала чаще уровни»): electron/screenOcr.ts reads the badges on any frame
+    with a strip of 5+ traders' names, not only when «Текущее отношение» and «(вы)» were read (no OCR: shapes).
+  - №194 daily limit of battle pass documents: progression/documentDailyLimit.ts counts the presses of «Нашёл» per
+    profile, all modes together, against the mode's limit (Season 40, PvP 25, PvE 15 — the EFT wiki; another guide gives
+    other PvP/PvE numbers); the day ends 24 h after its first document (no official reset time; players' reports).
+    The document's card and the layer's row show «Найдено сегодня: 10/40», at the limit «Дневной лимит документов
+    исчерпан». «Удалить все данные» clears it. RU/EN.
+  - №198 «Расширить описание боссов» (7Н33): Shturman's TKPD gets 7Н33 (the bot loadouts give SP; Zryachiy's has 7Н33);
+    «FMJ» is a guess, not added. №195 Black Division away from Icebreaker/Lab: M855A1 (M4A1), CBJ (MCX .300 BLK).
+    data/bossGear.ts SEEN_AMMO over the generated bossGear.json.
+- Tests: traderLevels (Fence), traderLoyalty (second row), documentDailyLimit (4), bossGearSeen (2); related suites 518
+  (5 map page tests timed out under load, pass alone); typecheck, tsc electron, eslint clean.
+- Not released; reports not closed or answered (the owner decides). Not checked in the game.
+
+## 23.11.2026 — Claude: 0.6.0.334 released (owner: «выпускаю обновление… только без тира… починку черного экрана… по квестам поправки»)
+- claude/release-334 from release/production a91507a1: merged claude/quest-row-tags (the held 334: bench cells cut to the part, part
+  pictures in an encrypted pack, phone map quest window, Customs photos from the game), claude/stock-chain-level (stock tubes level),
+  claude/gpu-fallback (dark start → software drawing), claude/story-points-batya (Lighthouse BEAR camp, cultist circles on Reserve
+  and Woods from the game's zones), claude/vitamins-old-version (report 215 + hand fixes by the game's objective id, manualQuests).
+  Left out: claude/range (Тир, still in testing; its pointerLock permission too), claude/mask-killa-ng-dec1 (1 December).
+- Conflicts: WORK_LOG (both sides kept); src/data/questGuidePhotos.json merged key by key (theirs: Vitamins' EMERCOM photo out).
+- Release commit f7842546: version 0.6.0-334, updateHistory (reports [215]), playerNews 7 lines; questGuidePhotos.test takes our
+  own frames (`own`, no url) — it failed on claude/quest-row-tags since b3b8fcb7 and would have stopped the gate.
+- Checked: deployPath 50/50 accepted; npm ci; typecheck, electron tsc, server tsc; vitest 4378/4392 → after the two fixes the rest
+  are this PC's (path with a space, CRLF, Windows tar, ECONNRESET in the server's screenshot upload test), none in changed files;
+  node --test release-policy 6/6, cache-item-images 2/2; npm run build ok. Lint: 4 errors in untouched files (not in the gate).
+- Pushed release/production a91507a1 → f7842546 (19:00 UTC). Gate run 45058274843 failed once on TradingPage «the age is held
+  against the server's time» (expected «2 мин назад», got «1 мин» — a clock-edge flake on the slow runner, file untouched);
+  rerun-failed-jobs → green 19:31. Publisher started by hand 19:32 UTC (timer window closed): Result=success, build
+  1795376188184, databaseReplaced false; version.json 0.6.0-334 f7842546 at 19:41 UTC; health 200; raidos-api, timer, nginx
+  active. Server quest base rebuilt: manualQuests marked pvp 15, pve 15, seasonal 27, unmatched 0.
+- Not done / for the owner: the server override 1c8ef8e7 (stage 33, Lighthouse BEAR camp −103/475, from fitting a wiki map) still
+  wins over the game's zone −64.79/452.41 now in the app (44 m apart); fca72e3c (Bogatyrs patch) likewise. Player replies
+  (Zavisim, mitya.tagintsev) drafted earlier, not sent.
+- 20:02 UTC, owner (through the RaidOS session, his words checked in its transcript): «Лагерь Бир где сейчас на других источниках?
+  Туда и добавляй». Sources: only wikiwiki.jp locates the camp (a circle on Jindouz's map, «between the Lighthouse area and the
+  Southern Road Landslide extract»); alucare, thegameslayer, tarkovforge (stump with the patch, note on a metal pole) give no
+  place; fandom (402), mapgenie, igm.gg unreadable. The wiki image fitted to 10 extracts (least squares, worst residual 15–19 m):
+  circle centre ≈ −70…−80 / 464…474, radius ≈ 49 m; the game's zone −64.79 / 452.41 lies 13–26 m from the centre, the old
+  override −103 / 475 24–35 m. Agreed → both overrides moved with QuestPointStore.save (tsx as raidos-api in the server dir):
+  1c8ef8e7 stage-33-1 → −64.79 / 452.41 (now equal to the app's seed of 0.6.0.334), fca72e3c stage-0-3 (Bogatyrs patch; the app's
+  seed still at the old camp) → −65.52 / 453.51 (offset kept). Titles/descriptions unchanged, notes with the sources. Backup
+  /var/lib/raidos/backups/quest-point-overrides-batya-lighthouse-20261123.json. GET /v1/quest-points shows both; apps re-read
+  in ~10 min. No release.
+- 23.11.2026 03:22, 0.6.0.335 live (ba793b98, build 1795378639562): gate 45063606467 green; publisher started by hand
+  (`systemctl start --no-block raidos-release.service`, inactive before); /api/v1/accounts/me/admin/phones answers 401 (the new
+  route is there). The release session took 0.6.0.334 live at 02:41 (its log: 7cb56657 in 335, 95e0b2b1 here).
+- Report 216 and the Lighthouse camp (owner: «Ставь по точке которую дал пользователь»; «По его квесту поставь точку»; «А остальные
+  определи сам куда поставить»; «Да, добавь»), server overrides via QuestPointStore.save (tsx in /opt/…/server):
+  - cceec093 lighthouse-story-the-ticket-stage-5 «Лагерь Прапора» → the player's -55.4/467 (inside the game's Camp_prapor box);
+  - fca72e3c lighthouse-story-batya-stage-0-3 (the Bogatyrs patch) → -59.09/457.15, the centre of the game's batya_0_visit;
+  - 7d5b42ce added: «Билет» stage 6 «Найти в лагере улики» → -56.25/461.31, the centre of light_prap1 (by name and place, not
+    confirmed in the game); stage-33-1 stays at batya_8_visit -64.79/452.41 (the release session, 20:02 UTC).
+  Zones from the Batya session's dump of the live Lighthouse scene (QUESTS/Quests_tickets_lighthouse_zone/Camp_prapor,
+  batya_0/8/9_visit, light_prap1). Report 216 not closed, no days given (the owner's call). Still to do in code (next release):
+  src/data/storyChapterSeeds.ts «Билет» stage 5 (78.06/164.55) and «Батя» stage 0 Lighthouse (78/164.47) to these places.
+- 23.11.2026 ~05:00, release 0.6.0.336 (owner: «выпускай», after mitya.tagintsev@mail.ru's window stayed dark with 0.6.0.335 and
+  the shortcut's --disable-gpu): claude/start-fallback 75c33dfb — start-log.txt, nextStartStep (software → no sandbox → a Windows
+  message with the log's last lines and «Скопировать для поддержки»); src/data/storyChapterSeeds.ts Lighthouse: «Билет» stage 5
+  -55.4/467 (report 216), «Батя» stage 0 patch -59.09/457.15 (as the server overrides). News (owner's line verbatim): «Запуск: если
+  окно не открывается, приложение само пробует другой способ запуска»; «Маяк: новое место - лагерь Прапора и шеврон «Богатырей»».
+  deployPath 11/0; gate steps locally: only the 6 machine-only failures (appVersion, staleServer, linux/updater ×3, AdminPanelPage).
+
+## 2026-11-24 — Claude: the screenshot key window — not PrtSc nor F12 (claude/screenshot-key-windows, not released)
+- A player (account ba57dc43…, PvE, Steam EFT, paid until mid-December) wrote in the support chat on 24.11 that his position stopped
+  working «сегодня», and that there are no screenshots in the folder (he named `…\steamapps\common\Escape from Tarkov\build\Escape from
+  Tarkov\Screenshots`, which is not where the game writes them: the app follows Documents\Escape from Tarkov\Screenshots and its
+  OneDrive variants, electron/experimental/positionTracker.ts). Read on the VPS, read-only (python3 sqlite3 `mode=ro`): no row in
+  `user_positions`, one device (Windows), the latest EFT account report today. The app never deletes screenshots (positionTracker:
+  «Reading does not delete files»); nothing in the position tracking changed since 20.11. Most likely the game makes no screenshot:
+  PrtSc taken by Windows (Windows 11 «Print Screen opens the Snipping Tool») or F12 by Steam.
+- Owner: «нужно назначить на любую другую кнопку, кроме Print Screen, потому что у них, возможно, по этой кнопке делает скриншот сам
+  компьютер Windows… добавь ее во второй пункт». src/onboarding/ScreenshotKeyGuide.tsx step 2 now: «…любую удобную клавишу, кроме Print
+  Screen (PrtSc) и F12. Эти клавиши может перехватить сама Windows или Steam: тогда снимок сделает не игра, координат в нём не будет и
+  точка не появится.» (EN alike; F12 as the owner told the player in the chat). FeatureTours.test.tsx checks the line.
+- The window shows only to new players on the PC app (tours.ts `screenshotKey: 'due'`): this player and others who already ran the app
+  will not see it; tell him in the chat. Checked: vitest src/onboarding (34), tsc, eslint. Not pushed, not released.
+- Release 0.6.0.337 pushed to release/production on the owner's word («Да, в выпуск»), live after the next window (13:00 Bangkok
+  24.11). Version in package.json, package-lock.json ×2, website/src/config.ts; updateHistory.json row; no playerNews.json line (a hint's
+  wording, not a new function). vitest src/data src/onboarding src/app 658/659: appVersion «electron-builder builds» fails here only
+  (ENOENT: `new URL().pathname` keeps %20 for the space in this PC's path), tsc clean.
+- 24.11 ~02:25 Bangkok the owner: «Да подожди, пока не публикуй… Сейчас я доделаю тир, и мы выложим все вместе». The push of
+  5e4b8a50 had started the phone builds at once (ios-ipa.yml publish-mobile makes `mobile-v<version>`, the server serves it to
+  Android): «RaidOS iOS IPA» cancelled before publish-mobile (no mobile-v0.6.0-337), TestFlight skipped its upload (no secrets).
+  On the owner's «Да, откатить» release/production went back to 95398f05 (0.6.0.336) with --force-with-lease; the rebuild of 336
+  that push started was cancelled too. raidos.app version.json stays 0.6.0-336. 0.6.0.337 is held on
+  claude/screenshot-key-windows (f4f7261c + 5e4b8a50) and goes out with the range in one release (next version number then).
+
+## 2026-11-24 — Claude: «Привлечение друзей» decided in place; 2 days for a bug (claude/referral-decide-bug-2days, not released)
+- Owner: «в разделе «Привлечение друзей»… висит одна заявка, ждет вашего решения, а я не могу ничего сделать в этом блоке. Добавь
+  кнопку… «Подтвердить 7 дней» или «Не подтверждать»»; «делаем бонус за ошибку плюс 2 дня… Везде добавим, что у нас теперь 2 дня».
+- A reward held for the owner (`review`) now has «Подтвердить N дней» / «Не подтверждать» right in its row: on the site
+  (website/src/components/admin/AdminReferrals.tsx `RewardDecision`, the friend's list and the totals reload) and in the admin app's
+  «Пригласи друга» (src/admin/AdminReferralsSheet.tsx, `adminApi.decideInviteReward`); the same server call as «Платежи» → «Награды
+  за друзей» (POST /me/admin/invite-rewards/:id/decide), «Не подтверждать» asks why (optional), as there. No server change.
+- A confirmed bug: 2 days (an idea keeps 1, a new map point 1). «Сообщить об ошибке» «+2 дня» and «Если ошибка/отчёт подтвердится, к
+  подписке добавится 2 дня.» (SupportButtons, the quest window's report), «+2 дня за ошибку» (Настройки → Поддержка), EN alike;
+  «Готово» asks «Выдать 2 дня?» for a bug (ReportsTable `BUG_REWARD_DAYS`), the quest group card and the site's «Отчёты» default to 2.
+- Tests: website admin (referrals: the buttons and the call), reports, RequestsPage, QuestReport — vitest 110+4 passed; tsc (app and
+  website), eslint clean. Not pushed: the owner holds the release until «Полигон» is ready (0.6.0.337 rolled back to 336 on his word),
+  the news lines wait for his word.
+## 2026-11-24 — Claude: the position — the Steam build's screenshots folder followed too (claude/steam-screenshots, not released)
+- Owner: «Проверь еще раз функцию местоположения на работоспособность… перед выпуском». Checked: electron/experimental (42 tests),
+  src/overlay/screenshotPosition and LivePlayerMarker pass; today's game screenshot names on this PC parse (x, y, z, yaw); nothing in
+  the tracking changed since 20.11; the app never deletes screenshots.
+- Found: a Steam player (24.11, position stopped) named his screenshots folder `…\steamapps\common\Escape from Tarkov\build\Escape from
+  Tarkov\Screenshots` — beside the Steam build's `build\Logs` (logDiscovery already finds those). The app followed only Documents
+  (and OneDrive) and the folder picked by hand. Now `setGameLogFolders` (electron/main.ts, on every log discovery) adds each
+  `<game>\build\Escape from Tarkov\Screenshots` to the followed folders and the lookup; Windows paths whatever the platform (CI on
+  Linux). A folder that does not exist costs a stat a second. Not verified with a real Steam install (none here).
+## 24.11.2026 — Claude: glass buttons as in the plain style over the photo (branch claude/glass-cloth-hover, not released)
+
+- Owner (over the plain «Тельняшка» menu, «Барахолка» under the cursor): «в режиме стеклянный на цветовой схеме тельняшка сделай
+  такие же кнопки при наведении курсора, тоже самое сделай и на режиме черный мультикам и снаряжение»; «кнопки должны быть из
+  обычного режима в стеклянном, но с эффектом стекла на фото».
+- c28e166c, only src/styles/style-glass-cloth.css, the glass style over blackmc / telnyashka / gear:
+  - a button at rest: smoked glass, no patch of its own, the window's cloth showing through; a menu row rests as in the plain style
+    (bare on telnyashka, a faint pane on the two multicams);
+  - under the cursor: the plain style's patch of photo (telnyashka knit with --knit-veil, the black multicam's grey blots at a fixed
+    spot -132px -356px / 520px, the gear cordura) with the plain style's edge (light / olive / gold) and the glass's light and rim;
+  - unchanged: picked buttons (.primary, .active), switch tracks, the phone tab bar, windows, the menu and top bar; other schemes.
+- Base: origin/release/production 95398f05. Checked in the dev renderer (vite, Playwright shots, 1280×900): all three schemes in
+  both styles, menu rows, the top bar chip, a test window's buttons; labels readable. vitest src/theme src/styles + DashboardPage +
+  introPage 105 passed; tsc -b clean; eslint clean (CSS only).
+- Not pushed, not released; needs a playerNews.json line in the release that takes it (the release integrator, with the owner).
+- The 20.11 glass-cloth commit gave every button its own cloth patch at rest; now the patch shows under the cursor and the cloth
+  shows through the glass at rest. Owner, seeing the before/after sheets, 24.11 ~02:20: «Нет, все мне нравится, делай так,
+  добавляй в основную сборку, и когда я скажу публиковать, публикуем все вместе».
+- So: waiting on its own branch, still on release/production 95398f05 (0.6.0.336; 0.6.0.337 was held at the owner's word and
+  lives in claude/screenshot-key-windows, 5a145f19). NOT pushed to release/production. The next release takes
+  claude/glass-cloth-hover together with the other waiting branches only on the owner's «публикуем».
+  News line to show the owner then (draft, kind improved): «Стиль «Стекло»: в «Тельняшке», «Чёрном мультикаме» и «Снаряжении»
+  кнопки как в обычном стиле, под курсором — ткань под стеклом» / ««Glass» style: in «Telnyashka», «Black multicam» and «Gear»
+  the buttons are as in the plain style, with the cloth under the glass on hover».
+## 24.11.2026 — Claude: «Смена дня и ночи» — a very dark violet night; four day variants for the owner (claude/daynight-violet, not released)
+
+- Owner: «в режиме смены дня и ночи нужно поменять фиолетовый цвет. Сделай его более темным, он слишком светлый. То есть ночью у нас
+  будет очень темно-фиолетовый цвет. А днем… 4 варианта мне придумай».
+- src/theme/dayNight.ts, the night palette only: the sky over the screen and the menu (--dn-sky) #2c1b54 → #140a28, its glow 20% → 10%,
+  backgrounds and panels darker (bg #0b0815 → #07050d), the lavender accents dimmed (brass #b49cec → #9580cf); text stays readable.
+  Dawn, day and dusk unchanged.
+- Four day variants shown to the owner as pictures only (not in the code): 1 «Ясное небо» (blue sky, sunny gold), 2 «Песок» (desert
+  khaki), 3 «Лес» (fresher green), 4 «Пасмурно» (steel grey). The chosen one replaces OLIVE.day; palettes in the session's scratchpad
+  day-variants.json.
+- Base release/production 95398f05. Checked: dev renderer (vite, Playwright 1280×900, plain and glass, the hour forced through
+  window.__raidosDayNightHour); vitest src/theme 33; tsc -b; eslint. Not pushed, not released; waits with claude/glass-cloth-hover
+  for the owner's «публикуем».
+## 23.11.2026 — Claude: every place photo shot again in the offline game (in progress, stopped by the owner at 18:04)
+
+Owner, 23.11.2026: «Каждому документу нужно переснять фото, где он находится. По образцам… вторые фото с разными местами спавна
+документа… там кадры с пистолетом… Все квесты, которые существуют, должны быть пересняты полностью, все фотографии… Также запертая
+дверь или багажник машины нужно переименовать просто багажник машины. Нужен ключ от автомобиля «Жигули»… нужно сделать фото каждой
+машины… ключ от спецтехники… лежит в куртке. Это нужно пометить, записать.» Branch `claude/quest-photos-all` (worktree
+`raidos-quest-photos-all`, from release/production 95398f05), not pushed, not released.
+
+- Found: 994 wiki photos of 237 quests and ~350 of the battle pass documents on 12 maps; own frames only on Customs (54 quest,
+  24 document). The old tour looked for a sample's view within 12 m of the zone and found ~25 % of them; Woods and Shoreline
+  frames of 22-23.11 were never put into the app.
+- 6bfeaa6b: a locked car is «Багажник машины» with «Нужен ключ от автомобиля «<car>».» (src/data/carLocks.ts, the car by the key
+  id: Жигули, Merin, Полиция, SMW, Почта Руси; the «Ключи» list says «Багажник машины» too; English «Car trunk», «Requires the
+  “Zhiguli” car key.»); «Ключ от спецтехники» on Customs: «Лежит в куртке в каждом рейде.»; src/data/placePhotos.json (empty
+  for now) carries our frames of each car by lock id and of a guaranteed spawn's spot, shown as spotPhotos from
+  src/assets/key-spots. Tests: carLocks, mapMarkerAdapter, keyDoors, documentGuide (83 passed); typecheck ok.
+- 07aa1b2f: Woods (19 places, 11 approaches, 1 item) and Shoreline (27, 9, 2) frames of the earlier tours in place of their wiki
+  photos (`own`); the pictures are in E:\SPT-photo\server-upload\woods-old and shoreline-old — they must be put in the server's
+  guide images folder with the release, or the app shows nothing there.
+- New tools on E: (not in git; memory `spt-photo-all-maps`): points\build_all.py (every objective zone and quest item place of
+  every live quest from json.tarkov.dev, document spots with heights from lootLoose, real trunk locks, the jacket), the worker
+  with a wider second search and our own frame where no sample matches, photo2\drive_maps.py (map after map, restarts a quiet
+  game), photo2\start-client.ps1, eval\select_all.py, eval\integrate_all.py, eval\compare_providers.py; move-to-monitor2.ps1
+  now finds the second monitor (the layout changed to 3440×1440 + 1920×1080 at 3440,0).
+- Matching on the video card since 13:41 (owner: «Да, ставь»: onnxruntime-directml only in E:\SPT-photo\venv-dml): scores equal
+  to the CPU's on 48 pairs (≤0.4 %, no verdict change), 16× faster matching; a sample-heavy point 2–3 min instead of 5–9.
+- Stopped at 18:04 (paused 14:10–17:19 before): Customs run customs-all2 91 of 110 points; next
+  customs-quest-item-675c3582f6ddc329a90f9c6d-675f7f224076a741a3061568-0 («Закрытый клуб»). Woods, Shoreline, Interchange,
+  Streets, Reserve, Lighthouse, Factory, Ground Zero, Lab, Labyrinth not started (Icebreaker is not in the offline copy).
+  SPT client and server closed, GAME-BUSY removed.
+- To go on (only on the owner's word): SPT.Server → E:\SPT-photo\photo2\start-client.ps1 → GAME-BUSY-photo-all.txt → go.flag
+  (tour.json still customs-all2, resumes from its manifest) → `pythonw -X utf8 E:\SPT-photo\photo2\drive_maps.py --wait-current`.
+  Per map then: eval\select_all.py (the driver runs it) → look at every preview sheet by eye → eval\integrate_all.py <map>
+  --approved E:\SPT-photo\approved\<map>\all --points E:\SPT-photo\points\<map>-all2.json --done-maps <earlier maps>
+  --out E:\SPT-photo\server-upload\<map> → tests (documentGuide.test.ts expects Customs photo counts that will change) → commit →
+  sheets to the owner. Event quests (eventGuidePhotos.json, 45 tarkov.help photos) are not in build_all yet.
+- Risks: unmatched wiki photos of a shot place are removed and replaced by our own frame (owner's «без чужих»); our frame then
+  shows the place from another angle than the sample — the sheets put the sample next to it. Nothing uploaded to the server.
+
+## 2026-11-23 19:58 — Claude: Customs place photos shot again, battle pass documents laid in the frames (branch claude/quest-photos-all)
+
+Owner 23.11.2026: resumed the reshoot («Да, продолжай», 18:15); «для таможни нужно снять документы боевого пропуска и квестовые
+предметы… Если при съемке боевого пропуска их нету, то тебе нужно сделать мод, который будет их спамнить» (~18:25); «Пересними
+только квесты, документы боевого пропуска, все виды, и квестовые предметы… И так на всех картах» + quest places with a map mark,
+«по аналогам фото, которые уже есть» (~18:40). Not pushed, not released, nothing uploaded.
+- Customs run customs-all2 finished 110/110; frames checked by eye on all 11 sheets: 85 kept, 7 own place frames out (camera in a
+  bush or a tree, or the place not in sight), the 3 car frames left out (not part of the reshoot any more; kept on E:).
+- Battle pass documents: the offline 0.16.9 copy has no such items. The photo worker now lays the live game's own models
+  (item_barter_info_* bundles of the installed 1.3 client, same Unity 2022.3.43; copies in E:\SPT-photo\bpdocs\bundles) flat on
+  the surface at each spot of the live feed, the close-up taken on a half sphere over the document with a lamp; hand fixes by a
+  frame's ray (E:\SPT-photo\bpdocs\aim.py → overrides.json; Customs: the safe in the office). Run customs-docs4: all 28 Customs
+  document spots, 62 frames kept after an eye check (2 close-ups out: a camera inside a bookcase, a roll on top of a door).
+  Our earlier document frames (21.11) showed the spots without a document; they are replaced.
+- src/data/questGuidePhotos.json, documentGuidePhotos.json: Customs 55 frames matched to samples, 18 own place frames, 29
+  approaches, 40 close-ups; 42 old photos removed. One wiki document photo stays (Customs project documentation by the office
+  window, spot 18: no place for the camera found).
+- Tests: src/data/documentGuide.test.ts (the gas station spot has the close-up after the place), FleaMarketPage.keyDoors.test.tsx
+  («Багажник машины» / «Car trunk» since 6bfeaa6b). Photo tests 26/26, keyDoors 9/9, typecheck ok. The full run's other failures
+  (appVersion path with «%20», AdminPanelPage CRLF, electron/linux updater, staleServer, cache-item-images, release-policy) do
+  not touch these files.
+- The pictures: E:\SPT-photo\server-upload\customs (294) + woods-old + shoreline-old must go to the server's guide images folder
+  with the release, or the app shows nothing there.
+- Next: the other maps by E:\SPT-photo\photo2\drive_maps.py (build_all.py now builds quests, quest items and documents only;
+  --with-cars for the old list), each map's sheets and document close-ups checked by eye before integrating.
+
+## 2026-11-23 23:00 — Claude: Customs battle pass documents laid exactly as on the downloaded photos (branch claude/quest-photos-all)
+
+Owner ~21:20: «В некоторых местах на таможне документы находятся в текстурах… застряли либо в столе, либо в тумбочке
+наполовину… на полу не спавнится… На краю тоже они не должны лежать. И на кровати в железе не должны застревать. Добавь только те
+места, снимки которых у нас есть уже скачанные, и по ним сделай в точности в том же месте. Разложи их и сделай скриншот.»
+Not pushed, not released, nothing uploaded.
+- The 30 downloaded Customs pictures (the guide before our own frames, b3b8fcb7~1) marked by eye: where the document lies on each
+  (the pistol's laser dot is on it), its kind and how it lies (flat, upright among books, a tube standing or lying) —
+  E:\SPT-photo\bpdocs\customs-marks.json. Each mark moved onto our frame that matched the picture (SuperPoint+LightGlue matches,
+  a local homography: bpdocs\transfer.py) or marked by eye on our frame; three pictures that do not show the document use the live
+  spawn point. One point per picture (points\customs-bpdocs5.json, bpdocs\make_points.py).
+- Photo worker (E:\SPT-photo\photo2\worker\Worker.cs, Lay): the spot is where our frame's ray meets the first thing DRAWN (a
+  one-pixel camera, far plane bisected — a bookcase's shelves have no colliders), then a height map of what is drawn around it
+  from above; the document goes where it lies whole on one flat surface 1 cm in from every edge, nothing drawn or solid inside it,
+  nearest the spot (5° turns, up to 45 cm aside); then a low view (under a chair's rail), the next surface ±30 cm (a sofa's seat by
+  an armrest narrower than the document here), last ≤2 cm over an edge (3 places, checked by eye). Every frame of a document
+  point with the lamp; the close-up from the picture's side and tilt, seen by what is drawn (a nightstand's niche from low in front).
+- Run customs-bpdocs6: 30 laid, 27 whole on the surface, 3 at most 2 cm over an edge (looked at: they lie on the desk / shelf).
+  Every frame looked at by eye. The library «на полках под окном» picture (9ac6be90) shows only «PROJECT» in the dark: no exact
+  place to repeat, left out and removed from the guide. Selected 61 frames (25 places, 29 close-ups, 7 approaches) for 29 pictures;
+  7 close-ups accepted by eye though the colliders' check called them hidden (eval\manual-accept.json, select_all.py reads it).
+- src/data/documentGuidePhotos.json: Customs documents rebuilt from the guide's pictures (bpdocs\docs_base.py) with these frames:
+  22 pictures replaced by our matched frame with the document in it, 3 by our own frame of the place, 4 by the close-up; every
+  spot has its close-up. src/data/documentGuide.test.ts: the gas station's project spot and the library's both kinds now carry
+  the close-ups. Data tests 577/577, typecheck ok.
+- Pictures: E:\SPT-photo\server-upload\customs-docs6 (122 files) with the release; the document pictures of
+  E:\SPT-photo\server-upload\customs from 8f88bbfd are no longer named by the app.
+- Woods: quest points shot 58/58 (run woods-all2, selected, 6 frames refused by eye); its document points stopped before the
+  old placement; the 26 Woods document pictures are marked (bpdocs\woods-marks.json); first pass woods-bpmatch (our frames of those
+  pictures, nothing laid) runs. Then the same laying and integration as Customs.
+- 23:05 Woods quests integrated (run woods-all2, 58 quest points; documents apart): 36 frames matched to samples, 12 own place
+  frames, 26 approaches, 25 close-ups; 30 wiki photos of shot places removed. Every sheet looked at by eye: 6 frames refused
+  (dark spots in the sky of the pickup's frame — «Нужный пикап» keeps its wiki photo —, two close-ups of bare rock, three
+  cameras inside a bush) in eval\manual-reject.json. Quest photos own 219 → 323, wiki 875 → 804. Data tests 568/568, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\woods (198 files) with the release.
+
+## 2026-11-24 00:10 — Claude: Woods battle pass documents laid exactly as on the downloaded photos; no bots in the photo raids
+
+- Woods: the 26 downloaded pictures marked by eye (bpdocs\woods-marks.json); a first pass (run woods-bpmatch, nothing laid) found
+  our frames for 20; the rest laid at the live spawn point. Run woods-bpdocs6 (+ woods-bpdocs7 for one place): every frame looked
+  at by eye. 19 pictures repeated exactly (14 replaced by our matched frame with the document in it, 2 by our own frame of the
+  place, 3 by the close-up; every one with its close-up). 7 keep the guide's picture: the offline copy differs there (the north
+  bunker's barrel under a tarp is a radio tower here, the camp trailer's chair, the cultists' house, the USEC checkpoint's boxes),
+  or there is no flat surface (the plane's cockpit, the burnt SUV), or the folding stool's seat is smaller than the document.
+  eval\manual-reject.json / manual-accept.json hold the eye checks. Data tests 568/568, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\woods-docs6 (88 files) with the release.
+- Owner 23.11 ~23:45: «отключи, чтобы ботов не было вообще на карте. При съемке». The worker set only the waves' NoBots; the
+  raid's own BotSettings stayed AsOnline (a dead soldier lay in a Customs frame). Now BotSettings.BotAmount=NoBots and the bosses
+  off, and before every point everyone but the player is taken off the map (first run: 6 bots and 33 bodies removed on Woods).
+
+## 2026-11-24 03:00 — Claude: photo shooting paused by the owner; Shoreline quests integrated; every own place photo put on the server
+
+- Owner 24.11 (through the parent session): «Пока временно останови съемку скриншота. Запомни, как я скажу, продолжишь. Все, что уже
+  записано, новые скриншоты, добавь к нам на сервер.» The dispatcher stopped at 02:46 (drive.stop) right after Shoreline:
+  interchange-all2 had not reached its first point; the SPT client and server are closed, go.flag / stop.flag / drive.stop /
+  GAME-BUSY removed, the stop and how to resume are in E:\SPT-photo\photo2\drive.log. Resume ONLY on the owner's word: SPT.Server →
+  photo2\start-client.ps1 → GAME-BUSY → `pythonw -X utf8 drive_maps.py` (queue interchange, streets-of-tarkov, reserve, lighthouse,
+  factory, ground-zero, the-lab, the-labyrinth). Shoreline's battle pass documents: marks ready (bpdocs\shoreline-marks.json) and
+  our frames of the 29 pictures shot (run shoreline-bpmatch); the laying raid waits for the shooting to resume.
+- Shoreline quests (run shoreline-all2, 77 points): every preview sheet looked at by eye, 17 frames refused in
+  eval\manual-reject.json (6 own place frames of another place — a rock at the lens, the open sea, a house's outer wall, the
+  watchtower instead of the dish/antenna, another room — and 11 close-ups showing no item: sky, an empty roof, the tower's stairs,
+  a blurred texture). Selected 75 frames for 42 points; integrated: 29 matched, 8 own places, 18 approaches, 20 close-ups, 14 wiki
+  photos of shot places removed (questGuidePhotos files: own 299 → 374, wiki 689 → 648). Data tests 568/568, typecheck ok.
+- Server: every own photo the branch's lists name and the server lacked — 866 files, 94 MB (Customs and Woods quests and documents,
+  Shoreline, the earlier woods-old / shoreline-old) — installed into /var/lib/raidos/map-mirror/images/guides (raidos-api, 600; 3631
+  → 4497 files; checksums verified; nothing there overwritten). The running server serves an own photo only when its own lists name
+  it (guideImages.ts ownFiles), so the new ones answer 404 until this branch is released with the server; the 92 listed before still
+  answer 200. Nothing pushed, nothing released: the owner gathers every branch into one release.
+## 24.11.2026 — Claude: админ-чаты, «Посмотреть профиль» (ветка claude/admin-user-profile, не выпущено)
+
+- Поручение владельца: в чате админки по правой кнопке (ПК) и долгому нажатию (телефон) на человеке — окошко с «Посмотреть
+  профиль»; отдельная вкладка со всей информацией об аккаунте: регистрация, первая оплата, сколько оплат, тарифы по месяцам,
+  последний вход, заходил ли с телефона, почта, ник, кого привёл и сколько они оплатили. Чего нет в данных — «нет данных».
+- Ветка `claude/admin-user-profile` от `95398f05` (выпуск 0.6.0.336), рабочая копия `E:\FromC\raidos-admin-profile`.
+  Коммит `ba831b1c`. Не запушено, не выпущено, `release/production` не тронута.
+- Сервер: `GET /v1/accounts/me/admin/users/:id/profile` (только владелец; 401 без входа, 404 всем остальным и для неизвестного
+  id, 400 для кривого id; `no-store`, без записи в аудит). `AdminStore.profile` (`server/src/services/adminStore.ts`) собирает
+  из общей базы: аккаунт (почта и её подтверждение, ник, привязанный аккаунт Tarkov маской, страна, подтверждённый телефон
+  маской, блокировка/удаление; у удалённого аккаунта ни почты, ни ника), подписку с основанием, автоплатёж, откуда пришёл
+  (друг, код или ссылка стримера, реклама), оплаты (успешные и сумма, возвраты отдельно, первая и последняя, по месяцам
+  Бангкока с тарифами, по тарифам, список до 200), начисления владельца, активность (последний запрос откуда угодно,
+  последний вход в приложение на ПК / телефоне / в браузере по `account_devices`, первый вход в приложение, устройства по
+  имени и времени — id устройств наружу не отдаются, «сейчас в приложении» из `PresenceTracker.of`), рефералы (свой код,
+  приглашённые, сколько оплатили и на сколько, дни наград, статистика кода стримера). Документ: `docs/codex/owner-admin-api.md`.
+- ПК (приложение владельца): `src/support/OwnerChats.tsx` + `src/admin/ChatPersonMenu.tsx` / `personMenu.ts` — меню по правой
+  кнопке, клавише меню и долгому нажатию; «Посмотреть профиль» открывает вкладку «Профиль» под «Чатом»
+  (`?tab=profile&account=…`, `src/pages/AdminPanelPage.tsx`), «К чату» возвращает в переписку; в открытой переписке кнопка
+  «Профиль». Шлюз ПК новый адрес уже пропускает (`OWNER_SITE_ADMIN` в `electron/serviceGateway.ts`), правка не нужна.
+- Телефон (приложение админа, `src/admin/AdminMobilePage.tsx`): долгое нажатие в «Чатах» → лист снизу → профиль на весь экран;
+  в открытом чате кнопка профиля. Адрес добавлен в список телефонного клиента (`src/sync/webAccount.ts`).
+- Профиль: `src/admin/AccountProfile.tsx` + `accountProfile.css`, четыре блока «Аккаунт / Оплаты / Активность / Рефералы»,
+  кнопки перехода к блокам, тексты на русском и английском внутри компонента; новое полноэкранное окно вписано в блок окон
+  `src/styles/mobile.css`.
+- Проверки: `npm run typecheck` чисто; серверный `tsc --noEmit` чисто; eslint по изменённым файлам чисто (во всём проекте те же
+  4 старые ошибки в чужих файлах: SubscriptionExpiryNotice, MapSlideshow, screenScanSync, questText); новые тесты
+  `server/src/routes/ownerProfile.test.ts` 7/7, `src/admin/ChatProfile.test.tsx` 8/8, `AdminMobilePage.test.tsx` 26/26.
+  Полный vitest: падения только машинные/старые — `appVersion`, `staleServer`, `linux/updater`, `appUpdate.ownerExe` (нет
+  `\tmp` на диске E:), `AdminPanelPage` «stands right above «Обзор»»; остальные падения первого прогона были таймаутами под
+  нагрузкой (линтер шёл параллельно) и при отдельном запуске проходят. Сервер: 605/606, единственный — «support chat
+  screenshots» (ECONNRESET под нагрузкой), отдельно 24/24.
+- Скриншоты до/после (Playwright по dev-странице, вымышленные игроки, без живой базы и без настоящей оболочки):
+  `E:\FromC\raidos-admin-profile-shots\` — `before-*` (ПК и телефон), `after-*` (меню по правой кнопке, долгое нажатие,
+  профиль на ПК широкий и узкий, на телефоне, RU и EN).
+- Риски и что осталось: профиль заработает только после выпуска сервера (старый сервер отвечает 404 — карточка пишет, что
+  нужна новая версия сервера). Телефонное приложение админа получает меню только с новой сборкой этого приложения. В
+  выпуске добавить строку в `src/data/updateHistory.json`; в `playerNews.json` не нужно — функция только для владельца.
+  На настоящем телефоне долгое нажатие не проверено (только эмуляция касаний в Chromium).
+- 22.11 «Тир» (owner: «https://tarkov-lab.com/#range изучи всю систему … сделай так же у нас … реализуй в тестовом приложении, не
+  публикуй»): branch claude/range (from claude/quest-row-tags), 45544881. New page /arsenal/range + «Тир» in «Арсенал», shown only in a
+  dev run and in a TEST_BUILD (vite define __RAIDOS_TEST_BUILD__, src/app/rangeFeature.ts) — a release build has no route or menu item.
+  - Rules read from the game's client code in the offline SPT copy (Assembly-CSharp via a read-only Mono.Cecil IL listing in the
+    scratchpad; nothing injected or run): RealResistance, GetPenetrationChance (incl. 100 % at R ≤ p−15), CF = clamp(p/(R+12),0.6,1),
+    armour wear (0.5–0.9 through / 0.6–1.1 stopped, min 1), blunt × clamp(1−0.03(R−p),0.2,1), ×0.6 for plate slots over soft armour,
+    pieces after the blocker × their blunt, removable before built-in, plate collider then soft insert with damage/pen × CF,
+    ricochet lerp, pen ~ normal(pen, deviation), health ApplyDamage with over-damage (stomach 1.5, arms 0.7, legs 1, ×0.7 received)
+    and death on head/thorax. Not modelled: fragments (now separate shots), skills, bleeding. Neck → thorax and groin → stomach as
+    tarkov-lab shows (the colliders' parts live in the player model, not in code) — to verify in SPT.
+  - Data: armour from the mode's items file (armorSlots inline inserts and helmet parts, plate slots, visors/modules, masks, glasses);
+    src/range/rangeTargets.json from SPT bots/types (37 characters: health per part, weighted helmet/armour/rig/mask/glasses pools,
+    fitted plates and visors) + templates/items (default plate per slot, bluntDamageReduceFromSoftArmor) via
+    scripts/build-range-targets.mjs <SPT_Data/database>.
+  - Page: weapon/caliber/build (default or saved)/round, target groups and character, health variant, start state (blacked limbs),
+    kit usual/random/custom with helmet, visor, module, mask, glasses, armour or rig and each plate; front/back figure with zones
+    clipped to a body outline, armour overlay, distance 5–1000 m, zero, fire modes (single/burst/auto at the fire rate), magazine +
+    R reload, cover, spread (MOA), recoil and sway (estimates), drop vs zero, damage/pen at distance; tabs Урон/Броня/Полёт/Журнал,
+    counters; «Сравнение»: rounds/body armour/helmets/plates × zones, series 100/300/1000, mean shots and TTK.
+  - Checked: 19 range tests, tsc -b, eslint; in the browser (dev, 1600×950) shots, auto fire, kill, back view, EN, comparison
+    (11 rounds × 5 zones × 100 runs < 1 s). src/app/appVersion.test.ts fails on the Windows path with a space (unrelated).
+  - Not done: character pictures from the game (schematic figure for now), moving target, paper target; the test exe build follows.
+- 22.11 «Тир» pictures (owner: «Сделай снимки персонажа спереди сзади, так же всех боссов, бронежилетов, бронеразгрузок, шлемов
+  спереди и сзади»): claude/range fb7b8d46, 5b134975 (+ a7d7e258 no grenade/flare calibers). Rendered in the offline SPT copy by a new
+  studio worker (E:\SPT-photo\studio, README there) loaded through the RaidOsHideout loader (its own worker kept as
+  worker.hideout.dll): the SPT server's bot profiles (LoadBots) dressed by the game's inventory model loader (PlayerModelLoader),
+  pose held, own orthographic camera front/back, true alpha. 37 characters dressed + 37 bare, 2 PMC bodies, 202 worn layers
+  (42 body armour, 30 armoured rigs, 100 helmets with/without visor, 30 masks/glasses) on the same hidden body; every body picture
+  carries the game's own hit colliders (dumped from the raid player: bone path + shape) laid on its bones. From the game: neck →
+  thorax, groin → stomach, side plates → stomach (rangeModel.platePart); penetrationDamageMod is for fragments only.
+  - App: the target draws bare character + kit layers and hits by those zones (nearest collider, plate collider in front);
+    schematic figure as fallback. public/range-figures (gitignored, E:\SPT-photo\studio\pack_figures.py, 241 pictures 9.9 MB) →
+    range-figures.pack only when TEST_BUILD=1 (vite picturePack; release builds drop the folder); PC reads raidos-img://range/.
+  - The game closed once (in raid, ~5 GB after 31 characters): the studio now runs from the main menu, unloads unused assets after
+    each job, skips drawn pictures. The Woods photo tour was cut at 27/37 by that and restarted after the studio.
+  - Test exe on the owner's desktop: «Raid OS тест Тир.exe» (5b134975, test build, entitlement key, range-figures.pack inside).
+    Checked: 22 range tests, tsc, eslint, dev browser (Killa = bare + 6B13 KE + Maska-1Sch with visor, hits by zones). Not checked:
+    the packaged exe's pictures (raidos-img://range). Items newer than the offline copy (0.16.9) have no layer yet.
+- 22.11 owner: «бронежилеты и каски и бронеразгрузки только из оригинальной игры», «Залезть в оригинальную игру не запуская ее, возьми
+  от туда модели нужные и сделай скриншоты», «Сделай мне 3д модель чвк и несколько бронежилетов … и несколько касок … конструктор»:
+  claude/range 3f9b89ed. E:\SPT-photo\studio\live_swap.py copied the live game's bundles of every armour, rig, helmet, mask and pair of
+  glasses (451 bundles, 1.74 GB, read only from C:\Battlestate Games; shaders/cubemaps/physics/animations untouched; backup
+  E:\SPT-photo\backup\live-armour-20261122) into E:\SPT; the 36 live items the offline copy lacked (6Б45, PLATEminus V2, Black Division,
+  JPC, ЖПЦ, Гладиатор-С, TV-115, Stich, ANA M1/M2, LV-119 MCB, Strandhogg MCB…) added as templates through the RaidOsParts server mod's
+  parts.json (the SPT server refuses a changed items.json). All 36 checked against the live catalogue's pictures. Re-rendered: 49 body
+  armours, 59 armoured rigs, 100 helmets, 30 masks/glasses (worn, the body now an occluder so arms hide what is behind them), 37
+  dressed characters. «Конструктор» tab: USEC/BEAR + 11 armours/rigs + 9 helmets from 36 sides, drag or auto-turn. Pack 20.7 MB.
+  No meshes extracted (pictures only). Test exe on the desktop (3f9b89ed). Woods photo tour paused at 30/37 for the swap and
+  resumed after.
+- 22.11 owner: «Делай, короче, просто вид спереди и сзади. И чтобы одевалась броня, каска и так далее. Менялась по кнопке»: 3eb02f7a.
+  «Конструктор» without the turn: the character (USEC, BEAR, or any of 35 other range characters bare) front and back side by side,
+  108 armours/rigs, 99 helmets (visor variants), 18 masks, 2 glasses on/off/changed by buttons, search in long lists, «Снять» per
+  item. 36-side pictures dropped from the pack (11.5 MB). Earlier the same day a 9 s turn video was sent from those pictures.
+  Test exe on the desktop (3eb02f7a). Checked in the dev browser; not in the packaged exe.
+- 22.11 owner: «Сними еще одежду разную, футболки штаны что бы можно было менять»: 2f5e6611. Studio action «suit» (E:\SPT-photo\studio):
+  the generated PMC's Customization set to a suit's Body+Hands or Feet, only that part drawn, the rest of the body an occluder; heads
+  apart. Clothes models from the live game (live_swap_clothes.py: 173 character bundles, 0.8 GB; wrist-watch textures under
+  assets/content/hands and defaultmaterial kept offline — they lean into first-person hands and half the weapons; backup
+  E:\SPT-photo\backup\live-clothes-20261122). 147 clothes pictures (53 tops + 31 bottoms a side, 21 shared by both). Builder: a PMC
+  is bottom + top + head + armour; «Верх»/«Низ» lists of the side, names in index.json labels. Pack 21.6 MB. Sheets sent. Test exe on
+  the desktop (2f5e6611). Woods tour paused at 33/37 for the restart and resumed.
+- 22.11 Woods photo tour done (no code change): woods-quests-2 37/37 points shot, woods-spawns 33/33. Selection
+  (E:\SPT-photo\eval\select_photos.py) after looking at every sheet: quests 31 pictures for 18 points, spawns 14 for 7. Manual
+  rejects in E:\SPT-photo\eval\manual-reject.json (backup .bak-woods2): quests 3 (car hidden by grass, dark table, branches over half
+  the frame), spawns 10 (blood sample behind a car door, KOSA in thick bushes, dark Prapor parcel, all 3 M-LOK handguard points —
+  only a vice, drill and radio on the bench). Sheets sent to the owner (approved\woods\quests and \spawns preview-*.jpg). Nothing
+  published to the server; release 334 still held.
+- 22.11 owner: «Почему все кадры со сдвигом на один?» — the preview sheets, not the frames: the old sheet put our own place frame
+  again on the left of every approach and item row (and the item on the left of a spawn's place row), so each left picture repeated
+  the right one of the row above or below. New E:\SPT-photo\eval\sheets.py (select_photos.py calls it; backup
+  select_photos.py.bak-sheets-20261122): one row a place — guide picture, place, approach, item — each frame once. Woods sheets
+  redrawn and sent. The frames and the selection did not change.
+- 22.11 Shoreline photo tour: quests started 13:41 (build_quests_spt.py shoreline Shoreline, 56 points). 16:25 SPT.Server stopped
+  answering (ping timed out) at point 41; server and client restarted 16:34, the run resumed 16:39 and stood still on the same point.
+  Owner 16:49: «Останови все запомни где закончил и выключи спт» — stopped (stop.flag), offline client and SPT.Server closed,
+  GAME-BUSY flag removed. Stopped at shoreline-quests 40/56, next point «Серьёзные обвинения» quest HDD (…66760b3deb51b08bd40c2b08-6);
+  then shoreline-spawns (98). Resume only on the owner's word (memory photo-tour-paused).
+- 22.11 evening, owner's range brief («Тир у нас будет в баллистике… только стрельба…», bosses locked with visors down, recoil as
+  in the game, builds of all modes with a small module window, HP of parts and armour only, damage block only, slider-only
+  distance, real covers, scope reticles with the hold at distance, exact hit outlines, «Укрытие слева/справа», «Ящики», «Окно в
+  здании»). claude/range 8ce3d3ef, fd3bd5bd, a93617cd, b6d07e7c (+ the stock-tube fix cherry-picked, 1bf0dbe4):
+  - «Тир» is the last tab of «Баллистика» in test builds (src/range/RangeShooting.tsx); RangePage/RangeCompare/RangeOutfit gone.
+  - Bosses and guards: their usual kit, locked; 71 helmet+visor layers re-shot with the visor down (studio "visorDown",
+    make_visor_jobs.py; SPT run with the owner's yes, then shut). Killa: Maska-1Sch KE visor, black.
+  - Builds: default + every saved build of the weapon from PvP/PvE/Season labelled; src/range/RangeBuild.tsx (BuildBench small).
+  - Recoil: src/range/rangeRecoil.ts = the game's new recoil from its IL (NewRecoilShotEffect etc.) and prefab values; data
+    scripts/build-range-recoil.mjs → rangeRecoil.json (176 weapons); held fire on 1/60 s ticks at the weapon's rate; checked
+    against the analysis (M4A1 ≈1°/4.7°/plateau ~5°) and in the page (14 shots/s at 800 rpm). Synthesised gunshot (Web Audio).
+  - Hit outline: src/range/partMasks.ts (drawn pixels split by the colliders), flash + hurt tint per part.
+  - Covers and scopes: UnityPy installed with the owner's yes; E:\SPT-photo\range-assets (44 scopes/60 modes reticles + mrad
+    scale, 11 textures), tools/to_app.py → public/range-figures; src/range/RangeCover.tsx, RangeScopeView.tsx, rangeScope.ts
+    (FOV×zoom constant, FFP/SFP, hold in mrad/MOA, impact point under the reticle, pointer lock aiming).
+  - Checked: vitest src/range+src/arsenal 156/156, tsc, eslint (range clean), dev page (Killa locked, leg outline, covers,
+    ATACR ×7 at 600 m: hold up 6.8 mrad). Test exe built for the owner. Not pushed, not released.
+- 23.11.2026 ~01:30, owner on the range's scope («Прицел Voodoo при приближении и отдалении искажается… становится овальным»;
+  «не работает щелчок мыши, захватить мышь… Нужно, чтобы кнопка была войти в прицел»; «точку, куда… пуля падать… ярко выраженной
+  красной обводкой»). claude/range 7580bfae (electron/main.ts, src/range/RangeScopeView.tsx, src/styles/range.css):
+  - Pointer lock was refused by the app (PAGE_PERMISSIONS lacked 'pointerLock'; checked in a throwaway Electron window: old
+    list → SecurityError, new list → locked). Now allowed (only on a click); «Войти в прицел» button; where a page may not
+    take the mouse the view turns with the cursor over the scope (Esc / leaving the scope ends it).
+  - Oval reticle: global `img { max-width: 100% }` capped an FFP reticle wider than the scope (Vudu 1–2.5×); max-width: none.
+    Checked: Vudu 1→6× width = height at every step.
+  - Impact mark: red ring + dark halo + dot, over the reticle and the night/thermal filters; wheel zooms without scrolling the
+    page; the hint fades after 3 s. vitest src/range 25/25, tsc, eslint clean. Test exe «Raid OS тест Тир 4». Not pushed.
+- 23.11.2026 01:25, photo tour: Shoreline finished — quests 56/56 (38 frames, 26 points), spawns 98/98 (57 frames, 29
+  points); item frames checked by crops at the item's screen point; sheets sent; SPT client/server closed, GAME-BUSY removed.
+  Next map waits for the owner.
+- 23.11.2026 ~04:00, range corrections (owner: the wheel in the scope, R / F, «Раскачка», no masks/glasses, armoured rigs only,
+  the hold in marks with «?» and units, the drop at each distance; then «полосочку… Если прицел красный… черной… черный… красной»).
+  claude/range 49b2ca66 (RangeScopeView, RangeShooting, RangeTarget, rangeScope, new rangeSway.ts and RangeHelpTip.tsx, range.css):
+  wheel smooth on a variable mode, steps between fixed magnifications, page never scrolls in the scope; right button / Esc /
+  «Выйти из прицела» leave; KeyR / KeyF everywhere; sway = a slow loop from ergonomics (0.25–1.6 mrad), view and shot follow;
+  kit without face/eyewear, «Бронеразгрузка» = rigs with plate slots; HoldLine (мрад, MOA, рисок with «?» texts) and DropTable
+  (50–1000 m); the hold mark is a bar, black on a red reticle (scopes.json reticleRed), red otherwise.
+  - Reticle data (public/range-figures is not in git): E:\SPT-photo\range-assets\tools\mark_steps.py after to_app.py writes
+    markMrad / markMaxMrad (the game's own drawn step, kept when ≥5 regular marks of 0.08–2.2 mrad: TANGO6T, 3-24x42 FFP,
+    Trihawk, Mark 5HD, PM II 5-25, ATACR) and reticleRed (19 modes). The drawn steps are often not the real 0.1/0.2/1 mrad or
+    1 MOA (ATACR 0.80/0.155): the marks are counted on the game's pictures as drawn.
+  - My slip: I copied the source scopes.json over the app's copy once; restored at once with to_app.py (44 scopes, 60 modes).
+  - Checked in the dev page: Mark 5HD at 500 m «Вынос вверх 4,6 мрад · 15,7 MOA · 4,5 риски», the table, PS-320 ×6↔×1 by
+    the wheel, the wheel prevented, Vudu bar black / Mark 5HD red, the «?» popups, the sway drifting. tsc, eslint, vitest range 25/25.
+- 23.11.2026 ~14:30, «Полигон» (owner: the distance without optics, «Разброс, отдача, раскачка… должно… работать всегда», helmets
+  that did not appear, one colour of a model, visors, pictures in the armour lists, body armour and armoured rigs in one list, a
+  quick hint at the hold, scopes by groups; then «кнопку тир… переименуем в полигон», the first tab of «Баллистика»).
+  claude/range 0f654faa (src/range/RangePicker.tsx, rangeLists.ts + test, RangeScopePicker, RangeShooting, RangeScopeView,
+  range.css, src/pages/ReferencePages.tsx + AmmoPage.test.tsx, src/i18n/uiEnglishArsenal.ts):
+  - Without optics the old board drew the character at one size whatever the distance; now the sight's own view at ×1 (40°,
+    wheel to ×4, «Прицелиться»): checked 36 m across at 50 m, 302 m at 415 m.
+  - Recoil on weapons without the game's data (rangeRecoil.json) was off: the estimate from the weapon's figures now kicks
+    whenever «Отдача» is on. Spread and sway are angular, so at 25–50 m they are small by nature.
+  - Helmets 38 (37 with pictures, EXFIL once), body armour + armoured rigs 70 (69 with pictures), only what has a worn picture;
+    visors only those drawn on that helmet; a usual kit's helmet swaps to a drawn colour of its model.
+  - Scopes: in rings (a ring mount takes them: /кольц|ring|NNмм/, no \b for Cyrillic), rail, thermal 5, night 2, service 8.
+  - Quick distances 100–800, the hold also without a scope, the drop table open.
+  - vitest src/range 27/27, AmmoPage 4/4, tsc, eslint clean; dev page checked. Test exe «Raid OS тест Тир 7». Not pushed.
+- 23.11.2026 ~19:00, «Полигон»: the flight of a single shot, recoil for every weapon, the game's zero (owner: pictures out of the
+  box (screenshot of FLUX / OTV); «траекторию полета пули в реальном времени… одиночным… кнопку… возле кнопки звук… с
+  соответствующей скоростью»; «до сих пор пропадает отдача и разброс, при разных вариациях переключения прицела и оружия»; «нам
+  не нужны прямые выстрелы… в точности как у них»; «исходя из их траектории в игре, вычисли время полета пули, скорость, энергию…
+  силу притяжения… на разные дистанции»). claude/range (src/range/RangeTracer.tsx new, RangeShooting, RangeScopeView, rangeFlight,
+  rangeRecoil, src/arsenal/ballistics.ts, range.css, rangeTracer.test.ts):
+  - The trajectory checked against the game's code (SPT client, Assembly-CSharp: EFT.Ballistics.TrajectoryCalculator,
+    Shot.CalculateG1DragCoefficient and its G1 list, Weapon.RecalculateScopeCalibrationPoints / CreateOpticCalibrationData;
+    globalgamemanagers PhysicsManager): the same solver as ours — k = m·0.0014223/(d²·BC), ρA = 1.2·πd²/4, a = g + (−ρA·G1(v)·k·v²/2m)·v̂,
+    step 0.01 s, x += v·0.01 + 5e-5·a, Mach 343, all 79 G1 rows, g = −9.81. One difference fixed: the game zeroes a scope with the
+    weapon's DEFAULT round (and the build's speed factor); zeroedTrajectory takes `zeroRound`, the range flies the loaded round
+    against that line of sight. (Bots' bullets in the game fly without gravity — not used.)
+  - «Траектория» (next to «Звук», on by default): a single shot's bullet flies at its real time — the path seen from the eye in the
+    scope, a bright streak, time / speed / energy / height / distance over it; the hole, the hit flash, HP and counters show when
+    the bullet gets there (the shot is worked out as it leaves). The drop table has time, speed and energy at each distance.
+  - Recoil: 14 weapons lack the game's data (MXLR, АК-308, M16A1/A2, HK 416A5, QBZ-191, Type 20, Вал MOD.4, ТКПД, SR-25 tau,
+    NL545 ×2, Сайга Рэдлайн, Scourge) and did not kick on single shots — they take the most alike weapon's recoil at their own
+    force. A failing recoil tick no longer leaves the trigger stuck (recoil and auto fire «пропадали» until reopening). A build
+    with no barrel gets 3 MOA instead of no spread.
+  - Picker thumbnails stay inside the box (one grid track the tile's size).
+  - Checked in the dev page: thumbs 48×26 inside 56×30; toggles «… Звук, Траектория»; table M855 100 m 0.12 s / 777 m/s / 1 208 J;
+    a 400 m shot arrives at 0.63 s, 453 m/s, 410 J, ↓1.12 m. vitest src/range 36/36 + ballistics, tsc, eslint clean.
+- 23.11.2026 evening, STARTED, NOT DONE (owner: «сверху нам надо убрать прицелы, а дать возможность выбирать их в сборке оружия…
+  рассчитывай уже на каждое оружие, на каждый прицел высоту прицела»): the scope from the weapon build, the sight height per
+  build instead of the fixed 6.858 cm. Found: scope bundles hold `mod_aim_camera` and `optic_camera` nodes (UnityPy reads
+  E:\SPT\EscapeFromTarkov_Data\StreamingAssets\Windows\<_props.Prefab.path>); weapons/barrels: look for `fireport`; chain them with
+  public/gun-parts/index.json slot transforms. No code changed yet. Work stopped by the owner (limits); handoff file on the
+  desktop: «Raid OS — передача работы Claude 23.11.2026 вечер.md».
+- 23.11.2026 ~22:00, «Полигон»: the scope from the weapon build, the sight height per build, the zero with the round fired, a short
+  hold bar (owner: «убрать в разделе баллистика, полигон, выбор прицелов сверху посередине… выбираю оружие, выбираю прицел, и в
+  соответствии с прицелом… меняется сетка прицельная в режиме стрельбы. Также пристрелка должна меняться в зависимости от
+  патрона»; «красная полоска, которая на вынос указывает… сделать ее практически размером с сетку… немного шире самой сетки рисок
+  и чуть-чуть толще»). Branch claude/range, not pushed.
+  - The top scope picker is gone (RangeScopePicker.tsx removed): the scope is the build's first part that scopes.json knows; no
+    scope on the build, the open sights. The zero list is the scope's own CalibrationDistances (the select showed 50–400 for all).
+  - Sight height: E:\SPT-photo\range-assets\tools\sight_points.py reads each sight's `mod_aim_camera` (of several, the one level with
+    its `optic_camera`), each weapon's `aim_camera` and the `fireport` of a weapon or barrel without a muzzle slot from the offline
+    game's bundles (UnityPy, no dependencies, 17 s) → public/range-figures/sights.json (316 aim points, 64 bores; in the range pack).
+    Slots read the same way match public/gun-parts/index.json within 0.44 mm. layBuild now returns every part's frame (`frames`,
+    drawn or not); src/range/rangeSight.ts puts the aim point and the first muzzle slot through them: M4A1 + 260 mm barrel + HAMR =
+    7.13 cm. Unknown: the usual 6.858 cm. Shown in the stage head («Прицел HAMR · над стволом 7,1 см»), the hold line, the drop table.
+  - The zero is computed with the round fired at that sight height (rangeFlight `Zeroing`); the game itself zeroes with the weapon's
+    default round, kept as an option (`zeroAmmo`) for the tests only.
+  - Hold bar: mark_steps.py also measures how wide the reticle's marks are (`tickMrad`, `tickMaxMrad`, 80th percentile of the marks'
+    widest rows); the bar is 1.25× that (2.4 % of the view where unknown, 1.4–4 % of the view), 4 px with a 7 px rim (was 8 % and 3 px).
+  - vitest src/range + ballistics, tsc, eslint clean.
+- 23.11.2026 ~23:40, «Полигон»: a single shot kicks, a red dot seen as in the game, the sight slot's tabs (owner: «нету отдачи в
+  одиночном режиме стрельбы»; «при стрельбе из коллиматора должен включаться прямо вот вид, как в игре… рамки самого коллиматора…
+  и прицельная сетка коллиматора»; «в сборке оружия, где у нас выбор прицела… вкладки: кольца, оптические прицелы, прицелы на планку
+  и коллиматоры, тепловизоры и ночные прицелы»). Branch claude/range, not pushed.
+  - Single shot: the recoil sim said «at rest» right after `shot()` (the kick waits for the next 1/60 s tick), and a click is handled
+    just before the frame's callbacks (a zero or negative step), so with the trigger already let go the range stopped its ticks on the
+    first frame and the kick never applied (automatic and bursts hold the trigger, so they kicked). `resting()` now waits for a pending
+    kick and for the barrel, view and camera to stand still (the game's after-shot offset leaves a small standing turn, never «speed 0»);
+    the step is never negative; at rest the range keeps that last reading (the next bullet goes there too). M4A1: 0.55° up, back in ~1 s.
+  - Red dots: E:\SPT-photo\range-assets\tools\collimators.py (43 collimators, 13 s): each mode's mark as the game's collimator shader
+    draws it (its vertex program disassembled: uv = 0.5 + 0.5·k·(d.x, −d.z), d = cam − _MarkShift − v/_MarkScale, k = _MarkShift.y²/d.y;
+    colour = alpha · _Color · _HDR · 0.769, additive), from the sight's mod_aim_camera through the lens mesh, centred on the mark; the
+    housing from the same eye (LOD0 meshes with their albedo, the glass faint) at 40° like the open sights → public/range-figures
+    collimators.json, reticle-<id>-m<N>.webp, housing-<id>.webp (1.4 MB, in the pack: RANGE_PACK_FILE takes housing-… and
+    collimators.json). EOTech EXPS3 ring ≈ 25 mrad with its glow (real 68 MOA ≈ 20 mrad). The range takes a magnified scope first
+    (scopes.json), then a red dot; the housing moves with the barrel like the reticle and grows with the wheel's zoom; several
+    reticles: «Сетка 1…N».
+  - Tabs: src/arsenal/sightTabs.ts (by tarkov.dev category: mount / scope / assault-scope + reflex + compact reflex / special-scope /
+    the rest «Прочее»), shown in ModGrid when a slot takes sights and they fall in two tabs or more — so also in «Сборка оружия».
+    Optical scopes need rings: in a receiver's scope slot «Оптические прицелы» lists only those that fit the rail directly.
+  - Checked on the dev page (RU/EN): M4A1 + EXPS3-0 and + MRS (4 reticles), a single shot's view kick ~72 cm at 50 m and back.
+    vitest src/range src/arsenal src/i18n (213), tsc, eslint clean.
+- 24.11.2026 ~02:30, «Полигон» and «Сборка оружия»: rings first, the hold bar, the reticle centred, red dots without zoom, HHS-1's
+  magnifier, first focal plane reticles at every zoom, the scope's corners, the phone's full screen (owner, 24.11.2026: «Сначала мы
+  выбираем кольца и планки, а потом… в следующем окне уже оптические прицелы… ADO P4… перенеси в прицелы на планку»; «вынос… чуть
+  больше, чем риска… и сделай её красной… не такую огромную»; «сетки при увеличении начинают уезжать в сторону»; «на коллиматорах, где
+  нету кратности… не должны приближаться… HHS1 тан… магнифер»; «где сетка в первой фокальной плоскости, а где во второй. Это должно
+  работать правильно»; «Кнопки перезарядки и начать заново перенеси вот в эти края… Справа сверху… кнопку на весь экран… для телефона…
+  Джойстик слева, огонь справа. И перевод в горизонтальное положение»; «Слева сверху… кнопка переключения огня»; «отсечка… Назови его
+  очередями»). Branch claude/range, not pushed, test builds only.
+  - Sight tabs (src/arsenal/sightTabs.ts): a ring is a mount with a seat that takes optical scopes only (Lobaev 30 мм, NF 34 мм…, 18 on
+    the M4A1's receiver); on a rail «Оптические прицелы» lists the rings (and «Кольца» keeps every mount), a scope fitting the rail
+    directly (ADO P4, the ПСО family on the dovetail) goes under «Прицелы на планку и коллиматоры»; in a ring's seat the scopes are one
+    list. Picking a ring opens its seat's window next (ModGrid `onPick(itemId, then)`; «Сборка оружия», «Оружейник», «Полигон»).
+  - Hold bar: E:\SPT-photo\range-assets\tools\mark_steps.py measured the marks' width on the 80th percentile (a ladder's long marks);
+    now the shortest quarter of the marks standing at least three times the line's width out of it. TANGO6T 0.97 → 0.70 mrad, Mark 5HD
+    1.23 → 0.70, PM II 5-25 high zoom 0.19 → 0.11, ATACR high zoom 0.19 → 0.18. The bar 1.3 × that (1–3 % of the view, 1.8 % unknown),
+    3 px with a 1 px rim; red, black on a red reticle as before.
+  - Reticle off centre when zoomed: after a shot the barrel settles a little to the side (the game's after-shot offset) and the view
+    followed only its pitch, so the reticle stood off the middle by a fixed angle that grew on the screen with the magnification. Once
+    the shooting is over the view now turns to the barrel's side offset too (rangeRecoil `followRight`): the reticle is in the middle again.
+  - Red dots: no zoom (collimators.py writes ×1 without zoomMax; 4 min 46 s for 43). HHS-1 (black, tan): the prefab has the G33 twice,
+    in line (pos_1 + its backLens) and flipped (pos_2); the ×1 housing is drawn with it flipped, and the range joins the sight's red dot
+    (collimators.json) and its ×3 magnified mode (scopes.json): ×1 / ×3 buttons, the wheel switches (rangeScope `sightOnBuild`).
+  - First focal plane: the range had two pictures, the lowest zoom's (4096 px shrunk to 1024) and the highest's; past the range's middle
+    the high one covered only the highest zoom's view (PM II 1-8 at ×3: the middle third, the outer posts cut), below it the low one was
+    blown up and blurred. export_reticles.py now draws each mesh reticle on steps ×1.5 apart (2048 px, each covering its zoom's whole
+    view, the blend shape at that FOV as the game weighs it), to_app.py writes `reticleSteps`, the range shows the step at or below the
+    zoom. Second focal plane scopes (texture reticles spanning the optic view) are unchanged. Which is which comes from the game itself
+    (mesh ScopeReticle = FFP; texture = SFP).
+  - Scope corners: fire mode top left (and B), reload bottom left (R), new target bottom right (F); «Убрать отметки» stays above; the
+    killed banner moved to the top middle. On a phone (phone layout or a touch screen) a full screen button top right: the scope over
+    the whole screen, the stick on the left (speed by how far it is pushed, slow near the middle), «Огонь» on the right (held = automatic)
+    with the magazine under it; the browser's full screen and a landscape lock where given, else the picture turned a quarter by CSS
+    while the phone is upright (the stick's way turned back). Burst renamed «Очередями».
+- 24.11.2026 ~02:40, the sight slot: no «Оптические прицелы» tab on a rail (owner: «оптические прицелы убери. Они будут появляться только
+  когда выбраны кольца… второй блок для выбора прицела… прицелы… которые подходят именно на это кольцо»): the rings are under
+  «Кольца» only; picking one still opens its seat's window, which lists the scopes of that ring (one list, no tabs). Тир 12.
+- 24.11.2026 ~03:20, the range's recoil a little under the game's (owner: «чтобы она чуть-чуть отличалась от оригинальной. Чуть-чуть
+  меньше отдачу сделай»): rangeRecoil `RANGE_RECOIL_SCALE = 0.92` on every kick (the camera's follows it). Тир 13.

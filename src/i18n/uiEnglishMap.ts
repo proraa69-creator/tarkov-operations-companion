@@ -18,14 +18,14 @@ export const MAP_PHRASES: Array<[string, string]> = [
   // Quest card under the map: objectives grouped by what is done (src/progression/sheetObjectives.ts)
   ['Сдать торговцу', 'Hand over to trader'], ['Вне рейда', 'Outside the raid'], ['найден в рейде', 'found in raid'],
   ['Показать точку на карте', 'Show the point on the map'], ['Нашёл', 'Found'], ['Убрать с карты до конца рейда', 'Off the map until the raid ends'], ['Все места на карте', 'All places on this map'], ['Вернуть найденные', 'Bring back the found ones'],
-  ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'],
+  ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'], ['Найдено сегодня', 'Found today'], ['Дневной лимит документов исчерпан', 'The daily document limit is reached'],
   ['Точка перехода между локациями.', 'Transit point between locations.'], ['Переход', 'Transit'],
   ['Санаторий (главный корпус)', 'Health resort (main building)'], ['Ж/д пути у перехода', 'Railway by the transit'], ['неизвестная зона', 'unknown zone'],
   ['Спавн ЧВК', 'PMC spawn'], ['Спавн Диких', 'Scav spawn'], ['Спавн дикого', 'Scav spawn'], ['Спавны ЧВК', 'PMC spawns'], ['Спавны диких', 'Scav spawns'], ['Снайперы', 'Snipers'], ['Здесь ЧВК начинают рейд.', 'PMCs start the raid here.'], ['Здесь появляются дикие.', 'Scavs appear here.'], ['Точка появления.', 'Spawn point.'], ['спавн', 'spawn'],
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'],
   // «Спавн 100 %» layer: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts).
-  ['Лежит здесь в каждом рейде.', 'Here every raid.'],
+  ['Лежит здесь в каждом рейде.', 'Here every raid.'], ['Лежит в куртке в каждом рейде.', 'In the jacket every raid.'],
   ['Возможная точка спавна', 'Possible spawn spot'],
   // «Нужные ключи» (reports №112, №113).
   ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],
@@ -91,6 +91,9 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Осмотреть круг культистов на Береге', 'Investigate the cultist circle on Shoreline'],
   ['Осмотреть круг культистов в Лесу', 'Investigate the cultist circle on Woods'],
   ['Осмотреть круг культистов на Таможне', 'Investigate the cultist circle on Customs'],
+  ['Круг культистов (любое из 3 мест): командный бункер, под землёй', 'Cultist circle (any of 3 places): command bunker, underground'],
+  ['Круг культистов (любое из 3 мест): подвал «Чёрной пешки»', 'Cultist circle (any of 3 places): Black Pawn basement'],
+  ['Круг культистов (любое из 3 мест): казармы у вокзала', 'Cultist circle (any of 3 places): the barracks by the train station'],
   ['Добыть ключ от квартиры', 'Obtain the key to the apartment'],
   ['Найти вход в подземный комплекс под Санаторием', 'Locate the entrance to the underground facility beneath the Health Resort'],
   ['Найти следы отряда BEAR в Лабиринте', 'Locate the traces of the BEAR squad in The Labyrinth'],
@@ -146,7 +149,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Вся карта', 'Whole map'], ['Все точки задания', 'All quest points'], ['Снять выбор задания', 'Clear quest selection'],
   // Quest candidate points and locked doors (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx)
   ['Возможное место предмета', 'Possible item location'], ['этажи', 'floors'], ['Возможная точка задания', 'Possible objective point'],
-  ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'],
+  ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'], ['Багажник машины', 'Car trunk'], ['Жигули', 'Zhiguli'], ['Почта Руси', 'Russian Post'], ['Полиция', 'Police'],
   ['Ключ-карта TerraGroup Labs (красная)', 'TerraGroup Labs keycard (Red)'], ['Ключ-карта TerraGroup Labs (зелёная)', 'TerraGroup Labs keycard (Green)'],
   ['Ключ-карта TerraGroup Labs (синяя)', 'TerraGroup Labs keycard (Blue)'], ['Ключ-карта TerraGroup Labs (фиолетовая)', 'TerraGroup Labs keycard (Violet)'],
   ['Ключ-карта TerraGroup Labs (жёлтая)', 'TerraGroup Labs keycard (Yellow)'], ['Ключ-карта TerraGroup Labs (чёрная)', 'TerraGroup Labs keycard (Black)'],
@@ -195,6 +198,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
 /** Patterns with a variable part, applied after the phrase table. */
 export const MAP_RULES: Array<[RegExp, string]> = [
   [/^Одна из (\d+) возможных точек спавна\.$/u, 'One of $1 possible spawn spots.'],
+  [/Всегда в одной из (\d+) точек\./gu, 'Always at one of $1 spots.'],
   [/^Ключи: (\d+)$/u, 'Keys: $1'],
   [/^Может лежать один из: (.+)\.$/u, 'May lie here: one of $1.'],
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
@@ -224,6 +228,7 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/Конкретной точки нет — вся карта\.?/g, 'No specific point: the whole map.'],
   [/Возможная зона появления:\s*/g, 'Possible spawn zone: '],
   [/Дверь:\s*/g, 'Door: '],
+  [/Нужен ключ от автомобиля\s*«([^»]+)»/g, 'Requires the “$1” car key'],
   [/Нужен ключ\s*«([^»]+)»/g, 'Requires key “$1”'],
   [/Требуется:\s*/g, 'Requires: '],
   [/(\d(?:[\d\s\u00a0]*\d)?)\s*опыта/g, '$1 XP'],

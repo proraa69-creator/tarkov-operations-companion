@@ -169,10 +169,10 @@ describe('«Отчёты»', () => {
     const taken = await rowOf('Делаю сам')
     expect(within(taken).getAllByRole('button').map((button) => button.textContent)).toEqual(['Готово', 'Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
     await user.click(within(taken).getByRole('button', { name: 'Готово' }))
-    // «Выдать 1 день?» (owner, 08.11.2026): «Да» closes the report and gives its author the day
+    // «Выдать 2 дня?» (owner, 08.11.2026; 2 days since 24.11.2026): «Да» closes the report and gives its author the days
     await user.click(screen.getByRole('button', { name: 'Да' }))
     await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, , body]) => body)).toContainEqual({ action: 'implemented' }))
-    await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/reward')).map(([, , body]) => body)).toContainEqual({ days: 1 }))
+    await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/reward')).map(([, , body]) => body)).toContainEqual({ days: 2 }))
   })
 
   it('«Подробнее» grows the row itself: no second line under it, and the whole text shows', async () => {
@@ -198,7 +198,7 @@ describe('«Отчёты»', () => {
 
     await user.click(screen.getByRole('button', { name: 'Начислить дни' }))
     await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/reward')).map(([, path, body]) => [path, body])).toEqual([
-      ['/v1/accounts/me/admin/bug-reports/1/reward', { days: 1 }], ['/v1/accounts/me/admin/bug-reports/2/reward', { days: 1 }],
+      ['/v1/accounts/me/admin/bug-reports/1/reward', { days: 2 }], ['/v1/accounts/me/admin/bug-reports/2/reward', { days: 2 }],
     ]))
 
     await user.click(screen.getByRole('button', { name: 'Перенести точку сюда' }))

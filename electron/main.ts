@@ -1,6 +1,6 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { displayScale, followDisplayScale, opensMaximized, scaledWindowSize } from './uiScale.js'
 import { readSavedWindow, rememberWindow, restoredBounds } from './windowState.js'
 import { existsSync, watch as watchFs } from 'node:fs'
@@ -19,7 +19,8 @@ import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearS
 import { scanCollectorScreen } from './collectorScan.js'
 import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
 import { createGunPartResponder } from './gunParts.js'
-import { startExperimental, stopExperimental } from './experimental/index.js'
+import { RANGE_PACK_FILE, RANGE_PACK_NAME } from '../src/range/rangePack.js'
+import { setGameLogFolders, startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { setMapFloorWheel, startMapFloorWheel, stopMapFloorWheel } from './mapFloorWheel.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
@@ -41,8 +42,11 @@ import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
-import { removeMigratedPortable, removePortableLeftovers } from './appInstall.js'
-import { abandonStagedBoot, confirmStagedBoot } from './deltaUpdate.js'
+import { installedExe, removeMigratedPortable, removePortableLeftovers, updatableExe } from './appInstall.js'
+import { abandonStagedBoot, confirmStagedBoot, relaunchWhenClosed } from './deltaUpdate.js'
+import { FIRST_PAINT_MS, nextStartStep, readGpuFallback, writeGpuFallback, type DrawingTrouble } from './gpuFallback.js'
+import { appendStartLog, startLogTail } from './startLog.js'
+import { shouldReloadAfterCrash, shouldReportLoadFailure, startNotes, startNotesScript } from './startDiagnostics.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
@@ -62,6 +66,120 @@ if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData
 // A test build (electron/buildEdition.ts isTestBuild) too: it runs beside the real app and never touches its data.
 else if (isTestBuild()) { app.setName(TEST_BUILD_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TEST_BUILD_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
+// A start that drew nothing turned the graphics card off for this copy (electron/gpuFallback.ts); it must be before the app is ready.
+const gpuFallback = readGpuFallback(app.getPath('userData'))
+const gpuOffByArgument = app.commandLine.hasSwitch('disable-gpu')
+if (gpuFallback.softwareDrawing) app.disableHardwareAcceleration()
+// The last step before giving up: no Chromium sandbox, which some security software does not let the page's process start in.
+if (gpuFallback.noSandbox) app.commandLine.appendSwitch('no-sandbox')
+const startLog = (line: string) => appendStartLog(app.getPath('userData'), line)
+startLog(`start ${app.getVersion()} · Windows ${process.getSystemVersion()} ${process.arch} · ${[gpuFallback.softwareDrawing ? 'software drawing' : '', gpuFallback.noSandbox ? 'no sandbox' : '', gpuOffByArgument ? '--disable-gpu' : '', app.commandLine.hasSwitch('no-sandbox') && !gpuFallback.noSandbox ? '--no-sandbox' : ''].filter(Boolean).join(', ') || 'normal'}`)
+/** The main window has drawn its page: the graphics card works. */
+let firstPicture = false
+let restartingForSoftwareDrawing = false
+
+/**
+ * A start that cannot show its page says so instead of a dark window (electron/startDiagnostics.ts): the page that could not be
+ * opened, the page's process gone after it drew, and the facts for the page's own failure screen (public/startup-intro.js).
+ */
+function watchStart(window: BrowserWindow) {
+  const contents = window.webContents
+  let loaded = false
+  let preloadError: string | undefined
+  const reloads: number[] = []
+  contents.on('preload-error', (_event, _path, error) => { preloadError = error?.message ?? String(error); startLog(`preload error: ${preloadError}`) })
+  contents.on('did-finish-load', () => { if (!loaded) startLog('page loaded'); loaded = true })
+  contents.on('unresponsive', () => startLog('page unresponsive'))
+  contents.on('dom-ready', () => {
+    let gpu: Record<string, string> | undefined
+    try { gpu = app.getGPUFeatureStatus() as unknown as Record<string, string> } catch { gpu = undefined }
+    const notes = startNotes({ version: app.getVersion(), system: `Windows ${process.getSystemVersion()} ${process.arch}`, gpu, softwareDrawing: gpuFallback.softwareDrawing || gpuOffByArgument, preloadError })
+    void contents.executeJavaScript(startNotesScript(notes)).catch(() => undefined)
+  })
+  contents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
+    if (!shouldReportLoadFailure({ code, isMainFrame, loaded }) || window.isDestroyed()) return
+    startLog(`page failed to load: ${description} (${code})`)
+    if (!window.isVisible()) window.show()
+    void dialog.showMessageBox(window, {
+      type: 'error',
+      title: 'Raid OS',
+      message: 'Raid OS не смог открыть своё окно',
+      detail: `${description} (${code})\n${url}\nВерсия ${app.getVersion()} · Windows ${process.getSystemVersion()}`,
+      buttons: ['Попробовать снова', 'Закрыть'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    }).then(({ response }) => {
+      if (window.isDestroyed()) return
+      if (response === 0) contents.reload()
+      else app.quit()
+    })
+  })
+  contents.on('render-process-gone', (_event, details) => {
+    startLog(`page process gone: ${details.reason}, code ${details.exitCode}${firstPicture ? ' (after the first picture)' : ''}`)
+    const now = Date.now()
+    if (window.isDestroyed() || !shouldReloadAfterCrash(details.reason, firstPicture, reloads, now)) return
+    reloads.push(now)
+    contents.reload()
+  })
+}
+
+/**
+ * A dark start (owner, 23.11.2026: a player's «черный экран»): note it and start again once in software, the portable exe once
+ * its launcher has gone (it deletes the unpacked files), the installed one once this copy has.
+ */
+function drawInSoftware(trouble: DrawingTrouble) {
+  if (restartingForSoftwareDrawing) return
+  const why = trouble.kind === 'no-picture' ? trouble.kind : `${trouble.kind}: ${trouble.reason}`
+  const step = nextStartStep(trouble, { softwareDrawing: gpuFallback.softwareDrawing, noSandbox: gpuFallback.noSandbox === true, painted: firstPicture, disabledByArgument: gpuOffByArgument })
+  if (!step) return
+  startLog(`${why} → ${step}`)
+  if (step === 'report') { void showStartFailure(why); return }
+  try {
+    writeGpuFallback(app.getPath('userData'), why, new Date(), step === 'no-sandbox')
+  } catch {
+    return // a note that cannot be written would start it again and again
+  }
+  restartingForSoftwareDrawing = true
+  const exe = updatableExe()
+  if (app.isPackaged && exe) relaunchWhenClosed(exe, installedExe() ? process.pid : process.ppid)
+  else app.relaunch()
+  app.quit()
+  setTimeout(() => app.exit(0), 5000).unref()
+}
+app.on('child-process-gone', (_event, details) => {
+  if (details.reason !== 'clean-exit') startLog(`process ${details.type}${details.name ? ` (${details.name})` : ''} gone: ${details.reason}, code ${details.exitCode}`)
+  if (details.type === 'GPU') drawInSoftware({ kind: 'gpu-gone', reason: details.reason })
+})
+
+/**
+ * Nothing helped (software drawing, no sandbox): a window of Windows itself — it needs no page — with the reason, the last lines
+ * of the start log and «Скопировать для поддержки», once a start.
+ */
+let startFailureShown = false
+async function showStartFailure(why: string) {
+  if (startFailureShown) return
+  startFailureShown = true
+  const text = [`Raid OS ${app.getVersion()} не открыл окно (${why})`, startLogTail(app.getPath('userData'), 40)].join('\n')
+  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined
+  const options: MessageBoxOptions = {
+    type: 'error',
+    title: 'Raid OS',
+    message: 'Raid OS не смог открыть окно',
+    detail: `Не помогли ни отрисовка без видеокарты, ни запуск без песочницы. Нажмите «Скопировать для поддержки» и вставьте текст в чат поддержки на raidos.app.\n\n${startLogTail(app.getPath('userData'), 12)}`,
+    buttons: ['Скопировать для поддержки', 'Закрыть'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  }
+  const { response } = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options)
+  if (response === 0) {
+    clipboard.writeText(text)
+    const copied: MessageBoxOptions = { type: 'info', title: 'Raid OS', message: 'Текст скопирован', detail: 'Вставьте его в чат поддержки на raidos.app (Ctrl+V).', buttons: ['OK'], noLink: true }
+    if (parent && !parent.isDestroyed()) await dialog.showMessageBox(parent, copied)
+    else await dialog.showMessageBox(copied)
+  }
+}
 // One copy at a time (electron/singleInstance.ts), checked after the data folder is set: the lock belongs to that folder.
 // A copy the app started itself takes the lock in `whenReady`, once the copy it replaces has gone.
 const takesLockLater = startedByTheApp(process.argv)
@@ -73,7 +191,8 @@ function leaveForTheRunningCopy() {
   app.exit(0)
 }
 /** The permissions the app's pages may get (setPermissionRequestHandler below); everything else is refused. */
-const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen'])
+// pointerLock: the range's scope takes the mouse while aiming (src/range/RangeScopeView.tsx), on a click only; Esc gives it back
+const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen', 'pointerLock'])
 let mainWindow: BrowserWindow | null = null
 /**
  * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
@@ -126,7 +245,10 @@ const logWatcher = createLogWatcher({
   discover: async ({ thorough, extra }) => {
     const found = await discoverAllEftLogs(app.getPath('appData'), thorough ? { fresh: true } : { drives: false, lookupMaxAgeMs: 10 * 60_000 })
     const remembered = await rememberedLogsFolder().catch(() => '')
-    return freshestLogsFolder([...extra, remembered || undefined, ...found])
+    const folders = [...extra, remembered || undefined, ...found]
+    // the Steam build writes its screenshots beside its logs: that folder is followed for the position too
+    setGameLogFolders(folders)
+    return freshestLogsFolder(folders)
   },
   scan: (root, options) => scanLogFolderBySession(root, options),
   identity: (root, options) => scanLogIdentity(root, options),
@@ -255,6 +377,11 @@ function createWindow() {
   }
   const revealAnyway = setTimeout(reveal, WINDOW_REVEAL_MAX_MS)
   mainWindow.once('ready-to-show', reveal)
+  // Nothing drawn, or the page gone before its first picture: the graphics card is blamed once (electron/gpuFallback.ts)
+  const noPicture = setTimeout(() => drawInSoftware({ kind: 'no-picture' }), FIRST_PAINT_MS)
+  mainWindow.once('ready-to-show', () => { firstPicture = true; clearTimeout(noPicture); startLog('first picture') })
+  mainWindow.webContents.on('render-process-gone', (_event, details) => drawInSoftware({ kind: 'page-gone', reason: details.reason }))
+  watchStart(mainWindow)
   rememberWindow(mainWindow, stateFile)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)
@@ -335,11 +462,13 @@ app.whenReady().then(async () => {
     { name: 'raidos.app (Chromium)', url: (path) => `${MAP_FILE_ORIGIN}${path}`, fetch: chromiumFetch },
     { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: chromiumFetch },
   ])
-  // «Сборка оружия»: the part pictures inside the app (electron/gunParts.ts)
-  const answerGunPart = createGunPartResponder(join(dirname(APP_INDEX_FILE), 'gun-parts'))
+  // «Сборка оружия»: the part pictures inside the app, one encrypted pack (electron/gunParts.ts)
+  const answerGunPart = createGunPartResponder(join(dirname(APP_INDEX_FILE), 'gun-parts.pack'))
+  // «Тир»: its pictures, a test build only (src/range/rangeFigures.ts)
+  const answerRangeFigure = createGunPartResponder(join(dirname(APP_INDEX_FILE), RANGE_PACK_NAME), undefined, 'range', RANGE_PACK_FILE)
   protocol.handle(ITEM_IMAGE_SCHEME, (request) => {
     const host = new URL(request.url).hostname
-    return host === 'map' ? answerMapFile(request.url) : host === 'parts' ? answerGunPart(request.url) : answerItemImage(request.url)
+    return host === 'map' ? answerMapFile(request.url) : host === 'parts' ? answerGunPart(request.url) : host === 'range' ? answerRangeFigure(request.url) : answerItemImage(request.url)
   })
   // What the page may ask for (security review, 03.11.2026): copying text, the owner panel's notifications, full screen
   // for a video. Camera, microphone, the screen, location, USB and the rest are refused without asking — the app runs as

@@ -49,6 +49,15 @@ export interface OnlineCount {
   at: string
 }
 
+/** One account in the apps right now (PresenceTracker.of). */
+export interface AccountPresence {
+  pc: boolean
+  phone: boolean
+  /** The phone app's system while `phone`. */
+  platform?: PhonePlatform
+  windowMinutes: number
+}
+
 export class PresenceTracker {
   private readonly seen = new Map<string, Partial<Record<PresenceClient | PhonePlatform, number>>>()
   private readonly now: () => number
@@ -90,6 +99,18 @@ export class PresenceTracker {
       if (within(entry.ios)) ios++
     }
     return { online, pc, phone, android, ios, windowMinutes: Math.round(this.windowMs / 60_000), at: new Date(now).toISOString() }
+  }
+
+  /**
+   * One account right now (owner, 24.11.2026, the player's card «Посмотреть профиль»): in the PC app, in the phone app
+   * (and on which system) within the window. Nothing is remembered beyond the window.
+   */
+  of(accountId: string): AccountPresence {
+    const now = this.now()
+    const entry = this.seen.get(accountId) ?? {}
+    const within = (at: number | undefined) => at !== undefined && now - at < this.windowMs
+    const platform: PhonePlatform | undefined = within(entry.android) ? 'android' : within(entry.ios) ? 'ios' : undefined
+    return { pc: within(entry.pc), phone: within(entry.phone), ...(platform ? { platform } : {}), windowMinutes: Math.round(this.windowMs / 60_000) }
   }
 
   private prune(now: number) {

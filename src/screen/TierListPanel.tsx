@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMous
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
-  Archive, Backpack, Bomb, Crosshair, Gem, HardHat, Headphones, HeartPulse, KeyRound, Package, RectangleVertical,
+  Archive, Backpack, Bomb, ChevronsDown, ChevronsUp, Crosshair, Gem, HardHat, Headphones, HeartPulse, KeyRound, Package, RectangleVertical,
   RefreshCw, Search, Shield, ShieldHalf, Syringe, UtensilsCrossed, Wrench, type LucideIcon,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -17,14 +17,16 @@ import { useHoverCard } from '../components/useHoverCard'
 import { usePopupMenu } from '../components/usePopupMenu'
 import { useGunCatalog } from '../arsenal/gunCatalog'
 import { buildableWeapon } from '../arsenal/tieredBuilds'
+import { canToggleVisor, visorPhoto } from './helmetVisors'
 import './tierLists.css'
 import { mirrorMode } from '../data/tarkovDataset'
 import { useAppState } from '../state/AppState'
 import type { GearStats, RaidMode } from '../domain/types'
 import { formatPrice, timeAgo } from '../shared/format'
 import {
-  ammoTierRows, BACKPACK_STEPS, BY_WHOLE_PRICE, LEVEL_GROUPS, gearTierRows, HEADSET_STEPS, helmetsBlocking, isFigurine,
-  foodStatsIndex, foodTierRows, mobilityPenalty, protectionLevel, slotTierRows, tilePictures, TIERS, type FoodStats, type GearGroup, type PriceCategory, type TierRow,
+  ammoTierRows, BACKPACK_STEPS, BY_WHOLE_PRICE, LEVEL_GROUPS, gearTierRows, HEADSET_STEPS, helmetsBlocking, helmetWorn, isFigurine,
+  foodStatsIndex, foodTierRows, mobilityPenalty, ricochetLevel, slotTierRows, tilePictures, TIERS, type FoodStats, type GearGroup,
+  type PriceCategory, type TierRow, type VisorPosition,
 } from './tierLists'
 
 /** The category blocks at the top of «Тир листы» (owner, 02.11.2026: «при открытии там будут сверху блоки с разными категориями»). */
@@ -63,6 +65,7 @@ const MATERIALS: Record<string, [string, string]> = {
   Titan: ['титан', 'titanium'], ArmoredSteel: ['бронесталь', 'armored steel'], Aluminium: ['алюминий', 'aluminium'], Glass: ['стекло', 'glass'],
 }
 const DEAFENING: Record<string, [string, string]> = { None: ['нет', 'none'], Low: ['слабо', 'low'], Medium: ['средне', 'medium'], High: ['сильно', 'high'] }
+const RICOCHET: Record<ReturnType<typeof ricochetLevel>, [string, string]> = { high: ['высокий', 'high'], medium: ['средний', 'medium'], low: ['низкий', 'low'] }
 
 /** How many tiles a tier shows before «ещё N» (mods and barter have hundreds of items). */
 const TIER_LIMIT = 60
@@ -106,12 +109,29 @@ function useCatalogExtras(mode: RaidMode, needed: boolean) {
  * name, the picture and the facts as label — value rows. The picture tries the next address when one does not load
  * (tierLists.ts tilePictures); `onMissing` once none does.
  */
-function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon, onMenu }: { row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void; visor?: string; presetIcon?: string; onMenu?: (event: ReactMouseEvent) => void }) {
-  const urls = tilePictures(row.item, row.gear, presetIcon)
-  const [at, setAt] = useState(0)
+function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon, photo, toggle, onMenu }: {
+  row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void; visor?: string; presetIcon?: string
+  /** A helmet's picture with its visor down or raised (helmetVisors.ts), before its other pictures. */
+  photo?: string
+  /** The one button of its menu: «Опустить забрало» or «Поднять забрало». */
+  toggle?: { label: string; down: boolean; onPick: () => void }
+  /** A weapon's right click: «Перейти к сборке оружия» (WeaponMenu). */
+  onMenu?: (event: ReactMouseEvent) => void
+}) {
+  const urls = photo ? [photo, ...tilePictures(row.item, row.gear, presetIcon)] : tilePictures(row.item, row.gear, presetIcon)
+  // The picture tried, from the first again when the visor's position gives another one.
+  const [tried, setTried] = useState({ photo, at: 0 })
+  const at = tried.photo === photo ? tried.at : 0
   const url = !missing ? urls[at] : undefined
-  const fail = () => { if (at + 1 < urls.length) setAt(at + 1); else onMissing() }
+  const fail = () => { if (at + 1 < urls.length) setTried({ photo, at: at + 1 }); else onMissing() }
   const weapon = row.item.types?.includes('gun')
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const closeMenu = useCallback(() => setMenuAt(null), [])
+  // A phone: the long press shows the card, the lifted finger the menu under the tile (over it near the bottom bar).
+  const below = (anchor: HTMLElement) => {
+    const box = anchor.getBoundingClientRect()
+    setMenuAt({ x: box.left, y: window.innerHeight - box.bottom > 130 ? box.bottom + 4 : box.top - 48 })
+  }
   const { anchorProps, card } = useHoverCard(
     <div className="tier-card">
       <div className="tier-card-head">
@@ -124,15 +144,48 @@ function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon, o
       </div>
       <dl className="tier-card-facts">{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     </div>,
+    toggle ? { onHoldEnd: below } : {},
   )
+  // A right click (or the keyboard's menu key) opens the menu; a touch never does, the held card would hide under it.
+  const holdMenu = 'onContextMenu' in anchorProps ? anchorProps.onContextMenu : undefined
+  const onContextMenu = toggle ? (event: ReactMouseEvent<HTMLDivElement>) => {
+    holdMenu?.(event)
+    if (event.defaultPrevented) return
+    event.preventDefault()
+    if (!event.clientX && !event.clientY) below(event.currentTarget)
+    else setMenuAt({ x: event.clientX, y: event.clientY })
+  } : (onMenu ?? holdMenu)
+  // The menu outside the tile: its events do not reach the tile's hover card.
   return (
-    <div className={`tier-tile${weapon ? ' is-weapon' : ''}`} tabIndex={0} {...anchorProps} onContextMenu={onMenu}>
-      {url ? <img key={url} src={url} alt="" loading="lazy" onError={fail} /> : <span className="tier-no-icon" />}
-      {visor && <img className="tier-tile-visor" src={visor} alt="" loading="lazy" />}
-      <span className="tier-name">{uiText(row.item.shortName)}</span>
-      <span className="tier-metric">{metric}</span>
-      {card}
-    </div>
+    <>
+      <div className={`tier-tile${weapon ? ' is-weapon' : ''}`} tabIndex={0} {...anchorProps} onContextMenu={onContextMenu}>
+        {url ? <img key={url} src={url} alt="" loading="lazy" onError={fail} /> : <span className="tier-no-icon" />}
+        {visor && <img className="tier-tile-visor" src={visor} alt="" loading="lazy" />}
+        <span className="tier-name">{uiText(row.item.shortName)}</span>
+        <span className="tier-metric">{metric}</span>
+        {card}
+      </div>
+      {toggle && <VisorMenu at={menuAt} toggle={toggle} onClose={closeMenu} />}
+    </>
+  )
+}
+
+/**
+ * A helmet's right-click menu (owner, 20.11.2026: «если забрало поднято… появляется кнопка опустить. Если забрало опущено…
+ * кнопка поднять. Одна кнопка, которая меняется в зависимости от положения»).
+ */
+function VisorMenu({ at, toggle, onClose }: { at: { x: number; y: number } | null; toggle: NonNullable<Parameters<typeof TierTile>[0]['toggle']>; onClose: () => void }) {
+  const ref = usePopupMenu(at, onClose)
+  if (!at) return null
+  const left = Math.max(8, Math.min(at.x, window.innerWidth - 208))
+  const top = Math.max(8, Math.min(at.y, window.innerHeight - 52))
+  return createPortal(
+    <div ref={ref} className="tier-visor-menu" role="menu" style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
+      <button type="button" role="menuitem" onClick={() => { onClose(); toggle.onPick() }}>
+        {toggle.down ? <ChevronsUp size={14} aria-hidden="true" /> : <ChevronsDown size={14} aria-hidden="true" />}{toggle.label}
+      </button>
+    </div>,
+    document.body,
   )
 }
 
@@ -190,6 +243,8 @@ export function TierListPanel() {
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string[]>([])
   const [missing, setMissing] = useState<ReadonlySet<string>>(() => new Set())
+  // Helmets whose visor the player raised (helmetVisors.ts); the rest have it down, as the list ranks them.
+  const [raised, setRaised] = useState<ReadonlySet<string>>(() => new Set())
   const isAmmo = category === 'ammo'
   const group = GEAR[category]
   const byLevel = group ? LEVEL_GROUPS.has(group) : false
@@ -200,8 +255,8 @@ export function TierListPanel() {
   const live = useLivePrices(raidMode)
   const items = useMemo(() => withLivePrices(data.items, raidMode, live), [data.items, raidMode, live])
   const byId = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
-  // The catalog's own stats when it has them for this list (helmets: with their visors), else the items file's.
-  const catalogHasGear = useMemo(() => !group || data.items.some((item) => item.gear?.kind === group && (group !== 'helmet' || item.gear.faceClass !== undefined)), [data.items, group])
+  // The catalog's own stats when it has them for this list (helmets: with their visors and ricochet), else the items file's.
+  const catalogHasGear = useMemo(() => !group || data.items.some((item) => item.gear?.kind === group && (group !== 'helmet' || item.gear.ricochet !== undefined)), [data.items, group])
   const byFood = category === 'food'
   const { extras, failed } = useCatalogExtras(raidMode, (byStats && !catalogHasGear) || byFood)
   const foodIndex = useMemo(() => extras?.food ?? new Map<string, FoodStats>(), [extras])
@@ -223,6 +278,8 @@ export function TierListPanel() {
   const pricesAt = live?.updatedAt ?? updatedAt
 
   const material = (gear: GearStats) => gear.material ? MATERIALS[gear.material]?.[en ? 1 : 0] ?? gear.material : '—'
+  const positionOf = (row: TierRow): VisorPosition => raised.has(row.item.id) ? 'up' : 'down'
+  const ricochet = (value: number) => RICOCHET[ricochetLevel(value)][en ? 1 : 0]
   const metric = (row: TierRow) => {
     if (row.ammo) return say(`проб. ${row.ammo.penetration} · урон ${damageText(row.ammo)}`, `pen ${row.ammo.penetration} · dmg ${damageText(row.ammo)}`)
     if (row.food) return foodBasis === 'energy' ? say(`+${row.food.energy} энергии · ${number(row.score)} ₽ за 1`, `+${row.food.energy} energy · ${number(row.score)} ₽ per 1`) : say(`+${row.food.hydration} воды · ${number(row.score)} ₽ за 1`, `+${row.food.hydration} water · ${number(row.score)} ₽ per 1`)
@@ -233,7 +290,7 @@ export function TierListPanel() {
       return say(`+${range}% · иск. ${Math.round((gear.distortion ?? 0) * 100)}%`, `+${range}% · dist. ${Math.round((gear.distortion ?? 0) * 100)}%`)
     }
     if (gear.kind === 'backpack') return say(`${gear.capacity ?? 0} ячеек`, `${gear.capacity ?? 0} cells`)
-    if (gear.kind === 'helmet') return `${lvl(protectionLevel(gear))} · ${gear.durability ?? '—'}`
+    if (gear.kind === 'helmet') return `${lvl(helmetWorn(gear, row.item.weight, positionOf(row)).level)} · ${gear.durability ?? '—'}`
     return `${lvl(gear.armorClass ?? '—')} · ${gear.durability ?? '—'} · −${mobilityPenalty(gear)}%`
   }
   const facts = (row: TierRow): Fact[] => {
@@ -272,8 +329,12 @@ export function TierListPanel() {
       [say('Не надеть со шлемами', 'Helmets it does not fit'), `${helmetsBlocking(gear, helmets)} ${say('из', 'of')} ${helmets.length}`],
       [say('Цена', 'Price'), row.price ? formatPrice(row.price) : say('не продаётся', 'not sold')],
     ]
-    const mobility: Fact = [say('Скорость · эрг. · поворот', 'Speed · ergo · turn'), `${percent(gear.speedPenalty)} · ${percent(gear.ergoPenalty)} · ${percent(gear.turnPenalty)}`]
-    const weight: Fact[] = item.weight ? [[say('Вес', 'Weight'), `${item.weight} ${say('кг', 'kg')}`]] : []
+    // A helmet as worn: its visor's penalties and weight in (helmetWorn), its face only while the visor is down.
+    const worn = gear.kind === 'helmet' ? helmetWorn(gear, item.weight, positionOf(row)) : undefined
+    const penalties = worn ?? gear
+    const mobility: Fact = [say('Скорость · эрг. · поворот', 'Speed · ergo · turn'), `${percent(penalties.speedPenalty)} · ${percent(penalties.ergoPenalty)} · ${percent(penalties.turnPenalty)}`]
+    const weightKg = worn ? worn.weight : item.weight
+    const weight: Fact[] = weightKg ? [[say('Вес', 'Weight'), `${weightKg} ${say('кг', 'kg')}`]] : []
     if (gear.kind === 'backpack') return [
       [say('Ячеек внутри', 'Cells inside'), String(gear.capacity ?? 0)],
       [say('Размер', 'Size'), `${item.width ?? 1}×${item.height ?? 1}`],
@@ -281,16 +342,29 @@ export function TierListPanel() {
       ...weight,
     ]
     const list: Fact[] = []
-    if (gear.kind === 'helmet') {
+    if (gear.kind === 'helmet' && worn) {
       const visor = gear.visorId ? byId.get(gear.visorId) : undefined
-      list.push([say('Уровень с забралом', 'Level with the visor'), lvl(protectionLevel(gear))])
-      list.push([say('Шлем', 'Helmet'), lvl(gear.armorClass ?? '—')])
-      list.push([say('Забрало', 'Visor'), gear.visorId ? `${visor ? uiText(visor.shortName) : say('есть', 'yes')} · ${lvl(gear.faceClass ?? '—')}` : gear.faceClass ? say('лицо закрыто самим шлемом', 'the helmet covers the face') : say('нет', 'none')])
+      const visorName = visor ? uiText(visor.shortName) : say('есть', 'yes')
+      if (gear.visor && positionOf(row) === 'up') {
+        // Raised: the helmet alone guards (owner, 20.11.2026: «с поднятым забралом характеристики пишутся без забрала»).
+        list.push([say('Уровень', 'Level'), lvl(worn.level)])
+        list.push([say('Забрало', 'Visor'), `${visorName} · ${say('поднято', 'raised')}`])
+      } else {
+        list.push([say('Уровень с забралом', 'Level with the visor'), lvl(worn.level)])
+        list.push([say('Шлем', 'Helmet'), lvl(gear.armorClass ?? '—')])
+        list.push([say('Забрало', 'Visor'), gear.visorId ? `${visorName} · ${lvl(gear.faceClass ?? '—')}` : gear.faceClass ? say('лицо закрыто самим шлемом', 'the helmet covers the face') : say('нет', 'none')])
+      }
     } else {
       list.push([gear.kind === 'plate' ? say('Уровень плиты', 'Plate level') : say('Уровень бронеплит', 'Plate level'), lvl(gear.armorClass ?? '—')])
     }
     list.push([say('Прочность', 'Durability'), `${gear.durability ?? '—'} · ${material(gear)}`])
-    if (gear.zones) list.push([say('Зоны попадания', 'Hit zones'), String(gear.zones)])
+    const zones = worn ? worn.zones : gear.zones
+    if (zones) list.push([say('Зоны попадания', 'Hit zones'), String(zones)])
+    if (worn?.ricochet !== undefined) {
+      const own = ricochet(worn.ricochet)
+      const face = worn.visorRicochet !== undefined ? ricochet(worn.visorRicochet) : undefined
+      list.push([say('Рикошет', 'Ricochet'), face && face !== own ? `${say('шлем', 'helmet')} ${own} · ${say('забрало', 'visor')} ${face}` : own])
+    }
     list.push(mobility, ...weight)
     if (gear.kind === 'helmet') {
       list.push([say('Глушит звук', 'Muffles sound'), DEAFENING[gear.deafening ?? 'None']?.[en ? 1 : 0] ?? '—'])
@@ -311,15 +385,27 @@ export function TierListPanel() {
     return value === undefined ? say(`ниже ${HEADSET_STEPS[3]}`, `below ${HEADSET_STEPS[3]}`) : `≥ ${value}`
   }
   // A helmet whose visor the game has no assembled picture of: the visor beside it (owner, 02.11.2026: «с забралом»).
+  // A helmet photographed with its visor down and raised (helmetVisors.ts) shows that picture instead.
   const visorOf = (row: TierRow) => {
     const gear = byStats ? row.gear : undefined
-    if (gear?.kind !== 'helmet' || !gear.visorId || gear.presetId) return undefined
+    if (gear?.kind !== 'helmet' || !gear.visorId || gear.presetId || canToggleVisor(row.item.id, gear)) return undefined
     return byId.get(gear.visorId)?.iconUrl
   }
   // «Перейти к сборке оружия» on a weapon «Сборка оружия» lists
   const menuOf = (row: TierRow) => buildable.has(row.item.id) ? (event: ReactMouseEvent) => { event.preventDefault(); setWeaponMenu({ x: event.clientX, y: event.clientY, weaponId: row.item.id, title: row.item.name }) } : undefined
+  const toggleOf = (row: TierRow) => {
+    const gear = byStats ? row.gear : undefined
+    if (!canToggleVisor(row.item.id, gear)) return undefined
+    const down = positionOf(row) === 'down'
+    return {
+      down,
+      label: down ? say('Поднять забрало', 'Raise the visor') : say('Опустить забрало', 'Lower the visor'),
+      onPick: () => setRaised((set) => { const next = new Set(set); if (down) next.add(row.item.id); else next.delete(row.item.id); return next }),
+    }
+  }
   const tile = (row: TierRow) => <TierTile key={row.item.id} row={row} onMenu={menuOf(row)} metric={metric(row)} facts={facts(row)} missing={missing.has(row.item.id)}
-    onMissing={() => setMissing((set) => new Set(set).add(row.item.id))} visor={visorOf(row)} presetIcon={row.gear?.presetId ? byId.get(row.gear.presetId)?.iconUrl : undefined} />
+    onMissing={() => setMissing((set) => new Set(set).add(row.item.id))} visor={visorOf(row)} presetIcon={row.gear?.presetId ? byId.get(row.gear.presetId)?.iconUrl : undefined}
+    photo={byStats ? visorPhoto(row.item.id, row.gear, positionOf(row)) : undefined} toggle={toggleOf(row)} />
 
   return (
     <>

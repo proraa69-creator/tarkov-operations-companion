@@ -30,12 +30,12 @@ describe('«Нашли неточность?» from the map\'s quest window', ()
     return serviceRequest
   }
 
-  it('opens on that quest: no categories, no topic to write; what the point means; +1 день if confirmed', async () => {
+  it('opens on that quest: no categories, no topic to write; what the point means; +2 дня if confirmed (owner, 24.11.2026)', async () => {
     open()
     const dialog = await screen.findByRole('dialog', { name: 'Отправить отчёт об ошибке' })
     expect(dialog).toHaveTextContent('Посылка из прошлого')
-    expect(dialog).toHaveTextContent('+1 день')
-    expect(dialog).toHaveTextContent('Если отчёт подтвердится, к подписке добавится 1 день.')
+    expect(dialog).toHaveTextContent('+2 дня')
+    expect(dialog).toHaveTextContent('Если отчёт подтвердится, к подписке добавится 2 дня.')
     expect(screen.queryByRole('radio', { name: 'Квест: точка, описание, условия' })).toBeNull()
     expect(screen.queryByLabelText('Тема')).toBeNull()
     const kinds = screen.getByRole('radiogroup', { name: 'Что с точкой' })

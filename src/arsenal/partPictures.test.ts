@@ -56,6 +56,38 @@ describe('a stock stands level', () => {
   it('a stock with a drooping top edge is turned by it', () => {
     expect(angleOf(tilted(15.8))).toBeCloseTo(-15.8, 3)
   })
+
+  // owner, 22.11.2026: «приклады до сих пор кривые на ак 12… приклады и труба приклада»; «проверь все трубы прикладов, что бы
+  // именно они были ровные»
+  // a slot bone turned `extra` degrees beyond the standard −90° about X (the AK receiver's stock slot: 3.59°)
+  const slot = (extra: number) => { const half = ((90 + extra) * Math.PI) / 360; return [-Math.sin(half), 0, 0, Math.cos(half)] }
+  const chainIndex = (first: Partial<PartAsset>, second: Partial<PartAsset>, back: number): PartsIndex => ({
+    ppm: 1000,
+    parts: {
+      gun: part({ w: 300, d: [-0.003, 0.18], s: { mod_stock: [0.12, 0, 0.15, ...slot(3.59)] } }),
+      first: part({ ...first, s: { mod_stock: [0, 0, 0.15, ...slot(back)] } }),
+      second: part(second),
+    },
+  })
+  const chainBuild = { weaponId: 'gun', root: { itemId: 'gun', children: { mod_stock: { itemId: 'first', children: { mod_stock: { itemId: 'second', children: {} } } } } } }
+  const angles = (index: PartsIndex) => Object.fromEntries(layBuild(chainBuild, index).parts.map((entry) => [entry.tpl, (Math.atan2(entry.m[3], entry.m[0]) * 180) / Math.PI]))
+
+  it('a tube stands level by its own top edge, and the stock on it stands level too (the AK-12 tube)', () => {
+    // the AK-12 tube: 17 × 5 cm, its picture's top edge rising 3.6° to the back; the game turns the stock 4.18° back up on it
+    const laid = angles(chainIndex({ w: 172, h: 50, lv: -3.6 }, { w: 180, h: 130 }, -4.18))
+    expect(laid.first).toBeCloseTo(3.6, 3)
+    expect(laid.second).toBeCloseTo(0, 3)
+  })
+
+  it('a stock on a short lock stands level (the PT-1 on the PT lock)', () => {
+    expect(angles(chainIndex({ w: 24, h: 50 }, { w: 200, h: 120, lv: -3.83 }, -3.59)).second).toBeCloseTo(3.83, 3)
+  })
+
+  it('a butt on a chassis follows it as the game puts it (the UAS butt on the SKS chassis)', () => {
+    const laid = angles(chainIndex({ w: 580, h: 110 }, { w: 260, h: 130 }, 4))
+    expect(laid.first).toBeCloseTo(0, 3)
+    expect(Math.abs(laid.second!)).toBeCloseTo(4, 2)
+  })
 })
 
 // owner, 21.11.2026: «рукоятки встают неправильно на этом цевье… Так происходит со всеми рукоятками на этом цевье» (AS VAL, 6P29M)

@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import {
   Activity, ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LineChart, LoaderCircle,
-  Maximize2, Megaphone, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Smartphone, Sticker, Trash2, UserPlus, Users, Wifi, WifiOff, X,
+  Maximize2, Megaphone, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Smartphone, Sticker, Trash2, UserPlus, UserRound, Users, Wifi, WifiOff, X,
 } from 'lucide-react'
 import { uiLabel, uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
@@ -32,6 +32,9 @@ import { StreamersSheet } from './AdminStreamersSheet'
 import { AdminNewsSheet } from './AdminNewsEditor'
 import { AdminBezebeeBlock } from './AdminBezebeeBlock'
 import { useAdminAnswer, type AdminAnswer } from './useAdminAnswer'
+import { ChatPersonMenu } from './ChatPersonMenu'
+import { usePersonMenu } from './personMenu'
+import { AccountProfile } from './AccountProfile'
 import './adminMobile.css'
 import { ruDays } from '../i18n/ruPlural'
 
@@ -125,6 +128,8 @@ export function AdminMobilePage() {
   const [focusReport, setFocusReport] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
+  // «Посмотреть профиль» (owner, 24.11.2026): a long press on a person in «Чаты», or the open chat's head.
+  const [profileOf, setProfileOf] = useState<{ accountId: string; name?: string } | null>(null)
   const [error, setError] = useState('')
   // «Обновить», a change, the app back on the screen: the screen's data again (the calendar and «Новые за …» too).
   const [version, setVersion] = useState(0)
@@ -290,8 +295,10 @@ export function AdminMobilePage() {
     setSection('chats')
     setSelected(null)
     setSelectedReport(null)
+    setProfileOf(null)
     setSelectedThread(accountId)
   }
+  const openProfile = (accountId: string, name?: string) => setProfileOf({ accountId, ...(name ? { name } : {}) })
 
   const TABS: Array<{ id: Section; label: string; icon: typeof Users; badge?: number }> = [
     { id: 'summary', label: 'Сводка', icon: Activity },
@@ -353,7 +360,7 @@ export function AdminMobilePage() {
             onPeriod={setPeriod} onStatus={setPaymentStatus} onPlan={setPaymentPlan} onSearch={setPaymentSearch} onCustom={setCustomDates} onChanged={reload}
           />
         ) : section === 'chats' && threads.data ? (
-          <ChatsSection threads={threads.data} onOpenChat={openChat} />
+          <ChatsSection threads={threads.data} onOpenChat={openChat} onOpenProfile={openProfile} />
         ) : reports.data ? (
           <section className="admin-block admin-reports-block">
             <ReportsTable
@@ -386,7 +393,8 @@ export function AdminMobilePage() {
 
       {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} onOpenChat={openChat} />}
       {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); reportsChanged() }} />}
-      {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} />}
+      {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} onOpenProfile={openProfile} />}
+      {profileOf && <ProfileSheet accountId={profileOf.accountId} name={profileOf.name} onClose={() => setProfileOf(null)} onOpenChat={openChat} />}
       {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
       {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
       {sheet === 'ads' && <AdsSheet onClose={() => setSheet(null)} />}
@@ -401,12 +409,18 @@ function AdminFailure({ text, onRetry }: { text: string; onRetry: () => void }) 
   return <div className="admin-error admin-failure" role="alert"><WifiOff size={18} /><span>{uiText(text)}</span><button type="button" className="button small" onClick={onRetry}>{uiText('Повторить')}</button></div>
 }
 
-/** «Чаты» (its own tab, owner 20.10.2026): the players' support conversations, unread ones marked. */
-function ChatsSection({ threads, onOpenChat }: { threads: AdminSupportThreads | null; onOpenChat: (accountId: string) => void }) {
+/**
+ * «Чаты» (its own tab, owner 20.10.2026): the players' support conversations, unread ones marked. A long press on a person
+ * (owner, 24.11.2026: «на телефоне зажимаю пальцем… посмотреть профиль») opens the menu with «Посмотреть профиль».
+ */
+function ChatsSection({ threads, onOpenChat, onOpenProfile }: { threads: AdminSupportThreads | null; onOpenChat: (accountId: string) => void; onOpenProfile: (accountId: string, name?: string) => void }) {
   const { locale } = useLocale()
+  const people = usePersonMenu()
+  const nameOf = (thread: AdminSupportThreads['threads'][number]) => thread.nickname || thread.email || uiText('Пользователь')
   return <section className="admin-block">
     <div className="admin-list admin-chat-list">
-      {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}>
+      {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}
+        {...people.bind({ accountId: thread.accountId, name: nameOf(thread) })}>
         <span className="admin-payment-icon pending"><MessagesSquare size={18} /></span>
         <span className="admin-row-copy"><strong>{thread.nickname || thread.email || uiText('Пользователь')}</strong><small>{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{supportPreviewText(thread.lastMessage, locale)}</small></span>
         <span className="admin-row-side">{thread.unread > 0 && <strong className="admin-unread">{thread.unread}</strong>}<small>{dateTime(thread.lastAt)}</small></span>
@@ -414,7 +428,17 @@ function ChatsSection({ threads, onOpenChat }: { threads: AdminSupportThreads | 
       </button>)}
       {!threads?.threads.length && <AdminEmpty text="Переписок пока нет" />}
     </div>
+    <ChatPersonMenu menu={people.menu} onClose={people.close} onProfile={(accountId) => onOpenProfile(accountId, people.menu?.name)} onChat={onOpenChat} />
   </section>
+}
+
+/** «Посмотреть профиль»: the player's whole account on a full screen sheet (admin/AccountProfile.tsx). */
+function ProfileSheet({ accountId, name, onClose, onOpenChat }: { accountId: string; name?: string; onClose: () => void; onOpenChat: (accountId: string) => void }) {
+  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section className="panel admin-user-sheet account-profile-sheet" role="dialog" aria-modal="true" aria-label={uiText(name ? `Профиль ${name}` : 'Профиль')}>
+      <AccountProfile accountId={accountId} name={name} load={adminApi.profile} onBack={onClose} onOpenChat={onOpenChat} variant="sheet" />
+    </section>
+  </div>
 }
 
 function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugReportDetail; onClose: () => void; onUpdated: (report: BugReportDetail) => void; onOpenChat: (accountId: string) => void }) {
@@ -765,7 +789,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
   </div>
 }
 
-function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClose: () => void; onChanged: () => void }) {
+function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId: string; onClose: () => void; onChanged: () => void; onOpenProfile: (accountId: string, name?: string) => void }) {
   const [detail, setDetail] = useState<AdminSupportDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -823,7 +847,8 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
   const name = detail?.account.nickname || detail?.account.email || uiText('Чат с пользователем')
   return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet admin-chat-sheet" role="dialog" aria-modal="true" aria-label={name}>
-      <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
+      <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div>
+        <div className="admin-sheet-actions"><button type="button" className="icon-button" onClick={() => onOpenProfile(accountId, detail ? name : undefined)} aria-label={uiText('Профиль')}><UserRound size={18} /></button><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></div></header>
       <div className="admin-chat-body">
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
         <SupportMessageList messages={messages} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет."

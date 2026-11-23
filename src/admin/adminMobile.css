@@ -370,6 +370,9 @@ button.admin-user-row { font: inherit; cursor: pointer; }
 .admin-referrer-list .admin-row-copy small + small { color: var(--text-muted); }
 .admin-sheet-nested { z-index: 95; }
 .admin-friend-row > span:last-child { justify-items: end; }
+/* a reward held for the owner: decided in its row (owner, 24.11.2026) */
+.admin-reward-decide { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.admin-reward-decide .admin-inline-error { flex-basis: 100%; }
 .admin-friend-paid, .admin-friend-unpaid { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .admin-friend-paid { color: var(--admin-green); }
 .admin-friend-unpaid { color: var(--text-dim); }

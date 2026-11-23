@@ -47,6 +47,21 @@ describe('trader loyalty badges', () => {
     expect(therapist.y + therapist.height).toBeGreaterThanOrEqual(40)
   })
 
+  // Report №197 (19.11.2026): the game's screen now has two rows; Реф stands in the second, under Миротворец.
+  it('reads Реф in the second row of portraits, and not a trader named in a text elsewhere', () => {
+    const word = (text: string, x: number, y: number): OcrWordBox => ({ text, bbox: { x0: x - 30, y0: y - 7, x1: x + 30, y1: y + 7 } })
+    const first = ['Прапор', 'Терапевт', 'Скупщик', 'Лыжник', 'Миротворец', 'Механик', 'Барахольщик', 'Егерь'].map((name, index) => word(name, 100 + index * 160, 300))
+    const second = [word('Смотритель', 100, 465), word('Гараж', 260, 465), word('Реф', 740, 465)]
+    const rects = traderBadgeRects([...first, ...second, word('Прапор', 555, 760)], { width: 1600, height: 900 })
+    expect(rects.map((badge) => badge.key)).toEqual(['prapor', 'therapist', 'fence', 'skier', 'peacekeeper', 'mechanic', 'ragman', 'jaeger', 'ref'])
+    const ref = rects.at(-1)!.rect
+    // over Реф's card, as Миротворец's badge over his
+    expect(ref.x).toBe(rects[4]!.rect.x)
+    expect(ref.y).toBe(rects[4]!.rect.y + 165)
+    // a «Реф» in some text off the grid is not a card
+    expect(traderBadgeRects([...first, word('Реф', 800, 470)], { width: 1600, height: 900 }).map((badge) => badge.key)).not.toContain('ref')
+  })
+
   it('counts a level only when two frames agree', () => {
     expect(confirmLoyalty({ prapor: 4, therapist: 2 }, { prapor: 4, therapist: 3 })).toEqual({ prapor: 4 })
   })

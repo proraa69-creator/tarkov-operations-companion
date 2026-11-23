@@ -47,7 +47,10 @@ describe('«Фото мест» of the quests (src/components/QuestGuidePhotos.t
 
   it('lists a file for every photo and no file nobody uses (the server serves only the listed ones)', () => {
     const used = new Set(photos.map((photo) => photo.id))
-    expect(photos.every((photo) => data.files[photo.id]?.url)).toBe(true)
+    // our own frames of the place (22.11.2026, `own`) have no address: the server keeps them in its guide images folder
+    const files = data.files as Record<string, { url?: string; file: string; own?: boolean }>
+    expect(photos.filter((photo) => !files[photo.id]?.url && !files[photo.id]?.own).map((photo) => photo.id)).toEqual([])
+    expect(Object.values(files).filter((file) => file.own && !/\.jpg$/.test(file.file))).toEqual([])
     expect(Object.keys(data.files).filter((id) => !used.has(id))).toEqual([])
   })
 })

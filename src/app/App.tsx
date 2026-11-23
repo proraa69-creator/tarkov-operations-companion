@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } 
 import { QuestKeysPage } from '../pages/QuestKeysPage'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { featureEnabled } from './archivedFeatures'
+import { rangeEnabled } from './rangeFeature'
 import { isOwnerApp } from './buildEdition'
 import { interfaceVersion } from './appVersion'
 import { AppShell } from './AppShell'
@@ -134,6 +135,8 @@ export function App() {
     <Route path="/arsenal/builder" element={<Navigate to="/arsenal/builds" replace />} />
     {/* «Сборка оружия»: shown to the owner before it goes in the menu (src/app/archivedFeatures.ts weaponBuilds). */}
     <Route path="/arsenal/builds" element={featureEnabled('weaponBuilds') || import.meta.env.DEV ? <Suspense fallback={null}><WeaponBuildsPage /></Suspense> : <Navigate to="/ballistics" replace />} />
+    {/* «Тир»: test builds only (src/app/rangeFeature.ts). */}
+    <Route path="/arsenal/range" element={<Navigate to={rangeEnabled() ? '/ballistics?tab=range' : '/ballistics'} replace />} />
     <Route path="/settings" element={<SettingsPage />} />
     {/* «Настройка экрана» and «Оптимизировать компьютер»: the PC app; elsewhere «Пресеты экрана» of the PC (src/screen/MobileScreenPresets.tsx). */}
     <Route path="/screen" element={<Suspense fallback={null}>{window.tarkovDesktop?.screen ? <ScreenTuningPage /> : <MobileScreenPresets />}</Suspense>} />

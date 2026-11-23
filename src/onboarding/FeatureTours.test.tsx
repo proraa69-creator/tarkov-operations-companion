@@ -116,6 +116,8 @@ describe('«Местоположение на карте»: the screenshot key',
     await settle()
     expect(keyWindow()).toBeInTheDocument()
     expect(screen.getByText(/только этой клавишей из игры/)).toBeInTheDocument()
+    // not PrtSc nor F12: Windows or Steam may take them (owner, 24.11.2026)
+    expect(screen.getByText(/кроме Print Screen \(PrtSc\) и F12\. Эти клавиши может перехватить сама Windows или Steam/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
     await settle()
     expect(keyWindow()).toBeNull()

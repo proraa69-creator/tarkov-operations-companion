@@ -3,9 +3,11 @@ import { addedExtractRecords } from './addedExtracts'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { KEY_DOOR_EXTRA_LOCKS, keyDoorExcluded } from './keyDoorNames'
 import { lootContainerTitle } from './lootContainerKinds'
-import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
+import { GUARANTEED_SPAWNS, ROUTE_ITEM_GROUPS, type GuaranteedSpawn } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
+import { CAR_LOCK_TITLE, CAR_PHOTOS, SPAWN_PHOTOS, carName, carNeedsText } from './carLocks'
 import { isStalePlace } from './stalePlaces'
+import { byObjective } from './objectiveGameIds'
 import sptKeySpots from './sptKeySpots.json'
 import sniperSpots from './sniperSpots.json'
 import gameLootContainers from './gameLootContainers.json'
@@ -662,22 +664,49 @@ export const ROUTE_ITEM_PLACES: ReadonlyArray<{ mapId: string; itemId: string; x
   { mapId: 'the-labyrinth', itemId: '679baa2c61f588ae2b062a24', x: -42.57, z: 64.85, ru: 'Лежит на лопате.' },
 ]
 
+/** Two spots of a route item group this close are one place (SPT lists a few twice, a hand's width apart). */
+const ROUTE_GROUP_SAME_SPOT_METRES = 1
+
+/** A group's spots, one per place. */
+function routeGroupSpots(group: GuaranteedSpawn) {
+  const spots: Array<{ x: number; y: number; z: number }> = []
+  for (const position of group.positions) {
+    if (!spots.some((spot) => Math.hypot(spot.x - position.x, spot.y - position.y, spot.z - position.z) < ROUTE_GROUP_SAME_SPOT_METRES)) spots.push(position)
+  }
+  return spots
+}
+
+/** Card text of a route item spot of a group that always holds one (src/data/guaranteedSpawns.ts, ROUTE_ITEM_GROUPS). */
+export const routeGroupText = (count: number) => `Всегда в одной из ${count} точек.`
+
 function adaptRouteItems(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
   const route = ROUTE_ITEMS[map.id]
   if (!route) return []
-  return asArray(rawMap.lootLoose).flatMap((loot, index) => strings(loot.items).flatMap((itemId): MapMarker[] => {
+  const groups = ROUTE_ITEM_GROUPS.filter((group) => group.mapId === map.id)
+  const near = (a: JsonRecord | { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
+    Math.hypot(number(a.x) - b.x, number(a.y) - b.y, number(a.z) - b.z) < ROUTE_GROUP_SAME_SPOT_METRES
+  const groupOf = (itemId: string, at: JsonRecord) => groups.find((group) => group.itemId === itemId && group.positions.some((spot) => near(at, spot)))
+  const marker = (itemId: string, id: string, at: JsonRecord, source: string): MapMarker[] => {
     const description = route[itemId]
     const item = items.get(itemId)
-    const base = description && item && baseMarker(map, `route-item-${itemId}-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
+    const base = description && item && baseMarker(map, id, at, undefined, at.y, at.y)
     if (!base) return []
-    const at = asRecord(loot.position)
     const place = ROUTE_ITEM_PLACES.find((spot) => spot.mapId === map.id && spot.itemId === itemId
       && Math.hypot(number(at.x) - spot.x, number(at.z) - spot.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    const group = groupOf(itemId, at)
+    const text = [description, group ? routeGroupText(routeGroupSpots(group).length) : '', place?.ru ?? ''].filter(Boolean).join(' ')
     return [{
-      ...base, type: 'cache', layerId: 'loot.key', title: item.name, description: place ? `${description} ${place.ru}` : description,
-      meta: item.shortName, itemId, source: 'json.tarkov.dev/maps', ...(place ? { ownSpot: true } : {}),
+      ...base, type: 'cache', layerId: 'loot.key', title: item.name, description: text,
+      meta: item.shortName, itemId, source, ...(place ? { ownSpot: true } : {}),
     }]
-  }))
+  }
+  const loose = asArray(rawMap.lootLoose)
+  const listed = loose.flatMap((loot, index) => strings(loot.items).flatMap((itemId) => marker(itemId, `route-item-${itemId}-${index}`, asRecord(loot.position), 'json.tarkov.dev/maps')))
+  // The spots of a group the feed has not got (SPT's raid statistics).
+  const added = groups.flatMap((group, at) => routeGroupSpots(group)
+    .filter((spot) => !loose.some((loot) => strings(loot.items).includes(group.itemId) && near(asRecord(loot.position), spot)))
+    .flatMap((spot, index) => marker(group.itemId, `route-item-${group.itemId}-group-${at}-${index}`, { ...spot }, 'raid-statistics')))
+  return [...listed, ...added]
 }
 
 /** Card text of a jewelry spot: the items are listed in `meta` (and the first one's icon); the data has no chance. */
@@ -850,6 +879,9 @@ function adaptGameContainers(map: GameMap, rawMap: JsonRecord): MapMarker[] {
 export const guaranteedSpawnText = (kind: 'here' | 'one-of', count: number) =>
   kind === 'here' || count < 2 ? 'Лежит здесь в каждом рейде.' : `Одна из ${count} возможных точек спавна.`
 
+/** Our frames of a guaranteed spawn's spot (owner, 23.11.2026: the machinery key's jacket): its own, else the offline game's. */
+const spawnPhotos = (spawn: GuaranteedSpawn, mapId: string) => spawn.photos ?? SPAWN_PHOTOS[`${canonicalMapId(mapId)}/${spawn.itemId}`] ?? []
+
 /** «Спавн 100 %»: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts). */
 function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarker[] {
   return GUARANTEED_SPAWNS.filter((spawn) => spawn.mapId === map.id).flatMap((spawn) => spawn.positions.flatMap((position, index): MapMarker[] => {
@@ -865,9 +897,10 @@ function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarke
       layerId: certain ? 'loot.guaranteed' : 'loot.key',
       ...(certain ? {} : { possibleSpawn: true }),
       title: item?.name ?? spawn.name,
-      description: guaranteedSpawnText(spawn.kind, spawn.positions.length),
+      description: spawn.text ?? guaranteedSpawnText(spawn.kind, spawn.positions.length),
       meta: item?.shortName,
       itemId: spawn.itemId,
+      ...(spawnPhotos(spawn, map.id).length ? { spotPhotos: spawnPhotos(spawn, map.id).map((photo) => ({ ...photo })) } : {}),
       // The badge only where the item always lies; a spot of a group holds it in some raids.
       guaranteedSpawn: spawn.kind === 'here' || spawn.positions.length < 2,
       source: 'raid-statistics',
@@ -942,13 +975,17 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
     const shownName = keyName || (keycard ? KEYCARD_LABELS[keycard] : '')
     const needsPower = Boolean(lock.needsPower)
     const needs = keycard ? `Нужна ключ-карта «${shownName}».` : `Нужен ключ «${shownName}».`
-    const lockLabel = lockType === 'container' ? 'Запертый контейнер' : lockType === 'trunk' ? 'Дверь или багажник машины' : 'Дверь'
+    const lockLabel = lockType === 'container' ? 'Запертый контейнер' : 'Дверь'
+    // A car (owner, 23.11.2026): «Багажник машины. Нужен ключ от автомобиля «Жигули»», with our frame of the car.
+    const car = lockType === 'trunk'
+    const carPhotos = car ? CAR_PHOTOS[text(lock.id)] : undefined
     return [{
       ...base,
       type: 'key' as const,
       layerId: 'key' as const,
-      title: shownName ? `${lockLabel} · открывает: ${shownName}` : lockType === 'door' ? 'Запертая дверь' : lockLabel,
-      description: `${shownName ? needs : 'Требуется ключ.'}${needsPower ? ' Также необходимо питание.' : ''}`,
+      title: car ? CAR_LOCK_TITLE : shownName ? `${lockLabel} · открывает: ${shownName}` : lockType === 'door' ? 'Запертая дверь' : lockLabel,
+      description: `${car && shownName && !keycard ? carNeedsText(carName(keyId, shownName)) : shownName ? needs : 'Требуется ключ.'}${needsPower ? ' Также необходимо питание.' : ''}`,
+      ...(carPhotos?.length ? { spotPhotos: carPhotos.map((photo) => ({ ...photo })) } : {}),
       // Keycard doors show the card colour in the tooltip instead.
       meta: keycard ? undefined : 'Запертая дверь',
       itemId: keyId || undefined,
@@ -1020,6 +1057,8 @@ interface QuestPoint {
   idSuffix: string
   zone?: JsonRecord
   position: JsonRecord
+  /** A spawn the app added to the feed's (src/data/questItemSpots.ts, `added`): never the id of a merged point. */
+  added?: boolean
 }
 
 /**
@@ -1038,8 +1077,12 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
   for (const quest of context.quests) {
     const rawTask = asRecord(asRecord(taskRoot.tasks)[quest.id])
     const questMarkers: MapMarker[] = []
-    for (const objective of asArray(rawTask.objectives)) {
+    const details = quest.objectiveDetails ?? []
+    for (const [objectiveIndex, objective] of asArray(rawTask.objectives).entries()) {
       const objectiveId = text(objective.id)
+      // the hand fixes below are by the game's id; the translated objective has its text as id (src/data/objectiveGameIds.ts)
+      const detail = details[objectiveIndex]?.id === objectiveId ? details[objectiveIndex] : details.find((entry) => entry.id === objectiveId)
+      const gameId = detail?.gameId ?? objectiveId
       const points: QuestPoint[] = []
       for (const zone of asArray(objective.zones)) {
         const map = resolveMap(text(zone.map) || strings(objective.maps)[0], context, maps)
@@ -1047,17 +1090,17 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
         const center = asRecord(zone.position)
         points.push({ kind: 'zone', map, ...pointCoords(center), idSuffix: text(zone.id, objectiveId), zone, position: center })
       }
-      for (const place of QUEST_EXTRA_PLACES[objectiveId] ?? []) {
+      for (const place of byObjective(QUEST_EXTRA_PLACES, gameId, objectiveId) ?? []) {
         const map = maps.get(place.map)
         if (map) points.push({ kind: 'zone', map, ...pointCoords(place.position), idSuffix: place.id, position: place.position })
       }
       // Quest items (findQuestItem) carry exact spawn points instead of zones.
       asArray(objective.possibleLocations).forEach((location, locationIndex) => {
         const map = resolveMap(text(location.map) || strings(objective.maps)[0], context, maps)
-        if (!map || isStalePlace(objectiveId, map.id)) return
+        if (!map || isStalePlace(gameId, map.id)) return
         asArray(location.positions).forEach((position, index) => {
           const idSuffix = `${objectiveId}-${locationIndex ? `${locationIndex}-` : ''}${index}`
-          points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position })
+          points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position, ...(position.added === true ? { added: true } : {}) })
         })
       })
       const itemObjective = objectiveLayer(objective) === 'quest.item' || asArray(objective.possibleLocations).length > 0
@@ -1069,15 +1112,19 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
         const shown = mergeNearbyItemSpots(mapPoints)
         const possible = possibleSpots(shown.map((entry) => entry.point), itemObjective)
         shown.forEach(({ point, members }, index) => {
+          // A merged point keeps the id of the feed's own spawn it covers, when the kept one is an added spawn: the owner's
+          // point edits find markers by id.
+          const idSuffix = point.added ? (members.find((member) => !member.added) ?? point).idSuffix : point.idSuffix
           const base = point.kind === 'zone'
             ? baseMarker(point.map, `quest-zone-${quest.id}-${point.idSuffix}`, point.position, point.zone?.outline, point.zone?.top, point.zone?.bottom)
-            : baseMarker(point.map, `quest-item-${quest.id}-${point.idSuffix}`, point.position, undefined, undefined, undefined)
+            : baseMarker(point.map, `quest-item-${quest.id}-${idSuffix}`, point.position, undefined, undefined, undefined)
           if (!base) return
           const spot = possible.get(index)
           const isItem = point.kind === 'item'
           // The floors of the spawns this point stands for: on more than one, the point has no floor of its own.
           const floors = members.length > 1 ? [...new Set(members.map((member) => baseMarker(member.map, 'floor', member.position, undefined, undefined, undefined)?.floor ?? ''))].filter(Boolean) : []
-          const fixedFloor = QUEST_POINT_FLOORS[objectiveId] ? floorNumbered(point.map, QUEST_POINT_FLOORS[objectiveId]!) : undefined
+          const floorNumber = byObjective(QUEST_POINT_FLOORS, gameId, objectiveId)
+          const fixedFloor = floorNumber ? floorNumbered(point.map, floorNumber) : undefined
           questMarkers.push({
             ...base,
             ...(floors.length > 1 ? { floor: undefined } : {}),

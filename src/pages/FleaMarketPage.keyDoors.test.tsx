@@ -118,7 +118,7 @@ describe('«Барахолка»: the door of a key on the map', () => {
     const button = rowOf('Ключ-карта склада TerraGroup').querySelector<HTMLButtonElement>('button.key-doors-button')!
     expect(button).toHaveTextContent('Несколько дверей · 2')
     fireEvent.mouseEnter(button)
-    expect([...popup()!.querySelectorAll('a.key-doors-row')].map((row) => row.textContent)).toEqual(['ЗаводДверь · Тоннели', 'ТаможняДверь машины'])
+    expect([...popup()!.querySelectorAll('a.key-doors-row')].map((row) => row.textContent)).toEqual(['ЗаводДверь · Тоннели', 'ТаможняБагажник машины'])
     const red = rowOf('Ключ-карта TerraGroup Labs (Красная)').querySelector('a.key-doors-button')!
     expect(red).toHaveAttribute('href', '/maps/the-lab?lock=the-lab-lock-red')
   })
@@ -141,7 +141,7 @@ describe('«Барахолка»: the door of a key on the map', () => {
     expect(document.querySelector('.flea-detail .key-doors-detail h4')).toHaveTextContent('Door on the map')
     fireEvent.mouseEnter(forKey('Ключ-карта склада TerraGroup'))
     expect(popup()).toHaveTextContent('Opens')
-    expect(popup()).toHaveTextContent('Car door')
+    expect(popup()).toHaveTextContent('Car trunk')
   })
 
   it('gives keys and keycards a door button and other items none', () => {

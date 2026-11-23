@@ -87,6 +87,9 @@ const DATE_TIME = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-d
 const DATE = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
 /** Days the owner may give for one report in one press. */
 export const REWARD_DAYS_MAX = 365
+/** A confirmed bug's days (owner, 24.11.2026: «делаем бонус за ошибку плюс 2 дня»; 1 before); an idea keeps its 1. */
+export const BUG_REWARD_DAYS = 2
+const rewardDaysOf = (kind: 'bug' | 'idea') => kind === 'idea' ? 1 : BUG_REWARD_DAYS
 const format = (formatter: Intl.DateTimeFormat, iso: string) => { try { return formatter.format(new Date(iso)) } catch { return '' } }
 
 const VIEWS: Array<{ id: ReportTableView; label: string; empty: string }> = [
@@ -190,7 +193,7 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
     setBusy('point'); setFailure('')
     try { await onAcceptPoint!(row.id) } catch (reason) { fail(reason) } finally { setBusy(null) }
   }
-  // «Готово» with an author to reward: the window «Выдать 1 день?» first; «Да» closes the report and gives the day, «Нет» only closes it.
+  // «Готово» with an author to reward: the window «Выдать 2 дня?» first; «Да» closes the report and gives the days, «Нет» only closes it.
   const [asking, setAsking] = useState(false)
   const press = (action: ReportWorkAction) => {
     if (action === 'implemented' && onReward && row.email) setAsking(true)
@@ -220,7 +223,7 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
     try {
       await onAct(row.id, 'implemented')
       closed = true
-      if (give) await onReward!(row.id, 1)
+      if (give) await onReward!(row.id, rewardDaysOf(row.kind))
     } catch (reason) { if (!closed) setPending(null); fail(reason) } finally { setBusy(null) }
   }
 
@@ -346,7 +349,7 @@ function ReportShots<Row extends ReportRow>({ row, load, t }: { row: Row; load: 
   )
 }
 
-/** «Выдать 1 день?» — Да / Нет; Escape, the cross or a press beside the window: neither, the report stays as it was. */
+/** «Выдать 2 дня?» — Да / Нет; Escape, the cross or a press beside the window: neither, the report stays as it was. */
 function RewardQuestion({ row, t, onAnswer, onCancel }: { row: ReportRow; t: Translate; onAnswer: (give: boolean) => void; onCancel: () => void }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onCancel() }
@@ -356,7 +359,7 @@ function RewardQuestion({ row, t, onAnswer, onCancel }: { row: ReportRow; t: Tra
   return createPortal(<div className="registration-overlay rt-reward-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel() }}>
     <section className="panel registration-dialog rt-reward-dialog" role="alertdialog" aria-modal="true" aria-labelledby={`rt-reward-${row.id}`} onMouseDown={(event) => event.stopPropagation()}>
       <span className="rt-reward-icon" aria-hidden="true"><Gift size={20} /></span>
-      <h2 id={`rt-reward-${row.id}`}>{t('Выдать 1 день?')}</h2>
+      <h2 id={`rt-reward-${row.id}`}>{t(row.kind === 'idea' ? 'Выдать 1 день?' : 'Выдать 2 дня?')}</h2>
       <p className="rt-reward-what">№{row.id} · {row.topic}</p>
       <div className="rt-reward-buttons">
         <button type="button" className="button primary" autoFocus onClick={() => onAnswer(true)}>{t('Да')}</button>

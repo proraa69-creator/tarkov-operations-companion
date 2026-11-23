@@ -24,6 +24,10 @@ vi.mock('../arsenal/BallisticsCharts', () => ({
   ArmorEffectivenessTable: ({ ammo }: { ammo: { shortName: string } }) => <div data-testid="armor">{ammo.shortName}</div>,
 }))
 vi.mock('../arsenal/BulletDrop', () => ({ BulletDropPanel: () => <div data-testid="drop" /> }))
+// «Полигон» shows in development and test builds only (src/app/rangeFeature.ts): off here unless a test turns it on
+const polygon = vi.hoisted(() => ({ on: false }))
+vi.mock('../app/rangeFeature', () => ({ rangeEnabled: () => polygon.on }))
+vi.mock('../range/RangeShooting', () => ({ RangeShooting: () => <div data-testid="polygon" /> }))
 
 const { AmmoPage } = await import('./ReferencePages')
 const renderPage = (path = '/ballistics') => render(<LocaleProvider><MemoryRouter initialEntries={[path]}><AmmoPage /></MemoryRouter></LocaleProvider>)
@@ -31,6 +35,18 @@ const tab = (name: string) => screen.getByRole('tab', { name })
 const firstRounds = () => [...document.querySelectorAll('.ammo-table tbody tr strong:first-child')].map((cell) => cell.textContent).filter((text) => /^[A-Z]/.test(text ?? ''))
 
 describe('«Баллистика» by tabs (owner, 06.11.2026: «переключаться между таблицами», не листать одну страницу)', () => {
+  it('a test build opens on «Полигон», the first tab (owner, 23.11.2026: «Это у нас будет первая вкладка… переименуем в полигон»)', async () => {
+    polygon.on = true
+    try {
+      renderPage()
+      expect(screen.getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Полигон', 'Пробитие и урон', 'Падение пули', 'Пробитие брони', 'Список патронов'])
+      expect(tab('Полигон')).toHaveAttribute('aria-selected', 'true')
+      expect(await screen.findByTestId('polygon')).toBeInTheDocument()
+    } finally {
+      polygon.on = false
+    }
+  })
+
   it('four buttons in the owner\'s order, «Пробитие и урон» first, «Список патронов» on the right, one table at a time', () => {
     renderPage()
     expect(screen.getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Пробитие и урон', 'Падение пули', 'Пробитие брони', 'Список патронов'])
