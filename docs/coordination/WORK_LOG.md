@@ -9579,3 +9579,30 @@ Not pushed, not released, nothing uploaded.
 - Dispatcher (E:\SPT-photo\photo2\drive_maps.py) now lays the documents of every map in the same raid after its quests (marks for
   all maps done) and shoots the spawn points no picture shows; then by hand: eye check → bpdocs\integrate_docs.py → tests → commit →
   eval\upload_guides.py (the server's guide images, no release). Interchange quests resume after its documents, then Streets onwards.
+
+## 2026-11-24 — Claude: 0.6.0.338 live 04:33 Bangkok (urgent, the owner's word); iPhone builds on the desktop
+- Owner: «по готовности всех веток… выпускаем обновление»; «Полигон» — «Да, всем»; «по готовности выпускай обновление»; then
+  «Публикуй сейчас со стеклянной темы пасмурно». Branch claude/release-338 from release/production 95398f05 (0.6.0.336); 0.6.0.337
+  (pushed and rolled back 24.11 02:25) never went out, its updateHistory row is replaced by 338's.
+- Merged: claude/referral-decide-bug-2days (with claude/screenshot-key-windows), claude/steam-screenshots, claude/glass-cloth-hover,
+  claude/daynight-violet (the night 44b69135, then the overcast day 5267bae1), claude/quest-photos-all (b9fd40dd), claude/admin-user-profile,
+  claude/range (c50dca4d; conflicts: electron/main.ts imports — both kept; src/arsenal/partPictures.ts — the range's `frames`, the
+  stock-level code the same on both sides). WORK_LOG conflicts kept both sides.
+- «Полигон» for all: src/app/rangeFeature.ts `rangeEnabled = () => true`; vite.config.ts packs public/range-figures in every build;
+  .gitignore no longer hides it; the 882 RANGE_PACK_FILE files (14.8 MB) from raidos-kord-breach tracked; dist has
+  range-figures.pack (14.9 MB) and no plain folder. 1005 changed paths, deployPath refused 0.
+- Gate: f7eb8812 red — electron/experimental/positionTracker.test.ts on Linux: steamScreenshotFolders read every path as a Windows one
+  (POSIX /tmp paths became backslashed). Fixed in 4e7931fd (a drive or a backslash: win32, else posix; a test of a POSIX path); gate
+  green on 4e7931fd and on 2f24a9d2 (45263566756).
+- Publish: `systemctl start --no-block raidos-release.service` at 21:19 UTC (inactive before, the timer's window was 06:00 UTC), then
+  the mirror's 1124 missing blobs fetched in one batch (`rev-list --objects --missing=print 95398f05..2f24a9d2`); version.json
+  0.6.0-338 2f24a9d2 at 21:33 UTC. Phones: mobile-v0.6.0-338 (target 2f24a9d2, APK 150 MB, iPhone zip 148 MB).
+- Local checks: full vitest 4450 passed, the known local failures only (appVersion «electron-builder builds», AdminPanelPage,
+  linux updater, staleServer, 2 node:test files; the gateway files failed only before server/node_modules was linked, 83/83 after);
+  server ownerProfile/ownerAdmin/presence/invites/bugReports/playerNews 73/73; tsc (app and website), eslint of the changed files, build.
+- iPhone (owner: «положи мне админ приложения для iPhone на рабочий стол. И новую версию для iPhone для пользователей»):
+  claude/admin-ipa ← merge of 2f24a9d2 (bca48f77; first 9b6d3150 from f7eb8812), workflow «Admin Panel iOS IPA» 45264250587 green;
+  Desktop «Raid OS админка iPhone 0.6.0.338.ipa» (sha256 01ff3ac6…) and «Raid OS iPhone для игроков 0.6.0.338.ipa» (the IPA from
+  Raid-OS-iPhone-0.6.0.338.zip of mobile-v0.6.0-338). Nothing sent to TestFlight or the App Store.
+- Not checked on real devices: the admin chats' long press on an iPhone, the Steam screenshots folder with a real Steam install,
+  «Полигон» on a real phone (the stick, the fire button, landscape).
