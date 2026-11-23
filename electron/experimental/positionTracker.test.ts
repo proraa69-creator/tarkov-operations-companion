@@ -179,6 +179,9 @@ describe("the Steam build of the game (24.11.2026: a Steam player's screenshots 
   it("its screenshots folder is <game>/build/Escape from Tarkov/Screenshots, beside build/Logs; a launcher's Logs has none", () => {
     expect(steamScreenshotFolders([String.raw`D:\SteamLibrary\steamapps\common\Escape from Tarkov\build\Logs`, String.raw`C:\Battlestate Games\EFT\Logs`, undefined, String.raw`D:\SteamLibrary\steamapps\common\Escape from Tarkov\build\Logs\ `.trim()]))
       .toEqual([String.raw`D:\SteamLibrary\steamapps\common\Escape from Tarkov\build\Escape from Tarkov\Screenshots`])
+    // a POSIX path stays one (the gate runs these tests on Linux, with /tmp folders)
+    expect(steamScreenshotFolders(['/tmp/shots/steam/Escape from Tarkov/build/Logs/', '/tmp/shots/EFT/Logs']))
+      .toEqual(['/tmp/shots/steam/Escape from Tarkov/build/Escape from Tarkov/Screenshots'])
   })
 
   it('is followed beside Documents once the logs are found, and wins with the newest screenshots', async () => {

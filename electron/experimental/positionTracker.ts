@@ -1,7 +1,7 @@
 import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { homedir } from 'node:os'
 import { readdir, stat } from 'node:fs/promises'
-import { join, win32 } from 'node:path'
+import { join, posix, win32 } from 'node:path'
 import { app } from 'electron'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 
@@ -30,10 +30,13 @@ export function setScreenshotsOverride(folder: string) {
  */
 export function steamScreenshotFolders(logFolders: ReadonlyArray<string | undefined>) {
   return [...new Set(logFolders.flatMap((folder) => {
-    // Windows paths whatever the platform the code runs on (the tests run on Linux too)
-    const logs = folder ? win32.normalize(folder).replace(/\\+$/, '') : ''
-    if (!logs || win32.basename(logs).toLowerCase() !== 'logs' || win32.basename(win32.dirname(logs)).toLowerCase() !== 'build') return []
-    return [win32.join(win32.dirname(logs), 'Escape from Tarkov', 'Screenshots')]
+    if (!folder) return []
+    // a Windows path (a drive or a backslash) is read as one whatever the platform the code runs on, any other as a POSIX one
+    // (the tests run on Linux too, with their own temporary folders)
+    const path = /^[A-Za-z]:|\\/.test(folder) ? win32 : posix
+    const logs = path.normalize(folder).replace(/[\\/]+$/, '')
+    if (path.basename(logs).toLowerCase() !== 'logs' || path.basename(path.dirname(logs)).toLowerCase() !== 'build') return []
+    return [path.join(path.dirname(logs), 'Escape from Tarkov', 'Screenshots')]
   }))]
 }
 

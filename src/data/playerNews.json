@@ -7,7 +7,7 @@
     {"kind":"improved","ru":"Местоположение: приложение ищет скриншоты и в папке Steam-версии игры","en":"Your location: the app also looks for screenshots in the Steam version's game folder"},
     {"kind":"improved","ru":"Карты: новые фото мест на Таможне, в Лесу и на Берегу — снятые прямо в игре","en":"Maps: new place photos on Customs, Woods and Shoreline, taken in the game itself"},
     {"kind":"improved","ru":"Стиль «Стекло»: кнопки «Тельняшки», «Чёрного мультикама» и «Снаряжения» как в обычном стиле, с тканью под стеклом","en":"«Glass» style: the «Telnyashka», «Black multicam» and «Gear» buttons as in the plain style, the cloth under the glass"},
-    {"kind":"improved","ru":"«Смена дня и ночи»: ночь стала тёмно-фиолетовой","en":"«Day and night»: the night is a dark violet now"}
+    {"kind":"improved","ru":"«Смена дня и ночи»: днём пасмурное серое небо, ночью тёмно-фиолетовое","en":"«Day and night»: an overcast grey sky by day, a dark violet one by night"}
   ]},
   {"version":"0.6.0.336","date":"2026-11-23","items":[
     {"kind":"improved","ru":"Запуск: если окно не открывается, приложение само пробует другой способ запуска","en":"Start: if the window does not open, the app tries another way to start by itself"},
