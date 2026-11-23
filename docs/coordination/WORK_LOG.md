@@ -9076,3 +9076,4 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Checked on the live catalog (a throwaway node test, removed): the guide build = ПБС-4, Бастион, UTG 25мм + Пилад 4x32,
   6Л31, Молот бак., no stock; 4.51 → 4.17 kg without rounds. New tests: guideBuild.test.ts, ownerGunsmithGuides.test.ts.
   tsc, eslint clean. Not checked on screen: the browser dev page cannot load tarkov.help (works in the app only).
+- Owner, 23.11.2026: «Да, в выпуск» — the AK-105 build goes into the next release with the search fix (not released yet).
