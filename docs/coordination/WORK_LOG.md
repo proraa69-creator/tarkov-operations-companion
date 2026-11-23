@@ -9062,3 +9062,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   точка не появится.» (EN alike; F12 as the owner told the player in the chat). FeatureTours.test.tsx checks the line.
 - The window shows only to new players on the PC app (tours.ts `screenshotKey: 'due'`): this player and others who already ran the app
   will not see it; tell him in the chat. Checked: vitest src/onboarding (34), tsc, eslint. Not pushed, not released.
+- Release 0.6.0.337 pushed to release/production on the owner's word («Да, в выпуск»), live after the next window (13:00 Bangkok
+  24.11). Version in package.json, package-lock.json ×2, website/src/config.ts; updateHistory.json row; no playerNews.json line (a hint's
+  wording, not a new function). vitest src/data src/onboarding src/app 658/659: appVersion «electron-builder builds» fails here only
+  (ENOENT: `new URL().pathname` keeps %20 for the space in this PC's path), tsc clean.
