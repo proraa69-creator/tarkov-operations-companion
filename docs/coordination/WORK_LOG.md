@@ -9162,3 +9162,23 @@ Not pushed, not released, nothing uploaded.
 - Owner 23.11 ~23:45: «отключи, чтобы ботов не было вообще на карте. При съемке». The worker set only the waves' NoBots; the
   raid's own BotSettings stayed AsOnline (a dead soldier lay in a Customs frame). Now BotSettings.BotAmount=NoBots and the bosses
   off, and before every point everyone but the player is taken off the map (first run: 6 bots and 33 bodies removed on Woods).
+
+## 2026-11-24 03:00 — Claude: photo shooting paused by the owner; Shoreline quests integrated; every own place photo put on the server
+
+- Owner 24.11 (through the parent session): «Пока временно останови съемку скриншота. Запомни, как я скажу, продолжишь. Все, что уже
+  записано, новые скриншоты, добавь к нам на сервер.» The dispatcher stopped at 02:46 (drive.stop) right after Shoreline:
+  interchange-all2 had not reached its first point; the SPT client and server are closed, go.flag / stop.flag / drive.stop /
+  GAME-BUSY removed, the stop and how to resume are in E:\SPT-photo\photo2\drive.log. Resume ONLY on the owner's word: SPT.Server →
+  photo2\start-client.ps1 → GAME-BUSY → `pythonw -X utf8 drive_maps.py` (queue interchange, streets-of-tarkov, reserve, lighthouse,
+  factory, ground-zero, the-lab, the-labyrinth). Shoreline's battle pass documents: marks ready (bpdocs\shoreline-marks.json) and
+  our frames of the 29 pictures shot (run shoreline-bpmatch); the laying raid waits for the shooting to resume.
+- Shoreline quests (run shoreline-all2, 77 points): every preview sheet looked at by eye, 17 frames refused in
+  eval\manual-reject.json (6 own place frames of another place — a rock at the lens, the open sea, a house's outer wall, the
+  watchtower instead of the dish/antenna, another room — and 11 close-ups showing no item: sky, an empty roof, the tower's stairs,
+  a blurred texture). Selected 75 frames for 42 points; integrated: 29 matched, 8 own places, 18 approaches, 20 close-ups, 14 wiki
+  photos of shot places removed (questGuidePhotos files: own 299 → 374, wiki 689 → 648). Data tests 568/568, typecheck ok.
+- Server: every own photo the branch's lists name and the server lacked — 866 files, 94 MB (Customs and Woods quests and documents,
+  Shoreline, the earlier woods-old / shoreline-old) — installed into /var/lib/raidos/map-mirror/images/guides (raidos-api, 600; 3631
+  → 4497 files; checksums verified; nothing there overwritten). The running server serves an own photo only when its own lists name
+  it (guideImages.ts ownFiles), so the new ones answer 404 until this branch is released with the server; the 92 listed before still
+  answer 200. Nothing pushed, nothing released: the owner gathers every branch into one release.
