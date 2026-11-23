@@ -17,6 +17,8 @@ import { decodeSignatureIndex, SIGNATURE_INDEX_FILE, type SignatureIndex } from 
 import { APP_INDEX_FILE } from '../ipcGuard.js'
 import { relaunchAsAdmin } from './elevation.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride, type SeenScreenshot } from './positionTracker.js'
+/** The Logs folders found (electron/main.ts): the Steam build's screenshots folder is followed too. */
+export { setGameLogFolders } from './positionTracker.js'
 import { HOTKEYS, hotkeyPressed, parseHotkey } from '../../src/overlay/hotkeys.js'
 import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type ExperimentalSettings } from './settings.js'
 import { createTrackingControl } from './trackingControl.js'

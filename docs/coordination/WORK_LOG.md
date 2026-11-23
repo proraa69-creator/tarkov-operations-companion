@@ -9086,3 +9086,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: website admin (referrals: the buttons and the call), reports, RequestsPage, QuestReport — vitest 110+4 passed; tsc (app and
   website), eslint clean. Not pushed: the owner holds the release until «Полигон» is ready (0.6.0.337 rolled back to 336 on his word),
   the news lines wait for his word.
+## 2026-11-24 — Claude: the position — the Steam build's screenshots folder followed too (claude/steam-screenshots, not released)
+- Owner: «Проверь еще раз функцию местоположения на работоспособность… перед выпуском». Checked: electron/experimental (42 tests),
+  src/overlay/screenshotPosition and LivePlayerMarker pass; today's game screenshot names on this PC parse (x, y, z, yaw); nothing in
+  the tracking changed since 20.11; the app never deletes screenshots.
+- Found: a Steam player (24.11, position stopped) named his screenshots folder `…\steamapps\common\Escape from Tarkov\build\Escape from
+  Tarkov\Screenshots` — beside the Steam build's `build\Logs` (logDiscovery already finds those). The app followed only Documents
+  (and OneDrive) and the folder picked by hand. Now `setGameLogFolders` (electron/main.ts, on every log discovery) adds each
+  `<game>\build\Escape from Tarkov\Screenshots` to the followed folders and the lookup; Windows paths whatever the platform (CI on
+  Linux). A folder that does not exist costs a stat a second. Not verified with a real Steam install (none here).
