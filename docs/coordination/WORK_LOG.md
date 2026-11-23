@@ -9143,3 +9143,8 @@ Not pushed, not released, nothing uploaded.
 - Woods: quest points shot 58/58 (run woods-all2, selected, 6 frames refused by eye); its document points stopped before the
   old placement; the 26 Woods document pictures are marked (bpdocs\woods-marks.json); first pass woods-bpmatch (our frames of those
   pictures, nothing laid) runs. Then the same laying and integration as Customs.
+- 23:05 Woods quests integrated (run woods-all2, 58 quest points; documents apart): 36 frames matched to samples, 12 own place
+  frames, 26 approaches, 25 close-ups; 30 wiki photos of shot places removed. Every sheet looked at by eye: 6 frames refused
+  (dark spots in the sky of the pickup's frame — «Нужный пикап» keeps its wiki photo —, two close-ups of bare rock, three
+  cameras inside a bush) in eval\manual-reject.json. Quest photos own 219 → 323, wiki 875 → 804. Data tests 568/568, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\woods (198 files) with the release.
