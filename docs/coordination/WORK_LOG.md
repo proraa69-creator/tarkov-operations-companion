@@ -9066,3 +9066,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   24.11). Version in package.json, package-lock.json ×2, website/src/config.ts; updateHistory.json row; no playerNews.json line (a hint's
   wording, not a new function). vitest src/data src/onboarding src/app 658/659: appVersion «electron-builder builds» fails here only
   (ENOENT: `new URL().pathname` keeps %20 for the space in this PC's path), tsc clean.
+- 24.11 ~02:25 Bangkok the owner: «Да подожди, пока не публикуй… Сейчас я доделаю тир, и мы выложим все вместе». The push of
+  5e4b8a50 had started the phone builds at once (ios-ipa.yml publish-mobile makes `mobile-v<version>`, the server serves it to
+  Android): «RaidOS iOS IPA» cancelled before publish-mobile (no mobile-v0.6.0-337), TestFlight skipped its upload (no secrets).
+  On the owner's «Да, откатить» release/production went back to 95398f05 (0.6.0.336) with --force-with-lease; the rebuild of 336
+  that push started was cancelled too. raidos.app version.json stays 0.6.0-336. 0.6.0.337 is held on
+  claude/screenshot-key-windows (f4f7261c + 5e4b8a50) and goes out with the range in one release (next version number then).
