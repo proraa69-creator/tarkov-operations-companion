@@ -9112,3 +9112,34 @@ Owner 23.11.2026: resumed the reshoot («Да, продолжай», 18:15); «�
   with the release, or the app shows nothing there.
 - Next: the other maps by E:\SPT-photo\photo2\drive_maps.py (build_all.py now builds quests, quest items and documents only;
   --with-cars for the old list), each map's sheets and document close-ups checked by eye before integrating.
+
+## 2026-11-23 23:00 — Claude: Customs battle pass documents laid exactly as on the downloaded photos (branch claude/quest-photos-all)
+
+Owner ~21:20: «В некоторых местах на таможне документы находятся в текстурах… застряли либо в столе, либо в тумбочке
+наполовину… на полу не спавнится… На краю тоже они не должны лежать. И на кровати в железе не должны застревать. Добавь только те
+места, снимки которых у нас есть уже скачанные, и по ним сделай в точности в том же месте. Разложи их и сделай скриншот.»
+Not pushed, not released, nothing uploaded.
+- The 30 downloaded Customs pictures (the guide before our own frames, b3b8fcb7~1) marked by eye: where the document lies on each
+  (the pistol's laser dot is on it), its kind and how it lies (flat, upright among books, a tube standing or lying) —
+  E:\SPT-photo\bpdocs\customs-marks.json. Each mark moved onto our frame that matched the picture (SuperPoint+LightGlue matches,
+  a local homography: bpdocs\transfer.py) or marked by eye on our frame; three pictures that do not show the document use the live
+  spawn point. One point per picture (points\customs-bpdocs5.json, bpdocs\make_points.py).
+- Photo worker (E:\SPT-photo\photo2\worker\Worker.cs, Lay): the spot is where our frame's ray meets the first thing DRAWN (a
+  one-pixel camera, far plane bisected — a bookcase's shelves have no colliders), then a height map of what is drawn around it
+  from above; the document goes where it lies whole on one flat surface 1 cm in from every edge, nothing drawn or solid inside it,
+  nearest the spot (5° turns, up to 45 cm aside); then a low view (under a chair's rail), the next surface ±30 cm (a sofa's seat by
+  an armrest narrower than the document here), last ≤2 cm over an edge (3 places, checked by eye). Every frame of a document
+  point with the lamp; the close-up from the picture's side and tilt, seen by what is drawn (a nightstand's niche from low in front).
+- Run customs-bpdocs6: 30 laid, 27 whole on the surface, 3 at most 2 cm over an edge (looked at: they lie on the desk / shelf).
+  Every frame looked at by eye. The library «на полках под окном» picture (9ac6be90) shows only «PROJECT» in the dark: no exact
+  place to repeat, left out and removed from the guide. Selected 61 frames (25 places, 29 close-ups, 7 approaches) for 29 pictures;
+  7 close-ups accepted by eye though the colliders' check called them hidden (eval\manual-accept.json, select_all.py reads it).
+- src/data/documentGuidePhotos.json: Customs documents rebuilt from the guide's pictures (bpdocs\docs_base.py) with these frames:
+  22 pictures replaced by our matched frame with the document in it, 3 by our own frame of the place, 4 by the close-up; every
+  spot has its close-up. src/data/documentGuide.test.ts: the gas station's project spot and the library's both kinds now carry
+  the close-ups. Data tests 577/577, typecheck ok.
+- Pictures: E:\SPT-photo\server-upload\customs-docs6 (122 files) with the release; the document pictures of
+  E:\SPT-photo\server-upload\customs from 8f88bbfd are no longer named by the app.
+- Woods: quest points shot 58/58 (run woods-all2, selected, 6 frames refused by eye); its document points stopped before the
+  old placement; the 26 Woods document pictures are marked (bpdocs\woods-marks.json); first pass woods-bpmatch (our frames of those
+  pictures, nothing laid) runs. Then the same laying and integration as Customs.

@@ -54,9 +54,11 @@ describe('the photos of the battle pass documents', () => {
     // Since 23.11.2026 the place is followed by the document laid there by the photo worker, up close.
     expect(financial.map((id) => guide.photos[id]!.en)).toEqual(['On the desk inside old gas station building.', 'The document in place.'])
     const project = pointPhotos(guide, 'customs', [-179.9, 316], ['project'])
-    expect(project.map((id) => guide.photos[id]!.en)).toEqual(['Inside the old gas station building next to the entrance door.'])
-    // A point with both kinds shows both, and the same photo once (and since 22.11.2026 our frame of the way there).
-    expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(5)
+    // owner, 23.11.2026: each document laid exactly where the guide's picture shows it, then seen up close
+    expect(project.map((id) => guide.photos[id]!.en)).toEqual(['Inside the old gas station building next to the entrance door.', 'The document in place.'])
+    // A point with both kinds shows both, and the same photo once: the library's two financial places and its project shelf, each
+    // with its close-up (23.11.2026).
+    expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(6)
     // Too far from anything of this kind.
     expect(pointPhotos(guide, 'customs', [-186.2, 317.6], ['medical'])).toEqual([])
     expect(pointPhotos(guide, 'customs', [0, 0], ['financial'])).toEqual([])
