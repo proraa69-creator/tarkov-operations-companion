@@ -9132,3 +9132,137 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Base release/production 95398f05. Checked: dev renderer (vite, Playwright 1280×900, plain and glass, the hour forced through
   window.__raidosDayNightHour); vitest src/theme 33; tsc -b; eslint. Not pushed, not released; waits with claude/glass-cloth-hover
   for the owner's «публикуем».
+## 23.11.2026 — Claude: every place photo shot again in the offline game (in progress, stopped by the owner at 18:04)
+
+Owner, 23.11.2026: «Каждому документу нужно переснять фото, где он находится. По образцам… вторые фото с разными местами спавна
+документа… там кадры с пистолетом… Все квесты, которые существуют, должны быть пересняты полностью, все фотографии… Также запертая
+дверь или багажник машины нужно переименовать просто багажник машины. Нужен ключ от автомобиля «Жигули»… нужно сделать фото каждой
+машины… ключ от спецтехники… лежит в куртке. Это нужно пометить, записать.» Branch `claude/quest-photos-all` (worktree
+`raidos-quest-photos-all`, from release/production 95398f05), not pushed, not released.
+
+- Found: 994 wiki photos of 237 quests and ~350 of the battle pass documents on 12 maps; own frames only on Customs (54 quest,
+  24 document). The old tour looked for a sample's view within 12 m of the zone and found ~25 % of them; Woods and Shoreline
+  frames of 22-23.11 were never put into the app.
+- 6bfeaa6b: a locked car is «Багажник машины» with «Нужен ключ от автомобиля «<car>».» (src/data/carLocks.ts, the car by the key
+  id: Жигули, Merin, Полиция, SMW, Почта Руси; the «Ключи» list says «Багажник машины» too; English «Car trunk», «Requires the
+  “Zhiguli” car key.»); «Ключ от спецтехники» on Customs: «Лежит в куртке в каждом рейде.»; src/data/placePhotos.json (empty
+  for now) carries our frames of each car by lock id and of a guaranteed spawn's spot, shown as spotPhotos from
+  src/assets/key-spots. Tests: carLocks, mapMarkerAdapter, keyDoors, documentGuide (83 passed); typecheck ok.
+- 07aa1b2f: Woods (19 places, 11 approaches, 1 item) and Shoreline (27, 9, 2) frames of the earlier tours in place of their wiki
+  photos (`own`); the pictures are in E:\SPT-photo\server-upload\woods-old and shoreline-old — they must be put in the server's
+  guide images folder with the release, or the app shows nothing there.
+- New tools on E: (not in git; memory `spt-photo-all-maps`): points\build_all.py (every objective zone and quest item place of
+  every live quest from json.tarkov.dev, document spots with heights from lootLoose, real trunk locks, the jacket), the worker
+  with a wider second search and our own frame where no sample matches, photo2\drive_maps.py (map after map, restarts a quiet
+  game), photo2\start-client.ps1, eval\select_all.py, eval\integrate_all.py, eval\compare_providers.py; move-to-monitor2.ps1
+  now finds the second monitor (the layout changed to 3440×1440 + 1920×1080 at 3440,0).
+- Matching on the video card since 13:41 (owner: «Да, ставь»: onnxruntime-directml only in E:\SPT-photo\venv-dml): scores equal
+  to the CPU's on 48 pairs (≤0.4 %, no verdict change), 16× faster matching; a sample-heavy point 2–3 min instead of 5–9.
+- Stopped at 18:04 (paused 14:10–17:19 before): Customs run customs-all2 91 of 110 points; next
+  customs-quest-item-675c3582f6ddc329a90f9c6d-675f7f224076a741a3061568-0 («Закрытый клуб»). Woods, Shoreline, Interchange,
+  Streets, Reserve, Lighthouse, Factory, Ground Zero, Lab, Labyrinth not started (Icebreaker is not in the offline copy).
+  SPT client and server closed, GAME-BUSY removed.
+- To go on (only on the owner's word): SPT.Server → E:\SPT-photo\photo2\start-client.ps1 → GAME-BUSY-photo-all.txt → go.flag
+  (tour.json still customs-all2, resumes from its manifest) → `pythonw -X utf8 E:\SPT-photo\photo2\drive_maps.py --wait-current`.
+  Per map then: eval\select_all.py (the driver runs it) → look at every preview sheet by eye → eval\integrate_all.py <map>
+  --approved E:\SPT-photo\approved\<map>\all --points E:\SPT-photo\points\<map>-all2.json --done-maps <earlier maps>
+  --out E:\SPT-photo\server-upload\<map> → tests (documentGuide.test.ts expects Customs photo counts that will change) → commit →
+  sheets to the owner. Event quests (eventGuidePhotos.json, 45 tarkov.help photos) are not in build_all yet.
+- Risks: unmatched wiki photos of a shot place are removed and replaced by our own frame (owner's «без чужих»); our frame then
+  shows the place from another angle than the sample — the sheets put the sample next to it. Nothing uploaded to the server.
+
+## 2026-11-23 19:58 — Claude: Customs place photos shot again, battle pass documents laid in the frames (branch claude/quest-photos-all)
+
+Owner 23.11.2026: resumed the reshoot («Да, продолжай», 18:15); «для таможни нужно снять документы боевого пропуска и квестовые
+предметы… Если при съемке боевого пропуска их нету, то тебе нужно сделать мод, который будет их спамнить» (~18:25); «Пересними
+только квесты, документы боевого пропуска, все виды, и квестовые предметы… И так на всех картах» + quest places with a map mark,
+«по аналогам фото, которые уже есть» (~18:40). Not pushed, not released, nothing uploaded.
+- Customs run customs-all2 finished 110/110; frames checked by eye on all 11 sheets: 85 kept, 7 own place frames out (camera in a
+  bush or a tree, or the place not in sight), the 3 car frames left out (not part of the reshoot any more; kept on E:).
+- Battle pass documents: the offline 0.16.9 copy has no such items. The photo worker now lays the live game's own models
+  (item_barter_info_* bundles of the installed 1.3 client, same Unity 2022.3.43; copies in E:\SPT-photo\bpdocs\bundles) flat on
+  the surface at each spot of the live feed, the close-up taken on a half sphere over the document with a lamp; hand fixes by a
+  frame's ray (E:\SPT-photo\bpdocs\aim.py → overrides.json; Customs: the safe in the office). Run customs-docs4: all 28 Customs
+  document spots, 62 frames kept after an eye check (2 close-ups out: a camera inside a bookcase, a roll on top of a door).
+  Our earlier document frames (21.11) showed the spots without a document; they are replaced.
+- src/data/questGuidePhotos.json, documentGuidePhotos.json: Customs 55 frames matched to samples, 18 own place frames, 29
+  approaches, 40 close-ups; 42 old photos removed. One wiki document photo stays (Customs project documentation by the office
+  window, spot 18: no place for the camera found).
+- Tests: src/data/documentGuide.test.ts (the gas station spot has the close-up after the place), FleaMarketPage.keyDoors.test.tsx
+  («Багажник машины» / «Car trunk» since 6bfeaa6b). Photo tests 26/26, keyDoors 9/9, typecheck ok. The full run's other failures
+  (appVersion path with «%20», AdminPanelPage CRLF, electron/linux updater, staleServer, cache-item-images, release-policy) do
+  not touch these files.
+- The pictures: E:\SPT-photo\server-upload\customs (294) + woods-old + shoreline-old must go to the server's guide images folder
+  with the release, or the app shows nothing there.
+- Next: the other maps by E:\SPT-photo\photo2\drive_maps.py (build_all.py now builds quests, quest items and documents only;
+  --with-cars for the old list), each map's sheets and document close-ups checked by eye before integrating.
+
+## 2026-11-23 23:00 — Claude: Customs battle pass documents laid exactly as on the downloaded photos (branch claude/quest-photos-all)
+
+Owner ~21:20: «В некоторых местах на таможне документы находятся в текстурах… застряли либо в столе, либо в тумбочке
+наполовину… на полу не спавнится… На краю тоже они не должны лежать. И на кровати в железе не должны застревать. Добавь только те
+места, снимки которых у нас есть уже скачанные, и по ним сделай в точности в том же месте. Разложи их и сделай скриншот.»
+Not pushed, not released, nothing uploaded.
+- The 30 downloaded Customs pictures (the guide before our own frames, b3b8fcb7~1) marked by eye: where the document lies on each
+  (the pistol's laser dot is on it), its kind and how it lies (flat, upright among books, a tube standing or lying) —
+  E:\SPT-photo\bpdocs\customs-marks.json. Each mark moved onto our frame that matched the picture (SuperPoint+LightGlue matches,
+  a local homography: bpdocs\transfer.py) or marked by eye on our frame; three pictures that do not show the document use the live
+  spawn point. One point per picture (points\customs-bpdocs5.json, bpdocs\make_points.py).
+- Photo worker (E:\SPT-photo\photo2\worker\Worker.cs, Lay): the spot is where our frame's ray meets the first thing DRAWN (a
+  one-pixel camera, far plane bisected — a bookcase's shelves have no colliders), then a height map of what is drawn around it
+  from above; the document goes where it lies whole on one flat surface 1 cm in from every edge, nothing drawn or solid inside it,
+  nearest the spot (5° turns, up to 45 cm aside); then a low view (under a chair's rail), the next surface ±30 cm (a sofa's seat by
+  an armrest narrower than the document here), last ≤2 cm over an edge (3 places, checked by eye). Every frame of a document
+  point with the lamp; the close-up from the picture's side and tilt, seen by what is drawn (a nightstand's niche from low in front).
+- Run customs-bpdocs6: 30 laid, 27 whole on the surface, 3 at most 2 cm over an edge (looked at: they lie on the desk / shelf).
+  Every frame looked at by eye. The library «на полках под окном» picture (9ac6be90) shows only «PROJECT» in the dark: no exact
+  place to repeat, left out and removed from the guide. Selected 61 frames (25 places, 29 close-ups, 7 approaches) for 29 pictures;
+  7 close-ups accepted by eye though the colliders' check called them hidden (eval\manual-accept.json, select_all.py reads it).
+- src/data/documentGuidePhotos.json: Customs documents rebuilt from the guide's pictures (bpdocs\docs_base.py) with these frames:
+  22 pictures replaced by our matched frame with the document in it, 3 by our own frame of the place, 4 by the close-up; every
+  spot has its close-up. src/data/documentGuide.test.ts: the gas station's project spot and the library's both kinds now carry
+  the close-ups. Data tests 577/577, typecheck ok.
+- Pictures: E:\SPT-photo\server-upload\customs-docs6 (122 files) with the release; the document pictures of
+  E:\SPT-photo\server-upload\customs from 8f88bbfd are no longer named by the app.
+- Woods: quest points shot 58/58 (run woods-all2, selected, 6 frames refused by eye); its document points stopped before the
+  old placement; the 26 Woods document pictures are marked (bpdocs\woods-marks.json); first pass woods-bpmatch (our frames of those
+  pictures, nothing laid) runs. Then the same laying and integration as Customs.
+- 23:05 Woods quests integrated (run woods-all2, 58 quest points; documents apart): 36 frames matched to samples, 12 own place
+  frames, 26 approaches, 25 close-ups; 30 wiki photos of shot places removed. Every sheet looked at by eye: 6 frames refused
+  (dark spots in the sky of the pickup's frame — «Нужный пикап» keeps its wiki photo —, two close-ups of bare rock, three
+  cameras inside a bush) in eval\manual-reject.json. Quest photos own 219 → 323, wiki 875 → 804. Data tests 568/568, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\woods (198 files) with the release.
+
+## 2026-11-24 00:10 — Claude: Woods battle pass documents laid exactly as on the downloaded photos; no bots in the photo raids
+
+- Woods: the 26 downloaded pictures marked by eye (bpdocs\woods-marks.json); a first pass (run woods-bpmatch, nothing laid) found
+  our frames for 20; the rest laid at the live spawn point. Run woods-bpdocs6 (+ woods-bpdocs7 for one place): every frame looked
+  at by eye. 19 pictures repeated exactly (14 replaced by our matched frame with the document in it, 2 by our own frame of the
+  place, 3 by the close-up; every one with its close-up). 7 keep the guide's picture: the offline copy differs there (the north
+  bunker's barrel under a tarp is a radio tower here, the camp trailer's chair, the cultists' house, the USEC checkpoint's boxes),
+  or there is no flat surface (the plane's cockpit, the burnt SUV), or the folding stool's seat is smaller than the document.
+  eval\manual-reject.json / manual-accept.json hold the eye checks. Data tests 568/568, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\woods-docs6 (88 files) with the release.
+- Owner 23.11 ~23:45: «отключи, чтобы ботов не было вообще на карте. При съемке». The worker set only the waves' NoBots; the
+  raid's own BotSettings stayed AsOnline (a dead soldier lay in a Customs frame). Now BotSettings.BotAmount=NoBots and the bosses
+  off, and before every point everyone but the player is taken off the map (first run: 6 bots and 33 bodies removed on Woods).
+
+## 2026-11-24 03:00 — Claude: photo shooting paused by the owner; Shoreline quests integrated; every own place photo put on the server
+
+- Owner 24.11 (through the parent session): «Пока временно останови съемку скриншота. Запомни, как я скажу, продолжишь. Все, что уже
+  записано, новые скриншоты, добавь к нам на сервер.» The dispatcher stopped at 02:46 (drive.stop) right after Shoreline:
+  interchange-all2 had not reached its first point; the SPT client and server are closed, go.flag / stop.flag / drive.stop /
+  GAME-BUSY removed, the stop and how to resume are in E:\SPT-photo\photo2\drive.log. Resume ONLY on the owner's word: SPT.Server →
+  photo2\start-client.ps1 → GAME-BUSY → `pythonw -X utf8 drive_maps.py` (queue interchange, streets-of-tarkov, reserve, lighthouse,
+  factory, ground-zero, the-lab, the-labyrinth). Shoreline's battle pass documents: marks ready (bpdocs\shoreline-marks.json) and
+  our frames of the 29 pictures shot (run shoreline-bpmatch); the laying raid waits for the shooting to resume.
+- Shoreline quests (run shoreline-all2, 77 points): every preview sheet looked at by eye, 17 frames refused in
+  eval\manual-reject.json (6 own place frames of another place — a rock at the lens, the open sea, a house's outer wall, the
+  watchtower instead of the dish/antenna, another room — and 11 close-ups showing no item: sky, an empty roof, the tower's stairs,
+  a blurred texture). Selected 75 frames for 42 points; integrated: 29 matched, 8 own places, 18 approaches, 20 close-ups, 14 wiki
+  photos of shot places removed (questGuidePhotos files: own 299 → 374, wiki 689 → 648). Data tests 568/568, typecheck ok.
+- Server: every own photo the branch's lists name and the server lacked — 866 files, 94 MB (Customs and Woods quests and documents,
+  Shoreline, the earlier woods-old / shoreline-old) — installed into /var/lib/raidos/map-mirror/images/guides (raidos-api, 600; 3631
+  → 4497 files; checksums verified; nothing there overwritten). The running server serves an own photo only when its own lists name
+  it (guideImages.ts ownFiles), so the new ones answer 404 until this branch is released with the server; the 92 listed before still
+  answer 200. Nothing pushed, nothing released: the owner gathers every branch into one release.
