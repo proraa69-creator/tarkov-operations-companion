@@ -9041,3 +9041,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   Zones from the Batya session's dump of the live Lighthouse scene (QUESTS/Quests_tickets_lighthouse_zone/Camp_prapor,
   batya_0/8/9_visit, light_prap1). Report 216 not closed, no days given (the owner's call). Still to do in code (next release):
   src/data/storyChapterSeeds.ts «Билет» stage 5 (78.06/164.55) and «Батя» stage 0 Lighthouse (78/164.47) to these places.
+- 23.11.2026 ~05:00, release 0.6.0.336 (owner: «выпускай», after mitya.tagintsev@mail.ru's window stayed dark with 0.6.0.335 and
+  the shortcut's --disable-gpu): claude/start-fallback 75c33dfb — start-log.txt, nextStartStep (software → no sandbox → a Windows
+  message with the log's last lines and «Скопировать для поддержки»); src/data/storyChapterSeeds.ts Lighthouse: «Билет» stage 5
+  -55.4/467 (report 216), «Батя» stage 0 patch -59.09/457.15 (as the server overrides). News (owner's line verbatim): «Запуск: если
+  окно не открывается, приложение само пробует другой способ запуска»; «Маяк: новое место - лагерь Прапора и шеврон «Богатырей»».
+  deployPath 11/0; gate steps locally: only the 6 machine-only failures (appVersion, staleServer, linux/updater ×3, AdminPanelPage).
