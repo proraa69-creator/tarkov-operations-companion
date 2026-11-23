@@ -9231,3 +9231,8 @@ Not pushed, not released, nothing uploaded.
   corners of the document's top face (its own box as it lies), its top and its centre are all seen; else the nearest view, logged
   «PART HIDDEN» for the eye check.
 - documentGuide.test.ts: one photo per place (the gas station, the library), no place with two photos of a kind. Data tests 569/569.
+- Quest items laid by the photo worker (Customs, Woods, Shoreline): their 19 close-ups in the app looked at against the owner's rule
+  (the thing whole in view, lying free): 8 kept, 11 removed from questGuidePhotos.json (the item too small or dark to make out, inside
+  a bin, a box into a table's rail or against another box) and refused in eval\manual-reject.json. Those places keep their other
+  photos; a re-shoot of their close-ups with the every-edge check is still to do (the worker's quest-item close-up has no such
+  check yet; the documents' has, since this entry).
