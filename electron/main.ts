@@ -19,6 +19,7 @@ import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearS
 import { scanCollectorScreen } from './collectorScan.js'
 import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
 import { createGunPartResponder } from './gunParts.js'
+import { RANGE_PACK_FILE, RANGE_PACK_NAME } from '../src/range/rangePack.js'
 import { setGameLogFolders, startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { setMapFloorWheel, startMapFloorWheel, stopMapFloorWheel } from './mapFloorWheel.js'
@@ -190,7 +191,8 @@ function leaveForTheRunningCopy() {
   app.exit(0)
 }
 /** The permissions the app's pages may get (setPermissionRequestHandler below); everything else is refused. */
-const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen'])
+// pointerLock: the range's scope takes the mouse while aiming (src/range/RangeScopeView.tsx), on a click only; Esc gives it back
+const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen', 'pointerLock'])
 let mainWindow: BrowserWindow | null = null
 /**
  * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
@@ -462,9 +464,11 @@ app.whenReady().then(async () => {
   ])
   // «Сборка оружия»: the part pictures inside the app, one encrypted pack (electron/gunParts.ts)
   const answerGunPart = createGunPartResponder(join(dirname(APP_INDEX_FILE), 'gun-parts.pack'))
+  // «Тир»: its pictures, a test build only (src/range/rangeFigures.ts)
+  const answerRangeFigure = createGunPartResponder(join(dirname(APP_INDEX_FILE), RANGE_PACK_NAME), undefined, 'range', RANGE_PACK_FILE)
   protocol.handle(ITEM_IMAGE_SCHEME, (request) => {
     const host = new URL(request.url).hostname
-    return host === 'map' ? answerMapFile(request.url) : host === 'parts' ? answerGunPart(request.url) : answerItemImage(request.url)
+    return host === 'map' ? answerMapFile(request.url) : host === 'parts' ? answerGunPart(request.url) : host === 'range' ? answerRangeFigure(request.url) : answerItemImage(request.url)
   })
   // What the page may ask for (security review, 03.11.2026): copying text, the owner panel's notifications, full screen
   // for a video. Camera, microphone, the screen, location, USB and the rest are refused without asking — the app runs as

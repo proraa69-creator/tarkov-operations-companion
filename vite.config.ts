@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, readdirSync, statSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { configDefaults, defineConfig } from 'vitest/config'
 import type { Plugin } from 'vite'
@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import { scopeSiteCss } from './src/shared/scopeSiteCss.ts'
 import { fontScaleCss } from './src/theme/fontScaleCss.ts'
 import { PART_PACK_FILE, PART_PACK_NAME, writePartPack } from './src/arsenal/partPack.ts'
+import { RANGE_PACK_FILE, RANGE_PACK_NAME } from './src/range/rangePack.ts'
 
 /**
  * The OCR engine of «Синхронизация по фото» (src/stashPhoto/browser.ts) served from the app itself under ocr/, never
@@ -101,29 +102,39 @@ function scopedSiteCss(): Plugin {
  * folder Vite copied is packed and removed once the build is written, so neither the PC app's archive nor the phone's APK/IPA
  * holds a plain picture. In development the pack is made from public/gun-parts when first asked for.
  */
-function gunPartsPack(): Plugin {
+/**
+ * A folder of pictures under public/ shipped as one encrypted pack (src/arsenal/partPack.ts): packed at the end of a build (the plain
+ * folder removed), served packed by the dev server. `keep` false: the folder is only removed (the range's pictures in a build that is
+ * not a test build).
+ */
+function picturePack(folderName: string, packName: string, pattern: RegExp, keep: () => boolean = () => true): Plugin {
   let outDir = 'dist'
   let publicDir = 'public'
   let devPack: Promise<Uint8Array> | null = null
+  let devStamp = ''
   const pack = (folder: string) => {
-    const names = readdirSync(folder).filter((name) => PART_PACK_FILE.test(name)).sort()
+    const names = readdirSync(folder).filter((name) => pattern.test(name)).sort()
     return writePartPack(names.map((name) => [name, new Uint8Array(readFileSync(join(folder, name)))] as const))
   }
   return {
-    name: 'raidos-gun-parts-pack',
+    name: `raidos-pack-${folderName}`,
     configResolved(config) { outDir = resolve(config.root, config.build.outDir); publicDir = config.publicDir || resolve(config.root, 'public') },
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const path = (request.url ?? '').split('?')[0]!.replace(/^\/+/, '')
-        if (path !== PART_PACK_NAME) return next()
-        devPack ??= pack(join(publicDir, 'gun-parts'))
+        if (path !== packName || !existsSync(join(publicDir, folderName))) return next()
+        // packed again when the folder's files change (the range's pictures arrive while the studio renders)
+        const folder = join(publicDir, folderName)
+        const stamp = readdirSync(folder).map((name) => `${name}:${statSync(join(folder, name)).mtimeMs}`).join('|')
+        if (stamp !== devStamp) { devStamp = stamp; devPack = null }
+        devPack ??= pack(folder)
         devPack.then((bytes) => { response.setHeader('Content-Type', 'application/octet-stream'); response.end(Buffer.from(bytes)) }, next)
       })
     },
     async closeBundle() {
-      const folder = join(outDir, 'gun-parts')
+      const folder = join(outDir, folderName)
       if (!existsSync(folder)) return
-      writeFileSync(join(outDir, PART_PACK_NAME), await pack(folder))
+      if (keep()) writeFileSync(join(outDir, packName), await pack(folder))
       rmSync(folder, { recursive: true, force: true })
     },
   }
@@ -144,7 +155,12 @@ function startupIntro(): Plugin {
 
 export default defineConfig({
   base: './',
-  plugins: [appStoreStubs(), scopedSiteCss(), react(), ocrAssets(), startupIntro(), gunPartsPack()],
+  // A test build (TEST_BUILD=1, scripts/write-build-info.mjs) shows the pages still being tested (src/app/rangeFeature.ts).
+  define: { __RAIDOS_TEST_BUILD__: JSON.stringify(process.env.TEST_BUILD === '1') },
+  plugins: [appStoreStubs(), scopedSiteCss(), react(), ocrAssets(), startupIntro(),
+    picturePack('gun-parts', PART_PACK_NAME, PART_PACK_FILE),
+    // «Тир» (src/range/rangeFigures.ts): its pictures go into test builds only, like the page
+    picturePack('range-figures', RANGE_PACK_NAME, RANGE_PACK_FILE, () => process.env.TEST_BUILD === '1')],
   // «Размер шрифта» (src/theme/fontSize.ts): every font size in px times var(--font-scale, 1)
   css: { postcss: { plugins: [fontScaleCss()] } },
   build: {

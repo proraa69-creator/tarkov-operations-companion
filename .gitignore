@@ -29,3 +29,6 @@ website/.prerender/
 
 # Test exe packs (TEST_BUILD=1); the weapon part pictures (public/gun-parts) are in the repo: they ship in the app
 release-test/
+
+# «Тир»: pictures rendered in the offline game (E:\SPT-photo\studio, pack_figures.py), test builds only
+public/range-figures/

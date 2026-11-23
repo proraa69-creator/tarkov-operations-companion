@@ -28,7 +28,7 @@ export interface PartAsset {
 }
 export interface PartsIndex { ppm: number; parts: Record<string, PartAsset> }
 
-type Mat3 = [number, number, number, number, number, number, number, number, number]
+export type Mat3 = [number, number, number, number, number, number, number, number, number]
 const IDENTITY: Mat3 = [1, 0, 0, 0, 1, 0, 0, 0, 1]
 
 function quat([x, y, z, w]: number[]): Mat3 {
@@ -112,6 +112,17 @@ export interface LaidBuild {
   boxes: Record<string, [number, number, number, number]>
   /** The weapon's stock folds (owner, 20.11.2026: «кнопки сложить, разложить… приклад»). */
   foldable: boolean
+  /**
+   * Where each part of the build is, drawn or not: its origin in the weapon's frame (metres; y up) and its turn, so any point of the
+   * part's own frame (the frame of its slot points) is `at + turn · point` (the range's sight height, src/range/rangeSight.ts).
+   */
+  frames: PartFrame[]
+}
+export interface PartFrame { tpl: string; path: string; at: [number, number, number]; turn: Mat3 }
+/** A point of a part's own frame in the weapon's frame. */
+export function pointOf(frame: PartFrame, point: readonly number[]): [number, number, number] {
+  const turned = apply(frame.turn, [point[0] ?? 0, point[1] ?? 0, point[2] ?? 0])
+  return [frame.at[0] + turned[0], frame.at[1] + turned[1], frame.at[2] + turned[2]]
 }
 
 /** How far in front of the receiver a folded stock brought to the near side lies (metres along the view). */
@@ -149,6 +160,7 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
   const anchors: Record<string, [number, number]> = {}
   const centers: Record<string, [number, number]> = {}
   const partPaths: string[] = []
+  const frames: PartFrame[] = []
   const partTurn = (tpl: string, given: Mat3): Mat3 => {
     const plain = index.parts[tpl]
     // The game's own turn of the part where it puts it straight on its slot's bone (measured on its assembled presets, `fix`): the
@@ -167,7 +179,7 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     // folded: the weapon in its folded look, and the stock in the folding slot in its own when it has one
     const foldsHere = folded && (path === '' || path === foldSlot) && Boolean(plain?.fold)
     const asset = foldsHere ? plain!.fold! : plain
-    if (!asset) { missing.push(tpl); return }
+    if (!asset) { missing.push(tpl); frames.push({ tpl, path, at, turn: laidTurn }); return }
     // A stock stands level, and so does a stock tube (owner, 22.11.2026: «приклады до сих пор кривые на ак 12 и всех других автоматах,
     // приклады и труба приклада»; «проверь все трубы прикладов, что бы именно они были ровные»). Levelled, each about its own slot
     // point: the part in the weapon's stock slot, every tube, and a stock on a tube or on a short lock. The game lays the AK-12 tube on
@@ -183,6 +195,7 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     const carrier = isStockSlot(path) && (!long || isTube(asset, ppm))
     const inFold = folded && Boolean(foldSlot) && (path === foldSlot || path.startsWith(`${foldSlot}/`))
     const turn = levelled ? aboutView(laidTurn, levelAngle(laidTurn, !inFold ? plain?.lv : undefined)) : laidTurn
+    frames.push({ tpl, path, at, turn })
     // the X axis (the view) kept or turned round: the picture turns in its plane; any other turn faces the part towards the eye
     // a local (y, z) goes to turn·(y, z); in pixels right is -z, down is -y
     const [a, b, d, e] = [turn[8], turn[7], turn[5], turn[4]]
@@ -225,7 +238,7 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     near = Math.min(near, part.x + part.asset.d[0])
     far = Math.max(far, part.x + part.asset.d[1])
   }
-  if (!placed.length) return { parts: [], missing, width: 0, height: 0, near: 0, far: 1, anchors: {}, centers: {}, boxes: {}, foldable }
+  if (!placed.length) return { parts: [], missing, width: 0, height: 0, near: 0, far: 1, anchors: {}, centers: {}, boxes: {}, foldable, frames }
   // the box's corner to (0, 0)
   for (const part of placed) { part.m[2] -= left; part.m[5] -= top }
   for (const point of Object.values(anchors)) { point[0] -= left; point[1] -= top }
@@ -237,5 +250,5 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     const ys = [0, part.asset.w].flatMap((u) => [0, part.asset.h].map((v) => part.m[3] * u + part.m[4] * v + part.m[5]))
     boxes[partPaths[index]!] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
   })
-  return { parts: placed, missing, width: Math.ceil(right - left), height: Math.ceil(bottom - top), near, far, anchors, centers, boxes, foldable }
+  return { parts: placed, missing, width: Math.ceil(right - left), height: Math.ceil(bottom - top), near, far, anchors, centers, boxes, foldable, frames }
 }

@@ -405,6 +405,12 @@ button.wb-trader-auto { color: var(--brass); }
 .wb-tile-price > .wb-part-lock { display: inline-flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; color: var(--text-muted); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The order of the modules in the window at the cell; a kit's two pictures side by side */
+/* a sight slot's tabs: rings, optical scopes, rail scopes and red dots, thermal and night */
+.wb-grid-tabs { display: flex; flex: none; flex-wrap: wrap; gap: 4px; padding: 6px 6px 0; }
+.wb-grid-tab { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 11px; font-weight: 750; line-height: 1.15; text-align: left; cursor: pointer; }
+.wb-grid-tab.is-on { border-color: var(--brass); background: #241e12; color: var(--brass-strong, var(--text)); }
+@media (hover: hover) and (pointer: fine) { .wb-grid-tab:not(.is-on):hover { color: var(--text); border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); } }
+.wb-grid-tab-count { color: var(--text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
 .wb-grid-sort { flex: none; max-width: 52%; height: 24px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surf-2, #1c2420); color: var(--text); font: inherit; font-size: 11px; }
 .wb-tile-pair { display: flex; flex: 1; min-height: 0; align-items: center; gap: 1px; }
 .wb-tile-pair > .wb-tile-picture, .wb-tile-pair > .gb-icon { flex: 1; min-width: 0; height: 100%; }

@@ -9305,3 +9305,244 @@ Not pushed, not released, nothing uploaded.
   нужна новая версия сервера). Телефонное приложение админа получает меню только с новой сборкой этого приложения. В
   выпуске добавить строку в `src/data/updateHistory.json`; в `playerNews.json` не нужно — функция только для владельца.
   На настоящем телефоне долгое нажатие не проверено (только эмуляция касаний в Chromium).
+- 22.11 «Тир» (owner: «https://tarkov-lab.com/#range изучи всю систему … сделай так же у нас … реализуй в тестовом приложении, не
+  публикуй»): branch claude/range (from claude/quest-row-tags), 45544881. New page /arsenal/range + «Тир» in «Арсенал», shown only in a
+  dev run and in a TEST_BUILD (vite define __RAIDOS_TEST_BUILD__, src/app/rangeFeature.ts) — a release build has no route or menu item.
+  - Rules read from the game's client code in the offline SPT copy (Assembly-CSharp via a read-only Mono.Cecil IL listing in the
+    scratchpad; nothing injected or run): RealResistance, GetPenetrationChance (incl. 100 % at R ≤ p−15), CF = clamp(p/(R+12),0.6,1),
+    armour wear (0.5–0.9 through / 0.6–1.1 stopped, min 1), blunt × clamp(1−0.03(R−p),0.2,1), ×0.6 for plate slots over soft armour,
+    pieces after the blocker × their blunt, removable before built-in, plate collider then soft insert with damage/pen × CF,
+    ricochet lerp, pen ~ normal(pen, deviation), health ApplyDamage with over-damage (stomach 1.5, arms 0.7, legs 1, ×0.7 received)
+    and death on head/thorax. Not modelled: fragments (now separate shots), skills, bleeding. Neck → thorax and groin → stomach as
+    tarkov-lab shows (the colliders' parts live in the player model, not in code) — to verify in SPT.
+  - Data: armour from the mode's items file (armorSlots inline inserts and helmet parts, plate slots, visors/modules, masks, glasses);
+    src/range/rangeTargets.json from SPT bots/types (37 characters: health per part, weighted helmet/armour/rig/mask/glasses pools,
+    fitted plates and visors) + templates/items (default plate per slot, bluntDamageReduceFromSoftArmor) via
+    scripts/build-range-targets.mjs <SPT_Data/database>.
+  - Page: weapon/caliber/build (default or saved)/round, target groups and character, health variant, start state (blacked limbs),
+    kit usual/random/custom with helmet, visor, module, mask, glasses, armour or rig and each plate; front/back figure with zones
+    clipped to a body outline, armour overlay, distance 5–1000 m, zero, fire modes (single/burst/auto at the fire rate), magazine +
+    R reload, cover, spread (MOA), recoil and sway (estimates), drop vs zero, damage/pen at distance; tabs Урон/Броня/Полёт/Журнал,
+    counters; «Сравнение»: rounds/body armour/helmets/plates × zones, series 100/300/1000, mean shots and TTK.
+  - Checked: 19 range tests, tsc -b, eslint; in the browser (dev, 1600×950) shots, auto fire, kill, back view, EN, comparison
+    (11 rounds × 5 zones × 100 runs < 1 s). src/app/appVersion.test.ts fails on the Windows path with a space (unrelated).
+  - Not done: character pictures from the game (schematic figure for now), moving target, paper target; the test exe build follows.
+- 22.11 «Тир» pictures (owner: «Сделай снимки персонажа спереди сзади, так же всех боссов, бронежилетов, бронеразгрузок, шлемов
+  спереди и сзади»): claude/range fb7b8d46, 5b134975 (+ a7d7e258 no grenade/flare calibers). Rendered in the offline SPT copy by a new
+  studio worker (E:\SPT-photo\studio, README there) loaded through the RaidOsHideout loader (its own worker kept as
+  worker.hideout.dll): the SPT server's bot profiles (LoadBots) dressed by the game's inventory model loader (PlayerModelLoader),
+  pose held, own orthographic camera front/back, true alpha. 37 characters dressed + 37 bare, 2 PMC bodies, 202 worn layers
+  (42 body armour, 30 armoured rigs, 100 helmets with/without visor, 30 masks/glasses) on the same hidden body; every body picture
+  carries the game's own hit colliders (dumped from the raid player: bone path + shape) laid on its bones. From the game: neck →
+  thorax, groin → stomach, side plates → stomach (rangeModel.platePart); penetrationDamageMod is for fragments only.
+  - App: the target draws bare character + kit layers and hits by those zones (nearest collider, plate collider in front);
+    schematic figure as fallback. public/range-figures (gitignored, E:\SPT-photo\studio\pack_figures.py, 241 pictures 9.9 MB) →
+    range-figures.pack only when TEST_BUILD=1 (vite picturePack; release builds drop the folder); PC reads raidos-img://range/.
+  - The game closed once (in raid, ~5 GB after 31 characters): the studio now runs from the main menu, unloads unused assets after
+    each job, skips drawn pictures. The Woods photo tour was cut at 27/37 by that and restarted after the studio.
+  - Test exe on the owner's desktop: «Raid OS тест Тир.exe» (5b134975, test build, entitlement key, range-figures.pack inside).
+    Checked: 22 range tests, tsc, eslint, dev browser (Killa = bare + 6B13 KE + Maska-1Sch with visor, hits by zones). Not checked:
+    the packaged exe's pictures (raidos-img://range). Items newer than the offline copy (0.16.9) have no layer yet.
+- 22.11 owner: «бронежилеты и каски и бронеразгрузки только из оригинальной игры», «Залезть в оригинальную игру не запуская ее, возьми
+  от туда модели нужные и сделай скриншоты», «Сделай мне 3д модель чвк и несколько бронежилетов … и несколько касок … конструктор»:
+  claude/range 3f9b89ed. E:\SPT-photo\studio\live_swap.py copied the live game's bundles of every armour, rig, helmet, mask and pair of
+  glasses (451 bundles, 1.74 GB, read only from C:\Battlestate Games; shaders/cubemaps/physics/animations untouched; backup
+  E:\SPT-photo\backup\live-armour-20261122) into E:\SPT; the 36 live items the offline copy lacked (6Б45, PLATEminus V2, Black Division,
+  JPC, ЖПЦ, Гладиатор-С, TV-115, Stich, ANA M1/M2, LV-119 MCB, Strandhogg MCB…) added as templates through the RaidOsParts server mod's
+  parts.json (the SPT server refuses a changed items.json). All 36 checked against the live catalogue's pictures. Re-rendered: 49 body
+  armours, 59 armoured rigs, 100 helmets, 30 masks/glasses (worn, the body now an occluder so arms hide what is behind them), 37
+  dressed characters. «Конструктор» tab: USEC/BEAR + 11 armours/rigs + 9 helmets from 36 sides, drag or auto-turn. Pack 20.7 MB.
+  No meshes extracted (pictures only). Test exe on the desktop (3f9b89ed). Woods photo tour paused at 30/37 for the swap and
+  resumed after.
+- 22.11 owner: «Делай, короче, просто вид спереди и сзади. И чтобы одевалась броня, каска и так далее. Менялась по кнопке»: 3eb02f7a.
+  «Конструктор» without the turn: the character (USEC, BEAR, or any of 35 other range characters bare) front and back side by side,
+  108 armours/rigs, 99 helmets (visor variants), 18 masks, 2 glasses on/off/changed by buttons, search in long lists, «Снять» per
+  item. 36-side pictures dropped from the pack (11.5 MB). Earlier the same day a 9 s turn video was sent from those pictures.
+  Test exe on the desktop (3eb02f7a). Checked in the dev browser; not in the packaged exe.
+- 22.11 owner: «Сними еще одежду разную, футболки штаны что бы можно было менять»: 2f5e6611. Studio action «suit» (E:\SPT-photo\studio):
+  the generated PMC's Customization set to a suit's Body+Hands or Feet, only that part drawn, the rest of the body an occluder; heads
+  apart. Clothes models from the live game (live_swap_clothes.py: 173 character bundles, 0.8 GB; wrist-watch textures under
+  assets/content/hands and defaultmaterial kept offline — they lean into first-person hands and half the weapons; backup
+  E:\SPT-photo\backup\live-clothes-20261122). 147 clothes pictures (53 tops + 31 bottoms a side, 21 shared by both). Builder: a PMC
+  is bottom + top + head + armour; «Верх»/«Низ» lists of the side, names in index.json labels. Pack 21.6 MB. Sheets sent. Test exe on
+  the desktop (2f5e6611). Woods tour paused at 33/37 for the restart and resumed.
+- 22.11 Woods photo tour done (no code change): woods-quests-2 37/37 points shot, woods-spawns 33/33. Selection
+  (E:\SPT-photo\eval\select_photos.py) after looking at every sheet: quests 31 pictures for 18 points, spawns 14 for 7. Manual
+  rejects in E:\SPT-photo\eval\manual-reject.json (backup .bak-woods2): quests 3 (car hidden by grass, dark table, branches over half
+  the frame), spawns 10 (blood sample behind a car door, KOSA in thick bushes, dark Prapor parcel, all 3 M-LOK handguard points —
+  only a vice, drill and radio on the bench). Sheets sent to the owner (approved\woods\quests and \spawns preview-*.jpg). Nothing
+  published to the server; release 334 still held.
+- 22.11 owner: «Почему все кадры со сдвигом на один?» — the preview sheets, not the frames: the old sheet put our own place frame
+  again on the left of every approach and item row (and the item on the left of a spawn's place row), so each left picture repeated
+  the right one of the row above or below. New E:\SPT-photo\eval\sheets.py (select_photos.py calls it; backup
+  select_photos.py.bak-sheets-20261122): one row a place — guide picture, place, approach, item — each frame once. Woods sheets
+  redrawn and sent. The frames and the selection did not change.
+- 22.11 Shoreline photo tour: quests started 13:41 (build_quests_spt.py shoreline Shoreline, 56 points). 16:25 SPT.Server stopped
+  answering (ping timed out) at point 41; server and client restarted 16:34, the run resumed 16:39 and stood still on the same point.
+  Owner 16:49: «Останови все запомни где закончил и выключи спт» — stopped (stop.flag), offline client and SPT.Server closed,
+  GAME-BUSY flag removed. Stopped at shoreline-quests 40/56, next point «Серьёзные обвинения» quest HDD (…66760b3deb51b08bd40c2b08-6);
+  then shoreline-spawns (98). Resume only on the owner's word (memory photo-tour-paused).
+- 22.11 evening, owner's range brief («Тир у нас будет в баллистике… только стрельба…», bosses locked with visors down, recoil as
+  in the game, builds of all modes with a small module window, HP of parts and armour only, damage block only, slider-only
+  distance, real covers, scope reticles with the hold at distance, exact hit outlines, «Укрытие слева/справа», «Ящики», «Окно в
+  здании»). claude/range 8ce3d3ef, fd3bd5bd, a93617cd, b6d07e7c (+ the stock-tube fix cherry-picked, 1bf0dbe4):
+  - «Тир» is the last tab of «Баллистика» in test builds (src/range/RangeShooting.tsx); RangePage/RangeCompare/RangeOutfit gone.
+  - Bosses and guards: their usual kit, locked; 71 helmet+visor layers re-shot with the visor down (studio "visorDown",
+    make_visor_jobs.py; SPT run with the owner's yes, then shut). Killa: Maska-1Sch KE visor, black.
+  - Builds: default + every saved build of the weapon from PvP/PvE/Season labelled; src/range/RangeBuild.tsx (BuildBench small).
+  - Recoil: src/range/rangeRecoil.ts = the game's new recoil from its IL (NewRecoilShotEffect etc.) and prefab values; data
+    scripts/build-range-recoil.mjs → rangeRecoil.json (176 weapons); held fire on 1/60 s ticks at the weapon's rate; checked
+    against the analysis (M4A1 ≈1°/4.7°/plateau ~5°) and in the page (14 shots/s at 800 rpm). Synthesised gunshot (Web Audio).
+  - Hit outline: src/range/partMasks.ts (drawn pixels split by the colliders), flash + hurt tint per part.
+  - Covers and scopes: UnityPy installed with the owner's yes; E:\SPT-photo\range-assets (44 scopes/60 modes reticles + mrad
+    scale, 11 textures), tools/to_app.py → public/range-figures; src/range/RangeCover.tsx, RangeScopeView.tsx, rangeScope.ts
+    (FOV×zoom constant, FFP/SFP, hold in mrad/MOA, impact point under the reticle, pointer lock aiming).
+  - Checked: vitest src/range+src/arsenal 156/156, tsc, eslint (range clean), dev page (Killa locked, leg outline, covers,
+    ATACR ×7 at 600 m: hold up 6.8 mrad). Test exe built for the owner. Not pushed, not released.
+- 23.11.2026 ~01:30, owner on the range's scope («Прицел Voodoo при приближении и отдалении искажается… становится овальным»;
+  «не работает щелчок мыши, захватить мышь… Нужно, чтобы кнопка была войти в прицел»; «точку, куда… пуля падать… ярко выраженной
+  красной обводкой»). claude/range 7580bfae (electron/main.ts, src/range/RangeScopeView.tsx, src/styles/range.css):
+  - Pointer lock was refused by the app (PAGE_PERMISSIONS lacked 'pointerLock'; checked in a throwaway Electron window: old
+    list → SecurityError, new list → locked). Now allowed (only on a click); «Войти в прицел» button; where a page may not
+    take the mouse the view turns with the cursor over the scope (Esc / leaving the scope ends it).
+  - Oval reticle: global `img { max-width: 100% }` capped an FFP reticle wider than the scope (Vudu 1–2.5×); max-width: none.
+    Checked: Vudu 1→6× width = height at every step.
+  - Impact mark: red ring + dark halo + dot, over the reticle and the night/thermal filters; wheel zooms without scrolling the
+    page; the hint fades after 3 s. vitest src/range 25/25, tsc, eslint clean. Test exe «Raid OS тест Тир 4». Not pushed.
+- 23.11.2026 01:25, photo tour: Shoreline finished — quests 56/56 (38 frames, 26 points), spawns 98/98 (57 frames, 29
+  points); item frames checked by crops at the item's screen point; sheets sent; SPT client/server closed, GAME-BUSY removed.
+  Next map waits for the owner.
+- 23.11.2026 ~04:00, range corrections (owner: the wheel in the scope, R / F, «Раскачка», no masks/glasses, armoured rigs only,
+  the hold in marks with «?» and units, the drop at each distance; then «полосочку… Если прицел красный… черной… черный… красной»).
+  claude/range 49b2ca66 (RangeScopeView, RangeShooting, RangeTarget, rangeScope, new rangeSway.ts and RangeHelpTip.tsx, range.css):
+  wheel smooth on a variable mode, steps between fixed magnifications, page never scrolls in the scope; right button / Esc /
+  «Выйти из прицела» leave; KeyR / KeyF everywhere; sway = a slow loop from ergonomics (0.25–1.6 mrad), view and shot follow;
+  kit without face/eyewear, «Бронеразгрузка» = rigs with plate slots; HoldLine (мрад, MOA, рисок with «?» texts) and DropTable
+  (50–1000 m); the hold mark is a bar, black on a red reticle (scopes.json reticleRed), red otherwise.
+  - Reticle data (public/range-figures is not in git): E:\SPT-photo\range-assets\tools\mark_steps.py after to_app.py writes
+    markMrad / markMaxMrad (the game's own drawn step, kept when ≥5 regular marks of 0.08–2.2 mrad: TANGO6T, 3-24x42 FFP,
+    Trihawk, Mark 5HD, PM II 5-25, ATACR) and reticleRed (19 modes). The drawn steps are often not the real 0.1/0.2/1 mrad or
+    1 MOA (ATACR 0.80/0.155): the marks are counted on the game's pictures as drawn.
+  - My slip: I copied the source scopes.json over the app's copy once; restored at once with to_app.py (44 scopes, 60 modes).
+  - Checked in the dev page: Mark 5HD at 500 m «Вынос вверх 4,6 мрад · 15,7 MOA · 4,5 риски», the table, PS-320 ×6↔×1 by
+    the wheel, the wheel prevented, Vudu bar black / Mark 5HD red, the «?» popups, the sway drifting. tsc, eslint, vitest range 25/25.
+- 23.11.2026 ~14:30, «Полигон» (owner: the distance without optics, «Разброс, отдача, раскачка… должно… работать всегда», helmets
+  that did not appear, one colour of a model, visors, pictures in the armour lists, body armour and armoured rigs in one list, a
+  quick hint at the hold, scopes by groups; then «кнопку тир… переименуем в полигон», the first tab of «Баллистика»).
+  claude/range 0f654faa (src/range/RangePicker.tsx, rangeLists.ts + test, RangeScopePicker, RangeShooting, RangeScopeView,
+  range.css, src/pages/ReferencePages.tsx + AmmoPage.test.tsx, src/i18n/uiEnglishArsenal.ts):
+  - Without optics the old board drew the character at one size whatever the distance; now the sight's own view at ×1 (40°,
+    wheel to ×4, «Прицелиться»): checked 36 m across at 50 m, 302 m at 415 m.
+  - Recoil on weapons without the game's data (rangeRecoil.json) was off: the estimate from the weapon's figures now kicks
+    whenever «Отдача» is on. Spread and sway are angular, so at 25–50 m they are small by nature.
+  - Helmets 38 (37 with pictures, EXFIL once), body armour + armoured rigs 70 (69 with pictures), only what has a worn picture;
+    visors only those drawn on that helmet; a usual kit's helmet swaps to a drawn colour of its model.
+  - Scopes: in rings (a ring mount takes them: /кольц|ring|NNмм/, no \b for Cyrillic), rail, thermal 5, night 2, service 8.
+  - Quick distances 100–800, the hold also without a scope, the drop table open.
+  - vitest src/range 27/27, AmmoPage 4/4, tsc, eslint clean; dev page checked. Test exe «Raid OS тест Тир 7». Not pushed.
+- 23.11.2026 ~19:00, «Полигон»: the flight of a single shot, recoil for every weapon, the game's zero (owner: pictures out of the
+  box (screenshot of FLUX / OTV); «траекторию полета пули в реальном времени… одиночным… кнопку… возле кнопки звук… с
+  соответствующей скоростью»; «до сих пор пропадает отдача и разброс, при разных вариациях переключения прицела и оружия»; «нам
+  не нужны прямые выстрелы… в точности как у них»; «исходя из их траектории в игре, вычисли время полета пули, скорость, энергию…
+  силу притяжения… на разные дистанции»). claude/range (src/range/RangeTracer.tsx new, RangeShooting, RangeScopeView, rangeFlight,
+  rangeRecoil, src/arsenal/ballistics.ts, range.css, rangeTracer.test.ts):
+  - The trajectory checked against the game's code (SPT client, Assembly-CSharp: EFT.Ballistics.TrajectoryCalculator,
+    Shot.CalculateG1DragCoefficient and its G1 list, Weapon.RecalculateScopeCalibrationPoints / CreateOpticCalibrationData;
+    globalgamemanagers PhysicsManager): the same solver as ours — k = m·0.0014223/(d²·BC), ρA = 1.2·πd²/4, a = g + (−ρA·G1(v)·k·v²/2m)·v̂,
+    step 0.01 s, x += v·0.01 + 5e-5·a, Mach 343, all 79 G1 rows, g = −9.81. One difference fixed: the game zeroes a scope with the
+    weapon's DEFAULT round (and the build's speed factor); zeroedTrajectory takes `zeroRound`, the range flies the loaded round
+    against that line of sight. (Bots' bullets in the game fly without gravity — not used.)
+  - «Траектория» (next to «Звук», on by default): a single shot's bullet flies at its real time — the path seen from the eye in the
+    scope, a bright streak, time / speed / energy / height / distance over it; the hole, the hit flash, HP and counters show when
+    the bullet gets there (the shot is worked out as it leaves). The drop table has time, speed and energy at each distance.
+  - Recoil: 14 weapons lack the game's data (MXLR, АК-308, M16A1/A2, HK 416A5, QBZ-191, Type 20, Вал MOD.4, ТКПД, SR-25 tau,
+    NL545 ×2, Сайга Рэдлайн, Scourge) and did not kick on single shots — they take the most alike weapon's recoil at their own
+    force. A failing recoil tick no longer leaves the trigger stuck (recoil and auto fire «пропадали» until reopening). A build
+    with no barrel gets 3 MOA instead of no spread.
+  - Picker thumbnails stay inside the box (one grid track the tile's size).
+  - Checked in the dev page: thumbs 48×26 inside 56×30; toggles «… Звук, Траектория»; table M855 100 m 0.12 s / 777 m/s / 1 208 J;
+    a 400 m shot arrives at 0.63 s, 453 m/s, 410 J, ↓1.12 m. vitest src/range 36/36 + ballistics, tsc, eslint clean.
+- 23.11.2026 evening, STARTED, NOT DONE (owner: «сверху нам надо убрать прицелы, а дать возможность выбирать их в сборке оружия…
+  рассчитывай уже на каждое оружие, на каждый прицел высоту прицела»): the scope from the weapon build, the sight height per
+  build instead of the fixed 6.858 cm. Found: scope bundles hold `mod_aim_camera` and `optic_camera` nodes (UnityPy reads
+  E:\SPT\EscapeFromTarkov_Data\StreamingAssets\Windows\<_props.Prefab.path>); weapons/barrels: look for `fireport`; chain them with
+  public/gun-parts/index.json slot transforms. No code changed yet. Work stopped by the owner (limits); handoff file on the
+  desktop: «Raid OS — передача работы Claude 23.11.2026 вечер.md».
+- 23.11.2026 ~22:00, «Полигон»: the scope from the weapon build, the sight height per build, the zero with the round fired, a short
+  hold bar (owner: «убрать в разделе баллистика, полигон, выбор прицелов сверху посередине… выбираю оружие, выбираю прицел, и в
+  соответствии с прицелом… меняется сетка прицельная в режиме стрельбы. Также пристрелка должна меняться в зависимости от
+  патрона»; «красная полоска, которая на вынос указывает… сделать ее практически размером с сетку… немного шире самой сетки рисок
+  и чуть-чуть толще»). Branch claude/range, not pushed.
+  - The top scope picker is gone (RangeScopePicker.tsx removed): the scope is the build's first part that scopes.json knows; no
+    scope on the build, the open sights. The zero list is the scope's own CalibrationDistances (the select showed 50–400 for all).
+  - Sight height: E:\SPT-photo\range-assets\tools\sight_points.py reads each sight's `mod_aim_camera` (of several, the one level with
+    its `optic_camera`), each weapon's `aim_camera` and the `fireport` of a weapon or barrel without a muzzle slot from the offline
+    game's bundles (UnityPy, no dependencies, 17 s) → public/range-figures/sights.json (316 aim points, 64 bores; in the range pack).
+    Slots read the same way match public/gun-parts/index.json within 0.44 mm. layBuild now returns every part's frame (`frames`,
+    drawn or not); src/range/rangeSight.ts puts the aim point and the first muzzle slot through them: M4A1 + 260 mm barrel + HAMR =
+    7.13 cm. Unknown: the usual 6.858 cm. Shown in the stage head («Прицел HAMR · над стволом 7,1 см»), the hold line, the drop table.
+  - The zero is computed with the round fired at that sight height (rangeFlight `Zeroing`); the game itself zeroes with the weapon's
+    default round, kept as an option (`zeroAmmo`) for the tests only.
+  - Hold bar: mark_steps.py also measures how wide the reticle's marks are (`tickMrad`, `tickMaxMrad`, 80th percentile of the marks'
+    widest rows); the bar is 1.25× that (2.4 % of the view where unknown, 1.4–4 % of the view), 4 px with a 7 px rim (was 8 % and 3 px).
+  - vitest src/range + ballistics, tsc, eslint clean.
+- 23.11.2026 ~23:40, «Полигон»: a single shot kicks, a red dot seen as in the game, the sight slot's tabs (owner: «нету отдачи в
+  одиночном режиме стрельбы»; «при стрельбе из коллиматора должен включаться прямо вот вид, как в игре… рамки самого коллиматора…
+  и прицельная сетка коллиматора»; «в сборке оружия, где у нас выбор прицела… вкладки: кольца, оптические прицелы, прицелы на планку
+  и коллиматоры, тепловизоры и ночные прицелы»). Branch claude/range, not pushed.
+  - Single shot: the recoil sim said «at rest» right after `shot()` (the kick waits for the next 1/60 s tick), and a click is handled
+    just before the frame's callbacks (a zero or negative step), so with the trigger already let go the range stopped its ticks on the
+    first frame and the kick never applied (automatic and bursts hold the trigger, so they kicked). `resting()` now waits for a pending
+    kick and for the barrel, view and camera to stand still (the game's after-shot offset leaves a small standing turn, never «speed 0»);
+    the step is never negative; at rest the range keeps that last reading (the next bullet goes there too). M4A1: 0.55° up, back in ~1 s.
+  - Red dots: E:\SPT-photo\range-assets\tools\collimators.py (43 collimators, 13 s): each mode's mark as the game's collimator shader
+    draws it (its vertex program disassembled: uv = 0.5 + 0.5·k·(d.x, −d.z), d = cam − _MarkShift − v/_MarkScale, k = _MarkShift.y²/d.y;
+    colour = alpha · _Color · _HDR · 0.769, additive), from the sight's mod_aim_camera through the lens mesh, centred on the mark; the
+    housing from the same eye (LOD0 meshes with their albedo, the glass faint) at 40° like the open sights → public/range-figures
+    collimators.json, reticle-<id>-m<N>.webp, housing-<id>.webp (1.4 MB, in the pack: RANGE_PACK_FILE takes housing-… and
+    collimators.json). EOTech EXPS3 ring ≈ 25 mrad with its glow (real 68 MOA ≈ 20 mrad). The range takes a magnified scope first
+    (scopes.json), then a red dot; the housing moves with the barrel like the reticle and grows with the wheel's zoom; several
+    reticles: «Сетка 1…N».
+  - Tabs: src/arsenal/sightTabs.ts (by tarkov.dev category: mount / scope / assault-scope + reflex + compact reflex / special-scope /
+    the rest «Прочее»), shown in ModGrid when a slot takes sights and they fall in two tabs or more — so also in «Сборка оружия».
+    Optical scopes need rings: in a receiver's scope slot «Оптические прицелы» lists only those that fit the rail directly.
+  - Checked on the dev page (RU/EN): M4A1 + EXPS3-0 and + MRS (4 reticles), a single shot's view kick ~72 cm at 50 m and back.
+    vitest src/range src/arsenal src/i18n (213), tsc, eslint clean.
+- 24.11.2026 ~02:30, «Полигон» and «Сборка оружия»: rings first, the hold bar, the reticle centred, red dots without zoom, HHS-1's
+  magnifier, first focal plane reticles at every zoom, the scope's corners, the phone's full screen (owner, 24.11.2026: «Сначала мы
+  выбираем кольца и планки, а потом… в следующем окне уже оптические прицелы… ADO P4… перенеси в прицелы на планку»; «вынос… чуть
+  больше, чем риска… и сделай её красной… не такую огромную»; «сетки при увеличении начинают уезжать в сторону»; «на коллиматорах, где
+  нету кратности… не должны приближаться… HHS1 тан… магнифер»; «где сетка в первой фокальной плоскости, а где во второй. Это должно
+  работать правильно»; «Кнопки перезарядки и начать заново перенеси вот в эти края… Справа сверху… кнопку на весь экран… для телефона…
+  Джойстик слева, огонь справа. И перевод в горизонтальное положение»; «Слева сверху… кнопка переключения огня»; «отсечка… Назови его
+  очередями»). Branch claude/range, not pushed, test builds only.
+  - Sight tabs (src/arsenal/sightTabs.ts): a ring is a mount with a seat that takes optical scopes only (Lobaev 30 мм, NF 34 мм…, 18 on
+    the M4A1's receiver); on a rail «Оптические прицелы» lists the rings (and «Кольца» keeps every mount), a scope fitting the rail
+    directly (ADO P4, the ПСО family on the dovetail) goes under «Прицелы на планку и коллиматоры»; in a ring's seat the scopes are one
+    list. Picking a ring opens its seat's window next (ModGrid `onPick(itemId, then)`; «Сборка оружия», «Оружейник», «Полигон»).
+  - Hold bar: E:\SPT-photo\range-assets\tools\mark_steps.py measured the marks' width on the 80th percentile (a ladder's long marks);
+    now the shortest quarter of the marks standing at least three times the line's width out of it. TANGO6T 0.97 → 0.70 mrad, Mark 5HD
+    1.23 → 0.70, PM II 5-25 high zoom 0.19 → 0.11, ATACR high zoom 0.19 → 0.18. The bar 1.3 × that (1–3 % of the view, 1.8 % unknown),
+    3 px with a 1 px rim; red, black on a red reticle as before.
+  - Reticle off centre when zoomed: after a shot the barrel settles a little to the side (the game's after-shot offset) and the view
+    followed only its pitch, so the reticle stood off the middle by a fixed angle that grew on the screen with the magnification. Once
+    the shooting is over the view now turns to the barrel's side offset too (rangeRecoil `followRight`): the reticle is in the middle again.
+  - Red dots: no zoom (collimators.py writes ×1 without zoomMax; 4 min 46 s for 43). HHS-1 (black, tan): the prefab has the G33 twice,
+    in line (pos_1 + its backLens) and flipped (pos_2); the ×1 housing is drawn with it flipped, and the range joins the sight's red dot
+    (collimators.json) and its ×3 magnified mode (scopes.json): ×1 / ×3 buttons, the wheel switches (rangeScope `sightOnBuild`).
+  - First focal plane: the range had two pictures, the lowest zoom's (4096 px shrunk to 1024) and the highest's; past the range's middle
+    the high one covered only the highest zoom's view (PM II 1-8 at ×3: the middle third, the outer posts cut), below it the low one was
+    blown up and blurred. export_reticles.py now draws each mesh reticle on steps ×1.5 apart (2048 px, each covering its zoom's whole
+    view, the blend shape at that FOV as the game weighs it), to_app.py writes `reticleSteps`, the range shows the step at or below the
+    zoom. Second focal plane scopes (texture reticles spanning the optic view) are unchanged. Which is which comes from the game itself
+    (mesh ScopeReticle = FFP; texture = SFP).
+  - Scope corners: fire mode top left (and B), reload bottom left (R), new target bottom right (F); «Убрать отметки» stays above; the
+    killed banner moved to the top middle. On a phone (phone layout or a touch screen) a full screen button top right: the scope over
+    the whole screen, the stick on the left (speed by how far it is pushed, slow near the middle), «Огонь» on the right (held = automatic)
+    with the magazine under it; the browser's full screen and a landscape lock where given, else the picture turned a quarter by CSS
+    while the phone is upright (the stick's way turned back). Burst renamed «Очередями».
+- 24.11.2026 ~02:40, the sight slot: no «Оптические прицелы» tab on a rail (owner: «оптические прицелы убери. Они будут появляться только
+  когда выбраны кольца… второй блок для выбора прицела… прицелы… которые подходят именно на это кольцо»): the rings are under
+  «Кольца» only; picking one still opens its seat's window, which lists the scopes of that ring (one list, no tabs). Тир 12.
+- 24.11.2026 ~03:20, the range's recoil a little under the game's (owner: «чтобы она чуть-чуть отличалась от оригинальной. Чуть-чуть
+  меньше отдачу сделай»): rangeRecoil `RANGE_RECOIL_SCALE = 0.92` on every kick (the camera's follows it). Тир 13.
