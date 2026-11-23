@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { BellRing, ClipboardList, FileText, House, LayoutDashboard, LayoutGrid, Megaphone, MessagesSquare, Newspaper, Power, ShieldCheck, Target } from 'lucide-react'
+import { BellRing, ClipboardList, FileText, House, LayoutDashboard, LayoutGrid, Megaphone, MessagesSquare, Newspaper, Power, ShieldCheck, Target, UserRound } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
 import { OwnerNoticeTools } from '../notices/OwnerNoticeTools'
@@ -13,6 +13,8 @@ import { AdminNewsEditor } from '../admin/AdminNewsEditor'
 import { ownerRequest, useOwnerAccess } from '../admin/ownerAccess'
 import { OwnerReportsTable } from './RequestsPage'
 import { OwnerChats } from '../support/OwnerChats'
+import { AccountProfile } from '../admin/AccountProfile'
+import { adminProfilePath, type AdminAccountProfile } from '../admin/adminApi'
 import { ClaudeAccessPanel } from '../requests/ClaudeAccessPanel'
 import { useOwnerRequestCounts } from '../data/ownerRequests'
 import type { AdminRequest } from '../admin/ownerAccess'
@@ -22,7 +24,7 @@ import '../admin/adminPanel.css'
 /** «Сводка»: the site's admin tabs with the site's sheets, loaded only when opened (src/admin/SiteAdminSummary.tsx). */
 const SiteAdminSummary = lazy(() => import('../admin/SiteAdminSummary').then((module) => ({ default: module.SiteAdminSummary })))
 
-export type AdminSectionId = 'summary' | 'reports' | 'chat' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'hideout' | 'news'
+export type AdminSectionId = 'summary' | 'reports' | 'chat' | 'profile' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'hideout' | 'news'
 
 /**
  * «Сводка» first (admin statistics), then «Отчёты» and «Чат», each on its own (owner, 15.11.2026: «Блок «Отчёты» снизу перенести наверх, в «Админ панель»…
@@ -45,6 +47,14 @@ const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: s
   { id: 'news', label: 'Обновление', hint: 'Тексты для игроков', icon: Newspaper },
 ]
 
+/**
+ * «Профиль» (owner, 24.11.2026: «должна открываться отдельная вкладка с информацией о аккаунте»): a player's card opened
+ * from «Чат» (a right click on a person → «Посмотреть профиль»). Its tab shows under «Чат» only while a card is open:
+ * ?tab=profile&account=<id>.
+ */
+const PROFILE_SECTION = { id: 'profile' as const, label: 'Профиль', hint: 'Аккаунт игрока', icon: UserRound }
+const ACCOUNT_ID = /^[a-f0-9]{24}$/
+
 const isSection = (value: string | null): value is AdminSectionId => ADMIN_SECTIONS.some((section) => section.id === value)
 
 /**
@@ -55,7 +65,8 @@ const isSection = (value: string | null): value is AdminSectionId => ADMIN_SECTI
  * - «Отчёты»: the table of reports and ideas (src/reports/ReportsTable.tsx), as on the site, with the red number of those
  *   that wait; ?report=N opens one (a notification);
  * - «Чат»: the players' support conversations (support/OwnerChats.tsx), with the number of unread ones; ?chat=<account>
- *   opens one («Открыть чат» on a report);
+ *   opens one («Открыть чат» on a report); a right click on a person → «Посмотреть профиль» opens «Профиль»
+ *   (?tab=profile&account=<id>, admin/AccountProfile.tsx): everything the server has about the account;
  * - «Объявления» / «Опросы»: popups for all or by region (server/src/routes/notices.ts), with the results;
  * - «Баннер»: the line at the top of every app (routes/announcement.ts);
  * - «Функции»: switches for everybody (the position on the map);
@@ -69,7 +80,11 @@ export function AdminPanelPage() {
   const access = useOwnerAccess()
   const [params, setParams] = useSearchParams()
   const tab = params.get('tab')
-  const section: AdminSectionId = isSection(tab) ? tab : 'summary'
+  const profileOf = params.get('account')
+  const profileOpen = tab === 'profile' && Boolean(profileOf && ACCOUNT_ID.test(profileOf))
+  const section: AdminSectionId = profileOpen ? 'profile' : isSection(tab) ? tab : 'summary'
+  // The player's card has its tab right under «Чат» while it is open.
+  const sections = profileOpen ? ADMIN_SECTIONS.flatMap((entry) => (entry.id === 'chat' ? [entry, PROFILE_SECTION] : [entry])) : ADMIN_SECTIONS
   const request = useMemo(() => ownerRequest(), [])
   const choose = (id: AdminSectionId) => setParams({ tab: id }, { replace: true })
   const counts = useOwnerRequestCounts()
@@ -83,7 +98,7 @@ export function AdminPanelPage() {
   } else {
     // A fresh mount per section (owner, 16.10.2026: «при переходе на другой блок оно должно закрываться»): an open
     // compose window — an announcement, a survey or the banner — is left behind when the owner opens another section.
-    body = <AdminSection key={section} id={section} request={request} />
+    body = <AdminSection key={section === 'profile' ? `profile:${profileOf}` : section} id={section} request={request} />
   }
 
   return (
@@ -98,10 +113,10 @@ export function AdminPanelPage() {
       </header>
       <div className="admin-layout">
         <nav className="admin-sections" role="tablist" aria-label={uiLabel('Разделы админ панели')} aria-orientation="vertical">
-          {ADMIN_SECTIONS.map(({ id, label, hint, icon: Icon }) => {
+          {sections.map(({ id, label, hint, icon: Icon }) => {
             const badge = badges[id]
             return (
-              <button key={id} type="button" role="tab" id={`admin-tab-${id}`} aria-selected={section === id} aria-controls="admin-section" className={`admin-section-tab${section === id ? ' active' : ''}`} onClick={() => choose(id)}>
+              <button key={id} type="button" role="tab" id={`admin-tab-${id}`} aria-selected={section === id} aria-controls="admin-section" className={`admin-section-tab${section === id ? ' active' : ''}${id === 'profile' ? ' is-profile' : ''}`} onClick={() => (id === 'profile' ? undefined : choose(id))}>
                 <Icon size={16} aria-hidden="true" />
                 <span><strong>{uiLabel(label)}</strong><small>{uiLabel(hint)}</small></span>
                 {badge ? <span className="nav-badge admin-section-badge" aria-label={`${uiLabel('Новых')}: ${badge}`}>{badge > 99 ? '99+' : badge}</span> : null}
@@ -121,6 +136,9 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
   const chatWith = params.get('chat')
   // «Открыть чат» on a report: «Чат» with that player's conversation.
   const openChat = useCallback((accountId: string | null) => setParams(accountId ? { tab: 'chat', chat: accountId } : { tab: 'chat' }, { replace: true }), [setParams])
+  // «Посмотреть профиль»: the player's card in its own tab; «К чату» returns to the conversation.
+  const openProfile = useCallback((accountId: string) => setParams({ tab: 'profile', account: accountId }, { replace: true }), [setParams])
+  const loadProfile = useCallback(async (accountId: string) => await request('GET', adminProfilePath(accountId)) as AdminAccountProfile, [request])
   switch (id) {
     case 'summary':
       return <Suspense fallback={null}><SiteAdminSummary request={request} email={email} /></Suspense>
@@ -139,9 +157,17 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
       return (
         <section className="panel admin-section admin-chat-section" aria-labelledby="admin-chat-title">
           <div className="panel-header"><div><div className="eyebrow">{uiLabel('Чат с поддержкой')}</div><div className="panel-title" id="admin-chat-title">{uiLabel('Чат')}</div></div><MessagesSquare size={18} className="brass" aria-hidden="true" /></div>
-          <div className="panel-body"><OwnerChats selected={chatWith} onSelect={openChat} /></div>
+          <div className="panel-body"><OwnerChats selected={chatWith} onSelect={openChat} onProfile={openProfile} /></div>
         </section>
       )
+    case 'profile': {
+      const accountId = params.get('account') ?? ''
+      return (
+        <section className="admin-section admin-profile-section" aria-label={uiLabel('Профиль')}>
+          <AccountProfile accountId={accountId} load={loadProfile} onBack={() => openChat(accountId)} backLabel={{ ru: 'К чату', en: 'Back to chat' }} onOpenChat={openChat} variant="page" />
+        </section>
+      )
+    }
     case 'notices':
       return (
         <section className="panel admin-section owner-notices-panel" aria-labelledby="admin-notices-title">

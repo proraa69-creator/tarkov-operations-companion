@@ -27,3 +27,9 @@ export const accountText = (email?: string, nickname?: string) => (email ? `${em
 export function statusText(status: PaymentStatus) {
   return uiText({ succeeded: 'оплачено', pending: 'ожидает', canceled: 'отменено', refunded: 'возврат' }[status])
 }
+
+/** The first letter of a name for a round badge («K» of «Kotik_Pro»; «?» without one): the chats' menu, the profile. */
+export function initial(name: string) {
+  const letter = [...name.trim()].find((char) => /[\p{L}\p{N}]/u.test(char))
+  return letter ? letter.toUpperCase() : '?'
+}

@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
   setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), setPayoutLimits: vi.fn(), forget: vi.fn(),
-  stickerPacks: vi.fn(),
+  stickerPacks: vi.fn(), profile: vi.fn(),
 }))
 
 vi.mock('./adminApi', async (load) => ({ ...(await load<typeof import('./adminApi')>()), adminApi: mocks }))
@@ -269,6 +269,45 @@ describe('mobile admin dashboard', () => {
     render(<AdminMobilePage />)
     expect(await screen.findByText('Статистика онлайна')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Телефоны' })).not.toBeInTheDocument()
+  })
+
+  // Owner, 24.11.2026: «на телефоне зажимаю пальцем какого-либо из человека… посмотреть профиль».
+  it('«Чаты»: a long press on a person → «Посмотреть профиль» on its own screen; the open chat has «Профиль» too', async () => {
+    const user = userEvent.setup()
+    const accountId = 'e'.repeat(24)
+    const asked = { id: 9, author: 'user' as const, text: 'Как привязать телефон?', createdAt: '2026-11-24T09:00:00.000Z', read: true }
+    mocks.supportThreads.mockResolvedValue({ threads: [{ accountId, email: 'kotik@example.com', nickname: 'Kotik_Pro', lastMessage: asked, lastAt: asked.createdAt, unread: 0 }], total: 1, unread: 0 })
+    mocks.supportThread.mockResolvedValue({ account: { id: accountId, email: 'kotik@example.com', nickname: 'Kotik_Pro' }, messages: [asked] })
+    mocks.profile.mockResolvedValue({
+      generatedAt: '2026-11-24T10:00:00.000Z',
+      account: { id: accountId, email: 'kotik@example.com', kind: 'user', createdAt: '2026-07-01T09:00:00.000Z', nickname: 'Kotik_Pro' },
+      subscription: { status: 'active', paidUntil: '2027-01-01T00:00:00.000Z', source: 'money' }, autopay: null, origin: {},
+      payments: { count: 1, total: 300, refunded: { count: 0, total: 0 }, first: { at: '2026-07-07T10:00:00.000Z', plan: '1m', amount: 300 }, months: [{ month: '2026-07', count: 1, revenue: 300, plans: { '1m': 1 } }], plans: plans(1, 300), list: [], more: false },
+      grants: [], activity: { phone: { used: true, android: false, ios: true }, phoneSeenAt: '2026-11-22T10:00:00.000Z', devices: [] },
+      referrals: { invited: 0, deleted: 0, paid: 0, revenue: 0, friends: [], more: false, rewards: { granted: 0, pending: 0, review: 0, canceled: 0, days: { granted: 0, pending: 0, review: 0 } } },
+    })
+
+    render(<AdminMobilePage />)
+    await user.click(tab('Чаты'))
+    const person = (await screen.findByText('Kotik_Pro')).closest('button')!
+    const press = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 40, clientY: 40 })
+    Object.defineProperty(press, 'pointerType', { value: 'touch' })
+    fireEvent(person, press)
+    await user.click(await screen.findByRole('menuitem', { name: 'Посмотреть профиль' }, { timeout: 2000 }))
+    // The finger lifted after the press did not open the chat.
+    expect(mocks.supportThread).not.toHaveBeenCalled()
+
+    const profile = await screen.findByRole('dialog', { name: 'Профиль Kotik_Pro' })
+    await waitFor(() => expect(mocks.profile).toHaveBeenCalledWith(accountId))
+    expect(await within(profile).findByText('Первая оплата')).toBeInTheDocument()
+    expect(within(profile).getByText('С телефона').parentElement).toHaveTextContent('ДаiPhone')
+
+    // «Открыть чат» from the profile: the conversation, the profile closed.
+    await user.click(within(profile).getByRole('button', { name: 'Открыть чат' }))
+    await waitFor(() => expect(mocks.supportThread).toHaveBeenCalledWith(accountId))
+    expect(screen.queryByRole('dialog', { name: 'Профиль Kotik_Pro' })).toBeNull()
+    await user.click(await screen.findByRole('button', { name: 'Профиль' }))
+    expect(await screen.findByRole('dialog', { name: 'Профиль Kotik_Pro' })).toBeInTheDocument()
   })
 
   it('marks new requests and chats in the bottom bar', async () => {

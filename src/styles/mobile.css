@@ -527,6 +527,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .requests-viewer-step { bottom: var(--window-bottom); }
 :root[data-layout="mobile"] :is(.support-image-lightbox, .admin-report-lightbox) { padding-top: calc(var(--window-top) + 48px); }
 :root[data-layout="mobile"] :is(.support-image-close, .admin-report-lightbox > .icon-button) { top: var(--window-top); }
+/* The menu on a person in the admin chats (admin/ChatPersonMenu.tsx): the finger's sheet sits on the screen's lower edge. */
+:root[data-layout="mobile"] .chat-person-menu-layer.is-sheet { padding-top: var(--window-top); }
 
 /* «Сбор на рейд» empty on the phone: no words over the resting Goons (owner, 11.11.2026: «надпись лежит прямо на кочевниках…
    убрать ее, наверное, совсем»); a screen reader still hears it. */

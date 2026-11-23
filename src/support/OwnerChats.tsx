@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft, CheckCircle2, Inbox, LoaderCircle, MessagesSquare } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, Inbox, LoaderCircle, MessagesSquare, UserRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { OWNER_CHATS_KEY, useOwnerChat, useOwnerChatActions, useOwnerChats, type OwnerChatDetail, type OwnerChatThread } from '../data/ownerRequests'
@@ -9,6 +9,8 @@ import { SupportComposer, SupportMessageList } from './SupportChat'
 import { supportTime, type SupportImageUpload, type SupportSendExtra } from './supportChatClient'
 import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from './supportChatTools'
 import { FindUserToWrite } from './FindUserToWrite'
+import { ChatPersonMenu } from '../admin/ChatPersonMenu'
+import { usePersonMenu } from '../admin/personMenu'
 import './supportChat.css'
 
 /** The player as the owner knows them: the game nickname, else the e-mail. */
@@ -29,10 +31,15 @@ const playerName = (player: { nickname?: string; email: string } | undefined) =>
  * latest message is screenshots only reads «[скриншот]» in the list, a sticker «Стикер: Крыса».
  *
  * Reactions, «Ответить», emoji and stickers (owner, 07.11.2026), as on the player's side: a right click on a message.
+ *
+ * «Посмотреть профиль» (owner, 24.11.2026: «нажимаю правой кнопкой, на телефоне зажимаю пальцем… посмотреть профиль»): a
+ * right click or a long press on a person in the list opens the menu (admin/ChatPersonMenu.tsx); `onProfile` opens the
+ * account's card. The open conversation has the same under its name («Профиль»).
  */
-export function OwnerChats({ selected, onSelect }: { selected: string | null; onSelect: (accountId: string | null) => void }) {
+export function OwnerChats({ selected, onSelect, onProfile }: { selected: string | null; onSelect: (accountId: string | null) => void; onProfile?: (accountId: string) => void }) {
   const { locale } = useLocale()
   const chats = useOwnerChats()
+  const people = usePersonMenu()
   const threads = chats.data?.threads ?? []
   const error = chats.error instanceof Error ? cleanIpcError(chats.error) : ''
   return (
@@ -44,7 +51,8 @@ export function OwnerChats({ selected, onSelect }: { selected: string | null; on
         {error && <p className="account-error" role="alert">{uiText(error)}</p>}
         {!chats.isLoading && !error && !threads.length && <p className="requests-empty"><Inbox size={20} /><span>{uiText('Переписок пока нет.')}</span></p>}
         {threads.map((thread) => (
-          <button key={thread.accountId} type="button" className={`owner-chat-item${thread.accountId === selected ? ' is-active' : ''}${thread.unread ? ' is-unread' : ''}`} aria-current={thread.accountId === selected ? 'true' : undefined} onClick={() => onSelect(thread.accountId)}>
+          <button key={thread.accountId} type="button" className={`owner-chat-item${thread.accountId === selected ? ' is-active' : ''}${thread.unread ? ' is-unread' : ''}`} aria-current={thread.accountId === selected ? 'true' : undefined} onClick={() => onSelect(thread.accountId)}
+            {...(onProfile ? people.bind({ accountId: thread.accountId, name: playerName(thread) }) : {})}>
             <span className="owner-chat-name">{playerName(thread)}</span>
             <time className="owner-chat-time" dateTime={thread.lastAt}>{supportTime(thread.lastAt, locale)}</time>
             <span className="owner-chat-preview">{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{supportPreviewText(thread.lastMessage, locale)}</span>
@@ -53,8 +61,9 @@ export function OwnerChats({ selected, onSelect }: { selected: string | null; on
         ))}
       </section>
       {selected
-        ? <OwnerChatView key={selected} accountId={selected} thread={threads.find((thread) => thread.accountId === selected)} onBack={() => onSelect(null)} />
+        ? <OwnerChatView key={selected} accountId={selected} thread={threads.find((thread) => thread.accountId === selected)} onBack={() => onSelect(null)} onProfile={onProfile} />
         : <section className="panel owner-chat-pick"><span><MessagesSquare size={16} /> {uiText('Выберите переписку слева.')}</span></section>}
+      {onProfile && <ChatPersonMenu menu={people.menu} onClose={people.close} onProfile={onProfile} onChat={onSelect} />}
     </div>
   )
 }
@@ -76,7 +85,7 @@ function useResolveOwnerChat() {
 }
 
 /** One conversation: the player's messages on the left, the owner's answers on the right, the answer box under them. */
-function OwnerChatView({ accountId, thread, onBack }: { accountId: string; thread?: OwnerChatThread; onBack: () => void }) {
+function OwnerChatView({ accountId, thread, onBack, onProfile }: { accountId: string; thread?: OwnerChatThread; onBack: () => void; onProfile?: (accountId: string) => void }) {
   const chat = useOwnerChat(accountId)
   const { reply, markRead, react, edit } = useOwnerChatActions()
   const resolve = useResolveOwnerChat()
@@ -136,6 +145,7 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
           <h2>{name}</h2>
           {player?.nickname && player.email && <small>{player.email}</small>}
         </div>
+        {onProfile && player && <button type="button" className="button small ghost owner-chat-profile" onClick={() => onProfile(accountId)}><UserRound size={13} />{uiText('Профиль')}</button>}
         {(messages.length > 0 || confirming) && <div className="owner-chat-resolve" role="group" aria-label={uiText('Проблема решена')} onKeyDown={(event) => { if (event.key === 'Escape' && confirming && !resolving) cancel() }}>
           {confirming ? <>
             <span>{uiText('Удалить переписку?')}</span>
