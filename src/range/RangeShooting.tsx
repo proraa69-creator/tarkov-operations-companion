@@ -15,12 +15,13 @@ import { figureLayers } from './rangeFigures'
 import { useFigureIndex, useFigureUrls, useRangeJson } from './rangeFigureSource'
 import { RangeScopeView } from './RangeScopeView'
 import { RangeScopePicker } from './RangeScopePicker'
-import { cmToMrad, DROP_TABLE_DISTANCES, holdover, markStepAt, mradToMoa, type ScopeData } from './rangeScope'
+import { cmToMrad, DROP_TABLE_DISTANCES, holdover, markStepAt, mradToMoa, type ScopeData, type ScopeMode } from './rangeScope'
+import { RangePicker } from './RangePicker'
+import { drawnVariant, oneOfEachModel } from './rangeLists'
 import { swayMrad, swayNow } from './rangeSway'
 import { RangeHelpTip } from './RangeHelpTip'
 import { COVER_TEXTURE_FILES } from './rangeCoverData'
-import { RangeTarget } from './RangeTarget'
-import { CLASS_COLORS, markOf, spreadAt } from './rangeView'
+import { CLASS_COLORS, markOf } from './rangeView'
 import { flightAt } from './rangeFlight'
 import { COLLIDER_NAMES, COVER_NAMES, FIRE_MODE_NAMES, GROUP_NAMES, OUTCOME_NAMES, PART_NAMES, PART_SHORT, pick, pieceLabel, START_STATES } from './rangeLabels'
 import { buildPartMasks, type PartMasks } from './partMasks'
@@ -36,6 +37,14 @@ type Group = 'all' | 'pmc' | 'scav' | 'boss' | 'follower'
 type KitMode = 'character' | 'random' | 'custom'
 
 const ZEROS = [50, 100, 150, 200, 300, 400]
+/**
+ * Without optics: the target seen at ×1 through the open sights, its real size at the distance (owner, 23.11.2026: «я выставил 415
+ * метров. Потом нажимаю в режим без оптики… приближаюсь я на 5 метров. И дистанция не работает»: the old board drew the character
+ * at one size whatever the distance); the wheel brings it closer up to ×4.
+ */
+const IRON_SIGHTS: ScopeMode = { zoom: 1, zoomMax: 4, fovDeg: 40, ffp: true }
+/** The distances one button away (owner, 23.11.2026: «быстро показывать человеку, какие ему нужно ввести поправки»). */
+const QUICK_DISTANCES = [100, 200, 300, 400, 500, 600, 800]
 const BURST: Record<string, number> = { burst: 3, doublet: 2 }
 const AUTO = new Set(['fullauto'])
 /** Grenades, flares and the like: not for shooting at a character's armour. */
@@ -113,11 +122,14 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   }, [target, variant])
   const [startKey, setStartKey] = useState('healthy')
   const blackedOut = START_STATES.find((state) => state.key === startKey)?.parts ?? []
+  // the pictures of the character in its kit (test builds carry them): what can be drawn worn
+  const figureIndex = useFigureIndex()
+  const drawn = useMemo(() => figureIndex ? (id: string) => Boolean(figureIndex.pictures[`worn-${id}`]) : undefined, [figureIndex])
   const [kitMode, setKitMode] = useState<KitMode>('character')
   const [chosen, setChoice] = useState<KitChoice>(() => likelyKit(armor, target))
   const lockedKit = useMemo(() => likelyKit(armor, target), [armor, target])
   // no masks or glasses on the targets one dresses (owner, 23.11.2026: «маска, очки убери»); bosses and guards keep theirs
-  const choice = locked ? lockedKit : withoutFaceKit(chosen)
+  const choice = locked ? lockedKit : drawnKit(withoutFaceKit(chosen), armor, drawn)
   const chooseTarget = (key: string) => {
     setTargetKey(key)
     setVariant(0)
@@ -143,8 +155,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
 
   // ——— range settings
   const [view, setView] = useState<View>('front')
-  // the pictures of the character in its kit (test builds carry them), and the game's hit zones laid on that body
-  const figureIndex = useFigureIndex()
+  // the character in its kit, and the game's hit zones laid on that body
   const figures = useMemo(() => figureIndex ? { front: figureLayers(figureIndex, target.key, choice, 'front'), back: figureLayers(figureIndex, target.key, choice, 'back') } : undefined, [figureIndex, target.key, choice])
   const geometry = useMemo(() => figures ? figureGeometry({ front: figures.front?.base.zones, back: figures.back?.base.zones }) : SCHEMATIC, [figures])
   const shownFigure = figures?.[view]
@@ -237,7 +248,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     const sim = recoilSim()
     const bore = recoilCm(sim?.read(), 'bore')
     const sway = swayCm ? swayNow(swayCm) : { x: 0, y: 0 }
-    const shotSetup = { ...setup, recoilOffset: { x: bore.x + sway.x, y: bore.y + sway.y } }
+    // a weapon without the game's recoil data (src/range/rangeRecoil.json) still kicks: the estimate from its figures
+    const shotSetup = { ...setup, recoil: toggles.recoil && !recoilData, recoilOffset: { x: bore.x + sway.x, y: bore.y + sway.y } }
     sim?.shot()
     const pellets = Math.max(1, ammo.projectileCount ?? 1)
     const fired: FiredShot[] = []
@@ -320,7 +332,6 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const kit = live.kit
   const killedAt = live.killedAt
   const last = log[0]
-  const hpLabels = Object.fromEntries(BODY_PARTS.map((part) => [part, `${Math.max(0, Math.round(body.current[part]))}`])) as Record<BodyPart, string>
   const total = totalHealth(body.current)
   const maxTotal = totalHealth(body.max)
   const flash = last?.outcome && last.target === live.number ? { part: last.outcome.part, n: last.n } : undefined
@@ -400,7 +411,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
 
       {locked
         ? <LockedKit armor={armor} choice={choice} lang={lang} />
-        : <ArmorChooser armor={armor} choice={choice} lang={lang} onChange={editKit} />}
+        : <ArmorChooser armor={armor} choice={choice} lang={lang} onChange={editKit} drawn={drawn} />}
     </aside>
 
     <main className="range-main">
@@ -414,6 +425,9 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
           <input type="range" min={5} max={1000} step={5} value={distance} onChange={(event) => setDistance(Number(event.target.value))} />
           <b className="range-distance-value">{distance} {t('м', 'm')}</b>
         </label>
+        <div className="range-distance-chips" role="group" aria-label={t('Дистанция', 'Distance')}>
+          {QUICK_DISTANCES.map((value) => <button key={value} type="button" className={distance === value ? 'is-on' : ''} onClick={() => setDistance(value)}>{value}</button>)}
+        </div>
         <label className="range-inline"><span>{t('Пристрелка', 'Zero')}</span>
           <select className="select" value={zero} onChange={(event) => setZero(Number(event.target.value))}>
             {ZEROS.map((value) => <option key={value} value={value}>{value} {t('м', 'm')}</option>)}
@@ -448,16 +462,12 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
             <button type="button" className="button" onClick={() => setMarks([])}><Eraser size={14} /> {t('Убрать отметки', 'Clear marks')}</button>
           </div>
         </div>
-        {scope && scopeMode && hold && <HoldLine hold={hold} markStep={markStep} zero={zero} distance={distance} zoom={zoom} lang={lang} />}
+        {hold && <HoldLine hold={hold} markStep={markStep} zero={zero} distance={distance} zoom={zoom} lang={lang} />}
         <div className="range-target-wrap">
-          {scope && scopeMode
-            ? <RangeScopeView scene={scene} distance={distance} mode={scopeMode} modes={scope.modes} modeIndex={Math.min(scopeModeIndex, scope.modes.length - 1)} onMode={setScopeModeIndex}
-              zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })}
-              reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} swayCm={swayCm} lang={lang}
-              onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
-            : <RangeTarget {...scene} labels={hpLabels} spreadCm={toggles.spread ? spreadAt(stats?.moa, distance) : undefined} swayCm={swayCm}
-              muzzle={recoilState && toggles.recoil ? { x: recoilState.aim.x + recoilCm(recoilNow, 'bore').x, y: recoilState.aim.y + recoilCm(recoilNow, 'bore').y } : undefined}
-              onFireStart={fireStart} onFireEnd={fireEnd} onAimMove={(point) => { aimRef.current = point }} />}
+          <RangeScopeView scene={scene} distance={distance} mode={scopeMode ?? IRON_SIGHTS} modes={scope?.modes ?? [IRON_SIGHTS]} modeIndex={scope ? Math.min(scopeModeIndex, scope.modes.length - 1) : 0} onMode={setScopeModeIndex}
+            zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })} irons={!scope}
+            reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} swayCm={swayCm} lang={lang}
+            onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
           {body.dead && <div className="range-dead">
             <b>{t('Убит', 'Killed')}</b>
             <span>{killedAt ? `${killedAt} ${t('выстр.', 'shots')} · ${weapon?.fireRate ? `${((killedAt - 1) * 60 / weapon.fireRate + (flight?.time ?? 0)).toFixed(2)} ${t('с', 's')}` : ''}` : ''}</span>
@@ -564,7 +574,7 @@ function LockedKit({ armor, choice, lang }: { armor: ArmorCatalog; choice: KitCh
   </section>
 }
 
-function ArmorChooser({ armor, choice, lang, onChange }: { armor: ArmorCatalog; choice: KitChoice; lang: Locale; onChange: (patch: Partial<KitChoice>) => void }) {
+function ArmorChooser({ armor, choice, lang, onChange, drawn }: { armor: ArmorCatalog; choice: KitChoice; lang: Locale; onChange: (patch: Partial<KitChoice>) => void; drawn?: (id: string) => boolean }) {
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
   const of = (kinds: RangeItem['kind'][]) => armor.list.filter((item) => kinds.includes(item.kind))
   const helmet = choice.helmet ? armor.items.get(choice.helmet) : undefined
@@ -577,14 +587,30 @@ function ArmorChooser({ armor, choice, lang, onChange }: { armor: ArmorCatalog; 
       {items.map(option)}
     </select>
   </label>
+  const pictured = (item: RangeItem) => ({
+    id: item.id,
+    name: item.shortName,
+    sub: `${t('класс', 'class')} ${item.armorClass} · ${item.name}`,
+    ...(item.icon ? { picture: <img src={item.icon} alt="" loading="lazy" draggable={false} /> } : {}),
+  })
+  const listed = (items: RangeItem[], chosen?: RangeItem) => {
+    const list = oneOfEachModel(items, drawn).sort((a, b) => b.armorClass - a.armorClass || a.shortName.localeCompare(b.shortName))
+    return chosen && !list.some((item) => item.id === chosen.id) ? [chosen, ...list] : list
+  }
+  const picker = (label: string, value: string | undefined, items: RangeItem[], set: (id: string | undefined) => void) => <div key={label} className="range-field">
+    <span>{label}{value && armor.items.get(value) ? <> {classBadge(armor.items.get(value)!.armorClass)}</> : null}</span>
+    <RangePicker groups={[{ items: items.map(pictured) }]} value={value ?? ''} onChange={(id) => set(id || undefined)} none={t('Нет', 'None')} label={label} />
+  </div>
+  // the visors drawn on this helmet only (a visor with no picture of it lowered on that helmet would not show)
+  const visors = helmet ? helmet.visors.map((id) => armor.items.get(id)!).filter((visor) => visor && (!drawn || Boolean(drawn(`${helmet.id}-${visor.id}`)))) : []
+  // body armour and armoured rigs in one list (owner, 23.11.2026: «В одном списке должны быть бронеразгрузки и бронежилеты»)
+  const bodies = [...of(['armor']), ...of(['rig']).filter((item) => item.plateSlots.length > 0 || item.armorClass > 0)]
   return <section className="panel range-card">
     <h2 className="range-card-title">{t('Броня', 'Armour')}</h2>
-    {select(t('Шлем', 'Helmet'), choice.helmet, of(['helmet']), (id) => onChange({ helmet: id, visor: undefined, module: undefined }))}
-    {helmet && helmet.visors.length > 0 && select(t('Забрало', 'Visor'), choice.visor, helmet.visors.map((id) => armor.items.get(id)!).filter(Boolean), (id) => onChange({ visor: id }))}
+    {picker(t('Шлем', 'Helmet'), choice.helmet, listed(of(['helmet']), helmet), (id) => onChange({ helmet: id, visor: undefined, module: undefined }))}
+    {helmet && visors.length > 0 && select(t('Забрало', 'Visor'), choice.visor, visors, (id) => onChange({ visor: id }))}
     {helmet && helmet.modules.length > 0 && select(t('Модуль шлема', 'Helmet module'), choice.module, helmet.modules.map((id) => armor.items.get(id)!).filter(Boolean), (id) => onChange({ module: id }))}
-    {/* owner, 23.11.2026: «маска, очки убери. И в разгрузках оставь только бронеразгрузки… именно те, у которых идут стандартные
-        плиты»; a usual kit's other piece still shows as chosen */}
-    {select(t('Бронеразгрузка', 'Armoured rig'), choice.body, [...of(['rig']).filter((item) => item.plateSlots.length > 0), ...(body && !(body.kind === 'rig' && body.plateSlots.length > 0) ? [body] : [])], (id) => onChange({ body: id, plates: defaultPlates(armor, id) }))}
+    {picker(t('Бронежилет или бронеразгрузка', 'Body armour or armoured rig'), choice.body, listed(bodies, body), (id) => onChange({ body: id, plates: defaultPlates(armor, id) }))}
     {body?.plateSlots.map((slot) => select(pieceLabel(`x:${slot.name}`, slot.name, lang), choice.plates[slot.name], slot.allowed.map((id) => armor.items.get(id)!).filter(Boolean).sort((a, b) => b.armorClass - a.armorClass), (id) => onChange({ plates: { ...choice.plates, [slot.name]: id } })))}
   </section>
 }
@@ -695,7 +721,7 @@ function DropTable({ rows, distance, zero, marks, ammoName, lang }: {
 }) {
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
   const nearest = rows.reduce<number | undefined>((best, row) => best === undefined || Math.abs(row.distance - distance) < Math.abs(best - distance) ? row.distance : best, undefined)
-  return <details className="range-drops">
+  return <details className="range-drops" open>
     <summary>{t('Падение пули по дистанциям', 'Bullet drop by distance')} · {ammoName} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')}</summary>
     <table>
       <thead><tr>
@@ -711,4 +737,17 @@ function DropTable({ rows, distance, zero, marks, ammoName, lang }: {
     </table>
     <p>{t('↓ — пуля ниже линии прицела: вынос вверх; ↑ — выше: вынос вниз. Риски — на кратности, что сейчас в прицеле.', '↓ — the bullet below the sight line: hold up; ↑ — above it: hold down. Marks at the magnification in the scope now.')}</p>
   </details>
+}
+
+/** A dressed target's helmet and body armour as a colour of their model that can be drawn worn (src/range/rangeLists.ts). */
+function drawnKit(choice: KitChoice, armor: ArmorCatalog, drawn?: (id: string) => boolean): KitChoice {
+  if (!drawn) return choice
+  const helmet = drawnVariant(choice.helmet ? armor.items.get(choice.helmet) : undefined, armor.list.filter((item) => item.kind === 'helmet'), drawn)
+  const body = drawnVariant(choice.body ? armor.items.get(choice.body) : undefined, armor.list.filter((item) => item.kind === 'armor' || item.kind === 'rig'), drawn)
+  if ((helmet?.id ?? choice.helmet) === choice.helmet && (body?.id ?? choice.body) === choice.body) return choice
+  return {
+    ...choice,
+    ...(helmet && helmet.id !== choice.helmet ? { helmet: helmet.id, visor: undefined, module: undefined } : {}),
+    ...(body && body.id !== choice.body ? { body: body.id, plates: defaultPlates(armor, body.id) } : {}),
+  }
 }

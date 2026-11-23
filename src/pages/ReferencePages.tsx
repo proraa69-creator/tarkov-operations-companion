@@ -276,11 +276,13 @@ const AMMO_ORDERS: readonly { key: AmmoOrder; label: string; title: string }[] =
 ];
 
 const BALLISTICS_TABS = [
+  // «Полигон» first, and the tab «Баллистика» opens on (owner, 23.11.2026: «Это у нас будет первая вкладка… сразу вот это
+  // открывается тир. Но с тира мы переименуем в полигон»); in test builds only (src/app/rangeFeature.ts)
+  { key: "range", label: "Полигон" },
   { key: "scatter", label: "Пробитие и урон" },
   { key: "drop", label: "Падение пули" },
   { key: "armor", label: "Пробитие брони" },
   { key: "rounds", label: "Список патронов" },
-  { key: "range", label: "Тир" },
 ] as const;
 type BallisticsTab = (typeof BALLISTICS_TABS)[number]["key"];
 
@@ -304,10 +306,11 @@ export function AmmoPage() {
   const { colorOf, ordered } = useMemo(() => caliberColors(ammo), [ammo]);
   const [params, setParams] = useSearchParams();
   const shownTabs = BALLISTICS_TABS.filter((entry) => entry.key !== "range" || rangeEnabled());
-  const tab: BallisticsTab = shownTabs.find((entry) => entry.key === params.get("tab"))?.key ?? "scatter";
+  const firstTab: BallisticsTab = shownTabs[0]?.key ?? "scatter";
+  const tab: BallisticsTab = shownTabs.find((entry) => entry.key === params.get("tab"))?.key ?? firstTab;
   const openTab = (next: BallisticsTab) => setParams((current) => {
     const value = new URLSearchParams(current);
-    if (next === "scatter") value.delete("tab");
+    if (next === firstTab) value.delete("tab");
     else value.set("tab", next);
     return value;
   }, { replace: true });

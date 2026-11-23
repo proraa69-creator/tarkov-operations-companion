@@ -17,7 +17,7 @@ import { swayAt, useSwayTime } from './rangeSway'
  * только либо 1, либо 6, то меняется кратность… резко. Если… плавно, то… плавно роликом»): a variable mode turns smoothly, a
  * scope of fixed magnifications steps to the next one; in the scope the page under it never scrolls.
  */
-export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, onFireStart, onFireEnd, onAim, lang }: {
+export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, irons, onFireStart, onFireEnd, onAim, lang }: {
   scene: SceneProps
   distance: number
   mode: ScopeMode
@@ -37,6 +37,8 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   viewCm: { x: number; y: number }
   /** The sway's amplitude at the target, cm (src/range/rangeSway.ts); 0 or absent: off. */
   swayCm?: number
+  /** No optic: the view at ×1 through the open sights, a frame instead of a scope's circle. */
+  irons?: boolean
   onFireStart: (point: { x: number; y: number }) => void
   onFireEnd: () => void
   /** Where the reticle's centre is on the target's plane (figure centimetres, without the recoil). */
@@ -154,7 +156,7 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   const barHalf = fovCm * 0.04
   return <div
     ref={box}
-    className={`range-scope${locked ? ' is-locked' : ''}`}
+    className={`range-scope${locked ? ' is-locked' : ''}${irons ? ' is-irons' : ''}`}
     onMouseDown={(event) => {
       if (!locked) return
       // the right button leaves the scope, as aiming ends in the game
@@ -185,7 +187,7 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
     </svg>
     {locked && <div className="range-scope-hint">{lang === 'en' ? 'Left button — fire · wheel — zoom · R — reload · F — new target · right button or Esc — leave' : 'ЛКМ — огонь · колесо — кратность · R — перезарядка · F — новая цель · ПКМ или Esc — выйти'}</div>}
     {inside === 'free' && <button type="button" className="button range-scope-leave" onMouseDown={(event) => event.stopPropagation()} onClick={leave}>{lang === 'en' ? 'Leave the scope' : 'Выйти из прицела'}</button>}
-    {!locked && <button type="button" className="button primary range-scope-enter" onMouseDown={(event) => event.stopPropagation()} onClick={enter}>{lang === 'en' ? 'Enter the scope' : 'Войти в прицел'}</button>}
+    {!locked && <button type="button" className="button primary range-scope-enter" onMouseDown={(event) => event.stopPropagation()} onClick={enter}>{irons ? (lang === 'en' ? 'Aim' : 'Прицелиться') : (lang === 'en' ? 'Enter the scope' : 'Войти в прицел')}</button>}
   </div>
 }
 
