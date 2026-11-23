@@ -9616,3 +9616,22 @@ Not pushed, not released, nothing uploaded.
 - Next (owner: «В квесте таможни отследить направление до сих пор часть снимков не наша… Тебе нужно снимать все снимки, которые
   есть»): «Отследить отправление» (675c047fa46173572a0bd878) has 6 wiki photos left — the worker found no place to stand there;
   they are to be shot by probes (given poses scored against each picture) in a Customs raid after the Interchange quests.
+## 24.11.2026 — Claude: «Тельняшка» in glass — clear glass, the knit only under the cursor, no teal glow
+
+- Owner, 24.11.2026, over the overview in 0.6.0.338 (the knit under the whole menu, «Обзор» with a teal glow): «Почему в стекле
+  расцветка у нас везде расцветка тельняшки? Расцветка тельняшки должна появляться только когда наводишь курсор мыши на кнопку. И
+  синего свечения не должно быть. Должно быть прозрачное стекло. Стекло просто стекольное свечение. Светлое обычно. Небольшое
+  свечение. Меньше, чем сейчас.»
+- src/styles/style-glass-cloth.css, «Тельняшка» only («Чёрный мультикам» and «Снаряжение» unchanged): the menu, the top bar, the
+  windows, the cards and the switches' tracks are the glass style's own clear glass (style-glass.css), no knit and no blue-white band
+  along the windows' tops; the phone's bar the same frosted glass. Buttons and menu rows at rest are the glass style's clear button;
+  under the cursor they still lift their patch of telnyashka (as in 0.6.0.338). The picked one (menu page, PvP/RU, tabs, primary
+  buttons, toggles) is lighter white glass with a white rim and a small white glow (8 px, 9 %) in place of the teal tint and its
+  18 px 22 % glow; its label and icon white. Left as they were: the three white stripes along the menu's edge, the photos and the table
+  under the menu, the numbers cut out of the knit in the cards («0», «ТАМОЖНЯ»), the teal text accents (eyebrows, the time).
+- Checked in the dev page (Playwright, 1600×900 and the phone at 390×844): before / after sheet sent to the owner. Theme tests 33/33,
+  typecheck 0, vite build clean. Exe not built.
+- Branch claude/glass-telnyashka-hover from release/production 2f24a9d2 (0.6.0.338). NOT pushed, not released: only at the owner's word.
+- News line draft (show the owner first, kind improved): RU «Стиль «Стекло» в «Тельняшке»: прозрачное стекло, тельняшка — только под
+  курсором, выбранное светится мягким светлым светом». EN ««Glass» style in «Telnyashka»: clear glass, the telnyashka only under the
+  cursor, the picked item with a soft light glow».
