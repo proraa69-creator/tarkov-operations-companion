@@ -38,4 +38,17 @@ describe('the start with administrator rights', () => {
     expect(relaunchAsAdmin()).toBe(true)
     expect(runElevated.mock.calls[0].slice(0, 2)).toEqual(['C:\\Users\\p\\Downloads\\RaidOSClient.exe', `--elevated-relaunch=${process.pid}`])
   })
+
+  // Owner, 23.11.2026: a player's shortcut with --disable-gpu, then --no-sandbox, changed nothing — the copy with the rights
+  // draws the window and never got them.
+  it('the drawing switches of a dark window reach the copy with the rights, the portable exe too; nothing with a value', () => {
+    process.env.PORTABLE_EXECUTABLE_FILE = 'C:\\Users\\p\\Downloads\\RaidOSClient.exe'
+    process.argv = ['C:\\Temp\\ns1.tmp\\app\\Raid OS.exe', '--disable-gpu', '--no-sandbox', '--disable-gpu', '--disable-gpu=1', '--no-sandbox-x', '--remote-debugging-port=9222']
+    expect(relaunchAsAdmin()).toBe(true)
+    expect(runElevated.mock.calls[0][1]).toBe(`--disable-gpu --no-sandbox --elevated-relaunch=${process.pid}`)
+    delete process.env.PORTABLE_EXECUTABLE_FILE
+    process.argv = ['C:\\Program Files\\RaidOS\\Raid OS.exe', '--updated', '--disable-gpu', '--inspect']
+    expect(relaunchAsAdmin()).toBe(true)
+    expect(runElevated.mock.calls[1][1]).toBe(`--updated --disable-gpu --elevated-relaunch=${process.pid}`)
+  })
 })
