@@ -51,7 +51,8 @@ describe('the photos of the battle pass documents', () => {
   it('a point gets the photos of the nearest spot of its kind, and nothing from a spot further off', () => {
     // The old gas station on Customs: financial documents on the desk, project documentation by the door, 7 metres apart.
     const financial = pointPhotos(guide, 'customs', [-186.2, 317.6], ['financial'])
-    expect(financial.map((id) => guide.photos[id]!.en)).toEqual(['On the desk inside old gas station building.'])
+    // Since 23.11.2026 the place is followed by the document laid there by the photo worker, up close.
+    expect(financial.map((id) => guide.photos[id]!.en)).toEqual(['On the desk inside old gas station building.', 'The document in place.'])
     const project = pointPhotos(guide, 'customs', [-179.9, 316], ['project'])
     expect(project.map((id) => guide.photos[id]!.en)).toEqual(['Inside the old gas station building next to the entrance door.'])
     // A point with both kinds shows both, and the same photo once (and since 22.11.2026 our frame of the way there).

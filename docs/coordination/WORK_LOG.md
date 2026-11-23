@@ -9086,3 +9086,29 @@ Owner, 23.11.2026: «Каждому документу нужно пересня
   sheets to the owner. Event quests (eventGuidePhotos.json, 45 tarkov.help photos) are not in build_all yet.
 - Risks: unmatched wiki photos of a shot place are removed and replaced by our own frame (owner's «без чужих»); our frame then
   shows the place from another angle than the sample — the sheets put the sample next to it. Nothing uploaded to the server.
+
+## 2026-11-23 19:58 — Claude: Customs place photos shot again, battle pass documents laid in the frames (branch claude/quest-photos-all)
+
+Owner 23.11.2026: resumed the reshoot («Да, продолжай», 18:15); «для таможни нужно снять документы боевого пропуска и квестовые
+предметы… Если при съемке боевого пропуска их нету, то тебе нужно сделать мод, который будет их спамнить» (~18:25); «Пересними
+только квесты, документы боевого пропуска, все виды, и квестовые предметы… И так на всех картах» + quest places with a map mark,
+«по аналогам фото, которые уже есть» (~18:40). Not pushed, not released, nothing uploaded.
+- Customs run customs-all2 finished 110/110; frames checked by eye on all 11 sheets: 85 kept, 7 own place frames out (camera in a
+  bush or a tree, or the place not in sight), the 3 car frames left out (not part of the reshoot any more; kept on E:).
+- Battle pass documents: the offline 0.16.9 copy has no such items. The photo worker now lays the live game's own models
+  (item_barter_info_* bundles of the installed 1.3 client, same Unity 2022.3.43; copies in E:\SPT-photo\bpdocs\bundles) flat on
+  the surface at each spot of the live feed, the close-up taken on a half sphere over the document with a lamp; hand fixes by a
+  frame's ray (E:\SPT-photo\bpdocs\aim.py → overrides.json; Customs: the safe in the office). Run customs-docs4: all 28 Customs
+  document spots, 62 frames kept after an eye check (2 close-ups out: a camera inside a bookcase, a roll on top of a door).
+  Our earlier document frames (21.11) showed the spots without a document; they are replaced.
+- src/data/questGuidePhotos.json, documentGuidePhotos.json: Customs 55 frames matched to samples, 18 own place frames, 29
+  approaches, 40 close-ups; 42 old photos removed. One wiki document photo stays (Customs project documentation by the office
+  window, spot 18: no place for the camera found).
+- Tests: src/data/documentGuide.test.ts (the gas station spot has the close-up after the place), FleaMarketPage.keyDoors.test.tsx
+  («Багажник машины» / «Car trunk» since 6bfeaa6b). Photo tests 26/26, keyDoors 9/9, typecheck ok. The full run's other failures
+  (appVersion path with «%20», AdminPanelPage CRLF, electron/linux updater, staleServer, cache-item-images, release-policy) do
+  not touch these files.
+- The pictures: E:\SPT-photo\server-upload\customs (294) + woods-old + shoreline-old must go to the server's guide images folder
+  with the release, or the app shows nothing there.
+- Next: the other maps by E:\SPT-photo\photo2\drive_maps.py (build_all.py now builds quests, quest items and documents only;
+  --with-cars for the old list), each map's sheets and document close-ups checked by eye before integrating.
