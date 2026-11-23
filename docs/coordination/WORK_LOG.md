@@ -9635,3 +9635,10 @@ Not pushed, not released, nothing uploaded.
 - News line draft (show the owner first, kind improved): RU «Стиль «Стекло» в «Тельняшке»: прозрачное стекло, тельняшка — только под
   курсором, выбранное светится мягким светлым светом». EN ««Glass» style in «Telnyashka»: clear glass, the telnyashka only under the
   cursor, the picked item with a soft light glow».
+- 0.6.0.339 (owner: «В новостях не пиши ничего, что мы берем скриншоты из игры… Просто напиши, обновили данные по квестам и улучшили
+  цветовые схемы… публикуй все сделанные скриншоты актуальные… Добавляй тему, тельняшку»): over 0.6.0.338 (2f24a9d2) —
+  claude/unheard-ap-points 0c7e32e2 (the A.P. steps of «Неизвестные» show the Lab places), claude/quest-photos-all aa6ed1cb (Interchange's
+  battle pass documents by room, reports 218 and 219; documentGuide `none`) and b63c798c («Секреты заводских стен» keeps the owner's
+  photos), claude/glass-telnyashka-hover 7525dd67 (telnyashka glass: clear at rest, the knit under the cursor, no blue glow). News:
+  339 only «Обновили данные по квестам» / «Улучшили цветовые схемы»; 338's photo, glass and Steam lines and the older «из игры»,
+  «снято в игре», «переснята» lines (334, 333, 286) made neutral — never write that pictures or data come from the game.
