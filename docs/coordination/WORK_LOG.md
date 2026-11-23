@@ -9047,3 +9047,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   -55.4/467 (report 216), «Батя» stage 0 patch -59.09/457.15 (as the server overrides). News (owner's line verbatim): «Запуск: если
   окно не открывается, приложение само пробует другой способ запуска»; «Маяк: новое место - лагерь Прапора и шеврон «Богатырей»».
   deployPath 11/0; gate steps locally: only the 6 machine-only failures (appVersion, staleServer, linux/updater ×3, AdminPanelPage).
+
+## 2026-11-23 — Claude: item search by words (SJ1 / SJ12 not found)
+
+- Owner, 23.11.2026: a player's item search «не находит SJ1 боевой стимулятор и SJ12 боевой стимулятор». The items are
+  «Боевой стимулятор SJ1 TGLabs» / «…SJ12 TGLabs» (json.tarkov.dev items_ru; on the maps: Lighthouse, Labs, Labyrinth); every
+  search took the query as one piece, so another word order found nothing.
+- Branch claude/item-search-words from release/production 95398f05, worktree raidos-item-search. New src/shared/textSearch.ts
+  (+ test): every word of the query in the text, any order, a Russian word of 5+ letters without its ending, «ё» = «е»;
+  whatever the whole query found is still found. Used in the top search (AppShell), Барахолка, Предметы, «Рейтинг ценности»,
+  keys, trading, quest items, hideout, Cultist circle, keep list, quest-key stash, tier lists, weapon builds, crafts/barters
+  (economy.matchesSearch) and the map's «Найти точку…» (src/maps/mapSearch.ts).
+- Checked in the dev page: the top search «SJ1 боевой стимулятор» → SJ1 and SJ12; Барахолка «SJ12 боевой стимулятор» → SJ12,
+  «боевые стимуляторы» → SJ6, SJ9, SJ12, SJ1. tsc clean, eslint (warnings only, old).

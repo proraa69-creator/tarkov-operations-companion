@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MapMarker } from '../domain/types'
 import { pointMatchesSearch, searchMapCounts, searchNeedle } from './mapSearch'
 
-const names: Record<string, string[]> = { kpp: ['Ключ от военного КПП', 'Military checkpoint key'], cat: ['Фигурка кота', 'Cat figurine'], bolts: ['Болты'] }
+const names: Record<string, string[]> = { kpp: ['Ключ от военного КПП', 'Military checkpoint key'], cat: ['Фигурка кота', 'Cat figurine'], bolts: ['Болты'], sj1: ['Боевой стимулятор SJ1 TGLabs', 'SJ1 TGLabs combat stimulant injector'], sj12: ['Боевой стимулятор SJ12 TGLabs'] }
 const nameOf = (id: string) => names[id] ?? []
 const point = (id: string, mapId: string, extra: Partial<MapMarker>): MapMarker => ({ id, mapId, type: 'cache', layerId: 'loot.key', title: 'Ключи: 12', description: '', position: [0, 0], ...extra })
 
@@ -26,5 +26,19 @@ describe('«Найти точку…» finds keys and items by name (report 134)
     expect(searchMapCounts(markers, searchNeedle('фигурк'), nameOf)).toEqual([{ mapId: 'streets-of-tarkov', count: 2 }, { mapId: 'customs', count: 1 }])
     expect(searchMapCounts(markers, searchNeedle('КПП'), nameOf)).toEqual([{ mapId: 'customs', count: 1 }, { mapId: 'woods', count: 1 }])
     expect(searchMapCounts(markers, searchNeedle('ко'), nameOf)).toEqual([])
+  })
+})
+
+describe('a stimulant found by its words in any order (a player, 23.11.2026)', () => {
+  const stims = [
+    point('lab', 'the-lab', { layerId: 'loot.medical', title: 'Медицина', lootIds: ['sj1', 'sj12'] }),
+    point('lh', 'lighthouse', { layerId: 'loot.medical', title: 'Медицина', lootIds: ['sj12'] }),
+  ]
+
+  it('«SJ1 боевой стимулятор» and «SJ12 боевой стимулятор» find the spots and the maps', () => {
+    expect(pointMatchesSearch(stims[0]!, searchNeedle('SJ1 боевой стимулятор'), nameOf)).toBe(true)
+    expect(pointMatchesSearch(stims[0]!, searchNeedle('SJ9 боевой стимулятор'), nameOf)).toBe(false)
+    expect(searchMapCounts(stims, searchNeedle('SJ12 боевой стимулятор'), nameOf)).toEqual([{ mapId: 'the-lab', count: 1 }, { mapId: 'lighthouse', count: 1 }])
+    expect(pointMatchesSearch(stims[0]!, searchNeedle('combat stimulant SJ1'), nameOf)).toBe(true)
   })
 })

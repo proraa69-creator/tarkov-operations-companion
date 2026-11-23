@@ -5,28 +5,32 @@
  * the point's title; and on which maps such points are.
  */
 import type { MapMarker } from '../domain/types'
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 
 /** Item names by id: the catalog's name and, for the English app, its English one. */
 export type ItemNames = (id: string) => readonly string[]
 
 export const searchNeedle = (text: string) => text.trim().toLowerCase().replace(/ё/g, 'е')
-const fold = (text: string) => text.toLowerCase().replace(/ё/g, 'е')
 
 /** The keys and items a point may hold. */
 export function pointItemIds(marker: Pick<MapMarker, 'keyIds' | 'itemId' | 'lootIds'>): string[] {
   return [...new Set([...(marker.keyIds ?? (marker.itemId ? [marker.itemId] : [])), ...(marker.lootIds ?? [])])]
 }
 
-/** One of the point's keys or items is called so. */
+/**
+ * One of the point's keys or items is called so: every word of the search in its name, in any order (a player, 23.11.2026: «SJ1
+ * боевой стимулятор» found nothing, the item is «Боевой стимулятор SJ1 TGLabs»; src/shared/textSearch.ts).
+ */
 export function pointHoldsItem(marker: Pick<MapMarker, 'keyIds' | 'itemId' | 'lootIds'>, needle: string, names: ItemNames) {
   if (needle.length < 2) return false
-  return pointItemIds(marker).some((id) => names(id).some((name) => fold(name).includes(needle)))
+  const terms = searchTerms(needle)
+  return pointItemIds(marker).some((id) => names(id).some((name) => matchesSearchTerms(terms, name)))
 }
 
 /** The point is what is searched for: its title or text, or one of its keys and items. */
 export function pointMatchesSearch(marker: Pick<MapMarker, 'title' | 'description' | 'keyIds' | 'itemId' | 'lootIds'>, needle: string, names: ItemNames) {
   if (!needle) return true
-  return fold(`${marker.title} ${marker.description}`).includes(needle) || pointHoldsItem(marker, needle, names)
+  return matchesSearchTerms(searchTerms(needle), marker.title, marker.description) || pointHoldsItem(marker, needle, names)
 }
 
 /** The maps with points holding the item searched for, most first (three letters at least, so a word does not list every map). */

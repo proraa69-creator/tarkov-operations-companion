@@ -1,3 +1,4 @@
+import { matchesSearchQuery } from '../shared/textSearch'
 import { setMapFollowEnabled, useMapFollowEnabled } from "../maps/mapFollowSetting";
 import { uiLabel, uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -59,11 +60,7 @@ export function EconomyPage() {
           ];
           return [{ item, best, spread: best.net - Math.min(...nets) }];
         })
-        .filter(({ item }) =>
-          `${item.name} ${item.shortName}`
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-        )
+        .filter(({ item }) => matchesSearchQuery(query, item.name, item.shortName))
         .sort((a, b) => b.best.net - a.best.net),
     [data.items, query, state.raidMode],
   );
@@ -174,7 +171,7 @@ export function KeysPage() {
   const keys = data.items.filter(
     (item) =>
       item.category === "Ключ" &&
-      item.name.toLowerCase().includes(query.toLowerCase()),
+      matchesSearchQuery(query, item.name, item.shortName),
   );
   return (
     <div className="page">

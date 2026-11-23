@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { BellOff, BellRing, Check, Hourglass, KeyRound, Package, ScanSearch, Search, Star, Undo2 } from 'lucide-react'
@@ -106,9 +107,9 @@ export function QuestKeysPage() {
     return { id: itemId, name: known?.name ?? traded?.name ?? itemId, iconUrl: known?.iconUrl ?? traded?.iconUrl, count }
   }
   const traderOf = (traderId: string) => data.traders.find((trader) => trader.id === traderId)
-  const needle = query.trim().toLowerCase()
+  const terms = searchTerms(query)
   const matches = (row: QuestKeyRow) => (!onlyFavorites || favorites.has(row.item.id)) && (!onlyStash || owned.has(row.item.id)) && (!mapId || row.mapIds.includes(mapId))
-    && (!needle || [row.item.name, row.item.shortName, ...[...row.needed, ...row.deferred, ...row.done].map((use) => use.quest.name)].some((text) => uiText(text ?? '').toLowerCase().includes(needle)))
+    && matchesSearchTerms(terms, ...[row.item.name, row.item.shortName, ...[...row.needed, ...row.deferred, ...row.done].map((use) => use.quest.name)].map((text) => uiText(text ?? '')))
   const filtered = rows.filter(matches)
   const inTab = (id: QuestKeyTab) => filtered.filter((row) => (id === 'favorites' ? favorites.has(row.item.id) : row.state === id))
   // The keys the player has go below the ones still to get (owner: «ключи, которые у меня есть, будет писаться… ниже»).
@@ -166,7 +167,7 @@ export function QuestKeysPage() {
     </section>}
     {tab === 'done' && shown.length > 0 && <p className="quest-keys-note">{uiText('Эти ключи больше не нужны: можно убрать их из избранного в игре.')}</p>}
     {shown.length === 0
-      ? <p className="panel quest-keys-empty">{uiText(needle || mapId ? 'Ничего не найдено.' : onlyStash ? (owned.size ? 'В этом разделе нет ключей из схрона.' : 'В схроне пока нет ключей. Нажмите «Найти ключи» или «Изменить ключи в схроне».') : onlyFavorites && tab !== 'favorites' ? 'В этом разделе нет избранных ключей.' : empty)}</p>
+      ? <p className="panel quest-keys-empty">{uiText(terms.length || mapId ? 'Ничего не найдено.' : onlyStash ? (owned.size ? 'В этом разделе нет ключей из схрона.' : 'В схроне пока нет ключей. Нажмите «Найти ключи» или «Изменить ключи в схроне».') : onlyFavorites && tab !== 'favorites' ? 'В этом разделе нет избранных ключей.' : empty)}</p>
       : <ul className="quest-keys-list">
         {shown.map((row) => {
           const starred = favorites.has(row.item.id)
