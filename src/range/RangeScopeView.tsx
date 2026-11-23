@@ -18,7 +18,7 @@ import { RangeTracer, type Tracer } from './RangeTracer'
  * только либо 1, либо 6, то меняется кратность… резко. Если… плавно, то… плавно роликом»): a variable mode turns smoothly, a
  * scope of fixed magnifications steps to the next one; in the scope the page under it never scrolls.
  */
-export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, irons, tracer, onFireStart, onFireEnd, onAim, lang }: {
+export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, irons, collimator, housingUrl, tracer, onFireStart, onFireEnd, onAim, lang }: {
   scene: SceneProps
   distance: number
   mode: ScopeMode
@@ -40,6 +40,13 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   swayCm?: number
   /** No optic: the view at ×1 through the open sights, a frame instead of a scope's circle. */
   irons?: boolean
+  /**
+   * A red dot: the view at ×1 as through the sight in the game (owner, 23.11.2026: «рамки самого коллиматора, то есть вид
+   * коллиматора и прицельная сетка коллиматора должна быть видна»), its housing seen from the eye over the target, at the mode's
+   * field of view (it grows with the wheel's zoom) and moving with the barrel as the reticle does.
+   */
+  collimator?: boolean
+  housingUrl?: string
   /** The last single shot's bullet in flight (src/range/RangeTracer.tsx), when «Траектория» is on. */
   tracer?: Tracer | null
   onFireStart: (point: { x: number; y: number }) => void
@@ -65,6 +72,9 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   const reticle = reticleAt(mode, zoom)
   const reticleUrl = reticle.file ? reticleUrls[reticle.file] : undefined
   const reticleShare = reticle.mrad ? (mode.ffp ? reticle.mrad / fov : reticle.mrad / fovMrad(mode.fovDeg)) : 1
+  // a red dot's housing: drawn at the mode's field of view, larger as the view narrows
+  const housingShare = fovMrad(mode.fovDeg) / fov
+  const open = irons || collimator
 
   const aimRef = useRef(aim)
   useEffect(() => { aimRef.current = aim; onAim(aim) }, [aim, onAim])
@@ -161,7 +171,7 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   const barHalf = holdBarHalfCm(fovCm, distance, irons ? undefined : tickAt(mode, zoom))
   return <div
     ref={box}
-    className={`range-scope${locked ? ' is-locked' : ''}${irons ? ' is-irons' : ''}`}
+    className={`range-scope${locked ? ' is-locked' : ''}${open ? ' is-irons' : ''}${collimator ? ' is-collimator' : ''}`}
     onMouseDown={(event) => {
       if (!locked) return
       // the right button leaves the scope, as aiming ends in the game
@@ -183,6 +193,7 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
       <rect x={centre.x - fovCm * 2} y={FIGURE_HEIGHT} width={fovCm * 4} height={fovCm * 4} className="range-scope-grass" />
       <RangeScene {...scene} markRadius={markRadius} />
     </svg>
+    {collimator && housingUrl && <img className="range-scope-housing" src={housingUrl} alt="" draggable={false} style={{ width: `${housingShare * 100}%`, height: `${housingShare * 100}%`, left: `${50 + reticleShift.x}%`, top: `${50 + reticleShift.y}%` }} />}
     {reticleUrl
       ? <img className="range-scope-reticle" src={reticleUrl} alt="" style={{ width: `${reticleShare * 100}%`, height: `${reticleShare * 100}%`, left: `${50 + reticleShift.x}%`, top: `${50 + reticleShift.y}%` }} />
       : <svg className="range-scope-reticle is-drawn" viewBox="-50 -50 100 100" style={{ left: `${50 + reticleShift.x}%`, top: `${50 + reticleShift.y}%` }}><path d="M-50 0H-3M3 0H50M0 -50V-3M0 3V50" /></svg>}
@@ -193,7 +204,7 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
     {tracer && <RangeTracer key={tracer.id} tracer={tracer} viewBox={viewBox} lang={lang} />}
     {locked && <div className="range-scope-hint">{lang === 'en' ? 'Left button — fire · wheel — zoom · R — reload · F — new target · right button or Esc — leave' : 'ЛКМ — огонь · колесо — кратность · R — перезарядка · F — новая цель · ПКМ или Esc — выйти'}</div>}
     {inside === 'free' && <button type="button" className="button range-scope-leave" onMouseDown={(event) => event.stopPropagation()} onClick={leave}>{lang === 'en' ? 'Leave the scope' : 'Выйти из прицела'}</button>}
-    {!locked && <button type="button" className="button primary range-scope-enter" onMouseDown={(event) => event.stopPropagation()} onClick={enter}>{irons ? (lang === 'en' ? 'Aim' : 'Прицелиться') : (lang === 'en' ? 'Enter the scope' : 'Войти в прицел')}</button>}
+    {!locked && <button type="button" className="button primary range-scope-enter" onMouseDown={(event) => event.stopPropagation()} onClick={enter}>{open ? (lang === 'en' ? 'Aim' : 'Прицелиться') : (lang === 'en' ? 'Enter the scope' : 'Войти в прицел')}</button>}
   </div>
 }
 

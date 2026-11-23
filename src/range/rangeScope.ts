@@ -79,6 +79,12 @@ export interface ScopeData {
   modes: ScopeMode[]
   /** The zeroing distances the scope can be set to (the game's CalibrationDistances), metres. */
   zeros?: number[]
+  /**
+   * A red dot (collimators.json): seen at ×1 through its own housing, the picture of it from the eye drawn at the mode's field of
+   * view (E:\SPT-photo\range-assets\tools\collimators.py), its marks as the game's collimator shader draws them.
+   */
+  collimator?: boolean
+  housing?: string
 }
 
 export const CM_PER_MOA_100M = 2.9089

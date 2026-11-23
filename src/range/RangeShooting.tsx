@@ -182,12 +182,20 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
    * and the target at the distance seen through it (src/range/RangeScopeView.tsx); none on the build, the open sights.
    */
   const scopes = useRangeJson<ScopeData[]>('scopes.json')
+  // a red dot seen as in the game, its housing and its mark (owner, 23.11.2026: «при стрельбе из коллиматора должен включаться прямо
+  // вот вид, как в игре… рамки самого коллиматора… и прицельная сетка коллиматора»; E:\SPT-photo\range-assets\tools\collimators.py)
+  const collimators = useRangeJson<ScopeData[]>('collimators.json')
   const scope = useMemo(() => {
     if (!build || !scopes) return undefined
-    const known = new Map(scopes.map((entry) => [entry.id, entry]))
-    const on = installedParts(build, catalog).find((entry) => known.has(entry.part.id))
-    return on ? known.get(on.part.id) : undefined
-  }, [build, scopes, catalog])
+    const parts = installedParts(build, catalog)
+    const onBuild = (list: ScopeData[] | null) => {
+      const known = new Map((list ?? []).map((entry) => [entry.id, entry]))
+      const on = parts.find((entry) => known.has(entry.part.id))
+      return on ? known.get(on.part.id) : undefined
+    }
+    // a magnified scope first (a red dot on top of an optic is its backup), then a red dot
+    return onBuild(scopes) ?? onBuild(collimators)
+  }, [build, scopes, collimators, catalog])
   const scopeId = scope?.id ?? ''
   // the sight's height over the bore for this build and sight (src/range/rangeSight.ts)
   const sightPoints = useRangeJson<SightPoints>('sights.json')
@@ -201,7 +209,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const scopeMode = scope?.modes[Math.min(scopeModeIndex, scope.modes.length - 1)]
   const [zoomState, setZoom] = useState<{ key: string; zoom: number }>({ key: '', zoom: 1 })
   const zoom = zoomState.key === `${scopeId}|${scopeModeIndex}` ? zoomState.zoom : scopeMode?.zoom ?? 1
-  const reticleUrls = useFigureUrls([scopeMode?.reticle, scopeMode?.reticleMax].filter((file): file is string => Boolean(file)))
+  const reticleUrls = useFigureUrls([scopeMode?.reticle, scopeMode?.reticleMax, scope?.housing].filter((file): file is string => Boolean(file)))
   const textureUrls = useFigureUrls(Object.values(COVER_TEXTURE_FILES))
   const coverTextures = { brick: textureUrls[COVER_TEXTURE_FILES.brick], container: textureUrls[COVER_TEXTURE_FILES.container], crate: textureUrls[COVER_TEXTURE_FILES.crate] }
   // the distances this scope can be zeroed at (the game's CalibrationDistances), the open sights the usual ones
@@ -242,9 +250,12 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     if (simRef.current?.key !== simKey) simRef.current = { key: simKey, sim: createRecoil(recoilData, modsRecoil, roundRecoil, Math.random, weapon.recoilVertical || recoilData.up) }
     return simRef.current.sim
   }
-  /** The recoil now, and the aim it was read at (for the barrel's mark). */
-  const [recoilState, setRecoilNow] = useState<{ reading: RecoilReading; aim: { x: number; y: number } } | null>(null)
-  const recoilNow = recoilState?.reading ?? null
+  /**
+   * The recoil now, of the sim it was read from: at rest it keeps the offset the game's after-shot return leaves (the next bullet
+   * goes there too); another weapon, build or round starts a new sim at the aim.
+   */
+  const [recoilState, setRecoilNow] = useState<{ key: string; reading: RecoilReading } | null>(null)
+  const recoilNow = recoilState?.key === simKey ? recoilState.reading : null
   const recoilCm = (reading: RecoilReading | null | undefined, key: 'bore' | 'view') => reading && toggles.recoil
     ? { x: degreesToCm(reading[key].right, distance), y: degreesToCm(reading[key].up, distance) }
     : { x: 0, y: 0 }
@@ -268,7 +279,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.altKey || event.metaKey || event.repeat) return
-      if ((event.target as HTMLElement | null)?.closest('input, select, textarea')) return
+      if (event.target instanceof Element && event.target.closest('input, select, textarea')) return
       if (event.code === 'KeyR') reloadRef.current()
       else if (event.code === 'KeyF') { event.preventDefault(); newTargetLatest.current() }
     }
@@ -361,7 +372,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
       }
     }
     const step = (now: number) => {
-      state.spare += Math.min(0.1, (now - state.last) / 1000)
+      // a click is handled just before the frame's callbacks, whose time can be that frame's start: never a negative step
+      state.spare += Math.max(0, Math.min(0.1, (now - state.last) / 1000))
       state.last = now
       const sim = simRefFn.current()
       let shotThisFrame = false
@@ -377,8 +389,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         state.time += RECOIL_TICK
         sim?.tick(state.held && state.left > 0)
       }
-      if (sim) setRecoilNow({ reading: sim.read(), aim: { ...aimRef.current } })
-      if (!state.held && (!sim || sim.resting())) { state.frame = undefined; setRecoilNow(null); return }
+      if (sim) setRecoilNow({ key: simRef.current?.key ?? '', reading: sim.read() })
+      if (!state.held && (!sim || sim.resting())) { state.frame = undefined; if (!sim) setRecoilNow(null); return }
       state.frame = requestAnimationFrame(frame)
     }
     state.frame = requestAnimationFrame(frame)
@@ -512,7 +524,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
           {fireModes.map((value) => <button key={value} type="button" className={mode === value ? 'active' : ''} onClick={() => setFireMode(value)}>{pick(FIRE_MODE_NAMES[value] ?? [value, value], lang)}</button>)}
         </div>
         {scope && scope.modes.length > 1 && <div className="segmented-filter">
-          {scope.modes.map((entry, index) => <button key={index} type="button" className={index === scopeModeIndex ? 'active' : ''} onClick={() => setScopeModeIndex(index)}>×{entry.zoom}{entry.zoomMax && entry.zoomMax > entry.zoom ? `–${entry.zoomMax}` : ''}</button>)}
+          {scope.modes.map((entry, index) => <button key={index} type="button" className={index === scopeModeIndex ? 'active' : ''} onClick={() => setScopeModeIndex(index)}>{scope.collimator ? `${t('Сетка', 'Reticle')} ${index + 1}` : `×${entry.zoom}${entry.zoomMax && entry.zoomMax > entry.zoom ? `–${entry.zoomMax}` : ''}`}</button>)}
         </div>}
         <label className="range-inline"><span>{t('Укрытие', 'Cover')}</span>
           <select className="select" value={cover} onChange={(event) => setCover(event.target.value as Cover)}>
@@ -541,6 +553,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         <div className="range-target-wrap">
           <RangeScopeView scene={scene} distance={distance} mode={scopeMode ?? IRON_SIGHTS} modes={scope?.modes ?? [IRON_SIGHTS]} modeIndex={scope ? Math.min(scopeModeIndex, scope.modes.length - 1) : 0} onMode={setScopeModeIndex}
             zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })} irons={!scope}
+            housingUrl={scope?.housing ? reticleUrls[scope.housing] : undefined} collimator={scope?.collimator}
             reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} swayCm={swayCm} lang={lang}
             tracer={toggles.trace ? tracer : null}
             onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />

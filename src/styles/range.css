@@ -229,6 +229,8 @@
 .range-pick-group { padding: 10px 8px 4px; color: var(--brass, #d8c27a); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 /* without optics: the view at ×1, not a scope's circle */
 .range-scope.is-irons { border-radius: 14px; }
+/* a red dot: its housing seen from the eye, over the target and under its mark */
+.range-scope-housing { position: absolute; left: 50%; top: 50%; max-width: none; max-height: none; transform: translate(-50%, -50%); pointer-events: none; user-select: none; }
 .range-scope.is-irons::after { border-radius: 14px; box-shadow: inset 0 0 40px 10px rgb(0 0 0 / 45%); }
 /* the quick distances */
 .range-distance-chips { display: flex; flex-wrap: wrap; gap: 4px; }

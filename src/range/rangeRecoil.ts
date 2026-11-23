@@ -128,6 +128,8 @@ export function createRecoil(weapon: WeaponRecoil, modsRecoil: number, roundReco
     previousX: 0, returning: false, side: 2, impulse: 0.01, after: { v: 0, h: 0 }, afterX: 0,
     camC: vec(), camV: vec(), camA: vec(), camKicked: false,
     follow: 0, followTarget: 0, followSpeed: weapon.cameraSpeed[0],
+    /** How far the barrel, the view and the camera moved in the last tick (degrees). */
+    moved: 0,
   }
 
   const groupsAt = (index: number) => weapon.groups.filter((group) => group.start <= index && index <= group.end)
@@ -159,6 +161,7 @@ export function createRecoil(weapon: WeaponRecoil, modsRecoil: number, roundReco
       s.camKicked = true
     },
     tick(held) {
+      const before = { C: { ...s.C }, camC: { ...s.camC }, follow: s.follow }
       if (held) s.auto = true
       else { s.auto = false; s.index = 0; if (s.stable) { s.stable = false; s.widen = 0 } }
       // the camera's own kick
@@ -211,6 +214,7 @@ export function createRecoil(weapon: WeaponRecoil, modsRecoil: number, roundReco
         s.followTarget = s.C.x
       }
       s.follow = lerp(s.follow, s.followTarget, s.followSpeed)
+      s.moved = length(sub(s.C, before.C)) + length(sub(s.camC, before.camC)) + Math.abs(s.follow - before.follow)
     },
     read() {
       return {
@@ -218,8 +222,14 @@ export function createRecoil(weapon: WeaponRecoil, modsRecoil: number, roundReco
         view: { up: -(s.follow + s.camC.x), right: s.camC.y },
       }
     },
+    /**
+     * At rest: no kick waiting for its tick (a single shot's kick is only taken up by the next tick: read as at rest before it, the
+     * range stopped its ticks and a single shot never kicked — owner, 23.11.2026: «нету отдачи в одиночном режиме стрельбы»), and
+     * nothing moving any more. The barrel settles where the game's after-shot offset leaves it, not always at the aim: its speed
+     * then only holds that offset, so the rest is the barrel's, the view's and the camera's standing still, not the speed's zero.
+     */
     resting() {
-      return !s.auto && Math.abs(s.V.x) + Math.abs(s.V.z) < 1e-4 && Math.abs(s.camV.x) + Math.abs(s.camV.y) < 1e-4 && length(s.camC) < 1e-3
+      return !s.auto && !s.kicked && !s.camKicked && !s.returning && s.moved < 1e-5 && length(s.camC) < 1e-3
     },
   }
 }

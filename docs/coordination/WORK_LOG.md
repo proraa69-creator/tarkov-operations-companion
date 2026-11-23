@@ -8913,3 +8913,25 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   - Hold bar: mark_steps.py also measures how wide the reticle's marks are (`tickMrad`, `tickMaxMrad`, 80th percentile of the marks'
     widest rows); the bar is 1.25× that (2.4 % of the view where unknown, 1.4–4 % of the view), 4 px with a 7 px rim (was 8 % and 3 px).
   - vitest src/range + ballistics, tsc, eslint clean.
+- 23.11.2026 ~23:40, «Полигон»: a single shot kicks, a red dot seen as in the game, the sight slot's tabs (owner: «нету отдачи в
+  одиночном режиме стрельбы»; «при стрельбе из коллиматора должен включаться прямо вот вид, как в игре… рамки самого коллиматора…
+  и прицельная сетка коллиматора»; «в сборке оружия, где у нас выбор прицела… вкладки: кольца, оптические прицелы, прицелы на планку
+  и коллиматоры, тепловизоры и ночные прицелы»). Branch claude/range, not pushed.
+  - Single shot: the recoil sim said «at rest» right after `shot()` (the kick waits for the next 1/60 s tick), and a click is handled
+    just before the frame's callbacks (a zero or negative step), so with the trigger already let go the range stopped its ticks on the
+    first frame and the kick never applied (automatic and bursts hold the trigger, so they kicked). `resting()` now waits for a pending
+    kick and for the barrel, view and camera to stand still (the game's after-shot offset leaves a small standing turn, never «speed 0»);
+    the step is never negative; at rest the range keeps that last reading (the next bullet goes there too). M4A1: 0.55° up, back in ~1 s.
+  - Red dots: E:\SPT-photo\range-assets\tools\collimators.py (43 collimators, 13 s): each mode's mark as the game's collimator shader
+    draws it (its vertex program disassembled: uv = 0.5 + 0.5·k·(d.x, −d.z), d = cam − _MarkShift − v/_MarkScale, k = _MarkShift.y²/d.y;
+    colour = alpha · _Color · _HDR · 0.769, additive), from the sight's mod_aim_camera through the lens mesh, centred on the mark; the
+    housing from the same eye (LOD0 meshes with their albedo, the glass faint) at 40° like the open sights → public/range-figures
+    collimators.json, reticle-<id>-m<N>.webp, housing-<id>.webp (1.4 MB, in the pack: RANGE_PACK_FILE takes housing-… and
+    collimators.json). EOTech EXPS3 ring ≈ 25 mrad with its glow (real 68 MOA ≈ 20 mrad). The range takes a magnified scope first
+    (scopes.json), then a red dot; the housing moves with the barrel like the reticle and grows with the wheel's zoom; several
+    reticles: «Сетка 1…N».
+  - Tabs: src/arsenal/sightTabs.ts (by tarkov.dev category: mount / scope / assault-scope + reflex + compact reflex / special-scope /
+    the rest «Прочее»), shown in ModGrid when a slot takes sights and they fall in two tabs or more — so also in «Сборка оружия».
+    Optical scopes need rings: in a receiver's scope slot «Оптические прицелы» lists only those that fit the rail directly.
+  - Checked on the dev page (RU/EN): M4A1 + EXPS3-0 and + MRS (4 reticles), a single shot's view kick ~72 cm at 50 m and back.
+    vitest src/range src/arsenal src/i18n (213), tsc, eslint clean.

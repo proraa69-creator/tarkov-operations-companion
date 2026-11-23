@@ -46,6 +46,26 @@ describe('the game\'s recoil (M4A1 default build, M855, aiming, standing)', () =
     expect(m4[29]!.spread).toBeGreaterThan(m4[9]!.spread)
   })
 
+  it('a single shot kicks too and settles (owner, 23.11.2026: «нету отдачи в одиночном режиме стрельбы»)', () => {
+    const sim = createRecoil(weaponRecoil('5447a9cd4bdc2dbd208b4567')!, -0.29, 0, seededRandom(7), 56)
+    sim.shot()
+    // the kick waits for the next tick: not at rest before it, or the range stops its ticks and the shot never kicks
+    expect(sim.resting()).toBe(false)
+    let bore = 0, view = 0, restAt = -1
+    for (let tick = 0; tick < 600; tick++) {
+      sim.tick(false)
+      bore = Math.max(bore, sim.read().bore.up)
+      view = Math.max(view, sim.read().view.up)
+      if (restAt < 0 && sim.resting()) restAt = tick
+    }
+    expect(bore).toBeGreaterThan(0.4)
+    expect(view).toBeGreaterThan(0.4)
+    // back near the aim and still within a few seconds
+    expect(restAt).toBeGreaterThan(20)
+    expect(restAt).toBeLessThan(400)
+    expect(Math.abs(sim.read().bore.up)).toBeLessThan(0.2)
+  })
+
   it('a round with more recoil kicks harder, mods with less recoil softer', () => {
     const hot = burst('5447a9cd4bdc2dbd208b4567', -0.29, 0.15, 6, 300)
     const soft = burst('5447a9cd4bdc2dbd208b4567', -0.45, 0, 6, 300)

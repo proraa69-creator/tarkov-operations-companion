@@ -73,4 +73,6 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Меньше отдача', 'Less recoil'], ['Больше эргономика', 'More ergonomics'], ['Дульные устройства', 'Muzzle devices'], ['Глушители', 'Suppressors'],
   ['Дульник + глушитель', 'Muzzle device + suppressor'], ['Сборка из задания', 'The task\'s build'], ['Вернуть сборку из задания', 'Back to the task\'s build'],
   ['Скриншот сборки', 'Build screenshot'], ['Сложить приклад', 'Fold the stock'], ['Разложить приклад', 'Unfold the stock'], ['Перейти к сборке оружия', 'Open in the weapon builder'], ['Меню оружия', 'Weapon menu'], ['Порядок', 'Order'], ['Комплектов нет.', 'No kits.'],
+  ['Вид прицела', 'Sight type'], ['Кольца', 'Rings'], ['Оптические прицелы', 'Optical scopes'], ['Прицелы на планку и коллиматоры', 'Rail scopes and red dots'],
+  ['Тепловизоры и ночные', 'Thermal and night'], ['Прочее', 'Other'],
 ]

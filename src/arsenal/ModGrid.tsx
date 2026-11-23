@@ -8,6 +8,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { cheapestOffer, computeStats, unlockHint, type BuildStats, type PurchaseAccess } from './buildStats'
 import { formatModifier, formatRub, PartIcon, signedExact, unlockLabel, useQuestNames } from './gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunPart, Weapon } from './gunTypes'
+import { sightTabOf, sightTabs, type SightTab } from './sightTabs'
 import { ERGO_WEIGHT, RECOIL_WEIGHT } from './tieredBuilds'
 
 /**
@@ -150,7 +151,7 @@ function useDismiss(box: RefObject<HTMLElement | null>, onClose: () => void) {
   }, [box])
 }
 
-function GridWindow({ anchor, avoid, title, count, onClose, children, tools }: { anchor: () => Element | null; avoid?: () => DOMRect | null; title: string; count: number; onClose: () => void; children: ReactNode; tools?: ReactNode }) {
+function GridWindow({ anchor, avoid, title, count, onClose, children, tools, tabs }: { anchor: () => Element | null; avoid?: () => DOMRect | null; title: string; count: number; onClose: () => void; children: ReactNode; tools?: ReactNode; tabs?: ReactNode }) {
   const box = useRef<HTMLDivElement>(null)
   const narrow = typeof window !== 'undefined' && window.innerWidth < 520
   const tile = narrow ? 70 : 82
@@ -165,6 +166,7 @@ function GridWindow({ anchor, avoid, title, count, onClose, children, tools }: {
       {tools}
       <button type="button" className="wb-grid-close" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={14} /></button>
     </div>
+    {tabs}
     <div className="wb-grid" role="listbox" aria-label={title}>{children}</div>
   </div>, document.body)
 }
@@ -202,6 +204,17 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
     })
     .sort((a, b) => (everything ? 0 : Number(a.price === undefined) - Number(b.price === undefined)) || balance(b.after, stats) - balance(a.after, stats) || (a.price ?? Infinity) - (b.price ?? Infinity)),
   [access, ammo, build, catalog, cell.path, cell.slot, everything, muzzle, sort, stats, weapon])
+  // a sight slot's tabs: the one chosen, else the one of the module on the weapon, else the first
+  const tabs = useMemo(() => sightTabs(rows.map((row) => row.part)), [rows])
+  const [tabChoice, setTab] = useState<SightTab | null>(null)
+  const onWeapon = cell.part ? sightTabOf(cell.part) : undefined
+  const tab = tabs.find((entry) => entry.key === tabChoice)?.key ?? tabs.find((entry) => entry.key === onWeapon)?.key ?? tabs[0]?.key
+  const shown = tab ? rows.filter((row) => sightTabOf(row.part) === tab) : rows
+  const tabBar = tabs.length > 0 ? <div className="wb-grid-tabs" role="tablist" aria-label={uiText('Вид прицела')}>
+    {tabs.map((entry) => <button type="button" key={entry.key} role="tab" aria-selected={entry.key === tab} className={`wb-grid-tab${entry.key === tab ? ' is-on' : ''}`} onClick={() => setTab(entry.key)}>
+      {uiText(entry.name)} <span className="wb-grid-tab-count">{entry.count}</span>
+    </button>)}
+  </div> : undefined
   const sorts: GridSort[] = muzzle ? ['balanced', 'recoil', 'ergonomics', 'devices', 'suppressors', 'kits'] : ['balanced', 'recoil', 'ergonomics']
   const tools = <select className="wb-grid-sort" value={sorts.includes(sort) ? sort : 'balanced'} onChange={(event) => setSort(event.target.value as GridSort)} aria-label={uiText('Порядок')}>
     {sorts.map((value) => <option key={value} value={value}>{uiText(SORT_NAMES[value])}</option>)}
@@ -225,12 +238,13 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
     })}
     {!kits.length && <p className="wb-grid-none">{uiText('Комплектов нет.')}</p>}
   </GridWindow>
-  return <GridWindow anchor={anchor} avoid={avoid} title={cell.slot.name} count={rows.length + (removable ? 1 : 0)} onClose={onClose} tools={tools}>
+  // the window as wide for every tab: by all the slot's modules
+  return <GridWindow anchor={anchor} avoid={avoid} title={cell.slot.name} count={rows.length + (removable ? 1 : 0)} onClose={onClose} tools={tools} tabs={tabBar}>
     {removable && <button type="button" className="wb-tile is-remove" onClick={onRemove} title={uiText('Снять')}>
       <Trash2 size={18} />
       <span className="wb-tile-name">{uiText('Снять')}</span>
     </button>}
-    {rows.map(({ part, offer, replaces }) => {
+    {shown.map(({ part, offer, replaces }) => {
       const current = part.id === cell.part?.id
       const recoil = part.recoilModifier
       return <button type="button" key={part.id} role="option" aria-selected={current} className={`wb-tile${current ? ' is-current' : ''}${offer || everything ? '' : ' is-locked'}`}
