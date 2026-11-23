@@ -16,7 +16,8 @@ import { AD_SOURCE_LABEL, AD_SOURCES } from '../../../src/shared/adSources'
 import { ADMIN_CIS_COUNTRIES, ADMIN_EXTRA_CIS_COUNTRIES, adminRegionOf, CIS_COUNTRIES, EUROPE_COUNTRIES, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
 import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
-import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
+import { AccountError, ACCOUNT_MODES, maskPhone, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
+import { phonePlatformOf, presenceClientOf, type AccountPresence } from './presence.js'
 import { transaction } from './database.js'
 import { LIFETIME_UNTIL } from './invites.js'
 import { paidInOtherCurrency, PaymentError, PLAN_MONTHS, providerOf, type PaymentProvider, type PaymentStore, type PlanId } from './paymentStore.js'
@@ -174,6 +175,95 @@ export interface AdminUser {
   bezebeeAllowed?: true
   /** What the running access rests on (SubscriptionSource); absent without access. */
   source?: SubscriptionSource
+}
+
+/** The app behind a device name: the PC app, the phone app on each system, the browser build. */
+export type ProfileDeviceKind = 'pc' | 'android' | 'ios' | 'browser' | 'other'
+/** Payments and friends listed in AccountProfile; the counts and sums always cover all of them. */
+const PROFILE_PAYMENTS = 200
+const PROFILE_FRIENDS = 200
+
+export function deviceKindOf(name: string): ProfileDeviceKind {
+  const platform = phonePlatformOf(name)
+  if (platform) return platform
+  if (presenceClientOf(name) === 'pc') return 'pc'
+  return /^Браузер(?:\s|$)/.test(name) ? 'browser' : 'other'
+}
+
+/**
+ * GET /me/admin/users/:id/profile (AdminStore.profile): one account as «Посмотреть профиль» shows it. Money in roubles;
+ * every date ISO. A part the database has nothing for is absent (or empty), never made up.
+ */
+export interface AccountProfile {
+  generatedAt: string
+  account: {
+    id: string
+    /** Absent for a deleted account (its e-mail is gone). */
+    email?: string
+    deleted?: true
+    deletedAt?: string
+    /** The player asked to delete the account: when it goes. */
+    deletionAt?: string
+    emailVerifiedAt?: string
+    kind: 'user' | 'streamer'
+    owner?: true
+    createdAt: string
+    country?: string
+    countryOther?: string
+    payRegion: PayRegion
+    nickname?: string
+    eftAccount?: { masked: string; boundAt: string }
+    /** A confirmed phone number, masked («+7 ••• •••-45-67»). */
+    phone?: string
+    blockedAt?: string
+    bezebeeAllowed?: true
+  }
+  subscription: AdminUser['subscription'] & { source?: SubscriptionSource }
+  autopay: AdminUser['autopay']
+  /** Where the account came from: a streamer's code or link, a friend's code, an ad. */
+  origin: { streamerCode?: string; streamerLink?: string; invitedBy?: InviterView; ad?: { source: string; label: string; campaign?: string } }
+  payments: {
+    /** Succeeded payments and their sum. */
+    count: number
+    total: number
+    refunded: { count: number; total: number }
+    first?: { at: string; plan: PlanId; amount: number; refunded?: true }
+    last?: { at: string; plan: PlanId; amount: number }
+    /** Succeeded payments by the owner's month (Bangkok), newest first, with the plans bought in it. */
+    months: Array<{ month: string; count: number; revenue: number; plans: Partial<Record<PlanId, number>> }>
+    plans: Record<PlanId, { count: number; revenue: number }>
+    /** Every payment (any status), newest first; `more`: older ones beyond PROFILE_PAYMENTS. */
+    list: AdminPayment[]
+    more: boolean
+  }
+  grants: Array<{ days: number; reason: string; actor: string; at: string; paidUntil: string }>
+  activity: {
+    /** The last request from anywhere: the site, the phone or the PC app. */
+    lastSeenAt?: string
+    pcSeenAt?: string
+    phoneSeenAt?: string
+    browserSeenAt?: string
+    /** The first sign-in in an app (the oldest device). */
+    firstAppAt?: string
+    phone: { used: boolean; android: boolean; ios: boolean }
+    devices: Array<{ kind: ProfileDeviceKind; name: string; firstAt: string; lastAt: string; active: boolean; revokedAt?: string }>
+    /** In an app right now (services/presence.ts); absent where the server keeps no presence. */
+    online?: AccountPresence
+  }
+  referrals: {
+    /** The player's own «Пригласи друга» code. */
+    inviteCode?: string
+    invited: number
+    deleted: number
+    /** Friends with at least one payment that went through, and their sum. */
+    paid: number
+    revenue: number
+    friends: Array<{ id: string; email?: string; nickname?: string; deleted?: true; blocked?: true; invitedAt: string; payments: number; amount: number; firstPaidAt?: string; firstPlan?: PlanId }>
+    more: boolean
+    rewards: { granted: number; pending: number; review: number; canceled: number; days: { granted: number; pending: number; review: number }; lifetime?: true }
+    /** A streamer's code (accounts.referral_code): registrations and payments with it. */
+    streamer?: { code: string; registrations: number; payers: number; payments: number; revenue: number; earnings: number }
+  }
 }
 
 /** The inviter of a friend-invited account (owner only). */
@@ -1034,6 +1124,193 @@ export class AdminStore {
     const grants = (this.db.prepare('SELECT * FROM owner_subscription_grants WHERE account_id = ? ORDER BY at DESC, id DESC LIMIT 20').all(id) as Row[])
       .map((grant) => ({ days: Number(grant.days), reason: String(grant.reason), actor: String(grant.actor), at: iso(grant.at)!, paidUntil: iso(grant.paid_until_after)! }))
     return { user: this.toUser(row), payments, grants }
+  }
+
+  /**
+   * «Посмотреть профиль» (owner, 24.11.2026: «я захожу в чат… нажимаю правой кнопкой, на телефоне зажимаю пальцем…
+   * посмотреть профиль… когда зарегистрирован, когда первая оплата, сколько оплат, какие тарифы по месяцам, когда был
+   * последний раз, заходил в приложение. Видна почта, ник в игре… привёл ли он людей, сколько привёл, сколько оплатил…
+   * заходил ли в приложение на телефоне»): everything the database knows about one account, in four parts — the account,
+   * its payments (the first, by the owner's months and plans, all of them), its activity (the apps and devices it signed
+   * in from, and whether it is in an app now: `presence`) and the friends it brought. What is not stored stays absent;
+   * the screen says «нет данных». A deleted account keeps only what is not personal (its payments, its dates).
+   */
+  profile(id: string, presence?: AccountPresence): AccountProfile {
+    const row = this.db.prepare(`${this.userSelect()} WHERE a.id = ?`).get(id) as Row | undefined
+    if (!row) throw new AccountError(404, 'Пользователь не найден')
+    const user = this.toUser(row)
+    const extra = this.db.prepare(`SELECT deleted_at, deletion_at, email_verified_at, phone, phone_verified_at, invite_code, ad_source, ad_campaign,
+      link_visit_code FROM accounts WHERE id = ?`).get(id) as Row
+    const deleted = extra.deleted_at != null
+    const adSource = extra.ad_source == null ? undefined : String(extra.ad_source)
+    const account: AccountProfile['account'] = {
+      id: user.id,
+      ...(deleted ? { deleted: true as const, deletedAt: iso(extra.deleted_at) } : { email: user.email }),
+      ...(extra.deletion_at == null || deleted ? {} : { deletionAt: iso(extra.deletion_at) }),
+      ...(extra.email_verified_at == null || deleted ? {} : { emailVerifiedAt: iso(extra.email_verified_at) }),
+      kind: user.kind,
+      ...(user.owner ? { owner: true as const } : {}),
+      createdAt: user.createdAt,
+      ...(user.country ? { country: user.country } : {}),
+      ...(user.countryOther ? { countryOther: user.countryOther } : {}),
+      payRegion: user.payRegion,
+      ...(user.nickname && !deleted ? { nickname: user.nickname } : {}),
+      ...(user.eftAccount ? { eftAccount: user.eftAccount } : {}),
+      ...(extra.phone != null && extra.phone_verified_at != null && !deleted ? { phone: maskPhone(String(extra.phone)) } : {}),
+      ...(user.blockedAt ? { blockedAt: user.blockedAt } : {}),
+      ...(user.bezebeeAllowed ? { bezebeeAllowed: true as const } : {}),
+    }
+    const origin: AccountProfile['origin'] = {
+      ...(user.referredBy ? { streamerCode: user.referredBy } : {}),
+      ...(extra.link_visit_code == null ? {} : { streamerLink: String(extra.link_visit_code) }),
+      ...(user.invitedBy ? { invitedBy: user.invitedBy } : {}),
+      ...(adSource ? { ad: { source: adSource, label: AD_SOURCE_LABEL[adSource as keyof typeof AD_SOURCE_LABEL] ?? adSource, ...(extra.ad_campaign ? { campaign: String(extra.ad_campaign) } : {}) } } : {}),
+    }
+    return {
+      generatedAt: new Date(this.now()).toISOString(),
+      account,
+      subscription: { ...user.subscription, ...(user.source ? { source: user.source } : {}) },
+      autopay: user.autopay,
+      origin,
+      payments: this.profilePayments(id),
+      grants: (this.db.prepare('SELECT * FROM owner_subscription_grants WHERE account_id = ? ORDER BY at DESC, id DESC LIMIT 50').all(id) as Row[])
+        .map((grant) => ({ days: Number(grant.days), reason: String(grant.reason), actor: String(grant.actor), at: iso(grant.at)!, paidUntil: iso(grant.paid_until_after)! })),
+      activity: this.profileActivity(id, user, presence),
+      referrals: this.profileReferrals(id, extra.invite_code == null ? undefined : String(extra.invite_code), row.referral_code == null ? undefined : String(row.referral_code)),
+    }
+  }
+
+  /** The payments part of profile(): what went through (succeeded), refunds apart, by the owner's months and by plan. */
+  private profilePayments(id: string): AccountProfile['payments'] {
+    const list = (this.db.prepare(`${PAYMENT_SELECT} WHERE p.account_id = ? ORDER BY p.created_at DESC, p.rowid DESC LIMIT ?`).all(id, PROFILE_PAYMENTS + 1) as Row[]).map(toPayment)
+    const paid = this.db.prepare(`SELECT plan, amount, status, COALESCE(paid_at, created_at) AS at FROM payments WHERE account_id = ? AND status IN ('succeeded', 'refunded')
+      ORDER BY COALESCE(paid_at, created_at), rowid`).all(id) as Row[]
+    const plans = Object.fromEntries(PLAN_IDS.map((plan) => [plan, { count: 0, revenue: 0 }])) as Record<PlanId, { count: number; revenue: number }>
+    const months = new Map<string, { month: string; count: number; revenue: number; plans: Partial<Record<PlanId, number>> }>()
+    const round = (value: number) => Math.round(value * 100) / 100
+    let count = 0
+    let total = 0
+    const refunded = { count: 0, total: 0 }
+    let last: { at: string; plan: PlanId; amount: number } | undefined
+    for (const payment of paid) {
+      const amount = rub(payment.amount)
+      const plan = String(payment.plan) as PlanId
+      if (payment.status === 'refunded') { refunded.count += 1; refunded.total = round(refunded.total + amount); continue }
+      count += 1
+      total = round(total + amount)
+      if (plans[plan]) { plans[plan].count += 1; plans[plan].revenue = round(plans[plan].revenue + amount) }
+      const month = ownerDay(Number(payment.at)).slice(0, 7)
+      const entry = months.get(month) ?? { month, count: 0, revenue: 0, plans: {} }
+      entry.count += 1
+      entry.revenue = round(entry.revenue + amount)
+      entry.plans[plan] = (entry.plans[plan] ?? 0) + 1
+      months.set(month, entry)
+      last = { at: iso(payment.at)!, plan, amount }
+    }
+    // The first payment that went through, also one refunded later (it was a payment all the same).
+    const first = paid[0]
+    return {
+      count,
+      total,
+      refunded,
+      ...(first ? { first: { at: iso(first.at)!, plan: String(first.plan) as PlanId, amount: rub(first.amount), ...(first.status === 'refunded' ? { refunded: true as const } : {}) } } : {}),
+      ...(last ? { last } : {}),
+      months: [...months.values()].sort((a, b) => b.month.localeCompare(a.month)),
+      plans,
+      list: list.slice(0, PROFILE_PAYMENTS),
+      more: list.length > PROFILE_PAYMENTS,
+    }
+  }
+
+  /**
+   * The activity part of profile(): the last request from anywhere (accounts.last_seen_at), and the app devices that signed
+   * in to the account (account_devices, by the name each app gives: services/presence.ts presenceClientOf) — the PC app,
+   * the phone app on Android or iPhone, the browser build. A device signed out later still tells that the account was there.
+   */
+  private profileActivity(id: string, user: AdminUser, presence?: AccountPresence): AccountProfile['activity'] {
+    const rows = this.tableExists('account_devices')
+      ? this.db.prepare('SELECT name, created_at, last_seen_at, revoked_at FROM account_devices WHERE account_id = ? ORDER BY last_seen_at DESC, rowid DESC LIMIT 50').all(id) as Row[]
+      : []
+    const devices = rows.map((device) => {
+      const name = String(device.name)
+      return {
+        kind: deviceKindOf(name),
+        name,
+        firstAt: iso(device.created_at)!,
+        lastAt: iso(device.last_seen_at)!,
+        active: device.revoked_at == null,
+        ...(device.revoked_at == null ? {} : { revokedAt: iso(device.revoked_at) }),
+      }
+    })
+    const latest = (kinds: ProfileDeviceKind[]) => devices.filter((device) => kinds.includes(device.kind)).map((device) => device.lastAt).sort().at(-1)
+    const firstAt = devices.map((device) => device.firstAt).sort()[0]
+    const pc = latest(['pc'])
+    const phone = latest(['android', 'ios'])
+    const browser = latest(['browser'])
+    return {
+      ...(user.lastSeenAt ? { lastSeenAt: user.lastSeenAt } : {}),
+      ...(pc ? { pcSeenAt: pc } : {}),
+      ...(phone ? { phoneSeenAt: phone } : {}),
+      ...(browser ? { browserSeenAt: browser } : {}),
+      ...(firstAt ? { firstAppAt: firstAt } : {}),
+      phone: { used: Boolean(phone), android: devices.some((device) => device.kind === 'android'), ios: devices.some((device) => device.kind === 'ios') },
+      devices,
+      ...(presence ? { online: presence } : {}),
+    }
+  }
+
+  /**
+   * The friends part of profile() («Пригласи друга», services/invites.ts): the accounts that registered with this player's
+   * code, whether they paid and how much, the reward days; for a streamer, the registrations and payments with its code.
+   */
+  private profileReferrals(id: string, inviteCode: string | undefined, streamerCode: string | undefined): AccountProfile['referrals'] {
+    const rows = this.db.prepare(`SELECT a.id, a.email, a.nicknames, a.deleted_at, a.blocked_at, COALESCE(a.invited_at, a.created_at) AS invited_at,
+        (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
+        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_amount,
+        (SELECT p.plan || '|' || COALESCE(p.paid_at, p.created_at) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' ORDER BY COALESCE(p.paid_at, p.created_at), p.rowid LIMIT 1) AS first_paid
+      FROM accounts a WHERE a.invited_by = ? ORDER BY invited_at DESC, a.rowid DESC`).all(id) as Row[]
+    const friends = rows.map((friend) => {
+      const removed = friend.deleted_at != null
+      const nickname = removed ? undefined : storedNickname(friend.nicknames)
+      const [plan, at] = friend.first_paid == null ? [] : String(friend.first_paid).split('|')
+      return {
+        id: String(friend.id),
+        ...(removed ? { deleted: true as const } : { email: String(friend.email) }),
+        ...(nickname ? { nickname } : {}),
+        ...(friend.blocked_at == null || removed ? {} : { blocked: true as const }),
+        invitedAt: iso(friend.invited_at)!,
+        payments: Number(friend.paid_count),
+        amount: rub(friend.paid_amount),
+        ...(at ? { firstPaidAt: iso(Number(at)), firstPlan: plan as PlanId } : {}),
+      }
+    })
+    const rewards: AccountProfile['referrals']['rewards'] = { granted: 0, pending: 0, review: 0, canceled: 0, days: { granted: 0, pending: 0, review: 0 } }
+    if (this.tableExists('invite_rewards')) {
+      for (const reward of this.db.prepare('SELECT kind, status, days FROM invite_rewards WHERE inviter_id = ?').all(id) as Row[]) {
+        const status = String(reward.status)
+        if (status === 'granted' || status === 'pending' || status === 'review' || status === 'canceled') rewards[status] += 1
+        if (status === 'granted' || status === 'pending' || status === 'review') rewards.days[status] += Number(reward.days)
+        if (reward.kind === 'legend' && status === 'granted') rewards.lifetime = true
+      }
+    }
+    let streamer: AccountProfile['referrals']['streamer']
+    if (streamerCode) {
+      const registrations = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE referred_by = ?').get(streamerCode) as Row).n)
+      const money = this.db.prepare(`SELECT COUNT(*) AS n, COUNT(DISTINCT account_id) AS payers, COALESCE(SUM(amount), 0) AS total, COALESCE(SUM(streamer_earning), 0) AS earned
+        FROM payments WHERE referral_code = ? AND status = 'succeeded'`).get(streamerCode) as Row
+      streamer = { code: streamerCode, registrations, payers: Number(money.payers), payments: Number(money.n), revenue: rub(money.total), earnings: rub(money.earned) }
+    }
+    return {
+      ...(inviteCode ? { inviteCode } : {}),
+      invited: friends.length,
+      deleted: rows.filter((friend) => friend.deleted_at != null).length,
+      paid: friends.filter((friend) => friend.payments > 0).length,
+      revenue: Math.round(friends.reduce((sum, friend) => sum + friend.amount * 100, 0)) / 100,
+      friends: friends.slice(0, PROFILE_FRIENDS),
+      more: friends.length > PROFILE_FRIENDS,
+      rewards,
+      ...(streamer ? { streamer } : {}),
+    }
   }
 
   private toUser(row: Row): AdminUser {

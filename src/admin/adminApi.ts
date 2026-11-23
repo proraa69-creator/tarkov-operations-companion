@@ -142,6 +142,8 @@ export interface AdminPayment {
   amountEdited?: { before: number; at: string }
   /** Roubles left after the commission, when it was given with a confirmation by hand. */
   netAmount?: number
+  /** How it was paid (sbp, bank_card, …, bezebee; 'unknown', 'archive'), as the server stores it. */
+  method?: string
 }
 
 export interface AdminPayments {
@@ -172,6 +174,74 @@ export interface AdminUserDetail {
   payments: AdminPayment[]
   grants: Array<{ days: number; reason: string; actor: string; at: string; paidUntil: string }>
 }
+
+/** The app behind a device that signed in to an account (server/src/services/adminStore.ts deviceKindOf). */
+export type AdminDeviceKind = 'pc' | 'android' | 'ios' | 'browser' | 'other'
+/**
+ * «Посмотреть профиль» (GET /v1/accounts/me/admin/users/:id/profile, server/src/services/adminStore.ts AccountProfile):
+ * one account, everything the server stores about it. Money in roubles. A part the server has nothing for is absent or empty.
+ */
+export interface AdminAccountProfile {
+  generatedAt: string
+  account: {
+    id: string
+    email?: string
+    deleted?: true
+    deletedAt?: string
+    deletionAt?: string
+    emailVerifiedAt?: string
+    kind: 'user' | 'streamer'
+    owner?: true
+    createdAt: string
+    country?: string
+    countryOther?: string
+    payRegion?: string
+    nickname?: string
+    eftAccount?: { masked: string; boundAt: string }
+    phone?: string
+    blockedAt?: string
+    bezebeeAllowed?: true
+  }
+  subscription: AdminUser['subscription'] & { trialPendingDays?: number; source?: 'money' | 'grant' | 'friend' | 'lifetime' | 'trial' }
+  autopay: AdminUser['autopay']
+  origin: { streamerCode?: string; streamerLink?: string; invitedBy?: { id: string; email?: string; nickname?: string; deleted?: true; discount?: 'used' | 'unused' | 'lost' }; ad?: { source: string; label: string; campaign?: string } }
+  payments: {
+    count: number
+    total: number
+    refunded: { count: number; total: number }
+    first?: { at: string; plan: PlanId; amount: number; refunded?: true }
+    last?: { at: string; plan: PlanId; amount: number }
+    months: Array<{ month: string; count: number; revenue: number; plans: Partial<Record<PlanId, number>> }>
+    plans: Record<PlanId, { count: number; revenue: number }>
+    list: AdminPayment[]
+    more: boolean
+  }
+  grants: AdminUserDetail['grants']
+  activity: {
+    lastSeenAt?: string
+    pcSeenAt?: string
+    phoneSeenAt?: string
+    browserSeenAt?: string
+    firstAppAt?: string
+    phone: { used: boolean; android: boolean; ios: boolean }
+    devices: Array<{ kind: AdminDeviceKind; name: string; firstAt: string; lastAt: string; active: boolean; revokedAt?: string }>
+    online?: { pc: boolean; phone: boolean; platform?: 'android' | 'ios'; windowMinutes: number }
+  }
+  referrals: {
+    inviteCode?: string
+    invited: number
+    deleted: number
+    paid: number
+    revenue: number
+    friends: Array<{ id: string; email?: string; nickname?: string; deleted?: true; blocked?: true; invitedAt: string; payments: number; amount: number; firstPaidAt?: string; firstPlan?: PlanId }>
+    more: boolean
+    rewards: { granted: number; pending: number; review: number; canceled: number; days: { granted: number; pending: number; review: number }; lifetime?: true }
+    streamer?: { code: string; registrations: number; payers: number; payments: number; revenue: number; earnings: number }
+  }
+}
+
+/** The profile's address: also the owner app's (its gateway lets `admin/users/…` through, electron/serviceGateway.ts). */
+export const adminProfilePath = (id: string) => `/v1/accounts/me/admin/users/${encodeURIComponent(id)}/profile`
 
 export type BugReportStatus = 'open' | 'closed'
 export interface BugReportSummary {
@@ -339,7 +409,9 @@ export const adminApi = {
     'GET', adminPaths.users(search, filter, region, limit, offset), undefined, keep,
   ),
   user: (id: string) => request<AdminUserDetail>('GET', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}`),
-  grant: (id: string, days: number, reason: string) => request<AdminUserDetail>(
+  /** «Посмотреть профиль» from «Чаты» (owner, 24.11.2026). */
+  profile: (id: string) => request<AdminAccountProfile>('GET', adminProfilePath(id)),
+  grant:(id: string, days: number, reason: string) => request<AdminUserDetail>(
     'POST', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}/grant`, { days, reason },
   ),
   /** «Изменить сумму»: roubles (kopecks allowed) and an optional comment for the owner's log; the streamer's share follows. */

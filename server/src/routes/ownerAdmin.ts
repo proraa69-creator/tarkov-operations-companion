@@ -28,6 +28,10 @@
  *                                                    -> { affected, sample, skipped, dryRun } (one audit entry
  *                                                       subscription.bulk-grant; 400 { code: 'too_many', affected })
  *   GET  /me/admin/users/:id                         -> { user, payments, grants }
+ *   GET  /me/admin/users/:id/profile                 -> AccountProfile «Посмотреть профиль» (services/adminStore.ts):
+ *                                                       account, subscription, origin, payments (first, by months and
+ *                                                       plans, the list), grants, activity (apps, devices, online now),
+ *                                                       referrals (friends brought and what they paid); 404 unknown id
  *   POST /me/admin/users/:id/grant           { days 1–3650, reason }   -> { user, payments, grants }
  *   POST /me/admin/users/:id/revoke          { days 1–3650, reason }   -> { user, payments, grants } (takes paid days off; 409 when none)
  *   POST /me/admin/users/:id/cancel-autopay                            -> { user, payments, grants } (an archived one is closed here only)
@@ -294,6 +298,11 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     }
   }))
   router.get('/me/admin/users/:id', owner('read', (req, res) => { res.json(admin.user(idSchema.parse(req.params.id))) }))
+  // «Посмотреть профиль» from the chat (owner, 24.11.2026): the whole account in one answer, with «в приложении сейчас».
+  router.get('/me/admin/users/:id/profile', owner('read', (req, res) => {
+    const id = idSchema.parse(req.params.id)
+    res.json(admin.profile(id, presence?.of(id)))
+  }))
   router.post('/me/admin/users/:id/grant', owner('write', (req, res, actor) => {
     const { days, reason } = grantSchema.parse(req.body)
     res.json(admin.grant(actor, idSchema.parse(req.params.id), days, reason))

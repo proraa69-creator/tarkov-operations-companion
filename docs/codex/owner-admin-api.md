@@ -351,6 +351,15 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
 
 - `GET users/:id` → `{ user: AdminUser, payments: [last 20 AdminPayment], grants: [last 20 { days, reason, actor, at,
   paidUntil }] }` (`days` is negative for days taken off).
+- `GET users/:id/profile` → `AccountProfile` (`server/src/services/adminStore.ts`), «Посмотреть профиль» from the chats
+  (owner, 24.11.2026): `account` (e-mail and its confirmation, nickname, bound game account masked, registration,
+  country, confirmed phone masked, blocked / deletion dates; a deleted account has no e-mail or nickname), `subscription`
+  with its `source`, `autopay`, `origin` (friend, streamer code or link, ad), `payments` (succeeded count and sum,
+  refunds apart, `first`, `last`, `months` — the owner's months newest first with the plans bought in each — `plans`,
+  every payment up to 200 with `more`), `grants` (up to 50), `activity` (`lastSeenAt`, the last use of the PC app, the
+  phone app and the browser build, the first app sign-in, `phone: { used, android, ios }`, the devices by name and
+  time — never their ids — and `online` from the heartbeat), `referrals` (own code, friends brought, how many paid and
+  their sum, the list up to 200, reward days; a streamer's code stats). `404` unknown account. Not audited (read only).
 - `POST users/:id/grant { days: 1–3650, reason: 3–200 }` → the same as `GET users/:id`. Audit `subscription.grant`.
 - `POST users/:id/revoke { days: 1–3650, reason: 3–200 }` → takes paid days off (never back past now); `409` when
   there are no paid days or the account is a streamer. Audit `subscription.revoke`.
