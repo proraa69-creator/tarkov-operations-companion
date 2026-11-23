@@ -9075,3 +9075,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   dependency and the change. Desktop: «Raid OS тест чёрный экран.exe», 227 MB, sha256 3125f5b8…f230. Its own data folder
   %APPDATA%\Raid OS Test Build, no updates. Worktree E:\FromC\raidos-black-window (npm 11 skipped install scripts: electron's
   binary was fetched with node node_modules/electron/install.js). Not pushed, not released, nothing sent to the player.
+- 23.11 16:44 UTC, owner: «Залей на raidos.app»: the test exe at https://raidos.app/downloads/RaidOS-test-start.exe
+  (/opt/tarkov-operations-companion/website/dist/downloads/, root 644, uploaded as .part then renamed; sha256 on the server
+  3125f5b8…f230 = the local one; HEAD 200, 238451351 bytes). The publisher copies dist/downloads into each new dist, so it
+  stays across releases: remove it by hand when the player no longer needs it.
