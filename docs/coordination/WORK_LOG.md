@@ -9672,3 +9672,9 @@ Not pushed, not released, nothing uploaded.
   Pictures: E:\SPT-photo\server-upload\interchange (102 files), on the server with this entry.
 - The worker lays a quest item free now (Worker.cs Free: raised out of anything solid in its box, then onto what is under its whole
   footprint, logged «STILL IN SOMETHING» when it cannot be) and its close-up uses the documents' every-edge check (build out-free).
+- 0.6.0.339 live 06:20 Bangkok (13bd9519). Also in it on the photo session's word: 7a7bc066 (one photo per battle pass document, the
+  document itself in it), 022b2ccb (close-ups that do not show the item whole removed), e47cf533 (Interchange quests shot again); each
+  push restarted the gate (5c033257, 7b21f4bf, f55ae595 cancelled). Gate 45283199725 green; publisher started by hand 23:13 UTC, the
+  mirror's 30 missing blobs prefetched; version.json 0.6.0-339 13bd9519 at 23:20 UTC. mobile-v0.6.0-339: the players' iPhone IPA on
+  the desktop («Raid OS iPhone для игроков 0.6.0.339.ipa», zip sha256 9d0a9584… as in mobile-release.json). This log entry is on
+  claude/release-338 only (not pushed to release/production, so nothing republishes); it goes out with the next release.
