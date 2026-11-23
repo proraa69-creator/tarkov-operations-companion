@@ -206,7 +206,8 @@ export function zeroedTrajectory(round: BulletInput, zero = 50, maxDistance = 60
   const atZero = sighted.find((point) => point.distance === zero)?.y ?? sightHeight
   const mass = round.bulletMassGrams / 1000
   return shot.filter((point) => point.distance <= maxDistance).map((point) => {
-    const keep = 0.5 + 0.5 * clamp(point.along / round.initialSpeed, 0, 1)
+    // the game's own: r + (1 − r) · 0.5 with r = |v| / v0 (Shot.HandleCollision, globals GlobalDamageDegradationCoefficient 0.5)
+    const keep = 0.5 + 0.5 * clamp(point.speed / round.initialSpeed, 0, 1)
     return {
       distance: point.distance,
       drop: (point.y - atZero) * 100,
