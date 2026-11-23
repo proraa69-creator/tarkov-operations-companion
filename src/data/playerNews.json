@@ -4,9 +4,9 @@
     {"kind":"added","ru":"«Полигон»: проверьте на боссе, куда стрелять эффективнее и каким патроном он падает быстрее","en":"«Range»: test on a boss where to shoot and which round brings him down faster"},
     {"kind":"changed","ru":"«Сообщить об ошибке»: за найденный баг или ошибку теперь 2 дня подписки вместо одного","en":"«Report a bug»: a bug or an error you find now earns 2 days of subscription instead of one"},
     {"kind":"improved","ru":"Сборка оружия: сначала выберите кольца — следом откроются прицелы, которые на них встают","en":"Weapon builds: pick the rings first, and the scopes that fit them open next"},
-    {"kind":"improved","ru":"Местоположение: приложение ищет скриншоты и в папке Steam-версии игры","en":"Your location: the app also looks for screenshots in the Steam version's game folder"},
-    {"kind":"improved","ru":"Карты: новые фото мест на Таможне, в Лесу и на Берегу — снятые прямо в игре","en":"Maps: new place photos on Customs, Woods and Shoreline, taken in the game itself"},
-    {"kind":"improved","ru":"Стиль «Стекло»: кнопки «Тельняшки», «Чёрного мультикама» и «Снаряжения» как в обычном стиле, с тканью под стеклом","en":"«Glass» style: the «Telnyashka», «Black multicam» and «Gear» buttons as in the plain style, the cloth under the glass"},
+    {"kind":"improved","ru":"Местоположение: лучше работает со Steam-версией игры","en":"Your location: works better with the Steam version of the game"},
+    {"kind":"improved","ru":"Обновили данные по квестам","en":"Updated the quest data"},
+    {"kind":"improved","ru":"Улучшили цветовые схемы","en":"Improved the colour schemes"},
     {"kind":"improved","ru":"«Смена дня и ночи»: днём пасмурное серое небо, ночью тёмно-фиолетовое","en":"«Day and night»: an overcast grey sky by day, a dark violet one by night"}
   ]},
   {"version":"0.6.0.336","date":"2026-11-23","items":[
@@ -26,9 +26,9 @@
   ]},
   {"version":"0.6.0.334","date":"2026-11-23","items":[
     {"kind":"improved","ru":"Запуск: если видеокарта не справляется, приложение само переходит на отрисовку без неё","en":"Start: when the graphics card cannot draw the window, the app switches to drawing without it by itself"},
-    {"kind":"improved","ru":"Сюжет «Батя»: лагерь BEAR на Маяке и круги культистов на Резерве и в Лесу — на своих местах из игры","en":"Story «Batya»: the BEAR camp on Lighthouse and the cultist circles on Reserve and Woods in their places from the game"},
+    {"kind":"improved","ru":"Сюжет «Батя»: лагерь BEAR на Маяке и круги культистов на Резерве и в Лесу — на своих местах","en":"Story «Batya»: the BEAR camp on Lighthouse and the cultist circles on Reserve and Woods in their right places"},
     {"kind":"improved","ru":"Квесты: уточнены места у «Витаминов», «Слежки», «Должника» и «Умный в гору не пойдёт»","en":"Quests: places refined for «Vitamins - Part 1» and three more quests"},
-    {"kind":"improved","ru":"Таможня: новые снимки мест квестов и документов, сделанные в игре днём","en":"Customs: new daytime pictures of quest and document places, taken in the game"},
+    {"kind":"improved","ru":"Таможня: обновили данные по квестам и документам","en":"Customs: updated the quest and document data"},
     {"kind":"improved","ru":"Сборка оружия: трубы прикладов и приклады на них стоят ровно","en":"Weapon builds: stock tubes and the stocks on them stand level"},
     {"kind":"improved","ru":"«Оружейник»: в ячейках модулей крупная картинка детали","en":"«Gunsmith»: a large picture of the part in the module cells"},
     {"kind":"improved","ru":"Телефон: окно квеста на карте внизу экрана, список снаряжения помещается","en":"Phone: the quest window at the bottom of the map, the gear list fits"}
@@ -36,7 +36,7 @@
   {"version":"0.6.0.333","date":"2026-11-21","items":[
     {"kind":"added","ru":"Настройки: размер шрифта — стандартный или увеличенный","en":"Settings: font size, standard or large"},
     {"kind":"improved","ru":"«Обзор»: блоки не прыгают, когда окно разворачивается на весь экран","en":"«Overview»: blocks no longer jump when the window goes full screen"},
-    {"kind":"improved","ru":"Убежище: картинка переснята, соседние модули сняты вместе","en":"Hideout: the picture re-shot, neighbouring modules shot together"},
+    {"kind":"improved","ru":"Убежище: обновили картинку","en":"Hideout: the picture is updated"},
     {"kind":"improved","ru":"Сборка оружия: сборка стоит по центру, приклады ПТ-1 и ПТ-3 ровные","en":"Weapon builds: the build centred, PT-1 and PT-3 stocks level"},
     {"kind":"improved","ru":"Сборка оружия: видно, что сборка публикуется","en":"Weapon builds: you see the build being published"},
     {"kind":"improved","ru":"Выпадающие списки — в зелёном стиле приложения","en":"Drop-down lists in the app's green style"},
@@ -279,7 +279,7 @@
     {"kind":"added","ru":"Горячие клавиши: одна клавиша или комбинация из двух, например Ctrl + ЛКМ","en":"Hotkeys: one key or a two-key combination, e.g. Ctrl + LMB"},
     {"kind":"added","ru":"«Сбор на рейд»: правый клик по оружию — «Открыть сборку» с готовыми сборками","en":"«Raid loadout»: right-click a weapon — «Open build» with ready-made builds"},
     {"kind":"improved","ru":"Карта: ключи в точках — своими картинками, новая точка ключа на Ферме Диких с фото места","en":"Map: keys shown by their own pictures, a new key spot at the Scav Farm with a photo of the place"},
-    {"kind":"improved","ru":"Метки «Реалистичный» — картинки предметов из игры; зона у перехода на Терминал точнее","en":"«Realistic» markers use the game's item pictures; the Terminal transit zone is more precise"}
+    {"kind":"improved","ru":"Метки «Реалистичный» — с картинками предметов; зона у перехода на Терминал точнее","en":"«Realistic» markers show item pictures; the Terminal transit zone is more precise"}
   ]},
   {"version":"0.6.0.285","date":"2026-11-09","items":[
     {"kind":"added","ru":"Карта: «Сектора обстрела» — у перехода на Терминал на Береге и на мосту к острову Смотрителя на Маяке","en":"Map: «Fire sectors» — at the Terminal transit on Shoreline and on the bridge to Lightkeeper Island on Lighthouse"},
