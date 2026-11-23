@@ -1,4 +1,14 @@
 [
+  {"version":"0.6.0.338","date":"2026-11-24","items":[
+    {"kind":"added","ru":"«Баллистика» → «Полигон»: стреляйте через прицел своей сборки и смотрите, как летит пуля и какой вынос нужен на дальней дистанции","en":"Ballistics → «Range»: fire through your build's scope and see how the bullet flies and how much holdover long range needs"},
+    {"kind":"added","ru":"«Полигон»: проверьте на боссе, куда стрелять эффективнее и каким патроном он падает быстрее","en":"«Range»: test on a boss where to shoot and which round brings him down faster"},
+    {"kind":"changed","ru":"«Сообщить об ошибке»: за найденный баг или ошибку теперь 2 дня подписки вместо одного","en":"«Report a bug»: a bug or an error you find now earns 2 days of subscription instead of one"},
+    {"kind":"improved","ru":"Сборка оружия: сначала выберите кольца — следом откроются прицелы, которые на них встают","en":"Weapon builds: pick the rings first, and the scopes that fit them open next"},
+    {"kind":"improved","ru":"Местоположение: приложение ищет скриншоты и в папке Steam-версии игры","en":"Your location: the app also looks for screenshots in the Steam version's game folder"},
+    {"kind":"improved","ru":"Карты: новые фото мест на Таможне, в Лесу и на Берегу — снятые прямо в игре","en":"Maps: new place photos on Customs, Woods and Shoreline, taken in the game itself"},
+    {"kind":"improved","ru":"Стиль «Стекло»: кнопки «Тельняшки», «Чёрного мультикама» и «Снаряжения» как в обычном стиле, с тканью под стеклом","en":"«Glass» style: the «Telnyashka», «Black multicam» and «Gear» buttons as in the plain style, the cloth under the glass"},
+    {"kind":"improved","ru":"«Смена дня и ночи»: ночь стала тёмно-фиолетовой","en":"«Day and night»: the night is a dark violet now"}
+  ]},
   {"version":"0.6.0.336","date":"2026-11-23","items":[
     {"kind":"improved","ru":"Запуск: если окно не открывается, приложение само пробует другой способ запуска","en":"Start: if the window does not open, the app tries another way to start by itself"},
     {"kind":"improved","ru":"Маяк: новое место - лагерь Прапора и шеврон «Богатырей»","en":"Lighthouse: a new place — Prapor's camp and the Bogatyrs patch"}
