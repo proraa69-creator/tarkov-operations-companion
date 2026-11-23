@@ -9095,3 +9095,27 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   (and OneDrive) and the folder picked by hand. Now `setGameLogFolders` (electron/main.ts, on every log discovery) adds each
   `<game>\build\Escape from Tarkov\Screenshots` to the followed folders and the lookup; Windows paths whatever the platform (CI on
   Linux). A folder that does not exist costs a stat a second. Not verified with a real Steam install (none here).
+## 24.11.2026 — Claude: glass buttons as in the plain style over the photo (branch claude/glass-cloth-hover, not released)
+
+- Owner (over the plain «Тельняшка» menu, «Барахолка» under the cursor): «в режиме стеклянный на цветовой схеме тельняшка сделай
+  такие же кнопки при наведении курсора, тоже самое сделай и на режиме черный мультикам и снаряжение»; «кнопки должны быть из
+  обычного режима в стеклянном, но с эффектом стекла на фото».
+- c28e166c, only src/styles/style-glass-cloth.css, the glass style over blackmc / telnyashka / gear:
+  - a button at rest: smoked glass, no patch of its own, the window's cloth showing through; a menu row rests as in the plain style
+    (bare on telnyashka, a faint pane on the two multicams);
+  - under the cursor: the plain style's patch of photo (telnyashka knit with --knit-veil, the black multicam's grey blots at a fixed
+    spot -132px -356px / 520px, the gear cordura) with the plain style's edge (light / olive / gold) and the glass's light and rim;
+  - unchanged: picked buttons (.primary, .active), switch tracks, the phone tab bar, windows, the menu and top bar; other schemes.
+- Base: origin/release/production 95398f05. Checked in the dev renderer (vite, Playwright shots, 1280×900): all three schemes in
+  both styles, menu rows, the top bar chip, a test window's buttons; labels readable. vitest src/theme src/styles + DashboardPage +
+  introPage 105 passed; tsc -b clean; eslint clean (CSS only).
+- Not pushed, not released; needs a playerNews.json line in the release that takes it (the release integrator, with the owner).
+- The 20.11 glass-cloth commit gave every button its own cloth patch at rest; now the patch shows under the cursor and the cloth
+  shows through the glass at rest. Owner, seeing the before/after sheets, 24.11 ~02:20: «Нет, все мне нравится, делай так,
+  добавляй в основную сборку, и когда я скажу публиковать, публикуем все вместе».
+- So: waiting on its own branch, still on release/production 95398f05 (0.6.0.336; 0.6.0.337 was held at the owner's word and
+  lives in claude/screenshot-key-windows, 5a145f19). NOT pushed to release/production. The next release takes
+  claude/glass-cloth-hover together with the other waiting branches only on the owner's «публикуем».
+  News line to show the owner then (draft, kind improved): «Стиль «Стекло»: в «Тельняшке», «Чёрном мультикаме» и «Снаряжении»
+  кнопки как в обычном стиле, под курсором — ткань под стеклом» / ««Glass» style: in «Telnyashka», «Black multicam» and «Gear»
+  the buttons are as in the plain style, with the cloth under the glass on hover».

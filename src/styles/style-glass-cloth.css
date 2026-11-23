@@ -95,22 +95,70 @@
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
 }
 
-/* ---------- buttons: a pane of glass over its own patch of cloth ---------- */
-:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button) {
-  background: var(--glass-button), var(--cloth-button-smoke), var(--cloth);
+/* ---------- buttons and the menu's rows: the plain style's buttons, under glass ---------- */
+/*
+ * Owner, 24.11.2026, over the plain «Тельняшка» menu with «Барахолка» under the cursor: «в режиме стеклянный на цветовой схеме
+ * тельняшка сделай такие же кнопки при наведении курсора, тоже самое сделай и на режиме черный мультикам и снаряжение»; «кнопки
+ * должны быть из обычного режима в стеклянном, но с эффектом стекла на фото». So a button at rest is the plain style's dark pane, now
+ * clear smoked glass with the window's cloth showing through it, and a menu row rests as in the plain style (bare on «Тельняшка»,
+ * a faint pane on the two multicams). Under the cursor it lifts the plain style's patch of photo (the telnyashka knit, the black
+ * multicam, the multicam cordura) with the plain style's dimming and edge, the glass's light and light rim over it.
+ */
+:root[data-style="glass"][data-style][data-theme="telnyashka"] {
+  --cloth-rest: linear-gradient(180deg, rgb(12 11 10 / 56%), rgb(8 7 6 / 68%));
+  --cloth-row-rest: linear-gradient(transparent, transparent);
+  --cloth-row-edge: transparent;
+  --cloth-row-shadow: none;
+  /* the plain style's dimming: dark under the label, the stripes clear towards the edges */
+  --cloth-hover-veil: radial-gradient(ellipse 62% 95% at 50% 50%, rgb(10 9 8 / 70%) 0 40%, rgb(10 9 8 / 36%) 100%);
+  --cloth-row-veil: var(--knit-veil);
+  --cloth-hover-edge: rgb(255 255 255 / 24%);
 }
-:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):hover:not(:disabled) {
-  background: var(--glass-button-hover), var(--cloth-button-smoke-hover), var(--cloth);
+:root[data-style="glass"][data-style][data-theme="blackmc"] {
+  --cloth-rest: linear-gradient(180deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 3%)), linear-gradient(rgb(14 15 12 / 50%), rgb(14 15 12 / 60%));
+  --cloth-row-rest: linear-gradient(180deg, rgb(255 255 255 / 4%), rgb(255 255 255 / 1.5%));
+  --cloth-row-edge: rgb(255 255 255 / 9%);
+  --cloth-row-shadow: inset 0 1px 0 rgb(255 255 255 / 9%), 0 2px 6px rgb(0 0 0 / 30%);
+  /* the plain style's smoked glass with its glare across it; its olive edge below */
+  --cloth-hover-veil: linear-gradient(105deg, transparent 36%, rgb(255 255 255 / 9%) 45%, transparent 56%), linear-gradient(180deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 3%)), linear-gradient(rgb(14 15 12 / 10%), rgb(10 11 8 / 30%));
+  --cloth-hover-edge: rgb(202 216 154 / 48%);
+}
+:root[data-style="glass"][data-style][data-theme="gear"] {
+  --cloth-rest: linear-gradient(180deg, rgb(255 240 205 / 7%), rgb(255 240 205 / 2%)), linear-gradient(rgb(22 23 15 / 62%), rgb(18 19 12 / 72%));
+  --cloth-row-rest: linear-gradient(180deg, rgb(255 240 205 / 7%), rgb(255 240 205 / 2%)), linear-gradient(rgb(14 15 9 / 56%), rgb(14 15 9 / 56%));
+  --cloth-row-edge: rgb(255 240 205 / 7%);
+  --cloth-row-shadow: inset 0 1px 0 rgb(255 240 205 / 8%);
+  /* the plain style's lifted pane, thinner, its gold edge below */
+  --cloth-hover-veil: linear-gradient(180deg, rgb(255 240 205 / 15%), rgb(255 240 205 / 5%)), linear-gradient(rgb(20 21 13 / 46%), rgb(14 15 9 / 58%));
+  --cloth-hover-edge: rgb(236 214 164 / 58%);
+}
+/* the photo under a hovered element: its own patch of the scheme's cloth */
+:root[data-style="glass"][data-style][data-theme="gear"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button) {
+  --cloth-photo: var(--cloth-tex) var(--cloth-pos, 17% 83%) / var(--cloth-size, 640px);
+}
+:root[data-style="glass"][data-style][data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button) {
+  --cloth-photo: var(--knit-tex, var(--knit-a)) var(--knit-pos, 0 0) / var(--knit-size, 450px);
+}
+/* the near-black multicam: a patch of its grey blots, not the black between them */
+:root[data-style="glass"][data-style][data-theme="blackmc"] { --cloth-photo: var(--cloth-tex) -132px -356px / 520px; }
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button) {
+  background: var(--glass-button), var(--cloth-rest);
+}
+:root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button, .icon-button, .search-trigger, .profile-chip, .map-option, .layer-button, .map-panel-button):not(.primary, .active):hover:not(:disabled) {
+  background: var(--glass-button-hover), var(--cloth-hover-veil), var(--cloth-photo);
+  border-color: var(--cloth-hover-edge); color: #fff;
+  box-shadow: var(--glass-button-edge), 0 6px 14px rgb(0 0 0 / 50%);
 }
 :root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) .button.ghost { background: transparent; }
-/* the menu on the PC: every row a pane of glass over the cloth; on the phone the bar itself is the glass */
+/* the menu on the PC; on the phone the bar itself is the glass */
 :root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]):not([data-layout="mobile"]) .nav-link:not(.active) {
-  background: var(--glass-button), var(--cloth-button-smoke), var(--cloth);
-  border-color: rgb(255 255 255 / 9%); box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%), inset 0 -1px 0 rgb(0 0 0 / 30%), 0 2px 6px rgb(0 0 0 / 30%);
+  background: var(--cloth-row-rest);
+  border-color: var(--cloth-row-edge); box-shadow: var(--cloth-row-shadow);
 }
 :root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]):not([data-layout="mobile"]) .nav-link:hover:not(.active) {
-  background: var(--glass-button-hover), var(--cloth-button-smoke-hover), var(--cloth);
-  border-color: rgb(255 255 255 / 18%); box-shadow: var(--glass-button-edge);
+  background: var(--glass-button-hover), var(--cloth-row-veil, var(--cloth-hover-veil)), var(--cloth-photo);
+  border-color: var(--cloth-hover-edge); color: #fff; text-shadow: 0 1px 2px #000, 0 0 8px #000;
+  box-shadow: var(--glass-button-edge), 0 5px 12px rgb(0 0 0 / 55%);
 }
 /* the picked one: the scheme's accent tinting the glass, the cloth still under it */
 :root[data-style="glass"][data-style]:is([data-theme="blackmc"], [data-theme="telnyashka"], [data-theme="gear"]) :is(.button.primary, .nav-link.active, .map-option.active, .layer-button.active) {
