@@ -9056,8 +9056,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   backgrounds and panels darker (bg #0b0815 → #07050d), the lavender accents dimmed (brass #b49cec → #9580cf); text stays readable.
   Dawn, day and dusk unchanged.
 - Four day variants shown to the owner as pictures only (not in the code): 1 «Ясное небо» (blue sky, sunny gold), 2 «Песок» (desert
-  khaki), 3 «Лес» (fresher green), 4 «Пасмурно» (steel grey). The chosen one replaces OLIVE.day; palettes in the session's scratchpad
-  day-variants.json.
+  khaki), 3 «Лес» (fresher green), 4 «Пасмурно» (steel grey). Owner: «пасмурно» → OLIVE.day is now the steel grey overcast day
+  (bg #1c2024, sky #6d8093, gold accents #e2bd72); dawn and dusk slide into it as before (shots at 02:30, 07:30, 13:00, 18:30, 20:30).
 - Base release/production 95398f05. Checked: dev renderer (vite, Playwright 1280×900, plain and glass, the hour forced through
   window.__raidosDayNightHour); vitest src/theme 33; tsc -b; eslint. Not pushed, not released; waits with claude/glass-cloth-hover
   for the owner's «публикуем».
