@@ -22,11 +22,12 @@ import { swayMrad, swayNow } from './rangeSway'
 import { RangeHelpTip } from './RangeHelpTip'
 import { COVER_TEXTURE_FILES } from './rangeCoverData'
 import { CLASS_COLORS, markOf } from './rangeView'
-import { flightAt } from './rangeFlight'
+import { flightAt, flightPath } from './rangeFlight'
+import type { Tracer } from './RangeTracer'
 import { COLLIDER_NAMES, COVER_NAMES, FIRE_MODE_NAMES, GROUP_NAMES, OUTCOME_NAMES, PART_NAMES, PART_SHORT, pick, pieceLabel, START_STATES } from './rangeLabels'
 import { buildPartMasks, type PartMasks } from './partMasks'
 import { playShot } from './rangeSound'
-import { createRecoil, degreesToCm, RECOIL_TICK, weaponRecoil, type RecoilReading, type RecoilSim } from './rangeRecoil'
+import { createRecoil, degreesToCm, RECOIL_TICK, similarRecoil, type RecoilReading, type RecoilSim } from './rangeRecoil'
 import { RangeBuild } from './RangeBuild'
 import { decodeSaved, MODE_NAMES, savedBuildsOf } from './rangeBuilds'
 import type { View } from './rangeHitboxes'
@@ -45,6 +46,8 @@ const ZEROS = [50, 100, 150, 200, 300, 400]
 const IRON_SIGHTS: ScopeMode = { zoom: 1, zoomMax: 4, fovDeg: 40, ffp: true }
 /** The distances one button away (owner, 23.11.2026: «быстро показывать человеку, какие ему нужно ввести поправки»). */
 const QUICK_DISTANCES = [100, 200, 300, 400, 500, 600, 800]
+/** The spread of a build without a centre of impact (no barrel in it), MOA. */
+const FALLBACK_MOA = 3
 const BURST: Record<string, number> = { burst: 3, doublet: 2 }
 const AUTO = new Set(['fullauto'])
 /** Grenades, flares and the like: not for shooting at a character's armour. */
@@ -144,6 +147,16 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const [targetCount, setTargetCount] = useState(1)
   const fresh = (number: number): Live => ({ signature, number, kit: cloneKit(freshKit), body: freshBody(health, blackedOut), shots: 0 })
   const [live, setLive] = useState<Live>(() => fresh(1))
+  // the target a bullet in flight was fired at: its hole shows only on that one
+  const liveNumber = useRef(live.number)
+  useEffect(() => { liveNumber.current = live.number })
+  /**
+   * Bullets in flight (a single shot with «Траектория»): the shot is worked out as it leaves, as the game's own order of hits
+   * does not change, but the target, its HP and the counters show it when the bullet gets there (owner, 23.11.2026: «нам не
+   * нужны прямые выстрелы… нужно сделать в точности как у них»). `held`: the target as it looks until then.
+   */
+  const inFlight = useRef(0)
+  const [held, setHeld] = useState<Live | null>(null)
   const [marks, setMarks] = useState<FiredShot[]>([])
   const newTarget = () => { setLive(fresh(targetCount + 1)); setTargetCount(targetCount + 1); setMarks([]) }
   const newTargetLatest = useRef(newTarget)
@@ -177,9 +190,13 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const [zeroChoice, setZero] = useState(100)
   const zero = zeros.includes(zeroChoice) ? zeroChoice : zeros[0] ?? 100
   const [cover, setCover] = useState<Cover>('none')
-  const [toggles, setToggles] = useState({ spread: true, recoil: true, sway: false, sound: true })
+  const [toggles, setToggles] = useState({ spread: true, recoil: true, sway: false, sound: true, trace: true })
 
-  const flight = ammo ? flightAt(ammo, stats?.velocity, zero, distance) : undefined
+  // the sight is zeroed with the weapon's default round, as in the game: another round lands off the zero
+  const zeroAmmo = rounds.find((round) => round.id === weapon?.defaultAmmoId) ?? ammo
+  const flight = ammo ? flightAt(ammo, stats?.velocity, zero, distance, zeroAmmo) : undefined
+  // a single shot's bullet in flight (src/range/RangeTracer.tsx)
+  const [tracer, setTracer] = useState<Tracer | null>(null)
   const round: Round | undefined = ammo ? {
     damage: flight?.damage ?? ammo.damage,
     penetration: flight?.penetration ?? ammo.penetration,
@@ -188,12 +205,14 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   } : undefined
   // the game's own recoil (src/range/rangeRecoil.ts): the bullet goes where the barrel points as it leaves
   const setup: AimSetup = {
-    distance, moa: stats?.moa, spread: toggles.spread, recoil: false, sway: false,
+    // a build without a barrel has no centre of impact: the spread of a usual rifle rather than none
+    distance, moa: stats?.moa ?? FALLBACK_MOA, spread: toggles.spread, recoil: false, sway: false,
     recoilVertical: stats?.recoilVertical ?? 0, recoilHorizontal: stats?.recoilHorizontal ?? 0, dropCm: flight?.drop ?? 0,
   }
   // «Раскачка»: the weapon's drift at the target, cm (src/range/rangeSway.ts)
   const swayCm = toggles.sway ? swayMrad(stats?.ergonomics) * 0.1 * distance : 0
-  const recoilData = useMemo(() => weapon ? weaponRecoil(weapon.id) : undefined, [weapon])
+  // the game's recoil of the weapon, else of the most alike one (14 weapons lack it: src/range/rangeRecoil.ts)
+  const recoilData = useMemo(() => weapon ? similarRecoil(weapon, catalog.weapons) : undefined, [weapon, catalog.weapons])
   const roundRecoil = ammo?.recoilModifier ?? 0
   const modsRecoil = stats ? stats.recoilModifierSum - roundRecoil : 0
   const simKey = `${weapon?.id}|${modsRecoil.toFixed(4)}|${roundRecoil.toFixed(4)}`
@@ -265,10 +284,34 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     const hits = fired.filter((shot) => shot.outcome).length
     const through = fired.filter((shot) => shot.outcome?.penetrated).length
     const killed = fired.some((shot) => shot.outcome?.killed)
-    setMarks((current) => [...current, ...fired].slice(-400))
-    setLog((current) => [...fired.map((shot) => ({ ...shot, n, target: live.number })), ...current].slice(0, 300))
-    setCounters((current) => ({ kills: current.kills + (killed ? 1 : 0), shots: current.shots + 1, hits: current.hits + hits, through: current.through + through, damage: current.damage + damage }))
-    setLive({ ...live, kit, body, shots: live.shots + 1, ...(killed ? { killedAt: live.shots + 1 } : {}) })
+    const show = () => {
+      setMarks((current) => [...current, ...fired].slice(-400))
+      setLog((current) => [...fired.map((shot) => ({ ...shot, n, target: live.number })), ...current].slice(0, 300))
+    }
+    // a single shot with «Траектория»: the bullet flies at its own speed and the hole shows when it gets there
+    const first = fired[0]
+    const path = toggles.trace && mode === 'single' ? flightPath(ammo, stats?.velocity, zero, distance, zeroAmmo) : undefined
+    const tracing = Boolean(path?.length && first)
+    const flightMs = (path?.[path.length - 1]?.time ?? 0) * 1000
+    if (path?.length && first) {
+      const end = path[path.length - 1]!
+      const lineY = first.point.y - end.drop
+      setTracer({ id: n, points: path.map((point) => ({ x: first.point.x, y: lineY + point.drop * distance / point.distance, drop: point.drop, time: point.time, speed: point.speed, energy: point.energy, distance: point.distance })) })
+      const forTarget = live.number
+      window.setTimeout(() => { if (liveNumber.current === forTarget) show() }, flightMs)
+    } else show()
+    const after: Live = { ...live, kit, body, shots: live.shots + 1, ...(killed ? { killedAt: live.shots + 1 } : {}) }
+    const count = () => setCounters((current) => ({ kills: current.kills + (killed ? 1 : 0), shots: current.shots + 1, hits: current.hits + hits, through: current.through + through, damage: current.damage + damage }))
+    if (tracing) {
+      if (inFlight.current === 0) setHeld(live)
+      inFlight.current += 1
+      window.setTimeout(() => {
+        inFlight.current = Math.max(0, inFlight.current - 1)
+        count()
+        setHeld(inFlight.current > 0 ? after : null)
+      }, flightMs)
+    } else count()
+    setLive(after)
     return !body.dead && mag - 1 > 0
   }
   // the ticks call the latest closures (this render's magazine, target and recoil)
@@ -287,6 +330,17 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
     state.last = performance.now()
     state.spare = 0
     const frame = (now: number) => {
+      try {
+        step(now)
+      } catch {
+        // a failed tick must not leave the trigger stuck: with `frame` still set no shot would ever start the ticks again (the
+        // recoil and automatic fire «пропадает» until the page is opened anew)
+        state.frame = undefined
+        state.held = false
+        setRecoilNow(null)
+      }
+    }
+    const step = (now: number) => {
       state.spare += Math.min(0.1, (now - state.last) / 1000)
       state.last = now
       const sim = simRefFn.current()
@@ -328,9 +382,10 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const fireEnd = () => { if (AUTO.has(mode)) trigger.current.held = false }
   const onScopeAim = useCallback((point: { x: number; y: number }) => { aimRef.current = point }, [])
 
-  const body = live.body
-  const kit = live.kit
-  const killedAt = live.killedAt
+  const shown = held && held.number === live.number ? held : live
+  const body = shown.body
+  const kit = shown.kit
+  const killedAt = shown.killedAt
   const last = log[0]
   const total = totalHealth(body.current)
   const maxTotal = totalHealth(body.max)
@@ -448,7 +503,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
           </select>
         </label>
         <div className="range-toggles">
-          {([['spread', t('Разброс', 'Spread')], ['recoil', t('Отдача', 'Recoil')], ['sway', t('Раскачка', 'Sway')], ['sound', t('Звук', 'Sound')]] as const).map(([key, label]) => <button key={key} type="button" className={`range-chip${toggles[key] ? ' is-on' : ''}`} onClick={() => setToggles((current) => ({ ...current, [key]: !current[key] }))}>{label}</button>)}
+          {([['spread', t('Разброс', 'Spread')], ['recoil', t('Отдача', 'Recoil')], ['sway', t('Раскачка', 'Sway')], ['sound', t('Звук', 'Sound')], ['trace', t('Траектория', 'Trajectory')]] as const).map(([key, label]) => <button key={key} type="button" className={`range-chip${toggles[key] ? ' is-on' : ''}`} onClick={() => setToggles((current) => ({ ...current, [key]: !current[key] }))}>{label}</button>)}
         </div>
       </div>
 
@@ -467,6 +522,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
           <RangeScopeView scene={scene} distance={distance} mode={scopeMode ?? IRON_SIGHTS} modes={scope?.modes ?? [IRON_SIGHTS]} modeIndex={scope ? Math.min(scopeModeIndex, scope.modes.length - 1) : 0} onMode={setScopeModeIndex}
             zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })} irons={!scope}
             reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} swayCm={swayCm} lang={lang}
+            tracer={toggles.trace ? tracer : null}
             onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
           {body.dead && <div className="range-dead">
             <b>{t('Убит', 'Killed')}</b>
@@ -475,9 +531,9 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
           </div>}
         </div>
         {ammo && <DropTable rows={DROP_TABLE_DISTANCES.flatMap((at) => {
-          const point = flightAt(ammo, stats?.velocity, zero, at)
-          return point ? [{ distance: at, ...holdover(point.drop, at, markStep) }] : []
-        })} distance={distance} zero={zero} marks={markStep !== undefined} ammoName={ammo.shortName} lang={lang} />}
+          const point = flightAt(ammo, stats?.velocity, zero, at, zeroAmmo)
+          return point ? [{ distance: at, time: point.time, speed: point.speed, energy: point.energy, ...holdover(point.drop, at, markStep) }] : []
+        })} distance={distance} zero={zero} marks={markStep !== undefined} ammoName={ammo.shortName} zeroAmmoName={zeroAmmo && zeroAmmo.id !== ammo.id ? zeroAmmo.shortName : undefined} lang={lang} />}
         <div className="range-health">
           {BODY_PARTS.map((part) => <div key={part} className={`range-hp-row${body.destroyed[part] ? ' is-out' : ''}`}>
             <span>{pick(PART_SHORT[part], lang)}</span>
@@ -716,16 +772,24 @@ function HoldLine({ hold, markStep, zero, distance, zoom, lang }: { hold: Return
 }
 
 /** How far the bullet falls at each distance (owner, 23.11.2026: «Напиши, на сколько… падает пуля на каждой дистанции»). */
-function DropTable({ rows, distance, zero, marks, ammoName, lang }: {
-  rows: Array<{ distance: number } & ReturnType<typeof holdover>>; distance: number; zero: number; marks: boolean; ammoName: string; lang: Locale
+/**
+ * The bullet at each distance as the game flies it (src/arsenal/ballistics.ts, checked against EFT.Ballistics.TrajectoryCalculator:
+ * the G1 drag of the round's mass, diameter and coefficient, air 1.2 kg/m³, gravity 9.81 m/s², steps of 0.01 s; the sight zeroed
+ * with the weapon's default round): its height against the line of sight and the hold, its time in flight, speed and energy (owner,
+ * 23.11.2026: «исходя из их траектории в игре, вычисли время полета пули, скорость, энергию пули, силу притяжения… на разные
+ * дистанции»).
+ */
+function DropTable({ rows, distance, zero, marks, ammoName, zeroAmmoName, lang }: {
+  rows: Array<{ distance: number; time: number; speed: number; energy: number } & ReturnType<typeof holdover>>; distance: number; zero: number; marks: boolean; ammoName: string; zeroAmmoName?: string; lang: Locale
 }) {
   const t = (ru: string, en: string) => lang === 'en' ? en : ru
   const nearest = rows.reduce<number | undefined>((best, row) => best === undefined || Math.abs(row.distance - distance) < Math.abs(best - distance) ? row.distance : best, undefined)
   return <details className="range-drops" open>
-    <summary>{t('Падение пули по дистанциям', 'Bullet drop by distance')} · {ammoName} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')}</summary>
+    <summary>{t('Падение пули по дистанциям', 'Bullet drop by distance')} · {ammoName} · {t('пристрелка', 'zero')} {zero} {t('м', 'm')}{zeroAmmoName ? ` ${t('по', 'with')} ${zeroAmmoName}` : ''}</summary>
     <table>
       <thead><tr>
         <th>{t('Дистанция', 'Distance')}</th><th>{t('Пуля от линии прицела', 'Bullet vs sight line')}</th><th>{t('Вынос, мрад', 'Hold, mrad')}</th><th>MOA</th>{marks && <th>{t('Рисок', 'Marks')}</th>}
+        <th>{t('Время', 'Time')}</th><th>{t('Скорость', 'Speed')}</th><th>{t('Энергия', 'Energy')}</th>
       </tr></thead>
       <tbody>{rows.map((row) => <tr key={row.distance} className={row.distance === nearest ? 'is-current' : row.distance === zero ? 'is-zero' : undefined}>
         <td>{row.distance} {t('м', 'm')}{row.distance === zero ? ` · ${t('пристрелка', 'zero')}` : ''}</td>
@@ -733,6 +797,9 @@ function DropTable({ rows, distance, zero, marks, ammoName, lang }: {
         <td>{number(Math.abs(cmToMrad(row.dropCm, row.distance)), lang)}</td>
         <td>{number(Math.abs(row.moa), lang)}</td>
         {marks && <td>{row.marks !== undefined ? number(Math.abs(row.marks), lang) : '—'}</td>}
+        <td>{row.time.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {t('с', 's')}</td>
+        <td>{Math.round(row.speed)} {t('м/с', 'm/s')}</td>
+        <td>{Math.round(row.energy).toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU')} {t('Дж', 'J')}</td>
       </tr>)}</tbody>
     </table>
     <p>{t('↓ — пуля ниже линии прицела: вынос вверх; ↑ — выше: вынос вниз. Риски — на кратности, что сейчас в прицеле.', '↓ — the bullet below the sight line: hold up; ↑ — above it: hold down. Marks at the magnification in the scope now.')}</p>

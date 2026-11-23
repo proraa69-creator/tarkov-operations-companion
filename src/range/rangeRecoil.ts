@@ -12,6 +12,7 @@
  * Angles in degrees. The bullets go where the barrel points; the screen shows the camera's view.
  */
 import data from './rangeRecoil.json'
+import type { Weapon } from '../arsenal/gunTypes'
 
 export interface WeaponRecoil {
   up: number
@@ -40,6 +41,28 @@ const WEAPONS = (data as unknown as { weapons: Record<string, WeaponRecoil> }).w
 /** The game's recoil of a weapon (its template), undefined for one the data lacks. */
 export function weaponRecoil(id: string): WeaponRecoil | undefined {
   return WEAPONS[id]
+}
+
+/**
+ * A weapon's recoil for the range: its own, else that of the most alike weapon the data has — the same class and calibre first,
+ * then the class, then the calibre — nearest in vertical recoil, at this weapon's own force and fire rate. 14 of 170 weapons had
+ * none in 11.2026 (MXLR, АК-308, M16A1/A2, HK 416A5, QBZ-191, Type 20…) and kicked not at all (owner, 23.11.2026: «до сих пор
+ * пропадает отдача… при разных вариациях переключения прицела и оружия»).
+ */
+export function similarRecoil(weapon: Pick<Weapon, 'id' | 'weaponClass' | 'caliber' | 'recoilVertical' | 'fireRate'>, weapons: readonly Pick<Weapon, 'id' | 'weaponClass' | 'caliber' | 'recoilVertical'>[]): WeaponRecoil | undefined {
+  const own = WEAPONS[weapon.id]
+  if (own) return own
+  const known = weapons.filter((other) => other.id !== weapon.id && WEAPONS[other.id])
+  const pool = [
+    known.filter((other) => other.weaponClass === weapon.weaponClass && other.caliber === weapon.caliber),
+    known.filter((other) => other.weaponClass === weapon.weaponClass),
+    known.filter((other) => other.caliber === weapon.caliber),
+    known,
+  ].find((tier) => tier.length)
+  if (!pool) return undefined
+  const nearest = [...pool].sort((a, b) => Math.abs(a.recoilVertical - weapon.recoilVertical) - Math.abs(b.recoilVertical - weapon.recoilVertical))[0]!
+  const like = WEAPONS[nearest.id]!
+  return { ...like, up: weapon.recoilVertical || like.up, fireRate: weapon.fireRate || like.fireRate }
 }
 
 const DT = 1 / 60

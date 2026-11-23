@@ -191,14 +191,19 @@ function fly(round: BulletInput, angleDeg: number, maxDistance: number) {
  * The trajectory zeroed at `zero` metres, the game's way: a level shot gives the drop at the zero distance, the bore is
  * raised by atan((|drop| + sight height) / zero), and every height is taken against the height at the zero distance —
  * 0 there, −6.858 cm at the muzzle. Points every 10 m up to `maxDistance` (damage and penetration × (0.5 + 0.5·v/v0)).
+ *
+ * `zeroRound`: the round the sight was zeroed with, when it is not this one. The game zeroes a scope with the weapon's default
+ * round (Weapon.RecalculateScopeCalibrationPoints → CreateOpticCalibrationData(DefAmmoTemplate, SpeedFactor)), so another round
+ * crosses the line of sight elsewhere: its heights are taken against that round's line of sight, not its own.
  */
-export function zeroedTrajectory(round: BulletInput, zero = 50, maxDistance = 600, sightHeight = SIGHT_HEIGHT): TrajectoryPoint[] {
+export function zeroedTrajectory(round: BulletInput, zero = 50, maxDistance = 600, sightHeight = SIGHT_HEIGHT, zeroRound: BulletInput = round): TrajectoryPoint[] {
   const reach = Math.max(maxDistance, zero)
-  const level = fly(round, 0, zero)
+  const level = fly(zeroRound, 0, zero)
   const dropAtZero = level.find((point) => point.distance === zero)?.y ?? 0
   const angle = Math.atan((Math.abs(dropAtZero) + sightHeight) / zero) * 180 / Math.PI
   const shot = fly(round, angle, reach)
-  const atZero = shot.find((point) => point.distance === zero)?.y ?? sightHeight
+  const sighted = zeroRound === round ? shot : fly(zeroRound, angle, zero)
+  const atZero = sighted.find((point) => point.distance === zero)?.y ?? sightHeight
   const mass = round.bulletMassGrams / 1000
   return shot.filter((point) => point.distance <= maxDistance).map((point) => {
     const keep = 0.5 + 0.5 * clamp(point.along / round.initialSpeed, 0, 1)

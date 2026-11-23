@@ -8867,3 +8867,25 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   - Scopes: in rings (a ring mount takes them: /кольц|ring|NNмм/, no \b for Cyrillic), rail, thermal 5, night 2, service 8.
   - Quick distances 100–800, the hold also without a scope, the drop table open.
   - vitest src/range 27/27, AmmoPage 4/4, tsc, eslint clean; dev page checked. Test exe «Raid OS тест Тир 7». Not pushed.
+- 23.11.2026 ~19:00, «Полигон»: the flight of a single shot, recoil for every weapon, the game's zero (owner: pictures out of the
+  box (screenshot of FLUX / OTV); «траекторию полета пули в реальном времени… одиночным… кнопку… возле кнопки звук… с
+  соответствующей скоростью»; «до сих пор пропадает отдача и разброс, при разных вариациях переключения прицела и оружия»; «нам
+  не нужны прямые выстрелы… в точности как у них»; «исходя из их траектории в игре, вычисли время полета пули, скорость, энергию…
+  силу притяжения… на разные дистанции»). claude/range (src/range/RangeTracer.tsx new, RangeShooting, RangeScopeView, rangeFlight,
+  rangeRecoil, src/arsenal/ballistics.ts, range.css, rangeTracer.test.ts):
+  - The trajectory checked against the game's code (SPT client, Assembly-CSharp: EFT.Ballistics.TrajectoryCalculator,
+    Shot.CalculateG1DragCoefficient and its G1 list, Weapon.RecalculateScopeCalibrationPoints / CreateOpticCalibrationData;
+    globalgamemanagers PhysicsManager): the same solver as ours — k = m·0.0014223/(d²·BC), ρA = 1.2·πd²/4, a = g + (−ρA·G1(v)·k·v²/2m)·v̂,
+    step 0.01 s, x += v·0.01 + 5e-5·a, Mach 343, all 79 G1 rows, g = −9.81. One difference fixed: the game zeroes a scope with the
+    weapon's DEFAULT round (and the build's speed factor); zeroedTrajectory takes `zeroRound`, the range flies the loaded round
+    against that line of sight. (Bots' bullets in the game fly without gravity — not used.)
+  - «Траектория» (next to «Звук», on by default): a single shot's bullet flies at its real time — the path seen from the eye in the
+    scope, a bright streak, time / speed / energy / height / distance over it; the hole, the hit flash, HP and counters show when
+    the bullet gets there (the shot is worked out as it leaves). The drop table has time, speed and energy at each distance.
+  - Recoil: 14 weapons lack the game's data (MXLR, АК-308, M16A1/A2, HK 416A5, QBZ-191, Type 20, Вал MOD.4, ТКПД, SR-25 tau,
+    NL545 ×2, Сайга Рэдлайн, Scourge) and did not kick on single shots — they take the most alike weapon's recoil at their own
+    force. A failing recoil tick no longer leaves the trigger stuck (recoil and auto fire «пропадали» until reopening). A build
+    with no barrel gets 3 MOA instead of no spread.
+  - Picker thumbnails stay inside the box (one grid track the tile's size).
+  - Checked in the dev page: thumbs 48×26 inside 56×30; toggles «… Звук, Траектория»; table M855 100 m 0.12 s / 777 m/s / 1 208 J;
+    a 400 m shot arrives at 0.63 s, 453 m/s, 410 J, ↓1.12 m. vitest src/range 36/36 + ballistics, tsc, eslint clean.
