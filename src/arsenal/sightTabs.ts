@@ -5,11 +5,12 @@ import type { GunPart, GunSlot } from './gunTypes'
  * оптические прицелы, прицелы на планку и коллиматоры, тепловизоры и ночные прицелы»), by tarkov.dev's category; what fits none of
  * them (iron sights…) under «Прочее».
  *
- * An optical scope goes on in rings (owner, 24.11.2026: «В оптических прицелах у нас должны быть кольца… Сначала мы выбираем
- * кольца и планки, а потом появляется у нас в следующем окне уже оптические прицелы»): on a rail «Оптические прицелы» lists the
- * rings — a mount with a seat for an optical scope only — and the scopes themselves show in the ring's own window. A scope that
- * goes straight on the rail, with a mount of its own (ADO P4, the ПСО on the dovetail), is a rail scope («А вот этот оптический
- * прицел… перенеси в прицелы на планку»).
+ * An optical scope goes on in rings (owner, 24.11.2026: «Сначала мы выбираем кольца и планки, а потом появляется у нас в следующем
+ * окне уже оптические прицелы»; then: «оптические прицелы убери. Они будут появляться только когда выбраны кольца… появляется второй
+ * блок для выбора прицела… прицелы, которые ставятся на кольца, которые подходят именно на это кольцо»): on a rail there is no
+ * «Оптические прицелы» tab, the rings are under «Кольца», and picking one opens its seat's window with the scopes that fit that ring.
+ * A scope that goes straight on the rail, with a mount of its own (ADO P4, the ПСО on the dovetail), is a rail scope («А вот этот
+ * оптический прицел… перенеси в прицелы на планку»).
  */
 export type SightTab = 'mounts' | 'optics' | 'rail' | 'special' | 'other'
 const SIGHT_TABS: Array<{ key: SightTab; name: string }> = [
@@ -35,13 +36,10 @@ export function ringSeat(part: Part, catalog: PartsLookup): GunSlot | undefined 
   return part.category === 'mount' ? part.slots?.find((slot) => isScopeSeat(slot, catalog)) : undefined
 }
 
-/**
- * The tabs a module shows in, the first its own: a ring under «Оптические прицелы» and «Кольца» both; a scope in a ring's seat is
- * an optical scope, one on a rail is a rail scope.
- */
+/** The tabs a module shows in: a scope in a ring's seat is an optical scope (one list there), one on a rail is a rail scope. */
 export function sightTabsOf(part: Part, catalog: PartsLookup, onScopeSeat: boolean): SightTab[] {
   const category = part.category ?? ''
-  if (category === 'mount') return ringSeat(part, catalog) ? ['optics', 'mounts'] : ['mounts']
+  if (category === 'mount') return ['mounts']
   if (category === 'scope') return [onScopeSeat ? 'optics' : 'rail']
   if (RAIL_SIGHTS.has(category)) return ['rail']
   if (category === 'special-scope') return ['special']

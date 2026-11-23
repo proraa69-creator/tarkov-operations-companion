@@ -21,8 +21,8 @@ describe('a sight slot\'s tabs (owner, 23.11.2026: «кольца, оптиче�
     expect(ringSeat(riser, catalog)).toBeUndefined()
   })
 
-  it('on a rail: the rings under «Оптические прицелы» (and «Кольца»), a scope with its own mount under the rail scopes (owner, 24.11.2026)', () => {
-    expect(sightTabsOf(ring, catalog, false)).toEqual(['optics', 'mounts'])
+  it('on a rail: no «Оптические прицелы», the rings under «Кольца», a scope with its own mount under the rail scopes (owner, 24.11.2026)', () => {
+    expect(sightTabsOf(ring, catalog, false)).toEqual(['mounts'])
     expect(sightTabsOf(riser, catalog, false)).toEqual(['mounts'])
     expect(sightTabsOf({ category: 'scope' }, catalog, false)).toEqual(['rail'])
     expect(sightTabsOf({ category: 'assault-scope' }, catalog, false)).toEqual(['rail'])
@@ -32,7 +32,7 @@ describe('a sight slot\'s tabs (owner, 23.11.2026: «кольца, оптиче�
     expect(sightTabsOf({ category: 'ironsight' }, catalog, false)).toEqual(['other'])
     expect(sightTabsOf({}, catalog, false)).toEqual(['other'])
     const parts = [{ category: 'special-scope' }, ring, { category: 'reflex-sight' }, riser, { category: 'scope' }, { category: 'assault-scope' }]
-    expect(sightTabs(parts, catalog, false).map((tab) => [tab.key, tab.count])).toEqual([['mounts', 2], ['optics', 1], ['rail', 3], ['special', 1]])
+    expect(sightTabs(parts, catalog, false).map((tab) => [tab.key, tab.count])).toEqual([['mounts', 2], ['rail', 3], ['special', 1]])
   })
 
   it('in a ring\'s seat the scopes are the optical scopes, all in one list', () => {

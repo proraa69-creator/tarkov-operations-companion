@@ -8968,3 +8968,6 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     the whole screen, the stick on the left (speed by how far it is pushed, slow near the middle), «Огонь» on the right (held = automatic)
     with the magazine under it; the browser's full screen and a landscape lock where given, else the picture turned a quarter by CSS
     while the phone is upright (the stick's way turned back). Burst renamed «Очередями».
+- 24.11.2026 ~02:40, the sight slot: no «Оптические прицелы» tab on a rail (owner: «оптические прицелы убери. Они будут появляться только
+  когда выбраны кольца… второй блок для выбора прицела… прицелы… которые подходят именно на это кольцо»): the rings are under
+  «Кольца» only; picking one still opens its seat's window, which lists the scopes of that ring (one list, no tabs). Тир 12.
