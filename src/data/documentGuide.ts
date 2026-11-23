@@ -10,7 +10,11 @@ export interface DocumentGuide {
   files: Record<string, { file: string; url: string }>
   photos: Record<string, { kind: BattlePassDocumentKind; ru: string; en: string }>
   maps: Record<string, Partial<Record<BattlePassDocumentKind, string[]>>>
-  spots: Record<string, Array<{ x: number; z: number; photos: string[] }>>
+  /**
+   * `none`: a spawn point of these kinds that no photo shows (reports 218/219, 24.11.2026: the offline copy has no desk there, so
+   * nothing could be shot) — a point there takes no photo of a room next to it either.
+   */
+  spots: Record<string, Array<{ x: number; z: number; photos: string[]; none?: BattlePassDocumentKind[] }>>
 }
 
 let loading: Promise<DocumentGuide> | null = null
@@ -43,7 +47,7 @@ export function pointPhotos(guide: DocumentGuide | null, mapId: string, position
     for (const spot of guide.spots[mapId] ?? []) {
       const own = spot.photos.filter((id) => guide.photos[id]?.kind === kind)
       const distance = Math.hypot(spot.z - position[0], spot.x - position[1])
-      if (own.length && distance <= nearest) { nearest = distance; photos = own }
+      if ((own.length || spot.none?.includes(kind)) && distance <= nearest) { nearest = distance; photos = own }
     }
     found.push(...photos.filter((id) => !found.includes(id)))
   }

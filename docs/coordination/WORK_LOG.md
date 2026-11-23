@@ -9556,3 +9556,26 @@ Not pushed, not released, nothing uploaded.
 - src/data/storyChapterSeeds.ts: `AP_LAB_POINTS` (the three Lab areas the Lab step already had, y 5.2) on all three steps.
   storyChapters.test.ts: a test. vitest (story data, routes, guide, floors, progression, endings) 198/198, tsc, eslint clean. Not
   checked on the dev map (needs a profile at that stage); the Lab step's same points already show there.
+
+## 2026-11-24 04:45 — Claude: Interchange battle pass documents — each spawn point its own photo (reports 218/219)
+
+- Owner 24.11 (through the parent session): «В первую очередь исправь развязку… переснимай квесты и документы опять на развязке…
+  отснял развязку, отправил». Reports 218/219 (Dantes): the blueprint spawn points in the offices between Goshan and OLI and at the
+  back of OLI showed the same photos of different rooms; one spawn point had none.
+- Cause: the guide (from the wiki) lists a group of photos on every spawn point of a group (spots 16–18, 22–23, …), and two
+  photos were on each other's spot (the Burger Spot sofa and the shelf by the red sofa).
+- Shooting resumed (Interchange first, its documents before its quests). The 31 Interchange pictures marked by eye; 29 laid exactly
+  as on them (21 through our matched frame, 8 at the live spawn point), 2 had no frame of ours. Every frame looked at by eye:
+  frames refused where the offline copy differs (the smugglers' base, the hut by the flare exit, KORD station, desks and shelves
+  missing in the OLI offices, the shopping cart) — those spawn points keep the wiki photo.
+- E:\SPT-photo\bpdocs\docs_assign.py: each picture goes to the spot of the spawn point within 1.5 m of where its document was laid;
+  bpdocs\interchange-assign.json swaps the two misplaced ones; a picture not laid stays only on the spots no laid picture took, or
+  leaves the guide when it shows a place with no spawn point in the live data (dbcedbe0: the third office between Goshan and OLI —
+  the live data has two spawn points there, the reason for «на карте отсутствует указание на 3 документацию»).
+- src/data/documentGuide.ts: a spot may carry `none` (a spawn point no photo could show: the back of OLI has no desk in the offline
+  copy) — a point there takes no photo of the room next to it (8 m reach). documentGuide.test.ts: the reports' points.
+- documentGuidePhotos.json Interchange: 18 pictures replaced by our frame with the document, 17 close-ups, 12 approaches; every
+  spawn point shows only its own room. Data tests 569/569, typecheck ok. Pictures: E:\SPT-photo\server-upload\interchange-docs6.
+- Dispatcher (E:\SPT-photo\photo2\drive_maps.py) now lays the documents of every map in the same raid after its quests (marks for
+  all maps done) and shoots the spawn points no picture shows; then by hand: eye check → bpdocs\integrate_docs.py → tests → commit →
+  eval\upload_guides.py (the server's guide images, no release). Interchange quests resume after its documents, then Streets onwards.
