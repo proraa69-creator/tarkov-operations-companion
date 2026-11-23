@@ -9205,3 +9205,14 @@ Not pushed, not released, nothing uploaded.
 - Dispatcher (E:\SPT-photo\photo2\drive_maps.py) now lays the documents of every map in the same raid after its quests (marks for
   all maps done) and shoots the spawn points no picture shows; then by hand: eye check → bpdocs\integrate_docs.py → tests → commit →
   eval\upload_guides.py (the server's guide images, no release). Interchange quests resume after its documents, then Streets onwards.
+
+## 2026-11-24 05:00 — Claude: «Секреты заводских стен» photos removed by the owner's word
+
+- Owner 24.11 (through the parent session): «Секреты заводских стен», «Совершить переход с таможни на завод»: «второе фото там трава в
+  воздухе. Удали»; «Найти кейс с точными инструментами»: «Первую, вторую удали, третью удали, четвертую оставь и пятую оставь, шестую
+  удали, седьмую удали и восьмую удали» (the order of the objective's window = the list's order). src/data/questGuidePhotos.json:
+  quest 66aa74571e5e199ecd094f18 keeps 5ad121d2 and 184b78f7 for the case and b35fe07c for the transit; 7 own photos removed.
+  Data and photo component tests 581/581. A later Customs integration must not bring them back (they are our own Customs frames).
+- Next (owner: «В квесте таможни отследить направление до сих пор часть снимков не наша… Тебе нужно снимать все снимки, которые
+  есть»): «Отследить отправление» (675c047fa46173572a0bd878) has 6 wiki photos left — the worker found no place to stand there;
+  they are to be shot by probes (given poses scored against each picture) in a Customs raid after the Interchange quests.
