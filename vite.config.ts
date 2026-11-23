@@ -159,8 +159,8 @@ export default defineConfig({
   define: { __RAIDOS_TEST_BUILD__: JSON.stringify(process.env.TEST_BUILD === '1') },
   plugins: [appStoreStubs(), scopedSiteCss(), react(), ocrAssets(), startupIntro(),
     picturePack('gun-parts', PART_PACK_NAME, PART_PACK_FILE),
-    // «Тир» (src/range/rangeFigures.ts): its pictures go into test builds only, like the page
-    picturePack('range-figures', RANGE_PACK_NAME, RANGE_PACK_FILE, () => process.env.TEST_BUILD === '1')],
+    // «Полигон» (src/range/rangeFigures.ts): its pictures ship in every build since 0.6.0.338 (src/app/rangeFeature.ts)
+    picturePack('range-figures', RANGE_PACK_NAME, RANGE_PACK_FILE)],
   // «Размер шрифта» (src/theme/fontSize.ts): every font size in px times var(--font-scale, 1)
   css: { postcss: { plugins: [fontScaleCss()] } },
   build: {
