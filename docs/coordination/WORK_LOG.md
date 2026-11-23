@@ -9246,3 +9246,13 @@ Not pushed, not released, nothing uploaded.
   Pictures: E:\SPT-photo\server-upload\interchange (102 files), on the server with this entry.
 - The worker lays a quest item free now (Worker.cs Free: raised out of anything solid in its box, then onto what is under its whole
   footprint, logged «STILL IN SOMETHING» when it cannot be) and its close-up uses the documents' every-edge check (build out-free).
+
+## 2026-11-24 06:20 — Claude: Customs «Отследить отправление» shot by probes
+
+- Owner 24.11: «В квесте таможни отследить направление до сих пор часть снимков не наша… Тебе нужно снимать все снимки, которые есть».
+  The tour had found no place to stand at «Отследить отправление» (675c047fa46173572a0bd878), so 6 of its 7 photos were the wiki's.
+  New: the worker's probes (given camera poses scored against one picture, the best taken; points\make_probes.py builds them around the
+  quest item's spawn points and over the office floor/the walkway; dispatcher queue item `<map>:fix`: the items laid, coarse probes,
+  finer ones around the 3 best). Looked at by eye: the office door, the bookshelf, the floor by the boxes and the shelf by the desk match
+  their pictures (scores 97–324) and replace them; the stairs (a different room) and «under the desk» (the desk from above) were refused
+  and keep the wiki photo for now — a second probe pass for them is queued. Tests 581/581. Pictures: server-upload\customs-fix (8).
