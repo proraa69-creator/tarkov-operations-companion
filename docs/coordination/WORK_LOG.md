@@ -9047,3 +9047,31 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   -55.4/467 (report 216), «Батя» stage 0 patch -59.09/457.15 (as the server overrides). News (owner's line verbatim): «Запуск: если
   окно не открывается, приложение само пробует другой способ запуска»; «Маяк: новое место - лагерь Прапора и шеврон «Богатырей»».
   deployPath 11/0; gate steps locally: only the 6 machine-only failures (appVersion, staleServer, linux/updater ×3, AdminPanelPage).
+
+## 23.11.2026 — Claude: a black window the start fallbacks miss; a safe-start test exe for the player (claude/black-window-fix)
+
+- Support chat (the player of 0.6.0.334–336's start fallbacks; account 21.11, never got in on a PC): «никаких окон нет, просто
+  висит черный экран», --disable-gpu and --no-sandbox in the shortcut changed nothing, Defender exclusion did not help. The
+  owner's «Вышло обновление» (22.11 20:24 UTC) was 0.6.0.335; nobody told the player about 336 (built 23.11 03:43 UTC).
+- Found in the code: (1) every start relaunches itself with administrator rights (main.ts relaunchAsAdmin) and the portable
+  exe passed the new copy only --elevated-relaunch: the shortcut's switches never reached the copy that draws the window;
+  (2) 334–336 act only when nothing is drawn for 25 s; a page Chromium has drawn (its dark background is enough) counts as the
+  first picture even when nothing reaches the screen (driver, hybrid graphics, an overlay such as RTSS) — no restart, no
+  message, which is what the player describes.
+- c5108e63 (from release/production 95398f05): elevation.ts passes --disable-gpu and --no-sandbox on (portable too, nothing
+  else); «Окно Raid OS чёрное?» by a window of Windows on a PC that never had a working subscription — started again within
+  3 min of the window appearing, or at the next start after a window closed that soon («Нет» there remembered in
+  dark-window-check.json); «Да» takes the next step even after the first picture (software → no sandbox → report). Start
+  log: a «ready» line (administrator rights, monitors, graphics cards by vendor/device id and driver, GPU compositing).
+  SAFE_START=1 (write-build-info.mjs, buildEdition.ts isSafeStartBuild): software drawing from the first start and «Видно
+  окно Raid OS?» 20 s after the window appears until the player says yes; «Нет» copies the support text and takes the next step.
+- Note: a new player who closes the sign-in screen within 3 minutes (to register on the site) is asked once at the next start.
+- Checked: vitest gpuFallback + elevation 11/11, start tests (buildEdition, deltaBoot, singleInstance, startDiagnostics) pass;
+  serviceGateway.trialFeatures does not load here (no server node_modules in the vitest run, unrelated); npm run typecheck,
+  tsc -p tsconfig.electron.json, eslint on the changed files clean. Not checked at runtime: SPT was running on this PC
+  (E:\SPT photo tour), so no window was opened here.
+- Test exe for the player: TEST_BUILD=1 SAFE_START=1 + the entitlement key from /v1/entitlement/public-key, client edition,
+  build c5108e63 («safe start: software drawing, asks if the window is seen»); the packed app.asar has every production
+  dependency and the change. Desktop: «Raid OS тест чёрный экран.exe», 227 MB, sha256 3125f5b8…f230. Its own data folder
+  %APPDATA%\Raid OS Test Build, no updates. Worktree E:\FromC\raidos-black-window (npm 11 skipped install scripts: electron's
+  binary was fetched with node node_modules/electron/install.js). Not pushed, not released, nothing sent to the player.
