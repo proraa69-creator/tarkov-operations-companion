@@ -8889,3 +8889,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   - Picker thumbnails stay inside the box (one grid track the tile's size).
   - Checked in the dev page: thumbs 48×26 inside 56×30; toggles «… Звук, Траектория»; table M855 100 m 0.12 s / 777 m/s / 1 208 J;
     a 400 m shot arrives at 0.63 s, 453 m/s, 410 J, ↓1.12 m. vitest src/range 36/36 + ballistics, tsc, eslint clean.
+- 23.11.2026 evening, STARTED, NOT DONE (owner: «сверху нам надо убрать прицелы, а дать возможность выбирать их в сборке оружия…
+  рассчитывай уже на каждое оружие, на каждый прицел высоту прицела»): the scope from the weapon build, the sight height per
+  build instead of the fixed 6.858 cm. Found: scope bundles hold `mod_aim_camera` and `optic_camera` nodes (UnityPy reads
+  E:\SPT\EscapeFromTarkov_Data\StreamingAssets\Windows\<_props.Prefab.path>); weapons/barrels: look for `fireport`; chain them with
+  public/gun-parts/index.json slot transforms. No code changed yet. Work stopped by the owner (limits); handoff file on the
+  desktop: «Raid OS — передача работы Claude 23.11.2026 вечер.md».
