@@ -11,7 +11,7 @@ const page = (rows: ReportRow[]): ReportPage => ({ rows, total: rows.length, cou
 
 afterEach(cleanup)
 
-describe('«Готово» asks «Выдать 1 день?» (owner, 08.11.2026)', () => {
+describe('«Готово» asks «Выдать 2 дня?» (owner, 08.11.2026; 2 days since 24.11.2026)', () => {
   const setup = (rows = [row()]) => {
     const onAct = vi.fn(async () => undefined)
     const onReward = vi.fn(async () => undefined)
@@ -23,11 +23,11 @@ describe('«Готово» asks «Выдать 1 день?» (owner, 08.11.2026)
     const { onAct, onReward } = setup()
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }))
     expect(onAct).not.toHaveBeenCalled()
-    const dialog = screen.getByRole('alertdialog', { name: 'Выдать 1 день?' })
+    const dialog = screen.getByRole('alertdialog', { name: 'Выдать 2 дня?' })
     expect(dialog).toHaveTextContent('№100 · Нет квеста Новое начало')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Да' })) })
     expect(onAct).toHaveBeenCalledWith(100, 'implemented')
-    expect(onReward).toHaveBeenCalledWith(100, 1)
+    expect(onReward).toHaveBeenCalledWith(100, 2)
     expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 

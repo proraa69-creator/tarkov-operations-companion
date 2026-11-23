@@ -8,12 +8,12 @@ import type { AdminReferrals, AdminReferrerDetail } from '../../api'
  * зарегистрировались но не оплатили… максимальное количество… сколько дней им положено, через сколько будет выдано, и
  * выдано ли им».
  */
-const mocks = vi.hoisted(() => ({ referrals: vi.fn(), referrer: vi.fn() }))
+const mocks = vi.hoisted(() => ({ referrals: vi.fn(), referrer: vi.fn(), decide: vi.fn() }))
 
 vi.mock('../../auth', () => ({ useAuth: () => ({ status: 'ready', token: 'owner-token', account: null }) }))
 vi.mock('../../api', async (original) => {
   const actual = await original<typeof import('../../api')>()
-  return { ...actual, api: { ...actual.api, adminReferrals: mocks.referrals, adminReferrer: mocks.referrer } }
+  return { ...actual, api: { ...actual.api, adminReferrals: mocks.referrals, adminReferrer: mocks.referrer, adminDecideInviteReward: mocks.decide } }
 })
 
 const { AdminReferrals: ReferralsTab } = await import('./AdminReferrals')
@@ -109,6 +109,26 @@ describe('«Привлечение друзей»: the program in numbers and ev
     expect(within(friend('a4@example.com')).getByText('награда — после оплаты первого месяца со скидкой друга')).toBeInTheDocument()
     expect(within(friend('b1@example.com')).getByText('без награды: первая оплата прошла без скидки друга')).toBeInTheDocument()
     expect(within(friend('b1@example.com')).getByText(/всего 2 оплаты на 1 100 ₽/)).toBeInTheDocument()
+  })
+
+  it("a reward waiting for the owner is decided right in the friend's row (owner, 24.11.2026: «Подтвердить 7 дней» или «Не подтверждать»)", async () => {
+    const waiting = { ...detail, friends: [friendOf('a5@example.com', { paid: true, payments: 1, amount: 240, first: paidFirst(20), reward: { id: 5, kind: 'friend', days: 7, status: 'review', createdAt: '2026-11-03T10:00:00.000Z', flags: [] } })] }
+    mocks.referrals.mockResolvedValue(list)
+    mocks.referrer.mockResolvedValue(waiting)
+    mocks.decide.mockResolvedValue({})
+    render(<ReferralsTab />)
+    fireEvent.click(within((await screen.findByText('alpha@example.com')).closest('tr') as HTMLElement).getByRole('button', { name: 'Друзья' }))
+    const friend = (await screen.findByText('a5@example.com')).closest('li') as HTMLElement
+    expect(within(friend).getByText('ждёт вашего решения')).toBeInTheDocument()
+    fireEvent.click(within(friend).getByRole('button', { name: 'Подтвердить 7 дней' }))
+    await waitFor(() => expect(mocks.decide).toHaveBeenCalledWith('owner-token', 5, 'approve', undefined))
+    // the friend's list and the totals again
+    await waitFor(() => expect(mocks.referrer).toHaveBeenCalledTimes(2))
+    expect(mocks.referrals).toHaveBeenCalledTimes(2)
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' повтор ')
+    fireEvent.click(within(screen.getByText('a5@example.com').closest('li') as HTMLElement).getByRole('button', { name: 'Не подтверждать' }))
+    await waitFor(() => expect(mocks.decide).toHaveBeenLastCalledWith('owner-token', 5, 'cancel', 'повтор'))
+    prompt.mockRestore()
   })
 
   it('search and sorting ask the server again', async () => {

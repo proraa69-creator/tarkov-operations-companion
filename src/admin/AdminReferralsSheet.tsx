@@ -16,11 +16,17 @@ const REWARD_KIND: Record<string, string> = { friend: 'за друга', scout: 
 /** The state of a reward in words, as on the site: на проверке до DATE, у администрации, начислено DATE, не засчитано. */
 function rewardText(reward: AdminReferralReward) {
   if (reward.status === 'pending') return reward.waitingEft ? 'на проверке: друг ещё не вошёл в приложение' : reward.releaseAt ? `на проверке до ${dateOnly(reward.releaseAt)}` : 'на проверке'
-  if (reward.status === 'review') return 'у администрации'
+  if (reward.status === 'review') return 'ждёт вашего решения'
   if (reward.status === 'granted') return reward.decidedAt ? `начислено ${dateOnly(reward.decidedAt)}` : 'начислено'
   return reward.comment ? `не засчитано: ${reward.comment}` : 'не засчитано'
 }
 const rewardDays = (days: number | 'lifetime') => days === 'lifetime' ? 'навсегда' : `+${days} дн.`
+/** «Подтвердить 7 дней» (the owner's words): the days in full, «навсегда» for a lifetime rank. */
+function confirmDays(days: number | 'lifetime') {
+  if (days === 'lifetime') return 'навсегда'
+  const tens = days % 100, ones = days % 10
+  return `${days} ${tens >= 11 && tens <= 14 ? 'дней' : ones === 1 ? 'день' : ones >= 2 && ones <= 4 ? 'дня' : 'дней'}`
+}
 const referrerName = (referrer: Pick<AdminReferrer, 'email' | 'nickname' | 'deleted'>) => accountText(referrer.deleted ? undefined : referrer.email, referrer.nickname)
 
 /**
@@ -33,6 +39,8 @@ export function ReferralsSheet({ onClose }: { onClose: () => void }) {
   const [sort, setSort] = useState<ReferralSort>('invited')
   const [result, setResult] = useState<{ key: string; data?: AdminReferrals; error?: string } | null>(null)
   const [open, setOpen] = useState<string | null>(null)
+  // a reward decided in a referrer's window: the list's totals again
+  const [version, setVersion] = useState(0)
   const key = `${query}|${sort}`
 
   useEffect(() => {
@@ -46,7 +54,7 @@ export function ReferralsSheet({ onClose }: { onClose: () => void }) {
       (reason: unknown) => { if (active) setResult({ key, error: errorText(reason) }) },
     )
     return () => { active = false }
-  }, [query, sort, key])
+  }, [query, sort, key, version])
 
   // The previous list stays while the next one loads; an error belongs to its own request.
   const data = result?.data ?? null
@@ -88,13 +96,15 @@ export function ReferralsSheet({ onClose }: { onClose: () => void }) {
           {data.total > data.referrers.length && <small className="admin-day-more">{uiText(`Показаны ${data.referrers.length} из ${data.total}`)}</small>}
         </>}
       </div>
-      {open && <ReferrerSheet id={open} onClose={() => setOpen(null)} />}
+      {open && <ReferrerSheet id={open} onClose={() => setOpen(null)} onChanged={() => setVersion((value) => value + 1)} />}
     </section>
   </div>
 }
 
-function ReferrerSheet({ id, onClose }: { id: string; onClose: () => void }) {
+function ReferrerSheet({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [result, setResult] = useState<{ id: string; data?: AdminReferrerDetail; error?: string } | null>(null)
+  const [version, setVersion] = useState(0)
+  const decided = () => { setVersion((value) => value + 1); onChanged() }
   useEffect(() => {
     let active = true
     adminApi.referrer(id).then(
@@ -102,7 +112,7 @@ function ReferrerSheet({ id, onClose }: { id: string; onClose: () => void }) {
       (reason: unknown) => { if (active) setResult({ id, error: errorText(reason) }) },
     )
     return () => { active = false }
-  }, [id])
+  }, [id, version])
   const data = result?.id === id ? result.data ?? null : null
   const error = result?.id === id ? result.error ?? '' : ''
   const referrer = data?.referrer
@@ -123,12 +133,12 @@ function ReferrerSheet({ id, onClose }: { id: string; onClose: () => void }) {
           </div>
           <div className="admin-history">
             <h2>{uiText(`Друзья · ${data.friends.length}`)}</h2>
-            {data.friends.map((friend) => <FriendRow key={friend.id} friend={friend} />)}
+            {data.friends.map((friend) => <FriendRow key={friend.id} friend={friend} onDecided={decided} />)}
             {!data.friends.length && <AdminEmpty text="Друзей пока нет" />}
             {otherRewards.length > 0 && <>
               <h2>{uiText(`Бонусы за ранги · ${otherRewards.length}`)}</h2>
               {otherRewards.map((reward) => <article className="admin-grant-row" key={reward.id}>
-                <span><strong>{uiText(REWARD_KIND[reward.kind] ?? reward.kind)}</strong><small>{uiText(rewardText(reward))}</small></span>
+                <span><strong>{uiText(REWARD_KIND[reward.kind] ?? reward.kind)}</strong><small>{uiText(rewardText(reward))}</small><RewardDecision reward={reward} onDecided={decided} /></span>
                 <span><strong>{uiText(rewardDays(reward.days))}</strong><small>{dateOnly(reward.createdAt)}</small></span>
               </article>)}
             </>}
@@ -139,13 +149,37 @@ function ReferrerSheet({ id, onClose }: { id: string; onClose: () => void }) {
   </div>
 }
 
-function FriendRow({ friend }: { friend: AdminReferralFriend }) {
+/**
+ * A reward held for the owner, decided right here (owner, 24.11.2026: «висит одна заявка, ждет вашего решения, а я не могу ничего
+ * сделать в этом блоке. Добавь кнопку… «Подтвердить 7 дней» или «Не подтверждать»»): as «Платежи» → «Награды за друзей» on the site;
+ * not confirming asks why.
+ */
+function RewardDecision({ reward, onDecided }: { reward: AdminReferralReward; onDecided: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  if (reward.status !== 'review') return null
+  const decide = async (decision: 'approve' | 'cancel') => {
+    const comment = decision === 'cancel' ? window.prompt(uiText('Почему награда не засчитана? (необязательно)')) : ''
+    if (comment === null) return
+    setBusy(true)
+    setError('')
+    try { await adminApi.decideInviteReward(reward.id, decision, comment.trim() || undefined); onDecided() } catch (reason) { setError(errorText(reason)) } finally { setBusy(false) }
+  }
+  return <span className="admin-reward-decide">
+    <button type="button" className="button small primary" disabled={busy} onClick={() => void decide('approve')}>{uiText(`Подтвердить ${confirmDays(reward.days)}`)}</button>
+    <button type="button" className="button small ghost" disabled={busy} onClick={() => void decide('cancel')}>{uiText('Не подтверждать')}</button>
+    {error && <small className="admin-inline-error" role="alert">{uiText(error)}</small>}
+  </span>
+}
+
+function FriendRow({ friend, onDecided }: { friend: AdminReferralFriend; onDecided: () => void }) {
   const first = friend.first
   return <article className="admin-grant-row admin-friend-row">
     <span>
       <strong>{accountText(friend.deleted ? undefined : friend.email, friend.nickname)}</strong>
       <small>{uiText([`пришёл ${dateOnly(friend.invitedAt)}`, friend.eftBound ? 'вошёл в приложение' : 'ещё не входил в приложение', friend.blocked ? 'заблокирован' : ''].filter(Boolean).join(' · '))}</small>
       {friend.reward && <small className={`admin-reward is-${friend.reward.status}`}>{uiText(`${rewardDays(friend.reward.days)} пригласившему · ${rewardText(friend.reward)}`)}</small>}
+      {friend.reward && <RewardDecision reward={friend.reward} onDecided={onDecided} />}
     </span>
     <span>
       {friend.paid

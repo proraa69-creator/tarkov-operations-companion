@@ -38,9 +38,10 @@ const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1
 let nextShotId = 1
 
 /** The reward the owner grants by hand after checking a report (website «Админ-панель» → «Отчёты»; owner, 11.10.2026). */
-export const REWARD_NOTE = 'Если ошибка подтвердится, к подписке добавится 1 день.'
+// 2 days for a confirmed bug (owner, 24.11.2026: «делаем бонус за ошибку плюс 2 дня… Везде добавим, что у нас теперь 2 дня»)
+export const REWARD_NOTE = 'Если ошибка подтвердится, к подписке добавится 2 дня.'
 /** The same for a report from the map's quest window (owner, 04.11.2026: «если отчет подтвердится, то ему добавят +1 день»). */
-const QUEST_REWARD_NOTE = 'Если отчёт подтвердится, к подписке добавится 1 день.'
+const QUEST_REWARD_NOTE = 'Если отчёт подтвердится, к подписке добавится 2 дня.'
 
 /** 'bug': «Сообщить об ошибке»; 'idea': «Ваши предложения» (owner, 13.10.2026). Both go to POST /v1/bug-reports. */
 export type ReportKind = 'bug' | 'idea'
@@ -258,7 +259,7 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
       </div> : <div className="bug-report-reward">
         <Gift size={20} aria-hidden="true" />
         {/* No access days as a reward in the App Store build (src/account/IosAccount.tsx). */}
-        <div><strong>{uiText(compact ? 'Нашли неточность в квесте?' : 'Нашёл баг или ошибку?')} {!hidesPayments() && <b>{uiText('+1 день')}</b>}</strong><span>{uiText(hidesPayments() ? 'Опишите, что случилось. Можно приложить скриншоты.' : compact ? QUEST_REWARD_NOTE : REWARD_NOTE)}</span></div>
+        <div><strong>{uiText(compact ? 'Нашли неточность в квесте?' : 'Нашёл баг или ошибку?')} {!hidesPayments() && <b>{uiText('+2 дня')}</b>}</strong><span>{uiText(hidesPayments() ? 'Опишите, что случилось. Можно приложить скриншоты.' : compact ? QUEST_REWARD_NOTE : REWARD_NOTE)}</span></div>
       </div>)}
       {sent ? <div className="bug-report-done" role="status">
         <CheckCircle2 size={34} />

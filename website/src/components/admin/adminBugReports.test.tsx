@@ -151,13 +151,14 @@ describe('«Отчёты» on the site', () => {
     const line = await row('Карта не открывается')
     const rows = line.parentElement!.children.length
     fireEvent.click(within(line).getByRole('button', { name: 'Подробнее' }))
-    expect(await within(line).findByRole('button', { name: /Выдать \+1 дн\./ })).toBeInTheDocument()
+    expect(await within(line).findByRole('button', { name: /Выдать \+2 дн\./ })).toBeInTheDocument()
     expect(line.parentElement!.children.length).toBe(rows)
 
-    fireEvent.click(await screen.findByRole('button', { name: /Выдать \+1 дн\./ }))
-    await waitFor(() => expect(mocks.reward).toHaveBeenCalledWith('owner-token', 3, 1))
+    // a bug: 2 days (owner, 24.11.2026)
+    fireEvent.click(await screen.findByRole('button', { name: /Выдать \+2 дн\./ }))
+    await waitFor(() => expect(mocks.reward).toHaveBeenCalledWith('owner-token', 3, 2))
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('player@example.com'))
-    expect(await screen.findByText('Выдано +1 дн. player@example.com')).toBeInTheDocument()
+    expect(await screen.findByText('Выдано +2 дн. player@example.com')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Отправить PDF ещё раз/ }))
     await waitFor(() => expect(mocks.mail).toHaveBeenCalledWith('owner-token', 3))

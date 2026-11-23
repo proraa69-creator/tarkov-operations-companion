@@ -9066,3 +9066,17 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   24.11). Version in package.json, package-lock.json ×2, website/src/config.ts; updateHistory.json row; no playerNews.json line (a hint's
   wording, not a new function). vitest src/data src/onboarding src/app 658/659: appVersion «electron-builder builds» fails here only
   (ENOENT: `new URL().pathname` keeps %20 for the space in this PC's path), tsc clean.
+
+## 2026-11-24 — Claude: «Привлечение друзей» decided in place; 2 days for a bug (claude/referral-decide-bug-2days, not released)
+- Owner: «в разделе «Привлечение друзей»… висит одна заявка, ждет вашего решения, а я не могу ничего сделать в этом блоке. Добавь
+  кнопку… «Подтвердить 7 дней» или «Не подтверждать»»; «делаем бонус за ошибку плюс 2 дня… Везде добавим, что у нас теперь 2 дня».
+- A reward held for the owner (`review`) now has «Подтвердить N дней» / «Не подтверждать» right in its row: on the site
+  (website/src/components/admin/AdminReferrals.tsx `RewardDecision`, the friend's list and the totals reload) and in the admin app's
+  «Пригласи друга» (src/admin/AdminReferralsSheet.tsx, `adminApi.decideInviteReward`); the same server call as «Платежи» → «Награды
+  за друзей» (POST /me/admin/invite-rewards/:id/decide), «Не подтверждать» asks why (optional), as there. No server change.
+- A confirmed bug: 2 days (an idea keeps 1, a new map point 1). «Сообщить об ошибке» «+2 дня» and «Если ошибка/отчёт подтвердится, к
+  подписке добавится 2 дня.» (SupportButtons, the quest window's report), «+2 дня за ошибку» (Настройки → Поддержка), EN alike;
+  «Готово» asks «Выдать 2 дня?» for a bug (ReportsTable `BUG_REWARD_DAYS`), the quest group card and the site's «Отчёты» default to 2.
+- Tests: website admin (referrals: the buttons and the call), reports, RequestsPage, QuestReport — vitest 110+4 passed; tsc (app and
+  website), eslint clean. Not pushed: the owner holds the release until «Полигон» is ready (0.6.0.337 rolled back to 336 on his word),
+  the news lines wait for his word.

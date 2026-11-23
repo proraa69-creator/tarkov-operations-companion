@@ -371,6 +371,8 @@ export const adminApi = {
   setPayoutLimits: (min: number, max: number) => request<{ limits: { min: number; max: number } }>('PUT', '/v1/accounts/me/admin/payout-limits', { min, max }),
   referrals: (search: string, sort: ReferralSort) => request<AdminReferrals>('GET', adminPaths.referrals(search, sort), undefined, keep),
   referrer: (id: string) => request<AdminReferrerDetail>('GET', `/v1/accounts/me/admin/referrals/${encodeURIComponent(id)}`),
+  /** A reward held for the owner: confirmed (its days to the inviter) or not (owner, 24.11.2026, as «Платежи» → «Награды за друзей» on the site). */
+  decideInviteReward: (id: number, decision: 'approve' | 'cancel', comment?: string) => request<unknown>('POST', `/v1/accounts/me/admin/invite-rewards/${id}/decide`, { decision, ...(comment ? { comment } : {}) }),
   bugReports: (status: BugReportStatus, limit = 100, offset = 0) => request<BugReportList>(
     'GET', adminPaths.bugReports(status, limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),

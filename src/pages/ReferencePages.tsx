@@ -725,7 +725,7 @@ function SupportPanel() {
         <div className="setting-row">
           <span>
             {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!hidesPayments() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
+            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!hidesPayments() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+2 дня за ошибку")}</span>}</strong>
             <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!hidesPayments() && <> {uiText(REWARD_NOTE)}</>}</small>
           </span>
         </div>

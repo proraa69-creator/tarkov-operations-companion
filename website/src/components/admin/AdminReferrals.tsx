@@ -1,10 +1,11 @@
 import { ChevronDown, Crown, Gift, Hourglass, Search, ShieldQuestion, UserCheck, UserPlus, Users, UserX } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { api, type AdminReferralFriend, type AdminReferralReward, type AdminReferralSummary, type AdminReferrer, type ReferralSort } from '../../api'
+import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { plural } from '../inviteProgram'
 import { AccountRef, Loading } from './adminShared'
-import { dateOnly, dateTime, formatRub, inviteFlagText, numberFormat, PLAN_LABEL, PROVIDER_LABEL, REWARD_KIND, useAdminData } from './adminData'
+import { dateOnly, dateTime, failure, formatRub, inviteFlagText, numberFormat, PLAN_LABEL, PROVIDER_LABEL, REWARD_KIND, useAdminData } from './adminData'
 
 const SORTS: Array<{ id: ReferralSort; label: string }> = [
   { id: 'invited', label: 'Больше всех привели' },
@@ -31,7 +32,7 @@ function rewardState(reward: AdminReferralReward, now: number): { text: string; 
   const flags = reward.flags.length ? inviteFlagText(reward.flags) : ''
   if (reward.status === 'granted') return { text: `выдано${reward.decidedAt ? ` ${dateOnly.format(new Date(reward.decidedAt))}` : ''}`, tone: 'green' }
   if (reward.status === 'canceled') return { text: `не засчитано${reward.comment ? `: ${reward.comment}` : flags ? `: ${flags}` : ''}`, tone: 'danger' }
-  if (reward.status === 'review') return { text: `ждёт вашего решения${flags ? ` (${flags})` : ''}: «Платежи» → «Награды за друзей»`, tone: 'brass' }
+  if (reward.status === 'review') return { text: `ждёт вашего решения${flags ? ` (${flags})` : ''}`, tone: 'brass' }
   if (reward.waitingEft) return { text: 'выдадим, когда друг войдёт в приложение для ПК', tone: '' }
   return { text: reward.releaseAt ? `будет выдано ${dateTime.format(new Date(reward.releaseAt))}, ${untilText(reward.releaseAt, now)}` : 'на проверке', tone: '' }
 }
@@ -111,10 +112,36 @@ function NextGrant({ referrer, now }: { referrer: AdminReferrer; now: number }) 
   )
 }
 
+/**
+ * A reward held for the owner, decided right here (owner, 24.11.2026: «висит одна заявка, ждет вашего решения, а я не могу ничего
+ * сделать в этом блоке. Добавь кнопку… «Подтвердить 7 дней» или «Не подтверждать»»): the same decision as «Платежи» → «Награды за
+ * друзей» (POST /me/admin/invite-rewards/:id/decide); not confirming asks why, as there.
+ */
+function RewardDecision({ reward, onDecided }: { reward: AdminReferralReward; onDecided: () => void }) {
+  const { token } = useAuth()
+  const [busy, setBusy] = useState(false)
+  if (reward.status !== 'review') return null
+  async function decide(decision: 'approve' | 'cancel') {
+    if (!token) return
+    const comment = decision === 'cancel' ? window.prompt('Почему награда не засчитана? (необязательно)') : ''
+    if (comment === null) return
+    setBusy(true)
+    try { await api.adminDecideInviteReward(token, reward.id, decision, comment.trim() || undefined); onDecided() } catch (reason) { window.alert(failure(reason).message) } finally { setBusy(false) }
+  }
+  const days = reward.days === 'lifetime' ? 'навсегда' : daysText(reward.days)
+  return (
+    <div className="admin-row-actions">
+      <button type="button" className="button small primary" disabled={busy} onClick={() => void decide('approve')}>Подтвердить {days}</button>
+      <button type="button" className="button small ghost" disabled={busy} onClick={() => void decide('cancel')}>Не подтверждать</button>
+    </div>
+  )
+}
+
 /** One account's friends: when each came, paid or not and how, and where his reward stands; then the rank rewards. */
-function ReferrerFriends({ id }: { id: string }) {
+function ReferrerFriends({ id, onChanged }: { id: string; onChanged: () => void }) {
   const detail = useAdminData(useCallback((token: string) => api.adminReferrer(token, id), [id]))
   const [now] = useState(() => Date.now())
+  const decided = () => { void detail.reload(); onChanged() }
   if (detail.error) return <Notice tone={detail.error.offline ? 'offline' : 'error'}>{detail.error.message}</Notice>
   if (!detail.data) return <Loading text="Загружаем друзей…" />
   const { friends, rewards } = detail.data
@@ -144,6 +171,7 @@ function ReferrerFriends({ id }: { id: string }) {
                     ? friend.first?.discountPercent ? 'без награды' : 'без награды: первая оплата прошла без скидки друга'
                     : 'награда — после оплаты первого месяца со скидкой друга'}</span>}
                 </div>
+                {friend.reward && <RewardDecision reward={friend.reward} onDecided={decided} />}
               </li>
             )
           })}
@@ -159,6 +187,7 @@ function ReferrerFriends({ id }: { id: string }) {
                   <span className="tag admin-mini">{rewardSize(reward)}</span>
                   <span className={`tag admin-mini ${state.tone}`}>{state.text}</span>
                 </div>
+                <RewardDecision reward={reward} onDecided={decided} />
               </li>
             )
           })}
@@ -231,7 +260,7 @@ export function AdminReferrals() {
                       <td data-label="Ближайшая выдача"><NextGrant referrer={referrer} now={now} /></td>
                       <td className="admin-row-action"><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : referrer.id)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Друзья'}</button></td>
                     </tr>
-                    {expanded && <tr className="owner-detail"><td colSpan={7}><ReferrerFriends id={referrer.id} /></td></tr>}
+                    {expanded && <tr className="owner-detail"><td colSpan={7}><ReferrerFriends id={referrer.id} onChanged={() => void referrals.reload()} /></td></tr>}
                   </Fragment>
                 )
               })}
