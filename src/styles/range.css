@@ -60,7 +60,7 @@
 .range-cover { fill: rgb(60 55 48 / 82%); stroke: rgb(0 0 0 / 40%); stroke-width: .3; pointer-events: none; }
 .range-aim line { stroke: #f3e7c6; stroke-width: .35; }
 .range-spread { fill: rgb(243 231 198 / 6%); stroke: rgb(243 231 198 / 55%); stroke-width: .25; stroke-dasharray: .8 .6; }
-.range-dead { position: absolute; left: 12px; bottom: 12px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--bg) 88%, var(--danger)); font-size: 13px; }
+.range-dead { position: absolute; z-index: 4; left: 50%; top: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--bg) 88%, var(--danger)); font-size: 13px; }
 .range-dead b { color: #ff8a7d; letter-spacing: .06em; text-transform: uppercase; }
 .range-dead .button { min-height: 30px; padding: 0 10px; font-size: 12px; }
 
@@ -171,10 +171,11 @@
 .range-scope-tracer .is-trail { stroke: rgb(255 196 92 / 85%); stroke-width: 2px; filter: drop-shadow(0 0 2px rgb(255 160 60 / 90%)); }
 .range-scope-tracer .is-head { stroke: #fff6d8; stroke-width: 7px; filter: drop-shadow(0 0 4px #ffb04a); }
 .range-tracer-readout { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); padding: 3px 8px; border-radius: 6px; background: rgb(0 0 0 / 55%); color: #ffe7b0; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
-/* the hold bar: red with a dark rim on a black reticle, black with a light rim on a red one */
+/* the hold bar: red with a dark rim on a black reticle, black with a light rim on a red one; a little thicker than the reticle's
+   lines (owner, 24.11.2026: «чуть-чуть шире… но не такую огромную») */
 .range-scope-impact line { vector-effect: non-scaling-stroke; stroke-linecap: round; }
-.range-scope-impact .is-halo { stroke-width: 7px; }
-.range-scope-impact .is-bar { stroke-width: 4px; }
+.range-scope-impact .is-halo { stroke-width: 5px; }
+.range-scope-impact .is-bar { stroke-width: 3px; }
 .range-scope-impact.is-red .is-halo { stroke: rgb(0 0 0 / 70%); }
 .range-scope-impact.is-red .is-bar { stroke: #ff2418; }
 .range-scope-impact.is-black .is-halo { stroke: rgb(255 255 255 / 75%); }
@@ -236,3 +237,31 @@
 .range-distance-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .range-distance-chips button { padding: 3px 8px; border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; }
 .range-distance-chips button.is-on { border-color: var(--brass, #d8c27a); color: var(--text); }
+
+/* the scope's corners (owner, 24.11.2026): the fire mode top left, the phone's full screen top right, reload and a new target below */
+.range-corner { position: absolute; z-index: 3; display: flex; gap: 6px; }
+.range-corner.is-top-left { left: 10px; top: 10px; }
+.range-corner.is-top-right { right: 10px; top: 10px; }
+.range-corner.is-bottom-left { left: 10px; bottom: 10px; }
+.range-corner.is-bottom-right { right: 10px; bottom: 10px; }
+.range-corner-button { min-height: 32px; padding: 0 10px; font-size: 12px; gap: 6px; background: rgb(12 13 12 / 82%); }
+.range-corner-button .range-key { margin-left: 2px; }
+@media (max-width: 520px) { .range-target-wrap:not(.is-full) .range-corner-button > span { display: none; } }
+
+/* the phone's full screen: the scope in the middle, the stick on the left, the fire button on the right */
+.range-target-wrap.is-full { position: fixed; inset: 0; z-index: 2000; min-height: 0; padding: 0; border: 0; border-radius: 0; background: #050505;
+  container-type: size; touch-action: none; overscroll-behavior: contain; -webkit-user-select: none; user-select: none; }
+.range-target-wrap.is-full.is-turned { inset: auto; left: 50%; top: 50%; width: 100dvh; height: 100dvw; transform: translate(-50%, -50%) rotate(90deg); }
+.range-target-wrap.is-full .range-scope { width: min(100cqh - 12px, 100cqw - 300px); }
+.range-target-wrap.is-full .range-corner { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.range-stick { position: absolute; z-index: 3; left: max(18px, calc((100cqw - min(100cqh - 12px, 100cqw - 300px)) / 2 - 140px)); top: 50%; width: 120px; height: 120px;
+  margin-top: -60px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 22%); background: radial-gradient(circle, rgb(255 255 255 / 10%), rgb(255 255 255 / 3%) 70%); touch-action: none; }
+.range-stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgb(255 255 255 / 30%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 60%), inset 0 1px 0 rgb(255 255 255 / 30%); pointer-events: none; }
+.range-fire-side { position: absolute; z-index: 3; right: max(18px, calc((100cqw - min(100cqh - 12px, 100cqw - 300px)) / 2 - 140px)); top: 50%; display: grid;
+  justify-items: center; gap: 8px; transform: translateY(-50%); }
+.range-fire { width: 104px; height: 104px; border-radius: 50%; border: 2px solid rgb(255 120 100 / 70%); background: radial-gradient(circle at 50% 40%, #b0342a, #6e1a14);
+  color: #fff; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 15px; box-shadow: 0 4px 14px rgb(0 0 0 / 70%); touch-action: none; }
+.range-fire.is-down { transform: scale(.94); background: radial-gradient(circle at 50% 40%, #e0493a, #8c2219); }
+.range-fire-mag { padding: 2px 8px; border-radius: 6px; background: rgb(0 0 0 / 60%); color: #e8e4d8; font-size: 13px; font-variant-numeric: tabular-nums; }
+.range-fire-mag.is-empty { color: var(--amber); }

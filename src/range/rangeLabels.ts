@@ -63,7 +63,7 @@ export const START_STATES: Array<{ key: string; ru: string; en: string; parts: B
 
 export const FIRE_MODE_NAMES: Record<string, Pair> = {
   single: ['Одиночный', 'Single'], semiauto: ['Одиночный', 'Semi-auto'], doubleaction: ['Самовзвод', 'Double action'],
-  burst: ['Отсечка', 'Burst'], doublet: ['Двойной', 'Doublet'], fullauto: ['Автомат', 'Full auto'],
+  burst: ['Очередями', 'Burst'], doublet: ['Двойной', 'Doublet'], fullauto: ['Автомат', 'Full auto'],
 }
 
 export const pick = (pair: Pair, locale: string) => pair[locale === 'en' ? 1 : 0]

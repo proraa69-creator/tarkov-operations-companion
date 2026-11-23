@@ -161,12 +161,13 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
     ? <AmmoGrid options={ammoOptions} selected={build.ammoId} access={access} everything={allModules} anchor={anchor} avoid={avoid} onPick={(ammoId) => { setBuild({ ...build, ammoId: ammoId || undefined }); setSelected(null) }} onClose={() => setSelected(null)} />
     : selectedCell
       ? <ModGrid key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access} everything={allModules} anchor={anchor} avoid={avoid}
-        onPick={(itemId) => {
+        onPick={(itemId, then) => {
           const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon)
           if (!done) return
           setBuild(done.build)
           setReplaced(done.removed.length ? done.removed.map((part) => part.shortName || part.name) : null)
-          setSelected(null)
+          // a ring: the window of its seat opens next, for the optical scope (src/arsenal/sightTabs.ts)
+          setSelected(then ? pathKey(then) : null)
         }}
         onPickKit={(kit) => { setBuild(kit.build); setReplaced(kit.removed.length ? kit.removed.map((part) => part.shortName || part.name) : null); setSelected(null) }}
         onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null); setSelected(null) }}

@@ -37,7 +37,7 @@ export function RangeBuild({ weapon, catalog, start, ammo, onChange, lang }: {
   const selectedCell = layout.cells.find((cell) => pathKey(cell.path) === selected)
   const pickAt = (anchor: () => Element | null, avoid: () => DOMRect | null) => selectedCell
     ? <ModGrid key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} stats={stats} access={{ traderLevel: 4, flea: true }} anchor={anchor} avoid={avoid}
-      onPick={(itemId) => { const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon); if (done) setBuild(done.build); setSelected(null) }}
+      onPick={(itemId, then) => { const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon); if (done) setBuild(done.build); setSelected(done && then ? pathKey(then) : null) }}
       onPickKit={(kit) => { setBuild(kit.build); setSelected(null) }}
       onRemove={() => { setBuild(removePart(build, selectedCell.path)); setSelected(null) }}
       onClose={() => setSelected(null)} />

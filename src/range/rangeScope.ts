@@ -18,16 +18,28 @@ export interface ScopeMode {
   reticleMrad?: number
   /** First focal plane: the reticle keeps its angular size at every magnification. */
   ffp?: boolean
+  /**
+   * A red dot's ×1 in a magnified sight: HHS-1's EXPS3 with the G33 magnifier flipped aside, seen as a red dot through its housing;
+   * the magnifier's ×3 is the sight's other mode (owner, 24.11.2026: «если на дальнем, ну, на увеличении, то как оптический прицел,
+   * а если откидывается магнифер, то просто как обычный коллиматор должен выглядеть»).
+   */
+  collimator?: boolean
   /** A first focal plane reticle drawn at the highest magnification (thinner lines) and the angle it covers, mrad. */
   reticleMax?: string
   reticleMaxMrad?: number
+  /**
+   * A first focal plane reticle drawn on steps of magnification (×1.5 apart), each picture covering that step's whole view with the
+   * lines as the game draws them there (owner, 24.11.2026: «где сетка в первой фокальной плоскости, а где во второй. Это должно
+   * работать правильно»; E:\SPT-photo\range-assets\tools\export_reticles.py).
+   */
+  reticleSteps?: Array<{ zoom: number; file: string; mrad: number }>
   /**
    * The step of the marks below the reticle's centre, as the game draws them (its reticles are not always true to the real
    * ones), mrad: on `reticle` at `zoom`, on `reticleMax` (E:\SPT-photo\range-assets\tools\mark_steps.py). Absent: no regular marks.
    */
   markMrad?: number
   markMaxMrad?: number
-  /** How wide those marks are across, mrad, on `reticle` and `reticleMax` (the hold bar is drawn a little wider, mark_steps.py). */
+  /** How wide the ordinary marks are across, mrad, on `reticle` and `reticleMax` (the hold bar is drawn a little wider, mark_steps.py). */
   tickMrad?: number
   tickMaxMrad?: number
   /** The middle of the reticle is red: the hold mark is drawn black on it, red on any other (owner, 23.11.2026). */
@@ -39,8 +51,18 @@ export interface ScopeMode {
 
 /** The reticle picture for a magnification and the angle it covers: a first focal plane one's high-zoom picture past the middle. */
 export function reticleAt(mode: ScopeMode, zoom: number): { file?: string; mrad?: number } {
-  if (mode.ffp && mode.reticleMax && mode.reticleMaxMrad && mode.zoomMax && zoom >= Math.sqrt(mode.zoom * mode.zoomMax)) return { file: mode.reticleMax, mrad: mode.reticleMaxMrad }
+  // a first focal plane reticle: the step at or below the magnification — its picture covers the whole view, enlarged at most ×1.5
+  if (mode.ffp && mode.reticleSteps?.length) {
+    const step = mode.reticleSteps.reduce((best, entry) => entry.zoom <= zoom + 1e-6 ? entry : best, mode.reticleSteps[0]!)
+    return { file: step.file, mrad: step.mrad }
+  }
+  if (maxPicture(mode, zoom)) return { file: mode.reticleMax, mrad: mode.reticleMaxMrad }
   return { file: mode.reticle, mrad: mode.reticleMrad }
+}
+
+/** Past the middle of a first focal plane scope's range its marks are read on the high-zoom picture (mark_steps.py). */
+function maxPicture(mode: ScopeMode, zoom: number) {
+  return Boolean(mode.ffp && mode.reticleMax && mode.reticleMaxMrad && mode.zoomMax && zoom >= Math.sqrt(mode.zoom * mode.zoomMax))
 }
 
 /**
@@ -48,28 +70,27 @@ export function reticleAt(mode: ScopeMode, zoom: number): { file?: string; mrad?
  * second focal plane one keeps its size on the screen, so its marks cover less as the magnification grows.
  */
 export function markStepAt(mode: ScopeMode, zoom: number): number | undefined {
-  const picture = reticleAt(mode, zoom)
-  const step = picture.file && picture.file === mode.reticleMax ? mode.markMaxMrad : mode.markMrad
+  const step = maxPicture(mode, zoom) ? mode.markMaxMrad : mode.markMrad
   if (!step) return undefined
   return mode.ffp ? step : step * (mode.zoom / zoom)
 }
 
 /** How wide the reticle's marks are across at this magnification, mrad, as `markStepAt` counts their step. */
 export function tickAt(mode: ScopeMode, zoom: number): number | undefined {
-  const picture = reticleAt(mode, zoom)
-  const width = picture.file && picture.file === mode.reticleMax ? mode.tickMaxMrad : mode.tickMrad
+  const width = maxPicture(mode, zoom) ? mode.tickMaxMrad : mode.tickMrad
   if (!width) return undefined
   return mode.ffp ? width : width * (mode.zoom / zoom)
 }
 
 /**
  * The hold bar's half width at the target, cm (owner, 23.11.2026: «полоску… сделать меньше намного… практически размером с сетку,
- * чуть-чуть больше, чтобы она была немного шире самой сетки рисок и чуть-чуть толще»): a quarter wider than the reticle's marks, or
- * 2.4 % of the view where their width is not known; never under 1.4 % of the view nor over 4 %.
+ * чуть-чуть больше, чтобы она была немного шире самой сетки рисок и чуть-чуть толще»; 24.11.2026: «чуть больше, чем риска…
+ * чуть-чуть шире и чуть-чуть длиннее. Но не такую огромную»): 30 % longer than the reticle's ordinary marks, or 1.8 % of the view
+ * where they are not known; never under 1 % of the view nor over 3 %.
  */
 export function holdBarHalfCm(fovCm: number, distance: number, tickMrad?: number): number {
-  const wanted = tickMrad ? mradToCm(tickMrad, distance) * 1.25 : fovCm * 0.024
-  return Math.min(fovCm * 0.04, Math.max(fovCm * 0.014, wanted)) / 2
+  const wanted = tickMrad ? mradToCm(tickMrad, distance) * 1.3 : fovCm * 0.018
+  return Math.min(fovCm * 0.03, Math.max(fovCm * 0.01, wanted)) / 2
 }
 
 export interface ScopeData {
@@ -85,6 +106,22 @@ export interface ScopeData {
    */
   collimator?: boolean
   housing?: string
+}
+
+/**
+ * The sight on the build: a magnified scope first (a red dot on top of an optic is its backup), then a red dot; one sight in both
+ * lists (HHS-1: a red dot with a flip-to-side magnifier) is the red dot at ×1 and the scope's modes after it.
+ */
+export function sightOnBuild(partIds: readonly string[], scopes: readonly ScopeData[] | null, dots: readonly ScopeData[] | null): ScopeData | undefined {
+  const find = (list: readonly ScopeData[] | null) => {
+    const known = new Map((list ?? []).map((entry) => [entry.id, entry]))
+    const id = partIds.find((entry) => known.has(entry))
+    return id ? known.get(id) : undefined
+  }
+  const scope = find(scopes)
+  const dot = scope ? dots?.find((entry) => entry.id === scope.id) : undefined
+  if (scope && dot) return { ...scope, housing: dot.housing, modes: [...dot.modes.map((mode) => ({ ...mode, collimator: true })), ...scope.modes] }
+  return scope ?? find(dots)
 }
 
 export const CM_PER_MOA_100M = 2.9089

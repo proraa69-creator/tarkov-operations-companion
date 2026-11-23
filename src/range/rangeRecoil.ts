@@ -8,7 +8,10 @@
  * - a shot adds a kick of the weapon's force (RecoilForceUp scaled by the mods' recoil, + 20) × the round's (1 + its recoil),
  *   at an angle of RecoilAngle ± RecolDispersion; from the RecoilStableIndexShot-th shot on the climb stops and the angle widens
  *   by RecoilStableAngleIncreaseStep a shot (up to ProgressRecoilAngleOnStable) — the plateau with a growing side spread;
- * - the camera kicks too (RecoilCamera) and, aiming, follows the barrel's pitch.
+ * - the camera kicks too (RecoilCamera) and, aiming, follows the barrel's pitch; once the shooting is over it also turns to where
+ *   the barrel settled sideways, so the reticle stands in the middle of the scope again, the aim moved instead (owner, 24.11.2026:
+ *   «некоторые сетки при увеличении начинают уезжать в сторону… сетка должна стоять по центру, а она начинает стоять ближе к
+ *   правой стороне»: the barrel's side offset left on the screen grew with the magnification).
  * Angles in degrees. The bullets go where the barrel points; the screen shows the camera's view.
  */
 import data from './rangeRecoil.json'
@@ -127,7 +130,7 @@ export function createRecoil(weapon: WeaponRecoil, modsRecoil: number, roundReco
     C: vec(), V: vec(), A: vec(), kicked: false, stableC: vec(), next: vec(), speed: 0,
     previousX: 0, returning: false, side: 2, impulse: 0.01, after: { v: 0, h: 0 }, afterX: 0,
     camC: vec(), camV: vec(), camA: vec(), camKicked: false,
-    follow: 0, followTarget: 0, followSpeed: weapon.cameraSpeed[0],
+    follow: 0, followTarget: 0, followSpeed: weapon.cameraSpeed[0], followRight: 0,
     /** How far the barrel, the view and the camera moved in the last tick (degrees). */
     moved: 0,
   }
@@ -161,7 +164,7 @@ export function createRecoil(weapon: WeaponRecoil, modsRecoil: number, roundReco
       s.camKicked = true
     },
     tick(held) {
-      const before = { C: { ...s.C }, camC: { ...s.camC }, follow: s.follow }
+      const before = { C: { ...s.C }, camC: { ...s.camC }, follow: s.follow, followRight: s.followRight }
       if (held) s.auto = true
       else { s.auto = false; s.index = 0; if (s.stable) { s.stable = false; s.widen = 0 } }
       // the camera's own kick
@@ -214,12 +217,14 @@ export function createRecoil(weapon: WeaponRecoil, modsRecoil: number, roundReco
         s.followTarget = s.C.x
       }
       s.follow = lerp(s.follow, s.followTarget, s.followSpeed)
-      s.moved = length(sub(s.C, before.C)) + length(sub(s.camC, before.camC)) + Math.abs(s.follow - before.follow)
+      // the shooting over: the view turns to the barrel's side offset too
+      if (!s.auto && !s.returning) s.followRight = lerp(s.followRight, s.C.z, s.followSpeed)
+      s.moved = length(sub(s.C, before.C)) + length(sub(s.camC, before.camC)) + Math.abs(s.follow - before.follow) + Math.abs(s.followRight - before.followRight)
     },
     read() {
       return {
         bore: { up: -s.C.x, right: s.C.z },
-        view: { up: -(s.follow + s.camC.x), right: s.camC.y },
+        view: { up: -(s.follow + s.camC.x), right: s.followRight + s.camC.y },
       }
     },
     /**

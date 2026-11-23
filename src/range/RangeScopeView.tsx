@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { FIGURE_HEIGHT } from './rangeHitboxes'
 import { RangeScene, type SceneProps } from './RangeTarget'
 import { fovMrad, holdBarHalfCm, mradToCm, reticleAt, tickAt, type ScopeMode } from './rangeScope'
@@ -17,8 +17,20 @@ import { RangeTracer, type Tracer } from './RangeTracer'
  * The wheel (owner, 23.11.2026: «Регулировка кратности происходит роликом… окно не должно… ездить… Если кратность меняется
  * только либо 1, либо 6, то меняется кратность… резко. Если… плавно, то… плавно роликом»): a variable mode turns smoothly, a
  * scope of fixed magnifications steps to the next one; in the scope the page under it never scrolls.
+ *
+ * On a phone, full screen (owner, 24.11.2026: «Джойстик… лево-право водить и кнопка огня… Джойстик слева, огонь справа»): the
+ * stick turns the view at a speed by how far it is pushed, the fire button fires at the reticle (`handle`).
  */
-export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, irons, collimator, housingUrl, tracer, onFireStart, onFireEnd, onAim, lang }: {
+export interface ScopeHandle {
+  /** The stick, −1…1 to the right and up; 0, 0: still. */
+  stick(x: number, y: number): void
+  fireStart(): void
+  fireEnd(): void
+}
+/** The stick pushed all the way turns the view by this share of its width a second. */
+const STICK_SPEED = 0.7
+
+export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, irons, collimator, housingUrl, tracer, onFireStart, onFireEnd, onAim, lang, handle, touch }: {
   scene: SceneProps
   distance: number
   mode: ScopeMode
@@ -54,6 +66,10 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   /** Where the reticle's centre is on the target's plane (figure centimetres, without the recoil). */
   onAim: (point: { x: number; y: number }) => void
   lang: 'ru' | 'en'
+  /** The stick and the fire button of the phone's full screen. */
+  handle?: Ref<ScopeHandle>
+  /** Driven by the stick and the fire button: no «Войти в прицел», no mouse hints. */
+  touch?: boolean
 }) {
   const box = useRef<HTMLDivElement>(null)
   const [aim, setAim] = useState({ x: 0, y: 130 })
@@ -80,6 +96,34 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   useEffect(() => { aimRef.current = aim; onAim(aim) }, [aim, onAim])
   const fireEndRef = useRef(onFireEnd)
   useEffect(() => { fireEndRef.current = onFireEnd }, [onFireEnd])
+  const fireStartRef = useRef(onFireStart)
+  useEffect(() => { fireStartRef.current = onFireStart }, [onFireStart])
+  // the stick: the view turns while it is pushed, faster the further, slow near the middle for fine aiming
+  const fovRef = useRef(fovCm)
+  useEffect(() => { fovRef.current = fovCm }, [fovCm])
+  const stickRef = useRef({ x: 0, y: 0, frame: 0, last: 0 })
+  useEffect(() => () => cancelAnimationFrame(stickRef.current.frame), [])
+  useImperativeHandle(handle, () => ({
+    stick(x, y) {
+      const state = stickRef.current
+      state.x = x
+      state.y = y
+      if (state.frame || (!x && !y)) return
+      state.last = performance.now()
+      const step = (now: number) => {
+        const seconds = Math.min(0.05, Math.max(0, (now - state.last) / 1000))
+        state.last = now
+        if (!state.x && !state.y) { state.frame = 0; return }
+        const speed = fovRef.current * STICK_SPEED * seconds
+        const curve = (value: number) => Math.sign(value) * value * value
+        setAim((current) => ({ x: current.x + curve(state.x) * speed, y: current.y + curve(state.y) * speed }))
+        state.frame = requestAnimationFrame(step)
+      }
+      state.frame = requestAnimationFrame(step)
+    },
+    fireStart() { fireStartRef.current(aimRef.current) },
+    fireEnd() { fireEndRef.current() },
+  }), [])
   useEffect(() => {
     const element = box.current
     const onLock = () => {
@@ -202,9 +246,9 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
       <line x1={impact.x - barHalf} x2={impact.x + barHalf} y1={impact.y} y2={impact.y} className="is-bar" />
     </svg>
     {tracer && <RangeTracer key={tracer.id} tracer={tracer} viewBox={viewBox} lang={lang} />}
-    {locked && <div className="range-scope-hint">{lang === 'en' ? 'Left button — fire · wheel — zoom · R — reload · F — new target · right button or Esc — leave' : 'ЛКМ — огонь · колесо — кратность · R — перезарядка · F — новая цель · ПКМ или Esc — выйти'}</div>}
+    {locked && !touch && <div className="range-scope-hint">{lang === 'en' ? 'Left button — fire · wheel — zoom · B — fire mode · R — reload · F — new target · right button or Esc — leave' : 'ЛКМ — огонь · колесо — кратность · B — режим огня · R — перезарядка · F — новая цель · ПКМ или Esc — выйти'}</div>}
     {inside === 'free' && <button type="button" className="button range-scope-leave" onMouseDown={(event) => event.stopPropagation()} onClick={leave}>{lang === 'en' ? 'Leave the scope' : 'Выйти из прицела'}</button>}
-    {!locked && <button type="button" className="button primary range-scope-enter" onMouseDown={(event) => event.stopPropagation()} onClick={enter}>{open ? (lang === 'en' ? 'Aim' : 'Прицелиться') : (lang === 'en' ? 'Enter the scope' : 'Войти в прицел')}</button>}
+    {!locked && !touch && <button type="button" className="button primary range-scope-enter" onMouseDown={(event) => event.stopPropagation()} onClick={enter}>{open ? (lang === 'en' ? 'Aim' : 'Прицелиться') : (lang === 'en' ? 'Enter the scope' : 'Войти в прицел')}</button>}
   </div>
 }
 

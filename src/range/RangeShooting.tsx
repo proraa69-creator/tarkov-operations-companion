@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { LoaderCircle, RotateCcw, Shuffle, Eraser, Crosshair, Lock } from 'lucide-react'
+import { LoaderCircle, RotateCcw, Shuffle, Eraser, Crosshair, Lock, Maximize2, Minimize2, Zap } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { SIGHT_HEIGHT } from '../arsenal/ballistics'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -14,8 +14,10 @@ import { BODY_PARTS, cloneKit, freshBody, PMC_HEALTH, totalHealth, type ArmorPie
 import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type FiredShot } from './rangeShot'
 import { figureLayers } from './rangeFigures'
 import { useFigureIndex, useFigureUrls, useRangeJson } from './rangeFigureSource'
-import { RangeScopeView } from './RangeScopeView'
-import { cmToMrad, DROP_TABLE_DISTANCES, holdover, markStepAt, mradToMoa, type ScopeData, type ScopeMode } from './rangeScope'
+import { RangeScopeView, type ScopeHandle } from './RangeScopeView'
+import { RangeFireButton, RangeStick } from './RangeTouch'
+import { useRangeFullScreen } from './useRangeFullScreen'
+import { cmToMrad, DROP_TABLE_DISTANCES, holdover, markStepAt, mradToMoa, sightOnBuild, type ScopeData, type ScopeMode } from './rangeScope'
 import { RangePicker } from './RangePicker'
 import { drawnVariant, oneOfEachModel } from './rangeLists'
 import { swayMrad, swayNow } from './rangeSway'
@@ -112,6 +114,11 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   }, [weapon])
   const [fireMode, setFireMode] = useState('single')
   const mode = fireModes.includes(fireMode) ? fireMode : fireModes[0] ?? 'single'
+  // the fire mode's switch in the scope's top-left corner and on B, as in the game (owner, 24.11.2026: «Слева сверху у нас будет кнопка
+  // переключения огня, автоматический или одиночный»)
+  const nextFireMode = () => setFireMode(fireModes[(fireModes.indexOf(mode) + 1) % fireModes.length] ?? 'single')
+  const nextFireModeRef = useRef(nextFireMode)
+  useEffect(() => { nextFireModeRef.current = nextFireMode })
 
   // ——— target
   const [group, setGroup] = useState<Group>('pmc')
@@ -187,14 +194,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const collimators = useRangeJson<ScopeData[]>('collimators.json')
   const scope = useMemo(() => {
     if (!build || !scopes) return undefined
-    const parts = installedParts(build, catalog)
-    const onBuild = (list: ScopeData[] | null) => {
-      const known = new Map((list ?? []).map((entry) => [entry.id, entry]))
-      const on = parts.find((entry) => known.has(entry.part.id))
-      return on ? known.get(on.part.id) : undefined
-    }
-    // a magnified scope first (a red dot on top of an optic is its backup), then a red dot
-    return onBuild(scopes) ?? onBuild(collimators)
+    return sightOnBuild(installedParts(build, catalog).map((entry) => entry.part.id), scopes, collimators)
   }, [build, scopes, collimators, catalog])
   const scopeId = scope?.id ?? ''
   // the sight's height over the bore for this build and sight (src/range/rangeSight.ts)
@@ -209,7 +209,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const scopeMode = scope?.modes[Math.min(scopeModeIndex, scope.modes.length - 1)]
   const [zoomState, setZoom] = useState<{ key: string; zoom: number }>({ key: '', zoom: 1 })
   const zoom = zoomState.key === `${scopeId}|${scopeModeIndex}` ? zoomState.zoom : scopeMode?.zoom ?? 1
-  const reticleUrls = useFigureUrls([scopeMode?.reticle, scopeMode?.reticleMax, scope?.housing].filter((file): file is string => Boolean(file)))
+  const reticleUrls = useFigureUrls([scopeMode?.reticle, scopeMode?.reticleMax, ...(scopeMode?.reticleSteps ?? []).map((step) => step.file), scope?.housing].filter((file): file is string => Boolean(file)))
   const textureUrls = useFigureUrls(Object.values(COVER_TEXTURE_FILES))
   const coverTextures = { brick: textureUrls[COVER_TEXTURE_FILES.brick], container: textureUrls[COVER_TEXTURE_FILES.container], crate: textureUrls[COVER_TEXTURE_FILES.crate] }
   // the distances this scope can be zeroed at (the game's CalibrationDistances), the open sights the usual ones
@@ -282,6 +282,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
       if (event.target instanceof Element && event.target.closest('input, select, textarea')) return
       if (event.code === 'KeyR') reloadRef.current()
       else if (event.code === 'KeyF') { event.preventDefault(); newTargetLatest.current() }
+      else if (event.code === 'KeyB') nextFireModeRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -424,6 +425,8 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const flash = last?.outcome && last.target === live.number ? { part: last.outcome.part, n: last.n } : undefined
   const markStep = scopeMode ? markStepAt(scopeMode, zoom) : undefined
   const hold = flight ? holdover(flight.drop, distance, markStep) : undefined
+  const { phone, full, turned, openFull, closeFull } = useRangeFullScreen()
+  const scopeHandle = useRef<ScopeHandle>(null)
   const scene = { view, body, marks, cover, coverTextures, figure: shownFigure ? { ...shownFigure, urls: figureUrls } : undefined, masks, flash }
 
   return <div className="range-layout">
@@ -520,9 +523,6 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
             {zeros.map((value) => <option key={value} value={value}>{value} {t('м', 'm')}</option>)}
           </select>
         </label>
-        <div className="segmented-filter">
-          {fireModes.map((value) => <button key={value} type="button" className={mode === value ? 'active' : ''} onClick={() => setFireMode(value)}>{pick(FIRE_MODE_NAMES[value] ?? [value, value], lang)}</button>)}
-        </div>
         {scope && scope.modes.length > 1 && <div className="segmented-filter">
           {scope.modes.map((entry, index) => <button key={index} type="button" className={index === scopeModeIndex ? 'active' : ''} onClick={() => setScopeModeIndex(index)}>{scope.collimator ? `${t('Сетка', 'Reticle')} ${index + 1}` : `×${entry.zoom}${entry.zoomMax && entry.zoomMax > entry.zoom ? `–${entry.zoomMax}` : ''}`}</button>)}
         </div>}
@@ -544,19 +544,46 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
             {t('Прицел', 'Sight')} <b>{scope ? pick([scope.ru, scope.en], lang) : sightName ?? t('штатный', 'open sights')}</b> · {t('над стволом', 'over the bore')} {number(sightCm, lang)} {t('см', 'cm')}
           </span>
           <div className="range-stage-actions">
-            <button type="button" className="button" onClick={reload} title={t('Перезарядить — R', 'Reload — R')}><RotateCcw size={14} /> {t('Перезарядить', 'Reload')} <kbd className="range-key">R</kbd></button>
-            <button type="button" className="button" onClick={newTarget} title={t('Новая цель — F', 'New target — F')}><Crosshair size={14} /> {t('Новая цель', 'New target')} <kbd className="range-key">F</kbd></button>
             <button type="button" className="button" onClick={() => setMarks([])}><Eraser size={14} /> {t('Убрать отметки', 'Clear marks')}</button>
           </div>
         </div>
         {hold && <HoldLine hold={hold} markStep={markStep} zero={zero} distance={distance} zoom={zoom} sightCm={sightCm} lang={lang} />}
-        <div className="range-target-wrap">
-          <RangeScopeView scene={scene} distance={distance} mode={scopeMode ?? IRON_SIGHTS} modes={scope?.modes ?? [IRON_SIGHTS]} modeIndex={scope ? Math.min(scopeModeIndex, scope.modes.length - 1) : 0} onMode={setScopeModeIndex}
+        <div className={`range-target-wrap${full ? ' is-full' : ''}${full && turned ? ' is-turned' : ''}`}>
+          <RangeScopeView handle={scopeHandle} touch={full} scene={scene} distance={distance} mode={scopeMode ?? IRON_SIGHTS} modes={scope?.modes ?? [IRON_SIGHTS]} modeIndex={scope ? Math.min(scopeModeIndex, scope.modes.length - 1) : 0} onMode={setScopeModeIndex}
             zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })} irons={!scope}
-            housingUrl={scope?.housing ? reticleUrls[scope.housing] : undefined} collimator={scope?.collimator}
+            housingUrl={scope?.housing ? reticleUrls[scope.housing] : undefined} collimator={scope?.collimator || scopeMode?.collimator}
             reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} swayCm={swayCm} lang={lang}
             tracer={toggles.trace ? tracer : null}
             onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
+          {/* the scope's corners (owner, 24.11.2026: «Кнопки перезарядки и начать заново перенеси вот в эти края… Справа сверху… кнопку на
+              весь экран. Это версия для телефона… на компьютере не будет»; «Слева сверху… кнопка переключения огня») */}
+          <div className="range-corner is-top-left">
+            <button type="button" className="button range-corner-button" onClick={nextFireMode} disabled={fireModes.length < 2} title={t('Режим огня — B', 'Fire mode — B')}>
+              <Zap size={14} /> <span>{pick(FIRE_MODE_NAMES[mode] ?? [mode, mode], lang)}</span>{!phone && fireModes.length > 1 && <kbd className="range-key">B</kbd>}
+            </button>
+          </div>
+          {(phone || full) && <div className="range-corner is-top-right">
+            <button type="button" className="button range-corner-button" onClick={full ? closeFull : openFull} aria-label={full ? t('Выйти из полного экрана', 'Leave full screen') : t('На весь экран', 'Full screen')}>
+              {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />} <span>{full ? t('Выйти', 'Exit') : t('На весь экран', 'Full screen')}</span>
+            </button>
+          </div>}
+          <div className="range-corner is-bottom-left">
+            <button type="button" className="button range-corner-button" onClick={reload} title={t('Перезарядить — R', 'Reload — R')}>
+              <RotateCcw size={14} /> <span>{t('Перезарядить', 'Reload')}</span>{!phone && <kbd className="range-key">R</kbd>}
+            </button>
+          </div>
+          <div className="range-corner is-bottom-right">
+            <button type="button" className="button range-corner-button" onClick={newTarget} title={t('Новая цель — F', 'New target — F')}>
+              <Crosshair size={14} /> <span>{t('Новая цель', 'New target')}</span>{!phone && <kbd className="range-key">F</kbd>}
+            </button>
+          </div>
+          {full && <>
+            <RangeStick turned={turned} label={t('Наведение', 'Aim')} onStick={(x, y) => scopeHandle.current?.stick(x, y)} />
+            <div className="range-fire-side">
+              <RangeFireButton label={t('Огонь', 'Fire')} onDown={() => scopeHandle.current?.fireStart()} onUp={() => scopeHandle.current?.fireEnd()}>{t('Огонь', 'Fire')}</RangeFireButton>
+              <span className={`range-fire-mag${mag === 0 ? ' is-empty' : ''}`}>{mag} / {capacity}</span>
+            </div>
+          </>}
           {body.dead && <div className="range-dead">
             <b>{t('Убит', 'Killed')}</b>
             <span>{killedAt ? `${killedAt} ${t('выстр.', 'shots')} · ${weapon?.fireRate ? `${((killedAt - 1) * 60 / weapon.fireRate + (flight?.time ?? 0)).toFixed(2)} ${t('с', 's')}` : ''}` : ''}</span>

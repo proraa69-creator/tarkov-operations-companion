@@ -66,6 +66,20 @@ describe('the game\'s recoil (M4A1 default build, M855, aiming, standing)', () =
     expect(Math.abs(sim.read().bore.up)).toBeLessThan(0.2)
   })
 
+  it('the reticle back in the middle once still: the view turns to where the barrel settled sideways (owner, 24.11.2026: «сетка должна стоять по центру»)', () => {
+    for (const seed of [3, 7, 11, 19]) {
+      const sim = createRecoil(weaponRecoil('5447a9cd4bdc2dbd208b4567')!, -0.29, 0, seededRandom(seed), 56)
+      for (let shot = 0; shot < 5; shot++) {
+        sim.shot()
+        for (let tick = 0; tick < 6; tick++) sim.tick(true)
+      }
+      for (let tick = 0; tick < 900 && !sim.resting(); tick++) sim.tick(false)
+      expect(sim.resting()).toBe(true)
+      const now = sim.read()
+      expect(Math.abs(now.view.right - now.bore.right)).toBeLessThan(0.002)
+    }
+  })
+
   it('a round with more recoil kicks harder, mods with less recoil softer', () => {
     const hot = burst('5447a9cd4bdc2dbd208b4567', -0.29, 0.15, 6, 300)
     const soft = burst('5447a9cd4bdc2dbd208b4567', -0.45, 0, 6, 300)

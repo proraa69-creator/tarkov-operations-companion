@@ -5,7 +5,7 @@ import { SIGHT_HEIGHT } from '../arsenal/ballistics'
 import type { Build } from '../arsenal/gunTypes'
 import type { PartsIndex } from '../arsenal/partPictures'
 import { flightAt } from './rangeFlight'
-import { holdBarHalfCm, tickAt, type ScopeMode } from './rangeScope'
+import { holdBarHalfCm, reticleAt, tickAt, type ScopeMode } from './rangeScope'
 import { sightLine, type SightPoints } from './rangeSight'
 import type { AmmoStats } from '../arsenal/gunTypes'
 
@@ -55,15 +55,32 @@ describe('the sight height of the build', () => {
 
 describe('the hold bar', () => {
   const sfp: ScopeMode = { zoom: 4, zoomMax: 12, fovDeg: 6, reticle: 'r.webp', reticleMrad: 100, tickMrad: 1.2 }
-  it('a quarter wider than the reticle’s marks, which shrink in the view with a second focal plane scope’s zoom', () => {
+  it('a little longer than the reticle’s marks, which shrink in the view with a second focal plane scope’s zoom', () => {
     expect(tickAt(sfp, 4)).toBeCloseTo(1.2, 6)
     expect(tickAt(sfp, 8)).toBeCloseTo(0.6, 6)
     expect(tickAt({ ...sfp, ffp: true }, 8)).toBeCloseTo(1.2, 6)
-    // 1.2 mrad at 100 m is 12 cm; the bar 15 cm across
-    expect(holdBarHalfCm(1000, 100, 1.2)).toBeCloseTo(7.5, 6)
+    // 1.2 mrad at 100 m is 12 cm; the bar 15.6 cm across
+    expect(holdBarHalfCm(1000, 100, 1.2) * 2).toBeCloseTo(15.6, 6)
   })
-  it('never a long stripe: at most 4 % of the view; without known marks 2.4 %', () => {
-    expect(holdBarHalfCm(100, 100, 30) * 2).toBeCloseTo(4, 6)
-    expect(holdBarHalfCm(1000, 100) * 2).toBeCloseTo(24, 6)
+  it('never a long stripe (owner, 24.11.2026: «не такую огромную»): at most 3 % of the view, at least 1 %; without known marks 1.8 %', () => {
+    expect(holdBarHalfCm(100, 100, 30) * 2).toBeCloseTo(3, 6)
+    expect(holdBarHalfCm(1000, 100, 0.01) * 2).toBeCloseTo(10, 6)
+    expect(holdBarHalfCm(1000, 100) * 2).toBeCloseTo(18, 6)
+  })
+})
+
+describe('a first focal plane reticle on steps of magnification (owner, 24.11.2026: «где сетка в первой фокальной плоскости… должно работать правильно»)', () => {
+  const ffp: ScopeMode = { zoom: 1, zoomMax: 8, fovDeg: 30, ffp: true, reticle: 'low.webp', reticleMrad: 535, reticleMax: 'max.webp', reticleMaxMrad: 65,
+    reticleSteps: [{ zoom: 1, file: 'z0.webp', mrad: 535 }, { zoom: 1.5, file: 'z1.webp', mrad: 357 }, { zoom: 2.25, file: 'z2.webp', mrad: 238 }, { zoom: 3.4, file: 'z3.webp', mrad: 158 }, { zoom: 5.1, file: 'z4.webp', mrad: 105 }, { zoom: 8, file: 'z5.webp', mrad: 65 }] }
+  it('the step at or below the magnification: its picture covers the whole view', () => {
+    expect(reticleAt(ffp, 1).file).toBe('z0.webp')
+    expect(reticleAt(ffp, 3).file).toBe('z2.webp')
+    expect(reticleAt(ffp, 3.4).file).toBe('z3.webp')
+    expect(reticleAt(ffp, 8).file).toBe('z5.webp')
+    // at ×3 the view is 535 / 3 ≈ 178 mrad wide: the ×2.25 picture's 238 mrad covers it, the old high-zoom one's 65 mrad did not
+    expect(reticleAt(ffp, 3).mrad!).toBeGreaterThan(535 / 3)
+  })
+  it('a second focal plane reticle keeps its one picture', () => {
+    expect(reticleAt({ ...ffp, ffp: false }, 3).file).toBe('low.webp')
   })
 })

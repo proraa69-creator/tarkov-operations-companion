@@ -8935,3 +8935,36 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
     Optical scopes need rings: in a receiver's scope slot «Оптические прицелы» lists only those that fit the rail directly.
   - Checked on the dev page (RU/EN): M4A1 + EXPS3-0 and + MRS (4 reticles), a single shot's view kick ~72 cm at 50 m and back.
     vitest src/range src/arsenal src/i18n (213), tsc, eslint clean.
+- 24.11.2026 ~02:30, «Полигон» and «Сборка оружия»: rings first, the hold bar, the reticle centred, red dots without zoom, HHS-1's
+  magnifier, first focal plane reticles at every zoom, the scope's corners, the phone's full screen (owner, 24.11.2026: «Сначала мы
+  выбираем кольца и планки, а потом… в следующем окне уже оптические прицелы… ADO P4… перенеси в прицелы на планку»; «вынос… чуть
+  больше, чем риска… и сделай её красной… не такую огромную»; «сетки при увеличении начинают уезжать в сторону»; «на коллиматорах, где
+  нету кратности… не должны приближаться… HHS1 тан… магнифер»; «где сетка в первой фокальной плоскости, а где во второй. Это должно
+  работать правильно»; «Кнопки перезарядки и начать заново перенеси вот в эти края… Справа сверху… кнопку на весь экран… для телефона…
+  Джойстик слева, огонь справа. И перевод в горизонтальное положение»; «Слева сверху… кнопка переключения огня»; «отсечка… Назови его
+  очередями»). Branch claude/range, not pushed, test builds only.
+  - Sight tabs (src/arsenal/sightTabs.ts): a ring is a mount with a seat that takes optical scopes only (Lobaev 30 мм, NF 34 мм…, 18 on
+    the M4A1's receiver); on a rail «Оптические прицелы» lists the rings (and «Кольца» keeps every mount), a scope fitting the rail
+    directly (ADO P4, the ПСО family on the dovetail) goes under «Прицелы на планку и коллиматоры»; in a ring's seat the scopes are one
+    list. Picking a ring opens its seat's window next (ModGrid `onPick(itemId, then)`; «Сборка оружия», «Оружейник», «Полигон»).
+  - Hold bar: E:\SPT-photo\range-assets\tools\mark_steps.py measured the marks' width on the 80th percentile (a ladder's long marks);
+    now the shortest quarter of the marks standing at least three times the line's width out of it. TANGO6T 0.97 → 0.70 mrad, Mark 5HD
+    1.23 → 0.70, PM II 5-25 high zoom 0.19 → 0.11, ATACR high zoom 0.19 → 0.18. The bar 1.3 × that (1–3 % of the view, 1.8 % unknown),
+    3 px with a 1 px rim; red, black on a red reticle as before.
+  - Reticle off centre when zoomed: after a shot the barrel settles a little to the side (the game's after-shot offset) and the view
+    followed only its pitch, so the reticle stood off the middle by a fixed angle that grew on the screen with the magnification. Once
+    the shooting is over the view now turns to the barrel's side offset too (rangeRecoil `followRight`): the reticle is in the middle again.
+  - Red dots: no zoom (collimators.py writes ×1 without zoomMax; 4 min 46 s for 43). HHS-1 (black, tan): the prefab has the G33 twice,
+    in line (pos_1 + its backLens) and flipped (pos_2); the ×1 housing is drawn with it flipped, and the range joins the sight's red dot
+    (collimators.json) and its ×3 magnified mode (scopes.json): ×1 / ×3 buttons, the wheel switches (rangeScope `sightOnBuild`).
+  - First focal plane: the range had two pictures, the lowest zoom's (4096 px shrunk to 1024) and the highest's; past the range's middle
+    the high one covered only the highest zoom's view (PM II 1-8 at ×3: the middle third, the outer posts cut), below it the low one was
+    blown up and blurred. export_reticles.py now draws each mesh reticle on steps ×1.5 apart (2048 px, each covering its zoom's whole
+    view, the blend shape at that FOV as the game weighs it), to_app.py writes `reticleSteps`, the range shows the step at or below the
+    zoom. Second focal plane scopes (texture reticles spanning the optic view) are unchanged. Which is which comes from the game itself
+    (mesh ScopeReticle = FFP; texture = SFP).
+  - Scope corners: fire mode top left (and B), reload bottom left (R), new target bottom right (F); «Убрать отметки» stays above; the
+    killed banner moved to the top middle. On a phone (phone layout or a touch screen) a full screen button top right: the scope over
+    the whole screen, the stick on the left (speed by how far it is pushed, slow near the middle), «Огонь» on the right (held = automatic)
+    with the magazine under it; the browser's full screen and a landscape lock where given, else the picture turned a quarter by CSS
+    while the phone is upright (the stick's way turned back). Burst renamed «Очередями».

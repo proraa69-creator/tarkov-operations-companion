@@ -8,14 +8,15 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { cheapestOffer, computeStats, unlockHint, type BuildStats, type PurchaseAccess } from './buildStats'
 import { formatModifier, formatRub, PartIcon, signedExact, unlockLabel, useQuestNames } from './gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunPart, Weapon } from './gunTypes'
-import { sightTabOf, sightTabs, type SightTab } from './sightTabs'
+import { isScopeSeat, ringSeat, sightTabs, sightTabsOf, type SightTab } from './sightTabs'
 import { ERGO_WEIGHT, RECOIL_WEIGHT } from './tieredBuilds'
 
 /**
  * The modules of a slot in a small window right at its cell, like the game's (owner, 20.11.2026: «как в Таркове открывалось окно…
  * прям возле ячейки… поиска не будет… квадратики с предметами… название и основные характеристики — эргономика и отдача… цену»):
  * a square per module with its picture, part of its name, ergonomics, recoil and price; the one on the weapon framed, the ones that
- * cannot be bought yet greyed at the end. A tap puts the module on, taking off what it does not go with.
+ * cannot be bought yet greyed at the end. A tap puts the module on, taking off what it does not go with; a ring opens its own window
+ * for the optical scope next (src/arsenal/sightTabs.ts).
  */
 
 /** The background-free picture next to an icon: tarkov.dev «-base-image», our server's «-base». */
@@ -175,7 +176,10 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
   cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess
   /** «Показать все модули»: none greyed, the best change first whatever it costs. */
   everything?: boolean
-  anchor: () => Element | null; avoid?: () => DOMRect | null; onPick: (itemId: string) => void; onPickKit?: (kit: MuzzleKit) => void; onRemove: () => void; onClose: () => void
+  anchor: () => Element | null; avoid?: () => DOMRect | null
+  /** `then`: the slot whose window opens next (a ring's seat for the optical scope), by its path. */
+  onPick: (itemId: string, then?: string[]) => void
+  onPickKit?: (kit: MuzzleKit) => void; onRemove: () => void; onClose: () => void
 }) {
   const muzzle = isMuzzleSlot(cell.slot) && Boolean(onPickKit)
   const [sort, setSortState] = useState<GridSort>(readSort)
@@ -205,11 +209,14 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
     .sort((a, b) => (everything ? 0 : Number(a.price === undefined) - Number(b.price === undefined)) || balance(b.after, stats) - balance(a.after, stats) || (a.price ?? Infinity) - (b.price ?? Infinity)),
   [access, ammo, build, catalog, cell.path, cell.slot, everything, muzzle, sort, stats, weapon])
   // a sight slot's tabs: the one chosen, else the one of the module on the weapon, else the first
-  const tabs = useMemo(() => sightTabs(rows.map((row) => row.part)), [rows])
+  const onScopeSeat = isScopeSeat(cell.slot, catalog)
+  const tabs = useMemo(() => sightTabs(rows.map((row) => row.part), catalog, onScopeSeat), [catalog, onScopeSeat, rows])
   const [tabChoice, setTab] = useState<SightTab | null>(null)
-  const onWeapon = cell.part ? sightTabOf(cell.part) : undefined
+  const onWeapon = cell.part ? sightTabsOf(cell.part, catalog, onScopeSeat)[0] : undefined
   const tab = tabs.find((entry) => entry.key === tabChoice)?.key ?? tabs.find((entry) => entry.key === onWeapon)?.key ?? tabs[0]?.key
-  const shown = tab ? rows.filter((row) => sightTabOf(row.part) === tab) : rows
+  const shown = tab ? rows.filter((row) => sightTabsOf(row.part, catalog, onScopeSeat).includes(tab)) : rows
+  // a ring: its seat's window next, for the optical scope
+  const pick = (part: GunPart) => { const seat = ringSeat(part, catalog); onPick(part.id, seat ? [...cell.path, seat.nameId] : undefined) }
   const tabBar = tabs.length > 0 ? <div className="wb-grid-tabs" role="tablist" aria-label={uiText('Вид прицела')}>
     {tabs.map((entry) => <button type="button" key={entry.key} role="tab" aria-selected={entry.key === tab} className={`wb-grid-tab${entry.key === tab ? ' is-on' : ''}`} onClick={() => setTab(entry.key)}>
       {uiText(entry.name)} <span className="wb-grid-tab-count">{entry.count}</span>
@@ -248,7 +255,7 @@ export function ModGrid({ cell, build, weapon, catalog, ammo, stats, access, eve
       const current = part.id === cell.part?.id
       const recoil = part.recoilModifier
       return <button type="button" key={part.id} role="option" aria-selected={current} className={`wb-tile${current ? ' is-current' : ''}${offer || everything ? '' : ' is-locked'}`}
-        onClick={() => onPick(part.id)} title={[part.name, replaces.length ? `${uiText('заменит')}: ${replaces.join(', ')}` : ''].filter(Boolean).join('\n')}>
+        onClick={() => pick(part)} title={[part.name, replaces.length ? `${uiText('заменит')}: ${replaces.join(', ')}` : ''].filter(Boolean).join('\n')}>
         <span className="wb-tile-stats">
           {part.ergonomics !== 0 ? <span className={part.ergonomics > 0 ? 'is-good' : 'is-bad'}>{signedExact(part.ergonomics)}</span> : <span />}
           {recoil !== 0 && <span className={recoil < 0 ? 'is-good' : 'is-bad'}>{formatModifier(recoil).replace(' ', '')}</span>}
