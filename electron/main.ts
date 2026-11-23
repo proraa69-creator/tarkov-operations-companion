@@ -19,7 +19,7 @@ import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearS
 import { scanCollectorScreen } from './collectorScan.js'
 import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
 import { createGunPartResponder } from './gunParts.js'
-import { startExperimental, stopExperimental } from './experimental/index.js'
+import { setGameLogFolders, startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { setMapFloorWheel, startMapFloorWheel, stopMapFloorWheel } from './mapFloorWheel.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
@@ -243,7 +243,10 @@ const logWatcher = createLogWatcher({
   discover: async ({ thorough, extra }) => {
     const found = await discoverAllEftLogs(app.getPath('appData'), thorough ? { fresh: true } : { drives: false, lookupMaxAgeMs: 10 * 60_000 })
     const remembered = await rememberedLogsFolder().catch(() => '')
-    return freshestLogsFolder([...extra, remembered || undefined, ...found])
+    const folders = [...extra, remembered || undefined, ...found]
+    // the Steam build writes its screenshots beside its logs: that folder is followed for the position too
+    setGameLogFolders(folders)
+    return freshestLogsFolder(folders)
   },
   scan: (root, options) => scanLogFolderBySession(root, options),
   identity: (root, options) => scanLogIdentity(root, options),

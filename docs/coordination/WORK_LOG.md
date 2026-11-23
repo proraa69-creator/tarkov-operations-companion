@@ -9047,3 +9047,13 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   -55.4/467 (report 216), «Батя» stage 0 patch -59.09/457.15 (as the server overrides). News (owner's line verbatim): «Запуск: если
   окно не открывается, приложение само пробует другой способ запуска»; «Маяк: новое место - лагерь Прапора и шеврон «Богатырей»».
   deployPath 11/0; gate steps locally: only the 6 machine-only failures (appVersion, staleServer, linux/updater ×3, AdminPanelPage).
+
+## 2026-11-24 — Claude: the position — the Steam build's screenshots folder followed too (claude/steam-screenshots, not released)
+- Owner: «Проверь еще раз функцию местоположения на работоспособность… перед выпуском». Checked: electron/experimental (42 tests),
+  src/overlay/screenshotPosition and LivePlayerMarker pass; today's game screenshot names on this PC parse (x, y, z, yaw); nothing in
+  the tracking changed since 20.11; the app never deletes screenshots.
+- Found: a Steam player (24.11, position stopped) named his screenshots folder `…\steamapps\common\Escape from Tarkov\build\Escape from
+  Tarkov\Screenshots` — beside the Steam build's `build\Logs` (logDiscovery already finds those). The app followed only Documents
+  (and OneDrive) and the folder picked by hand. Now `setGameLogFolders` (electron/main.ts, on every log discovery) adds each
+  `<game>\build\Escape from Tarkov\Screenshots` to the followed folders and the lookup; Windows paths whatever the platform (CI on
+  Linux). A folder that does not exist costs a stat a second. Not verified with a real Steam install (none here).
