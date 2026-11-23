@@ -9119,3 +9119,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   News line to show the owner then (draft, kind improved): «Стиль «Стекло»: в «Тельняшке», «Чёрном мультикаме» и «Снаряжении»
   кнопки как в обычном стиле, под курсором — ткань под стеклом» / ««Glass» style: in «Telnyashka», «Black multicam» and «Gear»
   the buttons are as in the plain style, with the cloth under the glass on hover».
+## 24.11.2026 — Claude: «Смена дня и ночи» — a very dark violet night; four day variants for the owner (claude/daynight-violet, not released)
+
+- Owner: «в режиме смены дня и ночи нужно поменять фиолетовый цвет. Сделай его более темным, он слишком светлый. То есть ночью у нас
+  будет очень темно-фиолетовый цвет. А днем… 4 варианта мне придумай».
+- src/theme/dayNight.ts, the night palette only: the sky over the screen and the menu (--dn-sky) #2c1b54 → #140a28, its glow 20% → 10%,
+  backgrounds and panels darker (bg #0b0815 → #07050d), the lavender accents dimmed (brass #b49cec → #9580cf); text stays readable.
+  Dawn, day and dusk unchanged.
+- Four day variants shown to the owner as pictures only (not in the code): 1 «Ясное небо» (blue sky, sunny gold), 2 «Песок» (desert
+  khaki), 3 «Лес» (fresher green), 4 «Пасмурно» (steel grey). The chosen one replaces OLIVE.day; palettes in the session's scratchpad
+  day-variants.json.
+- Base release/production 95398f05. Checked: dev renderer (vite, Playwright 1280×900, plain and glass, the hour forced through
+  window.__raidosDayNightHour); vitest src/theme 33; tsc -b; eslint. Not pushed, not released; waits with claude/glass-cloth-hover
+  for the owner's «публикуем».
