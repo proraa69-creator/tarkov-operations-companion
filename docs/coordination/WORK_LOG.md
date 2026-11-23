@@ -9063,3 +9063,4 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner, 23.11.2026: «да» — into the next release (not released yet; release/production not pushed). News line proposed to the
   owner: RU «Поиск: находит предмет при любом порядке слов, например «SJ1 боевой стимулятор»», EN «Search: finds an item
   whatever the word order, e.g. «SJ1 combat stimulant»» — playerNews.json entry goes in with the release's version.
+- Owner, 23.11.2026: «Новость не пиши» — no playerNews line for the item search fix; it goes into the next release silently.
