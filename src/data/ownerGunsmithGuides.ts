@@ -2,12 +2,23 @@ import type { BuildGuidePart, Quest } from '../domain/types'
 
 /**
  * Parts the guide sites (src/data/tarkovHelpGunsmith.ts, src/data/wikiGunsmith.ts) leave out of a Gunsmith build, added at
- * the end of their list; the rest of their build, its screenshot and the app's own picture stay as they are.
+ * the end of their list, and the weapon's own parts the build takes off (`withoutSlots`); the rest of their build, its
+ * screenshot and the app's own picture stay as they are.
  *
  * «Оружейник. АКМ» (owner, 16.11.2026: «Внизу у нас не хватало в АКМ приклада и крепления его. ПТ АКМ крепление и сам
  * приклад ПТ1. Все остальное у нас верное»): tarkov.help's build lacks the stock — the ПТ АКМ lock and the ПТ-1 stock.
+ *
+ * «Оружейник. АК-105» (a player via the owner, 23.11.2026: «на ак 105 стоит приклад и стоковая ручка, а нужно убрать приклад и
+ * ручка молот», with the game's screen): the task's weight limit is 4.8 kg and the site's parts on the weapon's own stock and
+ * grip weigh 4.81 — the build has no stock and the Molot bakelite grip.
  */
-interface OwnerAddition { questId: string; weaponId: string; parts: Array<{ itemId: string; name: string; nameEn: string }> }
+interface OwnerAddition {
+  questId: string
+  weaponId: string
+  parts: Array<{ itemId: string; name: string; nameEn: string }>
+  /** The weapon's slots the build leaves empty (BuildGuide.withoutSlots). */
+  withoutSlots?: string[]
+}
 
 export const OWNER_GUNSMITH_ADDITIONS: readonly OwnerAddition[] = [
   {
@@ -17,6 +28,14 @@ export const OWNER_GUNSMITH_ADDITIONS: readonly OwnerAddition[] = [
       { itemId: '5b222d335acfc4771e1be099', name: 'Замок-адаптер Зенит "ПТ" для АКМ', nameEn: 'AKM Zenit PT Lock' },
       { itemId: '5b222d405acfc400153af4fe', name: 'Приклад Зенит "ПТ-1 Классика" для АК', nameEn: 'AK Zenit PT-1 "Klassika" stock' },
     ],
+  },
+  {
+    questId: '5ae327c886f7745c7b3f2f3f',
+    weaponId: '5ac66d9b5acfc4001633997a',
+    parts: [
+      { itemId: '59e6318286f77444dd62c4cc', name: 'Пистолетная рукоятка бакелитовая Молот для АК', nameEn: 'AK bakelite pistol grip (Molot)' },
+    ],
+    withoutSlots: ['mod_stock'],
   },
 ]
 
@@ -39,7 +58,13 @@ export function withOwnerGuides(quests: Quest[], english = false): Quest[] {
           ...(build.partIds.includes(part.itemId) ? { required: true } : {}),
           sellers: [],
         }))
-        return added.length ? { ...objective, build: { ...build, guide: { ...guide, parts: [...guide.parts, ...added] } } } : objective
+        const without = (addition.withoutSlots ?? []).filter((slot) => !guide.withoutSlots?.includes(slot))
+        if (!added.length && !without.length) return objective
+        return { ...objective, build: { ...build, guide: {
+          ...guide,
+          parts: [...guide.parts, ...added],
+          ...(without.length ? { withoutSlots: [...(guide.withoutSlots ?? []), ...without] } : {}),
+        } } }
       }),
     }
   })

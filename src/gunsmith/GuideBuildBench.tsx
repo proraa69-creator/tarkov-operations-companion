@@ -17,16 +17,18 @@ import { assembleGuideBuild } from './guideBuild'
  * скриншот. Маленькое окошечко. Скриншот сборки назови»): the guide's build put together part by part (src/gunsmith/guideBuild.ts),
  * every module can be changed in the window at its cell, «Сборка из задания» puts it back; the screenshot small below it.
  */
-export function GuideBuildBench({ weapon, catalog, partIds, access, screenshot, alt, onScreenshotError }: {
+export function GuideBuildBench({ weapon, catalog, partIds, withoutSlots, access, screenshot, alt, onScreenshotError }: {
   weapon: Weapon
   catalog: GunCatalog
   partIds: readonly string[]
+  /** The weapon's slots the build leaves empty (a stock taken off for the weight: BuildGuide.withoutSlots). */
+  withoutSlots?: readonly string[]
   access?: PurchaseAccess
   screenshot?: string
   alt: string
   onScreenshotError?: () => void
 }) {
-  const guide = useMemo(() => assembleGuideBuild(weapon, partIds, catalog).build, [catalog, partIds, weapon])
+  const guide = useMemo(() => assembleGuideBuild(weapon, partIds, catalog, withoutSlots).build, [catalog, partIds, weapon, withoutSlots])
   const [state, setState] = useState({ guide, build: guide })
   // a new task or a new catalogue starts from the guide's build again
   const build = state.guide === guide ? state.build : guide

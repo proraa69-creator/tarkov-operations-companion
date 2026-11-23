@@ -606,6 +606,11 @@ export interface BuildGuide {
   /** The game's «Сборки оружия» screen with this build finished (tarkov.help). */
   image?: string
   parts: BuildGuidePart[]
+  /**
+   * Slots (their nameId: mod_stock, …) the build leaves empty though the weapon comes with a part in them — a stock taken off
+   * for the weight limit, which a list of parts to buy cannot say (src/data/ownerGunsmithGuides.ts).
+   */
+  withoutSlots?: string[]
 }
 
 /** One part of a build guide: the item, whether it must be installed, who sells it. */
