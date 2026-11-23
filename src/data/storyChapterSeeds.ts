@@ -88,6 +88,18 @@ export const TOUR_STAGE_POINTS: Record<number, StoryStagePointSeed[]> = {
   21: [{ mapId: 'factory', x: -26.51, z: -30.02, note: 'Найти вход в секретный объект на локации Завод' }, { mapId: 'streets-of-tarkov', x: 212.02, z: 83.49, note: 'Найти вход в секретный объект на локации Улицы Таркова' }, { mapId: 'the-lab', x: -173.33, z: -363.16, y: 5.2, note: 'Осмотреть офисы топ-менеджеров (O21, 2-й уровень)', outline: [[-181.17, -368.2], [-180.58, -355.16], [-161.96, -355.16], [-161.96, -368.91], [-180.97, -368.38]] }, { mapId: 'the-lab', x: -129.3, z: -313.32, y: 5.2, note: 'Осмотреть серверную (2-й уровень, у ангара)', outline: [[-139.63, -329.71], [-113.9, -329.5], [-114.36, -289.16], [-139.18, -288.95], [-139.41, -329.3]] }, { mapId: 'the-lab', x: -131.08, z: -273.23, y: -3.7, note: 'Найти путь отхода через водосток (подвал, у выхода «Накопительный коллектор»)' }],
 }
 
+/**
+ * The Unheard: «Узнать больше о деятельности А.П.» and «…о роли А.П.» are done in The Lab, at the same places as «Найти в
+ * Лаборатории любые упоминания А.П.» (one of two whiteboards, two audio tapes in the lecture room — the EFT wiki, tarkov-market and
+ * tarkov101 agree; a player, 24.11.2026: «почему нельзя посмотреть точки на карте по квесту неизвестные. найти больше информации по
+ * АП»; owner: «Да, добавь»). They had no map at all, so the map stayed empty on them.
+ */
+const AP_LAB_POINTS: StoryStagePointSeed[] = [
+  { mapId: 'the-lab', x: -212.46, z: -305.96, y: 5.2, outline: [[-220.56, -311.24], [-220.29, -297.82], [-200.57, -298.29], [-200.3, -311], [-220.56, -311.47]] },
+  { mapId: 'the-lab', x: -152.5, z: -403.4, y: 5.2, outline: [[-160.43, -411.25], [-160.05, -391.5], [-140.79, -391.97], [-140.78, -411.02], [-160.44, -411.25]] },
+  { mapId: 'the-lab', x: -263.16, z: -366.4, y: 5.2, outline: [[-272.52, -371.35], [-272.43, -358.93], [-249.12, -359.02], [-249.03, -371.18], [-272.71, -371.51]] },
+]
+
 export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
   {
     id: 'falling-skies', order: 2, en: 'Falling Skies', ru: 'Небеса в огне', aliases: ['Небеса в огне', 'Падающие небеса', 'Falling Skies'], requires: ['tour'],
@@ -178,9 +190,9 @@ export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
       { en: 'Locate and obtain the documents on the Blue Ice fuel catalyst research', ru: 'Найти и забрать документы об исследовании катализатора топлива «Голубой лёд»', mapIds: ['factory'], points: [{ mapId: 'factory', x: -20.57, z: 47.24, outline: [[-17.54, 49.61], [-17.54, 43.77], [-25.14, 43.77], [-25.14, 49.41], [-17.49, 49.66]] }] },
       { en: 'Find as much information as possible about the plans of The Unheard', ru: 'Найти как можно больше информации о планах Неизвестных', mapIds: [] },
       { en: 'Learn more about The Unheard', ru: 'Узнать больше о Неизвестных', mapIds: [] },
-      { en: 'Learn more about A.P.\'s activities', ru: 'Узнать больше о деятельности А.П.', mapIds: [] },
-      { en: 'Learn more about A.P.\'s role', ru: 'Узнать больше о роли А.П.', mapIds: [] },
-      { en: 'Search for any mention of A.P. in The Lab', ru: 'Найти в Лаборатории любые упоминания А.П.', mapIds: ['the-lab'], points: [{ mapId: 'the-lab', x: -212.46, z: -305.96, y: 5.2, outline: [[-220.56, -311.24], [-220.29, -297.82], [-200.57, -298.29], [-200.3, -311], [-220.56, -311.47]] }, { mapId: 'the-lab', x: -152.5, z: -403.4, y: 5.2, outline: [[-160.43, -411.25], [-160.05, -391.5], [-140.79, -391.97], [-140.78, -411.02], [-160.44, -411.25]] }, { mapId: 'the-lab', x: -263.16, z: -366.4, y: 5.2, outline: [[-272.52, -371.35], [-272.43, -358.93], [-249.12, -359.02], [-249.03, -371.18], [-272.71, -371.51]] }] },
+      { en: 'Learn more about A.P.\'s activities', ru: 'Узнать больше о деятельности А.П.', mapIds: ['the-lab'], points: AP_LAB_POINTS },
+      { en: 'Learn more about A.P.\'s role', ru: 'Узнать больше о роли А.П.', mapIds: ['the-lab'], points: AP_LAB_POINTS },
+      { en: 'Search for any mention of A.P. in The Lab', ru: 'Найти в Лаборатории любые упоминания А.П.', mapIds: ['the-lab'], points: AP_LAB_POINTS },
       { en: 'Locate A.P.\'s room in the Health Resort', ru: 'Найти номер А.П. в Санатории', mapIds: ['shoreline'], steps: [{ en: 'Find out which room A.P. was assigned to', ru: 'Выяснить, в каком номере жил А.П.', optional: true }], points: [{ mapId: 'shoreline', x: -303.89, z: -90.99, outline: [[-268.75, -105.83], [-299.8, -105.49], [-299.97, -92.2], [-306.87, -93.24], [-363.62, -93.41], [-363.62, -72.36], [-299.8, -72.36], [-299.8, -84.27], [-268.41, -84.96], [-268.23, -105.83]] }, { mapId: 'shoreline', x: -194.53, z: -84.99, outline: [[-188.29, -92.91], [-204.9, -93.17], [-204.52, -72.85], [-187.01, -72.72], [-187.91, -93.29]] }] },
       { en: 'Obtain A.P.\'s personal belongings', ru: 'Забрать личные вещи А.П.', mapIds: [] },
       { en: 'Obtain A.P.\'s data storage device', ru: 'Забрать накопитель данных А.П.', mapIds: [], steps: [{ en: 'Take the flash drive from A.P.\'s room', ru: 'Забрать флешку из номера А.П.' }] },

@@ -9546,3 +9546,13 @@ Not pushed, not released, nothing uploaded.
   «Кольца» only; picking one still opens its seat's window, which lists the scopes of that ring (one list, no tabs). Тир 12.
 - 24.11.2026 ~03:20, the range's recoil a little under the game's (owner: «чтобы она чуть-чуть отличалась от оригинальной. Чуть-чуть
   меньше отдачу сделай»): rangeRecoil `RANGE_RECOIL_SCALE = 0.92` on every kick (the camera's follows it). Тир 13.
+
+## 2026-11-24 — Claude: «Неизвестные» — the steps about A.P. on the Lab map (claude/unheard-ap-points, not released)
+- A player in the support chat (24.11 00:31): «почему нельзя посмотреть точки на карте по квесту неизвестные. найти больше информации
+  по АП»; owner: «Да, добавь». The Unheard's «Узнать больше о деятельности А.П.» and «…о роли А.П.» had `mapIds: []` and no points,
+  so the map stayed empty on them. The EFT wiki, tarkov-market and tarkov101 put both in The Lab, at the places of «Найти в
+  Лаборатории любые упоминания А.П.» (one of two whiteboards, two audio tapes in the lecture room). The game's scenes have no
+  «unheard» zone and SPT has no story chapters, so no game zone to check against.
+- src/data/storyChapterSeeds.ts: `AP_LAB_POINTS` (the three Lab areas the Lab step already had, y 5.2) on all three steps.
+  storyChapters.test.ts: a test. vitest (story data, routes, guide, floors, progression, endings) 198/198, tsc, eslint clean. Not
+  checked on the dev map (needs a profile at that stage); the Lab step's same points already show there.

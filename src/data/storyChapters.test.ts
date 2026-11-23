@@ -127,3 +127,16 @@ describe('story chapter titles (the server quest base: nameRu, nameEn, ocrAliase
     expect(storyChapterTitles({ id: '5936d90786f7742b1420ba5b', name: 'Дефицит' })).toBeUndefined()
   })
 })
+
+describe('«Неизвестные»: the steps about A.P. (a player, 24.11.2026: «почему нельзя посмотреть точки на карте по квесту неизвестные»)', () => {
+  it('«Узнать больше о деятельности/роли А.П.» show the Lab places, as «Найти в Лаборатории любые упоминания А.П.»', () => {
+    const chapter = STORY_CHAPTER_SEEDS.find((entry) => entry.id === 'the-unheard')!
+    const stage = (ru: string) => chapter.stages.find((entry) => entry.ru === ru)!
+    const lab = stage('Найти в Лаборатории любые упоминания А.П.')
+    for (const ru of ['Узнать больше о деятельности А.П.', 'Узнать больше о роли А.П.']) {
+      expect(stage(ru).mapIds).toEqual(['the-lab'])
+      expect(stage(ru).points).toEqual(lab.points)
+      expect(stage(ru).points?.length).toBe(3)
+    }
+  })
+})
