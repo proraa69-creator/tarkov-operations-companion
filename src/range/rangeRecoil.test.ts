@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createRecoil, RECOIL_TICK, weaponRecoil } from './rangeRecoil'
+import { createRecoil, RANGE_RECOIL_SCALE, RECOIL_TICK, weaponRecoil } from './rangeRecoil'
 import { seededRandom } from './rangeModel'
 
 /** Full-auto: the barrel's climb sampled as each next bullet leaves (the game's 800 rpm M4A1: a shot every 4.5 ticks). */
@@ -85,5 +85,11 @@ describe('the game\'s recoil (M4A1 default build, M855, aiming, standing)', () =
     const soft = burst('5447a9cd4bdc2dbd208b4567', -0.45, 0, 6, 300)
     expect(hot[4]!.up).toBeGreaterThan(m4[4]!.up)
     expect(soft[4]!.up).toBeLessThan(m4[4]!.up)
+  })
+})
+
+describe("the range's own recoil (owner, 24.11.2026: «чуть-чуть меньше отдачу сделай»)", () => {
+  it("a little softer than the game's: every kick 8 % under it", () => {
+    expect(RANGE_RECOIL_SCALE).toBe(0.92)
   })
 })

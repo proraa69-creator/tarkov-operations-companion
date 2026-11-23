@@ -8971,3 +8971,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - 24.11.2026 ~02:40, the sight slot: no «Оптические прицелы» tab on a rail (owner: «оптические прицелы убери. Они будут появляться только
   когда выбраны кольца… второй блок для выбора прицела… прицелы… которые подходят именно на это кольцо»): the rings are under
   «Кольца» only; picking one still opens its seat's window, which lists the scopes of that ring (one list, no tabs). Тир 12.
+- 24.11.2026 ~03:20, the range's recoil a little under the game's (owner: «чтобы она чуть-чуть отличалась от оригинальной. Чуть-чуть
+  меньше отдачу сделай»): rangeRecoil `RANGE_RECOIL_SCALE = 0.92` on every kick (the camera's follows it). Тир 13.

@@ -77,6 +77,11 @@ const CONVERGENCE = 1
 /** The player prefab: incoming strength, its random range, the progress from the 2nd shot, the shot's share to the hand, the return curve,
  * the stable mode's limit, its random reach and pull, the camera's return and damping. */
 const INCOMING = 0.1399
+/**
+ * The range's own recoil, a little under the game's (owner, 24.11.2026: «Сделай ее, чтобы она чуть-чуть отличалась от оригинальной.
+ * Чуть-чуть меньше отдачу сделай»): every kick, the barrel's and the camera's that follows it, 8 % softer.
+ */
+export const RANGE_RECOIL_SCALE = 0.92
 const STRENGTH: [number, number] = [0.9, 1.15]
 const PROGRESS_SHOT = 2
 const HAND_SHARE = 0.15
@@ -122,7 +127,7 @@ export function createRecoil(weapon: WeaponRecoil, modsRecoil: number, roundReco
   const rand = (lo: number, hi: number) => lo + (hi - lo) * random()
   const N = Math.max(1, weapon.stableShot)
   const f0 = Math.max(0, 1 + modsRecoil)
-  const base = (baseUp * f0 + VERTICAL_BONUS) * INCOMING
+  const base = (baseUp * f0 + VERTICAL_BONUS) * INCOMING * RANGE_RECOIL_SCALE
   const strength = 1 + roundRecoil
   const returnSpeed = weapon.returnSpeed * CONVERGENCE
   const s = {
