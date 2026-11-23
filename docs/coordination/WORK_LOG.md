@@ -9148,3 +9148,17 @@ Not pushed, not released, nothing uploaded.
   (dark spots in the sky of the pickup's frame — «Нужный пикап» keeps its wiki photo —, two close-ups of bare rock, three
   cameras inside a bush) in eval\manual-reject.json. Quest photos own 219 → 323, wiki 875 → 804. Data tests 568/568, typecheck ok.
   Pictures: E:\SPT-photo\server-upload\woods (198 files) with the release.
+
+## 2026-11-24 00:10 — Claude: Woods battle pass documents laid exactly as on the downloaded photos; no bots in the photo raids
+
+- Woods: the 26 downloaded pictures marked by eye (bpdocs\woods-marks.json); a first pass (run woods-bpmatch, nothing laid) found
+  our frames for 20; the rest laid at the live spawn point. Run woods-bpdocs6 (+ woods-bpdocs7 for one place): every frame looked
+  at by eye. 19 pictures repeated exactly (14 replaced by our matched frame with the document in it, 2 by our own frame of the
+  place, 3 by the close-up; every one with its close-up). 7 keep the guide's picture: the offline copy differs there (the north
+  bunker's barrel under a tarp is a radio tower here, the camp trailer's chair, the cultists' house, the USEC checkpoint's boxes),
+  or there is no flat surface (the plane's cockpit, the burnt SUV), or the folding stool's seat is smaller than the document.
+  eval\manual-reject.json / manual-accept.json hold the eye checks. Data tests 568/568, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\woods-docs6 (88 files) with the release.
+- Owner 23.11 ~23:45: «отключи, чтобы ботов не было вообще на карте. При съемке». The worker set only the waves' NoBots; the
+  raid's own BotSettings stayed AsOnline (a dead soldier lay in a Customs frame). Now BotSettings.BotAmount=NoBots and the bosses
+  off, and before every point everyone but the player is taken off the map (first run: 6 bots and 33 bodies removed on Woods).
