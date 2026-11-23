@@ -51,14 +51,22 @@ describe('the photos of the battle pass documents', () => {
   it('a point gets the photos of the nearest spot of its kind, and nothing from a spot further off', () => {
     // The old gas station on Customs: financial documents on the desk, project documentation by the door, 7 metres apart.
     const financial = pointPhotos(guide, 'customs', [-186.2, 317.6], ['financial'])
-    // Since 23.11.2026 the place is followed by the document laid there by the photo worker, up close.
-    expect(financial.map((id) => guide.photos[id]!.en)).toEqual(['On the desk inside old gas station building.', 'The document in place.'])
+    // owner, 24.11.2026: one photo per document place, the document itself seen in it (the close-up of the document laid exactly
+    // where the guide's picture shows it), with the place's words; no approach
+    expect(financial.map((id) => guide.photos[id]!.en)).toEqual(['On the desk inside old gas station building.'])
+    expect(guide.files[financial[0]!]).toMatchObject({ own: true })
     const project = pointPhotos(guide, 'customs', [-179.9, 316], ['project'])
-    // owner, 23.11.2026: each document laid exactly where the guide's picture shows it, then seen up close
-    expect(project.map((id) => guide.photos[id]!.en)).toEqual(['Inside the old gas station building next to the entrance door.', 'The document in place.'])
-    // A point with both kinds shows both, and the same photo once: the library's two financial places and its project shelf, each
-    // with its close-up (23.11.2026).
-    expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(6)
+    expect(project.map((id) => guide.photos[id]!.en)).toEqual(['Inside the old gas station building next to the entrance door.'])
+    // A point with both kinds shows both, one photo each: the library's financial place and its project shelf.
+    expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(2)
+    // no map has a document place with more than one photo of a kind
+    for (const [mapId, spots] of Object.entries(guide.spots)) {
+      if (!['customs', 'woods', 'interchange'].includes(mapId)) continue
+      for (const spot of spots) {
+        const kinds = spot.photos.map((id) => guide.photos[id]!.kind)
+        expect(new Set(kinds).size).toBe(kinds.length)
+      }
+    }
     // Too far from anything of this kind.
     expect(pointPhotos(guide, 'customs', [-186.2, 317.6], ['medical'])).toEqual([])
     expect(pointPhotos(guide, 'customs', [0, 0], ['financial'])).toEqual([])

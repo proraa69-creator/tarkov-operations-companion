@@ -9216,3 +9216,18 @@ Not pushed, not released, nothing uploaded.
 - Next (owner: «В квесте таможни отследить направление до сих пор часть снимков не наша… Тебе нужно снимать все снимки, которые
   есть»): «Отследить отправление» (675c047fa46173572a0bd878) has 6 wiki photos left — the worker found no place to stand there;
   they are to be shot by probes (given poses scored against each picture) in a Customs raid after the Interchange quests.
+
+## 2026-11-24 05:40 — Claude: one photo per battle pass document place; laid things whole in view
+
+- Owner 24.11 (through the parent session): «Везде, где у нас есть документы боевого пропуска. Сделаю только одно фото. На котором
+  видно сам документ. Очень подхода не надо… Только одну фотографию»; «если ты кладешь предметы сам… делай так, чтобы этот предмет не
+  застревал в текстурах… чтобы у него все края были видны и он лежал свободно».
+- E:\SPT-photo\bpdocs\docs_one.py (in integrate_docs.py after integrate_all): per guide picture only our close-up of the laid document
+  (with the place's words), else our frame of the place, else the picture; approaches out. Customs, Woods and Interchange rebuilt
+  (Customs and Woods also through docs_assign now: each picture at its own spawn point; the Customs library picture 9ac6be90 stays out,
+  its spot marked `none`). Customs 29 close-ups, Woods 19, Interchange 17 + 1 place frame (its close-up was not approved).
+  Every close-up of a document that the worker counted 5 of 6 parts seen was looked at by eye: the document lies free and whole.
+- Photo worker (Worker.cs CloseDoc, backup .bak-edges-20261124, build out-edges, installed): a close-up counts only when the four
+  corners of the document's top face (its own box as it lies), its top and its centre are all seen; else the nearest view, logged
+  «PART HIDDEN» for the eye check.
+- documentGuide.test.ts: one photo per place (the gas station, the library), no place with two photos of a kind. Data tests 569/569.
