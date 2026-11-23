@@ -14,6 +14,7 @@ import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type F
 import { figureLayers } from './rangeFigures'
 import { useFigureIndex, useFigureUrls, useRangeJson } from './rangeFigureSource'
 import { RangeScopeView } from './RangeScopeView'
+import { RangeScopePicker } from './RangeScopePicker'
 import { cmToMrad, DROP_TABLE_DISTANCES, holdover, markStepAt, mradToMoa, type ScopeData } from './rangeScope'
 import { swayMrad, swayNow } from './rangeSway'
 import { RangeHelpTip } from './RangeHelpTip'
@@ -421,12 +422,9 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         <div className="segmented-filter">
           {fireModes.map((value) => <button key={value} type="button" className={mode === value ? 'active' : ''} onClick={() => setFireMode(value)}>{pick(FIRE_MODE_NAMES[value] ?? [value, value], lang)}</button>)}
         </div>
-        <label className="range-inline"><span>{t('Прицел', 'Scope')}</span>
-          <select className="select range-scope-select" value={scopeId} onChange={(event) => { setScopeId(event.target.value); setScopeModeIndex(0) }}>
-            <option value="">{t('Без оптики', 'No optic')}</option>
-            {(scopes ?? []).map((entry) => <option key={entry.id} value={entry.id}>{lang === 'en' ? entry.en : entry.ru}</option>)}
-          </select>
-        </label>
+        <div className="range-inline"><span>{t('Прицел', 'Scope')}</span>
+          <RangeScopePicker scopes={scopes ?? []} value={scopeId} onChange={(id) => { setScopeId(id); setScopeModeIndex(0) }} parts={catalog.mods} lang={lang} />
+        </div>
         {scope && scope.modes.length > 1 && <div className="segmented-filter">
           {scope.modes.map((entry, index) => <button key={index} type="button" className={index === scopeModeIndex ? 'active' : ''} onClick={() => setScopeModeIndex(index)}>×{entry.zoom}{entry.zoomMax && entry.zoomMax > entry.zoom ? `–${entry.zoomMax}` : ''}</button>)}
         </div>}
