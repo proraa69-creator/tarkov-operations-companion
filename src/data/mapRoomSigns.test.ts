@@ -205,4 +205,10 @@ describe('items behind a locked door (report №114)', () => {
     expect(behindLockedDoor(rooms, [165.4, 181.7], 'Основной')).toBe(false)
     expect(behindLockedDoor(rooms, [175, 181.7], '2 этаж')).toBe(false)
   })
+
+  it('leaves room 205 of the dorm open: the jacket with «Ключ от спецтехники» is under no padlock (owner, 24.11.2026)', () => {
+    const next = { ...door, id: 'customs-lock-9ef40db141234055ce637e5031aee1d536044ae1', position: [150.27, 176.04] as [number, number], height: 3.84 } as MapMarker
+    const jacket: [number, number] = [151.08, 179.38]
+    expect(behindLockedDoor(lockedRooms(customs, [next]), jacket, '2 этаж', 3.92)).toBe(false)
+  })
 })
