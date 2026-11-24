@@ -7,7 +7,7 @@
 
 .locale-switch.language-menu {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 90;
-  flex-direction: column; gap: 2px; min-width: 176px; padding: 4px;
+  flex-direction: column; gap: 2px; min-width: 214px; padding: 4px;
   background: color-mix(in srgb, var(--bg-elevated, #111713) 97%, transparent);
   border-color: var(--line-strong, var(--line));
   box-shadow: 0 14px 32px rgb(0 0 0 / 48%);
