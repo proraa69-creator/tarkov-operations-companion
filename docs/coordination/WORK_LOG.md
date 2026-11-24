@@ -9724,3 +9724,12 @@ Not pushed, not released, nothing uploaded.
   напоминает…» test now expects our own frames at its places; documentGuide.test.ts checks Streets for one photo per place. Data tests with
   the photo components 574/574, map and objective-photo components 62/62, typecheck ok. Pictures: E:\SPT-photo\server-upload\streets-of-tarkov (386) and -docs6 (94), on the
   server with this entry (eval\upload_guides.py). Not in a release yet (after 0.6.0.339).
+
+## 2026-11-24 12:10 — Claude: Streets of Tarkov places added to 0.6.0.340 (not yet published)
+
+- On the photo session's word (a705d7f3 ready after 0.6.0.339) and the owner's «публикуй все сделанные скриншоты актуальные»:
+  claude/quest-photos-all 1eccf629 + a705d7f3 merged over 580b10cf (the cloud session's 0.6.0.340, «Полигон» on a phone), plus the
+  0.6.0.339 live note (5857a1bf). Same version 0.6.0.340 (not published yet); its updateHistory row gets a 4th line, its player
+  news «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
+  src/data/questGuidePhotos.json, documentGuidePhotos.json, their two tests and these two data files change. For the 13:00 Bangkok
+  window, not started by hand. The photo session says its 1384 pictures are all on the server (0 missing).
