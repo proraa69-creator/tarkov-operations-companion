@@ -64,7 +64,10 @@ describe('«Язык игры» (24.11.2026)', () => {
     expect(sanitize({}).gameLanguage).toBe('en')
     expect(sanitize({ gameLanguage: 'zh' }).gameLanguage).toBe('zh')
     expect(sanitize({ gameLanguage: 'de' }).gameLanguage).toBe('de')
-    expect(sanitize({ gameLanguage: 'fr' }).gameLanguage).toBe('en')
+    expect(sanitize({ gameLanguage: 'fr' }).gameLanguage).toBe('fr')
+    expect(sanitize({ gameLanguage: 'tr' }).gameLanguage).toBe('tr')
+    // Ukrainian is an interface language only: the game has none.
+    expect(sanitize({ gameLanguage: 'uk' }).gameLanguage).toBe('en')
     expect(sanitize({ gameLanguage: 7 }).gameLanguage).toBe('en')
     expect(sanitize({ gameLanguage: 'auto' }).gameLanguage).toBe('en')
   })

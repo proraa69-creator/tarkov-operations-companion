@@ -27,25 +27,26 @@ export function isTasksMenuText(text: string, language?: GameLanguage | null) {
 function isGameLanguageTasksMenu(text: string, words: LanguageWords) {
   const lower = text.toLowerCase()
   if (words.traderScreen.test(lower)) return false
-  const has = (word: string) => Boolean(word) && new RegExp(words.word(word), 'iu').test(lower)
+  /** One of the wordings of a word on the frame (Spanish has two wordings of some). */
+  const has = (list: readonly string[]) => list.length > 0 && new RegExp(words.any(list), 'iu').test(lower)
   const columns = words.words.columns.filter(has).length
   const strong = [
     has(words.words.anyLocation),
-    has(words.words.status.active),
+    words.status.active.test(lower),
     columns >= 4,
-    words.words.taskItems.some(has),
+    words.words.taskItems.some((item) => has([item])),
     has(words.words.operational),
   ].filter(Boolean).length
   if (!strong) return false
   if (words.notTasks.test(lower) && strong < 2) return false
   const weak = [
-    words.words.tasks.some(has),
-    has(words.words.status.ready),
+    has(words.words.tasks),
+    words.status.ready.test(lower),
     has(words.words.status.available),
     has(words.words.status.failed),
     has(words.words.status.locked),
     columns >= 2 && columns < 4,
-    words.words.paneHeadings.some(has),
+    has(words.words.paneHeadings),
   ].filter(Boolean).length
   return strong + weak >= 2
 }

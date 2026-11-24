@@ -4,17 +4,18 @@
  * игру нельзя внедряться … Пользователь сам выберет язык. Стандартный язык английский»).
  *
  * Russian and English are read as before, with one engine for both, so a Russian game keeps working under the default
- * «English»; German, Japanese and Simplified Chinese each get their own model beside the English one, since the game
- * keeps many English words in those languages (map names, «EXFIL», the traders).
+ * «English»; every other language of the game (German, Japanese, Simplified Chinese, Polish, Spanish, Brazilian
+ * Portuguese, French, Korean, Turkish) gets its own model beside the English one, since the game keeps many English words
+ * in those languages (map names, «EXFIL», «TRANSIT», the traders).
  */
-export type GameLanguage = 'en' | 'ru' | 'de' | 'ja' | 'zh'
+export type GameLanguage = 'en' | 'ru' | 'de' | 'ja' | 'zh' | 'pl' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
 /** The player's choice in the app's settings. */
 export type GameLanguageSetting = GameLanguage
 /** The game languages beyond Russian and English: their words and names are added to the Russian and English ones. */
 export type ExtraGameLanguage = Exclude<GameLanguage, 'ru' | 'en'>
 
 /** In the order of the settings' list: English first, the default. */
-export const GAME_LANGUAGES: readonly GameLanguage[] = ['en', 'ru', 'de', 'ja', 'zh']
+export const GAME_LANGUAGES: readonly GameLanguage[] = ['en', 'ru', 'de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr']
 export const GAME_LANGUAGE_SETTINGS: readonly GameLanguageSetting[] = GAME_LANGUAGES
 export const DEFAULT_GAME_LANGUAGE: GameLanguage = 'en'
 
@@ -29,22 +30,24 @@ export function resolveGameLanguage(setting: unknown): GameLanguage {
   return isGameLanguage(setting) ? setting : DEFAULT_GAME_LANGUAGE
 }
 
-/** German, Japanese or Chinese; null for Russian and English (read as before). */
+/** The languages read with their own words and names beside the Russian and English ones. */
+export const EXTRA_GAME_LANGUAGES: readonly ExtraGameLanguage[] = ['de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr']
+
+/** A language beyond Russian and English (German, Japanese, Chinese, Polish…); null for Russian and English (read as before). */
 export function extraGameLanguage(language: string | null | undefined): ExtraGameLanguage | null {
-  return language === 'de' || language === 'ja' || language === 'zh' ? language : null
+  return (EXTRA_GAME_LANGUAGES as readonly string[]).includes(language ?? '') ? language as ExtraGameLanguage : null
 }
+
+/** Tesseract's model of each language beyond Russian and English (tessdata_fast). */
+const MODELS: Record<ExtraGameLanguage, string> = { de: 'deu', ja: 'jpn', zh: 'chi_sim', pl: 'pol', es: 'spa', pt: 'por', fr: 'fra', ko: 'kor', tr: 'tur' }
 
 /**
  * The Tesseract models for a game language: the language's own and English (the game keeps English words in every
  * language). Russian and English share one engine, as before.
  */
 export function ocrModel(language: GameLanguage | null | undefined): string {
-  switch (language) {
-    case 'de': return 'deu+eng'
-    case 'ja': return 'jpn+eng'
-    case 'zh': return 'chi_sim+eng'
-    default: return 'rus+eng'
-  }
+  const extra = extraGameLanguage(language)
+  return extra ? `${MODELS[extra]}+eng` : 'rus+eng'
 }
 
 /** The model files a Tesseract language string needs («deu+eng» → deu, eng). */
@@ -53,7 +56,10 @@ export function ocrModelFiles(model: string): string[] {
 }
 
 /** Every model file the app ships (electron/tessdata, the phone's ocr/ folder). */
-export const OCR_MODEL_FILES = ['rus', 'eng', 'deu', 'jpn', 'chi_sim'] as const
+export const OCR_MODEL_FILES = ['rus', 'eng', 'deu', 'jpn', 'chi_sim', 'pol', 'spa', 'por', 'fra', 'kor', 'tur'] as const
 
 /** Written with Chinese characters or Japanese kana: the game's text in Japanese or Chinese. */
 export const isCjkLanguage = (language: GameLanguage | null | undefined) => language === 'ja' || language === 'zh'
+
+/** Written in Hangul, with spaces between words: the game's text in Korean. */
+export const isHangulLanguage = (language: GameLanguage | null | undefined) => language === 'ko'

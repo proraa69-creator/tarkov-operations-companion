@@ -7,7 +7,7 @@ import { inferStoryStageIndex, storyStageEvidence, storyStageHits } from './stor
 import type { GameLanguage } from './gameLanguage'
 import { languageWords, type LanguageWords } from './gameWordPatterns'
 import { gameNames, gameNamesVersion, gameQuestTitle } from '../data/gameNames'
-import { letterWeight } from '../shared/cjk'
+import { foldTurkishI, letterWeight } from '../shared/cjk'
 
 const SKIP_LINE = /^(задачи|задания|задание|текущие|выполненные|недоступные|сюжетные|побочные|оперативные|завершенные|заблокированные|завершить|уровень лояльности|уровень лояльности \d+|найти|поиск|фильтр|торговцы|торговец|торговля|услуги|карта|уровень|награда|награды|цели|цель|описание|kappa|капа|pmc|scav|чат|персонаж|сводка|опыт|глава истории|история|локация|статус|прогресс|класс|тип|назад|общее|вещи|здоровье|умения|достижения|престиж|убежище|барахолка|сборки|справочник|сообщения|опрос|расширения|любая локация|активно!?|на персонаже|в схроне|pvp zone|берег|таможня|завод|развязка|резерв|маяк|лаборатория|эпицентр|терминал|улицы|лабиринт|лес|улицы таркова|главные задачи|опциональные задачи|связанные предметы|стартовое снаряжение)$/i
 
@@ -56,18 +56,34 @@ function tableLanguage(language: GameLanguage | null | undefined): TableLanguage
   let entry: TableLanguage | null = null
   if (words) {
     const source = `[ \\t]*${words.anyLocation}|[ \\t]*${words.maps}(?=[ \\t]*${words.statusWord})|[ \\t]*${words.statusWord}`
-    const columnTexts = [words.words.anyLocation, ...Object.values(words.words.maps), ...Object.values(words.words.status)]
+    const columnTexts = [...words.words.anyLocation, ...Object.values(words.words.maps), ...Object.values(words.words.status).flat()]
     entry = {
       words,
       split: new RegExp(source, 'gimu'),
       firstCell: new RegExp(source, 'imu'),
       columns: [...new Set(columnTexts.flatMap((text) => text.split(/\s+/)).map(ocrKey).filter((part) => letterWeight(part) >= 2))],
-      part: words.words.part ? ocrKey(words.words.part) : '',
-      chunk: words.language === 'de' ? /[a-zäöüß]{4,}(?:\s*[.\-–—]?\s*teil\s*\d+)?/giu : /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{2,}/gu,
+      part: partWordsKey(words.words.part),
+      chunk: titleChunk(words),
     }
   }
   tableLanguages.set(key, entry)
   return entry
+}
+
+/**
+ * A run of a language's letters long enough to be part of a title (the word-chunk pass): Japanese and Chinese characters,
+ * Korean syllables, or Latin letters with the language's accents and the part word and number after them.
+ */
+function titleChunk(words: LanguageWords): RegExp {
+  if (words.language === 'ja' || words.language === 'zh') return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{2,}/gu
+  if (words.language === 'ko') return /\p{Script=Hangul}{2,}/gu
+  const part = words.words.part.length ? `(?:\\s*[.\\-–—]?\\s*${words.any(words.words.part)}\\s*\\d+)?` : ''
+  return new RegExp(`\\p{Script=Latin}{4,}${part}`, 'giu')
+}
+
+/** The part words of a language as one key pattern («teil», «częsc|…»): keys are letters and digits only. */
+function partWordsKey(list: readonly string[]) {
+  return [...new Set(list.map(ocrKey).filter(Boolean))].join('|')
 }
 
 /** Mirrors the reader caches below to the game's names (src/data/gameNames.ts): new names, new titles and keys. */
@@ -206,7 +222,8 @@ const KEY_CACHE_LIMIT = 20_000
 export function ocrKey(value: string) {
   const known = keyCache.get(value)
   if (known !== undefined) return known
-  const key = normalizeQuestKey(foldOcrGlyphs(value))
+  // The Turkish İ and ı as i (src/shared/cjk.ts): Russian and English text has neither.
+  const key = normalizeQuestKey(foldOcrGlyphs(foldTurkishI(value)))
   if (keyCache.size >= KEY_CACHE_LIMIT) keyCache.clear()
   keyCache.set(value, key)
   return key
@@ -256,7 +273,7 @@ function languagePart(word: string) {
 /** The part word of the game's names loaded now («teil» for a German game's titles), or none. */
 function namesPartWord() {
   const words = languageWords(gameNames()?.language)
-  return words?.words.part ? ocrKey(words.words.part) : ''
+  return words ? partWordsKey(words.words.part) : ''
 }
 
 /** A title's key as a numbered part of a chain: «карательчастьз» is part «з» of «каратель». */

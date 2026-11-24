@@ -3,7 +3,8 @@ import { gameUiBox } from './storyPaneLayout.js'
 import { colourAt, currencyOf, decodeDigitShapes, FLEA_LIST, luminance, priceBand, priceGlyphs, readDigits, screenPoint, type DigitSample, type FleaCurrency, type FleaLayout, type FleaPixels } from './fleaDigits.js'
 import { FLEA_DIGIT_SHAPES } from './fleaDigitShapes.js'
 import type { GameLanguage } from './gameLanguage.js'
-import { gameWordPattern, languageWords, umlautForms } from './gameWordPatterns.js'
+import { foldTurkishI } from '../shared/cjk.js'
+import { languageWords, umlautForms } from './gameWordPatterns.js'
 
 /**
  * The flea market on the player's screen → the lowest price of the items it shows (docs/flea-prices-from-players.md;
@@ -191,7 +192,8 @@ export function fleaFilterAllows(chip: string, language?: GameLanguage | null) {
   // A German, Japanese or Chinese game: its own «Zustand von:» / «状態:» and «Tauschangebote ignorieren» / «物々交換を除外».
   const words = languageWords(language)
   if (!words) return false
-  return [words.words.flea.condition, words.words.flea.noBarter].some((word) => word && new RegExp(`^[^\\p{L}\\p{N}]*${gameWordPattern(word.split(/\s+/)[0]!)}`, 'iu').test(chip.trim()))
+  const firsts = [...words.words.flea.condition, ...words.words.flea.noBarter].map((word) => word.split(/\s+/)[0]!).filter(Boolean)
+  return firsts.length > 0 && new RegExp(`^[^\\p{L}\\p{N}]*${words.any(firsts)}`, 'iu').test(chip.trim())
 }
 
 /** Cyrillic letters the OCR (Russian and English at once) reads the Latin «PvE» / «PvP S» as: «РУЕ», «РУР 5». */
@@ -235,12 +237,12 @@ export function isTraderRow(seller: string, info: string, language?: GameLanguag
   const names = new Set(Object.values(own.words.traders).flatMap(umlautForms).map(foldAll))
   const sellerWords = seller.split(/\s+/).map(foldAll).filter(Boolean)
   if (sellerWords.some((word) => names.has(word)) && sellerWords.every((word) => names.has(word) || TRADERS.has(word) || word.length <= 3)) return true
-  const total = own.words.flea.total ? new RegExp(`${gameWordPattern(own.words.flea.total)}\\s*(\\d+)`, 'iu').exec(info) : null
-  return (own.words.flea.limit !== '' && new RegExp(gameWordPattern(own.words.flea.limit), 'iu').test(info)) || (total !== null && Number(total[1]) >= TRADER_STOCK)
+  const total = own.words.flea.total.length ? new RegExp(`${own.any(own.words.flea.total)}\\s*(\\d+)`, 'iu').exec(info) : null
+  return (own.words.flea.limit.length > 0 && new RegExp(own.any(own.words.flea.limit), 'iu').test(info)) || (total !== null && Number(total[1]) >= TRADER_STOCK)
 }
 
 /** A word of another script folded: lower case, its letters only (umlauts, characters). */
-const foldAll = (text: string) => text.toLowerCase().replace(/[^\p{L}]/gu, '')
+const foldAll = (text: string) => foldTurkishI(text).toLowerCase().replace(/[^\p{L}]/gu, '')
 
 /** «⚒ 40/40» of the info line: the item's condition, null when the line names none (a stack has none). */
 export function fleaCondition(info: string) {
