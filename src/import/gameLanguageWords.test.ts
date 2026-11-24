@@ -60,8 +60,11 @@ describe('the game\'s words', () => {
     expect(GAME_WORDS.de.part).toEqual(['Teil'])
     expect(GAME_WORDS.pl.part).toEqual(['część'])
     expect(GAME_WORDS.tr.part).toEqual(['Bölüm'])
-    expect(GAME_WORDS.zh.maps.customs).toBe('海关')
-    expect(GAME_WORDS.ko.traders.prapor).toBe('프라퍼')
+    expect(GAME_WORDS.zh.maps.customs).toContain('海关')
+    expect(GAME_WORDS.ko.traders.prapor).toContain('프라퍼')
+    // The locale files' names beside tarkov.dev's: the Turkish game's portraits say «Terapist», «Simsar».
+    expect(GAME_WORDS.tr.traders.therapist).toEqual(expect.arrayContaining(['Therapist', 'Terapist']))
+    expect(GAME_WORDS.tr.traders.fence).toContain('Simsar')
   })
 
   it('keep both of the game\'s Spanish wordings («Español» and «Español Latinoamérica») where they differ', () => {

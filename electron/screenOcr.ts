@@ -3,7 +3,7 @@ import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
 import { backgroundScansHeld, isOcrTimeout, runOcrJob } from './ocrQueue.js'
 import { createWorker, gameLanguageNow, idleRelease, languageEngine, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
 import { cjkBlocksText, joinCjkSpaces } from '../src/shared/cjk.js'
-import type { GameLanguage } from '../src/import/gameLanguage.js'
+import { extraGameLanguage, type GameLanguage } from '../src/import/gameLanguage.js'
 import { captureScreenRegion, foregroundGame, gameCaptureAvailable } from './experimental/win32.js'
 import { isGameWindowTitle } from './experimental/gameWindow.js'
 import { raidLikely } from './experimental/raidSignals.js'
@@ -438,7 +438,10 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
     const loyalty = readTraderLoyalty(prepared.image(), full.words, language)
     return loyalty ? { loyalty } : null
   }
-  const trader = isTraderScreenText(full.text, language) ? await readTraderScreen(prepared.image(), full.words, model, language) : loyaltyOnly()
+  // A German, Japanese… game whose standing words the OCR misread (the players' screenshots: «現在の状態» as «watcowne.»): the
+  // strip of the traders' portraits is enough to look for the nickname and the level (each still confirmed close up).
+  const portraits = () => Boolean(extraGameLanguage(language)) && traderBadgeRects(full.words, prepared.image().getSize(), language).length >= TRADER_STRIP_MIN
+  const trader = isTraderScreenText(full.text, language) || portraits() ? await readTraderScreen(prepared.image(), full.words, model, language) : loyaltyOnly()
   const extra = trader ? { trader } : {}
   // The locked app's identity reader reads the mode selection and the traders' screens only (audit P4a).
   if (identity || !isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }

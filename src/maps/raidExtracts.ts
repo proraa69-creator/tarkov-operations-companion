@@ -47,6 +47,8 @@ function listLanguage(language?: GameLanguage | null) {
     stay: new RegExp(words.any([...stay, ...back]), 'iu'),
     /** The shortest of the list's words («EXT.»): a word as short is still the list's own. */
     shortest: Math.min(...[...exfil, ...transit].map((word) => letterWeight(word)), 5),
+    /** The exit word folded, for a reading with a letter wrong («NYJŚCIE01» for «WYJŚCIE01»). */
+    exitFolded: exfil.map(foldListWord).filter((word) => word.length >= 5),
   }
 }
 
@@ -55,6 +57,36 @@ function listLanguage(language?: GameLanguage | null) {
  * own words, «EXT.», as long as itself), and the word itself.
  */
 const ownListWord = (word: string, pattern: RegExp, shortest = 5) => letterWeight(word) >= shortest && pattern.test(word)
+
+/** A list word as compared letter by letter: lower case, no accents, the Turkish i as i, its number («01», «Q1») gone. */
+function foldListWord(word: string) {
+  return foldTurkishI(word).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l').replace(/[\d@]+$|[oq][\d@]$/u, '').replace(/[^\p{L}]/gu, '')
+}
+
+/** One letter edit at most between two words. */
+function oneEditApart(a: string, b: string) {
+  if (Math.abs(a.length - b.length) > 1) return false
+  let i = 0, j = 0, edits = 0
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i += 1; j += 1; continue }
+    edits += 1
+    if (edits > 1) return false
+    if (a.length > b.length) i += 1
+    else if (b.length > a.length) j += 1
+    else { i += 1; j += 1 }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1
+}
+
+/**
+ * The game's own exit word with one letter misread (the Polish list on a bright sky: «WYJŚCIE01» read «NYJŚCIEQ1»): a
+ * word of at least five letters, one edit from it, and a number after it.
+ */
+const nearExitWord = (word: string, folded: readonly string[]) => {
+  if (!/(?:\d|[OoQ@])\d?$|\d$/u.test(word)) return false
+  const letters = foldListWord(word)
+  return letters.length >= 5 && folded.some((exit) => oneEditApart(letters, exit))
+}
 
 /**
  * The exit names of the game's list, in its order (the header and the transits left out), wherever the line starts.
@@ -70,6 +102,7 @@ export function parseExtractList(text: string, language?: GameLanguage | null): 
     if (words.some((word) => listWord(word, TRANSIT_WORD) || (own && ownListWord(word, own.transit, own.shortest)))) continue
     let at = words.findIndex((word) => listWord(word, EXIT_WORD))
     if (at < 0 && own) at = words.findIndex((word) => ownListWord(word, own.exit, own.shortest))
+    if (at < 0 && own) at = words.findIndex((word) => nearExitWord(word, own.exitFolded))
     if (at < 0) continue
     // The list's number may come apart from its word («撤离点 01»).
     const rest = own ? words.slice(at + 1).join(' ').replace(/^[\d@]{1,2}\s+/, '') : words.slice(at + 1).join(' ')

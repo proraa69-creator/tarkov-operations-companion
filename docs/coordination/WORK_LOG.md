@@ -9811,3 +9811,26 @@ Not pushed, not released, nothing uploaded.
   Checked in the Chinese game's text (SPT ch.json + tarkov.dev): «枪匠 - AKM», «枪匠大师 - 1», «卢布», «森林» — shown by the app.
   Test build `Raid OS тест Языки 3.exe` on the desktop. Open: the readers on real screenshots of every language (SPT shots in
   progress, E:\SPT-photo\lang-shots); the story pane in the nine extra languages (no source of its words).
+
+
+## 2026-11-24 20:30 — Claude: the readers on real screenshots of the game in de, ja, zh, pl, es, pt, fr, ko, tr
+
+- Branch `claude/ocr-languages` (commit below). Not pushed, not released. Nothing read from the game, Game.ini untouched, SPT not
+  started: only the screenshots in `E:\SPT-photo\lang-shots\<lang>` (SPT 4.1.6, 1920×1080) were read, as the app reads them.
+- Fixed from those screenshots (all beyond Russian and English only; ru/en unchanged):
+  - Flea: a Japanese and a Korean game's rows are 78.7 px, not 72 (`fleaLayout(size, language)`, `rowHeight`); the sort chevron is
+    found after a longer price word (Spanish «Precio ^» read as dearest-first before).
+  - Tasks: a part's number read with a digit more («Yayın- Bölüm53») names no part (was «Bölüm 5»); a Portuguese row's location
+    word alone is no title; Japanese/Chinese/Korean titles after the icons' Latin junk; three bits of icon junk allowed.
+  - Traders' screen: the nickname close-up drops the «(you)» mark read wrong («SHAUUURMA (vot»), the Japanese «〕» closes it, a box
+    as tall as the emblem is cut to the name's row (French); the bracket fallback only in the top right; no level from «02» of
+    the standing (Turkish «6.02»), «ıı69» is «LVL 69».
+  - Names: maps and traders by every wording (tarkov.dev's and SPT's: Turkish «Terapist»/«Therapist», «Simsar»); an exit word
+    with one letter misread («NYJŚCIE01»).
+- Tests: `src/import/gameLanguageScreens.test.ts` on `__fixtures__/gameLanguageScreens.ts` (real Tesseract output of the
+  screenshots; nickname replaced by TESTPILOT, no money, no other players' names; no screenshots kept), `fleaScreen.test.ts` on
+  three small crops (`__fixtures__/flea/{ja,ko}-tall-rows.webp`: price column only; `languages-heads.webp`: tabs, chevron,
+  scrollbar top of the nine languages).
+- Still not read (any language, ru/en alike): «LVL 69» close-up in SPT's font (the level stays unconfirmed), loyalty crowns but
+  Jaeger/Ref, Customs' exit list on a bright sky (only some lines), ZB-numbers («28-213»). Chinese: the item card 1 of 3, Customs'
+  list. Short English titles with a misread location («Debtor Tena») in pt/tr/ko. No story pane in SPT 4.1.6.

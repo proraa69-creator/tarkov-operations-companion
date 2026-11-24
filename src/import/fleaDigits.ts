@@ -21,7 +21,16 @@ export interface FleaPixels {
 }
 
 /** Where the game's 16:9 menus lie on the screen and one 1080p pixel there (see storyPaneLayout.ts gameUiBox). */
-export interface FleaLayout { left: number; top: number; unit: number }
+export interface FleaLayout {
+  left: number
+  top: number
+  unit: number
+  /**
+   * A row's height in 1080p units when it is not FLEA_LIST.rowHeight: a Japanese or Korean game's taller lines make each
+   * row taller (fleaScreen.ts fleaLayout).
+   */
+  rowHeight?: number
+}
 
 /** The flea's list at 1080p: the first offer row's top, a row's height, and where the price column is. */
 export const FLEA_LIST = {
@@ -59,9 +68,12 @@ export function colourAt(pixels: FleaPixels, x: number, y: number): [number, num
 /** A 1080p point of the menus in screen pixels. */
 export const screenPoint = (layout: FleaLayout, x: number, y: number) => [Math.round(layout.left + x * layout.unit), Math.round(layout.top + y * layout.unit)] as const
 
+/** A row's top (0 = first offer) in the menus' 1080p units. */
+export const fleaRowTop = (layout: FleaLayout, row: number) => FLEA_LIST.firstRowTop + row * (layout.rowHeight ?? FLEA_LIST.rowHeight)
+
 /** The price band of a row (0 = first offer) in screen pixels. */
 export function priceBand(layout: FleaLayout, row: number) {
-  const top = FLEA_LIST.firstRowTop + row * FLEA_LIST.rowHeight
+  const top = fleaRowTop(layout, row)
   const [x0, y0] = screenPoint(layout, FLEA_LIST.price.left, top + FLEA_LIST.price.top)
   const [x1, y1] = screenPoint(layout, FLEA_LIST.price.right, top + FLEA_LIST.price.bottom)
   return { x0, y0, x1, y1 }

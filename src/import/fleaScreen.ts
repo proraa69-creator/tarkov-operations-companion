@@ -1,6 +1,6 @@
 import type { RaidMode } from '../domain/types.js'
 import { gameUiBox } from './storyPaneLayout.js'
-import { colourAt, currencyOf, decodeDigitShapes, FLEA_LIST, luminance, priceBand, priceGlyphs, readDigits, screenPoint, type DigitSample, type FleaCurrency, type FleaLayout, type FleaPixels } from './fleaDigits.js'
+import { colourAt, currencyOf, decodeDigitShapes, FLEA_LIST, fleaRowTop, luminance, priceBand, priceGlyphs, readDigits, screenPoint, type DigitSample, type FleaCurrency, type FleaLayout, type FleaPixels } from './fleaDigits.js'
 import { FLEA_DIGIT_SHAPES } from './fleaDigitShapes.js'
 import type { GameLanguage } from './gameLanguage.js'
 import { foldTurkishI } from '../shared/cjk.js'
@@ -17,10 +17,20 @@ import { languageWords, umlautForms } from './gameWordPatterns.js'
 let samples: DigitSample[] | null = null
 const digitSamples = () => (samples ??= decodeDigitShapes(FLEA_DIGIT_SHAPES))
 
-/** The game's 16:9 menus on this screen: a wide screen has dark sides, its menus are those of a 16:9 one. */
-export function fleaLayout(size: { width: number; height: number }): FleaLayout {
+/**
+ * A row's height in a Japanese or Korean game: its lines («合計 258», «재고량 347») are taller, so is each row (78.5–78.9 on
+ * the players' screenshots of these games at 1080p, 72 in every other language).
+ */
+const TALL_ROWS: Partial<Record<GameLanguage, number>> = { ja: 78.7, ko: 78.7 }
+
+/**
+ * The game's 16:9 menus on this screen: a wide screen has dark sides, its menus are those of a 16:9 one. `language`: the
+ * game's language (its rows' height).
+ */
+export function fleaLayout(size: { width: number; height: number }, language?: GameLanguage | null): FleaLayout {
   const box = gameUiBox(size)
-  return { left: box.x, top: box.y, unit: box.height / 1080 }
+  const rowHeight = language ? TALL_ROWS[language] : undefined
+  return { left: box.x, top: box.y, unit: box.height / 1080, ...(rowHeight ? { rowHeight } : {}) }
 }
 
 function meanLuminance(pixels: FleaPixels, layout: FleaLayout, x0: number, y0: number, x1: number, y1: number) {
@@ -54,8 +64,9 @@ export function fleaScreenState(pixels: FleaPixels, layout = fleaLayout(pixels))
  * the other way round.
  */
 function chevronUp(pixels: FleaPixels, layout: FleaLayout) {
-  const [left, top] = screenPoint(layout, 1424, 112)
-  const [right, bottom] = screenPoint(layout, 1446, 132)
+  const [, top] = screenPoint(layout, 0, 112)
+  const [, bottom] = screenPoint(layout, 0, 132)
+  const [left, right] = chevronColumns(pixels, layout, top, bottom)
   const spans: number[] = []
   for (let y = top; y < bottom; y += 1) {
     let first = -1, last = -1
@@ -67,6 +78,27 @@ function chevronUp(pixels: FleaPixels, layout: FleaLayout) {
     if (first >= 0) spans.push(last - first + 1)
   }
   return spans.length >= 3 && spans[0]! * 2 < spans[spans.length - 1]!
+}
+
+/**
+ * The chevron's columns: the last run of lit columns right of «Цена» (1424–1446 at 1080p), looked for up to 1476 — a longer
+ * word pushes it right and reaches into that place itself (Spanish «Precio ^»: its «o» ends at 1426, the chevron at
+ * 1434–1442 on the players' screenshots). No lit column: the old place.
+ */
+function chevronColumns(pixels: FleaPixels, layout: FleaLayout, top: number, bottom: number): [number, number] {
+  const [from] = screenPoint(layout, 1424, 0)
+  const [to] = screenPoint(layout, 1446, 0)
+  const [far] = screenPoint(layout, 1476, 0)
+  const lit = (x: number) => { for (let y = top; y < bottom; y += 1) if (luminance(pixels, x, y) > 150) return true; return false }
+  let end = -1
+  for (let x = far - 1; x >= from; x -= 1) if (lit(x)) { end = x; break }
+  if (end < 0) return [from, to]
+  // Back to the gap before it (two dark columns or more).
+  let start = end
+  for (let x = end - 1, dark = 0; x >= from - Math.round(10 * layout.unit); x -= 1) {
+    if (lit(x)) { start = x; dark = 0 } else if (++dark >= Math.max(2, Math.round(2 * layout.unit))) break
+  }
+  return [start, end + 1]
 }
 
 /** The scrollbar right of the list (x 1870 at 1080p, light): absent, or its thumb starts where the list starts. */
@@ -106,8 +138,8 @@ export type FleaPrice =
   | { kind: 'price'; value: number; currency: FleaCurrency; sure: boolean; digits: string }
 
 /** The list's rows that fit above the menu bar (in the menus' own 1080p units, the same on any screen). */
-export function fleaRowCount() {
-  return Math.floor((FLEA_LIST.bottom - 50 - FLEA_LIST.firstRowTop) / FLEA_LIST.rowHeight) + 1
+export function fleaRowCount(layout?: FleaLayout) {
+  return Math.floor((FLEA_LIST.bottom - 50 - FLEA_LIST.firstRowTop) / (layout?.rowHeight ?? FLEA_LIST.rowHeight)) + 1
 }
 
 /** One row's price, read from its digits' shapes. */
@@ -126,13 +158,15 @@ export function readFleaPrice(pixels: FleaPixels, row: number, layout = fleaLayo
 }
 
 export function readFleaPrices(pixels: FleaPixels, layout = fleaLayout(pixels)): FleaPrice[] {
-  return Array.from({ length: fleaRowCount() }, (_, row) => readFleaPrice(pixels, row, layout))
+  return Array.from({ length: fleaRowCount(layout) }, (_, row) => readFleaPrice(pixels, row, layout))
 }
 
 /** The parts of a row the caller reads by OCR (one line each), in screen pixels. */
 export function fleaRowParts(layout: FleaLayout, row: number) {
-  const top = FLEA_LIST.firstRowTop + row * FLEA_LIST.rowHeight
-  const rect = (x0: number, y0: number, x1: number, y1: number) => fleaRect(layout, { x: x0, y: top + y0, width: x1 - x0, height: y1 - y0 })
+  const top = fleaRowTop(layout, row)
+  // A taller row (a Japanese or Korean game) has its lines lower down in the same measure.
+  const scale = (layout.rowHeight ?? FLEA_LIST.rowHeight) / FLEA_LIST.rowHeight
+  const rect = (x0: number, y0: number, x1: number, y1: number) => fleaRect(layout, { x: x0, y: top + y0 * scale, width: x1 - x0, height: (y1 - y0) * scale })
   return {
     /** The seller: a player's nickname, or a trader's name («Прапор») beside the trader's level badge. */
     seller: rect(640, 6, 860, 28),
@@ -234,7 +268,7 @@ export function isTraderRow(seller: string, info: string, language?: GameLanguag
   // A German, Japanese or Chinese game: its traders' names («Jäger»), «Gesamt» / «合計» and «Limit» / «上限».
   const own = languageWords(language)
   if (!own) return false
-  const names = new Set(Object.values(own.words.traders).flatMap(umlautForms).map(foldAll))
+  const names = new Set(Object.values(own.words.traders).flat().flatMap(umlautForms).map(foldAll))
   const sellerWords = seller.split(/\s+/).map(foldAll).filter(Boolean)
   if (sellerWords.some((word) => names.has(word)) && sellerWords.every((word) => names.has(word) || TRADERS.has(word) || word.length <= 3)) return true
   const total = own.words.flea.total.length ? new RegExp(`${own.any(own.words.flea.total)}\\s*(\\d+)`, 'iu').exec(info) : null

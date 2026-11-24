@@ -79,11 +79,15 @@ export function gameWordPattern(text: string, options: { bang?: 'required' } = {
   // «İ» lower-cased by hand: toLowerCase() leaves «i» and a combining dot.
   const lower = cleaned.replace(/İ/g, 'i').toLowerCase()
   let body = ''
+  let previous = ''
   for (const char of lower) {
+    // Between two Japanese or Chinese characters the OCR may have put a space («商人 当前态度» on the players' screenshots).
+    if (touches(previous) && touches(char)) body += '\\s*'
     if (char === '(' || char === '（') body += '[(（]\\s*'
     else if (char === ')' || char === '）') body += '\\s*[)）]'
     else if (/\s/.test(char)) body += '\\s*'
     else body += letterPattern(char)
+    previous = char
   }
   const before = touches(cleaned[0]) ? '' : '(?<![\\p{L}\\p{N}])'
   const after = touches(cleaned.at(-1)) ? '' : '(?![\\p{L}])'
@@ -126,7 +130,7 @@ export function languageWords(language: GameLanguage | null | undefined): Langua
   const chrome = [
     ...words.columns.flat(), ...words.tasks, ...words.operational, ...words.taskItems, ...words.paneHeadings, ...words.menu, ...words.notTasks,
     ...words.anyLocation, ...Object.values(words.status).flat(), ...words.trader.attitude, ...words.trader.loyalty, ...words.trader.showLocked,
-    ...Object.values(words.maps),
+    ...Object.values(words.maps).flat(),
   ]
   const entry: LanguageWords = {
     language: extra,
@@ -134,7 +138,7 @@ export function languageWords(language: GameLanguage | null | undefined): Langua
     status,
     statusWord,
     anyLocation: anyGameWord(words.anyLocation),
-    maps: anyGameWord(Object.values(words.maps)),
+    maps: anyGameWord(Object.values(words.maps).flat()),
     chromeLine: new RegExp(`^${anyGameWord(chrome)}$`, flags),
     traderScreen: new RegExp(anyGameWord([...words.trader.attitude, ...words.trader.loyalty, ...words.trader.showLocked, ...words.trader.nextLevel, ...words.trader.you]), flags),
     notTasks: new RegExp(anyGameWord(words.notTasks), flags),

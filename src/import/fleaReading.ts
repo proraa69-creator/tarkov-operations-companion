@@ -61,7 +61,7 @@ export function createFleaWatch(ocr: FleaLineReader, now: () => number = Date.no
   let read = ''
 
   async function look(pixels: FleaPixels): Promise<FleaLook> {
-    const layout = fleaLayout(pixels)
+    const layout = fleaLayout(pixels, language())
     const state = fleaScreenState(pixels, layout)
     if (!state.open) { seen = ''; return { flea: false } }
     // Not sorted cheapest first, scrolled down, or the player's flea locked: the top row is not the lowest price.
