@@ -60,6 +60,12 @@ for (const path of files(join(root, 'src'))) {
     else if (CYRILLIC.test(second) && !CYRILLIC.test(first)) add(first)
   }
   for (const match of source.matchAll(pairs[1]!)) add(literal(match, 1))
+  // t('Русский', 'English') and other pairs of a Russian text and its English, side by side
+  for (const match of source.matchAll(new RegExp(String.raw`${LITERAL}\s*,\s*${LITERAL}`, 'g'))) {
+    const first = literal(match, 1)
+    const second = literal(match, 4)
+    if (CYRILLIC.test(first) && !CYRILLIC.test(second)) add(second)
+  }
   // `locale === 'en' ? 'English' :` with anything else after the colon
   for (const match of source.matchAll(new RegExp(String.raw`(?:===?\s*'en'|en)\s*\?\s*${LITERAL}`, 'g'))) add(literal(match, 1))
 }

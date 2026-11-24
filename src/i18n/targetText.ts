@@ -79,7 +79,22 @@ export function installTargetCatalog(language: TargetLanguage, english: Array<[s
   if (language === active) announce()
 }
 
-const NUMBER = /\d+(?:[.,:]\d+)*/g
+/**
+ * In development: the English texts the screens showed that the language has no text for (`window.__raidosMissing`), to
+ * find what the phrase files still lack while going through the screens.
+ */
+const missing: Set<string> | null = import.meta.env.DEV && typeof window !== 'undefined' ? ((window as unknown as { __raidosMissing?: Set<string> }).__raidosMissing ??= new Set()) : null
+function noteMissing(text: string) {
+  const key = text.trim()
+  if (!missing || key.length < 2 || !/[A-Za-z]{2,}/.test(key) || /^[\w.-]+@|^https?:/.test(key)) return
+  // Already in the language (the game's names come translated), or a Russian leftover: not a missing phrase.
+  if (/[\u3040-\u30ff\u3400-\u9fff\uff00-\uffef]|[А-Яа-яЁё]/.test(key)) return
+  let index = 0
+  missing.add(key.replace(NUMBER, () => `{${index++}}`))
+}
+
+/** A number as a whole: «568 000», «1.7», «05:35», «-3»: one {n} in a template. */
+const NUMBER = /\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:[.,]\d+)?|\d+(?:[.,:]\d+)*/g
 const SEPARATORS = /( · | — | – |, |; |: | \/ | \| |\n)/
 const PUNCTUATION = /^(.*?)([:.…!?]+)$/s
 
@@ -103,13 +118,18 @@ function phrase(map: ReadonlyMap<string, string>, text: string): string | undefi
   return undefined
 }
 
-/** The game's own name first (the official text), then the interface phrases. */
+/**
+ * The interface phrase first; the game's own name (the official text) when the phrase files have none or keep the English
+ * as it is (proper names: quests, items, places), so a UI word like «Maps» is never taken for a game name.
+ */
 function lookup(text: string): string | undefined {
+  const own = phrase(table, text)
+  if (own !== undefined && own.trim() !== text.trim()) return own
   if (catalogLanguage === active) {
     const named = catalogEnglish.get(text.trim()) ?? catalogEnglish.get(cleanQuestText(text).trim())
     if (named !== undefined) return named
   }
-  return phrase(table, text)
+  return own
 }
 
 /**
@@ -121,16 +141,17 @@ export function targetText(text: string): string {
   const whole = lookup(text)
   if (whole !== undefined) return text.replace(text.trim(), whole)
   const parts = text.split(SEPARATORS)
-  if (parts.length < 2) return text
-  let changed = false
+  if (parts.length < 2) { noteMissing(text); return text }
+  // Every part with words must have its text: half a sentence in one language and half in another reads as broken.
+  let complete = true
   const output = parts.map((part, index) => {
-    if (index % 2 === 1) return part
+    if (index % 2 === 1 || !/[A-Za-z]{2,}/.test(part)) return part
     const found = lookup(part)
-    if (found === undefined) return part
-    changed = true
+    if (found === undefined) { complete = false; return part }
     return part.replace(part.trim(), found)
   })
-  return changed ? output.join('') : text
+  if (!complete) { noteMissing(text); return text }
+  return output.join('')
 }
 
 /** A game name written in Russian (the Russian catalog), in the active language. */

@@ -1,5 +1,6 @@
 import type { Quest, TaskProgressStatus, WeaponBuildAttribute, WeaponBuildRequirement } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
+import { languageTag } from '../i18n/renderText'
 
 /**
  * «Оружейник» (owner, 10.10.2026): Mechanic's Gunsmith chain, each part «modify this weapon to the given specifications»
@@ -148,7 +149,7 @@ export function attributeHint(name: string, locale: AppLocale) {
 
 const SIGNS: Record<WeaponBuildAttribute['compare'], string> = { '>=': '≥', '<=': '≤', '>': '>', '<': '<', '=': '=' }
 
-const number = (value: number, locale: AppLocale) => value.toLocaleString(locale === 'en' ? 'en-US' : 'ru-RU', { maximumFractionDigits: 3 })
+const number = (value: number, locale: AppLocale) => value.toLocaleString(languageTag(locale), { maximumFractionDigits: 3 })
 
 /** «≥ 50», «≤ 4 кг». */
 export function formatTarget(attribute: WeaponBuildAttribute, locale: AppLocale) {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { EyeOff, LoaderCircle, UserRound, X } from 'lucide-react'
 import type { RaidMode } from '../domain/types'
 import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { fetchFriendInfo, type FriendInfo, type FriendModeInfo } from './socialClient'
 import { ErrorLine } from './squadUi'
 import { modeLabel } from './squadLabels'
@@ -69,7 +69,7 @@ export function FriendInfoDialog({ friendId, name, color, onClose }: { friendId:
 /** «обновлено 13.10.2026» (13/10/2026 in English): the day the level was true, in the reader's time zone. */
 function updatedDate(iso: string, locale: AppLocale) {
   const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(locale === 'en' ? 'en-GB' : 'ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(languageTag(locale), { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 /** The dim date under a level; its tooltip says where the level came from. */

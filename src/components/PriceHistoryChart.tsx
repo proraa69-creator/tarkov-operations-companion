@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import type { RaidMode } from '../domain/types'
 import { usePriceHistory } from '../data/useEconomy'
@@ -18,7 +18,7 @@ export function PriceHistoryChart({ itemId, mode }: { itemId: string; mode: Raid
   const { data, isLoading, isError, supported } = usePriceHistory(itemId, mode)
   const points = useMemo(() => lastDays(data ?? [], days), [data, days])
   const geometry = useMemo(() => chartGeometry(points, WIDTH, HEIGHT), [points])
-  const dateFormat = useMemo(() => new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), [locale])
+  const dateFormat = useMemo(() => new Intl.DateTimeFormat(languageTag(locale), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), [locale])
   const active = geometry && hover !== null ? geometry.coords[hover] : null
 
   const onMove = (event: React.PointerEvent<SVGSVGElement>) => {

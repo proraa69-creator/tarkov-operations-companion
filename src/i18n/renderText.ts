@@ -1,9 +1,10 @@
 import { exactUiText, translateUiText } from './uiEnglish'
 import { cleanQuestText } from '../shared/questText'
-import { baseLocale, isTargetLanguage, type AppLanguage } from './languages'
+import { baseLocale, isTargetLanguage, languageOption, type AppLanguage } from './languages'
 import { setTargetLanguage, targetFromRussian, targetText, targetUiDictionary } from './targetText'
 
 let language: 'ru' | 'en' = 'ru'
+let chosenTag = 'ru-RU'
 let catalog = new Map<string, string>()
 const CYRILLIC = /[А-Яа-яЁё]/
 /**
@@ -12,6 +13,7 @@ const CYRILLIC = /[А-Яа-яЁё]/
  */
 export function setRenderLanguage(locale: AppLanguage) {
   language = baseLocale(locale)
+  chosenTag = languageOption(locale).tag
   setTargetLanguage(isTargetLanguage(locale) ? locale : null)
 }
 export function installCatalogTranslations(entries: Array<[string, string]>) {
@@ -72,4 +74,12 @@ export function uiText<T>(value: T): T {
   }
   if (Array.isArray(value)) return value.map((entry) => uiText(entry)) as T
   return value
+}
+
+/**
+ * The format of dates and numbers for a base text (`locale`): Russian for Russian, else the chosen language's own
+ * (English, German, Japanese, Chinese).
+ */
+export function languageTag(base: string): string {
+  return base === 'ru' ? 'ru-RU' : chosenTag === 'ru-RU' ? 'en-US' : chosenTag
 }

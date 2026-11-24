@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Check, Copy, EyeOff, KeyRound, LoaderCircle, ShieldOff } from 'lucide-react'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { isOwnerApp } from '../app/buildEdition'
 import { cleanIpcError } from '../sync/serverSync'
@@ -110,7 +110,7 @@ export function ClaudeAccessPanel() {
     }
   }
 
-  const when = (iso: string) => new Date(iso).toLocaleString(locale === 'en' ? 'en-GB' : 'ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const when = (iso: string) => new Date(iso).toLocaleString(languageTag(locale), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   const status = state === undefined ? uiText('Проверяем ключ…')
     : state === null ? uiText('Войдите в аккаунт владельца, чтобы управлять ключом.')
       : !state.active ? uiText('Ключа нет')

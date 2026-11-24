@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useMobileLayout } from '../platform'
 import { useBlockTitle } from '../overview/blockTitle'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { menuShift } from './menuShift'
 import { fitGoonStats, rowStep } from './goonStatsFit'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -154,14 +154,14 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
     setMenuOpen(true)
   }
 
-  const time = (iso: string) => new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+  const time = (iso: string) => new Date(iso).toLocaleTimeString(languageTag(locale), { hour: '2-digit', minute: '2-digit' })
   const ago = (iso: string) => {
     const minutes = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000))
     if (minutes < 1) return uiText('только что')
     if (minutes < 60) return `${minutes} ${uiText('мин назад')}`
     const hours = Math.floor(minutes / 60)
     if (hours < 24) return `${hours} ${uiText('ч назад')}`
-    return new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short' })
+    return new Date(iso).toLocaleDateString(languageTag(locale), { day: 'numeric', month: 'short' })
   }
 
   const confirm = async () => {

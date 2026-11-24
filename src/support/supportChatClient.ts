@@ -38,6 +38,7 @@ import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_
 import { isSupportStickerId, SUPPORT_REACTIONS } from '../shared/supportStickers'
 import { SOCIAL_UPDATE_EVENT } from '../squad/useSocialEvents'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
+import { languageTag } from '../i18n/renderText'
 
 export const SUPPORT_MESSAGES_PATH = '/v1/me/support/messages'
 export const SUPPORT_READ_PATH = '/v1/me/support/read'
@@ -200,7 +201,7 @@ export function cleanSupportMessages(raw: unknown): SupportMessage[] {
 export function supportTime(iso: string, locale: 'ru' | 'en', now = new Date()) {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  const tag = locale === 'en' ? 'en-GB' : 'ru-RU'
+  const tag = languageTag(locale)
   const time = date.toLocaleTimeString(tag, { hour: '2-digit', minute: '2-digit' })
   if (date.toDateString() === now.toDateString()) return time
   return `${date.toLocaleDateString(tag, { day: '2-digit', month: '2-digit', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) })} ${time}`
