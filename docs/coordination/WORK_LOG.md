@@ -9733,3 +9733,6 @@ Not pushed, not released, nothing uploaded.
   news «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
   src/data/questGuidePhotos.json, documentGuidePhotos.json, their two tests and these two data files change. For the 13:00 Bangkok
   window, not started by hand. The photo session says its 1384 pictures are all on the server (0 missing).
+- 0.6.0.340 live 13:10 Bangkok (972bafe6): the cloud session's «Полигон» on a phone (a1596328, 580b10cf) with the Streets of Tarkov
+  places and Customs «Отследить отправление» on top. Gate 45331079410 green 12:22; published by the 13:00 window (not by hand; no
+  blob prefetch, ~25 changed files). This note is on claude/release-340 only; it goes out with the next release.
