@@ -9838,3 +9838,16 @@ Not pushed, not released, nothing uploaded.
 - «Батя» stages 2 and 10 both show «Найти позицию «Рябина»» and «Найти форпост «Гнездо»» with both points (owner: the game's
   Gnezdo stage has the two main goals). New step flag `shown` (storyChapterSeeds.ts): shown, not used to identify the stage, so
   the pane scan is unchanged (Рябина or both → 2, Gnezdo alone → 10; English Gnezdo alone now 10 instead of 2).
+
+## 2026-11-24 23:30 — Claude: release 0.6.0.341 with the black-window start fix (owner: «выпускай обновление, все»)
+
+- Owner: the safe-start test exe worked for mitya.tagintsev@mail.ru (the sign-in window appeared); «Сделай новую версию, общую…
+  Выпускай обновление, все, и вот это туда тоже добавь». Branch claude/release-341-start from release/production b03662d9:
+  revert of the 20:00 hold (back to 177c01e8, 0.6.0.341: website in 12 languages, Reserve places), merged claude/black-window-fix
+  (c5108e63: the shortcut's --disable-gpu / --no-sandbox reach the elevated copy; «Окно Raid OS чёрное?» only on a PC that never
+  had a working subscription — entitlement-seen.bin, already kept by released versions — and only after a window closed within
+  3 min; SAFE_START stays the test build's), merged claude/quest-photos-all (photos per point, machinery key room 205, «Синий
+  огонь» / «Батя» stages). Version stays 0.6.0-341 (never published); updateHistory row rewritten to 4 lines, two player news.
+- Checks: typecheck + electron tsc clean; full vitest 4513 passed, 16 failed = machine-only (staleServer, linux/updater ×3,
+  appVersion, AdminPanelPage, two script files) + page tests that pass per file (App, Dashboard, MapsPage ×3, ManualMarks).
+- The app languages branch (claude/languages-zh-ja-de) is NOT in this release.
