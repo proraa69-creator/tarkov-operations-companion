@@ -10087,3 +10087,31 @@ Not pushed, not released, nothing uploaded.
 - Checks: typecheck, electron tsc, server typecheck clean; server tests 613/613; website build ok; vitest 4633 passed, the rest
   machine-only or pass per file (App, Dashboard, Gunsmith, MapsPage ×3, ManualMarks, SupportButtons, appDelta, updateHistory).
 - Server needs ftp.ripe.net once at start (Russian networks list for Google sign-in).
+
+## 2026-11-25 — Claude: report 227 «игра фризит» (0.6.0.342, laptop, Steam; owner: «возьми в работу»)
+
+- Branch claude/game-freezes from release/production e5ca9d54, commit 4c7c5c5f. Not pushed, not released.
+- Measured on the owner's PC (3440×1440, koffi from node): whole-screen GDI copy 71 ms wall / 47 ms CPU on the main
+  thread; the exit header strip 7 ms wall waiting for the compositor (almost no CPU), twice a second; key polling,
+  SHQueryUserNotificationState and the game-window check: microseconds.
+- What ran beside the game before: the exit header strip copy every 500 ms whenever the game was in front (menus too);
+  a whole-screen copy of the game every 30 s for every player, raids included («Настройка экрана» preview); a gamma
+  rewrite every 4 s while a preset is on; `tasklist` every 30 s in a raid (log watcher); a log poll on every log write
+  in a raid; only the main process below normal (page and GPU processes at normal).
+- Changed: header strip only in a raid (logs, raid signs, or no Logs folder watched), 1.5 s when the game's keys reach
+  the app (extractsReader.ts headerPollMs); background game frame only for players using «Настройка экрана» (2 min) or
+  outside raids every 10 min (state.ts backgroundFrameDue), alpha loop on request; gamma written only when the monitor
+  lost our ramp, refused ramps retried every 30 s (sameRamp, REFUSED_RETRY_MS); all app processes below normal with
+  the game in front (gamePriority.ts, app.getAppMetrics); no extra log polls in a raid (2 s safety poll stays); no
+  tasklist while the game's window is in front (main.ts).
+- Owner's addendum: «Скорость и зависания» reports carry `GPU …; RAM … GB; battery|AC` in the «Система» line, before
+  « · EFT: …», ≤160 chars (electron/systemBrief.ts, `system:brief`, src/app/support.ts withSystemBrief). No names/serials.
+- Tests: vitest electron/{extractsReader,gamePriority,logWatcher,systemBrief,preload.sync}, electron/screenTuning,
+  electron/experimental, src/components, src/app/supportPlatform — 546 passed; npm run typecheck and
+  tsc -p tsconfig.electron.json clean; eslint on changed files clean.
+- Not verified: the real game (not run), the real Electron shell (owner's data), the effect on a laptop. No
+  updateHistory/playerNews rows: they go with the release commit (technical fix → updateHistory only).
+- Risks: a player who never opened «Настройка экрана» gets no game picture in its preview until outside a raid (≤10 min)
+  or «Снимок из игры»; an exit list opened by a rebound key is seen within 1.5 s instead of 0.5 s.
+- Mistake fixed in-session: a PowerShell script with relative [IO.File] paths wrote 5 files into
+  raidos-quest-photos-all (only my lines); restored there with git checkout of those 5 files, tree clean again.
