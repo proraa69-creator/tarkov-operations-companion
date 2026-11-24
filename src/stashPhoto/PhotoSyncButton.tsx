@@ -3,6 +3,10 @@ import { Camera, Check, Loader2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { labelEngine, photoCandidates, photoPixels, type WantedItem } from './browser'
 import { scanStashPhoto, type ScanStage } from './scan'
+import { useLocale } from '../i18n/LocaleProvider'
+import { extraGameLanguage } from '../import/gameLanguage'
+import { wantedGameNames } from '../data/gameNames'
+import { loadedGameNames } from '../data/gameNamesLoader'
 import '../styles/stashPhoto.css'
 
 export interface PhotoSyncItem extends WantedItem { name: string; iconUrl?: string }
@@ -33,13 +37,19 @@ export function PhotoSyncButton({ items, catalogNames, onApply }: { items: Photo
   const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set())
   const alive = useRef(true)
   useEffect(() => () => { alive.current = false }, [])
+  // The game's language: the one the PC app reads the game in, else (the phone) the app's own when it is German, Japanese
+  // or Chinese — the labels are then read with that language's model and names too.
+  const { language: appLanguage } = useLocale()
 
   const run = async (file: File) => {
     setView({ kind: 'busy', stage: 'start' })
     let engine: Awaited<ReturnType<typeof labelEngine>> | null = null
     try {
-      const [pixels, candidates] = await Promise.all([photoPixels(file), photoCandidates(items)])
-      engine = await labelEngine().catch(() => null)
+      const gameLanguage = wantedGameNames() ?? extraGameLanguage(appLanguage)
+      const names = gameLanguage ? await loadedGameNames(gameLanguage).catch(() => null) : null
+      const labelled = names ? items.map((item) => { const own = names.items.get(item.id)?.shortName; return own && own !== item.shortName ? { ...item, labels: [own] } : item }) : items
+      const [pixels, candidates] = await Promise.all([photoPixels(file), photoCandidates(labelled)])
+      engine = await labelEngine(gameLanguage).catch(() => null)
       const result = await scanStashPhoto(pixels, candidates, {
         readLabels: engine?.read,
         catalogNames,

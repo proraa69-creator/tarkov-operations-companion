@@ -1,5 +1,6 @@
 import type { RaidMode } from '../domain/types.js'
 import type { FleaPixels } from './fleaDigits.js'
+import type { GameLanguage } from './gameLanguage.js'
 import { FLEA_VERSION_LINE, fleaFilterAllows, fleaFilterChips, fleaLayout, fleaModeFromLabel, fleaRect, fleaRowParts, fleaScreenState, isTraderRow, readFleaPrices, type FleaPrice, type FleaScreenState } from './fleaScreen.js'
 
 /**
@@ -36,6 +37,8 @@ export interface FleaReading {
   labelMode: RaidMode | null
   /** From the list's top down to the row that ends the reading. */
   rows: FleaReadRow[]
+  /** The game's language the rows were read in (src/import/gameLanguage.ts). */
+  language?: GameLanguage
 }
 
 export interface FleaLook {
@@ -51,7 +54,8 @@ export interface FleaLook {
 /** A row's prices, as a key: the same list seen again is not read again. */
 const priceKey = (prices: FleaPrice[]) => prices.map((price) => price.kind === 'price' ? `${price.digits}${price.currency}${price.sure ? '' : '?'}` : price.kind).join(',')
 
-export function createFleaWatch(ocr: FleaLineReader, now: () => number = Date.now) {
+/** `language`: the game's language now (its traders' names and chips: src/import/gameWords.ts). */
+export function createFleaWatch(ocr: FleaLineReader, now: () => number = Date.now, language: () => GameLanguage | null | undefined = () => null) {
   /** The prices of the last look (read when the next look shows them again) and of the list read last. */
   let seen = ''
   let read = ''
@@ -72,20 +76,21 @@ export function createFleaWatch(ocr: FleaLineReader, now: () => number = Date.no
     // «Валюта EUR» and the like: the top row is the cheapest of what the filter lets through, not of the item.
     const filters: string[] = []
     for (const chip of fleaFilterChips(pixels, layout)) filters.push(await ocr(chip, layout.unit))
-    if (!filters.every(fleaFilterAllows)) return { flea: true, state, filtered: filters }
+    if (!filters.every((chip) => fleaFilterAllows(chip, language()))) return { flea: true, state, filtered: filters }
     const rows: FleaReadRow[] = []
     for (const [row, price] of prices.entries()) {
       if (price.kind === 'empty' || price.kind === 'banner') { rows.push({ price, seller: '', info: '', name: '' }); break }
       const parts = fleaRowParts(layout, row)
       const seller = await ocr(parts.seller, layout.unit)
       const info = await ocr(parts.info, layout.unit)
-      if (isTraderRow(seller, info)) { rows.push({ price, seller, info, name: '' }); continue }
+      if (isTraderRow(seller, info, language())) { rows.push({ price, seller, info, name: '' }); continue }
       // A player's row not read for sure ends the reading: a lower price of a later item could hide there.
       if (price.kind !== 'price' || !price.sure) { rows.push({ price, seller, info, name: '' }); break }
       rows.push({ price, seller, info, name: await ocr(parts.name, layout.unit) })
     }
     const label = await ocr(fleaRect(layout, FLEA_VERSION_LINE), layout.unit)
-    return { flea: true, state, reading: { at, filters, label, labelMode: fleaModeFromLabel(label), rows } }
+    const lang = language()
+    return { flea: true, state, reading: { at, filters, label, labelMode: fleaModeFromLabel(label), rows, ...(lang ? { language: lang } : {}) } }
   }
 
   return {

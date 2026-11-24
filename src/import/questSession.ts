@@ -1,6 +1,7 @@
 import type { Quest } from '../domain/types'
 import type { QuestRowStatus } from './questOcr'
 import { tableRowLines } from './screenScanSync'
+import type { GameLanguage } from './gameLanguage'
 
 /**
  * A watch of the Tasks table: whether the whole current list was read, which ends a mode's first sync (src/import/tableSync.ts).
@@ -43,7 +44,7 @@ const squeeze = (value: string) => value.replace(/\s+/g, ' ').trim()
  * What a table frame shows (`matches`: what matchQuestsFromOcr read on `text`, with the line each title was read on). The
  * whole list needs every row with a status cell to name exactly one catalog trader quest.
  */
-export function tableView(text: string, matches: Array<{ questId: string; status?: QuestRowStatus; line?: string }>, quests: Quest[], observedAt: number): TableView {
+export function tableView(text: string, matches: Array<{ questId: string; status?: QuestRowStatus; line?: string }>, quests: Quest[], observedAt: number, language?: GameLanguage | null): TableView {
   const byId = new Map(quests.map((quest) => [quest.id, quest]))
   const trader = matches.filter((match) => {
     const quest = byId.get(match.questId)
@@ -51,7 +52,7 @@ export function tableView(text: string, matches: Array<{ questId: string; status
   })
   const statused = trader.filter((match) => match.status !== undefined)
   const rows = [...new Set(statused.map((match) => `${match.questId}:${match.status}`))].sort()
-  const rowLines = tableRowLines(text).map(squeeze)
+  const rowLines = tableRowLines(text, language).map(squeeze)
   // One quest a row: a row nothing was read on could be the missing quest itself; one read as two quests is misread.
   const placed = statused.length > 0 && statused.every((match) => match.line)
   const oneEach = !placed || rowLines.every((row) => new Set(statused.filter((match) => row.includes(squeeze(match.line!))).map((match) => match.questId)).size === 1)

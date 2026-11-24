@@ -4,6 +4,10 @@ import { questFaction } from '../progression/questBasics'
 import { STORY_CHAPTER_SEEDS } from '../data/storyChapterSeeds'
 import type { Quest } from '../domain/types'
 import { inferStoryStageIndex, storyStageEvidence, storyStageHits } from './storyStageOcr'
+import type { GameLanguage } from './gameLanguage'
+import { languageWords, type LanguageWords } from './gameWordPatterns'
+import { gameNames, gameNamesVersion, gameQuestTitle } from '../data/gameNames'
+import { letterWeight } from '../shared/cjk'
 
 const SKIP_LINE = /^(задачи|задания|задание|текущие|выполненные|недоступные|сюжетные|побочные|оперативные|завершенные|заблокированные|завершить|уровень лояльности|уровень лояльности \d+|найти|поиск|фильтр|торговцы|торговец|торговля|услуги|карта|уровень|награда|награды|цели|цель|описание|kappa|капа|pmc|scav|чат|персонаж|сводка|опыт|глава истории|история|локация|статус|прогресс|класс|тип|назад|общее|вещи|здоровье|умения|достижения|престиж|убежище|барахолка|сборки|справочник|сообщения|опрос|расширения|любая локация|активно!?|на персонаже|в схроне|pvp zone|берег|таможня|завод|развязка|резерв|маяк|лаборатория|эпицентр|терминал|улицы|лабиринт|лес|улицы таркова|главные задачи|опциональные задачи|связанные предметы|стартовое снаряжение)$/i
 
@@ -26,6 +30,59 @@ const EN_TABLE_SPLIT = /[ \t]+any\s+location\b|[ \t]+(?:factory|customs|woods|sh
 const PVP_ZONE_TAG = /\[?\s*pvp\s*zone\s*\]?/gi
 
 /**
+ * The words of a German, Japanese or Chinese game for the Tasks table (src/import/gameWords.ts), beside the Russian and
+ * English ones: its chrome lines, where a row's cells after the title start, its column words, the word before a part's
+ * number. Null in a Russian or English game, whose reading stays as it was.
+ */
+interface TableLanguage {
+  words: LanguageWords
+  /** Where the cells after a title start: «Irgendein Ort», the status, a map name right before the status. */
+  split: RegExp
+  /** The same, its first hit only (leadingCell). */
+  firstCell: RegExp
+  /** The column words (any location, the maps, the statuses) as keys. */
+  columns: string[]
+  /** The part word's key («teil»), or none. */
+  part: string
+  /** A run of the language's letters long enough to be part of a title (the word-chunk pass). */
+  chunk: RegExp
+}
+const tableLanguages = new Map<string, TableLanguage | null>()
+
+function tableLanguage(language: GameLanguage | null | undefined): TableLanguage | null {
+  const key = language ?? ''
+  if (tableLanguages.has(key)) return tableLanguages.get(key)!
+  const words = languageWords(language)
+  let entry: TableLanguage | null = null
+  if (words) {
+    const source = `[ \\t]*${words.anyLocation}|[ \\t]*${words.maps}(?=[ \\t]*${words.statusWord})|[ \\t]*${words.statusWord}`
+    const columnTexts = [words.words.anyLocation, ...Object.values(words.words.maps), ...Object.values(words.words.status)]
+    entry = {
+      words,
+      split: new RegExp(source, 'gimu'),
+      firstCell: new RegExp(source, 'imu'),
+      columns: [...new Set(columnTexts.flatMap((text) => text.split(/\s+/)).map(ocrKey).filter((part) => letterWeight(part) >= 2))],
+      part: words.words.part ? ocrKey(words.words.part) : '',
+      chunk: words.language === 'de' ? /[a-zäöüß]{4,}(?:\s*[.\-–—]?\s*teil\s*\d+)?/giu : /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]{2,}/gu,
+    }
+  }
+  tableLanguages.set(key, entry)
+  return entry
+}
+
+/** Mirrors the reader caches below to the game's names (src/data/gameNames.ts): new names, new titles and keys. */
+let cachedNames = gameNamesVersion()
+function syncGameNames() {
+  const now = gameNamesVersion()
+  if (now === cachedNames) return
+  cachedNames = now
+  titleCache = new WeakMap()
+  titleKeyCache = new WeakMap()
+  entryCache = new WeakMap()
+  catalogCache = new WeakMap()
+}
+
+/**
  * The story chapters' names in both languages and the other wordings the game has used («Небеса в огне», «Falling
  * Skies», «Падающие небеса»), by chapter id: a catalog that does not carry `nameRu` / `nameEn` / `ocrAliases` yet still
  * finds a chapter whatever the game's language.
@@ -36,31 +93,37 @@ const CHAPTER_NAMES = new Map<string, string[]>([
 ])
 
 /** Per quest object: a catalog is loaded once and read every frame, so its titles and keys are worked out once. */
-const titleCache = new WeakMap<Quest, string[]>()
-const titleKeyCache = new WeakMap<Quest, string[]>()
+let titleCache = new WeakMap<Quest, string[]>()
+let titleKeyCache = new WeakMap<Quest, string[]>()
 
 /**
  * Every title the game may show for a quest, in Russian and in English, whatever the app's language (audit P11; product
  * roadmap: «Quest counts must not change when switching interface language»): `name` (the app's language), the game's
- * `nameRu` and `nameEn`, every `ocrAliases` entry; a story chapter also by the names its seed knows.
+ * `nameRu` and `nameEn`, every `ocrAliases` entry; a story chapter also by the names its seed knows. A German, Japanese or
+ * Chinese game: its own title too, once its names are loaded (src/data/gameNames.ts).
  */
 export function questTitles(quest: Quest): string[] {
+  syncGameNames()
   const known = titleCache.get(quest)
   if (known) return known
   const chapter = quest.kind === 'story'
     ? CHAPTER_NAMES.get(quest.normalizedName ?? '') ?? CHAPTER_NAMES.get(quest.id.replace(/^story-/, ''))
     : undefined
-  const titles = [...new Set([quest.name, quest.nameRu, quest.nameEn, ...(quest.ocrAliases ?? []), ...(chapter ?? [])]
+  const titles = [...new Set([quest.name, quest.nameRu, quest.nameEn, ...(quest.ocrAliases ?? []), ...(chapter ?? []), gameQuestTitle(quest.id)]
     .map((title) => title?.trim() ?? '').filter(Boolean))]
   titleCache.set(quest, titles)
   return titles
 }
 
+/** The Chinese game's tag after a title's number: «赚点快钱 - 1（PVP）». */
+const CJK_PVP_TAG = /[（(]\s*pvp\s*[)）]\s*$/i
+
 /** The OCR keys of every title of a quest (questTitles), each also without its «[PVP ZONE]» tag, and of its English slug. */
 export function titleKeys(quest: Quest): string[] {
+  syncGameNames()
   const known = titleKeyCache.get(quest)
   if (known) return known
-  const keys = [...new Set([...questTitles(quest).flatMap((title) => [title, title.replace(PVP_ZONE_TAG, '')]), quest.normalizedName ?? '']
+  const keys = [...new Set([...questTitles(quest).flatMap((title) => [title, title.replace(PVP_ZONE_TAG, ''), ...(CJK_PVP_TAG.test(title) ? [title.replace(CJK_PVP_TAG, '')] : [])]), quest.normalizedName ?? '']
     .map(ocrKey).filter(Boolean))]
   titleKeyCache.set(quest, keys)
   return keys
@@ -98,14 +161,16 @@ export type QuestRowStatus = 'active' | 'ready' | 'available' | 'locked' | 'fail
  * Status cell of a Tasks table row: «активно!», «выполнено!», «доступно», …; in the English game «active!», … The Russian
  * words also with a Latin look-alike or a digit read in them («aктивнo!»).
  */
-export function rowStatus(rawLine: string): QuestRowStatus | undefined {
+export function rowStatus(rawLine: string, language?: GameLanguage | null): QuestRowStatus | undefined {
   const line = rawLine.toLowerCase()
   const ru = foldOcrGlyphs(rawLine).toLowerCase()
-  if (/выполнено|готово к сдаче|завершить/.test(ru) || /\bcompleted?!|ready to turn in/.test(line)) return 'ready'
-  if (/активно/.test(ru) || /\bactive[!l1|]?(?![a-z])/.test(line)) return 'active'
-  if (/провал/.test(ru) || /\bfailed\b/.test(line)) return 'failed'
-  if (/заблокир|недоступ/.test(ru) || /\blocked\b|unavailable/.test(line)) return 'locked'
-  if (/доступно|принять/.test(ru) || /\bavailable\b/.test(line)) return 'available'
+  // A German, Japanese or Chinese game: its own status words (src/import/gameWords.ts), in the same order.
+  const own = languageWords(language)?.status
+  if (/выполнено|готово к сдаче|завершить/.test(ru) || /\bcompleted?!|ready to turn in/.test(line) || own?.ready.test(line)) return 'ready'
+  if (/активно/.test(ru) || /\bactive[!l1|]?(?![a-z])/.test(line) || own?.active.test(line)) return 'active'
+  if (/провал/.test(ru) || /\bfailed\b/.test(line) || own?.failed.test(line)) return 'failed'
+  if (/заблокир|недоступ/.test(ru) || /\blocked\b|unavailable/.test(line) || own?.locked.test(line)) return 'locked'
+  if (/доступно|принять/.test(ru) || /\bavailable\b/.test(line) || own?.available.test(line)) return 'available'
   return undefined
 }
 
@@ -166,17 +231,48 @@ const PART_ONE_STROKE = /([Чч4][AaАа][CcСс][ТтTt][ЬьБб6Bb]|[Pp][Aa][
 interface TitlePart { stem: string; word: string; number: string }
 interface RowPart { tail: string }
 
+/**
+ * A German game's part word («Laufbursche – Teil 1»), and the Chinese game's titles, which put the number right after the
+ * name («医疗隐私 - 2», maybe «（PVP）» after it): the key's stem ends with a Chinese character, the number follows.
+ */
+const CJK_PVP_KEY = ocrKey('PVP')
+const CJK_NUMBERED_KEY = new RegExp(`^(.+?\\p{Script=Han})()([0-9збо]{1,2})(?:${CJK_PVP_KEY})?$`, 'u')
+const CJK_ROW_PART = /\p{Script=Han}(?=[0-9збо])/gu
+const partWords = new Map<string, { numbered: RegExp; row: RegExp }>()
+
+/** The numbered-title and row patterns with a game language's part word («teil»). */
+function languagePart(word: string) {
+  let known = partWords.get(word)
+  if (!known) {
+    known = {
+      numbered: new RegExp(`^(.+?)(${word})([0-9збо]{1,2})(?:${PVP_TAG_KEY})?$`),
+      row: new RegExp(word, 'g'),
+    }
+    partWords.set(word, known)
+  }
+  return known
+}
+
+/** The part word of the game's names loaded now («teil» for a German game's titles), or none. */
+function namesPartWord() {
+  const words = languageWords(gameNames()?.language)
+  return words?.words.part ? ocrKey(words.words.part) : ''
+}
+
 /** A title's key as a numbered part of a chain: «карательчастьз» is part «з» of «каратель». */
-function titlePart(key: string): TitlePart | undefined {
-  const hit = NUMBERED_KEY.exec(key)
+function titlePart(key: string, part = namesPartWord()): TitlePart | undefined {
+  const hit = NUMBERED_KEY.exec(key) ?? (part ? languagePart(part).numbered.exec(key) : null) ?? CJK_NUMBERED_KEY.exec(key)
   return hit ? { stem: hit[1]!, word: hit[2]!, number: hit[3]! } : undefined
 }
 
 /** What follows the word «Часть» in a row's key; undefined for a row without it (a word that only holds it has no stem). */
-function rowPart(key: string): RowPart | undefined {
+function rowPart(key: string, part = ''): RowPart | undefined {
   const tagless = key.endsWith(PVP_TAG_KEY) ? key.slice(0, -PVP_TAG_KEY.length) : key
   let tail: string | undefined
   for (const hit of tagless.matchAll(ROW_PART_WORD)) if (hit.index >= 3) tail = tagless.slice(hit.index + hit[0].length)
+  if (tail === undefined && part) for (const hit of tagless.matchAll(languagePart(part).row)) if (hit.index >= 3) tail = tagless.slice(hit.index + hit[0].length)
+  // A Chinese title's number follows its last character; the row's tag after it is dropped as the title's is.
+  if (tail === undefined) for (const hit of tagless.matchAll(CJK_ROW_PART)) if (hit.index >= 1) tail = tagless.slice(hit.index + hit[0].length).replace(new RegExp(`${CJK_PVP_KEY}$`), '')
   return tail === undefined ? undefined : { tail }
 }
 
@@ -202,9 +298,10 @@ export function isNumberedQuest(quest: Quest) {
 
 /** A quest as the matcher reads it: its title keys (exact matches) and every key the looser matches may use. */
 interface CatalogEntry { quest: Quest; titles: string[]; keys: string[] }
-const entryCache = new WeakMap<Quest, CatalogEntry>()
+let entryCache = new WeakMap<Quest, CatalogEntry>()
 
 function catalogEntry(quest: Quest): CatalogEntry {
+  syncGameNames()
   const known = entryCache.get(quest)
   if (known) return known
   const titles = titleKeys(quest)
@@ -212,12 +309,13 @@ function catalogEntry(quest: Quest): CatalogEntry {
     quest,
     titles,
     keys: [
-      ...titles.filter((key) => key.length >= (quest.kind === 'story' ? 3 : 4)),
+      // Lengths weighed: a Chinese title of two characters («审计») counts as four letters (src/shared/cjk.ts).
+      ...titles.filter((key) => letterWeight(key) >= (quest.kind === 'story' ? 3 : 4)),
       // Stage titles only for trader quests — story stages must not invent chapters without a title hit.
       ...(quest.kind === 'story' ? [] : (quest.stages ?? []).flatMap((stage) => [
         ocrKey(stage.title),
         ...(stage.ocrAliases ?? []).map(ocrKey),
-      ]).filter((key) => key.length >= 6)),
+      ]).filter((key) => letterWeight(key) >= 6)),
     ],
   }
   entryCache.set(quest, entry)
@@ -240,9 +338,10 @@ interface Catalog {
   /** A trader quest whose title another quest has too: all of them by each one's id (itself included). */
   twins: Map<string, CatalogEntry[]>
 }
-const catalogCache = new WeakMap<readonly Quest[], Catalog>()
+let catalogCache = new WeakMap<readonly Quest[], Catalog>()
 
 function questCatalog(quests: Quest[]): Catalog {
+  syncGameNames()
   const known = catalogCache.get(quests)
   if (known) return known
   const entries = quests.filter((quest) => quest.id && !quest.id.startsWith('wiki:')).map(catalogEntry).filter((entry) => entry.keys.length)
@@ -319,16 +418,22 @@ function partAgrees(row: RowPart | undefined, candidate: string, catalog: Catalo
   return (catalog.chains.get(own.stem)?.size ?? 0) <= 1
 }
 
-export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { faction?: 'usec' | 'bear' | 'unknown' } = {}) {
+/**
+ * The quests a frame of the Tasks screen names. `language`: the game's (src/import/gameLanguage.ts) — a German, Japanese
+ * or Chinese game's rows are read with its words too (status cells, columns, part numbers; src/import/gameWords.ts).
+ */
+export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { faction?: 'usec' | 'bear' | 'unknown'; language?: GameLanguage | null } = {}) {
   // Before anything splits the rows: «|» also parts a row's cells.
   const text = frame.replace(PART_ONE_STROKE, '$1 1')
   const catalogs = questCatalog(quests)
+  const lang = tableLanguage(options.language)
+  const part = lang?.part ?? ''
   const { all: catalog, trader: traderCatalog, exact: exactTitles } = catalogs
   const found = new Map<string, OcrQuestMatch>()
 
   /** A trader row's reading: a title two quests share is the one its row (or the player's faction) tells. */
   const remember = (reading: OcrQuestMatch, rawLine?: string) => {
-    const match = rawLine === undefined ? reading : pickTwin(reading, rawLine, catalogs, options.faction)
+    const match = rawLine === undefined ? reading : pickTwin(reading, rawLine, catalogs, options.faction, lang)
     const previous = found.get(match.questId)
     // Equal confidence cannot justify skipping an earlier stage.
     const betterStage = match.stageIndex != null && previous?.stageIndex != null && match.stageIndex < previous.stageIndex
@@ -341,7 +446,7 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { fa
     }
   }
 
-  const storyTitleLines = storyChapterTitleLines(text)
+  const storyTitleLines = storyChapterTitleLines(text, lang)
 
   // Story chapters: title must appear as its own OCR line (not a map column like «Лабиринт»).
   for (const entry of catalog) {
@@ -379,15 +484,16 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { fa
   /** The rows that named a quest here: the word-chunk pass below is for the rows that named none. */
   const namedRows = new Set<number>()
   rawLines.forEach((rawLine, row) => {
-    const status = rowStatus(rawLine)
-    const tableRow = isTableRow(rawLine)
+    const status = rowStatus(rawLine, options.language)
+    const tableRow = isTableRow(rawLine, lang)
     let exactly = false
     /** The looser readings of the row's cells (one per cell): a title the cell is part of or holds, or a close one. */
     const loose: OcrQuestMatch[] = []
-    for (const line of ocrRowLines(rawLine)) {
-      if (SKIP_LINE.test(line.trim()) || EN_CHROME_LINE.test(line.trim())) continue
+    for (const line of ocrRowLines(rawLine, lang)) {
+      if (SKIP_LINE.test(line.trim()) || EN_CHROME_LINE.test(line.trim()) || lang?.words.chromeLine.test(line.trim())) continue
       const key = ocrKey(line)
-      if (key.length < 3 || GENERIC_KEY.test(key)) continue
+      // Lengths weighed: a Chinese character counts as two letters (src/shared/cjk.ts); Latin and Cyrillic as they are.
+      if (letterWeight(key) < 3 || GENERIC_KEY.test(key)) continue
 
       const exact = exactTitles.get(key)
       if (exact) {
@@ -396,7 +502,7 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { fa
         continue
       }
 
-      const row = rowPart(key)
+      const row = rowPart(key, part)
       const unique = uniqueContainedMatch(key, row, catalogs, tableRow)
       if (unique) {
         loose.push({
@@ -411,11 +517,11 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { fa
       }
 
       // Short titles (≤5 letters: «Аудит», «Секта», «Дверь») only match exactly.
-      if (key.length < 6) continue
+      if (letterWeight(key) < 6) continue
       let best: OcrQuestMatch | undefined
       for (const entry of traderCatalog) {
         // Lengths further apart than a quarter cannot reach the threshold (0.74 and up): no edit distance for those.
-        const candidates = entry.keys.filter((candidate) => candidate.length >= 6 && (candidate.length >= 8 || Math.abs(candidate.length - key.length) <= 1)
+        const candidates = entry.keys.filter((candidate) => letterWeight(candidate) >= 6 && (letterWeight(candidate) >= 8 || Math.abs(candidate.length - key.length) <= 1)
           && Math.abs(candidate.length - key.length) <= Math.max(candidate.length, key.length) * FUZZY_LENGTH_SLACK
           && partAgrees(row, candidate, catalogs))
         if (!candidates.length) continue
@@ -432,7 +538,7 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { fa
     // it, beside the icons' junk or a column read wrong (titleAtRowStart). That reading wins over a looser one of a cell,
     // which takes a word of the title for a shorter title («Хонтр-компромат» is not «Компромат», «Разведка баем» not
     // «Разведка») or counts the column's letters as the title's («Загладить вину Jlec» is not «Загладить вину. ПО»).
-    const start = exactly || !status ? undefined : titleAtRowStart(rawLine, catalogs)
+    const start = exactly || !status ? undefined : titleAtRowStart(rawLine, catalogs, lang)
     if (start) {
       remember({
         questId: start.entry.quest.id,
@@ -451,16 +557,16 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { fa
   // named no quest above: the row «Компромат» is not also «Контр-компромат», «Инвентаризация» not «… Часть 2».
   rawLines.forEach((rawLine, row) => {
     if (namedRows.has(row)) return
-    const tableRow = isTableRow(rawLine)
-    const status = rowStatus(rawLine)
-    for (const { chunk, rowKey } of ocrWordChunks(rawLine)) {
+    const tableRow = isTableRow(rawLine, lang)
+    const status = rowStatus(rawLine, options.language)
+    for (const { chunk, rowKey } of ocrWordChunks(rawLine, lang)) {
       const key = ocrKey(chunk)
-      if (key.length < 7 || GENERIC_KEY.test(key)) continue
+      if (letterWeight(key) < 7 || GENERIC_KEY.test(key)) continue
       const holds = (candidate: string) => {
         if (candidate.length <= key.length) return false
         // Its first words, at the row's start: not a word of a sentence («Найти серьёзные улики на Берегу»). A line that is no
         // row: those words and a bit of junk, nothing else («Врачебная Ee», every column lost).
-        if (key.length >= 8 && candidate.startsWith(key) && rowKey.startsWith(key) && (tableRow || rowKey.length <= key.length + 2)) return true
+        if (letterWeight(key) >= 8 && candidate.startsWith(key) && rowKey.startsWith(key) && (tableRow || rowKey.length <= key.length + 2)) return true
         return tableRow && candidate.includes(key) && rowKey.length >= candidate.length * 0.7 && rowKey.length <= candidate.length * 1.4
       }
       const hits = traderCatalog.filter((entry) => entry.keys.some(holds))
@@ -468,7 +574,7 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { fa
       const hit = hits[0]!
       // One title among all those the words could be, its number then as for any reading: the parts of a chain ruled out
       // first would leave another title alone («Задержка отправления. Часть !» is not «Задержка поставки»).
-      const row = rowPart(rowKey)
+      const row = rowPart(rowKey, part)
       if (!hit.keys.some((candidate) => holds(candidate) && partAgrees(row, candidate, catalogs))) continue
       if (found.has(hit.quest.id)) continue
       remember({ questId: hit.quest.id, name: hit.quest.name, score: 0.9, line: chunk, status, stageIndex: resolveStageIndex(hit.quest, text, key) }, rawLine)
@@ -484,13 +590,13 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[], options: { fa
  * the player counted as BEAR and the USEC version, with its points, was hidden. The row's location cell tells them
  * apart; without it, the player's known faction; otherwise the reading stays a guess.
  */
-function pickTwin(match: OcrQuestMatch, rawLine: string, catalogs: Catalog, faction?: 'usec' | 'bear' | 'unknown'): OcrQuestMatch {
+function pickTwin(match: OcrQuestMatch, rawLine: string, catalogs: Catalog, faction?: 'usec' | 'bear' | 'unknown', lang?: TableLanguage | null): OcrQuestMatch {
   const group = catalogs.twins.get(match.questId)
   if (!group) return match
   // The row without the title (a title may hold a map's name)
   let rest = ocrKey(rawLine)
   for (const key of [...group[0]!.titles].sort((a, b) => b.length - a.length)) rest = rest.replace(key, '')
-  const onRow = group.filter((entry) => questMapKeys(entry.quest).some((key) => rest.includes(key)))
+  const onRow = group.filter((entry) => questMapKeys(entry.quest, lang).some((key) => rest.includes(key)))
   const mine = faction === 'usec' || faction === 'bear' ? group.filter((entry) => questFaction(entry.quest.faction) === faction) : []
   const [chosen, twin] = onRow.length === 1 ? [onRow[0]!, 'row' as const] : mine.length === 1 ? [mine[0]!, 'faction' as const] : [undefined, 'guess' as const]
   if (!chosen || chosen.quest.id === match.questId) return { ...match, twin }
@@ -498,19 +604,20 @@ function pickTwin(match: OcrQuestMatch, rawLine: string, catalogs: Catalog, fact
 }
 
 /** A quest's map as the Tasks table's location cell says it, in Russian and in English. */
-function questMapKeys(quest: Quest) {
+function questMapKeys(quest: Quest, lang?: TableLanguage | null) {
   const id = quest.mapId ? canonicalMapId(quest.mapId) : ''
   if (!id) return []
-  return [MAP_DISPLAY_NAMES[id], id.replace(/-/g, ' ')].filter((name): name is string => Boolean(name)).map(ocrKey).filter((key) => key.length >= 3)
+  // A German, Japanese or Chinese game's own name of the map too («海关»).
+  return [MAP_DISPLAY_NAMES[id], id.replace(/-/g, ' '), lang?.words.words.maps[id]].filter((name): name is string => Boolean(name)).map(ocrKey).filter((key) => letterWeight(key) >= 3)
 }
 
 /** Lines that can name a story chapter — map-only labels outside the story tab are excluded. */
-function storyChapterTitleLines(text: string) {
+function storyChapterTitleLines(text: string, lang?: TableLanguage | null) {
   const inStoryMenu = /сюжетн|главн(ые|ая)\s*задач|main\s+objectives|(?:^|\s)story(?:\s|$)/i.test(text)
-  return extractOcrLines(text)
+  return titleLines(text, lang)
     .map((line) => line.trim())
     .filter((line) => {
-      if (line.length < 3 || STORY_CHROME_LINE.test(line) || EN_CHROME_LINE.test(line)) return false
+      if (letterWeight(line) < 3 || STORY_CHROME_LINE.test(line) || EN_CHROME_LINE.test(line) || lang?.words.chromeLine.test(line)) return false
       const key = ocrKey(line)
       if (!key || GENERIC_KEY.test(key)) return false
       // «Лабиринт» as a map cell must not unlock the chapter unless we are in the story UI.
@@ -559,32 +666,39 @@ function focusedStoryChapterKey(text: string) {
   return undefined
 }
 
-export function extractOcrLines(text: string) {
-  const prepared = text.replace(TABLE_SPLIT, '\n')
+/** The lines of a frame that may be titles, its cells split apart; `language`: the game's (its words split the cells too). */
+export function extractOcrLines(text: string, language?: GameLanguage | null) {
+  return titleLines(text, tableLanguage(language))
+}
+
+function titleLines(text: string, lang?: TableLanguage | null) {
+  const prepared = lang ? text.replace(TABLE_SPLIT, '\n').replace(lang.split, '\n') : text.replace(TABLE_SPLIT, '\n')
   const out: string[] = []
   for (const raw of prepared.split(/\r?\n|[•·|]/g)) {
     const line = raw.replace(/\s+/g, ' ').trim()
-    if (line.length < 3) continue
+    if (letterWeight(line) < 3) continue
     out.push(line)
-    const stripped = line.replace(/^[^0-9a-zа-яё]+/i, '').trim()
+    // The junk before a line: anything but letters and digits (a German, Japanese or Chinese game: its letters too).
+    const stripped = (lang ? line.replace(/^[^\p{L}\p{N}]+/u, '') : line.replace(/^[^0-9a-zа-яё]+/i, '')).trim()
     if (stripped && stripped !== line) out.push(stripped)
-    for (const chunk of line.match(/[а-яё]{4,}(?:\s*[.\-–—]?\s*часть\s*\d+)?/gi) ?? []) {
+    for (const chunk of [...(line.match(/[а-яё]{4,}(?:\s*[.\-–—]?\s*часть\s*\d+)?/gi) ?? []), ...(lang ? line.match(lang.chunk) ?? [] : [])]) {
       const piece = chunk.trim()
-      if (piece.length >= 4) out.push(piece)
+      if (letterWeight(piece) >= 4) out.push(piece)
     }
   }
   return [...new Set(out)]
 }
 
 /** Whole OCR rows after splitting table columns — no single-word fragments. */
-function ocrRowLines(text: string) {
+function ocrRowLines(text: string, lang?: TableLanguage | null) {
   const out: string[] = []
-  for (const raw of text.replace(TABLE_SPLIT, '\n').replace(EN_TABLE_SPLIT, '\n').split(/\r?\n|[•·|]/g)) {
+  const split = text.replace(TABLE_SPLIT, '\n').replace(EN_TABLE_SPLIT, '\n')
+  for (const raw of (lang ? split.replace(lang.split, '\n') : split).split(/\r?\n|[•·|]/g)) {
     const line = raw.replace(/\s+/g, ' ').trim()
-    if (line.length < 3) continue
+    if (letterWeight(line) < 3) continue
     out.push(line)
-    const stripped = line.replace(/^[^0-9a-zа-яё]+/i, '').replace(/^\d+\s+/, '').trim()
-    if (stripped && stripped !== line && stripped.length >= 3) out.push(stripped)
+    const stripped = (lang ? line.replace(/^[^\p{L}\p{N}]+/u, '') : line.replace(/^[^0-9a-zа-яё]+/i, '')).replace(/^\d+\s+/, '').trim()
+    if (stripped && stripped !== line && letterWeight(stripped) >= 3) out.push(stripped)
     // The trader, type and class icons before an English title come out as one- or two-letter junk («x №1 п The …»).
     const untagged = stripped.replace(/^(?:\S{1,2}\s+)+(?=[A-Za-z]{3})/, '')
     if (untagged !== stripped && untagged.length >= 3) out.push(untagged)
@@ -592,11 +706,13 @@ function ocrRowLines(text: string) {
   return [...new Set(out)]
 }
 
-function ocrWordChunks(text: string) {
+function ocrWordChunks(text: string, lang?: TableLanguage | null) {
   const out: Array<{ chunk: string; rowKey: string }> = []
-  for (const line of ocrRowLines(text)) {
+  for (const line of ocrRowLines(text, lang)) {
     const rowKey = ocrKey(line)
     for (const chunk of line.match(/[а-яё]{4,}(?:\s*[.\-–—]?\s*часть\s*\d+)?/gi) ?? []) out.push({ chunk: chunk.trim(), rowKey })
+    // A German, Japanese or Chinese game's own letters (its umlauts, its characters).
+    if (lang) for (const chunk of line.match(lang.chunk) ?? []) out.push({ chunk: chunk.trim(), rowKey })
   }
   return out
 }
@@ -626,12 +742,14 @@ const COLUMN_WORDS = [
  * A word of a column after the title, as it is or with a letter or two read wrong («Jlec», «Таможия»), or a bit of junk.
  * Not a number: after a title it is the title's own («Каратель. Часть 1»).
  */
-function columnWord(word: string) {
+function columnWord(word: string, lang?: TableLanguage | null) {
   if (/\d/.test(word)) return false
   const key = ocrKey(word)
-  if (key.length <= 2) return true
+  if (letterWeight(key) <= 2) return true
   const slack = key.length <= 4 ? 1 : 2
-  return COLUMN_WORDS.some((column) => boundedDistance(key, column, slack) <= slack)
+  if (COLUMN_WORDS.some((column) => boundedDistance(key, column, slack) <= slack)) return true
+  // The game's own column words: a Japanese or Chinese one a character off at most, and only a long one.
+  return Boolean(lang?.columns.some((column) => (key.length === letterWeight(key) ? boundedDistance(key, column, slack) <= slack : key === column || (key.length >= 3 && boundedDistance(key, column, 1) <= 1))))
 }
 
 /**
@@ -642,18 +760,19 @@ function columnWord(word: string) {
  * a title inside it: a line that is no row counts as it stands, a few letters from it, or as a title with a bit of junk
  * around it (a row whose columns OCR lost: «и Посылка из прошлого oni ae»).
  */
-function isTableRow(rawLine: string) {
-  const cell = leadingCell(rawLine)
+function isTableRow(rawLine: string, lang?: TableLanguage | null) {
+  const cell = leadingCell(rawLine, lang)
+  const isColumn = (word: string) => columnWord(word, lang)
   const titleWords = cell.split(/\s+/).filter((word) => ocrKey(word).length > 0)
-  if (cell.length < rawLine.length) return titleWords.length > 0 && titleWords.length <= ROW_TITLE_WORDS + ROW_ICON_WORDS && !titleWords.every(columnWord)
+  if (cell.length < rawLine.length) return titleWords.length > 0 && titleWords.length <= ROW_TITLE_WORDS + ROW_ICON_WORDS && !titleWords.every(isColumn)
   const last = titleWords[titleWords.length - 1]
-  return Boolean(last) && titleWords.length >= 2 && titleWords.length <= ROW_TITLE_WORDS + ROW_ICON_WORDS + 3 && ocrKey(last!).length > 2 && columnWord(last!) && !titleWords.every(columnWord)
+  return Boolean(last) && titleWords.length >= 2 && titleWords.length <= ROW_TITLE_WORDS + ROW_ICON_WORDS + 3 && letterWeight(ocrKey(last!)) > 2 && isColumn(last!) && !titleWords.every(isColumn)
 }
 
 /** The row's text before its first column after the title. */
-function leadingCell(rawLine: string) {
+function leadingCell(rawLine: string, lang?: TableLanguage | null) {
   let end = rawLine.length
-  for (const pattern of FIRST_CELL_END) {
+  for (const pattern of lang ? [...FIRST_CELL_END, lang.firstCell] : FIRST_CELL_END) {
     const hit = pattern.exec(rawLine)
     if (hit && hit.index < end) end = hit.index
   }
@@ -669,21 +788,21 @@ function leadingCell(rawLine: string) {
  * when no other title is as close (closestTitle) — and is followed by column words only (columnWord): a title cut short
  * of its own words is no reading. Only for a row with a status cell (matchQuestsFromOcr), never a story chapter's row.
  */
-function titleAtRowStart(rawLine: string, catalog: Catalog) {
-  const words = leadingCell(rawLine).split(/\s+/).filter((word) => ocrKey(word).length > 0)
+function titleAtRowStart(rawLine: string, catalog: Catalog, lang?: TableLanguage | null) {
+  const words = leadingCell(rawLine, lang).split(/\s+/).filter((word) => ocrKey(word).length > 0)
   // From each word on, only column words to the cell's end.
   const columns = new Array<boolean>(words.length + 1).fill(true)
-  for (let index = words.length - 1; index >= 0; index -= 1) columns[index] = columns[index + 1]! && columnWord(words[index]!)
+  for (let index = words.length - 1; index >= 0; index -= 1) columns[index] = columns[index + 1]! && columnWord(words[index]!, lang)
   let best: { entry: CatalogEntry; key: string; distance: number; worth: number } | undefined
   for (let start = 0; start <= Math.min(ROW_ICON_WORDS, words.length - 1); start += 1) {
-    if (start > 0 && ocrKey(words[start - 1]!).length > 2) break
+    if (start > 0 && letterWeight(ocrKey(words[start - 1]!)) > 2) break
     for (let end = start + 1; end <= Math.min(words.length, start + ROW_TITLE_WORDS); end += 1) {
       if (!columns[end]) continue
       const key = ocrKey(words.slice(start, end).join(' '))
-      if (key.length < 4 || GENERIC_KEY.test(key)) continue
+      if (letterWeight(key) < 4 || GENERIC_KEY.test(key)) continue
       // A story chapter's row (the «Сюжетные» tab) is no trader quest, however close a title is.
       if (catalog.storyTitles.has(key)) return undefined
-      const hit = closestTitle(key, catalog)
+      const hit = closestTitle(key, catalog, lang?.part)
       if (!hit) continue
       // The longest title read, each letter read wrong counting against it.
       const worth = hit.key.length - 2 * hit.distance
@@ -703,13 +822,13 @@ function titleSlack(length: number) {
  * for a key of five letters or fewer, not even one letter further («Ауднт» is «Аудит» only while no other title is two
  * letters from it). Quests of one and the same title are one title: the first of them, as for an exact title.
  */
-function closestTitle(key: string, catalog: Catalog) {
+function closestTitle(key: string, catalog: Catalog, part = '') {
   const exact = catalog.exact.get(key)
   if (exact) return { entry: exact, key, distance: 0 }
   const slack = titleSlack(key.length)
   if (!slack) return undefined
   const reach = slack + 1
-  const row = rowPart(key)
+  const row = rowPart(key, part)
   let best: { entry: CatalogEntry; key: string; distance: number } | undefined
   let rival = Infinity
   for (let length = key.length - reach; length <= key.length + reach; length += 1) {
@@ -754,10 +873,10 @@ const LOOSE_LINE_LEAD = 2
 const LOOSE_LINE_SLACK = 8
 
 function uniqueContainedMatch(lineKey: string, row: RowPart | undefined, catalog: Catalog, tableRow: boolean) {
-  if (lineKey.length < 7 || GENERIC_KEY.test(lineKey)) return undefined
+  if (letterWeight(lineKey) < 7 || GENERIC_KEY.test(lineKey)) return undefined
   const holds = (candidate: string) => {
     if (candidate.includes(lineKey)) return lineKey.length >= candidate.length * 0.6 && (tableRow || candidate.startsWith(lineKey))
-    if (lineKey.length < 10 || candidate.length < 8 || lineKey.length > candidate.length + CONTAINED_SLACK) return false
+    if (letterWeight(lineKey) < 10 || letterWeight(candidate) < 8 || lineKey.length > candidate.length + CONTAINED_SLACK) return false
     const at = lineKey.indexOf(candidate)
     return at >= 0 && (tableRow || (at <= LOOSE_LINE_LEAD && lineKey.length <= candidate.length + LOOSE_LINE_SLACK))
   }

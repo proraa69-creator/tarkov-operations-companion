@@ -5,6 +5,8 @@ import { likeness, type PictureFingerprint } from './signature'
 export interface PhotoCandidate {
   id: string
   shortName: string
+  /** Its short name in the game's language too (a German, Japanese or Chinese game: src/data/gameNames.ts). */
+  labels?: string[]
   /** Size in cells. */
   width: number
   height: number
@@ -94,9 +96,10 @@ export function matchStash(input: MatchInput): PhotoFind[] {
         for (const candidate of input.candidates) {
           if (candidate.width !== width || candidate.height !== height) continue
           const picture = likeness(print, candidate.fingerprint)
-          const label = labelSimilarity(text, candidate.shortName)
+          const names = [candidate.shortName, ...(candidate.labels ?? [])]
+          const label = Math.max(...names.map((name) => labelSimilarity(text, name)))
           // The label clearly names another item: not this one, however alike the pictures.
-          if (other && other.similarity >= 0.85 && other.similarity > label + 0.15 && squash(other.name) !== squash(candidate.shortName)) continue
+          if (other && other.similarity >= 0.85 && other.similarity > label + 0.15 && !names.some((name) => squash(other.name) === squash(name))) continue
           // A label read that does not fit, under a picture only somewhat alike: another item.
           if (readable && label < 0.35 && picture < 0.75) continue
           const score = label > 0 ? picture + 0.8 * (label - 0.5) : picture - 0.05

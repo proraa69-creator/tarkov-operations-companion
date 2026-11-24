@@ -1,3 +1,5 @@
+import { ocrModel, type GameLanguage } from '../import/gameLanguage'
+import { joinCjkSpaces } from '../shared/cjk'
 import { usesDataGateway } from '../data/tarkovApi'
 import type { LabelStack } from '../kappa/labelScan'
 import { stripReader, type OcrLine } from './labels'
@@ -45,7 +47,7 @@ export function gridPictureUrl(id: string) {
 
 const prints = new Map<string, PictureFingerprint>()
 
-export interface WantedItem { id: string; shortName: string; width: number; height: number }
+export interface WantedItem { id: string; shortName: string; width: number; height: number; labels?: string[] }
 
 /** The wanted items with the fingerprints of their pictures (kept for the next photo); an item whose picture fails is left out. */
 export async function photoCandidates(items: WantedItem[]): Promise<PhotoCandidate[]> {
@@ -86,13 +88,14 @@ type OcrWorker = {
 }
 
 /**
- * The OCR engine for one photo (Russian and English labels), from the app's own files. Throws when it cannot start;
- * the caller then lets the pictures decide alone. `close()` frees its memory after the photo.
+ * The OCR engine for one photo (Russian and English labels; a German, Japanese or Chinese game's with its own model and
+ * the English one: src/import/gameLanguage.ts), from the app's own files. Throws when it cannot start; the caller then
+ * lets the pictures decide alone. `close()` frees its memory after the photo.
  */
-export async function labelEngine(): Promise<{ read: (strips: Rgba[]) => Promise<string[]>; close: () => Promise<void> }> {
+export async function labelEngine(language?: GameLanguage | null): Promise<{ read: (strips: Rgba[]) => Promise<string[]>; close: () => Promise<void> }> {
   const { createWorker } = await import('tesseract.js')
   const base = new URL('ocr/', document.baseURI).href
-  const worker = await createWorker('rus+eng', 1, {
+  const worker = await createWorker(ocrModel(language), 1, {
     workerPath: `${base}worker.min.js`,
     corePath: `${base}tesseract-core-lstm.wasm.js`,
     langPath: base.replace(/\/$/, ''),
@@ -110,7 +113,7 @@ export async function labelEngine(): Promise<{ read: (strips: Rgba[]) => Promise
     context.putImageData(image, 0, 0)
     const result = await worker.recognize(canvas, {}, { blocks: true })
     return (result.data.blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines))
-      .map((line) => ({ text: line.text, top: line.bbox.y0, bottom: line.bbox.y1 }))
+      .map((line) => ({ text: joinCjkSpaces(line.text), top: line.bbox.y0, bottom: line.bbox.y1 }))
   }
   return { read: stripReader(recognize), close: async () => { await worker.terminate() } }
 }

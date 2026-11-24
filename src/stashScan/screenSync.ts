@@ -15,7 +15,7 @@
  */
 import type { HideoutStation, Item, RaidMode } from '../domain/types'
 import { ITEM_TEXT_MIN_SCORE } from '../overlay/itemMatch'
-import { findVisibleItems, loadCollected, saveCollected, screenEntries, screenScore, type CollectorEntry } from '../kappa/collector'
+import { findVisibleItems, labelNames, loadCollected, saveCollected, screenEntries, screenScore, type CollectorEntry } from '../kappa/collector'
 import { hideoutNeeds } from '../hideout/hideoutNeeds'
 import { readHideoutFound, writeHideoutFound } from '../hideout/hideoutFound'
 import { questFoundStore } from '../quests/questFound'
@@ -140,7 +140,7 @@ export function createScreenSync(targets: ScreenSyncTargets) {
   const names = [
     ...targets.kappa.filter(({ item }) => !collectedAtStart.has(item.id)),
     ...entries.filter(({ item }) => hideoutCounts.has(item.id) || questCounts.has(item.id)),
-  ].map(({ item }) => item.shortName ?? '').filter(Boolean).slice(0, NAMES_LIMIT)
+  ].flatMap(({ item }) => labelNames(item)).slice(0, NAMES_LIMIT)
   const seen = new Map<string, number>()
 
   async function pass(restart: boolean): Promise<ScreenSyncPass | { ok: false; reason: 'desktop' }> {

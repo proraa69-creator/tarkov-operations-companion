@@ -1,14 +1,53 @@
 import type { ModeProgress, Quest, TaskProgressRecord } from '../domain/types'
 import { latinize } from './modeSelectScreen'
-import { ocrKey, rowStatus, type QuestRowStatus } from './questOcr'
+import { ocrKey, type QuestRowStatus } from './questOcr'
 import { questFaction } from '../progression/questBasics'
+import type { GameLanguage } from './gameLanguage'
+import { languageWords, type LanguageWords } from './gameWordPatterns'
+import { letterWeight } from '../shared/cjk'
 
 /** Screens that mention quests but are not the Tasks list: messenger, trading, flea market. */
 const NOT_TASKS_SCREEN = /сообщени[яй]|отправить|барахолк|купить|продать/
 
-/** The game's Tasks menu (the table or a story chapter), in the Russian or the English game. */
-export function isTasksMenuText(text: string) {
-  return isRussianTasksMenu(text) || isEnglishTasksMenu(text)
+/**
+ * The game's Tasks menu (the table or a story chapter), in the Russian or the English game; in a German, Japanese or
+ * Chinese game (`language`) also by that language's own words (src/import/gameWords.ts).
+ */
+export function isTasksMenuText(text: string, language?: GameLanguage | null) {
+  if (isRussianTasksMenu(text) || isEnglishTasksMenu(text)) return true
+  const words = languageWords(language)
+  return Boolean(words && isGameLanguageTasksMenu(text, words))
+}
+
+/**
+ * The Tasks table in a German, Japanese or Chinese game, as the Russian and English checks tell it: never a trader's own
+ * tab or the trading screen («Aktuelles Ansehen», «(Du)», the loyalty level); at least one strong mark — «Irgendein Ort»,
+ * a row's «Aktiv», the column heads, the task items' headers, «Operative Aufgaben» — and two marks in all.
+ */
+function isGameLanguageTasksMenu(text: string, words: LanguageWords) {
+  const lower = text.toLowerCase()
+  if (words.traderScreen.test(lower)) return false
+  const has = (word: string) => Boolean(word) && new RegExp(words.word(word), 'iu').test(lower)
+  const columns = words.words.columns.filter(has).length
+  const strong = [
+    has(words.words.anyLocation),
+    has(words.words.status.active),
+    columns >= 4,
+    words.words.taskItems.some(has),
+    has(words.words.operational),
+  ].filter(Boolean).length
+  if (!strong) return false
+  if (words.notTasks.test(lower) && strong < 2) return false
+  const weak = [
+    words.words.tasks.some(has),
+    has(words.words.status.ready),
+    has(words.words.status.available),
+    has(words.words.status.failed),
+    has(words.words.status.locked),
+    columns >= 2 && columns < 4,
+    words.words.paneHeadings.some(has),
+  ].filter(Boolean).length
+  return strong + weak >= 2
 }
 
 // The English game (owner's PvE screenshots, 14.10.2026: Character → Tasks → Story / Side / Operational). Its bottom bar
@@ -96,15 +135,21 @@ const STATUS_CELLS = new RegExp(STATUS_CELL.source, 'gi')
  * Rows of the Tasks table on a frame: lines with a status cell beside a title. A lone status word is no row — the story
  * chapter's «АКТИВНО» / «ACTIVE» label, a button. The story pane shows one status at most, the table one per row.
  */
-export function tableRowLines(text: string) {
+export function tableRowLines(text: string, language?: GameLanguage | null) {
+  const words = languageWords(language)
+  const own = words ? new RegExp(words.statusWord, 'giu') : null
+  const ownOnce = words ? new RegExp(words.statusWord, 'iu') : null
   return text.split(/\r?\n/).filter((line) => {
     const lower = line.toLowerCase()
-    return STATUS_CELL.test(lower) && lower.replace(STATUS_CELLS, ' ').replace(/[^a-zа-яё]+/g, '').length >= 3
+    if (STATUS_CELL.test(lower) && lower.replace(STATUS_CELLS, ' ').replace(/[^a-zа-яё]+/g, '').length >= 3) return true
+    // The game's own status words; a title's letters in any script (umlauts, Chinese characters weighed: src/shared/cjk.ts).
+    if (!own || !ownOnce?.test(lower)) return false
+    return letterWeight(lower.replace(STATUS_CELLS, ' ').replace(own, ' ').replace(/[^\p{L}]+/gu, '')) >= 3
   })
 }
 
-export function tableRowCount(text: string) {
-  return tableRowLines(text).length
+export function tableRowCount(text: string, language?: GameLanguage | null) {
+  return tableRowLines(text, language).length
 }
 
 export interface ScreenScanOptions {

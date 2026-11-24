@@ -67,13 +67,13 @@ export async function noteFleaReading(reading: FleaReading, mode: RaidMode | nul
   if (reading.labelMode && reading.labelMode !== mode) return { skipped: 'other-mode' }
   const items = new Map<string, Item>()
   const rows: FleaRow[] = reading.rows.map((row) => {
-    const item = row.name && !isTraderRow(row.seller, row.info) ? catalog!.match(row.name) : null
+    const item = row.name && !isTraderRow(row.seller, row.info, reading.language) ? catalog!.match(row.name) : null
     if (item) items.set(item.id, item)
     return { price: row.price, seller: row.seller, info: row.info, itemId: item?.id ?? null }
   })
   // The rates only when a row is in dollars or euros.
   const foreign = reading.rows.some((row) => row.price.kind === 'price' && (row.price.currency === '$' || row.price.currency === '€'))
-  const result = fleaSightings(rows, (id, info) => leaveOut(items.get(id)!, info), foreign ? await ratesFor(mode) : {})
+  const result = fleaSightings(rows, (id, info) => leaveOut(items.get(id)!, info), foreign ? await ratesFor(mode) : {}, reading.language)
   const known = prices[mode]
   for (const sighting of result.sightings) {
     const before = known.get(sighting.itemId)
