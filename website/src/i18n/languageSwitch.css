@@ -1,26 +1,50 @@
-/* RU / EN in the header (src/components/LanguageSwitch.tsx): the same height and frame as the header buttons. */
-.lang-switch {
-  display: inline-flex; align-items: stretch; flex: none; min-height: 40px; padding: 3px; gap: 2px;
-  border: 1px solid var(--line-strong); border-radius: 9px; background: var(--panel-2);
+/* The language in the header (src/components/LanguageSwitch.tsx): the same height and frame as the header buttons; the
+   list of languages drops under it in the site's own panel colours. */
+.lang-picker { position: relative; display: inline-flex; flex: none; }
+.lang-switch.lang-picker-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 40px; min-width: 52px; padding: 0 9px;
+  border: 1px solid var(--line-strong); border-radius: 9px; background: var(--panel-2); color: var(--brass-strong);
   box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset, 0 6px 16px rgb(0 0 0 / 22%);
-}
-.lang-switch button {
-  min-width: 32px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim, #8f9b92);
   font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .04em; cursor: pointer;
-  transition: background-color .2s var(--ease-soft), color .2s var(--ease-soft);
+  transition: background-color .2s var(--ease-soft), border-color .2s var(--ease-soft);
 }
-.lang-switch button:hover { color: var(--text); background: var(--panel-3); }
-.lang-switch button.is-active { background: color-mix(in srgb, var(--brass) 24%, transparent); color: var(--brass-strong); cursor: default; }
-.lang-switch button:focus-visible, .lang-toggle:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+.lang-switch.lang-picker-button:hover { background: var(--panel-3); }
+.lang-picker-button svg { color: var(--text-dim, #8f9b92); transition: transform .18s ease; }
+.lang-picker-button svg.is-open { transform: rotate(180deg); }
+.lang-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; display: flex; flex-direction: column; gap: 2px;
+  min-width: 222px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 9px;
+  background: color-mix(in srgb, var(--panel-2) 96%, #000); box-shadow: 0 16px 34px rgb(0 0 0 / 50%);
+  backdrop-filter: blur(14px); animation: lang-menu-in .16s ease-out both;
+}
+.lang-menu button {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) 14px; align-items: center; gap: 8px; width: 100%; padding: 9px 10px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 700;
+  text-align: left; white-space: nowrap; cursor: pointer;
+}
+.lang-menu button:hover:not(.is-active), .lang-menu button:focus-visible:not(.is-active) { background: var(--panel-3); outline: none; }
+.lang-menu button.is-active { background: color-mix(in srgb, var(--brass) 24%, transparent); color: var(--brass-strong); }
+.lang-code { color: var(--text-dim, #8f9b92); font-size: 11px; font-weight: 800; letter-spacing: .04em; }
+.lang-menu button.is-active .lang-code { color: inherit; }
+.lang-switch.lang-picker-button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+@keyframes lang-menu-in { from { opacity: 0; transform: translateY(-4px); } }
 
-/* Phone: one 36 px square, both codes stacked, the active one lit; a tap switches to the other language. */
-.lang-toggle {
-  display: none; flex: none; width: 36px; height: 36px; padding: 0; place-content: center; gap: 1px;
-  border: 1px solid var(--line-strong); border-radius: 9px; background: var(--panel-2); color: var(--text-dim, #8f9b92);
-  font: inherit; font-size: 10px; font-weight: 800; line-height: 1.15; letter-spacing: .04em; cursor: pointer;
+/* A language offered on a first visit (src/components/LanguageOffer.tsx): a small card in the corner. */
+.lang-offer {
+  position: fixed; right: 16px; bottom: 16px; z-index: 70; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px);
+  padding: 10px 10px 10px 14px; border: 1px solid color-mix(in srgb, var(--brass) 45%, var(--line-strong)); border-radius: 11px;
+  background: color-mix(in srgb, var(--panel-2) 96%, #000); color: var(--text); box-shadow: 0 18px 40px rgb(0 0 0 / 50%);
+  animation: lang-menu-in .25s ease-out both;
 }
-.lang-toggle span { padding: 0 3px; border-radius: 4px; }
-.lang-toggle span.is-active { background: color-mix(in srgb, var(--brass) 24%, transparent); color: var(--brass-strong); }
+.lang-offer-question { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.lang-offer .lang-offer-yes { flex: none; min-height: 36px; padding: 0 14px; }
+.lang-offer-close { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim, #8f9b92); cursor: pointer; }
+.lang-offer-close:hover { background: var(--panel-3); color: var(--text); }
+@media (max-width: 560px) {
+  .lang-offer { left: 12px; right: 12px; bottom: 12px; flex-wrap: wrap; }
+  .lang-offer-question { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .lang-menu, .lang-offer { animation: none; } }
 
 /* The header gets busy below a wide desktop: short button labels from 1100 px down (it overflowed at tablet widths). */
 @media (max-width: 1100px) {
@@ -35,8 +59,7 @@
 /* Phones and narrow tablets: the compact header of the phone, «Личный кабинет» as its icon (it is in the menu too), and
    the one-button language switch, so everything fits next to each other. */
 @media (max-width: 800px) {
-  .lang-switch { display: none; }
-  .lang-toggle { display: grid; }
+  .lang-switch.lang-picker-button { min-height: 36px; min-width: 46px; padding: 0 7px; }
   .site-header .header-actions { gap: 4px; }
   .site-header .header-actions .button { min-height: 36px; padding: 0 9px; gap: 5px; font-size: 12px; }
   .site-header .header-actions .button svg { width: 14px; height: 14px; }

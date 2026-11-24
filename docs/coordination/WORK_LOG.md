@@ -9733,3 +9733,40 @@ Not pushed, not released, nothing uploaded.
   news «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
   src/data/questGuidePhotos.json, documentGuidePhotos.json, their two tests and these two data files change. For the 13:00 Bangkok
   window, not started by hand. The photo session says its 1384 pictures are all on the server (0 missing).
+- 0.6.0.340 live 13:10 Bangkok (972bafe6): the cloud session's «Полигон» on a phone (a1596328, 580b10cf) with the Streets of Tarkov
+  places and Customs «Отследить отправление» on top. Gate 45331079410 green 12:22; published by the 13:00 window (not by hand; no
+  blob prefetch, ~25 changed files). This note is on claude/release-340 only; it goes out with the next release.
+## 2026-11-24 14:06 — Claude: Reserve quests and battle pass documents shot again in the offline game
+
+- Runs reserve-all2 (62 quest points), -bpdocs6 (29 document pictures laid where they show them) and -bpspawn (5 live spawn points no
+  picture shows). Every sheet looked at by eye; refused in eval\manual-reject.json: 12 quest frames (a roof where Glukhar's workshop is
+  under it, the sun filling the view at the fuel tanks, a bush over the camera, dark frames with no letter or item in sight, a case cut by
+  the frame edge, an empty wall) and 16 document frames of 8 pictures (the document dropped to the floor, nothing in the offline copy to
+  lay it on, own frames of a corridor, a toilet, stairs or the yard instead of the room). bpdocs\reserve-one.json drops four pictures of
+  places that already have one photo of the same kind (two pairs of our own frames with the same words, a wiki duplicate, and the RB-OB
+  shelf frame that went to the neighbouring spot: its own spot has our close-up of the document by the shelf).
+- Integrated: quests 33 matched, 6 own places, 14 approaches, 14 close-ups, 15 wiki photos of shot places removed; documents one photo
+  per place (21 close-ups of the laid document; the one spot with two photos holds two kinds). documentGuide.test.ts checks Reserve for
+  one photo per place. Data tests with the photo components 574/574, map and objective-photo components 60/60, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\reserve (134) and -docs6 (96), on the server with this entry (eval\upload_guides.py).
+- Lighthouse was started by the dispatcher and paused at 13:51 at the coordinator's request (the game handed over for the language
+  screenshots); its frames so far stay in its manifest, the run resumes from there (photo2\tour-lighthouse-paused.json). Not in a release
+  yet (after 0.6.0.340).
+
+## 2026-11-24 14:25 — Claude: 0.6.0.341 to release/production (Reserve places)
+
+- On the photo session's word (d5bf0dcd, Reserve quests and battle pass documents, ready after 0.6.0.340; its 182 new pictures on
+  the server, 1566 of 1566): merged over 0.6.0.340 (972bafe6) with the 340 live note. Version 0.6.0-341; updateHistory row; player
+  news only «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
+  src/data/questGuidePhotos.json, documentGuidePhotos.json, documentGuide.test.ts and these data files change. For the 20:00 Bangkok
+  window, not started by hand. The photo session says no more maps for now (the game is taken for screens in other languages).
+- Also in 0.6.0.341 on the Raid OS session's word (owner 24.11: «на сайте, как все будет готово, можешь добавлять языки сразу»):
+  claude/site-languages 1bb63e68 — the website in German, Japanese and Chinese (website/**, src/shared/countries.ts, scripts/i18n,
+  server/src/services/tarkovDataMirror.ts keeps tarkov.dev dictionaries de/ja/zh; no app code). updateHistory 341 gets three lines,
+  player news «Сайт raidos.app теперь на немецком, японском и китайском» / «The raidos.app website is now in German, Japanese and
+  Chinese». After the 20:00 window: check raidos.app/?lang=zh opens in Chinese.
+- Also in 0.6.0.341 on the Raid OS session's word (owner 24.11: «подумай, какие еще языки нам стоит добавить, и добавь их на сайт и
+  в приложение»): claude/site-languages-2 14417171 — the website in Polish, Ukrainian, Spanish, Brazilian Portuguese, French, Korean
+  and Turkish (website/**, src/shared/countries.ts, tarkovDataMirror keeps pl/es/pt/fr/ko/tr; no app code). The 341 updateHistory
+  row folded to 4 lines; player news gets «Сайт raidos.app теперь на польском, украинском, испанском, португальском, французском,
+  корейском и турецком». After the 20:00 window: check raidos.app/?lang=ko and ?lang=uk.

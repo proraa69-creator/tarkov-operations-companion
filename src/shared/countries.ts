@@ -103,12 +103,22 @@ export function adminRegionOf(code: string): CountryRegion {
   return ADMIN_EXTRA_CIS_COUNTRIES.includes(upper as CountryCode) ? 'cis' : regionOf(upper)
 }
 
-/** The site and the apps speak Russian or English. */
-export type CountryLocale = 'ru' | 'en'
+/** The site's and the apps' languages (German, Japanese and Chinese since 24.11.2026). */
+export type CountryLocale = 'ru' | 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'uk' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
 
 export const REGION_LABELS: Record<CountryLocale, Record<CountryRegion, string>> = {
   ru: { cis: 'СНГ', europe: 'Европа', other: 'Другие страны' },
   en: { cis: 'CIS', europe: 'Europe', other: 'Other countries' },
+  de: { cis: 'GUS', europe: 'Europa', other: 'Andere Länder' },
+  ja: { cis: 'CIS諸国', europe: 'ヨーロッパ', other: 'その他の国' },
+  zh: { cis: '独联体', europe: '欧洲', other: '其他国家' },
+  pl: { cis: 'WNP', europe: 'Europa', other: 'Inne kraje' },
+  uk: { cis: 'СНД', europe: 'Європа', other: 'Інші країни' },
+  es: { cis: 'CEI', europe: 'Europa', other: 'Otros países' },
+  pt: { cis: 'CEI', europe: 'Europa', other: 'Outros países' },
+  fr: { cis: 'CEI', europe: 'Europe', other: 'Autres pays' },
+  ko: { cis: 'CIS', europe: '유럽', other: '기타 국가' },
+  tr: { cis: 'BDT', europe: 'Avrupa', other: 'Diğer ülkeler' },
 }
 
 const displayNames = new Map<string, Intl.DisplayNames | null>()
@@ -118,7 +128,7 @@ export function countryName(code: string, locale: CountryLocale): string {
   let names = displayNames.get(locale)
   if (names === undefined) {
     try {
-      names = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames([locale], { type: 'region' }) : null
+      names = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames([locale === 'zh' ? 'zh-CN' : locale], { type: 'region' }) : null
     } catch {
       names = null
     }
@@ -137,8 +147,8 @@ export function countryName(code: string, locale: CountryLocale): string {
  * Names the runtime gives differently from what registration forms usually show: the USA by its full English name
  * (owner, 09.11.2026: «не просто Соединённые Штаты, а реальное название, нормальное, как везде. На английском языке»).
  */
-const NAME_OVERRIDES: Partial<Record<string, Record<CountryLocale, string>>> = {
-  US: { ru: 'США (United States of America)', en: 'United States of America' },
+const NAME_OVERRIDES: Partial<Record<string, Partial<Record<CountryLocale, string>>>> = {
+  US: { ru: 'США (United States of America)', en: 'United States of America', de: 'Vereinigte Staaten von Amerika', ja: 'アメリカ合衆国', zh: '美利坚合众国', pl: 'Stany Zjednoczone Ameryki', uk: 'Сполучені Штати Америки', es: 'Estados Unidos de América', pt: 'Estados Unidos da América', fr: 'États-Unis d’Amérique', ko: '미합중국', tr: 'Amerika Birleşik Devletleri' },
 }
 
 export interface CountryOption { code: CountryCode; name: string }
@@ -150,7 +160,7 @@ const groupCache = new Map<CountryLocale, readonly CountryGroup[]>()
 export function countryGroups(locale: CountryLocale): readonly CountryGroup[] {
   const cached = groupCache.get(locale)
   if (cached) return cached
-  const collator = new Intl.Collator(locale)
+  const collator = new Intl.Collator(locale === 'zh' ? 'zh-CN' : locale)
   const groups = COUNTRY_REGIONS.map((region) => ({
     region,
     label: REGION_LABELS[locale][region],
@@ -171,7 +181,7 @@ const optionCache = new Map<CountryLocale, readonly CountryOption[]>()
 export function countryOptions(locale: CountryLocale): readonly CountryOption[] {
   const cached = optionCache.get(locale)
   if (cached) return cached
-  const collator = new Intl.Collator(locale)
+  const collator = new Intl.Collator(locale === 'zh' ? 'zh-CN' : locale)
   const options = COUNTRY_CODES.map((code) => ({ code, name: countryName(code, locale) })).sort((a, b) => collator.compare(a.name, b.name))
   optionCache.set(locale, options)
   return options
