@@ -11,6 +11,7 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ['Клавиша обнаружения предметов для коллекционера и убежища', 'Item detection key for the Collector and the hideout'],
   ['Вкл/выкл пресет', 'Preset on/off'], ['Сменить пресет', 'Next preset'], ['Убрать клавишу', 'Clear the key'], ['Нажмите клавишу… (Esc — отмена)', 'Press a key… (Esc — cancel)'], ['Назначьте клавишу', 'Set a key'],
   ['Включится в рейде, когда окно игры на экране', 'Turns on in a raid, when the game window is on the screen'],
+  ['Windows не дал изменить цвета монитора', 'Windows did not let the monitor colours change'], ['Выключите HDR в Windows и фильтры NVIDIA для Таркова', 'Turn off HDR in Windows and NVIDIA filters for Tarkov'],
   ['Добавить новый пресет', 'Add a new preset'], ['Новый пресет', 'New preset'],
   // «Пресеты экрана» on the phone (src/screen/MobileScreenPresets.tsx).
   ['Пресеты экрана', 'Screen presets'], ['ПК на связи', 'PC connected'], ['ПК не в сети', 'PC offline'], ['Спрашиваем сервер', 'Asking the server'],

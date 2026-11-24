@@ -8,6 +8,7 @@
 .screen-switch input { width: 18px; height: 18px; accent-color: var(--brass); }
 .screen-when { min-width: 260px; }
 .screen-state { color: var(--text-muted); font-size: 13px; }
+.screen-state-hint { display: block; margin-top: 2px; color: var(--brass-strong, var(--brass)); }
 .screen-warning { flex-basis: 100%; display: flex; align-items: center; gap: 8px; margin: 0; color: var(--brass-strong, var(--brass)); font-size: 13px; }
 .screen-warning svg { flex: none; width: 16px; height: 16px; }
 .screen-warning.is-error { color: var(--danger, #d46a5f); margin-top: 10px; }

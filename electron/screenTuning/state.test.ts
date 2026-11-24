@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { gammaRamp, NEUTRAL, screenTables } from '../../src/screen/screenCurve'
-import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, MAX_PRESETS, nextPresetId, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
+import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, MAX_PRESETS, nextPresetId, noteRaidResult, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
 import { BUILT_IN_PRESETS } from '../../src/screen/screenCurve'
 
 const BUILT_IN_DAYLIGHT = () => ({ ...BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-daylight')!, builtIn: undefined })
@@ -103,6 +103,17 @@ describe('«Настройка экрана»: the ramp written to the monitor',
     expect(strength).toBe(0.7)
     expect(tried[0]!).toBeGreaterThan(tried[2]!)
     expect(writeStrongest(tables, null, () => false)).toBe(0)
+  })
+})
+
+describe('the result of the last raid is kept for the page (report 223: one monitor)', () => {
+  it('a refusal is kept once the game is covered; the next preset written replaces it', () => {
+    const refused = noteRaidResult(null, { name: 'Пресет 2', strength: 0 }, 1000)
+    expect(refused).toEqual({ name: 'Пресет 2', strength: 0, at: 1000 })
+    // the app in front: nothing written, the raid's result stays
+    expect(noteRaidResult(refused, null, 5000)).toBe(refused)
+    expect(noteRaidResult(refused, { name: 'Пресет 2', strength: 0.55 }, 9000)).toEqual({ name: 'Пресет 2', strength: 0.55, at: 9000 })
+    expect(noteRaidResult(null, null, 9000)).toBeNull()
   })
 })
 

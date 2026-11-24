@@ -193,15 +193,31 @@ export function ScreenTuningPage() {
 
   const status = view?.status
   const changedBuiltIns = Object.keys(view?.settings.builtIns ?? {}).length > 0
+  // Windows refused every ramp (HDR on, a driver's colour filter): said plainly, with what to turn off (report 223)
+  const refused = uiText('Windows не дал изменить цвета монитора')
+  const lastRaid = status?.lastRaid
+  const lastRaidTime = lastRaid ? new Date(lastRaid.at).toLocaleTimeString(en ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''
   const stateLine = !status ? '' : !status.available ? uiText('Windows не даёт менять гамму монитора на этом компьютере.')
     : status.applied ? (() => {
+      if (status.applied.strength <= 0) return refused
       const name = status.editing ? say('ручная настройка', 'manual tuning') : uiText(active?.name ?? '')
       const strength = Math.round(status.applied.strength * 100)
       return status.applied.strength < 1
         ? say(`В игре сейчас: «${name}», Windows разрешил ${strength}% силы`, `In the game now: «${name}», Windows allowed ${strength}% of it`)
         : say(`В игре сейчас: «${name}»`, `In the game now: «${name}»`)
     })()
+    // the app in front after a raid (one monitor): what the raid had
+    : view?.settings.enabled && lastRaid ? (() => {
+      if (lastRaid.strength <= 0) return say(`В рейде (${lastRaidTime}) Windows не дал изменить цвета монитора`, `In the raid (${lastRaidTime}) Windows did not let the monitor colours change`)
+      const name = uiText(lastRaid.name)
+      const strength = Math.round(lastRaid.strength * 100)
+      return lastRaid.strength < 1
+        ? say(`В рейде (${lastRaidTime}): «${name}», Windows разрешил ${strength}% силы`, `In the raid (${lastRaidTime}): «${name}», Windows allowed ${strength}% of it`)
+        : say(`В рейде (${lastRaidTime}) работал «${name}»`, `In the raid (${lastRaidTime}): «${name}» was on`)
+    })()
     : view?.settings.enabled || draft ? uiText('Включится в рейде, когда окно игры на экране') : uiText('Выключено')
+  const refusedHint = status?.available && (status.applied ? status.applied.strength <= 0 : view?.settings.enabled && lastRaid && lastRaid.strength <= 0)
+    ? uiText('Выключите HDR в Windows и фильтры NVIDIA для Таркова') : ''
 
   return (
     <div className="page screen-page">
@@ -235,7 +251,7 @@ export function ScreenTuningPage() {
               {status?.displays.map((name) => <option key={name} value={name}>{say(`Монитор ${displayNumber(name)}`, `Monitor ${displayNumber(name)}`)}{name === status.gameDisplay ? say(' — сейчас там игра', ' — the game is there now') : ''}</option>)}
             </select>
           </span>
-          <span className="screen-state">{stateLine}</span>
+          <span className="screen-state">{stateLine}{refusedHint ? <span className="screen-state-hint">{refusedHint}</span> : null}</span>
           <PresetTriggers view={view} onView={setView} />
         </section>
 

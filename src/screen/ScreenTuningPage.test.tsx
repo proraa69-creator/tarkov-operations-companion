@@ -140,6 +140,33 @@ describe('«Настройка экрана»', () => {
     fireEvent.click(screen.getByText('Optimize the PC'))
     expect(await screen.findByText('Windows Game Mode')).toBeInTheDocument()
   })
+
+  it('report 223: Windows refusing the colours is said plainly, now and after the raid', async () => {
+    const on = { ...VIEW.settings, enabled: true }
+    const at = new Date(2026, 10, 24, 21, 40).getTime()
+    api.state.mockResolvedValueOnce({ ...VIEW, settings: on, status: { ...VIEW.status, applied: { displays: 1, strength: 0 } } })
+    const first = renderPage()
+    expect(await screen.findByText('Windows не дал изменить цвета монитора')).toBeInTheDocument()
+    expect(screen.getByText('Выключите HDR в Windows и фильтры NVIDIA для Таркова')).toBeInTheDocument()
+    expect(screen.queryByText(/0% силы/)).toBeNull()
+    first.unmount()
+    // one monitor: the app in front after the raid, the preset off now
+    api.state.mockResolvedValueOnce({ ...VIEW, settings: on, status: { ...VIEW.status, lastRaid: { name: 'Пресет 2', strength: 0, at } } })
+    const second = renderPage()
+    expect(await screen.findByText('В рейде (21:40) Windows не дал изменить цвета монитора')).toBeInTheDocument()
+    expect(screen.getByText('Выключите HDR в Windows и фильтры NVIDIA для Таркова')).toBeInTheDocument()
+    second.unmount()
+    api.state.mockResolvedValueOnce({ ...VIEW, settings: on, status: { ...VIEW.status, lastRaid: { name: 'Пресет 2', strength: 1, at } } })
+    const third = renderPage()
+    expect(await screen.findByText('В рейде (21:40) работал «Пресет 2»')).toBeInTheDocument()
+    expect(screen.queryByText(/Выключите HDR/)).toBeNull()
+    third.unmount()
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    api.state.mockResolvedValueOnce({ ...VIEW, settings: on, status: { ...VIEW.status, lastRaid: { name: 'Пресет 2', strength: 0, at } } })
+    renderPage()
+    expect(await screen.findByText('In the raid (21:40) Windows did not let the monitor colours change')).toBeInTheDocument()
+    expect(screen.getByText('Turn off HDR in Windows and NVIDIA filters for Tarkov')).toBeInTheDocument()
+  })
   it('takes the player\'s own screenshot: pasted with Ctrl+V or dropped onto the window (owner, 28.10.2026)', async () => {
     renderPage()
     expect(await screen.findByText(/Ctrl\+V или перетащите файл картинки/)).toBeInTheDocument()

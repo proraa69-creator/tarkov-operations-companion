@@ -10003,3 +10003,21 @@ Not pushed, not released, nothing uploaded.
   QuestPointStore.save, not written (scratchpad unheard-server/); ids stay valid after the release (the Ground Zero one just
   stops matching).
 - Not done: release rows (updateHistory/playerNews), not pushed; not checked on the dev map in the app.
+
+## 2026-11-25 — Claude: «Настройка экрана» says when Windows refuses the colours, and what the last raid had (report 223)
+
+- Report 223 (0.6.0.340, one monitor, PvE, BSG launcher): «пресет включён, а в игре не работает». Server data and the player's
+  screenshots show it switched on, «Пресет 2», the game window found (a game frame in the preview), the logs read (PvE mode,
+  level, quests); raid detection checked on real 1.3.5 and PvE game logs. Exact cause not provable from the server: with one
+  monitor the player sees the page only with the app in front, when the preset is off; a refusal by Windows (HDR, NVIDIA
+  filters) read «Windows разрешил 0% силы». Owner approved the change («да»).
+- 162c3c07 on claude/alpin-preset (from release/production c62a3881, 0.6.0.342): writeStrongest 0 → «Windows не дал изменить
+  цвета монитора» + «Выключите HDR в Windows и фильтры NVIDIA для Таркова»; `noteRaidResult` (electron/screenTuning/state.ts)
+  keeps the preset's last result on the game's screen (name, strength, time; not the curve being tuned) → `status.lastRaid`;
+  with the app in front after a raid the page says «В рейде (21:40) работал «Пресет 2»», the allowed strength, or the refusal.
+  Files: electron/screenTuning/index.ts, state.ts, state.test.ts, src/screen/ScreenTuningPage.tsx, ScreenTuningPage.test.tsx,
+  screenApi.ts, screenTuning.css, src/i18n/uiEnglishScreen.ts.
+- Checks: vitest electron/screenTuning + src/screen 122/122, src/i18n 42/42; npm run typecheck, tsc -p tsconfig.electron.json,
+  eslint on the changed files clean. Not pushed, not released; main-process change (full update, not interface-only).
+- Risks: the result lives in memory (gone after an app restart); not seen on a real PC with HDR on; the player still has to
+  answer (key «Вкл/выкл пресет» in a raid, HDR / NVIDIA filters off).
