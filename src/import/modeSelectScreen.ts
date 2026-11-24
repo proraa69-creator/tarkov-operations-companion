@@ -177,6 +177,19 @@ function padBox(box: OcrWordBox['bbox'], unit: number): PaneRect {
   return { x: box.x0 - unit * 0.03, y: box.y0 - unit * 0.012, width: box.x1 - box.x0 + unit * 0.06, height: box.y1 - box.y0 + unit * 0.024 }
 }
 
+/** The nickname's letters are this high (the players' screenshots: 13–16 px at 1080p). */
+const NAME_HEIGHT = 0.015
+
+/**
+ * The nickname's box as high as its row: the whole pass sometimes gives the name the height of the emblem beside it (36 px
+ * on the French traders' screenshot, its letters 13), and a close-up of that reads nothing. Middle kept.
+ */
+function nameRowBox(box: OcrWordBox['bbox'], unit: number): OcrWordBox['bbox'] {
+  if (box.y1 - box.y0 <= unit * NAME_HEIGHT * 2) return box
+  const middle = (box.y0 + box.y1) / 2
+  return { ...box, y0: middle - (unit * NAME_HEIGHT) / 2, y1: middle + (unit * NAME_HEIGHT) / 2 }
+}
+
 /** The whole pass's words inside the band, row by row (left to right), and the first row that is «ник | уровень». */
 function lineInBand(words: OcrWordBox[], band: PaneRect): { reading: NameLevel; box: OcrWordBox['bbox'] } | null {
   const inside = words.filter((word) => {
@@ -304,10 +317,19 @@ function traderMarks(language?: GameLanguage | null) {
     attitude: new RegExp(words.any(attitude), 'iu'),
     you: new RegExp(words.any(you), 'iu'),
     /** «(Du)» as one word, maybe its brackets split off or lost; a mark of two words by its first. */
-    youWord: new RegExp(`^[(（]?\\s*${words.any(firsts)}\\s*[)）]?$`, 'iu'),
-    youInText: new RegExp(`[(（]\\s*${words.any(bare)}\\s*[)）]`, 'giu'),
+    // A Japanese closing bracket may come out as «〕» or «」» («SHAUUURMA (あなた〕» on the players' screenshots).
+    youWord: new RegExp(`^[(（]?\\s*${words.any(firsts)}\\s*[)）〕」]?$`, 'iu'),
+    youInText: new RegExp(`[(（]\\s*${words.any(bare)}\\s*[)）〕」]`, 'giu'),
     /** The standing row's first word («Aktuelles»), or the whole phrase as the Japanese and Chinese OCR give it. */
     attitudeStart: new RegExp(`^${words.any(starts)}`, 'iu'),
+    /**
+     * A Japanese or Chinese standing phrase the OCR cut in pieces («商人» «当前态度»): a word of two characters or more
+     * that starts the phrase.
+     */
+    attitudePiece: (text: string) => {
+      const piece = text.replace(/[^\p{L}]/gu, '')
+      return (words.language === 'ja' || words.language === 'zh') && piece.length >= 2 && starts.some((phrase) => phrase.replace(/[^\p{L}]/gu, '').startsWith(piece))
+    },
     youLoose: words.language === 'ja' || words.language === 'zh' ? CJK_YOU : null,
   }
 }
@@ -335,11 +357,11 @@ export function traderScreenParts(words: OcrWordBox[], size: { width: number; he
       const before = words[index - 1]
       const name = before ? before.text.replace(/[^A-Za-z0-9_-]/g, '') : ''
       if (before && sameRow(before, word) && NICKNAME.test(latinize(name)) && /[A-Za-z]/.test(latinize(name))) {
-        nickname = { value: latinize(name), box: clampRect(padBox(before.bbox, unit), size) }
+        nickname = { value: latinize(name), box: clampRect(padBox(marks ? nameRowBox(before.bbox, unit) : before.bbox, unit), size) }
       }
     }
     // «Текущее отношение» … «LVL» «12» on one row.
-    if (!level && (/^(текущее|current)$/i.test(word.text.replace(/[^A-Za-zА-яЁё]/g, '')) || marks?.attitudeStart.test(word.text.trim()))) {
+    if (!level && (/^(текущее|current)$/i.test(word.text.replace(/[^A-Za-zА-яЁё]/g, '')) || marks?.attitudeStart.test(word.text.trim()) || marks?.attitudePiece(word.text))) {
       const row = words.slice(index + 1, index + 12).filter((other) => sameRow(other, word))
       for (let at = 0; at + 1 < row.length; at += 1) {
         if (!LEVEL_WORD.test(token(row[at]!.text))) continue
@@ -350,14 +372,36 @@ export function traderScreenParts(words: OcrWordBox[], size: { width: number; he
         level = { value, box: clampRect(padBox({ x0: a.x0, y0: Math.min(a.y0, b.y0), x1: b.x1, y1: Math.max(a.y1, b.y1) }, unit), size) }
         break
       }
+      // A German, Polish… game (the players' screenshots, 24.11.2026): «LVL 69» read as one word, «wi69», «ıı69» — before any
+      // lone number of the row. The close-up still has to read «LVL 69» and its digits' shapes agree (confirmTraderLevel).
+      if (!level && marks) {
+        // A letter of «LVL» in it, not digits only («125» is the standing «1.25»).
+        const glued = row.find((other) => /^(?=[^\d]|1[^\d])[lvwiı1|]{1,3}\d{1,2}$/i.test(other.text.trim()))
+        const digits = glued ? Number(/\d{1,2}$/.exec(glued.text.trim())![0]) : NaN
+        if (glued && digits >= 1 && digits <= MAX_PLAYER_LEVEL) level = { value: digits, box: clampRect(padBox(glued.bbox, unit), size) }
+      }
       // «LVL» itself misread («[J wi 41» in the English game): the row's first one- or two-digit word, with the word before
       // it, so the close-up still sees «LVL 41» and has to read it (confirmTraderLevel).
-      const at = level ? -1 : row.findIndex((other) => /^\d{1,2}$/.test(other.text.trim()))
+      // A game beyond Russian and English: never a number that starts with 0 (the Turkish standing «6.02» read «02»).
+      const at = level ? -1 : row.findIndex((other) => (marks ? /^[1-9]\d?$/ : /^\d{1,2}$/).test(other.text.trim()))
       const value = at >= 1 ? Number(row[at]!.text.trim()) : NaN
       if (at >= 1 && value >= 1 && value <= MAX_PLAYER_LEVEL) {
         const a = row[at - 1]!.bbox, b = row[at]!.bbox
         level = { value, box: clampRect(padBox({ x0: a.x0, y0: Math.min(a.y0, b.y0), x1: b.x1, y1: Math.max(a.y1, b.y1) }, unit), size) }
       }
+    }
+  }
+  // A German, Japanese… game whose «(Du)» / «(あなた)» the OCR misread («(257272)»): the name-like word right before an opening
+  // bracket on its row, in the top right of the screen (not a trader's words below it: «watching you (…»). The close-up still
+  // has to read the same name (electron/screenOcr.ts).
+  if (!nickname && marks) {
+    for (let index = 0; index + 1 < words.length; index += 1) {
+      const word = words[index]!, next = words[index + 1]!
+      const name = word.text.replace(/[^A-Za-z0-9_-]/g, '')
+      if (word.bbox.y1 > size.height * 0.12 || word.bbox.x0 < size.width * 0.5 || !/^[(（]/.test(next.text.trim()) || !sameRow(word, next)) continue
+      if (!NICKNAME.test(latinize(name)) || !/[A-Za-z]/.test(latinize(name))) continue
+      nickname = { value: latinize(name), box: clampRect(padBox(nameRowBox(word.bbox, unit), unit), size) }
+      break
     }
   }
   return { nickname, level }
@@ -389,7 +433,10 @@ export function confirmTraderLevel(whole: number | undefined, close: number | nu
 /** The nickname a close-up of «Raid_OS» reads (the icon or «(вы)» around it dropped). */
 export function parseTraderNickname(text: string, language?: GameLanguage | null) {
   const marks = traderMarks(language)
-  const words = latinize(marks ? text.replace(marks.youInText, ' ') : text).replace(/\((вы|ву|you)\)/gi, ' ').split(/\s+/).map((part) => part.replace(/[^A-Za-z0-9_-]/g, '')).filter((part) => NICKNAME.test(part) && /[A-Za-z]/.test(part))
+  const words = latinize(marks ? text.replace(marks.youInText, ' ') : text).replace(/\((вы|ву|you)\)/gi, ' ').split(/\s+/)
+    // A German, Portuguese… game: its mark read wrong is still in brackets («(vot)» for «(você)»), never the name.
+    .map((part) => (marks ? part.replace(/[(（].*$/u, '').replace(/^.*[)）〕」]$/u, '') : part))
+    .map((part) => part.replace(/[^A-Za-z0-9_-]/g, '')).filter((part) => NICKNAME.test(part) && /[A-Za-z]/.test(part))
   return words.at(-1) ?? null
 }
 

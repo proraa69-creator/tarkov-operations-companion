@@ -56,7 +56,7 @@ function tableLanguage(language: GameLanguage | null | undefined): TableLanguage
   let entry: TableLanguage | null = null
   if (words) {
     const source = `[ \\t]*${words.anyLocation}|[ \\t]*${words.maps}(?=[ \\t]*${words.statusWord})|[ \\t]*${words.statusWord}`
-    const columnTexts = [...words.words.anyLocation, ...Object.values(words.words.maps), ...Object.values(words.words.status).flat()]
+    const columnTexts = [...words.words.anyLocation, ...Object.values(words.words.maps).flat(), ...Object.values(words.words.status).flat()]
     entry = {
       words,
       split: new RegExp(source, 'gimu'),
@@ -246,7 +246,14 @@ const ROW_PART_WORD = new RegExp(`ч[а-яa-z]ст[ьбъ]|ча[а-яa-z]т[ьб
 const PART_ONE_STROKE = /([Чч4][AaАа][CcСс][ТтTt][ЬьБб6Bb]|[Pp][Aa][Rr][Tt])[\s.,:;-]*[|lI](?![\p{L}\p{N}])/gu
 
 interface TitlePart { stem: string; word: string; number: string }
-interface RowPart { tail: string }
+interface RowPart {
+  tail: string
+  /**
+   * A game beyond Russian and English (its part word given): no Cyrillic word follows the number, so a «з», «б» or «о»
+   * right after it is a digit as the keys hold them (3, 6, 0) — «Yayın- Bölüm53» is no «Bölüm 5» (the Turkish screenshots).
+   */
+  digitsOnly?: boolean
+}
 
 /**
  * A German game's part word («Laufbursche – Teil 1»), and the Chinese game's titles, which put the number right after the
@@ -290,14 +297,16 @@ function rowPart(key: string, part = ''): RowPart | undefined {
   if (tail === undefined && part) for (const hit of tagless.matchAll(languagePart(part).row)) if (hit.index >= 3) tail = tagless.slice(hit.index + hit[0].length)
   // A Chinese title's number follows its last character; the row's tag after it is dropped as the title's is.
   if (tail === undefined) for (const hit of tagless.matchAll(CJK_ROW_PART)) if (hit.index >= 1) tail = tagless.slice(hit.index + hit[0].length).replace(new RegExp(`${CJK_PVP_KEY}$`), '')
-  return tail === undefined ? undefined : { tail }
+  if (tail === undefined) return undefined
+  return part ? { tail, digitsOnly: true } : { tail }
 }
 
 /** The row's number is this one: nothing after it, or a word (a column left on the cell), never another digit («13» is not «1»). */
-function numberOpens(tail: string, number: string) {
+function numberOpens(row: RowPart, number: string) {
+  const { tail } = row
   if (!tail.startsWith(number)) return false
   const rest = tail.slice(number.length)
-  return !rest || (!/^[0-9]/.test(rest) && !/^[збо]$/.test(rest))
+  return !rest || (!/^[0-9]/.test(rest) && !/^[збо]$/.test(rest) && !(row.digitsOnly && /^[збо]/.test(rest)))
 }
 
 /** The row names some number, whichever: a digit first, or nothing but digits as the keys hold them. */
@@ -428,9 +437,9 @@ function partAgrees(row: RowPart | undefined, candidate: string, catalog: Catalo
   const own = catalog.parts.get(candidate)
   if (!own) {
     if (!row) return true
-    return numberOpens(row.tail, '1') || (!numberRead(row.tail) && !catalog.chains.has(candidate))
+    return numberOpens(row, '1') || (!numberRead(row.tail) && !catalog.chains.has(candidate))
   }
-  if (row && numberOpens(row.tail, own.number)) return true
+  if (row && numberOpens(row, own.number)) return true
   if (row && numberRead(row.tail)) return false
   return (catalog.chains.get(own.stem)?.size ?? 0) <= 1
 }
@@ -625,7 +634,7 @@ function questMapKeys(quest: Quest, lang?: TableLanguage | null) {
   const id = quest.mapId ? canonicalMapId(quest.mapId) : ''
   if (!id) return []
   // A German, Japanese or Chinese game's own name of the map too («海关»).
-  return [MAP_DISPLAY_NAMES[id], id.replace(/-/g, ' '), lang?.words.words.maps[id]].filter((name): name is string => Boolean(name)).map(ocrKey).filter((key) => letterWeight(key) >= 3)
+  return [MAP_DISPLAY_NAMES[id], id.replace(/-/g, ' '), ...(lang?.words.words.maps[id] ?? [])].filter((name): name is string => Boolean(name)).map(ocrKey).filter((key) => letterWeight(key) >= 3)
 }
 
 /** Lines that can name a story chapter — map-only labels outside the story tab are excluded. */
@@ -728,8 +737,9 @@ function ocrWordChunks(text: string, lang?: TableLanguage | null) {
   for (const line of ocrRowLines(text, lang)) {
     const rowKey = ocrKey(line)
     for (const chunk of line.match(/[а-яё]{4,}(?:\s*[.\-–—]?\s*часть\s*\d+)?/gi) ?? []) out.push({ chunk: chunk.trim(), rowKey })
-    // A German, Japanese or Chinese game's own letters (its umlauts, its characters).
-    if (lang) for (const chunk of line.match(lang.chunk) ?? []) out.push({ chunk: chunk.trim(), rowKey })
+    // A German, Japanese or Chinese game's own letters (its umlauts, its characters); never a column's word alone (the
+    // location «Streets of» of a Portuguese row named «Revisão - Streets of Tarkov»).
+    if (lang) for (const chunk of line.match(lang.chunk) ?? []) if (!columnWord(chunk.trim(), lang)) out.push({ chunk: chunk.trim(), rowKey })
   }
   return out
 }
@@ -811,8 +821,18 @@ function titleAtRowStart(rawLine: string, catalog: Catalog, lang?: TableLanguage
   const columns = new Array<boolean>(words.length + 1).fill(true)
   for (let index = words.length - 1; index >= 0; index -= 1) columns[index] = columns[index + 1]! && columnWord(words[index]!, lang)
   let best: { entry: CatalogEntry; key: string; distance: number; worth: number } | undefined
-  for (let start = 0; start <= Math.min(ROW_ICON_WORDS, words.length - 1); start += 1) {
-    if (start > 0 && letterWeight(ocrKey(words[start - 1]!)) > 2) break
+  // A Japanese, Chinese or Korean game's title is in its own script: the Latin junk of the icons before it is no part of it
+  // (the players' screenshots: «lhe ; Ro 苏共之辉 -1»).
+  const ownScript = lang && /^(?:ja|zh|ko)$/.test(lang.words.language) ? words.findIndex((word) => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(word)) : -1
+  // A game beyond Russian and English: its rows' icons came out of the players' screenshots as up to three bits of junk,
+  // one of three letters («k e EN», «x Bel &»).
+  const icons = lang ? ROW_ICON_WORDS + 1 : ROW_ICON_WORDS
+  const junk = lang ? 3 : 2
+  const starts = [...Array.from({ length: Math.min(icons, words.length - 1) + 1 }, (_, index) => index), ...(ownScript > icons && ownScript <= ROW_ICON_WORDS + 3 ? [ownScript] : [])]
+  let blocked = false
+  for (const start of starts) {
+    // After a word of the title itself (three letters or more) no later start is the row's (the own script's start aside).
+    if (start !== ownScript && (blocked || (start > 0 && letterWeight(ocrKey(words[start - 1]!)) > junk))) { blocked = true; continue }
     for (let end = start + 1; end <= Math.min(words.length, start + ROW_TITLE_WORDS); end += 1) {
       if (!columns[end]) continue
       const key = ocrKey(words.slice(start, end).join(' '))

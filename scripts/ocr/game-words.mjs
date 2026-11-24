@@ -132,8 +132,11 @@ for (const [language, files] of Object.entries(LANGUAGES)) {
   entry.exits.transit = unique(entry.exits.transit.map((word) => word.replace(/\s*\d+$/, '')))
   const [maps, traders, tasks] = await Promise.all(['maps', 'traders', 'tasks'].map((name) => dictionary(name, language)))
   entry.part = partWords(tasksEnglish, tasks)
-  entry.maps = Object.fromEntries(Object.entries(MAPS).map(([id, app]) => [app, clean(maps[`${id} Name`])]).filter(([, name]) => name))
-  entry.traders = Object.fromEntries(Object.entries(TRADERS).map(([id, app]) => [app, clean(traders[`${id} Nickname`])]).filter(([, name]) => name))
+  // Both tarkov.dev's names and the locale files' own (the game's screens in SPT showed the Turkish «Terapist», «Simsar»
+  // where tarkov.dev keeps «Therapist», «Fence»).
+  const both = (dictionaryName, key) => unique([clean(dictionaryName[key]), ...locales.map((locale) => clean(locale[key]))])
+  entry.maps = Object.fromEntries(Object.entries(MAPS).map(([id, app]) => [app, both(maps, `${id} Name`)]).filter(([, names]) => names.length))
+  entry.traders = Object.fromEntries(Object.entries(TRADERS).map(([id, app]) => [app, both(traders, `${id} Nickname`)]).filter(([, names]) => names.length))
   words[language] = entry
 }
 // The English of the same keys, for the reader of this file.
@@ -178,10 +181,10 @@ export interface GameWords {
   flea: { condition: string[]; noBarter: string[]; total: string[]; limit: string[] }
   /** The words before a quest part's number («Teil»; the English «Part» left out); none when the titles carry none. */
   part: string[]
-  /** Map names by the app's map id. */
-  maps: Record<string, string>
-  /** Trader names by the app's trader key. */
-  traders: Record<string, string>
+  /** Map names by the app's map id (tarkov.dev's and the locale files'). */
+  maps: Record<string, string[]>
+  /** Trader names by the app's trader key (tarkov.dev's and the locale files'). */
+  traders: Record<string, string[]>
 }
 
 export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = ${JSON.stringify(words, null, 2)}

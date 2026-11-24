@@ -29,7 +29,7 @@ function screenNames(language?: GameLanguage | null): Record<string, string> {
   const words = languageWords(language)
   if (!words) return TRADER_SCREEN_NAMES
   // «Jäger» also as the OCR may read it: «Jager», «Jaeger».
-  const own = Object.fromEntries(Object.entries(words.words.traders).flatMap(([key, name]) => umlautForms(name).map((form) => [foldName(form), key])).filter(([name]) => name))
+  const own = Object.fromEntries(Object.entries(words.words.traders).flatMap(([key, names]) => names.flatMap(umlautForms).map((form) => [foldName(form), key])).filter(([name]) => name))
   return { ...TRADER_SCREEN_NAMES, ...own }
 }
 

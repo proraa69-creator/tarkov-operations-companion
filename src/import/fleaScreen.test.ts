@@ -132,6 +132,47 @@ describe('the flea screen itself', () => {
   })
 })
 
+/**
+ * A Japanese and a Korean game (the players' screenshots of SPT 4.1.6 in these languages, 1920×1080; only the tabs, the
+ * sort chevron, the scrollbar and the price column kept, the rest black): their lines are taller, each row ~78.7 px, not 72.
+ */
+describe('a Japanese or Korean game\'s taller flea rows', () => {
+  const tall: Record<'ja' | 'ko', Array<[number, string]>> = {
+    ja: [[91, '₽'], [95, '₽'], [98, '₽'], [1, '$'], [1, '$'], [128, '₽'], [128, '₽'], [13, '$'], [2346, '₽'], [2987, '₽'], [26, '$']],
+    ko: [[93, '₽'], [97, '₽'], [100, '₽'], [101, '₽'], [104, '₽'], [1, '$'], [1, '$'], [980, '₽'], [2346, '₽'], [2546, '₽'], [22, '$']],
+  }
+
+  it('reads every row\'s price where the row is, never one for sure that is not there', async () => {
+    for (const language of ['ja', 'ko'] as const) {
+      const pixels = await decode(join(dir, `${language}-tall-rows.webp`))
+      const layout = fleaLayout(pixels, language)
+      expect(layout.rowHeight, language).toBeCloseTo(78.7)
+      expect(fleaScreenState(pixels, layout), language).toEqual({ open: true, ascending: true, atTop: true, locked: false })
+      const sure = (prices: FleaPrice[]) => prices.map((price) => price.kind === 'price' && price.sure ? [price.value, price.currency] : price.kind)
+      expect(sure(readFleaPrices(pixels, layout)), language).toEqual(tall[language])
+      // At the other languages' 72 px the rows drift: the last ones read the price of the row above (2987 ₽ as row 10).
+      expect(sure(readFleaPrices(pixels, fleaLayout(pixels))).slice(0, tall[language].length), language).not.toEqual(tall[language])
+    }
+  })
+
+  it('sees the list cheapest first in every language, the chevron after a longer word too («Precio ^»)', async () => {
+    // The players' screenshots in each language, one 1080p band each: the tabs, the price column's word and chevron, the
+    // scrollbar's top (the rest black).
+    const languages = ['de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr']
+    type Extractable = { extract(area: object): { png(): { toBuffer(): Promise<Buffer> } } }
+    for (const [index, language] of languages.entries()) {
+      const band = await decode(await (sharp(join(dir, 'languages-heads.webp')) as unknown as Extractable).extract({ left: 0, top: index * 1080, width: 1920, height: 1080 }).png().toBuffer())
+      expect(fleaScreenState(band), language).toEqual({ open: true, ascending: true, atTop: true, locked: false })
+    }
+  })
+
+  it('keeps 72 px rows in every other language', () => {
+    const size = { width: 1920, height: 1080 }
+    for (const language of [null, 'ru', 'en', 'de', 'zh', 'pl', 'es', 'pt', 'fr', 'tr'] as const) expect(fleaLayout(size, language).rowHeight, String(language)).toBeUndefined()
+    expect(fleaRowCount(fleaLayout(size, 'ko'))).toBe(11)
+  })
+})
+
 describe('the mode the version line names (only a check of the mode the app follows)', () => {
   it('reads the OCR of the owner\'s frames', () => {
     expect(fleaModeFromLabel('1.3.0.2.48779 | PvE')).toBe('pve')

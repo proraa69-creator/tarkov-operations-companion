@@ -37,10 +37,10 @@ export interface GameWords {
   flea: { condition: string[]; noBarter: string[]; total: string[]; limit: string[] }
   /** The words before a quest part's number («Teil»; the English «Part» left out); none when the titles carry none. */
   part: string[]
-  /** Map names by the app's map id. */
-  maps: Record<string, string>
-  /** Trader names by the app's trader key. */
-  traders: Record<string, string>
+  /** Map names by the app's map id (tarkov.dev's and the locale files'). */
+  maps: Record<string, string[]>
+  /** Trader names by the app's trader key (tarkov.dev's and the locale files'). */
+  traders: Record<string, string[]>
 }
 
 export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
@@ -194,31 +194,77 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
       "Teil"
     ],
     "maps": {
-      "factory": "Factory",
-      "customs": "Customs",
-      "woods": "Woods",
-      "lighthouse": "Lighthouse",
-      "shoreline": "Shoreline",
-      "reserve": "Reserve",
-      "interchange": "Interchange",
-      "streets-of-tarkov": "Streets of Tarkov",
-      "the-lab": "The Lab",
-      "ground-zero": "Ground Zero",
-      "terminal": "Terminal",
-      "the-labyrinth": "The Labyrinth",
-      "icebreaker": "Icebreaker"
+      "factory": [
+        "Factory"
+      ],
+      "customs": [
+        "Customs"
+      ],
+      "woods": [
+        "Woods"
+      ],
+      "lighthouse": [
+        "Lighthouse"
+      ],
+      "shoreline": [
+        "Shoreline"
+      ],
+      "reserve": [
+        "Reserve"
+      ],
+      "interchange": [
+        "Interchange"
+      ],
+      "streets-of-tarkov": [
+        "Streets of Tarkov"
+      ],
+      "the-lab": [
+        "The Lab"
+      ],
+      "ground-zero": [
+        "Ground Zero"
+      ],
+      "terminal": [
+        "Terminal"
+      ],
+      "the-labyrinth": [
+        "The Labyrinth"
+      ],
+      "icebreaker": [
+        "Icebreaker"
+      ]
     },
     "traders": {
-      "prapor": "Prapor",
-      "therapist": "Therapist",
-      "fence": "Fence",
-      "skier": "Skier",
-      "peacekeeper": "Peacekeeper",
-      "mechanic": "Mechanic",
-      "ragman": "Ragman",
-      "jaeger": "Jäger",
-      "lightkeeper": "Lightkeeper",
-      "ref": "Ref"
+      "prapor": [
+        "Prapor"
+      ],
+      "therapist": [
+        "Therapist"
+      ],
+      "fence": [
+        "Fence"
+      ],
+      "skier": [
+        "Skier"
+      ],
+      "peacekeeper": [
+        "Peacekeeper"
+      ],
+      "mechanic": [
+        "Mechanic"
+      ],
+      "ragman": [
+        "Ragman"
+      ],
+      "jaeger": [
+        "Jäger"
+      ],
+      "lightkeeper": [
+        "Lightkeeper"
+      ],
+      "ref": [
+        "Ref"
+      ]
     }
   },
   "ja": {
@@ -368,31 +414,77 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
     },
     "part": [],
     "maps": {
-      "factory": "Factory",
-      "customs": "Customs",
-      "woods": "Woods",
-      "lighthouse": "Lighthouse",
-      "shoreline": "Shoreline",
-      "reserve": "Reserve",
-      "interchange": "Interchange",
-      "streets-of-tarkov": "Streets of Tarkov",
-      "the-lab": "The Lab",
-      "ground-zero": "Ground Zero",
-      "terminal": "Terminal",
-      "the-labyrinth": "The Labyrinth",
-      "icebreaker": "Icebreaker"
+      "factory": [
+        "Factory"
+      ],
+      "customs": [
+        "Customs"
+      ],
+      "woods": [
+        "Woods"
+      ],
+      "lighthouse": [
+        "Lighthouse"
+      ],
+      "shoreline": [
+        "Shoreline"
+      ],
+      "reserve": [
+        "Reserve"
+      ],
+      "interchange": [
+        "Interchange"
+      ],
+      "streets-of-tarkov": [
+        "Streets of Tarkov"
+      ],
+      "the-lab": [
+        "The Lab"
+      ],
+      "ground-zero": [
+        "Ground Zero"
+      ],
+      "terminal": [
+        "Terminal"
+      ],
+      "the-labyrinth": [
+        "The Labyrinth"
+      ],
+      "icebreaker": [
+        "Icebreaker"
+      ]
     },
     "traders": {
-      "prapor": "Prapor",
-      "therapist": "Therapist",
-      "fence": "Fence",
-      "skier": "Skier",
-      "peacekeeper": "Peacekeeper",
-      "mechanic": "Mechanic",
-      "ragman": "Ragman",
-      "jaeger": "Jaeger",
-      "lightkeeper": "Lightkeeper",
-      "ref": "Ref"
+      "prapor": [
+        "Prapor"
+      ],
+      "therapist": [
+        "Therapist"
+      ],
+      "fence": [
+        "Fence"
+      ],
+      "skier": [
+        "Skier"
+      ],
+      "peacekeeper": [
+        "Peacekeeper"
+      ],
+      "mechanic": [
+        "Mechanic"
+      ],
+      "ragman": [
+        "Ragman"
+      ],
+      "jaeger": [
+        "Jaeger"
+      ],
+      "lightkeeper": [
+        "Lightkeeper"
+      ],
+      "ref": [
+        "Ref"
+      ]
     }
   },
   "zh": {
@@ -542,31 +634,77 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
     },
     "part": [],
     "maps": {
-      "factory": "工厂",
-      "customs": "海关",
-      "woods": "森林",
-      "lighthouse": "灯塔",
-      "shoreline": "海岸线",
-      "reserve": "储备站",
-      "interchange": "立交桥",
-      "streets-of-tarkov": "塔科夫街区",
-      "the-lab": "实验室",
-      "ground-zero": "中心区",
-      "terminal": "码头",
-      "the-labyrinth": "迷宫",
-      "icebreaker": "破冰船"
+      "factory": [
+        "工厂"
+      ],
+      "customs": [
+        "海关"
+      ],
+      "woods": [
+        "森林"
+      ],
+      "lighthouse": [
+        "灯塔"
+      ],
+      "shoreline": [
+        "海岸线"
+      ],
+      "reserve": [
+        "储备站"
+      ],
+      "interchange": [
+        "立交桥"
+      ],
+      "streets-of-tarkov": [
+        "塔科夫街区"
+      ],
+      "the-lab": [
+        "实验室"
+      ],
+      "ground-zero": [
+        "中心区"
+      ],
+      "terminal": [
+        "码头"
+      ],
+      "the-labyrinth": [
+        "迷宫"
+      ],
+      "icebreaker": [
+        "破冰船"
+      ]
     },
     "traders": {
-      "prapor": "Prapor",
-      "therapist": "Therapist",
-      "fence": "Fence",
-      "skier": "Skier",
-      "peacekeeper": "Peacekeeper",
-      "mechanic": "Mechanic",
-      "ragman": "Ragman",
-      "jaeger": "Jaeger",
-      "lightkeeper": "Lightkeeper",
-      "ref": "竞技场裁判"
+      "prapor": [
+        "Prapor"
+      ],
+      "therapist": [
+        "Therapist"
+      ],
+      "fence": [
+        "Fence"
+      ],
+      "skier": [
+        "Skier"
+      ],
+      "peacekeeper": [
+        "Peacekeeper"
+      ],
+      "mechanic": [
+        "Mechanic"
+      ],
+      "ragman": [
+        "Ragman"
+      ],
+      "jaeger": [
+        "Jaeger"
+      ],
+      "lightkeeper": [
+        "Lightkeeper"
+      ],
+      "ref": [
+        "竞技场裁判"
+      ]
     }
   },
   "pl": {
@@ -719,31 +857,77 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
       "część"
     ],
     "maps": {
-      "factory": "Fabryka",
-      "customs": "Skład celny",
-      "woods": "Las",
-      "lighthouse": "Latarnia morska",
-      "shoreline": "Wybrzeże",
-      "reserve": "Rezerwy",
-      "interchange": "Węzeł drogowy",
-      "streets-of-tarkov": "Ulice Tarkowa",
-      "the-lab": "Laboratorium",
-      "ground-zero": "Strefa zero",
-      "terminal": "Port morski",
-      "the-labyrinth": "Labirynt",
-      "icebreaker": "Icebreaker"
+      "factory": [
+        "Fabryka"
+      ],
+      "customs": [
+        "Skład celny"
+      ],
+      "woods": [
+        "Las"
+      ],
+      "lighthouse": [
+        "Latarnia morska"
+      ],
+      "shoreline": [
+        "Wybrzeże"
+      ],
+      "reserve": [
+        "Rezerwy"
+      ],
+      "interchange": [
+        "Węzeł drogowy"
+      ],
+      "streets-of-tarkov": [
+        "Ulice Tarkowa"
+      ],
+      "the-lab": [
+        "Laboratorium"
+      ],
+      "ground-zero": [
+        "Strefa zero"
+      ],
+      "terminal": [
+        "Port morski"
+      ],
+      "the-labyrinth": [
+        "Labirynt"
+      ],
+      "icebreaker": [
+        "Icebreaker"
+      ]
     },
     "traders": {
-      "prapor": "Prapor",
-      "therapist": "Terapeutka",
-      "fence": "Paser",
-      "skier": "Narciarz",
-      "peacekeeper": "Rozjemca",
-      "mechanic": "Mechanik",
-      "ragman": "Ragman",
-      "jaeger": "Jaeger",
-      "lightkeeper": "Latarnik",
-      "ref": "Ref"
+      "prapor": [
+        "Prapor"
+      ],
+      "therapist": [
+        "Terapeutka"
+      ],
+      "fence": [
+        "Paser"
+      ],
+      "skier": [
+        "Narciarz"
+      ],
+      "peacekeeper": [
+        "Rozjemca"
+      ],
+      "mechanic": [
+        "Mechanik"
+      ],
+      "ragman": [
+        "Ragman"
+      ],
+      "jaeger": [
+        "Jaeger"
+      ],
+      "lightkeeper": [
+        "Latarnik"
+      ],
+      "ref": [
+        "Ref"
+      ]
     }
   },
   "es": {
@@ -913,31 +1097,88 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
       "Parte"
     ],
     "maps": {
-      "factory": "Factory",
-      "customs": "Customs",
-      "woods": "Woods",
-      "lighthouse": "Lighthouse",
-      "shoreline": "Shoreline",
-      "reserve": "Reserve",
-      "interchange": "Interchange",
-      "streets-of-tarkov": "Streets of Tarkov",
-      "the-lab": "The Lab",
-      "ground-zero": "Ground Zero",
-      "terminal": "Terminal",
-      "the-labyrinth": "The Labyrinth",
-      "icebreaker": "Icebreaker"
+      "factory": [
+        "Factory",
+        "Fábrica"
+      ],
+      "customs": [
+        "Customs",
+        "Aduanas"
+      ],
+      "woods": [
+        "Woods",
+        "Bosque"
+      ],
+      "lighthouse": [
+        "Lighthouse",
+        "Faro"
+      ],
+      "shoreline": [
+        "Shoreline",
+        "Costa"
+      ],
+      "reserve": [
+        "Reserve",
+        "Reserva"
+      ],
+      "interchange": [
+        "Interchange",
+        "Intercambio"
+      ],
+      "streets-of-tarkov": [
+        "Streets of Tarkov",
+        "Calles de Tarkov"
+      ],
+      "the-lab": [
+        "The Lab",
+        "Laboratorio"
+      ],
+      "ground-zero": [
+        "Ground Zero",
+        "Zona Cero"
+      ],
+      "terminal": [
+        "Terminal"
+      ],
+      "the-labyrinth": [
+        "The Labyrinth",
+        "El Laberinto"
+      ],
+      "icebreaker": [
+        "Icebreaker"
+      ]
     },
     "traders": {
-      "prapor": "Prapor",
-      "therapist": "Therapist",
-      "fence": "Fence",
-      "skier": "Skier",
-      "peacekeeper": "Peacekeeper",
-      "mechanic": "Mechanic",
-      "ragman": "Ragman",
-      "jaeger": "Jaeger",
-      "lightkeeper": "Lightkeeper",
-      "ref": "Ref"
+      "prapor": [
+        "Prapor"
+      ],
+      "therapist": [
+        "Therapist"
+      ],
+      "fence": [
+        "Fence"
+      ],
+      "skier": [
+        "Skier"
+      ],
+      "peacekeeper": [
+        "Peacekeeper"
+      ],
+      "mechanic": [
+        "Mechanic"
+      ],
+      "ragman": [
+        "Ragman"
+      ],
+      "jaeger": [
+        "Jaeger"
+      ],
+      "lightkeeper": [
+        "Lightkeeper"
+      ],
+      "ref": [
+        "Ref"
+      ]
     }
   },
   "pt": {
@@ -1090,31 +1331,77 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
       "Parte"
     ],
     "maps": {
-      "factory": "Factory",
-      "customs": "Customs",
-      "woods": "Woods",
-      "lighthouse": "Lighthouse",
-      "shoreline": "Shoreline",
-      "reserve": "Reserve",
-      "interchange": "Interchange",
-      "streets-of-tarkov": "Streets of Tarkov",
-      "the-lab": "The Lab",
-      "ground-zero": "Ground Zero",
-      "terminal": "Terminal",
-      "the-labyrinth": "O Labirinto",
-      "icebreaker": "Icebreaker"
+      "factory": [
+        "Factory"
+      ],
+      "customs": [
+        "Customs"
+      ],
+      "woods": [
+        "Woods"
+      ],
+      "lighthouse": [
+        "Lighthouse"
+      ],
+      "shoreline": [
+        "Shoreline"
+      ],
+      "reserve": [
+        "Reserve"
+      ],
+      "interchange": [
+        "Interchange"
+      ],
+      "streets-of-tarkov": [
+        "Streets of Tarkov"
+      ],
+      "the-lab": [
+        "The Lab"
+      ],
+      "ground-zero": [
+        "Ground Zero"
+      ],
+      "terminal": [
+        "Terminal"
+      ],
+      "the-labyrinth": [
+        "O Labirinto"
+      ],
+      "icebreaker": [
+        "Icebreaker"
+      ]
     },
     "traders": {
-      "prapor": "Prapor",
-      "therapist": "Therapist",
-      "fence": "Fence",
-      "skier": "Skier",
-      "peacekeeper": "Peacekeeper",
-      "mechanic": "Mechanic",
-      "ragman": "Ragman",
-      "jaeger": "Jaeger",
-      "lightkeeper": "Lightkeeper",
-      "ref": "Ref"
+      "prapor": [
+        "Prapor"
+      ],
+      "therapist": [
+        "Therapist"
+      ],
+      "fence": [
+        "Fence"
+      ],
+      "skier": [
+        "Skier"
+      ],
+      "peacekeeper": [
+        "Peacekeeper"
+      ],
+      "mechanic": [
+        "Mechanic"
+      ],
+      "ragman": [
+        "Ragman"
+      ],
+      "jaeger": [
+        "Jaeger"
+      ],
+      "lightkeeper": [
+        "Lightkeeper"
+      ],
+      "ref": [
+        "Ref"
+      ]
     }
   },
   "fr": {
@@ -1267,31 +1554,78 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
       "Partie"
     ],
     "maps": {
-      "factory": "Usine",
-      "customs": "Douanes",
-      "woods": "Bois",
-      "lighthouse": "Phare",
-      "shoreline": "Littoral",
-      "reserve": "Base militaire",
-      "interchange": "Échangeur",
-      "streets-of-tarkov": "Rues de Tarkov",
-      "the-lab": "Le labo",
-      "ground-zero": "Point zéro",
-      "terminal": "Terminal",
-      "the-labyrinth": "Le labyrinthe",
-      "icebreaker": "Brise-glace"
+      "factory": [
+        "Usine"
+      ],
+      "customs": [
+        "Douanes"
+      ],
+      "woods": [
+        "Bois"
+      ],
+      "lighthouse": [
+        "Phare"
+      ],
+      "shoreline": [
+        "Littoral"
+      ],
+      "reserve": [
+        "Base militaire"
+      ],
+      "interchange": [
+        "Échangeur"
+      ],
+      "streets-of-tarkov": [
+        "Rues de Tarkov"
+      ],
+      "the-lab": [
+        "Le labo"
+      ],
+      "ground-zero": [
+        "Point zéro"
+      ],
+      "terminal": [
+        "Terminal"
+      ],
+      "the-labyrinth": [
+        "Le labyrinthe",
+        "The Labyrinth"
+      ],
+      "icebreaker": [
+        "Brise-glace"
+      ]
     },
     "traders": {
-      "prapor": "Prapor",
-      "therapist": "La Toubib",
-      "fence": "Fence",
-      "skier": "Skier",
-      "peacekeeper": "Peacekeeper",
-      "mechanic": "Le Mécano",
-      "ragman": "Ragman",
-      "jaeger": "Jaeger",
-      "lightkeeper": "Lightkeeper",
-      "ref": "Ref"
+      "prapor": [
+        "Prapor"
+      ],
+      "therapist": [
+        "La Toubib"
+      ],
+      "fence": [
+        "Fence"
+      ],
+      "skier": [
+        "Skier"
+      ],
+      "peacekeeper": [
+        "Peacekeeper"
+      ],
+      "mechanic": [
+        "Le Mécano"
+      ],
+      "ragman": [
+        "Ragman"
+      ],
+      "jaeger": [
+        "Jaeger"
+      ],
+      "lightkeeper": [
+        "Lightkeeper"
+      ],
+      "ref": [
+        "Ref"
+      ]
     }
   },
   "ko": {
@@ -1444,31 +1778,79 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
       "파트"
     ],
     "maps": {
-      "factory": "공장",
-      "customs": "세관",
-      "woods": "삼림",
-      "lighthouse": "등대",
-      "shoreline": "해안선",
-      "reserve": "리저브",
-      "interchange": "인터체인지",
-      "streets-of-tarkov": "타르코프 시내",
-      "the-lab": "연구소",
-      "ground-zero": "그라운드 제로",
-      "terminal": "터미널",
-      "the-labyrinth": "미궁",
-      "icebreaker": "쇄빙선"
+      "factory": [
+        "공장"
+      ],
+      "customs": [
+        "세관"
+      ],
+      "woods": [
+        "삼림"
+      ],
+      "lighthouse": [
+        "등대"
+      ],
+      "shoreline": [
+        "해안선",
+        "해안가"
+      ],
+      "reserve": [
+        "리저브"
+      ],
+      "interchange": [
+        "인터체인지"
+      ],
+      "streets-of-tarkov": [
+        "타르코프 시내"
+      ],
+      "the-lab": [
+        "연구소"
+      ],
+      "ground-zero": [
+        "그라운드 제로"
+      ],
+      "terminal": [
+        "터미널"
+      ],
+      "the-labyrinth": [
+        "미궁",
+        "The Labyrinth"
+      ],
+      "icebreaker": [
+        "쇄빙선"
+      ]
     },
     "traders": {
-      "prapor": "프라퍼",
-      "therapist": "테라피스트",
-      "fence": "펜스",
-      "skier": "스키어",
-      "peacekeeper": "피스키퍼",
-      "mechanic": "메카닉",
-      "ragman": "래그맨",
-      "jaeger": "예거",
-      "lightkeeper": "등대지기",
-      "ref": "레프"
+      "prapor": [
+        "프라퍼"
+      ],
+      "therapist": [
+        "테라피스트"
+      ],
+      "fence": [
+        "펜스"
+      ],
+      "skier": [
+        "스키어"
+      ],
+      "peacekeeper": [
+        "피스키퍼"
+      ],
+      "mechanic": [
+        "메카닉"
+      ],
+      "ragman": [
+        "래그맨"
+      ],
+      "jaeger": [
+        "예거"
+      ],
+      "lightkeeper": [
+        "등대지기"
+      ],
+      "ref": [
+        "레프"
+      ]
     }
   },
   "tr": {
@@ -1621,31 +2003,84 @@ export const GAME_WORDS: Record<ExtraGameLanguage, GameWords> = {
       "Bölüm"
     ],
     "maps": {
-      "factory": "Fabrika",
-      "customs": "Gümrük",
-      "woods": "Ormanlık",
-      "lighthouse": "Deniz feneri",
-      "shoreline": "Kıyı Şeridi",
-      "reserve": "Rezerv",
-      "interchange": "Değişim",
-      "streets-of-tarkov": "Tarkov'un sokakları",
-      "the-lab": "Laboratuvar",
-      "ground-zero": "Ground Zero",
-      "terminal": "Terminal",
-      "the-labyrinth": "The Labyrinth",
-      "icebreaker": "Icebreaker"
+      "factory": [
+        "Fabrika"
+      ],
+      "customs": [
+        "Gümrük"
+      ],
+      "woods": [
+        "Ormanlık"
+      ],
+      "lighthouse": [
+        "Deniz feneri"
+      ],
+      "shoreline": [
+        "Kıyı Şeridi"
+      ],
+      "reserve": [
+        "Rezerv"
+      ],
+      "interchange": [
+        "Değişim"
+      ],
+      "streets-of-tarkov": [
+        "Tarkov'un sokakları"
+      ],
+      "the-lab": [
+        "Laboratuvar"
+      ],
+      "ground-zero": [
+        "Ground Zero"
+      ],
+      "terminal": [
+        "Terminal"
+      ],
+      "the-labyrinth": [
+        "The Labyrinth"
+      ],
+      "icebreaker": [
+        "Icebreaker"
+      ]
     },
     "traders": {
-      "prapor": "Prapor",
-      "therapist": "Therapist",
-      "fence": "Fence",
-      "skier": "Skier",
-      "peacekeeper": "Peacekeeper",
-      "mechanic": "Mechanic",
-      "ragman": "Ragman",
-      "jaeger": "Jaeger",
-      "lightkeeper": "Lightkeeper",
-      "ref": "Ref"
+      "prapor": [
+        "Prapor"
+      ],
+      "therapist": [
+        "Therapist",
+        "Terapist"
+      ],
+      "fence": [
+        "Fence",
+        "Simsar"
+      ],
+      "skier": [
+        "Skier",
+        "Kayakçı"
+      ],
+      "peacekeeper": [
+        "Peacekeeper",
+        "Arabulucu"
+      ],
+      "mechanic": [
+        "Mechanic",
+        "Mekanik"
+      ],
+      "ragman": [
+        "Ragman",
+        "Eskici"
+      ],
+      "jaeger": [
+        "Jaeger"
+      ],
+      "lightkeeper": [
+        "Lightkeeper",
+        "Işık Muhafızı"
+      ],
+      "ref": [
+        "Ref"
+      ]
     }
   }
 }
