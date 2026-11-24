@@ -9972,3 +9972,16 @@ Not pushed, not released, nothing uploaded.
   сайт и в приложение добавлены новые языки»; improved «Обновили фото, снимки квестов и данные по квестам»; nothing about the
   start. Checks after the merge: typecheck clean; vitest 4624 passed, 12 failed = machine-only + ObjectivePhotos / MapsPage ×3
   that pass per file; website/src 193/193.
+
+## 2026-11-25: Claude, the site's trailer in every language (claude/site-trailers-v7)
+
+- Owner, 25.11: the v7 trailer approved («отличный»), «Делай версии для всех языков и добавляй на сайт… при выборе языка на сайте
+  … соответствующее видео»; then «украинский язык удали. Это тот же русский».
+- Branch `claude/site-trailers-v7` from release/production a1d97c0d (0.6.0.341): website/src/components/Trailer.tsx plays
+  `trailer-<lang>.mp4` with `trailer-poster-<lang>.jpg` for ru (trailer.mp4), en, de, ja, zh, pl, es, pt, fr, ko, tr; the Ukrainian
+  site the Russian one; Trailer.test.tsx checks every language and every file. 22 media files, 720p, 88.8 s, 45 MB together
+  (they ship inside the server exe). Checks: website tsc clean, website vitest 48 files / 195 tests passed.
+- The videos come from scripts/trailer5 on branch claude/trailer-v5 (489e921b: every language's captures and captions;
+  ee80d2eb: the vertical cut for social networks, English only so far, waiting for the owner's word).
+- Not pushed, not released: a site-only change; the release integrator takes it into the next release (no app change; the
+  release still needs its own updateHistory row).
