@@ -37,6 +37,7 @@ import { usePersonMenu } from './personMenu'
 import { AccountProfile } from './AccountProfile'
 import './adminMobile.css'
 import { ruDays } from '../i18n/ruPlural'
+import { SheetPortal } from './SheetPortal'
 
 /**
  * «Стикеры» (owner, 07.11.2026: «в админ приложении на телефоне сделай мне функцию добавлять стикеры»): the packs and the
@@ -438,11 +439,11 @@ function ChatsSection({ threads, onOpenChat, onOpenProfile }: { threads: AdminSu
 
 /** «Посмотреть профиль»: the player's whole account on a full screen sheet (admin/AccountProfile.tsx). */
 function ProfileSheet({ accountId, name, onClose, onOpenChat }: { accountId: string; name?: string; onClose: () => void; onOpenChat: (accountId: string) => void }) {
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet account-profile-sheet" role="dialog" aria-modal="true" aria-label={uiText(name ? `Профиль ${name}` : 'Профиль')}>
       <AccountProfile accountId={accountId} name={name} load={adminApi.profile} onBack={onClose} onOpenChat={onOpenChat} variant="sheet" />
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugReportDetail; onClose: () => void; onUpdated: (report: BugReportDetail) => void; onOpenChat: (accountId: string) => void }) {
@@ -483,7 +484,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
   }
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet" role="dialog" aria-modal="true" aria-label={uiText(detail.topic)}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{detail.topic}</strong><small>{detail.email ?? uiText('Без почты')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
@@ -519,7 +520,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
       </div>
       {expanded && <div className="admin-report-lightbox" role="dialog" aria-modal="true" aria-label={uiText('Просмотр скриншота')} onClick={() => setExpanded('')}><button type="button" className="icon-button" aria-label={uiText('Закрыть')} onClick={() => setExpanded('')}><X size={22} /></button><img src={expanded} alt={uiText('Скриншот отчёта')} onClick={(event) => event.stopPropagation()} /></div>}
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 /**
@@ -751,7 +752,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
     finally { setSaving(false) }
   }
 
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet" role="dialog" aria-modal="true" aria-label={uiText(`Пользователь ${user.email}`)}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{user.email}</strong><small>{subscriptionText(user)}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
@@ -790,7 +791,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
         </div>
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 function ChatSheet({ accountId, answer, onClose, onChanged, onOpenProfile }: { accountId: string; answer?: SupportReportAnswer | null; onClose: () => void; onChanged: () => void; onOpenProfile: (accountId: string, name?: string) => void }) {
@@ -851,7 +852,7 @@ function ChatSheet({ accountId, answer, onClose, onChanged, onOpenProfile }: { a
     } catch (reason) { setError(errorText(reason)); setDeleting(false) }
   }
   const name = detail?.account.nickname || detail?.account.email || uiText('Чат с пользователем')
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet admin-chat-sheet" role="dialog" aria-modal="true" aria-label={name}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div>
         <div className="admin-sheet-actions"><button type="button" className="icon-button" onClick={() => onOpenProfile(accountId, detail ? name : undefined)} aria-label={uiText('Профиль')}><UserRound size={18} /></button><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></div></header>
@@ -866,7 +867,7 @@ function ChatSheet({ accountId, answer, onClose, onChanged, onOpenProfile }: { a
         <small className="admin-delete-note">{uiText('После удаления переписка не хранится в рабочей базе и не попадает в управляемые резервные копии.')}</small>
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 function subscriptionText(user: AdminUser) {
