@@ -9760,3 +9760,26 @@ Not pushed, not released, nothing uploaded.
   screen (portraits with loyalty badges, «(Du)», the standing row with LVL), mode selection (PvE/PvP/Season cards, nick | level),
   item tooltip (long and short names), stash with labels (Kappa scan), flea (sorted by price, a trader row, filter chips), the O exit
   list (header, EXFIL/TRANSIT lines), and a story chapter pane (to get its words).
+
+## 2026-11-24 — Claude: the app and the website in German, Japanese and Chinese (branch `claude/languages-zh-ja-de`)
+
+- Owner, 24.11.2026: «Китай, Япония и Германия … по нажатии на язык сверху у нас будет выдвигаться окно со списком всех языков …
+  в стиле приложения … переключатели … угловатые, во всех стилях … сайт переводи … языки должны включаться согласно стране …
+  должен быть язык браузера … отправь тестовую версию на рабочий стол».
+- How: Russian stays the source and English the dictionary; German, Japanese and Chinese are drawn over the English
+  (`src/i18n/languages.ts`, `targetText.ts`, `domTranslator.ts`): `locale` stays 'ru' | 'en' (the base text the code compares),
+  `language` is the choice. Phrases: `src/i18n/locales/{de,ja,zh}.json` (8166 each, keyed by the English;
+  `scripts/i18n/extract-english.ts`, `merge-chunks.py`); the game's names from tarkov.dev's `_de/_ja/_zh` dictionaries
+  (`catalogTranslations.ts loadTargetCatalog`; the server mirror keeps them, `tarkovDataMirror.ts MIRROR_LANGUAGES`). A text is
+  translated whole or left English, never half; in development `window.__raidosMissing` lists what a screen showed without one.
+  Dates and numbers: `languageTag()` (24-hour English kept where it was en-GB).
+- UI: `LanguagePicker` (top bar window; phones: one button per language); glass style keeps the plain corners of the PvP/PvE
+  and language switches; `src/styles/languages.css` (long German labels, CJK fonts); the brand never translated.
+- Screen readers for German/Japanese/Chinese games: merged `claude/ocr-languages` (entry above).
+- Website (`claude/site-languages` → release 0.6.0.341, window 20:00): five languages, first visit by the browser's language,
+  else the country's; a card offers the other; language window; hreflang/sitemap.
+- Tests: the touched areas 760/760; the full run's remaining failures also fail on release/production (Linux updater,
+  appVersion path with a space, AdminPanelPage, staleServer) or are load timeouts that pass alone.
+- Test build: `Raid OS тест Языки 1.exe` on the desktop (owner build, TEST_BUILD). Not released.
+- Open: the readers on real game screenshots in de/ja/zh (being taken from SPT); the story pane in de/ja/zh needs the live game
+  1.x words (SPT 0.16.9 has no story); the site's trailers in ZH/JA (new trailer in the works, owner reviews first).
