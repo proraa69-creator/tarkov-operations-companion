@@ -6,6 +6,7 @@ import { translateUiText } from '../i18n/uiEnglish'
 import gameLootContainers from './gameLootContainers.json'
 import { maps } from './demo'
 import type { Item, Quest } from '../domain/types'
+import { keysOfPoint } from '../maps/neededKeys'
 
 describe('PMC and Scav spawns (owner, 07.11.2026)', () => {
   const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
@@ -796,6 +797,23 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
     const own = keys([{ items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } }]).filter((marker) => marker.spotPhotos?.length)
     expect(own).toHaveLength(1)
     expect(own[0]).toMatchObject({ title: 'Ключ от комнаты заведующего общежития', itemId: '664d4b0103ef2c61246afb56', source: 'raidos' })
+  })
+
+  it('report 221: «Ключ от комнаты 110 общежития» in the locker on Customs — a key point with the player\'s photo, fed or not', () => {
+    const dorm110 = '59136e1e86f774432f15d133'
+    const ctx = { ...context, maps: [...maps, { ...maps[0]!, id: 'customs' }], items: new Map<string, unknown>([key(dorm110, 'Ключ от комнаты 110 общежития', 'Общ 110')]) } as typeof context
+    const points = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose } } }, {}, ctx)
+      .filter((marker) => marker.layerId === 'loot.key' && keysOfPoint(marker).includes(dorm110) && marker.spotPhotos?.length)
+    // the feed's spot (json.tarkov.dev, x 64.83 / z -64.23): that point carries the photo, nothing is added
+    const fed = points([{ items: [dorm110], position: { x: 64.8284, y: 1.702, z: -64.2319 } }])
+    expect(fed).toHaveLength(1)
+    expect(fed[0]).toMatchObject({ itemId: dorm110, source: 'json.tarkov.dev/maps' })
+    expect(fed[0]!.spotPhotos![0]!.file).toBe('customs-locker-dorm-room-110.webp')
+    // a feed without it: the point of its own, at the locker
+    const own = points([])
+    expect(own).toHaveLength(1)
+    expect(own[0]).toMatchObject({ title: 'Ключ от комнаты 110 общежития', itemId: dorm110, keyIds: [dorm110], source: 'raidos' })
+    expect(own[0]!.position).toEqual([-64.23, 64.83])
   })
 
   it('adds the key spots of live raids the feed lacks (SPT statistics), once the feed has none of them there', () => {

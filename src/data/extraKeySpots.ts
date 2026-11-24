@@ -71,4 +71,18 @@ export const EXTRA_KEY_SPOTS: readonly ExtraKeySpot[] = [
       en: 'The pier office: on the desk by the safe',
     }],
   },
+  {
+    // Report 221 (24.11.2026, owner 25.11.2026: «добавь эту точку как спаун ключа 110»): «Ключ от комнаты 110 общежития» on the
+    // shelf of an open metal locker, ground floor of the building by the tank square (the game's scav zone ZoneTankSquare).
+    // The player's screenshot name gives the camera at x 64.71, y 2.61, z -65.70, looking north and down: the key 1.5 m ahead,
+    // the feed's spot of this key there (x 64.83, y 1.70, z -64.23). Pinned here, so the point and its photo stay if the feed drops it.
+    mapId: 'customs',
+    itemId: '59136e1e86f774432f15d133',
+    position: { x: 64.83, y: 1.7, z: -64.23 },
+    photos: [{
+      file: 'customs-locker-dorm-room-110.webp',
+      ru: 'Металлический шкафчик на первом этаже: на полке',
+      en: 'A metal locker on the ground floor: on the shelf',
+    }],
+  },
 ]
