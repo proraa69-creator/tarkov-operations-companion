@@ -30,7 +30,7 @@ import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
-import { buildEdition, isOwnerBuild, isTestBuild, TEST_BUILD_APP_NAME, TEST_BUILD_DATA_FOLDER } from './buildEdition.js'
+import { buildEdition, isOwnerBuild, isSafeStartBuild, isTestBuild, TEST_BUILD_APP_NAME, TEST_BUILD_DATA_FOLDER } from './buildEdition.js'
 import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
 import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
@@ -44,7 +44,7 @@ import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { installedExe, removeMigratedPortable, removePortableLeftovers, updatableExe } from './appInstall.js'
 import { abandonStagedBoot, confirmStagedBoot, relaunchWhenClosed } from './deltaUpdate.js'
-import { FIRST_PAINT_MS, nextStartStep, readGpuFallback, writeGpuFallback, type DrawingTrouble } from './gpuFallback.js'
+import { asksAtNextStart, describeGpus, FIRST_PAINT_MS, nextStartStep, readDarkWindowCheck, readGpuFallback, soonAfterShown, writeDarkWindowCheck, writeGpuFallback, type DrawingTrouble } from './gpuFallback.js'
 import { appendStartLog, startLogTail } from './startLog.js'
 import { shouldReloadAfterCrash, shouldReportLoadFailure, startNotes, startNotesScript } from './startDiagnostics.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
@@ -69,13 +69,18 @@ else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : U
 // A start that drew nothing turned the graphics card off for this copy (electron/gpuFallback.ts); it must be before the app is ready.
 const gpuFallback = readGpuFallback(app.getPath('userData'))
 const gpuOffByArgument = app.commandLine.hasSwitch('disable-gpu')
-if (gpuFallback.softwareDrawing) app.disableHardwareAcceleration()
+// A build for a player whose window stays black (electron/buildEdition.ts isSafeStartBuild) draws in software from the start.
+const safeStart = isSafeStartBuild()
+const softwareDrawing = gpuFallback.softwareDrawing || safeStart
+if (softwareDrawing) app.disableHardwareAcceleration()
 // The last step before giving up: no Chromium sandbox, which some security software does not let the page's process start in.
 if (gpuFallback.noSandbox) app.commandLine.appendSwitch('no-sandbox')
 const startLog = (line: string) => appendStartLog(app.getPath('userData'), line)
-startLog(`start ${app.getVersion()} · Windows ${process.getSystemVersion()} ${process.arch} · ${[gpuFallback.softwareDrawing ? 'software drawing' : '', gpuFallback.noSandbox ? 'no sandbox' : '', gpuOffByArgument ? '--disable-gpu' : '', app.commandLine.hasSwitch('no-sandbox') && !gpuFallback.noSandbox ? '--no-sandbox' : ''].filter(Boolean).join(', ') || 'normal'}`)
+startLog(`start ${app.getVersion()} · Windows ${process.getSystemVersion()} ${process.arch} · ${[softwareDrawing ? 'software drawing' : '', safeStart ? 'safe start build' : '', gpuFallback.noSandbox ? 'no sandbox' : '', gpuOffByArgument ? '--disable-gpu' : '', app.commandLine.hasSwitch('no-sandbox') && !gpuFallback.noSandbox ? '--no-sandbox' : ''].filter(Boolean).join(', ') || 'normal'}`)
 /** The main window has drawn its page: the graphics card works. */
 let firstPicture = false
+/** When the main window appeared (ms): a second start or a close soon after it may mean the player sees it black. */
+let windowShownAt: number | null = null
 let restartingForSoftwareDrawing = false
 
 /**
@@ -93,7 +98,7 @@ function watchStart(window: BrowserWindow) {
   contents.on('dom-ready', () => {
     let gpu: Record<string, string> | undefined
     try { gpu = app.getGPUFeatureStatus() as unknown as Record<string, string> } catch { gpu = undefined }
-    const notes = startNotes({ version: app.getVersion(), system: `Windows ${process.getSystemVersion()} ${process.arch}`, gpu, softwareDrawing: gpuFallback.softwareDrawing || gpuOffByArgument, preloadError })
+    const notes = startNotes({ version: app.getVersion(), system: `Windows ${process.getSystemVersion()} ${process.arch}`, gpu, softwareDrawing: softwareDrawing || gpuOffByArgument, preloadError })
     void contents.executeJavaScript(startNotesScript(notes)).catch(() => undefined)
   })
   contents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
@@ -130,8 +135,8 @@ function watchStart(window: BrowserWindow) {
  */
 function drawInSoftware(trouble: DrawingTrouble) {
   if (restartingForSoftwareDrawing) return
-  const why = trouble.kind === 'no-picture' ? trouble.kind : `${trouble.kind}: ${trouble.reason}`
-  const step = nextStartStep(trouble, { softwareDrawing: gpuFallback.softwareDrawing, noSandbox: gpuFallback.noSandbox === true, painted: firstPicture, disabledByArgument: gpuOffByArgument })
+  const why = trouble.kind === 'no-picture' || trouble.kind === 'seen-black' ? trouble.kind : `${trouble.kind}: ${trouble.reason}`
+  const step = nextStartStep(trouble, { softwareDrawing, noSandbox: gpuFallback.noSandbox === true, painted: firstPicture, disabledByArgument: gpuOffByArgument })
   if (!step) return
   startLog(`${why} → ${step}`)
   if (step === 'report') { void showStartFailure(why); return }
@@ -152,6 +157,120 @@ app.on('child-process-gone', (_event, details) => {
   if (details.type === 'GPU') drawInSoftware({ kind: 'gpu-gone', reason: details.reason })
 })
 
+/** What the player copies for support: the version, the reason and the start log's last lines (no paths, nothing personal). */
+function startSupportText(why: string) {
+  return [`Raid OS ${app.getVersion()} не открыл окно (${why})`, startLogTail(app.getPath('userData'), 40)].join('\n')
+}
+
+const DARK_WINDOW_QUESTION: MessageBoxOptions = {
+  type: 'question',
+  title: 'Raid OS',
+  message: 'Окно Raid OS чёрное?',
+  detail: 'Raid OS перезапустится и нарисует окно по-другому.',
+  buttons: ['Да, перезапустить', 'Нет'],
+  defaultId: 0,
+  cancelId: 1,
+  noLink: true,
+}
+/** Asked once a start: a window of Windows, so it shows whatever happens to the page. */
+let darkWindowAsked = false
+/**
+ * The app started again while its window is open, soon after it appeared (`second-instance`), on a PC where it never worked:
+ * is it black? A player who uses the app and brings its window forward is never asked.
+ */
+async function askIfDarkAfterSecondStart() {
+  const window = mainWindow
+  if (isOwnerBuild() || darkWindowAsked || restartingForSoftwareDrawing || !window || window.isDestroyed() || !soonAfterShown(windowShownAt, Date.now()) || everWorkedHere()) return
+  darkWindowAsked = true
+  startLog('started again soon after the window appeared')
+  const { response } = await dialog.showMessageBox(window, DARK_WINDOW_QUESTION)
+  startLog(response === 0 ? 'player: the window is black' : 'player: the window is fine')
+  if (response === 0) drawInSoftware({ kind: 'seen-black' })
+}
+
+/** This PC has had a working subscription in this app (electron/entitlement.ts keeps the time it last saw one). */
+const everWorkedHere = () => existsSync(join(app.getPath('userData'), 'entitlement-seen.bin'))
+
+/** The window closed soon after it appeared on a PC where the app never worked: the next start asks (electron/gpuFallback.ts). */
+function noteDarkWindowClose() {
+  if (isOwnerBuild() || safeStart) return
+  try {
+    const data = app.getPath('userData')
+    if (asksAtNextStart({ shownAt: windowShownAt, now: Date.now(), everWorked: everWorkedHere(), check: readDarkWindowCheck(data), restarting: restartingForSoftwareDrawing })) {
+      writeDarkWindowCheck(data, 'ask')
+      startLog('closed soon after the window appeared: the next start asks')
+    }
+  } catch { /* the question is a help, never a reason for trouble */ }
+}
+
+/**
+ * The last window closed soon after it appeared (noteDarkWindowClose): was it black? Asked over this start's window once it
+ * appears — a window of Windows with an owner comes to the front, one without may stay behind the browser.
+ */
+async function askIfLastWindowWasDark() {
+  const window = mainWindow
+  if (isOwnerBuild() || safeStart || darkWindowAsked || !window || window.isDestroyed()) return
+  const data = app.getPath('userData')
+  if (readDarkWindowCheck(data) !== 'ask') return
+  try { writeDarkWindowCheck(data, undefined) } catch { return }
+  darkWindowAsked = true
+  const { response } = await dialog.showMessageBox(window, { ...DARK_WINDOW_QUESTION, message: 'Окно Raid OS было чёрным?' })
+  startLog(response === 0 ? 'player: the last window was black' : 'player: the last window was fine')
+  if (response === 0) drawInSoftware({ kind: 'seen-black' })
+  else try { writeDarkWindowCheck(data, 'never') } catch { /* asked again next time, at worst */ }
+}
+
+/**
+ * The build for a player whose window stays black (isSafeStartBuild): some seconds after the window appears, a window of
+ * Windows asks whether it can be seen, every start until the player says so. «Нет» copies the text for support and takes the
+ * next step (no sandbox, then the report).
+ */
+const SAFE_START_ASK_MS = 20_000
+function askSafeStartBuild() {
+  if (!safeStart || readDarkWindowCheck(app.getPath('userData')) === 'never') return
+  setTimeout(() => {
+    void (async () => {
+      const window = mainWindow
+      if (darkWindowAsked || restartingForSoftwareDrawing || !window || window.isDestroyed()) return
+      darkWindowAsked = true
+      const { response } = await dialog.showMessageBox(window, {
+        type: 'question',
+        title: 'Raid OS',
+        message: 'Видно окно Raid OS?',
+        detail: 'Тестовая сборка. Если окно чёрное, нажмите «Нет»: текст для поддержки скопируется.',
+        buttons: ['Да', 'Нет, чёрное'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      if (window.isDestroyed()) return
+      if (response === 0) {
+        startLog('player: the window is seen')
+        try { writeDarkWindowCheck(app.getPath('userData'), 'never') } catch { /* asked again next start */ }
+        return
+      }
+      startLog('player: the window is black')
+      const step = nextStartStep({ kind: 'seen-black' }, { softwareDrawing, noSandbox: gpuFallback.noSandbox === true, painted: firstPicture, disabledByArgument: gpuOffByArgument })
+      if (step !== 'report') {
+        clipboard.writeText(startSupportText('seen-black'))
+        await dialog.showMessageBox(window, { type: 'info', title: 'Raid OS', message: 'Текст скопирован', detail: 'Вставьте его в чат поддержки на raidos.app (Ctrl+V). Raid OS перезапустится без песочницы.', buttons: ['OK'], noLink: true })
+      }
+      drawInSoftware({ kind: 'seen-black' })
+    })()
+  }, SAFE_START_ASK_MS).unref()
+}
+
+/** The start log's line for this computer once the app is ready: rights, monitors, graphics cards (nothing personal). */
+async function logSystem() {
+  try {
+    const displays = screen.getAllDisplays().map((display) => `${display.size.width}×${display.size.height}@${display.scaleFactor}`)
+    const info = await Promise.race([app.getGPUInfo('basic').catch(() => null), new Promise<null>((resolve) => { setTimeout(() => resolve(null), 10_000).unref() })])
+    let compositing = '?'
+    try { compositing = String((app.getGPUFeatureStatus() as unknown as Record<string, unknown>).gpu_compositing ?? '?') } catch { /* unknown */ }
+    startLog(`ready · admin ${isElevated() === true ? 'yes' : 'no'} · displays ${displays.length}: ${displays.join(', ')} · gpu ${describeGpus(info) || '?'} · compositing ${compositing}`)
+  } catch { /* the log never stops a start */ }
+}
+
 /**
  * Nothing helped (software drawing, no sandbox): a window of Windows itself — it needs no page — with the reason, the last lines
  * of the start log and «Скопировать для поддержки», once a start.
@@ -160,7 +279,7 @@ let startFailureShown = false
 async function showStartFailure(why: string) {
   if (startFailureShown) return
   startFailureShown = true
-  const text = [`Raid OS ${app.getVersion()} не открыл окно (${why})`, startLogTail(app.getPath('userData'), 40)].join('\n')
+  const text = startSupportText(why)
   const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined
   const options: MessageBoxOptions = {
     type: 'error',
@@ -374,6 +493,10 @@ function createWindow() {
     if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return
     if ((restored && saved?.maximized) || maximizeAtStart) mainWindow.maximize()
     else mainWindow.show()
+    windowShownAt = Date.now()
+    askSafeStartBuild()
+    // The last window closed soon after it appeared on a PC where the app never worked: was it black? «Да» restarts it.
+    void askIfLastWindowWasDark()
   }
   const revealAnyway = setTimeout(reveal, WINDOW_REVEAL_MAX_MS)
   mainWindow.once('ready-to-show', reveal)
@@ -403,6 +526,7 @@ function createWindow() {
 
   // The only window: closing it ends the app.
   mainWindow.on('closed', () => {
+    noteDarkWindowClose()
     mainWindow = null
     stopExperimental()
     stopScreenTuning()
@@ -420,7 +544,11 @@ function loadRenderer(window: BrowserWindow, hash: string) {
 }
 
 // What a second start sends (its command line and folder) is not read: it may only bring the window forward.
-app.on('second-instance', () => bringToFront(mainWindow))
+// A start again soon after the window appeared may mean the player sees it black: then a window of Windows asks.
+app.on('second-instance', () => {
+  bringToFront(mainWindow)
+  void askIfDarkAfterSecondStart()
+})
 
 app.whenReady().then(async () => {
   if (anotherCopyRuns) return
@@ -487,6 +615,7 @@ app.whenReady().then(async () => {
   // The exe asks for no rights in its manifest, so the app starts itself again with them; when the prompt is refused
   // it simply goes on without them (the settings then offer «Перезапустить от имени администратора»).
   if (!serverMode && process.platform === 'win32' && !isElevatedRelaunch() && relaunchAsAdmin()) return
+  void logSystem()
   // The installed app's first start after «Установить» in the portable exe: that exe goes (electron/appInstall.ts).
   removeMigratedPortable()
   // What the portable exe left in %TEMP% on earlier starts goes a minute in, never while the game runs (same file).
