@@ -61,7 +61,7 @@ describe('the photos of the battle pass documents', () => {
     expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(2)
     // no map has a document place with more than one photo of a kind
     for (const [mapId, spots] of Object.entries(guide.spots)) {
-      if (!['customs', 'woods', 'interchange', 'streets-of-tarkov'].includes(mapId)) continue
+      if (!['customs', 'woods', 'interchange', 'streets-of-tarkov', 'reserve'].includes(mapId)) continue
       for (const spot of spots) {
         const kinds = spot.photos.map((id) => guide.photos[id]!.kind)
         expect(new Set(kinds).size).toBe(kinds.length)

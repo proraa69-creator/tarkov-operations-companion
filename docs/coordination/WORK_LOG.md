@@ -9271,3 +9271,20 @@ Not pushed, not released, nothing uploaded.
   напоминает…» test now expects our own frames at its places; documentGuide.test.ts checks Streets for one photo per place. Data tests with
   the photo components 574/574, map and objective-photo components 62/62, typecheck ok. Pictures: E:\SPT-photo\server-upload\streets-of-tarkov (386) and -docs6 (94), on the
   server with this entry (eval\upload_guides.py). Not in a release yet (after 0.6.0.339).
+
+## 2026-11-24 14:06 — Claude: Reserve quests and battle pass documents shot again in the offline game
+
+- Runs reserve-all2 (62 quest points), -bpdocs6 (29 document pictures laid where they show them) and -bpspawn (5 live spawn points no
+  picture shows). Every sheet looked at by eye; refused in eval\manual-reject.json: 12 quest frames (a roof where Glukhar's workshop is
+  under it, the sun filling the view at the fuel tanks, a bush over the camera, dark frames with no letter or item in sight, a case cut by
+  the frame edge, an empty wall) and 16 document frames of 8 pictures (the document dropped to the floor, nothing in the offline copy to
+  lay it on, own frames of a corridor, a toilet, stairs or the yard instead of the room). bpdocs\reserve-one.json drops four pictures of
+  places that already have one photo of the same kind (two pairs of our own frames with the same words, a wiki duplicate, and the RB-OB
+  shelf frame that went to the neighbouring spot: its own spot has our close-up of the document by the shelf).
+- Integrated: quests 33 matched, 6 own places, 14 approaches, 14 close-ups, 15 wiki photos of shot places removed; documents one photo
+  per place (21 close-ups of the laid document; the one spot with two photos holds two kinds). documentGuide.test.ts checks Reserve for
+  one photo per place. Data tests with the photo components 574/574, map and objective-photo components 60/60, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\reserve (134) and -docs6 (96), on the server with this entry (eval\upload_guides.py).
+- Lighthouse was started by the dispatcher and paused at 13:51 at the coordinator's request (the game handed over for the language
+  screenshots); its frames so far stay in its manifest, the run resumes from there (photo2\tour-lighthouse-paused.json). Not in a release
+  yet (after 0.6.0.340).
