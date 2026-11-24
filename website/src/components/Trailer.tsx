@@ -6,8 +6,9 @@ import { tr, useSiteLocale, type SiteLocale } from '../i18n'
 /**
  * Product trailer — the centrepiece of the home page.
  *
- * Source: `website/public/media/trailer.mp4`, and `trailer-en.mp4` when the site is in English (owner, 27.10.2026: the
- * English site shows the English trailer, chosen by hand or automatically). H.264, 720p, small: they ship inside the
+ * Source: `website/public/media/trailer.mp4`, and `trailer-<language>.mp4` in every other site language (owner, 27.10.2026:
+ * the English site shows the English trailer, chosen by hand or automatically; 25.11.2026: every language its own, the
+ * Ukrainian site the Russian one). H.264, 720p, small: they ship inside the
  * server exe, so every MB slows the server's start.
  * It autoplays muted and loops; the custom controls toggle play/pause and sound. No picture is shown before the video
  * (owner, 11.10.2026: a card flashed on every load before the video, «нужно убрать ее вообще»): the frame stays dark
@@ -15,12 +16,15 @@ import { tr, useSiteLocale, type SiteLocale } from '../i18n'
  * browser refused) the title card `trailer-poster.jpg` waits with the play button. When no source can be played a
  * "coming soon" note is shown.
  */
-/** German, Japanese and Chinese: the English trailer until each has its own. */
-const TRAILER_SOURCES: Partial<Record<SiteLocale, Array<{ src: string; type: string }>>> & Record<'ru' | 'en', Array<{ src: string; type: string }>> = {
-  ru: [{ src: '/media/trailer.mp4', type: 'video/mp4' }],
-  en: [{ src: '/media/trailer-en.mp4', type: 'video/mp4' }],
-}
-const POSTER: Partial<Record<SiteLocale, string>> & Record<'ru' | 'en', string> = { ru: '/media/trailer-poster.jpg', en: '/media/trailer-poster-en.jpg' }
+/** Every site language has its own trailer (owner, 25.11.2026: «при выборе языка на сайте… соответствующее видео»); the
+ * Ukrainian site shows the Russian one (owner, 25.11.2026: «украинский… Это тот же русский»). */
+const TRAILER_LOCALES = ['ru', 'en', 'de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr'] as const satisfies ReadonlyArray<SiteLocale>
+type TrailerLocale = typeof TRAILER_LOCALES[number]
+const TRAILER_ALIAS: Readonly<Record<string, TrailerLocale>> = { uk: 'ru' }
+const TRAILER_SOURCES = Object.fromEntries(TRAILER_LOCALES.map((code) => [code, [{ src: code === 'ru' ? '/media/trailer.mp4' : `/media/trailer-${code}.mp4`, type: 'video/mp4' }]])) as Record<TrailerLocale, Array<{ src: string; type: string }>>
+const POSTER = Object.fromEntries(TRAILER_LOCALES.map((code) => [code, code === 'ru' ? '/media/trailer-poster.jpg' : `/media/trailer-poster-${code}.jpg`])) as Record<TrailerLocale, string>
+/** The site language's trailer: its own, the alias's (Ukrainian → Russian), else the English one. */
+const trailerLocale = (locale: SiteLocale): TrailerLocale => TRAILER_ALIAS[locale] ?? ((TRAILER_LOCALES as ReadonlyArray<string>).includes(locale) ? locale as TrailerLocale : 'en')
 
 type Status = 'loading' | 'ready' | 'missing'
 
@@ -31,7 +35,7 @@ export function Trailer() {
 }
 
 function TrailerPlayer({ locale }: { locale: SiteLocale }) {
-  const sources = TRAILER_SOURCES[locale] ?? TRAILER_SOURCES.en
+  const sources = TRAILER_SOURCES[trailerLocale(locale)]
   const videoRef = useRef<HTMLVideoElement>(null)
   const [status, setStatus] = useState<Status>('loading')
   const [playing, setPlaying] = useState(false)
@@ -74,7 +78,7 @@ function TrailerPlayer({ locale }: { locale: SiteLocale }) {
     <div className={`trailer${playing ? ' is-playing' : ''}${missing ? ' is-missing' : ''}`}>
       <video
         ref={videoRef}
-        poster={stillFrame ? POSTER[locale] ?? POSTER.en : undefined}
+        poster={stillFrame ? POSTER[trailerLocale(locale)] : undefined}
         loop
         muted
         playsInline
