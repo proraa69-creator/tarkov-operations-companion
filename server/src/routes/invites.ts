@@ -4,6 +4,7 @@
  *   GET  /me/invites                         Bearer -> program (code, counters, rank, next rank, rewards)
  *   PUT  /me/invites/code     { code }       Bearer -> program (only while nobody has used the current code)
  *   GET  /me/admin/invite-rewards?status&limit&offset   owner -> { rewards, total, counts }
+ *   GET  /me/admin/invite-rewards/attention              owner -> { rewards, count }  («Неподтверждённые»)
  *   POST /me/admin/invite-rewards/:id/decide { decision: 'approve' | 'cancel', comment? }  owner -> reward
  *   GET  /me/admin/referrals?q&sort=invited|paid|days|recent   owner -> { summary, referrers: ReferrerStats[], total }
  *                                            «Привлечение друзей»: every account that brought friends, with the totals
@@ -59,6 +60,7 @@ export function createInvitesRouter(accounts: AccountStore, invites: InviteProgr
     const { status, limit, offset } = listSchema.parse(req.query)
     res.json(invites.adminList(status as RewardStatus | undefined, limit, offset))
   }))
+  router.get('/me/admin/invite-rewards/attention', owner((_req, res) => { res.json(invites.adminAttention()) }))
   router.post('/me/admin/invite-rewards/:id/decide', owner((req, res, actor) => {
     const id = z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).parse(req.params.id)
     const { decision, comment } = decideSchema.parse(req.body)

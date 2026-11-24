@@ -9972,3 +9972,15 @@ Not pushed, not released, nothing uploaded.
   сайт и в приложение добавлены новые языки»; improved «Обновили фото, снимки квестов и данные по квестам»; nothing about the
   start. Checks after the merge: typecheck clean; vitest 4624 passed, 12 failed = machine-only + ObjectivePhotos / MapsPage ×3
   that pass per file; website/src 193/193.
+
+## 2026-11-25 — Claude: no mutual friend codes; «Неподтверждённые» in «Привлечение друзей» (claude/no-mutual-invites)
+
+- Owner (two accounts from one address 15 min apart invited each other to get the friend's price): AccountStore.applyReferral
+  refuses the code of a player who came by this account's own code (MUTUAL_INVITE_MESSAGE); invites.fraudFlags adds `mutual`
+  for a pair from before (label «пригласили друг друга»).
+- Owner: «если человек не входил, но оплатил… оставь кнопку мне, чтобы я мог нажать «Подтвердить»» + «отдельный блок с
+  неподтверждёнными… циферкой»: GET /me/admin/invite-rewards/attention (rewards in review + friend rewards past the hold whose
+  friend never bound a game account); release() grants an owner-approved friend reward without a game account (none counted).
+  Website: block «Неподтверждённые» on top of «Привлечение друзей» with «Подтвердить N дней» / «Не подтверждать»; a red number
+  on the tab (every 5 min and after each decision).
+- Not released (owner: next release later). Live data: senpai1baku/bulatzlubko reward is in review (same-address).

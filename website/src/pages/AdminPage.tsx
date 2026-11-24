@@ -4,7 +4,9 @@ import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
 import { AdminBezebee } from '../components/admin/AdminBezebee'
 import { AdminInviteRewards } from '../components/admin/AdminInviteRewards'
-import { AdminReferrals } from '../components/admin/AdminReferrals'
+import { useEffect, useState } from 'react'
+import { api } from '../api'
+import { AdminReferrals, ATTENTION_CHANGED } from '../components/admin/AdminReferrals'
 import { AdminAds } from '../components/admin/AdminAds'
 import { AdminAudit } from '../components/admin/AdminSales'
 import { AdminStreamers } from '../components/admin/AdminStreamers'
@@ -59,6 +61,7 @@ export function AdminPage() {
   // «Баг-репорты» became «Отчёты»: an old ?tab=bugs link opens it.
   const requested = params.get('tab') === 'payouts' ? 'streamers' : params.get('tab') === 'bugs' ? 'reports' : params.get('tab')
   const tab: TabId = TABS.some((item) => item.id === requested) ? requested as TabId : 'summary'
+  const attention = useAttentionCount(auth.account?.owner ? auth.token : undefined)
 
   if (auth.status === 'signed-out') return <Navigate to="/login" replace state={{ from: '/admin' }} />
   if (auth.status === 'loading' || (auth.status === 'ready' && !auth.account)) {
@@ -94,6 +97,7 @@ export function AdminPage() {
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} type="button" role="tab" id={`admin-tab-${id}`} aria-selected={tab === id} aria-controls="admin-tabpanel" className={`admin-tab${tab === id ? ' is-active' : ''}`} onClick={() => setParams(id === 'summary' ? {} : { tab: id }, { replace: true })}>
               <Icon aria-hidden="true" />{label}
+              {id === 'referrals' && attention > 0 && <span className="admin-tab-count" aria-label={`Неподтверждённых: ${attention}`}>{attention}</span>}
             </button>
           ))}
         </nav>
@@ -122,4 +126,22 @@ export function AdminPage() {
       </div>
     </div>
   )
+}
+
+/**
+ * The number of «Неподтверждённые» on «Привлечение друзей» (owner, 25.11.2026: «уведомление возле этого блока, циферкой»): asked
+ * when the panel opens, every 5 minutes and after each decision.
+ */
+function useAttentionCount(token: string | null | undefined) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!token) return
+    let active = true
+    const load = () => { api.adminInviteAttention(token).then((answer) => { if (active) setCount(answer.count) }, () => {}) }
+    load()
+    const timer = window.setInterval(load, 5 * 60_000)
+    window.addEventListener(ATTENTION_CHANGED, load)
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener(ATTENTION_CHANGED, load) }
+  }, [token])
+  return count
 }

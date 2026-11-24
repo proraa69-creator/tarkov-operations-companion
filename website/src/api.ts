@@ -725,6 +725,8 @@ export const api = {
   adminInviteRewards: (token: string, status: InviteRewardStatus | undefined, limit: number, offset: number) => request<AdminInviteRewards>(`/me/admin/invite-rewards${adminQuery({ status, limit, offset })}`, { token }),
   adminReferrals: (token: string, q: string, sort: ReferralSort) => request<AdminReferrals>(`/me/admin/referrals${adminQuery({ q: q.trim(), sort })}`, { token }),
   adminReferrer: (token: string, id: string) => request<AdminReferrerDetail>(`/me/admin/referrals/${encodeURIComponent(id)}`, { token }),
+  /** «Неподтверждённые»: rewards held for the owner and paid friends who never signed in on a PC (server/src/routes/invites.ts). */
+  adminInviteAttention: (token: string) => request<{ rewards: AdminInviteReward[]; count: number }>('/me/admin/invite-rewards/attention', { token }),
   adminDecideInviteReward: (token: string, id: number, decision: 'approve' | 'cancel', comment?: string) => request<AdminInviteReward>(`/me/admin/invite-rewards/${id}/decide`, { method: 'POST', token, body: { decision, ...(comment ? { comment } : {}) } }),
   adminAudit: (token: string, limit: number, offset: number) => request<{ entries: AdminAuditEntry[]; total: number }>(`/me/admin/audit${adminQuery({ limit, offset })}`, { token }),
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),
