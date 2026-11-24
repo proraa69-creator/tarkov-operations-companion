@@ -147,6 +147,12 @@ export function targetText(text: string): string {
   if (!active || !text || !/[A-Za-z]/.test(text)) return text
   const whole = lookup(text)
   if (whole !== undefined) return text.replace(text.trim(), whole)
+  // A name with its count («Roubles × 200000»): the name in the language, the count as it is.
+  const counted = /^(.+?)( × [\d\s.,]+)$/.exec(text.trim())
+  if (counted) {
+    const name = lookup(counted[1]!)
+    if (name !== undefined) return text.replace(text.trim(), `${name}${counted[2]}`)
+  }
   const parts = text.split(SEPARATORS)
   if (parts.length < 2) { noteMissing(text); return text }
   // Every part with words must have its text: half a sentence in one language and half in another reads as broken.
