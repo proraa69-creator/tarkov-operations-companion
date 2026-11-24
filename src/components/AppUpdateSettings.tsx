@@ -63,7 +63,7 @@ export function AppUpdateSettings() {
 
   const busy = status.state === 'downloading' || status.state === 'installing'
   const found = status.state === 'available' || status.state === 'error' || busy
-  const time = result ? new Date(result.checkedAt).toLocaleTimeString(languageTag(locale), { hour: '2-digit', minute: '2-digit' }) : ''
+  const time = result ? new Date(result.checkedAt).toLocaleTimeString(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' }) : ''
   let line = `${uiText('Версия')} ${version}`
   if (status.state === 'downloading') line += ` · ${uiText('Загрузка обновления')} ${status.progress ?? 0}%`
   else if (status.state === 'installing') line += ` · ${uiText('Перезапуск…')}`

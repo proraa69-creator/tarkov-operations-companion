@@ -34,7 +34,7 @@ const CONFLICT_NAMES: Record<QuestConflictKind, { ru: string; en: string }> = {
 }
 const VIA = { quest: { ru: 'квест взят снова после сдачи', en: 'a quest taken again after its hand-in' }, prestige: { ru: 'запрос престижа', en: 'the prestige request' }, 'profile-create': { ru: 'новый профиль', en: 'a new profile' } } as const
 const MARKER = { prestige: { ru: 'Престиж +', en: 'Prestige +' }, wipe: { ru: 'Вайп', en: 'Wipe' }, nickname: { ru: 'новый ник', en: 'new nickname' } } as const
-const when = (iso: string, locale: 'ru' | 'en') => new Date(iso).toLocaleString(languageTag(locale))
+const when = (iso: string, locale: 'ru' | 'en') => new Date(iso).toLocaleString(languageTag(locale, 'en-GB'))
 const modeName = (mode: RaidMode, locale: 'ru' | 'en') => mode === 'pvp' ? 'PvP' : mode === 'pve' ? 'PvE' : locale === 'en' ? 'Season' : 'Сезон'
 
 /**

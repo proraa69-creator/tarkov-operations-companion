@@ -155,7 +155,7 @@ function PhoneApprove({ link, onClose }: { link: Extract<AccountDeepLink, { kind
         <div className="account-approve-info">
           <strong>{describeAgent(info.agent)}</strong>
           <small>{uiText('Откуда:')} {place || uiText('неизвестно')}</small>
-          <small>{uiText('Код создан в')} {new Date(info.createdAt).toLocaleTimeString(languageTag(locale), { hour: '2-digit', minute: '2-digit' })}</small>
+          <small>{uiText('Код создан в')} {new Date(info.createdAt).toLocaleTimeString(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' })}</small>
         </div>
       )}
       {signedIn && !done && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Подтверждайте, только если вы сами сейчас входите на другом устройстве. Никогда не подтверждайте вход по ссылке, которую вам прислали.')}</span></div>}

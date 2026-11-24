@@ -32,7 +32,7 @@ export function FleaMarketPage() {
   const live = useLivePrices(state.raidMode)
   const clock = useMinuteClock()
   const items = useMemo(() => withLivePrices(data.items, state.raidMode, live), [data.items, live, state.raidMode])
-  const pricesClock = live?.pricesAt ? new Intl.DateTimeFormat(languageTag(locale), { hour: '2-digit', minute: '2-digit' }).format(live.pricesAt) : null
+  const pricesClock = live?.pricesAt ? new Intl.DateTimeFormat(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' }).format(live.pricesAt) : null
   const priceAge = (at: number | undefined) => at === undefined ? null : ageText(clock - at, locale)
   /** When this lowest offer came — nothing for a price the minute file gives no time of its own (never «только что» by default). */
   const renewedAtOf = (item: Item) => {

@@ -42,7 +42,7 @@ export function LanguagePicker() {
   return <div ref={box} className="language-picker" translate="no">
     <div className="locale-switch">
       <button type="button" className="active language-picker-button" aria-haspopup="listbox" aria-expanded={open} aria-controls={list}
-        title={uiText('Язык интерфейса')} onClick={() => setOpen((value) => !value)}>
+        title={uiText('Язык интерфейса')} aria-label={`${uiText('Язык интерфейса')}: ${current.name}`} onClick={() => setOpen((value) => !value)}>
         <span>{current.short}</span><ChevronDown size={12} aria-hidden="true" className={open ? 'is-open' : undefined} />
       </button>
     </div>

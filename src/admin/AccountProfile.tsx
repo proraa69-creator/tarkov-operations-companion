@@ -50,7 +50,7 @@ const DEVICE: Record<AdminDeviceKind, [string, string]> = { pc: ['ПК', 'PC'], 
 
 /** The owner's dates, money and «N дней назад» in the chosen language. */
 function formats(locale: 'ru' | 'en') {
-  const tag = languageTag(locale)
+  const tag = languageTag(locale, 'en-GB')
   const dateTime = new Intl.DateTimeFormat(tag, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: OWNER_TIME_ZONE })
   const date = new Intl.DateTimeFormat(tag, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: OWNER_TIME_ZONE })
   const month = new Intl.DateTimeFormat(tag, { month: 'long', timeZone: 'UTC' })

@@ -110,7 +110,7 @@ export function ClaudeAccessPanel() {
     }
   }
 
-  const when = (iso: string) => new Date(iso).toLocaleString(languageTag(locale), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const when = (iso: string) => new Date(iso).toLocaleString(languageTag(locale, 'en-GB'), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   const status = state === undefined ? uiText('Проверяем ключ…')
     : state === null ? uiText('Войдите в аккаунт владельца, чтобы управлять ключом.')
       : !state.active ? uiText('Ключа нет')

@@ -163,7 +163,7 @@ function ObjectiveRow({ quest, view }: { quest: Quest; view: ObjectiveView }) {
 function HistoryRow({ event, description }: { event: ProgressEvent; description?: string }) {
   const state = useAppState()
   const { locale } = useLocale()
-  const when = new Date(event.observedAt).toLocaleString(languageTag(locale), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const when = new Date(event.observedAt).toLocaleString(languageTag(locale, 'en-GB'), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   const value = (raw: number | string | null) => raw === null ? '—' : typeof raw === 'string' ? uiText(STATUS_LABELS[raw] ?? raw) : String(raw)
   const what = event.eventType === 'task-status'
     ? uiText('Статус задания')

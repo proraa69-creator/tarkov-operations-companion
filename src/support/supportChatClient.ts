@@ -201,7 +201,7 @@ export function cleanSupportMessages(raw: unknown): SupportMessage[] {
 export function supportTime(iso: string, locale: 'ru' | 'en', now = new Date()) {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  const tag = languageTag(locale)
+  const tag = languageTag(locale, 'en-GB')
   const time = date.toLocaleTimeString(tag, { hour: '2-digit', minute: '2-digit' })
   if (date.toDateString() === now.toDateString()) return time
   return `${date.toLocaleDateString(tag, { day: '2-digit', month: '2-digit', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) })} ${time}`

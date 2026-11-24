@@ -38,8 +38,8 @@ export function TradingChart({ row, period, current, target, trader, now, width,
   const forecast = useMemo(() => priceForecast(rowScans(row), now), [now, row])
   const sell = useMemo(() => target ? sellForecast(rowScans(row), target, current, now) : undefined, [current, now, row, target])
   const model = useMemo(() => chartModel({ scans, forecast, now, current, target, trader, sell, width, height: HEIGHT }), [current, forecast, now, scans, sell, target, trader, width])
-  const dayFormat = useMemo(() => new Intl.DateTimeFormat(languageTag(locale), { day: '2-digit', month: '2-digit' }), [locale])
-  const hourFormat = useMemo(() => new Intl.DateTimeFormat(languageTag(locale), { hour: '2-digit', minute: '2-digit' }), [locale])
+  const dayFormat = useMemo(() => new Intl.DateTimeFormat(languageTag(locale, 'en-GB'), { day: '2-digit', month: '2-digit' }), [locale])
+  const hourFormat = useMemo(() => new Intl.DateTimeFormat(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' }), [locale])
   const stamp = (at: number) => `${dayFormat.format(at)} ${hourFormat.format(at)}`
   if (!model) return <p className="muted trading-empty">{t('Мало данных для графика.', 'Too little data for a chart.')}</p>
   const active = hover === null ? null : model.points[hover] ?? null

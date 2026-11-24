@@ -78,8 +78,8 @@ export function uiText<T>(value: T): T {
 
 /**
  * The format of dates and numbers for a base text (`locale`): Russian for Russian, else the chosen language's own
- * (English, German, Japanese, Chinese).
+ * (English, German, Japanese, Chinese). `english`: the English format the screen used (24-hour clocks use en-GB).
  */
-export function languageTag(base: string): string {
-  return base === 'ru' ? 'ru-RU' : chosenTag === 'ru-RU' ? 'en-US' : chosenTag
+export function languageTag(base: string, english = 'en-US'): string {
+  return base === 'ru' ? 'ru-RU' : chosenTag === 'ru-RU' || chosenTag === 'en-US' ? english : chosenTag
 }
