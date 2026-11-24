@@ -1,5 +1,7 @@
 import type { RaidMode } from '../domain/types'
 import { installCatalogTranslations } from './renderText'
+import { installTargetCatalog } from './targetText'
+import type { TargetLanguage } from './languages'
 import { tarkovJson } from '../data/tarkovApi'
 import { readGameCache, writeGameCache } from '../data/gameDataCache'
 
@@ -27,4 +29,34 @@ export async function loadEnglishCatalog(mode: RaidMode) {
     const entries = await loaded.get(upstream)!
     if (requestedMode === mode) installCatalogTranslations(entries)
   } catch { loaded.delete(upstream) }
+}
+
+/**
+ * The game's names in German, Japanese or Chinese (quests and their objectives, items, maps, traders, the hideout):
+ * tarkov.dev's dictionaries in that language beside the English and Russian ones, matched by their keys. The screens show
+ * the English catalog; src/i18n/targetText.ts puts each name into the language.
+ */
+const targetLoaded = new Map<string, Promise<{ english: Array<[string, string]>; russian: Array<[string, string]> }>>()
+let requestedTarget = ''
+export async function loadTargetCatalog(mode: RaidMode, language: TargetLanguage) {
+  const upstream = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
+  const slot = `${upstream}:${language}`
+  requestedTarget = slot
+  if (!targetLoaded.has(slot)) targetLoaded.set(slot, (async () => {
+    const key = `display-translations-v1-${upstream}-${language}`
+    const cached = await readGameCache<{ at: number; english: Array<[string, string]>; russian: Array<[string, string]> }>(key)
+    if (cached && Date.now() - cached.at < DAY_MS) return cached
+    const groups = await Promise.all(['tasks', 'items', 'maps', 'traders', 'hideout'].map(async (endpoint) => {
+      const [english, russian, target] = await Promise.all(['en', 'ru', language].map(async (lang) => (await tarkovJson<{ data: Record<string, string> }>(`${upstream}/${endpoint}_${lang}`, undefined, 30_000)).data))
+      const pairs = (from: Record<string, string>) => Object.entries(from).flatMap(([id, text]) => typeof text === 'string' && typeof target[id] === 'string' && target[id] ? [[text, target[id]] as [string, string]] : [])
+      return { english: pairs(english), russian: pairs(russian) }
+    }))
+    const value = { at: Date.now(), english: groups.flatMap((group) => group.english), russian: groups.flatMap((group) => group.russian) }
+    await writeGameCache(key, value, DAY_MS)
+    return value
+  })())
+  try {
+    const { english, russian } = await targetLoaded.get(slot)!
+    if (requestedTarget === slot) installTargetCatalog(language, english, russian)
+  } catch { targetLoaded.delete(slot) }
 }

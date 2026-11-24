@@ -5,6 +5,11 @@ export type MirrorMode = typeof MIRROR_MODES[number]
 // `maps` already contains mobs; `items` contains handbook categories. The former standalone endpoints now return 404.
 export const MIRROR_ENDPOINTS = ['items', 'tasks', 'maps', 'traders', 'hideout', 'barters', 'crafts'] as const
 const TRANSLATED = new Set(['items', 'tasks', 'maps', 'traders', 'hideout'])
+/**
+ * The dictionaries kept beside each data set: Russian and English for the catalog, German, Japanese and Chinese for the
+ * app's other languages (owner, 24.11.2026; src/i18n/catalogTranslations.ts loadTargetCatalog).
+ */
+export const MIRROR_LANGUAGES = ['ru', 'en', 'de', 'ja', 'zh'] as const
 const MINIMUMS: Record<string, number> = { items: 1000, tasks: 100, maps: 1 }
 const MAX_BYTES = 48 * 1024 * 1024
 const DAY = 24 * 60 * 60 * 1000
@@ -126,7 +131,7 @@ export class TarkovDataMirror {
     const counts: Record<string, number> = {}
     let downloadedBytes = 0
     try {
-      const names = [...MIRROR_ENDPOINTS.flatMap((name) => [name, ...(TRANSLATED.has(name) ? [`${name}_ru`, `${name}_en`] : [])]), ...(mode === 'pvp-season' ? ['season', 'season_ru', 'season_en'] : [])]
+      const names = [...MIRROR_ENDPOINTS.flatMap((name) => [name, ...(TRANSLATED.has(name) ? MIRROR_LANGUAGES.map((lang) => `${name}_${lang}`) : [])]), ...(mode === 'pvp-season' ? ['season', 'season_ru', 'season_en'] : [])]
       for (const name of names) {
         const prior = old?.validators?.[name]
         const headers: Record<string, string> = { accept: 'application/json', 'accept-encoding': 'gzip', 'user-agent': 'RaidOS-data-mirror/1 (+https://raidos.app)' }

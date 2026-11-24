@@ -15,11 +15,12 @@ import { tr, useSiteLocale, type SiteLocale } from '../i18n'
  * browser refused) the title card `trailer-poster.jpg` waits with the play button. When no source can be played a
  * "coming soon" note is shown.
  */
-const TRAILER_SOURCES: Record<SiteLocale, Array<{ src: string; type: string }>> = {
+/** German, Japanese and Chinese: the English trailer until each has its own. */
+const TRAILER_SOURCES: Partial<Record<SiteLocale, Array<{ src: string; type: string }>>> & Record<'ru' | 'en', Array<{ src: string; type: string }>> = {
   ru: [{ src: '/media/trailer.mp4', type: 'video/mp4' }],
   en: [{ src: '/media/trailer-en.mp4', type: 'video/mp4' }],
 }
-const POSTER: Record<SiteLocale, string> = { ru: '/media/trailer-poster.jpg', en: '/media/trailer-poster-en.jpg' }
+const POSTER: Partial<Record<SiteLocale, string>> & Record<'ru' | 'en', string> = { ru: '/media/trailer-poster.jpg', en: '/media/trailer-poster-en.jpg' }
 
 type Status = 'loading' | 'ready' | 'missing'
 
@@ -30,7 +31,7 @@ export function Trailer() {
 }
 
 function TrailerPlayer({ locale }: { locale: SiteLocale }) {
-  const sources = TRAILER_SOURCES[locale]
+  const sources = TRAILER_SOURCES[locale] ?? TRAILER_SOURCES.en
   const videoRef = useRef<HTMLVideoElement>(null)
   const [status, setStatus] = useState<Status>('loading')
   const [playing, setPlaying] = useState(false)
@@ -73,7 +74,7 @@ function TrailerPlayer({ locale }: { locale: SiteLocale }) {
     <div className={`trailer${playing ? ' is-playing' : ''}${missing ? ' is-missing' : ''}`}>
       <video
         ref={videoRef}
-        poster={stillFrame ? POSTER[locale] : undefined}
+        poster={stillFrame ? POSTER[locale] ?? POSTER.en : undefined}
         loop
         muted
         playsInline

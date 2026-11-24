@@ -17,7 +17,18 @@ import { API_URL } from '../config'
  * (autoLocale); the RU / EN switch is kept in localStorage and wins from then on. Changing the language re-renders the
  * whole site (App keys its routes on it).
  */
-export type SiteLocale = 'ru' | 'en'
+export type SiteLocale = 'ru' | 'en' | 'de' | 'ja' | 'zh'
+/** German, Japanese and Chinese are the English site put into that language (owner, 24.11.2026). */
+export type TargetSiteLocale = 'de' | 'ja' | 'zh'
+export const SITE_LOCALES: ReadonlyArray<{ code: SiteLocale; short: string; name: string; tag: string }> = [
+  { code: 'ru', short: 'RU', name: 'Русский', tag: 'ru-RU' },
+  { code: 'en', short: 'EN', name: 'English', tag: 'en-US' },
+  { code: 'de', short: 'DE', name: 'Deutsch', tag: 'de-DE' },
+  { code: 'ja', short: 'JA', name: '日本語', tag: 'ja-JP' },
+  { code: 'zh', short: 'ZH', name: '简体中文', tag: 'zh-CN' },
+]
+const isSiteLocale = (value: unknown): value is SiteLocale => typeof value === 'string' && SITE_LOCALES.some((option) => option.code === value)
+const isTarget = (value: SiteLocale): value is TargetSiteLocale => value === 'de' || value === 'ja' || value === 'zh'
 
 const STORAGE_KEY = 'raidos-site-locale'
 const dictionary = new Map<string, string>()
@@ -33,22 +44,61 @@ const RUSSIAN_COUNTRIES = new Set(['RU', 'BY', 'KZ', 'KG', 'UZ', 'TJ', 'TM', 'AM
 /** The same countries by time zone, while the server's answer is not there yet (or there is no Cloudflare in front). */
 const RUSSIAN_ZONES = /^(Europe\/(Moscow|Kaliningrad|Samara|Volgograd|Saratov|Ulyanovsk|Astrakhan|Kirov|Simferopol|Minsk|Chisinau)|Asia\/(Yekaterinburg|Omsk|Novosibirsk|Barnaul|Tomsk|Novokuznetsk|Krasnoyarsk|Irkutsk|Chita|Yakutsk|Khandyga|Vladivostok|Ust-Nera|Magadan|Sakhalin|Srednekolymsk|Kamchatka|Anadyr|Almaty|Qostanay|Aqtobe|Aqtau|Atyrau|Oral|Qyzylorda|Bishkek|Tashkent|Samarkand|Dushanbe|Ashgabat|Yerevan|Baku))$/
 
+/** Countries whose own language the site has besides Russian (the rest: the browser's language, else English). */
+const COUNTRY_LANGUAGES: Readonly<Record<string, SiteLocale>> = { CN: 'zh', TW: 'zh', HK: 'zh', MO: 'zh', SG: 'zh', JP: 'ja', DE: 'de', AT: 'de', CH: 'de', LI: 'de' }
+const ZONE_LANGUAGES: ReadonlyArray<[RegExp, SiteLocale]> = [
+  [/^Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Hong_Kong|Macau|Taipei)$/, 'zh'],
+  [/^Asia\/Tokyo$/, 'ja'],
+  [/^Europe\/(Berlin|Busingen|Vienna|Zurich|Vaduz)$/, 'de'],
+]
+
+/** The first of the browser's languages the site has (Belarusian readers get Russian). */
+export function browserLocale(languages: readonly string[] = []): SiteLocale | null {
+  for (const language of languages) {
+    const code = language.toLowerCase().split(/[-_]/)[0]
+    if (code === 'ru' || code === 'be') return 'ru'
+    if (code === 'en' || code === 'de' || code === 'ja' || code === 'zh') return code
+  }
+  return null
+}
+
 /**
- * The language of a first visit (owner, 11.10.2026: «определял, откуда пользователь, и автоматически переключал язык»):
- * Russian for Russia and its neighbours (by the country Cloudflare reports, else by the time zone), and for anyone whose
- * browser asks for Russian first; English for everybody else.
+ * The language of a first visit (owner, 11.10.2026: «определял, откуда пользователь, и автоматически переключал язык»;
+ * 24.11.2026: «если он не зарегистрирован, и он заходит из Китая … включай на этом языке … должен быть язык браузера»):
+ * Russian for Russia and its neighbours (by the country Cloudflare reports, else by the time zone); otherwise the
+ * browser's own language when the site has it; otherwise the country's language (China, Japan, the German-speaking
+ * countries); English for everybody else.
  */
 export function autoLocale(hints: { country?: string | null; timeZone?: string; languages?: readonly string[] }): SiteLocale {
-  const browserRussian = /^(ru|be)\b/i.test(hints.languages?.[0] ?? '')
-  if (hints.country) return RUSSIAN_COUNTRIES.has(hints.country.toUpperCase()) || browserRussian ? 'ru' : 'en'
-  if (hints.timeZone && RUSSIAN_ZONES.test(hints.timeZone)) return 'ru'
-  return browserRussian ? 'ru' : 'en'
+  const country = hints.country?.toUpperCase()
+  if (country && RUSSIAN_COUNTRIES.has(country)) return 'ru'
+  if (!country && hints.timeZone && RUSSIAN_ZONES.test(hints.timeZone)) return 'ru'
+  const browser = browserLocale(hints.languages)
+  if (browser) return browser
+  if (country) return COUNTRY_LANGUAGES[country] ?? 'en'
+  for (const [zone, locale] of ZONE_LANGUAGES) if (hints.timeZone && zone.test(hints.timeZone)) return locale
+  return 'en'
+}
+
+/**
+ * A language to offer beside the one shown (owner, 24.11.2026: «включай на английском, но предлагай возможный язык»):
+ * the country's own language, else another of the browser's languages, when the site has it and it is not the one shown.
+ */
+export function offeredLocale(hints: { country?: string | null; languages?: readonly string[] }, shown: SiteLocale): SiteLocale | null {
+  const country = hints.country?.toUpperCase()
+  const fromCountry = country ? RUSSIAN_COUNTRIES.has(country) ? 'ru' : COUNTRY_LANGUAGES[country] : undefined
+  if (fromCountry && fromCountry !== shown) return fromCountry
+  for (const language of hints.languages ?? []) {
+    const locale = browserLocale([language])
+    if (locale && locale !== shown && locale !== 'en') return locale
+  }
+  return null
 }
 
 function savedLocale(): SiteLocale | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'ru' || saved === 'en') return saved
+    if (isSiteLocale(saved)) return saved
   } catch { /* storage blocked */ }
   return null
 }
@@ -72,23 +122,79 @@ function browserHints() {
 function addressLocale(): SiteLocale | null {
   if (typeof location === 'undefined') return null
   const lang = new URLSearchParams(location.search).get('lang')
-  return lang === 'ru' || lang === 'en' ? lang : null
+  return isSiteLocale(lang) ? lang : null
 }
 
-let current: SiteLocale = embedded ? 'ru' : addressLocale() ?? savedLocale() ?? (detect ? autoLocale(browserHints()) : 'ru')
+/**
+ * German, Japanese and Chinese: English → that language, one file per language (src/i18n/locales/<lang>.json, keyed by
+ * the English of the phrase lists). The language is switched to once its file is there; until then the site stays
+ * English.
+ */
+const TARGET_LOADERS: Record<TargetSiteLocale, () => Promise<{ default: Record<string, string> }>> = {
+  de: () => import('./locales/de.json'),
+  ja: () => import('./locales/ja.json'),
+  zh: () => import('./locales/zh.json'),
+}
+const targetTables = new Map<TargetSiteLocale, ReadonlyMap<string, string>>()
+const targetLoading = new Map<TargetSiteLocale, Promise<void>>()
+function loadTarget(locale: TargetSiteLocale): Promise<void> {
+  let loading = targetLoading.get(locale)
+  if (!loading) {
+    loading = TARGET_LOADERS[locale]().then((module) => {
+      targetTables.set(locale, new Map(Object.entries(module.default).filter(([, text]) => typeof text === 'string' && text.trim())))
+    })
+    targetLoading.set(locale, loading.catch(() => { targetLoading.delete(locale) }))
+  }
+  return loading
+}
+
+const initial: SiteLocale = embedded ? 'ru' : addressLocale() ?? savedLocale() ?? (detect ? autoLocale(browserHints()) : 'ru')
+let current: SiteLocale = isTarget(initial) ? 'en' : initial
+let wanted: SiteLocale = initial
 if (typeof document !== 'undefined' && !embedded) document.documentElement.lang = current
 
 export const siteLocale = () => current
+/** The text the site is written in under the current language: Russian, or English for every other language. */
+export const siteBaseLocale = (): 'ru' | 'en' => current === 'ru' ? 'ru' : 'en'
 
-/** `remember: false`: the automatic choice of a first visit — a later visit asks again; the RU / EN switch is remembered. */
+function show(next: SiteLocale) {
+  if (next === current) return
+  current = next
+  if (typeof document !== 'undefined') document.documentElement.lang = SITE_LOCALES.find((option) => option.code === next)?.tag.startsWith('zh') ? 'zh-CN' : next
+  for (const listener of listeners) listener()
+}
+
+/** `remember: false`: the automatic choice of a first visit — a later visit asks again; the switch is remembered. */
 export function setSiteLocale(next: SiteLocale, options: { remember?: boolean } = {}) {
   if (options.remember !== false) {
     try { localStorage.setItem(STORAGE_KEY, next) } catch { /* the choice lasts for this visit only */ }
+    dismissOffer()
   }
-  if (next === current) return
-  current = next
-  if (typeof document !== 'undefined') document.documentElement.lang = next
-  for (const listener of listeners) listener()
+  wanted = next
+  if (!isTarget(next)) { show(next); return }
+  if (targetTables.has(next)) { show(next); return }
+  void loadTarget(next).then(() => { if (wanted === next && targetTables.has(next)) show(next) })
+}
+if (isTarget(initial)) setSiteLocale(initial, { remember: false })
+
+/** A language offered beside the one shown (src/components/LanguageOffer.tsx), until the visitor answers it. */
+const OFFER_KEY = 'raidos-site-language-offer'
+let offer: SiteLocale | null = null
+const offerListeners = new Set<() => void>()
+function setOffer(next: SiteLocale | null) {
+  if (next) {
+    try { if (localStorage.getItem(OFFER_KEY) === next) next = null } catch { /* asked again next visit */ }
+  }
+  if (next === offer) return
+  offer = next
+  for (const listener of offerListeners) listener()
+}
+export function dismissOffer() {
+  if (offer) try { localStorage.setItem(OFFER_KEY, offer) } catch { /* asked again next visit */ }
+  setOffer(null)
+}
+export function useLanguageOffer(): SiteLocale | null {
+  return useSyncExternalStore((listener) => { offerListeners.add(listener); return () => offerListeners.delete(listener) }, () => offer, () => null)
 }
 
 /** The country from our API (/v1/geo: Cloudflare's CF-IPCountry), once per browser session; then the language follows it. */
@@ -103,9 +209,10 @@ async function followCountry() {
     } catch { country = null }
     try { sessionStorage.setItem(KEY, country ?? '') } catch { /* asks again next time */ }
   }
-  // The visitor chose a language meanwhile, or the server does not know the country: nothing to change.
-  if (!country || savedLocale()) return
-  setSiteLocale(autoLocale({ ...browserHints(), country }), { remember: false })
+  // The visitor chose a language meanwhile: nothing to change or offer.
+  if (savedLocale()) return
+  if (country) setSiteLocale(autoLocale({ ...browserHints(), country }), { remember: false })
+  setOffer(offeredLocale({ ...browserHints(), country }, wanted))
 }
 if (detect && !savedLocale() && !addressLocale()) void followCountry()
 
@@ -115,11 +222,25 @@ export function useSiteLocale(): SiteLocale {
   return useSyncExternalStore(subscribe, siteLocale, () => 'ru')
 }
 
+/** A phrase of a language's file: as is, else without the punctuation at its end. */
+function targetPhrase(table: ReadonlyMap<string, string>, english: string): string | undefined {
+  const exact = table.get(english) ?? table.get(english.trim())
+  if (exact !== undefined) return exact
+  const ending = /^(.*?)([:.…!?]+)$/s.exec(english.trim())
+  const bare = ending?.[1] ? table.get(ending[1]) : undefined
+  return bare === undefined ? undefined : `${bare}${ending![2]}`
+}
+
 /** The text in the current language. */
 export function tr(ru: string, values?: Record<string, string | number>): string {
-  const text = current === 'en' ? dictionary.get(ru) ?? ru : ru
+  let text = ru
+  if (current !== 'ru') {
+    text = dictionary.get(ru) ?? ru
+    const table = isTarget(current) ? targetTables.get(current) : undefined
+    if (table) text = targetPhrase(table, text) ?? text
+  }
   return values ? text.replace(/\{(\w+)\}/g, (match, key: string) => key in values ? String(values[key]) : match) : text
 }
 
 /** Numbers and dates in the current language. */
-export const localeTag = () => current === 'en' ? 'en-US' : 'ru-RU'
+export const localeTag = () => SITE_LOCALES.find((option) => option.code === current)?.tag ?? 'ru-RU'

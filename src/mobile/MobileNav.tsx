@@ -14,6 +14,7 @@ import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportCha
 import { replaceTab, tabsOf, useSavedTabs } from './mobileTabs'
 import { useHold } from './useHold'
 import { SheetBackButton } from './backNavigation'
+import { LanguageButtons } from '../components/LanguagePicker'
 
 /**
  * Owner, 13.10.2026: «в нижнем меню убери раздел миникарта … вместо миникарты сделай оружейника туда» (the position
@@ -87,7 +88,7 @@ function BarTab({ section, name, active, replacing, onTap, onHold, children }: {
  */
 export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, owner = false }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number; owner?: boolean }) {
   const badge = (count: number, label = 'Новых заявок') => count > 0 ? <span className="nav-badge" aria-label={uiText(`${label}: ${count}`)}>{count > 99 ? '99+' : count}</span> : null
-  const { locale, setLocale } = useLocale()
+  const { locale } = useLocale()
   const version = useAppVersion()
   const [moreOpen, setMoreOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
@@ -163,7 +164,7 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, 
               <div className="mobile-more-tools">
                 <button type="button" className="button" onClick={() => { setMoreOpen(false); onSearch() }}><Search size={16} />{uiText(locale === 'en' ? 'Search' : 'Поиск')}</button>
                 <button type="button" className="button" onClick={onRefresh}><RefreshCw size={16} className={refreshing ? 'spin' : ''} />{uiText(locale === 'en' ? 'Refresh' : 'Обновить')}</button>
-                <div className="locale-switch" aria-label={uiText('Язык интерфейса')}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+                <LanguageButtons />
               </div>
               {/* Owner, 13.10.2026: «на телефоне тоже пиши, какая версия приложения». */}
               <p className="mobile-more-version">{uiText(locale === 'en' ? 'Version' : 'Версия')} {version}{nativePlatform() === 'ios' ? ' · iPhone' : nativePlatform() === 'android' ? ' · Android' : ''}</p>

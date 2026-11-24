@@ -61,8 +61,10 @@
 :root[data-style="glass"][data-style] .nav-link.active svg { opacity: 1; }
 
 /* ---------- switches: a glass track, the choice an accent pill ---------- */
-:root[data-style="glass"][data-style] :is(.mode-switch, .locale-switch) { border-radius: 999px; border-color: rgb(255 255 255 / 10%); background: rgb(0 0 0 / 22%); }
-:root[data-style="glass"][data-style] :is(.mode-switch, .locale-switch) button { border-radius: 999px; }
+/* The PvP / PvE / Season and language switches keep the corners of the plain style in glass too, in every scheme
+   (owner, 24.11.2026: «в обычном режиме они у нас такие более квадратные, угловатые. Вот нужно сделать везде вот такие
+   угловатые, во всех стилях»): no pill here, the scheme's own radius stays. */
+:root[data-style="glass"][data-style] :is(.mode-switch, .locale-switch) { border-color: rgb(255 255 255 / 10%); background: rgb(0 0 0 / 22%); }
 :root[data-style="glass"][data-style] .toggle { background: rgb(255 255 255 / 10%); }
 
 /* ---------- buttons, fields, chips ---------- */
