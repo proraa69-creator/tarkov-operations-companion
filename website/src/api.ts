@@ -73,8 +73,13 @@ export interface Account {
  */
 export interface AuthConfig {
   emailEnabled?: boolean; email?: { codeLength: number; codeTtlSeconds: number; resendSeconds: number }
-  /** «Войти через Google»: the server's Google client (absent on an older server: no button). */
+  /**
+   * «Войти через Google»: the server's Google client (absent on an older server, or for a visitor from a Russian address:
+   * no button).
+   */
   googleClientId?: string
+  /** The visitor's address is Russian (RIPE NCC's list): Google sign-in is not offered (servers from 25.11.2026). */
+  googleBlocked?: boolean
 }
 /** A code was requested: what the next step sends back. The e-mail itself holds the code. */
 export interface CodeChallenge { challengeId: string; expiresAt: string; resendSeconds: number }
