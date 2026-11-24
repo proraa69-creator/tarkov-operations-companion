@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.342","date":"2026-11-25","items":[
+    {"kind":"improved","ru":"Тема «Снаряжение»: время в Таркове снова отображается ровно","en":"«Gear» theme: the Tarkov time is shown neatly again"},
+    {"kind":"improved","ru":"Обновили данные по квестам","en":"Updated the quest data"}
+  ]},
   {"version":"0.6.0.341","date":"2026-11-24","items":[
     {"kind":"added","ru":"На сайт и в приложение добавлены новые языки","en":"New languages added to the website and the app"},
     {"kind":"improved","ru":"Обновили фото, снимки квестов и данные по квестам","en":"Updated the photos, the quest screenshots and the quest data"}

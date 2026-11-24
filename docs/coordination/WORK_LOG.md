@@ -9972,3 +9972,13 @@ Not pushed, not released, nothing uploaded.
   сайт и в приложение добавлены новые языки»; improved «Обновили фото, снимки квестов и данные по квестам»; nothing about the
   start. Checks after the merge: typecheck clean; vitest 4624 passed, 12 failed = machine-only + ObjectivePhotos / MapsPage ×3
   that pass per file; website/src 193/193.
+
+## 2026-11-25 — Claude: release 0.6.0.342 (reports 221 and 222; owner: «Да, выпускай»)
+
+- claude/release-342 from release/production a1d97c0d + claude/report-222 (641c6306: «Время в Таркове» clocks take the card's width
+  in «Снаряжение») + claude/key-110-spawn (bd72d2f7: Customs dorm room 110 key spot with the player's photo, report 221).
+  Version 0.6.0-342 (package.json, lock, website/src/config.ts); updateHistory row; news «Тема «Снаряжение»: время в Таркове снова
+  отображается ровно» + «Обновили данные по квестам».
+- Checks: typecheck, electron tsc, server typecheck clean; vitest src/data src/overview src/maps website/src 979/979;
+  appVersion's electron-builder check needs a file this PC lacks (passes in the gate).
+- Not in this release: claude/unheard-keys, claude/no-mutual-invites, claude/phone-auth (native files), claude/news-languages.
