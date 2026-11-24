@@ -9992,5 +9992,6 @@ Not pushed, not released, nothing uploaded.
   `CLAUDE.md`, `docs/coordination/COORDINATION.md`.
 - Tests: typecheck (root and server) clean; vitest src/news, src/admin, noSiteNames 98/98; server playerNews, announcement,
   notices 22/22; eslint clean.
-- Deployment: branch `claude/news-languages` from `origin/release/production` (a1d97c0d), not pushed, not released. Goes out with
-  the next app release (the news live in the app and the server route).
+- Deployment: branch `claude/news-languages` from `origin/release/production` (a1d97c0d). Owner, 25.11.2026 ~02:20: «Да, в
+  выпуск» → release 0.6.0.342 on top (version files, `updateHistory.json` two lines, `playerNews.json` one line in all twelve
+  languages: «Новости об обновлениях теперь на вашем языке»), for the 13:00 Bangkok window.
