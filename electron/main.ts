@@ -1,6 +1,8 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { totalmem } from 'node:os'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { describeSystemBrief } from './systemBrief.js'
 import { displayScale, followDisplayScale, opensMaximized, scaledWindowSize } from './uiScale.js'
 import { readSavedWindow, rememberWindow, restoredBounds } from './windowState.js'
 import { existsSync, watch as watchFs } from 'node:fs'
@@ -356,6 +358,9 @@ async function writeAtomically(file: string, text: string) {
 /** Whether the game runs, asked of the task list at most every 30 s (the log watcher asks only while its logs say «in a raid»). */
 let tarkovRunning: { at: number; value: Promise<boolean | null> } | null = null
 function tarkovRunningRecently() {
+  // The game's window in front proves it runs: no `tasklist` process then — in a raid the log watcher asked for one
+  // every 30 s while the player played (report 227, 25.11.2026: «игра фризит»).
+  if (foregroundGame()) return Promise.resolve(true)
   if (!tarkovRunning || Date.now() - tarkovRunning.at > 30_000) tarkovRunning = { at: Date.now(), value: isTarkovRunning() }
   return tarkovRunning.value
 }
@@ -638,6 +643,7 @@ app.whenReady().then(async () => {
     mainWindow: () => mainWindow,
     raidState: () => logWatcher.raidState(),
     logsRoot: async () => logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
+    logsWatched: () => Boolean(logWatcher.folder()),
   })
   // «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning): the players' PC app.
   if (!serverMode) startScreenTuning({ inRaid: () => logWatcher.raidState().inRaid || raidLikely() })
@@ -1021,6 +1027,8 @@ function registerIpc() {
     return fetchPlayerProfile(mode, accountId).catch(() => null)
   })
   ipcMain.handle('game:get-raid-state', () => ({ ...logWatcher.raidState(), tracked: Boolean(logWatcher.folder()) }))
+  // A few words about the computer for a «Скорость и зависания» report (report 227): cards, memory, battery; nothing personal.
+  ipcMain.handle('system:brief', async () => describeSystemBrief({ gpuInfo: await app.getGPUInfo('basic').catch(() => null), totalMemBytes: totalmem(), onBattery: powerMonitor.isOnBatteryPower() }))
   ipcMain.handle('logs:watch-state', () => logWatcher.watchState())
   ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => {
     const raw = options && typeof options === 'object' ? options as { restart?: unknown; names?: unknown } : {}

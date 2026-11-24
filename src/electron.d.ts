@@ -262,6 +262,8 @@ interface TarkovDesktopApi {
    * language the look read in (src/import/gameLanguage.ts; apps from 24.11.2026).
    */
   captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number; flea?: { reading?: FleaReading }; language?: GameLanguage }>
+  /** Video cards, memory, battery for a «Скорость и зависания» report (electron/systemBrief.ts); apps from 25.11.2026. */
+  systemBrief?: () => Promise<string>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading; language?: GameLanguage } | null>
   /**
    * The locked app's identity reader (electron/screenOcr.ts captureIdentityFrame): only right after a new game window

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { gammaRamp, NEUTRAL, screenTables } from '../../src/screen/screenCurve'
-import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, MAX_PRESETS, nextPresetId, noteRaidResult, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
+import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, MAX_PRESETS, nextPresetId, noteRaidResult, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, backgroundFrameDue, FRAME_IN_USE_MS, FRAME_IDLE_MS, sameRamp } from './state'
 import { BUILT_IN_PRESETS } from '../../src/screen/screenCurve'
 
 const BUILT_IN_DAYLIGHT = () => ({ ...BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-daylight')!, builtIn: undefined })
@@ -191,5 +191,30 @@ describe('«Настройка экрана»: the player\'s order of the preset
     const hidden = deletePreset(reversed, list[0]!)
     expect(ids(hidden)).not.toContain(list[0])
     expect(ids(restoreBuiltIns(hidden))).toEqual([...list].reverse())
+  })
+})
+
+describe('report 227: the game is copied and the gamma written only when it is needed', () => {
+  const now = 1_000_000_000
+  it('a player using «Настройка экрана» gets a fresh picture every 2 minutes, raids included', () => {
+    expect(backgroundFrameDue({ inUse: true, raid: true, lastAt: null, now })).toBe(true)
+    expect(backgroundFrameDue({ inUse: true, raid: true, lastAt: now - FRAME_IN_USE_MS + 1, now })).toBe(false)
+    expect(backgroundFrameDue({ inUse: true, raid: true, lastAt: now - FRAME_IN_USE_MS, now })).toBe(true)
+  })
+  it('anyone else: never in a raid, outside one every 10 minutes', () => {
+    expect(backgroundFrameDue({ inUse: false, raid: true, lastAt: null, now })).toBe(false)
+    expect(backgroundFrameDue({ inUse: false, raid: false, lastAt: null, now })).toBe(true)
+    expect(backgroundFrameDue({ inUse: false, raid: false, lastAt: now - FRAME_IDLE_MS + 1, now })).toBe(false)
+    expect(backgroundFrameDue({ inUse: false, raid: false, lastAt: now - FRAME_IDLE_MS, now })).toBe(true)
+  })
+  it('the ramp on the monitor is ours while every value is within one step', () => {
+    const ours = Uint16Array.from({ length: 768 }, (_, index) => (index % 256) * 200)
+    const rounded = ours.map((value, index) => (index % 3 ? value + 1 : value))
+    const linear = Uint16Array.from({ length: 768 }, (_, index) => (index % 256) * 257)
+    expect(sameRamp(ours, Uint16Array.from(ours))).toBe(true)
+    expect(sameRamp(ours, rounded)).toBe(true)
+    expect(sameRamp(ours, linear)).toBe(false)
+    expect(sameRamp(ours, null)).toBe(false)
+    expect(sameRamp(ours, ours.subarray(0, 256))).toBe(false)
   })
 })

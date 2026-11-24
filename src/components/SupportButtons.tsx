@@ -12,7 +12,7 @@ import { appEdition } from '../app/buildEdition'
 import { isDesktopShell, hidesPayments, isNative, nativePlatform } from '../platform'
 import { useTarkovEdition, type TarkovEdition } from '../import/logStatus'
 import { LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
-import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
+import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL, withSystemBrief } from '../app/support'
 import { useFileSink } from '../app/fileSink'
 import { cleanIpcError, useServerAccount } from '../sync/serverSync'
 import { serviceClient } from '../account/nicknameBinding'
@@ -166,7 +166,15 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
   // The game runs on the PC only: the phone has no Tarkov to tell.
   const edition = useTarkovEdition(savedLogsFolder)
   const gameEdition = isDesktopShell() ? edition : null
-  const platform = gameEdition ? `${describePlatform()} · EFT: ${TARKOV_EDITION_SHORT[gameEdition]}` : describePlatform()
+  // «Скорость и зависания» from the PC: the cards, memory and battery go along (report 227, electron/systemBrief.ts).
+  const [systemBrief, setSystemBrief] = useState('')
+  const performance = kind === 'bug' && category === 'performance'
+  useEffect(() => {
+    if (!performance || !isDesktopShell() || systemBrief) return
+    void window.tarkovDesktop?.systemBrief?.().then((text) => setSystemBrief(typeof text === 'string' ? text : '')).catch(() => {})
+  }, [performance, systemBrief])
+  const basePlatform = gameEdition ? `${describePlatform()} · EFT: ${TARKOV_EDITION_SHORT[gameEdition]}` : describePlatform()
+  const platform = performance ? withSystemBrief(basePlatform, systemBrief) : basePlatform
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !sending) onClose() }
@@ -344,7 +352,7 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
         <div className="bug-report-meta">
           <strong>{uiText(words.meta)}</strong>
           <span>{uiText('Версия приложения')}: {appVersion}</span>
-          <span>{uiText('Система')}: {describePlatform()}</span>
+          <span>{uiText('Система')}: {performance ? withSystemBrief(describePlatform(), systemBrief) : describePlatform()}</span>
           {gameEdition && <span>{uiText('Версия Таркова')}: {uiText(TARKOV_EDITION_LABELS[gameEdition])}</span>}
           {status?.email && <span>{uiText('Аккаунт')}: {status.email}</span>}
         </div>
