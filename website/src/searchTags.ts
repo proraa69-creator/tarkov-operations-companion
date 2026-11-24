@@ -29,7 +29,7 @@ function headTag(selector: string, create: () => HTMLElement, attributes: Record
 }
 
 /** Every site language has its own address for search engines (`?lang=de` …, src/i18n/index.ts addressLocale). */
-const HREFLANGS = ['ru', 'en', 'de', 'ja', 'zh', 'pl', 'uk', 'es', 'pt', 'fr', 'ko', 'tr']
+const HREFLANGS = ['ru', 'en', 'de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr']
 
 export function updateSearchTags(pathname: string, search = window.location.search) {
   const indexed = INDEXED.has(pathname)

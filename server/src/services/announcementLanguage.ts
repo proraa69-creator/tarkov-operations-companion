@@ -49,8 +49,14 @@ export function splitBilingualNotice(text: string): { ru: string; en: string } |
   return { ru: pick(true), en: pick(false) }
 }
 
-/** Russian → English: the English, or a rejection (network, timeout, quota, an empty answer). */
-export type AnnouncementTranslator = (russian: string) => Promise<string>
+/**
+ * The languages a Russian text is translated into: English, and for the release news every other language of the app (owner,
+ * 25.11.2026: «все новости… должны переводиться на все языки»), as MyMemory names them.
+ */
+export type TranslationTarget = 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
+const MYMEMORY_TARGET: Record<TranslationTarget, string> = { en: 'en', de: 'de', ja: 'ja', zh: 'zh-CN', pl: 'pl', es: 'es', pt: 'pt-BR', fr: 'fr', ko: 'ko', tr: 'tr' }
+/** Russian → English (or `target`): the translation, or a rejection (network, timeout, quota, an empty answer). */
+export type AnnouncementTranslator = (russian: string, target?: TranslationTarget) => Promise<string>
 
 /** MyMemory's free API (https://mymemory.translated.net/doc/spec.php): no key, no e-mail, a query of up to ~500 bytes. */
 export const MYMEMORY_URL = 'https://api.mymemory.translated.net/get'
@@ -124,8 +130,8 @@ interface MyMemoryAnswer { responseData?: { translatedText?: unknown }; response
 export function myMemoryTranslator(options: { fetch?: typeof fetch; timeoutMs?: number } = {}): AnnouncementTranslator {
   const fetcher = options.fetch ?? fetch
   const timeoutMs = options.timeoutMs ?? TRANSLATION_TIMEOUT_MS
-  const translate = async (text: string) => {
-    const response = await fetcher(`${MYMEMORY_URL}?q=${encodeURIComponent(text)}&langpair=ru|en`, {
+  const translate = async (text: string, target: TranslationTarget) => {
+    const response = await fetcher(`${MYMEMORY_URL}?q=${encodeURIComponent(text)}&langpair=ru|${MYMEMORY_TARGET[target]}`, {
       headers: { accept: 'application/json', 'user-agent': 'RaidOS-notice/1 (+https://raidos.app)' },
       signal: AbortSignal.timeout(timeoutMs),
       redirect: 'error',
@@ -138,10 +144,10 @@ export function myMemoryTranslator(options: { fetch?: typeof fetch; timeoutMs?: 
     if (!translated) throw new Error('MyMemory: empty answer')
     return translated
   }
-  return async (russian) => {
+  return async (russian, target = 'en') => {
     const chunks = translationChunks(russian)
     if (!chunks.length) throw new Error('MyMemory: nothing to translate')
-    const english = await Promise.all(chunks.map((chunk) => translate(chunk.text)))
+    const english = await Promise.all(chunks.map((chunk) => translate(chunk.text, target)))
     return english.map((text, index) => text + chunks[index]!.after).join('')
   }
 }

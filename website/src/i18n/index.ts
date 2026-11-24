@@ -17,7 +17,7 @@ import { API_URL } from '../config'
  * (autoLocale); the RU / EN switch is kept in localStorage and wins from then on. Changing the language re-renders the
  * whole site (App keys its routes on it).
  */
-export type SiteLocale = 'ru' | 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'uk' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
+export type SiteLocale = 'ru' | 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
 /** Every language but Russian and English is the English site put into that language (owner, 24.11.2026). */
 export type TargetSiteLocale = Exclude<SiteLocale, 'ru' | 'en'>
 export const SITE_LOCALES: ReadonlyArray<{ code: SiteLocale; short: string; name: string; tag: string }> = [
@@ -27,7 +27,6 @@ export const SITE_LOCALES: ReadonlyArray<{ code: SiteLocale; short: string; name
   { code: 'ja', short: 'JA', name: '日本語', tag: 'ja-JP' },
   { code: 'zh', short: 'ZH', name: '简体中文', tag: 'zh-CN' },
   { code: 'pl', short: 'PL', name: 'Polski', tag: 'pl-PL' },
-  { code: 'uk', short: 'UK', name: 'Українська', tag: 'uk-UA' },
   { code: 'es', short: 'ES', name: 'Español', tag: 'es-ES' },
   { code: 'pt', short: 'PT', name: 'Português (Brasil)', tag: 'pt-BR' },
   { code: 'fr', short: 'FR', name: 'Français', tag: 'fr-FR' },
@@ -47,15 +46,16 @@ export function addPhrases(...lists: Array<ReadonlyArray<readonly [string, strin
 addPhrases(LAYOUT_PHRASES, PUBLIC_PHRASES, AUTH_PHRASES, CABINET_PHRASES, LEGAL_PHRASES, PROMO_SITE_PHRASES)
 
 /** Countries whose visitors get the Russian site on the first visit (the rest: by the browser's first language). */
-const RUSSIAN_COUNTRIES = new Set(['RU', 'BY', 'KZ', 'KG', 'UZ', 'TJ', 'TM', 'AM', 'AZ', 'MD'])
+// Ukraine reads Russian too (owner, 25.11.2026: «украинский язык удали. Это тот же русский. Пусть будет русский»)
+const RUSSIAN_COUNTRIES = new Set(['RU', 'BY', 'UA', 'KZ', 'KG', 'UZ', 'TJ', 'TM', 'AM', 'AZ', 'MD'])
 /** The same countries by time zone, while the server's answer is not there yet (or there is no Cloudflare in front). */
-const RUSSIAN_ZONES = /^(Europe\/(Moscow|Kaliningrad|Samara|Volgograd|Saratov|Ulyanovsk|Astrakhan|Kirov|Simferopol|Minsk|Chisinau)|Asia\/(Yekaterinburg|Omsk|Novosibirsk|Barnaul|Tomsk|Novokuznetsk|Krasnoyarsk|Irkutsk|Chita|Yakutsk|Khandyga|Vladivostok|Ust-Nera|Magadan|Sakhalin|Srednekolymsk|Kamchatka|Anadyr|Almaty|Qostanay|Aqtobe|Aqtau|Atyrau|Oral|Qyzylorda|Bishkek|Tashkent|Samarkand|Dushanbe|Ashgabat|Yerevan|Baku))$/
+const RUSSIAN_ZONES = /^(Europe\/(Moscow|Kaliningrad|Samara|Volgograd|Saratov|Ulyanovsk|Astrakhan|Kirov|Simferopol|Minsk|Chisinau|Kiev|Kyiv|Uzhgorod|Zaporozhye)|Asia\/(Yekaterinburg|Omsk|Novosibirsk|Barnaul|Tomsk|Novokuznetsk|Krasnoyarsk|Irkutsk|Chita|Yakutsk|Khandyga|Vladivostok|Ust-Nera|Magadan|Sakhalin|Srednekolymsk|Kamchatka|Anadyr|Almaty|Qostanay|Aqtobe|Aqtau|Atyrau|Oral|Qyzylorda|Bishkek|Tashkent|Samarkand|Dushanbe|Ashgabat|Yerevan|Baku))$/
 
 /** Countries whose own language the site has besides Russian (the rest: the browser's language, else English). */
 const SPANISH = ['ES', 'MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'GT', 'CU', 'BO', 'DO', 'HN', 'PY', 'SV', 'NI', 'CR', 'PA', 'UY', 'PR', 'GQ']
 const COUNTRY_LANGUAGES: Readonly<Record<string, SiteLocale>> = {
   CN: 'zh', TW: 'zh', HK: 'zh', MO: 'zh', SG: 'zh', JP: 'ja', DE: 'de', AT: 'de', CH: 'de', LI: 'de',
-  PL: 'pl', UA: 'uk', BR: 'pt', PT: 'pt', AO: 'pt', MZ: 'pt', FR: 'fr', MC: 'fr', LU: 'fr', KR: 'ko', TR: 'tr',
+  PL: 'pl', BR: 'pt', PT: 'pt', AO: 'pt', MZ: 'pt', FR: 'fr', MC: 'fr', LU: 'fr', KR: 'ko', TR: 'tr',
   ...Object.fromEntries(SPANISH.map((country) => [country, 'es'])),
 }
 const ZONE_LANGUAGES: ReadonlyArray<[RegExp, SiteLocale]> = [
@@ -63,7 +63,6 @@ const ZONE_LANGUAGES: ReadonlyArray<[RegExp, SiteLocale]> = [
   [/^Asia\/Tokyo$/, 'ja'],
   [/^Europe\/(Berlin|Busingen|Vienna|Zurich|Vaduz)$/, 'de'],
   [/^Europe\/Warsaw$/, 'pl'],
-  [/^Europe\/(Kiev|Kyiv|Uzhgorod|Zaporozhye)$/, 'uk'],
   [/^(Europe\/Madrid|Atlantic\/Canary|America\/(Mexico_City|Bogota|Lima|Santiago|Caracas|Argentina\/.+|Buenos_Aires|Montevideo|Guayaquil|La_Paz|Asuncion|Guatemala|Havana))$/, 'es'],
   [/^(America\/(Sao_Paulo|Fortaleza|Recife|Bahia|Belem|Manaus|Cuiaba|Porto_Velho|Boa_Vista|Rio_Branco|Maceio|Araguaina|Campo_Grande|Santarem|Noronha)|Europe\/Lisbon)$/, 'pt'],
   [/^Europe\/(Paris|Monaco|Luxembourg)$/, 'fr'],
@@ -71,12 +70,11 @@ const ZONE_LANGUAGES: ReadonlyArray<[RegExp, SiteLocale]> = [
   [/^(Europe|Asia)\/Istanbul$/, 'tr'],
 ]
 
-/** The first of the browser's languages the site has (Belarusian readers get Russian). */
+/** The first of the browser's languages the site has (Belarusian and Ukrainian readers get Russian). */
 export function browserLocale(languages: readonly string[] = []): SiteLocale | null {
   for (const language of languages) {
     const code = language.toLowerCase().split(/[-_]/)[0]
-    if (code === 'ru' || code === 'be') return 'ru'
-    if (code === 'uk') return 'uk'
+    if (code === 'ru' || code === 'be' || code === 'uk') return 'ru'
     if (isSiteLocale(code)) return code
   }
   return null
@@ -155,7 +153,6 @@ const TARGET_LOADERS: Record<TargetSiteLocale, () => Promise<{ default: Record<s
   ja: () => import('./locales/ja.json'),
   zh: () => import('./locales/zh.json'),
   pl: () => import('./locales/pl.json'),
-  uk: () => import('./locales/uk.json'),
   es: () => import('./locales/es.json'),
   pt: () => import('./locales/pt.json'),
   fr: () => import('./locales/fr.json'),

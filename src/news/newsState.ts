@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import news from '../data/playerNews.json'
+import { TARGET_LANGUAGES, type AppLanguage, type TargetLanguage } from '../i18n/languages'
 
 /**
  * «Обновление», named so since 06.11.2026 (owner, 05.11.2026: «Сделать публичный новостной ChangeLog… с метками Прочитано / Не прочитано… если он
@@ -8,7 +9,21 @@ import news from '../data/playerNews.json'
  * been read is kept on this device. The first look counts only the newest entry as unread: nobody meets a badge of ten.
  */
 export type NewsKind = 'added' | 'changed' | 'improved'
-export interface NewsItem { kind: NewsKind; ru: string; en: string }
+/**
+ * A line in every language of the app (owner, 25.11.2026: «все новости, которые выходят, должны переводиться на все языки… если
+ * у меня включен испанский язык… новости должны выходить на этом языке»): Russian, English and each language drawn over the English
+ * (src/i18n/languages.ts TARGET_LANGUAGES). Every line of src/data/playerNews.json has all of them (src/data/playerNews.test.ts).
+ */
+export type NewsItem = { kind: NewsKind; ru: string; en: string } & Partial<Record<TargetLanguage, string>>
+
+/** Every language a news line is written in, after Russian and English. */
+export const NEWS_LANGUAGES: readonly TargetLanguage[] = TARGET_LANGUAGES
+
+/** The line in the player's language: that language, else English, else Russian (an owner's new line not translated yet). */
+export function newsText(item: NewsItem, language: AppLanguage): string {
+  if (language === 'ru') return item.ru
+  return (language === 'en' ? '' : item[language]) || item.en || item.ru
+}
 export interface NewsEntry { version: string; date: string; items: NewsItem[] }
 
 export const NEWS = news as NewsEntry[]

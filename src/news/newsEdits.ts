@@ -1,7 +1,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
 import { useAppVersion } from '../app/appVersion'
-import { installedNews, NEWS, type NewsEntry, type NewsItem } from './newsState'
+import { installedNews, NEWS, NEWS_LANGUAGES, type NewsEntry, type NewsItem } from './newsState'
 import { appStoreRules, storeSafeNews } from './storeSafe'
 import { hidesPayments } from '../platform'
 
@@ -23,15 +23,31 @@ export function parseNewsEdits(value: unknown): NewsEdits | null {
   const result: NewsEdits = {}
   for (const [version, items] of Object.entries(edits)) {
     if (!Array.isArray(items)) continue
-    result[version] = items.flatMap((item: Partial<NewsItem> | null) => (item && typeof item.ru === 'string' && item.ru && KINDS.has(item.kind ?? '')
-      ? [{ kind: item.kind!, ru: item.ru, en: typeof item.en === 'string' ? item.en : '' }]
-      : []))
+    result[version] = items.flatMap((item: Partial<NewsItem> | null) => {
+      if (!item || typeof item.ru !== 'string' || !item.ru || !KINDS.has(item.kind ?? '')) return []
+      const line: NewsItem = { kind: item.kind!, ru: item.ru, en: typeof item.en === 'string' ? item.en : '' }
+      for (const language of NEWS_LANGUAGES) { const text = item[language]; if (typeof text === 'string' && text) line[language] = text }
+      return [line]
+    })
   }
   return result
 }
 
+/**
+ * The owner's lines over the app's. A line of his with the same Russian as one of the app's (anywhere in the list) takes the app's
+ * translations it lacks: his edits made before every language was there read in every language where the text is ours.
+ */
 export function applyNewsEdits(list: readonly NewsEntry[], edits: NewsEdits): NewsEntry[] {
-  return list.map((entry) => (edits[entry.version] ? { ...entry, items: edits[entry.version]! } : entry)).filter((entry) => entry.items.length > 0)
+  const ours = new Map<string, NewsItem>()
+  for (const entry of list) for (const item of entry.items) if (!ours.has(item.ru)) ours.set(item.ru, item)
+  const filled = (item: NewsItem): NewsItem => {
+    const own = ours.get(item.ru)
+    if (!own) return item
+    const line: NewsItem = { ...item, en: item.en || own.en }
+    for (const language of NEWS_LANGUAGES) if (!line[language] && own[language]) line[language] = own[language]
+    return line
+  }
+  return list.map((entry) => (edits[entry.version] ? { ...entry, items: edits[entry.version]!.map(filled) } : entry)).filter((entry) => entry.items.length > 0)
 }
 
 function stored(): NewsEdits {

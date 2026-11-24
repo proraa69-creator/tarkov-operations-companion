@@ -104,7 +104,7 @@ export function adminRegionOf(code: string): CountryRegion {
 }
 
 /** The site's and the apps' languages (German, Japanese and Chinese since 24.11.2026). */
-export type CountryLocale = 'ru' | 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'uk' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
+export type CountryLocale = 'ru' | 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
 
 export const REGION_LABELS: Record<CountryLocale, Record<CountryRegion, string>> = {
   ru: { cis: 'СНГ', europe: 'Европа', other: 'Другие страны' },
@@ -113,7 +113,6 @@ export const REGION_LABELS: Record<CountryLocale, Record<CountryRegion, string>>
   ja: { cis: 'CIS諸国', europe: 'ヨーロッパ', other: 'その他の国' },
   zh: { cis: '独联体', europe: '欧洲', other: '其他国家' },
   pl: { cis: 'WNP', europe: 'Europa', other: 'Inne kraje' },
-  uk: { cis: 'СНД', europe: 'Європа', other: 'Інші країни' },
   es: { cis: 'CEI', europe: 'Europa', other: 'Otros países' },
   pt: { cis: 'CEI', europe: 'Europa', other: 'Outros países' },
   fr: { cis: 'CEI', europe: 'Europe', other: 'Autres pays' },
@@ -148,7 +147,7 @@ export function countryName(code: string, locale: CountryLocale): string {
  * (owner, 09.11.2026: «не просто Соединённые Штаты, а реальное название, нормальное, как везде. На английском языке»).
  */
 const NAME_OVERRIDES: Partial<Record<string, Partial<Record<CountryLocale, string>>>> = {
-  US: { ru: 'США (United States of America)', en: 'United States of America', de: 'Vereinigte Staaten von Amerika', ja: 'アメリカ合衆国', zh: '美利坚合众国', pl: 'Stany Zjednoczone Ameryki', uk: 'Сполучені Штати Америки', es: 'Estados Unidos de América', pt: 'Estados Unidos da América', fr: 'États-Unis d’Amérique', ko: '미합중국', tr: 'Amerika Birleşik Devletleri' },
+  US: { ru: 'США (United States of America)', en: 'United States of America', de: 'Vereinigte Staaten von Amerika', ja: 'アメリカ合衆国', zh: '美利坚合众国', pl: 'Stany Zjednoczone Ameryki', es: 'Estados Unidos de América', pt: 'Estados Unidos da América', fr: 'États-Unis d’Amérique', ko: '미합중국', tr: 'Amerika Birleşik Devletleri' },
 }
 
 export interface CountryOption { code: CountryCode; name: string }

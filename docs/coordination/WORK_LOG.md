@@ -10087,3 +10087,32 @@ Not pushed, not released, nothing uploaded.
 - Checks: typecheck, electron tsc, server typecheck clean; server tests 613/613; website build ok; vitest 4633 passed, the rest
   machine-only or pass per file (App, Dashboard, Gunsmith, MapsPage ×3, ManualMarks, SupportButtons, appDelta, updateHistory).
 - Server needs ftp.ripe.net once at start (Russian networks list for Google sign-in).
+## 2026-11-25 02:10 — Claude: release news in every app language
+
+- Owner, 25.11.2026: «все новости, которые выходят, должны переводиться на все языки… если у меня включен испанский язык…
+  новости… должны выходить на этом языке». Every line of `src/data/playerNews.json` (360 lines, 348 different) now has
+  `de ja zh pl uk es pt fr ko tr` beside `ru`/`en`. 346 of them were already in the app's dictionaries (`src/i18n/locales/*.json`,
+  English keys), taken from there so the words match the screens; «Полигон» everywhere as the dictionaries' «Proving ground».
+- «Обновление» shows the player's chosen language (`newsText`: that language, else English, else Russian) and the date in it;
+  the lines are `translate="no"` so the page translator does not touch them.
+- The owner's edits (admin «Обновление», `server/src/routes/playerNews.ts`): a line he kept keeps its translations (his earlier
+  ones, else the app's own line with the same Russian); a new line is translated on saving into English and the ten languages
+  (MyMemory `langpair=ru|<lang>`; a failed one reads English). Edits saved before today get the app's translations of the
+  same Russian in the client (`applyNewsEdits`).
+- Rule for every next release (CLAUDE.md, COORDINATION.md): a news line needs all twelve languages; `src/news/NewsButton.test.tsx`
+  fails without them.
+- Files: `src/news/newsState.ts`, `NewsButton.tsx`, `newsEdits.ts`, their tests, `src/data/playerNews.json`,
+  `server/src/routes/playerNews.ts` and its test, `server/src/services/announcementLanguage.ts`, `playerNewsStore.ts`,
+  `CLAUDE.md`, `docs/coordination/COORDINATION.md`.
+- Tests: typecheck (root and server) clean; vitest src/news, src/admin, noSiteNames 98/98; server playerNews, announcement,
+  notices 22/22; eslint clean.
+- Deployment: branch `claude/news-languages` from `origin/release/production` (a1d97c0d). Owner, 25.11.2026 ~02:20: «Да, в
+  выпуск» → release 0.6.0.342 on top (version files, `updateHistory.json` two lines, `playerNews.json` one line in all twelve
+  languages: «Новости об обновлениях теперь на вашем языке»), for the 13:00 Bangkok window.
+- 25.11 ~02:40, owner: «украинский язык удали. Это тот же русский. Пусть будет русский, а остальные все оставь… обновление
+  не выпускаем, выпустим со следующими правками, когда я скажу». Ukrainian is out of the app (`AppLanguage`, `TARGET_LANGUAGES`,
+  `src/i18n/locales/uk.json`, `CountryLocale`) and the site (`SiteLocale`, `locales/uk.json`, the language offer, hreflang,
+  sitemap: 52 alternates and 4 pages). A saved «uk» reads as Russian in the app; the site sends Ukraine (country, Kyiv time
+  zones, a uk browser) to Russian. The news lines lost their `uk`. The trailer session was told: no Ukrainian trailer.
+  Checks: typecheck (app, site, server) clean; vitest website/src, src/i18n, src/news, src/shared, src/account and the game
+  language tests 410/410; server playerNews, initialCountry, accounts 28/28. Release 0.6.0.342 stays local, not pushed.

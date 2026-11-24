@@ -18,7 +18,7 @@ describe('search engine tags', () => {
       description: expect.stringContaining('Escape from Tarkov'),
       robots: 'index, follow',
       canonical: 'https://raidos.app/download?lang=ru',
-      alternates: ['ru https://raidos.app/download?lang=ru', 'en https://raidos.app/download?lang=en', 'de https://raidos.app/download?lang=de', 'ja https://raidos.app/download?lang=ja', 'zh https://raidos.app/download?lang=zh', 'pl https://raidos.app/download?lang=pl', 'uk https://raidos.app/download?lang=uk', 'es https://raidos.app/download?lang=es', 'pt https://raidos.app/download?lang=pt', 'fr https://raidos.app/download?lang=fr', 'ko https://raidos.app/download?lang=ko', 'tr https://raidos.app/download?lang=tr', 'x-default https://raidos.app/download'],
+      alternates: ['ru https://raidos.app/download?lang=ru', 'en https://raidos.app/download?lang=en', 'de https://raidos.app/download?lang=de', 'ja https://raidos.app/download?lang=ja', 'zh https://raidos.app/download?lang=zh', 'pl https://raidos.app/download?lang=pl', 'es https://raidos.app/download?lang=es', 'pt https://raidos.app/download?lang=pt', 'fr https://raidos.app/download?lang=fr', 'ko https://raidos.app/download?lang=ko', 'tr https://raidos.app/download?lang=tr', 'x-default https://raidos.app/download'],
     })
     updateSearchTags('/', '')
     expect(head().canonical).toBe('https://raidos.app/')

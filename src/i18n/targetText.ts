@@ -24,7 +24,6 @@ const LOADERS: Record<TargetLanguage, () => Promise<{ default: Record<string, st
   ja: () => import('./locales/ja.json'),
   zh: () => import('./locales/zh.json'),
   pl: () => import('./locales/pl.json'),
-  uk: () => import('./locales/uk.json'),
   es: () => import('./locales/es.json'),
   pt: () => import('./locales/pt.json'),
   fr: () => import('./locales/fr.json'),

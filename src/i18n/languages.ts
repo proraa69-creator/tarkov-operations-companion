@@ -2,13 +2,15 @@
  * The interface languages (owner, 24.11.2026: «китайский, японский, немецкий … по нажатии на язык сверху будет
  * выдвигаться окно со списком всех языков»; then «подумай, какие еще языки нам стоит добавить»: Polish, Ukrainian, Spanish,
  * Brazilian Portuguese, French, Korean and Turkish — the players' countries beyond the CIS and the game's own languages).
+ * Ukrainian taken out again (owner, 25.11.2026: «украинский язык удали. Это тот же русский. Пусть будет русский»): a saved
+ * «uk» is no language any more and reads as Russian (LocaleProvider savedLanguage); the site sends Ukraine to Russian.
  *
  * Russian is the source text and English the dictionary every screen already has (src/i18n/uiEnglish*.ts). Every other
  * language is drawn over the English: the app renders the English text and src/i18n/targetText.ts puts
  * each English phrase into the chosen language. So `locale` (what the code compares, 'ru' | 'en') stays the base text,
  * and `language` is what the player chose.
  */
-export type AppLanguage = 'ru' | 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'uk' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
+export type AppLanguage = 'ru' | 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
 /** The language of the source the screens are written in: Russian, or English for every other language. */
 export type BaseLocale = 'ru' | 'en'
 /** A language drawn over the English text. */
@@ -31,7 +33,6 @@ export const LANGUAGES: readonly LanguageOption[] = [
   { code: 'ja', short: 'JA', name: '日本語', tag: 'ja-JP' },
   { code: 'zh', short: 'ZH', name: '简体中文', tag: 'zh-CN' },
   { code: 'pl', short: 'PL', name: 'Polski', tag: 'pl-PL' },
-  { code: 'uk', short: 'UK', name: 'Українська', tag: 'uk-UA' },
   { code: 'es', short: 'ES', name: 'Español', tag: 'es-ES' },
   { code: 'pt', short: 'PT', name: 'Português (Brasil)', tag: 'pt-BR' },
   { code: 'fr', short: 'FR', name: 'Français', tag: 'fr-FR' },
@@ -39,7 +40,7 @@ export const LANGUAGES: readonly LanguageOption[] = [
   { code: 'tr', short: 'TR', name: 'Türkçe', tag: 'tr-TR' },
 ]
 
-export const TARGET_LANGUAGES: readonly TargetLanguage[] = ['de', 'ja', 'zh', 'pl', 'uk', 'es', 'pt', 'fr', 'ko', 'tr']
+export const TARGET_LANGUAGES: readonly TargetLanguage[] = ['de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr']
 
 export function isAppLanguage(value: unknown): value is AppLanguage {
   return typeof value === 'string' && LANGUAGES.some((language) => language.code === value)
