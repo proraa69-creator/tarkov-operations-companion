@@ -1,0 +1,14 @@
+/* What German, Japanese and Chinese need beside the English layout (src/i18n/languages.ts): German words are long, so
+   the tight capital labels lose their extra letter spacing where the text would be cut; Japanese and Chinese get their
+   system fonts right after the app's own Latin font (which has none of their letters). */
+:root:lang(de) .map-detail-head > .map-detail-tabs .map-detail-tab { padding: 0 3px; letter-spacing: 0; }
+
+:root:lang(ja) { font-family: Inter, "Segoe UI", "Yu Gothic UI", Meiryo, "Hiragino Sans", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif; }
+:root:lang(ko) { font-family: Inter, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif; }
+:root:lang(zh-CN), :root:lang(zh) { font-family: Inter, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif; }
+
+/* The overview's screen card in half a phone row: «Bildschirm» and «PC offline» share a line only when they fit, the
+   label never breaks inside the word, and a long «no connection» line takes two lines instead of being cut. */
+:root:not(:lang(ru)) .screen-stat-head { flex-wrap: wrap; row-gap: 2px; }
+:root:not(:lang(ru)) .screen-stat-head .stat-label { white-space: nowrap; }
+:root:not(:lang(ru)) .screen-stat-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.15; white-space: normal; overflow-wrap: normal; }

@@ -1,4 +1,5 @@
 import type { Item } from '../domain/types'
+import { foldTurkishI, squeezeCjkSpaces } from '../shared/cjk'
 
 /** The item's name in another language of the game (the tooltip shows the game's language, not the app's). */
 export interface ItemNameVariant { name?: string; shortName?: string }
@@ -46,7 +47,8 @@ const HOMOGLYPHS: Record<string, string> = {
 
 /** Lower case, one alphabet, punctuation to spaces — but decimal points inside numbers ("5.56", "0.6") are kept. */
 export function foldName(value: string) {
-  return value
+  // A Japanese or Chinese name: no spaces beside its characters, on both sides alike (src/shared/cjk.ts).
+  return squeezeCjkSpaces(foldTurkishI(value)
     .toLowerCase()
     .replace(/[авекмнорстухёі]/g, (char) => HOMOGLYPHS[char] ?? char)
     // Symbols the OCR puts for letters or digits of the game's font.
@@ -56,7 +58,7 @@ export function foldName(value: string) {
     .replace(/[^\p{L}\p{N}.]+/gu, ' ')
     .replace(/(?<!\d)\.|\.(?!\d)/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim()
+    .trim())
 }
 
 /**

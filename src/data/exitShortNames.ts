@@ -1,4 +1,5 @@
 import { localizeMapCopy } from './mapIds'
+import { exitNameKey, gameExitName, type GameNames } from './gameNames'
 
 /**
  * The short name under an exit's icon on the map (owner, 05.11.2026: «у каждого выхода должно быть маленькое короткое название…
@@ -163,9 +164,14 @@ for (const [ru, en, shortRu, shortEn] of NAMES) {
 /** Every name of an exit, both languages and the short ones (the game's exit list may use either; report №105). */
 const ALL = new Map<string, readonly string[]>()
 for (const row of NAMES) for (const key of [keyOf(row[0]), keyOf(row[1]), bare(row[0]), bare(row[1]), keyOf(localizeMapCopy(row[1])), bare(localizeMapCopy(row[1]))]) if (!ALL.has(key)) ALL.set(key, row)
-export function exitNames(name: string): readonly string[] {
+export function exitNames(name: string, game?: GameNames | null): readonly string[] {
   const row = ALL.get(keyOf(name)) ?? ALL.get(bare(name))
-  return row ? [name, ...row] : [name]
+  const names = row ? [name, ...row] : [name]
+  // A German, Japanese or Chinese game lists the exits in its language (src/data/gameNames.ts, once loaded; `game`: those
+  // names as a page holds them).
+  const ownName = (title: string) => (game === undefined ? gameExitName(title) : game?.exits.get(exitNameKey(title)))
+  const own = [...new Set(names.map(ownName).filter((title): title is string => Boolean(title)))].filter((title) => !names.includes(title))
+  return own.length ? [...names, ...own] : names
 }
 
 /** Where a transit leads, by the map's name in either language (the catalog names it «Переход на карту …»). */

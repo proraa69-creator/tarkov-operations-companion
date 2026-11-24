@@ -1,0 +1,39 @@
+/* The language window of the top bar (src/components/LanguagePicker.tsx). Its button and window are `.locale-switch`
+   boxes, so each colour scheme and style draws them like the top bar's other switches; only the layout is here. */
+.language-picker { position: relative; display: inline-flex; flex: 0 0 auto; }
+.language-picker-button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.language-picker-button svg { transition: transform .18s ease; }
+.language-picker-button svg.is-open { transform: rotate(180deg); }
+
+.locale-switch.language-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 90;
+  flex-direction: column; gap: 2px; min-width: 214px; padding: 4px;
+  background: color-mix(in srgb, var(--bg-elevated, #111713) 97%, transparent);
+  border-color: var(--line-strong, var(--line));
+  box-shadow: 0 14px 32px rgb(0 0 0 / 48%);
+  backdrop-filter: blur(16px);
+  animation: language-menu-in .16s ease-out both;
+}
+.locale-switch.language-menu button {
+  display: grid; grid-template-columns: 24px minmax(0, 1fr) 14px; align-items: center; gap: 8px;
+  width: 100%; min-width: 0; padding: 8px 10px; text-align: left;
+  color: var(--text); font-size: 12.5px; font-weight: 700; white-space: nowrap;
+}
+.locale-switch.language-menu button:hover:not(.active),
+.locale-switch.language-menu button:focus-visible:not(.active) { background: rgb(255 255 255 / 6%); outline: none; }
+.language-code { color: var(--text-dim); font-size: 10px; font-weight: 900; letter-spacing: .04em; }
+.locale-switch.language-menu button.active .language-code { color: inherit; }
+.language-name { overflow: hidden; text-overflow: ellipsis; }
+.language-check { width: 13px; }
+
+/* Glass: the switches' track is a thin recess; the window over the page needs a darker, frosted glass to stay readable. */
+:root[data-style="glass"][data-style] .locale-switch.language-menu:not(:is([data-theme="blackmc"], [data-theme="gear"]) *) {
+  background: rgb(10 13 12 / 84%); backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow: 0 14px 32px rgb(0 0 0 / 50%), inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+/* Phone: every language as a button of its own, wrapping when the row is full. */
+.locale-switch.language-buttons { flex-wrap: wrap; gap: 2px; }
+
+@keyframes language-menu-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .locale-switch.language-menu { animation: none; } }

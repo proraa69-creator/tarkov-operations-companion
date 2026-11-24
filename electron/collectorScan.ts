@@ -1,6 +1,8 @@
 import { desktopCapturer, screen } from 'electron'
 import { holdBackgroundScansFor, isOcrTimeout, runOcrJob } from './ocrQueue.js'
-import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
+import { createWorker, gameLanguageNow, idleRelease, languageEngine, ocrLanguagePath } from './ocrEngine.js'
+import { joinCjkSpaces } from '../src/shared/cjk.js'
+import type { GameLanguage } from '../src/import/gameLanguage.js'
 import { captureScreenRegion, gameCaptureAvailable, visibleGameRect } from './experimental/win32.js'
 import { isGameWindowTitle } from './experimental/gameWindow.js'
 import type { Raster } from '../src/kappa/labelScan.js'
@@ -19,31 +21,30 @@ export interface CollectorScan extends FrameReading {
   gameWindow: boolean
   /** The game is not on screen (closed, minimised or covered): the page asks to open it. */
   waiting?: boolean
+  /** The game's language the labels were read in (src/import/gameLanguage.ts). */
+  language?: GameLanguage
 }
 
-let engine: Promise<OcrWorker> | null = null
+/**
+ * One OCR engine, for the game's language (its labels are in it): one processor core at most, so the game keeps the rest
+ * (two made the game stutter).
+ */
+const engine = languageEngine(async (model) => {
+  const langPath = await ocrLanguagePath(model)
+  const worker = await createWorker(model, 1, { langPath, cachePath: langPath, gzip: false })
+  // Sparse text: one short label per line, with room around it. The picture carries no resolution: say it.
+  await worker.setParameters({ tessedit_pageseg_mode: '11', user_defined_dpi: '300' })
+  return worker
+})
 /** The engine goes half a minute after the scan's last pass (a scan reads a frame every second or so while it runs). */
-function dropEngine() {
-  const current = engine
-  engine = null
-  void current?.then((worker) => worker.terminate()).catch(() => {})
-}
+const dropEngine = () => engine.drop()
 const release = idleRelease(30_000, dropEngine)
 
-/** One OCR engine: one processor core at most, so the game keeps the rest (two made the game stutter). */
-function ocr() {
-  engine ??= (async () => {
-    const langPath = await ocrLanguagePath()
-    const worker = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
-    // Sparse text: one short label per line, with room around it. The picture carries no resolution: say it.
-    await worker.setParameters({ tessedit_pageseg_mode: '11', user_defined_dpi: '300' })
-    return worker
-  })().catch((error) => { engine = null; throw error })
-  return engine
-}
+/** The models of the scan running now (its first pass asks the game's language). */
+let scanModel = 'rus+eng'
 
 const reader = createLabelReader(async (picture) => {
-  const worker = await ocr()
+  const worker = await engine.get(scanModel)
   try {
     const image = toPgm(picture)
     const result = await runOcrJob(() => worker.recognize(Buffer.from(image.buffer, image.byteOffset, image.byteLength), {}, { blocks: true }), 'interactive')
@@ -53,7 +54,7 @@ const reader = createLabelReader(async (picture) => {
         throw error
       })
     return (result.data.blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines))
-      .map((line) => ({ text: line.text, top: line.bbox.y0, bottom: line.bbox.y1 }))
+      .map((line) => ({ text: joinCjkSpaces(line.text), top: line.bbox.y0, bottom: line.bbox.y1 }))
   } finally {
     release()
   }
@@ -68,10 +69,13 @@ const SCAN_HOLD_MS = 3000
 
 export async function scanCollectorScreen(options: { restart?: boolean; names?: string[] } = {}): Promise<CollectorScan> {
   holdBackgroundScansFor(SCAN_HOLD_MS)
-  if (options.restart) reader.reset(options.names)
+  const { language, model } = await gameLanguageNow()
+  // Another language since the last pass: the labels read in the other one are read again.
+  if (options.restart || model !== scanModel) reader.reset(options.names)
+  scanModel = model
   const frame = await captureGame()
-  if (!frame) return { text: '', gameWindow: false, waiting: true, labels: 0, read: 0, pending: 0 }
-  return { ...(await reader.readFrame(frame)), gameWindow: true }
+  if (!frame) return { text: '', gameWindow: false, waiting: true, labels: 0, read: 0, pending: 0, language }
+  return { ...(await reader.readFrame(frame)), gameWindow: true, language }
 }
 
 /**

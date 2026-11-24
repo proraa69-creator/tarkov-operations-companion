@@ -798,7 +798,7 @@ function withoutFaceKit(choice: KitChoice): KitChoice {
 /** A figure with a decimal comma in Russian; never «-0,0». */
 const number = (value: number, lang: Locale, digits = 1) => {
   const shown = Math.abs(value) < 0.5 * 10 ** -digits ? 0 : value
-  return shown.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  return shown.toLocaleString(languageTag(lang), { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 /** Centimetres up to a metre, then metres: «43,4 см», «2,29 м». */
 const length = (cm: number, lang: Locale) => cm < 100 ? `${number(cm, lang)} ${lang === 'en' ? 'cm' : 'см'}` : `${number(cm / 100, lang, 2)} ${lang === 'en' ? 'm' : 'м'}`
@@ -888,9 +888,9 @@ function DropTable({ rows, distance, zero, marks, ammoName, sightCm, lang }: {
         <td>{number(Math.abs(cmToMrad(row.dropCm, row.distance)), lang)}</td>
         <td>{number(Math.abs(row.moa), lang)}</td>
         {marks && <td>{row.marks !== undefined ? number(Math.abs(row.marks), lang) : '—'}</td>}
-        <td>{row.time.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {t('с', 's')}</td>
+        <td>{row.time.toLocaleString(languageTag(lang), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {t('с', 's')}</td>
         <td>{Math.round(row.speed)} {t('м/с', 'm/s')}</td>
-        <td>{Math.round(row.energy).toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU')} {t('Дж', 'J')}</td>
+        <td>{Math.round(row.energy).toLocaleString(languageTag(lang))} {t('Дж', 'J')}</td>
       </tr>)}</tbody>
     </table>
     <p>{t('↓ — пуля ниже линии прицела: вынос вверх; ↑ — выше: вынос вниз. Риски — на кратности, что сейчас в прицеле.', '↓ — the bullet below the sight line: hold up; ↑ — above it: hold down. Marks at the magnification in the scope now.')}</p>
@@ -909,3 +909,5 @@ function drawnKit(choice: KitChoice, armor: ArmorCatalog, drawn?: (id: string) =
     ...(body && body.id !== choice.body ? { body: body.id, plates: defaultPlates(armor, body.id) } : {}),
   }
 }
+
+import { languageTag } from '../i18n/renderText'

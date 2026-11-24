@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { GameMap, Item, Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { clearAllAutoFavorites, releaseAbandonedAutoFavorites, releaseAutoFavorites } from './autoFavorites'
 import { questMapsLabel } from './questLocation'
 import { usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
@@ -192,7 +192,7 @@ export function deferralTermText(entry: DeferredQuest | undefined, locale: AppLo
     return locale === 'en' ? `until ${uiText(trader)} loyalty ${level}` : `до лояльности ${level} · ${trader}`
   }
   if (entry?.until !== undefined) {
-    const when = new Date(entry.until).toLocaleString(locale, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    const when = new Date(entry.until).toLocaleString(languageTag(locale), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
     return locale === 'en' ? `until ${when}` : `до ${when}`
   }
   return ''

@@ -1,4 +1,4 @@
-import { uiText, uiLabel } from '../i18n/renderText'
+import { uiText, uiLabel, languageTag } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -370,7 +370,7 @@ export function DashboardPage() {
   const blocksButton = <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
   return <TakenItemsProvider profileId={state.activeProfile.id} mode={state.raidMode} isKey={isRaidKey}><div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
-      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
+      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(languageTag(locale), { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
       {mobile && blocksButton}
       <div className="overview-header-actions">
         {(!mobile || layoutEditor.editing) && <div className="overview-layout-actions">

@@ -37,6 +37,7 @@ import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLo
 import type { RaidMode } from '../domain/types'
 import { legacyObjectiveIds, withCurrentObjectiveIds, type LegacyObjectiveIds } from '../progression/objectiveProgress'
 import { useLocale } from '../i18n/LocaleProvider'
+import { LanguagePicker } from '../components/LanguagePicker'
 import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, cycleTheme, currentTheme, nextTheme } from '../theme/theme'
 import { prepareTheme, prepareThemeWhenIdle } from '../theme/themeTransition'
 import { useThemeSchemeMenu } from '../theme/ThemeSchemeMenu'
@@ -117,7 +118,7 @@ const arsenalNavigation = [
 export function AppShell({ children }: { children: ReactNode }) {
   const tradingSignals = useTradingSignalCount()
   const state = useAppState()
-  const { locale, setLocale } = useLocale()
+  const { locale } = useLocale()
   const { raidMode, setRaidMode, activeProfile } = state
   const nickname = useAccountNickname()
   // Friend requests and squad invitations arrive at once; the «Отряд» button counts them (squad/useSocialEvents.ts).
@@ -449,7 +450,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
         <RefreshDataButton onRefresh={refresh} />
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
-        <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+        <LanguagePicker />
         <TopbarRestock />
         <UpdateButton />
         <InstallerOffer />

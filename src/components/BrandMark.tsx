@@ -28,7 +28,8 @@ export function BrandEmblem() {
 export function BrandName({ locale }: { locale: string }) {
   return (
     <div className="brand-name">
-      RAID <span className="brand-os">OS</span>
+      {/* The name stays as it is in every language; only the line under it is translated. */}
+      <span translate="no">RAID </span><span className="brand-os" translate="no">OS</span>
       <span className="brand-sub">{locale === 'en' ? 'RAID ASSISTANT' : 'ПОМОЩНИК В РЕЙДАХ'}</span>
     </div>
   )

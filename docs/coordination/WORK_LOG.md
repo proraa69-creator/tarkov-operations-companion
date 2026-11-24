@@ -9851,3 +9851,118 @@ Not pushed, not released, nothing uploaded.
 - Checks: typecheck + electron tsc clean; full vitest 4513 passed, 16 failed = machine-only (staleServer, linux/updater ×3,
   appVersion, AdminPanelPage, two script files) + page tests that pass per file (App, Dashboard, MapsPage ×3, ManualMarks).
 - The app languages branch (claude/languages-zh-ja-de) is NOT in this release.
+
+## 2026-11-24 15:10 — Claude: screen readers for a game in German, Japanese and Simplified Chinese (branch claude/ocr-languages)
+
+- Branch `claude/ocr-languages` from `claude/languages-zh-ja-de` 4e689c13; not pushed, not released. Commits b0847fd8 (game language,
+  the game's words, CJK helpers), 0b7b69fa (the readers), c1eef15c (engines, models, «Язык игры»). Their branch's f6d881c2 touches none of
+  these files.
+- Game language: %APPDATA%\Battlestate Games\Escape from Tarkov\Settings\Game.ini (only read; ge→de, jp→ja, ch→zh, any other →
+  English), or «Язык игры» in «Карта и предметы в рейде» (auto / ru / en / de / ja / zh). ru/en read exactly as before (rus+eng);
+  de/ja/zh with deu+eng / jpn+eng / chi_sim+eng (tessdata_fast in electron/tessdata, shipped with rus/eng, vite ocr/ for the phone).
+- Words from SPT's locales (EFT 0.16.9: SPT_Data/database/locales/global/{ge,jp,ch}.json) via scripts/ocr/game-words.mjs →
+  src/import/gameWords.ts; names (quests, items, exits/transits) from tarkov.dev's {tasks,items,maps}_{de,ja,zh} through the data
+  gateway at run time (src/data/gameNamesLoader.ts, cached 3 days).
+- Readers: Tasks table, traders' screen (level, nickname, loyalty strip), mode cards, flea chips/trader rows, exit list, item card,
+  Kappa/key/stash labels, stash photo. NOT the story pane: its words (CHAPTER, Main/Optional objectives) and the chapters' names in
+  de/ja/zh are in no source we have (SPT 0.16.9 predates story chapters; tarkov.dev has no story dictionaries): a de/ja/zh story frame
+  is read as nothing (no false chapters).
+- Tests: src/import/gameLanguageReaders.test.ts (real tesseract.js output of pictures drawn from the game's words, fixtures by
+  scripts/ocr/language-fixtures.mjs — Bahnschrift / Yu Gothic UI / Microsoft YaHei UI stand in for the game's font),
+  gameLanguageWords, cjk, gameNames, electron gameLanguage / ocrEngine / settings. Touched areas 1912/1919 pass; the 1 failing
+  (AdminPanelPage sidebar source test) fails the same on 4e689c13 (AppShell of the languages branch); MapsPage tests time out only
+  under the full parallel run and pass alone. Both typechecks, eslint on touched files clean (one old warning).
+- Risks: chi_sim+eng reads short Chinese titles in small type as Latin junk now and then (2 of 4 rows in one picture; such a row
+  names nothing rather than a guess); «(你)» / «(あなた)» read with a character wrong (allowed for ja/zh). To check on real
+  screenshots of each language: Tasks table (side tasks, scrolled; active / ready / locked rows; a «Teil 2» / «- 2» title), traders'
+  screen (portraits with loyalty badges, «(Du)», the standing row with LVL), mode selection (PvE/PvP/Season cards, nick | level),
+  item tooltip (long and short names), stash with labels (Kappa scan), flea (sorted by price, a trader row, filter chips), the O exit
+  list (header, EXFIL/TRANSIT lines), and a story chapter pane (to get its words).
+
+## 2026-11-24 — Claude: the app and the website in German, Japanese and Chinese (branch `claude/languages-zh-ja-de`)
+
+- Owner, 24.11.2026: «Китай, Япония и Германия … по нажатии на язык сверху у нас будет выдвигаться окно со списком всех языков …
+  в стиле приложения … переключатели … угловатые, во всех стилях … сайт переводи … языки должны включаться согласно стране …
+  должен быть язык браузера … отправь тестовую версию на рабочий стол».
+- How: Russian stays the source and English the dictionary; German, Japanese and Chinese are drawn over the English
+  (`src/i18n/languages.ts`, `targetText.ts`, `domTranslator.ts`): `locale` stays 'ru' | 'en' (the base text the code compares),
+  `language` is the choice. Phrases: `src/i18n/locales/{de,ja,zh}.json` (8166 each, keyed by the English;
+  `scripts/i18n/extract-english.ts`, `merge-chunks.py`); the game's names from tarkov.dev's `_de/_ja/_zh` dictionaries
+  (`catalogTranslations.ts loadTargetCatalog`; the server mirror keeps them, `tarkovDataMirror.ts MIRROR_LANGUAGES`). A text is
+  translated whole or left English, never half; in development `window.__raidosMissing` lists what a screen showed without one.
+  Dates and numbers: `languageTag()` (24-hour English kept where it was en-GB).
+- UI: `LanguagePicker` (top bar window; phones: one button per language); glass style keeps the plain corners of the PvP/PvE
+  and language switches; `src/styles/languages.css` (long German labels, CJK fonts); the brand never translated.
+- Screen readers for German/Japanese/Chinese games: merged `claude/ocr-languages` (entry above).
+- Website (`claude/site-languages` → release 0.6.0.341, window 20:00): five languages, first visit by the browser's language,
+  else the country's; a card offers the other; language window; hreflang/sitemap.
+- Tests: the touched areas 760/760; the full run's remaining failures also fail on release/production (Linux updater,
+  appVersion path with a space, AdminPanelPage, staleServer) or are load timeouts that pass alone.
+- Test build: `Raid OS тест Языки 1.exe` on the desktop (owner build, TEST_BUILD). Not released.
+- Open: the readers on real game screenshots in de/ja/zh (being taken from SPT); the story pane in de/ja/zh needs the live game
+  1.x words (SPT 0.16.9 has no story); the site's trailers in ZH/JA (new trailer in the works, owner reviews first).
+- Correction (owner, 24.11.2026: «нам не нужно, чтобы приложение само брало из игры. Нам в игру нельзя внедряться …
+  Пользователь сам выберет язык. Стандартный язык английский»): the game's Game.ini is no longer read at all
+  (electron/gameLanguage.ts removed). «Язык игры» is the player's choice: English (default) / Русский / Deutsch / 日本語 /
+  简体中文; English and Russian are read alike (rus+eng, as before), so Russian players need not change it; an «auto» saved by
+  the test build counts as English.
+
+## 2026-11-24 17:40 — Claude: screen readers for Polish, Spanish, Brazilian Portuguese, French, Korean and Turkish games
+
+- Branch `claude/ocr-languages` fast-forwarded to `claude/languages-zh-ja-de` b8e4f001 (the owner's decision: «Язык игры» is the
+  player's choice only, English by default, nothing read from the game), then 6dc9702b. Not pushed, not released.
+- Every reader of the de/ja/zh work now also reads pl, es, pt, fr, ko, tr: models pol/spa/por/fra/kor/tur (tessdata_fast) shipped with
+  the others; words from SPT's pl, es + es-mx (both Spanish wordings kept where they differ), po, fr, kr, tu locales; names from
+  tarkov.dev's _{pl,es,pt,fr,ko,tr} dictionaries through the data gateway. Accents optional in the game's words, the Turkish İ/ı folded,
+  Korean syllables weighed and joined by their gaps, Polish «ukończone!» (ready) apart from «ukończone» (handed in).
+- Tests: gameLanguageReadersMore.test.ts (real tesseract.js output of every language's table, traders, modes, exits, tooltips,
+  labels, flea lines), gameLanguageWords.test.ts; touched areas 772/772 and the wider set green but the old AdminPanelPage sidebar
+  test; both typechecks, eslint clean (one old warning).
+- To check on real screenshots in each of these languages (as for de/ja/zh): Tasks table (active / ready / locked rows, a part 2
+  title), traders' screen, mode cards, item tooltip, stash labels, flea, O exit list; Spanish both in «Español» and «Español
+  Latinoamérica». Story pane words are still in no source (SPT 0.16.9).
+- 24.11.2026, later: owner «подумай, какие еще языки нам стоит добавить, и добавь их на сайт и в приложение» → Polish, Ukrainian,
+  Spanish, Brazilian Portuguese, French, Korean, Turkish (players beyond the CIS: UA 47, US/DE 21, PL 13, FR, PT, KR …; the
+  game's own languages). App 8190 phrases and website 1112 per language; the game's names from tarkov.dev (none for Ukrainian:
+  English names); the exits as the game writes them (scripts/i18n/exit-names.mjs, after every chunk merge); screen readers
+  for the six game languages (merged `claude/ocr-languages`). Website for all seven: release 0.6.0.341 (177c01e8).
+  Checked in the Chinese game's text (SPT ch.json + tarkov.dev): «枪匠 - AKM», «枪匠大师 - 1», «卢布», «森林» — shown by the app.
+  Test build `Raid OS тест Языки 3.exe` on the desktop. Open: the readers on real screenshots of every language (SPT shots in
+  progress, E:\SPT-photo\lang-shots); the story pane in the nine extra languages (no source of its words).
+
+
+## 2026-11-24 20:30 — Claude: the readers on real screenshots of the game in de, ja, zh, pl, es, pt, fr, ko, tr
+
+- Branch `claude/ocr-languages` (commit below). Not pushed, not released. Nothing read from the game, Game.ini untouched, SPT not
+  started: only the screenshots in `E:\SPT-photo\lang-shots\<lang>` (SPT 4.1.6, 1920×1080) were read, as the app reads them.
+- Fixed from those screenshots (all beyond Russian and English only; ru/en unchanged):
+  - Flea: a Japanese and a Korean game's rows are 78.7 px, not 72 (`fleaLayout(size, language)`, `rowHeight`); the sort chevron is
+    found after a longer price word (Spanish «Precio ^» read as dearest-first before).
+  - Tasks: a part's number read with a digit more («Yayın- Bölüm53») names no part (was «Bölüm 5»); a Portuguese row's location
+    word alone is no title; Japanese/Chinese/Korean titles after the icons' Latin junk; three bits of icon junk allowed.
+  - Traders' screen: the nickname close-up drops the «(you)» mark read wrong («SHAUUURMA (vot»), the Japanese «〕» closes it, a box
+    as tall as the emblem is cut to the name's row (French); the bracket fallback only in the top right; no level from «02» of
+    the standing (Turkish «6.02»), «ıı69» is «LVL 69».
+  - Names: maps and traders by every wording (tarkov.dev's and SPT's: Turkish «Terapist»/«Therapist», «Simsar»); an exit word
+    with one letter misread («NYJŚCIE01»).
+- Tests: `src/import/gameLanguageScreens.test.ts` on `__fixtures__/gameLanguageScreens.ts` (real Tesseract output of the
+  screenshots; nickname replaced by TESTPILOT, no money, no other players' names; no screenshots kept), `fleaScreen.test.ts` on
+  three small crops (`__fixtures__/flea/{ja,ko}-tall-rows.webp`: price column only; `languages-heads.webp`: tabs, chevron,
+  scrollbar top of the nine languages).
+- Still not read (any language, ru/en alike): «LVL 69» close-up in SPT's font (the level stays unconfirmed), loyalty crowns but
+  Jaeger/Ref, Customs' exit list on a bright sky (only some lines), ZB-numbers («28-213»). Chinese: the item card 1 of 3, Customs'
+  list. Short English titles with a misread location («Debtor Tena») in pt/tr/ko. No story pane in SPT 4.1.6.
+- Commit `123523e4`, merged into `claude/languages-zh-ja-de` as `b2503ed2` (only conflict: this log, both entries kept).
+
+## 2026-11-24 21:00 — Claude: the 20:00 release held, SPT shots stopped, readers merged, test build 4
+
+- Owner, 24.11.2026 19:5x: «пока ничего не публикуй в 20:00». At 19:56 `b03662d9` was pushed to `release/production` on top of
+  `177c01e8` (a normal push): its tree is the live release `972bafe6` (0.6.0-340). Its gate run 45398400337 was cancelled at
+  19:57, since `buildOnDocumentationChange` would otherwise have rebuilt 0.6.0-340 once green. The server skips a head without
+  a green gate: nothing goes out until the next push there. Checked 20:04 and (release session) to 20:50: live stays 0.6.0-340.
+  0.6.0.341 (website in 12 languages, Reserve places) comes back by `git revert b03662d9`, only on the owner's word.
+- Owner: SPT shooting stopped, SPT closed; resume point `E:\SPT-photo\RESUME.md` (Lighthouse: quests 49/49, documents 27/30).
+- Tests after the merge: typecheck clean; full run 4612 passed, 14 failed, all known or load-only: the page tests pass alone
+  (87/89; the two left are the space-in-path `appVersion` and the CRLF source check of `AdminPanelPage`), plus Linux updater,
+  staleServer, two script files that do not load on Windows.
+- Test build `Raid OS тест Языки 4.exe` on the desktop. Not pushed, not released.

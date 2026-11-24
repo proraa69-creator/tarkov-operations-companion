@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Download, LoaderCircle, RotateCcw } from 'lucide-react'
 import { displayVersion, useAppVersion } from '../app/appVersion'
 import { useLocale } from '../i18n/LocaleProvider'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import type { UpdateCheckResult, UpdateSettings, UpdateStatus } from '../electron'
 import { SettingHelp } from './SettingHelp'
 import '../styles/appUpdateSettings.css'
@@ -63,7 +63,7 @@ export function AppUpdateSettings() {
 
   const busy = status.state === 'downloading' || status.state === 'installing'
   const found = status.state === 'available' || status.state === 'error' || busy
-  const time = result ? new Date(result.checkedAt).toLocaleTimeString(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''
+  const time = result ? new Date(result.checkedAt).toLocaleTimeString(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' }) : ''
   let line = `${uiText('Версия')} ${version}`
   if (status.state === 'downloading') line += ` · ${uiText('Загрузка обновления')} ${status.progress ?? 0}%`
   else if (status.state === 'installing') line += ` · ${uiText('Перезапуск…')}`

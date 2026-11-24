@@ -10,6 +10,8 @@
  * задачи» 407, bottom menu bar 1053. Any other screen is cut the same way inside the game's own
  * 16:9 menu area (gameUiBox).
  */
+import { joinCjkWords } from '../shared/cjk.js'
+
 export interface PaneRect { x: number; y: number; width: number; height: number }
 export interface OcrWordBox { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }
 export interface StoryPaneRects { title: PaneRect; status: PaneRect; body: PaneRect }
@@ -145,7 +147,10 @@ export function storyPaneRects(size: { width: number; height: number }, words: O
   return title && status && body ? { title, status, body } : undefined
 }
 
-/** OCR word boxes of a tesseract.js result (`blocks` output). */
+/**
+ * OCR word boxes of a tesseract.js result (`blocks` output). A Japanese or Chinese line's characters, each a word of its own
+ * to the OCR, are one word again (src/shared/cjk.ts): «現在の状態» is looked for as the game writes it.
+ */
 export function ocrWordBoxes(blocks: Array<{ paragraphs: Array<{ lines: Array<{ words: OcrWordBox[] }> }> }> | null | undefined): OcrWordBox[] {
-  return (blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.flatMap((line) => line.words)))
+  return (blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.flatMap((line) => joinCjkWords(line.words))))
 }

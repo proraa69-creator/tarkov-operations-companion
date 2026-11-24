@@ -724,6 +724,7 @@ import { SettingHelp } from "../components/SettingHelp";
 import { ClickVolumeSetting } from "../components/ClickVolumeSetting";
 import { FONT_SIZES, FONT_SIZE_LABELS, setFontSize, useFontSize } from "../theme/fontSize";
 import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
+import { LanguageButtons } from "../components/LanguagePicker";
 
 /** «Поддержка»: the chat, a bug report with its reward, an idea, and the donation card. */
 function SupportPanel() {
@@ -842,7 +843,7 @@ function RaidStartSetting() {
 export function SettingsPage() {
   const { source } = useTarkovData();
   const { updatedAt } = useTarkovDataStatus();
-  const { locale, setLocale } = useLocale();
+  const { locale } = useLocale();
   const raidSmoke = useRaidSmokeEnabled();
   const raidTools = hasRaidTools();
   const support = <SupportPanel />;
@@ -876,7 +877,7 @@ export function SettingsPage() {
             <strong>{uiText("Язык интерфейса")}<SettingHelp id="language" /></strong>
             <small>{uiText("Первая версия")}</small>
           </span>
-          <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
+          <LanguageButtons />
         </div>}
         <MapFollowSetting />
         <RaidStartSetting />

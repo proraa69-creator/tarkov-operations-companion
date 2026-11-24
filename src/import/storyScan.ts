@@ -2,6 +2,7 @@ import type { ModeProgress, Quest, StoryObjectiveReading } from '../domain/types
 import { latinize } from './modeSelectScreen'
 import { foldOcrGlyphs, matchQuestsFromOcr, ocrKey, titleKeys as questTitleKeys } from './questOcr'
 import { isTasksMenuText, tableRowCount } from './screenScanSync'
+import type { GameLanguage } from './gameLanguage'
 import { completedStoryStageIndexes, hasExactStoryStageEvidence, storyObjectivesBlock, storyStageCopies } from './storyStageOcr'
 import { readStoryObjectives } from './storyObjectives'
 import { storyPaneText, withoutGameStamp, type StoryPaneReading } from './storyPaneLayout'
@@ -128,10 +129,12 @@ export function isStoryMenuText(text: string) {
  * dimmed too — the rows were thrown away as a story frame before. The story pane is told by its own marks: the parts the
  * main process read (`story`), the chapter header, the objective blocks; it shows one status at most («АКТИВНО»).
  */
-export function tasksScreenKind(text: string, story?: StoryPaneReading | null): 'story' | 'table' | null {
+export function tasksScreenKind(text: string, story?: StoryPaneReading | null, language?: GameLanguage | null): 'story' | 'table' | null {
   if (story) return 'story'
-  if (!isTasksMenuText(text)) return null
-  if (tableRowCount(text) >= 2) return 'table'
+  // A German, Japanese or Chinese game's Tasks screen by its own words too (src/import/gameWords.ts). Its story pane's
+  // words are not in the game's localisation the app has: such a frame counts as the table.
+  if (!isTasksMenuText(text, language)) return null
+  if (tableRowCount(text, language) >= 2) return 'table'
   return isStoryMenuText(text) ? 'story' : 'table'
 }
 

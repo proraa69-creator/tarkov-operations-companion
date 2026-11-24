@@ -7,6 +7,7 @@ import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '..
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 import { readScreenshotBindingAt } from '../logScanner.js'
 import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
+import { gameLanguageNow } from '../ocrEngine.js'
 import { TOOLTIP_CAPTURE, type Bitmap, type Rect } from '../../src/overlay/tooltipDetect.js'
 import { readGameTooltip, retryOcrReadings, TOOLTIP_SCALE_MEMORY, type TooltipReading } from '../../src/overlay/tooltipLookup.js'
 import { findItemFrames, type ItemCell } from '../../src/overlay/itemCell.js'
@@ -199,6 +200,8 @@ function registerIpc() {
     lastPosition: freshPosition(),
     raid: options.raidState(),
     displayMode,
+    // The game's language for the screen readers: the player's choice in «Язык игры».
+    gameLanguage: await gameLanguageNow().then(({ setting, language }) => ({ setting, language })).catch(() => undefined),
   }))
   ipcMain.handle('experimental:answer', (_event, id: unknown, payload: unknown) => {
     const resolve = pending.get(Number(id))
@@ -412,7 +415,7 @@ async function lookupItem(test: boolean) {
       grab: () => grabAroundCursor(point, display, fallback),
       recognize: (bitmap) => steps.time('ocrMs', recognizeTooltip(bitmap)),
       match: async (text) => {
-        const reply = await steps.time('matchMs', askRenderer('item', { text, tooltip: true }))
+        const reply = await steps.time('matchMs', askRenderer('item', { text, tooltip: true, language: (await gameLanguageNow()).language }))
         return found(reply) ? reply : null
       },
       onTooltip: () => { if (!state.shown) sendItem({ state: 'loading' }) },
@@ -561,7 +564,7 @@ async function secondAttempt(reading: TooltipReading<unknown, Grab> & { shot: Gr
     const text = parts.join(' ').replace(/\s+/g, ' ').trim()
     result.retry.push(text)
     if (!text || readings.includes(text)) continue
-    const reply = await askRenderer('item', { text, tooltip: true, remember: readings })
+    const reply = await askRenderer('item', { text, tooltip: true, remember: readings, language: (await gameLanguageNow()).language })
     if (found(reply)) { result.answer = reply; result.via = 'retry'; return done() }
   }
   const retried = result.retry.filter((text) => text && !readings.includes(text))

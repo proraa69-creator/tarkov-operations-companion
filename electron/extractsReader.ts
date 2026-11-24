@@ -10,6 +10,9 @@ import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, nativeImage, screen, type NativeImage } from 'electron'
 import { recognizeRegion } from './screenOcr.js'
+import { gameLanguageNow } from './ocrEngine.js'
+import type { GameLanguage } from '../src/import/gameLanguage.js'
+import { anyGameWord, languageWords } from '../src/import/gameWordPatterns.js'
 import { captureScreenRegion, foregroundDisplayMode, visibleGameRect } from './experimental/win32.js'
 
 export interface ScreenRect { x: number; y: number; width: number; height: number }
@@ -110,12 +113,12 @@ export function listForOcr(data: Uint8Array, width: number, height: number) {
   return out
 }
 
-async function readCorner() {
+async function readCorner(model: string) {
   const corner = cornerRect(gameArea())
   const shot = captureScreenRegion(corner.x, corner.y, corner.width, corner.height)
   if (!shot) return { text: '', corner, image: null }
   const image = nativeImage.createFromBitmap(listForOcr(shot.data, shot.width, shot.height), { width: shot.width, height: shot.height })
-  return { text: await recognizeRegion(image).catch(() => ''), corner, image }
+  return { text: await recognizeRegion(image, model).catch(() => ''), corner, image }
 }
 
 /** How often the header strip is looked at, and how long after a reading the same open list is not read again. */
@@ -126,7 +129,7 @@ const HEADER_REREAD_MS = 20_000
  * While the game is in front: the list's header appearing (or still open after a while) starts a reading, as a double O
  * does. A few kilobytes copied twice a second; nothing while the game is not in front or runs exclusive full screen.
  */
-export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: { text: string; at: number }) => void) {
+export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: ExtractsPayload) => void) {
   let open = false
   let lastRead = 0
   const timer = setInterval(() => {
@@ -144,12 +147,17 @@ export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: 
   return () => clearInterval(timer)
 }
 
+/** What goes to the page: the list's text, when it was read, and the game's language it was read in. */
+export interface ExtractsPayload { text: string; at: number; language: GameLanguage }
+
 /** An O while the game is in front (or the list seen): reads the list after `delays` and hands the text over (`send`). */
-export async function readExtractsPanel(send: (payload: { text: string; at: number }) => void, delays: readonly number[] = AFTER_PRESS_MS, trigger: 'key' | 'header' = 'key') {
+export async function readExtractsPanel(send: (payload: ExtractsPayload) => void, delays: readonly number[] = AFTER_PRESS_MS, trigger: 'key' | 'header' = 'key') {
   if (busy) return
   // An exclusive full-screen game hides from screen copies.
   if (foregroundDisplayMode() === 'exclusive') { void logReading({ trigger, outcome: 'exclusive-full-screen' }); return }
   busy = true
+  // The game's language: its model reads the list, its words count the list's lines (listWords).
+  const { language, model } = await gameLanguageNow().catch(() => ({ language: 'ru' as GameLanguage, model: 'rus+eng' }))
   const started = Date.now()
   const reads: Array<{ after: number; ms: number; chars: number; words: number }> = []
   let best = ''
@@ -161,21 +169,26 @@ export async function readExtractsPanel(send: (payload: { text: string; at: numb
       await new Promise((resolve) => setTimeout(resolve, delay - waited))
       waited = delay
       const at = Date.now()
-      const read = await readCorner()
+      const read = await readCorner(model)
       corner = read.corner
       const text = read.text
-      reads.push({ after: at - started, ms: Date.now() - at, chars: text.trim().length, words: listWords(text) })
+      reads.push({ after: at - started, ms: Date.now() - at, chars: text.trim().length, words: listWords(text, language) })
       // the better reading: more of the list's words, else more text (the names are matched without them, raidExtracts.ts)
-      if (listWords(text) > listWords(best) || (listWords(text) === listWords(best) && text.trim().length > best.trim().length)) { best = text; bestImage = read.image }
+      if (listWords(text, language) > listWords(best, language) || (listWords(text, language) === listWords(best, language) && text.trim().length > best.trim().length)) { best = text; bestImage = read.image }
     }
-    if (best) send({ text: best, at: Date.now() })
+    if (best) send({ text: best, at: Date.now(), language })
   } finally {
     busy = false
-    void logReading({ trigger, outcome: best ? 'sent' : 'nothing-read', corner, reads, text: best }, bestImage)
+    void logReading({ trigger, outcome: best ? 'sent' : 'nothing-read', corner, reads, text: best, language }, bestImage)
   }
 }
 
-const listWords = (value: string) => (value.match(/ВЫХ|EXF|BЫX/gi) ?? []).length
+/** The list's own words in a reading: «ВЫХОД» / «EXFIL», and the game's own («脱出地点», «撤离点»: src/import/gameWords.ts). */
+export function listWords(value: string, language?: GameLanguage | null) {
+  const own = (languageWords(language)?.words.exits.exfil ?? []).filter((word) => !/^exfil$/i.test(word))
+  const extra = own.length ? (value.match(new RegExp(anyGameWord(own), 'giu')) ?? []).length : 0
+  return (value.match(/ВЫХ|EXF|BЫX/gi) ?? []).length + extra
+}
 
 /** The last readings kept for a look into a report (owner, 19.11.2026: nothing happened after O), like the item lookups'. */
 const READINGS_KEPT = 20

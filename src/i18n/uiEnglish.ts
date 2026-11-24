@@ -154,34 +154,68 @@ const EXTRA: Array<[string, string]> = [
 const ORDERED = [...SUGGEST_POINT_PHRASES, ...EXTRA, ...REPORTS_TABLE_PHRASES, ...PHRASES, ...FEATURE_PHRASES, ...GOON_PHRASES, ...MAP_PHRASES, ...SERVER_PHRASES, ...SERVER_STATUS_PHRASES, ...THEME_PHRASES, ...MOBILE_PHRASES, ...SETTINGS_AREA_PHRASES, ...ACCOUNT_PHRASES, ...OWNER_SITE_PHRASES, ...OWNER_ADMIN_PHRASES, ...PAYMENT_PHRASES, ...PHONE_PHRASES, ...EMAIL_PHRASES, ...NO_OVERLAY_PHRASES, ...MINIMAP_PAGE_PHRASES, ...QUEST_PHRASES, ...BOSS_INFO_PHRASES, ...GAME_DATA_PHRASES, ...BOSS_SUPPLEMENT_PHRASES, ...ECONOMY_PHRASES, ...HIDEOUT_VIEW_PHRASES, ...ARSENAL_PHRASES, ...GUN_BUILDER_PHRASES, ...RAID_PREP_PHRASES, ...SQUAD_PHRASES, ...WORLD_MAP_PHRASES, ...ACCOUNT_GATE_PHRASES, ...PAYWALL_PHRASES, ...IOS_PHRASES, ...SERVER_UPDATE_PHRASES, ...SUPPORT_PHRASES, ...SUPPORT_CHAT_PHRASES, ...STICKER_PHRASES, ...OVERVIEW_PHRASES, ...GUNSMITH_PHRASES, ...LOG_SEARCH_PHRASES, ...CHARACTER_PHRASES, ...REQUESTS_KEY_PHRASES, ...NOTICE_PHRASES, ...QUEST_CONDITION_PHRASES, ...KEY_DOOR_PHRASES, ...QUEST_EDITOR_PHRASES, ...POINT_CONSTRUCTOR_PHRASES, ...EVENT_QUEST_PHRASES, ...ADMIN_PANEL_PHRASES, ...SCREEN_PHRASES].sort((a, b) => b[0].length - a[0].length)
 const EXACT = new Map(ORDERED)
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const RULES: Array<[RegExp, string]> = [...MAP_RULES, ...QUEST_RULES, ...OWNER_ADMIN_RULES, ...QUEST_CONDITION_RULES, ...QUEST_EDITOR_RULES, ...POINT_CONSTRUCTOR_RULES, ...EVENT_QUEST_RULES, ...ADMIN_PANEL_RULES, ...SCREEN_RULES, ...ACCOUNT_RULES]
+/** After the phrases: numbers with the Russian words around them. */
+const TAIL: Array<[RegExp, string]> = [
+  [/(\d+)\s+задани(?:е|я|й)/gi, '$1 tasks'],
+  [/(\d+)\s+на\s+/gi, '$1 on '],
+  [/выполнено из/gi, 'completed of'],
+  [/Выполнено\s+(\d+)\s+из/gi, 'Completed $1 of'],
+  [/ур\.\s*(\d+)/gi, 'lvl. $1'],
+  [/(\d+)\s+мин(?:ут[аы]?)?/gi, '$1 min'],
+  [/(\d+)\s+игрок(?:а|ов)?/gi, '$1 players'],
+  [/автообновление\s+1\s+мин\./gi, 'auto refresh every minute'],
+  [/квестов:\s*(\d+)/gi, 'tasks: $1'],
+  [/и ещё\s+(\d+)/gi, 'and $1 more'],
+  [/(\d+)\s+этапов?/gi, '$1 stages'],
+  [/глава\s+(\d+)/gi, 'chapter $1'],
+  [/(\d+)\s*этаж/gi, 'Floor $1'],
+]
 
-/** English for a whole interface phrase, when the dictionary has it exactly. */
-export function exactUiText(value: string) {
-  return EXACT.get(value.trim())
+/**
+ * A compiled interface dictionary: Russian phrases with their text in one language, the templates (with `$1`) and the
+ * number endings. English is the one written by hand; German, Japanese and Chinese are this one with every English
+ * text put into that language (mappedUiDictionary, src/i18n/targetText.ts).
+ */
+export interface UiDictionary {
+  exact: ReadonlyMap<string, string>
+  ordered: ReadonlyArray<readonly [string, string]>
+  rules: ReadonlyArray<readonly [RegExp, string]>
+  tail: ReadonlyArray<readonly [RegExp, string]>
+}
+export const ENGLISH_UI: UiDictionary = { exact: EXACT, ordered: ORDERED, rules: RULES, tail: TAIL }
+
+/** Every English text of the interface dictionary: the phrases, the templates and the number endings. */
+export function englishUiTexts(): string[] {
+  return [...new Set([...ORDERED.map(([, english]) => english), ...RULES.map(([, english]) => english), ...TAIL.map(([, english]) => english)])]
 }
 
-export function translateUiText(value: string) {
+/** The interface dictionary with each English text put through `map` (one call per distinct text). */
+export function mappedUiDictionary(map: (english: string) => string): UiDictionary {
+  const cache = new Map<string, string>()
+  const put = (english: string) => {
+    let value = cache.get(english)
+    if (value === undefined) { value = map(english); cache.set(english, value) }
+    return value
+  }
+  const ordered = ORDERED.map(([russian, english]) => [russian, put(english)] as const)
+  return { exact: new Map(ordered), ordered, rules: RULES.map(([pattern, english]) => [pattern, put(english)] as const), tail: TAIL.map(([pattern, english]) => [pattern, put(english)] as const) }
+}
+
+/** English (or the dictionary's language) for a whole interface phrase, when the dictionary has it exactly. */
+export function exactUiText(value: string, dictionary: UiDictionary = ENGLISH_UI) {
+  return dictionary.exact.get(value.trim())
+}
+
+export function translateUiText(value: string, dictionary: UiDictionary = ENGLISH_UI) {
   if (!/[А-Яа-яЁё]/.test(value)) return value
-  const exact = EXACT.get(value.trim())
+  const exact = dictionary.exact.get(value.trim())
   if (exact) return value.replace(value.trim(), exact)
   let output = value
   // Templates first, while their Russian words are still intact.
-  for (const [pattern, replacement] of [...MAP_RULES, ...QUEST_RULES, ...OWNER_ADMIN_RULES, ...QUEST_CONDITION_RULES, ...QUEST_EDITOR_RULES, ...POINT_CONSTRUCTOR_RULES, ...EVENT_QUEST_RULES, ...ADMIN_PANEL_RULES, ...SCREEN_RULES, ...ACCOUNT_RULES]) output = output.replace(pattern, replacement)
+  for (const [pattern, replacement] of dictionary.rules) output = output.replace(pattern, replacement)
   // Never replace part of a word (the old DOM translator turned Russian words into hybrids).
-  for (const [source, target] of ORDERED) output = output.replace(new RegExp(`(?<![А-Яа-яЁё])${escapeRegex(source)}(?![А-Яа-яЁё])`, 'gu'), () => target)
-  output = output
-    .replace(/(\d+)\s+задани(?:е|я|й)/gi, '$1 tasks')
-    .replace(/(\d+)\s+на\s+/gi, '$1 on ')
-    .replace(/выполнено из/gi, 'completed of')
-    .replace(/Выполнено\s+(\d+)\s+из/gi, 'Completed $1 of')
-    .replace(/ур\.\s*(\d+)/gi, 'lvl. $1')
-    .replace(/(\d+)\s+мин(?:ут[аы]?)?/gi, '$1 min')
-    .replace(/(\d+)\s+игрок(?:а|ов)?/gi, '$1 players')
-    .replace(/автообновление\s+1\s+мин\./gi, 'auto refresh every minute')
-    .replace(/квестов:\s*(\d+)/gi, 'tasks: $1')
-    .replace(/и ещё\s+(\d+)/gi, 'and $1 more')
-    .replace(/(\d+)\s+этапов?/gi, '$1 stages')
-    .replace(/глава\s+(\d+)/gi, 'chapter $1')
-    .replace(/(\d+)\s*этаж/gi, 'Floor $1')
+  for (const [source, target] of dictionary.ordered) output = output.replace(new RegExp(`(?<![А-Яа-яЁё])${escapeRegex(source)}(?![А-Яа-яЁё])`, 'gu'), () => target)
+  for (const [pattern, replacement] of dictionary.tail) output = output.replace(pattern, replacement)
   return output
 }
