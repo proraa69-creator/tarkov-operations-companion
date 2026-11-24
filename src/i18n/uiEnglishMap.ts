@@ -25,7 +25,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'],
   // «Спавн 100 %» layer: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts).
-  ['Лежит здесь в каждом рейде.', 'Here every raid.'], ['Лежит в куртке в каждом рейде.', 'In the jacket every raid.'],
+  ['Лежит здесь в каждом рейде.', 'Here every raid.'], ['Лежит в куртке в 205 комнате, в каждом рейде. Дверь всегда открыта.', 'In the jacket in room 205, every raid. The door is always open.'],
   ['Возможная точка спавна', 'Possible spawn spot'],
   // «Нужные ключи» (reports №112, №113).
   ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],

@@ -730,12 +730,12 @@ describe('«Спавн 100 %» layer and the containers of the game files (09.11
     // (owner, 23.11.2026: «Он лежит в куртке. Это нужно пометить, записать»).
     const machinery = markersOf('customs').filter((marker) => marker.layerId === 'loot.guaranteed')
     expect(machinery.map((marker) => marker.itemId)).toEqual(['5937ee6486f77408994ba448'])
-    expect(machinery[0]!.description).toBe('Лежит в куртке в каждом рейде.')
+    expect(machinery[0]!.description).toBe('Лежит в куртке в 205 комнате, в каждом рейде. Дверь всегда открыта.')
   })
 
   it('has English for the new texts', () => {
     expect(translateUiText('Лежит здесь в каждом рейде.')).toBe('Here every raid.')
-    expect(translateUiText('Лежит в куртке в каждом рейде.')).toBe('In the jacket every raid.')
+    expect(translateUiText('Лежит в куртке в 205 комнате, в каждом рейде. Дверь всегда открыта.')).toBe('In the jacket in room 205, every raid. The door is always open.')
     expect(translateUiText('Одна из 12 возможных точек спавна.')).toBe('One of 12 possible spawn spots.')
     expect(translateUiText('Возможная точка спавна')).toBe('Possible spawn spot')
   })

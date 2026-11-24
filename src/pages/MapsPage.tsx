@@ -735,6 +735,16 @@ export function MapsPage() {
     () => data.markers.filter((marker) => marker.mapId === activeMap.id && isPlottedMarker(marker) && markerLayerId(marker) in markerMeta),
     [activeMap.id, data.markers],
   )
+  // Every point of a quest objective on this map: a point shows only the photos shot at it (report 220, photosOfPoint).
+  const objectivePlaces = useMemo(() => {
+    const points = new Map<string, Array<[number, number]>>()
+    for (const marker of mapPoints) {
+      if (!marker.questId || !marker.objectiveId) continue
+      const key = `${marker.questId}|${marker.objectiveId}`
+      points.set(key, [...(points.get(key) ?? []), marker.position])
+    }
+    return points
+  }, [mapPoints])
   // Report №114: the items behind a locked door (in a door's room box on its storey) carry a very small padlock.
   const roomsBehindDoors = useMemo(() => lockedRooms(activeMap, mapPoints), [activeMap, mapPoints])
   // The key spots of one locked room: one point that says how many spots the room has (owner, 11.11.2026).
@@ -1593,7 +1603,7 @@ export function MapsPage() {
                       boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
                       keys={marker.questId ? questKeysOfPoint(keysByQuest.get(marker.questId), marker.objectiveId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
                       spotKeys={layerId === 'loot.key' && (marker.keyCount ?? 1) > 1 ? <KeySpotKeys keyIds={keysShown(marker)} items={itemsById} owned={ownedKeys} compact tiers={keyTierMap} /> : undefined}
-                      photo={marker.questId && marker.objectiveId ? <MarkerPlacePhoto questId={marker.questId} objectiveId={marker.objectiveId} onOpen={placePhotos.open} /> : undefined}
+                      photo={marker.questId && marker.objectiveId ? <MarkerPlacePhoto questId={marker.questId} objectiveId={marker.objectiveId} position={marker.position} points={objectivePlaces.get(`${marker.questId}|${marker.objectiveId}`)} onOpen={placePhotos.open} /> : undefined}
                     />
                   </Tooltip>
                 )}

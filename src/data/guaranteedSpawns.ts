@@ -30,7 +30,7 @@ export const GUARANTEED_SPAWNS: readonly GuaranteedSpawn[] = [
     name: 'Ключ от спецтехники',
     kind: 'here',
     positions: [{ x: 179.38, y: 3.92, z: 151.08 }],
-    text: 'Лежит в куртке в каждом рейде.',
+    text: 'Лежит в куртке в 205 комнате, в каждом рейде. Дверь всегда открыта.',
   },
   // «Ключ от офиса учёных TerraGroup»: the dead lab assistant, Ground Zero (container 6582e6c6edf14c4c6023adf2).
   {

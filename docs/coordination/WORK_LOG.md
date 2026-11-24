@@ -9801,3 +9801,40 @@ Not pushed, not released, nothing uploaded.
   (/opt/tarkov-operations-companion/website/dist/downloads/, root 644, uploaded as .part then renamed; sha256 on the server
   3125f5b8…f230 = the local one; HEAD 200, 238451351 bytes). The publisher copies dist/downloads into each new dist, so it
   stays across releases: remove it by hand when the player no longer needs it.
+## 2026-11-24 22:00 — Claude: report 220 and every place photo checked; «Ключ от спецтехники» under no padlock
+
+- Branch `claude/quest-photos-all`: 6439db8b, d297589d, 7dcb2d68. Not pushed, not released (the owner holds releases since
+  20:00: `release/production` stays on b03662d9).
+- Report 220 (0.6.0.333, Streets, «Пользовательская документация» showing two places' photos at one point): fixed in the live
+  0.6.0.340 already (one photo per spot, a705d7f3/7a7bc066). Not closed, no answer sent (status «taken»).
+- The same fault for quest objectives with several points (12: Нефтянка, Сафари на тигра, Брошенный груз, Легкие деньги ч.1,
+  Устойчивый сигнал, Убойный аргумент, Фельдшер, Тайный рецепт, Секреты идеального вкуса, Наводчик, Серьёзные обвинения,
+  Непыльная подработка, Клуб по интересам): `scripts/quest-photo-places.py` → `src/data/questPhotoPlaces.json` (where each of our
+  665 photos was shot, from E:/SPT-photo server-upload reports + approved frames); `photosOfPoint` in QuestGuidePhotos.tsx: a
+  point shows the photos nearest to it, wiki photos (no place) at every point. Rerun the script after a new shooting batch:
+  `integrate_all.py` rewrites questGuidePhotos.json and keeps no place.
+- Hand fixes, each frame looked at: Малое предпринимательство ч.3 river/sawmill photos swapped back; Наводчик loses two frames
+  of Меломан / Любитель балета; six spoiled frames removed (Военный хабар/Контр-компромат black, Прикормка blurred, Садоводство
+  and Убойный аргумент arrows at walls, Убойный аргумент repeat, Анестезия arrow at a car). Documents: Streets red-car frame
+  (no document) removed, the spot shows none; Streets financial text «на полу у стены»; Woods technical text «контейнер у
+  железнодорожного депо»; Reserve unseen duplicate RB-KPRL frame removed.
+- «Ключ от спецтехники» (owner): room 205 of the three-storey dorm, door always open — the room box of lock 9ef40db1… (2nd
+  floor) covered it and drew a padlock; dropped (`NOT_THE_DOORS_ROOM`, mapRoomSigns.ts). Card: «Лежит в куртке в 205 комнате,
+  в каждом рейде. Дверь всегда открыта.» Rooms 105/305 share that box's footprint (locks 295dfe7e…, 315b55cd…): not changed.
+- Left (audit lists in the session scratchpad audit-quests / audit-docs): documents on Factory, Ground Zero, Labs, Labyrinth
+  (12–21 spots each), Lighthouse and Shoreline (2 each) still show wiki photos of several rooms per spot: the reshoot queue
+  (E:\SPT-photo\RESUME.md). ~35 medium/low remarks (arrows beside the item), 7 feed points with no document photo (Woods 4,
+  Reserve 2, Lighthouse 1), 4 unplaced wiki photos on Woods, Домашний арест ч.2 / Должник frames of «Слава КПСС» (low).
+- Tests: typecheck clean; src/data, src/components, src/maps green; MapsPage page tests pass per file (time out only under the
+  full load); AdminPanelPage CRLF source check fails as before.
+
+## 2026-11-24 23:00 — Claude: «Синий огонь» device fragment points, «Батя» Gnezdo stage with both goals
+
+- Branch `claude/quest-photos-all`, commit below. Not pushed, not released (releases held by the owner).
+- «Синий огонь» stage 1: «Найти обломок устройства» (game words; the old text kept as an alias), two points on Streets from
+  tarkovforge / tarkov-market (one place is enough): LexOs closed section 2nd floor, food container (Car dealership closed section
+  key, lock 5edf8233…, room box 62.7/306.8, y 7.88) and the marked room at Chekannaya 13, flower pot (Mysterious room marked key,
+  lock e9cb1e20…, room box 188.1/227.3, y 0.85). Exact spots inside the rooms not checked in the game.
+- «Батя» stages 2 and 10 both show «Найти позицию «Рябина»» and «Найти форпост «Гнездо»» with both points (owner: the game's
+  Gnezdo stage has the two main goals). New step flag `shown` (storyChapterSeeds.ts): shown, not used to identify the stage, so
+  the pane scan is unchanged (Рябина or both → 2, Gnezdo alone → 10; English Gnezdo alone now 10 instead of 2).
