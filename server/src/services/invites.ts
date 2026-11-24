@@ -52,7 +52,7 @@ export const RANKS: Array<{ id: RankId; title: string; friends: number; bonusDay
 ]
 
 export type RewardStatus = 'pending' | 'review' | 'granted' | 'canceled'
-export type FraudFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted'
+export type FraudFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted' | 'mutual'
 /** Milestones big enough to be worth faking friends for: granted only after the owner's review. */
 const REVIEWED_MILESTONES = new Set<RankId>(['raid-commander', 'legend'])
 export interface RewardView {
@@ -328,6 +328,8 @@ export class InviteProgram {
     const emails = this.db.prepare('SELECT id, email FROM accounts WHERE id IN (?, ?)').all(inviter, friend) as Row[]
     const email = (id: string) => normalizeEmail(String(emails.find((row) => row.id === id)?.email ?? ''))
     if (email(friend) && email(friend) === email(inviter)) flags.push('same-email')
+    // The two invited each other (a pair from before AccountStore.applyReferral refused it, 25.11.2026).
+    if (this.db.prepare('SELECT 1 FROM accounts WHERE id = ? AND invited_by = ?').get(inviter, friend)) flags.push('mutual')
     const has = (table: string) => this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) !== undefined
     if (has('account_devices') && this.db.prepare('SELECT 1 FROM account_devices a JOIN account_devices b ON a.device_id = b.device_id WHERE a.account_id = ? AND b.account_id = ?').get(inviter, friend)) flags.push('same-device')
     const addresses = this.db.prepare('SELECT id, signup_ip FROM accounts WHERE id IN (?, ?)').all(inviter, friend) as Row[]
@@ -358,8 +360,15 @@ export class InviteProgram {
         }
         if (row.kind === 'friend') {
           const eft = row.friend_id == null ? undefined : this.accounts.eftDigestOf(String(row.friend_id))
-          // No game account bound yet: the reward waits (it is granted at the first release after the binding).
-          if (!eft) return
+          // No game account bound yet: the reward waits (it is granted at the first release after the binding) — unless the
+          // owner confirmed it by hand (owner, 25.11.2026: «если человек не входил, но оплатил… оставь кнопку мне, чтобы я мог
+          // нажать «Подтвердить»»): then it is granted, and no game account is counted for it.
+          if (!eft) {
+            if (row.decided_by == null) return
+            if (this.grant(Number(row.id), String(row.inviter_id), Number(row.days))) granted++
+            this.grantMilestones(String(row.inviter_id))
+            return
+          }
           if (eft === this.accounts.eftDigestOf(String(row.inviter_id)) || this.db.prepare('SELECT 1 FROM invite_eft_counted WHERE eft_digest = ?').get(eft)) {
             this.db.prepare("UPDATE invite_rewards SET status = 'review', flags = COALESCE(flags || ',', '') || 'eft-counted' WHERE id = ? AND status = 'pending'").run(Number(row.id))
             return
@@ -415,6 +424,25 @@ export class InviteProgram {
       ORDER BY CASE r.status WHEN 'review' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
     const counts = Object.fromEntries((this.db.prepare('SELECT status, COUNT(*) AS n FROM invite_rewards GROUP BY status').all() as Row[]).map((row) => [String(row.status), Number(row.n)]))
     return { rewards: rows.map((row) => this.toAdmin(row)), total, counts }
+  }
+
+  /**
+   * «Неподтверждённые» (owner, 25.11.2026: «отдельный блок с неподтверждёнными аккаунтами, у кого возникли проблемы, чтобы я
+   * нажал и мог поставить… уведомление возле этого блока, циферкой»): rewards held for the owner's decision, and friends'
+   * rewards whose hold is over but whose friend paid without ever signing in on a PC (no game account to count) — each
+   * decided with the same «Подтвердить» / «Не подтверждать».
+   */
+  adminAttention() {
+    const rows = this.db.prepare(`${ADMIN_SELECT} WHERE r.status = 'review'
+      OR (r.kind = 'friend' AND r.status = 'pending' AND r.decided_by IS NULL AND COALESCE(r.release_at, 0) <= ?)
+      ORDER BY r.created_at DESC, r.id DESC LIMIT 200`).all(this.now()) as Row[]
+    const rewards = rows
+      .filter((row) => row.status === 'review' || row.friend_id == null || !this.accounts.eftDigestOf(String(row.friend_id)))
+      .map((row) => ({
+        ...this.toAdmin(row),
+        ...(row.status === 'pending' ? { waitingEft: true as const } : {}),
+      }))
+    return { rewards, count: rewards.length }
   }
 
   private adminReward(id: number) {

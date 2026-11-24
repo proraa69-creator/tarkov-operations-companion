@@ -498,7 +498,7 @@ export interface InviteProgram {
   ranks: InviteRank[]
   rewards: InviteReward[]
 }
-export type InviteFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted' | 'payment-or-account' | 'milestone'
+export type InviteFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted' | 'mutual' | 'payment-or-account' | 'milestone'
 export interface AdminInviteReward extends InviteReward {
   /** Both accounts with their game nicknames; `friendDeleted`: the friend's account was deleted (no e-mail). */
   inviterId?: string
@@ -725,6 +725,8 @@ export const api = {
   adminInviteRewards: (token: string, status: InviteRewardStatus | undefined, limit: number, offset: number) => request<AdminInviteRewards>(`/me/admin/invite-rewards${adminQuery({ status, limit, offset })}`, { token }),
   adminReferrals: (token: string, q: string, sort: ReferralSort) => request<AdminReferrals>(`/me/admin/referrals${adminQuery({ q: q.trim(), sort })}`, { token }),
   adminReferrer: (token: string, id: string) => request<AdminReferrerDetail>(`/me/admin/referrals/${encodeURIComponent(id)}`, { token }),
+  /** «Неподтверждённые»: rewards held for the owner and paid friends who never signed in on a PC (server/src/routes/invites.ts). */
+  adminInviteAttention: (token: string) => request<{ rewards: AdminInviteReward[]; count: number }>('/me/admin/invite-rewards/attention', { token }),
   adminDecideInviteReward: (token: string, id: number, decision: 'approve' | 'cancel', comment?: string) => request<AdminInviteReward>(`/me/admin/invite-rewards/${id}/decide`, { method: 'POST', token, body: { decision, ...(comment ? { comment } : {}) } }),
   adminAudit: (token: string, limit: number, offset: number) => request<{ entries: AdminAuditEntry[]; total: number }>(`/me/admin/audit${adminQuery({ limit, offset })}`, { token }),
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),

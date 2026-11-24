@@ -120,7 +120,7 @@ function NextGrant({ referrer, now }: { referrer: AdminReferrer; now: number }) 
 function RewardDecision({ reward, onDecided }: { reward: AdminReferralReward; onDecided: () => void }) {
   const { token } = useAuth()
   const [busy, setBusy] = useState(false)
-  if (reward.status !== 'review') return null
+  if (reward.status !== 'review' && !(reward.waitingEft && Date.parse(reward.releaseAt ?? '') <= Date.now())) return null
   async function decide(decision: 'approve' | 'cancel') {
     if (!token) return
     const comment = decision === 'cancel' ? window.prompt('Почему награда не засчитана? (необязательно)') : ''
@@ -137,11 +137,56 @@ function RewardDecision({ reward, onDecided }: { reward: AdminReferralReward; on
   )
 }
 
+/**
+ * «Неподтверждённые» (owner, 25.11.2026: «отдельный блок с неподтверждёнными аккаунтами, у кого возникли проблемы, чтобы я нажал и
+ * мог поставить»): every reward held for the owner's decision, and friends who paid but never signed in on a PC once the 3 days are
+ * over — «Подтвердить» grants the days right away. The number is on the tab too (AdminPage.tsx).
+ */
+export function AdminAttention({ onChanged }: { onChanged?: () => void }) {
+  const list = useAdminData(useCallback((token: string) => api.adminInviteAttention(token), []))
+  const [now] = useState(() => Date.now())
+  const rewards = list.data?.rewards ?? []
+  if (list.error) return <Notice tone={list.error.offline ? 'offline' : 'error'}>{list.error.message}</Notice>
+  if (!list.data) return null
+  const decided = () => { void list.reload(); onChanged?.(); window.dispatchEvent(new Event(ATTENTION_CHANGED)) }
+  return (
+    <section className="panel admin-attention" aria-label="Неподтверждённые">
+      <div className="admin-who-line"><strong>Неподтверждённые</strong> <span className={`tag admin-mini ${rewards.length ? 'brass' : ''}`}>{count(rewards.length)}</span></div>
+      {rewards.length === 0 ? <div className="muted admin-empty">Всё подтверждено.</div> : (
+        <ul className="admin-reward-list" aria-label="Неподтверждённые награды">
+          {rewards.map((reward) => {
+            const state = rewardState(reward, now)
+            return (
+              <li key={reward.id} className="admin-reward">
+                <div className="admin-who-line">
+                  <span className="admin-who-label">Пригласил:</span> <AccountRef email={reward.inviter} nickname={reward.inviterNickname} deleted={reward.inviterDeleted} />
+                </div>
+                {reward.kind === 'friend' && <div className="admin-who-line">
+                  <span className="admin-who-label">Друг:</span> <AccountRef email={reward.friend ?? ''} nickname={reward.friendNickname} deleted={reward.friendDeleted} />
+                  {reward.payment && <span className="dim">· {formatRub(reward.payment.amount)}{reward.payment.paidAt ? ` · ${dateOnly.format(new Date(reward.payment.paidAt))}` : ''}</span>}
+                </div>}
+                <div className="admin-who-line admin-origin">
+                  <span className="tag admin-mini">{rewardSize(reward)}</span>
+                  <span className={`tag admin-mini ${reward.waitingEft ? 'brass' : state.tone}`}>{reward.waitingEft ? 'оплатил, но не входил в приложение для ПК' : state.text}</span>
+                </div>
+                <RewardDecision reward={reward} onDecided={decided} />
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/** Fired when a decision changes «Неподтверждённые»: the tab's number follows. */
+export const ATTENTION_CHANGED = 'raidos-admin-attention-changed'
+
 /** One account's friends: when each came, paid or not and how, and where his reward stands; then the rank rewards. */
 function ReferrerFriends({ id, onChanged }: { id: string; onChanged: () => void }) {
   const detail = useAdminData(useCallback((token: string) => api.adminReferrer(token, id), [id]))
   const [now] = useState(() => Date.now())
-  const decided = () => { void detail.reload(); onChanged() }
+  const decided = () => { void detail.reload(); onChanged(); window.dispatchEvent(new Event(ATTENTION_CHANGED)) }
   if (detail.error) return <Notice tone={detail.error.offline ? 'offline' : 'error'}>{detail.error.message}</Notice>
   if (!detail.data) return <Loading text="Загружаем друзей…" />
   const { friends, rewards } = detail.data
@@ -218,6 +263,7 @@ export function AdminReferrals() {
     <div className="admin-stack">
       {referrals.error && <Notice tone={referrals.error.offline ? 'offline' : 'error'}>{referrals.error.message}</Notice>}
       {!data && !referrals.error && <Loading text="Загружаем статистику приглашений…" />}
+      <AdminAttention onChanged={() => void referrals.reload()} />
       {data && <ReferralSummary summary={data.summary} />}
       <div className="admin-filters">
         <form className="inline-form admin-search" onSubmit={submit} role="search">
