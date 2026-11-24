@@ -83,6 +83,7 @@ describe('«Батя» on the story pane in PvP and Season (owner, 15.10.2026)',
       ['Найти информацию о Богатырях', 3],
       ['Найти форпост «Карусель»', 4],
       ['Найти личные записи Богатырей', 5],
+      ['Найти форпост «Гнездо»', 10],
       ['Обыскать форпост «Гнездо»', 11],
       ['Узнать, где Богатыри попали в засаду', 13],
       ['Осмотреть труп Моремана', 18],
@@ -93,5 +94,22 @@ describe('«Батя» on the story pane in PvP and Season (owner, 15.10.2026)',
       const [batya] = matchStoryChapters('', QUESTS, batyaPane(main))
       expect([main, batya?.questId, batya?.stageIndex]).toEqual([main, 'story-batya', stage])
     }
+  })
+
+  it('the Gnezdo stage shows both of its goals in the game, the Ryabina position too (owner, 24.11.2026)', () => {
+    const stages = chapter('story-batya').stages!
+    expect(stages[10]!.title).toBe('Найти форпост «Гнездо»')
+    expect(stages[10]!.description).toContain('Найти позицию «Рябина»')
+    expect(stages[10]!.mapIds).toEqual(expect.arrayContaining(['interchange', 'woods']))
+    expect(stages[2]!.title).toBe('Найти позицию «Рябина»')
+    expect(stages[2]!.description).toContain('Найти форпост «Гнездо»')
+  })
+
+  it('«Синий огонь»: the game wording «Найти обломок устройства», with its two places on Streets (owner, 24.11.2026)', () => {
+    const stage = chapter('story-blue-fire').stages![1]!
+    expect(stage.title).toBe('Найти обломок устройства')
+    expect(stage.points?.map((point) => point.mapId)).toEqual(['streets-of-tarkov', 'streets-of-tarkov'])
+    const [blue] = matchStoryChapters('', QUESTS, { title: 'ИСТОРИЯ\nСиний Огонь\n', status: 'АКТИВНО\n', body: 'Главные задачи\n[О] Найти обломок устройства\n' })
+    expect([blue?.questId, blue?.stageIndex]).toEqual(['story-blue-fire', 1])
   })
 })
