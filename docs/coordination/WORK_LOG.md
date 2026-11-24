@@ -9315,3 +9315,14 @@ Not pushed, not released, nothing uploaded.
   Reserve 2, Lighthouse 1), 4 unplaced wiki photos on Woods, Домашний арест ч.2 / Должник frames of «Слава КПСС» (low).
 - Tests: typecheck clean; src/data, src/components, src/maps green; MapsPage page tests pass per file (time out only under the
   full load); AdminPanelPage CRLF source check fails as before.
+
+## 2026-11-24 23:00 — Claude: «Синий огонь» device fragment points, «Батя» Gnezdo stage with both goals
+
+- Branch `claude/quest-photos-all`, commit below. Not pushed, not released (releases held by the owner).
+- «Синий огонь» stage 1: «Найти обломок устройства» (game words; the old text kept as an alias), two points on Streets from
+  tarkovforge / tarkov-market (one place is enough): LexOs closed section 2nd floor, food container (Car dealership closed section
+  key, lock 5edf8233…, room box 62.7/306.8, y 7.88) and the marked room at Chekannaya 13, flower pot (Mysterious room marked key,
+  lock e9cb1e20…, room box 188.1/227.3, y 0.85). Exact spots inside the rooms not checked in the game.
+- «Батя» stages 2 and 10 both show «Найти позицию «Рябина»» and «Найти форпост «Гнездо»» with both points (owner: the game's
+  Gnezdo stage has the two main goals). New step flag `shown` (storyChapterSeeds.ts): shown, not used to identify the stage, so
+  the pane scan is unchanged (Рябина or both → 2, Gnezdo alone → 10; English Gnezdo alone now 10 instead of 2).
