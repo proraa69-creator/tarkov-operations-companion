@@ -9288,3 +9288,30 @@ Not pushed, not released, nothing uploaded.
 - Lighthouse was started by the dispatcher and paused at 13:51 at the coordinator's request (the game handed over for the language
   screenshots); its frames so far stay in its manifest, the run resumes from there (photo2\tour-lighthouse-paused.json). Not in a release
   yet (after 0.6.0.340).
+
+## 2026-11-24 22:00 — Claude: report 220 and every place photo checked; «Ключ от спецтехники» under no padlock
+
+- Branch `claude/quest-photos-all`: 6439db8b, d297589d, 7dcb2d68. Not pushed, not released (the owner holds releases since
+  20:00: `release/production` stays on b03662d9).
+- Report 220 (0.6.0.333, Streets, «Пользовательская документация» showing two places' photos at one point): fixed in the live
+  0.6.0.340 already (one photo per spot, a705d7f3/7a7bc066). Not closed, no answer sent (status «taken»).
+- The same fault for quest objectives with several points (12: Нефтянка, Сафари на тигра, Брошенный груз, Легкие деньги ч.1,
+  Устойчивый сигнал, Убойный аргумент, Фельдшер, Тайный рецепт, Секреты идеального вкуса, Наводчик, Серьёзные обвинения,
+  Непыльная подработка, Клуб по интересам): `scripts/quest-photo-places.py` → `src/data/questPhotoPlaces.json` (where each of our
+  665 photos was shot, from E:/SPT-photo server-upload reports + approved frames); `photosOfPoint` in QuestGuidePhotos.tsx: a
+  point shows the photos nearest to it, wiki photos (no place) at every point. Rerun the script after a new shooting batch:
+  `integrate_all.py` rewrites questGuidePhotos.json and keeps no place.
+- Hand fixes, each frame looked at: Малое предпринимательство ч.3 river/sawmill photos swapped back; Наводчик loses two frames
+  of Меломан / Любитель балета; six spoiled frames removed (Военный хабар/Контр-компромат black, Прикормка blurred, Садоводство
+  and Убойный аргумент arrows at walls, Убойный аргумент repeat, Анестезия arrow at a car). Documents: Streets red-car frame
+  (no document) removed, the spot shows none; Streets financial text «на полу у стены»; Woods technical text «контейнер у
+  железнодорожного депо»; Reserve unseen duplicate RB-KPRL frame removed.
+- «Ключ от спецтехники» (owner): room 205 of the three-storey dorm, door always open — the room box of lock 9ef40db1… (2nd
+  floor) covered it and drew a padlock; dropped (`NOT_THE_DOORS_ROOM`, mapRoomSigns.ts). Card: «Лежит в куртке в 205 комнате,
+  в каждом рейде. Дверь всегда открыта.» Rooms 105/305 share that box's footprint (locks 295dfe7e…, 315b55cd…): not changed.
+- Left (audit lists in the session scratchpad audit-quests / audit-docs): documents on Factory, Ground Zero, Labs, Labyrinth
+  (12–21 spots each), Lighthouse and Shoreline (2 each) still show wiki photos of several rooms per spot: the reshoot queue
+  (E:\SPT-photo\RESUME.md). ~35 medium/low remarks (arrows beside the item), 7 feed points with no document photo (Woods 4,
+  Reserve 2, Lighthouse 1), 4 unplaced wiki photos on Woods, Домашний арест ч.2 / Должник frames of «Слава КПСС» (low).
+- Tests: typecheck clean; src/data, src/components, src/maps green; MapsPage page tests pass per file (time out only under the
+  full load); AdminPanelPage CRLF source check fails as before.
