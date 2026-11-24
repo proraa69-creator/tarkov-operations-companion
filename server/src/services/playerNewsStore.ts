@@ -6,7 +6,10 @@ import type { DatabaseSync } from 'node:sqlite'
  * version in the accounts' database; a version with no row reads as the app's own (src/data/playerNews.json).
  */
 export type PlayerNewsKind = 'added' | 'changed' | 'improved'
-export interface PlayerNewsItem { kind: PlayerNewsKind; ru: string; en: string }
+/** The languages after Russian and English a line is kept in (src/news/newsState.ts NEWS_LANGUAGES). */
+export const PLAYER_NEWS_LANGUAGES = ['de', 'ja', 'zh', 'pl', 'uk', 'es', 'pt', 'fr', 'ko', 'tr'] as const
+export type PlayerNewsLanguage = typeof PLAYER_NEWS_LANGUAGES[number]
+export type PlayerNewsItem = { kind: PlayerNewsKind; ru: string; en: string } & Partial<Record<PlayerNewsLanguage, string>>
 
 const KINDS: ReadonlySet<string> = new Set<PlayerNewsKind>(['added', 'changed', 'improved'])
 const isItem = (value: unknown): value is PlayerNewsItem => {

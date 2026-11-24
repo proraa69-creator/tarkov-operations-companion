@@ -63,7 +63,7 @@ Never use `--dangerously-skip-permissions` for normal work. Prefer manual permis
 
 ## Development expectations
 
-- A release with a new or changed function adds a row to `src/data/playerNews.json` («Новости обновлений», what players read): which function and what for, in a line, in Russian and English, nothing about how it was made. Technical fixes stay in `src/data/updateHistory.json` only.
+- A release with a new or changed function adds a row to `src/data/playerNews.json` («Новости обновлений», what players read): which function and what for, in a line, in Russian, English and every other app language (`de ja zh pl uk es pt fr ko tr`, owner 25.11.2026: news in each player's language; `src/news/NewsButton.test.tsx` stops the release without them), nothing about how it was made. Technical fixes stay in `src/data/updateHistory.json` only.
 
 - Preserve existing user changes. Inspect `git status` before large edits.
 - Prefer small, reviewable commits or patches.

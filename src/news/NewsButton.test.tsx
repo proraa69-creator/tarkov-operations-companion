@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { NewsButton } from './NewsButton'
-import { markAllNewsRead, NEWS, readNews, rememberFirstLook, unreadNews, type NewsEntry, installedNews } from './newsState'
+import { markAllNewsRead, NEWS, NEWS_LANGUAGES, readNews, rememberFirstLook, unreadNews, type NewsEntry, installedNews } from './newsState'
 
 const entries = (...versions: string[]): NewsEntry[] => versions.map((version) => ({ version, date: '2026-11-05', items: [{ kind: 'added', ru: 'Новое', en: 'New' }] }))
 
@@ -85,7 +85,7 @@ describe('the button on top', () => {
 })
 
 describe('the list itself', () => {
-  it('is short, in both languages, the newest first, of versions that exist', () => {
+  it('is short, in every language of the app, the newest first, of versions that exist', () => {
     const versions = new Set((JSON.parse(readFileSync('src/data/updateHistory.json', 'utf8')) as Array<{ version: string }>).map((row) => row.version))
     const number = (version: string) => Number(version.split('.').at(-1))
     NEWS.forEach((entry, index) => {
@@ -98,6 +98,15 @@ describe('the list itself', () => {
         expect(item.en.length, item.en).toBeLessThanOrEqual(120)
         expect(item.ru).toMatch(/[а-яё]/i)
         expect(item.en).not.toMatch(/[а-яё]/i)
+        // Owner, 25.11.2026: «все новости, которые выходят, должны переводиться на все языки… под каждый язык должны быть новости»:
+        // a new release's lines need every language (src/i18n/languages.ts TARGET_LANGUAGES) before it goes out.
+        for (const language of NEWS_LANGUAGES) {
+          const text = item[language]
+          expect(text, `${entry.version} «${item.en}»: no ${language}`).toBeTruthy()
+          expect(text!.length, text).toBeLessThanOrEqual(160)
+          if (language !== 'uk') expect(text, `${language}: ${text}`).not.toMatch(/[а-яё]/i)
+          expect(text, `${language}: ${text}`).not.toMatch(/tarkov[\s-]*market|tarkov\.dev/i)
+        }
         // Owner, 06.11.2026: «не пиши, что мы у них берем данные. Про это вообще никогда ничего не пиши».
         expect(`${item.ru} ${item.en}`).not.toMatch(/tarkov[\s-]*market|tarkov\.dev|маркет|источник|\bsources?\b|сотруднич|partner/i)
       }

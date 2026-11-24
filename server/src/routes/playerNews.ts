@@ -7,8 +7,10 @@
  *   PUT  /v1/accounts/me/admin/player-news          { version, items: [{ kind, ru }] } -> the same (owner)
  *   POST /v1/accounts/me/admin/player-news/reset    { version } -> the same (owner: the app's own text again)
  *
- * The owner writes Russian. A line he left as it was keeps its English; a new one is translated on saving (as the owner's notice,
- * services/announcementLanguage.ts), and with no translation English players read the Russian. Saved: `changed` tells the apps at
+ * The owner writes Russian. A line he left as it was keeps its translations (his own earlier ones, else the app's own of the same
+ * Russian line); a new one is translated on saving into English and every other language of the app (owner, 25.11.2026: «все
+ * новости… должны переводиться на все языки»; services/announcementLanguage.ts). A language with no translation reads the English,
+ * and with no English the Russian (src/news/newsState.ts newsText). Saved: `changed` tells the apps at
  * once (routes/mapUpdates.ts). Only the releases the server knows, each with no more than MAX_LINES lines.
  */
 import express from 'express'
@@ -17,7 +19,7 @@ import { z } from 'zod'
 import PLAYER_NEWS from '../../../src/data/playerNews.json'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { myMemoryTranslator, stillRussian, type AnnouncementTranslator } from '../services/announcementLanguage.js'
-import type { PlayerNewsItem, PlayerNewsStore } from '../services/playerNewsStore.js'
+import { PLAYER_NEWS_LANGUAGES, type PlayerNewsItem, type PlayerNewsStore } from '../services/playerNewsStore.js'
 
 const MAX_LINES = 40
 const MAX_LINE = 400
@@ -64,17 +66,35 @@ export function createPlayerNewsRouter(accounts: AccountStore, store: PlayerNews
     return accounts.emailOf(id) ?? id
   }
 
-  /** A line left as it was keeps its English; a new one gets its own, or none and English players read the Russian. */
-  const withEnglish = async (target: string, items: Array<{ kind: PlayerNewsItem['kind']; ru: string }>): Promise<PlayerNewsItem[]> => {
+  /**
+   * Each line in every language: what this release's line with the same Russian had (the owner's earlier save first, then the
+   * app's own line anywhere in the list), and a translation for each language still missing. A failed one stays empty.
+   */
+  const withTranslations = async (target: string, items: Array<{ kind: PlayerNewsItem['kind']; ru: string }>): Promise<PlayerNewsItem[]> => {
     const before = store.edits()[target] ?? BUILT_IN.find((entry) => entry.version === target)?.items ?? []
-    const known = new Map(before.map((item) => [item.ru, item.en]))
+    const known = new Map<string, PlayerNewsItem>()
+    for (const item of [...before, ...BUILT_IN.flatMap((entry) => entry.items)]) if (!known.has(item.ru)) known.set(item.ru, item)
+    const english = async (ru: string) => {
+      try {
+        const text = printable(await translate(ru, 'en'))
+        return text && !stillRussian(text) ? text.slice(0, MAX_LINE) : ''
+      } catch { return '' }
+    }
+    const other = async (ru: string, language: typeof PLAYER_NEWS_LANGUAGES[number]) => {
+      try {
+        const text = printable(await translate(ru, language))
+        // Ukrainian is Cyrillic too: only the Russian given back unchanged is no translation
+        return text && (language === 'uk' ? text !== ru : !stillRussian(text)) ? text.slice(0, MAX_LINE) : ''
+      } catch { return '' }
+    }
     return Promise.all(items.map(async (item) => {
       const kept = known.get(item.ru)
-      if (kept) return { ...item, en: kept }
-      try {
-        const english = printable(await translate(item.ru))
-        return { ...item, en: english && !stillRussian(english) ? english.slice(0, MAX_LINE) : '' }
-      } catch { return { ...item, en: '' } }
+      const line: PlayerNewsItem = { ...item, en: kept?.en || await english(item.ru) }
+      await Promise.all(PLAYER_NEWS_LANGUAGES.map(async (language) => {
+        const text = kept?.[language] || await other(item.ru, language)
+        if (text) line[language] = text
+      }))
+      return line
     }))
   }
 
@@ -92,7 +112,7 @@ export function createPlayerNewsRouter(accounts: AccountStore, store: PlayerNews
     if (!actor) return
     const body = saveSchema.safeParse(req.body)
     if (!body.success) { res.status(400).json({ error: `Проверьте текст: не больше ${MAX_LINES} пунктов, в пункте не больше ${MAX_LINE} знаков.` }); return }
-    withEnglish(body.data.version, body.data.items).then((items) => {
+    withTranslations(body.data.version, body.data.items).then((items) => {
       store.save(body.data.version, items, actor)
       changed?.()
       try { audit?.(actor, 'news.edit', body.data.version, { op: 'save', lines: items.length }) } catch { /* saved anyway */ }

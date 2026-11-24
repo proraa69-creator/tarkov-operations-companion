@@ -9972,3 +9972,25 @@ Not pushed, not released, nothing uploaded.
   сайт и в приложение добавлены новые языки»; improved «Обновили фото, снимки квестов и данные по квестам»; nothing about the
   start. Checks after the merge: typecheck clean; vitest 4624 passed, 12 failed = machine-only + ObjectivePhotos / MapsPage ×3
   that pass per file; website/src 193/193.
+
+## 2026-11-25 02:10 — Claude: release news in every app language
+
+- Owner, 25.11.2026: «все новости, которые выходят, должны переводиться на все языки… если у меня включен испанский язык…
+  новости… должны выходить на этом языке». Every line of `src/data/playerNews.json` (360 lines, 348 different) now has
+  `de ja zh pl uk es pt fr ko tr` beside `ru`/`en`. 346 of them were already in the app's dictionaries (`src/i18n/locales/*.json`,
+  English keys), taken from there so the words match the screens; «Полигон» everywhere as the dictionaries' «Proving ground».
+- «Обновление» shows the player's chosen language (`newsText`: that language, else English, else Russian) and the date in it;
+  the lines are `translate="no"` so the page translator does not touch them.
+- The owner's edits (admin «Обновление», `server/src/routes/playerNews.ts`): a line he kept keeps its translations (his earlier
+  ones, else the app's own line with the same Russian); a new line is translated on saving into English and the ten languages
+  (MyMemory `langpair=ru|<lang>`; a failed one reads English). Edits saved before today get the app's translations of the
+  same Russian in the client (`applyNewsEdits`).
+- Rule for every next release (CLAUDE.md, COORDINATION.md): a news line needs all twelve languages; `src/news/NewsButton.test.tsx`
+  fails without them.
+- Files: `src/news/newsState.ts`, `NewsButton.tsx`, `newsEdits.ts`, their tests, `src/data/playerNews.json`,
+  `server/src/routes/playerNews.ts` and its test, `server/src/services/announcementLanguage.ts`, `playerNewsStore.ts`,
+  `CLAUDE.md`, `docs/coordination/COORDINATION.md`.
+- Tests: typecheck (root and server) clean; vitest src/news, src/admin, noSiteNames 98/98; server playerNews, announcement,
+  notices 22/22; eslint clean.
+- Deployment: branch `claude/news-languages` from `origin/release/production` (a1d97c0d), not pushed, not released. Goes out with
+  the next app release (the news live in the app and the server route).
