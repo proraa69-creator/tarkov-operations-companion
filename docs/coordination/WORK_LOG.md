@@ -9256,3 +9256,18 @@ Not pushed, not released, nothing uploaded.
   finer ones around the 3 best). Looked at by eye: the office door, the bookshelf, the floor by the boxes and the shelf by the desk match
   their pictures (scores 97–324) and replace them; the stairs (a different room) and «under the desk» (the desk from above) were refused
   and keep the wiki photo for now — a second probe pass for them is queued. Tests 581/581. Pictures: server-upload\customs-fix (8).
+
+## 2026-11-24 11:10 — Claude: Streets of Tarkov quests and battle pass documents shot again in the offline game
+
+- Runs streets-of-tarkov-all2 (131 quest points), -bpdocs6 (28 document pictures laid where they show them) and -bpspawn (3 live spawn
+  points no picture shows). Every sheet looked at by eye; refused in eval\manual-reject.json: 14 quest frames (own frames of a truck
+  filling the view or a dark room corner, ATM places that show only an advert, the camera inside the LAV, under a roof edge with half the
+  frame sky, a diary under a blanket or lost in a pile) and 14 document frames of 9 pictures (the document dropped to the floor or
+  standing in the air, the offline copy's furniture not the guide's — a living room where the guide shows the bank's board room —, the
+  document out of sight). bpdocs\streets-of-tarkov-one.json drops two wiki pictures whose spawn point already has our close-up (the
+  «rest room floor» picture on an office desk spawn, a picture with no document at a spawn point we laid one at).
+- Integrated: quests 96 matched, 15 own places, 40 approaches, 42 close-ups, 110 wiki photos of shot places removed; documents one
+  photo per place (17 close-ups of the laid document, 5 place frames, no spot with two photos). Tests: the «Что-то мне это
+  напоминает…» test now expects our own frames at its places; documentGuide.test.ts checks Streets for one photo per place. Data tests with
+  the photo components 574/574, map and objective-photo components 62/62, typecheck ok. Pictures: E:\SPT-photo\server-upload\streets-of-tarkov (386) and -docs6 (94), on the
+  server with this entry (eval\upload_guides.py). Not in a release yet (after 0.6.0.339).

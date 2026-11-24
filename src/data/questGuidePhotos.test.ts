@@ -31,12 +31,16 @@ describe('«Фото мест» of the quests (src/components/QuestGuidePhotos.t
     const at = (id: string) => quest.photos.filter((photo) => placesOf(photo).includes(id)).map(fileOf)
     expect(new Set(quest.photos.flatMap(placesOf)).size).toBe(27)
     expect(quest.photos.filter((photo) => !photo.objectiveId).map(fileOf)).toEqual([])
-    // The body in the barbed wire, the amphibians, the hole, the burned girl (ids of the game's objectives).
-    expect(at('66d9cbb67b491f9d5304f6eb')).toEqual(expect.arrayContaining(['ITARWireBody.png', 'ITARWireBodyDoor.png', 'Mysterious key path1.png', 'Mysterious key building entrance.png']))
+    // The body in the barbed wire, the amphibians, the hole, the burned girl (ids of the game's objectives). Since 24.11.2026 the
+    // places are shot again in the offline game (owner: «снимать все снимки, которые есть»): our own frames of each place in place
+    // of the wiki's pictures, each frame at the place it was shot at.
+    const ownAt = (id: string) => quest.photos.filter((photo) => placesOf(photo).includes(id) && (data.files[photo.id] as { own?: boolean }).own).map((photo) => photo.id)
+    for (const id of ['66d9cbb67b491f9d5304f6eb', '66d9cbb67b491f9d5304f6e9', '66dacf2a88c7001436a67390', '66d9cbb67b491f9d5304f6ea']) {
+      expect(at(id).length).toBeGreaterThan(0)
+      expect(ownAt(id).length).toBeGreaterThan(0)
+    }
+    expect(ownAt('66d9cbb67b491f9d5304f6eb').filter((id) => ownAt('66d9cbb67b491f9d5304f6ea').includes(id))).toEqual([])
     expect(at('66d9cbb67b491f9d5304f6eb')).not.toContain('ITARBurnedGirl.png')
-    expect(at('66d9cbb67b491f9d5304f6e9')).toEqual(['ITARPizzaLover.png'])
-    expect(at('66dacf2a88c7001436a67390')).toEqual(expect.arrayContaining(['ITARScaryHole.png', 'Mysterious key building entrance.png']))
-    expect(at('66d9cbb67b491f9d5304f6ea')).toEqual(expect.arrayContaining(['ITARBurnedGirl.png', 'ITARBurnedGirlDoor.png', 'X-ray clinic outside.png']))
   })
 
   it('a photo names objectives by the game\'s own ids, never a text', () => {
