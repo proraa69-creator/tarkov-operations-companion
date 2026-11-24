@@ -3,7 +3,7 @@ import type { TargetLanguage } from './languages'
 import { mappedUiDictionary, type UiDictionary } from './uiEnglish'
 
 /**
- * German, Japanese and Chinese over the English interface (src/i18n/languages.ts).
+ * The languages beyond Russian and English, drawn over the English interface (src/i18n/languages.ts).
  *
  * - The interface phrases: src/i18n/locales/<language>.json, English → that language, one entry per distinct English text
  *   of the dictionary (src/i18n/uiEnglish*.ts) and of the English written right in the screens. A text with numbers is
@@ -23,6 +23,13 @@ const LOADERS: Record<TargetLanguage, () => Promise<{ default: Record<string, st
   de: () => import('./locales/de.json'),
   ja: () => import('./locales/ja.json'),
   zh: () => import('./locales/zh.json'),
+  pl: () => import('./locales/pl.json'),
+  uk: () => import('./locales/uk.json'),
+  es: () => import('./locales/es.json'),
+  pt: () => import('./locales/pt.json'),
+  fr: () => import('./locales/fr.json'),
+  ko: () => import('./locales/ko.json'),
+  tr: () => import('./locales/tr.json'),
 }
 const loaded = new Map<TargetLanguage, Promise<ReadonlyMap<string, string>>>()
 const compiled = new Map<TargetLanguage, { table: ReadonlyMap<string, string>; dictionary: UiDictionary }>()

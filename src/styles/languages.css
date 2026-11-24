@@ -4,6 +4,7 @@
 :root:lang(de) .map-detail-head > .map-detail-tabs .map-detail-tab { padding: 0 3px; letter-spacing: 0; }
 
 :root:lang(ja) { font-family: Inter, "Segoe UI", "Yu Gothic UI", Meiryo, "Hiragino Sans", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif; }
+:root:lang(ko) { font-family: Inter, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif; }
 :root:lang(zh-CN), :root:lang(zh) { font-family: Inter, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif; }
 
 /* The overview's screen card in half a phone row: «Bildschirm» and «PC offline» share a line only when they fit, the

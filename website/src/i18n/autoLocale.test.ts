@@ -11,7 +11,7 @@ describe('the language of a first visit', () => {
 
   it('a Russian browser abroad still gets Russian', () => {
     expect(autoLocale({ country: 'DE', languages: ['ru-RU', 'de'] })).toBe('ru')
-    expect(autoLocale({ country: 'UA', languages: ['uk-UA'] })).toBe('en')
+    expect(autoLocale({ country: 'UA', languages: ['uk-UA'] })).toBe('uk')
   })
 
   it('without the country: the time zone, then the browser', () => {
@@ -26,7 +26,7 @@ describe('the language of a first visit', () => {
     expect(autoLocale({ country: 'CN' })).toBe('zh')
     expect(autoLocale({ country: 'TW', languages: ['zh-TW', 'en'] })).toBe('zh')
     expect(autoLocale({ country: 'JP', languages: [] })).toBe('ja')
-    expect(autoLocale({ country: 'AT', languages: ['fr-FR'] })).toBe('de')
+    expect(autoLocale({ country: 'AT', languages: ['it-IT'] })).toBe('de')
     expect(autoLocale({ country: 'US', languages: ['ja-JP', 'en-US'] })).toBe('ja')
     expect(autoLocale({ country: 'CN', languages: ['en-US'] })).toBe('en')
     expect(autoLocale({ timeZone: 'Asia/Tokyo', languages: [] })).toBe('ja')
@@ -39,5 +39,20 @@ describe('the language of a first visit', () => {
     expect(offeredLocale({ country: 'US', languages: ['en-US', 'ja'] }, 'en')).toBe('ja')
     expect(offeredLocale({ country: 'US', languages: ['en-US'] }, 'en')).toBeNull()
     expect(offeredLocale({ country: 'DE', languages: ['de-DE'] }, 'de')).toBeNull()
+  })
+
+  it("Polish, Ukrainian, Spanish, Portuguese, French, Korean and Turkish by the browser or the country (owner, 24.11.2026)", () => {
+    expect(autoLocale({ country: 'PL' })).toBe('pl')
+    expect(autoLocale({ country: 'UA' })).toBe('uk')
+    expect(autoLocale({ country: 'UA', languages: ['ru-RU'] })).toBe('ru')
+    expect(autoLocale({ country: 'MX' })).toBe('es')
+    expect(autoLocale({ country: 'BR' })).toBe('pt')
+    expect(autoLocale({ country: 'FR' })).toBe('fr')
+    expect(autoLocale({ country: 'KR' })).toBe('ko')
+    expect(autoLocale({ country: 'TR' })).toBe('tr')
+    expect(autoLocale({ country: 'US', languages: ['pt-BR'] })).toBe('pt')
+    expect(autoLocale({ timeZone: 'Europe/Warsaw' })).toBe('pl')
+    expect(autoLocale({ timeZone: 'America/Sao_Paulo' })).toBe('pt')
+    expect(offeredLocale({ country: 'KR', languages: ['en-US'] }, 'en')).toBe('ko')
   })
 })

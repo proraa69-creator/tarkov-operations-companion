@@ -17,18 +17,25 @@ import { API_URL } from '../config'
  * (autoLocale); the RU / EN switch is kept in localStorage and wins from then on. Changing the language re-renders the
  * whole site (App keys its routes on it).
  */
-export type SiteLocale = 'ru' | 'en' | 'de' | 'ja' | 'zh'
-/** German, Japanese and Chinese are the English site put into that language (owner, 24.11.2026). */
-export type TargetSiteLocale = 'de' | 'ja' | 'zh'
+export type SiteLocale = 'ru' | 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'uk' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
+/** Every language but Russian and English is the English site put into that language (owner, 24.11.2026). */
+export type TargetSiteLocale = Exclude<SiteLocale, 'ru' | 'en'>
 export const SITE_LOCALES: ReadonlyArray<{ code: SiteLocale; short: string; name: string; tag: string }> = [
   { code: 'ru', short: 'RU', name: 'Русский', tag: 'ru-RU' },
   { code: 'en', short: 'EN', name: 'English', tag: 'en-US' },
   { code: 'de', short: 'DE', name: 'Deutsch', tag: 'de-DE' },
   { code: 'ja', short: 'JA', name: '日本語', tag: 'ja-JP' },
   { code: 'zh', short: 'ZH', name: '简体中文', tag: 'zh-CN' },
+  { code: 'pl', short: 'PL', name: 'Polski', tag: 'pl-PL' },
+  { code: 'uk', short: 'UK', name: 'Українська', tag: 'uk-UA' },
+  { code: 'es', short: 'ES', name: 'Español', tag: 'es-ES' },
+  { code: 'pt', short: 'PT', name: 'Português (Brasil)', tag: 'pt-BR' },
+  { code: 'fr', short: 'FR', name: 'Français', tag: 'fr-FR' },
+  { code: 'ko', short: 'KO', name: '한국어', tag: 'ko-KR' },
+  { code: 'tr', short: 'TR', name: 'Türkçe', tag: 'tr-TR' },
 ]
 const isSiteLocale = (value: unknown): value is SiteLocale => typeof value === 'string' && SITE_LOCALES.some((option) => option.code === value)
-const isTarget = (value: SiteLocale): value is TargetSiteLocale => value === 'de' || value === 'ja' || value === 'zh'
+const isTarget = (value: SiteLocale): value is TargetSiteLocale => value !== 'ru' && value !== 'en'
 
 const STORAGE_KEY = 'raidos-site-locale'
 const dictionary = new Map<string, string>()
@@ -45,11 +52,23 @@ const RUSSIAN_COUNTRIES = new Set(['RU', 'BY', 'KZ', 'KG', 'UZ', 'TJ', 'TM', 'AM
 const RUSSIAN_ZONES = /^(Europe\/(Moscow|Kaliningrad|Samara|Volgograd|Saratov|Ulyanovsk|Astrakhan|Kirov|Simferopol|Minsk|Chisinau)|Asia\/(Yekaterinburg|Omsk|Novosibirsk|Barnaul|Tomsk|Novokuznetsk|Krasnoyarsk|Irkutsk|Chita|Yakutsk|Khandyga|Vladivostok|Ust-Nera|Magadan|Sakhalin|Srednekolymsk|Kamchatka|Anadyr|Almaty|Qostanay|Aqtobe|Aqtau|Atyrau|Oral|Qyzylorda|Bishkek|Tashkent|Samarkand|Dushanbe|Ashgabat|Yerevan|Baku))$/
 
 /** Countries whose own language the site has besides Russian (the rest: the browser's language, else English). */
-const COUNTRY_LANGUAGES: Readonly<Record<string, SiteLocale>> = { CN: 'zh', TW: 'zh', HK: 'zh', MO: 'zh', SG: 'zh', JP: 'ja', DE: 'de', AT: 'de', CH: 'de', LI: 'de' }
+const SPANISH = ['ES', 'MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'GT', 'CU', 'BO', 'DO', 'HN', 'PY', 'SV', 'NI', 'CR', 'PA', 'UY', 'PR', 'GQ']
+const COUNTRY_LANGUAGES: Readonly<Record<string, SiteLocale>> = {
+  CN: 'zh', TW: 'zh', HK: 'zh', MO: 'zh', SG: 'zh', JP: 'ja', DE: 'de', AT: 'de', CH: 'de', LI: 'de',
+  PL: 'pl', UA: 'uk', BR: 'pt', PT: 'pt', AO: 'pt', MZ: 'pt', FR: 'fr', MC: 'fr', LU: 'fr', KR: 'ko', TR: 'tr',
+  ...Object.fromEntries(SPANISH.map((country) => [country, 'es'])),
+}
 const ZONE_LANGUAGES: ReadonlyArray<[RegExp, SiteLocale]> = [
   [/^Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Hong_Kong|Macau|Taipei)$/, 'zh'],
   [/^Asia\/Tokyo$/, 'ja'],
   [/^Europe\/(Berlin|Busingen|Vienna|Zurich|Vaduz)$/, 'de'],
+  [/^Europe\/Warsaw$/, 'pl'],
+  [/^Europe\/(Kiev|Kyiv|Uzhgorod|Zaporozhye)$/, 'uk'],
+  [/^(Europe\/Madrid|Atlantic\/Canary|America\/(Mexico_City|Bogota|Lima|Santiago|Caracas|Argentina\/.+|Buenos_Aires|Montevideo|Guayaquil|La_Paz|Asuncion|Guatemala|Havana))$/, 'es'],
+  [/^(America\/(Sao_Paulo|Fortaleza|Recife|Bahia|Belem|Manaus|Cuiaba|Porto_Velho|Boa_Vista|Rio_Branco|Maceio|Araguaina|Campo_Grande|Santarem|Noronha)|Europe\/Lisbon)$/, 'pt'],
+  [/^Europe\/(Paris|Monaco|Luxembourg)$/, 'fr'],
+  [/^Asia\/Seoul$/, 'ko'],
+  [/^(Europe|Asia)\/Istanbul$/, 'tr'],
 ]
 
 /** The first of the browser's languages the site has (Belarusian readers get Russian). */
@@ -57,7 +76,8 @@ export function browserLocale(languages: readonly string[] = []): SiteLocale | n
   for (const language of languages) {
     const code = language.toLowerCase().split(/[-_]/)[0]
     if (code === 'ru' || code === 'be') return 'ru'
-    if (code === 'en' || code === 'de' || code === 'ja' || code === 'zh') return code
+    if (code === 'uk') return 'uk'
+    if (isSiteLocale(code)) return code
   }
   return null
 }
@@ -134,6 +154,13 @@ const TARGET_LOADERS: Record<TargetSiteLocale, () => Promise<{ default: Record<s
   de: () => import('./locales/de.json'),
   ja: () => import('./locales/ja.json'),
   zh: () => import('./locales/zh.json'),
+  pl: () => import('./locales/pl.json'),
+  uk: () => import('./locales/uk.json'),
+  es: () => import('./locales/es.json'),
+  pt: () => import('./locales/pt.json'),
+  fr: () => import('./locales/fr.json'),
+  ko: () => import('./locales/ko.json'),
+  tr: () => import('./locales/tr.json'),
 }
 const targetTables = new Map<TargetSiteLocale, ReadonlyMap<string, string>>()
 const targetLoading = new Map<TargetSiteLocale, Promise<void>>()

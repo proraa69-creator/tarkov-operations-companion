@@ -38,7 +38,11 @@ export async function loadEnglishCatalog(mode: RaidMode) {
  */
 const targetLoaded = new Map<string, Promise<{ english: Array<[string, string]>; russian: Array<[string, string]> }>>()
 let requestedTarget = ''
+/** tarkov.dev has the game's names in every language of the game; Ukrainian is not one (its names stay English). */
+const CATALOG_LANGUAGES: Partial<Record<TargetLanguage, string>> = { de: 'de', ja: 'ja', zh: 'zh', pl: 'pl', es: 'es', pt: 'pt', fr: 'fr', ko: 'ko', tr: 'tr' }
 export async function loadTargetCatalog(mode: RaidMode, language: TargetLanguage) {
+  const code = CATALOG_LANGUAGES[language]
+  if (!code) return
   const upstream = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
   const slot = `${upstream}:${language}`
   requestedTarget = slot
@@ -47,7 +51,7 @@ export async function loadTargetCatalog(mode: RaidMode, language: TargetLanguage
     const cached = await readGameCache<{ at: number; english: Array<[string, string]>; russian: Array<[string, string]> }>(key)
     if (cached && Date.now() - cached.at < DAY_MS) return cached
     const groups = await Promise.all(['tasks', 'items', 'maps', 'traders', 'hideout'].map(async (endpoint) => {
-      const [english, russian, target] = await Promise.all(['en', 'ru', language].map(async (lang) => (await tarkovJson<{ data: Record<string, string> }>(`${upstream}/${endpoint}_${lang}`, undefined, 30_000)).data))
+      const [english, russian, target] = await Promise.all(['en', 'ru', code].map(async (lang) => (await tarkovJson<{ data: Record<string, string> }>(`${upstream}/${endpoint}_${lang}`, undefined, 30_000)).data))
       const pairs = (from: Record<string, string>) => Object.entries(from).flatMap(([id, text]) => typeof text === 'string' && typeof target[id] === 'string' && target[id] ? [[text, target[id]] as [string, string]] : [])
       return { english: pairs(english), russian: pairs(russian) }
     }))

@@ -30,7 +30,7 @@ export function resolveGameLanguage(setting: unknown): GameLanguage {
 }
 
 /** German, Japanese or Chinese; null for Russian and English (read as before). */
-export function extraGameLanguage(language: GameLanguage | null | undefined): ExtraGameLanguage | null {
+export function extraGameLanguage(language: string | null | undefined): ExtraGameLanguage | null {
   return language === 'de' || language === 'ja' || language === 'zh' ? language : null
 }
 
