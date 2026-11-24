@@ -2,7 +2,6 @@ import type { Item, Quest } from '../domain/types'
 import { ITEM_TEXT_MIN_SCORE, itemTextScore, normalizeOcr } from '../overlay/itemMatch'
 import { labelFold, labelScore } from './collectorMatch'
 import { gameItemNames } from '../data/gameNames'
-import { noteGameLanguage } from '../data/gameNamesLoader'
 
 const COLLECTOR_NAME = /^\s*(коллекционер|collector)\s*$/i
 
@@ -179,7 +178,8 @@ export async function scanForCollectorItems(mode: string, entries: CollectorEntr
       ? await api.scanScreenText(call === 0 && options.restart ? { restart: true, names } : {})
       : await api.captureQuestFrame(false, true)
     // The game's language (its item names count too, src/data/gameNamesLoader.ts).
-    if ('language' in frame && frame.language) noteGameLanguage(frame.language)
+    // Loaded lazily: the server imports this module (routes/me.ts) and must not pull in the app's network code.
+    if ('language' in frame && frame.language) { const language = frame.language; void import('../data/gameNamesLoader').then((loader) => loader.noteGameLanguage(language)).catch(() => {}) }
     for (const id of findVisibleItems(entries, frame.text)) found.add(id)
     const current = loadCollected(mode)
     const fresh = [...found].filter((id) => !current.includes(id))
