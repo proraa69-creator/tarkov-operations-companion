@@ -8,6 +8,13 @@ const QUESTION: Record<SiteLocale, string> = {
   de: 'Diese Seite auf Deutsch anzeigen?',
   ja: 'このサイトを日本語で表示しますか？',
   zh: '用简体中文浏览本网站？',
+  pl: 'Wyświetlić stronę po polsku?',
+  uk: 'Відкрити сайт українською?',
+  es: '¿Ver este sitio en español?',
+  pt: 'Ver este site em português?',
+  fr: 'Afficher ce site en français ?',
+  ko: '이 사이트를 한국어로 보시겠어요?',
+  tr: 'Bu siteyi Türkçe görüntülemek ister misiniz?',
 }
 
 /**

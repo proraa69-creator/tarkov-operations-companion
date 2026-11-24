@@ -6,10 +6,10 @@ export type MirrorMode = typeof MIRROR_MODES[number]
 export const MIRROR_ENDPOINTS = ['items', 'tasks', 'maps', 'traders', 'hideout', 'barters', 'crafts'] as const
 const TRANSLATED = new Set(['items', 'tasks', 'maps', 'traders', 'hideout'])
 /**
- * The dictionaries kept beside each data set: Russian and English for the catalog, German, Japanese and Chinese for the
- * app's other languages (owner, 24.11.2026; src/i18n/catalogTranslations.ts loadTargetCatalog).
+ * The dictionaries kept beside each data set: Russian and English for the catalog, the others for the app's other
+ * languages (Ukrainian has none at tarkov.dev) (owner, 24.11.2026; src/i18n/catalogTranslations.ts loadTargetCatalog).
  */
-export const MIRROR_LANGUAGES = ['ru', 'en', 'de', 'ja', 'zh'] as const
+export const MIRROR_LANGUAGES = ['ru', 'en', 'de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr'] as const
 const MINIMUMS: Record<string, number> = { items: 1000, tasks: 100, maps: 1 }
 const MAX_BYTES = 48 * 1024 * 1024
 const DAY = 24 * 60 * 60 * 1000
