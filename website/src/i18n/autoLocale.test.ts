@@ -11,7 +11,9 @@ describe('the language of a first visit', () => {
 
   it('a Russian browser abroad still gets Russian', () => {
     expect(autoLocale({ country: 'DE', languages: ['ru-RU', 'de'] })).toBe('ru')
-    expect(autoLocale({ country: 'UA', languages: ['uk-UA'] })).toBe('uk')
+    // Ukraine reads Russian (owner, 25.11.2026: «украинский язык удали. Это тот же русский»)
+    expect(autoLocale({ country: 'UA', languages: ['uk-UA'] })).toBe('ru')
+    expect(autoLocale({ country: 'DE', languages: ['uk-UA', 'de'] })).toBe('ru')
   })
 
   it('without the country: the time zone, then the browser', () => {
@@ -41,9 +43,10 @@ describe('the language of a first visit', () => {
     expect(offeredLocale({ country: 'DE', languages: ['de-DE'] }, 'de')).toBeNull()
   })
 
-  it("Polish, Ukrainian, Spanish, Portuguese, French, Korean and Turkish by the browser or the country (owner, 24.11.2026)", () => {
+  it("Polish, Spanish, Portuguese, French, Korean and Turkish by the browser or the country (owner, 24.11.2026)", () => {
     expect(autoLocale({ country: 'PL' })).toBe('pl')
-    expect(autoLocale({ country: 'UA' })).toBe('uk')
+    expect(autoLocale({ country: 'UA' })).toBe('ru')
+    expect(autoLocale({ timeZone: 'Europe/Kyiv' })).toBe('ru')
     expect(autoLocale({ country: 'UA', languages: ['ru-RU'] })).toBe('ru')
     expect(autoLocale({ country: 'MX' })).toBe('es')
     expect(autoLocale({ country: 'BR' })).toBe('pt')

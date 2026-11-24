@@ -104,7 +104,7 @@ describe('the list itself', () => {
           const text = item[language]
           expect(text, `${entry.version} «${item.en}»: no ${language}`).toBeTruthy()
           expect(text!.length, text).toBeLessThanOrEqual(160)
-          if (language !== 'uk') expect(text, `${language}: ${text}`).not.toMatch(/[а-яё]/i)
+          expect(text, `${language}: ${text}`).not.toMatch(/[а-яё]/i)
           expect(text, `${language}: ${text}`).not.toMatch(/tarkov[\s-]*market|tarkov\.dev/i)
         }
         // Owner, 06.11.2026: «не пиши, что мы у них берем данные. Про это вообще никогда ничего не пиши».

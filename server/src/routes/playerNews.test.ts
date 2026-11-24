@@ -47,7 +47,7 @@ test('the owner edits a release: every app reads it at once, a line left as it w
     const saved = await call<View>('PUT', ADMIN, owner, { version: VERSION, items: [{ kind: KEPT.kind, ru: KEPT.ru }, { kind: 'changed', ru: '  Новый \u0007пункт ' }] })
     assert.equal(saved.status, 200)
     assert.deepEqual(saved.json.edited, [VERSION])
-    const LANGUAGES = ['de', 'ja', 'zh', 'pl', 'uk', 'es', 'pt', 'fr', 'ko', 'tr']
+    const LANGUAGES = ['de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr']
     assert.deepEqual(saved.json.entries[0]!.items, [KEPT, { kind: 'changed', ru: 'Новый пункт', en: 'EN 11', ...Object.fromEntries(LANGUAGES.map((language) => [language, `${language.toUpperCase()} 11`])) }])
     const open = await call<{ edits: Record<string, unknown[]> }>('GET', '/player-news')
     assert.equal(open.json.edits[VERSION]!.length, 2)

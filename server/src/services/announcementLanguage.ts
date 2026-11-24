@@ -53,8 +53,8 @@ export function splitBilingualNotice(text: string): { ru: string; en: string } |
  * The languages a Russian text is translated into: English, and for the release news every other language of the app (owner,
  * 25.11.2026: «все новости… должны переводиться на все языки»), as MyMemory names them.
  */
-export type TranslationTarget = 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'uk' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
-const MYMEMORY_TARGET: Record<TranslationTarget, string> = { en: 'en', de: 'de', ja: 'ja', zh: 'zh-CN', pl: 'pl', uk: 'uk', es: 'es', pt: 'pt-BR', fr: 'fr', ko: 'ko', tr: 'tr' }
+export type TranslationTarget = 'en' | 'de' | 'ja' | 'zh' | 'pl' | 'es' | 'pt' | 'fr' | 'ko' | 'tr'
+const MYMEMORY_TARGET: Record<TranslationTarget, string> = { en: 'en', de: 'de', ja: 'ja', zh: 'zh-CN', pl: 'pl', es: 'es', pt: 'pt-BR', fr: 'fr', ko: 'ko', tr: 'tr' }
 /** Russian → English (or `target`): the translation, or a rejection (network, timeout, quota, an empty answer). */
 export type AnnouncementTranslator = (russian: string, target?: TranslationTarget) => Promise<string>
 

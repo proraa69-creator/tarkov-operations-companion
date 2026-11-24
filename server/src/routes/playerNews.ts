@@ -83,8 +83,7 @@ export function createPlayerNewsRouter(accounts: AccountStore, store: PlayerNews
     const other = async (ru: string, language: typeof PLAYER_NEWS_LANGUAGES[number]) => {
       try {
         const text = printable(await translate(ru, language))
-        // Ukrainian is Cyrillic too: only the Russian given back unchanged is no translation
-        return text && (language === 'uk' ? text !== ru : !stillRussian(text)) ? text.slice(0, MAX_LINE) : ''
+        return text && !stillRussian(text) ? text.slice(0, MAX_LINE) : ''
       } catch { return '' }
     }
     return Promise.all(items.map(async (item) => {

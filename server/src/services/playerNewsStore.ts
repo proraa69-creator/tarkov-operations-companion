@@ -7,7 +7,7 @@ import type { DatabaseSync } from 'node:sqlite'
  */
 export type PlayerNewsKind = 'added' | 'changed' | 'improved'
 /** The languages after Russian and English a line is kept in (src/news/newsState.ts NEWS_LANGUAGES). */
-export const PLAYER_NEWS_LANGUAGES = ['de', 'ja', 'zh', 'pl', 'uk', 'es', 'pt', 'fr', 'ko', 'tr'] as const
+export const PLAYER_NEWS_LANGUAGES = ['de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr'] as const
 export type PlayerNewsLanguage = typeof PLAYER_NEWS_LANGUAGES[number]
 export type PlayerNewsItem = { kind: PlayerNewsKind; ru: string; en: string } & Partial<Record<PlayerNewsLanguage, string>>
 

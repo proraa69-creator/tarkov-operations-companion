@@ -38,8 +38,8 @@ export async function loadEnglishCatalog(mode: RaidMode) {
  */
 const targetLoaded = new Map<string, Promise<{ english: Array<[string, string]>; russian: Array<[string, string]> }>>()
 let requestedTarget = ''
-/** tarkov.dev has the game's names in every language of the game; Ukrainian is not one (its names stay English). */
-const CATALOG_LANGUAGES: Partial<Record<TargetLanguage, string>> = { de: 'de', ja: 'ja', zh: 'zh', pl: 'pl', es: 'es', pt: 'pt', fr: 'fr', ko: 'ko', tr: 'tr' }
+/** tarkov.dev has the game's names in every language of the game, each of these among them. */
+const CATALOG_LANGUAGES: Record<TargetLanguage, string> = { de: 'de', ja: 'ja', zh: 'zh', pl: 'pl', es: 'es', pt: 'pt', fr: 'fr', ko: 'ko', tr: 'tr' }
 export async function loadTargetCatalog(mode: RaidMode, language: TargetLanguage) {
   const code = CATALOG_LANGUAGES[language]
   if (!code) return

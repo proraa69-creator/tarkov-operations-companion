@@ -9995,3 +9995,10 @@ Not pushed, not released, nothing uploaded.
 - Deployment: branch `claude/news-languages` from `origin/release/production` (a1d97c0d). Owner, 25.11.2026 ~02:20: «Да, в
   выпуск» → release 0.6.0.342 on top (version files, `updateHistory.json` two lines, `playerNews.json` one line in all twelve
   languages: «Новости об обновлениях теперь на вашем языке»), for the 13:00 Bangkok window.
+- 25.11 ~02:40, owner: «украинский язык удали. Это тот же русский. Пусть будет русский, а остальные все оставь… обновление
+  не выпускаем, выпустим со следующими правками, когда я скажу». Ukrainian is out of the app (`AppLanguage`, `TARGET_LANGUAGES`,
+  `src/i18n/locales/uk.json`, `CountryLocale`) and the site (`SiteLocale`, `locales/uk.json`, the language offer, hreflang,
+  sitemap: 52 alternates and 4 pages). A saved «uk» reads as Russian in the app; the site sends Ukraine (country, Kyiv time
+  zones, a uk browser) to Russian. The news lines lost their `uk`. The trailer session was told: no Ukrainian trailer.
+  Checks: typecheck (app, site, server) clean; vitest website/src, src/i18n, src/news, src/shared, src/account and the game
+  language tests 410/410; server playerNews, initialCountry, accounts 28/28. Release 0.6.0.342 stays local, not pushed.
