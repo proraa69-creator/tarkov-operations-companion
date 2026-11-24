@@ -7,7 +7,7 @@ import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../..
 import { captureScreenRegion, foregroundDisplayMode, foregroundGame, isVirtualKeyDown, visibleGameRect, wasVirtualKeyPressed } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
-import { activePreset, allPresets, presetShown, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
+import { activePreset, allPresets, presetShown, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, noteRaidResult, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type RaidResult, type ScreenTuningSettings } from './state.js'
 import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeStatus, parseOptimizeBackup, POWERSHELL, revert, type OptimizeBackup, type OptimizeItemId, type OptimizeOpenTarget } from './optimizer.js'
 import { readPcInfo, type PcInfo } from './pcInfo.js'
 import { followGameFront } from '../gamePriority.js'
@@ -59,6 +59,8 @@ let gameInFront = false
 let inRaid: () => boolean = () => false
 /** In a raid at the last look (for the page). */
 let lastRaid = false
+/** The chosen preset the last time it was on the game's screen, and whether Windows took it (noteRaidResult). */
+let raidResult: RaidResult | null = null
 /**
  * Turned on by hand (the key, the switch or the phone): on at once, not after the raid shows in the game's logs (owner,
  * 11.11.2026: «нажимаю, и только секунд через 10 оно включается… Я нажал на телефоне включить, и тут же оно включается на
@@ -208,6 +210,8 @@ function tick() {
   const target = wanted(now)
   if (target) apply(target.profile, target.displays, now)
   else if (applied || originals.size) restoreAll()
+  // what the raid had, kept for the page once the app is in front (the curve being tuned does not count)
+  raidResult = noteRaidResult(raidResult, target && !editing && applied ? { name: target.profile.name, strength: applied.strength } : null, now)
   if (gameRect && (!lastFrame || now - lastFrame.at > FRAME_EVERY_MS)) {
     const frame = captureGame()
     if (frame) lastFrame = frame
@@ -257,6 +261,7 @@ function status() {
     displays: displayNames(),
     exclusive: gameInFront && foregroundDisplayMode() === 'exclusive',
     applied: applied ? { displays: applied.displays.length, strength: applied.strength } : null,
+    lastRaid: raidResult ? { ...raidResult } : null,
     editing: Boolean(editing),
     inRaid: lastRaid,
     on: presetOn(),

@@ -244,6 +244,18 @@ export function writeStrongest(tables: ScreenTables, original: Uint16Array | nul
   return 0
 }
 
+/**
+ * How the chosen preset went the last time it was put on the game's screen: its name, the strength Windows let through
+ * (0: Windows refused every ramp — HDR on, a driver's own colour filter) and when (report 223: a player with one monitor
+ * sees the page only with the app in front, when the preset is off, so the page shows what happened in the raid).
+ */
+export interface RaidResult { name: string; strength: number; at: number }
+
+/** The result kept after this tick: the preset just written (never the curve being tuned) replaces the one before. */
+export function noteRaidResult(last: RaidResult | null, shown: { name: string; strength: number } | null, now: number): RaidResult | null {
+  return shown ? { name: shown.name, strength: shown.strength, at: now } : last
+}
+
 /** A preset turned on by hand stays on the screen this long while the game's logs have not shown the raid yet. */
 export const MANUAL_ON_MS = 10 * 60_000
 
