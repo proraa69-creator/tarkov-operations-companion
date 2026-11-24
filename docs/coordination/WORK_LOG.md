@@ -9803,3 +9803,11 @@ Not pushed, not released, nothing uploaded.
 - To check on real screenshots in each of these languages (as for de/ja/zh): Tasks table (active / ready / locked rows, a part 2
   title), traders' screen, mode cards, item tooltip, stash labels, flea, O exit list; Spanish both in «Español» and «Español
   Latinoamérica». Story pane words are still in no source (SPT 0.16.9).
+- 24.11.2026, later: owner «подумай, какие еще языки нам стоит добавить, и добавь их на сайт и в приложение» → Polish, Ukrainian,
+  Spanish, Brazilian Portuguese, French, Korean, Turkish (players beyond the CIS: UA 47, US/DE 21, PL 13, FR, PT, KR …; the
+  game's own languages). App 8190 phrases and website 1112 per language; the game's names from tarkov.dev (none for Ukrainian:
+  English names); the exits as the game writes them (scripts/i18n/exit-names.mjs, after every chunk merge); screen readers
+  for the six game languages (merged `claude/ocr-languages`). Website for all seven: release 0.6.0.341 (177c01e8).
+  Checked in the Chinese game's text (SPT ch.json + tarkov.dev): «枪匠 - AKM», «枪匠大师 - 1», «卢布», «森林» — shown by the app.
+  Test build `Raid OS тест Языки 3.exe` on the desktop. Open: the readers on real screenshots of every language (SPT shots in
+  progress, E:\SPT-photo\lang-shots); the story pane in the nine extra languages (no source of its words).
