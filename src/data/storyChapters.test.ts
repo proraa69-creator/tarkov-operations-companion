@@ -140,3 +140,53 @@ describe('«Неизвестные»: the steps about A.P. (a player, 24.11.2026
     }
   })
 })
+
+describe('«Неизвестные» against the EFT wiki and tarkovforge (a player, 25.11.2026: «маркер показывает не те ключи, не от санатория а от улиц таркова»)', () => {
+  const chapter = STORY_CHAPTER_SEEDS.find((entry) => entry.id === 'the-unheard')!
+  const stage = (index: number) => chapter.stages[index]!
+  const onMap = (index: number, mapId: string) => (stage(index).points ?? []).filter((point) => point.mapId === mapId)
+
+  it('the note of the first stage may be on Ground Zero too; «Узнать больше о деятельности TerraGroup» is in The Lab, the fax in O23', () => {
+    expect(stage(0).mapIds).toEqual(['streets-of-tarkov', 'ground-zero'])
+    expect(onMap(0, 'ground-zero')[0]?.note).toContain('ключ от научного офиса TerraGroup')
+    expect(stage(1)).toMatchObject({ en: 'Learn more about TerraGroup\'s activities', mapIds: ['the-lab'] })
+    expect(stage(1).needs).toBeUndefined()
+    expect(stage(1).points?.map((point) => [point.mapId, point.x, point.z])).toEqual([['the-lab', -161.37, -374.86]])
+    expect(stage(2).points?.map((point) => [point.mapId, point.x, point.z, point.y])).toEqual([['the-lab', -152.49, -403.37, 5.2]])
+  })
+
+  it('both Factory storage room stages need the storage room keycard and are in the tunnels', () => {
+    for (const index of [7, 8]) {
+      expect(stage(index).needs).toBe('TerraGroup storage room keycard')
+      expect(onMap(index, 'factory')).toHaveLength(1)
+      expect(onMap(index, 'factory')[0]).toMatchObject({ x: -20.57, z: 47.24, y: -2 })
+    }
+  })
+
+  it('A.P.\'s room is east wing room 305 on Shoreline; its stages need no key; the guard post note is in the west wing', () => {
+    // east wing room locks of the catalog: x −286…−357; west wing: x −142…−230
+    const eastWing = (x: number) => x <= -268 && x >= -364
+    for (const index of [13, 14, 15]) {
+      expect(stage(index).mapIds).toEqual(['shoreline'])
+      expect(stage(index).needs).toBeUndefined()
+      expect(eastWing(stage(index).points![0]!.x)).toBe(true)
+    }
+    expect(stage(13).points![0]!.note).toContain('305 восточного крыла')
+    expect(stage(13).points![1]).toMatchObject({ x: -194.53, z: -84.99 })
+    expect(stage(13).points![1]!.note).toContain('Записка на посту охраны')
+  })
+
+  it('the apartment and its hidden room are on Streets, with the corporate apartment key and the green keycard', () => {
+    expect(stage(22).needs).toBe('TerraGroup corporate apartment key')
+    expect(stage(23).needs).toBe('TerraGroup corporate apartment key')
+    expect(stage(24).needs).toBe('Reprogrammed keycard for A.P.\'s apartment lock (Green)')
+    for (const index of [22, 23, 24, 25, 26, 27, 29]) expect(onMap(index, 'streets-of-tarkov')).toHaveLength(1)
+    for (const index of [23, 24, 25, 26, 27, 29]) expect(onMap(index, 'streets-of-tarkov')[0]).toMatchObject({ x: 132.02, z: -24.66 })
+  })
+
+  it('every point note of the chapter has its English', () => {
+    const notes = chapter.stages.flatMap((entry) => (entry.points ?? []).flatMap((point) => point.note ? [point.note] : []))
+    expect(notes.length).toBeGreaterThan(10)
+    for (const note of notes) expect(translateUiText(note)).not.toMatch(CYRILLIC)
+  })
+})

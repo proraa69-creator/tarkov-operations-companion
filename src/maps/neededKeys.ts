@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { Item, MapMarker, Quest } from '../domain/types'
-import type { QuestKeyRow } from '../quests/questKeys'
+import { storyStageKeyId, type QuestKeyRow } from '../quests/questKeys'
 
 /**
  * «Нужные ключи» on the map (reports №112 and №113, owner 09.11.2026: «ключей, которых нет в схроне… будет кнопка «Нужные
@@ -43,6 +43,12 @@ export function questKeysOnMap(rows: readonly QuestKeyRow[], mapId: string): Map
     }
   }
   return byQuest
+}
+
+/** The objective a quest point is for, as its quest's keys name it: a story point's stage stands for its objective. */
+export function pointObjectiveId(marker: Pick<MapMarker, 'questId' | 'objectiveId' | 'stageIndex'>): string | undefined {
+  if (marker.objectiveId) return marker.objectiveId
+  return marker.questId && marker.stageIndex !== undefined ? storyStageKeyId(marker.questId, marker.stageIndex) : undefined
 }
 
 /**
