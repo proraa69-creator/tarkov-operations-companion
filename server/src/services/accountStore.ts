@@ -133,6 +133,8 @@ const PERIOD_LENGTH: Record<StatsPeriod, number> = { day: 10, month: 7, year: 4 
 export const periodKeySql = (period: StatsPeriod, offsetMs = STATS_OFFSET_MS) => (column: string) => `substr(strftime('%Y-%m-%d', (${column} + ${offsetMs}) / 1000, 'unixepoch'), 1, ${PERIOD_LENGTH[period]})`
 const statsDay = (time: number) => new Date(time + STATS_OFFSET_MS).toISOString().slice(0, 10)
 /** The accounts a streamer's code (`?`) has only through a link visit: still without any code of their own. */
+/** «Пригласи друга»: the code of a player this account invited itself. */
+export const MUTUAL_INVITE_MESSAGE = 'Этот игрок пришёл по вашему коду — пригласить друг друга нельзя'
 const LINK_ONLY = 'link_visit_code = ? AND referred_by IS NULL AND invited_by IS NULL'
 
 export interface ReferralSeriesRow {
@@ -1196,6 +1198,9 @@ export class AccountStore {
     const inviter = this.playerOfCode(code)
     if (!inviter) throw new AccountError(404, 'Код приглашения не найден')
     if (inviter === account.id) throw new AccountError(409, 'Свой код указать нельзя')
+    // Two accounts cannot invite each other (owner, 25.11.2026: «если он уже приглашён… он не может пригласить этого же
+    // человека. Это абсурд»): the code of a player who came by this account's own code is refused.
+    if (this.invitedBy(inviter) === account.id) throw new AccountError(409, MUTUAL_INVITE_MESSAGE)
     if (this.hasPaid(account.id)) throw new AccountError(409, 'Код приглашения действует только для новых игроков — до первой оплаты')
     this.db.prepare('UPDATE accounts SET invited_by = ?, invited_at = ? WHERE id = ? AND referred_by IS NULL AND invited_by IS NULL').run(inviter, this.now(), account.id)
   }

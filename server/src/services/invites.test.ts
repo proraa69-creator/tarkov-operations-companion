@@ -195,6 +195,12 @@ test('a friend code: not one\'s own, not after a payment, once; codes share one 
   t.accounts.applyReferral(fresh, code.toLowerCase())
   assert.equal(t.accounts.invitedBy(fresh), inviter)
   assert.throws(() => t.accounts.applyReferral(fresh, code), /уже указан/)
+  // Two accounts cannot invite each other (owner, 25.11.2026): the inviter cannot take the code of the friend it brought.
+  const solo = await t.register('solo@example.com')
+  const soloFriend = await t.register('solo-friend@example.com', t.invites.code(solo))
+  assert.equal(t.accounts.invitedBy(soloFriend), solo)
+  assert.throws(() => t.accounts.applyReferral(solo, t.invites.code(soloFriend)), /пригласить друг друга нельзя/)
+  assert.equal(t.accounts.invitedBy(solo), undefined)
 
   // Streamer codes keep the trial and, since 30.10.2026, give the same 20 % off the first month as a friend's code (owner:
   // «по этой ссылке у них скидка 20%… на первый месяц»); namespaces remain shared.

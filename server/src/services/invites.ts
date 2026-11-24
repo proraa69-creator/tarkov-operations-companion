@@ -52,7 +52,7 @@ export const RANKS: Array<{ id: RankId; title: string; friends: number; bonusDay
 ]
 
 export type RewardStatus = 'pending' | 'review' | 'granted' | 'canceled'
-export type FraudFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted'
+export type FraudFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted' | 'mutual'
 /** Milestones big enough to be worth faking friends for: granted only after the owner's review. */
 const REVIEWED_MILESTONES = new Set<RankId>(['raid-commander', 'legend'])
 export interface RewardView {
@@ -328,6 +328,8 @@ export class InviteProgram {
     const emails = this.db.prepare('SELECT id, email FROM accounts WHERE id IN (?, ?)').all(inviter, friend) as Row[]
     const email = (id: string) => normalizeEmail(String(emails.find((row) => row.id === id)?.email ?? ''))
     if (email(friend) && email(friend) === email(inviter)) flags.push('same-email')
+    // The two invited each other (a pair from before AccountStore.applyReferral refused it, 25.11.2026).
+    if (this.db.prepare('SELECT 1 FROM accounts WHERE id = ? AND invited_by = ?').get(inviter, friend)) flags.push('mutual')
     const has = (table: string) => this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) !== undefined
     if (has('account_devices') && this.db.prepare('SELECT 1 FROM account_devices a JOIN account_devices b ON a.device_id = b.device_id WHERE a.account_id = ? AND b.account_id = ?').get(inviter, friend)) flags.push('same-device')
     const addresses = this.db.prepare('SELECT id, signup_ip FROM accounts WHERE id IN (?, ?)').all(inviter, friend) as Row[]

@@ -498,7 +498,7 @@ export interface InviteProgram {
   ranks: InviteRank[]
   rewards: InviteReward[]
 }
-export type InviteFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted' | 'payment-or-account' | 'milestone'
+export type InviteFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted' | 'mutual' | 'payment-or-account' | 'milestone'
 export interface AdminInviteReward extends InviteReward {
   /** Both accounts with their game nicknames; `friendDeleted`: the friend's account was deleted (no e-mail). */
   inviterId?: string
