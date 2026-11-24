@@ -9982,3 +9982,24 @@ Not pushed, not released, nothing uploaded.
 - Checks: typecheck, electron tsc, server typecheck clean; vitest src/data src/overview src/maps website/src 979/979;
   appVersion's electron-builder check needs a file this PC lacks (passes in the gate).
 - Not in this release: claude/unheard-keys, claude/no-mutual-invites, claude/phone-auth (native files), claude/news-languages.
+## 2026-11-25 — Claude: «Неизвестные» — keys of Streets on A.P.'s room on Shoreline, the chapter checked (claude/unheard-keys, not released)
+- Support chat 25.11 00:17 (a player, screenshot): stage 14/30 «Найти номер А.П. в Санатории» on Shoreline named «Нужен ключ:
+  Корп.кв.TG» and «АП Зеленая». Cause: src/quests/questKeys.ts took a story chapter's keys from its guide
+  (src/data/storyChapterGuideData.ts) for the whole chapter, on the guide objective's maps only; the corporate apartment key and the
+  green keycard (stages 23–25) have no map there, so every point of the chapter on every map named them.
+- Fix: each story key is tied to its own stages (`storyStageKeyId`), on the guide's maps else the stage's; a story point's card
+  (src/maps/neededKeys.ts `pointObjectiveId`, MapsPage) shows its own stage's keys only.
+- Chapter checked against the EFT wiki (en/ru API wikitext) and tarkovforge; catalog of the server quest base for items/locks:
+  stage 1 had Ground Zero + the science office key — that is the first stage's third note spot (office 4, 21+), now on stage 1
+  with a note; stage 2 «деятельность TerraGroup» is The Lab, the laboratory by the dome (the point stage 3 had); stage 3 (fax)
+  only O23; stages 8–9 the Factory TerraGroup storage room (tunnels, y −2) with the storage room keycard (guide items too);
+  stages 14–16: east wing room 305 (no key: none in the sources, none in the catalog), the guard post note point in the west
+  wing; stages 23–30 the Cardinal apartment (the corporate key door of the catalog, 132.02/−24.66), needs on 23–25. Notes RU+EN.
+- Tests: storyChapters.test (chapter vs sources), questKeys.test (keys per stage on the map); vitest src/data src/quests
+  src/import src/maps src/progression 1466 passed; typecheck, eslint clean; server questBase/questPoints tests 17/17.
+- Without an app update: the stage data (points, notes, «Нужно:») is built by the server into the quest base, so it reaches every
+  app after the server runs this code (a release). The key chips are the app's own code: they need the app update. At once, before
+  any release: three `describe` point overrides (stage 14's two points, the Ground Zero point to stage 1) prepared for
+  QuestPointStore.save, not written (scratchpad unheard-server/); ids stay valid after the release (the Ground Zero one just
+  stops matching).
+- Not done: release rows (updateHistory/playerNews), not pushed; not checked on the dev map in the app.

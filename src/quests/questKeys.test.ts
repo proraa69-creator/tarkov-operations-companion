@@ -4,7 +4,8 @@ import type { Item, Quest } from '../domain/types'
 import type { DeferredQuest } from '../progression/deferredQuests'
 import type { TaskAvailability } from '../progression/requirementEngine'
 import { STORY_CHAPTER_SEEDS } from '../data/storyChapterSeeds'
-import { questKeysOfPoint, questKeysOnMap } from '../maps/neededKeys'
+import { addMissingStoryChapters } from '../data/storyChapters'
+import { pointObjectiveId, questKeysOfPoint, questKeysOnMap } from '../maps/neededKeys'
 import { questKeyRows } from './questKeys'
 
 const item = (id: string, name: string, category: Item['category'] = 'Ключ') => ({ id, name, shortName: name, category }) as unknown as Item
@@ -156,5 +157,35 @@ describe('«Ключи для квестов» on a quest point (owner, 20.11.20
     const quests = [quest('q', [key('k1', { objectiveId: 'a' }), key('k1')])]
     const keys = questKeysOnMap(questKeyRows(quests, ITEMS, PROGRESS, status({ q: 'active' }), NONE), 'customs').get('q')
     expect(questKeysOfPoint(keys, 'b')?.map((entry) => entry.id)).toEqual(['k1'])
+  })
+})
+
+describe('«Ключи для квестов» of a story chapter on its points (a player, 25.11.2026, «Неизвестные»: «маркер показывает не те ключи, не от санатория а от улиц таркова»)', () => {
+  const apartmentKey = '67ee7680562d5057e60ccc3a'
+  const greenCard = '68c14b734a7e0bada00f8fd4'
+  const storageCard = '66acd6702b17692df20144c0'
+  const items = new Map([item(apartmentKey, 'Ключ от корпоративной квартиры TerraGroup'), item(greenCard, 'Перезаписанная ключ-карта (Зеленая)'), item(storageCard, 'Ключ-карта от склада TerraGroup')].map((entry) => [entry.id, entry]))
+  const unheard = addMissingStoryChapters([]).find((entry) => entry.id === 'story-the-unheard')!
+  const rows = questKeyRows([unheard], items, PROGRESS, status({ [unheard.id]: 'active' }), NONE)
+  const point = (mapId: string, stageIndex: number) => questKeysOfPoint(questKeysOnMap(rows, mapId).get(unheard.id), pointObjectiveId({ questId: unheard.id, stageIndex }))?.map((entry) => entry.id)
+
+  it('A.P.\'s room on Shoreline names no key: the apartment key and the keycard are for Streets', () => {
+    expect(point('shoreline', 13)).toBeUndefined()
+    expect(point('shoreline', 14)).toBeUndefined()
+    expect(rows.find((row) => row.item.id === apartmentKey)?.mapIds).toEqual(['streets-of-tarkov'])
+    expect(rows.find((row) => row.item.id === greenCard)?.mapIds).toEqual(['streets-of-tarkov'])
+  })
+
+  it('each Streets stage names its own key, the storage room stages on Factory the keycard', () => {
+    expect(point('streets-of-tarkov', 22)).toEqual([apartmentKey])
+    expect(point('streets-of-tarkov', 24)).toEqual([greenCard])
+    expect(point('streets-of-tarkov', 0)).toBeUndefined()
+    expect(point('factory', 7)).toEqual([storageCard])
+    expect(point('factory', 3)).toBeUndefined()
+  })
+
+  it('a point of a trader quest keeps its objective', () => {
+    expect(pointObjectiveId({ questId: 'q', objectiveId: 'o1' })).toBe('o1')
+    expect(pointObjectiveId({ questId: 'q' })).toBeUndefined()
   })
 })
