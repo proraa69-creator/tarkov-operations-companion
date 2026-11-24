@@ -81,7 +81,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
       <div id="account-gate-panel" role="tabpanel" aria-labelledby={`account-gate-tab-${tab}`}>
         {tab === 'login'
           ? <PasswordSignIn online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onPickEmail={setEmailMode} onPickPhone={setPhoneMode} onPickQr={() => setQrMode('qr')} onPickGoogle={() => setQrMode('google')} onRegister={() => setTab('register')} />
-          : <Registration online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onLogin={() => setTab('login')} />}
+          : <Registration online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onLogin={() => setTab('login')} onPickGoogle={() => setQrMode('google')} />}
       </div>
     </>
   }
@@ -117,10 +117,10 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
   const [error, setError] = useState('')
   // «Войти по QR-коду»: the phone by the QR code of the signed-in PC app, the PC by a QR code the signed-in phone
   // approves (QrSignIn.tsx; owner, 28.10.2026).
-  // Not in the iPhone app for now (owner, 12.11.2026: «вход по qr удали позже мы их добавим»).
-  const qr = !appStoreRules() && ((usesWebAccount() && !isDesktopShell()) || Boolean(window.tarkovDesktop?.account?.qrStart))
-  // «Войти через Google» on the PC (owner, 15.11.2026): not in Russia (src/shared/googleRegion.ts); the browser does the Google part.
-  const google = !appStoreRules() && Boolean(window.tarkovDesktop?.account?.qrStart) && googleSignInOffered()
+  // On every phone, the iPhone too (owner, 25.11.2026: «При входе в приложение на телефоне должна быть кнопка «Войти по
+  // QR-коду»… должно работать во все стороны»; it was left out of the iPhone app on 12.11.2026 «позже мы их добавим»).
+  const qr = (usesWebAccount() && !isDesktopShell()) || Boolean(window.tarkovDesktop?.account?.qrStart)
+  const google = googleOffered()
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -163,11 +163,23 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
   )
 }
 
+/**
+ * «Войти через Google» (owner, 15.11.2026, the phone 25.11.2026: «при регистрации с телефона добавь вход через Google»): on
+ * the PC and the Android app, never in Russia (src/shared/googleRegion.ts; the server refuses it too). The browser does the
+ * Google part. Not in the iPhone app: the App Store asks for «Sign in with Apple» next to any other company's sign-in.
+ */
+function googleOffered() {
+  if (!googleSignInOffered()) return false
+  if (window.tarkovDesktop?.account?.qrStart) return !appStoreRules()
+  return usesWebAccount() && !isDesktopShell() && !appStoreRules()
+}
+
 const REFERRAL_CODE = /^[a-zA-Z0-9_-]{3,24}$/
 /** Where the PC program is downloaded (the site's «Скачать» page). */
 const PC_DOWNLOAD_URL = 'https://raidos.app/download'
 
-function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
+function Registration({ online, onSigningIn, onSignedIn, onLogin, onPickGoogle }: {
+  onPickGoogle: () => void
   online: boolean
   onSigningIn: () => void
   onSignedIn: (nicknames?: Nicknames) => void
@@ -327,6 +339,7 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
       <button className="button primary account-gate-submit" type="submit" disabled={busy || !online || !consent}>
         {busy ? <LoaderCircle className="spin" size={16} /> : <UserPlus size={16} />}{uiText(busy ? 'Создаём аккаунт…' : 'Зарегистрироваться')}
       </button>
+      {googleOffered() && <button type="button" className="button account-gate-google" disabled={!online} onClick={onPickGoogle}><GoogleMark />{uiText('Войти через Google')}</button>}
       <div className="account-gate-links">
         <span>{uiText('Уже есть аккаунт?')}</span>
         <button type="button" className="link-button" onClick={onLogin}><LogIn size={14} />{uiText('Войти')}</button>

@@ -1,11 +1,11 @@
 import { useState, type ReactNode } from 'react'
-import { CreditCard, ExternalLink, Globe, LogIn, LogOut, Smartphone, UserPlus, UserRound } from 'lucide-react'
+import { CreditCard, ExternalLink, Globe, LogIn, LogOut, QrCode, Smartphone, UserPlus, UserRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useServerAccount } from '../sync/serverSync'
-import { hidesPayments, isDesktopShell } from '../platform'
+import { hidesPayments, isDesktopShell, isNative } from '../platform'
 import { openWebsite, subscriptionText } from './accountActions'
 import { useAccountNickname } from './useAccountNickname'
-import { ApproveWebLoginDialog, MobileLoginDialog } from './QrDialogs'
+import { ApproveWebLoginDialog, MobileLoginDialog, ScanQrDialog } from './QrDialogs'
 import { openAccountSignIn } from './accountEvents'
 import { PhoneCabinetRow } from './PhoneAccount'
 import { PHONE_AUTH_UI } from './authFeatures'
@@ -25,7 +25,7 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
   const { status, logout } = useServerAccount()
   // One nickname for every mode (owner, 10.10.2026): the account's, else the one bound in the app.
   const nickname = useAccountNickname()
-  const [dialog, setDialog] = useState<'mobile' | 'approve' | null>(null)
+  const [dialog, setDialog] = useState<'mobile' | 'approve' | 'scan' | null>(null)
   const desktop = isDesktopShell()
   const online = status?.online ?? false
   const levels = knownModeLevels(useOptionalAppState()?.activeProfile.modes ?? {})
@@ -78,6 +78,7 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
           <button className="button primary is-wide" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть кабинет на сайте')}</button>
           {paid && subscription && !good && <button className="button" onClick={() => openWebsite('cabinet')}><CreditCard size={14} />{uiText('Оформить подписку')}</button>}
           {desktop && <button className="button" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
+          {!desktop && isNative() && <button className="button" onClick={() => setDialog('scan')}><QrCode size={14} />{uiText('Войти по QR-коду')}</button>}
           <button className="button ghost is-wide" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
           <button className="button danger is-wide" onClick={() => { if (window.confirm(uiText('Выйти из аккаунта на этом компьютере?'))) void logout() }}><LogOut size={14} />{uiText('Выйти')}</button>
         </div>
@@ -85,6 +86,7 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
   const dialogs = <>
     {dialog === 'mobile' && <MobileLoginDialog onClose={() => setDialog(null)} />}
     {dialog === 'approve' && <ApproveWebLoginDialog onClose={() => setDialog(null)} />}
+    {dialog === 'scan' && <ScanQrDialog onClose={() => setDialog(null)} />}
   </>
   if (buttons) return <div className="profile-one-account stack">{body}{dialogs}</div>
   return (

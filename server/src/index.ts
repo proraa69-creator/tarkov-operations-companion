@@ -15,6 +15,7 @@ import { bugReportEmailFromEnv } from './services/bugReportMail.js'
 import { dirname, join } from 'node:path'
 import { mkdirSync, rmSync } from 'node:fs'
 import { MobileDownloads } from './services/mobileDownloads.js'
+import { RussianNetworks } from './services/russianNetworks.js'
 import { iphoneStoreReader } from './services/iphoneStore.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
 import { DataGateway } from './services/dataGateway.js'
@@ -165,7 +166,14 @@ const releaseReports = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION =
 const iphoneStore = dbPath === ':memory:' ? undefined : iphoneStoreReader(process.env.RAIDOS_IPHONE_STORE_FILE ?? join(dirname(dbPath), 'iphone-store.json'))
 // «Кочевники» from other trackers beside ours (services/goonFeeds.ts): only on the players' server, never the owner's PC.
 const goonFeeds = dbPath !== ':memory:' && process.env.TARKOV_APP_EDITION !== 'owner' && process.env.RAIDOS_GOON_FEEDS !== '0'
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), goonFeeds, userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, ...(backgroundStatus ? { backgroundStatus: backgroundStatus.sources() } : {}), itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase: backgroundStatus ? { report: () => backgroundStatus.questBase() ?? questBase.report() } : questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+// «Войти через Google» is not for Russia (owner, 25.11.2026): RIPE NCC's Russian address blocks, downloaded at start and
+// once a day, kept in russian-networks.txt beside the database (services/russianNetworks.ts). Only on the players'
+// server, never the owner's PC; RAIDOS_RUSSIAN_NETWORKS=0 turns it off. Until a list is known nobody is refused.
+const russianNetworks = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION === 'owner' || process.env.RAIDOS_RUSSIAN_NETWORKS === '0'
+  ? undefined
+  : new RussianNetworks({ file: join(dirname(dbPath), 'russian-networks.txt'), log: (message) => console.log(message) })
+if (russianNetworks) void russianNetworks.start()
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { russianNetworks, iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), goonFeeds, userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, ...(backgroundStatus ? { backgroundStatus: backgroundStatus.sources() } : {}), itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase: backgroundStatus ? { report: () => backgroundStatus.questBase() ?? questBase.report() } : questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

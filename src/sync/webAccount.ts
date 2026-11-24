@@ -501,6 +501,47 @@ export async function webAccountRedeemLoginCode(code: string): Promise<ServerAcc
   return webAccountStatus()
 }
 
+/**
+ * «Войти через Google» on the phone (owner, 25.11.2026: «при регистрации с телефона добавь вход через Google»): the same
+ * one-time request as the PC's (electron/serviceGateway.ts accountQrStart). The phone opens its page in the browser, where the
+ * player signs in with Google and confirms the code shown on the phone; the phone polls until the server gives it a session.
+ * The poll secret stays in this module: the screen sees only the code and the page's address.
+ */
+let qrRequest: { requestId: string; pollSecret: string; code: string; expiresAt: string } | null = null
+
+export async function webAccountQrStart(): Promise<{ code: string; expiresAt: string; url: string }> {
+  const { response, result } = await send('POST', '/v1/accounts/qr-login', { body: {} })
+  const answer = result as { requestId?: unknown; pollSecret?: unknown; code?: unknown; expiresAt?: unknown; url?: unknown; error?: unknown } | null
+  if (!response.ok) throw new Error(typeof answer?.error === 'string' ? answer.error : `Не удалось создать код: ${response.status}`)
+  if (typeof answer?.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(answer.requestId)
+    || typeof answer.pollSecret !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(answer.pollSecret)
+    || typeof answer.code !== 'string' || !/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(answer.code)
+    || typeof answer.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  qrRequest = { requestId: answer.requestId, pollSecret: answer.pollSecret, code: answer.code, expiresAt: answer.expiresAt }
+  return { code: answer.code, expiresAt: answer.expiresAt, url: qrPageUrl(answer.code) }
+}
+
+/** The website page that approves the request (website pages/AppLoginPage.tsx); the code stays in the fragment. */
+export function qrPageUrl(code: string) {
+  return `${websiteOrigin()}/app-login#approve=${encodeURIComponent(code)}`
+}
+function websiteOrigin() {
+  try { return new URL(apiBaseUrl()).origin.replace(/\/api$/, '') } catch { return 'https://raidos.app' }
+}
+
+/** One look at the request: `pending`, `expired`, or signed in (the session is saved like a password sign-in's). */
+export async function webAccountQrPoll(): Promise<{ state: 'pending' | 'expired' } | { state: 'done'; status: ServerAccountStatus }> {
+  const request = qrRequest
+  if (!request) return { state: 'expired' }
+  const { response, result } = await send('POST', '/v1/accounts/qr-login/poll', { body: { requestId: request.requestId, pollSecret: request.pollSecret } })
+  if (response.status === 202) return { state: 'pending' }
+  if (response.status === 410 || response.status === 404) { qrRequest = null; return { state: 'expired' } }
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  qrRequest = null
+  const { status } = await adoptSession(result)
+  return { state: 'done', status }
+}
+
 /** Sign-in or password reset by phone after the SMS code (POST /v1/accounts/phone/login | /phone/reset). */
 export function webAccountPhoneSignIn(kind: 'login' | 'reset', challengeId: string, rawCode: string, password?: string): Promise<ServerAccountStatus> {
   return codeSignIn('phone', kind, challengeId, rawCode, password)

@@ -10053,3 +10053,26 @@ Not pushed, not released, nothing uploaded.
   Website: block «Неподтверждённые» on top of «Привлечение друзей» with «Подтвердить N дней» / «Не подтверждать»; a red number
   on the tab (every 5 min and after each decision).
 - Not released (owner: next release later). Live data: senpai1baku/bulatzlubko reward is in review (same-address).
+## 2026-11-25 — Claude: «Войти через Google» closed to Russian addresses on the server
+
+- Owner, 25.11.2026: «все страны, кроме России… как сделать, чтобы человек из России не мог зайти через Google?». Branch
+  `claude/phone-auth`; owned files: `server/src/services/russianNetworks.ts` (+ test), `server/src/routes/google.ts`,
+  `server/src/app.ts`, `server/src/index.ts`, `server/src/services/phoneAuth.ts` (`extraConfig(req)`), `server/package.json`
+  (test list), `website/src/api.ts` (type only).
+- Russia's IPv4/IPv6 blocks from RIPE NCC's `delegated-ripencc-extended-latest` (RU, allocated/assigned): downloaded at start
+  and every 24 h (60 s limit, < 1000 IPv4 ranges or an error keeps the previous list), the RU lines kept in
+  `russian-networks.txt` beside the database, merged sorted ranges, binary search; `::ffff:` counts as IPv4. No list yet →
+  nobody refused. Players' server only (not the owner edition); `RAIDOS_RUSSIAN_NETWORKS=0` turns it off.
+- The visitor's address is `req.ip` (`trust proxy` loopback; nginx on the VPS sets X-Forwarded-For). Russian address: POST
+  /v1/accounts/google → 403 `GOOGLE_RUSSIA_MESSAGE` before the token check; GET /v1/accounts/auth-config gives no
+  `googleClientId` but `googleBlocked: true` (the site already hides the button without a client); GET /v1/geo → `RU` when
+  there is no CF-IPCountry (other countries stay null). The account-country check in `googleSignIn` stays.
+- Tests: `russianNetworks.test.ts` 5/5 (RIPE sample parse, IPv4/IPv6/mapped lookup, download/disk/failed download, 403 on
+  /google before the verifier, auth-config and /v1/geo); full `npm --prefix server test` 611/611; typecheck (root `tsc -b`
+  and server) clean.
+- Known, not from this change: the server tests do not load on this branch under plain `node --import tsx` since `0b7b69fa`
+  (server/src/routes/me.ts → src/kappa/collector.ts → gameNamesLoader → tarkovApi → sync/serverSync → src/platform.ts reads
+  `import.meta.env.*`, undefined outside Vite). The run above used a loader outside the repo that sets `import.meta.env ??= {}`.
+  Needs a fix in src/ (the owner of those files) before the release gate runs server tests.
+- Deploy: not pushed, VPS not touched. Takes effect after the server restarts with this code (first download ~10 MB from
+  ftp.ripe.net; the VPS must reach it). The QR sign-in's `proxiedCountry` (CF-IPCountry only) is unchanged.
