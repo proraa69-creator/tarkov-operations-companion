@@ -32,13 +32,14 @@ function thanks(topic: string, word: string) {
 }
 
 /**
- * «Готово» (owner, 06.11.2026: «человеку приходит уведомление, что ваше предложение добавлено… ваш отчет исполнен»): the same window as
- * at «Взял в работу».
+ * «Готово», the same window as at «Взял в работу». The owner's press (owner, 25.11.2026: «По нажатию „Готово“ пиши, что ваша заявка
+ * будет готова в следующем обновлении»): the fix comes with the next update. `live`: the release that carries it is out already, or
+ * the point stands on the map (services/releaseReports.ts, «Принять точку»): it is ready now. A bug and an idea read alike.
  */
-export function reportDoneNoticeTexts(id: number, kind: 'bug' | 'idea', topic = ''): NoticeTexts {
-  return kind === 'idea'
-    ? { title: `Ваше предложение №${id} добавлено`, text: thanks(topic, 'Спасибо!'), titleEn: `Your idea №${id} has been added`, textEn: thanks(topic, 'Thank you!') }
-    : { title: `Ваш отчёт №${id} выполнен`, text: thanks(topic, 'Спасибо!'), titleEn: `Your report №${id} has been resolved`, textEn: thanks(topic, 'Thank you!') }
+export function reportDoneNoticeTexts(id: number, _kind: 'bug' | 'idea', topic = '', live = false): NoticeTexts {
+  return live
+    ? { title: `Ваша заявка №${id} готова`, text: thanks(topic, 'Спасибо!'), titleEn: `Your request №${id} is ready`, textEn: thanks(topic, 'Thank you!') }
+    : { title: `Ваша заявка №${id} будет готова в следующем обновлении`, text: thanks(topic, 'Спасибо!'), titleEn: `Your request №${id} will be ready in the next update`, textEn: thanks(topic, 'Thank you!') }
 }
 
 /** The free days of the one-time bonus to the accounts that never paid (services/trialBonus.ts). */

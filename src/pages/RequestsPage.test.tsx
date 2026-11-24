@@ -159,7 +159,7 @@ describe('«Отчёты»', () => {
     const { calls } = ownerApp([bug], 'owner', [], (_method, path) => (path.includes('view=working') ? tableOf([{ ...bug, id: 11, topic: 'Делаю сам', work: { status: 'taken' } } as OwnerReport]) : undefined))
     const user = userEvent.setup()
     const line = await rowOf('Карта не открывается')
-    expect(within(line).getAllByRole('button').map((button) => button.textContent)).toEqual(['Взял в работу', 'Уже реализовано', 'Отменить', 'Выдать', 'Копировать', 'Подробнее'])
+    expect(within(line).getAllByRole('button').map((button) => button.textContent)).toEqual(['Взял в работу', 'Разъяснить', 'Отклонить', 'Выдать', 'Копировать', 'Подробнее'])
     const reads = calls.filter(([method, path]) => method === 'GET' && path.includes('/table?')).length
     await user.click(within(line).getByRole('button', { name: 'Взял в работу' }))
     await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, path, body]) => [path, body])).toEqual([['/v1/accounts/me/admin/bug-reports/7/work', { action: 'take' }]]))
@@ -167,12 +167,27 @@ describe('«Отчёты»', () => {
 
     await user.click(screen.getByRole('button', { name: /^В процессе/ }))
     const taken = await rowOf('Делаю сам')
-    expect(within(taken).getAllByRole('button').map((button) => button.textContent)).toEqual(['Готово', 'Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
+    expect(within(taken).getAllByRole('button').map((button) => button.textContent)).toEqual(['Готово', 'Разъяснить', 'Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
     await user.click(within(taken).getByRole('button', { name: 'Готово' }))
     // «Выдать 2 дня?» (owner, 08.11.2026; 2 days since 24.11.2026): «Да» closes the report and gives its author the days
     await user.click(screen.getByRole('button', { name: 'Да' }))
     await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, , body]) => body)).toContainEqual({ action: 'implemented' }))
     await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/reward')).map(([, , body]) => body)).toContainEqual({ days: 2 }))
+  })
+
+  // owner, 25.11.2026: «По ошибкам кнопка „Разъяснить“… у меня открывается окно в чате с ним и ответ на его сообщение. И заявка закрывается»
+  it('«Разъяснить» closes the bug and opens «Чат» with its author, the answer to that report ready', async () => {
+    const { calls } = ownerApp([{ ...bug, accountId: PLAYER } as OwnerReport], 'owner', [chat(0)])
+    const user = userEvent.setup()
+    await user.click(within(await rowOf('Карта не открывается')).getByRole('button', { name: 'Разъяснить' }))
+    await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, path, body]) => [path, body])).toEqual([['/v1/accounts/me/admin/bug-reports/7/work', { action: 'explain' }]]))
+    const view = await screen.findByRole('region', { name: 'Shturman_77' })
+    expect(screen.getByRole('tab', { name: /^Чат/ })).toHaveAttribute('aria-selected', 'true')
+    expect(within(view).getByRole('group', { name: 'Ответ на заявку' })).toHaveTextContent('Ответ на заявку №7Карта не открывается')
+    await user.type(within(view).getByRole('textbox'), 'Карта открывается кнопкой M{Enter}')
+    await waitFor(() => expect(calls.filter(([method, path]) => method === 'POST' && path.endsWith('/messages')).map(([, , body]) => body)).toEqual([{ text: 'Карта открывается кнопкой M', reportId: 7 }]))
+    // one answer: the plate is gone, the next message is a plain one
+    expect(within(view).queryByRole('group', { name: 'Ответ на заявку' })).toBeNull()
   })
 
   it('«Подробнее» grows the row itself: no second line under it, and the whole text shows', async () => {
@@ -367,7 +382,7 @@ describe('«Открыть чат» on a report', () => {
     expect(within(card).queryByRole('button', { name: 'Открыть чат' })).toBeNull()
     await user.click(screen.getByRole('button', { name: /^Закрытые/ }))
     const row = await rowOf('Уже исправлено')
-    expect(within(row).getByText('Отменено')).toBeInTheDocument()
+    expect(within(row).getByText('Отклонено')).toBeInTheDocument()
     expect(within(row).getByRole('button', { name: 'Вернуть в активные' })).toBeInTheDocument()
     expect(within(row).queryByRole('button', { name: 'Взял в работу' })).toBeNull()
     expect(within(await detailsOf(user, 'Уже исправлено')).getByRole('button', { name: 'Открыть чат' })).toBeInTheDocument()
@@ -605,8 +620,8 @@ describe('English', () => {
       expect(await screen.findByRole('columnheader', { name: 'Author' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /^In progress/ })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Taking it' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Already implemented' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Explain' })).toBeInTheDocument()
       await detailsOf(user, 'Карта не открывается', 'Details')
       await user.click(screen.getByRole('button', { name: 'Open chat' }))
       const view = await screen.findByRole('region', { name: 'Shturman_77' })

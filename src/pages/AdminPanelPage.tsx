@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useMemo, type ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { BellRing, ClipboardList, FileText, House, LayoutDashboard, LayoutGrid, Megaphone, MessagesSquare, Newspaper, Power, ShieldCheck, Target, UserRound } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
@@ -136,6 +136,9 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
   const chatWith = params.get('chat')
   // «Открыть чат» on a report: «Чат» with that player's conversation.
   const openChat = useCallback((accountId: string | null) => setParams(accountId ? { tab: 'chat', chat: accountId } : { tab: 'chat' }, { replace: true }), [setParams])
+  // «Разъяснить» on a bug (owner, 25.11.2026): «Чат» with its author, the answer to that report ready (in the history's state, not the address).
+  const answerChat = useCallback((accountId: string, report: { id: number; title: string }) => setParams({ tab: 'chat', chat: accountId }, { replace: true, state: { answer: report } }), [setParams])
+  const answer = (useLocation().state as { answer?: { id: number; title: string } } | null)?.answer ?? null
   // «Посмотреть профиль»: the player's card in its own tab; «К чату» returns to the conversation.
   const openProfile = useCallback((accountId: string) => setParams({ tab: 'profile', account: accountId }, { replace: true }), [setParams])
   const loadProfile = useCallback(async (accountId: string) => await request('GET', adminProfilePath(accountId)) as AdminAccountProfile, [request])
@@ -147,7 +150,7 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
         <section className="panel admin-section" aria-labelledby="admin-reports-title">
           <div className="panel-header"><div><div className="eyebrow">{uiLabel('Отчёты и предложения игроков')}</div><div className="panel-title" id="admin-reports-title">{uiLabel('Отчёты')}</div></div><FileText size={18} className="brass" aria-hidden="true" /></div>
           <div className="panel-body">
-            <OwnerReportsTable onOpenChat={openChat} focusId={Number(params.get('report')) || null} />
+            <OwnerReportsTable onOpenChat={openChat} onAnswer={answerChat} focusId={Number(params.get('report')) || null} />
             {/* «Доступ Claude к заявкам» (owner, 14.10.2026): the read-only key for Claude's cloud sessions. */}
             <details className="requests-more"><summary>{uiLabel('Доступ Claude к отчётам')}</summary><ClaudeAccessPanel /></details>
           </div>
@@ -157,7 +160,7 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
       return (
         <section className="panel admin-section admin-chat-section" aria-labelledby="admin-chat-title">
           <div className="panel-header"><div><div className="eyebrow">{uiLabel('Чат с поддержкой')}</div><div className="panel-title" id="admin-chat-title">{uiLabel('Чат')}</div></div><MessagesSquare size={18} className="brass" aria-hidden="true" /></div>
-          <div className="panel-body"><OwnerChats selected={chatWith} onSelect={openChat} onProfile={openProfile} /></div>
+          <div className="panel-body"><OwnerChats selected={chatWith} onSelect={openChat} onProfile={openProfile} answer={answer} /></div>
         </section>
       )
     case 'profile': {

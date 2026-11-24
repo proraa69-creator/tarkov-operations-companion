@@ -14,6 +14,7 @@ import { cleanIpcError } from '../sync/serverSync'
 import { ImageViewer, imageViewerOpen } from '../components/ImageViewer'
 import { ToastDock, useToastTimer } from '../notifications/ToastDock'
 import { openSupportChat, supportAttachmentImage, supportTime, useSupportChat, useSupportNotice, type SupportImageUpload, type SupportMessage, type SupportSendExtra } from './supportChatClient'
+import type { SupportReportAnswer } from './supportChatTools'
 import { emojiOnly, quoteBody, replyQuoteOf, stickerCaption, SUPPORT_EMOJI, supportChatLayerOpen, supportEditable, supportOwnWords, toggledReactions, useEscapeLayer, useSupportOutbox, useSupportReply, type SupportEditTarget, type SupportReplyTarget } from './supportChatTools'
 import { stickerPictureSrc, useStickerCatalog } from './stickerCatalog'
 import './supportChat.css'
@@ -117,6 +118,18 @@ export function SupportReportCard({ report }: { report: Pick<SupportReportRef, '
   return <div className="support-chat-report">
     <span>{uiText('Ответ на заявку')} №{report.id}</span>
     <strong>{report.title}</strong>
+  </div>
+}
+
+/** The plate above the answer box while it answers a report. The title is the player's own words: never passed through uiText. */
+export function SupportReportAnswerPlate({ report, onCancel }: { report: SupportReportAnswer; onCancel: () => void }) {
+  return <div className="support-chat-replying support-chat-answering" role="group" aria-label={uiText('Ответ на заявку')}>
+    <Reply size={15} aria-hidden="true" />
+    <div className="support-chat-quote">
+      <strong>{uiText('Ответ на заявку')} №{report.id}</strong>
+      <span>{report.title}</span>
+    </div>
+    <button type="button" className="icon-button" onClick={onCancel} aria-label={uiText('Не отвечать на заявку')} title={uiText('Не отвечать на заявку')}><X size={14} /></button>
   </div>
 }
 

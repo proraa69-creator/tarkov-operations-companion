@@ -67,7 +67,8 @@ describe('«Рейд начался»', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Рейд начался')
     expect(screen.getByRole('status')).toHaveTextContent('Таможня')
     expect(notify).toHaveBeenCalledWith('Рейд начался', 'Таможня', undefined, true)
-    expect(JSON.parse(localStorage.getItem('raidos-notifications-v1') ?? '[]')[0]).toMatchObject({ title: 'Рейд начался' })
+    // owner, 25.11.2026: only the card in the corner, the bell of «Уведомления» stays dark
+    expect(JSON.parse(localStorage.getItem('raidos-notifications-v1') ?? '[]')).toEqual([])
   })
 
   // owner, 21.11.2026: «что-то жмешь, делаешь, и рандомно просто включается карта» — a tap meant for what was under the card

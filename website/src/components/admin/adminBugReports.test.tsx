@@ -68,13 +68,13 @@ describe('«Отчёты» on the site', () => {
     expect(within(viewer).getByRole('img')).toHaveAttribute('src', 'blob:shot-1')
   })
 
-  it('«Взял в работу», «Уже реализовано», «Отменить» on the row; the new status shows at the press, a refusal of the server takes it back', async () => {
-    mocks.table.mockResolvedValue(page([{ ...bug, files: 0 }, { ...bug, id: 4, files: 0, topic: 'Второй отчёт' }]))
+  it('«Взял в работу», «Уже реализовано», «Отклонить» on the row; the new status shows at the press, a refusal of the server takes it back', async () => {
+    mocks.table.mockResolvedValue(page([{ ...bug, files: 0 }, { ...idea, id: 4, files: 0, topic: 'Второй отчёт' }]))
     mocks.work.mockResolvedValueOnce({ report: detail }).mockRejectedValueOnce(new Error('Отчёт №4 уже в другом статусе: обновите таблицу'))
     render(<AdminBugReports />)
     const line = await row('Карта не открывается')
     expect(within(line).queryByRole('button', { name: 'Отдать в работу' })).toBeNull()
-    expect(within(line).getByRole('button', { name: 'Отменить' })).toBeTruthy()
+    expect(within(line).getByRole('button', { name: 'Отклонить' })).toBeTruthy()
     fireEvent.click(within(line).getByRole('button', { name: 'Взял в работу' }))
     // at once (owner, 11.11.2026: «при нажатии кнопок сильная задержка»): the buttons of «в процессе», before any answer
     expect(within(line).getByRole('button', { name: 'Готово' })).toBeTruthy()
@@ -98,7 +98,7 @@ describe('«Отчёты» on the site', () => {
     render(<AdminBugReports />)
     const names = (line: HTMLElement) => within(line).getAllByRole('button').map((button) => button.textContent)
     const taken = await row('Делаю сам')
-    expect(names(taken)).toEqual(['Готово', 'Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
+    expect(names(taken)).toEqual(['Готово', 'Разъяснить', 'Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
     expect(within(taken).queryByText('В процессе')).toBeNull()
     fireEvent.click(within(taken).getByRole('button', { name: 'Готово' }))
     // «Выдать 1 день?»: «Нет» only closes it
@@ -107,7 +107,37 @@ describe('«Отчёты» on the site', () => {
     const done = await row('Сделал сам')
     expect(within(done).getByText('Готово')).toBeInTheDocument()
     expect(names(done)).toEqual(['Вернуть в активные', 'Выдать', 'Копировать', 'Подробнее'])
-    expect(within(await row('Отменён')).getByText('Отменено')).toBeInTheDocument()
+    expect(within(await row('Отменён')).getByText('Отклонено')).toBeInTheDocument()
+  })
+
+  // owner, 25.11.2026: «ошибки и предложения должны быть разные кнопки… По ошибкам кнопка „Разъяснить“… у меня открывается окно в
+  // чате с ним и ответ на его сообщение. И заявка закрывается»
+  it('a bug has «Разъяснить», an idea «Уже реализовано»; «Разъяснить» closes the bug and opens the answer to its author', async () => {
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith(`/v1/accounts/me/admin/support/threads/${bug.accountId}`)) return Response.json({ account: { id: bug.accountId, email: bug.email }, messages: [{ id: 1, author: 'user', text: 'Привет', createdAt: '2026-11-25T10:00:00.000Z', read: true }] })
+      if (url.endsWith('/messages') && init?.method === 'POST') return Response.json({ message: { id: 2, author: 'owner', text: 'Откройте карту в настройках', report: { id: 3, kind: 'bug', title: 'Карта не открывается' }, createdAt: '2026-11-25T10:01:00.000Z', read: false } }, { status: 201 })
+      return Response.json({ error: 'Не найдено' }, { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetch)
+    mocks.table.mockResolvedValue(page([{ ...bug, files: 0 }, idea]))
+    mocks.work.mockResolvedValue({ report: detail })
+    render(<AdminBugReports />)
+    const names = (line: HTMLElement) => within(line).getAllByRole('button').map((button) => button.textContent)
+    const line = await row('Карта не открывается')
+    expect(names(line).slice(0, 3)).toEqual(['Взял в работу', 'Разъяснить', 'Отклонить'])
+    expect(names(await row('Таймер рейда')).slice(0, 3)).toEqual(['Взял в работу', 'Уже реализовано', 'Отклонить'])
+
+    fireEvent.click(within(line).getByRole('button', { name: 'Разъяснить' }))
+    await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 3, 'explain'))
+    const dialog = await screen.findByRole('dialog', { name: 'player@example.com' })
+    expect(within(dialog).getByRole('group', { name: 'Ответ на заявку' })).toHaveTextContent('Ответ на заявку №3Карта не открывается')
+    expect(await within(dialog).findByText('Привет')).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Сообщение' }), { target: { value: 'Откройте карту в настройках' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отправить' }))
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/messages$/), expect.objectContaining({ method: 'POST', body: JSON.stringify({ text: 'Откройте карту в настройках', reportId: 3 }) })))
+    // answered once: the next message is a plain one
+    await waitFor(() => expect(within(dialog).queryByRole('group', { name: 'Ответ на заявку' })).toBeNull())
+    vi.unstubAllGlobals()
   })
 
   // Owner, 05.11.2026: «одной кнопкой скопировать все данные что бы передать в Клод»; «данные конкретной заявки».

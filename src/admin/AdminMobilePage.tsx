@@ -10,9 +10,9 @@ import { uiLabel, uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
 import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
-import { SupportComposer, SupportMessageList, SupportReportCard } from '../support/SupportChat'
+import { SupportComposer, SupportMessageList, SupportReportAnswerPlate, SupportReportCard } from '../support/SupportChat'
 import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
-import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from '../support/supportChatTools'
+import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply, useSupportReportAnswer, type SupportReportAnswer } from '../support/supportChatTools'
 import { useLocale } from '../i18n/LocaleProvider'
 import {
   adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPhones, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
@@ -128,6 +128,8 @@ export function AdminMobilePage() {
   const [focusReport, setFocusReport] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
+  // «Разъяснить» on a bug (owner, 25.11.2026): the chat with its author opens with the answer to that report ready.
+  const [threadAnswer, setThreadAnswer] = useState<SupportReportAnswer | null>(null)
   // «Посмотреть профиль» (owner, 24.11.2026): a long press on a person in «Чаты», or the open chat's head.
   const [profileOf, setProfileOf] = useState<{ accountId: string; name?: string } | null>(null)
   const [error, setError] = useState('')
@@ -291,11 +293,12 @@ export function AdminMobilePage() {
     catch (reason) { setError(errorText(reason)) }
   }
 
-  const openChat = (accountId: string) => {
+  const openChat = (accountId: string, answer: SupportReportAnswer | null = null) => {
     setSection('chats')
     setSelected(null)
     setSelectedReport(null)
     setProfileOf(null)
+    setThreadAnswer(answer)
     setSelectedThread(accountId)
   }
   const openProfile = (accountId: string, name?: string) => setProfileOf({ accountId, ...(name ? { name } : {}) })
@@ -378,6 +381,7 @@ export function AdminMobilePage() {
               onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}
               onReward={async (id, days) => { await adminApi.rewardReport(id, days); reportsChanged() }}
               onAcceptPoint={async (id) => { await adminApi.acceptPoint(id); reportsChanged() }}
+              onExplain={(row) => { if (row.accountId) openChat(row.accountId, { id: row.id, title: row.topic }) }}
               loadImage={(row, index) => adminApi.bugReportImage(row.id, index)}
               onOpen={(row) => void openReport(row.id)}
             />
@@ -393,7 +397,7 @@ export function AdminMobilePage() {
 
       {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} onOpenChat={openChat} />}
       {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); reportsChanged() }} />}
-      {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} onOpenProfile={openProfile} />}
+      {selectedThread && <ChatSheet key={`${selectedThread}:${threadAnswer?.id ?? ''}`} accountId={selectedThread} answer={threadAnswer} onClose={() => { setSelectedThread(null); setThreadAnswer(null) }} onChanged={chatChanged} onOpenProfile={openProfile} />}
       {profileOf && <ProfileSheet accountId={profileOf.accountId} name={profileOf.name} onClose={() => setProfileOf(null)} onOpenChat={openChat} />}
       {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
       {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
@@ -789,7 +793,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
   </div>
 }
 
-function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId: string; onClose: () => void; onChanged: () => void; onOpenProfile: (accountId: string, name?: string) => void }) {
+function ChatSheet({ accountId, answer, onClose, onChanged, onOpenProfile }: { accountId: string; answer?: SupportReportAnswer | null; onClose: () => void; onChanged: () => void; onOpenProfile: (accountId: string, name?: string) => void }) {
   const [detail, setDetail] = useState<AdminSupportDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -817,11 +821,13 @@ function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId
   // Sent at once, the box and the keyboard ready for the next one (owner, 15.11.2026: «после отправки сообщения нельзя
   // сразу отправить второе… Отправка долго думает»): the server's message joins the conversation as it comes, nothing is
   // read again for it.
+  const report = useSupportReportAnswer(answer)
+  const { take } = report
   const sendReply = useCallback(async (text: string, images: SupportImageUpload[], extra: SupportSendExtra) => {
-    const { message } = await adminApi.supportReply(accountId, text, images, undefined, extra)
+    const { message } = await adminApi.supportReply(accountId, text, images, extra.sticker ? undefined : take(), extra)
     setDetail((current) => (current && !current.messages.some((known) => known.id === message.id) ? { ...current, messages: [...current.messages, message] } : current))
     onChanged()
-  }, [accountId, onChanged])
+  }, [accountId, onChanged, take])
   const [sending, send] = useSupportOutbox(detail?.messages ?? [], 'owner', sendReply)
   // «Редактировать» (owner, 15.11.2026): the owner's own messages; the player sees only the new words.
   const editor = useSupportEdit(sending, async (message, text) => {
@@ -853,6 +859,7 @@ function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
         <SupportMessageList messages={messages} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет."
           onReact={react} onReply={setReplying} onEdit={editor.start} />
+        {report.about && <SupportReportAnswerPlate report={report.about} onCancel={report.cancel} />}
         <SupportComposer onSend={send} placeholder="Ответ пользователю…" allowImages allowEmoji allowStickers replyTo={replying} onCancelReply={() => setReplying(null)}
           editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
         <button type="button" className="button danger admin-delete-chat" disabled={deleting} onClick={() => void remove()}>{deleting ? <LoaderCircle size={16} className="spin" /> : <Trash2 size={16} />}{uiText(deleting ? 'Удаляем…' : 'Удалить чат с сервера')}</button>
