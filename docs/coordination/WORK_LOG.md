@@ -9752,3 +9752,11 @@ Not pushed, not released, nothing uploaded.
 - Lighthouse was started by the dispatcher and paused at 13:51 at the coordinator's request (the game handed over for the language
   screenshots); its frames so far stay in its manifest, the run resumes from there (photo2\tour-lighthouse-paused.json). Not in a release
   yet (after 0.6.0.340).
+
+## 2026-11-24 14:25 — Claude: 0.6.0.341 to release/production (Reserve places)
+
+- On the photo session's word (d5bf0dcd, Reserve quests and battle pass documents, ready after 0.6.0.340; its 182 new pictures on
+  the server, 1566 of 1566): merged over 0.6.0.340 (972bafe6) with the 340 live note. Version 0.6.0-341; updateHistory row; player
+  news only «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
+  src/data/questGuidePhotos.json, documentGuidePhotos.json, documentGuide.test.ts and these data files change. For the 20:00 Bangkok
+  window, not started by hand. The photo session says no more maps for now (the game is taken for screens in other languages).

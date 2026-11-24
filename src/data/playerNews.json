@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.341","date":"2026-11-24","items":[
+    {"kind":"improved","ru":"Обновили данные по квестам","en":"Updated the quest data"}
+  ]},
   {"version":"0.6.0.340","date":"2026-11-24","items":[
     {"kind":"improved","ru":"«Полигон» на телефоне: прицел на весь экран, целиться — пальцем по левой половине экрана, плавно и точно","en":"«Range» on a phone: the scope full screen, aim with a finger over the left half of the screen — smooth and precise"},
     {"kind":"added","ru":"«Полигон» на телефоне: в прицеле ползунки дистанции до цели и кратности прицела","en":"«Range» on a phone: distance and scope magnification sliders right in the scope"},
