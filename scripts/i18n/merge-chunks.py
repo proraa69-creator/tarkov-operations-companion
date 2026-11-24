@@ -1,9 +1,9 @@
-"""Puts translated chunks together: python -I scripts/i18n/merge-chunks.py <chunk folder> <out folder>
-<chunk folder>/<name>.<lang>.json (de, ja, zh) -> <out folder>/<lang>.json, merged with what is there already, keys sorted."""
+"""Puts translated chunks together: python -I scripts/i18n/merge-chunks.py <chunk folder> <out folder> [lang ...]
+<chunk folder>/<name>.<lang>.json -> <out folder>/<lang>.json (default de, ja, zh), merged with what is there already, keys sorted."""
 import glob, json, os, sys
 
 folder, out = sys.argv[1], sys.argv[2]
-for lang in ('de', 'ja', 'zh'):
+for lang in sys.argv[3:] or ('de', 'ja', 'zh'):
     path = os.path.join(out, f'{lang}.json')
     table = json.load(open(path, encoding='utf-8')) if os.path.exists(path) else {}
     added = 0
