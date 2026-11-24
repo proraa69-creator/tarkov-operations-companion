@@ -9765,3 +9765,8 @@ Not pushed, not released, nothing uploaded.
   server/src/services/tarkovDataMirror.ts keeps tarkov.dev dictionaries de/ja/zh; no app code). updateHistory 341 gets three lines,
   player news «Сайт raidos.app теперь на немецком, японском и китайском» / «The raidos.app website is now in German, Japanese and
   Chinese». After the 20:00 window: check raidos.app/?lang=zh opens in Chinese.
+- Also in 0.6.0.341 on the Raid OS session's word (owner 24.11: «подумай, какие еще языки нам стоит добавить, и добавь их на сайт и
+  в приложение»): claude/site-languages-2 14417171 — the website in Polish, Ukrainian, Spanish, Brazilian Portuguese, French, Korean
+  and Turkish (website/**, src/shared/countries.ts, tarkovDataMirror keeps pl/es/pt/fr/ko/tr; no app code). The 341 updateHistory
+  row folded to 4 lines; player news gets «Сайт raidos.app теперь на польском, украинском, испанском, португальском, французском,
+  корейском и турецком». After the 20:00 window: check raidos.app/?lang=ko and ?lang=uk.

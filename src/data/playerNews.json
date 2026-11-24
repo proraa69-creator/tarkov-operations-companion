@@ -1,6 +1,7 @@
 [
   {"version":"0.6.0.341","date":"2026-11-24","items":[
     {"kind":"added","ru":"Сайт raidos.app теперь на немецком, японском и китайском","en":"The raidos.app website is now in German, Japanese and Chinese"},
+    {"kind":"added","ru":"Сайт raidos.app теперь на польском, украинском, испанском, португальском, французском, корейском и турецком","en":"The raidos.app website is now in Polish, Ukrainian, Spanish, Portuguese, French, Korean and Turkish"},
     {"kind":"improved","ru":"Обновили данные по квестам","en":"Updated the quest data"}
   ]},
   {"version":"0.6.0.340","date":"2026-11-24","items":[
