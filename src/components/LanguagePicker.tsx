@@ -4,6 +4,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { LANGUAGES, languageOption, type AppLanguage } from '../i18n/languages'
 import { uiText } from '../i18n/renderText'
 import '../styles/languagePicker.css'
+import '../styles/languages.css'
 
 /**
  * The language in the top bar (owner, 24.11.2026: «по нажатии на язык сверху у нас будет выдвигаться окно со списком
