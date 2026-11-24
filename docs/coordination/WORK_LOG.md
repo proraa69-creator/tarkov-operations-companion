@@ -9760,3 +9760,8 @@ Not pushed, not released, nothing uploaded.
   news only «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
   src/data/questGuidePhotos.json, documentGuidePhotos.json, documentGuide.test.ts and these data files change. For the 20:00 Bangkok
   window, not started by hand. The photo session says no more maps for now (the game is taken for screens in other languages).
+- Also in 0.6.0.341 on the Raid OS session's word (owner 24.11: «на сайте, как все будет готово, можешь добавлять языки сразу»):
+  claude/site-languages 1bb63e68 — the website in German, Japanese and Chinese (website/**, src/shared/countries.ts, scripts/i18n,
+  server/src/services/tarkovDataMirror.ts keeps tarkov.dev dictionaries de/ja/zh; no app code). updateHistory 341 gets three lines,
+  player news «Сайт raidos.app теперь на немецком, японском и китайском» / «The raidos.app website is now in German, Japanese and
+  Chinese». After the 20:00 window: check raidos.app/?lang=zh opens in Chinese.
