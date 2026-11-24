@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Public pages; each in Russian and English at its own address (?lang=, website/src/App.tsx). -->
+<!-- Public pages; each in Russian, English, German, Japanese and Chinese at its own address (?lang=, website/src/App.tsx). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://raidos.app/</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/"/>
     <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>
   </url>
@@ -12,6 +15,9 @@
     <loc>https://raidos.app/?lang=ru</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/"/>
     <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>
   </url>
@@ -19,6 +25,39 @@
     <loc>https://raidos.app/?lang=en</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/"/>
+    <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/?lang=de</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/"/>
+    <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/?lang=ja</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/"/>
+    <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/?lang=zh</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/"/>
     <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>
   </url>
@@ -26,6 +65,9 @@
     <loc>https://raidos.app/download</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/download?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/download?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/download?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/download?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/download?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/download"/>
     <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>0.9</priority>
   </url>
@@ -33,6 +75,9 @@
     <loc>https://raidos.app/download?lang=ru</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/download?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/download?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/download?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/download?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/download?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/download"/>
     <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>0.9</priority>
   </url>
@@ -40,6 +85,39 @@
     <loc>https://raidos.app/download?lang=en</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/download?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/download?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/download?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/download?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/download?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/download"/>
+    <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/download?lang=de</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/download?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/download?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/download?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/download?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/download?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/download"/>
+    <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/download?lang=ja</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/download?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/download?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/download?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/download?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/download?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/download"/>
+    <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/download?lang=zh</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/download?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/download?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/download?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/download?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/download?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/download"/>
     <lastmod>2026-10-11</lastmod><changefreq>weekly</changefreq><priority>0.9</priority>
   </url>
@@ -47,6 +125,9 @@
     <loc>https://raidos.app/about</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/about?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/about?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/about?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/about?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/about?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/about"/>
     <lastmod>2026-10-11</lastmod><changefreq>monthly</changefreq><priority>0.6</priority>
   </url>
@@ -54,6 +135,9 @@
     <loc>https://raidos.app/about?lang=ru</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/about?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/about?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/about?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/about?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/about?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/about"/>
     <lastmod>2026-10-11</lastmod><changefreq>monthly</changefreq><priority>0.6</priority>
   </url>
@@ -61,8 +145,100 @@
     <loc>https://raidos.app/about?lang=en</loc>
     <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/about?lang=ru"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/about?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/about?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/about?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/about?lang=zh"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/about"/>
     <lastmod>2026-10-11</lastmod><changefreq>monthly</changefreq><priority>0.6</priority>
   </url>
-  <url><loc>https://raidos.app/legal</loc><lastmod>2026-10-11</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url>
+    <loc>https://raidos.app/about?lang=de</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/about?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/about?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/about?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/about?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/about?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/about"/>
+    <lastmod>2026-10-11</lastmod><changefreq>monthly</changefreq><priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/about?lang=ja</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/about?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/about?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/about?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/about?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/about?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/about"/>
+    <lastmod>2026-10-11</lastmod><changefreq>monthly</changefreq><priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/about?lang=zh</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/about?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/about?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/about?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/about?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/about?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/about"/>
+    <lastmod>2026-10-11</lastmod><changefreq>monthly</changefreq><priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/legal</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/legal?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/legal?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/legal?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/legal?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/legal?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/legal"/>
+    <lastmod>2026-10-11</lastmod><changefreq>yearly</changefreq><priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/legal?lang=ru</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/legal?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/legal?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/legal?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/legal?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/legal?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/legal"/>
+    <lastmod>2026-10-11</lastmod><changefreq>yearly</changefreq><priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/legal?lang=en</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/legal?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/legal?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/legal?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/legal?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/legal?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/legal"/>
+    <lastmod>2026-10-11</lastmod><changefreq>yearly</changefreq><priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/legal?lang=de</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/legal?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/legal?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/legal?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/legal?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/legal?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/legal"/>
+    <lastmod>2026-10-11</lastmod><changefreq>yearly</changefreq><priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/legal?lang=ja</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/legal?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/legal?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/legal?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/legal?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/legal?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/legal"/>
+    <lastmod>2026-10-11</lastmod><changefreq>yearly</changefreq><priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://raidos.app/legal?lang=zh</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://raidos.app/legal?lang=ru"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://raidos.app/legal?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://raidos.app/legal?lang=de"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://raidos.app/legal?lang=ja"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://raidos.app/legal?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://raidos.app/legal"/>
+    <lastmod>2026-10-11</lastmod><changefreq>yearly</changefreq><priority>0.3</priority>
+  </url>
 </urlset>
