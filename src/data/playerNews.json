@@ -1,4 +1,9 @@
 [
+  {"version":"0.6.0.343","date":"2026-11-25","items":[
+    {"kind":"added","ru":"На телефоне можно войти по QR-коду и подтвердить вход на компьютере","en":"On the phone you can sign in with a QR code and approve a sign-in on the computer"},
+    {"kind":"improved","ru":"«Настройка экрана» подскажет, если Windows не дал изменить цвета монитора","en":"«Screen setup» tells you when Windows did not let the monitor's colours change"},
+    {"kind":"improved","ru":"Обновили данные по квестам","en":"Updated the quest data"}
+  ]},
   {"version":"0.6.0.342","date":"2026-11-25","items":[
     {"kind":"improved","ru":"Тема «Снаряжение»: время в Таркове снова отображается ровно","en":"«Gear» theme: the Tarkov time is shown neatly again"},
     {"kind":"improved","ru":"Обновили данные по квестам","en":"Updated the quest data"}

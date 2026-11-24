@@ -10076,3 +10076,14 @@ Not pushed, not released, nothing uploaded.
   Needs a fix in src/ (the owner of those files) before the release gate runs server tests.
 - Deploy: not pushed, VPS not touched. Takes effect after the server restarts with this code (first download ~10 MB from
   ftp.ripe.net; the VPS must reach it). The QR sign-in's `proxiedCountry` (CF-IPCountry only) is unchanged.
+
+## 2026-11-25 — Claude: release 0.6.0.343 (owner: «Людям только отправь свежую сборку… Залей одну новую версию»; «Да, собирай»)
+
+- claude/release-343 from release/production c62a3881 + claude/unheard-keys, claude/alpin-preset, claude/reports-buttons,
+  claude/no-mutual-invites, claude/admin-pc-fixes, claude/phone-auth (android/ and ios/ reverted: camera permissions go with the next
+  phone build). NOT in: claude/news-languages (changes playerNews.json's format; conflicts with the 341/342 rows).
+- The owner's admin fixes reach him by the owner exe every release builds (/opt/raidos-private/RaidOSServer.exe, «Серверная версия»).
+- Fixes for the gate: electron/apiEnv.ts lists RAIDOS_RUSSIAN_NETWORKS; adminReferrals.test.tsx typed attention mock (website build).
+- Checks: typecheck, electron tsc, server typecheck clean; server tests 613/613; website build ok; vitest 4633 passed, the rest
+  machine-only or pass per file (App, Dashboard, Gunsmith, MapsPage ×3, ManualMarks, SupportButtons, appDelta, updateHistory).
+- Server needs ftp.ripe.net once at start (Russian networks list for Google sign-in).

@@ -1,14 +1,14 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdminReferrals, AdminReferrerDetail } from '../../api'
+import type { AdminInviteReward, AdminReferrals, AdminReferrerDetail } from '../../api'
 
 /**
  * Owner, 03.11.2026: «кнопку привлечения друзей… список тех, кто привел друзей… сколько оплатили, сколько
  * зарегистрировались но не оплатили… максимальное количество… сколько дней им положено, через сколько будет выдано, и
  * выдано ли им».
  */
-const mocks = vi.hoisted(() => ({ referrals: vi.fn(), referrer: vi.fn(), decide: vi.fn(), attention: vi.fn(async () => ({ rewards: [], count: 0 })) }))
+const mocks = vi.hoisted(() => ({ referrals: vi.fn(), referrer: vi.fn(), decide: vi.fn(), attention: vi.fn(async (): Promise<{ rewards: AdminInviteReward[]; count: number }> => ({ rewards: [], count: 0 })) }))
 
 vi.mock('../../auth', () => ({ useAuth: () => ({ status: 'ready', token: 'owner-token', account: null }) }))
 vi.mock('../../api', async (original) => {
@@ -21,7 +21,7 @@ const { AdminReferrals: ReferralsTab } = await import('./AdminReferrals')
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  mocks.attention.mockImplementation(async () => ({ rewards: [], count: 0 }))
+  mocks.attention.mockImplementation(async (): Promise<{ rewards: AdminInviteReward[]; count: number }> => ({ rewards: [], count: 0 }))
 })
 
 const DAY = 86_400_000
