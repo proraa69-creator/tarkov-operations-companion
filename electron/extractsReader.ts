@@ -124,16 +124,41 @@ async function readCorner(model: string) {
 /** How often the header strip is looked at, and how long after a reading the same open list is not read again. */
 const HEADER_POLL_MS = 500
 const HEADER_REREAD_MS = 20_000
+/** The strip's look while the game's keys reach the app: the O key starts the reading itself (experimental/index.ts). */
+export const HEADER_POLL_KEYS_SEEN_MS = 1500
+
+/**
+ * How often the header strip is copied now (0: not at all). Each copy is small, but it is a copy of the screen: the call
+ * waits for Windows' compositor (7 ms on the owner's PC, almost no processor time) — twice a second, through every
+ * minute in the game (report 227, 25.11.2026: «игра фризит», a laptop). The exit list exists only in a raid, so:
+ * - no raid (by the logs or the raid signs; with no Logs folder watched it cannot be told, and the strip is looked at):
+ *   not at all — the menus, the stash, the hideout;
+ * - in a raid with the game's keys reaching the app (the Steam build, a game not run as administrator): every 1.5 s —
+ *   the O key starts the reading anyway, the strip only catches a list opened with another key;
+ * - in a raid with the keys hidden (the BSG launcher's elevated game, the reason the strip is watched): twice a second.
+ */
+export function headerPollMs(state: { raid: boolean; keysSeen: boolean }) {
+  if (!state.raid) return 0
+  return state.keysSeen ? HEADER_POLL_KEYS_SEEN_MS : HEADER_POLL_MS
+}
 
 /**
  * While the game is in front: the list's header appearing (or still open after a while) starts a reading, as a double O
- * does. A few kilobytes copied twice a second; nothing while the game is not in front or runs exclusive full screen.
+ * does. A few kilobytes copied at the pace of `pace` (headerPollMs); nothing while the game is not in front or runs
+ * exclusive full screen. Without `pace`: twice a second, as before.
  */
-export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: ExtractsPayload) => void) {
+export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: ExtractsPayload) => void, pace: () => number = () => HEADER_POLL_MS) {
   let open = false
   let lastRead = 0
+  let lastLook = 0
   const timer = setInterval(() => {
-    if (process.platform !== 'win32' || !gameInFront() || foregroundDisplayMode() === 'exclusive') { open = false; return }
+    const every = process.platform === 'win32' ? pace() : 0
+    if (!every) { open = false; return }
+    const nowMs = Date.now()
+    // the timer's own beat is HEADER_POLL_MS; a slower pace skips beats (a little early is fine: the timer drifts)
+    if (nowMs - lastLook < every - 50) return
+    if (!gameInFront() || foregroundDisplayMode() === 'exclusive') { open = false; return }
+    lastLook = nowMs
     const at = headerStripRect(gameArea())
     const strip = captureScreenRegion(at.x, at.y, at.width, at.height)
     const now = strip ? headerShare(strip.data, strip.width, strip.height) >= HEADER_MIN_SHARE : false

@@ -58,3 +58,43 @@ describe('the screen the list is read from', () => {
     expect(cornerRect({ x: 100, y: 50, width: 1600, height: 900 })).toEqual({ x: 100 + 1600 - 504, y: 50, width: 504, height: 630 })
   })
 })
+
+describe('report 227: the exit header strip is copied only in a raid', () => {
+  it('no raid: never; keys seen: every 1.5 s; keys hidden: twice a second', async () => {
+    const { headerPollMs, HEADER_POLL_KEYS_SEEN_MS } = await import('./extractsReader')
+    expect(headerPollMs({ raid: false, keysSeen: false })).toBe(0)
+    expect(headerPollMs({ raid: false, keysSeen: true })).toBe(0)
+    expect(headerPollMs({ raid: true, keysSeen: true })).toBe(HEADER_POLL_KEYS_SEEN_MS)
+    expect(headerPollMs({ raid: true, keysSeen: false })).toBe(500)
+  })
+
+  it('the watch copies the screen at the pace it is given, and nothing at 0', async () => {
+    const win32 = await import('./experimental/win32.js')
+    const electron = await import('electron') as unknown as { screen: Record<string, unknown> }
+    Object.assign(electron.screen, { getCursorScreenPoint: () => ({ x: 0, y: 0 }), getDisplayNearestPoint: () => ({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } }), dipToScreenRect: (_: unknown, rect: unknown) => rect })
+    vi.mocked(win32.visibleGameRect).mockReturnValue({ x: 0, y: 0, width: 1920, height: 1080 })
+    vi.mocked(win32.foregroundDisplayMode).mockReturnValue('fullscreen')
+    vi.mocked(win32.captureScreenRegion).mockReturnValue(null)
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    vi.useFakeTimers()
+    try {
+      const { watchExtractsHeader } = await import('./extractsReader')
+      let pace = 0
+      const stop = watchExtractsHeader(() => true, () => {}, () => pace)
+      vi.advanceTimersByTime(5000)
+      expect(win32.captureScreenRegion).not.toHaveBeenCalled()
+      pace = 1500
+      vi.advanceTimersByTime(6000)
+      expect(vi.mocked(win32.captureScreenRegion).mock.calls.length).toBe(4)
+      vi.mocked(win32.captureScreenRegion).mockClear()
+      pace = 500
+      vi.advanceTimersByTime(5000)
+      expect(vi.mocked(win32.captureScreenRegion).mock.calls.length).toBe(10)
+      stop()
+    } finally {
+      vi.useRealTimers()
+      Object.defineProperty(process, 'platform', platform)
+    }
+  })
+})

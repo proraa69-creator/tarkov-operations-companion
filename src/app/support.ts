@@ -19,3 +19,21 @@ export function describePlatform(ua = typeof navigator === 'undefined' ? '' : na
   return `${os}${arch} · ${shell}`
 }
 
+/** The server takes the report's «Система» line up to this long (server/src/routes/bugReports.ts) and refuses a longer one. */
+export const PLATFORM_MAX = 160
+
+/**
+ * A «Скорость и зависания» report from the PC carries a few words about the computer (report 227: electron/systemBrief.ts —
+ * cards, memory, battery): put before « · EFT: …», which the server reads off the end (server/src/routes/agentRequests.ts),
+ * and cut so the whole line stays within PLATFORM_MAX. No brief: the line as it was.
+ */
+export function withSystemBrief(platform: string, brief: string | null | undefined) {
+  const clean = (brief ?? '').replace(/·/g, ',').replace(/\s+/g, ' ').trim()
+  if (!clean) return platform
+  const at = platform.lastIndexOf(' · EFT: ')
+  const head = at >= 0 ? platform.slice(0, at) : platform
+  const tail = at >= 0 ? platform.slice(at) : ''
+  const room = PLATFORM_MAX - head.length - tail.length - 3
+  return room >= 8 ? `${head} · ${clean.slice(0, room).trim()}${tail}` : platform
+}
+
