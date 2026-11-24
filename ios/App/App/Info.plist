@@ -35,8 +35,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>Камера нужна, чтобы сканировать QR-код входа Raid OS с компьютера или сайта.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Raid OS connects to the Raid OS server on your computer in the same Wi-Fi network to show your tasks and live position.</string>
 	<key>CFBundleURLTypes</key>
