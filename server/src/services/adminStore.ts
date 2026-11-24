@@ -12,9 +12,12 @@
  * paid in its own currency.
  */
 import type { DatabaseSync } from 'node:sqlite'
-import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf, type CountryRegion } from '../../../src/shared/countries'
+import { AD_SOURCE_LABEL, AD_SOURCES } from '../../../src/shared/adSources'
+import { ADMIN_CIS_COUNTRIES, ADMIN_EXTRA_CIS_COUNTRIES, adminRegionOf, CIS_COUNTRIES, EUROPE_COUNTRIES, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
-import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
+import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
+import { AccountError, ACCOUNT_MODES, maskPhone, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
+import { phonePlatformOf, presenceClientOf, type AccountPresence } from './presence.js'
 import { transaction } from './database.js'
 import { LIFETIME_UNTIL } from './invites.js'
 import { paidInOtherCurrency, PaymentError, PLAN_MONTHS, providerOf, type PaymentProvider, type PaymentStore, type PlanId } from './paymentStore.js'
@@ -22,11 +25,13 @@ import { OnlineStatsStore } from './onlineStatsStore.js'
 
 type Row = Record<string, unknown>
 const DAY_MS = 24 * 60 * 60 * 1000
-/** Statistics days follow Moscow time (UTC+3, no daylight saving), as in the streamer tables. */
-const MSK_MS = 3 * 60 * 60 * 1000
+/**
+ * Statistics days are the owner's days: Bangkok time, UTC+7 without daylight saving (owner, 03.11.2026; src/shared/
+ * ownerTime.ts). The streamers' own tables stay in Moscow time (accountStore.ts).
+ */
 const PLAN_IDS = Object.keys(PLAN_MONTHS) as PlanId[]
 const PERIOD_LENGTH: Record<StatsPeriod, number> = { day: 10, month: 7, year: 4 }
-/** GET /me/admin/stats without `from`: this many Moscow days up to and including `to` (default today). */
+/** GET /me/admin/stats without `from`: this many owner's days up to and including `to` (default today). */
 const STATS_DEFAULT_DAYS = 30
 
 const SCHEMA = `
@@ -51,17 +56,24 @@ const SCHEMA = `
 `
 
 export type AuditAction =
+  | 'news.edit'
+  | 'eft.rebind-case' | 'eft.case-status'
   | 'subscription.grant' | 'subscription.revoke' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
-  | 'payment.refund' | 'payment.amount' | 'payment.boosty-confirm' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'bezebee.dismiss' | 'bezebee.credentials' | 'boosty.session' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
-  | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'overview.blocks' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'support.reply' | 'support.resolve'
-  | 'requests-key.create' | 'requests-key.revoke'
+  | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'hideout.modules' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
+  | 'requests-key.create' | 'requests-key.revoke' | 'bug.work' | 'bug.point'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
   | 'users.export' | 'subscription.bulk-grant'
+  | 'stickers.pack' | 'stickers.publish' | 'stickers.sticker'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
+
+/** Phones that signed in, and their accounts, all the time (AdminStore.phoneStats). */
+export interface PhoneCount { accounts: number; devices: number }
+export interface PhoneStats { users: number; phones: PhoneCount; android: PhoneCount; ios: PhoneCount }
 
 export type UserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 /** The billing regions requested by the owner; the old Europe/other values stay accepted by older web clients. */
@@ -104,11 +116,11 @@ export interface UserQuery {
   payRegion?: PayRegion
   /** 'yes': at least one succeeded payment ever; 'no': none. */
   payer?: 'yes' | 'no'
-  /** A running paid / granted period that ends on or before this Moscow day. */
+  /** A running paid / granted period that ends on or before this owner's day. */
   expiresBefore?: string
   registeredFrom?: string
   registeredTo?: string
-  /** Last authenticated request on or after this Moscow day. */
+  /** Last authenticated request on or after this owner's day. */
   seenSince?: string
   /** 'yes': an active autopayment; 'no': none. */
   autopay?: 'yes' | 'no'
@@ -132,7 +144,7 @@ export interface AdminUser {
   referredBy?: string
   referralCode?: string
   /** trialPendingDays: the free period waits for the first sign-in in an app (AccountStore.claimTrialDevice). */
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   /** The last authenticated request from anywhere (the site, the phone or the PC app). */
   lastSeenAt?: string
@@ -159,8 +171,99 @@ export interface AdminUser {
   invitedBy?: InviterView
   /** The payment region from the country (RU / CIS / WORLD), 'none' without one. */
   payRegion: PayRegion
+  /** An account from Russia the owner opened BZB's CIS pages to (setBezebeeAllowed). */
+  bezebeeAllowed?: true
   /** What the running access rests on (SubscriptionSource); absent without access. */
   source?: SubscriptionSource
+}
+
+/** The app behind a device name: the PC app, the phone app on each system, the browser build. */
+export type ProfileDeviceKind = 'pc' | 'android' | 'ios' | 'browser' | 'other'
+/** Payments and friends listed in AccountProfile; the counts and sums always cover all of them. */
+const PROFILE_PAYMENTS = 200
+const PROFILE_FRIENDS = 200
+
+export function deviceKindOf(name: string): ProfileDeviceKind {
+  const platform = phonePlatformOf(name)
+  if (platform) return platform
+  if (presenceClientOf(name) === 'pc') return 'pc'
+  return /^Браузер(?:\s|$)/.test(name) ? 'browser' : 'other'
+}
+
+/**
+ * GET /me/admin/users/:id/profile (AdminStore.profile): one account as «Посмотреть профиль» shows it. Money in roubles;
+ * every date ISO. A part the database has nothing for is absent (or empty), never made up.
+ */
+export interface AccountProfile {
+  generatedAt: string
+  account: {
+    id: string
+    /** Absent for a deleted account (its e-mail is gone). */
+    email?: string
+    deleted?: true
+    deletedAt?: string
+    /** The player asked to delete the account: when it goes. */
+    deletionAt?: string
+    emailVerifiedAt?: string
+    kind: 'user' | 'streamer'
+    owner?: true
+    createdAt: string
+    country?: string
+    countryOther?: string
+    payRegion: PayRegion
+    nickname?: string
+    eftAccount?: { masked: string; boundAt: string }
+    /** A confirmed phone number, masked («+7 ••• •••-45-67»). */
+    phone?: string
+    blockedAt?: string
+    bezebeeAllowed?: true
+  }
+  subscription: AdminUser['subscription'] & { source?: SubscriptionSource }
+  autopay: AdminUser['autopay']
+  /** Where the account came from: a streamer's code or link, a friend's code, an ad. */
+  origin: { streamerCode?: string; streamerLink?: string; invitedBy?: InviterView; ad?: { source: string; label: string; campaign?: string } }
+  payments: {
+    /** Succeeded payments and their sum. */
+    count: number
+    total: number
+    refunded: { count: number; total: number }
+    first?: { at: string; plan: PlanId; amount: number; refunded?: true }
+    last?: { at: string; plan: PlanId; amount: number }
+    /** Succeeded payments by the owner's month (Bangkok), newest first, with the plans bought in it. */
+    months: Array<{ month: string; count: number; revenue: number; plans: Partial<Record<PlanId, number>> }>
+    plans: Record<PlanId, { count: number; revenue: number }>
+    /** Every payment (any status), newest first; `more`: older ones beyond PROFILE_PAYMENTS. */
+    list: AdminPayment[]
+    more: boolean
+  }
+  grants: Array<{ days: number; reason: string; actor: string; at: string; paidUntil: string }>
+  activity: {
+    /** The last request from anywhere: the site, the phone or the PC app. */
+    lastSeenAt?: string
+    pcSeenAt?: string
+    phoneSeenAt?: string
+    browserSeenAt?: string
+    /** The first sign-in in an app (the oldest device). */
+    firstAppAt?: string
+    phone: { used: boolean; android: boolean; ios: boolean }
+    devices: Array<{ kind: ProfileDeviceKind; name: string; firstAt: string; lastAt: string; active: boolean; revokedAt?: string }>
+    /** In an app right now (services/presence.ts); absent where the server keeps no presence. */
+    online?: AccountPresence
+  }
+  referrals: {
+    /** The player's own «Пригласи друга» code. */
+    inviteCode?: string
+    invited: number
+    deleted: number
+    /** Friends with at least one payment that went through, and their sum. */
+    paid: number
+    revenue: number
+    friends: Array<{ id: string; email?: string; nickname?: string; deleted?: true; blocked?: true; invitedAt: string; payments: number; amount: number; firstPaidAt?: string; firstPlan?: PlanId }>
+    more: boolean
+    rewards: { granted: number; pending: number; review: number; canceled: number; days: { granted: number; pending: number; review: number }; lifetime?: true }
+    /** A streamer's code (accounts.referral_code): registrations and payments with it. */
+    streamer?: { code: string; registrations: number; payers: number; payments: number; revenue: number; earnings: number }
+  }
 }
 
 /** The inviter of a friend-invited account (owner only). */
@@ -196,26 +299,20 @@ export interface AdminPayment {
   invitedBy?: InviterView
   /** The owner changed the amount by hand («Изменить сумму»): the amount before the first change, roubles, and when. */
   amountEdited?: { before: number; at: string }
-  /** What was left after the commission, roubles (the owner's second sum on «Подтвердить оплату Boosty»). */
+  /** What was left after the commission, roubles (given with a confirmation by hand; paymentStore.ts `net_amount`). */
   netAmount?: number
-  /** How it was paid (METHOD_SQL): sbp, sberbank, tinkoff_bank, bank_card, …, boosty; 'unknown' before it was stored, 'archive'. */
+  /** How it was paid (METHOD_SQL): sbp, sberbank, tinkoff_bank, bank_card, …, bezebee; 'unknown' before it was stored, 'archive'. */
   method: string
 }
 
 const rub = (kopecks: unknown) => Math.round(Number(kopecks ?? 0)) / 100
 const iso = (ms: unknown) => (ms == null ? undefined : new Date(Number(ms)).toISOString())
-/** Start of the Moscow day that contains `time`. */
-const mskDayStart = (time: number) => Math.floor((time + MSK_MS) / DAY_MS) * DAY_MS - MSK_MS
-const mskKey = (time: number) => new Date(time + MSK_MS).toISOString().slice(0, 10)
-/** 2026-10-01 (Moscow) → [start, end) in ms. */
-function mskDayRange(day: string) {
-  const start = Date.parse(`${day}T00:00:00.000Z`) - MSK_MS
-  return { start, end: start + DAY_MS }
-}
+/** «2026-11-03 14:05» (owner's time) of an ISO date, for the CSV files. */
+const csvTime = (value: string) => ownerText(Date.parse(value))
 /** A LIKE pattern that matches `text` literally. */
 const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
-/** «Способ» in the CSV: ЮKassa, Boosty, or «Архив» for a payment service that is no longer connected. */
-const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', bezebee: 'BZB', archive: 'Архив' }
+/** «Способ» in the CSV: ЮKassa, BZB, or «Архив» for a payment service that is no longer connected. */
+const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', bezebee: 'BZB', archive: 'Архив' }
 const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
 /** FROM of «Пользователи»: see AdminStore.userSelect. */
 const USER_FROM = 'FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id LEFT JOIN accounts i ON i.id = a.invited_by'
@@ -234,12 +331,12 @@ function inviterOf(row: Row): InviterView {
  * accounts.invited_by, see toPayment). Followed by WHERE / ORDER BY.
  */
 /** The payment's provider as stored: NULL is ЮKassa (providerOf). */
-const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'yookassa' WHEN p.provider = 'boosty' THEN 'boosty' WHEN p.provider = 'bezebee' THEN 'bezebee' ELSE 'archive' END"
+const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'yookassa' WHEN p.provider = 'bezebee' THEN 'bezebee' ELSE 'archive' END"
 /**
- * How a payment was paid: the stored `method`, else 'boosty' for Boosty, 'unknown' for a ЮKassa payment from before the
- * column, 'archive' for the removed provider.
+ * How a payment was paid: the stored `method`, else 'bezebee' for BZB, 'unknown' for a ЮKassa payment from before the
+ * column, 'archive' for the removed providers (Lava.top, Boosty).
  */
-const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'boosty' THEN 'boosty' WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
+const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
 const PAYMENT_SELECT = `SELECT p.*, ${METHOD_SQL} AS method_view, a.email AS email, a.nicknames AS payer_nicknames, a.invited_by AS invited_by, i.email AS inviter_email, i.nicknames AS inviter_nicknames, i.deleted_at AS inviter_deleted_at FROM payments p JOIN accounts a ON a.id = p.account_id LEFT JOIN accounts i ON i.id = a.invited_by`
 
 /** The filters of a UserQuery that narrow anything (for the audit log): no defaults, no sort. */
@@ -251,12 +348,42 @@ export function userQueryDetails(query: UserQuery): Record<string, string> {
 /** The moment a payment counts for revenue: paid, else created (the statistics and `dateField=paid`). */
 const PAID_SQL = 'COALESCE(p.paid_at, p.created_at)'
 
+/**
+ * «Оплатили повторно» (owner, 12.11.2026: «счёт того, сколько человек оплатили повторно»): a payment with money in it is
+ * a succeeded one with an amount — ЮKassa, autopay, BZB confirmed by hand (a recorded one without days too) and the
+ * archived ones; refunded, canceled and pending ones are not, and the owner's granted days are no payments at all.
+ */
+const MONEY_PAYMENT_SQL = "p.account_id = a.id AND p.status = 'succeeded' AND p.amount > 0"
+/** People (accounts that are not deleted) with two or more such payments, all the time. */
+const REPEAT_PAYERS_SQL = `SELECT COUNT(*) AS n FROM accounts a WHERE a.deleted_at IS NULL AND (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL}) >= 2`
+/**
+ * «Повторные оплаты» (owner, 15.11.2026: «сколько оплат и отдельно сколько повторных оплат»): a payment `p` with money in
+ * it (as MONEY_PAYMENT_SQL) whose account had such a payment before it (paid, else created; the same moment: the older row).
+ */
+const REPEAT_PAYMENT_SQL = `p.status = 'succeeded' AND p.amount > 0 AND EXISTS (SELECT 1 FROM payments q WHERE q.account_id = p.account_id AND q.status = 'succeeded' AND q.amount > 0
+  AND (COALESCE(q.paid_at, q.created_at) < COALESCE(p.paid_at, p.created_at) OR (COALESCE(q.paid_at, q.created_at) = COALESCE(p.paid_at, p.created_at) AND q.rowid < p.rowid)))`
+/**
+ * A «мёртвый» registration (owner, 16.11.2026: «добавлять в мертвые только тех кто не использовал пробный период в течении
+ * 21 дня»; «За 15 число 178 регистраций, а написано 149 реальных»): TRIAL_DEAD_MS since it registered and its free days
+ * never used — not started in the app (trial_pending_ms, or no trial_ends_at), still waiting for the first raid
+ * (trial_raid_ms is cleared only by the raid) or refused — and never paid. A newer one is «реальный», whatever it did so
+ * far; so are one that used them and one that paid. Accounts joined as `a`.
+ */
+/** A free period running now (accounts `a`, subscriptions `s`; args: now, now): a user's, not refused, not under a paid period. */
+const TRIAL_NOW_SQL = "a.kind = 'user' AND a.deleted_at IS NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)"
+export const TRIAL_DEAD_MS = 21 * DAY_MS
+const TRIAL_DEAD_SQL = `(a.created_at < ? AND (a.trial_pending_ms IS NOT NULL OR a.trial_ends_at IS NULL OR a.trial_raid_ms IS NOT NULL OR COALESCE(a.trial_denied, 0) <> 0) AND NOT EXISTS (SELECT 1 FROM payments p WHERE ${MONEY_PAYMENT_SQL}))`
+const trialDead = (row: Row, now: number) => Number(row.created_at) < now - TRIAL_DEAD_MS
+  && (row.trial_pending_ms != null || row.trial_ends_at == null || row.trial_raid_ms != null || Boolean(Number(row.trial_denied ?? 0))) && !(Number(row.money_count) > 0)
+
 /** Accounts (joined as `a`) of a payment region: RU, CIS without Russia, WORLD (every other country, «XX» too), none. */
 function payRegionCondition(region: PayRegion): { sql: string; args: string[] } {
   if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
   if (region === 'RU') return { sql: "a.country = 'RU'", args: [] }
   if (region === 'CIS') return { sql: `a.country IN (${placeholders(CIS_PAYMENT_COUNTRIES)})`, args: [...CIS_PAYMENT_COUNTRIES] }
-  return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)})`, args: [...CIS_COUNTRIES] }
+  // WORLD: every country that is neither Russia nor of the CIS price (paymentRegionOf).
+  const cisPrice = ['RU', ...CIS_PAYMENT_COUNTRIES]
+  return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(cisPrice)})`, args: cisPrice }
 }
 const payRegionOf = (country: unknown): PayRegion => paymentRegionOf(country == null ? undefined : String(country)) ?? 'none'
 
@@ -282,12 +409,16 @@ function sourceOf(row: Row, now: number): SubscriptionSource | undefined {
 function regionCondition(region: Exclude<RegionFilter, 'all'>): { sql: string; args: string[] } {
   if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
   if (region === 'russia') return { sql: "a.country = 'RU'", args: [] }
+  // «СНГ» of the admin panel: the CIS and the owner's Ukraine, Latvia, Lithuania (ADMIN_CIS_COUNTRIES); «Мир» is the rest.
   if (region === 'cis') {
-    const cis = CIS_COUNTRIES.filter((code) => code !== 'RU')
+    const cis = ADMIN_CIS_COUNTRIES.filter((code) => code !== 'RU')
     return { sql: `a.country IN (${placeholders(cis)})`, args: [...cis] }
   }
-  if (region === 'world') return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)})`, args: [...CIS_COUNTRIES] }
-  if (region === 'europe') return { sql: `a.country IN (${placeholders(EUROPE_COUNTRIES)})`, args: [...EUROPE_COUNTRIES] }
+  if (region === 'world') return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(ADMIN_CIS_COUNTRIES)})`, args: [...ADMIN_CIS_COUNTRIES] }
+  if (region === 'europe') {
+    const europe = EUROPE_COUNTRIES.filter((code) => !ADMIN_EXTRA_CIS_COUNTRIES.includes(code))
+    return { sql: `a.country IN (${placeholders(europe)})`, args: [...europe] }
+  }
   const listed = [...CIS_COUNTRIES, ...EUROPE_COUNTRIES]
   return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(listed)})`, args: listed }
 }
@@ -298,12 +429,18 @@ export class AdminStore {
   private readonly payments: PaymentStore
   private readonly now: () => number
   private readonly online: OnlineStatsStore
+  private readonly onGrant?: (accountId: string, days: number, reason: string) => void
 
-  constructor(accounts: AccountStore, payments: PaymentStore, options: { now?: () => number } = {}) {
+  /**
+   * `onGrant`: days the owner granted by hand, in bulk or as a report's reward (app.ts: the player's popup «Вам зачислено N
+   * дней…», services/grantNotice.ts); called after the grant is stored, its failure never undoes it.
+   */
+  constructor(accounts: AccountStore, payments: PaymentStore, options: { now?: () => number; onGrant?: (accountId: string, days: number, reason: string) => void } = {}) {
     this.accounts = accounts
     this.payments = payments
     this.db = accounts.database
     this.now = options.now ?? accounts.clock
+    this.onGrant = options.onGrant
     if (payments.database !== this.db) throw new Error('AdminStore: accounts and payments must share one database')
     this.db.exec(SCHEMA)
     this.online = new OnlineStatsStore(this.db, { now: this.now })
@@ -337,9 +474,8 @@ export class AdminStore {
 
   overview() {
     const now = this.now()
-    const today = mskDayStart(now)
-    const monthKey = mskKey(now).slice(0, 7)
-    const monthStart = Date.parse(`${monthKey}-01T00:00:00.000Z`) - MSK_MS
+    const today = ownerDayRange(ownerDay(now)).start
+    const monthStart = ownerDayRange(`${ownerDay(now).slice(0, 7)}-01`).start
     const count = (sql: string, ...args: Array<string | number>) => Number((this.db.prepare(sql).get(...args) as Row).n)
     const users = {
       // Deleted accounts (anonymous stubs kept for the payments) are not users: never counted as registrations.
@@ -354,14 +490,19 @@ export class AdminStore {
       // granted days, trials, streamers and the «Легенда» rank are not paid subscriptions.
       active: count(`SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND a.deleted_at IS NULL AND s.paid_until > ?
         AND EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND p.amount > 0)`, now),
-      trials: count("SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.kind = 'user' AND a.deleted_at IS NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)", now, now),
+      // Of them, «повторные» (owner, 15.11.2026): the account paid twice or more (the 2nd, 3rd… subscription).
+      activeRepeat: count(`SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND a.deleted_at IS NULL AND s.paid_until > ?
+        AND (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL}) >= 2`, now),
+      trials: count(`SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE ${TRIAL_NOW_SQL}`, now, now),
+      // «мёртвых» and «реальных» of them (TRIAL_DEAD_SQL); trials = trialsDead + trialsAlive.
+      trialsDead: count(`SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE ${TRIAL_NOW_SQL} AND ${TRIAL_DEAD_SQL}`, now, now, now - TRIAL_DEAD_MS),
       autopay: count("SELECT COUNT(*) AS n FROM recurring_subscriptions WHERE status = 'active'"),
       streamers: count("SELECT COUNT(*) AS n FROM accounts WHERE kind = 'streamer'"),
     }
-    // Every succeeded payment by its stored rouble amount: ЮKassa and the archived ones alike.
+    // Every succeeded payment by its stored rouble amount: ЮKassa and the archived ones alike; `repeat`: REPEAT_PAYMENT_SQL.
     const revenueSince = (since: number) => {
       const row = this.db.prepare("SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(since) as Row
-      return { total: rub(row.total), payments: Number(row.n) }
+      return { total: rub(row.total), payments: Number(row.n), repeat: count(`SELECT COUNT(*) AS n FROM payments p WHERE p.paid_at >= ? AND ${REPEAT_PAYMENT_SQL}`, since) }
     }
     const payouts = this.tableExists('streamer_payouts')
       ? this.db.prepare("SELECT COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS paid, COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS pending, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS open FROM streamer_payouts").get() as Row
@@ -379,7 +520,8 @@ export class AdminStore {
     return {
       generatedAt: new Date(now).toISOString(),
       users,
-      subscriptions,
+      subscriptions: { ...subscriptions, trialsAlive: subscriptions.trials - subscriptions.trialsDead },
+      repeatPayers: count(REPEAT_PAYERS_SQL),
       revenue: { today: revenueSince(today), month: revenueSince(monthStart), all: revenueSince(0) },
       plans: { month: plansSince(monthStart), all: plansSince(0) },
       squads: this.squadStats(now),
@@ -389,20 +531,22 @@ export class AdminStore {
 
   /**
    * «Отряды» (owner, 20.10.2026: «сколько создано отрядов вообще, сколько расформировано, сколько сейчас и сколько человек
-   * в них играет»): created since squad_log exists (services/squadStore.ts; the squads of that moment counted in),
-   * disbanded = created and gone since.
+   * в них играет»), only squads of two or more (owner, 15.11.2026: «Записываю в статистику отряды, в которых было 2 и более
+   * человека»): created = got a second member since squad_team_log exists (services/squadStore.ts; the squads of two or more of
+   * that moment counted in), disbanded = of those, gone since; active and players = the squads of two or more now.
    */
   private squadStats(now: number) {
     if (!this.tableExists('squads') || !this.tableExists('squad_members')) return { created: 0, disbanded: 0, active: 0, players: 0, created30: 0, since: null }
     const count = (sql: string, ...args: number[]) => Number((this.db.prepare(sql).get(...args) as Row).n)
-    const active = count('SELECT COUNT(*) AS n FROM squads')
-    const players = count('SELECT COUNT(*) AS n FROM squad_members')
-    if (!this.tableExists('squad_log')) return { created: active, disbanded: 0, active, players, created30: 0, since: null }
-    const created = count('SELECT COUNT(*) AS n FROM squad_log')
-    const first = (this.db.prepare('SELECT MIN(created_at) AS at FROM squad_log').get() as Row).at
+    const teams = 'SELECT squad_id FROM squad_members GROUP BY squad_id HAVING COUNT(*) >= 2'
+    const active = count(`SELECT COUNT(*) AS n FROM (${teams})`)
+    const players = count(`SELECT COUNT(*) AS n FROM squad_members WHERE squad_id IN (${teams})`)
+    if (!this.tableExists('squad_team_log')) return { created: active, disbanded: 0, active, players, created30: 0, since: null }
+    const created = count('SELECT COUNT(*) AS n FROM squad_team_log')
+    const first = (this.db.prepare('SELECT MIN(created_at) AS at FROM squad_team_log').get() as Row).at
     return {
-      created, disbanded: Math.max(0, created - active), active, players,
-      created30: count('SELECT COUNT(*) AS n FROM squad_log WHERE created_at >= ?', now - 30 * DAY_MS),
+      created, disbanded: count('SELECT COUNT(*) AS n FROM squad_team_log WHERE squad_id NOT IN (SELECT id FROM squads)'), active, players,
+      created30: count('SELECT COUNT(*) AS n FROM squad_team_log WHERE created_at >= ?', now - 30 * DAY_MS),
       since: first == null ? null : new Date(Number(first)).toISOString(),
     }
   }
@@ -411,7 +555,31 @@ export class AdminStore {
     return this.online.summary(days)
   }
 
-  /** Registrations and payments per Moscow day (last 31), month (last 12) or year (all), newest first. */
+  /**
+   * «Телефоны» of «Сводка» (owner, 23.11.2026: «сколько у нас пользователей, сколько телефонов… сколько с андроида установило
+   * и зашло, сколько с айфона установило и зашло»): the users, and the phones that signed in to an account — the phone app
+   * registers its device at sign-in as «Android · Raid OS» or «iOS · Raid OS» (src/sync/webEntitlement.ts) — and their
+   * accounts, all the time (a device signed out later still counts; deleted accounts do not). Who is in the app now comes
+   * from the heartbeat (services/presence.ts, routes/ownerAdmin.ts).
+   */
+  phoneStats(): PhoneStats {
+    const users = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE deleted_at IS NULL').get() as Row).n)
+    const empty = { accounts: 0, devices: 0 }
+    if (!this.tableExists('account_devices')) return { users, phones: { ...empty }, android: { ...empty }, ios: { ...empty } }
+    const from = "FROM account_devices d JOIN accounts a ON a.id = d.account_id AND a.deleted_at IS NULL"
+    const platform = "CASE WHEN d.name LIKE 'Android%' THEN 'android' WHEN d.name LIKE 'iOS%' THEN 'ios' END"
+    const rows = this.db.prepare(`SELECT ${platform} AS platform, COUNT(*) AS devices, COUNT(DISTINCT d.account_id) AS accounts ${from}
+      WHERE d.name LIKE 'Android%' OR d.name LIKE 'iOS%' GROUP BY platform`).all() as Row[]
+    const of = (name: string) => {
+      const row = rows.find((entry) => entry.platform === name)
+      return row ? { accounts: Number(row.accounts), devices: Number(row.devices) } : { ...empty }
+    }
+    const phones = this.db.prepare(`SELECT COUNT(*) AS devices, COUNT(DISTINCT d.account_id) AS accounts ${from}
+      WHERE d.name LIKE 'Android%' OR d.name LIKE 'iOS%'`).get() as Row
+    return { users, phones: { accounts: Number(phones.accounts), devices: Number(phones.devices) }, android: of('android'), ios: of('ios') }
+  }
+
+  /** Registrations and payments per owner's day (last 31), month (last 12) or year (all), newest first. */
   series(period: StatsPeriod) {
     const now = this.now()
     const length = PERIOD_LENGTH[period]
@@ -425,12 +593,12 @@ export class AdminStore {
       }
       return entry
     }
-    const today = mskKey(now)
-    if (period === 'day') for (let i = 0; i < 31; i++) row(mskKey(now - i * DAY_MS))
+    const today = ownerDay(now)
+    if (period === 'day') for (let i = 0; i < 31; i++) row(ownerDay(now - i * DAY_MS))
     if (period === 'month') for (let i = 0; i < 12; i++) { const date = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() - i); row(date.toISOString().slice(0, 7)) }
     if (period === 'year') row(today.slice(0, 4))
     const cutoff = period === 'year' ? '' : [...rows.keys()].sort()[0]!
-    const key = periodKeySql(period)
+    const key = periodKeySql(period, OWNER_OFFSET_MS)
     for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE deleted_at IS NULL GROUP BY k`).all() as Row[]) {
       if (String(item.k) >= cutoff) row(String(item.k)).registrations = Number(item.n)
     }
@@ -447,7 +615,76 @@ export class AdminStore {
   }
 
   /**
-   * «Календарь» in «Сводка»: every Moscow day of `month` (YYYY-MM) with registrations, succeeded payments and revenue
+   * «Реклама» (owner, 09.11.2026: «сколько человек пришло с Reddit рекламы»): for every platform of src/shared/adSources.ts
+   * the visits of its link, the accounts marked with it (deleted ones not counted, as everywhere) and their succeeded
+   * payments — all time, per owner's day (last 31), month (last 12) or year, and per campaign (all time, '' = none).
+   */
+  adSources(period: StatsPeriod) {
+    const now = this.now()
+    const length = PERIOD_LENGTH[period]
+    const today = ownerDay(now)
+    const keys: string[] = []
+    if (period === 'day') for (let i = 0; i < 31; i++) keys.push(ownerDay(now - i * DAY_MS))
+    if (period === 'month') for (let i = 0; i < 12; i++) { const date = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() - i); keys.push(date.toISOString().slice(0, 7)) }
+    const cutoff = period === 'year' ? '' : keys[keys.length - 1]!
+    const key = periodKeySql(period, OWNER_OFFSET_MS)
+    type Numbers = { visits: number; registrations: number; payments: number; revenue: number }
+    const empty = (): Numbers => ({ visits: 0, registrations: 0, payments: 0, revenue: 0 })
+    const sources = AD_SOURCES.map((source) => {
+      const rows = new Map<string, Numbers & { period: string }>(keys.map((k) => [k, { period: k, ...empty() }]))
+      const row = (k: string) => {
+        let entry = rows.get(k)
+        if (!entry) { entry = { period: k, ...empty() }; rows.set(k, entry) }
+        return entry
+      }
+      const campaigns = new Map<string, Numbers & { campaign: string }>()
+      const campaign = (name: unknown) => {
+        const k = name == null ? '' : String(name)
+        let entry = campaigns.get(k)
+        if (!entry) { entry = { campaign: k, ...empty() }; campaigns.set(k, entry) }
+        return entry
+      }
+      const totals = { ...empty(), payers: 0 }
+      for (const item of this.db.prepare(`SELECT substr(day, 1, ${length}) AS k, campaign, SUM(visits) AS n FROM ad_visit_days WHERE source = ? GROUP BY k, campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        totals.visits += n
+        campaign(item.campaign).visits += n
+        if (String(item.k) >= cutoff) row(String(item.k)).visits += n
+      }
+      for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, ad_campaign, COUNT(*) AS n FROM accounts WHERE ad_source = ? AND deleted_at IS NULL GROUP BY k, ad_campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        totals.registrations += n
+        campaign(item.ad_campaign).registrations += n
+        if (String(item.k) >= cutoff) row(String(item.k)).registrations += n
+      }
+      for (const item of this.db.prepare(`SELECT ${key('p.paid_at')} AS k, a.ad_campaign AS ad_campaign, COUNT(*) AS n, SUM(p.amount) AS total FROM payments p JOIN accounts a ON a.id = p.account_id
+        WHERE a.ad_source = ? AND p.status = 'succeeded' AND p.paid_at IS NOT NULL GROUP BY k, a.ad_campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        const total = rub(item.total)
+        totals.payments += n
+        totals.revenue = Math.round((totals.revenue + total) * 100) / 100
+        const byCampaign = campaign(item.ad_campaign)
+        byCampaign.payments += n
+        byCampaign.revenue = Math.round((byCampaign.revenue + total) * 100) / 100
+        if (String(item.k) < cutoff) continue
+        const entry = row(String(item.k))
+        entry.payments += n
+        entry.revenue = Math.round((entry.revenue + total) * 100) / 100
+      }
+      totals.payers = Number((this.db.prepare("SELECT COUNT(DISTINCT p.account_id) AS n FROM payments p JOIN accounts a ON a.id = p.account_id WHERE a.ad_source = ? AND p.status = 'succeeded'").get(source) as Row).n)
+      return {
+        source,
+        label: AD_SOURCE_LABEL[source],
+        totals,
+        rows: [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period)),
+        campaigns: [...campaigns.values()].sort((a, b) => b.visits - a.visits || b.registrations - a.registrations || a.campaign.localeCompare(b.campaign)),
+      }
+    })
+    return { period, sources }
+  }
+
+  /**
+   * «Календарь» in «Сводка»: every owner's day of `month` (YYYY-MM) with registrations, succeeded payments and revenue
    * (also per plan). Days after today are included with zeros.
    */
   calendar(month: string) {
@@ -455,15 +692,15 @@ export class AdminStore {
     const next = new Date(first)
     next.setUTCMonth(next.getUTCMonth() + 1)
     const daysInMonth = Math.round((next.getTime() - first) / DAY_MS)
-    const start = first - MSK_MS
-    const end = next.getTime() - MSK_MS
+    const start = first - OWNER_OFFSET_MS
+    const end = next.getTime() - OWNER_OFFSET_MS
     type Day = { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
     const days: Day[] = Array.from({ length: daysInMonth }, (_, index) => ({
       date: `${month}-${String(index + 1).padStart(2, '0')}`, registrations: 0, payments: 0, revenue: 0,
       plans: Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as Day['plans'],
     }))
     const byDate = new Map(days.map((day) => [day.date, day]))
-    const key = periodKeySql('day')
+    const key = periodKeySql('day', OWNER_OFFSET_MS)
     for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE created_at >= ? AND created_at < ? AND deleted_at IS NULL GROUP BY k`).all(start, end) as Row[]) {
       const day = byDate.get(String(item.k))
       if (day) day.registrations = Number(item.n)
@@ -477,15 +714,15 @@ export class AdminStore {
       const plan = day.plans[String(item.plan) as PlanId]
       if (plan) { plan.count += Number(item.n); plan.revenue = Math.round((plan.revenue + total) * 100) / 100 }
     }
-    return { month, today: mskKey(this.now()), days }
+    return { month, today: ownerDay(this.now()), days }
   }
 
   /**
-   * The window that opens on a calendar day (YYYY-MM-DD, Moscow): who registered, every payment started or paid that day,
-   * the owner's manual grants and «Пригласи друга» rewards. Lists are capped (registrations 200, payments 500).
+   * The window that opens on a calendar day (YYYY-MM-DD, owner's time): who registered, every payment started or paid that
+   * day, the owner's manual grants and «Пригласи друга» rewards. Lists are capped (registrations 200, payments 500).
    */
   day(date: string) {
-    const { start, end } = mskDayRange(date)
+    const { start, end } = ownerDayRange(date)
     const summary = this.calendar(date.slice(0, 7)).days.find((day) => day.date === date)!
     const hasInvites = this.tableExists('invite_rewards')
     // The inviter of a friend-invited registration by one LEFT JOIN (owner, 14.10.2026: the e-mail instead of a bare flag).
@@ -528,28 +765,31 @@ export class AdminStore {
   }
 
   /**
-   * One aggregate for the owner app (GET /me/admin/stats): the Moscow days `fromDay`..`toDay` (inclusive) for everything
+   * One aggregate for the owner app (GET /me/admin/stats): the owner's days `fromDay`..`toDay` (inclusive) for everything
    * «in range», the state now for the rest. Deleted accounts are never users (their payments still count as revenue, with
    * region 'none': the country is erased with the account). Revenue: succeeded payments by paid_at (else created_at),
    * roubles; refunds by refunded_at. Docs: docs/codex/owner-admin-api.md.
    */
   stats(from?: string, to?: string) {
     const now = this.now()
-    const toDay = to ?? mskKey(now)
-    const fromDay = from ?? mskKey(mskDayRange(toDay).start - (STATS_DEFAULT_DAYS - 1) * DAY_MS)
+    const toDay = to ?? ownerDay(now)
+    const fromDay = from ?? ownerDay(ownerDayRange(toDay).start - (STATS_DEFAULT_DAYS - 1) * DAY_MS)
     if (fromDay > toDay) throw new AccountError(400, 'Начало периода позже конца')
-    const start = mskDayRange(fromDay).start
-    const end = mskDayRange(toDay).end
+    const start = ownerDayRange(fromDay).start
+    const end = ownerDayRange(toDay).end
     const inRange = (time: unknown) => time != null && Number(time) >= start && Number(time) < end
     const hasInvites = this.tableExists('invite_rewards')
-    const accounts = this.db.prepare(`SELECT a.id, a.kind, a.country, a.created_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.invited_by, a.referred_by, s.paid_until,
+    const accounts = this.db.prepare(`SELECT a.id, a.kind, a.country, a.created_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.trial_raid_ms, a.last_seen_at, a.invited_by, a.referred_by, s.paid_until,
         (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
         (SELECT MIN(${PAID_SQL}) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS first_paid_at,
         EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND ${PAID_SQL} >= ? AND ${PAID_SQL} < ?) AS paid_in_range,
+        (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL}) AS money_count,
+        (SELECT COUNT(*) FROM payments p WHERE ${MONEY_PAYMENT_SQL} AND ${PAID_SQL} < ?) AS money_before_end,
+        EXISTS (SELECT 1 FROM payments p WHERE ${MONEY_PAYMENT_SQL} AND ${PAID_SQL} >= ? AND ${PAID_SQL} < ?) AS money_in_range,
         EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND p.discount_percent IS NOT NULL) AS paid_discount,
         EXISTS (SELECT 1 FROM recurring_subscriptions r WHERE r.account_id = a.id AND r.status = 'active') AS autopay,
         ${this.friendRewardSql()} AS friend_reward
-      FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.deleted_at IS NULL`).all(start, end) as Row[]
+      FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.deleted_at IS NULL`).all(start, end, end, start, end) as Row[]
 
     type Bucket = { users: number; new: number; paying: number; active: number; revenue: number }
     const bucket = (): Bucket => ({ users: 0, new: 0, paying: 0, active: 0, revenue: 0 })
@@ -557,10 +797,13 @@ export class AdminStore {
     const byCountry = new Map<string, Bucket>()
     const legacyRegion: Record<CountryRegion | 'none', number> = { cis: 0, europe: 0, other: 0, none: 0 }
     const users = { total: 0, new: 0, deletedExcluded: 0, streamers: 0, blocked: 0 }
-    const subscriptions = { activePaid: 0, activeGranted: 0, grantedBy: { owner: 0, friend: 0 }, trials: 0, trialsPending: 0, expiringIn7Days: 0, expiringIn30Days: 0, lifetime: { total: 0, streamers: 0, legend: 0 }, autopay: 0 }
-    const payers = { everPaid: 0, paidInRange: 0, newInRange: 0 }
+    // activePaidRepeat: of activePaid, paid twice or more; trialsDead / trialsAlive: of trials (TRIAL_DEAD_SQL), now.
+    const subscriptions = { activePaid: 0, activePaidRepeat: 0, activeGranted: 0, grantedBy: { owner: 0, friend: 0 }, trials: 0, trialsDead: 0, trialsAlive: 0, trialsPending: 0, expiringIn7Days: 0, expiringIn30Days: 0, lifetime: { total: 0, streamers: 0, legend: 0 }, autopay: 0 }
+    // repeatPaid: «Оплатили повторно», all the time (as in overview); repeatInRange: a second or later payment in range.
+    const payers = { everPaid: 0, paidInRange: 0, newInRange: 0, repeatPaid: 0, repeatInRange: 0 }
     const referrals = { friendInvited: 0, friendInvitedInRange: 0, friendPaid: 0, friendPaidDiscount: 0, streamerReferred: 0, rewardsByStatus: { pending: 0, review: 0, granted: 0, canceled: 0 } as Record<string, number> }
-    const trialConversion = { trialStarted: 0, laterPaid: 0, rate: 0 }
+    // dead / alive: every registration of the range (users), as TRIAL_DEAD_SQL now: dead + alive = the registrations.
+    const trialConversion = { trialStarted: 0, laterPaid: 0, rate: 0, dead: 0, alive: 0 }
     for (const row of accounts) {
       const source = sourceOf(row, now)
       const country = row.country == null ? undefined : String(row.country)
@@ -577,10 +820,10 @@ export class AdminStore {
         if (paying) target.paying++
         if (active) target.active++
       }
-      legacyRegion[country ? regionOf(country) : 'none']++
-      if (source === 'money') subscriptions.activePaid++
+      legacyRegion[country ? adminRegionOf(country) : 'none']++
+      if (source === 'money') { subscriptions.activePaid++; if (Number(row.money_count) >= 2) subscriptions.activePaidRepeat++ }
       if (source === 'grant' || source === 'friend') { subscriptions.activeGranted++; subscriptions.grantedBy[source === 'grant' ? 'owner' : 'friend']++ }
-      if (source === 'trial') subscriptions.trials++
+      if (source === 'trial') { subscriptions.trials++; subscriptions[trialDead(row, now) ? 'trialsDead' : 'trialsAlive']++ }
       if (row.kind === 'user' && row.trial_pending_ms != null && !Number(row.trial_denied ?? 0) && source !== 'money') subscriptions.trialsPending++
       if (source === 'money' || source === 'grant' || source === 'friend') {
         const left = Number(row.paid_until) - now
@@ -592,6 +835,9 @@ export class AdminStore {
       if (paid) payers.everPaid++
       if (Number(row.paid_in_range)) payers.paidInRange++
       if (inRange(row.first_paid_at)) payers.newInRange++
+      if (Number(row.money_count) >= 2) payers.repeatPaid++
+      // Two before the end with one in range: the last of them is in range and has one before it.
+      if (Number(row.money_in_range) && Number(row.money_before_end) >= 2) payers.repeatInRange++
       if (row.invited_by != null) {
         referrals.friendInvited++
         if (isNew) referrals.friendInvitedInRange++
@@ -604,6 +850,7 @@ export class AdminStore {
         trialConversion.trialStarted++
         if (paid) trialConversion.laterPaid++
       }
+      if (isNew && row.kind === 'user') trialConversion[trialDead(row, now) ? 'dead' : 'alive']++
     }
     trialConversion.rate = trialConversion.trialStarted ? Math.round(trialConversion.laterPaid / trialConversion.trialStarted * 10_000) / 10_000 : 0
     users.deletedExcluded = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE deleted_at IS NOT NULL').get() as Row).n)
@@ -619,7 +866,7 @@ export class AdminStore {
       sum.count += count
       sum.amount += amount
     }
-    const byProvider: Record<string, Sum> = { yookassa: { count: 0, amount: 0 }, boosty: { count: 0, amount: 0 }, archive: { count: 0, amount: 0 } }
+    const byProvider: Record<string, Sum> = { yookassa: { count: 0, amount: 0 }, bezebee: { count: 0, amount: 0 }, archive: { count: 0, amount: 0 } }
     const byMethod: Record<string, Sum> = {}
     const revenueByRegion: Record<string, Sum> = Object.fromEntries(PAY_REGIONS.map((region) => [region, { count: 0, amount: 0 }]))
     const byPlan: Record<string, Sum> = Object.fromEntries(PLAN_IDS.map((plan) => [plan, { count: 0, amount: 0 }]))
@@ -641,13 +888,14 @@ export class AdminStore {
       byRegion[region].revenue += amount
       if (row.country != null) { const target = byCountry.get(String(row.country)); if (target) target.revenue += amount }
     }
+    const repeatPayments = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM payments p WHERE ${PAID_SQL} >= ? AND ${PAID_SQL} < ? AND ${REPEAT_PAYMENT_SQL}`).get(start, end) as Row).n)
     const refundRow = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(p.amount), 0) AS amount FROM payments p WHERE p.status = 'refunded' AND COALESCE(p.refunded_at, ${PAID_SQL}) >= ? AND COALESCE(p.refunded_at, ${PAID_SQL}) < ?`).get(start, end) as Row
     const rubles = (sums: Record<string, Sum>) => Object.fromEntries(Object.entries(sums).map(([key, sum]) => [key, { count: sum.count, amount: rub(sum.amount) }]))
     const regionView = (item: Bucket) => ({ ...item, revenue: rub(item.revenue) })
 
     return {
       generatedAt: new Date(now).toISOString(),
-      range: { from: fromDay, to: toDay, timezone: 'Europe/Moscow', start: new Date(start).toISOString(), end: new Date(end).toISOString() },
+      range: { from: fromDay, to: toDay, timezone: OWNER_TIME_ZONE, start: new Date(start).toISOString(), end: new Date(end).toISOString() },
       users,
       byRegion: Object.fromEntries(PAY_REGIONS.map((region) => [region, regionView(byRegion[region])])) as Record<PayRegion, Bucket>,
       legacyRegion,
@@ -658,6 +906,8 @@ export class AdminStore {
       revenue: {
         total: rub(total.amount),
         payments: total.count,
+        // Of `payments`, those with money whose account had paid before (REPEAT_PAYMENT_SQL).
+        repeatPayments,
         streamerEarnings: rub(streamerEarnings),
         byProvider: rubles(byProvider),
         byMethod: rubles(byMethod),
@@ -682,8 +932,8 @@ export class AdminStore {
     const where: string[] = []
     const args: Array<string | number> = []
     const date = filter.dateField === 'paid' ? PAID_SQL : 'p.created_at'
-    if (filter.from) { where.push(`${date} >= ?`); args.push(mskDayRange(filter.from).start) }
-    if (filter.to) { where.push(`${date} < ?`); args.push(mskDayRange(filter.to).end) }
+    if (filter.from) { where.push(`${date} >= ?`); args.push(ownerDayRange(filter.from).start) }
+    if (filter.to) { where.push(`${date} < ?`); args.push(ownerDayRange(filter.to).end) }
     if (filter.status) { where.push('p.status = ?'); args.push(filter.status) }
     if (filter.plan) { where.push('p.plan = ?'); args.push(filter.plan) }
     if (filter.q) { where.push("a.email LIKE ? ESCAPE '\\'"); args.push(likePattern(filter.q.toLowerCase())) }
@@ -717,14 +967,14 @@ export class AdminStore {
     }
   }
 
-  /** CSV for Excel (UTF-8 with BOM, «;» separated, Moscow time). Cells that look like formulas are neutralised. */
+  /** CSV for Excel (UTF-8 with BOM, «;» separated, owner's time). Cells that look like formulas are neutralised. */
   paymentsCsv(filter: PaymentFilter, maxRows = 50_000) {
     const { sql, args } = this.paymentWhere(filter)
     const rows = this.db.prepare(`${PAYMENT_SELECT} ${sql} ${this.paymentOrder(filter)} LIMIT ?`).all(...args, maxRows) as Row[]
     const header = ['Создан (МСК)', 'Оплачен (МСК)', 'E-mail', 'Тариф', 'Способ', 'Статус', 'Сумма, ₽', 'Сумма в валюте', 'Валюта', 'Автопродление', 'Код стримера', 'Доля стримера, ₽', 'ID платежа', 'Ник', 'Пригласил (друг)', 'Сумма до изменения, ₽']
     const status: Record<string, string> = { pending: 'Ожидает', succeeded: 'Оплачен', canceled: 'Отменён' }
     const lines = [header, ...rows.map(toPayment).map((item) => [
-      mskText(item.createdAt), item.paidAt ? mskText(item.paidAt) : '', item.email, item.plan, PROVIDER_NAME[item.provider], status[item.status] ?? item.status,
+      csvTime(item.createdAt), item.paidAt ? csvTime(item.paidAt) : '', item.email, item.plan, PROVIDER_NAME[item.provider], status[item.status] ?? item.status,
       money(item.amount), item.original ? money(item.original.amount) : '', item.original?.currency ?? '', item.renewal ? 'да' : '', item.referralCode ?? '',
       item.streamerEarning === undefined ? '' : money(item.streamerEarning), item.id, item.nickname ?? '',
       item.invitedBy ? (item.invitedBy.deleted ? 'удалённый аккаунт' : [item.invitedBy.email, item.invitedBy.nickname].filter(Boolean).join(' · ')) : '',
@@ -751,7 +1001,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.nicknames, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_raid_ms, a.trial_raid_wait_until, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.nicknames, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -796,10 +1046,10 @@ export class AdminStore {
     if (query.country) { where.push('a.country = ?'); args.push(query.country) }
     if (query.payRegion) { const condition = payRegionCondition(query.payRegion); where.push(condition.sql); args.push(...condition.args) }
     if (query.payer) where.push(`${query.payer === 'yes' ? '' : 'NOT '}EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded')`)
-    if (query.expiresBefore) { where.push('s.paid_until > ? AND s.paid_until < ?'); args.push(now, mskDayRange(query.expiresBefore).end) }
-    if (query.registeredFrom) { where.push('a.created_at >= ?'); args.push(mskDayRange(query.registeredFrom).start) }
-    if (query.registeredTo) { where.push('a.created_at < ?'); args.push(mskDayRange(query.registeredTo).end) }
-    if (query.seenSince) { where.push('a.last_seen_at >= ?'); args.push(mskDayRange(query.seenSince).start) }
+    if (query.expiresBefore) { where.push('s.paid_until > ? AND s.paid_until < ?'); args.push(now, ownerDayRange(query.expiresBefore).end) }
+    if (query.registeredFrom) { where.push('a.created_at >= ?'); args.push(ownerDayRange(query.registeredFrom).start) }
+    if (query.registeredTo) { where.push('a.created_at < ?'); args.push(ownerDayRange(query.registeredTo).end) }
+    if (query.seenSince) { where.push('a.last_seen_at >= ?'); args.push(ownerDayRange(query.seenSince).start) }
     if (query.autopay) where.push(`${query.autopay === 'yes' ? '' : 'NOT '}EXISTS (SELECT 1 FROM recurring_subscriptions r WHERE r.account_id = a.id AND r.status = 'active')`)
     const base = { where: [...where], args: [...args] }
     if (query.region && query.region !== 'all') {
@@ -838,10 +1088,10 @@ export class AdminStore {
       regions.all += amount
       if (!country) { regions.none += amount; continue }
       if (country === 'RU') regions.russia += amount
-      else if (CIS_COUNTRIES.includes(country as never)) regions.cis += amount
+      else if (ADMIN_CIS_COUNTRIES.includes(country as never)) regions.cis += amount
       else {
         regions.world += amount
-        regions[regionOf(country)] += amount
+        regions[adminRegionOf(country)] += amount
       }
     }
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n ${USER_FROM} ${all.sql}`).get(...all.args) as Row).n)
@@ -850,7 +1100,7 @@ export class AdminStore {
   }
 
   /**
-   * «Пользователи» as CSV for Excel (UTF-8 with BOM, «;», Moscow time; formula-like cells neutralised), in the list's
+   * «Пользователи» as CSV for Excel (UTF-8 with BOM, «;», owner's time; formula-like cells neutralised), in the list's
    * order, at most `maxRows` rows.
    */
   usersCsv(query: UserQuery, maxRows = 50_000) {
@@ -859,8 +1109,8 @@ export class AdminStore {
     const header = ['email', 'nickname', 'country', 'payRegion', 'created', 'lastSeen', 'status', 'paidUntil', 'source', 'paymentsCount', 'paymentsTotal', 'invitedBy']
     const lines = [header, ...rows.map((row) => this.toUser(row)).map((user) => [
       user.email, user.nickname ?? '', user.country === 'XX' && user.countryOther ? `XX (${user.countryOther})` : user.country ?? '', user.payRegion,
-      mskText(user.createdAt), user.lastSeenAt ? mskText(user.lastSeenAt) : '', user.blockedAt ? 'blocked' : user.subscription.status,
-      user.subscription.paidUntil ? mskText(user.subscription.paidUntil) : '', user.source ?? '', String(user.payments.count), money(user.payments.total),
+      csvTime(user.createdAt), user.lastSeenAt ? csvTime(user.lastSeenAt) : '', user.blockedAt ? 'blocked' : user.subscription.status,
+      user.subscription.paidUntil ? csvTime(user.subscription.paidUntil) : '', user.source ?? '', String(user.payments.count), money(user.payments.total),
       user.invitedBy ? user.invitedBy.email ?? 'deleted' : '',
     ])]
     return { csv: `\uFEFF${lines.map((line) => line.map(csvCell).join(';')).join('\r\n')}\r\n`, rows: rows.length }
@@ -876,14 +1126,204 @@ export class AdminStore {
     return { user: this.toUser(row), payments, grants }
   }
 
+  /**
+   * «Посмотреть профиль» (owner, 24.11.2026: «я захожу в чат… нажимаю правой кнопкой, на телефоне зажимаю пальцем…
+   * посмотреть профиль… когда зарегистрирован, когда первая оплата, сколько оплат, какие тарифы по месяцам, когда был
+   * последний раз, заходил в приложение. Видна почта, ник в игре… привёл ли он людей, сколько привёл, сколько оплатил…
+   * заходил ли в приложение на телефоне»): everything the database knows about one account, in four parts — the account,
+   * its payments (the first, by the owner's months and plans, all of them), its activity (the apps and devices it signed
+   * in from, and whether it is in an app now: `presence`) and the friends it brought. What is not stored stays absent;
+   * the screen says «нет данных». A deleted account keeps only what is not personal (its payments, its dates).
+   */
+  profile(id: string, presence?: AccountPresence): AccountProfile {
+    const row = this.db.prepare(`${this.userSelect()} WHERE a.id = ?`).get(id) as Row | undefined
+    if (!row) throw new AccountError(404, 'Пользователь не найден')
+    const user = this.toUser(row)
+    const extra = this.db.prepare(`SELECT deleted_at, deletion_at, email_verified_at, phone, phone_verified_at, invite_code, ad_source, ad_campaign,
+      link_visit_code FROM accounts WHERE id = ?`).get(id) as Row
+    const deleted = extra.deleted_at != null
+    const adSource = extra.ad_source == null ? undefined : String(extra.ad_source)
+    const account: AccountProfile['account'] = {
+      id: user.id,
+      ...(deleted ? { deleted: true as const, deletedAt: iso(extra.deleted_at) } : { email: user.email }),
+      ...(extra.deletion_at == null || deleted ? {} : { deletionAt: iso(extra.deletion_at) }),
+      ...(extra.email_verified_at == null || deleted ? {} : { emailVerifiedAt: iso(extra.email_verified_at) }),
+      kind: user.kind,
+      ...(user.owner ? { owner: true as const } : {}),
+      createdAt: user.createdAt,
+      ...(user.country ? { country: user.country } : {}),
+      ...(user.countryOther ? { countryOther: user.countryOther } : {}),
+      payRegion: user.payRegion,
+      ...(user.nickname && !deleted ? { nickname: user.nickname } : {}),
+      ...(user.eftAccount ? { eftAccount: user.eftAccount } : {}),
+      ...(extra.phone != null && extra.phone_verified_at != null && !deleted ? { phone: maskPhone(String(extra.phone)) } : {}),
+      ...(user.blockedAt ? { blockedAt: user.blockedAt } : {}),
+      ...(user.bezebeeAllowed ? { bezebeeAllowed: true as const } : {}),
+    }
+    const origin: AccountProfile['origin'] = {
+      ...(user.referredBy ? { streamerCode: user.referredBy } : {}),
+      ...(extra.link_visit_code == null ? {} : { streamerLink: String(extra.link_visit_code) }),
+      ...(user.invitedBy ? { invitedBy: user.invitedBy } : {}),
+      ...(adSource ? { ad: { source: adSource, label: AD_SOURCE_LABEL[adSource as keyof typeof AD_SOURCE_LABEL] ?? adSource, ...(extra.ad_campaign ? { campaign: String(extra.ad_campaign) } : {}) } } : {}),
+    }
+    return {
+      generatedAt: new Date(this.now()).toISOString(),
+      account,
+      subscription: { ...user.subscription, ...(user.source ? { source: user.source } : {}) },
+      autopay: user.autopay,
+      origin,
+      payments: this.profilePayments(id),
+      grants: (this.db.prepare('SELECT * FROM owner_subscription_grants WHERE account_id = ? ORDER BY at DESC, id DESC LIMIT 50').all(id) as Row[])
+        .map((grant) => ({ days: Number(grant.days), reason: String(grant.reason), actor: String(grant.actor), at: iso(grant.at)!, paidUntil: iso(grant.paid_until_after)! })),
+      activity: this.profileActivity(id, user, presence),
+      referrals: this.profileReferrals(id, extra.invite_code == null ? undefined : String(extra.invite_code), row.referral_code == null ? undefined : String(row.referral_code)),
+    }
+  }
+
+  /** The payments part of profile(): what went through (succeeded), refunds apart, by the owner's months and by plan. */
+  private profilePayments(id: string): AccountProfile['payments'] {
+    const list = (this.db.prepare(`${PAYMENT_SELECT} WHERE p.account_id = ? ORDER BY p.created_at DESC, p.rowid DESC LIMIT ?`).all(id, PROFILE_PAYMENTS + 1) as Row[]).map(toPayment)
+    const paid = this.db.prepare(`SELECT plan, amount, status, COALESCE(paid_at, created_at) AS at FROM payments WHERE account_id = ? AND status IN ('succeeded', 'refunded')
+      ORDER BY COALESCE(paid_at, created_at), rowid`).all(id) as Row[]
+    const plans = Object.fromEntries(PLAN_IDS.map((plan) => [plan, { count: 0, revenue: 0 }])) as Record<PlanId, { count: number; revenue: number }>
+    const months = new Map<string, { month: string; count: number; revenue: number; plans: Partial<Record<PlanId, number>> }>()
+    const round = (value: number) => Math.round(value * 100) / 100
+    let count = 0
+    let total = 0
+    const refunded = { count: 0, total: 0 }
+    let last: { at: string; plan: PlanId; amount: number } | undefined
+    for (const payment of paid) {
+      const amount = rub(payment.amount)
+      const plan = String(payment.plan) as PlanId
+      if (payment.status === 'refunded') { refunded.count += 1; refunded.total = round(refunded.total + amount); continue }
+      count += 1
+      total = round(total + amount)
+      if (plans[plan]) { plans[plan].count += 1; plans[plan].revenue = round(plans[plan].revenue + amount) }
+      const month = ownerDay(Number(payment.at)).slice(0, 7)
+      const entry = months.get(month) ?? { month, count: 0, revenue: 0, plans: {} }
+      entry.count += 1
+      entry.revenue = round(entry.revenue + amount)
+      entry.plans[plan] = (entry.plans[plan] ?? 0) + 1
+      months.set(month, entry)
+      last = { at: iso(payment.at)!, plan, amount }
+    }
+    // The first payment that went through, also one refunded later (it was a payment all the same).
+    const first = paid[0]
+    return {
+      count,
+      total,
+      refunded,
+      ...(first ? { first: { at: iso(first.at)!, plan: String(first.plan) as PlanId, amount: rub(first.amount), ...(first.status === 'refunded' ? { refunded: true as const } : {}) } } : {}),
+      ...(last ? { last } : {}),
+      months: [...months.values()].sort((a, b) => b.month.localeCompare(a.month)),
+      plans,
+      list: list.slice(0, PROFILE_PAYMENTS),
+      more: list.length > PROFILE_PAYMENTS,
+    }
+  }
+
+  /**
+   * The activity part of profile(): the last request from anywhere (accounts.last_seen_at), and the app devices that signed
+   * in to the account (account_devices, by the name each app gives: services/presence.ts presenceClientOf) — the PC app,
+   * the phone app on Android or iPhone, the browser build. A device signed out later still tells that the account was there.
+   */
+  private profileActivity(id: string, user: AdminUser, presence?: AccountPresence): AccountProfile['activity'] {
+    const rows = this.tableExists('account_devices')
+      ? this.db.prepare('SELECT name, created_at, last_seen_at, revoked_at FROM account_devices WHERE account_id = ? ORDER BY last_seen_at DESC, rowid DESC LIMIT 50').all(id) as Row[]
+      : []
+    const devices = rows.map((device) => {
+      const name = String(device.name)
+      return {
+        kind: deviceKindOf(name),
+        name,
+        firstAt: iso(device.created_at)!,
+        lastAt: iso(device.last_seen_at)!,
+        active: device.revoked_at == null,
+        ...(device.revoked_at == null ? {} : { revokedAt: iso(device.revoked_at) }),
+      }
+    })
+    const latest = (kinds: ProfileDeviceKind[]) => devices.filter((device) => kinds.includes(device.kind)).map((device) => device.lastAt).sort().at(-1)
+    const firstAt = devices.map((device) => device.firstAt).sort()[0]
+    const pc = latest(['pc'])
+    const phone = latest(['android', 'ios'])
+    const browser = latest(['browser'])
+    return {
+      ...(user.lastSeenAt ? { lastSeenAt: user.lastSeenAt } : {}),
+      ...(pc ? { pcSeenAt: pc } : {}),
+      ...(phone ? { phoneSeenAt: phone } : {}),
+      ...(browser ? { browserSeenAt: browser } : {}),
+      ...(firstAt ? { firstAppAt: firstAt } : {}),
+      phone: { used: Boolean(phone), android: devices.some((device) => device.kind === 'android'), ios: devices.some((device) => device.kind === 'ios') },
+      devices,
+      ...(presence ? { online: presence } : {}),
+    }
+  }
+
+  /**
+   * The friends part of profile() («Пригласи друга», services/invites.ts): the accounts that registered with this player's
+   * code, whether they paid and how much, the reward days; for a streamer, the registrations and payments with its code.
+   */
+  private profileReferrals(id: string, inviteCode: string | undefined, streamerCode: string | undefined): AccountProfile['referrals'] {
+    const rows = this.db.prepare(`SELECT a.id, a.email, a.nicknames, a.deleted_at, a.blocked_at, COALESCE(a.invited_at, a.created_at) AS invited_at,
+        (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
+        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_amount,
+        (SELECT p.plan || '|' || COALESCE(p.paid_at, p.created_at) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' ORDER BY COALESCE(p.paid_at, p.created_at), p.rowid LIMIT 1) AS first_paid
+      FROM accounts a WHERE a.invited_by = ? ORDER BY invited_at DESC, a.rowid DESC`).all(id) as Row[]
+    const friends = rows.map((friend) => {
+      const removed = friend.deleted_at != null
+      const nickname = removed ? undefined : storedNickname(friend.nicknames)
+      const [plan, at] = friend.first_paid == null ? [] : String(friend.first_paid).split('|')
+      return {
+        id: String(friend.id),
+        ...(removed ? { deleted: true as const } : { email: String(friend.email) }),
+        ...(nickname ? { nickname } : {}),
+        ...(friend.blocked_at == null || removed ? {} : { blocked: true as const }),
+        invitedAt: iso(friend.invited_at)!,
+        payments: Number(friend.paid_count),
+        amount: rub(friend.paid_amount),
+        ...(at ? { firstPaidAt: iso(Number(at)), firstPlan: plan as PlanId } : {}),
+      }
+    })
+    const rewards: AccountProfile['referrals']['rewards'] = { granted: 0, pending: 0, review: 0, canceled: 0, days: { granted: 0, pending: 0, review: 0 } }
+    if (this.tableExists('invite_rewards')) {
+      for (const reward of this.db.prepare('SELECT kind, status, days FROM invite_rewards WHERE inviter_id = ?').all(id) as Row[]) {
+        const status = String(reward.status)
+        if (status === 'granted' || status === 'pending' || status === 'review' || status === 'canceled') rewards[status] += 1
+        if (status === 'granted' || status === 'pending' || status === 'review') rewards.days[status] += Number(reward.days)
+        if (reward.kind === 'legend' && status === 'granted') rewards.lifetime = true
+      }
+    }
+    let streamer: AccountProfile['referrals']['streamer']
+    if (streamerCode) {
+      const registrations = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE referred_by = ?').get(streamerCode) as Row).n)
+      const money = this.db.prepare(`SELECT COUNT(*) AS n, COUNT(DISTINCT account_id) AS payers, COALESCE(SUM(amount), 0) AS total, COALESCE(SUM(streamer_earning), 0) AS earned
+        FROM payments WHERE referral_code = ? AND status = 'succeeded'`).get(streamerCode) as Row
+      streamer = { code: streamerCode, registrations, payers: Number(money.payers), payments: Number(money.n), revenue: rub(money.total), earnings: rub(money.earned) }
+    }
+    return {
+      ...(inviteCode ? { inviteCode } : {}),
+      invited: friends.length,
+      deleted: rows.filter((friend) => friend.deleted_at != null).length,
+      paid: friends.filter((friend) => friend.payments > 0).length,
+      revenue: Math.round(friends.reduce((sum, friend) => sum + friend.amount * 100, 0)) / 100,
+      friends: friends.slice(0, PROFILE_FRIENDS),
+      more: friends.length > PROFILE_FRIENDS,
+      rewards,
+      ...(streamer ? { streamer } : {}),
+    }
+  }
+
   private toUser(row: Row): AdminUser {
     const now = this.now()
     const kind = row.kind === 'streamer' ? 'streamer' : 'user'
     const paidUntil = row.paid_until == null ? undefined : Number(row.paid_until)
     const trialEnds = row.trial_ends_at == null || Number(row.trial_denied ?? 0) ? undefined : Number(row.trial_ends_at)
     let subscription: AdminUser['subscription'] = { status: 'inactive', ...(paidUntil ? { paidUntil: iso(paidUntil) } : {}) }
-    if (trialEnds !== undefined && trialEnds > now) subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
-    else if (row.trial_pending_ms != null && !Number(row.trial_denied ?? 0)) subscription = { ...subscription, trialPendingDays: Math.max(1, Math.round(Number(row.trial_pending_ms) / DAY_MS)) }
+    if (trialEnds !== undefined && trialEnds > now) {
+      subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
+      // Free days waiting for the first raid (AccountStore.firstRaid): «пробная с первого рейда».
+      if (row.trial_raid_ms != null && Number(row.trial_raid_wait_until ?? 0) > now) subscription.trialRaidDays = Math.max(1, Math.round(Number(row.trial_raid_ms) / DAY_MS))
+    } else if (row.trial_pending_ms != null && !Number(row.trial_denied ?? 0)) subscription = { ...subscription, trialPendingDays: Math.max(1, Math.round(Number(row.trial_pending_ms) / DAY_MS)) }
     if (paidUntil !== undefined && paidUntil > now) subscription = { status: 'active', paidUntil: iso(paidUntil) }
     if (kind === 'streamer') subscription = { status: 'active', lifetime: true }
     const [provider, status, plan] = row.autopay == null ? [] : String(row.autopay).split('|')
@@ -910,6 +1350,7 @@ export class AdminStore {
       ...(nickname ? { nickname } : {}),
       ...(row.invited_by == null ? {} : { invitedBy: { ...inviterOf(row), discount: row.friend_discount_paid ? 'used' as const : Number(row.paid_count ?? 0) > 0 ? 'lost' as const : 'unused' as const } }),
       payRegion: payRegionOf(row.country),
+      ...(row.bezebee_ru_at == null ? {} : { bezebeeAllowed: true as const }),
       ...(source ? { source } : {}),
     }
   }
@@ -957,13 +1398,19 @@ export class AdminStore {
       const { until } = this.applyGrant(actor, id, days, reason)
       this.audit(actor, 'subscription.grant', target.email, { days, reason, paidUntil: new Date(until).toISOString() })
     })
+    this.notifyGrant(id, days, reason)
     return this.user(id)
+  }
+
+  private notifyGrant(id: string, days: number, reason: string) {
+    try { this.onGrant?.(id, days, reason) } catch (error) { console.error('Grant notice failed', error instanceof Error ? error.message : 'unknown error') }
   }
 
   /** The grant itself (inside the caller's transaction): the new paid-until and the row in the account's grant history. */
   private applyGrant(actor: string, id: string, days: number, reason: string) {
     const before = this.payments.paidUntil(id)
-    const until = Math.max(this.now(), before ?? 0) + days * DAY_MS
+    // After a free period still running too: granted days never burn inside it (PaymentStore.periodStart).
+    const until = this.payments.periodStart(id) + days * DAY_MS
     this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = excluded.paid_until').run(id, until)
     this.db.prepare('INSERT INTO owner_subscription_grants (account_id, days, reason, actor, at, paid_until_before, paid_until_after) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, days, reason, actor, this.now(), before ?? null, until)
     return { before, until }
@@ -1008,6 +1455,7 @@ export class AdminStore {
       }
       return done
     })
+    for (const item of applied) this.notifyGrant(item.id, input.days, input.reason)
     return {
       affected: applied.length,
       sample: applied.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(item.after)! })),
@@ -1018,8 +1466,8 @@ export class AdminStore {
 
   /** The first 20 targets with the paid-until they would get. */
   private grantSample(targets: Array<{ id: string; email: string; before?: number }>, days: number) {
-    const now = this.now()
-    return targets.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(Math.max(now, item.before ?? 0) + days * DAY_MS)! }))
+    // The same start as applyGrant: after the paid and the free period still running (PaymentStore.periodStart).
+    return targets.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(this.payments.periodStart(item.id) + days * DAY_MS)! }))
   }
 
   /**
@@ -1067,6 +1515,19 @@ export class AdminStore {
       }
       this.audit(actor, blocked ? 'account.block' : 'account.unblock', target.email, reason ? { reason } : undefined)
     })
+    return this.user(id)
+  }
+
+  /**
+   * «Оплата через BZB (СНГ)» for an account from Russia (owner, 02.11.2026: «добавь именно ему в личный кабинет оплату через
+   * bzb в снг, там же тоже в рублях и те же цены» — a player whose connection never reached ЮMoney): its cabinet shows BZB's
+   * CIS pages in roubles next to ЮKassa, and BZB's confirmation opens its subscription (services/bezebee.ts bezebeeRegionOf).
+   */
+  setBezebeeAllowed(actor: string, id: string, allowed: boolean) {
+    const target = this.mustUser(id)
+    if (allowed && paymentRegionOf(this.accounts.countryOf(id)) !== 'RU') throw new AccountError(409, 'Это только для аккаунтов из России: остальным BZB доступен по стране')
+    this.db.prepare(`UPDATE accounts SET bezebee_ru_at = ${allowed ? 'COALESCE(bezebee_ru_at, ?)' : 'NULL'} WHERE id = ?`).run(...(allowed ? [this.now(), id] : [id]))
+    this.audit(actor, 'payment.bezebee-ru', target.email, { allowed })
     return this.user(id)
   }
 
@@ -1217,7 +1678,6 @@ function toPayment(row: Row): AdminPayment {
   }
 }
 
-const mskText = (value: string) => new Date(Date.parse(value) + MSK_MS).toISOString().slice(0, 16).replace('T', ' ')
 const money = (value: number) => value.toFixed(2).replace('.', ',')
 /** Quotes a CSV cell; a leading = + - @ (or tab / CR) is prefixed with «'» so Excel never runs it as a formula. */
 export function csvCell(raw: string) {

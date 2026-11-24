@@ -1,0 +1,19 @@
+/* «Главы истории»: «Текущие» on the left, «Начать новую» on the right (src/quests/StoryChapterColumns.tsx). */
+.story-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.story-column { display: grid; gap: 7px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: rgb(255 255 255 / 2%); }
+.story-column h4 { display: flex; align-items: center; gap: 7px; margin: 0 0 3px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-dim); }
+.story-column.is-new h4 { color: var(--brass); }
+.story-column-count { margin-left: auto; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: rgb(255 255 255 / 6%); font-size: 12px; text-align: center; color: var(--text-dim); }
+.story-column-empty { margin: 4px 2px; font-size: 13px; color: var(--text-dim); }
+
+.story-chapter-row { display: grid; gap: 4px; width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #131c17; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.story-chapter-row strong { font-size: 14px; line-height: 1.25; overflow-wrap: anywhere; }
+.story-chapter-row small { font-size: 12px; line-height: 1.35; color: var(--text-dim); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.story-chapter-row:hover { border-color: var(--line-strong); background: #17231c; }
+.story-chapter-row.selected { border-color: #6c6141; background: #201f18; box-shadow: inset 2px 0 var(--brass); }
+.story-chapter-row.is-current { border-left: 3px solid var(--brass); }
+/* A chapter still to start: a dashed card with a plus, nothing like a taken one. */
+.story-chapter-row.is-new { grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-style: dashed; background: transparent; }
+.story-chapter-row.is-new svg { color: var(--brass); }
+.story-chapter-row.is-new:hover { border-style: solid; border-color: var(--brass); background: rgb(242 210 122 / 6%); }
+.story-chapter-row:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }

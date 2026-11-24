@@ -1,12 +1,12 @@
 import type React from 'react'
 import { tr } from '../i18n'
 import { AndroidIcon, AppleIcon } from './Platforms'
-import { ANDROID_DOWNLOAD_URL, IPHONE_DOWNLOAD_URL, useMobileRelease } from './mobileRelease'
+import { ANDROID_DOWNLOAD_URL, IPHONE_DOWNLOAD_URL, mobileBuildReady, useMobileRelease } from './mobileRelease'
 
 /**
  * The phone apps on the download page: the Android APK as one file (it updates itself from the site afterwards), the
- * iPhone archive with the app, the PDF guide and shortcuts to iTunes and Sideloadly. The buttons wait until the server
- * holds the builds (server/src/services/mobileDownloads.ts).
+ * iPhone archive with the app, the PDF guide and shortcuts to iTunes and Sideloadly. «Скоро» only when the server says it holds
+ * no build (server/src/services/mobileDownloads.ts, mobileRelease.ts mobileBuildReady).
  */
 
 /** One store-style badge: the platform's mark, a small line over the platform's name. */
@@ -27,8 +27,8 @@ export function MobileBadges() {
   const release = useMobileRelease()
   return (
     <div className="store-badges" aria-label={tr('Приложение для телефона')}>
-      <StoreBadge href={ANDROID_DOWNLOAD_URL} icon={<AndroidIcon />} small={tr('Скачать для')} label="Android" ready={Boolean(release?.android)} />
-      <StoreBadge href={IPHONE_DOWNLOAD_URL} icon={<AppleIcon />} small={tr('Скачать для')} label="iPhone" ready={Boolean(release?.iphone)} />
+      <StoreBadge href={ANDROID_DOWNLOAD_URL} icon={<AndroidIcon />} small={tr('Скачать для')} label="Android" ready={mobileBuildReady(release, 'android')} />
+      <StoreBadge href={IPHONE_DOWNLOAD_URL} icon={<AppleIcon />} small={tr('Скачать для')} label="iPhone" ready={mobileBuildReady(release, 'iphone')} />
     </div>
   )
 }

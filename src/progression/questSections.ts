@@ -15,5 +15,5 @@ export function belongsInQuestSection(quest: Quest, progress: ModeProgress, sect
   // «Оружейник» parts taken in the game are shown in their own block (Overview, /gunsmith), not among current tasks.
   if (section === 'active') return isCurrentTrackedQuest(quest, progress) && !isGunsmithQuest(quest)
   if (section === 'all') return true
-  return section === 'kappa' ? quest.kappa : status === section
+  return status === section
 }

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { captureAdVisit } from './adVisit'
 import { SiteLayout } from './components/SiteLayout'
 import { AboutPage } from './pages/AboutPage'
 import { AdminPage } from './pages/AdminPage'
@@ -7,7 +8,8 @@ import { AppLoginPage } from './pages/AppLoginPage'
 import { CabinetPage } from './pages/CabinetPage'
 import { DownloadPage } from './pages/DownloadPage'
 import { HomePage } from './pages/HomePage'
-import { LegalPage } from './pages/LegalPage'
+import { AppPrivacyPage, LegalPage, PrivacyPage } from './pages/LegalPage'
+import { SupportPage } from './pages/SupportPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ReferralLandingPage } from './pages/ReferralLandingPage'
@@ -28,10 +30,15 @@ export function App() {
     updateSearchTags(pathname)
   }, [pathname, locale])
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }) }, [pathname])
+  // «Реклама»: the page an ad's link opened (?utm_source=reddit…) — counted once, the label kept for the registration.
+  useEffect(() => { captureAdVisit() }, [])
 
   // RU / EN: the whole site renders again in the chosen language (src/i18n/index.ts); the account session stays.
   return (
     <Routes key={locale}>
+      {/* The privacy policy for the iPhone app and the App Store card: the document alone, no buttons (LegalPage.tsx). */}
+      <Route path="app/privacy" element={<AppPrivacyPage />} />
+      <Route path="support" element={<SupportPage />} />
       <Route element={<SiteLayout />}>
         <Route index element={<HomePage />} />
         <Route path="about" element={<AboutPage />} />
@@ -45,6 +52,7 @@ export function App() {
         <Route path="boosty" element={<Navigate to="/cabinet#subscription" replace />} />
         {/* Owner only (the server checks every request); not linked from the menu. */}
         <Route path="admin" element={<AdminPage />} />
+        <Route path="privacy" element={<PrivacyPage />} />
         <Route path="legal" element={<LegalPage />} />
         <Route path="legal/:slug" element={<LegalPage />} />
         <Route path="r/:code" element={<ReferralLandingPage />} />

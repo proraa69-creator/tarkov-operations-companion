@@ -9,7 +9,7 @@ import type { ParsedTaskEvent } from './logParser'
  * Whether the game's logs hold a mode's whole quest history (owner, 14.10.2026: «если логи всех квестов обнаружены, что бы
  * приложение перестало сканировать квесты через экран»). Then the logs are the truth about that mode's trader quests and
  * the screen's Tasks table has nothing to add: the quest scanner passes it over, and the tip that asks to open «Задания»
- * and scroll through it is not shown (src/components/StoryScreenScanner.tsx, src/onboarding/QuestSyncTip.tsx).
+ * and scroll through it is not shown (src/components/StoryScreenScanner.tsx).
  *
  * The logs show quests as chat notifications only — type 10 accepted, 11 failed, 12 handed in — and the game deletes old
  * logs, oldest first. A history since the last reset reaches back to the profile's start when:

@@ -1,4 +1,5 @@
 import { act, render } from '@testing-library/react'
+import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Quest } from '../domain/types'
@@ -38,32 +39,56 @@ describe('screen readings applied to the app state', () => {
 
   it('a new row read twice is written, to the mode it was read for only', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
-    // A row whose status cell was not read: two frames.
-    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans' }], QUESTS, []))
-    expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
+    // A row read «можно сдать» (not «активно!»): two frames. A row whose status was not read never counts (13.11.2026).
     act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans' }], QUESTS, ['cans']))
+    expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
+    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans', status: 'ready' }], QUESTS, []))
+    expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
+    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans', status: 'ready' }], QUESTS, ['cans']))
     expect(seen.app.activeProfile.modes.pve.taskProgress.cans?.status).toBe('active')
     expect(seen.app.activeProfile.modes.pvp.taskProgress.cans).toBeUndefined()
     expect(seen.app.activeProfile.modes.seasonal.taskProgress.cans).toBeUndefined()
   })
 
-  it('the Tasks table counts in PvE only: PvP and Season take trader quests from the logs (owner, 15.10.2026)', () => {
+  it('the Tasks table counts in every mode it was read for: PvP and Season too (owner, 31.10.2026)', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
     for (const mode of ['pvp', 'seasonal'] as const) {
       act(() => seen.app.applyQuestScanForMode(mode, [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
-      expect(seen.app.activeProfile.modes[mode].taskProgress.cans).toBeUndefined()
+      expect(seen.app.activeProfile.modes[mode].taskProgress.cans).toMatchObject({ status: 'active', source: 'screen-scan' })
     }
-    // Story chapters are read from the screen in every mode.
-    act(() => seen.app.applyStoryScanForMode('pvp', [{ questId: 'story-tour', stageIndex: 0 }]))
-    expect(seen.app.activeProfile.modes.pvp.taskProgress['story-tour']).toMatchObject({ status: 'active', source: 'screen-scan' })
   })
 
-  it('a whole list read twice ends the OCR quest it no longer shows, in its mode only (audit P8)', () => {
+  // Owner, 05.11.2026: «Сюжетные квесты теперь добавляем вручную. Те, у кого есть уже отсканированные квесты, их оставляем».
+  it('a reading adds no story chapter; it follows one already there until the player marks it himself', () => {
+    render(<AppStateProvider><Probe /></AppStateProvider>)
+    act(() => seen.app.applyStoryScanForMode('pvp', [{ questId: 'story-tour', stageIndex: 0 }]))
+    expect(seen.app.activeProfile.modes.pvp.taskProgress['story-tour']).toBeUndefined()
+
+    // Started by hand, the player's stage stands: a reading of an earlier or later one changes nothing.
+    act(() => seen.app.setStoryChapter('pvp', 'story-tour', { status: 'active', stageIndex: 4 }))
+    expect(seen.app.activeProfile.modes.pvp.taskProgress['story-tour']).toMatchObject({ status: 'active', currentStageIndex: 4 })
+    act(() => seen.app.applyStoryScanForMode('pvp', [{ questId: 'story-tour', stageIndex: 9 }]))
+    expect(seen.app.activeProfile.modes.pvp.taskProgress['story-tour']).toMatchObject({ status: 'active', currentStageIndex: 4 })
+
+    // Separately per mode: PvE has no such chapter.
+    expect(seen.app.activeProfile.modes.pve.taskProgress['story-tour']).toBeUndefined()
+  })
+
+  it('a chapter scanned before stays and keeps following the screen', () => {
+    localStorage.clear()
+    const profile = setTaskProgress(createLocalProfile('TEST', 'scanned'), 'pvp', { taskId: 'story-tour', status: 'active', source: 'screen-scan', updatedAt: '2026-11-01T00:00:00Z', currentStageIndex: 2 })
+    localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
+    render(<AppStateProvider><Probe /></AppStateProvider>)
+    expect(seen.app.activeProfile.modes.pvp.taskProgress['story-tour']).toMatchObject({ status: 'active', currentStageIndex: 2 })
+    act(() => seen.app.applyStoryScanForMode('pvp', [{ questId: 'story-tour', stageIndex: 3, stageConfirmed: true }]))
+    expect(seen.app.activeProfile.modes.pvp.taskProgress['story-tour']).toMatchObject({ status: 'active', currentStageIndex: 3 })
+  })
+
+  it('a reading only adds: a quest it no longer shows stays (owner, 04.11.2026)', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
     act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
-    const session = { wholeList: { ids: ['debut'], at: 2 } }
-    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'debut', status: 'active' }], QUESTS, ['debut'], session))
-    expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
+    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'debut', status: 'active' }], QUESTS, ['debut']))
+    expect(seen.app.activeProfile.modes.pve.taskProgress.cans?.status).toBe('active')
     expect(seen.app.activeProfile.modes.pve.taskProgress.debut?.status).toBe('active')
   })
 

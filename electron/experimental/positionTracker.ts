@@ -1,7 +1,7 @@
 import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { homedir } from 'node:os'
 import { readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, posix, win32 } from 'node:path'
 import { app } from 'electron'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 
@@ -10,6 +10,8 @@ const POLL_MS = 1000
 const RELIST_MS = 5000
 
 let override = ''
+/** The Steam build's own screenshots folders, found from its logs (`setGameLogFolders`). */
+let steamFolders: string[] = []
 
 /** A folder the player picked by hand in the Mini Map section; empty means auto-detect. */
 export function setScreenshotsOverride(folder: string) {
@@ -18,6 +20,32 @@ export function setScreenshotsOverride(folder: string) {
   folderCache = null
   finding = null
   void findScreenshotsFolder().catch(() => {})
+}
+
+/**
+ * Escape from Tarkov on Steam keeps its logs in `<game>\build\Logs` instead of the launcher's `<game>\Logs`, and a player with
+ * the Steam build found its screenshots folder beside them: `<game>\build\Escape from Tarkov\Screenshots` (24.11.2026, a
+ * player's position stopped and his game's folder was that one). Such a folder is followed too, beside Documents: one that does
+ * not exist costs nothing.
+ */
+export function steamScreenshotFolders(logFolders: ReadonlyArray<string | undefined>) {
+  return [...new Set(logFolders.flatMap((folder) => {
+    if (!folder) return []
+    // a Windows path (a drive or a backslash) is read as one whatever the platform the code runs on, any other as a POSIX one
+    // (the tests run on Linux too, with their own temporary folders)
+    const path = /^[A-Za-z]:|\\/.test(folder) ? win32 : posix
+    const logs = path.normalize(folder).replace(/[\\/]+$/, '')
+    if (path.basename(logs).toLowerCase() !== 'logs' || path.basename(path.dirname(logs)).toLowerCase() !== 'build') return []
+    return [path.join(path.dirname(logs), 'Escape from Tarkov', 'Screenshots')]
+  }))]
+}
+
+/** The Logs folders the app found: the Steam build's screenshots folders among the ones followed. */
+export function setGameLogFolders(logFolders: ReadonlyArray<string | undefined>) {
+  const next = steamScreenshotFolders(logFolders)
+  if (next.join('|') === steamFolders.join('|')) return
+  steamFolders = next
+  folderCache = null
 }
 
 /**
@@ -34,7 +62,7 @@ export function screenshotFolderCandidates() {
     const root = process.env[variable]
     if (root) documents.push(join(root, 'Documents'), join(root, 'Документы'))
   }
-  return [...new Set(documents.filter(Boolean).map((folder) => join(folder, 'Escape from Tarkov', 'Screenshots')))]
+  return [...new Set([...documents.filter(Boolean).map((folder) => join(folder, 'Escape from Tarkov', 'Screenshots')), ...steamFolders])]
 }
 
 /** EFT names screenshots by the time they were taken: `2024-06-13[11-05]_…`. */

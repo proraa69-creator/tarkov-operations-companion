@@ -32,6 +32,7 @@ async function setup() {
 
 const ADMIN = '/accounts/me/admin/overview-defaults'
 
+/** Sent by an app from before 11.11.2026: «Текущие задания» (stat-tasks) and «Приоритет карт» (priority) among the blocks. */
 const defaults = {
   layout: { stats: ['stat-kappa', 'stat-tasks', 'stat-conditions', 'stat-goons'], rows: ['stats', 'columns', 'priority'], left: ['requirements', 'raid', 'squad'], right: ['favorites', 'tasks', 'gunsmith'] },
   phone: ['raid', 'stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons', 'priority', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites'],
@@ -63,7 +64,10 @@ test('«Блоки»: the owner saves the Overview for everybody; players read i
 
     const open = (await call<Answer>('GET', '/overview-defaults')).json.defaults
     assert.equal(open?.updatedBy, undefined, 'players never see the author')
-    assert.deepEqual(open?.phone, defaults.phone)
+    // the blocks of the older app under their current names: «Экран» in the slot of «Текущие задания», no «Приоритет карт»
+    assert.deepEqual(open?.phone, ['raid', 'stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites'])
+    assert.deepEqual(open?.layout?.stats, ['stat-kappa', 'stat-screen', 'stat-conditions', 'stat-goons'])
+    assert.deepEqual(open?.layout?.rows, ['stats', 'columns'])
     const notice = (await call<{ overview: Answer['defaults'] }>('GET', '/announcement', player)).json.overview
     assert.deepEqual(notice?.hidden, ['gunsmith'])
     assert.equal(notice?.updatedBy, undefined)

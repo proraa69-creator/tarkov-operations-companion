@@ -8,6 +8,7 @@ import { QuestGuideImages } from '../components/QuestCuratedInfo'
 import type { Quest } from '../domain/types'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
+import { useWindowTurn } from '../app/windowTurn'
 import { GuideTip, useGuideReady, type GuideTipContent } from '../onboarding/FirstRunGuide'
 import { SCOURGE_BOSS_KEY, SCOURGE_EVENT_END, SCOURGE_EVENT_VIDEO, SCOURGE_INTRO_KEY, SCOURGE_OPEN_EVENT, scourgeEventActive } from './scourgeEvent'
 import './scourgeEvent.css'
@@ -92,8 +93,11 @@ export function ScourgeEventIntro() {
   // At startup: once the app has settled and no other tip or dialog is open.
   const due = active && !seen && step === null
   const ready = useGuideReady(due ? 'scourge-event' : null, pathname)
+  // One window at a time (app/windowTurn.ts): the start-up intro waits its turn and keeps it to its end; the event
+  // button's window is the player's own and does not wait.
+  const turn = useWindowTurn('scourge-event', (due && ready) || (step !== null && !fromButton))
   useEffect(() => {
-    if (!due || !ready) return
+    if (!due || !ready || !turn) return
     const check = () => {
       if (document.querySelector('.frg-layer')) return
       markSeen()
@@ -104,7 +108,7 @@ export function ScourgeEventIntro() {
     const timer = window.setInterval(check, 500)
     check()
     return () => window.clearInterval(timer)
-  }, [due, ready])
+  }, [due, ready, turn])
 
   if (!active || step === null) return null
   if (step === 'video') return <EventVideo say={say} onDone={() => setStep('story')} />

@@ -66,11 +66,16 @@
   border-radius: 10px;
   background: rgba(7, 9, 9, .92);
   isolation: isolate;
-  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease;
+  /* closed, not drawn at all (it lay invisible over the smoke, its buttons composited every frame: a player's report,
+     20.11.2026 «лагает область»); hidden only once the closing has played */
+  visibility: hidden;
+  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease, visibility 0s linear .35s;
 }
 .raid-map-picker.is-open {
   max-height: 232px;
   opacity: 1;
+  visibility: visible;
+  transition: max-height .35s ease, opacity .25s ease, margin .35s ease, border-color .25s ease, visibility 0s;
   margin: 0 0 14px;
   border-color: #4a5038;
   box-shadow: 0 14px 34px rgb(0 0 0 / 38%);
@@ -89,7 +94,7 @@
   overflow: auto;
   padding: 12px;
 }
-.raid-map-picker button{display:flex;align-items:center;gap:7px;min-height:34px;border:1px solid rgb(255 255 255 / 9%);border-radius:7px;background:rgb(14 20 16 / 62%);color:var(--text);padding:7px 9px;cursor:pointer;text-align:left;backdrop-filter:blur(6px);text-shadow:0 1px 2px rgb(0 0 0 / 70%);transition:border-color .24s var(--ease-soft),background-color .24s var(--ease-soft),scale .28s var(--ease-soft)}.raid-map-picker button:hover:not(:disabled){border-color:var(--brass);background:rgb(32 31 23 / 78%)}.raid-map-picker button:disabled{opacity:.48;cursor:not-allowed}.raid-map-picker .map-color{width:7px;height:7px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 6px currentColor}.raid-map-picker svg{margin-left:auto}
+.raid-map-picker button{display:flex;align-items:center;gap:7px;min-height:34px;border:1px solid rgb(255 255 255 / 9%);border-radius:7px;background:rgb(14 20 16 / 62%);color:var(--text);padding:7px 9px;cursor:pointer;text-align:left;text-shadow:0 1px 2px rgb(0 0 0 / 70%);transition:border-color .24s var(--ease-soft),background-color .24s var(--ease-soft),scale .28s var(--ease-soft)}.raid-map-picker button:hover:not(:disabled){border-color:var(--brass);background:rgb(32 31 23 / 78%)}.raid-map-picker button:disabled{opacity:.48;cursor:not-allowed}.raid-map-picker .map-color{width:7px;height:7px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 6px currentColor}.raid-map-picker svg{margin-left:auto}
 .map-slideshow { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .map-slide {
   position: absolute;
@@ -143,7 +148,7 @@
 .map-page { max-width: none; }
 .map-shell { height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 60px); min-height: 620px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surf-1); box-shadow: var(--shadow); }
 .map-sidebar { overflow: auto; padding: 12px; border-right: 1px solid var(--line); background: var(--surf-1); }
-.map-side-title { margin: 8px 7px 12px; color: var(--text-dim); font-size: 9px; letter-spacing: .15em; font-weight: 800; }
+.map-side-title { margin: 8px 7px 12px; color: var(--text-dim); font-size: 12px; letter-spacing: .08em; font-weight: 800; }
 .map-layer-hint { margin: -4px 7px 10px; color: var(--text-dim); font-size: 11px; line-height: 1.35; }
 .map-layer-group { margin-top: 6px; }
 .map-layer-group .map-side-title { margin-top: 12px; }
@@ -155,7 +160,21 @@
 .layer-button { width: 100%; min-height: 36px; border: 0; border-radius: 8px; padding: 0 9px; background: transparent; color: var(--text-dim); cursor: pointer; display: flex; gap: 9px; align-items: center; text-align: left; }
 .layer-button:hover { background: var(--surf-2); color: var(--text); }
 .layer-button.active { color: #d6ded7; }
-.layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; }
+.layer-kinds { display: grid; padding-left: 12px; }
+/* Report 181: «Показать все» / «Скрыть все» over «Точки на карте». Side by side;
+   in the narrow side panel of the PC, one under the other, so the words are never cut. */
+.map-layers-all-box { container-type: inline-size; margin: 0 2px 10px; }
+.map-layers-all { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+@container (max-width: 250px) { .map-layers-all { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+.map-layers-all-button { min-height: 32px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; background: var(--surf-1); color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; transition: background-color .2s var(--ease-soft), border-color .2s var(--ease-soft), color .2s var(--ease-soft), opacity .26s var(--ease-soft), transform .2s var(--ease-soft); }
+.map-layers-all-button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-layers-all-button:hover:not(:disabled) { background: var(--surf-2); border-color: var(--line-strong); color: var(--text); }
+.map-layers-all-button:active:not(:disabled) { transform: scale(.97); }
+.map-layers-all-button:disabled { opacity: .45; cursor: default; }
+.layer-button.is-kind { min-height: 30px; font-size: 12px; }
+.layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; flex: none; }
+/* a label wider than the side panel (the larger font, a narrow window) wraps instead of pushing its count out of the button */
+.layer-button > span { min-width: 0; overflow-wrap: anywhere; }
 .layer-icon { width: 22px; height: 22px; object-fit: contain; opacity: .35; filter: grayscale(.8) drop-shadow(0 1px 1px rgb(0 0 0 / 60%)); transition: opacity .26s var(--ease-soft), filter .26s var(--ease-soft); }
 .layer-button.active .layer-icon { opacity: 1; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 60%)); }
 .map-stage { position: relative; min-width: 0; background: var(--surf-0); }
@@ -193,6 +212,13 @@
   opacity: 1;
   pointer-events: auto;
 }
+/* The PC: the grip along the window's top edge sets its greatest height (src/maps/questSheetGrip.tsx, owner 15.11.2026: «на краю
+   этого блока сверху можно нажать на край, и эту шторку квеста можно выставить вверх или вниз»). */
+.map-quest-sheet-grip { position: absolute; top: -6px; left: 14px; right: 14px; height: 12px; z-index: 3; display: flex; align-items: center; justify-content: center; cursor: ns-resize; touch-action: none; outline: none; }
+.map-quest-sheet-grip span { width: 46px; height: 4px; border-radius: 2px; background: #5d6450; box-shadow: 0 1px 2px rgb(0 0 0 / 50%); transition: background-color .15s ease, width .15s ease; }
+.map-quest-sheet-grip:hover span, .map-quest-sheet-grip:focus-visible span, .map-quest-sheet.is-sizing .map-quest-sheet-grip span { width: 64px; background: var(--brass); }
+.map-quest-sheet.is-sizing { transition: none; }
+.map-quest-sheet.is-sizing .map-quest-sheet-body { flex: 1 1 auto; }
 .map-quest-sheet-body {
   position: relative;
   min-height: 0;
@@ -212,6 +238,9 @@
 .map-marker-detail-card { padding-right: 54px; }
 .map-marker-item-price { display: flex; justify-content: space-between; gap: 20px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .map-marker-item-price span { color: var(--text-dim); }
+/* «Нашли неточность?», top right of the quest window: the row of «Цели» has room for it; the small map moves down. */
+.map-quest-sheet-body .map-quest-sheet-report { position: absolute; top: 4px; right: 10px; z-index: 2; min-height: 24px; height: 24px; padding: 0 8px; gap: 5px; font-size: 11px; white-space: nowrap; }
+.map-quest-sheet-body.has-visual .map-quest-sheet-visual { margin-top: 20px; }
 .map-quest-sheet-eyebrow { color: var(--brass); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
 .map-quest-sheet-title { margin: 4px 0 8px; font-size: 17px; line-height: 1.15; }
 .map-quest-sheet-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
@@ -221,26 +250,57 @@
 .map-quest-sheet-objectives { margin: 0; padding-left: 16px; color: var(--text); columns: 3 170px; column-gap: 24px; }
 .map-quest-sheet-objectives li { break-inside: avoid; }
 .map-quest-sheet-objectives li { margin: 0 0 3px; }
-/* «Цели» grouped (components/QuestSheetObjectives.tsx): в рейде / заложить / найти / сдать торговцу, and the map of
-   each line when the quest's objectives are on several maps (the map being viewed in brass) */
-.sheet-objective-groups { columns: 3 190px; column-gap: 24px; }
-.sheet-objective-group { margin: 0 0 6px; }
-.sheet-objective-group h5 { margin: 0 0 3px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; break-after: avoid; }
+/* «Цели» by stage (components/QuestSheetObjectives.tsx; owner, 10.11.2026: «разбей цели на понятные блоки и этапы… кнопки ровно»):
+   in the raid / to the trader / outside the raid, side by side across the strip; inside a stage the in-raid kinds (заложить,
+   найти) are sub-headings; every line is [pin][box] | text, so the boxes stand in one column; the items a line needs sit under it
+   with their pictures. The map of each line when the quest's objectives are on several maps (the map being viewed in brass). */
+.sheet-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; align-items: start; }
+.sheet-stage { min-width: 0; padding: 10px 12px 8px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--surf-2, #1b1f1c) 70%, transparent); }
+.sheet-stage.is-raid { border-color: color-mix(in srgb, var(--brass) 38%, var(--line)); }
+.sheet-stage-head { display: flex; align-items: center; gap: 9px; margin: 0 0 8px; }
+.sheet-stage-icon { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 7px; background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass-strong); }
+.sheet-stage.is-trader .sheet-stage-icon { background: rgb(255 255 255 / 6%); color: var(--text-muted); }
+.sheet-stage.is-out .sheet-stage-icon { background: rgb(255 255 255 / 4%); color: var(--text-dim); }
+.sheet-stage-name { display: grid; min-width: 0; line-height: 1.2; }
+.sheet-stage-name strong { color: var(--text); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.sheet-stage-name small { color: var(--text-dim); font-size: 10.5px; }
+.sheet-stage-step { margin-right: 6px; color: var(--brass); font-variant-numeric: tabular-nums; }
+.sheet-objective-group { margin: 0 0 4px; }
+.sheet-objective-group + .sheet-objective-group { margin-top: 8px; }
+.sheet-objective-group h5, .sheet-stage-needs h5 { margin: 0 0 4px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .sheet-objective-group ul { margin: 0; padding: 0; list-style: none; }
-.sheet-objective { margin: 0 0 4px; color: var(--text); line-height: 1.35; break-inside: avoid; }
+.sheet-objective { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: start; margin: 0 0 6px; color: var(--text); line-height: 1.35; }
+.sheet-objective-controls { display: flex; align-items: center; gap: 4px; padding-top: 1px; }
+.sheet-objective-body { display: grid; gap: 4px; min-width: 0; }
+.sheet-objective-line { min-width: 0; }
 .sheet-objective-where { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: 1px; white-space: nowrap; }
 .sheet-objective-where.is-here { border-color: var(--brass); color: var(--brass-strong); }
 .sheet-objective.is-done { color: var(--text-dim); }
 .sheet-objective.is-done .sheet-objective-text { text-decoration: line-through; }
-.sheet-objective-check { margin-right: 4px; color: var(--success); vertical-align: -1px; }
-/* «Галочка» of a current quest's objective (done by hand): a small box before the line, a wider touch area on the phone. */
-.sheet-objective-tick { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 6px 0 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; color: var(--surf-1); vertical-align: -3px; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease; }
+.sheet-objective-check { color: var(--success); }
+/* «Галочка» of a current quest's objective (done by hand) and the pin to its point: one size, one column. */
+.sheet-objective-tick, .sheet-objective-point { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; margin: 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; cursor: pointer; }
+.sheet-objective-tick { color: var(--surf-1); transition: background-color 150ms ease, border-color 150ms ease; }
 .sheet-objective-tick[aria-pressed='true'] { background: var(--green); border-color: var(--green); }
+.sheet-objective-point { color: var(--brass); }
+.sheet-objective-point.is-empty { border-color: transparent; cursor: default; }
+.sheet-objective-point:not(.is-empty):hover, .sheet-objective-point:focus-visible { border-color: var(--brass); background: rgb(255 255 255 / 6%); }
 .sheet-objective-tick:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .sheet-objective-tick:hover { border-color: var(--brass); } }
-@media (pointer: coarse) { .sheet-objective-tick { width: 20px; height: 20px; margin-right: 8px; vertical-align: -5px; } }
+@media (pointer: coarse) { .sheet-objective-tick, .sheet-objective-point { width: 20px; height: 20px; } }
+/* the line's text ticks it too; the objective of the point tapped on the map is lit (components/QuestSheetObjectives.tsx) */
+.sheet-objective-text.is-tickable { cursor: pointer; }
+.sheet-objective.is-focus { margin-inline: -6px; padding: 4px 6px; border-radius: 7px; background: color-mix(in srgb, var(--brass) 14%, transparent); }
 .sheet-objective-verb { color: var(--brass-strong); font-weight: 700; }
 .sheet-objective-fir, .sheet-objective-trader { color: var(--text-dim); font-weight: 600; letter-spacing: 0; text-transform: none; }
+/* What a line needs (report of 10.11.2026): picture, name ×count, what it is for. */
+.sheet-needs { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.sheet-need { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 3px 8px 3px 3px; border: 1px solid var(--line); border-radius: 7px; background: rgb(0 0 0 / 22%); }
+.sheet-need img, .sheet-need-empty { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 5px; background: rgb(255 255 255 / 5%); object-fit: contain; color: var(--text-dim); }
+.sheet-need-text { display: grid; min-width: 0; line-height: 1.15; }
+.sheet-need-text strong { overflow: hidden; color: var(--text); font-size: 11.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-need-text small { color: var(--text-dim); font-size: 10px; }
+.sheet-stage-needs { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .map-quest-sheet-link { width: auto; min-width: 200px; min-height: 32px; margin-top: 8px; justify-content: center; font-size: 12px; }
 .map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 18px; align-items: start; }
 /* Quest card: title, tags and the button on the left, the stage / objectives across the rest of the strip. */
@@ -248,8 +308,8 @@
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
-  grid-template-areas: "eyebrow section" "title section" "meta section" "link section";
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas: "eyebrow section" "title section" "meta section" "photos section" "link section";
+  grid-template-rows: auto auto auto 1fr auto;
   column-gap: 20px;
   align-items: start;
 }
@@ -258,6 +318,15 @@
 .map-quest-sheet-copy > .map-quest-sheet-meta { grid-area: meta; }
 .map-quest-sheet-copy > .map-quest-sheet-section { grid-area: section; min-width: 0; padding-left: 20px; border-left: 1px solid var(--line); }
 .map-quest-sheet-copy > .map-quest-sheet-link { grid-area: link; align-self: end; min-width: 0; width: 100%; }
+/* «Фото мест» in the empty space under the title, the photos of the clicked point's objective first (components/QuestGuidePhotos.tsx). */
+.map-quest-sheet-copy > .map-quest-sheet-photos { grid-area: photos; }
+.map-quest-sheet-photos { min-width: 0; max-width: 300px; margin-top: 2px; }
+.map-quest-sheet-photos h4 { display: flex; align-items: center; gap: 5px; margin: 0 0 4px; color: var(--text-dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.map-sheet-photo-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.map-sheet-photo { position: relative; aspect-ratio: 3 / 2; padding: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 6px; background: #0c0f0d; cursor: zoom-in; transition: border-color .15s ease; }
+.map-sheet-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.map-sheet-photo:hover, .map-sheet-photo:focus-visible { border-color: var(--brass); }
+.map-sheet-photo-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(8 10 8 / 62%); color: var(--text); font-size: 14px; font-weight: 800; }
 /* An ordinary marker keeps a compact card in the corner. */
 .map-quest-sheet:has(.map-marker-detail-card) { right: auto; width: min(560px, calc(100% - 24px)); max-height: calc(100% - 24px); }
 .map-quest-sheet-visual { margin: 0; display: grid; gap: 6px; }
@@ -272,16 +341,18 @@
 /* Too narrow for a side column next to the title: the stage text runs under the title across the whole card (two text
    columns when there is room) instead of a thin column on the right with empty space on the left. */
 @container (max-width: 820px) {
-  .map-quest-sheet-body.has-visual .map-quest-sheet-copy { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "meta" "section" "link"; grid-template-rows: none; }
+  .map-quest-sheet-body.has-visual .map-quest-sheet-copy { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "meta" "section" "photos" "link"; grid-template-rows: none; }
+  .map-quest-sheet-body.has-visual .map-quest-sheet-photos { margin-top: 8px; }
   .map-quest-sheet-body.has-visual .map-quest-sheet-copy > .map-quest-sheet-section { padding: 8px 0 0; border-left: 0; border-top: 1px solid var(--line); }
   .map-quest-sheet-body.has-visual .map-quest-sheet-copy > .map-quest-sheet-link { width: auto; min-width: 200px; justify-self: start; }
 }
 @container (max-width: 600px) {
-  .map-quest-sheet-copy { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "meta" "section" "link"; grid-template-rows: none; }
+  .map-quest-sheet-copy { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "meta" "section" "photos" "link"; grid-template-rows: none; }
+  .map-quest-sheet-photos { margin-top: 8px; }
   .map-quest-sheet-copy > .map-quest-sheet-section { padding: 8px 0 0; border-left: 0; border-top: 1px solid var(--line); }
   .map-quest-sheet-copy > .map-quest-sheet-link { width: auto; min-width: 200px; justify-self: start; }
 }
-@media (max-width: 760px) { .map-quest-sheet-copy { display: block; } .map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 0; border-left: 0; } }
+@media (max-width: 760px) { .map-quest-sheet-copy { display: block; } .map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 0; border-left: 0; } .map-quest-sheet-photos { margin-top: 8px; } }
 .quest-scan-status .spin.is-paused { animation: none; opacity: .55; }
 .flea-item-link {
   display: grid;
@@ -296,24 +367,24 @@
   text-align: left;
   cursor: pointer;
 }
-.price-table .item-thumb,
-.flea-detail .item-detail-visual,
-.item-row .item-thumb {
-  background: transparent;
-  border-color: transparent;
+/* Item pictures on one dark well in every theme (owner, 28.10.2026: «многих предметов нету картинок… полупрозрачные… на
+   тельняшке и снаряжении высветляются»): they were blended («lighten») into the page, so a dark item — a weapon case,
+   T H I C C, the Gamma container — vanished and every picture paled on a light or patterned theme. */
+:root:root .price-table .item-thumb,
+:root:root .item-row .item-thumb {
+  background: #0f1311;
+  border-color: rgb(255 255 255 / 7%);
+  mix-blend-mode: normal;
 }
-.price-table .item-thumb,
-.item-row .item-thumb {
-  mix-blend-mode: lighten;
-}
-.item-detail-visual {
-  background: var(--surf-1);
+.item-detail-visual,
+:root:root .flea-detail .item-detail-visual {
+  background: #0f1311;
 }
 .item-detail-visual img {
-  mix-blend-mode: lighten;
+  mix-blend-mode: normal;
 }
 .map-hud { position: absolute; left: 14px; top: 14px; z-index: 600; display: flex; gap: 7px; pointer-events: none; }
-.map-hud > span { min-height: 30px; padding: 0 10px; display: flex; align-items: center; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; backdrop-filter: blur(10px); }
+.map-hud > span, .map-hud-title > span { min-height: 30px; padding: 0 10px; display: flex; align-items: center; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; backdrop-filter: blur(10px); }
 .marker-style-menu { position: relative; pointer-events: auto; }
 .marker-style-trigger { min-height: 30px; padding: 0 9px 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; cursor: pointer; backdrop-filter: blur(10px); }
 .marker-style-trigger:hover, .marker-style-menu.is-open .marker-style-trigger { border-color: #5f553a; color: #f1ece0; }
@@ -404,16 +475,45 @@
 .map-marker.is-bust { filter: drop-shadow(0 2px 2px rgb(0 0 0 / 75%)); }
 @keyframes map-boss-pulse { 0% { transform: scale(.85); opacity: .9; } 100% { transform: scale(1.35); opacity: 0; } }
 
-.map-marker.is-realistic.is-focused::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgb(242 210 122 / 45%) 0%, rgb(242 210 122 / 15%) 55%, transparent 72%);
-  box-shadow: 0 0 0 2px rgb(242 210 122 / 85%);
+/* The chosen quest's points (report №91): the icon's own outline lit, bright, in every icon style (owner, 07.11.2026: «Должен
+   подсвечиваться силуэт, как ранее, только более ярче»), bigger and above the rest; the other quests' points step back while a
+   quest is chosen. */
+.map-marker.is-focused, .map-marker.is-modern.is-focused, .map-marker.is-realistic.is-focused, .map-marker.is-minimal.is-focused {
+  z-index: 2; transform: scale(1.25);
+  filter: drop-shadow(0 0 1px #fff3c4) drop-shadow(0 0 2px #ffd76a) drop-shadow(0 0 5px rgb(255 205 80 / 95%)) drop-shadow(0 0 10px rgb(255 190 60 / 70%));
 }
-.map-marker.is-realistic.is-focused { transform: scale(1.18); }
+/* Report №105: the exits the game listed after a double O — a medium green glow, softer than a chosen quest's (owner, 09.11.2026:
+   «подсвечивай их зеленым цветом, такой средний»); the other exits dimmed but shown, until the raid ends. */
+/* The game's list of this raid (owner, 11.11.2026): its exits as always, the others at half their colour. */
+.map-marker.is-exit-lit { z-index: 1; }
+.map-marker.is-exit-dim { opacity: .5; }
+.leaflet-marker-icon:hover .map-marker.is-exit-dim { opacity: 1; filter: none; }
+.map-stage.has-quest-focus .map-marker.is-quest:not(.is-focused) { opacity: .42; filter: grayscale(.75) drop-shadow(0 1px 2px rgb(0 0 0 / 70%)); }
+.map-stage.has-quest-focus .leaflet-marker-icon:hover .map-marker.is-quest { opacity: 1; filter: none; }
+.leaflet-marker-icon:hover .map-marker.is-focused, .leaflet-marker-icon:focus-visible .map-marker.is-focused {
+  transform: scale(1.32); filter: drop-shadow(0 0 1px #fff3c4) drop-shadow(0 0 2px #ffd76a) drop-shadow(0 0 6px rgb(255 205 80 / 100%)) drop-shadow(0 0 12px rgb(255 190 60 / 80%));
+}
 
+/* An exit's short name under its icon (data/exitShortNames.ts): small enough to stay about as wide as the icon, in two lines at most. */
+.map-marker-name {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 50%;
+  z-index: 3;
+  width: max-content;
+  max-width: 58px;
+  transform: translateX(-50%);
+  color: #f6f1df;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0;
+  text-align: center;
+  text-wrap: balance;
+  text-shadow: 0 0 2px #000, 0 0 2px #000, 0 1px 2px #000;
+  white-space: normal;
+  pointer-events: none;
+}
 .map-marker-floor {
   position: absolute;
   z-index: 2;
@@ -488,6 +588,18 @@
 .catalog-card p { margin: 0; color: var(--text-dim); font-size: 11px; }
 .catalog-card .item-thumb { width: 46px; height: 46px; }
 .detail-panel { position: sticky; top: calc(var(--topbar) + var(--notice-room, 0px) + 28px); max-height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 58px); overflow: auto; }
+/*
+ * A theme that makes every .panel `position: relative` (for its corner decoration, e.g. «Кровавая луна») turned that
+ * `top` into a plain offset: the quest's panel stood ~96px below «Каталог заданий» (owner, 03.11.2026: «нужно поднять
+ * правый блок в уровень с левым»). Sticky in every theme on the PC, on every page with such a card (the same ~96px came
+ * back on «Оружейник» and in «Торговцы»' task board, owner, 03.11.2026: «что бы они были в уровень справа»); the phone
+ * keeps its sheet. Its height is the room left under its top edge (src/app/useFitBelow.ts, where a page measures it), so
+ * a page whose card fits does not scroll.
+ */
+@media (min-width: 981px) {
+  :root[data-theme]:not([data-layout="mobile"]) .detail-panel { position: sticky; }
+  :root:not([data-layout="mobile"]) .detail-panel { max-height: var(--fit-below, calc(100vh - var(--topbar) - var(--notice-room, 0px) - 58px)); }
+}
 .quest-objective { padding: 11px 0; border-bottom: 1px solid var(--line); display: flex; gap: 9px; color: #b6c1b8; line-height: 1.45; }
 .quest-objective:last-child { border: 0; }
 .quest-stage { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); color: color-mix(in srgb, var(--text) 36%, var(--text-muted)); line-height: 1.4; text-decoration: none; }
@@ -534,10 +646,12 @@ a.quest-stage:hover { color: var(--text); }
 
 .settings-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 0; border-bottom: 1px solid var(--line); }
+/* Settings → «Громкость щелчков» (components/ClickVolumeSetting.tsx). */
+.setting-row .click-volume { flex: 0 1 220px; min-width: 120px; accent-color: var(--brass); cursor: pointer; }
 .setting-row:last-child { border: 0; }
 .setting-row strong { display: block; margin-bottom: 4px; }
 .setting-row small { color: var(--text-dim); }
-.toggle { width: 44px; height: 24px; padding: 3px; border: 0; border-radius: 99px; background: #2b382f; cursor: pointer; }
+.toggle { flex: none; width: 44px; height: 24px; padding: 3px; border: 0; border-radius: 99px; background: #2b382f; cursor: pointer; }
 .toggle span { display: block; width: 18px; height: 18px; border-radius: 50%; background: #78857b; transition: transform .3s var(--ease-soft), background-color .3s var(--ease-soft); }
 .toggle.on { background: #526c57; }
 .toggle.on span { transform: translateX(20px); background: #d8e3da; }
@@ -548,6 +662,9 @@ a.quest-stage:hover { color: var(--text); }
 .segmented-filter button.active { color: var(--text); background: #29392e; }
 .quest-catalog-card { min-height: 58px; padding: 11px 14px; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; overflow: hidden; }
 .quest-catalog-card.quest-map-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+/* a row's tags («Текущее», «капа», a hand-set mark) side by side in one cell, so every row keeps one height */
+.quest-row-tags { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
+.quest-row-tags:empty { display: none; }
 /* «Квесты на карте»: «Сделал в этом рейде» — the player's own note for the raid, not quest progress (QuestRaidCheck). */
 .quest-catalog-card.quest-map-row.has-raid-check { grid-template-columns: minmax(0, 1fr) auto; }
 .quest-raid-check { width: 32px; height: 32px; flex: 0 0 auto; padding: 0; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: transparent; color: var(--green); cursor: pointer; transition: background-color .18s var(--ease-soft), border-color .18s var(--ease-soft), color .18s var(--ease-soft); }
@@ -557,6 +674,7 @@ a.quest-stage:hover { color: var(--text); }
 .quest-raid-check:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .quest-raid-check[aria-pressed="true"] { border-color: var(--green); background: var(--green); color: var(--surf-1); }
 .quest-raid-check[aria-pressed="true"] svg { opacity: 1; }
+.quest-raid-check:disabled { cursor: default; }
 .quest-map-row.is-raid-checked .quest-map-row-main { opacity: .5; }
 .quest-raid-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin-top: 12px; color: var(--text-dim); font-size: 11.5px; line-height: 1.35; }
 :root[data-layout="mobile"] .quest-raid-check { width: 40px; height: 40px; }
@@ -611,7 +729,7 @@ a.quest-stage:hover { color: var(--text); }
 .manual-task-list input { width: 18px; height: 18px; accent-color: #7d8d68; }
 .success-seal { width: 72px; height: 72px; border: 1px solid #526c57; border-radius: 50%; display: grid; place-items: center; color: #b9d5bd; background: #1b2d20; }
 .profile-notice { margin-bottom: 14px; padding: 12px 14px; color: #a9caae; display: flex; gap: 8px; align-items: center; }
-.profile-operator-layout { display: grid; grid-template-columns: minmax(250px, .65fr) minmax(0, 1.35fr); gap: 14px; align-items: start; }
+.profile-operator-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
 .profile-character-panel { margin-top: 68px; }
 .player-loadout { display: block; }
 .player-loadout-identity { min-height: 92px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: #0d1410; }
@@ -715,11 +833,26 @@ a.quest-stage:hover { color: var(--text); }
 .hideout-node img{width:40px;height:40px;object-fit:contain}.hideout-node span{display:grid;gap:4px}.hideout-node small{color:var(--text-dim)}
 .hideout-detail{position:sticky;top:82px}.hideout-detail .panel-header>img{width:52px;height:52px;object-fit:contain}.hideout-level-control{display:flex;align-items:center;gap:12px;margin-bottom:5px}
 .trader-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,128px));gap:10px;justify-content:start}
-.trader-card{padding:0 0 8px;color:var(--text);cursor:pointer;text-align:center;overflow:hidden}
+.trader-card{position:relative;padding:0;color:var(--text);cursor:pointer;text-align:center;overflow:hidden}
 .trader-card.active{border-color:var(--brass);box-shadow:0 0 0 1px rgba(189,157,96,.22)}
-.trader-portrait{height:88px;border-bottom:2px solid;display:grid;place-items:center;font-size:22px;font-weight:900;margin-bottom:7px;overflow:hidden;background:var(--surf-1)}
-.trader-portrait img{width:100%;height:100%;object-fit:cover;object-position:top}
-.trader-card strong{display:block;padding:0 6px;font-size:12px;font-weight:650;line-height:1.25}
+.trader-portrait{aspect-ratio:1;display:grid;place-items:center;font-size:22px;font-weight:900;overflow:hidden;background:var(--surf-1)}
+.trader-portrait img{width:100%;height:100%;object-fit:cover}
+/* The whole picture with the name on it, no strip over the face (owner, 04.11.2026: «рамка очень большая, перекрывает полкартинки»). */
+.trader-caption{position:absolute;inset:auto 0 0;display:grid;justify-items:center;gap:1px;padding:16px 5px 5px;background:linear-gradient(to top,rgb(6 8 7 / 86%),rgb(6 8 7 / 42%) 62%,transparent);pointer-events:none}
+.trader-caption strong{font-size:12px;font-weight:700;line-height:1.2;color:#f2efe4;text-shadow:0 1px 2px rgb(0 0 0 / 85%)}
+/* The loyalty level as on the game's traders' screen: a light badge in the portrait's top left corner, I, II, III or a crown (import/traderLoyalty.ts). */
+.trader-slot{position:relative;min-width:0}
+.trader-slot .trader-card{width:100%}
+.trader-level-box{position:absolute;top:5px;left:5px}
+.trader-level{display:grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border:0;border-radius:3px;background:#d9d4c3;color:#15181a;font-size:11px;font-weight:800;line-height:1;letter-spacing:.02em;box-shadow:0 1px 3px rgb(0 0 0 / 55%);cursor:pointer}
+.trader-level:hover,.trader-level:focus-visible{background:#f2efe4;outline:none}
+/* set by hand: a brass edge, so it reads apart from what the app found */
+.trader-level.is-manual{box-shadow:0 0 0 2px var(--brass),0 1px 3px rgb(0 0 0 / 55%)}
+.trader-level-menu{position:absolute;z-index:20;top:calc(100% + 4px);left:0;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line-strong);border-radius:5px;background:var(--surf-1);box-shadow:0 8px 24px rgb(0 0 0 / 55%);white-space:nowrap}
+.trader-level-menu button{display:grid;place-items:center;min-width:24px;height:24px;padding:0 4px;border:0;border-radius:3px;background:transparent;color:var(--text-muted);font-size:11px;font-weight:800;cursor:pointer}
+.trader-level-menu button:hover,.trader-level-menu button:focus-visible{background:var(--surf-3,var(--surf-2));color:var(--text);outline:none}
+.trader-level-menu button[aria-checked="true"]{background:color-mix(in srgb,var(--brass) 26%,transparent);color:var(--brass)}
+.trader-level-menu .trader-level-auto{margin-left:2px;padding:0 6px;font-size:10.5px;font-weight:700}
 @media(max-width:1050px){.hideout-layout{grid-template-columns:1fr}.hideout-detail{position:static}.hideout-schematic{min-height:720px}.trader-grid{grid-template-columns:repeat(auto-fill,minmax(100px,118px))}}
 .registration-dialog{position:relative}
 .registration-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);display:grid;place-items:center;cursor:pointer}
@@ -731,8 +864,9 @@ a.quest-stage:hover { color: var(--text); }
 .profile-choice.active{border-color:#625537;background:#211e16}
 .profile-delete{width:42px;border:0;border-left:1px solid var(--line);background:transparent;color:var(--text-dim);cursor:pointer}
 .profile-delete:hover{color:#d27b7b;background:rgba(210,123,123,.08)}
-.flea-layout{display:grid;gap:16px}
-.flea-layout.with-detail{grid-template-columns:minmax(0,1fr) 340px}
+.flea-layout{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+/* Owner 16.11.2026 (report 171): the list a little narrower, the item's card wider, taking the room from the left. */
+.flea-layout.with-detail{grid-template-columns:minmax(0,1fr) clamp(400px,38%,520px)}
 .flea-detail{position:relative;position:sticky;top:82px}
 .quest-scan-panel { margin: 0 0 14px; padding: 16px 18px; }
 .quest-scan-copy { display: flex; gap: 12px; align-items: flex-start; }
@@ -747,7 +881,7 @@ a.quest-stage:hover { color: var(--text); }
 .quest-scan-found li { break-inside: avoid; margin: 0 0 4px; }
 @media (max-width: 900px) { .quest-scan-found ul { columns: 1; } }
 .price-table tr.selected-row{background:rgba(189,157,96,.08)}
-@media(max-width:1050px){.flea-layout.with-detail{grid-template-columns:1fr}.flea-detail{position:static}}
+@media(max-width:1050px){.flea-layout.with-detail{grid-template-columns:minmax(0,1fr)}.flea-detail{position:static}}
 
 .exp-warning .panel-body { display: flex; gap: 12px; align-items: flex-start; color: var(--amber); }
 .exp-warning p { margin: 0; color: var(--text-muted); line-height: 1.5; }
@@ -783,7 +917,7 @@ a.quest-stage:hover { color: var(--text); }
 .kappa-card-actions { position: absolute; top: 12px; right: 12px; display: grid; gap: 6px; }
 .kappa-card-actions .button { justify-content: center; }
 /* the label wraps beside the two buttons instead of running under them on a narrow card */
-.kappa-card .stat-label { padding-right: 104px; line-height: 1.35; }
+.kappa-card > .stat-label { padding-right: 104px; line-height: 1.35; }
 .kappa-items-actions { display: flex; gap: 8px; align-items: center; }
 .kappa-items-message { margin: 0 0 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-muted); }
 .kappa-items-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 12px; }
@@ -823,16 +957,23 @@ a.quest-stage:hover { color: var(--text); }
 .leaflet-tooltip.map-tool-tip { padding: 2px 6px; border: 1px solid #6d603f; border-radius: 5px; background: rgb(11 17 13 / 92%); color: #f2e2b8; font-size: 11px; font-weight: 700; box-shadow: none; }
 .leaflet-tooltip.map-tool-tip::before { display: none; }
 .map-stage.is-tool-active .leaflet-container { cursor: crosshair; }
+/* A ruler or the sniper grid is on (owner, 08.11.2026: «Когда включаешь рулетку, она должна работать на любой поверхности. Тоже то же самое и со снайперской сеткой»): nothing on the map takes the press — the kill zones, the points, the sectors — so the map gets it and the tool puts its point there. The sniper's own target stays draggable. */
+.map-stage.is-tool-active .leaflet-overlay-pane .leaflet-interactive,
+.map-stage.is-tool-active .leaflet-marker-pane .leaflet-marker-icon:not(.sniper-target) { pointer-events: none !important; }
 
 /* New icons: dark disc with a coloured ring and glyph */
 .map-marker.is-modern { color: var(--marker-color); filter: drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
 .map-marker.is-modern .map-marker-glyph svg { filter: none; }
 .leaflet-marker-icon:hover .map-marker.is-modern, .leaflet-marker-icon:focus-visible .map-marker.is-modern { transform: scale(1.18); }
-.map-marker.is-modern.is-focused { filter: drop-shadow(0 0 5px rgb(242 210 122 / 90%)) drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
-.map-marker.is-modern.is-focused { transform: scale(1.12); }
 
 /* Icon style menu: compact, opens downwards and stays within the HUD column */
-.map-hud { flex-wrap: wrap; align-items: flex-start; max-width: calc(100% - 80px); }
+/* The right of the first line stays free for «Отложенные квесты» (.map-deferred), the zoom buttons are under it. */
+.map-hud { flex-wrap: wrap; align-items: flex-start; max-width: calc(100% - 230px); }
+/* the map's name with «Ключи» under it (report 186) */
+.map-hud-title { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+.map-hud-keys { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 0 10px; border: 1px solid var(--line-soft); border-radius: 7px;
+  background: rgb(10 16 12 / 88%); color: #d8c08a; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; backdrop-filter: blur(8px); transition: background-color .18s, border-color .18s, color .18s; }
+.map-hud-keys:hover, .map-hud-keys.is-open { border-color: color-mix(in srgb, var(--brass) 55%, var(--line-soft)); background: rgb(24 30 20 / 92%); color: var(--brass-strong); }
 .marker-style-list { flex-direction: column; gap: 2px; min-width: 156px; padding: 4px; border-radius: 8px; }
 .marker-style-option { min-height: 30px; padding: 0 10px 0 6px; background: transparent; font-size: 11.5px; }
 .marker-style-preview .layer-icon.is-preview, .marker-style-preview .layer-glyph.is-preview { width: 18px; height: 18px; }
@@ -859,6 +1000,12 @@ a.quest-stage:hover { color: var(--text); }
 .theme-swatch:hover { border-color: var(--line-strong); color: var(--text); }
 .theme-swatch.active { border-color: var(--brass); color: var(--brass-strong); background: color-mix(in srgb, var(--brass) 10%, transparent); }
 .theme-swatch-preview { width: 100%; height: 26px; border-radius: 5px; border: 1px solid rgb(255 255 255 / 12%); }
+.mmt-desc.is-full { display: block; overflow: visible; }
+.extract-guide-text { margin: 4px 0 8px; color: var(--text-muted); line-height: 1.4; }
+.extract-guide-photos { display: flex; flex-wrap: wrap; gap: 6px; }
+.extract-guide-photo { width: 172px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: transparent; cursor: zoom-in; }
+.extract-guide-photo:hover, .extract-guide-photo:focus-visible { border-color: var(--brass); }
+.extract-guide-photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #0c0f0d; }
 .mmt-shot { display: block; width: 100%; aspect-ratio: 16 / 9; margin: 0 0 8px; object-fit: cover; border: 1px solid #3d3f33; border-radius: 2px; background: #0d100d; }
 .exp-warning.is-alert { border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); }
 .exp-warning.is-alert .panel-body { color: var(--danger); }
@@ -912,11 +1059,15 @@ a.quest-stage:hover { color: var(--text); }
 
 /* Exactly the card's box, never past its border (owner, 12.10.2026: «окно открывается поверх блока и выходит за его
    границу, такого не должно быть»): compact 5-hour counts, below them «кто видел», a list that scrolls. Sized for two
-   list rows in the usual 117 px card, at any card width and in both languages. */
+   list rows in the usual 117 px card, at any card width and in both languages. The fonts follow the block's size (owner,
+   05.11.2026: «Окно большое, а шрифт маленький»), and the first row keeps clear of «Видел» (`--goon-button`, `--goon-head`:
+   measured by GoonCard.tsx fitGoonStats; these are the values until then). The arrangement for each block size: goonCard.css. */
 .goon-stats-popover {
   position: absolute; inset: 0; z-index: 2;
-  display: grid; grid-template-rows: 28px auto minmax(0, 1fr); gap: 4px;
-  padding: 12px 14px 8px 16px; overflow: hidden;
+  container-type: size;
+  --goon-head: 36px; --goon-button: 84px;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 14px 10px 16px; overflow: hidden;
   border: 1px solid var(--line-strong); border-radius: inherit;
   background: linear-gradient(145deg, var(--surf-2), var(--surf-1));
   box-shadow: var(--shadow);
@@ -924,7 +1075,9 @@ a.quest-stage:hover { color: var(--text); }
   clip-path: inset(100% 0 0 0 round 12px); opacity: 0; visibility: hidden; pointer-events: none;
   transition: clip-path .78s cubic-bezier(.3, .7, .25, 1), opacity .54s var(--ease-soft), visibility 0s linear .78s;
 }
-.goon-stats-popover > * { transform: translateY(14px); transition: transform .9s cubic-bezier(.3, .7, .25, 1); }
+.goon-stats-popover > * { flex: none; min-width: 0; }
+.goon-stats-popover:not(.has-recent) > .goon-stats-foot { margin-top: auto; }
+.goon-stats-popover > * { --goon-font: clamp(13px, min(10cqh, 5cqw), 18px); transform: translateY(14px); transition: transform .9s cubic-bezier(.3, .7, .25, 1); }
 .goon-card:hover:not(.is-open) .goon-stats-popover { clip-path: inset(0 0 0 0 round 12px); opacity: 1; visibility: visible; transition-delay: .1s, .1s, 0s; }
 .goon-card:hover:not(.is-open) { z-index: 30; }
 /* shown, it takes the pointer: the wheel over it scrolls the list (GoonCard.tsx) */
@@ -933,22 +1086,24 @@ a.quest-stage:hover { color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   .goon-stats-popover, .goon-stats-popover > * { transition-duration: .01s !important; transform: none !important; }
 }
-.goon-stats-head { display: grid; align-content: center; gap: 2px; padding-right: 76px; min-width: 0; font-size: 10.5px; line-height: 13px; color: var(--text-muted); }
+.goon-stats-head { display: flex; align-items: center; height: var(--goon-head); padding-right: var(--goon-button); min-width: 0; font-size: var(--goon-font); line-height: 1.25; color: var(--text-muted); }
 .goon-stats-head > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.goon-stats-head .goon-stats-label { font-style: normal; }
 .goon-stats-head strong { color: var(--brass-strong); }
-.goon-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 14px; }
-.goon-stats-cell { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; font-size: 10.5px; line-height: 14px; color: var(--text-muted); }
+.goon-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
+@container (min-width: 380px) { .goon-stats-grid { grid-template-columns: repeat(4, 1fr); } }
+.goon-stats-cell { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; font-size: var(--goon-font); line-height: 1.3; color: var(--text-muted); }
 .goon-stats-cell span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.goon-stats-cell b { min-width: 18px; padding: 0 5px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: 9.5px; line-height: 13px; text-align: center; }
+.goon-stats-cell b { min-width: 22px; padding: 0 6px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: .92em; line-height: 1.35; font-variant-numeric: tabular-nums; text-align: center; }
 .goon-stats-cell.is-top span { color: var(--text); }
 .goon-stats-cell.is-top b { background: color-mix(in srgb, var(--brass) 28%, transparent); color: var(--brass-strong); }
 .goon-stats-cell.is-empty { color: var(--text-dim); }
 .goon-stats-cell.is-empty b { background: transparent; color: var(--text-dim); }
-.goon-stats-foot { align-self: start; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10.5px; color: var(--text-dim); }
+.goon-stats-foot { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--goon-font); color: var(--text-dim); }
 
 .goon-report-menu {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 40;
-  width: 232px; padding: 8px;
+  width: min(232px, calc(100vw - 16px)); padding: 8px;
   border: 1px solid var(--line-strong); border-top: 2px solid var(--brass); border-radius: var(--radius-sm);
   background: var(--bg-elevated); box-shadow: var(--shadow);
   animation: goon-menu-in .14s var(--ease-soft);
@@ -983,9 +1138,10 @@ a.quest-stage:hover { color: var(--text); }
 .map-priority-tile.is-top { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
 .map-priority-tile.is-empty { color: var(--text-dim); }
 .map-priority-rank { color: var(--text-dim); font-size: 10px; }
-.map-priority-count { min-width: 22px; padding: 1px 6px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: 11px; font-weight: 800; text-align: center; }
-.map-priority-tile.is-top .map-priority-count { background: color-mix(in srgb, var(--brass) 26%, transparent); color: var(--brass-strong); }
-.map-priority-tile.is-empty .map-priority-count { background: transparent; color: var(--text-dim); }
+/* The number alone, no pill around it (owner, 13.11.2026: «количество квестов в приоритете карт без рамки цифр»). */
+.map-priority-count { justify-self: end; color: var(--text); font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.map-priority-tile.is-top .map-priority-count { color: var(--brass-strong); }
+.map-priority-tile.is-empty .map-priority-count { color: var(--text-dim); }
 .map-priority-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 750; white-space: nowrap; overflow: hidden; }
 .map-priority-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .map-priority-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; }
@@ -1183,25 +1339,53 @@ a.quest-stage:hover { color: var(--text); }
 .quest-inline-task p { margin: 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) { .quest-inline, .quest-inline.is-open, .quest-row-chevron { transition: none; } }
 .current-tasks-group { margin: 14px 0 8px; }
+/* The PC's list the wheel scrolls (components/CurrentTasksPanel.tsx); the script sets its height where it can line the blocks up. */
+.current-tasks-scroll { max-height: 340px; overflow-y: auto; margin-right: -8px; padding-right: 8px; scrollbar-width: thin; }
 .current-tasks-toggle { width: 100%; margin-top: 12px; gap: 6px; color: var(--text-muted); }
 .current-tasks-toggle:hover { color: var(--text); border-color: color-mix(in srgb, var(--brass) 55%, var(--line-strong)); }
 .current-tasks-toggle svg { transition: rotate .6s var(--ease-soft); }
 .current-tasks-toggle[aria-expanded="true"] svg { rotate: 180deg; }
+/* Tasks put aside with a right click («Отложить квест»): counted under the list. */
+.current-tasks-deferred { margin: 10px 0 0; font-size: 12px; line-height: 1.45; }
 
 /* «Требования рейда» across the left column: as many columns as fit instead of one long list */
 .raid-needs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); gap: 8px; }
 .raid-need {
-  display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 7px 10px 7px 7px;
+  position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 7px 10px 7px 7px;
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surf-1) 70%, transparent);
-  color: var(--text); text-decoration: none;
+  color: var(--text); text-decoration: none; -webkit-user-select: none; user-select: none;
   transition: border-color .15s var(--ease-soft), background-color .15s var(--ease-soft);
 }
-.raid-need:hover, .raid-need:focus-visible { border-color: var(--line-strong); background-color: var(--panel-3); outline: none; }
+.raid-need:hover, .raid-need:focus-within { border-color: var(--line-strong); background-color: var(--panel-3); }
+/* the item's link covers the card; the line of each quest under the total (bug report №30) sits above it */
+.raid-need-link { display: block; color: inherit; text-decoration: none; outline: none; -webkit-user-drag: none; }
+.raid-need-link::after { content: ''; position: absolute; inset: 0; }
+/* The press look (global.css) sets `scale`, and with it the link would hold its ::after to its own box: a press on the card
+   outside the item's name ended on another element and opened nothing (owner, 04.11.2026: «При нажатии на предмет требования
+   рейда, он не всегда срабатывает»). So here nothing under the pointer moves, only the picture and the name show the press. */
+.raid-need-link:active, .raid-need-quest:active { scale: none; }
+.raid-need:has(.raid-need-link:active) :is(.item-thumb, strong) { scale: .97; }
+.raid-need-quest {
+  position: relative; z-index: 1; display: block; width: fit-content; max-width: 100%; margin-top: 2px;
+  color: var(--text-muted); font-size: 11px; line-height: 1.3; text-decoration: none; overflow-wrap: anywhere; -webkit-user-drag: none;
+}
+.raid-need-quest b { color: var(--text); font-weight: 650; }
+.raid-need-quest:hover, .raid-need-quest:focus-visible { color: var(--brass); text-decoration: underline; text-underline-offset: 2px; outline: none; }
+.raid-need-quest:hover b, .raid-need-quest:focus-visible b { color: inherit; }
+@media (pointer: coarse) { .raid-need-quest { margin-top: 0; padding-block: 4px; } }
 .raid-need .item-thumb { width: 38px; height: 38px; padding: 3px; border-radius: 7px; }
 .raid-need-copy { min-width: 0; }
 .raid-need-copy strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.3; }
 .raid-need-copy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; line-height: 1.3; }
 .raid-need-badge { margin-left: 6px; padding: 0 5px; font-size: 10px; vertical-align: 1px; }
+/* a key the player has or not (quests/ownedKeys.ts) */
+.raid-need-copy .raid-need-stock { font-weight: 750; }
+.raid-need-copy .raid-need-stock.is-owned { color: var(--success, #7fb88a); }
+.raid-need-copy .raid-need-stock.is-missing { color: #d78a6e; }
+/* «either key» (report №90): the picture of each key fades in on its turn */
+.raid-need .raid-need-turn { animation: raid-need-turn .45s var(--ease-soft) both; }
+@keyframes raid-need-turn { from { opacity: 0; transform: scale(.9); } }
+@media (prefers-reduced-motion: reduce) { .raid-need .raid-need-turn { animation: none; } }
 .raid-needs-note { margin: 12px 0 0; font-size: 11.5px; }
 /* «Рынок · избранное»: the «лучшее предложение» caption sat on the item name's line («GPUлучшее предложение») */
 .market-favorites .item-row small { display: block; margin-top: 2px; }
@@ -1250,18 +1434,245 @@ a.quest-stage:hover { color: var(--text); }
   .dashboard-layout > .dashboard-column:last-child > .overview-block:nth-child(3) { order: 2; }
 }
 
-/* «Развернуть карту» (PC, pages/MapsPage.tsx MapExpandToggle): «Квесты на карте» slides away to the right and the map
-   takes its room; the four corners at the bottom right of the map, above Leaflet's panes. */
-.map-shell { transition: grid-template-columns .26s cubic-bezier(.23, 1, .32, 1); }
+/* PC map (pages/MapsPage.tsx useMapFitsWindow): exactly the room under the top bar, «Назад» and any notice; the page
+   does not scroll, so the map stays in place (owner, 01.11.2026). */
 @media (min-width: 981px) {
-  .map-shell.is-map-expanded { grid-template-columns: 220px minmax(0, 1fr) 0px; }
-  .map-shell.is-map-expanded .map-detail { visibility: hidden; border-left-color: transparent; }
+  :root[data-map-page]:not([data-layout="mobile"]), :root[data-map-page]:not([data-layout="mobile"]) body { overflow: hidden; }
+  :root:not([data-layout="mobile"]) .map-shell { height: var(--map-fit-height, calc(100vh - var(--topbar) - var(--notice-room, 0px) - 48px)); min-height: 0; }
 }
+/* «Карта на весь экран» (useDesktopMapFullscreen): the map with its locations on the left and the quests on the right
+   fills the app's window; the app's menu and top bar hide until Esc or «Назад». */
+:root[data-map-fullscreen-pc] .sidebar, :root[data-map-fullscreen-pc] .topbar, :root[data-map-fullscreen-pc] .desktop-back { display: none !important; }
+:root[data-map-fullscreen-pc] .map-shell.is-map-fullscreen { position: fixed; inset: 0; z-index: 1200; height: 100vh !important; border: 0; border-radius: 0; }
+.map-fullscreen-back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 12px; }
 .map-stage { position: relative; }
 .map-expand-toggle { position: absolute; right: 12px; bottom: 12px; z-index: 800; display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: rgb(12 16 13 / 82%); color: var(--text); box-shadow: 0 6px 18px rgb(0 0 0 / 45%); cursor: pointer; transition: background-color .16s ease, border-color .16s ease, transform .12s ease-out; }
 .map-expand-toggle:active { transform: scale(.95); }
 @media (hover: hover) and (pointer: fine) { .map-expand-toggle:hover { border-color: var(--accent, #c9a56a); background: rgb(24 30 25 / 92%); } }
 .map-expand-toggle:focus-visible { outline: 2px solid var(--accent, #c9a56a); outline-offset: 2px; }
-@media (min-width: 981px) and (max-width: 1280px) { .map-shell.is-map-expanded { grid-template-columns: 190px minmax(0, 1fr) 0px; } }
 @media (max-width: 980px) { .map-expand-toggle { display: none; } }
 @media (prefers-reduced-motion: reduce) { .map-shell { transition: none; } }
+
+/* Stationary weapons (report №89): their own silhouettes, the zone around them while the layer is on */
+.map-marker.is-stationary-weapon { color: var(--marker-color); filter: drop-shadow(0 0 1px #000) drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
+.map-marker.is-stationary-weapon svg { position: relative; z-index: 1; width: 100%; height: 100%; }
+.map-marker.is-stationary-weapon .map-marker-name { color: var(--marker-color); }
+.leaflet-marker-icon:hover .map-marker.is-stationary-weapon { transform: scale(1.18); }
+.stationary-weapon-label span { position: absolute; transform: translate(-50%, -50%); padding: 0 3px; border-radius: 3px; background: rgb(8 10 9 / 78%); font-size: 10px; font-weight: 800; white-space: nowrap; pointer-events: none; }
+
+/* Report №110: the caption of a fire sector, opened by a press, in the map's dark frame with the sector's colour. */
+.leaflet-popup.map-fire-popup .leaflet-popup-content-wrapper { border: 1px solid #e040fb; border-radius: 4px; background: rgb(18 12 20 / 96%); color: #f4e6f7; box-shadow: 0 10px 26px rgb(0 0 0 / 65%); }
+.leaflet-popup.map-fire-popup .leaflet-popup-content { margin: 7px 11px; font: 600 12px/1.35 "Bender", "Bahnschrift", Inter, sans-serif; letter-spacing: .02em; }
+.leaflet-popup.map-fire-popup .leaflet-popup-tip { background: rgb(18 12 20 / 96%); border: 1px solid #e040fb; }
+.map-fire-card { display: grid; gap: 4px; max-width: 260px; }
+.map-fire-card strong { color: #f0a8ff; font-size: 13px; }
+.map-fire-card p { margin: 0; font-weight: 500; }
+.map-fire-item { display: flex; align-items: center; gap: 8px; margin-top: 4px; padding: 4px 6px; border: 1px solid rgb(224 64 251 / 45%); border-radius: 4px; background: rgb(255 255 255 / 4%); }
+.map-fire-item img { width: 40px; height: 40px; object-fit: contain; }
+
+/* Report №114: an item behind a locked door — a very small padlock at the icon's bottom-left corner. */
+.map-marker .map-marker-lock { position: absolute; left: -3px; bottom: -2px; width: 9px; height: 11px; line-height: 0; pointer-events: none; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%)); }
+/* Report №113: a quest point's card names the key the quest needs here. */
+.mmt-keys { display: grid; gap: 4px; margin: 4px 0 2px; }
+.mmt-key { display: flex; align-items: center; gap: 6px; color: #f2d27a; font-size: 11px; font-weight: 700; }
+.mmt-key img { width: 22px; height: 22px; object-fit: contain; }
+.mmt-key.is-owned { color: #8fd18a; }
+/* «Документы боевого пропуска» in the layer list: a document's own picture, like the other rows' marks. */
+.layer-button .layer-doc-picture { width: 18px; height: 18px; flex: 0 0 auto; object-fit: contain; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%)); }
+/* A key spot: the key's own picture, cut out (no plate). */
+.map-marker.is-key-picture .map-marker-image { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 85%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%)); }
+/* The keys of a key spot (maps/KeySpotKeys.tsx): pictures with short names. */
+.key-spot-keys ul { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 6px 0 0; padding: 0; }
+.key-spot-keys li { display: grid; justify-items: center; gap: 3px; padding: 6px 4px; border: 1px solid #3a3f33; border-radius: 6px; background: rgb(255 255 255 / 3%); text-align: center; }
+.key-spot-keys li img, .key-spot-keys-blank { width: 40px; height: 40px; object-fit: contain; }
+.key-spot-keys li span { max-width: 100%; overflow: hidden; color: #e7e2d0; font-size: 10.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.key-spot-keys li.is-owned { border-color: rgb(143 209 138 / 60%); }
+.key-spot-keys.is-compact li img { width: 30px; height: 30px; }
+.key-spot-keys-all { margin-top: 8px; width: 100%; }
+.key-spot-keys-more { display: block; margin-top: 4px; color: #c9b26a; font-weight: 800; }
+/* «Реалистичный» loot as the game's own pictures, and the key spots: a faint light rim so a dark item shows on the map. */
+.map-marker.is-realistic:is(.layer-loot-key, .layer-loot-medical, .layer-loot-valuable, .layer-loot-technical, .layer-loot-provision, .layer-loot-container),
+.map-marker.is-key-picture .map-marker-image { filter: drop-shadow(0 0 1px rgb(255 240 210 / 85%)) drop-shadow(0 0 1px rgb(255 240 210 / 45%)) drop-shadow(0 1px 2px rgb(0 0 0 / 80%)); }
+/* The card of a point with the small padlock: the door's key (maps/LockedNote.tsx). */
+.map-locked-note { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0 6px; color: var(--text-muted); font-size: 12px; line-height: 1.35; }
+.map-locked-note > svg { flex: none; margin-top: 2px; color: var(--brass); }
+.map-locked-key { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--text); }
+.map-locked-key img { flex: none; width: 26px; height: 26px; border-radius: 5px; background: rgb(255 255 255 / 5%); object-fit: contain; }
+/* On top of a point's hover card: the key of the room (owner, 11.11.2026). */
+.map-locked-note.is-entry { margin: 0 0 6px; padding: 5px 7px; border: 1px solid color-mix(in srgb, var(--brass) 45%, transparent); border-radius: 7px; background: color-mix(in srgb, var(--brass) 10%, transparent); }
+.map-locked-note.is-entry > span { display: grid; gap: 2px; }
+.map-locked-entry-title { color: var(--brass-strong, var(--brass)); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.map-locked-note.is-entry .map-locked-key { margin-top: 2px; }
+.mmt-room-spots { color: var(--text); }
+
+/* The look of the quest window (owner, 11.11.2026, designs 2 and 3; components/questSheetView.ts): the gear on its top left. */
+.quest-sheet-view { position: absolute; top: 6px; left: 8px; z-index: 3; }
+.map-quest-sheet-body:has(> .quest-sheet-view) .map-quest-sheet-eyebrow { padding-left: 26px; min-height: 20px; line-height: 20px; }
+.quest-sheet-view-button { width: 22px; height: 22px; min-height: 22px; border-radius: 6px; color: var(--text-dim); }
+.quest-sheet-view-button:hover, .quest-sheet-view-button.active { color: var(--brass-strong, var(--brass)); }
+.quest-sheet-view-menu { position: absolute; top: 26px; left: 0; display: grid; min-width: 190px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 9px; background: #131a17; box-shadow: 0 10px 24px rgb(0 0 0 / 50%); }
+.quest-sheet-view-menu button { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
+.quest-sheet-view-menu button:hover { background: rgb(255 255 255 / 6%); }
+.quest-sheet-view-menu button.active { color: var(--brass-strong, var(--brass)); }
+
+/* 2 · «Вкладки по этапам»: one stage at a time, its objectives as cards. */
+.sheet-stages.is-view-tabs { grid-template-columns: 1fr; gap: 8px; }
+.sheet-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+.sheet-tab { display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; padding: 6px 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.sheet-tab:hover { color: var(--text); }
+.sheet-tab.active { border-bottom-color: var(--brass); color: var(--text); }
+.sheet-tab-icon { display: inline-grid; color: var(--brass); }
+.sheet-tab small { padding: 0 6px; border-radius: 99px; background: rgb(255 255 255 / 7%); color: var(--text-dim); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.sheet-tab small.is-done { background: color-mix(in srgb, var(--green) 25%, transparent); color: #9fd8b4; }
+.sheet-stages.is-view-tabs .sheet-stage { padding: 0; border: 0; background: transparent; }
+.sheet-stages.is-view-tabs .sheet-stage-head { display: none; }
+.sheet-stages.is-view-tabs .sheet-objective-group ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.sheet-stages.is-view-tabs .sheet-objective { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: rgb(255 255 255 / 3%); }
+.sheet-stages.is-view-tabs .sheet-objective.is-done { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); background: color-mix(in srgb, var(--green) 9%, transparent); }
+.sheet-stages.is-view-tabs .sheet-objective.is-focus { border-color: var(--brass); }
+
+/* 3 · «Шкала этапов»: the stages as steps on one line, each objective a light row under its step. */
+.sheet-stages.is-view-timeline { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.sheet-stages.is-view-timeline > .sheet-stage { flex: 1 1 220px; }
+.sheet-timeline { flex: 1 0 100%; display: flex; align-items: flex-start; gap: 0; margin: 0 0 2px; padding: 0; list-style: none; }
+.sheet-step { position: relative; display: flex; flex: 1 1 0; align-items: flex-start; gap: 8px; min-width: 0; padding-right: 12px; }
+.sheet-step:not(:last-child)::after { content: ''; position: absolute; top: 13px; left: 32px; right: 6px; height: 2px; border-radius: 2px; background: var(--line-strong); }
+.sheet-step.is-done:not(:last-child)::after { background: color-mix(in srgb, var(--green) 70%, transparent); }
+.sheet-step-dot { position: relative; z-index: 1; display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 2px solid var(--line-strong); border-radius: 50%; background: #131a17; color: var(--text-dim); font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sheet-step.is-current .sheet-step-dot { border-color: var(--brass); color: var(--brass-strong, var(--brass)); }
+.sheet-step.is-done .sheet-step-dot { border-color: var(--green); background: var(--green); color: #0d130f; }
+.sheet-step-name { position: relative; z-index: 1; display: grid; min-width: 0; padding: 3px 6px 0 0; background: transparent; line-height: 1.2; }
+.sheet-step-name strong { color: var(--text); font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+.sheet-step-name small { overflow: hidden; color: var(--text-dim); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-step.is-next .sheet-step-name strong { color: var(--text-muted); }
+.sheet-stages.is-view-timeline .sheet-stage { padding: 0 4px 0 12px; border: 0; border-left: 2px solid var(--line); border-radius: 0; background: transparent; }
+.sheet-stages.is-view-timeline .sheet-stage.is-raid { border-left-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
+.sheet-stages.is-view-timeline .sheet-stage-head { display: none; }
+@container (max-width: 520px) { .sheet-step-name small { display: none; } }
+/* «Найти точку…»: the maps that have the key or item searched for (report 134). */
+.map-search-maps { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 0 12px 10px; }
+.map-search-maps .mono { opacity: .75; }
+
+/* Past the map's edges a dark ground, on the PC and on the phone (owner, 11.11.2026: «сделай не зеленое, а темный фон везде…
+   На телефоне тоже»): one colour all round, nearly black, so no darker square shows round a map's picture. */
+:root { --map-ground: #111413; }
+.map-stage, .map-stage .leaflet-container, .mini-map .leaflet-container { background: var(--map-ground); }
+
+
+/* ---------- The quest window under the map (owner, 11.11.2026) ----------
+   «Это окно не нужно листать… сделай правый блок меньше… левый блок чуть-чуть вытяни вправо»: «В рейде» takes twice the room of
+   «Торговцу», its «Выполнить» / «Найти» / «Выход из рейда» stand side by side, the lines sit closer; the title column is narrower.
+   «Показать точку на карте» and the boxes: one size, much bigger. The gear of «Вид окна»: bigger, its wheel in the middle. */
+.map-quest-sheet-copy { grid-template-columns: minmax(170px, 220px) minmax(0, 1fr); column-gap: 16px; }
+.map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 16px; }
+.sheet-stages.is-view-classic { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.sheet-stages.is-view-classic > .sheet-stage { flex: 1 1 170px; padding: 8px 10px 6px; }
+.sheet-stages.is-view-classic > .sheet-stage.is-raid { flex: 2.2 1 340px; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); column-gap: 14px; align-items: start; }
+.sheet-stages.is-view-classic > .sheet-stage.is-raid > .sheet-stage-head,
+.sheet-stages.is-view-classic > .sheet-stage.is-raid > .sheet-stage-needs { grid-column: 1 / -1; }
+.sheet-stages.is-view-classic .sheet-objective-group + .sheet-objective-group { margin-top: 0; }
+.sheet-stages.is-view-classic .sheet-stage-head { margin-bottom: 6px; }
+.sheet-objective { margin-bottom: 4px; line-height: 1.3; }
+.sheet-objective-controls { gap: 5px; padding-top: 0; }
+.sheet-objective-tick, .sheet-objective-point { width: 30px; height: 30px; border-radius: 7px; }
+.sheet-objective-point:not(.is-empty) { border-color: color-mix(in srgb, var(--brass) 55%, var(--line-strong)); }
+@media (pointer: coarse) { .sheet-objective-tick, .sheet-objective-point { width: 30px; height: 30px; } }
+.sheet-objective-body { gap: 3px; padding-top: 5px; }
+/* a needed key or item: one line with its picture, never wider than its objective */
+.sheet-needs { min-width: 0; max-width: 100%; }
+.sheet-need { max-width: 100%; overflow: hidden; padding: 2px 8px 2px 2px; }
+.sheet-need img, .sheet-need-empty { width: 24px; height: 24px; }
+.sheet-need-text small { display: none; }
+.quest-sheet-view { top: 6px; left: 8px; }
+.quest-sheet-view-button { display: grid; place-items: center; width: 30px; height: 30px; min-height: 30px; min-width: 30px; padding: 0; border-radius: 8px; }
+.quest-sheet-view-button > svg { display: block; margin: 0; }
+.quest-sheet-view-menu { top: 34px; }
+.map-quest-sheet-body:has(> .quest-sheet-view) .map-quest-sheet-eyebrow { padding-left: 36px; min-height: 30px; line-height: 30px; }
+/* «Вкладки по этапам»: the cards hold their keys inside */
+.sheet-stages.is-view-tabs .sheet-objective { min-width: 0; overflow: hidden; }
+/* «Шкала этапов»: the stages side by side, each step (its dot and name) on one line with the others, joined by a line; the
+   objectives right under their step; «Готово» last. */
+.sheet-stages.is-view-timeline { display: flex; flex-wrap: nowrap; gap: 0; align-items: flex-start; }
+.sheet-stages.is-view-timeline > .sheet-stage { position: relative; flex: 1 1 0; min-width: 0; padding: 0 14px 0 0; border: 0; border-radius: 0; background: transparent; }
+.sheet-stages.is-view-timeline > .sheet-stage.is-raid { flex-grow: 2.2; }
+.sheet-stages.is-view-timeline > .sheet-stage.is-finish { flex: 0 0 auto; padding-right: 0; }
+.sheet-stages.is-view-timeline .sheet-stage-head { display: flex; position: relative; align-items: center; gap: 8px; margin: 0 0 8px; }
+.sheet-stages.is-view-timeline > .sheet-stage:not(.is-finish) > .sheet-stage-head::after { content: ''; flex: 1 1 auto; min-width: 12px; height: 2px; border-radius: 2px; background: var(--line-strong); }
+.sheet-stages.is-view-timeline > .sheet-stage:not(.is-finish):has(.sheet-step-dot.is-done) > .sheet-stage-head::after { background: color-mix(in srgb, var(--green) 70%, transparent); }
+.sheet-stages.is-view-timeline .sheet-stage-name { flex: none; }
+.sheet-stages.is-view-timeline .sheet-stage-step { display: none; }
+.sheet-stages.is-view-timeline .sheet-objective-group { padding-left: 4px; }
+.sheet-step-dot { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border: 2px solid var(--line-strong); border-radius: 50%; background: #131a17; color: var(--text-dim); font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sheet-step-dot.is-current { border-color: var(--brass); color: var(--brass-strong, var(--brass)); }
+.sheet-step-dot.is-done { border-color: var(--green); background: var(--green); color: #0d130f; }
+.sheet-stage.is-finish.is-done .sheet-step-dot { border-color: var(--green); color: var(--green); }
+@container (max-width: 700px) {
+  .sheet-stages.is-view-timeline { flex-direction: column; gap: 8px; }
+  .sheet-stages.is-view-timeline > .sheet-stage { width: 100%; padding-right: 0; }
+  .sheet-stages.is-view-timeline > .sheet-stage:not(.is-finish) > .sheet-stage-head::after { display: none; }
+}
+/* a line's body never wider than its column: a long key name ends in «…» instead of pushing out */
+.sheet-objective-body { grid-template-columns: minmax(0, 1fr); }
+.sheet-objective-body > * { min-width: 0; }
+/* «Вкладки по этапам»: the open stage's kinds side by side as in «Обычный», each kind's cards one under another */
+.sheet-stages.is-view-tabs .sheet-stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 12px; align-items: start; }
+.sheet-stages.is-view-tabs .sheet-stage > .sheet-stage-needs { grid-column: 1 / -1; }
+.sheet-stages.is-view-tabs .sheet-objective-group ul { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.sheet-stages.is-view-tabs .sheet-objective { padding: 6px 8px; }
+.sheet-stages.is-view-tabs .sheet-objective-group + .sheet-objective-group { margin-top: 0; }
+/* a little closer, so a stage of three kinds fits the window */
+.sheet-stages.is-view-classic > .sheet-stage { padding-top: 6px; padding-bottom: 4px; }
+.sheet-stages.is-view-timeline .sheet-stage-head { margin-bottom: 6px; }
+.sheet-objective-group h5 { margin-bottom: 3px; }
+/* room for a stage of three kinds without scrolling (owner, 11.11.2026: «Это окно не нужно листать») */
+.map-quest-sheet { max-height: min(48%, 360px); }
+/* «Требуемые предметы»: one block on the right of the quest's objectives, each item once (owner, 11.11.2026) */
+.sheet-needs-block { min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--surf-2, #1b1f1c) 70%, transparent); }
+.sheet-needs-block h5 { margin: 0 0 6px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sheet-needs-block .sheet-needs { flex-direction: column; flex-wrap: nowrap; gap: 4px; }
+.sheet-needs-block .sheet-need { width: 100%; }
+.sheet-needs-block > section + section { margin-top: 10px; }
+.sheet-stages.is-view-classic > .sheet-needs-block, .sheet-stages.is-view-timeline > .sheet-needs-block { flex: 0 1 230px; }
+.sheet-stages.is-view-timeline > .sheet-needs-block { margin-left: 14px; }
+.sheet-stages.is-view-tabs:has(> .sheet-needs-block) { grid-template-columns: minmax(0, 1fr) minmax(170px, 230px); column-gap: 12px; }
+.sheet-stages.is-view-tabs > .sheet-tabs { grid-column: 1 / -1; }
+.sheet-stages.is-view-tabs > .sheet-stage { grid-column: 1; }
+.sheet-stages.is-view-tabs > .sheet-needs-block { grid-column: 2; grid-row: 2; align-self: start; }
+@container (max-width: 700px) {
+  .sheet-stages.is-view-classic > .sheet-needs-block, .sheet-stages.is-view-timeline > .sheet-needs-block { flex-basis: 100%; margin-left: 0; }
+  .sheet-stages.is-view-tabs:has(> .sheet-needs-block) { grid-template-columns: minmax(0, 1fr); }
+  .sheet-stages.is-view-tabs > .sheet-needs-block { grid-column: 1; grid-row: auto; }
+}
+.sheet-needs-block .sheet-need-text strong { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* the map of a line under its pin and box; the text always starts in one column (owner, 11.11.2026) */
+.sheet-objective-side { display: grid; justify-items: start; gap: 3px; }
+.sheet-objective-side > .sheet-objective-where { margin: 0; max-width: 66px; overflow: hidden; text-overflow: ellipsis; font-size: 9.5px; line-height: 15px; }
+/* a key of «Требуемые предметы» opens its window */
+.sheet-needs-block .sheet-needs > li { min-width: 0; list-style: none; }
+.sheet-need.is-button { width: 100%; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sheet-need.is-button:hover, .sheet-need.is-button:focus-visible { border-color: var(--brass); outline: none; }
+.sheet-objective-side > .sheet-objective-where { justify-self: stretch; max-width: none; white-space: normal; text-align: center; overflow-wrap: anywhere; line-height: 1.15; padding: 1px 4px; }
+.sheet-objective-side { min-width: 65px; max-width: 72px; }
+.sheet-stages.is-view-timeline .sheet-stage-head { margin-bottom: 4px; }
+
+/* One frame per item picture, everywhere (owner, 10.11 and 11.11.2026: «не должно быть двойных рамок… Учитывай это везде»): the
+   game's icons carry their own square frame, so nothing is drawn around them — only that frame, its corners rounded. The dark
+   ground stays under the picture for the light themes. */
+.item-thumb, :root:root .price-table .item-thumb, :root:root .item-row .item-thumb, .raid-need .item-thumb { border: 0; padding: 0; border-radius: 8px; overflow: hidden; }
+.sheet-need img { background: none; border-radius: 6px; }
+
+/* «7/10» with − and + on an objective of more than one (report 144): the quest window under the map. */
+.sheet-objective-counter { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; vertical-align: middle; white-space: nowrap; }
+.sheet-objective-counter strong { min-width: 34px; text-align: center; font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--brass); }
+.sheet-objective-counter button { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: rgb(255 255 255 / 4%); color: inherit; cursor: pointer; }
+.sheet-objective-counter button:hover:not(:disabled) { border-color: var(--brass); color: var(--brass); }
+.sheet-objective-counter button:disabled { opacity: .35; cursor: default; }
+.sheet-objective-counter.is-read strong { min-width: 0; }
+.sheet-objective.is-done .sheet-objective-counter strong { color: var(--green, #7fbf7f); }
+/* The key of a locked room in a point's card: pressed, it opens right under it (maps/LockedNote.tsx, QuestKeyInline). */
+.map-locked-key-block { display: grid; gap: 4px; }
+.map-locked-key.is-button { width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.map-locked-key.is-button:hover { border-color: var(--line-strong); background: rgb(255 255 255 / 4%); }
+.map-locked-key .map-locked-chevron { margin-left: auto; color: var(--text-dim); transition: rotate .2s ease; }
+.map-locked-key[aria-expanded="true"] .map-locked-chevron { rotate: 180deg; }
+.map-locked-tier { position: static !important; flex: none; }

@@ -3,8 +3,9 @@
  * кнопкой вид»): the card on «Карты» under «Вид» (components/MapItemCard.tsx). It replaces the item card that was drawn
  * over the game. On the PC it comes from the item key's lookup (electron/experimental/index.ts → `experimental:item`,
  * components/ExperimentalBridge.tsx); on the phone from the server's live relay (mobile/livePosition.ts), as the PC of
- * the same account sent it. Kept while the app runs, whatever page is open, until the next item or «Закрыть»; nothing is
- * stored on the device.
+ * the same account sent it. Kept while the app runs, whatever page is open; an answer (found or not recognised) goes by
+ * itself after ITEM_CARD_MS (owner, 03.11.2026: «чтобы это окно появлялось на 10 секунд. По истечении 10 секунд оно
+ * исчезает»), or earlier at the next item or «Закрыть». Nothing is stored on the device.
  */
 import { useSyncExternalStore } from 'react'
 import type { RaidMode } from '../domain/types'
@@ -20,7 +21,12 @@ export interface RecognisedItem {
   from: 'pc' | 'server'
 }
 
+/** How long an answer stays on the card; «Распознаю предмет…» waits for its answer. */
+export const ITEM_CARD_MS = 10_000
+
 let current: RecognisedItem | null = null
+let hideTimer: ReturnType<typeof setTimeout> | undefined
+const stopTimer = () => { if (hideTimer !== undefined) { clearTimeout(hideTimer); hideTimer = undefined } }
 const listeners = new Set<() => void>()
 const subscribe = (listener: () => void) => {
   listeners.add(listener)
@@ -28,15 +34,21 @@ const subscribe = (listener: () => void) => {
 }
 const emit = () => { for (const listener of listeners) listener() }
 
-/** A new lookup state or item: it replaces whatever the card showed (an «idle» answer changes nothing). */
+/**
+ * A new lookup state or item: it replaces whatever the card showed (an «idle» answer changes nothing), and an answer's
+ * ITEM_CARD_MS start from here.
+ */
 export function setRecognisedItem(payload: ItemOverlayPayload, options: { at?: number; mode?: RaidMode; from?: RecognisedItem['from'] } = {}) {
   if (payload.state === 'idle') return
+  stopTimer()
   current = { payload, at: options.at ?? Date.now(), mode: options.mode, from: options.from ?? 'pc' }
+  if (payload.state !== 'loading') hideTimer = setTimeout(closeRecognisedItem, ITEM_CARD_MS)
   emit()
 }
 
-/** «Закрыть» on the card: gone until the next item. */
+/** «Закрыть» on the card, or its time is up: gone until the next item. */
 export function closeRecognisedItem() {
+  stopTimer()
   if (!current) return
   current = null
   emit()
@@ -55,6 +67,7 @@ export function onRecognisedItem(listener: (item: RecognisedItem | null) => void
 
 /** For the tests. */
 export function resetRecognisedItemForTests() {
+  stopTimer()
   current = null
   emit()
 }

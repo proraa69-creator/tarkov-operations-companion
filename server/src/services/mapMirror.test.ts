@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import express from 'express'
-import { MapMirror, mirrorPlan, setTileCount, tileSetPath } from './mapMirror.js'
+import { layOwnTiles, MapMirror, mirrorPlan, OWN_TILES_FILE, setTileCount, tileSetPath } from './mapMirror.js'
 import { createMapTilesRouter } from '../routes/mapTiles.js'
 import { MirrorStorage } from './mirrorStorage.js'
 
@@ -90,14 +90,57 @@ test('map mirror: downloads existing tiles and schemes, skips empty ones, a comp
       assert.equal(tile.headers.get('content-type'), 'image/png')
       assert.ok(Buffer.from(await tile.arrayBuffer()).equals(PNG))
       assert.equal((await fetch(`${base}/v1/map-tiles/maps/factory/main/1/1/1.png`)).status, 404)
+      // Our own render of Streets and Lighthouse has tiles left of and above tile 0.
+      mkdirSync(join(dir, 'maps/factory/main/1/-1'), { recursive: true })
+      writeFileSync(join(dir, 'maps/factory/main/1/-1/-2.png'), PNG)
+      const negative = await fetch(`${base}/v1/map-tiles/maps/factory/main/1/-1/-2.png`)
+      assert.equal(negative.status, 200)
+      assert.ok(Buffer.from(await negative.arrayBuffer()).equals(PNG))
+      assert.equal((await fetch(`${base}/v1/map-tiles/maps/factory/main/1/--1/0.png`)).status, 404)
       assert.equal((await fetch(`${base}/v1/map-tiles/maps/svg/Factory.svg`)).headers.get('content-type'), 'image/svg+xml')
       assert.equal((await fetch(`${base}/v1/map-tiles/maps.json`)).status, 200)
+      // Our own sets laid over tarkov.dev's maps.json (raidos-tiles.json): complete sets only, a tarkov.dev path kept.
+      writeFileSync(join(dir, OWN_TILES_FILE), JSON.stringify({
+        factory: { layers: {
+          Roof: 'https://assets.tarkov.dev/maps/labs_v4/1st/{z}/{x}/{y}.png',
+          '2nd': 'https://assets.tarkov.dev/maps/labs_v4/1st/{z}/{x}/{y}.png',
+          Gone: 'https://assets.tarkov.dev/maps/factory/none/{z}/{x}/{y}.png',
+          Up: 'https://assets.tarkov.dev/maps/../labs_v4/1st/{z}/{x}/{y}.png',
+          Evil: 'https://evil.example/{z}/{x}/{y}.png',
+        } },
+        'the-lab': { tilePath: 'https://assets.tarkov.dev/maps/factory/main/{z}/{x}/{y}.png' },
+      }))
+      type Served = Array<{ maps: Array<{ tilePath?: string; layers?: Array<{ name: string; tilePath?: string }> }> }>
+      const served = await (await fetch(`${base}/v1/map-tiles/maps.json`)).json() as Served
+      assert.deepEqual(served[0]!.maps[0]!.layers!.map((layer) => [layer.name, layer.tilePath]), [
+        ['2nd', 'https://assets.tarkov.dev/maps/factory/2nd/{z}/{x}/{y}.png'],
+        ['evil', 'https://evil.example/{z}/{x}/{y}.png'],
+        ['Roof', 'https://assets.tarkov.dev/maps/labs_v4/1st/{z}/{x}/{y}.png'],
+      ])
+      assert.equal(served[1]!.maps[0]!.tilePath, 'https://assets.tarkov.dev/maps/labs_v4/1st/{z}/{x}/{y}.png')
       assert.equal((await fetch(`${base}/v1/map-tiles/maps/factory/main/.complete`)).status, 404)
       assert.equal((await fetch(`${base}/v1/map-tiles/..%2F..%2Fetc%2Fpasswd`)).status, 404)
       assert.equal(((await (await fetch(`${base}/v1/map-tiles/status`)).json()) as { completeSets: number }).completeSets, 3)
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('map mirror: our own sets are laid over maps.json for the catalog too; without the file it stays as it is', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'raidos-own-'))
+  try {
+    const bytes = Buffer.from(JSON.stringify(MAPS))
+    assert.equal(await layOwnTiles(bytes, dir), bytes)
+    mkdirSync(join(dir, 'maps/lighthouse/main'), { recursive: true })
+    writeFileSync(join(dir, 'maps/lighthouse/main/.complete'), 'stamp')
+    writeFileSync(join(dir, OWN_TILES_FILE), JSON.stringify({ 'the-lab': { layers: { Roof: 'https://assets.tarkov.dev/maps/lighthouse/main/{z}/{x}/{y}.png' } } }))
+    const served = JSON.parse((await layOwnTiles(bytes, dir)).toString('utf8')) as Array<{ maps: Array<{ layers?: Array<{ name: string; tilePath?: string }> }> }>
+    assert.deepEqual(served[1]!.maps[0]!.layers, [{ name: 'Roof', tilePath: 'https://assets.tarkov.dev/maps/lighthouse/main/{z}/{x}/{y}.png' }])
+    writeFileSync(join(dir, OWN_TILES_FILE), '{ broken')
+    assert.equal(await layOwnTiles(bytes, dir), bytes)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

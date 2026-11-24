@@ -138,6 +138,17 @@ test('only Gmail\'s own topmost verdict counts: a forged sender or a pasted «pa
   assert.equal(vouchedByGmail(parseMail(saleLetter({ id: 'f5', auth: 'Authentication-Results: mx.google.com; dkim=pass header.i=@evil.example; spf=pass smtp.mailfrom=x@evil.example' }))), false)
 })
 
+test('the envelope sender is the sender\'s own words: a «pass» for bezebee.com written into it is not Gmail\'s (security review, 03.11.2026)', () => {
+  const sender = '"x;spf=pass smtp.mailfrom=a@bezebee.com;dkim=pass header.d=bezebee.com;dmarc=pass header.from=bezebee.com"@evil.example'
+  const injected = `Authentication-Results: mx.google.com;\r\n       spf=pass (google.com: domain of ${sender} designates 6.6.6.6 as permitted sender) smtp.mailfrom=${sender};\r\n       dmarc=fail (p=NONE) header.from=bezebee.com`
+  assert.equal(vouchedByGmail(parseMail(saleLetter({ id: 'i1', auth: injected }))), false)
+  const inComment = 'Authentication-Results: mx.google.com;\r\n       spf=pass (google.com: domain of x@evil.example; dkim=pass header.d=bezebee.com (nested) designates 6.6.6.6) smtp.mailfrom=x@evil.example'
+  assert.equal(vouchedByGmail(parseMail(saleLetter({ id: 'i2', auth: inComment }))), false)
+  // SPF alone never vouches any more, even for a bezebee.com envelope: BZB's letters carry its DKIM signature.
+  assert.equal(vouchedByGmail(parseMail(saleLetter({ id: 'i3', auth: 'Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=no-reply@bezebee.com' }))), false)
+  assert.equal(vouchedByGmail(parseMail(saleLetter({ id: 'i4', auth: GMAIL_VOUCHES }))), true)
+})
+
 /** A mailbox on a fake IMAP server: LOGIN with one password, INBOX with the given letters. */
 async function fakeImap(user: string, pass: string, letters: () => Buffer[]) {
   const logins: string[] = []

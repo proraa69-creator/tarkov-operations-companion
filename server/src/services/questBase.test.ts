@@ -362,6 +362,12 @@ test('quest base renames: the earlier title of the same id becomes an OCR alias,
   await advance(t, questBase, 0)
   const first = questBase.version('pvp')!
   assert.deepEqual(questBase.report().modes.pvp.changes, { since: null, added: [], removed: [], renamed: [] })
+  // the quests changed by hand (src/data/manualQuests.json): one the data no longer has is named, in the report and the log
+  const manual = questBase.report().modes.pvp.manualQuests!
+  assert.equal(manual.marked, 0)
+  assert.ok(manual.unmatched.some((fix) => fix.questId === '5b478eca86f7744642012254' && fix.name === 'Витамины' && !fix.objectiveId))
+  assert.ok(!manual.unmatched.some((fix) => fix.questId === '67d03be712fb5f8fd2096332'), 'a Season-only fix is not looked for in PvP')
+  assert.ok(lines.some((line) => line.includes('hand fixes the data no longer matches') && line.includes('Витамины')))
 
   titles = [['q1', 'Новое имя', 'New name'], ['q3', 'Третье', 'Third']]
   await advance(t, questBase, PERIOD)
@@ -393,4 +399,19 @@ test('quest base renames: the earlier title of the same id becomes an OCR alias,
   assert.equal(restarted.report().modes.pvp.changes?.since, first, 'the change list of the current version stays')
   assert.equal(restarted.report().modes.pvp.checkedAt, new Date(Date.now()).toISOString())
   restarted.stop()
+})
+
+test('quest base: a marker layer older apps do not know travels as one they do, its own beside it (owner, 02.11.2026)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: START })
+  const dir = await tempDir(t)
+  // a 0.6.0.178 app fell on «Карты» («reading 'size'») over the «Рубильники» layer the server of 0.6.0.179 sent
+  const lever = { id: 'reserve-switch-d2', mapId: 'reserve', type: 'landmark', layerId: 'switch', title: 'Рубильник Д-2', description: '', position: [1, 2] }
+  const extract = { id: 'reserve-extract', mapId: 'reserve', type: 'extract', layerId: 'extract.pmc', title: 'Д-2', description: '', position: [3, 4] }
+  const load: QuestBaseOptions['load'] = async (mode, locale) => ({ ...titled(mode, locale, [[`${mode}-q1`, 'первое', 'first']]), markers: [lever, extract] } as unknown as AppDataset)
+  const { questBase } = base({ dir, load })
+  await questBase.start()
+  await advance(t, questBase, 0)
+  const markers = (await questBase.snapshot('pvp', 'ru')).markers
+  assert.deepEqual(markers.map((marker) => [marker.id, marker.layerId, marker.wireLayer]), [['reserve-switch-d2', 'landmark', 'switch'], ['reserve-extract', 'extract.pmc', undefined]])
+  questBase.stop()
 })

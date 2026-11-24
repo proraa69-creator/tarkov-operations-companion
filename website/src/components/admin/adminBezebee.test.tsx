@@ -10,9 +10,25 @@ vi.mock('../../api', async (original) => {
   return { ...actual, api: { ...actual.api, adminBezebeeStatus: mocks.status, adminBezebeeEvents: mocks.events, adminBezebeeCredentials: mocks.credentials, adminBezebeeAttach: mocks.attach, adminBezebeePayload: mocks.payload, adminBezebeeDismiss: mocks.dismiss, adminBezebeeConfirm: mocks.confirm, adminBezebeeMailCheck: mocks.mailCheck } }
 })
 const { AdminBezebee } = await import('./AdminBezebee')
+const unfold = () => fireEvent.click(screen.getByRole('button', { name: 'Разложить' }))
 
 describe('AdminBezebee', () => {
   afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+  // Owner, 06.11.2026: «Просто БЗБ, автозачисление оплаты, она должна быть сложная, кнопка обновить и разложить».
+  it('stands folded: its title, «Обновить» and «Разложить»; a payment waiting for its account shows even so', async () => {
+    mocks.status.mockResolvedValue({ apiToken: true, webhookSecret: true, webhookUrl: 'https://raidos.app/v1/payments/bezebee/webhook' })
+    mocks.events.mockResolvedValue({ total: 1, unmatched: 1, events: [{ id: 7, receivedAt: '2026-10-20T10:00:00Z', status: 'unmatched', signature: 'ok', plan: '6m' }] })
+    render(<AdminBezebee />)
+    expect(await screen.findByText('Ждут привязки: 1')).toBeInTheDocument()
+    expect(screen.queryByText('https://raidos.app/v1/payments/bezebee/webhook')).toBeNull()
+    expect(screen.queryByText('Последние уведомления')).toBeNull()
+    expect(screen.getByRole('button', { name: /Обновить/ })).toBeInTheDocument()
+    unfold()
+    expect(screen.getByText('Последние уведомления')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Сложить' }))
+    expect(screen.queryByText('Последние уведомления')).toBeNull()
+  })
 
   it('shows the address for BZB, saves the key and secret, attaches a Telegram-only payment to an account', async () => {
     mocks.status.mockResolvedValue({ apiToken: false, webhookSecret: false, webhookUrl: 'https://raidos.app/v1/payments/bezebee/webhook' })
@@ -20,6 +36,7 @@ describe('AdminBezebee', () => {
     mocks.credentials.mockResolvedValue({ apiToken: true, webhookSecret: true, webhookUrl: 'https://raidos.app/v1/payments/bezebee/webhook' })
     mocks.attach.mockResolvedValue({ event: { id: 7, status: 'confirmed' } })
     render(<AdminBezebee />)
+    unfold()
     expect(await screen.findByText('https://raidos.app/v1/payments/bezebee/webhook')).toBeInTheDocument()
     expect(screen.getByText('Автозачисление выключено')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText(/Секрет подписи вебхуков/), { target: { value: 'whsec_1' } })
@@ -36,6 +53,7 @@ describe('AdminBezebee', () => {
     mocks.dismiss.mockResolvedValue({ event: { id: 3, status: 'ignored' } })
     mocks.confirm.mockResolvedValue({ payment: { id: 'p1' } })
     render(<AdminBezebee />)
+    unfold()
     fireEvent.click(await screen.findByRole('button', { name: /Убрать/ }))
     await waitFor(() => expect(mocks.dismiss).toHaveBeenCalledWith('owner-token', 3))
     fireEvent.change(screen.getByLabelText('E-mail аккаунта'), { target: { value: 'global@example.com' } })
@@ -51,6 +69,7 @@ describe('AdminBezebee', () => {
     mocks.events.mockResolvedValue({ total: 0, unmatched: 0, events: [] })
     mocks.credentials.mockResolvedValue({ apiToken: false, webhookSecret: false, webhookUrl: url, mail: { configured: true, user: 'raidosapp@gmail.com', read: 1, error: 'Почта не пустила: проверьте адрес и пароль приложения' } })
     render(<AdminBezebee />)
+    unfold()
     expect(await screen.findByText('Автозачисление выключено')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText(/Адрес ящика/), { target: { value: 'raidosapp@gmail.com' } })
     fireEvent.change(screen.getByLabelText(/Пароль приложения/), { target: { value: 'abcd efgh ijkl mnop' } })
@@ -62,6 +81,7 @@ describe('AdminBezebee', () => {
     mocks.status.mockResolvedValue({ apiToken: false, webhookSecret: false, webhookUrl: url, mail: { configured: true, user: 'raidosapp@gmail.com', read: 3, checkedAt: '2026-10-20T20:00:00Z' } })
     mocks.mailCheck.mockResolvedValue({ mail: { configured: true, user: 'raidosapp@gmail.com', read: 4 } })
     render(<AdminBezebee />)
+    unfold()
     expect(await screen.findByText('Автозачисление включено')).toBeInTheDocument()
     expect(screen.getByText(/читаются с raidosapp@gmail.com каждую минуту/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Проверить почту сейчас/ }))

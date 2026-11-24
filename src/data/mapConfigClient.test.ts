@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { adaptMapRenderingConfigs, fetchMapRenderingConfigs } from './mapConfigClient'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { adaptMapRenderingConfigs, fetchMapRenderingConfigs, hedgedGet } from './mapConfigClient'
 
 describe('map rendering config adapter', () => {
   it('loads maps.json only from Raid OS', async () => {
@@ -52,5 +52,39 @@ describe('map rendering config adapter', () => {
     const layers = configs.get('customs')?.layers ?? []
     expect(layers[1]).toMatchObject({ name: '2 этаж', ownTiles: true, extents: [{ height: [2.7, 6.5], bounds: [[[243, 190], [165, 125]]] }] })
     expect(layers[2]).toMatchObject({ name: 'Подземный', ownTiles: false, extents: [{ height: [-1000, 0.5] }] })
+  })
+})
+
+// 15.11.2026: from a network that loses a new connection's first packet, maps.json took ~20 s and failed at its 20 s limit.
+describe('maps.json on a slow way to the server', () => {
+  afterEach(() => { vi.useRealTimers() })
+
+  it('sends it again while no copy has answered; the first answer wins and the others stop', async () => {
+    vi.useFakeTimers()
+    const signals: AbortSignal[] = []
+    const fetcher = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+      signals.push(init!.signal!)
+      // the first copy hangs on its connection, the second answers
+      return signals.length === 1 ? new Promise<Response>(() => {}) : Promise.resolve(new Response('[]', { status: 200 }))
+    }) as unknown as typeof fetch
+    const answer = hedgedGet(fetcher, 'https://raidos.app/v1/map-tiles/maps.json', {}, 45_000, [1500, 4000])
+    await vi.advanceTimersByTimeAsync(1499)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect((await answer).status).toBe(200)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(signals[0]!.aborted).toBe(true)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('fails only when every copy failed', async () => {
+    vi.useFakeTimers()
+    const fetcher = vi.fn(() => Promise.reject(new Error('offline'))) as unknown as typeof fetch
+    const answer = hedgedGet(fetcher, 'https://raidos.app/v1/map-tiles/maps.json', {}, 45_000, [1500])
+    const caught = answer.catch((error: Error) => error.message)
+    await vi.advanceTimersByTimeAsync(1600)
+    expect(await caught).toBe('offline')
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 })

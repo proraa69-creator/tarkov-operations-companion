@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import express from 'express'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { compareVersions, MOBILE_REPOSITORY, MobileDownloads, parseMobileRelease } from '../services/mobileDownloads.js'
+import { iphoneStoreReader, parseIphoneStore } from '../services/iphoneStore.js'
 import { createMobileDownloadsRouter } from './mobileDownloads.js'
 
 const sha = (data: Buffer) => createHash('sha256').update(data).digest('hex')
@@ -115,3 +116,33 @@ test('mobile downloads: descriptions and versions', () => {
   assert.ok(compareVersions('0.7.0-1', '0.6.0-99') > 0)
   assert.equal(compareVersions('0.6.0-80', '0.6.0-80'), 0)
 })
+
+// Owner, 09.11.2026: «мы просто поменяем ссылку, и будет перекидывать без обновления приложения. На App Store».
+test('mobile.json: the App Store switch file gives the iPhone app its «Обновить» link and the App Store version', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'raidos-mobile-')); t.after(() => rm(dir, { recursive: true, force: true }))
+  const apk = Buffer.from('PK apk 80'), zip = Buffer.from('PK zip 80')
+  const downloads = new MobileDownloads({ dir, fetch: github([release('0.6.0-80', apk, zip)]).fetcher, now: () => 0 })
+  await downloads.refresh(true)
+  const file = join(dir, 'iphone-store.json')
+  let clock = 0
+  const store = iphoneStoreReader(file, () => clock)
+  const server = express().use(createMobileDownloadsRouter(downloads, { iphoneStore: store })).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve)); t.after(() => server.close())
+  const address = server.address(); assert.ok(address && typeof address !== 'string')
+  const json = async () => (await fetch(`http://127.0.0.1:${address.port}/v1/downloads/mobile.json`)).json()
+  assert.deepEqual((await json()).iphone, { size: zip.length }, 'no file: the site as before')
+  await writeFile(file, JSON.stringify({ url: 'https://apps.apple.com/app/raid-os/id1234567890', version: '0.6.0.81' }))
+  clock += 6_000
+  assert.deepEqual((await json()).iphone, { size: zip.length, url: 'https://apps.apple.com/app/raid-os/id1234567890', storeVersion: '0.6.0.81' })
+  await writeFile(file, JSON.stringify({ url: 'https://example.com/app' }))
+  clock += 6_000
+  assert.deepEqual((await json()).iphone, { size: zip.length }, 'only an App Store address is taken')
+})
+
+test('the App Store switch: an apps.apple.com address and an optional version, nothing else', () => {
+  assert.deepEqual(parseIphoneStore({ url: 'https://apps.apple.com/app/id1' }), { url: 'https://apps.apple.com/app/id1' })
+  assert.deepEqual(parseIphoneStore({ url: 'https://apps.apple.com/app/id1', version: '0.6.0-81' }), { url: 'https://apps.apple.com/app/id1', version: '0.6.0-81' })
+  assert.deepEqual(parseIphoneStore({ url: 'https://apps.apple.com/app/id1', version: 'latest' }), { url: 'https://apps.apple.com/app/id1' })
+  for (const bad of [null, {}, { url: 'http://apps.apple.com/x' }, { url: 'https://apps.apple.com.evil.io/x' }, { url: 'javascript:alert(1)' }]) assert.equal(parseIphoneStore(bad), undefined)
+})
+

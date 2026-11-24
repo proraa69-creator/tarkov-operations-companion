@@ -1,13 +1,14 @@
 /**
  * The quest-state engine (docs/quests/quest-state-engine.md): the one place that decides a quest's status in one mode
  * from every source — the game logs, the server's records from other devices, manual marks, the Tasks-table readings
- * (PvE only), the story-pane readings and the legacy manual records — after the mode's reset floor. Pure: no React, no
- * storage; the server imports it too (server/src/services/sharedProgress.ts).
+ * (every mode), the story-pane readings, the account's copy of the quests from the server and the legacy manual
+ * records — after the mode's reset floor. Pure: no React, no storage; the server imports it too
+ * (server/src/services/sharedProgress.ts).
  */
 import type { QuestInputLayers, QuestObservation, RaidMode, StoryObjectiveReading, TaskProgressRecord } from '../domain/types'
 
 export type ResolvedStatus = 'not-started' | 'active' | 'completed' | 'failed'
-export type QuestSourceKind = 'log' | 'server' | 'manual' | 'table' | 'story' | 'legacy'
+export type QuestSourceKind = 'log' | 'server' | 'manual' | 'table' | 'story' | 'mirror' | 'legacy'
 export type ObservedStatus = 'active' | 'completed' | 'failed'
 
 export type { ManualMark, QuestInputLayers, QuestObservation } from '../domain/types'
@@ -65,8 +66,8 @@ export interface QuestResolution {
   diagnostics: QuestDiagnostics
 }
 
-export const SOURCE_CONFIDENCE: Record<QuestSourceKind, number> = { manual: 1, log: 0.95, server: 0.9, story: 0.8, table: 0.7, legacy: 0.4 }
-const SOURCES: QuestSourceKind[] = ['log', 'server', 'manual', 'table', 'story', 'legacy']
+export const SOURCE_CONFIDENCE: Record<QuestSourceKind, number> = { manual: 1, log: 0.95, server: 0.9, story: 0.8, table: 0.7, mirror: 0.6, legacy: 0.4 }
+const SOURCES: QuestSourceKind[] = ['log', 'server', 'manual', 'table', 'story', 'mirror', 'legacy']
 
 export function emptyQuestInputs(): QuestInputLayers {
   return { log: {}, server: {}, manual: {}, table: {}, story: {}, legacy: {} }
@@ -84,7 +85,6 @@ export function isStoryRecord(record: Pick<TaskProgressRecord, 'taskId' | 'curre
  */
 export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly EngineQuest[]): QuestResolution {
   const { floor, mode } = inputs
-  const pve = mode === 'pve'
   const below = (at: string | undefined) => Boolean(floor && at && at < floor)
   const states = new Map<string, ResolvedQuest>()
   const taskProgress: Record<string, TaskProgressRecord> = {}
@@ -109,22 +109,25 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
     const log = fresh('log', inputs.log?.[taskId])
     const server = fresh('server', inputs.server?.[taskId])
     const manualMark = fresh('manual', inputs.manual?.[taskId])
-    const manual = manualMark && manualMark.status !== 'cleared' ? { status: manualMark.status as ObservedStatus, at: manualMark.at } : undefined
+    const manual = manualMark && manualMark.status !== 'cleared' && manualMark.status !== 'absent' ? { status: manualMark.status as ObservedStatus, at: manualMark.at } : undefined
+    const absent = manualMark?.status === 'absent' ? manualMark : undefined
     const storyRecord = inputs.story?.[taskId] && !below(inputs.story[taskId]!.updatedAt) ? inputs.story[taskId] : undefined
     if (inputs.story?.[taskId] && !storyRecord) fresh('story', asObservation(inputs.story[taskId]))
     let tableRecord = inputs.table?.[taskId] && !below(inputs.table[taskId]!.updatedAt) ? inputs.table[taskId] : undefined
     if (inputs.table?.[taskId] && !tableRecord) fresh('table', asObservation(inputs.table[taskId]))
-    if (tableRecord && !pve) {
-      list.push({ kind: 'table-outside-pve', source: 'table', status: tableRecord.status, at: tableRecord.updatedAt })
-      tableRecord = undefined
-    }
+    // The Tasks table counts in every mode (owner, 31.10.2026): it is read only where the mode's logs miss its history
+    // (src/components/StoryScreenScanner.tsx), and the game's own events still win over it.
     if (tableRecord?.status === 'completed') {
       // A completion the table never shows: a chain guess of older versions. A hint, not a decision.
       list.push({ kind: 'table-completed-unproven', source: 'table', status: 'completed', at: tableRecord.updatedAt })
       tableRecord = undefined
     }
-    const legacyRecord = inputs.legacy?.[taskId] && !below(inputs.legacy[taskId]!.updatedAt) ? inputs.legacy[taskId] : undefined
+    let legacyRecord = inputs.legacy?.[taskId] && !below(inputs.legacy[taskId]!.updatedAt) ? inputs.legacy[taskId] : undefined
     if (inputs.legacy?.[taskId] && !legacyRecord) fresh('legacy', asObservation(inputs.legacy[taskId]))
+    let mirrorRecord = inputs.mirror?.[taskId] && !below(inputs.mirror[taskId]!.updatedAt) ? inputs.mirror[taskId] : undefined
+    if (inputs.mirror?.[taskId] && !mirrorRecord) fresh('mirror', asObservation(inputs.mirror[taskId]))
+    // «Снять отметку» made after the copy's record keeps it out: the copy would bring back what the player took away.
+    if (mirrorRecord && (manualMark?.status === 'cleared' || absent) && manualMark!.at >= mirrorRecord.updatedAt) mirrorRecord = undefined
 
     // 2. The game: this PC's logs and the server's records are one stream, the newest event wins (a tie: this PC).
     const game: (QuestObservation & { source: QuestSourceKind }) | undefined = log && (!server || log.at >= server.at)
@@ -136,16 +139,29 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
       if (!game || manual.at >= game.at) winner = { ...manual, source: 'manual' }
       else list.push({ kind: 'manual-overridden', source: 'manual', status: manual.status, at: manual.at })
     }
+    // 3b. «У меня нет этого квеста» (owner, 04.11.2026): the quest goes back to not taken. A newer event of the game brings it
+    // back, and so does the player's own mark, but not a later reading of the Tasks table: an extra quest is most often
+    // what the reading got wrong, and it would read it again.
+    if (absent) {
+      if (!game || absent.at >= game.at) {
+        winner = undefined
+        tableRecord = undefined
+        if (legacyRecord && absent.at >= legacyRecord.updatedAt) legacyRecord = undefined
+      } else list.push({ kind: 'manual-overridden', source: 'manual', status: absent.status, at: absent.at })
+    }
     // 5. Story chapters: the pane in every mode, and the logs where they mention one; the newer decides.
     if (storyRecord) {
       const pane = { status: storyRecord.status, at: storyRecord.updatedAt, source: 'story' as const }
       if (!winner || (winner.source !== 'manual' && pane.at > winner.at)) winner = pane
     }
-    // 4. The Tasks table (PvE): fills a gap only; never against a log event.
+    // 4. The Tasks table (every mode): fills a gap only; never against a log event.
     if (tableRecord) {
       if (!winner) winner = { status: tableRecord.status, at: tableRecord.updatedAt, source: 'table' }
       else if (game && game.status !== tableRecord.status) list.push({ kind: 'screen-vs-log', source: 'table', status: tableRecord.status, at: tableRecord.updatedAt, detail: `${game.source}:${game.status}` })
     }
+    // 5b. The account's copy from the server (owner, 03.11.2026: the game deletes its logs, a new PC's few days of them miss
+    // the older quests): what this PC knows nothing about, as the copy has it.
+    if (!winner && mirrorRecord) winner = { status: mirrorRecord.status, at: mirrorRecord.updatedAt, source: 'mirror' }
     // 6. Legacy manual records: what nothing else covers.
     if (!winner && legacyRecord) winner = { status: legacyRecord.status, at: legacyRecord.updatedAt, source: 'legacy' }
 
@@ -155,7 +171,8 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
     states.set(taskId, resolved)
     if (winner) {
       decided[winner.source][winner.status] += 1
-      taskProgress[taskId] = recordOf(taskId, winner, storyRecord ?? tableRecord ?? legacyRecord)
+      // The copy's record as it came (its source, stage and objectives), marked as the server's: this PC holds it from there.
+      taskProgress[taskId] = winner.source === 'mirror' && mirrorRecord ? { ...mirrorRecord, taskId, origin: 'server' } : recordOf(taskId, winner, storyRecord ?? tableRecord ?? legacyRecord)
     }
   }
 
@@ -247,10 +264,12 @@ export function diagnosticsLine(diagnostics: QuestDiagnostics, locale: 'ru' | 'e
   const logs = decided.log.completed + decided.server.completed
   const screen = decided.table.active + decided.table.completed
   const manual = decided.manual.completed
+  const copy = decided.mirror.active + decided.mirror.completed
   const inferred = diagnostics.inferred ?? '—'
   const proven = diagnostics.proven ?? 0
+  // The account's copy only when it decided some (a PC with every quest of its own shows the line as before).
   return locale === 'en'
-    ? `logs: ${logs} completed, required by them: +${proven}, screen: +${screen}, manual: ${manual}, chronology guess: ${inferred} (not counted)`
-    : `логи: ${logs} выполнено, требуются для них: +${proven}, экран: +${screen}, вручную: ${manual}, догадка по хронологии: ${inferred} (не считается)`
+    ? `logs: ${logs} completed, required by them: +${proven}, screen: +${screen}, manual: ${manual}${copy ? `, account copy: +${copy}` : ''}, chronology guess: ${inferred} (not counted)`
+    : `логи: ${logs} выполнено, требуются для них: +${proven}, экран: +${screen}, вручную: ${manual}${copy ? `, копия аккаунта: +${copy}` : ''}, догадка по хронологии: ${inferred} (не считается)`
 }
 

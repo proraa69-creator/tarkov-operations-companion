@@ -1,7 +1,8 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
-import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { displayScale, followDisplayScale, opensMaximized, scaledWindowSize } from './uiScale.js'
+import { readSavedWindow, rememberWindow, restoredBounds } from './windowState.js'
 import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -17,13 +18,19 @@ import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearScanFrames } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
 import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
-import { startExperimental, stopExperimental } from './experimental/index.js'
+import { createGunPartResponder } from './gunParts.js'
+import { RANGE_PACK_FILE, RANGE_PACK_NAME } from '../src/range/rangePack.js'
+import { setGameLogFolders, startExperimental, stopExperimental } from './experimental/index.js'
+import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
+import { setMapFloorWheel, startMapFloorWheel, stopMapFloorWheel } from './mapFloorWheel.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
-import { clearRaidSignals } from './experimental/raidSignals.js'
+import { allowSecondStartMessages, isElevated } from './experimental/win32.js'
+import { bringToFront, startedByTheApp, waitForInstanceLock } from './singleInstance.js'
+import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
-import { buildEdition, isOwnerBuild, isReleaseClient } from './buildEdition.js'
+import { accountEmailSignIn, accountLogin, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
+import { buildEdition, isOwnerBuild, isTestBuild, TEST_BUILD_APP_NAME, TEST_BUILD_DATA_FOLDER } from './buildEdition.js'
 import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
 import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
@@ -34,11 +41,16 @@ import { checkSelfUpdateNow, installSelfUpdateNow, rollbackToPrevious, selfUpdat
 import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
-import { checkForUpdate, checkForUpdateNow, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
-import { confirmStagedBoot } from './deltaUpdate.js'
+import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
+import { installedExe, removeMigratedPortable, removePortableLeftovers, updatableExe } from './appInstall.js'
+import { abandonStagedBoot, confirmStagedBoot, relaunchWhenClosed } from './deltaUpdate.js'
+import { FIRST_PAINT_MS, nextStartStep, readGpuFallback, writeGpuFallback, type DrawingTrouble } from './gpuFallback.js'
+import { appendStartLog, startLogTail } from './startLog.js'
+import { shouldReloadAfterCrash, shouldReportLoadFailure, startNotes, startNotesScript } from './startDiagnostics.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
+import { confirmDialogOptions } from './confirmDialog.js'
 import { LogFolderGrants, mayWatchLogFolder } from './logFolders.js'
 import { ownerChangePrompt, type OwnerChange } from './ownerConfirm.js'
 
@@ -51,7 +63,136 @@ const LEGACY_USER_DATA = join(app.getPath('appData'), 'Tarkov Operations Compani
 const USER_DATA = join(app.getPath('appData'), 'Tarkov Operator')
 // The test build for friends is a separate app with its own data folder (electron/trial.ts).
 if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_DATA_FOLDER)) }
+// A test build (electron/buildEdition.ts isTestBuild) too: it runs beside the real app and never touches its data.
+else if (isTestBuild()) { app.setName(TEST_BUILD_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TEST_BUILD_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
+// A start that drew nothing turned the graphics card off for this copy (electron/gpuFallback.ts); it must be before the app is ready.
+const gpuFallback = readGpuFallback(app.getPath('userData'))
+const gpuOffByArgument = app.commandLine.hasSwitch('disable-gpu')
+if (gpuFallback.softwareDrawing) app.disableHardwareAcceleration()
+// The last step before giving up: no Chromium sandbox, which some security software does not let the page's process start in.
+if (gpuFallback.noSandbox) app.commandLine.appendSwitch('no-sandbox')
+const startLog = (line: string) => appendStartLog(app.getPath('userData'), line)
+startLog(`start ${app.getVersion()} · Windows ${process.getSystemVersion()} ${process.arch} · ${[gpuFallback.softwareDrawing ? 'software drawing' : '', gpuFallback.noSandbox ? 'no sandbox' : '', gpuOffByArgument ? '--disable-gpu' : '', app.commandLine.hasSwitch('no-sandbox') && !gpuFallback.noSandbox ? '--no-sandbox' : ''].filter(Boolean).join(', ') || 'normal'}`)
+/** The main window has drawn its page: the graphics card works. */
+let firstPicture = false
+let restartingForSoftwareDrawing = false
+
+/**
+ * A start that cannot show its page says so instead of a dark window (electron/startDiagnostics.ts): the page that could not be
+ * opened, the page's process gone after it drew, and the facts for the page's own failure screen (public/startup-intro.js).
+ */
+function watchStart(window: BrowserWindow) {
+  const contents = window.webContents
+  let loaded = false
+  let preloadError: string | undefined
+  const reloads: number[] = []
+  contents.on('preload-error', (_event, _path, error) => { preloadError = error?.message ?? String(error); startLog(`preload error: ${preloadError}`) })
+  contents.on('did-finish-load', () => { if (!loaded) startLog('page loaded'); loaded = true })
+  contents.on('unresponsive', () => startLog('page unresponsive'))
+  contents.on('dom-ready', () => {
+    let gpu: Record<string, string> | undefined
+    try { gpu = app.getGPUFeatureStatus() as unknown as Record<string, string> } catch { gpu = undefined }
+    const notes = startNotes({ version: app.getVersion(), system: `Windows ${process.getSystemVersion()} ${process.arch}`, gpu, softwareDrawing: gpuFallback.softwareDrawing || gpuOffByArgument, preloadError })
+    void contents.executeJavaScript(startNotesScript(notes)).catch(() => undefined)
+  })
+  contents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
+    if (!shouldReportLoadFailure({ code, isMainFrame, loaded }) || window.isDestroyed()) return
+    startLog(`page failed to load: ${description} (${code})`)
+    if (!window.isVisible()) window.show()
+    void dialog.showMessageBox(window, {
+      type: 'error',
+      title: 'Raid OS',
+      message: 'Raid OS не смог открыть своё окно',
+      detail: `${description} (${code})\n${url}\nВерсия ${app.getVersion()} · Windows ${process.getSystemVersion()}`,
+      buttons: ['Попробовать снова', 'Закрыть'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    }).then(({ response }) => {
+      if (window.isDestroyed()) return
+      if (response === 0) contents.reload()
+      else app.quit()
+    })
+  })
+  contents.on('render-process-gone', (_event, details) => {
+    startLog(`page process gone: ${details.reason}, code ${details.exitCode}${firstPicture ? ' (after the first picture)' : ''}`)
+    const now = Date.now()
+    if (window.isDestroyed() || !shouldReloadAfterCrash(details.reason, firstPicture, reloads, now)) return
+    reloads.push(now)
+    contents.reload()
+  })
+}
+
+/**
+ * A dark start (owner, 23.11.2026: a player's «черный экран»): note it and start again once in software, the portable exe once
+ * its launcher has gone (it deletes the unpacked files), the installed one once this copy has.
+ */
+function drawInSoftware(trouble: DrawingTrouble) {
+  if (restartingForSoftwareDrawing) return
+  const why = trouble.kind === 'no-picture' ? trouble.kind : `${trouble.kind}: ${trouble.reason}`
+  const step = nextStartStep(trouble, { softwareDrawing: gpuFallback.softwareDrawing, noSandbox: gpuFallback.noSandbox === true, painted: firstPicture, disabledByArgument: gpuOffByArgument })
+  if (!step) return
+  startLog(`${why} → ${step}`)
+  if (step === 'report') { void showStartFailure(why); return }
+  try {
+    writeGpuFallback(app.getPath('userData'), why, new Date(), step === 'no-sandbox')
+  } catch {
+    return // a note that cannot be written would start it again and again
+  }
+  restartingForSoftwareDrawing = true
+  const exe = updatableExe()
+  if (app.isPackaged && exe) relaunchWhenClosed(exe, installedExe() ? process.pid : process.ppid)
+  else app.relaunch()
+  app.quit()
+  setTimeout(() => app.exit(0), 5000).unref()
+}
+app.on('child-process-gone', (_event, details) => {
+  if (details.reason !== 'clean-exit') startLog(`process ${details.type}${details.name ? ` (${details.name})` : ''} gone: ${details.reason}, code ${details.exitCode}`)
+  if (details.type === 'GPU') drawInSoftware({ kind: 'gpu-gone', reason: details.reason })
+})
+
+/**
+ * Nothing helped (software drawing, no sandbox): a window of Windows itself — it needs no page — with the reason, the last lines
+ * of the start log and «Скопировать для поддержки», once a start.
+ */
+let startFailureShown = false
+async function showStartFailure(why: string) {
+  if (startFailureShown) return
+  startFailureShown = true
+  const text = [`Raid OS ${app.getVersion()} не открыл окно (${why})`, startLogTail(app.getPath('userData'), 40)].join('\n')
+  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined
+  const options: MessageBoxOptions = {
+    type: 'error',
+    title: 'Raid OS',
+    message: 'Raid OS не смог открыть окно',
+    detail: `Не помогли ни отрисовка без видеокарты, ни запуск без песочницы. Нажмите «Скопировать для поддержки» и вставьте текст в чат поддержки на raidos.app.\n\n${startLogTail(app.getPath('userData'), 12)}`,
+    buttons: ['Скопировать для поддержки', 'Закрыть'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  }
+  const { response } = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options)
+  if (response === 0) {
+    clipboard.writeText(text)
+    const copied: MessageBoxOptions = { type: 'info', title: 'Raid OS', message: 'Текст скопирован', detail: 'Вставьте его в чат поддержки на raidos.app (Ctrl+V).', buttons: ['OK'], noLink: true }
+    if (parent && !parent.isDestroyed()) await dialog.showMessageBox(parent, copied)
+    else await dialog.showMessageBox(copied)
+  }
+}
+// One copy at a time (electron/singleInstance.ts), checked after the data folder is set: the lock belongs to that folder.
+// A copy the app started itself takes the lock in `whenReady`, once the copy it replaces has gone.
+const takesLockLater = startedByTheApp(process.argv)
+const anotherCopyRuns = !takesLockLater && !app.requestSingleInstanceLock()
+if (anotherCopyRuns) leaveForTheRunningCopy()
+/** Nothing has run yet: no window, no settings, no verdict on a staged build, none of the quit handlers. */
+function leaveForTheRunningCopy() {
+  abandonStagedBoot()
+  app.exit(0)
+}
+/** The permissions the app's pages may get (setPermissionRequestHandler below); everything else is refused. */
+// pointerLock: the range's scope takes the mouse while aiming (src/range/RangeScopeView.tsx), on a click only; Esc gives it back
+const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen', 'pointerLock'])
 let mainWindow: BrowserWindow | null = null
 /**
  * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
@@ -93,11 +234,21 @@ async function writeAtomically(file: string, text: string) {
  * The game's logs from this process alone, from the app's start (electron/logWatcher.ts): the Logs folder is found and
  * followed before sign-in, the page gets what was read through `logs:updated` and asks for the latest on opening.
  */
+/** Whether the game runs, asked of the task list at most every 30 s (the log watcher asks only while its logs say «in a raid»). */
+let tarkovRunning: { at: number; value: Promise<boolean | null> } | null = null
+function tarkovRunningRecently() {
+  if (!tarkovRunning || Date.now() - tarkovRunning.at > 30_000) tarkovRunning = { at: Date.now(), value: isTarkovRunning() }
+  return tarkovRunning.value
+}
+
 const logWatcher = createLogWatcher({
   discover: async ({ thorough, extra }) => {
     const found = await discoverAllEftLogs(app.getPath('appData'), thorough ? { fresh: true } : { drives: false, lookupMaxAgeMs: 10 * 60_000 })
     const remembered = await rememberedLogsFolder().catch(() => '')
-    return freshestLogsFolder([...extra, remembered || undefined, ...found])
+    const folders = [...extra, remembered || undefined, ...found]
+    // the Steam build writes its screenshots beside its logs: that folder is followed for the position too
+    setGameLogFolders(folders)
+    return freshestLogsFolder(folders)
   },
   scan: (root, options) => scanLogFolderBySession(root, options),
   identity: (root, options) => scanLogIdentity(root, options),
@@ -107,6 +258,7 @@ const logWatcher = createLogWatcher({
     if (channel === 'logs:updated') void pushToDevelopmentServer(payload as ModeLogScanResult)
   },
   gameWindow: () => foregroundGame()?.id ?? null,
+  gameRunning: () => tarkovRunningRecently(),
   // Constant tracking (owner, 15.10.2026): the Logs folder with its launch folders, recursive (Windows and Node 20+).
   watchFolder: (root, onChange, onError) => {
     const watcher = watchFs(root, { recursive: true, persistent: false }, () => onChange())
@@ -146,7 +298,6 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
  * (docs/subscription-protection.md) — no DevTools, no reload shortcuts, no direct tarkov.dev requests from the pages.
  * RAIDOS_DATA_GATEWAY=1 turns the same data routing on in a development run of the client edition.
  */
-const releaseClient = isReleaseClient(app.isPackaged)
 const dataGatewayOnly = app.isPackaged || process.env.RAIDOS_DATA_GATEWAY === '1'
 // Item pictures through the main process (electron/itemImages.ts); a scheme is registered before the app is ready.
 protocol.registerSchemesAsPrivileged([{ scheme: ITEM_IMAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }])
@@ -160,19 +311,33 @@ function lockDevTools(contents: WebContents) {
     if (key === 'f12' || key === 'f5' || (ctrl && key === 'r') || (ctrl && input.shift && ['i', 'j', 'c'].includes(key))) event.preventDefault()
   })
 }
-if (releaseClient) app.on('web-contents-created', (_event, contents) => lockDevTools(contents))
+// Owner, 09.11.2026: «нужно максимально защитить приложение» — every packaged build, the owner's too, keeps DevTools shut.
+if (app.isPackaged) app.on('web-contents-created', (_event, contents) => lockDevTools(contents))
 
 /** The main window on a Full HD screen (bigger screens: in proportion, electron/uiScale.ts). */
 const MAIN_WINDOW = { width: 1500, height: 930, minWidth: 1050, minHeight: 700 }
+/** A page that never paints still gets its window, with whatever it has. */
+const WINDOW_REVEAL_MAX_MS = 5000
 
 function createWindow() {
   // Sizes are for a Full HD screen; a bigger one gets them (and the page zoom) in proportion (electron/uiScale.ts).
   const display = screen.getPrimaryDisplay()
   const size = scaledWindowSize(MAIN_WINDOW, displayScale(display), display.workArea)
+  const trialWindow = trialLaunchesAtStart() > 0
+  // Where it was left (electron/windowState.ts); a monitor that is gone gives the usual size.
+  const stateFile = join(app.getPath('userData'), 'window-state.json')
+  const saved = readSavedWindow(stateFile)
+  const restored = saved && restoredBounds(saved, screen.getAllDisplays().map((entry) => entry.workArea), { width: size.minWidth, height: size.minHeight })
+  // An upright monitor or a small screen: the first start fills it (electron/uiScale.ts opensMaximized).
+  const maximizeAtStart = !restored && opensMaximized(size, display.workArea)
   mainWindow = new BrowserWindow({
     ...size,
+    ...(restored ?? {}),
     backgroundColor: '#0d1110',
-    title: trialLaunchesAtStart() ? 'Raid OS — тестовая версия' : 'Raid OS',
+    // Shown with its first picture (owner, 07.11.2026: «маленький квадрат темный, и остальной экран белый, кусками»): before that Windows
+    // draws an empty window at whatever size it has.
+    show: false,
+    title: trialWindow ? 'Raid OS — тестовая версия' : 'Raid OS',
     // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
     icon: join(appDir, '../../dist/app-icon.ico'),
     autoHideMenuBar: true,
@@ -182,20 +347,42 @@ function createWindow() {
       nodeIntegration: false,
       // preload.cjs only needs contextBridge + ipcRenderer from 'electron', which a sandboxed preload may require.
       sandbox: true,
-      webviewTag: true,
+      // No <webview> at all (security review, 03.11.2026): the app embeds no pages (WEBVIEW_HOSTS is empty).
+      webviewTag: false,
       // Minimized or hidden, the window must cost the game nothing: Chromium then stops drawing it (animations,
       // requestAnimationFrame, the 3D mask) and slows its timers to once a second. IPC still arrives at once, so the
       // item lookup's questions (experimental:query) and log sync keep working. With `false` a minimized window kept
       // rendering at 60 fps and stayed "visible" to the page. While it is only unfocused, see src/app/appActivity.ts.
       backgroundThrottling: false,
       // The players' exe: no DevTools at all (lockDevTools also covers webviews).
-      devTools: !releaseClient,
+      devTools: !app.isPackaged,
     },
   })
 
   // The owner's copy started a build staged by a partial update: its page loaded, so that build works (electron/deltaBoot.ts).
   mainWindow.webContents.once('did-finish-load', confirmStagedBoot)
+  // The page's own title would replace it: beside the real app, the tester must see which one this is.
+  if (trialWindow) mainWindow.on('page-title-updated', (event) => event.preventDefault())
   followDisplayScale(mainWindow, { width: MAIN_WINDOW.minWidth, height: MAIN_WINDOW.minHeight })
+  // Again, now that the minimum size is that monitor's own: a monitor with another scale would have changed the size given above.
+  if (restored) {
+    mainWindow.setBounds(restored)
+  }
+  // maximize() also shows a hidden window, so it waits for the picture too. Whatever happens to the page, the window does not stay hidden.
+  const reveal = () => {
+    clearTimeout(revealAnyway)
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return
+    if ((restored && saved?.maximized) || maximizeAtStart) mainWindow.maximize()
+    else mainWindow.show()
+  }
+  const revealAnyway = setTimeout(reveal, WINDOW_REVEAL_MAX_MS)
+  mainWindow.once('ready-to-show', reveal)
+  // Nothing drawn, or the page gone before its first picture: the graphics card is blamed once (electron/gpuFallback.ts)
+  const noPicture = setTimeout(() => drawInSoftware({ kind: 'no-picture' }), FIRST_PAINT_MS)
+  mainWindow.once('ready-to-show', () => { firstPicture = true; clearTimeout(noPicture); startLog('first picture') })
+  mainWindow.webContents.on('render-process-gone', (_event, details) => drawInSoftware({ kind: 'page-gone', reason: details.reason }))
+  watchStart(mainWindow)
+  rememberWindow(mainWindow, stateFile)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)
     return { action: 'deny' }
@@ -218,6 +405,8 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null
     stopExperimental()
+    stopScreenTuning()
+    stopMapFloorWheel()
     app.quit()
   })
 
@@ -230,7 +419,17 @@ function loadRenderer(window: BrowserWindow, hash: string) {
   else void window.loadFile(APP_INDEX_FILE, hash ? { hash } : undefined)
 }
 
+// What a second start sends (its command line and folder) is not read: it may only bring the window forward.
+app.on('second-instance', () => bringToFront(mainWindow))
+
 app.whenReady().then(async () => {
+  if (anotherCopyRuns) return
+  if (takesLockLater) {
+    await waitForPreviousCopy()
+    if (!(await waitForInstanceLock(() => app.requestSingleInstanceLock()))) { leaveForTheRunningCopy(); return }
+  }
+  // The usual second start has no rights and this copy has them (the start below), and Windows would not let it reach here.
+  if (isElevated() === true) allowSecondStartMessages(app.getPath('userData'))
   // Server, tunnel and owner controls exist only in the owner build (electron/buildEdition.ts): a player's copy
   // ignores --enable-local-server / --server-mode / --enable-tunnel.
   const ownerBuild = isOwnerBuild()
@@ -239,7 +438,9 @@ app.whenReady().then(async () => {
     await enableTunnelFromCommandLine(process.argv)
   }
   const serverMode = ownerBuild && isServerMode()
-  if (releaseClient) Menu.setApplicationMenu(null)
+  // No File / Edit / View / Window menu in any build, not even on Alt (owner, 09.11.2026: «что бы по нажатию ALT не
+  // открывалось это меню и что бы оно вообще не открывалось»).
+  Menu.setApplicationMenu(null)
   // Paid data never goes to tarkov.dev straight from the pages: the renderer routes it through the server
   // (src/data/tarkovApi.ts); anything that slips past, including an image URL, is cancelled here.
   // Item pictures (https://raidos.app/v1/item-images/…) are redirected to raidos-img:// and fetched here, the same way
@@ -261,7 +462,18 @@ app.whenReady().then(async () => {
     { name: 'raidos.app (Chromium)', url: (path) => `${MAP_FILE_ORIGIN}${path}`, fetch: chromiumFetch },
     { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: chromiumFetch },
   ])
-  protocol.handle(ITEM_IMAGE_SCHEME, (request) => new URL(request.url).hostname === 'map' ? answerMapFile(request.url) : answerItemImage(request.url))
+  // «Сборка оружия»: the part pictures inside the app, one encrypted pack (electron/gunParts.ts)
+  const answerGunPart = createGunPartResponder(join(dirname(APP_INDEX_FILE), 'gun-parts.pack'))
+  // «Тир»: its pictures, a test build only (src/range/rangeFigures.ts)
+  const answerRangeFigure = createGunPartResponder(join(dirname(APP_INDEX_FILE), RANGE_PACK_NAME), undefined, 'range', RANGE_PACK_FILE)
+  protocol.handle(ITEM_IMAGE_SCHEME, (request) => {
+    const host = new URL(request.url).hostname
+    return host === 'map' ? answerMapFile(request.url) : host === 'parts' ? answerGunPart(request.url) : host === 'range' ? answerRangeFigure(request.url) : answerItemImage(request.url)
+  })
+  // What the page may ask for (security review, 03.11.2026): copying text, the owner panel's notifications, full screen
+  // for a video. Camera, microphone, the screen, location, USB and the rest are refused without asking — the app runs as
+  // administrator, and Electron would otherwise grant them all.
+  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => callback(PAGE_PERMISSIONS.has(permission)))
   const blocked = dataGatewayOnly ? ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] : []
   session.defaultSession.webRequest.onBeforeRequest({ urls: [`${ITEM_IMAGE_ORIGIN}*`, `${MAP_FILE_ORIGIN}*`, ...blocked] }, (details, callback) => {
     const local = itemImageRedirect(details.url) ?? mapFileRedirect(details.url)
@@ -275,7 +487,10 @@ app.whenReady().then(async () => {
   // The exe asks for no rights in its manifest, so the app starts itself again with them; when the prompt is refused
   // it simply goes on without them (the settings then offer «Перезапустить от имени администратора»).
   if (!serverMode && process.platform === 'win32' && !isElevatedRelaunch() && relaunchAsAdmin()) return
-  await waitForPreviousCopy()
+  // The installed app's first start after «Установить» in the portable exe: that exe goes (electron/appInstall.ts).
+  removeMigratedPortable()
+  // What the portable exe left in %TEMP% on earlier starts goes a minute in, never while the game runs (same file).
+  setTimeout(() => { void removePortableLeftovers(async () => await isTarkovRunning() !== false) }, 60_000).unref()
   registerIpc()
   createWindow()
   // A test build for friends counts its launches and removes itself after the last one (electron/trial.ts).
@@ -283,18 +498,22 @@ app.whenReady().then(async () => {
   // The server laptop: no game features, the window waits minimized (closing it stops the server).
   if (serverMode) mainWindow?.minimize()
   // A friend's (or the owner's gaming) copy updates itself from the server laptop's site.
-  else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: async () => {
+  else if (!isTrialBuild() && !isTestBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: async () => {
     // No game running = no raid, whatever the last log says (a game closed or crashed mid-raid never logs the end).
     if (await isTarkovRunning() === false) return false
     if (logWatcher.raidState().inRaid) return true
     const folder = logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')))?.logsFolder
     return folder ? (await readRaidState(folder)).inRaid : false
-  }, applyLive: (indexFile) => loadLiveRenderer(mainWindow, indexFile), windowIdle: () => windowNotInUse(mainWindow) })
+  }, gameRunning: async () => await isTarkovRunning() === true, applyLive: (indexFile) => loadLiveRenderer(mainWindow, indexFile), windowIdle: () => windowNotInUse(mainWindow) })
   if (!serverMode) startExperimental({
     mainWindow: () => mainWindow,
     raidState: () => logWatcher.raidState(),
     logsRoot: async () => logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
   })
+  // «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning): the players' PC app.
+  if (!serverMode) startScreenTuning({ inRaid: () => logWatcher.raidState().inRaid || raidLikely() })
+  // Alt + the wheel from the game steps the map's floors, for the accounts given it (electron/mapFloorWheel.ts).
+  if (!serverMode) startMapFloorWheel(() => mainWindow)
   // The game's logs from the start, before sign-in (#202): the account, the mode and the raid state within seconds.
   if (!serverMode) logWatcher.start()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
@@ -330,7 +549,9 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('will-quit', () => { stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
+// The lock goes first: the process can stay some seconds after its window has closed, and a start in that time must open
+// the app, not silently ask a window that is gone to come forward.
+app.on('will-quit', () => { app.releaseSingleInstanceLock(); stopScreenTuning(); stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
 
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return
@@ -427,13 +648,33 @@ function registerIpc() {
   ipcMain.handle('account:status', () => accountStatus())
   // Which app this is: 'owner' (server controls) or 'client' (players). Read once by the preload, synchronously.
   ipcMain.on('app:edition', (event) => { event.returnValue = buildEdition() })
+  ipcMain.on('map:floor-wheel', (_event, on: unknown) => { setMapFloorWheel(on === true) })
   // The server laptop (owner build + --server-mode): the renderer skips catalog polling (src/data/catalogRefresh.ts).
   ipcMain.on('app:server-mode', (event) => { event.returnValue = isOwnerBuild() && isServerMode() })
+  // window.confirm() of the page (src/app/nativeConfirm.ts): a dialog of this process, after which the window still takes
+  // typed keys (electron/confirmDialog.ts). Not the blocking one: the page waits for the answer, this process does not.
+  ipcMain.on('app:confirm', async (event, message: unknown, locale: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const options = confirmDialogOptions(message, locale)
+    try {
+      const { response } = window && !window.isDestroyed() ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
+      event.returnValue = response === 0
+    } catch {
+      event.returnValue = false
+    }
+  })
   // «Войти в мобильную версию»: a two-minute one-time code in a website link, never the session token.
   ipcMain.handle('account:mobile-login', () => mobileLoginLink())
   // The public website address (streamer links, QR codes): the server's site, or this PC's public link.
   ipcMain.handle('account:website-url', () => websiteBase({ forPhone: true }))
   ipcMain.handle('account:login', (_event, email: unknown, password: unknown) => accountLogin(email, password))
+  // «Войти по QR-коду» on this PC: the phone signed in to the account approves it (serviceGateway.ts accountQrStart).
+  ipcMain.handle('account:qr-start', async () => {
+    const request = await accountQrStart()
+    const site = await websiteBase({ forPhone: true })
+    return { ...request, url: `${site}/app-login#${new URLSearchParams({ approve: request.code }).toString()}` }
+  })
+  ipcMain.handle('account:qr-poll', () => accountQrPoll())
   ipcMain.handle('account:logout', () => accountLogout())
   // Sign-in / password reset by phone after the SMS code: the new session stays in the main process.
   ipcMain.handle('account:phone-sign-in', (_event, kind: unknown, challengeId: unknown, code: unknown, password: unknown) => accountPhoneSignIn(kind, challengeId, code, password))
@@ -533,11 +774,16 @@ function registerIpc() {
   // The build that runs (its build-info.json): after a partial update that is the staged build, not the exe's package.json;
   // after a live update of the interface the version of the page the window shows (electron/appUpdate.ts).
   ipcMain.handle('app:version', () => rendererVersion())
-  // Trader restock reminders (src/restock/RestockNotifier.tsx): a plain system notification, text only.
-  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown) => {
-    if (!Notification.isSupported()) return false
+  // Trader restock reminders (src/restock/RestockNotifier.tsx) and «Торговля» (src/trading/TradingNotifier.tsx, with the item's
+  // picture): a system notification. The picture is only ever a PNG the page drew itself, of a sane size.
+  // Never over the game (owner, 07.11.2026: «Все уведомления в приложении не должны открываться поверх игры»): the message waits in
+  // «Уведомления» on the top bar (src/notifications).
+  // `silent`: the page plays its own sound, or none (the raid start's switch in «Уведомления» → «Настроить»)
+  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown, icon?: unknown, silent?: unknown) => {
+    if (!Notification.isSupported() || foregroundGame() !== null) return false
     const text = (value: unknown, max: number) => String(value ?? '').slice(0, max)
-    const notification = new Notification({ title: text(title, 120), body: text(body, 300) })
+    const picture = typeof icon === 'string' && icon.length < 300_000 && icon.startsWith('data:image/png;base64,') ? nativeImage.createFromDataURL(icon) : undefined
+    const notification = new Notification({ title: text(title, 120), body: text(body, 300), silent: silent === true, ...(picture && !picture.isEmpty() ? { icon: picture } : {}) })
     notification.on('click', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus() } })
     notification.show()
     return true
@@ -623,6 +869,11 @@ function registerIpc() {
   ipcMain.handle('owner:invite-streamer', async (_event, code: unknown) => inviteStreamer(code, (await publicSiteUrl()) || LOCAL_SITE_URL))
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('update:install', () => installUpdate({ manual: true }))
+  // «Загрузить обновление» while the game runs: download only, then «Обновить сейчас?» (src/components/UpdateButton.tsx).
+  ipcMain.handle('update:download', () => downloadUpdate())
+  // The portable exe: the installer, once the site publishes it (src/components/InstallerOffer.tsx).
+  ipcMain.handle('update:installer-offer', () => installerOffer())
+  ipcMain.handle('update:install-setup', () => installFromPortable())
   // Settings → «Проверить обновление приложения», «Автообновление», «Автоустановка»
   ipcMain.handle('update:check', () => checkForUpdateNow())
   ipcMain.handle('update:settings', () => updateSettings())

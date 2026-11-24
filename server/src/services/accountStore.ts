@@ -16,11 +16,15 @@
  * without Express. `server/src/routes/accounts.ts` adapts them to an Express router.
  * Passwords are never logged or returned; only salted scrypt hashes are kept. Session tokens are stored as SHA-256.
  */
+import { EftLedger } from './eftLedger.js'
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
+import { AD_ATTRIBUTION_MS, normalizeAdMark, type AdMark } from '../../../src/shared/adSources'
 import { cleanManualCountry, countryByName, MANUAL_COUNTRY_CODE, normalizeCountry } from '../../../src/shared/countries'
+import { ownerDay } from '../../../src/shared/ownerTime'
 import { openDatabase } from './database.js'
+import { ipRateKey, isLoopbackIp, normalizeIp } from './securityGuard.js'
 
 export type AccountKind = 'user' | 'streamer'
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
@@ -29,17 +33,40 @@ export const ACCOUNT_MODES: readonly AccountMode[] = ['pvp', 'pve', 'seasonal']
 /** Referral users get a 3-day trial (docs/product-roadmap-and-business-model.md, "Subscription model"). */
 export const REFERRAL_TRIAL_MS = 3 * 24 * 60 * 60 * 1000
 /**
- * Every new account gets one free day (owner, 12.10.2026: «Сделай 1 бесплатный при регистрации всем»), counted from the
- * first sign-in in an app, not from registration (owner, 12.10.2026: «сутки должны начинаться после первого входа в
- * приложение»): see claimTrialDevice.
+ * Every new account gets two free days (owner, 02.11.2026: «теперь при регистрации дается 2 пробных дня»; one day since
+ * 12.10.2026), counted from the first sign-in in an app, not from registration (owner, 12.10.2026: «сутки должны
+ * начинаться после первого входа в приложение»): see claimTrialDevice.
  */
-export const WELCOME_TRIAL_MS = 24 * 60 * 60 * 1000
+export const WELCOME_TRIAL_MS = 2 * 24 * 60 * 60 * 1000
+/**
+ * The free days count from the first raid (owner, 08.11.2026: «зашли в приложение на пробном периоде, пошли в первый рейд…
+ * После этого начинается отсчёт 2 дней»; «все последующие, кто будут регистрироваться, у них должна быть такая же система»).
+ * From the first sign-in in an app (claimTrialDevice) the app stays open and the days wait for the PC app to see a raid
+ * start in the game's logs (firstRaid) — this long at most: then they run by themselves.
+ */
+export const TRIAL_RAID_WAIT_MS = 7 * 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 /** Open sessions per account; a new sign-in beyond this ends the oldest one (shared accounts stay tedious). */
 export const MAX_SESSIONS_PER_ACCOUNT = 10
+/**
+ * The owner's sessions (owner, 30.10.2026: «админ приложение для айфона… постоянно тупит аккаунт… сделай что бы не нужно
+ * было входить в аккаунт»): OWNER_SESSION_TTL_MS from the last use instead of a fixed week, renewed at most every
+ * SESSION_RENEW_STEP_MS, and OWNER_MAX_SESSIONS open at once — his PC apps, phones, the site and the admin app never
+ * push each other out.
+ */
+export const OWNER_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000
+export const OWNER_MAX_SESSIONS = 50
+const SESSION_RENEW_STEP_MS = 60 * 60 * 1000
 /** Failed password sign-ins per e-mail per hour, whatever the IP (credential stuffing from many addresses). */
 export const LOGIN_FAILURES_PER_EMAIL = 10
 const VISIT_DEDUPE_MS = 24 * 60 * 60 * 1000
+/**
+ * An account made without any code from the address that opened a streamer's link in this time before counts for that
+ * streamer as a registration «после перехода по ссылке» (owner, 03.11.2026: «люди нажимали по его ссылке, листали сайт,
+ * а потом регистрировались сами… сделай реальное количество регистраций»): mostly viewers who download the app from the
+ * link and register in it, where nothing knows the code. Statistics only — no discount, no streamer's share, no free days.
+ */
+export const LINK_ATTRIBUTION_MS = 7 * 24 * 60 * 60 * 1000
 
 const SCRYPT_KEYLEN = 64
 const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
@@ -67,11 +94,18 @@ interface Account {
   trialPendingMs?: number
   /** The free period was refused: this e-mail (canonical form) or device already had one (trial_claims). */
   trialDenied: boolean
+  /** The free time that starts with the first raid (firstRaid), while it waits for it; trialEndsAt is its latest end. */
+  trialRaidMs?: number
+  /** Until when it waits for that raid (TRIAL_RAID_WAIT_MS from the first sign-in); after this it runs by itself. */
+  trialRaidWaitUntil?: number
 }
 
 export interface ReferralStats {
   visits: number
+  /** Every registration the link brought: with the code, and without it after a visit (`linkRegistrations`). */
   registrations: number
+  /** Of them, accounts made without a code from an address that opened the link shortly before (LINK_ATTRIBUTION_MS). */
+  linkRegistrations: number
   activeSubscriptions: number
   /** Paid by referred users, roubles. Owner only: the streamer's own view leaves it out (he sees only his share). */
   revenue?: { amount: number; currency: 'RUB' }
@@ -84,20 +118,29 @@ export interface SubscriptionSource {
   referralStats(code: string): { activeSubscriptions: number; revenue: number; earnings: number }
   /** Paid subscriptions of referred users grouped by period key (see `periodKeySql`). */
   referralSeries(code: string, keySql: (column: string) => string): Array<{ key: string; payments: number; months: Record<string, number>; revenue: number; earnings: number }>
+  /** The streamer's share for new payments, 0–100 (PaymentStore.percentFor). */
+  percentFor?(code: string): number
 }
 
 export type StatsPeriod = 'day' | 'month' | 'year'
 /** Statistics days follow Moscow time (UTC+3, no daylight saving). */
 const STATS_OFFSET_MS = 3 * 60 * 60 * 1000
 const PERIOD_LENGTH: Record<StatsPeriod, number> = { day: 10, month: 7, year: 4 }
-/** SQL that turns a millisecond timestamp column into the period key: 2026-10-01 / 2026-10 / 2026. */
-export const periodKeySql = (period: StatsPeriod) => (column: string) => `substr(strftime('%Y-%m-%d', (${column} + ${STATS_OFFSET_MS}) / 1000, 'unixepoch'), 1, ${PERIOD_LENGTH[period]})`
+/**
+ * SQL that turns a millisecond timestamp column into the period key: 2026-10-01 / 2026-10 / 2026. `offsetMs`: the
+ * owner's admin panel counts its days in its own time (adminStore.ts); the streamers' tables in Moscow time.
+ */
+export const periodKeySql = (period: StatsPeriod, offsetMs = STATS_OFFSET_MS) => (column: string) => `substr(strftime('%Y-%m-%d', (${column} + ${offsetMs}) / 1000, 'unixepoch'), 1, ${PERIOD_LENGTH[period]})`
 const statsDay = (time: number) => new Date(time + STATS_OFFSET_MS).toISOString().slice(0, 10)
+/** The accounts a streamer's code (`?`) has only through a link visit: still without any code of their own. */
+const LINK_ONLY = 'link_visit_code = ? AND referred_by IS NULL AND invited_by IS NULL'
 
 export interface ReferralSeriesRow {
   period: string
   visits: number
+  /** With the code and, of them, `linkRegistrations` without it after a visit (as in ReferralStats). */
   registrations: number
+  linkRegistrations: number
   /** Successful payments by referred users and how many of them were for 1 / 3 / 6 / 12 months. */
   payments: number
   months: { '1m': number; '3m': number; '6m': number; '12m': number }
@@ -135,12 +178,28 @@ export interface AccountView {
     status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true
     /** The free period waits for the first sign-in in an app (status stays 'inactive' until then): its length, days. */
     trialPendingDays?: number
+    /**
+     * The free days wait for the first raid (status 'trial', the app is open; trialEndsAt is the latest they can end):
+     * their length, days. Absent once the raid came or the wait is over (AccountStore.firstRaid).
+     */
+    trialRaidDays?: number
   }
   /** «Удалить аккаунт» was requested: the account is deleted at this time unless the player cancels (scheduleDeletion). */
   deletionAt?: string
   stats?: ReferralStats
+  /**
+   * A streamer with a 0 % share (owner, 30.10.2026: «в его кабинете… не должно быть упоминаний о проценте и заработке,
+   * просто статистика»): the cabinet shows the statistics only — no earnings, no payouts.
+   */
+  statsOnly?: true
   /** The service owner (e-mail listed in TARKOV_OWNER_EMAILS): sees the owner section of the website. */
   owner?: true
+  /**
+   * The Apple reviewer's test account (e-mail listed in TARKOV_STORE_REVIEW_EMAILS; owner, 12.11.2026: «там не должно быть
+   * не единого упоминания о платной подписке», nor «Пригласи друга»): the apps and the site show no subscription, payment,
+   * price, donation or invitation for it.
+   */
+  storeReview?: true
   /** Verified phone number, masked (+7 ••• •••-45-67); the full number is never sent back. */
   phone?: { masked: string; verifiedAt: string }
   /** When the e-mail was confirmed with a one-time code (services/emailAuth.ts); absent = not confirmed yet. */
@@ -202,6 +261,16 @@ function visitorDigest(code: string, visitorKey: string) {
   return createHash('sha256').update(`${code}\u0000${visitorKey}`).digest('hex')
 }
 
+/**
+ * The network a streamer's link was opened from and an account made from (the IPv4 address, the /64 of an IPv6 one:
+ * securityGuard ipRateKey — a phone and a PC behind one home router share it), kept only as this digest.
+ * Undefined for a loopback or unreadable address: those say nothing about who is behind them.
+ */
+export function linkNetDigest(ip: string) {
+  if (!normalizeIp(ip) || isLoopbackIp(ip)) return undefined
+  return createHash('sha256').update(`link\u0000${ipRateKey(ip)}`).digest('hex')
+}
+
 /** The registration address is kept only as this digest: enough to see two accounts made from one address. */
 export function signupDigest(ip: string) {
   return createHash('sha256').update(`signup\u0000${ip}`).digest('hex')
@@ -219,6 +288,9 @@ export const COUNTRY_INVALID_MESSAGE = 'Неизвестная страна. В�
 export const MANUAL_COUNTRY_MESSAGE = 'Название страны: до 60 символов, только буквы, пробелы и дефисы.'
 /** «Укажите страну» once the account has one: changing it is «Страна» in the cabinet. */
 export const COUNTRY_ALREADY_SET = 'Страна уже указана. Изменить её после регистрации нельзя — если она указана неверно, напишите в поддержку.'
+/** «Войти через Google» is not offered in Russia (owner, 15.11.2026; Russian sites may not use a foreign sign-in). */
+export const GOOGLE_RUSSIA_MESSAGE = 'Вход через Google недоступен для России. Войдите по e-mail и паролю.'
+export const GOOGLE_OWNER_MESSAGE = 'Для этого аккаунта вход через Google недоступен. Войдите по e-mail и паролю.'
 export const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.'
 
 /**
@@ -336,6 +408,8 @@ function toAccount(row: Row | undefined): Account | undefined {
     trialEndsAt: row.trial_ends_at == null ? undefined : Number(row.trial_ends_at),
     trialPendingMs: row.trial_pending_ms == null ? undefined : Number(row.trial_pending_ms),
     trialDenied: row.trial_denied != null,
+    trialRaidMs: row.trial_raid_ms == null ? undefined : Number(row.trial_raid_ms),
+    trialRaidWaitUntil: row.trial_raid_wait_until == null ? undefined : Number(row.trial_raid_wait_until),
   }
 }
 
@@ -381,6 +455,27 @@ const SCHEMA = `
     day TEXT NOT NULL,
     visits INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (code, campaign, day));
+  -- The networks that opened a streamer's link (linkNetDigest, never the address) and whose link they opened last:
+  -- an account made without a code from one of them within LINK_ATTRIBUTION_MS counts for that streamer. Swept after it.
+  CREATE TABLE IF NOT EXISTS referral_link_nets (
+    net TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    visited_at INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS referral_link_nets_at ON referral_link_nets(visited_at);
+  -- «Реклама» (src/shared/adSources.ts): visits of an ad's link per platform, campaign ('' — none) and owner's day, and
+  -- the networks that opened one lately (linkNetDigest): an account made from one within AD_ATTRIBUTION_MS gets its mark.
+  CREATE TABLE IF NOT EXISTS ad_visit_days (
+    source TEXT NOT NULL,
+    campaign TEXT NOT NULL,
+    day TEXT NOT NULL,
+    visits INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (source, campaign, day));
+  CREATE TABLE IF NOT EXISTS ad_link_nets (
+    net TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    campaign TEXT NOT NULL,
+    visited_at INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS ad_link_nets_at ON ad_link_nets(visited_at);
   CREATE TABLE IF NOT EXISTS account_consents (
     account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
@@ -457,6 +552,10 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   ['trial_ends_at', 'INTEGER'],
   // The length of a free period that has not started yet: it starts at the first sign-in in an app (claimTrialDevice).
   ['trial_pending_ms', 'INTEGER'],
+  // Free days waiting for the first raid (TRIAL_RAID_WAIT_MS, firstRaid): their length, and until when they wait. Both
+  // NULL once the raid came or the wait is over; trial_ends_at holds their latest end meanwhile.
+  ['trial_raid_ms', 'INTEGER'],
+  ['trial_raid_wait_until', 'INTEGER'],
   // The country named at registration (owner, 13.10.2026: «при регистрации нужно указать страну»): an ISO 3166-1
   // alpha-2 code from src/shared/countries.ts. NULL for the accounts from before; they can set it in the cabinet.
   ['country', 'TEXT'],
@@ -468,6 +567,16 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   // «Удалить аккаунт» by the player (owner, 20.10.2026: «аккаунт будет удалён через 10 дней»): when the scheduled
   // deletion runs (runDueDeletions); NULL — none requested, or cancelled.
   ['deletion_at', 'INTEGER'],
+  // When the owner opened BZB's CIS pages in roubles to this account from Russia (services/bezebee.ts bezebeeRegionOf,
+  // services/adminStore.ts setBezebeeAllowed); NULL — Russia pays through ЮKassa only.
+  ['bezebee_ru_at', 'INTEGER'],
+  // Made without any code from an address that had just opened this streamer's link (LINK_ATTRIBUTION_MS): counted in
+  // his registrations «после перехода по ссылке». Only while the account has no code (referred_by, invited_by).
+  ['link_visit_code', 'TEXT'],
+  // «Реклама» (owner, 09.11.2026): the ad the account came from — the label the site kept from the ad's link, else the
+  // ad link this network opened within AD_ATTRIBUTION_MS. Statistics only.
+  ['ad_source', 'TEXT'],
+  ['ad_campaign', 'TEXT'],
 ]
 /** «Удалить аккаунт» by the player: the account is deleted this long after the request, unless the player cancels. */
 export const ACCOUNT_DELETION_DELAY_MS = 10 * 24 * 60 * 60 * 1000
@@ -489,6 +598,8 @@ export class AccountStore {
   private lastSweep = 0
   private subscriptions?: SubscriptionSource
   private readonly ownerEmails: ReadonlySet<string>
+  /** TARKOV_STORE_REVIEW_EMAILS: the App Store reviewer's test accounts (AccountView.storeReview). */
+  private readonly storeReviewEmails: ReadonlySet<string>
 
   /** `ownerEmails` defaults to TARKOV_OWNER_EMAILS (the owner's desktop app passes it to the API process). */
   /**
@@ -498,10 +609,23 @@ export class AccountStore {
    */
   private readonly streamerTrial: boolean
 
-  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; streamerTrial?: boolean } = {}) {
+  /**
+   * The free days count from the first raid (TRIAL_RAID_WAIT_MS, waitForFirstRaid): the live server turns it on
+   * (server/src/index.ts); off, they start at the first sign-in in an app as before 08.11.2026 (most tests).
+   */
+  private readonly trialFromFirstRaid: boolean
+
+  /** Every Raid OS account a game account was bound to, and the cases of a game account back after a deletion (services/eftLedger.ts). */
+  readonly eftLedger: EftLedger
+  /** Told of a new case (app.ts: the owner's «Отчёты» badge and table). */
+  onEftRebind?: (caseId: number) => void
+
+  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; storeReviewEmails?: readonly string[]; streamerTrial?: boolean; trialFromFirstRaid?: boolean } = {}) {
     this.now = options.now ?? Date.now
     this.streamerTrial = options.streamerTrial ?? true
+    this.trialFromFirstRaid = options.trialFromFirstRaid ?? false
     this.ownerEmails = new Set(options.ownerEmails ? parseOwnerEmails(options.ownerEmails.join(',')) : parseOwnerEmails(process.env.TARKOV_OWNER_EMAILS))
+    this.storeReviewEmails = new Set(parseOwnerEmails(options.storeReviewEmails ? options.storeReviewEmails.join(',') : process.env.TARKOV_STORE_REVIEW_EMAILS))
     this.ownsDb = !options.db
     this.db = options.db ?? openDatabase(':memory:')
     this.db.exec(SCHEMA)
@@ -528,6 +652,8 @@ export class AccountStore {
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone ON accounts(phone) WHERE phone IS NOT NULL')
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_invite_code ON accounts(invite_code) WHERE invite_code IS NOT NULL')
     this.db.exec('CREATE INDEX IF NOT EXISTS accounts_invited_by ON accounts(invited_by)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS accounts_link_visit_code ON accounts(link_visit_code)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS accounts_ad_source ON accounts(ad_source) WHERE ad_source IS NOT NULL')
     this.db.exec('CREATE INDEX IF NOT EXISTS accounts_email_canon ON accounts(email_canon)')
     // Accounts from before the canonical e-mail / trial claims: filled in once (only rows still missing them).
     for (const row of this.db.prepare('SELECT id, email FROM accounts WHERE email_canon IS NULL AND deleted_at IS NULL').all() as Row[]) {
@@ -540,6 +666,8 @@ export class AccountStore {
     this.db.exec(`INSERT OR IGNORE INTO eft_trial_claims (eft_digest, account_id, at)
       SELECT e.eft_digest, e.account_id, e.bound_at FROM eft_accounts e JOIN accounts a ON a.id = e.account_id
       WHERE a.trial_ends_at IS NOT NULL AND a.trial_denied IS NULL`)
+    // «Аккаунты Таркова» (services/eftLedger.ts): after the columns above, so the backfill sees deleted_at.
+    this.eftLedger = new EftLedger(this.db, this.now)
   }
 
   /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
@@ -573,7 +701,7 @@ export class AccountStore {
    * unconfirmed e-mail. With e-mail codes on, registration goes through services/emailAuth.ts instead and the account
    * is created by createVerifiedAccount() only after the code is confirmed.
    */
-  async register(email: string, password: string, referralCode?: string, ip?: string, country?: string) {
+  async register(email: string, password: string, referralCode?: string, ip?: string, country?: string, ad?: AdMark) {
     const key = email.trim().toLowerCase()
     const code = storedCountry(country)
     // Without e-mail confirmation nobody proves the address is theirs, so a listed owner e-mail cannot be registered
@@ -584,19 +712,45 @@ export class AccountStore {
     // period stays once per mailbox (claimTrialByEmail).
     if (this.findByEmail(key) || this.ownerEmails.has(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
     const { salt, hash } = await newPasswordHash(password)
-    return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip), code)
+    return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip), code, ip === undefined ? undefined : linkNetDigest(ip), ad)
   }
 
   /**
    * Registration completed with an e-mail code (services/emailAuth.ts): the address is proven, so the account starts
    * confirmed — this is also how a listed owner e-mail can be registered once e-mail codes are on. Throws 409 when the
-   * address got an account meanwhile. `country`: the one given when the registration started.
+   * address got an account meanwhile. `country`, `linkNet`, `ad`: from when the registration started.
    */
-  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string, country?: string) {
+  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string, country?: string, linkNet?: string, ad?: AdMark) {
     const key = email.trim().toLowerCase()
     const code = storedCountry(country)
     if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
-    return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp, code)
+    return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp, code, linkNet, ad)
+  }
+
+  /**
+   * «Войти через Google» (services/googleSignIn.ts; owner, 15.11.2026: for every country but Russia). Google has proved the
+   * address: an account with it gets a new session (and its e-mail counts as confirmed); a new address gets an account with
+   * the e-mail confirmed and a random password — «Забыли пароль?» sets a real one. A new account needs its country first
+   * (`needCountry`, the same question as registration). Refused: Russia (an account of Russia, or Russia chosen for a new
+   * one — GOOGLE_RUSSIA_MESSAGE) and the owner's addresses, which sign in with their password only.
+   */
+  async googleSignIn(rawEmail: string, input: { country?: string; referralCode?: string; ip?: string; ad?: AdMark } = {}): Promise<{ token: string; created: boolean; referralApplied: boolean } | { needCountry: true }> {
+    const key = rawEmail.trim().toLowerCase()
+    if (this.ownerEmails.has(key)) throw new AccountError(403, GOOGLE_OWNER_MESSAGE)
+    const existing = this.findByEmail(key)
+    if (existing) {
+      if (existing.country === 'RU') throw new AccountError(403, GOOGLE_RUSSIA_MESSAGE)
+      const token = this.startSession(existing.id)
+      this.db.prepare('UPDATE accounts SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL').run(this.now(), existing.id)
+      return { token, created: false, referralApplied: false }
+    }
+    const country = input.country === undefined || input.country.trim() === '' ? null : storedCountry(input.country)
+    if (!country) return { needCountry: true }
+    if (country === 'RU') throw new AccountError(403, GOOGLE_RUSSIA_MESSAGE)
+    const { salt, hash } = await newPasswordHash(randomBytes(24).toString('base64url'))
+    const ip = input.ip
+    const result = this.insertAccount(key, salt, hash, input.referralCode || undefined, this.now(), ip === undefined ? undefined : signupDigest(ip), country, ip === undefined ? undefined : linkNetDigest(ip), input.ad)
+    return { token: result.token, created: true, referralApplied: result.referralApplied }
   }
 
   /**
@@ -626,7 +780,8 @@ export class AccountStore {
    * Called when an app (PC, phone or browser build) registers a device (services/entitlement.ts, every POST
    * /v1/entitlement): an account with a free period loses it when that device already served another account's free
    * period; otherwise the device is noted for this one, and a free period still waiting for the first sign-in in an app
-   * starts now (owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»).
+   * opens the app now (owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение») and counts from the
+   * first raid (owner, 08.11.2026, TRIAL_RAID_WAIT_MS; waitForFirstRaid).
    */
   claimTrialDevice(accountId: string, deviceId: string) {
     const row = this.db.prepare("SELECT email, trial_ends_at, trial_pending_ms, trial_denied FROM accounts WHERE id = ? AND kind = 'user' AND deleted_at IS NULL").get(accountId) as Row | undefined
@@ -639,9 +794,46 @@ export class AccountStore {
       this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, ?, ?, ?)').run(trialEmailDigest(String(row.email)), deviceId, accountId, this.now())
     }
     if (row.trial_pending_ms != null) {
-      this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_pending_ms = NULL WHERE id = ? AND trial_pending_ms IS NOT NULL')
-        .run(this.now() + Number(row.trial_pending_ms), accountId)
+      // Free days waiting behind a free period still running keep waiting: they start at a sign-in after it ends
+      // (owner, 03.11.2026: the one-time two days of 02.11 «должен активироваться после входа в приложение… и их тоже»).
+      if (row.trial_ends_at != null && Number(row.trial_ends_at) > this.now()) return
+      // Paid before this first sign-in: the free days follow the paid period instead of running out inside it (owner,
+      // 02.11.2026: «если человек оплатил подписку, то к этим дням прибавляется срок подписки, они не сгорают»).
+      const paidUntil = this.subscriptions?.paidUntil(accountId) ?? 0
+      if (paidUntil > this.now() || !this.trialFromFirstRaid) {
+        this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_pending_ms = NULL WHERE id = ? AND trial_pending_ms IS NOT NULL')
+          .run(Math.max(this.now(), paidUntil) + Number(row.trial_pending_ms), accountId)
+        return
+      }
+      // Otherwise the app opens now and the days wait for the first raid (TRIAL_RAID_WAIT_MS, firstRaid).
+      this.waitForFirstRaid(accountId, Number(row.trial_pending_ms))
     }
+  }
+
+  /**
+   * Free days `ms` long that start with the first raid: the app is open from now, at most TRIAL_RAID_WAIT_MS before they
+   * run by themselves (trial_ends_at is that latest end until firstRaid). For a free period waiting for the first sign-in
+   * (claimTrialDevice) and the one-time days of 08.11.2026 (services/trialBonus.ts grantRaidTrialBonus).
+   */
+  waitForFirstRaid(accountId: string, ms: number) {
+    const waitUntil = this.now() + TRIAL_RAID_WAIT_MS
+    this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_raid_ms = ?, trial_raid_wait_until = ?, trial_pending_ms = NULL WHERE id = ?')
+      .run(waitUntil + ms, ms, waitUntil, accountId)
+  }
+
+  /**
+   * The PC app saw a raid start in the game's logs (POST /v1/accounts/me/first-raid): free days waiting for the first raid
+   * (waitForFirstRaid) start now, at their full length. Once they started, or past the wait (they run by themselves then),
+   * nothing changes. A forged report can only start the sender's own days early. Returns whether they started now.
+   */
+  firstRaid(accountId: string) {
+    const account = this.mustGet(accountId)
+    if (account.trialRaidMs === undefined) return false
+    const now = this.now()
+    const starts = !account.trialDenied && account.trialRaidWaitUntil !== undefined && now < account.trialRaidWaitUntil
+    if (starts) this.db.prepare('UPDATE accounts SET trial_ends_at = ? WHERE id = ?').run(now + account.trialRaidMs, account.id)
+    this.db.prepare('UPDATE accounts SET trial_raid_ms = NULL, trial_raid_wait_until = NULL WHERE id = ?').run(account.id)
+    return starts
   }
 
   /** Same scrypt cost as hashing a real password (registration of an address that already has an account). */
@@ -649,8 +841,12 @@ export class AccountStore {
     await hashPassword(password, this.dummySalt)
   }
 
-  /** `signupIp`: digest of the registration address (signupDigest), kept only to spot invitation abuse. */
-  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null, signupIp?: string, country: string | null = null) {
+  /**
+   * `signupIp`: digest of the registration address (signupDigest), kept only to spot invitation abuse. `linkNet`: its
+   * linkNetDigest — an account without a code counts for the streamer whose link this network opened lately. `ad`: the
+   * ad label the site kept from the ad's link; without one, the ad link this network opened lately (adMarkOfNet).
+   */
+  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null, signupIp?: string, country: string | null = null, linkNet?: string, ad?: AdMark) {
     const id = randomBytes(12).toString('hex')
     const createdAt = this.now()
     let referredBy: string | null = null
@@ -662,11 +858,15 @@ export class AccountStore {
       if (this.activeOwnerOfCode(code)) referredBy = code
       else invitedBy = this.playerOfCode(code) ?? null
     }
+    // No code applied: the streamer whose link this network opened lately (statistics only, LINK_ATTRIBUTION_MS).
+    const linkCode = referredBy === null && invitedBy === null && linkNet ? this.linkVisitCode(linkNet) : null
+    // «Реклама»: whatever code the account has (statistics only, independent of the streamers' and friends' codes).
+    const adMark = (ad ? normalizeAdMark(ad.source, ad.campaign) : undefined) ?? (linkNet ? this.adMarkOfNet(linkNet) : undefined)
     // The free period starts at the first sign-in in an app (claimTrialDevice), not now.
     const trialPendingMs = referredBy && this.streamerTrial ? REFERRAL_TRIAL_MS : WELCOME_TRIAL_MS
     try {
-      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_pending_ms, country) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialPendingMs, country)
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_pending_ms, country, link_visit_code, ad_source, ad_campaign) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialPendingMs, country, linkCode, adMark?.source ?? null, adMark?.campaign ?? null)
     } catch (error) {
       // UNIQUE(email) closes the race between two parallel registrations of the same address.
       if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
@@ -693,11 +893,15 @@ export class AccountStore {
   authenticate(token: string | undefined) {
     if (!token) return undefined
     const digest = tokenDigest(token)
-    const session = this.db.prepare('SELECT s.account_id AS account_id, s.expires_at AS expires_at, a.blocked_at AS blocked_at, a.last_seen_at AS last_seen_at FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.digest = ?').get(digest) as Row | undefined
+    const session = this.db.prepare('SELECT s.account_id AS account_id, s.expires_at AS expires_at, a.blocked_at AS blocked_at, a.last_seen_at AS last_seen_at, a.email AS email, a.email_verified_at AS email_verified_at, a.email_grandfathered AS email_grandfathered FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.digest = ?').get(digest) as Row | undefined
     if (!session) return undefined
     const now = this.now()
     if (Number(session.expires_at) <= now || session.blocked_at != null) { this.db.prepare('DELETE FROM sessions WHERE digest = ?').run(digest); return undefined }
     if (session.last_seen_at == null || now - Number(session.last_seen_at) >= LAST_SEEN_STEP_MS) this.db.prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?').run(now, String(session.account_id))
+    // The owner's session lives on while it is used.
+    if (this.ownerRights(String(session.email), session) && Number(session.expires_at) < now + OWNER_SESSION_TTL_MS - SESSION_RENEW_STEP_MS) {
+      this.db.prepare('UPDATE sessions SET expires_at = ? WHERE digest = ?').run(now + OWNER_SESSION_TTL_MS, digest)
+    }
     return String(session.account_id)
   }
 
@@ -722,6 +926,10 @@ export class AccountStore {
     if (!account.trialDenied && account.trialPendingMs !== undefined && view.subscription.status === 'inactive') {
       view.subscription = { status: 'inactive', trialPendingDays: Math.max(1, Math.round(account.trialPendingMs / (24 * 60 * 60 * 1000))) }
     }
+    // Waiting for the first raid (firstRaid): the apps say the free days start with it.
+    if (view.subscription.status === 'trial' && account.trialRaidMs !== undefined && account.trialRaidWaitUntil !== undefined && this.now() < account.trialRaidWaitUntil) {
+      view.subscription = { ...view.subscription, trialRaidDays: Math.max(1, Math.round(account.trialRaidMs / (24 * 60 * 60 * 1000))) }
+    }
     if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
     if (account.referredBy) view.referredBy = account.referredBy
     if (this.invitedBy(account.id)) view.invitedByFriend = true
@@ -731,13 +939,18 @@ export class AccountStore {
       const { revenue: _revenue, ...own } = this.stats(account.referralCode)
       void _revenue
       view.stats = own
+      if (this.subscriptions?.percentFor?.(account.referralCode) === 0) view.statsOnly = true
     }
     // Streamers use the service free of charge, for good (the desktop app reads the same view).
     if (account.kind === 'streamer') view.subscription = { status: 'active', lifetime: true }
     const extra = this.db.prepare('SELECT phone, phone_verified_at, email_verified_at, email_grandfathered FROM accounts WHERE id = ?').get(account.id) as Row | undefined
     if (this.ownerRights(account.email, extra)) view.owner = true
+    if (this.storeReviewEmails.has(account.email.trim().toLowerCase())) view.storeReview = true
     if (extra?.phone != null) view.phone = { masked: maskPhone(String(extra.phone)), verifiedAt: new Date(Number(extra.phone_verified_at)).toISOString() }
     if (extra?.email_verified_at != null) view.emailVerifiedAt = new Date(Number(extra.email_verified_at)).toISOString()
+    // The reviewer's account counts as confirmed (owner, 12.11.2026: «сделай, будто у него почта подтверждена»): no
+    // «Подтвердите e-mail» anywhere. Owner rights still need a real confirmation (ownerRights).
+    else if (view.storeReview) view.emailVerifiedAt = view.createdAt
     const eft = this.eftAccountOf(account.id)
     if (eft) view.eftAccount = eft
     const deletionAt = this.deletionAt(account.id)
@@ -772,8 +985,12 @@ export class AccountStore {
     if (block) throw new EftConflictError(block)
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const own = this.eftDigestOf(account.id)
-    if (!holder && own === undefined) {
+    // The Apple reviewer's account takes no game account: it is signed in on the owner's PC with his game.
+    if (!holder && own === undefined && !this.isStoreReview(account.id)) {
       this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?)').run(account.id, digest, hint, this.now())
+      // «Аккаунты Таркова»: a game account back on a new account after its earlier one was deleted (owner, 15.11.2026).
+      const caseId = this.eftLedger.bound(account.id, digest, hint, account.email)
+      if (caseId !== undefined) { try { this.onEftRebind?.(caseId) } catch { /* the case is saved; the badge catches up */ } }
     }
     if (this.eftDigestOf(account.id) === digest) this.claimTrialByEft(account.id, digest)
     return this.eftAccountOf(account.id)
@@ -781,10 +998,11 @@ export class AccountStore {
 
   /**
    * The one-to-one rule for `accountId` and a game account seen in its logs (bindEftAccount), or undefined when it
-   * fits. The owner's own accounts are exempt.
+   * fits. The owner's own accounts and the Apple reviewer's (TARKOV_STORE_REVIEW_EMAILS) are exempt (owner, 13.11.2026:
+   * «сними блокировку по аккаунту таркова для админа и apple test аккаунта»).
    */
   private eftRule(accountId: string, digest: string, hint: string): EftBlock | undefined {
-    if (this.isOwner(accountId)) return undefined
+    if (this.isOwner(accountId) || this.isStoreReview(accountId)) return undefined
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const holderId = holder ? String(holder.account_id) : undefined
     const seen = `••••${hint}`
@@ -813,6 +1031,7 @@ export class AccountStore {
   unbindEftAccount(accountId: string) {
     const account = this.mustGet(accountId)
     const removed = Number(this.db.prepare('DELETE FROM eft_accounts WHERE account_id = ?').run(account.id).changes)
+    if (removed > 0) this.eftLedger.gone(account.id, 'unbound')
     this.db.prepare('DELETE FROM eft_reports WHERE account_id = ?').run(account.id)
     return removed > 0
   }
@@ -859,6 +1078,12 @@ export class AccountStore {
    * so the owner's existing account keeps working). A listed address registered later without confirmation gets no
    * owner rights until it is confirmed.
    */
+  /** The Apple reviewer's test account (TARKOV_STORE_REVIEW_EMAILS, AccountView.storeReview). */
+  isStoreReview(accountId: string) {
+    const row = this.db.prepare('SELECT email FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row !== undefined && this.storeReviewEmails.has(String(row.email).trim().toLowerCase())
+  }
+
   isOwner(accountId: string) {
     const account = this.mustGet(accountId)
     return this.ownerRights(account.email, this.db.prepare('SELECT email_verified_at, email_grandfathered FROM accounts WHERE id = ?').get(accountId) as Row | undefined)
@@ -874,8 +1099,8 @@ export class AccountStore {
   }
 
   isEmailVerified(accountId: string) {
-    const row = this.db.prepare('SELECT email_verified_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
-    return row?.email_verified_at != null
+    const row = this.db.prepare('SELECT email, email_verified_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.email_verified_at != null || (row !== undefined && this.storeReviewEmails.has(String(row.email).trim().toLowerCase()))
   }
 
   /**
@@ -958,7 +1183,11 @@ export class AccountStore {
       if (Number(applied.changes) > 0 && this.streamerTrial) {
         // A streamer's code entered later gives three free days: from now when the free period has started (never
         // shortening it), else as the length of the one still waiting for the first sign-in in an app.
-        if (account.trialEndsAt !== undefined) this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?').run(this.now() + REFERRAL_TRIAL_MS, account.id)
+        // Days still waiting for the first raid get the longer length instead (waitForFirstRaid).
+        if (account.trialRaidMs !== undefined && account.trialRaidWaitUntil !== undefined && account.trialRaidWaitUntil > this.now()) {
+          this.db.prepare('UPDATE accounts SET trial_raid_ms = MAX(trial_raid_ms, ?), trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?')
+            .run(REFERRAL_TRIAL_MS, account.trialRaidWaitUntil + REFERRAL_TRIAL_MS, account.id)
+        } else if (account.trialEndsAt !== undefined) this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?').run(this.now() + REFERRAL_TRIAL_MS, account.id)
         else this.db.prepare('UPDATE accounts SET trial_pending_ms = MAX(COALESCE(trial_pending_ms, 0), ?) WHERE id = ?').run(REFERRAL_TRIAL_MS, account.id)
         this.claimTrialByEmail(account.id, account.email)
       }
@@ -1048,12 +1277,17 @@ export class AccountStore {
     return { country: code, ...(other ? { countryOther: other } : {}) }
   }
 
-  /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
+  /**
+   * Counts a landing visit for a referral link. One count per visitor key per code per 24 h. Every visit of a streamer's
+   * link also notes the visitor's network for LINK_ATTRIBUTION_MS (linkVisitCode); `visitorKey` is the address.
+   */
   recordReferralVisit(rawCode: string, visitorKey: string, campaign?: string) {
     const code = normalizeReferralCode(rawCode)
     if (!this.activeOwnerOfCode(code)) return this.playerOfCode(code) !== undefined
     const now = this.now()
     this.sweep(now)
+    const net = linkNetDigest(visitorKey)
+    if (net) this.db.prepare('INSERT INTO referral_link_nets (net, code, visited_at) VALUES (?, ?, ?) ON CONFLICT(net) DO UPDATE SET code = excluded.code, visited_at = excluded.visited_at').run(net, code, now)
     const visitor = visitorDigest(code, visitorKey)
     const seen = this.db.prepare('SELECT seen_at FROM referral_visit_seen WHERE visitor = ?').get(visitor) as Row | undefined
     if (seen && now - Number(seen.seen_at) < VISIT_DEDUPE_MS) return true
@@ -1063,6 +1297,33 @@ export class AccountStore {
     const label = normalizeCampaign(campaign)
     if (label) this.db.prepare('INSERT INTO referral_visit_campaigns (code, campaign, day, visits) VALUES (?, ?, ?, 1) ON CONFLICT(code, campaign, day) DO UPDATE SET visits = visits + 1').run(code, label, statsDay(now))
     return true
+  }
+
+  /**
+   * «Реклама»: a visit of an ad's link (src/shared/adSources.ts), counted once per visitor and platform per 24 h on the
+   * owner's day; every visit notes the visitor's network for AD_ATTRIBUTION_MS (adMarkOfNet). False for an unknown
+   * platform. `visitorKey` is the address; only digests of it are kept.
+   */
+  recordAdVisit(rawSource: unknown, rawCampaign: unknown, visitorKey: string) {
+    const mark = normalizeAdMark(rawSource, rawCampaign)
+    if (!mark) return false
+    const now = this.now()
+    this.sweep(now)
+    const campaign = mark.campaign ?? ''
+    const net = linkNetDigest(visitorKey)
+    if (net) this.db.prepare('INSERT INTO ad_link_nets (net, source, campaign, visited_at) VALUES (?, ?, ?, ?) ON CONFLICT(net) DO UPDATE SET source = excluded.source, campaign = excluded.campaign, visited_at = excluded.visited_at').run(net, mark.source, campaign, now)
+    const visitor = visitorDigest(`ad:${mark.source}`, visitorKey)
+    const seen = this.db.prepare('SELECT seen_at FROM referral_visit_seen WHERE visitor = ?').get(visitor) as Row | undefined
+    if (seen && now - Number(seen.seen_at) < VISIT_DEDUPE_MS) return true
+    this.db.prepare('INSERT INTO referral_visit_seen (visitor, seen_at) VALUES (?, ?) ON CONFLICT(visitor) DO UPDATE SET seen_at = excluded.seen_at').run(visitor, now)
+    this.db.prepare('INSERT INTO ad_visit_days (source, campaign, day, visits) VALUES (?, ?, ?, 1) ON CONFLICT(source, campaign, day) DO UPDATE SET visits = visits + 1').run(mark.source, campaign, ownerDay(now))
+    return true
+  }
+
+  /** The ad link `net` (linkNetDigest) opened last, within AD_ATTRIBUTION_MS. */
+  private adMarkOfNet(net: string): AdMark | undefined {
+    const row = this.db.prepare('SELECT source, campaign FROM ad_link_nets WHERE net = ? AND visited_at > ?').get(net, this.now() - AD_ATTRIBUTION_MS) as Row | undefined
+    return row ? normalizeAdMark(row.source, row.campaign) : undefined
   }
 
   /**
@@ -1129,11 +1390,11 @@ export class AccountStore {
    * Streamer cabinet table: visits, registrations and paid subscriptions (by plan) per day (last 31 days), month (last
    * 12) or year. Newest first; periods without anything still appear for days and months so the table has no gaps.
    */
-  referralSeries(accountId: string, period: StatsPeriod): ReferralSeriesRow[] {
+  referralSeries(accountId: string, period: StatsPeriod, month?: string): ReferralSeriesRow[] {
     const account = this.mustGet(accountId)
     if (account.kind !== 'streamer' || !account.referralCode) throw new AccountError(403, 'Статистика доступна только стримерам')
     // Per period the streamer sees his earnings, not the revenue.
-    return this.seriesForCode(account.referralCode, period).map(({ revenue: _revenue, ...row }) => { void _revenue; return row })
+    return this.seriesForCode(account.referralCode, period, month).map(({ revenue: _revenue, ...row }) => { void _revenue; return row })
   }
 
   /** The streamer code of an account, or undefined when it is not (or no longer) a streamer. */
@@ -1153,11 +1414,17 @@ export class AccountStore {
     return row?.country == null ? undefined : String(row.country)
   }
 
+  /** The owner opened BZB's CIS pages to this account from Russia (services/bezebee.ts bezebeeRegionOf). */
+  bezebeeAllowed(accountId: string) {
+    const row = this.db.prepare('SELECT bezebee_ru_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.bezebee_ru_at != null
+  }
+
   /** Owner's view of one streamer's table: exactly what that streamer sees in his cabinet. */
-  streamerSeries(rawCode: string, period: StatsPeriod) {
+  streamerSeries(rawCode: string, period: StatsPeriod, month?: string) {
     const code = normalizeReferralCode(rawCode)
     if (!this.ownerOfCode(code)) throw new AccountError(404, 'Стример не найден')
-    return this.seriesForCode(code, period)
+    return this.seriesForCode(code, period, month)
   }
 
   /** Visits per campaign label of the streamer's audience links, all time, most visited first. */
@@ -1179,16 +1446,21 @@ export class AccountStore {
       .map((row) => ({ campaign: String(row.campaign), visits: Number(row.total), visits30d: Number(row.recent), lastVisitDay: String(row.last) }))
   }
 
-  private seriesForCode(code: string, period: StatsPeriod): ReferralSeriesRow[] {
+  /** `month` (YYYY-MM) with period 'day': every day of that month up to today instead of the last 31 days (the calendar). */
+  private seriesForCode(code: string, period: StatsPeriod, month?: string): ReferralSeriesRow[] {
     const length = PERIOD_LENGTH[period]
     const rows = new Map<string, ReferralSeriesRow>()
     const row = (key: string) => {
       let entry = rows.get(key)
-      if (!entry) { entry = { period: key, visits: 0, registrations: 0, payments: 0, months: { '1m': 0, '3m': 0, '6m': 0, '12m': 0 }, revenue: 0, earnings: 0 }; rows.set(key, entry) }
+      if (!entry) { entry = { period: key, visits: 0, registrations: 0, linkRegistrations: 0, payments: 0, months: { '1m': 0, '3m': 0, '6m': 0, '12m': 0 }, revenue: 0, earnings: 0 }; rows.set(key, entry) }
       return entry
     }
     const today = statsDay(this.now())
-    if (period === 'day') for (let i = 0; i < 31; i++) row(statsDay(this.now() - i * 86_400_000))
+    const calendar = period === 'day' && month ? month : undefined
+    if (calendar) {
+      const days = new Date(Date.UTC(Number(calendar.slice(0, 4)), Number(calendar.slice(5, 7)), 0)).getUTCDate()
+      for (let day = 1; day <= days; day++) row(`${calendar}-${String(day).padStart(2, '0')}`)
+    } else if (period === 'day') for (let i = 0; i < 31; i++) row(statsDay(this.now() - i * 86_400_000))
     if (period === 'month') for (let i = 0; i < 12; i++) { const d = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() - i); row(d.toISOString().slice(0, 7)) }
     if (period === 'year') row(today.slice(0, 4))
     // Days and months: only the prefilled window; years: all of them.
@@ -1196,6 +1468,11 @@ export class AccountStore {
     for (const item of this.db.prepare(`SELECT substr(day, 1, ${length}) AS k, SUM(visits) AS n FROM referral_visit_days WHERE code = ? GROUP BY k`).all(code) as Row[]) row(String(item.k)).visits = Number(item.n)
     const key = periodKeySql(period)
     for (const item of this.db.prepare(`SELECT ${key('referred_at')} AS k, COUNT(*) AS n FROM accounts WHERE referred_by = ? AND referred_at IS NOT NULL GROUP BY k`).all(code) as Row[]) row(String(item.k)).registrations = Number(item.n)
+    for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE ${LINK_ONLY} GROUP BY k`).all(code) as Row[]) {
+      const entry = row(String(item.k))
+      entry.linkRegistrations = Number(item.n)
+      entry.registrations += entry.linkRegistrations
+    }
     for (const item of this.subscriptions?.referralSeries(code, key) ?? []) {
       const entry = row(item.key)
       entry.payments = item.payments
@@ -1203,7 +1480,8 @@ export class AccountStore {
       entry.earnings = item.earnings / 100
       for (const plan of ['1m', '3m', '6m', '12m'] as const) entry.months[plan] = item.months[plan] ?? 0
     }
-    return [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period))
+    const last = calendar ? `${calendar}-31` : today.slice(0, length)
+    return [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= last && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period))
   }
 
   /** Releases the database when the store opened its own (in-memory) one. */
@@ -1213,10 +1491,11 @@ export class AccountStore {
 
   private stats(code: string): ReferralStats {
     const registrations = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE referred_by = ?').get(code) as Row).n)
+    const linkRegistrations = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE ${LINK_ONLY}`).get(code) as Row).n)
     const visits = Number((this.db.prepare('SELECT visits FROM referral_visits WHERE code = ?').get(code) as Row | undefined)?.visits ?? 0)
-    // Paid conversions and money come only from verified ЮKassa payments (PaymentStore).
+    // Paid conversions and money come only from verified ЮKassa payments (PaymentStore), by the code alone.
     const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0 }
-    return { visits, registrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
+    return { visits, registrations: registrations + linkRegistrations, linkRegistrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
   }
 
   /**
@@ -1239,13 +1518,15 @@ export class AccountStore {
       ['friend_requests', 'from_id'], ['friend_requests', 'to_id'], ['friendships', 'account_id'], ['friendships', 'friend_id'],
       ['squads', 'owner_id'], ['squad_members', 'account_id'], ['squad_friend_invites', 'account_id'],
       ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
-      ['user_collector', 'account_id'], ['user_hideout', 'account_id'], ['user_quest_mirror', 'account_id'], ['user_game_mode', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['user_levels', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
+      ['user_collector', 'account_id'], ['user_deferred_quests', 'account_id'], ['user_deferred_resets', 'account_id'], ['user_hideout', 'account_id'], ['user_item_counts', 'account_id'], ['user_quest_mirror', 'account_id'], ['user_game_mode', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['user_levels', 'account_id'], ['user_state_items', 'account_id'], ['user_state_revs', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
       ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
       ['support_messages', 'account_id'], ['shared_build_likes', 'account_id'], ['shared_builds', 'account_id'],
     ]
     const progressOwner = `user:${account.id}`
     this.db.exec('BEGIN')
     try {
+      // «Аккаунты Таркова» keeps the game accounts of the deleted account, its e-mail only masked (services/eftLedger.ts).
+      this.eftLedger.gone(account.id, 'deleted', account.email)
       // «Топ сборок»: other players' likes on this account's builds go with the builds (services/buildCatalogStore.ts).
       if (has('shared_builds') && has('shared_build_likes')) this.db.prepare('DELETE FROM shared_build_likes WHERE build_id IN (SELECT id FROM shared_builds WHERE account_id = ?)').run(account.id)
       for (const [table, column] of remove) {
@@ -1386,10 +1667,11 @@ export class AccountStore {
   private createSession(accountId: string) {
     const token = randomBytes(32).toString('base64url')
     this.sweep(this.now())
-    this.db.prepare('INSERT INTO sessions (digest, account_id, expires_at) VALUES (?, ?, ?)').run(tokenDigest(token), accountId, this.now() + SESSION_TTL_MS)
-    // At most MAX_SESSIONS_PER_ACCOUNT open sessions: the oldest ones end (rowid breaks ties of equal expiry).
+    const owner = this.isOwner(accountId)
+    this.db.prepare('INSERT INTO sessions (digest, account_id, expires_at) VALUES (?, ?, ?)').run(tokenDigest(token), accountId, this.now() + (owner ? OWNER_SESSION_TTL_MS : SESSION_TTL_MS))
+    // At most MAX_SESSIONS_PER_ACCOUNT open sessions (the owner: OWNER_MAX_SESSIONS): the oldest ones end (rowid breaks ties).
     this.db.prepare('DELETE FROM sessions WHERE account_id = ? AND digest NOT IN (SELECT digest FROM sessions WHERE account_id = ? ORDER BY expires_at DESC, rowid DESC LIMIT ?)')
-      .run(accountId, accountId, MAX_SESSIONS_PER_ACCOUNT)
+      .run(accountId, accountId, owner ? OWNER_MAX_SESSIONS : MAX_SESSIONS_PER_ACCOUNT)
     return token
   }
 
@@ -1399,6 +1681,14 @@ export class AccountStore {
     this.lastSweep = now
     this.db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now)
     this.db.prepare('DELETE FROM referral_visit_seen WHERE seen_at <= ?').run(now - VISIT_DEDUPE_MS)
+    this.db.prepare('DELETE FROM referral_link_nets WHERE visited_at <= ?').run(now - LINK_ATTRIBUTION_MS)
+    this.db.prepare('DELETE FROM ad_link_nets WHERE visited_at <= ?').run(now - AD_ATTRIBUTION_MS)
+  }
+
+  /** The working streamer's code whose link `net` (linkNetDigest) opened last, within LINK_ATTRIBUTION_MS. */
+  private linkVisitCode(net: string) {
+    const row = this.db.prepare('SELECT code FROM referral_link_nets WHERE net = ? AND visited_at > ?').get(net, this.now() - LINK_ATTRIBUTION_MS) as Row | undefined
+    return row && this.activeOwnerOfCode(String(row.code)) ? String(row.code) : null
   }
 
   private ownerOfCode(code: string) {
@@ -1474,6 +1764,11 @@ export class FixedWindowRateLimiter {
 export interface AccountsRequest { body?: unknown; ip?: string; authorization?: string; query?: unknown }
 export interface AccountsResponse { status: number; body: unknown; headers?: Record<string, string> }
 export interface AccountsHandlerOptions {
+  /**
+   * Registration asks for the code from the e-mail (when `registrations` can send one). The service turns it off for now
+   * (app.ts REGISTRATION_EMAIL_CODE): a new account is created at once, as before the e-mail codes.
+   */
+  registrationEmailCode?: boolean
   /** Max login/register attempts per IP per window. Default 10 per 15 minutes. */
   authRateLimit?: { max: number; windowMs: number }
   /** Failed password sign-ins per e-mail per hour, from any IP (default LOGIN_FAILURES_PER_EMAIL). */
@@ -1489,7 +1784,7 @@ export interface AccountsHandlerOptions {
 /** What registration needs from services/emailAuth.ts (kept as an interface to avoid an import cycle). */
 export interface PendingRegistrations {
   readonly enabled: boolean
-  startRegistration(email: string, password: string, referralCode?: string, ip?: string, country?: string): Promise<{ challengeId: string; expiresAt: string; resendSeconds: number }>
+  startRegistration(email: string, password: string, referralCode?: string, ip?: string, country?: string, ad?: AdMark): Promise<{ challengeId: string; expiresAt: string; resendSeconds: number }>
 }
 
 /** The single answer to every registration while e-mail codes are on, whatever the address (anti-enumeration). */
@@ -1499,14 +1794,17 @@ const emailSchema = z.string().trim().toLowerCase().max(254).email()
 const passwordSchema = z.string().min(8).max(128)
 const credentialsSchema = z.object({ email: emailSchema, password: passwordSchema })
 // `country` is checked after the parse, with its own messages (COUNTRY_REQUIRED_MESSAGE, COUNTRY_INVALID_MESSAGE).
-const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional(), country: z.unknown().optional() })
+// adSource / adCampaign: the label the site kept from an ad's link (src/shared/adSources.ts); an unknown one is ignored.
+const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional(), country: z.unknown().optional(), adSource: z.string().max(32).optional().catch(undefined), adCampaign: z.string().max(128).optional().catch(undefined) })
 const countrySchema = z.object({ country: z.string().max(16) })
 /** «Укажите страну»: a listed code or the text typed by hand, exactly one of them. */
 const initialCountrySchema = z.union([z.object({ country: z.string().max(16) }).strict(), z.object({ other: z.string().max(200) }).strict()])
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const inviteSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{32}$/) })
-const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
+// month: the days of one month for the calendar (owner, 30.10.2026: «статистику стримера по дням в виде календаря»).
+const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day'), month: z.string().regex(/^20[0-9]{2}-(0[1-9]|1[0-2])$/).optional() })
 const visitSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/), campaign: z.string().max(64).optional() })
+const adVisitSchema = z.object({ source: z.string().max(32), campaign: z.string().max(128).optional().catch(undefined) })
 const consentSchema = z.object({ kind: z.enum(['registration', 'payment']), version: z.string().regex(CONSENT_VERSION) })
 const ownerSeriesSchema = periodSchema.extend({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const ownerInviteSchema = z.object({ code: z.string().trim().max(24) })
@@ -1584,14 +1882,15 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (givenCountry == null || (typeof givenCountry === 'string' && givenCountry.trim() === '')) return invalid(COUNTRY_REQUIRED_MESSAGE)
       const country = normalizeCountry(givenCountry)
       if (!country) return invalid(COUNTRY_INVALID_MESSAGE)
+      const ad = normalizeAdMark(parsed.data.adSource, parsed.data.adCampaign)
       const registrations = options.registrations
-      if (registrations?.enabled) {
+      if (registrations?.enabled && options.registrationEmailCode !== false) {
         // New, existing and owner addresses all get exactly this answer; whether a code or a notice was e-mailed (or
         // nothing at all) is never visible here. The account is created by POST /register/confirm.
-        const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown', country)
+        const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown', country, ad)
         return { status: 202, body: { pending: true, message: REGISTRATION_PENDING_MESSAGE, ...challenge } }
       }
-      const result = await store.register(email, password, referralCode || undefined, req.ip, country)
+      const result = await store.register(email, password, referralCode || undefined, req.ip, country, ad)
       return { status: 201, body: { token: result.token, referralApplied: result.referralApplied, account: store.view(store.authenticate(result.token)!) } }
     }),
 
@@ -1660,6 +1959,12 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       return { status: 200, body: store.view(accountId) }
     }),
 
+    /** The desktop app saw a raid start in the game's logs: free days waiting for it start now (AccountStore.firstRaid). */
+    firstRaid: (req: AccountsRequest) => authed(req, (accountId) => {
+      const started = store.firstRaid(accountId)
+      return { status: 200, body: { started, account: store.view(accountId) } }
+    }),
+
     /** The desktop app found the player's Escape from Tarkov AccountId in the game logs (see AccountStore.bindEftAccount). */
     bindEftAccount: (req: AccountsRequest) => authed(req, (accountId) => {
       const blocked = limited(eftLimiter, `eft:${accountId}`)
@@ -1706,7 +2011,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     referralSeries: (req: AccountsRequest) => authed(req, (accountId) => {
       const parsed = periodSchema.safeParse(req.query ?? {})
       if (!parsed.success) return invalid('Период: day, month или year')
-      return { status: 200, body: { period: parsed.data.period, rows: store.referralSeries(accountId, parsed.data.period) } }
+      return { status: 200, body: { period: parsed.data.period, rows: store.referralSeries(accountId, parsed.data.period, parsed.data.month) } }
     }),
 
     /** The secret streamer invitation page: is the link still valid, and for which code. */
@@ -1735,6 +2040,15 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       return known ? { status: 200, body: { ok: true, code: normalizeReferralCode(parsed.data.code), kind: store.codeKind(parsed.data.code) } } : { status: 404, body: { error: 'Код приглашения не найден' } }
     }),
 
+    /** «Реклама»: the site opened with an ad's label (?utm_source=reddit&utm_campaign=…). 404 for an unknown platform. */
+    adVisit: (req: AccountsRequest) => guard(() => {
+      const blocked = limited(visitLimiter, `visit:${req.ip ?? 'unknown'}`)
+      if (blocked) return blocked
+      const parsed = adVisitSchema.safeParse(req.body)
+      const known = parsed.success && store.recordAdVisit(parsed.data.source, parsed.data.campaign, req.ip ?? 'unknown')
+      return known ? { status: 200, body: { ok: true } } : { status: 404, body: { error: 'Неизвестный источник' } }
+    }),
+
     /** Streamer cabinet: visits per campaign label of the audience links. */
     referralCampaigns: (req: AccountsRequest) => authed(req, (accountId) => ({ status: 200, body: { campaigns: store.referralCampaigns(accountId) } })),
 
@@ -1752,7 +2066,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     ownerStreamerStats: (req: AccountsRequest) => owner(req, () => {
       const parsed = ownerSeriesSchema.safeParse(req.query ?? {})
       if (!parsed.success) return invalid('Укажите код стримера и период: day, month или year')
-      return { status: 200, body: { code: normalizeReferralCode(parsed.data.code), period: parsed.data.period, rows: store.streamerSeries(parsed.data.code, parsed.data.period), campaigns: store.streamerCampaigns(parsed.data.code) } }
+      return { status: 200, body: { code: normalizeReferralCode(parsed.data.code), period: parsed.data.period, rows: store.streamerSeries(parsed.data.code, parsed.data.period, parsed.data.month), campaigns: store.streamerCampaigns(parsed.data.code) } }
     }),
 
     /** «Сгенерировать ссылку для стримера»: a one-time secret link /streamer/<token>; the token is shown once. */

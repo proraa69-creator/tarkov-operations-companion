@@ -19,7 +19,7 @@ Outputs:
 
 | # | Scene | Time (s) | Content |
 | --- | --- | --- | --- |
-| 0 | Title | 0–2.6 | Raid OS badge, «Полевой компаньон», «Задания · Карты · Цены · Отряд» |
+| 0 | Title | 0–2.6 | Raid OS badge, «Помощник в рейдах», «Задания · Карты · Цены · Отряд» |
 | 01 | Обзор | 2.3–7.9 | «Квесты синхронизируются сами» over the owner's overview screenshot panned top → bottom; marked blocks: «Приоритет карт», «Отслеживание Кочевников», «Текущие задания», «Карта со всеми точками квестов», «Предметы, требуемые в рейде» |
 | 02 | Предмет | 7.5–13.1 | «Информация о предмете — прямо на карте»: «Карты» on Customs, the camera moves in on the item card under «Вид» (MapItemCard): the Golden egg with its picture, flea / Терапевт prices, «Каппа: нужен для «Коллекционера»», the quests that need it (shot `maps-item`) |
 | 03 | Режимы | 12.7–17.1 | PvP → PvE → Сезон: the switch slides, the overview of each mode behind it («у каждого своя база») |
@@ -89,6 +89,22 @@ node scripts/trailer/render.mjs                           # 3. trailer.html → 
 ```
 
 Stop both vite servers afterwards.
+
+**The site's two trailers (27.10.2026).** The home page plays `website/public/media/trailer.mp4` in Russian and
+`trailer-en.mp4` in English (`website/src/components/Trailer.tsx` follows the site language). Both come from
+`trailer-ru.html` and `trailer-en.html` — the same scenes word for word, the Customs map from the owner's own SPT render
+(`ownMap.mjs`, `TRAILER_OWN_MAP_ON=1`), the phone's point simulated at the PC's game position:
+
+```bash
+TRAILER_OWN_MAP_ON=1 node scripts/trailer/capture.mjs app modes themes squad bossstill boss3d bosshp bossinfo ballistics flea mapitem mapposition gunsmith update phone live kappa site qr
+TRAILER_OWN_MAP_ON=1 TRAILER_LOCALE=en BOSSES=Tagilla BOSS_STILLS=Reshala,Killa,Glukhar,Kaban node scripts/trailer/capture.mjs …the same groups
+node scripts/trailer/render.mjs --page=trailer-ru.html --out=/tmp/ru   # → trailer.mp4 + trailer-poster.jpg
+node scripts/trailer/render.mjs --page=trailer-en.html --out=/tmp/en   # → rename to trailer-en.mp4 / trailer-poster-en.jpg
+```
+
+On Windows set `TRAILER_CHROMIUM` (Playwright's chrome.exe) and `TRAILER_FFMPEG=ffmpeg`. render.mjs opens a fresh page
+every 8 s of video and waits for the painted frame: in one long run the Windows compositor fell behind the seeks and the
+scenes after the themes jumped back and forth.
 
 **The website's presentation** («Двенадцать причин…», `website/src/components/promo/`) uses the same shots, one set per
 site language: `TRAILER_LOCALE=en node scripts/trailer/capture.mjs app modes themes squad bosshp ballistics flea

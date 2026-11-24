@@ -68,28 +68,28 @@ afterEach(async () => {
   await act(async () => { await refreshServerStatus() })
 })
 
-describe('an announcement stays until the player presses its button (owner, 16.10.2026)', () => {
+describe('an announcement in the corner (owner, 07.11.2026)', () => {
   it('stays on screen while the server is out of reach for a moment (the PC slept, the network dropped)', async () => {
     const { account } = desktop({ notices: [russianOnly] })
     await open()
-    expect(await screen.findByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    expect(await screen.findByText('Только по-русски')).toBeInTheDocument()
     account.status.mockResolvedValue({ ...signedIn, online: false })
     await act(async () => { await refreshServerStatus() })
-    expect(screen.getByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    expect(screen.getByText('Только по-русски')).toBeInTheDocument()
     account.status.mockResolvedValue(signedIn)
     await act(async () => { await refreshServerStatus() })
-    expect(screen.getByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    expect(screen.getByText('Только по-русски')).toBeInTheDocument()
   })
 
-  it('stays on screen when a raid starts; only «Понятно» closes it', async () => {
-    const { startRaid } = desktop({ notices: [russianOnly] })
-    const user = await open()
-    const dialog = await screen.findByRole('dialog', { name: 'Только по-русски' })
+  it('goes when a raid starts, and comes back after it unread', async () => {
+    const { startRaid, endRaid, serviceRequest } = desktop({ notices: [russianOnly] })
+    await open()
+    expect(await screen.findByText('Только по-русски')).toBeInTheDocument()
     act(() => startRaid())
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
-    await user.click(within(dialog).getByRole('button', { name: 'Понятно' }))
-    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(screen.queryByText('Только по-русски')).toBeNull())
+    expect(serviceRequest).not.toHaveBeenCalledWith('POST', '/v1/me/notices/2/close', {})
+    act(() => endRaid())
+    expect(await screen.findByText('Только по-русски')).toBeInTheDocument()
   })
 
   it('comes first at sign-in: the tips and event windows wait until it is closed', async () => {
@@ -98,9 +98,9 @@ describe('an announcement stays until the player presses its button (owner, 16.1
     await refreshServerStatus()
     const user = userEvent.setup()
     render(<LocaleProvider><AccountNotices /><AfterNotices><p>Подсказка</p></AfterNotices></LocaleProvider>)
-    const dialog = await screen.findByRole('dialog', { name: 'Только по-русски' })
+    expect(await screen.findByText('Только по-русски')).toBeInTheDocument()
     expect(screen.queryByText('Подсказка')).toBeNull()
-    await user.click(within(dialog).getByRole('button', { name: 'Понятно' }))
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
     expect(await screen.findByText('Подсказка')).toBeInTheDocument()
   })
 
@@ -113,39 +113,43 @@ describe('an announcement stays until the player presses its button (owner, 16.1
 })
 
 describe('the owner\'s announcements in the app', () => {
-  it('shows one at a time, in Russian, with the photos and the button; «Понятно» closes it for good', async () => {
+  it('in the corner with the photos and the button, in Russian, over nothing; the cross closes it for good', async () => {
     const { serviceRequest } = desktop({ notices: [welcome, russianOnly] })
     const user = await open()
-    const dialog = await screen.findByRole('dialog', { name: 'Новый канал' })
-    expect(within(dialog).getByText('Подписывайтесь')).toBeInTheDocument()
-    expect(within(dialog).getByRole('link', { name: 'Telegram' })).toHaveAttribute('href', 'https://t.me/raidos')
-    await waitFor(() => expect(within(dialog).getAllByRole('button', { name: /Открыть фото/ })).toHaveLength(2))
+    const toast = (await screen.findByText('Новый канал')).closest('.notice-toast') as HTMLElement
+    expect(toast.closest('.toast-dock')).not.toBeNull()
+    expect(document.querySelector('.registration-overlay')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(within(toast).getByText('Подписывайтесь')).toBeInTheDocument()
+    expect(within(toast).getByRole('link', { name: 'Telegram' })).toHaveAttribute('href', 'https://t.me/raidos')
+    await waitFor(() => expect(within(toast).getAllByRole('button', { name: /Открыть фото/ })).toHaveLength(2))
     await waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/notices/1/seen', {}))
-    await user.click(within(dialog).getByRole('button', { name: 'Открыть фото 1' }))
+    await user.click(within(toast).getByRole('button', { name: 'Открыть фото 1' }))
     expect(screen.getByRole('dialog', { name: 'Фото' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Закрыть фото' }))
-    await user.click(screen.getByRole('button', { name: 'Понятно' }))
+    expect(screen.getByText('Только по-русски')).toBeInTheDocument()
+    await user.click(within(toast).getByRole('button', { name: 'Закрыть' }))
     expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/notices/1/close', {})
-    expect(await screen.findByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
     expect(screen.queryByText('Новый канал')).not.toBeInTheDocument()
+    expect(screen.getByText('Только по-русски')).toBeInTheDocument()
   })
 
   it('in English where the owner wrote English, in Russian where not', async () => {
     desktop({ notices: [welcome, russianOnly] })
-    const user = await open('en')
-    const dialog = await screen.findByRole('dialog', { name: 'New channel' })
-    expect(within(dialog).getByText('Subscribe')).toBeInTheDocument()
-    await user.click(within(dialog).getByRole('button', { name: 'Got it' }))
-    expect(await screen.findByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    await open('en')
+    const toast = (await screen.findByText('New channel')).closest('.notice-toast') as HTMLElement
+    expect(within(toast).getByText('Subscribe')).toBeInTheDocument()
+    expect(within(toast).getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(await screen.findByText('Только по-русски')).toBeInTheDocument()
   })
 
   it('waits for the end of a raid', async () => {
     const { endRaid } = desktop({ notices: [russianOnly], inRaid: true })
     await open()
     await new Promise((resolve) => setTimeout(resolve, 30))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText('Только по-русски')).not.toBeInTheDocument()
     act(() => endRaid())
-    expect(await screen.findByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    expect(await screen.findByText('Только по-русски')).toBeInTheDocument()
   })
 
   it('comes after «Укажите страну»', async () => {
@@ -155,7 +159,7 @@ describe('the owner\'s announcements in the app', () => {
     expect(screen.queryByText('Только по-русски')).not.toBeInTheDocument()
     await user.click(screen.getByRole('option', { name: 'Россия' }))
     await user.click(screen.getByRole('button', { name: 'Сохранить: Россия' }))
-    expect(await screen.findByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    expect(await screen.findByText('Только по-русски')).toBeInTheDocument()
   })
 
   it('shows nothing to a signed-out app', async () => {

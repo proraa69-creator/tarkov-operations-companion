@@ -2,7 +2,7 @@
  * English for «Чат с поддержкой» (src/support/SupportChat.tsx, src/support/supportChatClient.ts) with its screenshots and
  * «Написать в Telegram», its places in the sidebar, Settings and the phone's «Ещё», its toast, the owner's «Заявки» → «Чаты» (src/support/OwnerChats.tsx, «Открыть
  * чат» in src/pages/RequestsPage.tsx) and the server's chat errors (server/src/routes/supportChat.ts,
- * services/supportChatStore.ts).
+ * services/supportChatStore.ts), with its reactions, replies, emoji and stickers (owner, 07.11.2026).
  */
 import { SUPPORT_IMAGE_PLACEHOLDER } from '../shared/supportChat'
 
@@ -36,6 +36,12 @@ export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Выберите переписку слева.', 'Choose a conversation on the left.'],
   ['Сообщений пока нет.', 'No messages yet.'],
   ['Ответ игроку…', 'Reply to the player…'],
+  // «Ответить» on a report and its card in the chat (owner, 04.11.2026).
+  ['Ответ на заявку', 'Reply to request'],
+  ['Ответить', 'Reply'],
+  ['Ответ отправлен', 'Reply sent'],
+  ['Отвечено', 'Answered'],
+  ['Заявка не найдена', 'Request not found'],
   ['Все чаты', 'All chats'],
   ['Непрочитанных', 'Unread'],
   // «Открыть чат» on a report and «Проблема решена» (owner, 14.10.2026).
@@ -63,4 +69,24 @@ export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Слишком много скриншотов. Попробуйте через час.', 'Too many screenshots. Please try again in an hour.'],
   ['Скриншот не найден', 'Screenshot not found'],
   ['Сервер сейчас принимает другие скриншоты. Повторите через несколько секунд.', 'The server is receiving other screenshots right now. Please try again in a few seconds.'],
+  // Reactions, replies, emoji and stickers (owner, 07.11.2026). «Ответить», «Копировать», «Вы» have theirs elsewhere.
+  ['Действия с сообщением', 'Message actions'],
+  ['Реакции', 'Reactions'],
+  ['Ответ на сообщение', 'Reply to a message'],
+  ['Отменить ответ', 'Cancel reply'],
+  ['Показать сообщение', 'Show the message'],
+  ['Смайлики', 'Emoji'],
+  ['Стикеры', 'Stickers'],
+  ['Стикер', 'Sticker'],
+  ['Игрок', 'Player'],
+  ['Не удалось поставить реакцию', 'Could not set the reaction'],
+  ['Сообщение не найдено', 'Message not found'],
+  ['Неизвестный стикер', 'Unknown sticker'],
+  ['Такой реакции нет', 'No such reaction'],
+  ['Стикер отправляется без текста и скриншотов', 'A sticker is sent without text or screenshots'],
+  // Sent at once and the owner's «Редактировать» (owner, 15.11.2026). «Редактировать», «Сохранить» have theirs elsewhere.
+  ['Отправляется', 'Sending'],
+  ['Редактирование', 'Editing'],
+  ['Отменить редактирование', 'Cancel editing'],
+  ['Не удалось изменить сообщение', 'Could not change the message'],
 ]

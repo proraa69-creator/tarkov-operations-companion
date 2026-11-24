@@ -1,10 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type HTMLAttributes, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
-/** A short pause before a hover shows the list: a pointer passing over the example shows nothing. */
-const SHOW_DELAY_MS = 90
-/** The pointer may cross the gap into the list (to scroll it) before the list goes. */
-const HIDE_GRACE_MS = 220
 /** A focus or a click this soon after a press came from that press, not from the keyboard. */
 const PRESS_MS = 800
 const GAP = 6
@@ -16,17 +12,19 @@ const MIN_HEIGHT = 140
 export const CHOICE_POPUP_CLASS = 'qc-variants'
 
 /**
- * The list of every variant of a choice in «Сбор на рейд» (owner, 16.10.2026: «при наведении курсора на один из
- * вариантов, появляется всплывающее окно со всеми допустимыми. так же с оружием, прицелами и модулями»). The block and
- * the dialog still show one example and «или любое из N» (`more`); pointing at them shows `content` beside them.
+ * The list of every variant of a choice in «Сбор на рейд» (owner, 16.10.2026: «…всплывающее окно со всеми допустимыми.
+ * так же с оружием, прицелами и модулями»). The block and the dialog still show one example and «или любое из N»
+ * (`more`); a click on them — the picture or the words — shows `content` beside them, another click hides it. A hover
+ * shows nothing (owner, 03.11.2026: «сделай что бы оружие не появлялось при наведении курсора на весь блок, а только
+ * когда наводишь на картинку оружия и нажимаешь лкм, открывается список»): the block unfolds under the pointer, and the
+ * list used to open over it by itself.
  *
  * The list is drawn into <body> with a fixed position, so neither the unfolded card (it scrolls) nor the dialog clips
  * it; it stays inside the window (below the example, or above it when there is more room there) and scrolls when it is
- * long. It goes when the pointer leaves (after a short grace, so the pointer can reach the list), on Escape, on a press
- * elsewhere, on a scroll of the page and when the focus leaves.
+ * long. It goes on another click, on Escape, on a press elsewhere, on a scroll of the page and when the focus leaves.
  *
- * `toggle` (the dialog): «или любое из N» is a button — the keyboard's way in, and a tap on it shows or hides the list.
- * Without it (inside the card, itself a button) a tap on the example shows the list instead of opening the dialog.
+ * `toggle` (the dialog): «или любое из N» is a button — the keyboard's way in. Inside the card (itself a button) a click
+ * on the example shows the list instead of opening the dialog.
  */
 export function ChoicePopover({ as = 'span', className, more, heading, toggle, content, children }: {
   as?: 'span' | 'div'
@@ -42,36 +40,17 @@ export function ChoicePopover({ as = 'span', className, more, heading, toggle, c
   const id = useId()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const [open, setOpen] = useState(false)
-  const showTimer = useRef<number | undefined>(undefined)
-  const hideTimer = useRef<number | undefined>(undefined)
   const press = useRef<{ type: string; at: number } | undefined>(undefined)
   const popupRef = useRef<HTMLDivElement>(null)
 
-  const stopTimers = () => { window.clearTimeout(showTimer.current); window.clearTimeout(hideTimer.current) }
-  const show = (delay = 0) => {
-    stopTimers()
-    if (delay) showTimer.current = window.setTimeout(() => setOpen(true), delay)
-    else setOpen(true)
-  }
-  const hide = (delay = 0) => {
-    stopTimers()
-    if (delay) hideTimer.current = window.setTimeout(() => setOpen(false), delay)
-    else setOpen(false)
-  }
+  const show = () => setOpen(true)
+  const hide = () => setOpen(false)
   const recentPress = () => press.current && Date.now() - press.current.at < PRESS_MS ? press.current.type : undefined
 
-  useEffect(() => () => {
-    window.clearTimeout(showTimer.current)
-    window.clearTimeout(hideTimer.current)
-  }, [])
   useEffect(() => {
     if (!open) return
     const inside = (target: EventTarget | null) => target instanceof Node && Boolean(anchor?.contains(target) || popupRef.current?.contains(target))
-    const close = () => {
-      window.clearTimeout(showTimer.current)
-      window.clearTimeout(hideTimer.current)
-      setOpen(false)
-    }
+    const close = () => setOpen(false)
     // Escape closes the list first; the card or the dialog under it stays.
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -94,9 +73,6 @@ export function ChoicePopover({ as = 'span', className, more, heading, toggle, c
   }, [open, anchor])
 
   const events: HTMLAttributes<HTMLElement> = {
-    // The list is a child of this element in React's tree: moving into it is no leave.
-    onPointerEnter: (event: ReactPointerEvent) => { if (event.pointerType === 'mouse') show(open ? 0 : SHOW_DELAY_MS) },
-    onPointerLeave: (event: ReactPointerEvent) => { if (event.pointerType === 'mouse') hide(HIDE_GRACE_MS) },
     onPointerDown: (event: ReactPointerEvent) => { press.current = { type: event.pointerType, at: Date.now() } },
     onFocus: () => { if (!recentPress()) show() },
     onBlur: (event: ReactFocusEvent) => {
@@ -105,26 +81,13 @@ export function ChoicePopover({ as = 'span', className, more, heading, toggle, c
       hide()
     },
     onClick: (event: ReactMouseEvent) => {
-      const type = recentPress()
       press.current = undefined
-      if (toggle) {
-        if (!(event.target instanceof Element && event.target.closest('.qc-choice-toggle'))) return
-        // A mouse has shown it by hovering; a tap or the keyboard shows or hides it.
-        if (type === 'mouse') show()
-        else if (open) hide()
-        else show()
-        return
-      }
-      if (type === 'touch' || type === 'pen') {
-        // Inside the card: the tap shows the list, the card's dialog stays closed.
-        event.preventDefault()
-        event.stopPropagation()
-        if (open) hide()
-        else show()
-        return
-      }
-      // A mouse click opens the card's dialog; the list goes.
-      hide()
+      // The picture or «или любое из N», by a click, a tap or the keyboard: the list shows or hides; inside the card its
+      // dialog stays closed.
+      event.preventDefault()
+      event.stopPropagation()
+      if (open) hide()
+      else show()
     },
   }
   const moreNode = toggle

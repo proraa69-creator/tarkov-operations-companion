@@ -1,6 +1,6 @@
 /** English for the header, the footer, page titles and the documents notice (src/components/SiteLayout.tsx, src/App.tsx). */
 export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
-  ['Главная', 'Home'], ['О нас', 'About'], ['Raid OS — на главную', 'Raid OS — home'], ['ПОЛЕВОЙ КОМПАНЬОН', 'FIELD COMPANION'],
+  ['Главная', 'Home'], ['О нас', 'About'], ['Raid OS — на главную', 'Raid OS — home'], ['ПОМОЩНИК В РЕЙДАХ', 'RAID ASSISTANT'],
   ['Основная навигация', 'Main navigation'], ['Подписка', 'Subscription'], ['Скачать приложение', 'Download the app'], ['Скачать', 'Download'],
   ['Личный кабинет', 'My account'], ['Кабинет', 'Account'], ['Закрыть меню', 'Close menu'], ['Открыть меню', 'Open menu'],
   ['Мобильная навигация', 'Mobile navigation'], ['версия {version}', 'version {version}'],
@@ -11,14 +11,23 @@ export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Ссылки в подвале', 'Footer links'], ['Документы', 'Documents'], ['Публичная оферта', 'Public offer'],
   ['Политика конфиденциальности', 'Privacy policy'], ['Согласие на обработку ПД', 'Personal data consent'], ['Тарифы, оплата и возврат', 'Plans, payment and refunds'],
   ['Язык сайта', 'Site language'],
+  // The support chat (components/SupportWidget.tsx).
+  ['Поддержка', 'Support'], ['Закрыть поддержку', 'Close support'], ['Вы пишете из аккаунта {email}', 'You write from {email}'],
+  ['Вы пишете как гость', 'You write as a guest'], ['Задайте любой вопрос — ответим здесь.', 'Ask anything — we answer right here.'],
+  ['Ваш вопрос', 'Your question'], ['Отправить', 'Send'], ['Не удалось отправить. Попробуйте ещё раз.', 'Could not send. Try again.'],
+  ['Нет связи с сервером. Попробуйте ещё раз.', 'No connection to the server. Try again.'],
+  ['Оставить имя и почту для ответа', 'Leave a name and e-mail for the answer'], ['Ответ придёт и на {email}', 'The answer also goes to {email}'],
+  ['Поддержка Raid OS', 'Raid OS support'], ['Поддержка — Raid OS', 'Support — Raid OS'],
+  ['Напишите вопрос в чат — ответим здесь. Без аккаунта можно писать как гость и оставить почту для ответа.', 'Write your question in the chat — we answer right here. Without an account you write as a guest and may leave an e-mail for the answer.'],
+  ['Имя', 'Name'], ['Почта', 'E-mail'], ['Отмена', 'Cancel'], ['Проверьте адрес почты', 'Check the e-mail address'],
   ['Условия и документы доступны только на русском языке: они составлены по законодательству РФ.', 'Terms and legal documents are available in Russian only: they are drawn up under Russian law.'],
   // Page titles (App.tsx).
   ['Raid OS — приложение для Таркова (Escape from Tarkov): квесты, карты, цены', 'Raid OS — the Escape from Tarkov app: quests, maps, prices'],
   ['Скачать Raid OS для Windows — приложение для Таркова', 'Download Raid OS for Windows — the Escape from Tarkov app'],
   ['О нас — Raid OS', 'About — Raid OS'], ['Вход — Raid OS', 'Sign in — Raid OS'],
-  ['Регистрация — Raid OS', 'Sign up — Raid OS'], ['Восстановление пароля — Raid OS', 'Password reset — Raid OS'], ['Личный кабинет — Raid OS', 'My account — Raid OS'], ['Оплата через Boosty — Raid OS', 'Pay via Boosty — Raid OS'],
+  ['Регистрация — Raid OS', 'Sign up — Raid OS'], ['Восстановление пароля — Raid OS', 'Password reset — Raid OS'], ['Личный кабинет — Raid OS', 'My account — Raid OS'], 
   ['Реквизиты и документы — Raid OS', 'Details and documents — Raid OS'], ['Публичная оферта — Raid OS', 'Public offer — Raid OS'],
-  ['Политика обработки персональных данных — Raid OS', 'Personal data policy — Raid OS'], ['Согласие на обработку персональных данных — Raid OS', 'Personal data consent — Raid OS'],
+  ['Политика обработки персональных данных — Raid OS', 'Personal data policy — Raid OS'], ['Политика конфиденциальности — Raid OS', 'Privacy policy — Raid OS'], ['Согласие на обработку персональных данных — Raid OS', 'Personal data consent — Raid OS'],
   ['Cookie и хранилище браузера — Raid OS', 'Cookies and browser storage — Raid OS'], ['Приглашение стримера — Raid OS', 'Streamer invitation — Raid OS'],
   ['Приглашение в отряд — Raid OS', 'Squad invitation — Raid OS'], ['Приглашение в друзья — Raid OS', 'Friend invitation — Raid OS'],
   // What search engines show under the public pages (App.tsx).

@@ -108,6 +108,8 @@ describe('English for the in-raid checks', () => {
       ['Снять все галочки', 'Clear all checks'],
       ['Галочки сбрасываются при входе в следующий рейд', 'Checks clear when the next raid starts'],
       ['Галочки остаются, пока вы их не снимете', 'Checks stay until you clear them'],
+      ['Все цели отмечены', 'All objectives ticked'],
+      ['Все цели отмечены. Снять можно в целях квеста', 'All objectives ticked. Take one back in the quest\'s objectives'],
     ]
     for (const [ru, en] of phrases) expect(exactUiText(ru), ru).toBe(en)
   })

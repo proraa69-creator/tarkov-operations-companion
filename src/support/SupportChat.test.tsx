@@ -2,10 +2,15 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SupportChatDialog, SupportNotice } from './SupportChat'
+import { useState } from 'react'
+import { SupportChatDialog, SupportComposer, SupportMessageList, SupportNotice } from './SupportChat'
 import { cleanSupportMessage, pendingSupportNotice, resetSupportChat, supportTime, type SupportMessage } from './supportChatClient'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
-import { SUPPORT_IMAGE_PLACEHOLDER } from '../shared/supportChat'
+import { SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_STICKER_PLACEHOLDER, type SupportReaction } from '../shared/supportChat'
+import { SUPPORT_STICKERS } from '../shared/supportStickers'
+import { cleanStickerCatalog, loadStickerCatalog, resetStickerCatalog, stickerPictureSrc } from './stickerCatalog'
+import { quoteBody, supportPreviewText, useSupportEdit } from './supportChatTools'
+import { LocaleProvider } from '../i18n/LocaleProvider'
 import { SupportButtons } from '../components/SupportButtons'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { OPEN_ACCOUNT_SIGN_IN_EVENT } from '../account/accountEvents'
@@ -24,21 +29,45 @@ const mine = (id: number, text: string, read = false): SupportMessage => ({ id, 
  * The desktop gateway with a server conversation: GET answers `thread` (only what came after `after` when asked, with
  * the oldest message's id), POST appends the player's message.
  */
-function mockServer(status: unknown, thread: { messages: SupportMessage[]; unread: number }) {
+function mockServer(status: unknown, thread: { messages: SupportMessage[]; unread: number }, stickers: { catalog: unknown } = { catalog: { version: 'none', updatedAt: null, packs: [] } }) {
   const calls: Array<[string, string, unknown]> = []
   let nextId = 100
   const serviceRequest = vi.fn(async (method: string, path: string, body?: unknown): Promise<unknown> => {
     calls.push([method, path, body])
+    // The owner's published sticker packs (server/src/routes/stickers.ts).
+    if (method === 'GET' && path === '/v1/stickers') return stickers.catalog
     if (method === 'GET' && path.startsWith('/v1/me/support/messages')) {
       const after = Number(new URL(path, 'https://raidos.app').searchParams.get('after') ?? 0)
       return { messages: thread.messages.filter((message) => message.id > after), unread: thread.unread, oldestId: thread.messages[0]?.id ?? null }
     }
     if (method === 'POST' && path === '/v1/me/support/messages') {
-      const sent = body as { text: string; images?: Array<{ data: string }> }
+      const sent = body as { text: string; images?: Array<{ data: string }>; replyTo?: number; sticker?: string }
       const attachments = (sent.images ?? []).map((_, index) => ({ id: `${String(nextId).padStart(22, '0')}${index}a`, width: 1920, height: 1080 }))
-      const message: SupportMessage = { ...mine(nextId++, sent.text || (attachments.length ? SUPPORT_IMAGE_PLACEHOLDER : '')), ...(attachments.length ? { attachments } : {}) }
+      // As the server: a reply quotes the message as it read, a sticker reads «[стикер: …]» for older apps.
+      const original = sent.replyTo ? thread.messages.find((known) => known.id === sent.replyTo) : undefined
+      const text = sent.sticker ? `[стикер: ${sent.sticker}]` : sent.text || (attachments.length ? SUPPORT_IMAGE_PLACEHOLDER : '')
+      const message: SupportMessage = {
+        ...mine(nextId++, text), ...(attachments.length ? { attachments } : {}), ...(sent.sticker ? { sticker: sent.sticker } : {}),
+        ...(original ? { replyTo: { id: original.id, author: original.author, text: original.sticker ? '' : original.text, ...(original.sticker ? { sticker: original.sticker } : {}) } } : {}),
+      }
       thread.messages = [...thread.messages, message]
       return { message }
+    }
+    const reaction = /^\/v1\/me\/support\/messages\/(\d+)\/reactions$/.exec(path)
+    if (method === 'POST' && reaction) {
+      const { emoji, on } = body as { emoji: string; on: boolean }
+      const id = Number(reaction[1])
+      thread.messages = thread.messages.map((known) => {
+        if (known.id !== id) return known
+        const list: SupportReaction[] = (known.reactions ?? []).map((entry) => ({ emoji: entry.emoji, authors: [...entry.authors] }))
+        const entry = list.find((item) => item.emoji === emoji) ?? (list[list.push({ emoji, authors: [] }) - 1]!)
+        entry.authors = [...entry.authors.filter((author) => author !== 'user'), ...(on ? ['user' as const] : [])]
+        const reactions = list.filter((item) => item.authors.length)
+        const { reactions: _old, ...rest } = known
+        void _old
+        return { ...rest, ...(reactions.length ? { reactions } : {}) }
+      })
+      return { message: thread.messages.find((known) => known.id === id) }
     }
     // A screenshot of the conversation: a 1×1 PNG.
     if (method === 'GET' && path.startsWith('/v1/me/support/attachments/')) return { mime: 'image/png', data: 'iVBORw0KGgo=', width: 1920, height: 1080 }
@@ -56,6 +85,7 @@ afterEach(async () => {
   await refreshServerStatus()
   Reflect.deleteProperty(window, 'tarkovDesktop')
   resetSupportChat()
+  resetStickerCatalog()
   localStorage.clear()
 })
 
@@ -74,6 +104,22 @@ describe('support chat window', () => {
     expect(within(own as HTMLElement).getByRole('img', { name: 'Прочитано' })).toBeInTheDocument()
     expect(own.querySelector('time')).toHaveAttribute('dateTime', at)
     await waitFor(() => expect(server.calls.some(([method, path]) => method === 'POST' && path === '/v1/me/support/read')).toBe(true))
+  })
+
+  // Owner, 04.11.2026: «У человека появляется в чате номер его заявки, и название его заявки, заголовок. И пишется, что это ответ на заявку».
+  it('an answer about a report: «Ответ на заявку №37», its title, then the owner\'s words alone', async () => {
+    const reply: SupportMessage = { ...answer(2, 'Ответ на заявку №37 «Квесты и их баги»\n\nНашли причину.'), report: { id: 37, kind: 'idea', title: 'Квесты и их баги', text: 'Нашли причину.' } }
+    mockServer(signedIn, { messages: [reply], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    const dialog = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
+    const message = (await within(dialog).findByText('Нашли причину.')).closest('.support-chat-message')!
+    expect(message.querySelector('.support-chat-report')).toHaveTextContent('Ответ на заявку №37Квесты и их баги')
+    expect(message.querySelector('.support-chat-text')!.textContent).toBe('Нашли причину.')
+  })
+
+  it('a message from a server without the report\'s card, or with a broken one, shows its text', () => {
+    expect(cleanSupportMessage({ id: 2, author: 'owner', text: 'Ответ на заявку №37 «Х»\n\nДа', createdAt: at, read: false, report: { id: 'x', title: 'Х', text: 'Да' } })).toEqual({ id: 2, author: 'owner', text: 'Ответ на заявку №37 «Х»\n\nДа', createdAt: at, read: false })
+    expect(cleanSupportMessage({ id: 2, author: 'owner', text: 'Т', createdAt: at, read: false, report: { id: 37, kind: 'idea', title: 'Х', text: 'Да' } })?.report).toEqual({ id: 37, kind: 'idea', title: 'Х', text: 'Да' })
   })
 
   it('Enter sends, Shift+Enter starts a new line; the message joins the conversation and the box is emptied', async () => {
@@ -364,6 +410,11 @@ describe('English', () => {
       expect(uiText('Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.')).toBe('Message us in the support chat, send a bug report with screenshots or share an idea for the app.')
       expect(uiText('Чаты')).toBe('Chats')
       expect(uiText('Ответ игроку…')).toBe('Reply to the player…')
+      expect(uiText('Ответ на заявку')).toBe('Reply to request')
+      expect(uiText('Ответить')).toBe('Reply')
+      expect(uiText('Ответ отправлен')).toBe('Reply sent')
+      expect(uiText('Отвечено')).toBe('Answered')
+      expect(uiText('Заявка не найдена')).toBe('Request not found')
       expect(uiText('Новое сообщение от поддержки')).toBe('New message from support')
       expect(uiText('Открыть')).toBe('Open')
       expect(uiText('Открыть чат')).toBe('Open chat')
@@ -567,6 +618,528 @@ describe('screenshots in the chat (owner, 15.10.2026: «еще связатьс�
       expect(await within(dialog).findByRole('button', { name: 'Attach a screenshot' })).toBeInTheDocument()
       expect(within(dialog).getByRole('link', { name: 'Message on Telegram' })).toBeInTheDocument()
       expect(dialog).toHaveTextContent('Prefer Telegram?')
+    } finally {
+      setRenderLanguage('ru')
+    }
+  })
+})
+
+// Owner, 07.11.2026: «и пользователь, и я смог ставить на сообщения лайки или нажать правой клавишей и нажать «Ответить» именно
+// на это сообщение… И просто отправлять смайлики… стикеры в стиле Таркова отправлять».
+describe('reactions, replies, emoji and stickers', () => {
+  const bubble = (text: string) => screen.getByText(text, { selector: '.support-chat-text' }).closest('.support-chat-message') as HTMLElement
+  const posts = (calls: Array<[string, string, unknown]>, path = '/v1/me/support/messages') => calls.filter(([method, called]) => method === 'POST' && called === path).map(([, , body]) => body)
+
+  it('a right click on a message → «Ответить»: the reply bar above the box, the message goes with replyTo and quotes it; a click on the quote shows the original', async () => {
+    const server = mockServer(signedIn, { messages: [mine(1, 'Не грузится карта'), answer(2, 'Обновите приложение до 0.6.0')], unread: 0 })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Обновите приложение до 0.6.0')
+    fireEvent.contextMenu(bubble('Обновите приложение до 0.6.0'), { clientX: 40, clientY: 60 })
+    const menu = screen.getByRole('menu', { name: 'Действия с сообщением' })
+    expect(within(menu).getAllByRole('menuitemcheckbox').map((item) => item.textContent)).toEqual(['👍', '❤️', '😂', '😮', '😢', '🔥', '💀', '🤝'])
+    await user.click(within(menu).getByRole('menuitem', { name: 'Ответить' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+
+    const bar = screen.getByRole('group', { name: 'Ответ на сообщение' })
+    expect(bar).toHaveTextContent('Raid OS')
+    expect(bar).toHaveTextContent('Обновите приложение до 0.6.0')
+    const box = screen.getByRole('textbox', { name: 'Сообщение' })
+    expect(box).toHaveFocus()
+    await user.type(box, 'Обновил, работает{Enter}')
+    await waitFor(() => expect(box).toHaveValue(''))
+    expect(posts(server.calls)).toEqual([{ text: 'Обновил, работает', replyTo: 2 }])
+    // Sent: the bar is gone; the bubble quotes the owner's message.
+    expect(screen.queryByRole('group', { name: 'Ответ на сообщение' })).toBeNull()
+    const sent = bubble('Обновил, работает')
+    const quote = within(sent).getByRole('button', { name: /Raid OS/ })
+    expect(quote).toHaveTextContent('Raid OSОбновите приложение до 0.6.0')
+    await user.click(quote)
+    expect(bubble('Обновите приложение до 0.6.0')).toHaveClass('is-flash')
+
+    // «×» drops the reply: the next message goes alone. A reply to one's own message quotes «Вы».
+    fireEvent.contextMenu(bubble('Не грузится карта'))
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    expect(screen.getByRole('group', { name: 'Ответ на сообщение' })).toHaveTextContent('ВыНе грузится карта')
+    await user.click(screen.getByRole('button', { name: 'Отменить ответ' }))
+    expect(screen.queryByRole('group', { name: 'Ответ на сообщение' })).toBeNull()
+    await user.type(box, 'Без ответа{Enter}')
+    await waitFor(() => expect(posts(server.calls)).toHaveLength(2))
+    expect(posts(server.calls)[1]).toEqual({ text: 'Без ответа' })
+  })
+
+  it('Escape closes the menu, then drops the reply, and only then the chat', async () => {
+    mockServer(signedIn, { messages: [answer(2, 'Здравствуйте')], unread: 0 })
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={onClose} />)
+    await screen.findByText('Здравствуйте')
+    fireEvent.contextMenu(bubble('Здравствуйте'))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.contextMenu(bubble('Здравствуйте'))
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('group', { name: 'Ответ на сообщение' })).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('a reaction from the menu shows as a chip with its count, the reader\'s own marked; a click on the chip takes it back; the other side\'s stays', async () => {
+    const liked: SupportMessage = { ...answer(2, 'Готово'), reactions: [{ emoji: '🔥', authors: ['owner'] }] }
+    const server = mockServer(signedIn, { messages: [mine(1, 'Спасибо'), liked], unread: 0 })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Готово')
+    // The owner's reaction: shown, not the reader's.
+    const fire = within(bubble('Готово')).getByRole('button', { name: '🔥 1' })
+    expect(fire).toHaveAttribute('aria-pressed', 'false')
+    expect(fire).toHaveAttribute('title', 'Raid OS')
+
+    fireEvent.contextMenu(bubble('Готово'))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: '👍' }))
+    await waitFor(() => expect(within(bubble('Готово')).getByRole('button', { name: '👍 1' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(posts(server.calls, '/v1/me/support/messages/2/reactions')).toEqual([{ emoji: '👍', on: true }])
+    // The menu says which ones are the reader's.
+    fireEvent.contextMenu(bubble('Готово'))
+    expect(screen.getByRole('menuitemcheckbox', { name: '👍' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemcheckbox', { name: '🔥' })).toHaveAttribute('aria-checked', 'false')
+    await user.keyboard('{Escape}')
+
+    // A click on the other side's chip adds the reader's own; on the reader's own, takes it back.
+    await user.click(within(bubble('Готово')).getByRole('button', { name: '🔥 1' }))
+    await waitFor(() => expect(within(bubble('Готово')).getByRole('button', { name: '🔥 2' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(within(bubble('Готово')).getByRole('button', { name: '🔥 2' })).toHaveAttribute('title', 'Вы, Raid OS')
+    await user.click(within(bubble('Готово')).getByRole('button', { name: '👍 1' }))
+    await waitFor(() => expect(within(bubble('Готово')).queryByRole('button', { name: /^👍/ })).toBeNull())
+    expect(posts(server.calls, '/v1/me/support/messages/2/reactions')).toEqual([{ emoji: '👍', on: true }, { emoji: '🔥', on: true }, { emoji: '👍', on: false }])
+    // The reader's own message takes reactions too.
+    fireEvent.contextMenu(bubble('Спасибо'))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: '🤝' }))
+    await waitFor(() => expect(within(bubble('Спасибо')).getByRole('button', { name: '🤝 1' })).toBeInTheDocument())
+  })
+
+  it('a refused reaction goes back and says why', async () => {
+    const server = mockServer(signedIn, { messages: [answer(2, 'Готово')], unread: 0 })
+    server.serviceRequest.mockImplementation(async (method: string, path: string) => {
+      if (method === 'GET' && path.startsWith('/v1/me/support/messages')) return { messages: [answer(2, 'Готово')], unread: 0, oldestId: 2 }
+      if (path.endsWith('/reactions')) throw new Error('Сообщение не найдено')
+      return null
+    })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Готово')
+    fireEvent.contextMenu(bubble('Готово'))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: '❤️' }))
+    expect(await screen.findByText('Сообщение не найдено')).toBeInTheDocument()
+    expect(within(bubble('Готово')).queryByRole('button', { name: /❤️/ })).toBeNull()
+  })
+
+  it('the phone: a long press only copies (no reactions); a finger that moves scrolls instead (owner, 08.11.2026)', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn(async () => {}) } })
+    mockServer(signedIn, { messages: [answer(2, 'Держитесь')], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Держитесь')
+    fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 340 }] })
+    await new Promise((resolve) => setTimeout(resolve, 520))
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.touchEnd(bubble('Держитесь'))
+    fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
+    const menu = await screen.findByRole('menu', {}, { timeout: 1500 })
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Копировать'])
+    expect(within(menu).queryByRole('menuitemcheckbox')).toBeNull()
+    expect(bubble('Держитесь')).toHaveClass('is-menu')
+  })
+
+  it('the phone: a swipe to the right moves the bubble, springs it back and opens the reactions and «Ответить»', async () => {
+    mockServer(signedIn, { messages: [answer(2, 'Держитесь')], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Держитесь')
+    // not far enough: back, nothing opens
+    fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 130, clientY: 302 }] })
+    expect(bubble('Держитесь')).toHaveClass('is-swiping')
+    expect(bubble('Держитесь').style.transform).toBe('translateX(30px)')
+    fireEvent.touchEnd(bubble('Держитесь'))
+    expect(bubble('Держитесь')).toHaveClass('is-springing')
+    expect(bubble('Держитесь').style.transform).toBe('translateX(0px)')
+    expect(screen.queryByRole('menu')).toBeNull()
+    // far enough: the bubble goes heavier past 60 px, then the menu
+    fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 140, clientY: 303 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 200, clientY: 305 }] })
+    expect(bubble('Держитесь').style.transform).toBe('translateX(72px)')
+    fireEvent.touchEnd(bubble('Держитесь'))
+    const menu = screen.getByRole('menu')
+    expect(within(menu).getAllByRole('menuitemcheckbox').length).toBeGreaterThan(3)
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Ответить'])
+    // a finger going down scrolls: no swipe
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 112, clientY: 340 }] })
+    expect(bubble('Держитесь')).not.toHaveClass('is-swiping')
+  })
+
+  it('stickers: the button opens the pack, a click sends it at once (with the reply); the bubble shows its picture and caption', async () => {
+    const server = mockServer(signedIn, { messages: [answer(2, 'Как успехи?')], unread: 0 })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Как успехи?')
+    const box = screen.getByRole('textbox', { name: 'Сообщение' })
+    await user.type(box, 'черновик')
+    fireEvent.contextMenu(bubble('Как успехи?'))
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    const pack = screen.getByRole('group', { name: 'Стикеры' })
+    expect(within(pack).getAllByRole('button')).toHaveLength(SUPPORT_STICKERS.length)
+    await user.click(within(pack).getByRole('button', { name: 'Крыса' }))
+    await waitFor(() => expect(posts(server.calls)).toEqual([{ text: '', sticker: 'rat', replyTo: 2 }]))
+    // Sent: the pack and the reply are gone, the words in the box stay for the next message.
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Стикеры' })).toBeNull())
+    expect(screen.queryByRole('group', { name: 'Ответ на сообщение' })).toBeNull()
+    expect(box).toHaveValue('черновик')
+    const sticker = screen.getByText('Крыса', { selector: 'figcaption' }).closest('.support-chat-message') as HTMLElement
+    expect(sticker).toHaveClass('is-own', 'is-sticker')
+    // The text for older apps is not shown; the picture is.
+    expect(sticker.querySelector('.support-chat-text')).toBeNull()
+    expect(sticker.querySelector('figure img, figure .support-chat-sticker-blank')).not.toBeNull()
+    expect(within(sticker).getByRole('button', { name: /Raid OS/ })).toHaveTextContent('Как успехи?')
+    // A reply to a sticker quotes «Стикер: Крыса».
+    fireEvent.contextMenu(sticker)
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    expect(screen.getByRole('group', { name: 'Ответ на сообщение' })).toHaveTextContent('ВыСтикер: Крыса')
+  })
+
+  it('emoji: the grid puts one in at the cursor; a message of emoji only is shown bigger', async () => {
+    const server = mockServer(signedIn, { messages: [answer(2, '👍🔥'), answer(3, 'Ок 👍')], unread: 0 })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Ок 👍')
+    expect(bubble('👍🔥').querySelector('.support-chat-text')).toHaveClass('is-emoji')
+    expect(bubble('Ок 👍').querySelector('.support-chat-text')).not.toHaveClass('is-emoji')
+
+    const box = screen.getByRole('textbox', { name: 'Сообщение' }) as HTMLTextAreaElement
+    await user.type(box, 'Привет мир')
+    await user.click(screen.getByRole('button', { name: 'Смайлики' }))
+    const grid = screen.getByRole('group', { name: 'Смайлики' })
+    for (const emoji of ['💀', '🔫', '🎒', '🩸', '🧰', '💰', '🚪', '🐀']) expect(within(grid).getByRole('button', { name: emoji })).toBeInTheDocument()
+    await user.click(within(grid).getByRole('button', { name: '🔥' }))
+    expect(box).toHaveValue('Привет мир🔥')
+    // In the middle, in place of what is selected.
+    box.setSelectionRange(6, 7)
+    await user.click(within(grid).getByRole('button', { name: '🐀' }))
+    expect(box).toHaveValue('Привет🐀мир🔥')
+    expect([box.selectionStart, box.selectionEnd]).toEqual([8, 8])
+    // The grid stays for more; Escape closes it, not the chat.
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('group', { name: 'Смайлики' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Чат с поддержкой' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Отправить' }))
+    await waitFor(() => expect(posts(server.calls)).toEqual([{ text: 'Привет🐀мир🔥' }]))
+  })
+
+  it('the server\'s message shape: a sticker of the pack, a reply, reactions of SUPPORT_REACTIONS; anything else is left out', () => {
+    const base = { id: 5, author: 'owner', text: '[стикер: Крыса]', createdAt: at, read: false }
+    expect(cleanSupportMessage({ ...base, sticker: 'rat', replyTo: { id: 3, author: 'user', text: 'Вопрос' }, reactions: [{ emoji: '👍', authors: ['user', 'owner'] }] })).toEqual({
+      ...base, sticker: 'rat', replyTo: { id: 3, author: 'user', text: 'Вопрос' }, reactions: [{ emoji: '👍', authors: ['user', 'owner'] }],
+    })
+    // A sticker this app does not know: the text for older apps shows instead.
+    expect(cleanSupportMessage({ ...base, sticker: 'from-a-newer-pack' })).not.toHaveProperty('sticker')
+    expect(cleanSupportMessage({ ...base, replyTo: { id: 'x', author: 'user', text: 'Т' } })).not.toHaveProperty('replyTo')
+    expect(cleanSupportMessage({ ...base, replyTo: { id: 3, author: 'someone', text: 'Т' } })).not.toHaveProperty('replyTo')
+    expect(cleanSupportMessage({ ...base, reactions: [{ emoji: '🍕', authors: ['user'] }, { emoji: '👍', authors: ['x'] }, { emoji: '🔥', authors: ['owner', 'owner'] }, { emoji: '🔥', authors: ['user'] }] })?.reactions).toEqual([{ emoji: '🔥', authors: ['owner'] }])
+    expect(cleanSupportMessage({ ...base, reactions: 'nope' })).not.toHaveProperty('reactions')
+  })
+
+  it('English', async () => {
+    const { setRenderLanguage, uiText } = await import('../i18n/renderText')
+    setRenderLanguage('en')
+    try {
+      for (const [ru, en] of [
+        ['Действия с сообщением', 'Message actions'], ['Реакции', 'Reactions'], ['Ответить', 'Reply'], ['Копировать', 'Copy'], ['Ответ на сообщение', 'Reply to a message'],
+        ['Отменить ответ', 'Cancel reply'], ['Показать сообщение', 'Show the message'], ['Смайлики', 'Emoji'], ['Стикеры', 'Stickers'], ['Стикер', 'Sticker'], ['Вы', 'You'],
+        ['Игрок', 'Player'], ['Не удалось поставить реакцию', 'Could not set the reaction'], ['Сообщение не найдено', 'Message not found'], ['Неизвестный стикер', 'Unknown sticker'],
+        ['Такой реакции нет', 'No such reaction'], ['Стикер отправляется без текста и скриншотов', 'A sticker is sent without text or screenshots'],
+      ]) expect(uiText(ru!)).toBe(en)
+      mockServer(signedIn, { messages: [{ ...answer(2, '[стикер: GG]'), sticker: 'thanks' }], unread: 0 })
+      localStorage.setItem('tarkov-operations-locale-v1', 'en')
+      render(<LocaleProvider><SupportChatDialog onClose={() => {}} /></LocaleProvider>)
+      const dialog = await screen.findByRole('dialog', { name: 'Support chat' })
+      // The caption in the reader's language, from the pack.
+      expect(await within(dialog).findByText('Thanks, bro', { selector: 'figcaption' })).toBeInTheDocument()
+      expect(within(dialog).getByRole('button', { name: 'Emoji' })).toBeInTheDocument()
+      await userEvent.setup().click(within(dialog).getByRole('button', { name: 'Stickers' }))
+      expect(within(dialog).getByRole('group', { name: 'Stickers' })).toHaveTextContent('Rat')
+    } finally {
+      setRenderLanguage('ru')
+      localStorage.clear()
+    }
+  })
+})
+
+// Owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и
+// телефон… чтобы по нажатию паки загружались»; 08.11.2026: six of the built-in ones stay, first.
+describe('the owner\'s sticker packs in the picker', () => {
+  const PACK = 'a1'.repeat(12)
+  const FIRST = 'b2'.repeat(12)
+  const SECOND = 'c3'.repeat(12)
+  const catalog = { version: 'v1', updatedAt: '2026-11-08T10:00:00.000Z', packs: [{ id: PACK, name: 'Мемы рейда', stickers: [{ id: FIRST, width: 512, height: 512 }, { id: SECOND, width: 400, height: 512 }] }] }
+  const bubble = (text: string) => screen.getByText(text, { selector: '.support-chat-text' }).closest('.support-chat-message') as HTMLElement
+  const posts = (calls: Array<[string, string, unknown]>) => calls.filter(([method, called]) => method === 'POST' && called === '/v1/me/support/messages').map(([, , body]) => body)
+  const catalogReads = (calls: Array<[string, string, unknown]>) => calls.filter(([method, called]) => method === 'GET' && called === '/v1/stickers').length
+
+  it('opening the picker loads the packs: a tab each after the built-in one; a click sends the sticker\'s id with the reply; the bubble draws it from the server', async () => {
+    const server = mockServer(signedIn, { messages: [answer(2, 'Как успехи?')], unread: 0 }, { catalog })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Как успехи?')
+    // Nothing is asked before the picker opens.
+    expect(catalogReads(server.calls)).toBe(0)
+    fireEvent.contextMenu(bubble('Как успехи?'))
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    const picker = screen.getByRole('group', { name: 'Стикеры' })
+    const tabs = await within(picker).findAllByRole('tab')
+    expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-selected')])).toEqual([['Raid OS', 'true'], ['Мемы рейда', 'false']])
+    // The built-in pack first.
+    expect(within(picker).getByRole('tabpanel', { name: 'Raid OS' })).toHaveTextContent('Крыса')
+    await user.click(tabs[1]!)
+    const panel = within(picker).getByRole('tabpanel', { name: 'Мемы рейда' })
+    expect(within(panel).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Стикер 1', 'Стикер 2'])
+    expect(panel.querySelectorAll('img')[1]).toHaveAttribute('src', `https://raidos.app/v1/stickers/${SECOND}.png`)
+    await user.click(within(panel).getByRole('button', { name: 'Стикер 2' }))
+    await waitFor(() => expect(posts(server.calls)).toEqual([{ text: '', sticker: SECOND, replyTo: 2 }]))
+
+    // The bubble: the picture from the server, no caption; a quote of it reads «Стикер».
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Стикеры' })).toBeNull())
+    const sent = document.querySelector(`.support-chat-message.is-sticker img[src$="${SECOND}.png"]`)!.closest('.support-chat-message') as HTMLElement
+    expect(sent).toHaveClass('is-own')
+    expect(sent.querySelector('figcaption')).toBeNull()
+    expect(sent.querySelector('.support-chat-text')).toBeNull()
+    expect(within(sent).getByRole('img', { name: 'Стикер' })).toBeInTheDocument()
+    fireEvent.contextMenu(sent)
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    expect(screen.getByRole('group', { name: 'Ответ на сообщение' })).toHaveTextContent('ВыСтикер')
+
+    // Opened again within a minute: the kept copy, on the pack chosen last, no new request.
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    expect(within(screen.getByRole('group', { name: 'Стикеры' })).getByRole('tab', { name: 'Мемы рейда' })).toHaveAttribute('aria-selected', 'true')
+    expect(catalogReads(server.calls)).toBe(1)
+  })
+
+  it('without the owner\'s packs: the built-in pack alone, no tabs; the sticker button is always there', async () => {
+    const server = mockServer(signedIn, { messages: [answer(2, 'Привет')], unread: 0 })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Привет')
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    const picker = screen.getByRole('group', { name: 'Стикеры' })
+    await waitFor(() => expect(catalogReads(server.calls)).toBe(1))
+    expect(within(picker).queryByRole('tablist')).toBeNull()
+    expect(within(picker).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(SUPPORT_STICKERS.map((sticker) => sticker.ru))
+    expect(SUPPORT_STICKERS.map((sticker) => sticker.id)).toEqual(['rat', 'head-eyes', 'insurance', 'fir', 'thanks', 'heal'])
+    // The server unreachable: the built-in pack still works.
+    server.serviceRequest.mockImplementation(async () => { throw new Error('Сервер недоступен') })
+    await loadStickerCatalog(true)
+    await user.click(within(picker).getByRole('button', { name: 'Хилюсь' }))
+    await waitFor(() => expect(server.serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/support/messages', { text: '', sticker: 'heal' }))
+  })
+
+  it('a sticker the owner deleted since reads «[стикер]» as a placeholder; the list and the quote say «Стикер»', async () => {
+    const gone: SupportMessage = { ...answer(3, SUPPORT_STICKER_PLACEHOLDER) }
+    const quoting: SupportMessage = { ...mine(4, 'Ха'), replyTo: { id: 3, author: 'owner', text: SUPPORT_STICKER_PLACEHOLDER } }
+    mockServer(signedIn, { messages: [gone, quoting], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    const text = await screen.findByText(SUPPORT_STICKER_PLACEHOLDER, { selector: '.support-chat-text' })
+    expect(text).toHaveClass('is-placeholder')
+    expect(within(bubble('Ха')).getByRole('button', { name: /Raid OS/ })).toHaveTextContent('Raid OSСтикер')
+    expect(supportPreviewText(gone, 'ru')).toBe(SUPPORT_STICKER_PLACEHOLDER)
+    expect(supportPreviewText({ ...answer(5, '[стикер: Мемы]'), sticker: FIRST }, 'ru')).toBe('Стикер')
+    expect(supportPreviewText({ ...answer(5, '[стикер: Крыса]'), sticker: 'rat' }, 'ru')).toBe('Стикер: Крыса')
+    expect(quoteBody({ text: '', sticker: FIRST }, 'ru')).toBe('Стикер')
+    // An owner's sticker id is kept from the server's answer; a built-in one that went is not.
+    expect(cleanSupportMessage({ ...answer(6, '[стикер: Мемы]'), sticker: FIRST })?.sticker).toBe(FIRST)
+    expect(cleanSupportMessage({ ...answer(6, '[стикер]'), sticker: 'gg' })).not.toHaveProperty('sticker')
+    expect(stickerPictureSrc('gg')).toBeUndefined()
+    expect(stickerPictureSrc('rat')).toMatch(/^data:image\/svg\+xml|\.svg/)
+  })
+
+  it('the packs\' copy: shape-checked, kept on the device, replaced only when the version moves', async () => {
+    expect(cleanStickerCatalog(null)).toBeNull()
+    expect(cleanStickerCatalog({ packs: [] })).toBeNull()
+    expect(cleanStickerCatalog({
+      version: 'v2', updatedAt: null,
+      packs: [
+        catalog.packs[0],
+        { id: 'not-a-pack', name: 'Х', stickers: [{ id: FIRST, width: 10, height: 10 }] },
+        { id: 'd4'.repeat(12), name: '   ', stickers: [{ id: FIRST, width: 10, height: 10 }] },
+        { id: 'e5'.repeat(12), name: 'Пустой', stickers: [] },
+        { id: 'f6'.repeat(12), name: 'Битые', stickers: [{ id: 'rat', width: 10, height: 10 }, { id: FIRST, width: 9999, height: 10 }, { id: SECOND, width: 64, height: 64 }] },
+      ],
+    })).toEqual({ version: 'v2', updatedAt: null, packs: [catalog.packs[0], { id: 'f6'.repeat(12), name: 'Битые', stickers: [{ id: SECOND, width: 64, height: 64 }] }] })
+
+    const server = mockServer(signedIn, { messages: [], unread: 0 }, { catalog })
+    await loadStickerCatalog(true)
+    expect(JSON.parse(localStorage.getItem('raidos-sticker-catalog-v1')!)).toEqual(catalog)
+    // Within a minute: no request; forced: one more.
+    await loadStickerCatalog()
+    expect(catalogReads(server.calls)).toBe(1)
+    await loadStickerCatalog(true)
+    expect(catalogReads(server.calls)).toBe(2)
+  })
+
+  it('English: the tabs keep the owner\'s pack names; the placeholder and the picker read in English', async () => {
+    const { setRenderLanguage, uiText } = await import('../i18n/renderText')
+    setRenderLanguage('en')
+    try {
+      for (const [ru, en] of [
+        [SUPPORT_STICKER_PLACEHOLDER, '[sticker]'], ['Паки стикеров', 'Sticker packs'], ['Загружаем стикеры…', 'Loading stickers…'], ['Стикер 2', 'Sticker 2'],
+        ['Пак не найден', 'Pack not found'], ['Стикер — только картинка PNG', 'A sticker must be a PNG picture'], ['Стикер больше 512 КБ', 'The sticker is larger than 512 KB'],
+      ]) expect(uiText(ru!)).toBe(en)
+      mockServer(signedIn, { messages: [answer(2, 'Hi')], unread: 0 }, { catalog })
+      localStorage.setItem('tarkov-operations-locale-v1', 'en')
+      render(<LocaleProvider><SupportChatDialog onClose={() => {}} /></LocaleProvider>)
+      const dialog = await screen.findByRole('dialog', { name: 'Support chat' })
+      await screen.findByText('Hi')
+      await userEvent.setup().click(within(dialog).getByRole('button', { name: 'Stickers' }))
+      const tabs = await within(dialog).findAllByRole('tab')
+      expect(tabs.map((tab) => tab.textContent)).toEqual(['Raid OS', 'Мемы рейда'])
+      expect(within(dialog).getByRole('tablist', { name: 'Sticker packs' })).toBeInTheDocument()
+    } finally {
+      setRenderLanguage('ru')
+      localStorage.clear()
+    }
+  })
+})
+
+// Owner, 15.11.2026: «После отправки сообщения нельзя сразу отправить второе: клавиатура больше не открывается. Отправка
+// долго думает». «Редактирование своих сообщений только у админа… Человек не видит, что сообщение отредактировано».
+describe('sent at once, and the owner’s «Редактировать»', () => {
+  const bubble = (text: string) => screen.getByText(text, { selector: '.support-chat-text' }).closest('.support-chat-message') as HTMLElement
+
+  it('the box empties before the server answers and keeps the focus; the message shows «Отправляется»; a second one goes after the first', async () => {
+    const server = mockServer(signedIn, { messages: [], unread: 0 })
+    const serve = server.serviceRequest.getMockImplementation()!
+    const gates: Array<() => void> = []
+    server.serviceRequest.mockImplementation(async (method: string, path: string, body?: unknown) => {
+      if (method === 'POST' && path === '/v1/me/support/messages') await new Promise<void>((resolve) => gates.push(resolve))
+      return serve(method, path, body)
+    })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    const box = await screen.findByRole('textbox', { name: 'Сообщение' })
+    await user.type(box, 'Первое')
+    await user.click(screen.getByRole('button', { name: 'Отправить' }))
+    // Not waiting for the server: empty, still in focus (the phone's keyboard stays), never read-only.
+    expect(box).toHaveValue('')
+    expect(box).toHaveFocus()
+    expect(box).not.toHaveAttribute('readonly')
+    expect(within(bubble('Первое')).getByRole('img', { name: 'Отправляется' })).toBeInTheDocument()
+    expect(bubble('Первое')).toHaveClass('is-sending')
+    await user.type(box, 'Второе{Enter}')
+    expect(box).toHaveValue('')
+    expect(bubble('Второе')).toHaveClass('is-sending')
+    // One after another, in the order written.
+    await waitFor(() => expect(gates).toHaveLength(1))
+    gates.shift()!()
+    await waitFor(() => expect(gates).toHaveLength(1))
+    gates.shift()!()
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'Отправляется' })).toBeNull())
+    const posts = server.calls.filter(([method, path]) => method === 'POST' && path === '/v1/me/support/messages').map(([, , body]) => body)
+    expect(posts).toEqual([{ text: 'Первое' }, { text: 'Второе' }])
+    expect(screen.getAllByText(/Первое|Второе/, { selector: '.support-chat-text' }).map((node) => node.textContent)).toEqual(['Первое', 'Второе'])
+    expect(within(bubble('Второе')).getByRole('img', { name: 'Отправлено' })).toBeInTheDocument()
+  })
+
+  it('a refused message comes back before what was typed since, with the reason', async () => {
+    const server = mockServer(signedIn, { messages: [], unread: 0 })
+    let refuse: (reason: Error) => void = () => {}
+    server.serviceRequest.mockImplementation(async (method: string, path: string) => {
+      if (method === 'POST') return new Promise((_, reject) => { refuse = reject })
+      return path.startsWith('/v1/me/support/messages') ? { messages: [], unread: 0 } : null
+    })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    const box = await screen.findByRole('textbox', { name: 'Сообщение' })
+    await user.type(box, 'Не дошло{Enter}')
+    expect(box).toHaveValue('')
+    await user.type(box, 'новое')
+    act(() => refuse(new Error('Сервер недоступен')))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сервер недоступен')
+    expect(box).toHaveValue('Не дошло\nновое')
+    expect(screen.queryByText('Не дошло', { selector: '.support-chat-text' })).toBeNull()
+  })
+
+  /** The owner's conversation as the owner app and the phone admin show it (support/OwnerChats.tsx, admin/AdminMobilePage.tsx). */
+  function OwnerConversation({ save }: { save: (message: SupportMessage, text: string) => Promise<void> }) {
+    const [list, setList] = useState<SupportMessage[]>([mine(1, 'Не грузится карта'), answer(2, 'Обновите прилоение')])
+    const editor = useSupportEdit(list, async (message, text) => {
+      await save(message, text)
+      setList((current) => current.map((known) => (known.id === message.id ? { ...known, text } : known)))
+    })
+    return <>
+      <SupportMessageList messages={editor.messages} viewer="owner" loading={false} error="" onRetry={() => {}} emptyText="Сообщений пока нет." onReply={() => {}} onEdit={editor.start} />
+      <SupportComposer onSend={async () => {}} placeholder="Ответ игроку…" editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
+    </>
+  }
+
+  it('the owner: «Редактировать» on own messages only; the box takes the words, the new ones show at once with no mark; the draft comes back', async () => {
+    let finish: () => void = () => {}
+    const save = vi.fn((): Promise<void> => new Promise<void>((resolve) => { finish = resolve }))
+    const user = userEvent.setup()
+    render(<OwnerConversation save={save} />)
+    const box = screen.getByRole('textbox', { name: 'Сообщение' })
+    await user.type(box, 'черновик')
+    // The player's message: no «Редактировать».
+    fireEvent.contextMenu(bubble('Не грузится карта'), { clientX: 10, clientY: 10 })
+    expect(within(screen.getByRole('menu')).queryByRole('menuitem', { name: 'Редактировать' })).toBeNull()
+    await user.keyboard('{Escape}')
+    fireEvent.contextMenu(bubble('Обновите прилоение'), { clientX: 10, clientY: 10 })
+    await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Редактировать' }))
+    expect(screen.getByRole('group', { name: 'Редактирование' })).toHaveTextContent('Обновите прилоение')
+    expect(box).toHaveValue('Обновите прилоение')
+    expect(box).toHaveFocus()
+    await user.clear(box)
+    await user.type(box, 'Обновите приложение')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }), 'Обновите приложение')
+    // At once, before the server: the new words in the same bubble, nothing that says they changed; the draft is back.
+    expect(bubble('Обновите приложение')).toHaveClass('is-own')
+    expect(screen.queryByText('Обновите прилоение', { selector: '.support-chat-text' })).toBeNull()
+    expect(document.body.textContent).not.toMatch(/изменено|отредактировано/i)
+    expect(screen.queryByRole('group', { name: 'Редактирование' })).toBeNull()
+    expect(box).toHaveValue('черновик')
+    await act(async () => finish())
+    expect(bubble('Обновите приложение')).toBeInTheDocument()
+  })
+
+  it('the owner: Escape leaves the edit; a failed save brings it back with the words and the reason', async () => {
+    const save = vi.fn().mockRejectedValue(new Error('Сервер недоступен'))
+    const user = userEvent.setup()
+    render(<OwnerConversation save={save} />)
+    const box = screen.getByRole('textbox', { name: 'Сообщение' })
+    fireEvent.contextMenu(bubble('Обновите прилоение'), { clientX: 10, clientY: 10 })
+    await user.click(screen.getByRole('menuitem', { name: 'Редактировать' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('group', { name: 'Редактирование' })).toBeNull()
+    expect(box).toHaveValue('')
+    fireEvent.contextMenu(bubble('Обновите прилоение'), { clientX: 10, clientY: 10 })
+    await user.click(screen.getByRole('menuitem', { name: 'Редактировать' }))
+    await user.type(box, '!{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сервер недоступен')
+    expect(screen.getByRole('group', { name: 'Редактирование' })).toBeInTheDocument()
+    expect(box).toHaveValue('Обновите прилоение!')
+    expect(bubble('Обновите прилоение')).toBeInTheDocument()
+  })
+
+  it('English', async () => {
+    const { setRenderLanguage, uiText } = await import('../i18n/renderText')
+    setRenderLanguage('en')
+    try {
+      expect(['Отправляется', 'Редактировать', 'Редактирование', 'Отменить редактирование', 'Сохранить', 'Не удалось изменить сообщение'].map((text) => uiText(text)))
+        .toEqual(['Sending', 'Edit', 'Editing', 'Cancel editing', 'Save', 'Could not change the message'])
     } finally {
       setRenderLanguage('ru')
     }

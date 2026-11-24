@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Check, CircleHelp, Crosshair, X } from 'lucide-react'
 import type { PurchaseAccess } from '../arsenal/buildStats'
-import type { GunPart } from '../arsenal/gunTypes'
+import type { GunCatalog, GunPart } from '../arsenal/gunTypes'
 import type { WeaponBuildRequirement } from '../domain/types'
 import { useTarkovData } from '../data/DataProvider'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -11,6 +11,7 @@ import type { AttributeCheck, GunsmithPlan } from './gunsmithSolver'
 import { BuildImage } from './BuildImage'
 import { buildScreenshot } from './buildScreenshots'
 import { BuildPartCards, type ModsStatus } from './BuildPartCards'
+import { GuideBuildBench } from './GuideBuildBench'
 import './gunsmith.css'
 
 interface WeaponBuildDetailsProps {
@@ -32,6 +33,8 @@ interface WeaponBuildDetailsProps {
   modsStatus?: ModsStatus
   /** Loads the mod data again after it failed. */
   onRetryMods?: () => void
+  /** The whole mod catalogue: the guide's build is shown in the bench of «Сборка оружия», the screenshot small below it. */
+  catalog?: GunCatalog
 }
 
 /**
@@ -39,20 +42,31 @@ interface WeaponBuildDetailsProps {
  * stats (every one named — «Эффективная дальность», not «effectiveDistance») and the parts it must hold, with pictures
  * and the flea price.
  */
-export function WeaponBuildDetails({ build, questId, checks, compact, weaponImage, mods, access, plan, modsStatus, onRetryMods }: WeaponBuildDetailsProps) {
+export function WeaponBuildDetails({ build, questId, checks, compact, weaponImage, mods, access, plan, modsStatus, onRetryMods, catalog }: WeaponBuildDetailsProps) {
   const { data } = useTarkovData()
   const { locale } = useLocale()
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const weapon = items.get(build.weaponId)
   // The whole rifle: the default preset's picture (the base item alone is only its receiver).
   const image = weaponImage ?? weapon?.presetImageUrl ?? weapon?.iconUrl
-  // The finished build: the owner's own screenshot, else the guide's. One that does not load (owner, 11.10.2026: «ни одна
-  // картинка не открывается») gives way to the next, the last to the weapon.
+  // The finished build: the owner's own screenshot only (owner, 06.11.2026: «У нас наши сборки, наши скриншоты»). Without one,
+  // or when it does not load (owner, 11.10.2026: «ни одна картинка не открывается»), the weapon.
   const [failedImages, setFailedImages] = useState<string[]>([])
-  const buildImage = [buildScreenshot(questId, build.weaponId), build.guide?.image].find((src) => src && !failedImages.includes(src))
-  const fromGuide = buildImage !== undefined && buildImage === build.guide?.image
+  const screenshot = buildScreenshot(questId, build.weaponId)
+  const buildImage = screenshot && !failedImages.includes(screenshot) ? screenshot : undefined
+  // The guide's build in the bench of «Сборка оружия» (owner, 20.11.2026: «такое же интерактивное окно сборки оружия»), the
+  // screenshot small below it; the Overview's small block keeps the screenshot.
+  const gun = !compact && catalog ? catalog.weapons.find((entry) => entry.id === build.weaponId) : undefined
+  const guideParts = useMemo(() => (build.guide?.parts ?? []).flatMap((part) => part.itemId ? [part.itemId] : []), [build.guide])
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
-    <figure className={`gs-weapon${buildImage ? ' has-build-image' : ''}`}>
+    {gun && catalog ? <div className="gs-weapon is-bench">
+      <GuideBuildBench weapon={gun} catalog={catalog} partIds={guideParts} access={access} screenshot={buildImage} alt={uiText(weapon?.name ?? gun.name)}
+        onScreenshotError={buildImage ? () => setFailedImages((failed) => [...failed, buildImage]) : undefined} />
+      <p className="gs-weapon-name">
+        <strong>{uiText(weapon?.name ?? gun.name)}</strong>
+        {weapon?.shortName && weapon.shortName !== weapon.name && <small>{weapon.shortName}</small>}
+      </p>
+    </div> : <figure className={`gs-weapon${buildImage ? ' has-build-image' : ''}`}>
       {/* The finished build (the game's «Сборки оружия» screen), else the weapon's default preset. */}
       {buildImage
         ? <BuildImage key={buildImage} src={buildImage} alt={uiText(weapon?.name ?? 'Оружие из задания')} onError={() => setFailedImages((failed) => [...failed, buildImage])} />
@@ -60,15 +74,17 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
       <figcaption>
         <strong>{uiText(weapon?.name ?? 'Оружие из задания')}</strong>
         {weapon?.shortName && weapon.shortName !== weapon.name && <small>{weapon.shortName}</small>}
-        {fromGuide && build.guide?.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
       </figcaption>
-    </figure>
+    </figure>}
 
     {build.attributes.length > 0 && <div className="gs-block">
       <h5>{uiText('Характеристики')}</h5>
       <ul className="gs-stats">
         {build.attributes.map((attribute) => {
-          const check = checks?.find((entry) => entry.attribute === attribute || (entry.attribute.name === attribute.name && entry.attribute.compare === attribute.compare && entry.attribute.value === attribute.value))
+          const found = checks?.find((entry) => entry.attribute === attribute || (entry.attribute.name === attribute.name && entry.attribute.compare === attribute.compare && entry.attribute.value === attribute.value))
+          // Our count of the example build against the owner's screenshot, each one checked against its task: the game's numbers stand
+          // (06.11.2026: Vector 240 in the game and 265 by count, HK 416A5 3.988 kg and 4.247, M700 ergonomics 36 and 33). No red cross.
+          const check = found?.met === false && buildImage ? { attribute: found.attribute } : found
           const hint = !compact && check && check.actual === undefined ? attributeHint(attribute.name, locale) : undefined
           return <li key={`${attribute.name}${attribute.compare}${attribute.value}`} className={check ? check.met === undefined ? 'is-unknown' : check.met ? 'is-met' : 'is-missed' : ''}>
             <span className="gs-stat-name">{attributeLabel(attribute.name, locale)}</span>

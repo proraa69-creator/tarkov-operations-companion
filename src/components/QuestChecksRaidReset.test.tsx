@@ -2,6 +2,7 @@ import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RaidState } from '../import/raidState'
 import { RAID_CONFIRM_MS, readQuestChecks, setQuestCheck } from '../progression/questChecks'
+import { readTakenItems, setItemTaken } from '../progression/takenItems'
 import { QuestChecksRaidReset } from './QuestChecksRaidReset'
 
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ activeProfile: { id: 'p-raid' } }) }))
@@ -72,6 +73,27 @@ describe('QuestChecksRaidReset', () => {
     render(<QuestChecksRaidReset />)
     await act(() => vi.advanceTimersByTimeAsync(0))
     expect(checked('pvp')).toEqual(['this-raid'])
+  })
+
+  // Report 157 (owner, 14.11.2026): «когда человек зашел в рейд и вышел, эти галочки сбрасываются».
+  it('«Взял»: the marks made before a raid go when that raid is over, in every mode; a cancelled search keeps them', async () => {
+    const taken = (mode: 'pvp' | 'pve') => [...readTakenItems('p-raid', mode).keys()]
+    setItemTaken('p-raid', 'pvp', 'salewa', true, T0 - 60_000)
+    setItemTaken('p-raid', 'pve', 'ak-74', true, T0 - 60_000)
+    render(<QuestChecksRaidReset />)
+    // the search cancelled: no raid, the marks stay
+    flip({ inRaid: true, since: T0 })
+    await act(() => vi.advanceTimersByTimeAsync(8_000))
+    flip({ inRaid: false })
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    expect(taken('pvp')).toEqual(['salewa'])
+    // a raid played: still there during it, gone once it is over
+    flip({ inRaid: true, since: Date.now(), location: 'Woods' })
+    await act(() => vi.advanceTimersByTimeAsync(RAID_CONFIRM_MS + 1_000))
+    expect(taken('pvp')).toEqual(['salewa'])
+    flip({ inRaid: false })
+    expect(taken('pvp')).toEqual([])
+    expect(taken('pve')).toEqual([])
   })
 
   it('does nothing without the desktop shell (phone, browser)', async () => {

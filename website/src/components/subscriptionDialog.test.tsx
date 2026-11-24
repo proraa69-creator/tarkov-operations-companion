@@ -1,6 +1,5 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,26 +41,30 @@ describe('initialSubscriptionTab', () => {
   })
 })
 
-describe('SubscriptionDialog tabs', () => {
-  it('a visitor the server places abroad sees the BZB dollar prices (no Boosty), and «СНГ» shows the rouble prices', async () => {
+// Owner, 01.11.2026: «в этом окне не должно быть выбора оплаты. только та откуда человек».
+describe('SubscriptionDialog: only the visitor\'s own way to pay', () => {
+  it('a visitor the server places abroad sees the BZB dollar prices only, with no choice', async () => {
     mocks.plans.mockResolvedValue({ ...PLANS, regionHint: 'WORLD' })
     render(<MemoryRouter><SubscriptionDialog onClose={() => {}} /></MemoryRouter>)
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Зарубежная оплата' })).toHaveAttribute('aria-selected', 'true'))
-    expect(screen.getByText(/через сервис BZB в долларах США/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText(/через сервис BZB в долларах США/)).toBeInTheDocument())
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     expect(screen.queryByText(/Boosty/)).not.toBeInTheDocument()
     expect(screen.queryByText('300 ₽')).not.toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('tab', { name: 'СНГ' }))
-    expect(screen.getByRole('tab', { name: 'СНГ' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByText(/ЮKassa/)).toBeInTheDocument()
-    expect(screen.getByText('Беларусь, Казахстан и другие страны СНГ')).toBeInTheDocument()
+    expect(screen.queryByText(/ЮKassa/)).not.toBeInTheDocument()
   })
 
-  it('a signed-in account opens on its own country, whatever the hint', async () => {
+  it('Russia: ЮKassa only; a CIS account: BZB only', async () => {
+    mocks.plans.mockResolvedValue({ ...PLANS, regionHint: 'RU' })
+    const view = render(<MemoryRouter><SubscriptionDialog onClose={() => {}} /></MemoryRouter>)
+    await waitFor(() => expect(screen.getByText(/ЮKassa/)).toBeInTheDocument())
+    expect(screen.queryByText('Беларусь, Казахстан и другие страны СНГ')).not.toBeInTheDocument()
+    view.unmount()
+
     mocks.account = { id: 'a', email: 'a@example.com', country: 'BY' }
     mocks.plans.mockResolvedValue({ ...PLANS, regionHint: 'WORLD' })
     render(<MemoryRouter><SubscriptionDialog onClose={() => {}} /></MemoryRouter>)
-    await waitFor(() => expect(mocks.plans).toHaveBeenCalled())
-    expect(screen.getByRole('tab', { name: 'СНГ' })).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(screen.getByText('Беларусь, Казахстан и другие страны СНГ')).toBeInTheDocument())
+    expect(screen.queryByText(/ЮKassa/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/в долларах США/)).not.toBeInTheDocument()
   })
 })

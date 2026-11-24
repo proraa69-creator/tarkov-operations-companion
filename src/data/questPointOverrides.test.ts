@@ -170,3 +170,34 @@ describe('the point constructor (owner, 16.10.2026: «ставлю точку, �
     expect(hint).toMatchObject({ markerId: 'm1', objectiveId: 'o1', items: [{ itemId: item, name: 'Флешка', iconUrl: 'flash.png' }], photoIds: [photo] })
   })
 })
+
+describe('«Редактор карты» (owner, 10.11.2026: «и так с любой точкой на карте»)', () => {
+  const item = '1'.repeat(24)
+  const keySpot: MapMarker = { id: 'key-spot-1', mapId: 'customs', type: 'cache', layerId: 'loot.key', title: 'Ключ от 314', description: '', position: [10, 20], floor: 'Второй этаж' }
+  const container: MapMarker = { id: 'container-1', mapId: 'customs', type: 'cache', layerId: 'loot.container', title: 'Сейф', description: '', position: [1, 2] }
+
+  it('moves, hides and describes a point of no quest; the requirements and the condition reach its hint by name', () => {
+    const parsed = parseQuestPointOverrides({ overrides: [
+      { id: 'a'.repeat(24), markerId: 'key-spot-1', mapId: 'customs', x: 50, z: 60, kind: 'move', floor: 'Подвал', requiredItemIds: [item, 'bad'], conditions: 'Только ночью', conditionsEn: 'Night only' },
+      { id: 'b'.repeat(24), markerId: 'container-1', mapId: 'customs', x: 1, z: 2, kind: 'describe', icon: 'loot.guaranteed', title: 'Сейф за стойкой' },
+      { id: 'c'.repeat(24), markerId: 'extract-1', mapId: 'customs', x: 1, z: 2, kind: 'hide' },
+      { id: 'd'.repeat(24), mapId: 'customs', x: 1, z: 2, kind: 'move' },
+    ] })
+    expect(parsed.map((entry) => entry.id[0])).toEqual(['a', 'b', 'c'])
+    expect(parsed[0]).toMatchObject({ questId: '', requiredItemIds: [item], conditions: 'Только ночью' })
+    const extract: MapMarker = { id: 'extract-1', mapId: 'customs', type: 'extract', layerId: 'extract.pmc', title: 'ЗБ-1011', description: '', position: [0, 0] }
+    const markers = withQuestPointOverrides([keySpot, container, extract], parsed, [], 'en')
+    expect(markers.map((marker) => marker.id)).toEqual(['key-spot-1', 'container-1'])
+    expect(markers[0]).toMatchObject({ position: [60, 50], floor: 'Подвал', hint: { requiredItemIds: [item], conditions: 'Night only' } })
+    expect(markers[1]).toMatchObject({ position: [1, 2], layerId: 'loot.guaranteed', title: 'Сейф за стойкой' })
+    expect(markers[1].hint?.title).toBeUndefined()
+    const dataset = { quests: [], markers, items: [{ id: item, name: 'Ключ 314', iconUrl: 'key.png' }] } as unknown as AppDataset
+    expect(withQuestPointHints(dataset).markers[0].hint?.requiredItems).toEqual([{ itemId: item, name: 'Ключ 314', iconUrl: 'key.png' }])
+  })
+
+  it('a free item spawn takes the new emblems; the requirements make a point «described»', () => {
+    const [spawn] = parseQuestPointOverrides({ overrides: [{ id: 'e'.repeat(24), mapId: 'customs', x: 3, z: 4, kind: 'add', icon: 'loot.guaranteed', title: 'Ледоруб', requiredItemIds: [item] }] })
+    expect(withQuestPointOverrides([], [spawn])[0]).toMatchObject({ type: 'cache', layerId: 'loot.guaranteed', title: 'Ледоруб', hint: { requiredItemIds: [item] } })
+    expect(hasPointText({ conditions: 'После рубильника' })).toBe(true)
+  })
+})

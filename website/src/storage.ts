@@ -1,3 +1,5 @@
+import { AD_ATTRIBUTION_MS, normalizeAdMark, type AdMark } from '../../src/shared/adSources'
+
 // Browser storage can be unavailable (private mode, blocked site data), so every access is guarded.
 const SESSION_KEY = 'toc.session'
 const REFERRAL_KEY = 'toc.referral'
@@ -26,6 +28,22 @@ export function loadReferralCode() {
   return code && REFERRAL_CODE_PATTERN.test(code) ? code : null
 }
 export const saveReferralCode = (code: string | null) => write(REFERRAL_KEY, code)
+
+/**
+ * «Реклама»: the label of the ad's link the site was opened with (adVisit.ts), sent with the registration for
+ * AD_ATTRIBUTION_MS (src/shared/adSources.ts); `at` is when the link was opened.
+ */
+const AD_KEY = 'toc.ad'
+export function loadAdMark(now = Date.now()): AdMark | undefined {
+  try {
+    const saved = JSON.parse(read(AD_KEY) ?? 'null') as { source?: unknown; campaign?: unknown; at?: unknown } | null
+    if (!saved || typeof saved.at !== 'number' || now - saved.at > AD_ATTRIBUTION_MS || saved.at > now + 60_000) return undefined
+    return normalizeAdMark(saved.source, saved.campaign)
+  } catch { return undefined }
+}
+export function saveAdMark(mark: AdMark | null, now = Date.now()) {
+  write(AD_KEY, mark ? JSON.stringify({ ...mark, at: now }) : null)
+}
 
 /** A squad code from an opened /squad/<code> link, kept for this tab until the person signs in (cabinet «Отряд»). */
 const PENDING_SQUAD_KEY = 'raidos-pending-squad-code'

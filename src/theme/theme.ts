@@ -1,3 +1,7 @@
+import { HALLOWEEN, isHalloween } from './halloween'
+import { prepareTheme, prepareThemeWhenIdle, withThemeTransition, type ThemeOrigin } from './themeTransition'
+import { startDayNight, stopDayNight } from './dayNight'
+
 export interface ThemeOption { id: string; label: string; swatch: [string, string, string] }
 
 export const THEMES: ThemeOption[] = [
@@ -8,9 +12,17 @@ export const THEMES: ThemeOption[] = [
   { id: 'slate', label: 'Металл', swatch: ['#16191e', '#3b414b', '#d89e68'] },
   { id: 'telnyashka', label: 'Тельняшка', swatch: ['#16171a', '#ece7da', '#1d3f78'] },
   { id: 'gear', label: 'Снаряжение', swatch: ['#12130e', '#5d6041', '#c9ad7a'] },
+  // Halloween with zombies (owner, 31.10.2026): styles/theme-bloodmoon.css (CSS only)
+  { id: 'bloodmoon', label: 'Кровавая луна', swatch: ['#0c0808', '#7a1d24', '#ff7a22'] },
   // «Сталь», «Перфорация» and «Алькантара» were removed from the picker on 04.10.2026, «Багровый» and «Ржавая сталь» on
   // 06.10.2026 (their CSS stays; a saved choice falls back to the default)
 ]
+
+/**
+ * «Смена дня и ночи» (owner, 15.11.2026): the olive scheme following the clock (theme/dayNight.ts). Not one of THEMES: the
+ * top-bar button's left click and Settings go through the ordinary schemes only; its right-click menu has it under them.
+ */
+export const DAY_NIGHT_THEME = { id: 'daynight', label: 'Смена дня и ночи' } as const
 
 /** «Алькантара»: the thread colour of the seams (Settings → «Цветовая схема» → «Строчка»). */
 export const ALCANTARA_STITCHES = [
@@ -32,6 +44,9 @@ export function saveStitch(stitch: AlcantaraStitch) {
 }
 
 const THEME_KEY = 'tarkov-app-theme'
+/** When the player last picked a scheme on this device (ISO time): a pick during Halloween outlasts the Halloween default. */
+const THEME_PICKED_AT_KEY = 'tarkov-app-theme-picked-at'
+const HALLOWEEN_THEME = 'bloodmoon'
 
 /** Everyone who has not picked a scheme yet starts on the olive scheme «Олива» (id «tarkov»), phone and desktop. */
 export function defaultTheme() {
@@ -42,9 +57,68 @@ function read(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
 }
 
-export function currentTheme() {
+/**
+ * The style of the shell, apart from its colour scheme (owner, 19.11.2026: «это должна быть как основная наша тема и стеклянная. И у
+ * каждой темы должен быть олива, потом тельняшка… только в стиле в обычном и в стекле»): «Обычный» or «Стекло»
+ * (styles/style-glass.css, `:root[data-style="glass"]`), every scheme in either. «Стекло» comes on once for everyone; a pick after
+ * that stands. A scheme saved as «glass» by the first test build is the olive one in the glass style.
+ */
+export const STYLES = [
+  { id: 'plain', label: 'Обычный' },
+  { id: 'glass', label: 'Стекло' },
+] as const
+export type AppStyle = typeof STYLES[number]['id']
+const STYLE_KEY = 'tarkov-app-style'
+const GLASS_SHOWN_KEY = 'tarkov-app-glass-shown'
+export const STYLE_CHANGED_EVENT = 'tarkov-style-changed'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const STYLE_SYNC = { key: STYLE_KEY, event: STYLE_CHANGED_EVENT } as const
+
+function showGlassOnce() {
+  if (read(GLASS_SHOWN_KEY) && read(THEME_KEY) !== 'glass') return
+  try {
+    localStorage.setItem(GLASS_SHOWN_KEY, '1')
+    if (read(THEME_KEY) === 'glass') localStorage.setItem(THEME_KEY, 'tarkov')
+    if (!read(STYLE_KEY)) localStorage.setItem(STYLE_KEY, 'glass')
+  } catch { /* storage unavailable */ }
+}
+
+export function currentStyle(): AppStyle {
+  showGlassOnce()
+  return read(STYLE_KEY) === 'glass' ? 'glass' : 'plain'
+}
+
+/** `origin`: the pressed button, the new style opens as a circle from it (theme/themeTransition.ts). */
+export function saveStyle(style: AppStyle, origin?: ThemeOrigin) {
+  try { localStorage.setItem(STYLE_KEY, style) } catch { /* storage unavailable */ }
+  withThemeTransition(() => applyAppearance(), { origin })
+  window.dispatchEvent(new Event(STYLE_CHANGED_EVENT))
+}
+
+/** The player's own choice (kept, and synced to the account), or the default. */
+export function savedTheme() {
+  showGlassOnce()
   const saved = read(THEME_KEY)
-  return THEMES.some((theme) => theme.id === saved) ? saved! : defaultTheme()
+  return THEMES.some((theme) => theme.id === saved) || saved === DAY_NIGHT_THEME.id ? saved! : defaultTheme()
+}
+
+/** Picked in this run of the app. */
+let pickedNow: string | null = null
+
+/** The player picked a scheme on this device since Halloween began (Moscow day of HALLOWEEN.from). */
+function pickedSinceHalloween() {
+  const at = read(THEME_PICKED_AT_KEY)
+  return Boolean(at) && new Date(Date.parse(at!) + 3 * 3600_000).toISOString().slice(0, 10) >= HALLOWEEN.from
+}
+
+/**
+ * On screen now. During Halloween (owner, 31.10.2026: «должна включаться по умолчанию на время хеллоуина, вместе с маской
+ * тыквы»; days in halloween.ts) a start opens on «Кровавая луна» — until the player picks a scheme himself: then his
+ * pick stays, after a restart too (owner, 01.11.2026: «темы выбранные пользователем на телефоне и пк должны
+ * сохраняться»).
+ */
+export function currentTheme() {
+  return pickedNow ?? (isHalloween() && !pickedSinceHalloween() ? HALLOWEEN_THEME : savedTheme())
 }
 
 export function applyAppearance(theme = currentTheme()) {
@@ -52,18 +126,40 @@ export function applyAppearance(theme = currentTheme()) {
   if (theme === 'tarkov') root.removeAttribute('data-theme')
   else root.setAttribute('data-theme', theme)
   root.setAttribute('data-alc-stitch', currentStitch())
+  if (currentStyle() === 'glass') root.setAttribute('data-style', 'glass')
+  else root.removeAttribute('data-style')
+  if (theme === 'daynight') startDayNight()
+  else stopDayNight()
 }
 
-export function saveAppearance(theme: string) {
-  try { localStorage.setItem(THEME_KEY, theme) } catch { /* storage unavailable */ }
-  applyAppearance(theme)
+/**
+ * `picked: false` — the choice came from the account (another device), not from this screen: saved, not forced on.
+ * `origin` — the pressed button: the new scheme opens as a circle from its centre (theme/themeTransition.ts).
+ */
+export function saveAppearance(theme: string, { picked = true, origin }: { picked?: boolean; origin?: ThemeOrigin } = {}) {
+  try {
+    localStorage.setItem(THEME_KEY, theme)
+    if (picked) localStorage.setItem(THEME_PICKED_AT_KEY, new Date().toISOString())
+  } catch { /* storage unavailable */ }
+  if (picked) pickedNow = theme
+  // A scheme the player picks changes in one motion (theme/themeTransition.ts); one from the account just changes.
+  if (picked) {
+    withThemeTransition(() => applyAppearance(), { origin, prepared: prepareTheme(theme) })
+    // The player may press again: the scheme after this one gets its pictures ready meanwhile.
+    prepareThemeWhenIdle(() => nextTheme().id, 900)
+  } else applyAppearance()
 }
 
-/** Next theme in the list, for the top-bar button that cycles through them. */
-export function cycleTheme() {
+/** The scheme the top-bar button puts on next. */
+export function nextTheme() {
   const index = THEMES.findIndex((theme) => theme.id === currentTheme())
-  const next = THEMES[(index + 1) % THEMES.length]!
-  saveAppearance(next.id)
+  return THEMES[(index + 1) % THEMES.length]!
+}
+
+/** Next theme in the list, for the top-bar button that cycles through them; `origin`: that button. */
+export function cycleTheme(origin?: ThemeOrigin) {
+  const next = nextTheme()
+  saveAppearance(next.id, { origin })
   window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
   return next
 }

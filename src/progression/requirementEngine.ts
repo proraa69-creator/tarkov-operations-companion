@@ -2,6 +2,8 @@ import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus } from
 import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResult } from './chronology'
 import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements, TRACKED_SOURCES } from './questBasics'
+import { prestigeMismatch } from './prestigeQuests'
+import { visibleStoryObjectives } from './storyObjectives'
 
 export { isLiveGameQuest, questFaction, questRequirements } from './questBasics'
 
@@ -24,8 +26,19 @@ export interface TaskAvailability {
   line?: { order?: number; ll?: number; level: number; reached?: number }
 }
 
-/** What the logs show about lines and stages (calculateAvailability), for the line conditions of each quest. */
-export type AvailabilityContext = Pick<ChronologyResult, 'lineLevels' | 'traderStages' | 'historyBeforeLogs' | 'stages' | 'knownLevel'>
+/**
+ * What the logs show about lines and stages (calculateAvailability), for the line conditions of each quest; `loyalty`: the
+ * loyalty level the game's traders' screen showed for this character, by trader id (TraderLoyaltyKnown).
+ */
+export type AvailabilityContext = Pick<ChronologyResult, 'lineLevels' | 'traderStages' | 'historyBeforeLogs' | 'stages' | 'knownLevel'> & { loyalty?: TraderLoyaltyKnown }
+
+/**
+ * Trader loyalty levels the game showed for the mode's character (the traders' screen, src/gunsmith/traderLevels.ts), by
+ * trader id. Only ever lifts a doubt: a quest the logs cannot place (history from before the logs) whose loyalty the screen
+ * shows reached is offered, not «may be open». A lower reading locks nothing (an old or misread badge must not hide a
+ * quest the player can take: owner, 02.11.2026 «не сделай систему хуже чем сейчас»).
+ */
+export type TraderLoyaltyKnown = ReadonlyMap<string, number>
 
 export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, context?: AvailabilityContext): TaskAvailability {
   const explicit = progress.taskProgress[quest.id]
@@ -38,6 +51,10 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
   if (progress.faction !== 'unknown' && faction && faction !== progress.faction) {
     blockers.push(`Задание доступно фракции ${quest.faction}`)
   }
+  // «Новое начало» of another prestige (report №100): the game gives each only at its own prestige.
+  const prestige = prestigeMismatch(quest, progress.prestige)
+  if (prestige === 'after') blockers.push(`Нужен престиж ${quest.prestige}`)
+  if (prestige === 'before') blockers.push(`Только на престиже ${quest.prestige}`)
 
   for (const requirement of questRequirements(quest)) {
     const prerequisite = progress.taskProgress[requirement.taskId]
@@ -49,6 +66,9 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
           ? 'failed'
           : undefined
     const allowed = new Set(requirement.allowedStatuses.length ? requirement.allowedStatuses : ['complete'])
+    // «taken» opens the next one, and it stays open once the taken one is done: the game unlocks it when the first is started
+    // («Задержка отправления. Часть 2» needs «Рука помощи» taken; a player who finished it had it locked here)
+    if (allowed.has('active')) allowed.add('complete')
     if (!normalized || !allowed.has(normalized as 'complete' | 'failed' | 'active')) {
       blockers.push(`Не выполнено предыдущее задание: ${requirement.taskId}`)
     }
@@ -80,9 +100,9 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
   // Loyalty the logs do not show yet (a quest that needs LL4 while the trader's quests in the logs are of LL3 at most):
   // the player may have it from before the logs.
   if (context?.historyBeforeLogs && !blockers.length) {
-    const own = quest.traderLoyalty?.needed.filter((entry) => !quest.traderId || entry.traderId === quest.traderId).map((entry) => entry.level) ?? []
+    const own = quest.traderLoyalty?.needed.filter((entry) => !quest.traderId || entry.traderId === quest.traderId) ?? []
     const stage = context.traderStages.get(traderKeyOf(quest))?.ll ?? 1
-    if (own.some((level) => level > stage)) unknown = true
+    if (own.some((entry) => entry.level > stage && (context.loyalty?.get(entry.traderId) ?? 0) < entry.level)) unknown = true
   }
 
   if (blockers.length) return { status: 'locked', blockers, ...(waiting ? { line: waiting } : {}) }
@@ -90,7 +110,7 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
 }
 
 
-export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
+export function calculateAvailability(quests: Quest[], progress: ModeProgress, loyalty?: TraderLoyaltyKnown) {
   const verified: ModeProgress = {
     ...progress,
     taskProgress: Object.fromEntries(Object.entries(progress.taskProgress).filter(([, record]) => TRACKED_SOURCES.has(record.source))),
@@ -142,7 +162,7 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
     }
   }
   const availability = new Map(quests.map((quest) => {
-    const result = evaluateTaskAvailability(quest, verified, chronology)
+    const result = evaluateTaskAvailability(quest, verified, loyalty ? { ...chronology, loyalty } : chronology)
     const mark = chronology.completed.get(quest.id)
     const inferred = verified.taskProgress[quest.id]
     if (mark) return [quest.id, { ...result, basis: mark.basis, anchorId: mark.anchorId }]
@@ -224,14 +244,49 @@ export function isTrackedQuest(quest: { id: string }, progress: ModeProgress) {
 }
 
 /** Current = accepted in the game (logged «задание принято») and not handed in or failed since. */
-export function isCurrentTrackedQuest(quest: { id: string }, progress: ModeProgress) {
+/**
+ * A current quest: taken by the logs, the screen or the player — or one of the BTR driver's, open and not over
+ * (opensByItself).
+ */
+export function isCurrentTrackedQuest(quest: { id: string } & Partial<Pick<Quest, 'traderId' | 'requirements' | 'previous' | 'level' | 'faction' | 'gameConditions' | 'unlock' | 'prestige'>>, progress: ModeProgress) {
   const record = progress.taskProgress[quest.id]
-  return record?.status === 'active' && TRACKED_SOURCES.has(record.source)
+  if (record) return record.status === 'active' && TRACKED_SOURCES.has(record.source)
+  return opensByItself(quest, progress)
 }
 
+/**
+ * Traders whose quests the game takes without a line in its logs: the BTR driver gives his in a raid, by talking to him
+ * (owner, 08.11.2026: a player had no BTR point on the map; of the players' BTR quests on the server two came from the logs,
+ * the rest only from reading the screen). Their finish and failure are logged.
+ */
+export const UNLOGGED_START_TRADERS: ReadonlySet<string> = new Set(['656f0f98d80a697f855d34b1'])
+/** «Рука помощи» (Mechanic): the meeting with the BTR driver. A quest of his that follows no other one opens after it. */
+export const BTR_FIRST_QUEST = '6752f6d83038f7df520c83e8'
+
+/**
+ * The app adds a BTR driver's quest by itself once the game would have given it (owner: «Посмотри, после каких квестов
+ * открывается этот квест… Если эти условия все выполнены, то он должен сам добавляться в приложение»): every quest it
+ * follows in the state it needs, the player's level, loyalty and faction (evaluateTaskAvailability) — and, for one that follows
+ * no quest, «Рука помощи» done. Not when the logs or the player already say anything about it (done, failed, taken).
+ */
+export function opensByItself(quest: { id: string } & Partial<Pick<Quest, 'traderId' | 'requirements' | 'previous' | 'level' | 'faction' | 'gameConditions' | 'unlock' | 'prestige'>>, progress: ModeProgress) {
+  if (!quest.traderId || !UNLOGGED_START_TRADERS.has(quest.traderId) || progress.taskProgress[quest.id]) return false
+  const requirements = questRequirements({ requirements: quest.requirements, previous: quest.previous })
+  if (!requirements.length && progress.taskProgress[BTR_FIRST_QUEST]?.status !== 'completed') return false
+  return evaluateTaskAvailability({ name: '', trader: '', kappa: false, description: '', objectives: [], rewards: [], level: 1, ...quest } as Quest, progress).status === 'available'
+}
+
+/**
+ * The stage a story chapter is at: the saved one, or the stage of an open objective the game's pane showed when that is
+ * further on (owner, 31.10.2026: the game and «Квесты» said «Найти вход в портовый Терминал», the map still showed «Тур»
+ * on Эпицентр — the saved stage only moves on after a confirmed reading, the shown objectives are the game itself).
+ */
 export function currentStoryStageIndex(quest: Quest, progress: ModeProgress) {
   const explicit = progress.taskProgress[quest.id]?.currentStageIndex
-  if (typeof explicit === 'number' && explicit >= 0) return explicit
-  return 0
+  const saved = typeof explicit === 'number' && explicit >= 0 ? explicit : 0
+  const shown = visibleStoryObjectives(quest, progress)
+    .filter((objective) => !objective.completed && !objective.optional && objective.stageIndex != null)
+    .map((objective) => objective.stageIndex!)
+  return shown.length ? Math.max(saved, Math.min(...shown)) : saved
 }
 

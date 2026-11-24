@@ -1,16 +1,17 @@
 import { desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
-import { backgroundScansHeld, runOcrJob } from './ocrQueue.js'
+import { backgroundScansHeld, isOcrTimeout, runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
 import { captureScreenRegion, foregroundGame, gameCaptureAvailable } from './experimental/win32.js'
 import { isGameWindowTitle } from './experimental/gameWindow.js'
 import { raidLikely } from './experimental/raidSignals.js'
 import { bgraToPgm, bgraToPpm, picturePrint } from './ocrPicture.js'
-import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
+import { TOOLTIP_OCR_PARAMETERS, tooltipForOcr } from '../src/overlay/tooltipDetect.js'
+import { createFleaWatch, type FleaLook, type FleaRect } from '../src/import/fleaReading.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING, unchangedFrame } from '../src/import/storyScanTiming.js'
-import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
+import { gameUiBox, isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
 import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
 import { classifyLoyaltyBadge, confirmLoyalty, traderBadgeRects } from '../src/import/traderLoyalty.js'
@@ -58,10 +59,15 @@ interface GameFrame {
 
 const bufferOf = (data: Uint8Array) => Buffer.from(data.buffer, data.byteOffset, data.byteLength)
 
-/** A GDI copy as a frame: read as it is up to 1920 wide; a bigger screen is brought to 1920 first (OCR at Full HD). */
+/**
+ * A GDI copy as a frame: read as it is while the game's menu area (gameUiBox) is up to 1920 wide; a bigger screen is
+ * brought down until that area is 1920 (OCR at Full HD). By the menu area, not the screen: a 3440×1440 screen became
+ * 1920×804 and its menus' text shrank to that of a 800-line screen.
+ */
 function shotFrame(shot: GameShot): GameFrame {
-  if (shot.width > 1920) {
-    const image = nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height }).resize({ width: 1920, quality: 'good' })
+  const menus = gameUiBox(shot).width
+  if (menus > 1920) {
+    const image = nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height }).resize({ width: Math.round(shot.width * 1920 / menus), quality: 'good' })
     return imageFrame(image)
   }
   let image: NativeImage | null = null
@@ -128,6 +134,12 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
     if (backgroundScansHeld(now)) return { text: '', sourceName: '', gameWindow: true, busy: true, freshGame, gameSince }
     if (freshGame) warmQuestWorker()
     const shot = grabGameDisplay()
+    if (shot && !identity) {
+      // The flea market (docs/flea-prices-from-players.md): its prices are read from this same copy, and the quest
+      // scanner has nothing to read there — no whole-screen pass (~6 s of a core) while the player browses the flea.
+      const flea = await lookAtFlea(shot)
+      if (flea.flea) return { text: '', sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: Date.now(), freshGame, gameSince, flea: { ...(flea.reading ? { reading: flea.reading } : {}) } }
+    }
     if (shot) {
       // The print straight from the copy's bytes: an unchanged screen costs no image work at all.
       const fine = picturePrint(shot.data, shot.width, shot.height)
@@ -233,6 +245,14 @@ export async function recognizeRegion(image: NativeImage) {
 }
 
 let tooltipWorker: Promise<OcrWorker> | null = null
+/** The item card's one-line reading: longer than this and the engine is taken to have hung. */
+const TOOLTIP_OCR_TIMEOUT_MS = 8_000
+
+function dropTooltipEngine() {
+  const engine = tooltipWorker
+  tooltipWorker = null
+  void engine?.then((next) => next.terminate()).catch(() => {})
+}
 function tooltipOcr() {
   tooltipWorker ??= (async () => {
     const langPath = await ocrLanguagePath()
@@ -252,9 +272,13 @@ export async function recognizeTooltip(pixels: { width: number; height: number; 
   const picture = bgraToPgm(pixels.data, pixels.width, pixels.height)
   const ocr = await tooltipOcr()
   try {
-    // The player waits for the card: before any background reading waiting.
-    const result = await runOcrJob(() => ocr.recognize(picture), 'interactive')
+    // The player waits for the card: before any background reading waiting. One line reads in well under a second.
+    const result = await runOcrJob(() => ocr.recognize(picture), 'interactive', TOOLTIP_OCR_TIMEOUT_MS)
     return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
+  } catch (error) {
+    // A hung engine is dropped: the next key press starts a fresh one instead of waiting on it for good.
+    if (isOcrTimeout(error)) dropTooltipEngine()
+    throw error
   } finally {
     touchTooltip()
   }
@@ -267,11 +291,48 @@ export async function recognizeTooltip(pixels: { width: number; height: number; 
  * while the game itself was loading, for a lookup they might never make. The price: the first lookup of a session (or
  * after 5 idle minutes) waits about a second longer for its reading.
  */
-const touchTooltip = idleRelease(5 * 60_000, () => {
-  const engine = tooltipWorker
-  tooltipWorker = null
-  void engine?.then((next) => next.terminate()).catch(() => {})
-})
+const touchTooltip = idleRelease(5 * 60_000, dropTooltipEngine)
+
+/** One flea line: longer than this and the engine is taken to have hung (the item card's limit). */
+const FLEA_LINE_TIMEOUT_MS = TOOLTIP_OCR_TIMEOUT_MS
+
+/** The copy the flea lines of the current look are cut from. */
+let fleaShot: GameShot | null = null
+const fleaWatch = createFleaWatch((rect, unit) => recognizeFleaLine(rect, unit))
+
+async function lookAtFlea(shot: GameShot): Promise<FleaLook> {
+  fleaShot = shot
+  try {
+    return await fleaWatch.look({ width: shot.width, height: shot.height, data: shot.data, channels: 4, bgr: true })
+  } catch {
+    // An engine that failed: the list is read again on the next look.
+    fleaWatch.reset()
+    return { flea: true }
+  } finally {
+    fleaShot = null
+  }
+}
+
+/**
+ * One line of the flea's list (a seller, a name, «Всего 1 ⚒ 40/40», the version line) by the item card's engine — one
+ * line of text, black on white, as a tooltip — at background priority: an item lookup goes first (electron/ocrQueue.ts).
+ * Scaled to the size the card's text is read at (×3 of 1080p).
+ */
+async function recognizeFleaLine(rect: FleaRect, unit: number) {
+  const shot = fleaShot
+  if (!shot) return ''
+  const picture = tooltipForOcr(shot, rect, Math.max(1, Math.round(12 / unit) / 4))
+  const ocr = await tooltipOcr()
+  try {
+    const result = await runOcrJob(() => ocr.recognize(bgraToPgm(picture.data, picture.width, picture.height)), 'background', FLEA_LINE_TIMEOUT_MS)
+    return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
+  } catch (error) {
+    if (isOcrTimeout(error)) dropTooltipEngine()
+    throw error
+  } finally {
+    touchTooltip()
+  }
+}
 
 /** Loads the OCR model ahead of the first lookup. */
 export async function warmUpOcr() {
@@ -294,7 +355,7 @@ async function recognizeQuestImage(image: Buffer | NativeImage, sourceName: stri
   const ocr = await getWorker()
   try {
     const payload = Buffer.isBuffer(image) ? image : ocrInput(image)
-    const result = await runOcrJob(() => ocr.recognize(payload))
+    const result = await questOcrJob(() => ocr.recognize(payload))
     return { text: result.data.text ?? '', sourceName }
   } finally {
     touchQuestWorker()
@@ -306,7 +367,7 @@ async function recognizeQuestWords(frame: GameFrame) {
   const ocr = await getWorker()
   try {
     const payload = frameInput(frame)
-    const result = await runOcrJob(() => ocr.recognize(payload, {}, { text: true, blocks: true }))
+    const result = await questOcrJob(() => ocr.recognize(payload, {}, { text: true, blocks: true }))
     return { text: result.data.text ?? '', words: ocrWordBoxes(result.data.blocks) }
   } finally {
     touchQuestWorker()
@@ -324,8 +385,14 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
     const { text } = await recognizeQuestImage(prepareImage(frame.image(), 1100, true), sourceName)
     return { text, sourceName }
   }
-  // Read as it is when its size is right (no image object for the whole pass); prepareImage otherwise.
-  const prepared = frame.width >= 900 && frame.width <= 2020 ? frame : imageFrame(prepareImage(frame.image(), 1920, false))
+  // Read as it is when its size is right (no image object for the whole pass); prepareImage otherwise. A screen of
+  // another shape (21:9, 32:9, 16:10) is read as the game's 16:9 menu area alone (owner, 31.10.2026: «программа сама
+  // должна определять какой размер экрана»): the dark sides go, and the menus keep the 16:9 text size instead of being
+  // shrunk with them. Everything below — word boxes, the pane parts, the remembered layout — is of that picture.
+  const box = gameUiBox(frame)
+  const whole = box.width === frame.width && box.height === frame.height
+  const prepared = whole && frame.width >= 900 && frame.width <= 2020 ? frame
+    : imageFrame(prepareImage(whole ? frame.image() : frame.image().crop(box), 1920, false))
   const size = { width: prepared.width, height: prepared.height }
   if (!identity && storyLayout && storyLayout.width === size.width && storyLayout.height === size.height) {
     const story = await readStoryPane(prepared.image(), storyLayout.rects)
@@ -339,7 +406,15 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
     return { text: full.text, sourceName, ...(profiles.length ? { profiles } : {}) }
   }
   // The traders' screen: the nickname and the level of the mode the game is in (the player is there often).
-  const trader = isTraderScreenText(full.text) ? await readTraderScreen(prepared.image(), full.words) : null
+  // The loyalty badges also on a frame whose «Текущее отношение» or «(вы)» the pass did not read, as long as the strip of
+  // traders' portraits is there (report №197, owner 19.11.2026: «чтобы программа искала чаще уровни… постоянно актуальные
+  // данные»): their shapes cost no OCR.
+  const loyaltyOnly = (): TraderScreenReading | null => {
+    if (traderBadgeRects(full.words, prepared.image().getSize()).length < TRADER_STRIP_MIN) return null
+    const loyalty = readTraderLoyalty(prepared.image(), full.words)
+    return loyalty ? { loyalty } : null
+  }
+  const trader = isTraderScreenText(full.text) ? await readTraderScreen(prepared.image(), full.words) : loyaltyOnly()
   const extra = trader ? { trader } : {}
   // The locked app's identity reader reads the mode selection and the traders' screens only (audit P4a).
   if (identity || !isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }
@@ -357,7 +432,7 @@ async function readStoryPane(image: NativeImage, rects: StoryPaneRects): Promise
   const ocr = await getWorker()
   try {
     // One queue job for the three reads, so another scan cannot run between them and the page mode is restored.
-    return await runOcrJob(async () => {
+    return await questOcrJob(async () => {
       const read = async (rect: PaneRect, scale: number, mode: '6' | '7') => {
         const part = image.crop(rect)
         const scaled = scale === 1 ? part : part.resize({ width: Math.round(rect.width * scale), quality: 'best' })
@@ -400,7 +475,7 @@ async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<
   if (!headers.length) return []
   const ocr = await getWorker()
   try {
-    const readings = await runOcrJob(async () => {
+    const readings = await questOcrJob(async () => {
       const result: CardReadings[] = []
       for (const header of headers) {
         // The line the whole pass found, as one line; otherwise the band under the card's title, as a block.
@@ -442,7 +517,7 @@ async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promis
   if (!parts.level && !parts.nickname) return loyalty ? { loyalty } : null
   const ocr = await getWorker()
   try {
-    return await runOcrJob(async () => {
+    return await questOcrJob(async () => {
       const read = async (rect: { x: number; y: number; width: number; height: number }) => {
         const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
         await ocr.setParameters({ tessedit_pageseg_mode: '7' })
@@ -475,6 +550,9 @@ async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promis
   }
 }
 
+/** The traders' names on one strip that make a frame the traders' portraits (a quest's text names one or two). */
+const TRADER_STRIP_MIN = 5
+
 /** The loyalty badges of the last frames: a level counts once the next frame shows it too (confirmLoyalty). */
 let lastLoyalty: { at: number; levels: Record<string, number> } | null = null
 
@@ -500,13 +578,23 @@ function readTraderLoyalty(image: NativeImage, words: OcrWordBox[]): Record<stri
   return Object.keys(confirmed).length ? confirmed : undefined
 }
 
-/** The quest scanner's engine goes after a minute unused (was 2): a raid frees it soon, the menus keep it busy anyway. */
-const touchQuestWorker = idleRelease(60_000, () => {
+function dropQuestEngine() {
   const engine = worker
   worker = null
   preparing = null
   void engine?.terminate().catch(() => {})
-})
+}
+
+/** The quest scanner's engine goes after a minute unused (was 2): a raid frees it soon, the menus keep it busy anyway. */
+const touchQuestWorker = idleRelease(60_000, dropQuestEngine)
+
+/** A quest scanner reading; a hung engine is dropped so the next pass starts a fresh one (ocrQueue.ts). */
+function questOcrJob<T>(job: () => Promise<T>) {
+  return runOcrJob(job).catch((error: unknown) => {
+    if (isOcrTimeout(error)) dropQuestEngine()
+    throw error
+  })
+}
 
 /** desktopCapturer names a window source by its title: the game's is exactly «EscapeFromTarkov» (gameWindow.ts). */
 function isTarkovWindow(name: string) {
@@ -517,14 +605,16 @@ function prepareImage(image: NativeImage, maxWidth = 1500, cropTable = true) {
   const size = image.getSize()
   if (!size.width || !size.height) return image
   const widescreen = size.width / size.height >= 1.3 && size.width >= 700
-  // The Tasks table and the story pane start at the very left edge (tabs, chapter title,
-  // «Главные задачи»); only the right-hand «Предметы» panel is dropped.
+  // The Tasks table and the story pane start at the left edge of the game's menus (tabs, chapter title, «Главные
+  // задачи»); only the right-hand «Предметы» panel is dropped. Measured inside the game's 16:9 menu area, so a 21:9 or
+  // 32:9 screen loses its dark sides and keeps the same part of the menus as a 16:9 one (owner, 31.10.2026).
+  const box = gameUiBox(size)
   const cropped = widescreen && cropTable
     ? image.crop({
-        x: 0,
-        y: 0,
-        width: Math.max(320, Math.round(size.width * 0.74)),
-        height: size.height,
+        x: box.x,
+        y: box.y,
+        width: Math.min(size.width - box.x, Math.max(320, Math.round(box.width * 0.74))),
+        height: box.height,
       })
     : image
   const width = cropped.getSize().width

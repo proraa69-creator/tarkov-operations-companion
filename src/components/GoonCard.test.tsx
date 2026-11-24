@@ -3,8 +3,21 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { GoonCard } from './GoonCard'
+import { menuShift } from './menuShift'
 
 const MAPS: Record<string, string> = { customs: 'Таможня', woods: 'Лес', shoreline: 'Берег', lighthouse: 'Маяк' }
+
+describe('the Goons\' menu on the screen (owner, 06.11.2026: the phone\'s left column)', () => {
+  it('moves in from the edge it crosses, a small margin kept; a menu inside stays', () => {
+    expect(menuShift(-56, 176, 390)).toBe(64)
+    expect(menuShift(200, 432, 390)).toBe(-50)
+    expect(menuShift(131, 363, 390)).toBe(0)
+  })
+
+  it('wider than the screen, its left edge stays in sight', () => {
+    expect(menuShift(20, 520, 390)).toBe(-12)
+  })
+})
 
 describe('«Кочевники» card', () => {
   const serviceRequest = vi.fn()
@@ -18,6 +31,28 @@ describe('«Кочевники» card', () => {
     serviceRequest.mockReset()
     vi.unstubAllGlobals()
     delete (window as { tarkovDesktop?: unknown }).tarkovDesktop
+  })
+
+  it('owner 17.11.2026: «Видел» again within 10 minutes says when, on the PC after a sighting it waits for a new raid', async () => {
+    serviceRequest.mockResolvedValue({ latest: null, last5h: [], recent: [] })
+    const sightingAt = Date.now() - 3 * 60_000
+    localStorage.setItem('goon-sightings-v2-pve', JSON.stringify([{ mapId: 'woods', reportedAt: new Date(sightingAt).toISOString(), sent: true }]))
+    const { unmount } = render(<LocaleProvider><GoonCard mode="pvp" mapName={(id) => MAPS[id] ?? id} /></LocaleProvider>)
+    fireEvent.click(screen.getByRole('button', { name: 'Видел' }))
+    expect(screen.getByText('Следующая отметка — через 7 мин')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Где видели Кочевников?' })).toBeNull()
+    unmount()
+    // 20 minutes on, the logs followed, no raid since: a new raid first
+    localStorage.setItem('goon-sightings-v2-pve', JSON.stringify([{ mapId: 'woods', reportedAt: new Date(Date.now() - 20 * 60_000).toISOString(), sent: true }]))
+    Object.assign(window, { tarkovDesktop: { serviceRequest, getRaidState: async () => ({ inRaid: false, tracked: true }), onRaidStateChanged: () => () => {} } })
+    render(<LocaleProvider><GoonCard mode="pvp" mapName={(id) => MAPS[id] ?? id} /></LocaleProvider>)
+    await act(async () => { await Promise.resolve() })
+    fireEvent.click(screen.getByRole('button', { name: 'Видел' }))
+    expect(screen.getByText('Следующая отметка — после нового рейда')).toBeInTheDocument()
+    // a raid started after it: the menu opens
+    localStorage.setItem('raidos-last-raid-start-v1', String(Date.now() - 5 * 60_000))
+    fireEvent.click(screen.getByRole('button', { name: 'Видел' }))
+    expect(screen.getByRole('dialog', { name: 'Где видели Кочевников?' })).toBeInTheDocument()
   })
 
   it('shows who saw them, with the button «Видел», and the reporters in the popover', async () => {

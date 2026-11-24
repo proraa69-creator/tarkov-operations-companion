@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FRESH_GAME_MS, gameScanDelay, isFreshGame, quietScanDelay, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING as timing, unchangedFrame, type GameScreen } from './storyScanTiming'
+import { FRESH_GAME_MS, gameScanDelay, isFreshGame, PLAYER_SCAN_QUICK_MS, playerScanDelay, quietScanDelay, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING as timing, unchangedFrame, type GameScreen } from './storyScanTiming'
 
 /**
  * The scanner's pace over time (src/components/StoryScreenScanner.tsx): each look takes `lookMs` (copy and reading), then
@@ -27,6 +27,16 @@ describe('fast but fresh story scans', () => {
     expect(quietScanDelay(50)).toBe(timing.quietMaxMs)
     expect(quietScanDelay(100_000)).toBe(timing.quietMaxMs)
     expect(timing.quietMaxMs).toBe(8000)
+  })
+  it('looks at the quick pace for a few minutes after «Найти квесты по экрану», then at the slow one again (03.11.2026)', () => {
+    const slow = quietScanDelay(50)
+    expect(playerScanDelay(slow, 1_000, 1_000)).toBe(timing.menuMs)
+    expect(playerScanDelay(slow, 1_000, 1_000 + PLAYER_SCAN_QUICK_MS - 1)).toBe(timing.menuMs)
+    expect(playerScanDelay(slow, 1_000, 1_000 + PLAYER_SCAN_QUICK_MS)).toBe(slow)
+    // No search on, or a clock that went back: as before. A pause already shorter stays.
+    expect(playerScanDelay(slow, undefined, 1_000)).toBe(slow)
+    expect(playerScanDelay(slow, 5_000, 1_000)).toBe(slow)
+    expect(playerScanDelay(timing.storyMs, 1_000, 2_000)).toBe(timing.storyMs)
   })
   it('budgets two independent OCR passes under ten seconds at three seconds per pass', () => {
     expect(timing.idleMs + 3000 + timing.storyMs + 3000).toBeLessThan(10_000)

@@ -70,6 +70,11 @@ export interface MapLayerPlan {
   floorWithoutScheme?: boolean
   /** Satellite view, a floor with no render of its own: the render stays as it is (never the scheme). */
   floorWithoutRender?: boolean
+  /**
+   * Satellite view: the scheme's danger zones (minefields, sniper zones) drawn over the render in the scheme's red dashes,
+   * and nothing else of the scheme (owner, 03.11.2026: «такие же обозначения красным полупунктиром, как и на схеме»).
+   */
+  dangerZones?: boolean
 }
 
 export function planMapLayers(map: GameMap, preferred: MapView, floor: string): MapLayerPlan {
@@ -86,7 +91,7 @@ export function planMapLayers(map: GameMap, preferred: MapView, floor: string): 
     // the scheme's ground floors (owner, 04.10.2026).
     return {
       view, tileUrl, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl, floorSvg: undefined, dimBase: Boolean(floorTileUrl),
-      underlay: false, groundInteriors: false, floorWithoutRender: Boolean(floorLayer) && !floorTileUrl,
+      underlay: false, groundInteriors: false, floorWithoutRender: Boolean(floorLayer) && !floorTileUrl, dangerZones: Boolean(imageUrl),
     }
   }
   // «Схема» is the scheme on every level: the floor's group when the SVG has it, otherwise the scheme unchanged —

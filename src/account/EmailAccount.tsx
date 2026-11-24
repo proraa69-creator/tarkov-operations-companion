@@ -122,7 +122,6 @@ export function EmailSignInLinks({ online, onPick }: { online: boolean | undefin
   if (!enabled) return null
   return (
     <div className="account-gate-links">
-      <button type="button" className="link-button" onClick={() => onPick('login')}><Mail size={14} />{uiText('Войти по коду из письма')}</button>
       <button type="button" className="link-button" onClick={() => onPick('reset')}><KeyRound size={14} />{uiText('Забыли пароль?')}</button>
     </div>
   )

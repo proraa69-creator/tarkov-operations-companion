@@ -157,7 +157,7 @@ Raid OS: Windows-приложение-компаньон для Escape from Tark
 
 - Изменения Claude cc1506f выпущены вместе: сюжетный OCR, Кочевники, Олива. Независимо: 865/865 frontend, 230/230 server, root/electron/server typecheck, node:test 2+1, оба ASAR.
 - Первый полный CI-gated выпуск прошёл с GitHub Actions run 37796500169, source 254f2898c0a8ec1a121db04f77d4fe963493eda7; build 1791472046174. Сайт собирается /api + /download/windows.
-- VPS raidos-release.timer проверяет только release/production и завершённый успешный push exact SHA. Никаких ключей в GitHub/Claude; сборка raidos-build, publisher root-owned. Старый 15-минутный агент не включён.
+- VPS raidos-release.timer проверяет только release/production и завершённый успешный push exact SHA; с 03.11.2026 выпускает пачками в окна 13:00 и 20:00 по Бангкоку (`OnCalendar=*-*-* 06,13:00/2:00` UTC), срочно — только по слову владельца. Никаких ключей в GitHub/Claude; сборка raidos-build, publisher root-owned. Старый 15-минутный агент не включён.
 - Проверка до green run ничего не опубликовала. Policy tests: 6/6, включая rejection PR/fork/failed SHA, symlink/path/artifact protections и модель rollback без DB restore. Реальный production failure намеренно не создавался.
 - При ошибке совместный откат code/API dependencies/site/client/owner. SQLite backup согласованный; живая база не заменяется. Только обратно совместимые миграции.
 - Native EFT/Windows, распознавание реальных снимков, двухаккаунтный live UI и <=10 секунд ещё НЕ подтверждены. Не выдавать текстовые фикстуры за реальный OCR.

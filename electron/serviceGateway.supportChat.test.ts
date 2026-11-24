@@ -99,6 +99,38 @@ describe('support chat through the desktop gateway', () => {
     await accountLogout()
   })
 
+  // Owner, 07.11.2026: «смайлики или лайки можно было ставить на сообщения… нажать «Ответить» именно на это сообщение».
+  it('reactions, replies and stickers go through on both sides; the reaction routes are whitelisted only in their shape', async () => {
+    await accountRegister('reacts@example.com', password, undefined, 'RU')
+    const asked = await serviceRequest('POST', '/v1/me/support/messages', { text: 'Где ключ?' }) as { message: Message }
+    const sticker = await serviceRequest('POST', '/v1/me/support/messages', { text: '', sticker: 'rat', replyTo: asked.message.id }) as { message: Message & { sticker?: string; replyTo?: { id: number } } }
+    expect([sticker.message.sticker, sticker.message.text, sticker.message.replyTo?.id]).toEqual(['rat', '[стикер: Крыса]', asked.message.id])
+    expect(await serviceRequest('POST', `/v1/me/support/messages/${asked.message.id}/reactions`, { emoji: '🔥', on: true })).toMatchObject({ message: { id: asked.message.id, reactions: [{ emoji: '🔥', authors: ['user'] }] } })
+    for (const path of ['/v1/me/support/messages/x/reactions', `/v1/me/support/messages/${asked.message.id}/reactions/1`, '/v1/me/support/messages/1/reaction']) {
+      await expect(serviceRequest('POST', path, { emoji: '🔥' })).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    await expect(serviceRequest('GET', `/v1/me/support/messages/${asked.message.id}/reactions`)).rejects.toThrow('Неизвестный запрос сервиса')
+    await accountLogout()
+
+    await accountLogin('owner@example.com', password)
+    const listed = await serviceRequest('GET', '/v1/accounts/me/admin/support/threads?limit=100') as { threads: Array<{ accountId: string; email: string }> }
+    const accountId = listed.threads.find((entry) => entry.email === 'reacts@example.com')!.accountId
+    expect(await serviceRequest('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages/${asked.message.id}/reactions`, { emoji: '👍', on: true })).toMatchObject({ message: { reactions: [{ emoji: '🔥', authors: ['user'] }, { emoji: '👍', authors: ['owner'] }] } })
+    expect(await serviceRequest('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, { text: 'В общаге', replyTo: asked.message.id })).toMatchObject({ message: { replyTo: { id: asked.message.id, author: 'user', text: 'Где ключ?' } } })
+    await expect(serviceRequest('POST', `/v1/accounts/me/admin/support/threads/NOT-AN-ID/messages/${asked.message.id}/reactions`, { emoji: '👍' })).rejects.toThrow('Неизвестный запрос сервиса')
+    expect(await serviceRequest('DELETE', `/v1/accounts/me/admin/support/threads/${accountId}`)).toBeNull()
+    await accountLogout()
+  })
+
+  // Owner, 07.11.2026: «Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон». The packs are made on the
+  // iPhone: the desktop gateway only reads the published ones.
+  it('sticker packs: the published ones are read through the gateway; the owner\'s pack routes are not on the desktop list', async () => {
+    expect(await serviceRequest('GET', '/v1/stickers')).toMatchObject({ packs: [] })
+    for (const [method, path] of [['GET', '/v1/accounts/me/admin/stickers'], ['POST', '/v1/accounts/me/admin/stickers/packs'], ['GET', `/v1/stickers/${'ab'.repeat(12)}.png`]] as const) {
+      await expect(serviceRequest(method, path, { name: 'Мемы' })).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+  })
+
   it('screenshots (owner, 15.10.2026): sent with a message past 1 MB, read as JSON by the account and the owner only', async () => {
     // A PNG header (1280×720) with padding: 1.5 MB, past the server's global 1 MB body limit.
     const png = Buffer.alloc(1_500_000)

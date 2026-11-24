@@ -5,6 +5,8 @@ import { DEFAULT_RESTOCK_SETTINGS, pruneNotified, sanitizeRestockSettings, type 
 const KEY = 'tarkov-restock-notify-v1'
 const NOTIFIED_KEY = 'tarkov-restock-notified-v1'
 const EVENT = 'tarkov-restock-settings-changed'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const RESTOCK_SETTINGS_SYNC = { key: KEY, event: EVENT } as const
 
 let cachedRaw: string | null | undefined
 let cached: RestockSettings = DEFAULT_RESTOCK_SETTINGS

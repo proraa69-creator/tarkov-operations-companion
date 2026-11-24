@@ -20,14 +20,19 @@ describe('three builds of a weapon', () => {
   it('keeps only the builds nobody beats on price and score', () => {
     expect(prune([{ cost: 10, score: 5 }, { cost: 20, score: 4 }, { cost: 30, score: 9 }, { cost: 5, score: 1 }])).toEqual([{ cost: 5, score: 1 }, { cost: 10, score: 5 }, { cost: 30, score: 9 }])
   })
-  it('top takes a much cheaper build 1–2 points lower, never below the middle one', () => {
-    const front = [{ cost: 50_000, score: 40 }, { cost: 150_000, score: 70 }, { cost: 160_000, score: 78.5 }, { cost: 400_000, score: 80 }]
-    expect(pickTier(front, 'top')).toEqual({ cost: 160_000, score: 78.5 })
-    expect(pickTier(front, 'budget')).toEqual({ cost: 50_000, score: 40 })
+  it('builds up to 100 000 ₽, up to 200 000 ₽ and the best with no limit (owner, 28.10.2026)', () => {
+    const front = [{ cost: 50_000, score: 40 }, { cost: 95_000, score: 55 }, { cost: 150_000, score: 70 }, { cost: 190_000, score: 74 }, { cost: 400_000, score: 80 }]
+    expect(pickTier(front, 'budget')).toEqual({ cost: 95_000, score: 55 })
+    expect(pickTier(front, 'middle')).toEqual({ cost: 190_000, score: 74 })
+    expect(pickTier(front, 'top')).toEqual({ cost: 400_000, score: 80 })
+    // nothing that cheap: the cheapest there is
+    expect(pickTier([{ cost: 120_000, score: 30 }], 'budget')).toEqual({ cost: 120_000, score: 30 })
   })
   it('takes the cheaper of two nearly equal builds', () => {
     const front = [{ cost: 100_000, score: 59.5 }, { cost: 180_000, score: 60 }]
-    expect(pickTier(front, 'top')).toEqual({ cost: 100_000, score: 59.5 })
+    expect(pickTier(front, 'middle')).toEqual({ cost: 100_000, score: 59.5 })
+    // the top build counts every gain
+    expect(pickTier(front, 'top')).toEqual({ cost: 180_000, score: 60 })
   })
   it('puts a rail adapter on when it opens a better foregrip', () => {
     const mods = new Map<string, GunPart>([
@@ -62,5 +67,32 @@ describe('three builds of a weapon', () => {
     ])
     const weapon = weaponOf([slot('mod_pistol_grip', ['wood', 'grip'], true), slot('mod_stock', ['tube'], true)])
     expect(ids(weapon, mods, 'top')).toEqual(['grip', 'stock', 'tube'])
+  })
+  it('prices the parts only, without the weapon (owner, 01.11.2026)', () => {
+    // A 150 000 ₽ weapon still has «до 100 000 ₽»: only the 5 000 ₽ stock counts.
+    const weapon = { ...weaponOf([slot('mod_stock', ['stock'])]), offers: [{ vendor: 'prapor', vendorName: 'Prapor', priceRUB: 150_000, minTraderLevel: 1 }] }
+    const mods = new Map<string, GunPart>([['stock', part('stock', -0.2, 5, 5_000)]])
+    expect(solveTier(weapon, { mods }, 'budget')?.cost.total).toBe(5_000)
+    expect(solveTier(weapon, { mods }, 'middle')?.cost.total).toBe(5_000)
+    expect(solveTier(weapon, { mods }, 'top')?.cost.lines[0]?.part.id).toBe('gun')
+  })
+  it('has no «до 100 000 ₽» build when the parts alone cost more', () => {
+    const weapon = weaponOf([slot('mod_stock', ['stock'], true)])
+    const mods = new Map<string, GunPart>([['stock', part('stock', -0.2, 5, 150_000)]])
+    expect(solveTier(weapon, { mods }, 'budget')).toBeUndefined()
+    expect(solveTier(weapon, { mods }, 'middle')?.cost.total).toBe(150_000)
+  })
+  it('takes the cheaper part when the dear one is more than 70 000 ₽ dearer for a small gain (owner, 01.11.2026: Radian Raptor-SD)', () => {
+    const handles = (dearPrice: number) => new Map<string, GunPart>([['cheap', part('cheap', 0, 3, 15_000)], ['dear', part('dear', 0, 3.5, dearPrice)]])
+    const weapon = weaponOf([slot('mod_charge', ['cheap', 'dear'])])
+    expect(ids(weapon, handles(300_000), 'top')).toEqual(['cheap'])
+    // 70 000 ₽ or less apart: the better one, as before
+    expect(ids(weapon, handles(80_000), 'top')).toEqual(['dear'])
+  })
+  it('in «до 100 000 ₽» takes the cheaper part when the dear one costs twice as much for a small gain (owner, 01.11.2026)', () => {
+    const handles = new Map<string, GunPart>([['cheap', part('cheap', 0, 3, 5_000)], ['dear', part('dear', 0, 3.5, 12_000)]])
+    const weapon = weaponOf([slot('mod_charge', ['cheap', 'dear'])])
+    expect(ids(weapon, handles, 'budget')).toEqual(['cheap'])
+    expect(ids(weapon, handles, 'top')).toEqual(['dear'])
   })
 })

@@ -27,25 +27,13 @@ export interface PatchFixSet {
   fixes: PatchFix[]
 }
 
-export const PATCH_FIXES: PatchFixSet[] = [
-  {
-    patch: '1.1.5.1.47510',
-    source: 'db4tarkov patch changes (json/core/changes.json), compared with json.tarkov.dev on 17.10.2026; not checked in game',
-    addedAt: '2026-10-17',
-    fixes: [
-      { id: '5cc701d7e4a94900100ac4e7', name: 'Ствол 407мм для FN P90 5.7x28', recoil: { was: -17.1, now: -8.1 }, ergonomics: { was: -16.5, now: -14 } },
-      { id: '5cc700b9e4a949000f0f0f25', name: 'Приклад для FN P90', recoil: { was: -5, now: -6 }, ergonomics: { was: 26.5, now: 26 } },
-      { id: '5cebec10d7f00c065703d185', name: 'Приклад для FN PS90', recoil: { was: -5, now: -6 }, ergonomics: { was: 26.5, now: 26 } },
-      { id: '5cc700d4e4a949000f0f0f28', name: 'Затыльник приклада Damage Industries для FN P90', recoil: { was: -3, now: -2 }, ergonomics: { was: 1.5, now: 2 } },
-      { id: '59db3acc86f7742a2c4ab912', name: 'Пистолетная рукоятка Stark "AR Rifle Grip" для AR-15 (Черная)', recoil: { was: -1.2, now: -1.5 }, ergonomics: { was: 6, now: 5 } },
-      { id: '59db3b0886f77429d72fb895', name: 'Пистолетная рукоятка Stark "AR Rifle Grip" для AR-15 (FDE)', recoil: { was: -1.2, now: -1.5 }, ergonomics: { was: 6, now: 5 } },
-      { id: '5a339805c4a2826c6e06d73d', name: 'Пистолетная рукоятка Magpul "MIAD" для AR-15 (FDE)', recoil: { was: -1.2, now: -1 }, ergonomics: { was: 6, now: 3 } },
-      { id: '6984b82c5aab442620032fe8', name: 'Приклад Lead Star Arms "Ravage" для AR-15', recoil: { was: -17, now: -19 }, ergonomics: { was: 20, now: 19 } },
-      { id: '6985ec9fc848f05f4600f6b9', name: 'Приклад Lead Star Arms "Ravage" для AR-15 (Красный)', recoil: { was: -17, now: -19 }, ergonomics: { was: 20, now: 19 } },
-      { id: '6985eca7de77dd8dd50025ba', name: 'Приклад Lead Star Arms "Ravage" для AR-15 (Желтый)', recoil: { was: -17, now: -19 }, ergonomics: { was: 20, now: 19 } },
-    ],
-  },
-]
+/**
+ * No fix stands today. The set of 17.10.2026 (ten parts: the MIAD and Stark grips, Ravage stocks, P90 parts) is gone (owner,
+ * 06.11.2026: «имеет +6 эргономики, а не +3»): it had the patch of 18.09.2026 backwards, the numbers before that patch as
+ * the new ones, so tarkov.dev was right all along. Checked on 06.11.2026 against the wiki and eftarkov.com (game 1.2.5.0).
+ * Before adding a set, read which way the numbers went and check them in the game or in a second source.
+ */
+export const PATCH_FIXES: PatchFixSet[] = []
 
 const same = (a: number, b: number) => Math.abs(a - b) < 1e-6
 

@@ -7,6 +7,7 @@
  * Map ids are resolved to the app's canonical map ids by the caller.
  */
 import type { ObjectiveZone, QuestObjective, WeaponBuildAttribute, WeaponBuildRequirement } from '../domain/types'
+import { isStalePlace } from './stalePlaces'
 import { adaptObjectiveConditions, type ConditionContext } from './objectiveConditions'
 
 type JsonRecord = Record<string, unknown>
@@ -83,6 +84,13 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
   return asArray(rawObjectives).flatMap((objective, index): QuestObjective[] => {
     const id = text(objective.id)
     if (!id) return []
+    const raw = untranslated[index]
+    const aligned = raw && text(raw.type) === text(objective.type) ? raw : undefined
+    // The dictionaries translate the id with the description (its key): the game's own id goes beside it, the one the
+    // apps key ticks by from 0.6.0.184 (owner, 02.11.2026: phone ticks with a comma or quotes in their text never synced),
+    // and the one the hand fixes are written under (src/data/objectiveGameIds.ts).
+    const gameId = aligned ? text(aligned.id) : ''
+    const fixedId = gameId || id
     const listedMaps = (Array.isArray(objective.maps) ? objective.maps : []).map(refId).filter(Boolean)
     const fallbackMap = listedMaps[0] ?? ''
     const zones: ObjectiveZone[] = asArray(objective.zones).flatMap((zone) => {
@@ -103,7 +111,7 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
     })
     const itemSpots = asArray(objective.possibleLocations).flatMap((location) => {
       const mapId = resolveMapId(refId(location.map) || fallbackMap)
-      if (!mapId) return []
+      if (!mapId || isStalePlace(fixedId, mapId)) return []
       return (Array.isArray(location.positions) ? location.positions : []).map(point)
         .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
         .map((position) => ({ mapId, ...position }))
@@ -115,16 +123,16 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
       refId(objective.questItem),
     ].filter(Boolean))]
     // Listed maps first; otherwise the maps of its zones / quest-item spots (an objective with neither = any map).
-    const listedIds = listedMaps.map((entry) => resolveMapId(entry)).filter((entry): entry is string => Boolean(entry))
+    const listedIds = listedMaps.map((entry) => resolveMapId(entry)).filter((entry): entry is string => Boolean(entry) && !isStalePlace(fixedId, entry))
     const placeMaps = [...asArray(objective.zones), ...asArray(objective.possibleLocations)].map((place) => resolveMapId(refId(place.map)))
-      .filter((entry): entry is string => Boolean(entry))
+      .filter((entry): entry is string => Boolean(entry) && !isStalePlace(fixedId, entry))
     const mapIds = [...new Set(listedIds.length ? listedIds : [...zones.map((zone) => zone.mapId), ...itemSpots.map((spot) => spot.mapId), ...placeMaps])]
     const count = Math.round(finite(objective.count) ?? 1)
     const build = weaponBuild(objective, categoryName)
-    const raw = untranslated[index]
-    const conditions = adaptObjectiveConditions(objective, conditionSource, raw && text(raw.type) === text(objective.type) ? raw : objective)
+    const conditions = adaptObjectiveConditions(objective, conditionSource, aligned ?? objective)
     return [{
       id,
+      ...(gameId && gameId !== id ? { gameId } : {}),
       type: text(objective.type) || 'unknown',
       description: text(objective.description),
       ...(objective.optional === true ? { optional: true } : {}),

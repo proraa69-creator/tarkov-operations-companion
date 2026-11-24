@@ -149,7 +149,8 @@ test('the admin panel counts archived payments by their rouble amount and labels
   try {
     const owner = await t.login('owner@example.com')
     const overview = await t.call<{ revenue: { all: Record<string, number> } }>('GET', '/v1/accounts/me/admin/overview', owner)
-    assert.deepEqual(overview.json.revenue.all, { total: 1200, payments: 2 })
+    // The same player's second payment is a repeat one (owner, 15.11.2026).
+    assert.deepEqual(overview.json.revenue.all, { total: 1200, payments: 2, repeat: 1 })
     assert.doesNotMatch(overview.text, /lava/i)
     const series = await t.call<{ rows: Array<Record<string, unknown>> }>('GET', '/v1/accounts/me/admin/series?period=day', owner)
     const day = series.json.rows.find((row) => row.period === '2026-10-02')!

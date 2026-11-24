@@ -1,26 +1,36 @@
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { prefersReducedMotion } from '../hooks/motion'
-import { tr } from '../i18n'
+import { tr, useSiteLocale, type SiteLocale } from '../i18n'
 
 /**
  * Product trailer — the centrepiece of the home page.
  *
- * Source: `website/public/media/trailer.mp4` (H.264, 720p, small: it ships inside the server exe, so every MB slows the server's start).
+ * Source: `website/public/media/trailer.mp4`, and `trailer-en.mp4` when the site is in English (owner, 27.10.2026: the
+ * English site shows the English trailer, chosen by hand or automatically). H.264, 720p, small: they ship inside the
+ * server exe, so every MB slows the server's start.
  * It autoplays muted and loops; the custom controls toggle play/pause and sound. No picture is shown before the video
  * (owner, 11.10.2026: a card flashed on every load before the video, «нужно убрать ее вообще»): the frame stays dark
  * until the first frame is decoded. Only when the video does not autoplay (the visitor prefers reduced motion, or the
  * browser refused) the title card `trailer-poster.jpg` waits with the play button. When no source can be played a
  * "coming soon" note is shown.
  */
-const TRAILER_SOURCES = [
-  { src: '/media/trailer.mp4', type: 'video/mp4' },
-]
-const POSTER = '/media/trailer-poster.jpg'
+const TRAILER_SOURCES: Record<SiteLocale, Array<{ src: string; type: string }>> = {
+  ru: [{ src: '/media/trailer.mp4', type: 'video/mp4' }],
+  en: [{ src: '/media/trailer-en.mp4', type: 'video/mp4' }],
+}
+const POSTER: Record<SiteLocale, string> = { ru: '/media/trailer-poster.jpg', en: '/media/trailer-poster-en.jpg' }
 
 type Status = 'loading' | 'ready' | 'missing'
 
 export function Trailer() {
+  const locale = useSiteLocale()
+  // A new player for the other language: the <video> loads the other file from the start.
+  return <TrailerPlayer key={locale} locale={locale} />
+}
+
+function TrailerPlayer({ locale }: { locale: SiteLocale }) {
+  const sources = TRAILER_SOURCES[locale]
   const videoRef = useRef<HTMLVideoElement>(null)
   const [status, setStatus] = useState<Status>('loading')
   const [playing, setPlaying] = useState(false)
@@ -63,7 +73,7 @@ export function Trailer() {
     <div className={`trailer${playing ? ' is-playing' : ''}${missing ? ' is-missing' : ''}`}>
       <video
         ref={videoRef}
-        poster={stillFrame ? POSTER : undefined}
+        poster={stillFrame ? POSTER[locale] : undefined}
         loop
         muted
         playsInline
@@ -75,13 +85,13 @@ export function Trailer() {
         onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
         onClick={togglePlay}
       >
-        {TRAILER_SOURCES.map((source, index) => (
+        {sources.map((source, index) => (
           <source
             key={source.src}
             src={source.src}
             type={source.type}
             // The error on the LAST <source> means no source could be played.
-            onError={index === TRAILER_SOURCES.length - 1 ? () => setStatus('missing') : undefined}
+            onError={index === sources.length - 1 ? () => setStatus('missing') : undefined}
           />
         ))}
         {tr('Ваш браузер не поддерживает встроенное видео.')}

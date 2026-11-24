@@ -16,6 +16,7 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Сервер не входит в эту сборку приложения.', 'This build of the app does not include the server.'],
   ['Сервер недоступен: включите «Сервер и сайт на этом компьютере» выше или запустите сервер другим способом.', 'Server unavailable: turn on “Server and website on this PC” above or start the server another way.'],
   ['Сервер недоступен. Проверьте интернет и нажмите «Проверить».', 'Server unavailable. Check the internet connection and tap «Check».'],
+  ['Сервер недоступен. Проверьте интернет.', 'Server unavailable. Check the internet connection.'],
   ['Войдите тем же e-mail и паролем, что на сайте и в приложении для ПК.', 'Sign in with the same e-mail and password as on the website and in the PC app.'],
   ['Аккаунт сервера', 'Server account'],
   ['Проверяем сервер…', 'Checking the server…'],
@@ -58,10 +59,12 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Введите адрес вида tarkov.example.com', 'Enter an address like tarkov.example.com'], ['Это не похоже на токен туннеля Cloudflare', 'This does not look like a Cloudflare tunnel token'],
   ['Windows не даёт зашифровать токен на этом компьютере', 'Windows cannot encrypt the token on this computer'], ['Вставьте токен туннеля', 'Paste the tunnel token'],
   // Auto-update (UpdateButton, electron/appUpdate.ts)
-  ['Обновить приложение', 'Update the app'], ['Загрузка обновления', 'Downloading update'], ['Перезапуск…', 'Restarting…'], ['Повторить обновление', 'Retry update'],
+  ['Обновить приложение', 'Update the app'], ['Установить обновление', 'Install update'], ['Обновление скачано. Нажмите, чтобы установить: приложение перезапустится, настройки и прогресс сохранятся.', 'The update is downloaded. Click to install: the app restarts, settings and progress are kept.'], ['Загрузка обновления', 'Downloading update'], ['Перезапуск…', 'Restarting…'], ['Повторить обновление', 'Retry update'],
   ['Ошибка обновления', 'Update failed'], ['Доступна новая версия', 'A new version is available'],
   // The owner's copy, a release only a whole owner exe brings and no signed owner exe on the server (electron/appUpdate.ts ownerExe, the fallback)
   ['Скачать новую версию', 'Download the new version'],
+  // The iPhone app from the site: a newer build there (src/mobile/IphoneUpdateBanner.tsx)
+  ['Вышла новая версия', 'A new version is out'], ['Вышла новая версия приложения', 'A new version of the app is out'], ['Скачайте её на сайте raidos.app и установите поверх этой.', 'Download it from raidos.app and install it over this one.'], ['Скачать на сайте', 'Download from the site'],
   ['Частями её не поставить, а подписанной серверной версии на сервере пока нет: скачайте «Raid OS Server.exe» в админ-панели (раздел «Серверная версия») и замените им этот exe.', 'It cannot be installed in parts, and the server has no signed server version yet: download «Raid OS Server.exe» in the admin panel («Server version» section) and replace this exe with it.'],
   // The owner's copy downloading the whole signed owner exe inside the app (electron/appUpdate.ts, electron/serviceGateway.ts)
   ['Войдите в аккаунт владельца, чтобы скачать обновление', 'Sign in to the owner account to download the update'],
@@ -77,11 +80,18 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Обновление скачано — применится при следующем запуске', 'Update downloaded — applies at the next start'],
   ['Нажмите, чтобы перезапустить сейчас: настройки и прогресс сохранятся.', 'Click to restart now: settings and progress are kept.'],
   ['Приложение обновлено до версии', 'Updated to version'],
-  ['Новая версия скачивается и ставится в фоне, не во время рейда. Интерфейс обновляется без перезапуска, когда окно свёрнуто или не используется; остальное — при следующем запуске.', 'New versions download and install in the background, never during a raid. The interface updates without a restart while the window is minimized or not in use; everything else at the next start.'],
+  ['Новая версия автоматически скачивается и устанавливается. Не обновляется во время рейда.', 'New versions download and install automatically. Never during a raid.'],
   ['Сервер не отдал файл: HTTP', 'The server did not send the file: HTTP'], ['Файл обновления повреждён, попробуйте ещё раз', 'The update file is damaged, try again'],
   ['Нет доступа к папке с приложением: переместите exe, например, на рабочий стол', 'No access to the app folder: move the exe, for example to the desktop'],
   ['Не удалось подготовить обновление', 'Could not prepare the update'],
   // Full-screen update window (UpdateButton → UpdateOverlay)
+  // The portable exe offers the installer (src/components/InstallerOffer.tsx, electron/appInstall.ts).
+  ['Raid OS теперь устанавливается как обычная программа', 'Raid OS now installs like a regular program'], ['Скачиваем установщик', 'Downloading the installer'], ['Скачиваем установщик…', 'Downloading the installer…'], ['Открываем установщик…', 'Opening the installer…'],
+  ['Не удалось скачать установщик', 'Could not download the installer'], ['Установщик пока недоступен, попробуйте позже', 'The installer is not available yet, try again later'], ['Файл установщика изменился после проверки, попробуйте ещё раз', 'The installer file changed after the check, try again'],
+  ['Обновление доступно только в собранном приложении', 'Updates work only in the built app'],
+  // While the game runs (src/components/UpdateButton.tsx): download by hand, then «Обновить сейчас?».
+  ['Загрузить обновление', 'Download update'], ['Обновление скачано. Обновить сейчас?', 'Update downloaded. Update now?'],
+  ['Пока игра запущена, обновление не скачивается само, чтобы не мешать игре. Нажмите, чтобы скачать сейчас.', 'While the game is running, the update does not download by itself so it does not get in the way. Click to download it now.'],
   ['Обновление до актуальной версии', 'Updating to the latest version'], ['Обновление…', 'Updating…'], ['Сейчас', 'Now'], ['Новая', 'New'],
   ['Скачивание', 'Download'], ['Проверка', 'Check'], ['Установка и перезапуск', 'Install and restart'],
   ['Скачивание новой версии', 'Downloading the new version'], ['Проверка файла (размер и подпись SHA-256)', 'Checking the file (size and SHA-256)'],

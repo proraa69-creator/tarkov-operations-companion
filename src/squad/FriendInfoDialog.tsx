@@ -76,7 +76,7 @@ function updatedDate(iso: string, locale: AppLocale) {
 function UpdatedOn({ entry, locale }: { entry: FriendModeInfo; locale: AppLocale }) {
   const day = entry.updatedAt ? updatedDate(entry.updatedAt, locale) : ''
   if (!day) return null
-  const source = entry.source === 'app' ? uiText('Из приложения друга') : entry.source === 'tarkov-dev' ? uiText('Из публичного профиля Tarkov.dev') : undefined
+  const source = entry.source === 'app' ? uiText('Из приложения друга') : entry.source === 'tarkov-dev' ? uiText('Из публичного профиля игрока') : undefined
   return <small className="friend-info-updated" title={source}>{uiText('обновлено')} {day}</small>
 }
 

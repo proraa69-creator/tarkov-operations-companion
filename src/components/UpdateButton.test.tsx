@@ -1,9 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UpdateStatus } from '../electron'
 import { UpdateButton } from './UpdateButton'
 import { AppUpdateSettings } from './AppUpdateSettings'
 import { setRenderLanguage } from '../i18n/renderText'
+import { LocaleProvider } from '../i18n/LocaleProvider'
 
 let status: UpdateStatus
 let listener: (next: UpdateStatus) => void
@@ -73,6 +74,30 @@ describe('desktop update controls', () => {
       setRenderLanguage('ru')
     }
   })
+  // Owner, 03.11.2026: «обновление загружается очень медленно… ты до сих пор не обновляешь приложение кусочками».
+  it('while downloading: how much of how much, how fast, and that only the changes come', async () => {
+    render(<UpdateButton />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Обновить приложение' }))
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 38, received: 1_258_291, size: 3_250_585, speed: 4_718_592, parts: true, whole: 234_929_696 }))
+    expect(screen.getByText('Только изменения: 1,2 из 3,1 МБ (всё приложение — 224 МБ) · 4,5 МБ/с')).toBeTruthy()
+    // The whole exe (a release parts cannot bring): no speed until it is measured.
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 20, received: 47_185_920, size: 234_929_696, speed: 0 }))
+    expect(screen.getByText('45 из 224 МБ')).toBeTruthy()
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 100, phase: 'verifying', received: 234_929_696, size: 234_929_696 }))
+    expect(screen.queryByText(/из 224 МБ/)).toBeNull()
+  })
+  it('English: the download line', async () => {
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    try {
+      render(<LocaleProvider><UpdateButton /></LocaleProvider>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Update the app' }))
+      act(() => listener({ state: 'downloading', version: '0.6.1', progress: 38, received: 1_258_291, size: 3_250_585, speed: 471_859, parts: true, whole: 234_929_696 }))
+      expect(screen.getByText('Only the changes: 1.2 of 3.1 MB (the whole app is 224 MB) · 0.45 MB/s')).toBeTruthy()
+    } finally {
+      localStorage.removeItem('tarkov-operations-locale-v1')
+      setRenderLanguage('ru')
+    }
+  })
   it('opens a startup download already in progress when the UI mounts', async () => {
     status = { state: 'downloading', progress: 10, notify: false }
     render(<UpdateButton />)
@@ -95,10 +120,50 @@ describe('desktop update controls', () => {
     act(() => listener({ state: 'downloading', version: '0.6.1', progress: 70, notify: false, background: true }))
     expect(screen.queryByRole('button')).toBeNull()
   })
-  it('a release downloaded for the next start says so in the button; a click offers to restart now', async () => {
+  // Owner, 03.11.2026: «пусть появится кнопка загрузить обновление и после скачивания вылезет кнопка обновить да или нет».
+  it('while the game runs: «Загрузить обновление» downloads only, then «Обновить сейчас?» — «Да» installs, «Нет» leaves it', async () => {
+    const download = vi.fn(async () => ({ state: 'downloading', version: '0.6.1', progress: 0, background: true, notify: true }) as UpdateStatus)
+    window.tarkovDesktop!.update!.download = download
+    status = { state: 'available', version: '0.6.1', notify: true, heldByGame: true }
+    render(<UpdateButton />)
+    const held = await screen.findByRole('button', { name: 'Загрузить обновление' })
+    expect(held.getAttribute('title')).toContain('Пока игра запущена')
+    fireEvent.click(held)
+    expect(download).toHaveBeenCalledOnce()
+    expect(install).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 40, background: true, notify: true }))
+    expect(screen.getByRole('button', { name: 'Загрузка…' })).toBeTruthy()
+    act(() => listener({ state: 'available', version: '0.6.1', ready: true, askInstall: true, notify: true }))
+    const ask = screen.getByRole('dialog', { name: 'Обновление скачано. Обновить сейчас?' })
+    fireEvent.click(within(ask).getByRole('button', { name: 'Нет' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(install).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Установить обновление' }))
+    expect(install).toHaveBeenCalledOnce()
+  })
+  it('«Обновить сейчас?» → «Да» installs and restarts at once', async () => {
+    status = { state: 'available', version: '0.6.1', notify: true, ready: true, askInstall: true }
+    render(<UpdateButton />)
+    const ask = await screen.findByRole('dialog', { name: 'Обновление скачано. Обновить сейчас?' })
+    fireEvent.click(within(ask).getByRole('button', { name: 'Да' }))
+    expect(install).toHaveBeenCalledOnce()
+  })
+  // Owner, 29.10.2026: a downloaded release waits for «Установить обновление» in the top bar.
+  it('a release downloaded in the background: «Установить обновление», the click installs it', async () => {
+    status = { state: 'available', version: '0.6.1', notify: true, ready: true }
+    const first = render(<UpdateButton />)
+    const ready = await screen.findByRole('button', { name: 'Установить обновление' })
+    expect(ready.getAttribute('title')).toContain('Нажмите, чтобы установить')
+    fireEvent.click(ready)
+    expect(install).toHaveBeenCalledOnce()
+    first.unmount()
+    install.mockClear()
+  })
+  it('a release set for the next start («Автообновление») is installed by the same button; a click restarts now', async () => {
     status = { state: 'available', version: '0.6.1', notify: true, ready: true, nextStart: true }
     render(<UpdateButton />)
-    const button = await screen.findByRole('button', { name: 'Обновление скачано — применится при следующем запуске' })
+    const button = await screen.findByRole('button', { name: 'Установить обновление' })
     expect(button.className).toContain('is-next-start')
     expect(button.getAttribute('title')).toContain('перезапустить сейчас')
     fireEvent.click(button)
@@ -135,7 +200,7 @@ describe('desktop update controls', () => {
   it('«Автообновление» describes the background update; a release kept for the next start says so', async () => {
     status = { state: 'available', version: '0.6.1', notify: true, ready: true, nextStart: true }
     render(<AppUpdateSettings />)
-    expect(await screen.findByText(/скачивается и ставится в фоне, не во время рейда/)).toBeTruthy()
+    expect(await screen.findByText(/автоматически скачивается и устанавливается. Не обновляется во время рейда/)).toBeTruthy()
     expect(await screen.findByText(/Обновление скачано — применится при следующем запуске/)).toBeTruthy()
   })
   it('English: the background update texts', async () => {
@@ -143,7 +208,7 @@ describe('desktop update controls', () => {
     try {
       status = { state: 'available', version: '0.6.1', notify: true, ready: true, nextStart: true }
       render(<AppUpdateSettings />)
-      expect(await screen.findByText(/download and install in the background, never during a raid/)).toBeTruthy()
+      expect(await screen.findByText(/download and install automatically. Never during a raid/)).toBeTruthy()
       expect(await screen.findByText(/Update downloaded — applies at the next start/)).toBeTruthy()
     } finally {
       setRenderLanguage('ru')

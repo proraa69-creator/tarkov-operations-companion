@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- Tactical-style wall knife switch (рубильник) for the «Рубильники» layer: the grey box with the lever handle, as in the game. -->
+<defs>
+<linearGradient id="swbox" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6dbd8"/><stop offset="0.55" stop-color="#9aa39f"/><stop offset="1" stop-color="#596360"/></linearGradient>
+<linearGradient id="swgrip" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f1f2ee"/><stop offset="1" stop-color="#a9afab"/></linearGradient>
+<radialGradient id="swshadow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#000" stop-opacity="0.6"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+</defs>
+<ellipse cx="32" cy="58" rx="20" ry="4.5" fill="url(#swshadow)"/>
+<rect x="17" y="6" width="30" height="50" rx="3" fill="url(#swbox)"/>
+<path d="M21 10 H43 M21 52 H43" stroke="#e9ece9" stroke-width="1.2" opacity="0.5"/>
+<rect x="29" y="14" width="6" height="30" rx="2" fill="#262c2a"/>
+<path d="M32 36 L32 20" stroke="#3a423f" stroke-width="5" stroke-linecap="round"/>
+<path d="M32 36 L32 20" stroke="#c7ccc9" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="25.5" y="13" width="13" height="8" rx="3" fill="url(#swgrip)" stroke="#11161a" stroke-width="2"/>
+<circle cx="32" cy="38" r="3.2" fill="#d0584a" stroke="#11161a" stroke-width="1.6"/>
+<path d="M40 44 L36.6 49.5 H39.4 L37.6 54 L42.4 47.6 H39.4 L41.4 44 Z" fill="#f2c94c" stroke="#11161a" stroke-width="0.9" stroke-linejoin="round"/>
+<rect x="17" y="6" width="30" height="50" rx="3" fill="none" stroke="#11161a" stroke-width="3"/>
+</svg>

@@ -179,10 +179,11 @@ export async function fetchAmmoStats(mode: RaidMode, locale: AppLocale, loader =
 }
 
 /** Live ammo stats per mode and language; refreshed every 30 minutes (prices move, stats change on patches). */
-export function useAmmoStats(mode: RaidMode, locale: AppLocale) {
+export function useAmmoStats(mode: RaidMode, locale: AppLocale, enabled = true) {
   return useQuery({
     queryKey: ['tarkov-ammo-stats', graphqlGameMode(mode), locale],
     queryFn: () => fetchAmmoStats(mode, locale),
+    enabled,
     staleTime: 30 * 60_000,
     refetchInterval: 30 * 60_000,
     gcTime: 24 * 60 * 60_000,

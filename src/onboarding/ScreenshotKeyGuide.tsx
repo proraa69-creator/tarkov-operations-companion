@@ -1,0 +1,95 @@
+import { useEffect, useRef, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
+import { ArrowDown, MapPin, TriangleAlert, X } from 'lucide-react'
+import { useLocale } from '../i18n/LocaleProvider'
+import controlsTab from '../assets/guide/game-settings-controls.webp'
+import screenshotRow from '../assets/guide/game-settings-screenshot-key.webp'
+import './firstRunGuide.css'
+
+type Phrase = { ru: string; en: string }
+/** A part of a game screenshot the window points at, in % of the picture: left, top, width, height; the arrow above it (`down`, the default), beside it (`left`) or none. */
+type Mark = [number, number, number, number, ('down' | 'left' | false)?]
+
+const TITLE: Phrase = { ru: 'Настройте клавишу скриншота', en: 'Set up the screenshot key' }
+const EYEBROW: Phrase = { ru: 'Местоположение на карте', en: 'Your location on the map' }
+const WHY: Phrase = {
+  ru: 'Raid OS ставит вашу точку на карту по скриншоту из игры: игра записывает в него координаты. Клавишу нужно назначить один раз.',
+  en: 'Raid OS puts your point on the map from a game screenshot: the game writes your coordinates into it. You set the key once.',
+}
+const STEP_TAB: Phrase = { ru: 'В игре откройте «Настройки» → «Управление».', en: 'In the game, open Settings → Controls.' }
+// not PrtSc nor F12 (owner, 24.11.2026: «нужно назначить на любую другую кнопку, кроме Print Screen, потому что у них, возможно, по
+// этой кнопке делает скриншот сам компьютер Windows… будет делать скриншот не игра, а Windows»; F12 is Steam's own screenshot key)
+const STEP_ROW: Phrase = {
+  ru: 'Найдите строку «Сделать скриншот» и назначьте на неё любую удобную клавишу, кроме Print Screen (PrtSc) и F12. Эти клавиши может перехватить сама Windows или Steam: тогда снимок сделает не игра, координат в нём не будет и точка не появится.',
+  en: 'Find the Take screenshot line and set any key that suits you except Print Screen (PrtSc) and F12. Windows or Steam may take these keys for themselves: then the screenshot is not the game’s, it has no coordinates and your point does not show up.',
+}
+const STEP_RAID: Phrase = { ru: 'В рейде нажмите эту клавишу — ваша точка появится на карте Raid OS.', en: 'Press this key in a raid: your point shows up on the Raid OS map.' }
+const MAIN: Phrase = { ru: 'Главное:', en: 'Important:' }
+const WARN: Phrase = {
+  ru: 'делайте скриншот только этой клавишей из игры. Снимки Windows, Steam, NVIDIA и других программ не подойдут — в них нет координат.',
+  en: 'take the screenshot only with this key of the game. Screenshots of Windows, Steam, NVIDIA and other programs will not do: they have no coordinates.',
+}
+const OK: Phrase = { ru: 'Понятно', en: 'Got it' }
+const CLOSE: Phrase = { ru: 'Закрыть', en: 'Close' }
+const TAB_ALT: Phrase = { ru: 'Настройки игры, вкладка «Управление»', en: 'The game’s settings, the Controls tab' }
+const ROW_ALT: Phrase = { ru: 'Управление игры, строка «Сделать скриншот» и её клавиша', en: 'The game’s controls, the Take screenshot line and its key' }
+
+/** «Управление» on the settings' tab row (assets/guide/game-settings-controls.webp, the owner's screenshot). */
+const TAB_MARK: Mark = [76, 48, 16.5, 26]
+/** «Сделать скриншот» and its key (assets/guide/game-settings-screenshot-key.webp, the owner's screenshot). */
+const ROW_MARKS: Mark[] = [[2.4, 48.8, 22.7, 14, false], [49.1, 48.8, 10.9, 14, 'left']]
+
+function GameShot({ src, alt, marks }: { src: string; alt: string; marks: Mark[] }) {
+  return <figure className="skg-shot">
+    <img src={src} alt={alt} draggable={false} />
+    {marks.map(([left, top, width, height, arrow = 'down'], index) => {
+      const box: CSSProperties = { left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }
+      return <span key={index} className="skg-mark" style={box} aria-hidden="true">
+        {arrow && <span className={`skg-arrow is-${arrow}`}><ArrowDown size={20} strokeWidth={2.6} /></span>}
+      </span>
+    })}
+  </figure>
+}
+
+/**
+ * «Местоположение на карте» (owner, 13.11.2026): a new player's first start of the PC app, after «Показать возможности
+ * Raid OS?» whatever the answer — how to set the game's screenshot key, the screenshots marked by the app's own pointers
+ * in place of the owner's red circles, and that only the game's own key will do (its screenshots carry the coordinates).
+ * When it is due: src/onboarding/tours.ts screenshotKeyDue; shown by FeatureTours, one window at a time.
+ * On a low screen (report 212, a laptop: «во весь экран, закрыть не реально» — «Понятно» stood below the screen's edge
+ * with no sign of a scroll) only the middle scrolls: «✕» in the corner and «Понятно» at the bottom always show, and
+ * Escape closes it wherever the focus went.
+ */
+export function ScreenshotKeyGuide({ onDone }: { onDone: () => void }) {
+  const { locale } = useLocale()
+  const say = (phrase: Phrase) => phrase[locale === 'en' ? 'en' : 'ru']
+  const button = useRef<HTMLButtonElement>(null)
+  useEffect(() => { button.current?.focus({ preventScroll: true }) }, [])
+  // on the window, not the layer: a click on the dim takes the focus out of the layer
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') onDone() }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [onDone])
+  return createPortal(
+    <div className="frg-layer">
+      <div className="frg-dim" />
+      <div className="frg-card is-placed is-center skg-card" role="dialog" aria-modal="true" aria-labelledby="skg-title" aria-describedby="skg-why">
+        <button type="button" className="skg-close" onClick={onDone} aria-label={say(CLOSE)} title={say(CLOSE)}><X size={18} aria-hidden="true" /></button>
+        <div className="skg-body">
+        <div className="frg-eyebrow"><MapPin size={13} aria-hidden="true" /> {say(EYEBROW)}</div>
+        <h2 id="skg-title">{say(TITLE)}</h2>
+        <p id="skg-why">{say(WHY)}</p>
+        <ol className="skg-steps">
+          <li><span className="skg-num">1</span><div><span>{say(STEP_TAB)}</span><GameShot src={controlsTab} alt={say(TAB_ALT)} marks={[TAB_MARK]} /></div></li>
+          <li><span className="skg-num">2</span><div><span>{say(STEP_ROW)}</span><GameShot src={screenshotRow} alt={say(ROW_ALT)} marks={ROW_MARKS} /></div></li>
+          <li><span className="skg-num">3</span><div><span>{say(STEP_RAID)}</span></div></li>
+        </ol>
+        <div className="skg-warn" role="note"><TriangleAlert size={18} aria-hidden="true" /><span><strong>{say(MAIN)}</strong> {say(WARN)}</span></div>
+        </div>
+        <div className="skg-foot"><button ref={button} type="button" className="button primary frg-accept" onClick={onDone}>{say(OK)}</button></div>
+      </div>
+    </div>,
+    document.body,
+  )
+}

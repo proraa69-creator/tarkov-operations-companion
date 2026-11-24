@@ -4,6 +4,8 @@ import { isElevated, runElevated } from './win32.js'
 
 /** Marks the copy started by relaunchAsAdmin; carries the process id of the copy that asked. */
 const RELAUNCH_ARG = '--elevated-relaunch'
+/** What the copy with the rights is started with again: the server laptop's switches and the installer's «--updated». */
+const APP_SWITCHES = ['--server-mode', '--enable-local-server', '--enable-tunnel', '--updated']
 
 /** This copy was started by relaunchAsAdmin: it never asks again, even when Windows still ran it without the rights. */
 export function isElevatedRelaunch() {
@@ -19,7 +21,9 @@ export function relaunchAsAdmin() {
   if (process.platform !== 'win32' || isElevated() !== false) return false
   const portable = process.env.PORTABLE_EXECUTABLE_FILE
   const file = portable || process.execPath
-  const args = portable ? [] : process.argv.slice(1).filter((arg) => !arg.startsWith(RELAUNCH_ARG))
+  // Only the app's own switches (security review, 03.11.2026): whoever started this copy must not hand the copy with
+  // administrator rights anything else, e.g. Chromium's --remote-debugging-port.
+  const args = portable ? [] : process.argv.slice(1).filter((arg) => APP_SWITCHES.includes(arg))
   const params = [...args, `${RELAUNCH_ARG}=${process.pid}`].map(quoteArg).join(' ')
   if (!runElevated(file, params, dirname(file))) return false
   setImmediate(() => app.quit())

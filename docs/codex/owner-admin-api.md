@@ -41,8 +41,8 @@ and meant to be shown to the owner as they are.
 
 ### Conventions
 
-- Days (`YYYY-MM-DD`) are Moscow days (UTC+3, no daylight saving). A day filter covers the whole day: `from` from
-  00:00, `to` until 24:00 Moscow time. Timestamps in answers are ISO 8601 in UTC.
+- Days (`YYYY-MM-DD`) are the owner's days: Bangkok time (UTC+7, no daylight saving; owner, 03.11.2026; src/shared/ownerTime.ts). A day filter covers the whole day: `from` from
+  00:00, `to` until 24:00 Bangkok time. Timestamps in answers are ISO 8601 in UTC.
 - Money is in roubles (a number with up to 2 decimals). An archived payment counts with the rouble amount stored when
   it was paid.
 - Payment regions (from the account's country, never from the IP): `RU` — Russia; `CIS` — the CIS countries except
@@ -66,12 +66,12 @@ One aggregate for the dashboard.
 Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is today, `from` is 29 days before `to`
 (30 days in total). `from` later than `to`, or an invalid date: `400`. Read rate limit.
 
-«In range» means between `from` 00:00 and `to` 24:00 Moscow time. Everything else describes the state now.
+«In range» means between `from` 00:00 and `to` 24:00 Bangkok time. Everything else describes the state now.
 
 ```jsonc
 {
   "generatedAt": "2026-10-01T10:00:00.000Z",
-  "range": { "from": "2026-09-25", "to": "2026-10-01", "timezone": "Europe/Moscow", "start": "<ISO>", "end": "<ISO, exclusive>" },
+  "range": { "from": "2026-09-25", "to": "2026-10-01", "timezone": "Asia/Bangkok", "start": "<ISO>", "end": "<ISO, exclusive>" },
   "users": {
     "total": 9,            // accounts that are not deleted (users, streamers and the owner)
     "new": 6,              // of those, registered in range
@@ -88,9 +88,12 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
   ],
   "subscriptions": {
     "activePaid": 3,       // a running period of an account that has at least one succeeded payment
+    "activePaidRepeat": 1, // of those, accounts with two or more succeeded payments above 0 ₽ (the 2nd, 3rd… subscription)
     "activeGranted": 2,    // a running period of an account that never paid (only grants)
     "grantedBy": { "owner": 1, "friend": 1 },  // activeGranted split: owner grants (incl. bug report rewards) / «Пригласи друга» rewards
     "trials": 1,           // free period running, no paid period
+    "trialsDead": 0,       // of those, «мёртвые»: registered 21+ days ago and the free days never used (not started, waiting for the first raid, refused)
+    "trialsAlive": 1,      // of those, «реальные» (trials = trialsDead + trialsAlive); back in the account or in a raid = real again
     "trialsPending": 4,    // free period waiting for the first sign-in in an app
     "expiringIn7Days": 2,  // paid or granted periods (not lifetime) that end within 7 days
     "expiringIn30Days": 4, // … within 30 days
@@ -100,14 +103,17 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
   "payers": {
     "everPaid": 3,         // users with at least one succeeded payment (refunded ones do not count)
     "paidInRange": 3,      // users with a succeeded payment in range
-    "newInRange": 2        // users whose first succeeded payment is in range
+    "newInRange": 2,       // users whose first succeeded payment is in range
+    "repeatPaid": 1,       // «Оплатили повторно»: users with two or more succeeded payments above 0 ₽ (all time; also overview.repeatPayers)
+    "repeatInRange": 1     // users with a second or later such payment in range
   },
   "revenue": {             // succeeded payments whose paid_at (else created_at) is in range
     "total": 1660,
     "payments": 4,
+    "repeatPayments": 1,   // of those, above 0 ₽ and the account had paid before («повторные оплаты»)
     "streamerEarnings": 0, // streamers' share of those payments
-    "byProvider": { "yookassa": { "count": 3, "amount": 1410 }, "boosty": { "count": 1, "amount": 250 }, "archive": { "count": 0, "amount": 0 } },
-    "byMethod": { "sbp": { "count": 2, "amount": 600 }, "bank_card": { "count": 1, "amount": 810 }, "boosty": { "count": 1, "amount": 250 } },
+    "byProvider": { "yookassa": { "count": 3, "amount": 1410 }, "bezebee": { "count": 1, "amount": 250 }, "archive": { "count": 0, "amount": 0 } },
+    "byMethod": { "sbp": { "count": 2, "amount": 600 }, "bank_card": { "count": 1, "amount": 810 }, "bezebee": { "count": 1, "amount": 250 } },
     "byRegion": { "RU": { "count": 2, "amount": 1110 }, "CIS": { "count": 1, "amount": 250 }, "WORLD": { "count": 0, "amount": 0 }, "none": { "count": 1, "amount": 300 } },
     "byPlan": { "1m": { "count": 3, "amount": 850 }, "3m": { "count": 1, "amount": 810 }, "6m": { "count": 0, "amount": 0 }, "12m": { "count": 0, "amount": 0 } },
     "refunds": { "count": 1, "amount": 300 }   // payments marked refunded, by refund date (else paid date) in range
@@ -123,7 +129,9 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
   "trialConversion": {
     "trialStarted": 2,     // users registered in range whose free period has started
     "laterPaid": 1,        // of those, with a succeeded payment
-    "rate": 0.5            // laterPaid / trialStarted (0–1, 4 decimals; 0 when nobody started)
+    "rate": 0.5,           // laterPaid / trialStarted (0–1, 4 decimals; 0 when nobody started)
+    "dead": 1,             // of every registration in the range, «мёртвые» now (as subscriptions.trialsDead); dead + alive = registrations
+    "alive": 1             // of trialStarted, «реальные» now
   }
 }
 ```
@@ -135,8 +143,8 @@ Definitions:
 - Region and country `revenue`: revenue in range from the payers' accounts in that region / country. Revenue of
   deleted accounts is in `byRegion.none` and in no country.
 - `byMethod` keys: the payment method ЮKassa reports (`sbp`, `sberbank` = SberPay, `tinkoff_bank` = T-Pay, `bank_card`,
-  `yoo_money`, `mir_pay`, …), `boosty` for Boosty, `unknown` for ЮKassa payments made before the method was stored
-  (16.10.2026), `archive` for the removed foreign provider.
+  `yoo_money`, `mir_pay`, …), `bezebee` for BZB, `unknown` for ЮKassa payments made before the method was stored
+  (16.10.2026), `archive` for the removed providers (Lava.top; Boosty since 03.11.2026).
 - Partial refunds are not in `refunds`: the payment stays succeeded and the owner adjusts the days by hand.
 - The statistics do not include the owner's free days or bug report rewards as revenue (they are not payments).
 
@@ -201,7 +209,7 @@ What the account's access rests on right now:
 
 | Value | Meaning |
 | --- | --- |
-| `money` | A running paid period on an account that has at least one succeeded payment (ЮKassa, Boosty or archived) |
+| `money` | A running paid period on an account that has at least one succeeded payment (ЮKassa, BZB or archived) |
 | `grant` | A running period on an account that never paid: owner grants, bug report rewards |
 | `friend` | The same, but the account also got days from a granted «Пригласи друга» reward |
 | `lifetime` | A streamer, or rank Legend (paid until 2100) |
@@ -227,10 +235,10 @@ Columns:
 | `nickname` | Game nickname, empty if not found yet |
 | `country` | ISO code; `XX (text)` for a country typed by hand |
 | `payRegion` | `RU`, `CIS`, `WORLD`, `none` |
-| `created` | Registration, `YYYY-MM-DD HH:MM` Moscow time |
-| `lastSeen` | Last authenticated request, Moscow time, empty if never |
+| `created` | Registration, `YYYY-MM-DD HH:MM` Bangkok time |
+| `lastSeen` | Last authenticated request, Bangkok time, empty if never |
 | `status` | `blocked` if blocked, else `active`, `trial` or `inactive` |
-| `paidUntil` | End of the paid / granted period, Moscow time (also an expired one; empty for a trial) |
+| `paidUntil` | End of the paid / granted period, Bangkok time (also an expired one; empty for a trial) |
 | `source` | Subscription source, empty without access |
 | `paymentsCount` | Succeeded payments |
 | `paymentsTotal` | Their sum, roubles with a decimal comma (`810,00`) |
@@ -291,8 +299,8 @@ Existing query: `from`, `to` (`YYYY-MM-DD`), `status` (`pending`, `succeeded`, `
 
 | Parameter | Values | Meaning |
 | --- | --- | --- |
-| `provider` | `yookassa`, `boosty`, `archive` | Who took the money |
-| `method` | lowercase method key, e.g. `sbp`, `bank_card`, `boosty`, `unknown`, `archive` | As `revenue.byMethod` in the statistics |
+| `provider` | `yookassa`, `bezebee`, `archive` | Who took the money (Boosty's payments read as `archive` since 03.11.2026) |
+| `method` | lowercase method key, e.g. `sbp`, `bank_card`, `bezebee`, `unknown`, `archive` | As `revenue.byMethod` in the statistics |
 | `region` | `RU`, `CIS`, `WORLD`, `none` | The payer's payment region now (deleted accounts: `none`) |
 | `dateField` | `created` (default), `paid` | Which date `from`/`to` filter on, and the sort order (newest first). `paid` uses paid_at, else created_at, as the statistics do |
 
@@ -304,13 +312,12 @@ The CSV takes the same filters (export rate limit, audited as `payments.export`)
 
 ### Payment method stored with each payment
 
-`payments.method` (a new nullable column, added on server start; existing rows are untouched, Boosty rows get
-`boosty`):
+`payments.method` (a new nullable column, added on server start; existing rows are untouched):
 
 - ЮKassa: the method asked for when the payment is created (`sbp`, `sberbank`, `tinkoff_bank`), replaced by
   ЮKassa's `payment_method.type` when the paid payment is read back from ЮKassa (also for automatic renewals).
-- Boosty: `boosty`.
-- Older payments: empty (shown as `unknown`); archived ones: shown as `archive`.
+- BZB: `bezebee`.
+- Older payments: empty (shown as `unknown`); archived ones (Lava.top, Boosty): shown as `archive`.
 
 ### Fix: registrations no longer count deleted accounts
 
@@ -326,9 +333,12 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
 
 ### Summary and calendar
 
-- `GET overview` → `{ generatedAt, users: { total, today, days7, days30, blocked }, subscriptions: { active, trials,
-  autopay, streamers }, revenue: { today, month, all: { total, payments } }, payouts: { paid, pending,
-  pendingRequests, earned } }`.
+- `GET overview` → `{ generatedAt, users: { total, today, days7, days30, blocked }, subscriptions: { active, activeRepeat,
+  trials, trialsDead, trialsAlive, autopay, streamers }, revenue: { today, month, all: { total, payments, repeat } },
+  payouts: { paid, pending, pendingRequests, earned } }` (15.11.2026: `activeRepeat` — of `active`, paid twice or more;
+  `trialsDead` / `trialsAlive` — as in `stats`; `repeat` — of `payments`, the account had paid before).
+- A period chosen in «Календарь» (owner, 15.11.2026: first and second day by a right click on the site and in the PC
+  app, by a long press on the phone) is read from `GET stats?from=&to=`.
 - `GET series?period=day|month|year` → `{ period, rows: [{ period, registrations, payments, revenue, plans: { 1m:
   { count, revenue }, … } }] }` (last 31 days / 12 months / all years, newest first).
 - `GET calendar?month=YYYY-MM` → `{ month, today, days: [{ date, registrations, payments, revenue, plans }] }`.
@@ -341,6 +351,15 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
 
 - `GET users/:id` → `{ user: AdminUser, payments: [last 20 AdminPayment], grants: [last 20 { days, reason, actor, at,
   paidUntil }] }` (`days` is negative for days taken off).
+- `GET users/:id/profile` → `AccountProfile` (`server/src/services/adminStore.ts`), «Посмотреть профиль» from the chats
+  (owner, 24.11.2026): `account` (e-mail and its confirmation, nickname, bound game account masked, registration,
+  country, confirmed phone masked, blocked / deletion dates; a deleted account has no e-mail or nickname), `subscription`
+  with its `source`, `autopay`, `origin` (friend, streamer code or link, ad), `payments` (succeeded count and sum,
+  refunds apart, `first`, `last`, `months` — the owner's months newest first with the plans bought in each — `plans`,
+  every payment up to 200 with `more`), `grants` (up to 50), `activity` (`lastSeenAt`, the last use of the PC app, the
+  phone app and the browser build, the first app sign-in, `phone: { used, android, ios }`, the devices by name and
+  time — never their ids — and `online` from the heartbeat), `referrals` (own code, friends brought, how many paid and
+  their sum, the list up to 200, reward days; a streamer's code stats). `404` unknown account. Not audited (read only).
 - `POST users/:id/grant { days: 1–3650, reason: 3–200 }` → the same as `GET users/:id`. Audit `subscription.grant`.
 - `POST users/:id/revoke { days: 1–3650, reason: 3–200 }` → takes paid days off (never back past now); `409` when
   there are no paid days or the account is a streamer. Audit `subscription.revoke`.
@@ -357,7 +376,6 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
   (to or from).
 - `GET users/:id/devices` → `{ devices, limit }`; `POST users/:id/devices/:deviceId/revoke` → `{ devices, limit }`
   (audited `device.revoke`). Source: `server/src/routes/entitlement.ts`.
-- `GET users/:id/boosty` → `{ region, friendAvailable, friendPercent, requests: [{ offer, region, at }] }`.
 
 ### Payments
 
@@ -368,19 +386,10 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
 - `GET sales-settings` → `{ enabled, providers, plans, yookassa: { monthPrice, receipts, autopay, publicUrl } | null,
   streamerPercent, trialDays, welcomeTrialDays }` (never keys; editing stays in the desktop app).
 
-### Boosty
+### Boosty (removed 03.11.2026)
 
-From `docs/payments/payment-regions-and-announcements.md` («API for the subscription tool»):
-
-- `GET boosty` → `{ sync, review: { items, total }, levels, offers }`.
-- `GET boosty/payments?email=&limit=&offset=` → `{ payments, total }`.
-- `GET boosty/review?status=open|all&limit=&offset=` → `{ items, total }`.
-- `POST boosty/payments { email, offer: 'standard'|'friend', region?: 'CIS'|'WORLD', months?: 1|3|6|12, paidUntil?,
-  amount?, reference?, reviewId? }` → `201 { payment, user }`; `404/409 { error, code }` with `code` one of
-  `unknown_email`, `no_country`, `region_mismatch`, `friend_without_referral`. Audit `payment.boosty-confirm`.
-- `POST boosty/review/:id/dismiss` → `{ ok: true }`.
-- `PUT boosty/levels/:levelId { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }` → `{ levels }`.
-- `PUT boosty/pause { paused }` → `{ sync }`; `POST boosty/sync` → `{ sync }` (`409` without the Boosty secrets).
+The `boosty*` routes are gone (404). Boosty's past payments are `archive` payments in `GET payments`; the audit log
+keeps its `payment.boosty-confirm` entries.
 
 ### «Пригласи друга» rewards
 
@@ -421,6 +430,8 @@ uploads 40 per 10 minutes.
   Actions added here: `users.export`, `subscription.bulk-grant`.
 
 ### Not covered here
+
+`GET /me/admin/update-history` → `{ versions: [{ version, date, changes }] }`: «История обновлений», newest first, from `src/data/updateHistory.json`.
 
 Bug reports, support chat, map data, quest data, server updates and the YooKassa settings also have owner routes
 (`server/src/routes/bugReports.ts`, `supportChat.ts`, `mapBosses.ts`, `questPoints.ts`, `questTexts.ts`,

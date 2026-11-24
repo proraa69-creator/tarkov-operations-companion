@@ -25,18 +25,26 @@ describe('screen scan sync after turn-in', () => {
     expect(isTasksMenuText('сдать задание\nнаграда')).toBe(false)
   })
 
-  it('moves the turned-in quest out of current when the next one appears — not to «completed»: a chain decides nothing (owner, 15.10.2026)', () => {
+  it('the next quest of a chain on the screen takes nothing away: the reading may be wrong, a hand-in shows in the logs (owner, 05.11.2026)', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'checking' }], [debut, checking], { previousSeenIds: ['debut'] })
-    // The lists show it as «вероятно выполнено» (the chain), never counted.
-    expect(next.taskProgress.debut).toBeUndefined()
+    const next = applyScreenScanProgress(progress, [{ questId: 'checking', status: 'active' }], [debut, checking], { previousSeenIds: ['debut'] })
+    expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
+  })
+
+  it('a row read «провалено» takes nothing away and adds nothing: the player takes that quest again (owner, 05.11.2026)', () => {
+    const progress = createModeProgress()
+    progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
+    const next = applyScreenScanProgress(progress, [{ questId: 'debut', status: 'failed' }, { questId: 'checking', status: 'failed', score: 1 }], [debut, checking])
+    expect(next).toBe(progress)
+    expect(next.taskProgress.debut?.status).toBe('active')
+    expect(next.taskProgress.checking).toBeUndefined()
   })
 
   it('keeps the previous quest current if it is still on the same Tasks screen', () => {
     const progress = createModeProgress()
-    const next = applyScreenScanProgress(progress, [{ questId: 'debut' }, { questId: 'checking' }], [debut, checking])
+    const next = applyScreenScanProgress(progress, [{ questId: 'debut', status: 'active' }, { questId: 'checking', status: 'active' }], [debut, checking])
     expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
   })
@@ -50,17 +58,17 @@ describe('screen scan sync after turn-in', () => {
     expect(applyScreenScanProgress(progress, [{ questId: 'story-tour', stageIndex: 4 }], [debut, tour, maze])).toBe(progress)
   })
 
-  it('ends a quest that left the Tasks screen while neighbors stayed', () => {
+  it('keeps a quest that left the Tasks screen while neighbors stayed', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     progress.taskProgress.checking = { taskId: 'checking', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     const next = applyScreenScanProgress(
       progress,
-      [{ questId: 'checking' }, { questId: 'side' }],
+      [{ questId: 'checking', status: 'active' }, { questId: 'side', status: 'active' }],
       [debut, checking, parallel],
       { previousSeenIds: ['debut', 'checking'] },
     )
-    expect(next.taskProgress.debut).toBeUndefined()
+    expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
     expect(next.taskProgress.side?.status).toBe('active')
   })
@@ -69,7 +77,7 @@ describe('screen scan sync after turn-in', () => {
     const skier: Quest = { id: 'swag', name: 'Золотая добыча', trader: 'Лыжник', level: 5, kappa: true, description: '', objectives: [], rewards: [] }
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'swag' }], [debut, skier], { previousSeenIds: ['debut'] })
+    const next = applyScreenScanProgress(progress, [{ questId: 'swag', status: 'active' }], [debut, skier], { previousSeenIds: ['debut'] })
     expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.swag?.status).toBe('active')
   })
@@ -78,7 +86,7 @@ describe('screen scan sync after turn-in', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     progress.taskProgress.side = { taskId: 'side', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'side' }], [debut, parallel], { previousSeenIds: ['debut', 'side'] })
+    const next = applyScreenScanProgress(progress, [{ questId: 'side', status: 'active' }], [debut, parallel], { previousSeenIds: ['debut', 'side'] })
     expect(next.taskProgress.debut?.status).toBe('active')
   })
 
@@ -88,7 +96,7 @@ describe('screen scan sync after turn-in', () => {
     const progress = createModeProgress()
     progress.taskProgress.cans = { taskId: 'cans', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     progress.taskProgress.side = { taskId: 'side', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'side' }, { questId: 'order' }], [cans, order, parallel], { previousSeenIds: ['cans', 'side', 'order'] })
+    const next = applyScreenScanProgress(progress, [{ questId: 'side', status: 'active' }, { questId: 'order', status: 'active' }], [cans, order, parallel], { previousSeenIds: ['cans', 'side', 'order'] })
     expect(next.taskProgress.cans?.status).toBe('active')
   })
 
@@ -98,14 +106,14 @@ describe('screen scan sync after turn-in', () => {
     const next = applyScreenScanProgress(progress, [{ questId: 'debut' }], [debut, checking])
     expect(next.taskProgress.debut?.status).toBe('completed')
 
-    const fresh = applyScreenScanProgress(createModeProgress(), [{ questId: 'checking' }], [debut, checking])
+    const fresh = applyScreenScanProgress(createModeProgress(), [{ questId: 'checking', status: 'active' }], [debut, checking])
     expect(fresh.taskProgress.debut).toBeUndefined()
   })
 
   it('adds a new quest in live watch only after two consecutive frames', () => {
-    const first = applyScreenScanProgress(createModeProgress(), [{ questId: 'debut' }], [debut], { previousSeenIds: [], requireConfirmation: true })
+    const first = applyScreenScanProgress(createModeProgress(), [{ questId: 'debut', status: 'ready' }], [debut], { previousSeenIds: [], requireConfirmation: true })
     expect(first.taskProgress.debut).toBeUndefined()
-    const second = applyScreenScanProgress(first, [{ questId: 'debut' }], [debut], { previousSeenIds: ['debut'], requireConfirmation: true })
+    const second = applyScreenScanProgress(first, [{ questId: 'debut', status: 'ready' }], [debut], { previousSeenIds: ['debut'], requireConfirmation: true })
     expect(second.taskProgress.debut?.status).toBe('active')
   })
 
@@ -116,10 +124,20 @@ describe('screen scan sync after turn-in', () => {
     expect(once.taskProgress.side).toBeUndefined()
   })
 
+  // Since 13.11.2026 a row needs its status read at all (a player: quests long handed in came back as current).
+  it('adds a row whose title was read exactly from one frame with its status read; none without one; a looser reading still needs two (owner, 03.11.2026)', () => {
+    const once = applyScreenScanProgress(createModeProgress(), [{ questId: 'debut', score: 1 }, { questId: 'checking', status: 'ready', score: 1 }, { questId: 'side', status: 'ready', score: 0.8 }], [debut, checking, parallel], { previousSeenIds: [], requireConfirmation: true })
+    expect(once.taskProgress.debut).toBeUndefined()
+    expect(once.taskProgress.checking?.status).toBe('active')
+    expect(once.taskProgress.side).toBeUndefined()
+    const twice = applyScreenScanProgress(once, [{ questId: 'side', status: 'ready', score: 0.8 }], [debut, checking, parallel], { previousSeenIds: ['side'], requireConfirmation: true })
+    expect(twice.taskProgress.side?.status).toBe('active')
+  })
+
   it('keeps active PvE quests found in logs when OCR only sees one page', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'eft-log', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'checking' }], [debut, checking], { previousSeenIds: ['checking'], requireConfirmation: true })
+    const next = applyScreenScanProgress(progress, [{ questId: 'checking', status: 'active' }], [debut, checking], { previousSeenIds: ['checking'], requireConfirmation: true })
     expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
   })
@@ -177,6 +195,25 @@ describe('a trader\'s own Tasks tab in the Russian game (audit P13)', () => {
     expect(read.length).toBeGreaterThan(3)
     expect(tableMatches(unmarked, read).map((match) => name(match.questId))).toEqual(['Работа для патриота'])
   })
+
+  // A player's ticket №37, 04.11.2026: the parts not open yet, red, on «Показать заблокированные», its marks not read.
+  it('with its locked rows shown too: their status cells do not make a row without one current', () => {
+    const shown = (word: string) => [
+      'Работа для патриота Любая локация активно!',
+      `Зеленый коридор Любая локация ${word}`,
+      `Новый участковый Любая локация ${word}`,
+      'Короли высоток',
+    ].join('\n')
+    for (const word of ['заблокировано', 'доступно']) {
+      const read = matchQuestsFromOcr(shown(word), quests)
+      expect(read.map((match) => name(match.questId))).toEqual(expect.arrayContaining(['Короли высоток']))
+      expect(tableMatches(shown(word), read).map((match) => name(match.questId)).sort()).toEqual(['Зеленый коридор', 'Новый участковый', 'Работа для патриота'])
+    }
+    // The Tasks table itself: a row whose status cell was missed no longer counts (a player, 13.11.2026: quests long handed
+    // in came back as current).
+    const table = ['Работа для патриота Любая локация активно!', 'Зеленый коридор Любая локация выполнено!', 'Короли высоток'].join('\n')
+    expect(tableMatches(table, matchQuestsFromOcr(table, quests)).map((match) => name(match.questId))).not.toContain('Короли высоток')
+  })
 })
 
 describe('a Tasks frame that shows nothing new changes nothing (audit P5f)', () => {
@@ -209,5 +246,38 @@ describe('a Tasks frame that shows nothing new changes nothing (audit P5f)', () 
     expect(next.taskProgress.checking).toMatchObject({ status: 'active', updatedAt: new Date(now).toISOString() })
     expect(next.taskProgress.debut).toBe(progress.taskProgress.debut)
     expect(next.taskProgress.side).toBe(progress.taskProgress.side)
+  })
+})
+
+// Report 209 (PvE): «Путь охотника. Администратор» is one title for BEAR (Reserve) and USEC (Lighthouse).
+describe('a title two factions share', () => {
+  const administrator = (id: string, faction: string, mapId: string): Quest => ({
+    id, name: 'Путь охотника. Администратор', nameEn: 'The Huntsman Path - Administrator', trader: 'Егерь', level: 17, kappa: false, description: '', objectives: [], rewards: [], faction, mapId,
+  })
+  const twins = [administrator('admin-bear', 'BEAR', 'reserve'), administrator('admin-usec', 'USEC', 'lighthouse')]
+  const read = (text: string, faction?: 'usec' | 'bear' | 'unknown') => tableMatches(text, matchQuestsFromOcr(text, twins, { faction }))
+
+  it('is the version whose location the row shows, else the profile faction, else a guess', () => {
+    expect(read('Путь охотника. Администратор Маяк активно! 0%').map((match) => [match.questId, match.twin])).toEqual([['admin-usec', 'row']])
+    expect(read('Путь охотника. Администратор Резерв активно! 0%').map((match) => [match.questId, match.twin])).toEqual([['admin-bear', 'row']])
+    expect(read('The Huntsman Path - Administrator Lighthouse active!').map((match) => [match.questId, match.twin])).toEqual([['admin-usec', 'row']])
+    expect(read('Путь охотника. Администратор активно! 0%', 'usec').map((match) => [match.questId, match.twin])).toEqual([['admin-usec', 'faction']])
+    expect(read('Путь охотника. Администратор активно! 0%').map((match) => match.twin)).toEqual(['guess'])
+  })
+
+  it('a row that tells them apart replaces the version an earlier guess wrote; a guess does not go over the one being done', () => {
+    const progress = createModeProgress()
+    progress.taskProgress['admin-bear'] = { taskId: 'admin-bear', status: 'active', source: 'screen-scan', updatedAt: '2026-11-15T11:58:24.110Z' }
+    const fixed = applyScreenScanProgress(progress, read('Путь охотника. Администратор Маяк активно! 0%'), twins, { now: Date.parse('2026-11-21T00:00:00Z') })
+    expect(Object.keys(fixed.taskProgress)).toEqual(['admin-usec'])
+    const again = applyScreenScanProgress(fixed, read('Путь охотника. Администратор активно! 0%'), twins, { now: Date.parse('2026-11-21T00:01:00Z') })
+    expect(again).toBe(fixed)
+  })
+
+  it('leaves a version the logs wrote', () => {
+    const progress = createModeProgress()
+    progress.taskProgress['admin-bear'] = { taskId: 'admin-bear', status: 'active', source: 'eft-log', updatedAt: '2026-11-15T11:58:24.110Z' }
+    const next = applyScreenScanProgress(progress, read('Путь охотника. Администратор Маяк активно! 0%'), twins)
+    expect(Object.keys(next.taskProgress).sort()).toEqual(['admin-bear', 'admin-usec'])
   })
 })

@@ -1,7 +1,8 @@
-import type { Item, ModeProgress, Quest, RaidMode } from '../domain/types'
+import type { Item, Quest, RaidMode } from '../domain/types'
 import type { ItemOverlayInfo, QuestNeed } from './types'
 import type { KeepBadge } from '../raidprep/keepList'
 import { fleaQuote, isAveragePrice, quoteKind } from '../domain/itemPrices'
+import { usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
 
 const PURPOSE: Record<string, string> = {
   handover: 'сдать',
@@ -19,11 +20,11 @@ const COLLECTOR = /коллекционер|collector/i
  * items already checked on «Предметы для «Коллекционера»» in this mode, given only while «Значок «Каппа» в рейде только
  * на недостающих» is on (kappa/kappaBadgeSetting.ts): those get no «Каппа» badge.
  */
-export function describeItem(item: Item, quests: Quest[], progress: Pick<ModeProgress, 'taskProgress'>, mode?: RaidMode, keep?: KeepBadge, collected?: readonly string[]): ItemOverlayInfo {
+export function describeItem(item: Item, quests: Quest[], progress: ObjectiveMarks, mode?: RaidMode, keep?: KeepBadge, collected?: readonly string[]): ItemOverlayInfo {
   const needs: QuestNeed[] = []
   for (const quest of quests) {
     const status = progress.taskProgress[quest.id]?.status
-    if (status === 'completed' || status === 'failed') continue
+    if (status === 'completed' || status === 'failed' || usedQuestKeys(quest, progress).has(item.id)) continue
     const requirements = quest.raidRequirements?.filter((requirement) => requirement.itemId === item.id) ?? []
     if (!requirements.length && !quest.requiredItems?.includes(item.id)) continue
     const count = requirements.reduce((sum, requirement) => sum + (requirement.count || 1), 0) || 1

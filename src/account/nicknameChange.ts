@@ -94,6 +94,12 @@ export function noteConfirmedNickname(raw: string, source: NicknameSource, obser
     }
     candidate = null
   }
+  // Typed over a nickname the game never showed (owner, 31.10.2026: a player whose nickname was not found typed it, then
+  // corrected it — and lost the mode's quests): a correction of the player's own typing, nothing was renamed.
+  if (source === 'typed' && !stored.screen) {
+    write({ nickname, screen: false, at, characters })
+    return null
+  }
   write({ nickname, screen: source === 'screen', at, characters })
   // The logs started another character in this mode since the previous nickname: its epoch already reset the mode.
   const before = stored.characters[mode]

@@ -1,7 +1,11 @@
+import { taskPrestigeOf } from '../progression/prestigeQuests'
 import type { AppDataset, GameMap, HideoutStation, Item, PriceQuote, Quest, RaidMode, Trader } from '../domain/types'
+import { steadyFleaPrice } from '../domain/itemPrices'
 import { maps as curatedMaps } from './demo'
 import { hideoutPosition } from './hideoutLayout'
 import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
+import { isStalePlace } from './stalePlaces'
+import { byObjective, gameObjectiveIds } from './objectiveGameIds'
 import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
@@ -9,15 +13,20 @@ import { withQuestTransits } from './questTransits'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails, type WikiQuestSync } from './wikiQuestCatalog'
 import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
+import { withOwnerGuides } from './ownerGunsmithGuides'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import { applyQuestCorrections } from './questCorrections'
+import { markManualQuests } from './manualQuests'
 import { applyCuratedQuestNotes, withCuratedTasks } from './curatedQuests'
+import { withQuestItemSpots } from './questItemSpots'
 import { eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
+import { gearStatsOf, presetIndex } from './gearStats'
+import { questOfferUnlocks, withOfferUnlocks } from './questOfferUnlocks'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -69,7 +78,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const rawItems: RawEndpoint = {}
   // The tasks untranslated: the game's keys of a kill objective's body parts and targets (src/data/objectiveConditions.ts).
   const rawTasks: RawEndpoint = {}
-  const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
+  const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki, barters] = await Promise.all([
     fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher, rawTasks),
     fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, rawItems),
     fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
@@ -78,13 +87,21 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     fetchMapRenderingConfigs(fetcher).catch(() => new Map<string, Partial<GameMap>>()),
     // The quest wiki used for details is Russian; the English catalog keeps tarkov.dev's own English text.
     (locale === 'ru' ? (options.wiki ?? fetchWikiQuestSync)() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
+    // The barters only add what a quest opens for items (src/data/questOfferUnlocks.ts): without them the rest stays.
+    fetchEnvelope(`${BASE_URL}/${upstreamMode}/barters`, fetcher).then((envelope) => envelope.data).catch(() => undefined),
   ])
+
+  // Season: the quests its data lacks, from the PvP data (SEASON_BORROWED_TASKS); without the PvP data, Season as it is.
+  const seasonTasks = upstreamMode === 'pvp-season'
+    ? withSeasonTaskFixes(await borrowRegularTasks(upstreamTasks, rawTasks, locale, fetcher).catch(() => upstreamTasks), rawTasks, locale)
+    : upstreamTasks
 
   // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
   const now = options.now ?? Date.now()
   const series = eventSeriesWith(options.eventQuests?.() ?? [])
-  const curated = withCuratedTasks(upstreamTasks, { mode, locale, maps, traders, series, now })
-  const tasks = curated.tasks
+  const curated = withCuratedTasks(seasonTasks, { mode, locale, maps, traders, series, now })
+  // Quest item spawns tarkov.dev lists only in part, from the SPT database (src/data/questItemSpots.ts).
+  const tasks = withQuestItemSpots(curated.tasks)
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
   const itemRows = adaptItems(items, traderById, mode)
@@ -102,11 +119,13 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
       : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
     return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const questRows = applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
+  // the quests changed by hand are marked (src/data/manualQuests.ts)
+  const questRows = withOfferUnlocks(applyCuratedQuestNotes(markManualQuests(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale)), locale), curated.added, locale, itemById, series, now)
+  ), locale)), locale, mode), mode), curated.added, locale, itemById, series, now), questOfferUnlocks(tasks, items, barters))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
+  const questItems = adaptQuestItems(tasks, questRows)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
   const markers = [...liveMarkers, ...adaptStoryQuestMarkers(questRows, mapRows, liveMarkers)]
 
@@ -117,6 +136,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     items: itemRows,
     hideout: hideoutRows,
     traders: traderRows,
+    ...(questItems.length ? { questItems } : {}),
     metadata: {
       source: 'json.tarkov.dev',
       mode,
@@ -150,12 +170,13 @@ async function withBuildGuides(
   englishResolver: () => Promise<(name: string) => string | undefined>,
 ): Promise<Quest[]> {
   const isBuild = (quest: Quest) => quest.objectiveDetails?.some((objective) => objective.build) ?? false
-  if (locale !== 'ru' || !quests.some(isBuild)) return quests
+  // The parts the sites leave out of a build, at the end of their list (src/data/ownerGunsmithGuides.ts).
+  if (locale !== 'ru' || !quests.some(isBuild)) return withOwnerGuides(quests, locale !== 'ru')
   const rawTasks = asRecord(tasksRoot.tasks)
   const traderOf = (quest: Quest) => traders.get(text(asRecord(rawTasks[quest.id]).trader))?.normalizedName
   const help = await fetchTarkovHelpGuides(quests.filter(isBuild).map((quest) => ({ id: quest.id, name: quest.name, trader: traderOf(quest) })))
   const isWeapon = (itemId: string) => (items.get(itemId)?.types ?? []).some((type) => type === 'gun' || type === 'preset')
-  const guided = withHelpGuides(quests, help, isWeapon)
+  const guided = withOwnerGuides(withHelpGuides(quests, help, isWeapon))
   // The wiki only for the tasks tarkov.help has no build for.
   const pages = guided.flatMap((quest) => {
     const title = quest.objectiveDetails?.some((objective) => objective.build && !objective.build.guide) ? wikiPageTitle(quest.wikiLink) : undefined
@@ -199,6 +220,96 @@ export type ConditionSources = (taskId: string) => ObjectiveConditionSource
 
 /** An endpoint as upstream serves it: the data with translation keys for its texts, and the dictionary of the locale. */
 interface RawEndpoint { data?: unknown; dictionary?: JsonRecord }
+
+/**
+ * Quests the game gives in Season that the Season data (tarkov.dev `pvp-season`) lacks: the 0.16 branch between Skier and
+ * the BTR driver (reports 184, 185, 17.11.2026: a Season player had «Выбирай друзей правильно» active in the game and found it
+ * nowhere in the app). From «Задержка поставки» and «Навести мосты», both in Season: «Спросить дорогу» → «Стабилизировать
+ * бизнес» → «Поменять батарейку» (Ragman's way) → «Цена независимости», and Skier's «Выше головы» → «Отклонение от
+ * маршрута» → «Подстелить соломку» → «Ключевой партнёр» → «Убойный аргумент» → «Выбирай друзей правильно»; «Цена
+ * независимости» and «Выбирай друзей правильно» fail each other. Every quest they need is in Season already.
+ */
+export const SEASON_BORROWED_TASKS: readonly string[] = [
+  '674492b6909d2013670a347a', '6744a4717e3818d5bb0680bb', '6744a9dfef61d56e020b5c4a', '6744af0969a58fceba101fed', '6745cbee909d2013670a4a55',
+  '6745fae369a58fceba10343d', '674600a366e6a521aa05eb66', '674602307e3818d5bb069489', '6746053b5b555b53460d9896', '674605df60a98cad1b0ec799',
+  '67460662d0fbbc74ca0f7229',
+]
+
+/** `root`'s tasks with the borrowed ones `from` has and `root` has not, and their quest items. */
+export function withBorrowedTasks(root: JsonRecord, from: JsonRecord, ids: readonly string[] = SEASON_BORROWED_TASKS): JsonRecord {
+  const tasks = asRecord(root.tasks)
+  const source = asRecord(from.tasks)
+  const borrowed = ids.filter((id) => !tasks[id] && source[id])
+  if (!borrowed.length) return root
+  const questItems = { ...asRecord(from.questItems), ...asRecord(root.questItems) }
+  return { ...root, questItems, tasks: { ...tasks, ...Object.fromEntries(borrowed.map((id) => [id, source[id]])) } }
+}
+
+interface SeasonTaskFix {
+  /** By the objective's id: its count, kill targets (the game's keys) and line, as the game's Season gives them. */
+  objectives: Record<string, { count?: number; targetNames?: string[]; description?: Record<AppLocale, string> }>
+  /** The game's Season version opens nothing at the traders. */
+  noOfferUnlock?: boolean
+}
+
+/**
+ * Quests the game gives otherwise in Season than tarkov.dev's `pvp-season` data, a copy of the PvP version. Report 192
+ * (18.11.2026, the game's own Season screen): «Освободить помещение» asks to eliminate 24 PMC operatives in the Labyrinth,
+ * not any 36 targets, and its rewards open no «Алтын» at Ragman's.
+ */
+export const SEASON_TASK_FIXES: Readonly<Record<string, SeasonTaskFix>> = {
+  '67d03be712fb5f8fd2096332': {
+    objectives: {
+      '67d03be712fb5f8fd2096334': {
+        count: 24,
+        targetNames: ['AnyPmc'],
+        description: { ru: 'Устранить бойцов ЧВК в Лабиринте', en: 'Eliminate PMC operatives inside The Labyrinth' },
+      },
+    },
+    noOfferUnlock: true,
+  },
+}
+
+/**
+ * `tasks` (translated) with SEASON_TASK_FIXES applied, and the untranslated ones in `raw` likewise (the kill conditions are
+ * read from those). Objectives are found by their id in the untranslated data (the translated one has its text as id).
+ */
+export function withSeasonTaskFixes(tasks: JsonRecord, raw: RawEndpoint, locale: AppLocale, fixes: Readonly<Record<string, SeasonTaskFix>> = SEASON_TASK_FIXES): JsonRecord {
+  const translated = asRecord(tasks.tasks)
+  const rawRoot = asRecord(raw.data)
+  const rawTasks = asRecord(rawRoot.tasks)
+  const dictionary = raw.dictionary ?? {}
+  const fixedTranslated: JsonRecord = {}
+  const fixedRaw: JsonRecord = {}
+  for (const [id, fix] of Object.entries(fixes)) {
+    const rawTask = asRecord(rawTasks[id])
+    const task = asRecord(translated[id])
+    if (!translated[id] || !rawTasks[id]) continue
+    const rawObjectives = asArray(rawTask.objectives).map(asRecord)
+    const objectives = asArray(task.objectives).map(asRecord)
+    const patch = (objective: JsonRecord, change: SeasonTaskFix['objectives'][string] | undefined, translate: boolean) => change ? {
+      ...objective,
+      ...(change.count !== undefined ? { count: change.count } : {}),
+      ...(change.targetNames ? { targetNames: translate ? change.targetNames.map((name) => (typeof dictionary[name] === 'string' ? dictionary[name] : name)) : change.targetNames } : {}),
+      ...(change.description && translate ? { description: change.description[locale] } : {}),
+    } : objective
+    const changes = rawObjectives.map((objective) => fix.objectives[text(objective.id)])
+    const noUnlock = (value: unknown) => (fix.noOfferUnlock ? { ...asRecord(value), offerUnlock: [] } : value)
+    fixedRaw[id] = { ...rawTask, objectives: rawObjectives.map((objective, at) => patch(objective, changes[at], false)), finishRewards: noUnlock(rawTask.finishRewards) }
+    fixedTranslated[id] = { ...task, objectives: objectives.map((objective, at) => patch(objective, changes[at], true)), finishRewards: noUnlock(task.finishRewards) }
+  }
+  if (!Object.keys(fixedTranslated).length) return tasks
+  raw.data = { ...rawRoot, tasks: { ...rawTasks, ...fixedRaw } }
+  return { ...tasks, tasks: { ...translated, ...fixedTranslated } }
+}
+
+async function borrowRegularTasks(seasonTasks: JsonRecord, rawSeason: RawEndpoint, locale: AppLocale, fetcher: typeof fetch): Promise<JsonRecord> {
+  const rawRegular: RawEndpoint = {}
+  const regular = await fetchTranslated('regular', 'tasks', locale, undefined, fetcher, rawRegular)
+  // the untranslated tasks too: a kill objective's conditions are read from them (conditionSourceOf)
+  rawSeason.data = withBorrowedTasks(asRecord(rawSeason.data), asRecord(rawRegular.data))
+  return withBorrowedTasks(seasonTasks, regular)
+}
 
 async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version: { version?: string } | undefined, fetcher: typeof fetch, raw?: RawEndpoint): Promise<JsonRecord> {
   const path = `${mode}/${endpoint}`
@@ -281,17 +392,19 @@ export function presetImageFor(entry: JsonRecord, rawItems: JsonRecord): string 
 
 type FleaMarketInfo = NonNullable<NonNullable<AppDataset['metadata']>['fleaMarket']>
 
-/** tarkov.dev `fleaMarket` of the items file (json.tarkov.dev `<mode>/items`): whether this mode's flea is open, and its fee rates. */
+/** tarkov.dev `fleaMarket` of the items file (json.tarkov.dev `<mode>/items`): whether this mode's flea is open, its fee rates and level. */
 export function adaptFleaMarket(root: JsonRecord): FleaMarketInfo | undefined {
   const flea = asRecord(root.fleaMarket)
   if (!Object.keys(flea).length) return undefined
   const rate = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined)
   const offerFeeRate = rate(flea.sellOfferFeeRate)
   const requirementFeeRate = rate(flea.sellRequirementFeeRate)
+  const minPlayerLevel = typeof flea.minPlayerLevel === 'number' && Number.isFinite(flea.minPlayerLevel) && flea.minPlayerLevel >= 1 ? Math.round(flea.minPlayerLevel) : undefined
   return {
     enabled: flea.enabled !== false,
     ...(offerFeeRate !== undefined ? { offerFeeRate } : {}),
     ...(requirementFeeRate !== undefined ? { requirementFeeRate } : {}),
+    ...(minPlayerLevel !== undefined ? { minPlayerLevel } : {}),
   }
 }
 
@@ -307,21 +420,20 @@ export function traderQuoteRub(quote: JsonRecord): number {
 }
 
 /**
- * The flea price shown to the player: the current lowest offer (`lastLowPrice`). Only when there is no current offer,
- * the 24-hour average (`avg24hPrice`), flagged so the pages can say so. The average lags the market and is pulled up by
+ * The flea price shown to the player: the current lowest offer (`lastLowPrice`). When there is no current offer, or it is
+ * a lone listing at more than twice the 24-hour average (itemPrices.ts steadyFleaPrice), the average (`avg24hPrice`),
+ * flagged so the pages can say so. The average lags the market and is pulled up by
  * expensive listings, so it sits above the cheapest offer for most items — it is not what the item costs right now.
  * Flea-banned items (`types: noFlea`) and a closed flea (`fleaMarket.enabled: false`) have no flea price.
  */
 export function fleaPriceOf(entry: JsonRecord, fleaEnabled = true): { price: number; basis: 'last-low' | 'avg-24h' } | undefined {
   if (!fleaEnabled || strings(entry.types).includes('noFlea')) return undefined
-  const lastLow = number(entry.lastLowPrice)
-  if (lastLow > 0) return { price: lastLow, basis: 'last-low' }
-  const average = number(entry.avg24hPrice)
-  return average > 0 ? { price: average, basis: 'avg-24h' } : undefined
+  return steadyFleaPrice(number(entry.lastLowPrice), number(entry.avg24hPrice))
 }
 
 function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMode): Item[] {
   const rawItems = asRecord(root.items)
+  const presets = presetIndex(rawItems)
   const fleaEnabled = adaptFleaMarket(root)?.enabled !== false
   return recordValues(rawItems).map((entry) => {
     const types = strings(entry.types)
@@ -364,6 +476,9 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       damage: number(properties.damage) || undefined,
       penetration: number(properties.penetrationPower) || number(properties.penetration) || undefined,
       armorClass: number(properties.class) || number(properties.armorClass) || undefined,
+      keyUses: typeof properties.uses === 'number' ? properties.uses : undefined,
+      stackSize: number(entry.stackMaxSize) > 1 ? number(entry.stackMaxSize) : undefined,
+      gear: gearStatsOf(entry, root.armorMaterials, (id) => asRecord(rawItems[id]), (id) => presets.get(id)),
     } satisfies Item
   }).filter((item) => item.id)
 }
@@ -391,6 +506,20 @@ export function adaptTaskRows(tasksRoot: JsonRecord, traders: readonly Trader[],
   return adaptTasks(tasksRoot, new Map(traders.map((trader) => [trader.id, trader])), new Map(items.map((item) => [item.id, item])), mapIds)
 }
 
+/**
+ * A quest's reward items, one per item with the counts added up, in the feed's order. tarkov.dev lists some rewards as
+ * separate entries of the same item (report 200, «Провокация»: two «Virtex × 1» where the game gives «Virtex × 2»).
+ */
+export function rewardItemTotals(rewards: readonly JsonRecord[]): Array<{ itemId: string; count: number }> {
+  const totals = new Map<string, number>()
+  for (const reward of rewards) {
+    const itemId = refId(reward.item) || text(reward.item)
+    if (!itemId) continue
+    totals.set(itemId, (totals.get(itemId) ?? 0) + (number(reward.count) || 1))
+  }
+  return [...totals].map(([itemId, count]) => ({ itemId, count }))
+}
+
 function adaptTasks(
   root: JsonRecord,
   traders: Map<string, Trader>,
@@ -401,7 +530,10 @@ function adaptTasks(
 ): Quest[] {
   const rawTasks = asRecord(root.tasks)
   return recordValues(rawTasks).map((entry) => {
-    const objectives = asArray(entry.objectives)
+    const stale = STALE_QUEST_KEYS[text(entry.id)]
+    const objectives = stale ? asArray(entry.objectives).map((objective) => withoutKeys(objective, stale)) : asArray(entry.objectives)
+    // the hand fixes of an objective are by the game's id; the translated objective has its text as id (src/data/objectiveGameIds.ts)
+    const gameIdOf = gameObjectiveIds(objectives, conditionSources(text(entry.id)).rawObjectives)
     const requirements = asArray(entry.taskRequirements).map((requirement) => ({
       taskId: text(requirement.task) || text(asRecord(requirement.task).id) || text(requirement.taskId),
       allowedStatuses: strings(requirement.status).map((status) => status === 'completed' ? 'complete' : status).filter((status): status is 'complete' | 'failed' | 'active' => status === 'complete' || status === 'failed' || status === 'active'),
@@ -413,9 +545,9 @@ function adaptTasks(
       ...strings(objective.items),
       text(objective.item),
       text(objective.markerItem),
-      ...objectiveKeyGroups(objective).flat(),
+      ...objectiveKeyGroups(objective, gameIdOf(objective)).flat(),
     ]).filter(Boolean)
-    const keyGroups = asArray(entry.neededKeys)
+    const keyGroups = stale ? asArray(entry.neededKeys).map((group) => ({ ...group, keys: strings(group.keys).filter((id) => !stale.includes(id)) })) : asArray(entry.neededKeys)
     const requiredKeys = keyGroups.flatMap((group) => strings(group.keys))
     const raidRequirements: NonNullable<Quest['raidRequirements']> = objectives.flatMap((objective) => {
       const type = text(objective.type).toLowerCase()
@@ -428,7 +560,7 @@ function adaptTasks(
         itemId,
         count: number(objective.count) || 1,
         purpose,
-        mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)),
+        mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id) && !isStalePlace(gameIdOf(objective), id)),
         foundInRaid: objective.foundInRaid === true || undefined,
         objectiveId,
         alternatives: itemIds.length,
@@ -438,27 +570,34 @@ function adaptTasks(
         dogTagLevel: number(objective.dogTagLevel) || undefined,
       }))
     })
-    for (const group of keyGroups) for (const itemId of strings(group.keys)) raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: maps.get(text(group.map)) ? [maps.get(text(group.map))!] : [] })
-    // Keys of the objectives themselves (tarkov.dev `requiredKeys: [[id, …], …]`: one of each inner list is needed).
-    // `neededKeys` is deprecated upstream; a new quest may list its keys only here.
+    raidRequirements.push(...keyRequirements(objectives, keyGroups, maps, gameIdOf))
+    raidRequirements.push(...questItemRequirements(objectives, maps, gameIdOf))
+    // What an objective has the player use in the raid (tarkov.dev `useAny`: a flare, any one of them), and the green flare of an exit
+    // opened by one, which the task data does not name (owner, 06.11.2026: «В требования рейда не появляется Сигнальный патрон (Зелёный)»).
     for (const objective of objectives) {
-      const objectiveMaps = objectivePlaceMaps(objective).map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id))
-      for (const group of objectiveKeyGroups(objective)) {
-        for (const itemId of group) {
-          if (raidRequirements.some((requirement) => requirement.purpose === 'key' && requirement.itemId === itemId)) continue
-          raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: [...new Set(objectiveMaps)], objectiveId: text(objective.id) || undefined, ...(group.length > 1 ? { alternatives: group.length } : {}) })
-        }
+      const exitName = text(objective.exitName)
+      const byFlare = FLARE_EXIT.test(exitName)
+      const useAny = byFlare ? GREEN_FLARES : [...new Set((Array.isArray(objective.useAny) ? objective.useAny : []).map(refId).filter(Boolean))]
+      if (!useAny.length) continue
+      const places = objectivePlaceMaps(objective)
+      const placeIds = places.length ? places : FLARE_EXIT_MAPS[exitName] ? [FLARE_EXIT_MAPS[exitName]!] : []
+      const mapIds = [...new Set(placeIds.map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id)))]
+      const signal = byFlare || useAny.every((itemId) => FLARES.has(itemId) || /сигнальн|flare/i.test(items.get(itemId)?.name ?? ''))
+      for (const itemId of useAny) {
+        raidRequirements.push({ itemId, count: number(objective.count) || 1, purpose: signal ? 'signal' : 'use', mapIds, objectiveId: text(objective.id) || undefined, alternatives: useAny.length, optional: objective.optional === true || undefined })
       }
     }
-    const rewardItems = asArray(asRecord(entry.finishRewards).items)
+    const rewardItems = rewardItemTotals(asArray(asRecord(entry.finishRewards).items))
     const rewards = [
       number(entry.experience) ? `${number(entry.experience).toLocaleString('ru-RU')} опыта` : '',
       ...rewardItems.slice(0, 5).map((reward) => {
-        const item = items.get(text(reward.item))
-        return `${item?.name ?? text(reward.item)} × ${number(reward.count) || 1}`
+        const item = items.get(reward.itemId)
+        return `${item?.name ?? reward.itemId} × ${reward.count}`
       }),
     ].filter(Boolean)
-    const objectiveMapIds = objectives.flatMap(objectivePlaceMaps)
+    // a place the data keeps from an older version of the quest is no map of it (src/data/stalePlaces.ts; report 215, 23.11.2026:
+    // «Витамины» still listed on Shoreline, «берег не при чем в этом квесте»)
+    const objectiveMapIds = objectives.flatMap((objective) => objectivePlaceMaps(objective).filter((id) => !isStalePlace(gameIdOf(objective), maps.get(id))))
     const rawMapId = text(entry.map) || objectiveMapIds[0]
     const mapIds = [...new Set([rawMapId, ...objectiveMapIds].map((id) => maps.get(id)).filter((id): id is string => Boolean(id)))]
     const name = text(entry.name, 'Неизвестное задание')
@@ -493,6 +632,7 @@ function adaptTasks(
       previous: requirements.map((requirement) => requirement.taskId),
       requirements,
       faction: text(entry.factionName),
+      ...prestigeOf(entry, root),
       experience: number(entry.experience),
       wikiLink: text(entry.wikiLink) || undefined,
       imageUrl: text(entry.taskImageLink) || undefined,
@@ -500,6 +640,12 @@ function adaptTasks(
       ...gameConditionsOf(entry),
     } satisfies Quest
   }).filter((quest) => quest.id)
+}
+
+/** The prestige the task is given at (src/progression/prestigeQuests.ts). */
+function prestigeOf(entry: JsonRecord, root: JsonRecord): { prestige?: number } {
+  const prestige = taskPrestigeOf(entry, root)
+  return prestige == null ? {} : { prestige }
 }
 
 /** `traderRequirements` (type level) and «reach loyalty level» objectives (`traderLevel`, json `trader` + `level`). */
@@ -526,6 +672,17 @@ function gameConditionsOf(entry: JsonRecord): { gameConditions?: NonNullable<Que
   return kinds.size ? { gameConditions: [...kinds] } : {}
 }
 
+/**
+ * Exits opened by a green flare (tarkov.dev `exitName`): RSP-30 or 26x75, any one. The feed's dictionary has already turned a known name
+ * into its text, «E9_sniper» into «Улица Климова (Сигнал)»; a name it does not know stays as the game's.
+ */
+const FLARE_EXIT = /\((?:Сигнал|Flare)\)|^(?:E9_sniper|customs_sniper_exit|ex_customs_pmc_flare|wood_sniper_exit|ex_interchange_pmc_sniper|Sniper_exit)$/i
+const GREEN_FLARES = ['6217726288ed9f0845317459', '62389aaba63f32501b1b444f']
+/** RSP-30 and 26x75 of every colour. */
+const FLARES = new Set([...GREEN_FLARES, '62178c4d4ecf221597654e3d', '624c0b3340357b5f566e8766', '62389ba9a63f32501b1b4451', '62389be94d5d474bf712e709'])
+/** An exit whose objective names no map in the feed. */
+const FLARE_EXIT_MAPS: Record<string, string> = { customs_sniper_exit: '56f40101d2720b2a4d8b45d6' }
+
 /** A reference given as `"id"` (json.tarkov.dev) or `{ id }` (GraphQL). */
 function refId(value: unknown) {
   return text(value) || text(asRecord(value).id)
@@ -541,10 +698,115 @@ function objectivePlaceMaps(objective: JsonRecord): string[] {
   return [...asArray(objective.zones), ...asArray(objective.possibleLocations)].map((place) => refId(place.map)).filter(Boolean)
 }
 
+/**
+ * Keys the data still gives a quest from an older version of it, by quest id (report of 10.11.2026, «Витамины»: «Этот ключ никак
+ * не связан с этим заданием» — the quest now wants the chemical container on Factory; the Health Resort west wing room 112 key
+ * was for the old Shoreline container). Dropped from the quest's `neededKeys` and its objectives' `requiredKeys`.
+ */
+export const STALE_QUEST_KEYS: Readonly<Record<string, readonly string[]>> = {
+  '5b478eca86f7744642012254': ['5a0dc95c86f77452440fc675'],
+}
+
+function withoutKeys(objective: JsonRecord, keys: readonly string[]): JsonRecord {
+  if (!Array.isArray(objective.requiredKeys)) return objective
+  const requiredKeys = objective.requiredKeys
+    .map((group) => (Array.isArray(group) ? group : [group]).filter((key) => !keys.includes(refId(key))))
+    .filter((group) => group.length > 0)
+  return { ...objective, requiredKeys }
+}
+
+/**
+ * Keys an objective needs that the game's data leaves out, by objective id, as groups of alternatives; used only while the data
+ * lists none for it (report №102, 08.11.2026, «Должник»: «Сбор в рейд не показывает, что нужен ключ от этой комнаты»; the
+ * warden's flat opens with the Chekannaya 15 apartment key, its door 4.6 m from the quest zone).
+ */
+export const MISSING_OBJECTIVE_KEYS: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  // «Должник»: «Найти квартиру коменданта частной тюрьмы» — «Ключ от квартиры на Чеканной 15»
+  '6a5a9710671cbfe928bbfde2': [['63a39fc0af870e651d58e6ae']],
+}
+
 /** `requiredKeys` of an objective as groups of alternatives (ids or `{ id }`); a flat list is one key per group. */
-function objectiveKeyGroups(objective: JsonRecord): string[][] {
-  if (!Array.isArray(objective.requiredKeys)) return []
-  return objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+function objectiveKeyGroups(objective: JsonRecord, gameId = text(objective.id)): string[][] {
+  const listed = Array.isArray(objective.requiredKeys)
+    ? objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+    : []
+  if (listed.length) return listed
+  return (byObjective(MISSING_OBJECTIVE_KEYS, gameId, text(objective.id)) ?? []).map((group) => [...group])
+}
+
+/**
+ * The keys of a quest, each tied to the objectives that need it (tarkov.dev `requiredKeys: [[id, …], …]`: one of each inner list
+ * is needed), so a key goes once they are done (owner, 06.11.2026: «до сих пор требует ключ от этой комнаты»). One row per key,
+ * however many objectives it opens. `neededKeys` is deprecated upstream and a new quest may have none, yet it names the key's
+ * map; a key only it lists has no objective and stays with the quest.
+ */
+/**
+ * The quest items of a quest (tarkov.dev findQuestItem / giveQuestItem / plantQuestItem: `questItem`): what it finds, hands over and
+ * plants, with their pictures in the quest and the one to plant in «Требования рейда» (report 162, owner 15.11.2026: «не отображается
+ * диск с дезой, который нужно заложить»; «А где картинки жестких дисков… И не только флешки»). `pickUp`: the same quest has the item
+ * to plant found first («Поднять и заложить»); otherwise the trader gave it or an earlier quest found it, and it is taken into the raid.
+ */
+const QUEST_ITEM_PURPOSES: Record<string, 'find' | 'handover' | 'place'> = { findQuestItem: 'find', giveQuestItem: 'handover', plantQuestItem: 'place' }
+
+function questItemRequirements(objectives: JsonRecord[], maps: Map<string, string>, gameIdOf: (objective: JsonRecord) => string = (objective) => text(objective.id)): NonNullable<Quest['raidRequirements']> {
+  const found = new Set(objectives.filter((objective) => text(objective.type) === 'findQuestItem').map((objective) => refId(objective.questItem)).filter(Boolean))
+  return objectives.flatMap((objective) => {
+    const purpose = QUEST_ITEM_PURPOSES[text(objective.type)]
+    const itemId = purpose ? refId(objective.questItem) : ''
+    if (!purpose || !itemId) return []
+    return [{
+      itemId,
+      count: number(objective.count) || 1,
+      purpose,
+      mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id) && !isStalePlace(gameIdOf(objective), id)),
+      objectiveId: text(objective.id) || undefined,
+      optional: objective.optional === true || undefined,
+      questItem: true,
+      ...(purpose === 'place' && found.has(itemId) ? { pickUp: true } : {}),
+    }]
+  })
+}
+
+/** The names of the quests' quest items (tarkov.dev `questItems` of the tasks file, translated); no picture: the app has its own (src/data/questItemPictures.ts). */
+function adaptQuestItems(tasksRoot: JsonRecord, quests: readonly Quest[]): Item[] {
+  const wanted = new Set(quests.flatMap((quest) => (quest.raidRequirements ?? []).filter((need) => need.questItem).map((need) => need.itemId)))
+  const known = asRecord(tasksRoot.questItems)
+  return [...wanted].flatMap((id) => {
+    const entry = asRecord(known[id])
+    const name = text(entry.name)
+    if (!name || name.startsWith(id)) return []
+    return [{ id, name, shortName: text(entry.shortName) || name, category: 'Бартер' as const, description: '', prices: [], ...(number(entry.width) ? { width: number(entry.width), height: number(entry.height) || 1 } : {}) }]
+  })
+}
+
+function keyRequirements(objectives: JsonRecord[], keyGroups: JsonRecord[], maps: Map<string, string>, gameIdOf: (objective: JsonRecord) => string = (objective) => text(objective.id)): NonNullable<Quest['raidRequirements']> {
+  const neededMaps = new Map<string, string[]>()
+  for (const group of keyGroups) {
+    const mapId = maps.get(text(group.map))
+    for (const itemId of strings(group.keys)) neededMaps.set(itemId, [...new Set([...(neededMaps.get(itemId) ?? []), ...(mapId ? [mapId] : [])])])
+  }
+  const rows = new Map<string, NonNullable<Quest['raidRequirements']>[number]>()
+  for (const objective of objectives) {
+    const objectiveId = text(objective.id) || undefined
+    const objectiveMaps = objectivePlaceMaps(objective).map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id))
+    const listed = new Set<string>()
+    for (const group of objectiveKeyGroups(objective, gameIdOf(objective))) {
+      for (const itemId of group) {
+        if (listed.has(itemId)) continue
+        listed.add(itemId)
+        const row = rows.get(itemId)
+        if (!row) {
+          rows.set(itemId, { itemId, count: 1, purpose: 'key', mapIds: neededMaps.get(itemId)?.length ? neededMaps.get(itemId)! : [...new Set(objectiveMaps)], objectiveId, ...(group.length > 1 ? { alternatives: group.length } : {}) })
+          continue
+        }
+        if (!neededMaps.get(itemId)?.length) row.mapIds = [...new Set([...row.mapIds, ...objectiveMaps])]
+        // Two objectives may share a text, their `id` here (src/data/catalogWire.ts gives each its game id): both are listed.
+        if (objectiveId && row.objectiveId) row.objectiveIds = [...(row.objectiveIds ?? [row.objectiveId]), objectiveId]
+      }
+    }
+  }
+  for (const [itemId, mapIds] of neededMaps) if (!rows.has(itemId)) rows.set(itemId, { itemId, count: 1, purpose: 'key', mapIds })
+  return [...rows.values()]
 }
 
 /**

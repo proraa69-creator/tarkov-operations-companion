@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   account: {
     status: () => ipcRenderer.invoke('account:status'),
     login: (email: string, password: string) => ipcRenderer.invoke('account:login', String(email), String(password)),
+    qrStart: () => ipcRenderer.invoke('account:qr-start'),
+    qrPoll: () => ipcRenderer.invoke('account:qr-poll'),
     logout: () => ipcRenderer.invoke('account:logout'),
     phoneSignIn: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => ipcRenderer.invoke('account:phone-sign-in', kind === 'reset' ? 'reset' : 'login', String(challengeId ?? ''), String(code ?? ''), password === undefined ? undefined : String(password)),
     emailSignIn: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => ipcRenderer.invoke('account:email-sign-in', kind === 'reset' ? 'reset' : 'login', String(challengeId ?? ''), String(code ?? ''), password === undefined ? undefined : String(password)),
@@ -71,6 +73,9 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   update: {
     status: () => ipcRenderer.invoke('update:status'),
     install: () => ipcRenderer.invoke('update:install'),
+    download: () => ipcRenderer.invoke('update:download'),
+    installerOffer: () => ipcRenderer.invoke('update:installer-offer'),
+    installSetup: () => ipcRenderer.invoke('update:install-setup'),
     check: () => ipcRenderer.invoke('update:check'),
     settings: () => ipcRenderer.invoke('update:settings'),
     setSettings: (patch: unknown) => ipcRenderer.invoke('update:set-settings', patch),
@@ -102,12 +107,35 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   saveProfileBackup: (json: string) => ipcRenderer.invoke('profile:save-backup', json) as Promise<boolean>,
   openProfileBackup: () => ipcRenderer.invoke('profile:open-backup') as Promise<string | null>,
   getVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
-  notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? '')) as Promise<boolean>,
+  notify: (title: string, body: string, icon?: string, silent?: boolean) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? ''), icon, silent === true) as Promise<boolean>,
+  confirm: (message: string, locale: string) => ipcRenderer.sendSync('app:confirm', String(message ?? ''), locale === 'en' ? 'en' : 'ru') === true,
   resolvePlayerProfile: (mode: string, nickname: string) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode: string, accountId: number) => ipcRenderer.invoke('profile:refresh', mode, accountId),
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string }; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string }; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number; flea?: { reading?: unknown } }>,
   captureQuestScreenshot: (after: number) => ipcRenderer.invoke('quests:read-screenshot', after) as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: { title: string; status: string; body: string } } | null>,
   captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity') as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
+  /** Alt + the wheel from the game steps the map's floors (electron/mapFloorWheel.ts): the map page turns it on and gets the steps. */
+  mapFloorWheel: {
+    enable: (on: boolean) => ipcRenderer.send('map:floor-wheel', on === true),
+    onStep: (callback: (step: 1 | -1) => void) => subscribe('map:floor-step', (payload) => callback(payload === -1 ? -1 : 1)),
+  },
+  /** «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning). */
+  screen: {
+    state: () => ipcRenderer.invoke('screen:state'),
+    update: (patch: unknown) => ipcRenderer.invoke('screen:update', patch),
+    savePreset: (preset: unknown) => ipcRenderer.invoke('screen:save-preset', preset),
+    deletePreset: (id: string) => ipcRenderer.invoke('screen:delete-preset', String(id ?? '')),
+    renamePreset: (id: string, name: string) => ipcRenderer.invoke('screen:rename-preset', String(id ?? ''), String(name ?? '')),
+    restorePresets: () => ipcRenderer.invoke('screen:restore-presets'),
+    reorderPresets: (ids: string[]) => ipcRenderer.invoke('screen:reorder-presets', Array.isArray(ids) ? ids.map(String) : []),
+    revertPreset: (id: string) => ipcRenderer.invoke('screen:revert-preset', String(id ?? '')),
+    edit: (profile: unknown) => ipcRenderer.invoke('screen:edit', profile ?? null),
+    frame: (kind: 'game' | 'last' | 'screenshot') => ipcRenderer.invoke('screen:frame', kind === 'game' || kind === 'screenshot' ? kind : 'last'),
+    optimizeStatus: () => ipcRenderer.invoke('screen:optimize-status'),
+    optimize: (selection?: string[]) => ipcRenderer.invoke('screen:optimize-apply', Array.isArray(selection) ? selection.map(String) : undefined),
+    revertOptimize: () => ipcRenderer.invoke('screen:optimize-revert'),
+    openOptimizeTool: (target: string) => ipcRenderer.invoke('screen:optimize-open', String(target ?? '')),
+  },
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch: unknown) => ipcRenderer.invoke('experimental:update-settings', patch),
@@ -125,6 +153,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     /** The item lookup's «reading…», card or «not recognised», for «Карты» (no window over the game). */
     onItem: (callback: (payload: unknown) => void) => subscribe('experimental:item', callback),
     onCollectorScan: (callback: () => void) => subscribe('experimental:collector-scan', () => callback()),
+    /** The game's exit list read after a double O (electron/extractsReader.ts, report №105). */
+    onRaidExtracts: (callback: (payload: unknown) => void) => subscribe('game:raid-extracts', callback),
   },
 })
 

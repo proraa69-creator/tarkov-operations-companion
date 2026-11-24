@@ -20,6 +20,7 @@
  *   POST /me/initial-country Bearer { country } | { other }      -> 200 account view («Укажите страну»: only while the account has none, 409
  *                           after; `other`: typed by hand, letters / spaces / hyphens, ≤ 60, a known name becomes its code, else 'XX')
  *   POST /me/eft-account    Bearer { accountId }                 -> 200 { eftAccount?, account } | 409 { code: 'eft-in-use' | 'eft-other-account', kind, seen, bound? }
+ *   POST /me/first-raid     Bearer                               -> 200 { started, account } (the PC app saw a raid start: free days waiting for it start now)
  *   POST /referral-visits   { code }                             -> 200 | 404 (counts a `/r/<code>` landing visit)
  *   POST /streamer-invite   { token }                            -> 200 { code, expiresAt } | 404 (secret invitation page)
  *   POST /me/streamer-invite Bearer { token }                    -> 200 account view (the account becomes a streamer)
@@ -71,7 +72,9 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
   router.put('/me/country', adapt(handlers.setCountry))
   router.post('/me/initial-country', adapt(handlers.setInitialCountry))
   router.post('/me/eft-account', adapt(handlers.bindEftAccount))
+  router.post('/me/first-raid', adapt(handlers.firstRaid))
   router.post('/referral-visits', adapt(handlers.referralVisit))
+  router.post('/ad-visits', adapt(handlers.adVisit))
   router.post('/streamer-invite', adapt(handlers.streamerInvite))
   router.get('/me/referral-stats', adapt(handlers.referralSeries))
   router.post('/me/streamer-invite', adapt(handlers.redeemStreamerInvite))

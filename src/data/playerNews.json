@@ -1,0 +1,531 @@
+[
+  {"version":"0.6.0.339","date":"2026-11-24","items":[
+    {"kind":"improved","ru":"Обновили данные по квестам","en":"Updated the quest data"},
+    {"kind":"improved","ru":"Улучшили цветовые схемы","en":"Improved the colour schemes"}
+  ]},
+  {"version":"0.6.0.338","date":"2026-11-24","items":[
+    {"kind":"added","ru":"«Баллистика» → «Полигон»: стреляйте через прицел своей сборки и смотрите полёт пули и вынос на дальней дистанции","en":"Ballistics → «Range»: fire through your build's scope and see the bullet's flight and the holdover at long range"},
+    {"kind":"added","ru":"«Полигон»: проверьте на боссе, куда стрелять эффективнее и каким патроном он падает быстрее","en":"«Range»: test on a boss where to shoot and which round brings him down faster"},
+    {"kind":"changed","ru":"«Сообщить об ошибке»: за найденный баг или ошибку теперь 2 дня подписки вместо одного","en":"«Report a bug»: a bug or an error you find now earns 2 days of subscription instead of one"},
+    {"kind":"improved","ru":"Сборка оружия: сначала выберите кольца — следом откроются прицелы, которые на них встают","en":"Weapon builds: pick the rings first, and the scopes that fit them open next"},
+    {"kind":"improved","ru":"Местоположение: лучше работает со Steam-версией игры","en":"Your location: works better with the Steam version of the game"},
+    {"kind":"improved","ru":"Обновили данные по квестам","en":"Updated the quest data"},
+    {"kind":"improved","ru":"Улучшили цветовые схемы","en":"Improved the colour schemes"},
+    {"kind":"improved","ru":"«Смена дня и ночи»: днём пасмурное серое небо, ночью тёмно-фиолетовое","en":"«Day and night»: an overcast grey sky by day, a dark violet one by night"}
+  ]},
+  {"version":"0.6.0.336","date":"2026-11-23","items":[
+    {"kind":"improved","ru":"Запуск: если окно не открывается, приложение само пробует другой способ запуска","en":"Start: if the window does not open, the app tries another way to start by itself"},
+    {"kind":"improved","ru":"Маяк: новое место - лагерь Прапора и шеврон «Богатырей»","en":"Lighthouse: a new place — Prapor's camp and the Bogatyrs patch"}
+  ]},
+  {"version":"0.6.0.335","date":"2026-11-23","items":[
+    {"kind":"improved","ru":"Запуск: вместо пустого окна — причина и кнопка «Перезапустить»","en":"Start: instead of an empty window, the reason and a «Restart» button"},
+    {"kind":"changed","ru":"Латвия и Литва: цены СНГ — от 300 ₽ или $3,5 в месяц","en":"Latvia and Lithuania: CIS prices, from 300 ₽ or $3.5 a month"},
+    {"kind":"added","ru":"Тир-листы: забрало шлема можно опустить или поднять — картинка и характеристики меняются","en":"Tier lists: lower or raise a helmet's visor, the picture and the stats follow"},
+    {"kind":"added","ru":"Боссы: свита — что носят, фонари и ценная добыча","en":"Bosses: the retinue, what they wear, their lights and the valuable loot"},
+    {"kind":"added","ru":"Документы боевого пропуска: дневной лимит — «Найдено сегодня: 10/40»","en":"Battle pass documents: the daily limit, «Found today: 10/40»"},
+    {"kind":"improved","ru":"Лояльность торговцев со скриншота: Реф и Скупщик считываются верно","en":"Trader loyalty from a screenshot: Ref and Fence are read right"},
+    {"kind":"improved","ru":"Награды квестов: одинаковый предмет — одной строкой с общим количеством","en":"Quest rewards: the same item in one line with its total count"},
+    {"kind":"improved","ru":"Стиль «Стекло»: ткань тем «Чёрный мультикам», «Тельняшка» и «Снаряжение» видна под стеклом","en":"«Glass» style: the cloth of «Black multicam», «Telnyashka» and «Gear» under the glass"},
+    {"kind":"improved","ru":"Телефон: удобнее верхняя панель, «Назад» и карта в повёрнутом экране, «Слои» — отдельным окном","en":"Phone: a handier top bar, «Back» and the map when turned sideways, «Layers» in its own window"}
+  ]},
+  {"version":"0.6.0.334","date":"2026-11-23","items":[
+    {"kind":"improved","ru":"Запуск: если видеокарта не справляется, приложение само переходит на отрисовку без неё","en":"Start: when the graphics card cannot draw the window, the app switches to drawing without it by itself"},
+    {"kind":"improved","ru":"Сюжет «Батя»: лагерь BEAR на Маяке и круги культистов на Резерве и в Лесу — на своих местах","en":"Story «Batya»: the BEAR camp on Lighthouse and the cultist circles on Reserve and Woods in their right places"},
+    {"kind":"improved","ru":"Квесты: уточнены места у «Витаминов», «Слежки», «Должника» и «Умный в гору не пойдёт»","en":"Quests: places refined for «Vitamins - Part 1» and three more quests"},
+    {"kind":"improved","ru":"Таможня: обновили данные по квестам и документам","en":"Customs: updated the quest and document data"},
+    {"kind":"improved","ru":"Сборка оружия: трубы прикладов и приклады на них стоят ровно","en":"Weapon builds: stock tubes and the stocks on them stand level"},
+    {"kind":"improved","ru":"«Оружейник»: в ячейках модулей крупная картинка детали","en":"«Gunsmith»: a large picture of the part in the module cells"},
+    {"kind":"improved","ru":"Телефон: окно квеста на карте внизу экрана, список снаряжения помещается","en":"Phone: the quest window at the bottom of the map, the gear list fits"}
+  ]},
+  {"version":"0.6.0.333","date":"2026-11-21","items":[
+    {"kind":"added","ru":"Настройки: размер шрифта — стандартный или увеличенный","en":"Settings: font size, standard or large"},
+    {"kind":"improved","ru":"«Обзор»: блоки не прыгают, когда окно разворачивается на весь экран","en":"«Overview»: blocks no longer jump when the window goes full screen"},
+    {"kind":"improved","ru":"Убежище: обновили картинку","en":"Hideout: the picture is updated"},
+    {"kind":"improved","ru":"Сборка оружия: сборка стоит по центру, приклады ПТ-1 и ПТ-3 ровные","en":"Weapon builds: the build centred, PT-1 and PT-3 stocks level"},
+    {"kind":"improved","ru":"Сборка оружия: видно, что сборка публикуется","en":"Weapon builds: you see the build being published"},
+    {"kind":"improved","ru":"Выпадающие списки — в зелёном стиле приложения","en":"Drop-down lists in the app's green style"},
+    {"kind":"improved","ru":"Телефон: «Обзор», окно модуля убежища и схрон удобнее","en":"Phone: «Overview», the hideout module window and the stash fit better"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.332","date":"2026-11-21","items":[
+    {"kind":"added","ru":"«Оружейник»: сборку задания можно открыть на весь экран и сложить приклад","en":"«Gunsmith»: open the task's build full screen and fold the stock"},
+    {"kind":"improved","ru":"«Оружейник»: в ячейках модулей крупные картинки","en":"«Gunsmith»: large module pictures in the cells"},
+    {"kind":"improved","ru":"«Обзор»: блоки переносятся плавно и не дрожат","en":"«Overview»: blocks move smoothly, no shaking"},
+    {"kind":"improved","ru":"Сборка на весь экран: компактное окно характеристик, сборке не мешает","en":"Full-screen build: a compact stats window that stays out of the way"},
+    {"kind":"improved","ru":"Сборка оружия: рукоятки и приклады встают ровнее","en":"Weapon builds: grips and stocks sit straighter"},
+    {"kind":"improved","ru":"Сборка оружия: из деталей теперь собирается всё оружие, в том числе АС «Вал» MOD.4","en":"Weapon builds: every weapon now built part by part, AS VAL MOD.4 included"},
+    {"kind":"improved","ru":"Телефон: в уведомлении о начале рейда — кнопка «Карта»","en":"Phone: a «Map» button in the raid start notice"},
+    {"kind":"improved","ru":"«Небеса в огне»: точнее сказано, где лежит флешка","en":"«Falling Skies»: a clearer hint where the flash drive is"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.331","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.330","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.329","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.328","date":"2026-11-20","items":[
+    {"kind":"changed","ru":"Обновили убежище","en":"The hideout updated"}
+  ]},
+  {"version":"0.6.0.327","date":"2026-11-20","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.326","date":"2026-11-20","items":[
+    {"kind":"added","ru":"Убежище: вид сверху со всеми модулями","en":"Hideout: a view from above with every module"},
+    {"kind":"improved","ru":"Полностью переработанная сборка оружия","en":"Weapon builds completely reworked"}
+  ]},
+  {"version":"0.6.0.321","date":"2026-11-19","items":[
+    {"kind":"improved","ru":"«Ключи»: список сам переключается на открытую карту","en":"«Keys»: the list follows the open map"},
+    {"kind":"improved","ru":"Оптимизация карты в рейде","en":"Map optimisation in raid"}
+  ]},
+  {"version":"0.6.0.320","date":"2026-11-19","items":[
+    {"kind":"added","ru":"«Стекло»: новый стиль для любой цветовой схемы","en":"«Glass»: a new style for any colour scheme"},
+    {"kind":"added","ru":"Плавные анимации во всём приложении, кнопки отзываются на нажатие","en":"Smooth animations across the app; buttons respond to every press"},
+    {"kind":"added","ru":"Уведомления: каждое можно отключить, звук начала рейда","en":"Notifications: each one can be turned off; a raid start sound"},
+    {"kind":"added","ru":"Карта: «Ключи рядом» — спавны ключей возле точек ваших квестов","en":"Map: «Keys nearby» — key spawns near your quest points"},
+    {"kind":"added","ru":"Карта: «Показывать только нужные спавны»","en":"Map: «Show only the spawns I need»"},
+    {"kind":"added","ru":"Ключ на карте и в квесте: цена, бартеры, тир и квесты","en":"A key on the map and in a quest: price, barters, tier and quests"},
+    {"kind":"added","ru":"Сборка оружия: «Избранные» — сборки можно переименовать и пересохранить","en":"Gunsmith: «Favorites» — builds can be renamed and saved again"},
+    {"kind":"added","ru":"Обзор: время в Таркове, сбросы торговцев и таймер рейда в одном блоке","en":"Overview: Tarkov time, trader resets and the raid timer in one block"},
+    {"kind":"added","ru":"Требования рейда: ракетница, нужная для выхода","en":"Raid requirements: the flare an exit needs"},
+    {"kind":"improved","ru":"«Смена дня и ночи»: ночь стала фиолетовой","en":"«Day and night»: the night is violet now"},
+    {"kind":"improved","ru":"«Ключи локации» сразу отсортированы по тиру","en":"«Location keys» are sorted by tier"},
+    {"kind":"improved","ru":"Торговля: товары учитывают уровень торговца в вашем режиме","en":"Trading: offers follow your trader level in the current mode"},
+    {"kind":"improved","ru":"Убежище и предметы для квестов: строки не прыгают при подсчёте","en":"Hideout and quest items: rows stay in place while you count"},
+    {"kind":"improved","ru":"Оптимизирована скорость приложения","en":"The app runs faster"}
+  ]},
+  {"version":"0.6.0.319","date":"2026-11-18","items":[
+    {"kind":"added","ru":"«Ключи локации»: у каждого ключа цена и буква тир-листа","en":"«Location keys»: each key shows its price and tier-list letter"},
+    {"kind":"added","ru":"Карточка ключа: что лежит в комнате за его дверью","en":"Key card: what spawns in the room behind its door"},
+    {"kind":"added","ru":"«Ключи для квестов»: ключ «Нет в наличии» можно сразу добавить в схрон","en":"«Quest keys»: a key «Not in stash» can be added to the stash right away"},
+    {"kind":"improved","ru":"Документы боевого пропуска видны на всех этажах карты","en":"Battle pass documents show on every floor of the map"},
+    {"kind":"improved","ru":"Сезон: у «Освободить помещение» цель и награды как в игре","en":"Season: «Vacate the Premises» objective and rewards match the game"}
+  ]},
+  {"version":"0.6.0.318","date":"2026-11-18","items":[
+    {"kind":"improved","ru":"Квесты: задания USEC и BEAR больше не показываются дважды","en":"Quests: USEC and BEAR versions of a quest no longer show twice"}
+  ]},
+  {"version":"0.6.0.317","date":"2026-11-18","items":[
+    {"kind":"improved","ru":"«Ключи локации»: в бартере видно, с какого уровня предмет продаётся на барахолке","en":"«Location keys»: barters show the level each item opens at on the flea"},
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.315","date":"2026-11-18","items":[
+    {"kind":"added","ru":"«Ключи локации»: все ключи карты в окне поверх приложения, двери подсвечиваются на карте","en":"«Location keys»: every key of a map in a window over the app, its doors lit on the map"},
+    {"kind":"added","ru":"Карточка предмета: где купить — торговцы, барахолка и бартеры по вашим уровням","en":"Item card: where to buy — traders, the flea and barters by your levels"},
+    {"kind":"added","ru":"«Сборка оружия»: галочка «Цена оружия» — в итог входит и само оружие","en":"«Gun builder»: «Gun price» adds the gun itself to the total"},
+    {"kind":"improved","ru":"«Боссы»: у Тени Тагиллы — документы и ключ-карта Labrys, у Бёрдая — его рюкзак","en":"«Bosses»: Shadow of Tagilla — Labrys reports and keycard, Birdeye — his backpack"}
+  ]},
+  {"version":"0.6.0.314","date":"2026-11-17","items":[
+    {"kind":"improved","ru":"«Кочевники»: отметить можно раз в 10 минут, на ПК — раз за рейд","en":"«Goons»: one sighting every 10 minutes, on the PC once a raid"},
+    {"kind":"improved","ru":"«Кочевники»: повторные отметки одного игрока больше не засоряют список","en":"«Goons»: one player’s repeated sightings no longer clutter the list"},
+    {"kind":"improved","ru":"«Все локации», «Спутник»: Улицы Таркова целиком, Эпицентр без дыр","en":"«All locations», «Satellite»: the whole of Streets of Tarkov, Ground Zero without holes"},
+    {"kind":"improved","ru":"«Боссы»: мягкая подсветка частей тела, название патрона при наведении","en":"«Bosses»: soft highlight of body parts, the round’s name on hover"},
+    {"kind":"improved","ru":"«Настройки» → «Клавиши»: кнопки компактнее, всё в одну строку","en":"«Settings» → «Keys»: smaller buttons, all on one line"}
+  ]},
+  {"version":"0.6.0.313","date":"2026-11-17","items":[
+    {"kind":"added","ru":"Сайт: чат поддержки — кнопка справа внизу, можно писать и без аккаунта","en":"Site: a support chat — the button bottom right, no account needed"},
+    {"kind":"improved","ru":"«Квесты», «Сезон»: развилка Лыжника и Водителя БТР — вся цепочка до «Цены независимости»","en":"«Quests», Season: the Skier / BTR Driver branch — the whole chain"}
+  ]},
+  {"version":"0.6.0.312","date":"2026-11-17","items":[
+    {"kind":"added","ru":"«Боссы»: броня с классом плит спереди, сзади и по бокам, оружие с патронами","en":"«Bosses»: armour with plate classes front, back and sides, guns with their rounds"},
+    {"kind":"added","ru":"«Настройка экрана»: пресеты можно менять местами — зажмите и перетащите","en":"«Screen tuning»: hold a preset and drag it to change the order"},
+    {"kind":"added","ru":"«Карты»: кнопки «Скрыть все» и «Показать все» для точек на карте","en":"«Maps»: «Hide all» and «Show all» for the map markers"},
+    {"kind":"added","ru":"Таймер усталости навыка: тихий сигнал в конце, по желанию","en":"Skill fatigue timer: a quiet chime at the end, if you like"}
+  ]},
+  {"version":"0.6.0.311","date":"2026-11-17","items":[
+    {"kind":"added","ru":"«Квесты»: кнопка «Показать только сюжетные» — предметы, которые нужно сдать по сюжету","en":"«Quests»: «Show story only» — the items the story asks you to hand over"},
+    {"kind":"added","ru":"«Обзор»: лишние блоки можно удалить, вернуть их — кнопкой «Сбросить»","en":"«Overview»: remove the blocks you do not need, «Reset» brings them back"},
+    {"kind":"improved","ru":"«Кочевники»: отметки и список, кто их видел, хранятся целые сутки","en":"«Goons»: sightings and who saw them are kept for a whole day"},
+    {"kind":"improved","ru":"«Тактика боя»: свита Тени Тагиллы — как она воюет и что носит","en":"«Boss tactics»: Shadow of Tagilla's retinue — how it fights and what it carries"}
+  ]},
+  {"version":"0.6.0.310","date":"2026-11-16","items":[
+    {"kind":"added","ru":"Уведомление «Рейд начался», когда загрузка закончилась","en":"A «Raid started» notification once the loading is over"},
+    {"kind":"improved","ru":"Обзор: первый блок — время в Таркове, сброс торговцев или таймер рейда","en":"Overview: the first block shows the time in Tarkov, trader resets or a raid timer"},
+    {"kind":"improved","ru":"Цветовая схема меняется плавнее и до самых краёв","en":"The colour scheme changes more smoothly, right to the edges"},
+    {"kind":"improved","ru":"«Оружейник. АКМ»: в сборке теперь приклад ПТ-1 и замок ПТ АКМ","en":"«Gunsmith. AKM»: the build now has the PT-1 stock and the PT lock"},
+    {"kind":"improved","ru":"«Квесты»: в наградах видно, какой модуль открывается у торговцев","en":"«Quests»: rewards show which module unlocks at the traders"},
+    {"kind":"improved","ru":"Улучшили распознание поиска предмета","en":"Improved item lookup recognition"}
+  ]},
+  {"version":"0.6.0.309","date":"2026-11-15","items":[
+    {"kind":"added","ru":"Вход через Google","en":"Sign in with Google"},
+    {"kind":"added","ru":"Таймер усталости навыка на карте","en":"A skill fatigue timer on the map"},
+    {"kind":"improved","ru":"Фото места — небольшим окошком у метки на карте","en":"Place photos in a small window at the map point"},
+    {"kind":"improved","ru":"Окно задания на карте: высоту можно настроить","en":"The task window on the map: its height can be set"},
+    {"kind":"improved","ru":"Связь с сервером стабильнее при медленном интернете","en":"A steadier link to the server on a slow connection"}
+  ]},
+  {"version":"0.6.0.308","date":"2026-11-15","items":[
+    {"kind":"added","ru":"Общая карта: все локации и ваши текущие задания на одной карте","en":"World map: every location and your current tasks on one map"},
+    {"kind":"improved","ru":"Задание появляется на карте следующей цели, когда предыдущая выполнена","en":"A task shows on the map of its next objective once the one before is done"},
+    {"kind":"improved","ru":"«Взял» на ключе добавляет его в «Ключи в схроне»","en":"«Taken» on a key adds it to «Keys in stash»"},
+    {"kind":"improved","ru":"Требования рейда: одинаковые предметы одной строкой","en":"Raid requirements: the same items in one row"},
+    {"kind":"added","ru":"Окно задания: блок «Найти в рейде» с количеством","en":"Task window: «Find in raid» with the count"},
+    {"kind":"added","ru":"Квестовые предметы с картинками в требованиях рейда и в карточке задания","en":"Quest items with pictures in raid requirements and the task card"},
+    {"kind":"improved","ru":"Цветовая схема меняется плавной волной от кнопки","en":"The colour scheme changes in a smooth wave from its button"},
+    {"kind":"improved","ru":"Сборка оружия открывается быстрее; кнопка «Избранное» в списке оружия; барахолка — по уровню персонажа","en":"Weapon builds open faster; a Favorites button in the weapon list; the flea market follows your character level"},
+    {"kind":"improved","ru":"Профиль: личный кабинет рядом с профилем, ник и уровень в каждом режиме","en":"Profile: the account sits beside the profile, with your nickname and level in each mode"}
+  ]},
+  {"version":"0.6.0.307","date":"2026-11-15","items":[
+    {"kind":"improved","ru":"Цветовая схема меняется плавно — кругом от кнопки","en":"The colour scheme changes smoothly, in a circle from the button"},
+    {"kind":"added","ru":"Схема «Смена дня и ночи»: правой кнопкой по кнопке цветовой схемы","en":"«Day and night» scheme: right-click the colour scheme button"},
+    {"kind":"improved","ru":"Пресеты экрана называются по номерам: «Пресет 1», «Пресет 2» и далее","en":"Screen presets are numbered: «Preset 1», «Preset 2» and on"},
+    {"kind":"improved","ru":"Отряд: настройки и убранные рисунки одинаковые на ПК и телефоне","en":"Squad: settings and removed drawings are the same on PC and phone"}
+  ]},
+  {"version":"0.6.0.306","date":"2026-11-15","items":[
+    {"kind":"improved","ru":"Фото мест: одно крупное фото и «+N» с остальными","en":"Place photos: one large photo and «+N» with the rest"},
+    {"kind":"added","ru":"На телефоне скриншоты можно увеличивать двумя пальцами","en":"On the phone, screenshots zoom in with two fingers"},
+    {"kind":"improved","ru":"Требования рейда: «Заложить», «Открыть дверь»; «Взял» отмечает ключ как «Есть в наличии»","en":"Raid requirements: «Plant», «Open the door»; «Taken» marks a key as «With you»"}
+  ]},
+  {"version":"0.6.0.305","date":"2026-11-14","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.304","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Отряд: тиммейты на карте по скриншоту — своим цветом и с ником","en":"Squad: teammates on the map from their screenshot, in their colour with their name"},
+    {"kind":"added","ru":"Отряд: общие рисунки на карте и кнопка «Квесты отряда»","en":"Squad: shared map drawings and the «Squad quests» button"},
+    {"kind":"added","ru":"Отряд: «Настройки отряда» и кнопка «В отряд» у друзей","en":"Squad: «Squad settings» and a «To squad» button on friends"},
+    {"kind":"added","ru":"Карта: зажатая правая кнопка двигает карту при рисовании","en":"Map: hold the right button to move the map while drawing"},
+    {"kind":"improved","ru":"Приоритет карт: подсвечена выбранная карта","en":"Map priority: the chosen map is highlighted"},
+    {"kind":"improved","ru":"Интерфейс подстраивается под вертикальные и небольшие мониторы","en":"The interface fits upright and smaller monitors"}
+  ]},
+  {"version":"0.6.0.303","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Обзор: правый клик по предмету — «Взял», зелёная галочка до конца рейда","en":"Overview: right-click an item — «Taken», a green check until the raid ends"},
+    {"kind":"added","ru":"Карты: шестерёнка — панели слева и справа или сверху и снизу","en":"Maps: a gear puts the panels left and right or above and below"},
+    {"kind":"added","ru":"Карты: кнопка-глаз скрывает панель и возвращает её","en":"Maps: an eye button hides a panel and brings it back"}
+  ]},
+  {"version":"0.6.0.302","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Дерево квестов: кнопка «Открыть на весь экран»","en":"Quest tree: «Open full screen» button"},
+    {"kind":"improved","ru":"Карты: убраны лишние метки багажников машин","en":"Maps: removed wrong car trunk markers"}
+  ]},
+  {"version":"0.6.0.301","date":"2026-11-14","items":[
+    {"kind":"added","ru":"Ключи для квестов: показаны ключи, которые нужно заложить по квесту","en":"Quest keys: keys a quest asks you to plant are listed"},
+    {"kind":"added","ru":"Сбор на рейд: правый клик по оружию — «Открыть сборку оружия»","en":"Raid loadout: right-click a weapon — «Open weapon build»"},
+    {"kind":"added","ru":"Оружейник: скриншот сборки ПКП (Механик, часть 13)","en":"Gunsmith: PKP build screenshot (Mechanic, part 13)"}
+  ]},
+  {"version":"0.6.0.300","date":"2026-11-13","items":[
+    {"kind":"added","ru":"Квесты: «Я уже выполнил» в меню по правой кнопке","en":"Quests: «Already done» in the right-click menu"},
+    {"kind":"added","ru":"Экран заданий: в текущие попадают только квесты со статусом «Активно!»","en":"Tasks screen: only quests read «Active!» become current"},
+    {"kind":"added","ru":"Требования рейда: что взять для следующего этапа сюжета в этом же рейде","en":"Raid requirements: what to take for the next story stage in the same raid"},
+    {"kind":"added","ru":"«Кочевники» на телефоне: окно статистики снова закрывается","en":"Phone «Goons»: the statistics window closes again"},
+    {"kind":"added","ru":"Карта: точки не дёргаются при приближении","en":"Map: points stay put while zooming"},
+    {"kind":"added","ru":"Звук щелчков на iPhone больше не пропадает","en":"Click sounds no longer go silent on iPhone"},
+    {"kind":"added","ru":"«Приоритет карт»: цифры ровно в плитках","en":"«Map priority»: counts sit neatly in the tiles"},
+    {"kind":"added","ru":"Снайперы на карте — без этажей","en":"Snipers on the map without floors"},
+    {"kind":"added","ru":"Развязка: фото финансовых документов на своих местах","en":"Interchange: financial documents photos in their right places"}
+  ]},
+  {"version":"0.6.0.297","date":"2026-11-12","items":[
+    {"kind":"added","ru":"Карты: снайперы диких — своя кнопка «Снайперы», видны сразу","en":"Maps: Scav snipers have their own «Snipers» button, shown from the start"},
+    {"kind":"added","ru":"Обзор на телефоне: в «Сборе на рейд» все квесты списком с ползунком","en":"Phone Overview: «Raid loadout» lists every quest with a scroll thumb"}
+  ]},
+  {"version":"0.6.0.296","date":"2026-11-12","items":[
+    {"kind":"added","ru":"«Оружейник»: готовые сборки M1911A1, «Витязя» и Glock 17 на скриншотах","en":"«Gunsmith»: finished M1911A1, Vityaz and Glock 17 builds on screenshots"}
+  ]},
+  {"version":"0.6.0.295","date":"2026-11-12","items":[
+    {"kind":"added","ru":"Карта на телефоне: повернул телефон — окно квеста справа, на весь экран карта не сжимается","en":"Phone map: turned sideways the quest window stands on the right, on the full screen the map keeps its size"},
+    {"kind":"added","ru":"Окно квеста: три вида и выбор высоты в шестерёнке","en":"Quest window: three looks and its height in the gear"},
+    {"kind":"improved","ru":"«Квесты друзей» показывают и квесты отряда и обновляются сами","en":"«Friends’ quests» show the squad’s quests too and update by themselves"},
+    {"kind":"improved","ru":"Точка квеста сама включает свой этаж","en":"A quest point turns on its own floor"},
+    {"kind":"improved","ru":"Плавная прокрутка в «Требованиях рейда»","en":"Smooth scrolling in «Raid requirements»"},
+    {"kind":"improved","ru":"Мягкие нажатия и плавные переходы на телефоне","en":"Soft presses and smooth transitions on the phone"}
+  ]},
+  {"version":"0.6.0.294","date":"2026-11-11","items":[
+    {"kind":"added","ru":"Квесты: счётчик «7 из 10» для целей на убийства и сдачу предметов","en":"Quests: a «7 of 10» counter for kill and hand-over objectives"}
+  ]},
+  {"version":"0.6.0.293","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Квесты из логов игры обновляются быстрее","en":"Quests from the game logs update faster"},
+    {"kind":"improved","ru":"Автообновление скачивается и при открытой игре, вне рейда","en":"Auto-update also downloads with the game open, out of a raid"}
+  ]},
+  {"version":"0.6.0.292","date":"2026-11-11","items":[
+    {"kind":"added","ru":"Карта: в настройках можно выключить перемещение карты к выбранной точке","en":"Map: a setting to stop the map moving to the picked point"},
+    {"kind":"improved","ru":"Сюжет «Батя»: на этапе поста «Рябина» добавлен пост «Гнездо» с точкой на Развязке","en":"Story «Batya»: the Ryabina stage now also has the Gnezdo outpost, with its point on Interchange"},
+    {"kind":"improved","ru":"Берег: точнее зона обстрела у Терминала, фото ключа на пирсе","en":"Shoreline: a truer fire zone at the Terminal, a key photo on the pier"}
+  ]},
+  {"version":"0.6.0.291","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Сюжетные главы: слева текущие, справа — начать новую","en":"Story chapters: current on the left, start a new one on the right"}
+  ]},
+  {"version":"0.6.0.290","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Телефон: «Торговля» снова показывает статистику","en":"Phone: «Trading» shows its statistics again"}
+  ]},
+  {"version":"0.6.0.289","date":"2026-11-11","items":[
+    {"kind":"added","ru":"«Обзор» на телефоне: любой блок можно заменить другим — шестерёнка в «Настроить блоки»","en":"Overview on the phone: swap any block for another — the gear in «Arrange blocks»"},
+    {"kind":"added","ru":"Новый блок «Экран»: пресет, включение и переключение прямо с «Обзора»","en":"New «Screen» block: the preset, on/off and switching right from the Overview"},
+    {"kind":"added","ru":"Телефон: блок «Управление» — скан предметов, поиск ключей и пресеты экрана на ПК","en":"Phone: a «Control» block — item scan, key search and screen presets on the PC"},
+    {"kind":"improved","ru":"Текущие задания и приоритет карт — теперь в блоке карты","en":"Current tasks and map priority now sit in the map block"},
+    {"kind":"improved","ru":"Телефон: компактные «Кочевники», «Требования рейда» и задания","en":"Phone: compact Goons, raid requirements and tasks"},
+    {"kind":"improved","ru":"Пресеты экрана включаются сразу — клавишей, кнопкой или с телефона","en":"Screen presets turn on at once — by hotkey, button or phone"},
+    {"kind":"added","ru":"Настройка «Естественный цвет» для пресетов","en":"A «Natural colour» setting for presets"},
+    {"kind":"added","ru":"Карта: выходы из списка в игре светятся, остальные приглушены","en":"Map: the exits listed in the game light up, the rest are dimmed"},
+    {"kind":"improved","ru":"Карта: настоящие картинки предметов, контейнеров, дверей, машин и БТР; тёмный фон","en":"Map: real pictures of items, containers, doors, cars and the BTR; a dark background"},
+    {"kind":"improved","ru":"Карта: ключи в одной комнате — одна точка, при приближении видны все","en":"Map: keys in one room are one point; zoom in to see them all"},
+    {"kind":"added","ru":"Карта: этажи предметов; у запертой комнаты — ключ от входа","en":"Map: item floors; a locked room shows its entry key"},
+    {"kind":"added","ru":"Карта: поиск ключей и предметов — и на каких картах они лежат","en":"Map: search keys and items — and see which maps have them"},
+    {"kind":"added","ru":"Карта: места снайперов-дикарей, новые места и фото ключей","en":"Map: Scav sniper spots, new key spots and photos"},
+    {"kind":"improved","ru":"Окно квеста: три вида на выбор, без прокрутки, требуемые предметы справа","en":"Quest window: three looks to choose from, no scrolling, needed items on the right"},
+    {"kind":"added","ru":"Дерево квестов: путь к Смотрителю","en":"Quest tree: the way to Lightkeeper"},
+    {"kind":"added","ru":"«Добавить точку»: предложите место со скриншотом — +1 день подписки за новую точку","en":"«Add a point»: suggest a place with a screenshot — +1 day of subscription for a new point"},
+    {"kind":"improved","ru":"«Сообщить об ошибке»: темы по группам","en":"«Report a problem»: topics in groups"},
+    {"kind":"improved","ru":"«Ключи для квестов»: фильтр «Ключи в схроне» и «Показать только избранные»","en":"«Quest keys»: «Keys in stash» and «Favourites only» filters"}
+  ]},
+  {"version":"0.6.0.288","date":"2026-11-10","items":[
+    {"kind":"added","ru":"Квест на карте: цели разбиты на этапы — «В рейде», «Торговцу», «Вне рейда»","en":"Quest on the map: objectives split into stages — «In raid», «To the trader», «Outside the raid»"},
+    {"kind":"added","ru":"Под каждой целью — нужные предметы и ключи с картинками","en":"Under each objective — the items and keys it needs, with pictures"},
+    {"kind":"added","ru":"Карты: 59 новых точек, где лежат ключи","en":"Maps: 59 new spots where keys lie"},
+    {"kind":"added","ru":"«Ключи в схроне»: кнопка «Добавить из избранного»","en":"«Keys in stash»: an «Add from favourites» button"},
+    {"kind":"improved","ru":"Предмет за запертой дверью: в карточке видно, какой ключ нужен","en":"An item behind a locked door: its card shows which key is needed"},
+    {"kind":"improved","ru":"Правый клик по зоне «Устранений» снимает её выделение","en":"Right-click an «Eliminations» zone to clear its highlight"},
+    {"kind":"improved","ru":"«Найти ключи» работает быстрее — 20 секунд","en":"«Find keys» is quicker — 20 seconds"}
+  ]},
+  {"version":"0.6.0.287","date":"2026-11-10","items":[
+    {"kind":"improved","ru":"«Витамины»: в требованиях рейда больше нет ключа от комнаты 112 Санатория — для задания он не нужен","en":"«Vitamins»: the raid requirements no longer list the Health Resort room 112 key — the task does not need it"}
+  ]},
+  {"version":"0.6.0.286","date":"2026-11-10","items":[
+    {"kind":"improved","ru":"Поиск предмета по клавише больше не «замирает»: после неудачи он снова находит предметы","en":"Item lookup by key no longer freezes: after a miss it finds items again"},
+    {"kind":"added","ru":"Горячие клавиши: одна клавиша или комбинация из двух, например Ctrl + ЛКМ","en":"Hotkeys: one key or a two-key combination, e.g. Ctrl + LMB"},
+    {"kind":"added","ru":"«Сбор на рейд»: правый клик по оружию — «Открыть сборку» с готовыми сборками","en":"«Raid loadout»: right-click a weapon — «Open build» with ready-made builds"},
+    {"kind":"improved","ru":"Карта: ключи в точках — своими картинками, новая точка ключа на Ферме Диких с фото места","en":"Map: keys shown by their own pictures, a new key spot at the Scav Farm with a photo of the place"},
+    {"kind":"improved","ru":"Метки «Реалистичный» — с картинками предметов; зона у перехода на Терминал точнее","en":"«Realistic» markers show item pictures; the Terminal transit zone is more precise"}
+  ]},
+  {"version":"0.6.0.285","date":"2026-11-09","items":[
+    {"kind":"added","ru":"Карта: «Сектора обстрела» — у перехода на Терминал на Береге и на мосту к острову Смотрителя на Маяке","en":"Map: «Fire sectors» — at the Terminal transit on Shoreline and on the bridge to Lightkeeper Island on Lighthouse"},
+    {"kind":"added","ru":"Ключи: кнопка «Нужные ключи» — места ключей, которых нет в схроне, для текущих и отложенных квестов","en":"Keys: the «Needed keys» button — spots of the keys you lack for current and set-aside quests"},
+    {"kind":"improved","ru":"Ключи на карте — своя иконка; в точке квеста видно, какой ключ нужен","en":"Keys have their own map icon; a quest point shows which key it needs"},
+    {"kind":"improved","ru":"Предметы за запертой дверью — с маленьким замочком","en":"Items behind a locked door show a small padlock"},
+    {"kind":"added","ru":"Оплата: банковская карта и ЮMoney рядом с СБП, SberPay и T-Pay","en":"Payment: bank card and YooMoney next to SBP, SberPay and T-Pay"}
+  ]},
+  {"version":"0.6.0.284","date":"2026-11-09","items":[
+    {"kind":"added","ru":"Карта: новая вкладка «Ключи» — все места, где ключи и ключ-карты просто лежат на карте","en":"Map: new «Keys» tab — every spot where keys and keycards lie loose"},
+    {"kind":"improved","ru":"«Спавн 100 %» — только ключи, которые лежат там каждый рейд; остальные — возможные точки во вкладке «Ключи»","en":"«Spawn 100 %» — only keys that lie there every raid; the rest are possible spots on the «Keys» tab"}
+  ]},
+  {"version":"0.6.0.283","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.282","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Карта: тысячи меток не тормозят при приближении — склеены с картой, наведение и нажатие как раньше","en":"Map: thousands of markers no longer lag on zoom — glued to the map, hover and click as before"},
+    {"kind":"added","ru":"Рейд: двойное О — показывает на карте выходы из списка игры, горят зелёным, остальные приглушены до конца рейда","en":"Raid: double O — shows the exits from the game's list on the map, lit green, the others dimmed until the raid ends"},
+    {"kind":"added","ru":"Телефон: регистрация и вход в приложении, вход по QR-коду; скоро будет доступно приложение для iOS в App Store","en":"Phone: sign up and sign in inside the app, sign in by QR code; the iOS app is coming soon to the App Store"}
+  ]},
+  {"version":"0.6.0.281","date":"2026-11-09","items":[
+    {"kind":"added","ru":"Карта: новый слой «Спавн 100 %» — ключи, которые лежат в каждом рейде","en":"Map: new «Spawn 100 %» layer — keys that lie there every raid"},
+    {"kind":"added","ru":"Карты: +1271 контейнер — лагеря Развязки и Маяка, Терминал, Ледокол, заражённые карты.","en":"Maps: +1271 containers — Interchange and Lighthouse camps, Terminal, Icebreaker, the infected maps."}
+  ]},
+  {"version":"0.6.0.280","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.279","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Квест «Слежка»: место и предметы показаны на 2-м этаже Улиц","en":"Watching You: the place and items show on the 2nd floor of Streets"},
+    {"kind":"improved","ru":"«Сбор на рейд» для квеста «Должник» напомнит взять ключ от квартиры на Чеканной 15","en":"Raid loadout for Debtor reminds you to take the Chekannaya 15 apartment key"},
+    {"kind":"improved","ru":"Карта: линейка и сетка снайпера ставят точки в любом месте карты","en":"Map: the ruler and the sniper grid place points anywhere on the map"},
+    {"kind":"improved","ru":"Обзор: блок «Кочевники» удобно читается при любом размере","en":"Overview: the Goons block reads well at any size"}
+  ]},
+  {"version":"0.6.0.278","date":"2026-11-08","items":[
+    {"kind":"improved","ru":"Квесты Водителя БТР теперь появляются в приложении сами, как только открываются","en":"BTR driver quests now show up in the app by themselves as soon as they open"},
+    {"kind":"improved","ru":"Чат на телефоне: проведите сообщение вправо — реакции и «Ответить»; удержание — «Копировать»","en":"Phone chat: swipe a message right for reactions and Reply; hold it to Copy"},
+    {"kind":"improved","ru":"Карта: в подсказках к меткам больше нет повторяющихся строк","en":"Map: point tooltips no longer repeat the same line"},
+    {"kind":"improved","ru":"Обзор: Ледокол всегда можно выбрать в списке карт","en":"Overview: Icebreaker can always be chosen in the map list"}
+  ]},
+  {"version":"0.6.0.277","date":"2026-11-08","items":[
+    {"kind":"added","ru":"Квест «Новое начало» для каждого престижа: в списке тот, что нужен вашему престижу","en":"New Beginning for every prestige: the list shows the one your prestige needs"},
+    {"kind":"improved","ru":"Карта: нажмите на зону «Устранений» — справа откроется её квест","en":"Map: press an elimination zone and its quest opens on the right"},
+    {"kind":"added","ru":"Пресет экрана «Ярко и чисто»: светлая картинка без шума в тенях","en":"Screen preset «Bright and clean»: a light picture with no noise in the shadows"},
+    {"kind":"improved","ru":"Новые промокоды студии появляются в приложении сразу","en":"The studio's new promo codes show up in the app at once"},
+    {"kind":"improved","ru":"Уведомление о вашей заявке теперь называет её тему","en":"Notices about your report now name its topic"}
+  ]},
+  {"version":"0.6.0.276","date":"2026-11-08","items":[
+    {"kind":"added","ru":"«Устранения» на карте: все квесты на убийство, зоны диких и ЧВК прямо на карте","en":"Eliminations on the map: every kill quest, Scav and PMC zones right on the map"},
+    {"kind":"improved","ru":"Карта: если зажать значок и потащить карту, значок больше не открывается","en":"Map: dragging the map from an icon no longer opens that icon"},
+    {"kind":"added","ru":"Карта: нажмите на точку квеста друга — откроется окно его квеста","en":"Map: press a friend's quest point to open a window with their quest"},
+    {"kind":"improved","ru":"Телефон: карта до самого низа, в «Квестах» галочки, этажи — кнопкой на карте","en":"Phone: the map reaches the bottom, quests have ticks, floors are a button on the map"},
+    {"kind":"added","ru":"Ключи для квестов: «Найти ключи» — откройте в игре контейнер с ключами, приложение отметит, какие у вас есть","en":"Quest keys: open your key case in the game and Find keys marks the keys you have"},
+    {"kind":"added","ru":"В требованиях рейда видно, какой ключ уже есть в схроне","en":"Raid requirements show which keys are already in your stash"},
+    {"kind":"added","ru":"«Информация о предмете» показывает букву тир-листа предмета","en":"Item info shows the item's tier-list letter"},
+    {"kind":"added","ru":"Чат поддержки: реакции, ответ на сообщение, смайлики и стикеры","en":"Support chat: reactions, replies, emoji and stickers"}
+  ]},
+  {"version":"0.6.0.275","date":"2026-11-07","items":[
+    {"kind":"improved","ru":"Если дверь открывает любой из двух ключей, в требованиях рейда виден один ключ, второй — при наведении","en":"If either of two keys opens a door, raid requirements show one key and the other on hover"},
+    {"kind":"improved","ru":"Карта: точки выбранного квеста теперь ярко выделены, остальные квесты приглушены","en":"Map: the chosen quest's points now stand out, other quests fade back"},
+    {"kind":"added","ru":"Карта: при нажатии на станковое оружие показывается угол обстрела","en":"Map: press a mounted weapon to see its firing arc"},
+    {"kind":"added","ru":"Убежище: отметьте модули галочками или нажмите правой кнопкой на уровень — покажутся только его предметы","en":"Hideout: tick modules or right-click a level to see only the items it needs"},
+    {"kind":"added","ru":"Ключи для квестов: цена с барахолки и бартеры у торговцев","en":"Quest keys: the flea market price and trader barters"}
+  ]},
+  {"version":"0.6.0.274","date":"2026-11-07","items":[
+    {"kind":"changed","ru":"Уведомления и объявления теперь справа снизу, не мешают и сами закрываются через 7 секунд","en":"Notifications and announcements now stand at the bottom right, out of the way, and close by themselves after 7 seconds"}
+  ]},
+  {"version":"0.6.0.273","date":"2026-11-07","items":[
+    {"kind":"improved","ru":"Улицы Таркова: у нескольких точек квестов теперь правильный этаж","en":"Streets of Tarkov: several quest points now show the right floor"}
+  ]},
+  {"version":"0.6.0.272","date":"2026-11-07","items":[
+    {"kind":"added","ru":"ПК и телефон теперь синхронизируются сразу: промокоды, квесты, избранное и зарисовки","en":"The PC and the phone now sync at once: promo codes, quests, favourites and sketches"},
+    {"kind":"added","ru":"На телефоне вкладки внизу можно менять: зажмите вкладку и выберите нужный раздел","en":"On phones you can change the bottom tabs: hold a tab and pick a section"},
+    {"kind":"added","ru":"У карандаша на карте появились резинка и шесть цветов","en":"The pencil on the map now has an eraser and six colours"},
+    {"kind":"added","ru":"На новом промокоде написано «Новый», после просмотра надпись исчезает","en":"A new promo code says New until you have seen it"},
+    {"kind":"changed","ru":"«Текущие задания» на ПК прокручиваются колесом мыши; в настройках можно вернуть кнопку «Ещё»","en":"Current tasks on the PC scroll with the mouse wheel; Settings can bring back the More button"},
+    {"kind":"changed","ru":"Схемы «Металл», «Снаряжение» и «Чёрный мультикам»: новые кнопки, сразу видно, какая нажата","en":"Metal, Gear and Black Multicam schemes: new buttons, you see at once which one is on"},
+    {"kind":"improved","ru":"Запуск сразу тёмный, без белых кусков, а линия загрузки идёт плавно","en":"The start is dark from the first moment, and the loading line moves smoothly"},
+    {"kind":"improved","ru":"Блоки на «Обзоре» больше не зависают при перетаскивании","en":"Overview blocks no longer stick while you drag them"}
+  ]},
+  {"version":"0.6.0.271","date":"2026-11-07","items":[
+    {"kind":"improved","ru":"На телефоне окна больше не заходят под часы и верхнюю панель","en":"On phones windows no longer run under the clock and the top bar"}
+  ]},
+  {"version":"0.6.0.270","date":"2026-11-07","items":[
+    {"kind":"added","ru":"На всех картах появились спавны ЧВК и диких: включаются кнопками в блоке «Спавны»","en":"All maps now show PMC and Scav spawns: turn them on in the Spawns block"},
+    {"kind":"added","ru":"Появились «Уведомления»: на ПК кнопка рядом с «Обновлением», на телефоне в меню «Ещё»","en":"Notifications are here: a button beside Updates on the PC, in the More menu on phones"},
+    {"kind":"added","ru":"Ключи для квестов: кнопка «Показать только избранные»","en":"Quest keys: a Show favorites only button"},
+    {"kind":"added","ru":"Пока приложение загружается, вокруг эмблемы бежит строчка: видно, что оно не зависло","en":"While the app loads, a stitch runs round the emblem, so you can see it has not frozen"},
+    {"kind":"changed","ru":"Уведомления больше не появляются поверх игры","en":"Notifications no longer pop up over the game"},
+    {"kind":"changed","ru":"На телефоне эмблема при запуске перелетает на своё место наверху, и экран собирается за ней","en":"On phones the emblem flies to its place at the top at launch and the screen assembles behind it"},
+    {"kind":"changed","ru":"Профиль на телефоне: ник, уровень, режим, аккаунт и кнопки теперь в одном блоке","en":"Profile on phones: nickname, level, mode, account and buttons are now in one block"},
+    {"kind":"improved","ru":"Карта на телефоне: в списке «Слои» появился крестик, точка и галочка у цели стоят ровно","en":"Map on phones: the Layers list has a cross, and the point and tick of an objective stand level"}
+  ]},
+  {"version":"0.6.0.269","date":"2026-11-07","items":[
+    {"kind":"added","ru":"Теперь на карте можно рисовать и делать пометки: отметьте маршрут или нужное место перед рейдом","en":"You can now draw and make notes on the map: mark your route or a key spot before a raid"},
+    {"kind":"added","ru":"Ключи для квестов: звёздочка и свой список «Избранные ключи», напоминание включается кнопкой","en":"Quest keys: a star and your own Favorite keys list, with a reminder you can turn on"},
+    {"kind":"added","ru":"Новые квесты на Маяке: «Честный отзыв», «Знакомое лицо...» и вся их цепочка, с точками на карте","en":"New Lighthouse quests: Honest Review, A Familiar Face... and their whole chain, with places on the map"},
+    {"kind":"added","ru":"Добавлен квест Барахольщика «За проезд передаём!»","en":"Added Ragman's quest Pay the Fare!"},
+    {"kind":"added","ru":"Когда ваш отчёт или предложение готовы, приложение сообщит об этом окном","en":"When your report or idea is done, the app tells you in a window"},
+    {"kind":"added","ru":"«Настройка экрана»: у каждой функции значок с подсказкой, для чего она","en":"Screen settings: every function has a help mark that says what it is for"},
+    {"kind":"changed","ru":"При запуске значок перелетает на своё место, и окно собирается за ним","en":"At launch the emblem flies to its place and the window assembles behind it"},
+    {"kind":"changed","ru":"На карте Маяка больше нет минных полей","en":"The Lighthouse map no longer shows minefields"},
+    {"kind":"changed","ru":"Сюжетные главы: при возврате на этап отметки на этапах впереди сбрасываются","en":"Story chapters: going back to a stage clears the marks on the stages ahead"},
+    {"kind":"improved","ru":"Квест «Halloween: Контрольная проверка»: верная награда, 300 000 ₽","en":"Halloween: Follow-Up Examination: the correct reward, 300,000 ₽"}
+  ]},
+  {"version":"0.6.0.268","date":"2026-11-06","items":[
+    {"kind":"added","ru":"В настройках у каждой функции значок с подсказкой, для чего она","en":"Every function in the settings has a help mark that says what it is for"},
+    {"kind":"added","ru":"«Сборки игроков»: видна цена модулей без оружия","en":"Player builds: the price of the mods, without the weapon"},
+    {"kind":"added","ru":"Промокоды: скопированный код сам отмечается как использованный","en":"Promo codes: a copied code marks itself as used"},
+    {"kind":"changed","ru":"«Баллистика»: разделы переключаются кнопками, список патронов с сортировкой отдельно","en":"Ballistics: sections switch by buttons, the list of rounds with its sorting is its own"},
+    {"kind":"changed","ru":"«Торговля»: новый раздел «Барахолка», «Купленные» теперь рядом с поиском","en":"Trading: a new Flea market section, Bought now stands by the search"},
+    {"kind":"improved","ru":"Оружие на картинках теперь показано целиком","en":"Weapons are now shown whole in their pictures"},
+    {"kind":"improved","ru":"«Сборка оружия»: ровные колонки и одинаковые рамки в списках сборок","en":"Weapon builds: level columns and the same frames in the lists of builds"},
+    {"kind":"improved","ru":"В таблицах «Торговли» зелёным горит только свежая цена, а не вся ячейка","en":"In the Trading tables only a fresh price glows green, not the whole cell"}
+  ]},
+  {"version":"0.6.0.267","date":"2026-11-06","items":[
+    {"kind":"added","ru":"«Баллистика»: патроны можно выстроить по пробитию, урону и балансу","en":"Ballistics: rounds can be ordered by penetration, damage and balance"},
+    {"kind":"improved","ru":"Окно приложения запоминает монитор, размер и положение","en":"The app window remembers its monitor, size and position"},
+    {"kind":"improved","ru":"Выходы видны на всех этажах, на метке написан этаж","en":"Exits show on every floor, the mark says which floor is theirs"},
+    {"kind":"improved","ru":"Подземные этажи на картах больше не закрыты первым этажом","en":"Underground floors on the maps are no longer covered by the first floor"},
+    {"kind":"improved","ru":"Метки на крыше Берега теперь подписаны «Крыша»","en":"Marks on the roof on Shoreline now say «Roof»"},
+    {"kind":"changed","ru":"«Торговля»: уведомления теперь выключены, включаются кнопкой в блоке","en":"Trading: notifications are now off, a button in the block turns them on"}
+  ]},
+  {"version":"0.6.0.266","date":"2026-11-06","items":[
+    {"kind":"improved","ru":"«Торговля»: сверху самые свежие цены, только что обновлённые горят зелёным","en":"Trading: the freshest prices are on top, those just updated glow green"},
+    {"kind":"added","ru":"«Торговля»: колонка «Актуальность» показывает, как давно обновилась цена","en":"Trading: the Freshness column shows how long ago a price was updated"},
+    {"kind":"improved","ru":"«Торговля»: списки сортируются по любой колонке, старые цены скрыты","en":"Trading: lists sort by any column, old prices are hidden"}
+  ]},
+  {"version":"0.6.0.265","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Промокоды в «Обзоре»: новые появляются сами, с датой добавления","en":"Promo codes on the Overview: new ones appear by themselves, with the date they were added"},
+    {"kind":"added","ru":"Кнопка «Названия мест» в меню карты отключает подписи","en":"The «Place names» button in the map menu turns the labels off"},
+    {"kind":"improved","ru":"Цены барахолки теперь обновляются чаще","en":"Flea market prices now update more often"},
+    {"kind":"improved","ru":"Подписи на картах стали прозрачнее и не закрывают карту","en":"Map labels are more see-through and stay off the map"},
+    {"kind":"changed","ru":"«Обзор»: настройка блоков теперь значком","en":"Overview: arranging blocks is now an icon"}
+  ]},
+  {"version":"0.6.0.264","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Резерв: у зданий и в подвалах значки шахматных фигур","en":"Reserve: chess piece marks on the buildings and in the basements"},
+    {"kind":"added","ru":"Маяк: остановки БТР, места примерные","en":"Lighthouse: BTR stops, the places are approximate"},
+    {"kind":"added","ru":"Лаборатория: при наведении на цветную комнату видно её ключ","en":"The Lab: hover a coloured room to see its key"},
+    {"kind":"added","ru":"Когда отчёт берут в работу, автору приходит уведомление","en":"When a report is taken, its author gets a notice"},
+    {"kind":"changed","ru":"Ключ на несколько квестов считается один, если хватает его использований","en":"A key for several quests counts as one when its uses are enough"},
+    {"kind":"changed","ru":"«Ключи для квестов» теперь в разделе «Экономика», лишняя галочка убрана","en":"«Quest keys» moved to «Economy», the extra checkbox is gone"},
+    {"kind":"improved","ru":"Заставка при запуске на ПК стала меньше","en":"The start intro on the PC is smaller"}
+  ]},
+  {"version":"0.6.0.263","date":"2026-11-06","items":[
+    {"kind":"improved","ru":"Карты: подписи ключей стоят внутри комнат и видны поверх подписей мест","en":"Maps: key labels sit inside the rooms and show over place names"}
+  ]},
+  {"version":"0.6.0.262","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Карты: у каждого выхода свой значок для ЧВК, диких и совместного, значки одного места стоят рядом","en":"Maps: each exit has its own mark for PMCs, Scavs and co-op, marks of one place stand side by side"},
+    {"kind":"changed","ru":"На картах подписаны только магазины и заметные места","en":"Maps label only shops and notable places"},
+    {"kind":"changed","ru":"Новости считаются прочитанными, как только открыто окно","en":"News count as read as soon as the window opens"},
+    {"kind":"improved","ru":"Окна выровнены: кнопки посередине и одной ширины","en":"Windows are aligned: buttons in the middle, one width"},
+    {"kind":"improved","ru":"Меню «Кочевники» больше не уходит за край экрана","en":"The Goons menu no longer runs off the screen"},
+    {"kind":"improved","ru":"«Ключи для квестов»: блоки стоят ровно, на одинаковом расстоянии","en":"«Quest keys»: cards stand evenly, with equal gaps"},
+    {"kind":"improved","ru":"Карты: подписи переходов без стрелочек","en":"Maps: transit labels without arrows"}
+  ]},
+  {"version":"0.6.0.261","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Карты: остановки БТР на Улицах и в Лесу, со своим значком","en":"Maps: BTR stops on Streets and Woods, with their own icon"},
+    {"kind":"added","ru":"На картах подписаны магазины и помещения, на Улицах в стиле самих магазинов","en":"Shops and rooms are labeled on the maps, on Streets in the shops' own style"},
+    {"kind":"added","ru":"Лабиринт: обведены ловушки, отмечены ключи и резак, комнаты с номерами","en":"The Labyrinth: traps outlined, keys and the cutter marked, rooms numbered"},
+    {"kind":"added","ru":"При запуске собирается эмблема Raid OS и сразу открывается готовое приложение","en":"At start the Raid OS emblem assembles and the ready app opens right away"},
+    {"kind":"improved","ru":"Лаборатория: комнаты карт подсвечены их цветом; на всех картах подписи ключей у комнат","en":"The Lab: keycard rooms in their card's colour; on all maps key names by the rooms"},
+    {"kind":"improved","ru":"Ключи: выполненная цель больше не требует свой ключ","en":"Keys: a finished objective no longer asks for its key"}
+  ]},
+  {"version":"0.6.0.260","date":"2026-11-06","items":[
+    {"kind":"improved","ru":"«Оружейник», часть 12: у «Витязя» и Glock 17 теперь свои детали","en":"«Gunsmith», part 12: the Vityaz and the Glock 17 now list their own parts"},
+    {"kind":"improved","ru":"Поиск и «Открыть задание» на карте сразу открывают карточку квеста","en":"Search and «Open task» on the map go straight to the quest's card"}
+  ]},
+  {"version":"0.6.0.258","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Дерево квестов: у каждого торговца своё, с цепочками и статусом в PvP, PvE и Сезоне","en":"Quest tree: each trader has their own, with chains and the status in PvP, PvE and Season"},
+    {"kind":"added","ru":"Лут на карте по видам: свой маркер у каждого контейнера и список с количеством","en":"Loot on the map by kind: each container has its own marker, with a list and counts"},
+    {"kind":"added","ru":"В «Хронологии» две кнопки: каталог заданий и дерево квестов","en":"«Chronology» has two buttons: the task catalog and the quest tree"},
+    {"kind":"changed","ru":"Настройки открываются из меню слева, наверху теперь новости","en":"Settings open from the menu on the left, the news sits on top"},
+    {"kind":"improved","ru":"Кнопка «Поменять ник» в «Текущем профиле»","en":"A «Change nickname» button in «Current profile»"},
+    {"kind":"improved","ru":"Маркеры документов боевого пропуска стали компактнее","en":"Battle pass document markers are more compact"}
+  ]},
+  {"version":"0.6.0.257","date":"2026-11-06","items":[
+    {"kind":"changed","ru":"Этажи на карте идут по порядку снизу вверх","en":"Map floors are listed in order, from the lowest up"},
+    {"kind":"improved","ru":"Сборка оружия: точные характеристики рукояток Magpul MIAD и Stark, прикладов Ravage и деталей P90","en":"Gun builder: exact stats for the Magpul MIAD and Stark grips, Ravage stocks and P90 parts"}
+  ]},
+  {"version":"0.6.0.256","date":"2026-11-06","items":[
+    {"kind":"added","ru":"В «Торговле» вкладка «Продажа торговцам»: что на барахолке дешевле, чем платит торговец","en":"«Trading» has a «Selling to traders» tab: what is cheaper on the flea market than a trader pays"},
+    {"kind":"changed","ru":"Цены в «Торговле» приходят сами, без кнопки, и видно время последнего обновления","en":"Prices in «Trading» arrive by themselves, with no button, and show when they last updated"}
+  ]},
+  {"version":"0.6.0.255","date":"2026-11-05","items":[
+    {"kind":"added","ru":"В «Требованиях рейда» предметы текущего этапа сюжетной главы: ключи и то, что нужно заложить или взять","en":"«Raid requirements» now list what a story chapter's current stage needs: keys and what to plant or take"}
+  ]},
+  {"version":"0.6.0.254","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Раздел «Ключи для квестов»: все ключи квестов и их задания, ненужные уходят в отдельный список","en":"A «Quest keys» section: every quest key with its quests, those no longer needed move to their own list"},
+    {"kind":"added","ru":"Квест можно отложить на дни, до уровня или бессрочно","en":"A quest can be put aside for days, until a level or indefinitely"},
+    {"kind":"changed","ru":"В «Требованиях рейда» появились сигнальные ракеты: для квестов с сигналом и выходов по сигналу","en":"«Raid requirements» now list flares: for quests with a signal and exits opened by one"},
+    {"kind":"improved","ru":"Точки сюжетных глав: у каждой своё описание","en":"Points of story chapters: each has its own description"},
+    {"kind":"improved","ru":"Лаборатория: у сюжетных точек указан этаж","en":"The Lab: story points show their floor"}
+  ]},
+  {"version":"0.6.0.253","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Сюжетные квесты отмечаются вручную: выберите главу и этап, ставьте галочки, переходите дальше","en":"Story quests are marked by hand: pick a chapter and a stage, tick the goals, move on"},
+    {"kind":"added","ru":"В сюжете видно, к какой концовке ведёт каждый выбор: кому сдать предмет и что будет дальше","en":"The story shows which ending each choice leads to: who to give an item to and what comes next"},
+    {"kind":"added","ru":"Кнопка «Вернуться к прошлому этапу», если отметили по ошибке","en":"A «Back to the previous stage» button, in case of a mistaken mark"},
+    {"kind":"added","ru":"Правый клик по главе: отложить, начать или изменить главу","en":"Right click on a chapter: put it aside, start or change it"},
+    {"kind":"added","ru":"Кнопка новостей наверху: что нового, с отметкой прочитанного","en":"A news button on top: what is new, with a read mark"},
+    {"kind":"added","ru":"Геометка у каждой цели квеста на карте: переносит прямо к её точке","en":"A pin at each quest objective on the map: takes you straight to its point"},
+    {"kind":"added","ru":"Тир-лист еды и напитков: что выгоднее по цене за энергию и за воду, без того, что отнимает","en":"Food and drink tier list: the best buy by price per energy and per water, without what takes any away"},
+    {"kind":"added","ru":"Скриншот можно вставить через Ctrl+V или перетащить файл мышкой: в отчёт, в чат с поддержкой","en":"Paste a screenshot with Ctrl+V or drag a file in with the mouse: into a report or the support chat"},
+    {"kind":"changed","ru":"Найти квесты по экрану: текущие задания добавляются сами","en":"Find quests on screen: current tasks add themselves"},
+    {"kind":"improved","ru":"Окно «Кочевники»: крупный текст и удобная кнопка «Видел»","en":"The «Goons» window: larger text and a handy «Spotted» button"},
+    {"kind":"improved","ru":"В блоках «Обзора» надписи стали крупнее","en":"Larger text in the Overview blocks"}
+  ]},
+  {"version":"0.6.0.252","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Короткое название под значком каждого выхода и перехода на карте","en":"A short name under the icon of every exit and transit on the map"},
+    {"kind":"changed","ru":"Документы боевого пропуска: в окне только вид документа, его картинка и этаж","en":"Battle pass documents: the window shows only the document's kind, its picture and the floor"}
+  ]},
+  {"version":"0.6.0.250","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Документы боевого пропуска: свой значок у каждого вида и фото места","en":"Battle pass documents: each kind has its own icon, with photos of the place"},
+    {"kind":"added","ru":"Кнопка «Нашёл»: документ исчезает с карты до конца рейда","en":"The «Found» button: a document leaves the map until the raid ends"},
+    {"kind":"added","ru":"Избранное: у предмета виден его отложенный квест и карта, правый клик возвращает квест","en":"Favorites: an item shows its deferred quest and map, a right click brings the quest back"},
+    {"kind":"added","ru":"Кнопка «Убрать из избранного»","en":"A «Remove from favorites» button"},
+    {"kind":"changed","ru":"Предметы выполненного квеста сами уходят из избранного","en":"The items of a completed quest leave favorites by themselves"},
+    {"kind":"changed","ru":"Круг сектантов: новый обмен, ключ-карта Labrys даёт отчёты Labrys","en":"Cultist Circle: a new exchange, the Labrys keycard gives the Labrys notes"}
+  ]},
+  {"version":"0.6.0.246","date":"2026-11-05","items":[
+    {"kind":"added","ru":"«Торговля» в разделе «Экономика»: минимум, максимум и цена сейчас, чтобы купить дешевле и продать дороже","en":"«Trading» in «Economy»: the low, the high and the price now, to buy cheaper and sell higher"},
+    {"kind":"added","ru":"«Продажа модулей»: детали для квестов «Оружейник» дешевле у торговца, дороже на барахолке","en":"«Mod sales»: Gunsmith parts cheaper at a trader, dearer on the flea market"},
+    {"kind":"improved","ru":"В PvE свои цены барахолки","en":"PvE has its own flea prices"}
+  ]},
+  {"version":"0.6.0.245","date":"2026-11-05","items":[
+    {"kind":"improved","ru":"Запускается только одна копия приложения, повторный запуск выводит вперёд открытое окно","en":"Only one copy of the app runs, a second start brings the open window forward"},
+    {"kind":"improved","ru":"Фото выходов и квестов стали чище","en":"Exit and quest photos are cleaner"}
+  ]},
+  {"version":"0.6.0.243","date":"2026-11-05","items":[
+    {"kind":"changed","ru":"Круг сектантов: что выпадает, видно списком сверху, картинки сменяются сами","en":"Cultist Circle: what drops is listed on top, the pictures change by themselves"},
+    {"kind":"added","ru":"Из карточки предмета можно перейти к квесту, которому он нужен","en":"An item's card now opens the quest that needs it"}
+  ]},
+  {"version":"0.6.0.242","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Правый клик по квесту: «Добавить в текущие» и «У меня нет этого квеста»","en":"Right click on a quest: «Add to current» and «I don't have this quest»"},
+    {"kind":"improved","ru":"Оптимизировали обмен с сервером: приложение и обновления загружаются быстрее","en":"Optimized the exchange with the server: the app and its updates load faster"}
+  ]},
+  {"version":"0.6.0.238","date":"2026-11-04","items":[
+    {"kind":"added","ru":"Выходы на картах: где находится каждый, настоящий этаж на значке и фото","en":"Exits on the maps: where each one is, its real floor on the icon, and photos"}
+  ]},
+  {"version":"0.6.0.237","date":"2026-11-04","items":[
+    {"kind":"added","ru":"Окно квеста: при наведении на цель показаны фото именно этого места","en":"Quest window: hovering an objective shows photos of that very place"}
+  ]},
+  {"version":"0.6.0.231","date":"2026-11-04","items":[
+    {"kind":"changed","ru":"Отложенные квесты теперь одни на всех устройствах аккаунта","en":"Deferred quests are now the same on all your account's devices"}
+  ]}
+]

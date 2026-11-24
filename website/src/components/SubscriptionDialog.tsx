@@ -31,7 +31,8 @@ const CIS_TIME_ZONE = /^(Europe\/(Moscow|Kaliningrad|Samara|Volgograd|Saratov|Ul
 /**
  * Which tab «Подписка» opens on (owner, 16.10.2026: «если сможешь отслеживать откуда заходит человек и предлагать сам
  * версию страницы»): the signed-in account's country; else where the server sees the visitor (Cloudflare); else the
- * browser's time zone; else the site language. Only a starting point: both tabs stay one click away.
+ * browser's time zone; else the site language. The visitor sees only that one: no choice of the way to pay (owner,
+ * 01.11.2026: «в этом окне не должно быть выбора оплаты. только та откуда человек»).
  */
 export function initialSubscriptionTab(accountCountry: string | undefined, hint: PaymentRegion | undefined, timeZone: string | undefined, locale: string): SubscriptionTab {
   return tabOf(paymentRegionOf(accountCountry)) ?? tabOf(hint) ?? (timeZone ? (CIS_TIME_ZONE.test(timeZone) ? 'cis' : 'world') : locale === 'en' ? 'world' : 'cis')
@@ -48,9 +49,9 @@ export function SubscriptionDialog({ onClose }: { onClose: () => void }) {
   const { account } = useAuth()
   const navigate = useNavigate()
   const [plans, setPlans] = useState<PlansResponse | null>(null)
-  // Picked by the visitor: then nothing that arrives later switches the tab.
-  const [picked, setPicked] = useState<SubscriptionTab | null>(null)
-  const tab = picked ?? initialSubscriptionTab(account?.country, plans?.regionHint, browserTimeZone(), siteLocale())
+  const tab = initialSubscriptionTab(account?.country, plans?.regionHint, browserTimeZone(), siteLocale())
+  // Russia or the rest of the CIS, when known: only that one's way to pay is described.
+  const region = paymentRegionOf(account?.country) ?? plans?.regionHint
   const closeRef = useRef<HTMLButtonElement>(null)
   const closeLatest = useRef(onClose)
   useEffect(() => { closeLatest.current = onClose })
@@ -89,11 +90,6 @@ export function SubscriptionDialog({ onClose }: { onClose: () => void }) {
           {INCLUDED.map((line) => <li key={line}><Check aria-hidden="true" />{tr(line)}</li>)}
         </ul>
 
-        <div className="subscription-tabs" role="tablist" aria-label={tr('Способ оплаты')}>
-          <button type="button" role="tab" aria-selected={tab === 'cis'} className={`button ${tab === 'cis' ? 'primary' : 'ghost'}`} onClick={() => setPicked('cis')}>{tr('СНГ')}</button>
-          <button type="button" role="tab" aria-selected={tab === 'world'} className={`button ${tab === 'world' ? 'primary' : 'ghost'}`} onClick={() => setPicked('world')}>{tr('Зарубежная оплата')}</button>
-        </div>
-
         {tab === 'cis' ? (
           <>
             <div className="plan-grid subscription-plans">
@@ -112,9 +108,9 @@ export function SubscriptionDialog({ onClose }: { onClose: () => void }) {
             </div>
 
             <ul className="subscription-terms">
-              <li><strong>{tr('Оплата из России')}</strong> {tr('— на защищённой странице ЮKassa через доступный способ: СБП, SberPay или T-Pay. Автопродление включается только отдельной галочкой, если оно подключено для магазина.')}</li>
+              {region !== 'CIS' && <li><strong>{tr('Оплата из России')}</strong> {tr('— на защищённой странице ЮKassa через доступный способ: СБП, SberPay или T-Pay. Автопродление включается только отдельной галочкой, если оно подключено для магазина.')}</li>}
               <li><strong>{tr('Доступ')}</strong> {tr('открывается сразу после оплаты в приложении для Windows, на телефоне и на сайте.')}</li>
-              <li><strong>{tr('Беларусь, Казахстан и другие страны СНГ')}</strong> {tr('— оплата картой через сервис BZB (1, 3, 6 или 12 месяцев): кнопки оплаты появятся в личном кабинете после регистрации.')}</li>
+              {region !== 'RU' && <li><strong>{tr('Беларусь, Казахстан и другие страны СНГ')}</strong> {tr('— оплата картой через сервис BZB (1, 3, 6 или 12 месяцев): кнопки оплаты появятся в личном кабинете после регистрации.')}</li>}
               <li><strong>{tr('Возврат')}</strong> {tr('— в любой момент за неиспользованные дни, без удержания комиссий.')}</li>
             </ul>
           </>

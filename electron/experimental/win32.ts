@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url)
 
 type Koffi = {
   load: (name: string) => { func: (signature: string) => (...args: unknown[]) => unknown }
+  as: (value: unknown, type: string) => unknown
   struct: (name: string, fields: Record<string, string>) => unknown
   address: (pointer: unknown) => bigint
 }
@@ -17,6 +18,8 @@ let api: {
   keyState: (key: number) => number
   isAdmin: (() => number) | null
   shellExecute: ((hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint) | null
+  /** Lets the single-instance message through (allowSecondStartMessages). */
+  secondStart: ((dataFolder: string) => boolean) | null
   gdi: Gdi | null
   windows: Windows | null
   /** Which window is the game's (gameWindow.ts). */
@@ -64,6 +67,15 @@ function win32() {
       windowText: user32.func('int __stdcall GetWindowTextW(void* hWnd, _Out_ uint16_t* lpString, int nMaxCount)') as (hwnd: unknown, buffer: Uint16Array, size: number) => number,
       isAdmin: optional(() => shell32.func('int __stdcall IsUserAnAdmin()') as () => number),
       shellExecute: optional(() => shell32.func('intptr_t __stdcall ShellExecuteW(void* hwnd, const char16_t* lpOperation, const char16_t* lpFile, const char16_t* lpParameters, const char16_t* lpDirectory, int nShowCmd)') as (hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint),
+      secondStart: optional(() => {
+        const find = user32.func('void* __stdcall FindWindowExW(void* hWndParent, void* hWndChildAfter, const char16_t* lpszClass, const char16_t* lpszWindow)')
+        const filter = user32.func('bool __stdcall ChangeWindowMessageFilterEx(void* hwnd, uint32 message, uint32 action, void* pChangeFilterStruct)')
+        const HWND_MESSAGE = koffi.as(-3, 'void*')
+        return (dataFolder: string) => {
+          const window = find(HWND_MESSAGE, null, 'Chrome_MessageWindow', dataFolder)
+          return Boolean(window) && filter(window, WM_COPYDATA, MSGFLT_ALLOW, null) === true
+        }
+      }),
       gdi: optional(() => {
         const gdi32 = koffi.load('gdi32.dll')
         // BITMAPINFOHEADER plus room for the colour masks GetDIBits may write after it.
@@ -216,6 +228,24 @@ export function isElevated(): boolean | null {
     elevated = null
   }
   return elevated
+}
+
+const WM_COPYDATA = 0x4a
+const MSGFLT_ALLOW = 1
+
+/**
+ * Windows lets a process without administrator rights send nothing to a window of one that has them, and the app always
+ * runs with them: a second start could neither tell it to come forward nor be told that it runs. This opens one message
+ * on one window, the hidden window of Electron's single-instance lock, named after the data folder. Its handler only
+ * brings the main window forward and reads nothing of what was sent (electron/main.ts). False when it could not be done:
+ * a second start then still does not run beside this copy, it just cannot bring the window forward.
+ */
+export function allowSecondStartMessages(dataFolder: string) {
+  try {
+    return win32()?.secondStart?.(dataFolder) ?? false
+  } catch {
+    return false
+  }
 }
 
 /** Starts `file` with administrator rights (the Windows consent prompt). False when refused or unavailable. */

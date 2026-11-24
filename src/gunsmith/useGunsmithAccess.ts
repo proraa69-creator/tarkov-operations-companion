@@ -17,10 +17,21 @@ export function useGunsmithAccess() {
   // The traders' screen's loyalty of this mode's character only (src/gunsmith/traderLevels.ts).
   const { infos, setLevel } = useTraderLevels(state.raidMode, data.traders, data.quests, statusOf, progress.playerLevel, progress.logCharacterId)
   const fleaEnabled = data.metadata?.fleaMarket?.enabled !== false
-  const access = useMemo(() => playerAccess(infos, progress.playerLevel, fleaEnabled, (taskId) => statusOf(taskId) === 'completed'), [fleaEnabled, infos, progress.playerLevel, statusOf])
+  // The market's own level in this mode's data (PvP, PvE and Season each have theirs), 15 while the data has none.
+  const fleaLevel = data.metadata?.fleaMarket?.minPlayerLevel
+  const access = useMemo(() => playerAccess(infos, progress.playerLevel, fleaEnabled, (taskId) => statusOf(taskId) === 'completed', fleaLevel), [fleaEnabled, fleaLevel, infos, progress.playerLevel, statusOf])
   const traders = useMemo(() => new Map(data.traders.map((trader) => [traderKey(trader), trader])), [data.traders])
   const questName = useCallback((taskId: string) => data.quests.find((quest) => quest.id === taskId)?.name, [data.quests])
-  return { access, infos, setLevel, traders, questName, mode: state.raidMode, playerLevel: progress.playerLevel }
+  return { access, infos, setLevel, traders, questName, mode: state.raidMode, playerLevel: progress.playerLevel, fleaEnabled }
 }
 
 export type GunsmithAccess = ReturnType<typeof useGunsmithAccess>
+
+/**
+ * Each trader's loyalty in this mode by the catalog's trader id: the very levels «Торговцы» shows (the game's traders'
+ * screen, the tasks, the player's own choice), for «Отложить квест» and its loyalty terms (progression/deferredQuests.ts).
+ */
+export function useTraderLoyalty(): ReadonlyMap<string, number> {
+  const { infos } = useGunsmithAccess()
+  return useMemo(() => new Map(infos.map((info) => [info.trader.id, info.level])), [infos])
+}

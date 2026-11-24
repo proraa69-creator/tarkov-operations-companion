@@ -1,6 +1,6 @@
-import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
+import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, Wallet, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
-import { CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
+import { ADMIN_CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
@@ -29,22 +29,28 @@ const REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
 
 /** «Казахстан · СНГ» for the owner; Russia is deliberately its own billing region. */
 const shownCountry = (code: string, other?: string) => (other ? `«${other}» (вручную)` : countryName(code, 'ru'))
-const countryText = (code: string, other?: string) => `${shownCountry(code, other)} · ${code === 'RU' ? 'Россия' : CIS_COUNTRIES.includes(code as never) ? 'СНГ' : 'Мир'}`
+const countryText = (code: string, other?: string) => `${shownCountry(code, other)} · ${code === 'RU' ? 'Россия' : ADMIN_CIS_COUNTRIES.includes(code as never) ? 'СНГ' : 'Мир'}`
 
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription
   if (sub.lifetime) return { label: 'Стример, бесплатно', tone: 'brass' }
   if (sub.status === 'active') return { label: `до ${dateOnly.format(new Date(sub.paidUntil!))}`, tone: 'green' }
+  // The free days wait for the first raid (owner, 12.11.2026: «вместо даты писалось «ждёт первого рейда (2 дня)»»): the date
+  // would be only their latest end (7 days of waiting and the days themselves).
+  if (sub.status === 'trial' && sub.trialRaidDays) return { label: `ждёт первого рейда (${sub.trialRaidDays} ${sub.trialRaidDays === 1 ? 'день' : 'дня'})`, tone: 'brass' }
   if (sub.status === 'trial') return { label: `пробный до ${dateOnly.format(new Date(sub.trialEndsAt!))}`, tone: 'brass' }
   // The free period waits for the first sign-in in the app (owner, 12.10.2026).
   if (sub.trialPendingDays) return { label: `${sub.trialPendingDays === 1 ? 'сутки' : `${sub.trialPendingDays} дн.`} — ждут входа в приложение`, tone: 'brass' }
   return { label: sub.paidUntil ? `истекла ${dateOnly.format(new Date(sub.paidUntil))}` : 'нет', tone: '' }
 }
 
-/** «Пользователи»: search by e-mail, filters, and per-user actions (each one is written to the owner's log). */
-export function AdminUsers() {
+/**
+ * «Пользователи»: search by e-mail, filters, and per-user actions (each one is written to the owner's log). `query`: the
+ * search to open with (the PC owner app's «Сводка», whose address is not the site's).
+ */
+export function AdminUsers({ query }: { query?: string } = {}) {
   // A link from «Платежи» or «Награды за друзей» (/admin?tab=users&q=e-mail) opens the list on that account.
-  const [initial] = useState(() => (typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('q')?.trim().slice(0, 254) ?? ''))
+  const [initial] = useState(() => (query ?? (typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('q') ?? '')).trim().slice(0, 254))
   const [search, setSearch] = useState(initial)
   const [q, setQ] = useState(initial)
   const [filter, setFilter] = useState<AdminUserFilter>('all')
@@ -315,6 +321,19 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
             </div>
           )}
         </div>
+        {/* An account from Russia whose ЮKassa page never opens (owner, 02.11.2026: «добавь именно ему в личный кабинет
+            оплату через bzb в снг»): BZB's rouble pages next to ЮKassa in its cabinet, confirmed like a CIS payment. */}
+        {user.country === 'RU' && (
+          <div className="admin-action">
+            <div className="field-label"><Wallet size={13} aria-hidden="true" />Оплата через BZB (СНГ)</div>
+            <span className="field-hint">{user.bezebeeAllowed
+              ? 'Включена: в кабинете рядом с ЮKassa тарифы BZB в рублях, оплата подтверждается сама.'
+              : 'Аккаунт из России платит через ЮKassa. Если она у него не открывается — включите: в кабинете появятся тарифы BZB в рублях по тем же ценам.'}</span>
+            <div className="admin-chips">
+              <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('bezebee', (t) => api.adminBezebee(t, id, !user.bezebeeAllowed), (result) => result.user.bezebeeAllowed ? 'Оплата через BZB включена' : 'Оплата через BZB выключена')}>{busy === 'bezebee' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Wallet aria-hidden="true" />}{user.bezebeeAllowed ? 'Выключить' : 'Включить'}</button>
+            </div>
+          </div>
+        )}
       </div>
       {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
       {done && <Notice tone="success">{done}</Notice>}

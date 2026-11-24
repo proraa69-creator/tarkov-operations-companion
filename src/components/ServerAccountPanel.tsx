@@ -1,5 +1,6 @@
+import { SettingHelp } from './SettingHelp'
 import { useEffect, useState, type FormEvent } from 'react'
-import { Copy, ExternalLink, Globe, HardDrive, LayoutDashboard, LogIn, LogOut, RefreshCw, Server, Smartphone, UserPlus } from 'lucide-react'
+import { Copy, ExternalLink, Globe, HardDrive, LayoutDashboard, LogIn, LogOut, Server, Smartphone, UserPlus } from 'lucide-react'
 import type { LocalServerStatus, TunnelStatus } from '../electron'
 import { PaymentsPanel, StreamersPanel } from './OwnerPanels'
 import { OwnerSmsPanel } from './OwnerSmsPanel'
@@ -8,7 +9,7 @@ import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
 import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
 import { isOwnerApp } from '../app/buildEdition'
-import { isNative } from '../platform'
+import { appStoreRules, hidesPayments, isNative } from '../platform'
 import { ServerStatusBlock } from './ServerStatusLamps'
 import { PhoneCabinetRow, PhoneSignInForm, PhoneSignInLinks } from '../account/PhoneAccount'
 import { EmailSignInForm, EmailSignInLinks, EmailVerifyRow } from '../account/EmailAccount'
@@ -41,7 +42,7 @@ function serverLabel(url: string) {
  * the main process and on to the server; the session token never reaches this page.
  */
 export function ServerAccountPanel() {
-  const { status, checking, available, refresh, login, logout } = useServerAccount()
+  const { status, available, refresh, login, logout } = useServerAccount()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -65,6 +66,8 @@ export function ServerAccountPanel() {
     }
   }
 
+  // The iPhone app: no «Личный кабинет» and no website sign-in by QR for now (owner, 12.11.2026: «удали позже мы их добавим»).
+  const store = appStoreRules() || hidesPayments()
   const online = status?.online ?? false
   const connectionTag = !status
     ? <span className="tag">{uiText('Проверяем сервер…')}</span>
@@ -88,7 +91,7 @@ export function ServerAccountPanel() {
         {available && status?.signedIn && (
           <>
             <div className="setting-row">
-              <span><strong>{status.email ?? '—'}</strong><small>{uiText('Вход выполнен')}</small></span>
+              <span><strong>{status.email ?? '—'}<SettingHelp id="account" /></strong><small>{uiText('Вход выполнен')}</small></span>
               <span className={`tag ${status.kind === 'streamer' ? 'brass' : ''}`}>{uiText(status.kind === 'streamer' ? 'Стример' : 'Пользователь')}</span>
             </div>
             <p className="dim" style={{ margin: 0 }}>{uiText(online
@@ -97,12 +100,11 @@ export function ServerAccountPanel() {
             <div className="account-cabinet-grid"><EmailVerifyRow status={status} online={online} />{PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}</div>
             {!status.persistent && <p className="dim" style={{ margin: 0 }}>{uiText('В системе нет защищённого хранилища: вход сохранится только до закрытия приложения.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button>
+              {!store && <span className="setting-help-with"><button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button><SettingHelp id="accountCabinet" /></span>}
               {isOwnerApp() && <button className="button ghost" onClick={() => openWebsite('admin')}><LayoutDashboard size={14} />{uiText('Открыть админ-панель')}</button>}
               {window.tarkovDesktop?.account?.mobileLogin && <button className="button ghost" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
-              <button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
-              <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
-              <button className="button danger" onClick={() => void logout()}><LogOut size={14} />{uiText('Выйти')}</button>
+              {!store && <span className="setting-help-with"><button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button><SettingHelp id="accountApproveWeb" /></span>}
+              <span className="setting-help-with"><button className="button danger" onClick={() => void logout()}><LogOut size={14} />{uiText('Выйти')}</button><SettingHelp id="accountSignOut" /></span>
             </div>
             {dialog === 'mobile' && <MobileLoginDialog onClose={() => setDialog(null)} />}
             {dialog === 'approve' && <ApproveWebLoginDialog onClose={() => setDialog(null)} />}
@@ -129,13 +131,12 @@ export function ServerAccountPanel() {
             </label>
             {error && <p className="dim" role="alert" style={{ margin: 0, color: 'var(--danger)' }}>{uiText(error)}</p>}
             {/* The phone has no server switch of its own (no «Адрес сервера» since 13.10.2026): only the connection can be off. */}
-            {!online && <p className="dim" style={{ margin: 0 }}>{uiText(isNative() ? 'Сервер недоступен. Проверьте интернет и нажмите «Проверить».' : 'Сервер недоступен: включите «Сервер и сайт на этом компьютере» выше или запустите сервер другим способом.')}</p>}
+            {!online && <p className="dim" style={{ margin: 0 }}>{uiText(isNative() ? 'Сервер недоступен. Проверьте интернет.' : 'Сервер недоступен: включите «Сервер и сайт на этом компьютере» выше или запустите сервер другим способом.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="button primary" type="submit" disabled={busy || !online}><LogIn size={14} />{uiText(busy ? 'Входим…' : 'Войти')}</button>
               {accountGateEnabled()
                 ? <button className="button ghost" type="button" onClick={() => openAccountSignIn('register')}><UserPlus size={14} />{uiText('Зарегистрироваться')}</button>
                 : <button className="button ghost" type="button" onClick={() => openWebsite('register')}><UserPlus size={14} />{uiText('Регистрация на сайте')}</button>}
-              <button className="button ghost" type="button" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
             </div>
             <EmailSignInLinks online={online} onPick={setEmailMode} />
             {PHONE_AUTH_UI && <PhoneSignInLinks online={online} onPick={setPhoneMode} resetLabel="Сбросить пароль по SMS" />}

@@ -33,6 +33,7 @@ const ACTION_LABEL: Record<string, string> = {
   'payout.limits': 'Интервал автовыплат',
   'invite.decide': 'Решение по награде за друга',
   'bug.status': 'Статус баг-репорта',
+  'bug.work': 'Отчёт: решение владельца',
   'support.reply': 'Ответ в чате поддержки',
   'support.resolve': 'Переписка удалена («Проблема решена»)',
   'announcement.set': 'Изменено уведомление для игроков',
@@ -44,6 +45,9 @@ const ACTION_LABEL: Record<string, string> = {
   'survey.publish': 'Опубликован опрос',
   'survey.export': 'Выгрузка ответов опроса CSV',
   'support.start': 'Начат чат с пользователем',
+  'stickers.pack': 'Изменён пак стикеров',
+  'stickers.publish': 'Пак стикеров добавлен в приложения или убран',
+  'stickers.sticker': 'Изменён стикер',
   'requests-key.create': 'Создан ключ Claude для чтения заявок',
   'requests-key.revoke': 'Отозван ключ Claude для чтения заявок',
   'payments.export': 'Выгрузка платежей CSV',
@@ -79,7 +83,7 @@ export function AdminAudit() {
       {data && data.entries.length > 0 && (
         <div className="table-scroll">
           <table className="pay-table admin-table admin-audit">
-            <thead><tr><th scope="col">Когда (МСК)</th><th scope="col">Кто</th><th scope="col">Действие</th><th scope="col">Кому / что</th><th scope="col">Подробности</th></tr></thead>
+            <thead><tr><th scope="col">Когда (Бангкок)</th><th scope="col">Кто</th><th scope="col">Действие</th><th scope="col">Кому / что</th><th scope="col">Подробности</th></tr></thead>
             <tbody>
               {data.entries.map((entry) => (
                 <tr key={entry.id}>

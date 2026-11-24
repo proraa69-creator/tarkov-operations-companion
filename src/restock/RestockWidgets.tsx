@@ -1,3 +1,6 @@
+import { TOAST_MS } from '../notifications/ToastDock'
+import { addNotification } from '../notifications/notificationCenter'
+import { SettingHelp } from '../components/SettingHelp'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { startActivePolling } from '../app/activePolling'
 import { useNavigate } from 'react-router-dom'
@@ -87,7 +90,7 @@ export function RestockSettingsPanel() {
     <div className="restock-settings">
       <div className="setting-row">
         <span>
-          <strong>{uiText('Уведомления о рестоке')}</strong>
+          <strong>{uiText('Уведомления о рестоке')}<SettingHelp id="restockNotify" /></strong>
           <small>{uiText('Напоминание за несколько минут до рестока выбранных торговцев')}</small>
         </span>
         <button
@@ -104,7 +107,7 @@ export function RestockSettingsPanel() {
       {/* Switched off: only the switch — no lead time, traders or restock data. */}
       {settings.enabled && <>
       <div className="setting-row">
-        <span><strong>{uiText('За сколько минут')}</strong></span>
+        <span><strong>{uiText('За сколько минут')}<SettingHelp id="restockLead" /></strong></span>
         <select
           className="select"
           aria-label={uiText('За сколько минут')}
@@ -114,7 +117,7 @@ export function RestockSettingsPanel() {
           {LEAD_MINUTE_CHOICES.map((minutes) => <option key={minutes} value={minutes}>{minutes}</option>)}
         </select>
       </div>
-      <div className="stat-label" style={{ marginTop: 10 }}>{uiText('Торговцы для уведомлений')}</div>
+      <div className="stat-label" style={{ marginTop: 10 }}>{uiText('Торговцы для уведомлений')}<SettingHelp id="restockTraders" /></div>
       <div className="trader-checks">
         {traders.map((trader) => {
           const on = settings.traderIds.includes(trader.id)
@@ -161,8 +164,9 @@ export function RestockNotifier() {
         const body = locale === 'en'
           ? `${entry.trader.name} restocks in ${entry.minutesLeft} min`
           : `${entry.trader.name}: ресток через ${entry.minutesLeft} мин`
+        addNotification({ title, text: body })
         void window.tarkovDesktop?.notify?.(title, body).catch(() => false)
-        setToasts((current) => [...current.filter((toast) => toast.key !== entry.key), { key: entry.key, traderId: entry.trader.id, at: entry.at, text: body }].slice(-3))
+        setToasts((current) => [...current.filter((toast) => toast.key !== entry.key), { key: entry.key, traderId: entry.trader.id, at: Math.min(entry.at, now + TOAST_MS), text: body }].slice(-3))
       }
       rememberNotified(notified.current, now)
     }

@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
+import { useMobileLayout } from '../platform'
 import { useBlockTitle } from '../overview/blockTitle'
 import { uiText } from '../i18n/renderText'
+import { menuShift } from './menuShift'
+import { fitGoonStats, rowStep } from './goonStatsFit'
 import { useLocale } from '../i18n/LocaleProvider'
-import { GOON_MAPS, GOON_RETRY_UNSENT_MS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
+import { GOON_MAPS, GOON_RETRY_UNSENT_MS, lastOwnSightingAt, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
+import { goonReportBlock, lastRaidStart } from '../data/goonReportGate'
+import { useRaidState } from '../app/useRaidState'
 import type { RaidMode } from '../domain/types'
 import './goonCard.css'
 import goonLying from '../assets/goons-rest/lying.webp'
@@ -21,11 +28,12 @@ const NOTICE: Record<GoonReportResult, string> = {
   local: 'Сохранено только на этом компьютере',
   signin: 'Войдите в аккаунт, чтобы отметить',
   nickname: 'Ник появится, когда приложение прочитает логи игры',
+  wait: 'Отмечать можно раз в 10 минут',
 }
 
 /**
  * Goons (Кочевники) stat card. Everything that opens here is absolutely positioned,
- * so the card and the rest of the dashboard never move or resize. The 5-hour statistics cover the card exactly, never
+ * so the card and the rest of the dashboard never move or resize. The day's statistics (24 h, owner 16.11.2026) cover the card exactly, never
  * more (owner, 12.10.2026); with the pointer over them the wheel scrolls «кто видел», not the page.
  */
 export function GoonCard({ mode, mapName }: GoonCardProps) {
@@ -36,10 +44,28 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
   const [confirmMap, setConfirmMap] = useState<GoonMapId | null>(null)
   const [sending, setSending] = useState(false)
   const [notice, setNotice] = useState<GoonReportResult | null>(null)
+  /** «Видел» held by the spam protection (data/goonReportGate.ts): why, for a few seconds. */
+  const [held, setHeld] = useState<string | null>(null)
+  const raid = useRaidState()
+  // The phone: a tap on the block opens the statistics as a sheet (owner, 11.11.2026: «При нажатии на сам блок… открывается
+  // статистика: на каких картах сколько раз видели, последние отметки и ники»); there is no pointer to hover.
+  const mobile = useMobileLayout()
+  const [sheetOpen, setSheetOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const statsRef = useRef<HTMLDivElement>(null)
   const recentRef = useRef<HTMLUListElement>(null)
+
+  // The menu stays on the screen wherever the block stands (owner, 06.11.2026, the phone's left column: «уходит влево в скрытый экран»).
+  useLayoutEffect(() => {
+    const menu = menuRef.current
+    if (!menu) return
+    menu.style.translate = ''
+    const { left, right } = menu.getBoundingClientRect()
+    const shift = menuShift(left, right, document.documentElement.clientWidth)
+    if (shift) menu.style.translate = `${shift}px 0`
+  }, [menuOpen, confirmMap])
 
   const closeMenu = (restoreFocus = false) => {
     setMenuOpen(false)
@@ -58,8 +84,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
 
   // Anywhere over the statistics the wheel scrolls the sightings list (a non-passive listener: React's onWheel cannot
   // stop the page from scrolling), a row at a time so no nickname is cut in half: a mouse notch (~100 px) moves two
-  // rows, a touchpad one row per 50 px it adds up. A list that fits leaves the wheel to the page. The list is exactly as
-  // tall as the whole rows that fit (themes differ in card height), so the last visible one is never cut either.
+  // rows, a touchpad one row per 50 px it adds up. A list that fits leaves the wheel to the page.
   const hasRecent = recent.length > 0
   useEffect(() => {
     const stats = statsRef.current
@@ -78,25 +103,56 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
       pending -= rows * 50
       list.scrollTop = Math.round(list.scrollTop / step + rows) * step
     }
-    const fit = () => {
-      const list = recentRef.current
-      if (!list) return
-      list.style.height = ''
-      const step = rowStep(list)
-      list.style.height = `${Math.max(step, Math.floor(list.clientHeight / step) * step)}px`
-    }
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(fit)
-    observer?.observe(stats)
-    fit()
     stats.addEventListener('wheel', onWheel, { passive: false })
-    return () => { observer?.disconnect(); stats.removeEventListener('wheel', onWheel) }
+    return () => stats.removeEventListener('wheel', onWheel)
   }, [hasRecent])
+
+  // The statistics laid out for the block's size (owner, 08.11.2026: «проработай для каждого размера окна свое расположение
+  // внутренности ников и отметок кочевников»): goonCard.css picks the arrangement by the width, fitGoonStats keeps the first
+  // row clear of «Видел» and drops what the height has no room for. Again after every render (the data, the language) and
+  // whenever the card, «Видел» or the fonts change size.
+  const fitRef = useRef(() => {})
+  useLayoutEffect(() => {
+    fitRef.current = () => { if (statsRef.current) fitGoonStats(statsRef.current, buttonRef.current, recentRef.current) }
+    fitRef.current()
+  })
+  useEffect(() => {
+    const fit = () => fitRef.current()
+    void document.fonts?.ready.then(fit)
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(fit)
+    if (statsRef.current) observer.observe(statsRef.current)
+    if (buttonRef.current) observer.observe(buttonRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!sheetOpen) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSheetOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sheetOpen])
 
   useEffect(() => {
     if (!notice) return
     const timer = window.setTimeout(() => setNotice(null), 5000)
     return () => window.clearTimeout(timer)
   }, [notice])
+  useEffect(() => {
+    if (!held) return
+    const timer = window.setTimeout(() => setHeld(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [held])
+
+  /** «Видел»: the menu, or why not now — 10 minutes after a sighting, and on the PC until a new raid has begun. */
+  const openReport = () => {
+    if (menuOpen) { closeMenu(); return }
+    const block = goonReportBlock({ lastOwnAt: lastOwnSightingAt(), raidTracked: raid?.tracked === true, raidStart: lastRaidStart(), now: Date.now() })
+    if (block?.kind === 'wait') { setNotice(null); setHeld(`${uiText('Следующая отметка — через')} ${block.minutes} ${uiText('мин')}`); return }
+    if (block?.kind === 'raid') { setNotice(null); setHeld(uiText('Следующая отметка — после нового рейда')); return }
+    setHeld(null)
+    setMenuOpen(true)
+  }
 
   const time = (iso: string) => new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
   const ago = (iso: string) => {
@@ -124,18 +180,27 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
 
   // An unsent sighting goes again with every refresh for a while (spam protection, a short outage): «отправится позже».
   const resending = Boolean(location?.unsent && connection !== 'local-only' && now - Date.parse(location.reportedAt) < GOON_RETRY_UNSENT_MS)
-  const meta = notice
+  const meta = held
+    ? held
+    : notice
     ? uiText(NOTICE[notice])
     : location
       ? `${location.nickname ? `${uiText('видел')} ${location.nickname}` : uiText('крайний раз')} · ${time(location.reportedAt)} · ${ago(location.reportedAt)}`
       : uiText(connectionNote)
 
-  return <div ref={cardRef} className={`stat-card goon-card ${menuOpen ? 'is-open' : ''}`}>
+  const openSheet = (event: { target: EventTarget }) => {
+    // The sheet is a portal: React still bubbles its taps up here, so «×» or the backdrop closed it and this opened it
+    // again at once — the sheet looked frozen until the app restarted (owner, 13.11.2026). Only taps on the card itself.
+    if (!mobile || !cardRef.current?.contains(event.target as Node) || (event.target as Element).closest?.('.goon-report-anchor')) return
+    setSheetOpen(true)
+  }
+
+  return <div ref={cardRef} className={`stat-card goon-card ${menuOpen ? 'is-open' : ''}${mobile ? ' is-tappable' : ''}`} onClick={openSheet}>
     <div className="goon-card-heading">
       <div className="stat-label">{title}</div>
       <div className="goon-report-anchor">
-        <button ref={buttonRef} type="button" className="button small goon-report-button" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}>{uiText('Видел')}</button>
-        {menuOpen && <div className="goon-report-menu" role="dialog" aria-label={uiText('Где видели Кочевников?')}>
+        <button ref={buttonRef} type="button" className="button small goon-report-button" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={openReport}>{uiText('Видел')}</button>
+        {menuOpen && <div ref={menuRef} className="goon-report-menu" role="dialog" aria-label={uiText('Где видели Кочевников?')}>
           {confirmMap
             ? <div className="goon-report-confirm">
               <p>{uiText('Отправить: Кочевники на карте')} <strong>{uiText(mapName(confirmMap))}</strong>?</p>
@@ -154,7 +219,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
       </div>
     </div>
     {/* A new value remounts (key) so it slides up into place. */}
-    <div className="stat-value goon-map-value"><span key={location?.mapId ?? 'none'} className="goon-rise">{uiText(location ? mapName(location.mapId) : 'Нет данных')}</span></div>
+    <div className="stat-value goon-map-value"><span key={location?.mapId ?? 'none'} className="goon-rise">{uiText(location ? mapName(location.mapId) : 'Отметок нет')}</span></div>
     <div className={`stat-meta goon-meta ${location?.unsent && !notice ? 'is-unsent' : ''}`} aria-live="polite">
       <span key={`${location?.reportedAt ?? ""}:${notice ?? ""}:${connection}`} className="goon-rise is-late">{meta}</span>{location?.unsent && !notice && <em className="goon-rise is-late">{uiText(resending ? 'отправится позже' : 'не отправлено')}</em>}
     </div>
@@ -164,10 +229,9 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
         блоком»). */}
     <span className="goon-lying-frame" aria-hidden="true"><img className="goon-lying" src={goonLying} alt="" draggable={false} /></span>
 
-    <div ref={statsRef} className="goon-stats-popover" aria-hidden="true">
+    <div ref={statsRef} className={`goon-stats-popover${recent.length > 0 ? ' has-recent' : ''}${top ? '' : ' is-none'}`} aria-hidden="true">
       <div className="goon-stats-head">
-        <span className="stat-label">{uiText('Кочевники · 5 часов')}</span>
-        <span>{top ? <>{uiText('Чаще всего:')} <strong>{uiText(mapName(top.mapId))}</strong></> : uiText('Отметок нет')}</span>
+        <span>{top ? <><i className="goon-stats-label">{uiText('Чаще всего:')}</i> <strong>{uiText(mapName(top.mapId))}</strong></> : uiText('Отметок нет')}</span>
       </div>
       <div className="goon-stats-grid">
         {GOON_MAPS.map((id) => {
@@ -177,6 +241,12 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
           </div>
         })}
       </div>
+      {/* Narrower blocks: only the maps they were seen on, most often first (in brass), flowing round «Видел» (goonCard.css). */}
+      {stats.length > 0 && <div className="goon-stats-chips">
+        {stats.map((row, index) => <span key={row.mapId} className={`goon-stats-cell goon-stats-chip ${index === 0 ? 'is-top' : ''}`}>
+          <span>{uiText(mapName(row.mapId))}</span><b>{row.count}</b>
+        </span>)}
+      </div>}
       {recent.length > 0
         ? <ul ref={recentRef} className="goon-recent">
           {recent.map((entry) => <li key={`${entry.reportedAt}:${entry.mapId}:${entry.nickname ?? ''}`}>
@@ -187,13 +257,30 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
           {lastSeen ? <>{uiText('Последний раз:')} {time(lastSeen)} · {ago(lastSeen)}</> : uiText(connectionNote)}
         </div>}
     </div>
+    {sheetOpen && createPortal(
+      <div className="goon-sheet-backdrop" onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) setSheetOpen(false) }}>
+        <section className="panel goon-sheet" role="dialog" aria-modal="true" aria-label={title}>
+          <header className="goon-sheet-head">
+            <strong>{title}</strong>
+            <button type="button" className="icon-button" onClick={() => setSheetOpen(false)} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={16} /></button>
+          </header>
+          <p className="goon-sheet-top">{top ? <>{uiText('Чаще всего:')} <strong>{uiText(mapName(top.mapId))}</strong></> : uiText('Отметок нет')}</p>
+          <div className="goon-sheet-maps">
+            {GOON_MAPS.map((id) => {
+              const row = statFor(id)
+              return <div key={id} className={`goon-sheet-map${row && row.mapId === top?.mapId ? ' is-top' : ''}${row ? '' : ' is-empty'}`}><span>{uiText(mapName(id))}</span><b>{row?.count ?? 0}</b></div>
+            })}
+          </div>
+          {recent.length > 0
+            ? <ul className="goon-sheet-recent">
+              {recent.map((entry) => <li key={`${entry.reportedAt}:${entry.mapId}:${entry.nickname ?? ''}`}>
+                <b>{entry.nickname ?? uiText('игрок')}</b><span>{uiText(mapName(entry.mapId))}</span><time dateTime={entry.reportedAt}>{time(entry.reportedAt)} · {ago(entry.reportedAt)}</time>
+              </li>)}
+            </ul>
+            : <p className="goon-sheet-foot dim">{lastSeen ? <>{uiText('Последний раз:')} {time(lastSeen)} · {ago(lastSeen)}</> : uiText(connectionNote)}</p>}
+        </section>
+      </div>,
+      document.body,
+    )}
   </div>
-}
-
-/** Distance from one sightings row to the next (row height and gap); 14 px while the rows are not laid out. */
-function rowStep(list: HTMLElement) {
-  const first = list.firstElementChild as HTMLElement | null
-  const second = first?.nextElementSibling as HTMLElement | null
-  const step = first && second ? second.offsetTop - first.offsetTop : first?.offsetHeight ?? 0
-  return step > 0 ? step : 14
 }

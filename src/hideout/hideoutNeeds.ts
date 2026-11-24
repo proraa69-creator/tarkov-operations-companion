@@ -30,14 +30,23 @@ export interface HideoutNeeds {
   total: number
 }
 
-export function hideoutNeeds(stations: HideoutStation[], built: Record<string, number>, found: ReadonlyMap<string, number>, onlyStation?: string): HideoutNeeds {
+/**
+ * Which part of the hideout to count: `stations` — the modules ticked under their pictures (owner, 07.11.2026: «под каждой
+ * картинкой сделай галочку… только предметы выбранных галочкой модулей»), every level not built of each; `level` — one level of
+ * one module, built or not (owner, 07.11.2026: «я нажимаю правой кнопкой на биткоин-ферму второго уровня, и он мне показывает,
+ * что нужно для биткоин-фермы второго уровня. Только для нее»). A string is one module.
+ */
+export interface HideoutNeedsFilter { stations?: ReadonlySet<string>; level?: { stationId: string; level: number } }
+
+export function hideoutNeeds(stations: HideoutStation[], built: Record<string, number>, found: ReadonlyMap<string, number>, only?: string | HideoutNeedsFilter): HideoutNeeds {
+  const filter: HideoutNeedsFilter = typeof only === 'string' ? { stations: new Set([only]) } : only ?? {}
   const byItem = new Map<string, NeedUse[]>()
   const money = { roubles: 0, dollars: 0, euros: 0 }
   for (const station of stations) {
-    if (onlyStation && station.id !== onlyStation) continue
+    if (filter.level ? station.id !== filter.level.stationId : filter.stations?.size && !filter.stations.has(station.id)) continue
     const level = built[station.id] ?? 0
     for (const stage of station.levels ?? []) {
-      if (stage.level <= level) continue
+      if (filter.level ? stage.level !== filter.level.level : stage.level <= level) continue
       for (const requirement of stage.itemRequirements ?? []) {
         const count = Math.max(1, Math.round(requirement.count))
         if (requirement.itemId === ROUBLES) { money.roubles += count; continue }

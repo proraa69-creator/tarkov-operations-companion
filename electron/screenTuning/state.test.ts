@@ -1,0 +1,184 @@
+import { describe, expect, it } from 'vitest'
+import { gammaRamp, NEUTRAL, screenTables } from '../../src/screen/screenCurve'
+import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, MAX_PRESETS, nextPresetId, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
+import { BUILT_IN_PRESETS } from '../../src/screen/screenCurve'
+
+const BUILT_IN_DAYLIGHT = () => ({ ...BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-daylight')!, builtIn: undefined })
+
+let counter = 0
+const newId = () => `own-${++counter}`
+
+describe('«Настройка экрана»: the keys as Windows reads them', () => {
+  it('turns a recorded key into its virtual-key code and modifiers', () => {
+    expect(hotkeyKeys('F8')).toEqual({ vk: 0x77, ctrl: false, alt: false, shift: false })
+    expect(hotkeyKeys('Ctrl+Shift+L')).toEqual({ vk: 0x4c, ctrl: true, alt: false, shift: true })
+    expect(hotkeyKeys('Alt+num5')).toEqual({ vk: 0x65, ctrl: false, alt: true, shift: false })
+    expect(hotkeyKeys('7')?.vk).toBe(0x37)
+    expect(hotkeyKeys('F24')?.vk).toBe(0x87)
+    expect(hotkeyKeys('PageDown')?.vk).toBe(0x22)
+    expect(hotkeyKeys('')).toBeNull()
+    expect(hotkeyKeys('Win+F1')).toBeNull()
+  })
+})
+
+describe('«Настройка экрана»: what is kept', () => {
+  it('drops broken presets, ours by id and repeats; an unknown chosen preset falls back', () => {
+    const settings = cleanSettings({
+      presets: [{ id: 'builtin-daylight-rooms', name: 'Подмена' }, { id: 'a', name: 'Мой' }, { id: 'a', name: 'Повтор' }, { id: 'b' }],
+      activeId: 'missing', enabled: true, display: String.raw`C:\Windows`, builtIns: { 'builtin-daylight-rooms': { name: '  Мой день  ' }, unknown: { hidden: true } },
+    })
+    expect(settings.presets.map((preset) => preset.id)).toEqual(['a'])
+    expect(settings.activeId).toBe(DEFAULT_SETTINGS.activeId)
+    expect(settings.enabled).toBe(true)
+    expect(settings.display).toBe('')
+    expect(settings.builtIns).toEqual({ 'builtin-daylight-rooms': { name: 'Мой день' } })
+    expect(cleanSettings({ display: String.raw`\\.\DISPLAY2` }).display).toBe(String.raw`\\.\DISPLAY2`)
+    expect(cleanSettings(null)).toEqual(DEFAULT_SETTINGS)
+    // the key: an accelerator Electron takes, nothing else
+    expect(cleanSettings({ hotkey: 'Ctrl+Shift+F8', cycleKey: 'F9' })).toMatchObject({ hotkey: 'Ctrl+Shift+F8', cycleKey: 'F9' })
+    expect(cleanSettings({ hotkey: 'F8', cycleKey: 'F8' }).cycleKey).toBe('')
+    expect(cleanSettings({ hotkey: 'num5' }).hotkey).toBe('num5')
+    expect(cleanSettings({ hotkey: 'CommandOrControl+Q; rm' }).hotkey).toBe('')
+  })
+
+  it('a new preset gets an id, the player\'s own is replaced; deleting the chosen one falls back', () => {
+    const copied = savePreset(DEFAULT_SETTINGS, { id: 'new', name: 'Ночь (моя)', gamma: 1.7 }, newId)
+    expect(copied.preset.id).toMatch(/^own-/)
+    expect(copied.settings.presets).toHaveLength(1)
+    const replaced = savePreset(copied.settings, { ...copied.preset, name: 'Ночь на Таможне' }, newId)
+    expect(replaced.settings.presets.map((preset) => preset.name)).toEqual(['Ночь на Таможне'])
+    const chosen = { ...replaced.settings, activeId: copied.preset.id }
+    expect(activePreset(chosen).name).toBe('Ночь на Таможне')
+    expect(deletePreset(chosen, copied.preset.id)).toMatchObject({ presets: [], activeId: 'builtin-off' })
+    expect(() => savePreset(DEFAULT_SETTINGS, { name: '' }, newId)).toThrow(/название/)
+  })
+
+  it('ours are edited in place and come back as they were (owner, 28.10.2026)', () => {
+    const tuned = savePreset(DEFAULT_SETTINGS, { id: 'builtin-daylight', name: 'Мой день', gamma: 1.4, haze: 3 }, newId)
+    expect(tuned.settings.presets).toEqual([])
+    const list = allPresets(cleanSettings(JSON.parse(JSON.stringify(tuned.settings))))
+    const day = list.find((preset) => preset.id === 'builtin-daylight')!
+    expect(day).toMatchObject({ name: 'Мой день', gamma: 1.4, haze: 3, builtIn: true, edited: true })
+    expect(list.findIndex((preset) => preset.id === 'builtin-daylight')).toBe(4)
+    const back = allPresets(revertBuiltIn(tuned.settings, 'builtin-daylight')).find((preset) => preset.id === 'builtin-daylight')!
+    expect(back.name).toBe('Пресет 4')
+    expect(back.gamma).toBe(1)
+    expect(back.edited).toBeUndefined()
+  })
+
+  it('ours can be renamed and taken off the list, and come back (owner, 27.10.2026)', () => {
+    const renamed = renamePreset(DEFAULT_SETTINGS, 'builtin-owner-full-dark', 'Кромешная ночь')
+    const night = allPresets(renamed).find((preset) => preset.id === 'builtin-owner-full-dark')!
+    expect(night.name).toBe('Кромешная ночь')
+    expect(night.curve.length).toBeGreaterThan(2)
+    const hidden = deletePreset({ ...renamed, activeId: 'builtin-daylight-rooms' }, 'builtin-daylight-rooms')
+    expect(allPresets(hidden).some((preset) => preset.id === 'builtin-daylight-rooms')).toBe(false)
+    expect(hidden.activeId).toBe('builtin-off')
+    expect(cleanSettings(hidden).builtIns).toEqual({ 'builtin-owner-full-dark': { name: 'Кромешная ночь' }, 'builtin-daylight-rooms': { hidden: true } })
+    const back = restoreBuiltIns(hidden)
+    expect(allPresets(back).find((preset) => preset.id === 'builtin-owner-full-dark')!.name).toBe('Пресет 1')
+    expect(allPresets(back).some((preset) => preset.id === 'builtin-daylight-rooms')).toBe(true)
+    expect(() => renamePreset(DEFAULT_SETTINGS, 'builtin-daylight-rooms', '  ')).toThrow(/название/)
+  })
+
+  it(`keeps at most ${MAX_PRESETS} presets of the player`, () => {
+    let settings = DEFAULT_SETTINGS
+    for (let index = 0; index < MAX_PRESETS; index += 1) settings = savePreset(settings, { name: `P${index}` }, newId).settings
+    expect(() => savePreset(settings, { name: 'one more' }, newId)).toThrow(/100/)
+  })
+})
+
+describe('«Настройка экрана»: the ramp written to the monitor', () => {
+  it('keeps a calibrated monitor\'s own ramp under ours', () => {
+    const neutral = screenTables(NEUTRAL)
+    const calibrated = gammaRamp(screenTables({ ...NEUTRAL, temperature: 0.5 }))
+    expect(Array.from(composeRamp(neutral, calibrated))).toEqual(Array.from(calibrated))
+    expect(Array.from(composeRamp(neutral, null))).toEqual(Array.from(gammaRamp(neutral)))
+  })
+
+  it('goes weaker step by step while Windows refuses, and reports 0 when it refuses every one', () => {
+    const tables = screenTables({ ...NEUTRAL, gamma: 2.5 })
+    const tried: number[] = []
+    const strength = writeStrongest(tables, null, (ramp) => { tried.push(ramp[64]!); return tried.length === 3 })
+    expect(strength).toBe(0.7)
+    expect(tried[0]!).toBeGreaterThan(tried[2]!)
+    expect(writeStrongest(tables, null, () => false)).toBe(0)
+  })
+})
+
+describe('a preset turned on by hand is on the screen at once (owner, 11.11.2026)', () => {
+  it('before the logs see the raid, for up to 10 minutes; in a raid always; turned off never', async () => {
+    const { presetShown, MANUAL_ON_MS } = await import('./state')
+    const now = 1_000_000
+    expect(presetShown({ enabled: true, raid: false, manualOnAt: now - 1000, now })).toBe(true)
+    expect(presetShown({ enabled: true, raid: false, manualOnAt: now - MANUAL_ON_MS - 1, now })).toBe(false)
+    expect(presetShown({ enabled: true, raid: false, manualOnAt: 0, now })).toBe(false)
+    expect(presetShown({ enabled: true, raid: true, manualOnAt: 0, now })).toBe(true)
+    expect(presetShown({ enabled: false, raid: true, manualOnAt: now, now })).toBe(false)
+  })
+})
+
+// Owner, 15.11.2026: «если у человека пресет переименован уже… пусть остается его версия. Если… не переименованы, значит, они
+// должны переименоваться первый, второй, третий…».
+describe('our presets named by number', () => {
+  const pick = (settings: ReturnType<typeof cleanSettings>, id: string) => allPresets(settings).find((preset) => preset.id === id)!
+
+  it('an untouched one, and one tuned under its old name (in either language), is «Пресет N» now', () => {
+    const stored = cleanSettings({
+      builtIns: {
+        'builtin-owner-full-dark': { name: 'Таможня ночь', profile: { ...NEUTRAL, name: 'Таможня ночь', gamma: 1.3 } },
+        'builtin-daylight': { name: 'Like daytime', profile: { ...NEUTRAL, name: 'Like daytime', gamma: 1.2 } },
+      },
+    })
+    expect(pick(stored, 'builtin-owner-full-dark')).toMatchObject({ name: 'Пресет 1', gamma: 1.3, edited: true })
+    expect(pick(stored, 'builtin-daylight')).toMatchObject({ name: 'Пресет 4', gamma: 1.2 })
+    expect(pick(cleanSettings({}), 'builtin-bright-clean').name).toBe('Пресет 6')
+    expect(allPresets(cleanSettings({})).map((preset) => preset.name)).toEqual(['Без изменений', 'Пресет 1', 'Пресет 2', 'Пресет 3', 'Пресет 4', 'Пресет 5', 'Пресет 6'])
+  })
+
+  it('a name the player gave stays, and tuning one under our name later does not keep that name', () => {
+    const renamed = cleanSettings({ builtIns: { 'builtin-owner-bright': { name: 'Мой вечер' } } })
+    expect(pick(renamed, 'builtin-owner-bright').name).toBe('Мой вечер')
+    const tuned = savePreset(cleanSettings({}), { ...NEUTRAL, id: 'builtin-owner-bright-room', name: 'Пресет 2', gamma: 1.5 }, () => 'own').settings
+    expect(tuned.builtIns['builtin-owner-bright-room']).not.toHaveProperty('name')
+    expect(pick(tuned, 'builtin-owner-bright-room')).toMatchObject({ name: 'Пресет 2', gamma: 1.5 })
+    const keeps = savePreset(renamed, { ...NEUTRAL, id: 'builtin-owner-bright', name: 'Мой вечер', gamma: 1.6 }, () => 'own').settings
+    expect(pick(keeps, 'builtin-owner-bright')).toMatchObject({ name: 'Мой вечер', gamma: 1.6 })
+  })
+})
+
+describe('«Настройка экрана»: the player\'s order of the presets (report 179)', () => {
+  const ids = (settings: ReturnType<typeof cleanSettings>) => allPresets(settings).map((preset) => preset.id)
+
+  it('a preset moved up stays there; the next-preset key follows the new order; the file keeps it', () => {
+    const own = savePreset(DEFAULT_SETTINGS, { ...BUILT_IN_DAYLIGHT(), id: '', name: 'Легкий' }, newId)
+    const before = ids(own.settings)
+    expect(before.at(-1)).toBe(own.preset.id)
+    const moved = reorderPresets(own.settings, [own.preset.id, ...before.slice(0, -1)])
+    expect(ids(moved)[0]).toBe(own.preset.id)
+    expect(nextPresetId({ ...moved, activeId: own.preset.id })).toBe(before[0])
+    // saved and read back
+    expect(ids(cleanSettings(JSON.parse(JSON.stringify(moved))))).toEqual(ids(moved))
+  })
+
+  it('a new preset goes at the end; a deleted one leaves the order; ids that are not presets are dropped', () => {
+    const first = savePreset(DEFAULT_SETTINGS, { ...BUILT_IN_DAYLIGHT(), id: '', name: 'A' }, newId)
+    const moved = reorderPresets(first.settings, [first.preset.id, 'nothing', first.preset.id])
+    expect(ids(moved)[0]).toBe(first.preset.id)
+    const second = savePreset(moved, { ...BUILT_IN_DAYLIGHT(), id: '', name: 'B' }, newId)
+    expect(ids(second.settings).at(-1)).toBe(second.preset.id)
+    const gone = deletePreset(second.settings, first.preset.id)
+    expect(gone.order).not.toContain(first.preset.id)
+    expect(cleanSettings({ order: ['nothing', 42, 'builtin-daylight'] }).order).toEqual(['builtin-daylight'])
+  })
+
+  it('one of ours taken off and put back comes at the end; «Вернуть стандартные» keeps the order', () => {
+    const list = ids(DEFAULT_SETTINGS)
+    const reversed = reorderPresets(DEFAULT_SETTINGS, [...list].reverse())
+    expect(ids(reversed)).toEqual([...list].reverse())
+    expect(ids(restoreBuiltIns(reversed))).toEqual([...list].reverse())
+    const hidden = deletePreset(reversed, list[0]!)
+    expect(ids(hidden)).not.toContain(list[0])
+    expect(ids(restoreBuiltIns(hidden))).toEqual([...list].reverse())
+  })
+})

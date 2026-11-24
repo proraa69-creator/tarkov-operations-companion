@@ -5,14 +5,21 @@ import type { PriceMirror } from '../services/priceMirror.js'
 import type { TarkovDataMirror } from '../services/tarkovDataMirror.js'
 import type { LegacyGraphqlBuilder } from '../services/legacyGraphqlBuilder.js'
 import type { PriceHistoryMirror } from '../services/priceHistoryMirror.js'
+import type { TradingStats } from '../services/tradingStats.js'
+
+/** Each source only needs its status: the job itself, or the background worker's (services/background.ts). */
+type Status<T extends { status(): unknown }> = Pick<T, 'status'> | { status(): unknown }
 
 export interface DataMirrorRouteOptions {
   storage?: MirrorStorage
-  datasets?: TarkovDataMirror
-  prices?: PriceMirror
-  maps?: MapMirror
-  legacyGraphql?: LegacyGraphqlBuilder
-  priceHistory?: PriceHistoryMirror
+  datasets?: Status<TarkovDataMirror>
+  prices?: Status<PriceMirror>
+  maps?: Status<MapMirror>
+  legacyGraphql?: Status<LegacyGraphqlBuilder>
+  priceHistory?: Status<PriceHistoryMirror>
+  trading?: Status<TradingStats>
+  /** Flea prices from the players' screens: counts by mode, no accounts (services/playerPrices.ts). */
+  players?: { status(): unknown }
 }
 
 /** Public operational status. It intentionally exposes no local paths, upstream URLs or credentials. */
@@ -28,6 +35,8 @@ export function createDataMirrorRouter(options: DataMirrorRouteOptions = {}) {
         maps: options.maps?.status() ?? { state: 'idle' },
         legacyGraphql: options.legacyGraphql?.status() ?? { state: 'idle' },
         priceHistory: options.priceHistory?.status() ?? { state: 'idle' },
+        trading: options.trading?.status() ?? { state: 'idle' },
+        players: options.players?.status() ?? { state: 'idle' },
       })
     } catch (error) { next(error) }
   })

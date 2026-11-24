@@ -83,6 +83,19 @@ describe('«Оружейник»: parts from the task’s wiki page', () => {
     })
   })
 
+  it('a page with several weapons gives each only the parts its objective names', () => {
+    const row = (name: string) => ({ name, required: true, handover: false, sellers: [] })
+    const buildOf = (weaponId: string, partIds: string[]) => ({ id: weaponId, type: 'buildWeapon', description: '', count: 1, build: { weaponId, partIds, attributes: [] } })
+    const quest: Quest = {
+      id: 'master-12', name: 'Оружейник - Мастер. Часть 12', trader: 'Механик', level: 40, kappa: false, description: '', objectives: [], rewards: [],
+      wikiLink: 'https://escapefromtarkov.fandom.com/wiki/Gunsmith_-_Part_12',
+      objectiveDetails: [buildOf('smg', ['cover']), buildOf('pistol', ['slide'])],
+    }
+    const table = new Map([['Gunsmith - Part 12', [row('cover'), row('slide'), row('optional')]]]) as Parameters<typeof withWikiBuilds>[1]
+    const [result] = withWikiBuilds([quest], table, (name) => name)
+    expect(result.objectiveDetails!.map((objective) => [objective.build!.partIds, objective.build!.guide?.parts.map((part) => part.name)])).toEqual([[['cover'], ['cover']], [['slide'], ['slide']]])
+  })
+
   it('takes the English names from upstream’s dictionary (the data holds translation keys)', () => {
     const raw = [
       { id: 'mp5sd-upper', name: 'mp5sd-upper Name', shortName: 'mp5sd-upper ShortName' },

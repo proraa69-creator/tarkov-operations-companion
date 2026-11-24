@@ -24,6 +24,34 @@ const breakTheDeal = PACKS.map(([itemId]) => ({ itemId, count: 1, purpose: 'plac
 const elcan = ['57ac965c24597706be5f975c', '57aca93d2459771f2c7e26db'].map((itemId) => ({ itemId, count: 1, purpose: 'place', questName: 'Оружейник', objectiveId: 'scope-stash', alternatives: 2 }))
 
 describe('groupAlternatives', () => {
+  // Report №90: «ключ 219 или ключ 220» — «что бы не брать с собой сразу два ключа».
+  it('makes either key of a door one row, and takes the key another door needs anyway', () => {
+    const either = ['key-219', 'key-220'].map((itemId) => ({ itemId, count: 1, purpose: 'key', questName: 'Нужно больше энергии', objectiveId: 'generators', alternatives: 2 }))
+    const grouped = groupAlternatives(either, lookup)
+    expect(grouped.requirements.map((requirement) => requirement.itemId)).toEqual(['any-of:generators'])
+    expect(grouped.groups.get('any-of:generators')?.itemIds).toEqual(['key-219', 'key-220'])
+    const alone = { itemId: 'key-220', count: 1, purpose: 'key', questName: 'Другой квест', objectiveId: 'other-door' }
+    const shared = groupAlternatives([...either, alone], lookup)
+    expect(shared.requirements.map((requirement) => requirement.itemId)).toEqual(['key-220', 'key-220'])
+    expect(shared.groups.size).toBe(0)
+    expect(aggregateRaidNeeds(shared.requirements, [], () => 1)).toMatchObject([{ itemId: 'key-220', count: 2 }])
+    expect(aggregateRaidNeeds(shared.requirements, [], () => 40)).toMatchObject([{ itemId: 'key-220', count: 1 }])
+  })
+
+  it('counts a key by its uses, not by its quests (report №65)', () => {
+    const needs = [{ itemId: 'rb-st', count: 1, purpose: 'key', questName: 'Ревизия' }, { itemId: 'rb-st', count: 1, purpose: 'key', questName: 'Военный хабар' }]
+    const row = (uses: number | undefined) => aggregateRaidNeeds(needs, [], () => uses)[0]!
+    expect(row(40).count).toBe(1)
+    expect(row(40).lines[0]!.shared).toBe(true)
+    expect(row(0).count).toBe(1)
+    // One use each: two keys; uses unknown: as before.
+    expect(row(1).count).toBe(2)
+    expect(row(1).lines[0]!.shared).toBeUndefined()
+    expect(row(undefined).count).toBe(2)
+    // The same item handed over elsewhere still counts.
+    expect(aggregateRaidNeeds([...needs, { itemId: 'rb-st', count: 2, purpose: 'handover', questName: 'Сдать' }], [], () => 40)[0]!.count).toBe(3)
+  })
+
   it('turns the eight 7.62x51 packs of «Сорвать сделку» into one «Любая пачка патронов 7.62x51» line', () => {
     const marker = { itemId: '5991b51486f77447b112d44f', count: 1, purpose: 'mark', questName: 'БП Топливо', objectiveId: 'fuel-mark', alternatives: 1 }
     const grouped = groupAlternatives([...breakTheDeal, marker], lookup)
@@ -31,8 +59,8 @@ describe('groupAlternatives', () => {
     expect(grouped.groups.get('ammo-pack:7.62x51')).toEqual({ id: 'ammo-pack:7.62x51', kind: 'ammo-pack', caliber: '7.62x51', itemIds: PACKS.map(([id]) => id) })
     // one pack is needed, not one of each variant
     expect(aggregateRaidNeeds(grouped.requirements)).toEqual([
-      { itemId: 'ammo-pack:7.62x51', count: 1, lines: [{ purpose: 'place', count: 1, questNames: ['Сорвать сделку'] }], fromRaidListOnly: false },
-      { itemId: '5991b51486f77447b112d44f', count: 1, lines: [{ purpose: 'mark', count: 1, questNames: ['БП Топливо'] }], fromRaidListOnly: false },
+      { itemId: 'ammo-pack:7.62x51', count: 1, lines: [{ purpose: 'place', count: 1, questNames: ['Сорвать сделку'], quests: [{ id: 'Сорвать сделку', name: 'Сорвать сделку', count: 1 }] }], fromRaidListOnly: false },
+      { itemId: '5991b51486f77447b112d44f', count: 1, lines: [{ purpose: 'mark', count: 1, questNames: ['БП Топливо'], quests: [{ id: 'БП Топливо', name: 'БП Топливо', count: 1 }] }], fromRaidListOnly: false },
     ])
     expect(ammoPackGroupLabel('7.62x51')).toBe('Любая пачка патронов 7.62x51')
     expect(ammoPackGroupLabel('7.62x51', 'en')).toBe('Any 7.62x51 ammo pack')
@@ -59,7 +87,7 @@ describe('groupAlternatives', () => {
   it('sums the same «any pack» across quests and keeps the objective count', () => {
     const second = PACKS.slice(0, 3).map(([itemId]) => ({ itemId, count: 2, purpose: 'place', questName: 'Другой тайник', objectiveId: 'other-stash', alternatives: 3 }))
     const rows = aggregateRaidNeeds(groupAlternatives([...breakTheDeal, ...second], lookup).requirements)
-    expect(rows).toEqual([{ itemId: 'ammo-pack:7.62x51', count: 3, lines: [{ purpose: 'place', count: 3, questNames: ['Сорвать сделку', 'Другой тайник'] }], fromRaidListOnly: false }])
+    expect(rows).toEqual([{ itemId: 'ammo-pack:7.62x51', count: 3, lines: [{ purpose: 'place', count: 3, questNames: ['Сорвать сделку', 'Другой тайник'], quests: [{ id: 'Сорвать сделку', name: 'Сорвать сделку', count: 1 }, { id: 'Другой тайник', name: 'Другой тайник', count: 2 }] }], fromRaidListOnly: false }])
     expect(formatItemCountLabel(ammoPackGroupLabel('7.62x51'), rows[0].count)).toBe('Любая пачка патронов 7.62x51 ×3')
   })
 })
@@ -98,13 +126,13 @@ describe('aggregateRaidNeeds', () => {
       {
         itemId: 'ms2000',
         count: 4,
-        lines: [{ purpose: 'mark', count: 4, questNames: ['БП Топливо'] }],
+        lines: [{ purpose: 'mark', count: 4, questNames: ['БП Топливо'], quests: [{ id: 'БП Топливо', name: 'БП Топливо', count: 4 }] }],
         fromRaidListOnly: false,
       },
       {
         itemId: 'propane',
         count: 2,
-        lines: [{ purpose: 'place', count: 2, questNames: ['Газовые баллоны'] }],
+        lines: [{ purpose: 'place', count: 2, questNames: ['Газовые баллоны'], quests: [{ id: 'Газовые баллоны', name: 'Газовые баллоны', count: 2 }] }],
         fromRaidListOnly: false,
       },
     ])
@@ -112,9 +140,40 @@ describe('aggregateRaidNeeds', () => {
     expect(formatItemCountLabel('Баллон пропана', 2)).toBe('Баллон пропана ×2')
   })
 
+  // Bug report №30: «показывал что нужно допустим 4 камеры на 1 квест, и 3 камеры на 2 квест, а то он все эти камеры миксует в одно».
+  it('counts each quest of a row apart, two quests of one name too', () => {
+    const rows = aggregateRaidNeeds([
+      { itemId: 'wifi-camera', count: 4, purpose: 'place', questName: 'Что-то это мне напоминает..', questId: 'reminds' },
+      { itemId: 'wifi-camera', count: 3, purpose: 'place', questName: 'Наблюдатель', questId: 'watcher' },
+      { itemId: 'wifi-camera', count: 1, purpose: 'place', questName: 'Наблюдатель', questId: 'watcher-2' },
+      { itemId: 'wifi-camera', count: 1, purpose: 'place', questName: 'Что-то это мне напоминает..', questId: 'reminds' },
+    ])
+    expect(rows).toEqual([{
+      itemId: 'wifi-camera',
+      count: 9,
+      lines: [{
+        purpose: 'place',
+        count: 9,
+        questNames: ['Что-то это мне напоминает..', 'Наблюдатель'],
+        quests: [{ id: 'reminds', name: 'Что-то это мне напоминает..', count: 5 }, { id: 'watcher', name: 'Наблюдатель', count: 3 }, { id: 'watcher-2', name: 'Наблюдатель', count: 1 }],
+      }],
+      fromRaidListOnly: false,
+    }])
+  })
+
   it('keeps manually added raid-list items without quest lines', () => {
     expect(aggregateRaidNeeds([], ['salewa'])).toEqual([
       { itemId: 'salewa', count: 1, lines: [], fromRaidListOnly: true },
     ])
+  })
+
+  // Owner, 15.11.2026 («Инвазивная терапия»): «не 3 разных обдолбоса коктейля, а 1 и написано x3».
+  it('objectives that accept the same items make one row, its count the sum', () => {
+    const plant = (objectiveId: string, itemId: string) => ({ itemId, count: 1, purpose: 'place' as const, mapIds: ['lighthouse'], objectiveId, alternatives: 2 })
+    const requirements = ['med-bay', 'hall', 'office'].flatMap((objective) => [plant(objective, 'obdolbos'), plant(objective, 'obdolbos-2')])
+    const grouped = groupAlternatives(requirements, () => undefined)
+    expect(grouped.requirements.map((requirement) => requirement.itemId)).toEqual(['any-of:med-bay', 'any-of:med-bay', 'any-of:med-bay'])
+    expect(grouped.groups.get('any-of:med-bay')?.itemIds).toEqual(['obdolbos', 'obdolbos-2'])
+    expect(aggregateRaidNeeds(grouped.requirements)).toEqual([expect.objectContaining({ itemId: 'any-of:med-bay', count: 3 })])
   })
 })

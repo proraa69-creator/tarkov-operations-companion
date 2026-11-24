@@ -57,6 +57,32 @@ export function nodeAt(build: Build, path: string[]): BuildNode | undefined {
   return node
 }
 
+/**
+ * A one-piece grip-stock: a stock that goes into the pistol-grip slot (the ADAR 2-15 wooden stock, the HERA CQR…). It
+ * is the grip and the stock in one, so the weapon's own stock slot beside it — the buffer tube with whatever is on it —
+ * must stay empty (owner, 28.10.2026: «при переключении на приклад деревянный ADAR… должна сниматься труба приклада»).
+ * tarkov.dev does not list the tubes among its conflicts: the rule is ours.
+ */
+export const GRIP_SLOT = /^mod_pistol_?grip/
+export const STOCK_SLOT = 'mod_stock'
+/** A part the player may take off: any but one a required slot holds (the stock slot's may go: a pistol-grip build). */
+export const canTakeOff = (cell: SlotCell) => Boolean(cell.part) && (!cell.slot.required || cell.slot.nameId === STOCK_SLOT)
+export const isGripStock = (part: Pick<GunPart, 'category'> | undefined, slotNameId: string) => Boolean(part && GRIP_SLOT.test(slotNameId) && part.category === 'stock')
+
+/** The grip-stock beside the stock slot at this path (same parent), if one is installed. */
+function gripStockBeside(build: Build, path: string[], catalog: PartLookup): GunPart | undefined {
+  if (path[path.length - 1] !== STOCK_SLOT) return undefined
+  const parent = nodeAt(build, path.slice(0, -1))
+  for (const [nameId, child] of Object.entries(parent?.children ?? {})) {
+    const part = catalog.mods.get(child.itemId)
+    if (isGripStock(part, nameId)) return part
+  }
+  return undefined
+}
+
+/** Whether the stock slot at this path is taken by a grip-stock beside it (not shown, not missing). */
+export const stockSlotTaken = (build: Build, path: string[], catalog: PartLookup) => Boolean(gripStockBeside(build, path, catalog))
+
 export type Compatibility = { ok: true } | { ok: false; reason: 'not-allowed' | 'conflict' | 'slot-blocked' | 'unknown'; conflictWith?: string }
 
 /** Installed items with the slot each sits in (slot ids of the root's own slots need `root`), depth-first. */
@@ -83,6 +109,8 @@ const under = (path: string[], prefix: string[]) => path.length >= prefix.length
  * Whether `candidateId` may go into `slot` at `path` (the slot's own path, ending with its nameId) — the game's rules
  * as tarkov.dev carries them (owner, 17.10.2026: «какие и куда подходят, а куда не подходят»):
  * - the slot's filters.allowedItems lists it;
+ * - the weapon itself does not conflict with it (owner, 20.11.2026: the Vltor CMRD handguard lists the AK-102, AK-104 and AK-105 —
+ *   the game does not put it on them, whatever else is on the weapon);
  * - no other installed item conflicts with it in either direction: conflictingItems, or conflictingCategories against
  *   the other item's categories;
  * - conflictingSlotIds: no installed item asks this slot to stay empty, and the candidate does not ask that of a slot
@@ -94,6 +122,10 @@ export function canInstall(build: Build, path: string[], slot: GunSlot, candidat
   const candidate = catalog.mods.get(candidateId)
   if (!candidate) return { ok: false, reason: 'unknown' }
   if (!slot.allowed.includes(candidateId)) return { ok: false, reason: 'not-allowed' }
+  if (candidate.conflicts.includes(build.weaponId) || root?.conflicts.includes(candidateId)
+    || (root && (shares(root.conflictCategories, candidate.categoryIds) || shares(candidate.conflictCategories, root.categoryIds)))) {
+    return { ok: false, reason: 'conflict', conflictWith: build.weaponId }
+  }
   const staying = occupiedSlots(build, catalog, root).filter((entry) => !under(entry.path, path))
   for (const { part } of staying) {
     if (part.conflicts.includes(candidateId) || candidate.conflicts.includes(part.id)
@@ -101,6 +133,14 @@ export function canInstall(build: Build, path: string[], slot: GunSlot, candidat
       return { ok: false, reason: 'conflict', conflictWith: part.id }
     }
   }
+  // A grip-stock and the stock slot beside it exclude each other (isGripStock).
+  const slotName = path[path.length - 1] ?? ''
+  if (isGripStock(candidate, slotName)) {
+    const stock = nodeAt(build, path.slice(0, -1))?.children[STOCK_SLOT]
+    if (stock) return { ok: false, reason: 'slot-blocked', conflictWith: stock.itemId }
+  }
+  const besideGrip = gripStockBeside(build, path, catalog)
+  if (besideGrip) return { ok: false, reason: 'slot-blocked', conflictWith: besideGrip.id }
   for (const entry of staying) {
     if (blocksSlot(entry.part, slot.id) || (entry.slotId && !samePath(entry.path, path) && blocksSlot(candidate, entry.slotId))) {
       return { ok: false, reason: 'slot-blocked', conflictWith: entry.part.id }
@@ -172,7 +212,7 @@ export function missingRequired(build: Build, weapon: Weapon, catalog: PartLooku
       const child = node.children[slot.nameId]
       const childPart = child ? catalog.mods.get(child.itemId) : undefined
       if (!childPart) {
-        if (slot.required) out.push({ path: [...path, slot.nameId], slot })
+        if (slot.required && !stockSlotTaken(build, [...path, slot.nameId], catalog)) out.push({ path: [...path, slot.nameId], slot })
         continue
       }
       walk(childPart, child!, [...path, slot.nameId])

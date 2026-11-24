@@ -7,8 +7,10 @@ import { isOwnerApp } from '../app/buildEdition'
 import { useLogStatus } from '../import/logStatus'
 import { useAppState } from '../state/AppState'
 import { diagnosticsLine, withInferred, type QuestConflictKind, type QuestSourceKind } from './questEngine'
+import { uiText } from '../i18n/renderText'
+import { checkQuestRules, QUEST_CHECK_TITLES, questCheckSummary } from './questChecks'
 import { questAvailabilityOf, questResolutionOf } from './questReadModel'
-import { resolveMode } from './questInputs'
+import { inputsOf, questFloor, resolveMode } from './questInputs'
 import './questDiagnostics.css'
 
 const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
@@ -18,6 +20,7 @@ const SOURCE_NAMES: Record<QuestSourceKind, { ru: string; en: string }> = {
   manual: { ru: 'вручную', en: 'manual' },
   table: { ru: 'экран «Задания»', en: 'Tasks screen' },
   story: { ru: 'экран сюжета', en: 'story screen' },
+  mirror: { ru: 'копия аккаунта (сервер)', en: 'account copy (server)' },
   legacy: { ru: 'старые ручные', en: 'legacy manual' },
 }
 const CONFLICT_NAMES: Record<QuestConflictKind, { ru: string; en: string }> = {
@@ -64,14 +67,17 @@ function QuestDiagnosticsBody({ locale }: { locale: 'ru' | 'en' }) {
     // The catalog loaded is the mode shown's (one at a time): its checks and the lists' inference for that mode only.
     const shown = mode === raidMode
     const resolution = shown ? questResolutionOf(progress, mode, data.quests) : resolveMode(progress, mode)
-    const diagnostics = shown ? withInferred(resolution.diagnostics, questAvailabilityOf(data.quests, progress)) : resolution.diagnostics
+    const availability = shown ? questAvailabilityOf(data.quests, progress) : undefined
+    const diagnostics = availability ? withInferred(resolution.diagnostics, availability) : resolution.diagnostics
+    // The chain's rules (questChecks.ts) on the live state: the decision, the stored statuses and, for the mode shown, the lists.
+    const findings = checkQuestRules({ layers: inputsOf(progress, mode), floor: questFloor(progress), resolution, stored: progress.taskProgress, ...(availability ? { availability, quests: data.quests, player: progress } : {}) })
     const conflicts = [...resolution.states.values()].flatMap((state) => state.conflicts.filter((conflict) => conflict.kind !== 'before-floor').map((conflict) => ({ taskId: state.taskId, decided: state.source, ...conflict }))).slice(0, 12)
-    return { mode, diagnostics, conflicts, marker: progress.resetMarker, summary: scan?.identityOnly ? undefined : scan?.summaryByMode?.[mode] }
+    return { mode, diagnostics, conflicts, findings, marker: progress.resetMarker, summary: scan?.identityOnly ? undefined : scan?.summaryByMode?.[mode] }
   }), [activeProfile.modes, data.quests, raidMode, scan])
   const name = (taskId: string) => data.quests.find((quest) => quest.id === taskId)?.name ?? taskId
   return (
     <div className="panel-body quest-diagnostics-body">
-      {rows.map(({ mode, diagnostics, conflicts, marker, summary }) => (
+      {rows.map(({ mode, diagnostics, conflicts, findings, marker, summary }) => (
         <article key={mode} className={`quest-diagnostics-mode${mode === raidMode ? ' is-shown' : ''}`} data-mode={mode}>
           <header><strong>{modeName(mode, locale)}</strong><span>{diagnosticsLine(diagnostics, locale)}</span></header>
           <dl>
@@ -88,6 +94,15 @@ function QuestDiagnosticsBody({ locale }: { locale: 'ru' | 'en' }) {
             {marker && <div><dt>{locale === 'en' ? `«${MARKER[marker.kind].en}» pressed` : `Нажато «${MARKER[marker.kind].ru}»`}</dt><dd>{when(marker.at, locale)} · {marker.resolvedAt ? (locale === 'en' ? `confirmed by the logs ${when(marker.resolvedAt, locale)}` : `подтверждено журналами ${when(marker.resolvedAt, locale)}`) : (locale === 'en' ? 'waiting for the game\'s reset in the logs' : 'ждём сброса в журналах игры')}</dd></div>}
             {(Object.keys(diagnostics.conflicts) as QuestConflictKind[]).filter((kind) => kind !== 'before-floor').map((kind) => <div key={kind}><dt>{CONFLICT_NAMES[kind][locale]}</dt><dd>{diagnostics.conflicts[kind]}</dd></div>)}
           </dl>
+          <p className="quest-diagnostics-checks">
+            <b>{locale === 'en' ? 'Chain checks:' : 'Проверки цепочки:'}</b>{' '}
+            {findings.length
+              ? questCheckSummary(findings).map((entry) => `${uiText(entry.title)} — ${entry.count}`).join(' · ')
+              : locale === 'en' ? `all ${Object.keys(QUEST_CHECK_TITLES).length} rules hold` : `все ${Object.keys(QUEST_CHECK_TITLES).length} правил выполняются`}
+          </p>
+          {findings.length > 0 && <ul className="quest-diagnostics-conflicts">
+            {findings.slice(0, 12).map((finding, index) => <li key={`${finding.questId}-${finding.rule}-${index}`}><b>{name(finding.questId)}</b> · {uiText(QUEST_CHECK_TITLES[finding.rule])}: {finding.detail}</li>)}
+          </ul>}
           {conflicts.length > 0 && <ul className="quest-diagnostics-conflicts">
             {conflicts.map((conflict, index) => <li key={`${conflict.taskId}-${conflict.kind}-${index}`}>
               <b>{name(conflict.taskId)}</b> · {CONFLICT_NAMES[conflict.kind][locale]}{conflict.status ? ` (${SOURCE_NAMES[conflict.source][locale]}: ${conflict.status}${conflict.detail ? ` / ${conflict.detail}` : ''})` : ''}

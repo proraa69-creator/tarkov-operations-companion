@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchLiveCatalog, isValuableItem, requirementFoundInRaid } from './catalogSource'
+import { adaptTaskRows, fetchLiveCatalog, isValuableItem, requirementFoundInRaid, rewardItemTotals } from './catalogSource'
 
 /** json.tarkov.dev shapes (tarkov.dev TaskObjectiveItem / RequirementItem), trimmed to what the adapter reads. */
 const upstream: Record<string, unknown> = {
@@ -73,6 +73,17 @@ describe('catalog adapter: found-in-raid and structured requirements', () => {
   })
 })
 
+/**
+ * The `_ru` / `_en` dictionaries as tarkov.dev gives them: an objective's id is its description's key, so the translated
+ * objective has its text as id (src/data/objectiveGameIds.ts; the hand fixes are by the game's id).
+ */
+const FEED_DICTIONARIES: Record<string, Record<string, string>> = {
+  tasks: {
+    '5b478f6886f774464201225a': 'Найти химический контейнер на локации Завод',
+    '6a5a9710671cbfe928bbfde2': 'Найти квартиру коменданта частной тюрьмы',
+  },
+}
+
 /** A quest released after the app build: only in the live feed, with objective keys, a quest-item spot and no `maps`. */
 const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
   tasks: { tasks: {
@@ -84,6 +95,29 @@ const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
         { id: 'f2', type: 'visit', description: 'Посетить кабинет', maps: ['m-customs'], zones: [{ id: 'z1', map: 'm-customs', position: { x: 5, y: 1, z: 6 } }] },
       ],
     },
+    rooms: {
+      id: 'rooms', name: 'Обход кабинетов', trader: 'tr1', minPlayerLevel: 10, kappaRequired: false,
+      neededKeys: [{ map: 'm-customs', keys: ['key-xray'] }, { map: 'm-customs', keys: ['key-both'] }, { map: 'm-customs', keys: ['key-old'] }],
+      objectives: [
+        { id: 'r-kennel', type: 'visit', description: 'Осмотреть питомник', maps: ['m-customs'] },
+        { id: 'r-xray', type: 'visit', description: 'Кабинет рентгенолога', maps: ['m-customs'], requiredKeys: [['key-xray']] },
+        { id: 'r-one', type: 'visit', description: 'Первая комната', maps: ['m-customs'], requiredKeys: [['key-both']] },
+        { id: 'r-two', type: 'plantItem', description: 'Вторая комната', maps: ['m-customs'], requiredKeys: [['key-both']] },
+      ],
+    },
+    // report №102: the game's data names no key for the warden's flat
+    debtor: {
+      id: 'debtor', name: 'Должник', trader: 'tr1', minPlayerLevel: 1, kappaRequired: false,
+      objectives: [{ id: '6a5a9710671cbfe928bbfde2', type: 'visit', description: 'Найти квартиру коменданта частной тюрьмы', maps: ['m-customs'] }],
+    },
+    // report of 10.11.2026: the data still gives «Витамины» the old Shoreline room 112 key
+    '5b478eca86f7744642012254': {
+      id: '5b478eca86f7744642012254', name: 'Витамины', trader: 'tr1', minPlayerLevel: 1, kappaRequired: false,
+      neededKeys: [{ map: 'm-customs', keys: ['5a0dc95c86f77452440fc675'] }],
+      // report 215: its objective still lists Shoreline too (the old quest's Health Resort spot)
+      objectives: [{ id: '5b478f6886f774464201225a', type: 'findQuestItem', description: 'Найти химический контейнер на локации Завод', maps: ['m-customs', 'm-shoreline'], questItem: { id: 'chem-container' }, requiredKeys: [['5a0dc95c86f77452440fc675']],
+        possibleLocations: [{ map: 'm-customs', positions: [{ x: 1, y: 0, z: 1 }] }, { map: 'm-shoreline', positions: [{ x: 2, y: 0, z: 2 }] }] }],
+    },
   } },
   items: { items: {
     chain: { id: 'chain', name: 'Золотая цепочка', shortName: 'Цепь', types: ['barter'], categories: ['57864a3d24597754843f8721', '5448eb774bdc2d0a728b4567'], handbookCategories: ['5b47574386f77428ca22b2f1'] },
@@ -92,7 +126,7 @@ const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
   } },
   maps: { maps: { 'm-customs': { id: 'm-customs', name: 'Customs', normalizedName: 'customs', bosses: [
     { mob: 'bossKilla', spawnChance: mode === 'pve' ? 1 : 0.3, spawnLocations: [{ name: 'ZoneDorms', chance: 1, positions: [{ x: mode === 'pve' ? 300 : 100, y: 0, z: 100 }] }] },
-  ], lootLoose: [{ items: ['bolts', 'chain'], position: { x: 9, y: 0, z: 9 } }] } }, mobs: { bossKilla: { name: 'Килла', normalizedName: 'killa', imagePortraitLink: 'x' } } },
+  ], lootLoose: [{ items: ['bolts', 'chain'], position: { x: 9, y: 0, z: 9 } }] }, 'm-shoreline': { id: 'm-shoreline', name: 'Shoreline', normalizedName: 'shoreline' } }, mobs: { bossKilla: { name: 'Килла', normalizedName: 'killa', imagePortraitLink: 'x' } } },
   traders: { tr1: { id: 'tr1', name: 'Прапор' } },
   hideout: {},
 })
@@ -102,7 +136,7 @@ function stubModeFeeds(requested: string[]) {
     const match = /json\.tarkov\.dev\/([a-z-]+)\/([a-z]+)(_[a-z]+)?$/.exec(String(url))
     if (!match || (match[1] !== 'regular' && match[1] !== 'pve')) return new Response('', { status: 404 })
     requested.push(`${match[1]}/${match[2]}${match[3] ?? ''}`)
-    return new Response(JSON.stringify({ data: match[3] ? {} : newQuestFeed(match[1] as 'regular' | 'pve')[match[2]] ?? {} }), { status: 200 })
+    return new Response(JSON.stringify({ data: match[3] ? FEED_DICTIONARIES[match[2]!] ?? {} : newQuestFeed(match[1] as 'regular' | 'pve')[match[2]] ?? {} }), { status: 200 })
   }))
 }
 
@@ -137,6 +171,53 @@ describe('catalog adapter: new quests and markers straight from the live feed', 
     const points = catalog.markers.filter((marker) => marker.questId === 'fresh')
     expect(points.length).toBeGreaterThan(0)
     expect(points.every((marker) => marker.mapId === 'customs')).toBe(true)
+  })
+
+  // Owner, 06.11.2026 («Инвентаризация», the X-ray room): the key is in `neededKeys` and in its objective's `requiredKeys`.
+  it('ties a key to the objectives that need it, one row however many they are; a key only `neededKeys` names has none', async () => {
+    stubModeFeeds([])
+    const catalog = await fetchLiveCatalog('pvp', 'en')
+    const keys = catalog.quests.find((entry) => entry.id === 'rooms')!.raidRequirements!.filter((requirement) => requirement.purpose === 'key')
+    expect(keys).toEqual([
+      { itemId: 'key-xray', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'r-xray' },
+      { itemId: 'key-both', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'r-one', objectiveIds: ['r-one', 'r-two'] },
+      { itemId: 'key-old', count: 1, purpose: 'key', mapIds: ['customs'] },
+    ])
+  })
+
+  // Report №102 («Должник»): «Сбор в рейд не показывает, что нужен ключ от этой комнаты».
+  it('adds a key the game’s data leaves out of an objective, tied to that objective', async () => {
+    stubModeFeeds([])
+    const catalog = await fetchLiveCatalog('pve', 'en')
+    const quest = catalog.quests.find((entry) => entry.id === 'debtor')!
+    expect(quest.requiredItems).toContain('63a39fc0af870e651d58e6ae')
+    expect(quest.raidRequirements!.filter((requirement) => requirement.purpose === 'key')).toEqual([
+      // the objective as the translated data names it (the wire gives it the game's id, src/data/catalogWire.ts)
+      { itemId: '63a39fc0af870e651d58e6ae', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'Найти квартиру коменданта частной тюрьмы' },
+    ])
+  })
+
+  it('drops a key the data keeps from an older version of a quest', async () => {
+    stubModeFeeds([])
+    const catalog = await fetchLiveCatalog('pve', 'ru')
+    const quest = catalog.quests.find((entry) => entry.id === '5b478eca86f7744642012254')!
+    expect(quest.raidRequirements!.filter((requirement) => requirement.purpose === 'key')).toEqual([])
+    expect(quest.requiredItems ?? []).not.toContain('5a0dc95c86f77452440fc675')
+  })
+
+  it('a place the data keeps from an older version of a quest is no map of it (report 215: «Витамины» on Shoreline)', async () => {
+    stubModeFeeds([])
+    const catalog = await fetchLiveCatalog('pve', 'ru')
+    const quest = catalog.quests.find((entry) => entry.id === '5b478eca86f7744642012254')!
+    expect(quest.mapIds).not.toContain('shoreline')
+    expect(quest.mapIds).toContain('customs')
+    for (const requirement of quest.raidRequirements ?? []) expect(requirement.mapIds).not.toContain('shoreline')
+    // the fix is by the game's objective id; the translated objective has its text as id (owner, 23.11.2026: it never applied)
+    const objective = quest.objectiveDetails!.find((entry) => entry.gameId === '5b478f6886f774464201225a')!
+    expect(objective.id).toBe('Найти химический контейнер на локации Завод')
+    expect(objective.mapIds).toEqual(['customs'])
+    const markers = catalog.markers.filter((marker) => marker.questId === quest.id)
+    expect(markers.map((marker) => marker.mapId)).toEqual(['customs'])
   })
 
   it('marks jewelry by its tarkov.dev category and draws its loose-loot spot on the jewelry layer', async () => {
@@ -175,7 +256,7 @@ const priceFeed = (mode: 'regular' | 'pve' | 'pvp-season'): Record<string, unkno
   return {
     tasks: { tasks: { t1: { id: 't1', name: 'Задание', trader: 'tr-therapist', objectives: [] } } },
     items: {
-      fleaMarket: { enabled: true, sellOfferFeeRate: 0.03, sellRequirementFeeRate: 0.03 },
+      fleaMarket: { enabled: true, minPlayerLevel: 15, sellOfferFeeRate: 0.03, sellRequirementFeeRate: 0.03 },
       items: {
         salewa: { id: 'salewa', name: 'Аптечка Salewa', shortName: 'Salewa', types: ['meds'], basePrice: 21000,
           lastLowPrice: salewa[0], avg24hPrice: salewa[1], low24hPrice: salewa[0] - 1500, high24hPrice: salewa[1] + 11000,
@@ -205,6 +286,52 @@ function stubPriceFeeds(requested: string[]) {
   }))
 }
 
+describe('catalog adapter: flares in the raid requirements', () => {
+  // Owner, 06.11.2026: «В требования рейда не появляется Сигнальный патрон (Зелёный)… покинуть локацию Улиц Таркова через выход Климова».
+  const feed = (): Record<string, unknown> => {
+    const base = newQuestFeed('regular')
+    const items = (base.items as { items: Record<string, unknown> }).items
+    for (const [id, name] of [['6217726288ed9f0845317459', 'Реактивный сигнальный патрон РСП-30 (Зеленый)'], ['62389aaba63f32501b1b444f', '26x75 сигнальный патрон (Зеленый)'], ['red-rsp', 'Реактивный сигнальный патрон РСП-30 (Красный)'], ['tools', 'Медицинские инструменты']]) items[id!] = { id, name, shortName: name, types: ['barter'] }
+    ;(base.tasks as { tasks: Record<string, unknown> }).tasks = {
+      exit: { id: 'exit', name: 'Прекратить огонь!', trader: 'tr1', objectives: [{ id: 'e1', type: 'extract', count: 1, description: 'Покинуть через выход', exitName: 'E9_sniper', maps: ['m-customs'] }] },
+      noMap: { id: 'noMap', name: 'Выход без карты', trader: 'tr1', objectives: [{ id: 'n1', type: 'extract', count: 1, description: 'Покинуть', exitName: 'customs_sniper_exit' }] },
+      read: { id: 'read', name: 'Текстом', trader: 'tr1', objectives: [{ id: 'x1', type: 'extract', count: 1, description: 'Покинуть', exitName: 'Улица Климова (Сигнал)', maps: ['m-customs'] }] },
+      readEn: { id: 'readEn', name: 'Текстом', trader: 'tr1', objectives: [{ id: 'x2', type: 'extract', count: 1, description: 'Leave', exitName: 'Klimov Street (Flare)', maps: ['m-customs'] }] },
+      car: { id: 'car', name: 'На машине', trader: 'tr1', objectives: [{ id: 'c1', type: 'extract', count: 1, description: 'Покинуть на машине', exitName: 'E7_car', maps: ['m-customs'] }] },
+      red: { id: 'red', name: 'Авиапочта', trader: 'tr1', objectives: [{ id: 'r1', type: 'useItem', count: 2, description: 'Подать сигнал', useAny: ['red-rsp', '62389aaba63f32501b1b444f'], maps: ['m-customs'] }] },
+      body: { id: 'body', name: 'Вскрытие', trader: 'tr1', objectives: [{ id: 'b1', type: 'useItem', count: 1, description: 'Вскрыть', useAny: ['tools'], maps: ['m-customs'] }] },
+    }
+    return base
+  }
+  const needs = async () => {
+    const stub = vi.fn(async (url: string) => {
+      const data = feed()
+      const name = Object.keys(data).find((key) => url.includes(`/${key}`))
+      return new Response(JSON.stringify({ data: name ? data[name] : {} }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', stub)
+    const catalog = await fetchLiveCatalog('pvp', 'ru', stub as unknown as typeof fetch)
+    return (id: string) => catalog.quests.find((quest) => quest.id === id)?.raidRequirements?.map((need) => [need.itemId, need.purpose, need.count, need.alternatives, need.mapIds])
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('an exit opened by a green flare asks for it, either of the two; another exit does not', async () => {
+    const of = await needs()
+    expect(of('exit')).toEqual([['6217726288ed9f0845317459', 'signal', 1, 2, ['customs']], ['62389aaba63f32501b1b444f', 'signal', 1, 2, ['customs']]])
+    // As the feed's dictionary gives it: the name in words, in either language.
+    expect(of('read')!.map((row) => row[1])).toEqual(['signal', 'signal'])
+    expect(of('readEn')!.map((row) => row[1])).toEqual(['signal', 'signal'])
+    expect(of('car')).toEqual([])
+    expect(of('noMap')!.map((row) => row[1])).toEqual(['signal', 'signal'])
+  })
+
+  it('an objective to fire a flare asks for it with its count; another item to use reads as «use»', async () => {
+    const of = await needs()
+    expect(of('red')).toEqual([['red-rsp', 'signal', 2, 2, ['customs']], ['62389aaba63f32501b1b444f', 'signal', 2, 2, ['customs']]])
+    expect(of('body')).toEqual([['tools', 'use', 1, 1, ['customs']]])
+  })
+})
+
 describe('catalog adapter: flea prices per mode', () => {
   it('PvP, PvE and Season read their own items file and stamp every quote with their mode', async () => {
     const requested: string[] = []
@@ -215,7 +342,7 @@ describe('catalog adapter: flea prices per mode', () => {
     expect([salewa('pvp').fleaPrice, salewa('pve').fleaPrice, salewa('seasonal').fleaPrice]).toEqual([36500, 22100, 30200])
     for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
       expect(catalogs[mode].items.flatMap((entry) => entry.prices).every((entry) => entry.mode === mode)).toBe(true)
-      expect(catalogs[mode].metadata).toMatchObject({ mode, fleaMarket: { enabled: true, offerFeeRate: 0.03, requirementFeeRate: 0.03 } })
+      expect(catalogs[mode].metadata).toMatchObject({ mode, fleaMarket: { enabled: true, offerFeeRate: 0.03, requirementFeeRate: 0.03, minPlayerLevel: 15 } })
     }
   })
 
@@ -287,5 +414,30 @@ describe('«Оружейник» in the json.tarkov.dev shape', () => {
     })
     // The weapon is built in the stash and handed to Mechanic: not a raid requirement.
     expect(quest.raidRequirements ?? []).toEqual([])
+  })
+})
+
+describe('quest reward items, one line per item (report 200, 20.11.2026)', () => {
+  const VIRTEX = '5c05308086f7746b2101e90b'
+  const STASH_KEY = '6a8d581fe74010bf70069d83'
+  // «Провокация» (Lightkeeper) as json.tarkov.dev lists its rewards (regular, pve and pvp-season alike, 20.11.2026): the game,
+  // the wiki and SPT give 2 × Virtex
+  const provocation = {
+    id: '63966ff54c3ef01b6f3ffad8', name: 'Провокация', trader: '638f541a29ffd1183d187f57', experience: 0, objectives: [],
+    finishRewards: { items: [{ item: VIRTEX, count: 1, attributes: {} }, { item: VIRTEX, count: 1, attributes: {} }, { item: STASH_KEY, count: 1, attributes: {} }] },
+  }
+  const items = [
+    { id: VIRTEX, name: 'Программируемый процессор Virtex', shortName: 'Virtex' },
+    { id: STASH_KEY, name: 'Ключ от схрона на Маяке', shortName: 'Схрон' },
+  ] as unknown as Parameters<typeof adaptTaskRows>[2]
+  const traders = [{ id: '638f541a29ffd1183d187f57', name: 'Смотритель' }] as unknown as Parameters<typeof adaptTaskRows>[1]
+
+  it('adds up the feed\'s entries of the same item', () => {
+    const [quest] = adaptTaskRows({ tasks: { [provocation.id]: provocation } }, traders, items)
+    expect(quest!.rewards).toEqual(['Программируемый процессор Virtex × 2', 'Ключ от схрона на Маяке × 1'])
+  })
+
+  it('keeps the order, reads GraphQL references and counts an entry without a count as one', () => {
+    expect(rewardItemTotals([{ item: { id: 'b' }, count: 3 }, { item: 'a' }, { item: 'b', count: 2 }, { item: '' }])).toEqual([{ itemId: 'b', count: 5 }, { itemId: 'a', count: 1 }])
   })
 })

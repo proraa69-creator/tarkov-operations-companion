@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { api, type PlansResponse } from '../api'
 import { LEGAL_DOCUMENTS, LEGAL_VERSION_LABEL, legalDocument, SELLER_DETAILS } from '../legal/documents'
+import { appPrivacyDocument } from '../legal/appPrivacy'
 import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
 import { siteLocale, tr } from '../i18n'
 import '../extras.css'
@@ -15,6 +16,60 @@ function LegalNav({ current }: { current?: string }) {
       {LEGAL_DOCUMENTS.map((doc) => <Link key={doc.slug} to={`/legal/${doc.slug}`} className={current === doc.slug ? 'active' : undefined}>{doc.short}</Link>)}
     </nav>
   </>)
+}
+
+/**
+ * /app/privacy — the privacy policy the iPhone app and the App Store card open (owner, 13.11.2026: «при переходе туда
+ * открывается оплата, подписка… Там есть кнопки такие»): the document alone, without the site's header, menu, footer or
+ * the documents' row, so no button leads to the plans, the cabinet or the offer.
+ */
+export function AppPrivacyPage() {
+  // As for a free app: no payments, plans, invitations or advertising (owner, 13.11.2026; legal/appPrivacy.ts).
+  const doc = appPrivacyDocument()
+  return (
+    <main className="page app-privacy">
+      <div className="container narrow legal">
+        <h1 className="page-title">{doc.title}</h1>
+        <p className="page-subtitle">Редакция от {LEGAL_VERSION_LABEL}</p>
+        <article className="panel legal-doc">
+          {doc.sections.map((section) => (
+            <section key={section.title}>
+              <h2>{section.title}</h2>
+              {section.paragraphs?.map((text) => <p key={text}>{text}</p>)}
+              {section.items && <ul>{section.items.map((text) => <li key={text}>{text}</li>)}</ul>}
+            </section>
+          ))}
+        </article>
+      </div>
+    </main>
+  )
+}
+
+/**
+ * /privacy — the privacy policy the site's footer links to (owner, 17.11.2026: «Главное, чтобы в политике не было упоминания о
+ * ценах и о тарифах… о подписках»): the same text as /app/privacy (legal/appPrivacy.ts), in the site's frame, without the
+ * documents' row («Тарифы, оплата и возврат»). The whole /legal/privacy stays where a payment or a sign-up links to it.
+ */
+export function PrivacyPage() {
+  const doc = appPrivacyDocument()
+  return (
+    <div className="page page-in">
+      <div className="container narrow legal">
+        <h1 className="page-title">{doc.title}</h1>
+        <p className="page-subtitle">Редакция от {LEGAL_VERSION_LABEL}</p>
+        {siteLocale() === 'en' && <p className="legal-language-note" lang="en">{tr('Условия и документы доступны только на русском языке: они составлены по законодательству РФ.')}</p>}
+        <article className="panel legal-doc">
+          {doc.sections.map((section) => (
+            <section key={section.title}>
+              <h2>{section.title}</h2>
+              {section.paragraphs?.map((text) => <p key={text}>{text}</p>)}
+              {section.items && <ul>{section.items.map((text) => <li key={text}>{text}</li>)}</ul>}
+            </section>
+          ))}
+        </article>
+      </div>
+    </div>
+  )
 }
 
 /** /legal — the buyer's page (tariffs, payment, access, refund, contacts, seller); /legal/:slug — one document. */

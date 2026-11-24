@@ -6,7 +6,9 @@ import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemO
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
 import type { ModeSelectCard, TraderScreenReading } from './import/modeSelectScreen'
+import type { FleaReading } from './import/fleaReading'
 import type { LogSearchReport } from './import/logSearchReport'
+import type { ScreenTuningApi } from './screen/screenApi'
 
 type DesktopLogScanResult = ModeLogScanResult
 /** A scan of the game's Logs folder and that folder. */
@@ -36,6 +38,8 @@ export interface ServerAccountStatus {
   kind?: 'user' | 'streamer'
   /** The server-verified owner account may open the mobile admin dashboard. */
   owner?: true
+  /** The Apple reviewer's test account (server AccountView.storeReview): no payment mentions (platform.ts hidesPayments). */
+  storeReview?: true
   /** The API server answered /health. */
   online: boolean
   serverUrl: string
@@ -44,7 +48,8 @@ export interface ServerAccountStatus {
   /** From the server account while online: nicknames per mode and the subscription. */
   nicknames?: Partial<Record<RaidMode, string>>
   /** `trialPendingDays`: the free period still waits for the account's first sign-in in an app (server, accountStore.ts). */
-  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
+  /** `trialRaidDays`: the free days wait for the first raid (status 'trial', trialEndsAt is their latest end). */
+  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number; trialRaidDays?: number }
   /** When the account was registered (server, ISO): the first-run guide is for new accounts (src/onboarding/). */
   createdAt?: string
   /** Verified phone number, masked by the server (+7 ••• •••-45-67). */
@@ -83,9 +88,10 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
  * ownerExe: the owner's copy, a release only a whole owner exe brings and no signed owner exe on the server (the fallback:
  * the admin panel, «Серверная версия»). With a signed one it is a normal update installed in the app. nextStart: downloaded
  * in the background, starts with the next launch. liveVersion: the window was switched to this version without a restart
- * (live update of the interface, electron/appUpdate.ts); the page says so once.
+ * (live update of the interface, electron/appUpdate.ts); the page says so once. While downloading: received of size bytes,
+ * speed (bytes per second); parts: only the release's changed files, whole: the size of the whole exe they spare.
  */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string }
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string; received?: number; size?: number; speed?: number; parts?: boolean; whole?: number; heldByGame?: boolean; askInstall?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
@@ -168,10 +174,16 @@ interface TarkovDesktopApi {
   update?: {
     status: () => Promise<UpdateStatus>
     install: () => Promise<UpdateStatus>
+    /** «Загрузить обновление» while the game runs: download only (electron/appUpdate.ts downloadUpdate). Missing in older builds. */
+    download?: () => Promise<UpdateStatus>
     check?: () => Promise<UpdateCheckResult>
     settings?: () => Promise<UpdateSettings>
     setSettings?: (patch: Partial<UpdateSettings>) => Promise<UpdateSettings>
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
+    /** The portable exe: the installer's version and size once the site publishes it, else null. Missing in older builds. */
+    installerOffer?: () => Promise<{ version: string; size: number } | null>
+    /** Downloads and checks the installer, opens it and quits (the window's «Установить»). */
+    installSetup?: () => Promise<UpdateStatus>
   }
   /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
   serviceRequest: (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => Promise<unknown | null>
@@ -179,6 +191,10 @@ interface TarkovDesktopApi {
   account?: {
     status: () => Promise<ServerAccountStatus>
     login: (email: string, password: string) => Promise<ServerAccountStatus>
+    /** «Войти по QR-коду» on this PC: a one-time code the phone app approves, and its QR link. */
+    qrStart?: () => Promise<{ code: string; expiresAt: string; url: string }>
+    /** One look: still waiting, expired, or signed in. */
+    qrPoll?: () => Promise<{ state: 'pending' | 'expired' } | { state: 'done'; status: ServerAccountStatus }>
     logout: () => Promise<ServerAccountStatus>
     /** Sign-in or password reset by phone after the SMS code; the session stays in the main process. */
     phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
@@ -231,7 +247,9 @@ interface TarkovDesktopApi {
   openProfileBackup: () => Promise<string | null>
   getVersion: () => Promise<string>
   /** A system notification (trader restock reminders); false when the OS does not support them. */
-  notify?: (title: string, body: string) => Promise<boolean>
+  notify?: (title: string, body: string, icon?: string, silent?: boolean) => Promise<boolean>
+  /** window.confirm() as a main-process dialog (src/app/nativeConfirm.ts). Missing when the main process is older. */
+  confirm?: (message: string, locale: 'ru' | 'en') => boolean
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
@@ -241,7 +259,7 @@ interface TarkovDesktopApi {
    * nothing was copied. `busy`: an item lookup or a Kappa scan runs (electron/ocrQueue.ts), nothing was copied. `freshGame`: the
    * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
    */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number; flea?: { reading?: FleaReading } }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
   /**
    * The locked app's identity reader (electron/screenOcr.ts captureIdentityFrame): only right after a new game window
@@ -252,6 +270,10 @@ interface TarkovDesktopApi {
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
   scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number }>
+  /** Alt + the wheel from the game steps the map's floors (electron/mapFloorWheel.ts), for the accounts given it. */
+  mapFloorWheel?: { enable: (on: boolean) => void; onStep: (callback: (step: 1 | -1) => void) => () => void }
+  /** «Настройка экрана» and «Оптимизировать компьютер» (the PC app). */
+  screen?: ScreenTuningApi
   experimental?: {
     getSettings: () => Promise<ExperimentalSettings>
     updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>
@@ -277,6 +299,8 @@ interface TarkovDesktopApi {
      */
     onItem?: (callback: (payload: ItemOverlayPayload) => void) => () => void
     onCollectorScan: (callback: () => void) => () => void
+    /** The game's exit list text after a double O (report №105). */
+    onRaidExtracts?: (callback: (payload: unknown) => void) => () => void
   }
 }
 

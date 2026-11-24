@@ -7,5 +7,4 @@ Hovering an extract on the map shows a screenshot of the exit when a file exists
 - `<extractId>` is the tarkov.dev extract id, which is `marker.extractId` on the extract marker (the marker id is `extract-<extractId>`).
 - A missing file is simply not shown; nothing else changes.
 
-No screenshots are bundled yet: they have to be captured in game (or sourced with permission from a community
-project) and dropped into the folder. Only screenshots that are ours or licensed for redistribution should be committed.
+No screenshots are bundled here. Since 04.11.2026 the exits' texts, floors and photos come from `src/data/extractGuide.json` (`scripts/extract-guide.mjs`, the texts in `scripts/extract-guide-notes.mjs`): the server keeps a copy of each listed photo and the apps take it from there. A file in this folder is used only for an exit that list does not cover.

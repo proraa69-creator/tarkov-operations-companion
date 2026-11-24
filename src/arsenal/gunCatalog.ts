@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { readGameCache, writeGameCache } from '../data/gameDataCache'
@@ -32,7 +32,7 @@ export async function fetchLiveGunCatalog(mode: RaidMode, locale: AppLocale): Pr
   const payload = { data: { items } }
   const weapons = adaptWeapons(payload)
   if (!weapons.length) throw new Error('Сервер данных: нет оружия в ответе')
-  return { weapons, mods: adaptMods(payload), ammo: adaptAmmo({ data: { ammo: buildLegacyAmmo(bundle) } }), loadedAt: new Date().toISOString(), source: 'live' }
+  return { weapons, mods: adaptMods(payload), ammo: adaptAmmo({ data: { ammo: buildLegacyAmmo(bundle, items) } }), loadedAt: new Date().toISOString(), source: 'live' }
 }
 
 const fromCache = (cached: CachedCatalog, source: GunCatalog['source']): GunCatalog => ({
@@ -42,21 +42,33 @@ const fromCache = (cached: CachedCatalog, source: GunCatalog['source']): GunCata
 /**
  * Like the main catalogue (src/data/tarkovJsonClient.ts): live first, IndexedDB cache when tarkov.dev is unreachable.
  * In addition a fresh cache (< 30 min) is used directly, so reopening the builder does not download the mods again.
+ * An older cache opens the page at once too when `onNewer` is given (owner, 15.11.2026: «очень долго загружается сборка
+ * оружия» — the page waited for the whole items file, ~20 MB, whenever its copy was over half an hour old): the new
+ * catalogue is loaded behind it and handed to `onNewer`. The flea prices on the page are this minute's either way
+ * (src/arsenal/liveGunPrices.ts).
  */
-export async function fetchGunCatalog(mode: RaidMode, locale: AppLocale): Promise<GunCatalog> {
+export async function fetchGunCatalog(mode: RaidMode, locale: AppLocale, onNewer?: (catalog: GunCatalog) => void): Promise<GunCatalog> {
   // Patch fixes go on top of tarkov.dev's data (src/arsenal/patchFixes.ts); the cache keeps tarkov.dev's own values.
-  const catalog = await loadGunCatalog(mode, locale)
-  return { ...catalog, mods: applyPatchFixes(catalog.mods) }
+  const fixed = (catalog: GunCatalog): GunCatalog => ({ ...catalog, mods: applyPatchFixes(catalog.mods) })
+  return fixed(await loadGunCatalog(mode, locale, onNewer && ((catalog) => onNewer(fixed(catalog)))))
 }
 
-async function loadGunCatalog(mode: RaidMode, locale: AppLocale): Promise<GunCatalog> {
+async function loadGunCatalog(mode: RaidMode, locale: AppLocale, onNewer?: (catalog: GunCatalog) => void): Promise<GunCatalog> {
   const key = `${CACHE_PREFIX}-${mode}-${locale}`
   const cached = await readGameCache<CachedCatalog>(key)
   if (cached && Date.now() - cached.savedAt < FRESH_MS) return fromCache(cached, 'cache')
+  const live = async () => {
+    const catalog = await fetchLiveGunCatalog(mode, locale)
+    await writeGameCache(key, { savedAt: Date.now(), weapons: catalog.weapons, mods: [...catalog.mods.values()], ammo: catalog.ammo, loadedAt: catalog.loadedAt } satisfies CachedCatalog, GUN_CACHE_MS)
+    return catalog
+  }
+  if (cached && onNewer) {
+    // With tarkov.dev unreachable the cached copy simply stays, as it would without onNewer.
+    live().then((newer) => onNewer(newer)).catch(() => undefined)
+    return fromCache(cached, 'cache')
+  }
   try {
-    const live = await fetchLiveGunCatalog(mode, locale)
-    await writeGameCache(key, { savedAt: Date.now(), weapons: live.weapons, mods: [...live.mods.values()], ammo: live.ammo, loadedAt: live.loadedAt } satisfies CachedCatalog, GUN_CACHE_MS)
-    return live
+    return await live()
   } catch (error) {
     if (cached) return fromCache(cached, 'cache')
     throw error
@@ -64,14 +76,18 @@ async function loadGunCatalog(mode: RaidMode, locale: AppLocale): Promise<GunCat
 }
 
 /** Loaded only by the builder page (lazy): nothing is fetched until it is opened. */
-export function useGunCatalog(mode: RaidMode, locale: AppLocale) {
+/** `enabled`: false keeps it from loading (the tier list loads it on its «Оружие» tab only). */
+export function useGunCatalog(mode: RaidMode, locale: AppLocale, enabled = true) {
+  const client = useQueryClient()
+  const queryKey = ['gun-builder-catalog', mode, locale]
   return useQuery({
-    queryKey: ['gun-builder-catalog', mode, locale],
-    queryFn: () => fetchGunCatalog(mode, locale),
+    queryKey,
+    queryFn: () => fetchGunCatalog(mode, locale, (newer) => client.setQueryData(queryKey, newer)),
     staleTime: FRESH_MS,
     gcTime: 1000 * 60 * 60,
     // a busy server (429 / 503 while it prepares the data) gets two more tries, 1 s and 2 s later
     retry: 2,
     refetchOnWindowFocus: false,
+    enabled,
   })
 }

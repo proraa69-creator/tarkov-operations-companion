@@ -123,7 +123,8 @@ test('the point constructor: a free point (no quest) with an emblem, catalog ite
     assert.equal((await call('PUT', POINTS, owner, { ...free, icon: undefined })).status, 400, 'a free point needs an emblem')
     assert.equal((await call('PUT', POINTS, owner, { ...free, icon: 'quest.zone' })).status, 400, 'a quest emblem needs a quest')
     assert.equal((await call('PUT', POINTS, owner, { ...free, icon: 'spawn' })).status, 400, 'spawns are not offered')
-    assert.equal((await call('PUT', POINTS, owner, { ...free, kind: 'describe', markerId: 'm' })).status, 400, 'only an added point may have no quest')
+    // «Редактор карты» (10.11.2026): a catalog point of no quest may be described too, but it names that point.
+    assert.equal((await call('PUT', POINTS, owner, { ...free, kind: 'describe' })).status, 400, 'a description of no quest names its point')
     assert.equal((await call('PUT', POINTS, owner, { ...free, itemIds: ['not-an-item'] })).status, 400)
     assert.equal((await call('PUT', POINTS, owner, { ...free, itemIds: Array.from({ length: 7 }, (_, index) => index.toString(16).padStart(24, '0')) })).status, 400)
     const saved = await call<{ override: Override }>('PUT', POINTS, owner, free)

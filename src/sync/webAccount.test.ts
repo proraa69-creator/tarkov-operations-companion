@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { webServiceRequest } from './webAccount'
+import { isServerUnavailable, onServerAnswer, webAdminAccountStatus, webServiceRequest } from './webAccount'
 
 /** The phone's (and the browser preview's) transport: only whitelisted paths, personal ones with the stored session. */
 const SESSION_KEY = 'tarkov-mobile-session-v1'
@@ -38,6 +38,58 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
+  it('reactions (owner, 07.11.2026): the player\'s and the owner\'s routes go with the session; others stay blocked', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: { id: 5 } }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    const owner = `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/5/reactions`
+    for (const path of ['/v1/me/support/messages/5/reactions', owner]) {
+      expect(await webServiceRequest('POST', path, { emoji: '👍', on: true })).toEqual({ message: { id: 5 } })
+    }
+    expect(fetchMock.mock.calls.map((call) => (call as unknown as [string])[0])).toEqual(['https://raidos.app/v1/me/support/messages/5/reactions', `https://raidos.app${owner}`])
+    for (const [method, path] of [['GET', '/v1/me/support/messages/5/reactions'], ['POST', '/v1/me/support/messages/x/reactions'], ['POST', '/v1/accounts/me/admin/support/threads/not-an-account/messages/5/reactions']] as const) {
+      await expect(webServiceRequest(method, path, { emoji: '👍' })).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('«Редактировать» (owner, 15.11.2026): the owner\'s edit of a message goes with the session; the player has no such route', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: { id: 5 } }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const edit = `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/5/edit`
+    expect(await webServiceRequest('POST', edit, { text: 'Новый текст' })).toEqual({ message: { id: 5 } })
+    for (const [method, path] of [['GET', edit], ['POST', '/v1/me/support/messages/5/edit'], ['POST', `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/x/edit`]] as const) {
+      await expect(webServiceRequest(method, path, { text: 'x' })).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  // Owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон».
+  it('sticker packs: the picker reads the published ones without a session; the owner\'s routes go with it; others stay blocked', async () => {
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ packs: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await webServiceRequest('GET', '/v1/stickers')).toEqual({ packs: [] })
+    expect(new Headers(fetchMock.mock.calls[0]![1]?.headers).get('authorization')).toBeNull()
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const pack = 'ab'.repeat(12)
+    for (const [method, path] of [
+      ['GET', '/v1/accounts/me/admin/stickers'], ['POST', '/v1/accounts/me/admin/stickers/packs'], ['POST', '/v1/accounts/me/admin/stickers/packs/order'],
+      ['PUT', `/v1/accounts/me/admin/stickers/packs/${pack}`], ['DELETE', `/v1/accounts/me/admin/stickers/packs/${pack}`],
+      ['POST', `/v1/accounts/me/admin/stickers/packs/${pack}/stickers`], ['POST', `/v1/accounts/me/admin/stickers/packs/${pack}/order`], ['DELETE', `/v1/accounts/me/admin/stickers/${pack}`],
+    ] as const) {
+      await webServiceRequest(method, path, {})
+      expect(new Headers(fetchMock.mock.calls.at(-1)![1]?.headers).get('authorization')).toBe(`Bearer ${token}`)
+    }
+    for (const [method, path] of [
+      ['POST', '/v1/stickers'], ['GET', `/v1/stickers/${pack}.png`], ['DELETE', '/v1/accounts/me/admin/stickers/packs/not-a-pack'], ['GET', `/v1/accounts/me/admin/stickers/packs/${pack}`],
+      ['PUT', `/v1/accounts/me/admin/stickers/${pack}`], ['POST', `/v1/accounts/me/admin/stickers/packs/${pack}/stickers/1`],
+    ] as const) {
+      await expect(webServiceRequest(method, path, {})).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(9)
+  })
+
   it('screenshots: the player and the standalone owner app use their scoped routes', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ mime: 'image/png', data: 'iVBORw0KGgo=', width: 1, height: 1 }), { status: 200, headers: { 'content-type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
@@ -52,6 +104,25 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
       await expect(webServiceRequest('GET', path)).rejects.toThrow('Неизвестный запрос сервиса')
     }
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('phone transport: «Торговля» (server/src/routes/data.ts)', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+
+  it('the statistics of each mode go with the session and this device; another mode or method stays blocked', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ format: 1, rows: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    for (const mode of ['pvp', 'pve', 'seasonal']) expect(await webServiceRequest('GET', `/v1/data/trading/${mode}`)).toEqual({ format: 1, rows: [] })
+    const [url, init] = (fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[2]!
+    expect(url).toBe('https://raidos.app/v1/data/trading/seasonal')
+    expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${token}`)
+    for (const [method, path] of [['GET', '/v1/data/trading/arena'], ['POST', '/v1/data/trading/pvp'], ['GET', '/v1/data/trading/pvp-season']] as const) {
+      await expect(webServiceRequest(method, path)).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
 
@@ -119,5 +190,50 @@ describe('phone transport: «Изменить сумму» in the owner app (ser
       await expect(webServiceRequest(method, bad)).rejects.toThrow('Неизвестный запрос сервиса')
     }
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Owner, 03.11.2026: «иногда пишет, что связи нет… долго загружает».
+describe('phone transport: the owner app on a slow road to the server', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+
+  it('with a kept session the check is one request (the account), not /health and then the account', async () => {
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () => new Response(JSON.stringify({ email: 'owner@example.com', kind: 'user', owner: true }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const status = await webAdminAccountStatus()
+    expect([status.online, status.signedIn, status.owner]).toEqual([true, true, true])
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(['https://raidos.app/v1/accounts/me'])
+  })
+
+  it('an answer of the server is announced (the bar says «Сервер подключён»); a 502 of the proxy is no answer and worth one more try', async () => {
+    let status = 200
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ reports: [], total: 0, counts: { open: 0, closed: 0 } }), { status, headers: { 'content-type': 'application/json' } })))
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const answered = vi.fn()
+    const stop = onServerAnswer(answered)
+    await webServiceRequest('GET', '/v1/accounts/me/admin/bug-reports?status=open&limit=1&offset=0')
+    expect(answered).toHaveBeenCalledTimes(1)
+    status = 502
+    const refused = await webServiceRequest('GET', '/v1/accounts/me/admin/bug-reports?status=open&limit=1&offset=0').catch((error: unknown) => error)
+    expect(isServerUnavailable(refused)).toBe(true)
+    expect(answered).toHaveBeenCalledTimes(1)
+    expect(isServerUnavailable(Object.assign(new Error('Не найдено'), { status: 404 }))).toBe(false)
+    stop()
+  })
+
+  it('«Отчёты»: the table, the owner buttons and the wait for the next change go through, and nothing else of the kind', async () => {
+    const fetched = vi.fn(async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetched)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    await webServiceRequest('GET', '/v1/accounts/me/admin/bug-reports/table?view=active&limit=100')
+    await webServiceRequest('GET', '/v1/accounts/me/admin/requests/events?since=5')
+    await webServiceRequest('POST', '/v1/accounts/me/admin/bug-reports/12/work', { action: 'approve', plan: 'План' })
+    await webServiceRequest('POST', '/v1/accounts/me/admin/bug-reports/12/plan', { plan: 'План' })
+    expect(fetched).toHaveBeenCalledTimes(4)
+    await expect(webServiceRequest('GET', '/v1/accounts/me/admin/bug-reports/table?view=everything&limit=100')).rejects.toThrow()
+    await expect(webServiceRequest('POST', '/v1/accounts/me/admin/bug-reports/12/delete', {})).rejects.toThrow()
+    expect(fetched).toHaveBeenCalledTimes(4)
   })
 })

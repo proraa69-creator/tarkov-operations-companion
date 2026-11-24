@@ -29,7 +29,7 @@ export interface StoryAnswer { characterId: string | null; records: StoryRecord[
  * quest is kept; «Престиж +» / «Вайп» (resetMode) remove the older ones. The quest-state engine weighs it against the logs
  * (src/quests/questEngine.ts).
  */
-export interface ManualMarkRecord { taskId: string; status: 'active' | 'completed' | 'cleared'; at: string }
+export interface ManualMarkRecord { taskId: string; status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 export interface UserProgressResponse extends SyncResponse { scope: ProgressScope | null }
 
 type Row = Record<string, unknown>
@@ -123,18 +123,20 @@ export class ProgressStore {
   /**
    * «Престиж +», «Вайп», «Сброс» or a nickname change in the app: the account's copy of one mode is wiped — every quest
    * event, story chapter and manual mark older than `at` (clamped to the server's clock) and the character's reset — and
-   * the app sends every event of its logs again. No floor is kept (owner, 15.10.2026: «нужно что бы приложение находило
-   * все актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в игре нет»): only the game's
-   * own reset, reported from the logs, is one. Other modes are not touched.
+   * the app sends every event of its logs again. `floor` (owner, 04.11.2026: «Вайп или Престиж … он все проходит заново. То
+   * есть ему не нужны старые логи»; src/domain/progress.ts floorAfterReset) is kept as the character's reset: nothing older
+   * comes back, and the account's other devices hear it. Without one («Сброс», an older app) no floor is kept and the game's
+   * own reset is reported from the logs again. Other modes are not touched.
    */
-  resetMode(owner: string, mode: RaidMode, at: string, now = Date.now()): { resetAt: string; scope: ProgressScope | null } {
+  resetMode(owner: string, mode: RaidMode, at: string, now = Date.now(), floor?: string): { resetAt: string; scope: ProgressScope | null } {
     const latestAllowed = new Date(now + 60_000).toISOString()
     const resetAt = at > latestAllowed ? latestAllowed : at
+    const kept = floor ? (floor > latestAllowed ? latestAllowed : floor) : null
     transaction(this.db, () => {
       this.db.prepare('DELETE FROM quest_events WHERE owner=? AND mode=? AND occurred_at < ?').run(owner, mode, resetAt)
       this.db.prepare('DELETE FROM story_records WHERE owner=? AND mode=? AND updated_at < ?').run(owner, mode, resetAt)
       this.db.prepare('DELETE FROM manual_marks WHERE owner=? AND mode=? AND marked_at < ?').run(owner, mode, resetAt)
-      this.db.prepare('UPDATE progress_scopes SET reset_at = NULL WHERE owner=? AND mode=?').run(owner, mode)
+      this.db.prepare('UPDATE progress_scopes SET reset_at = ? WHERE owner=? AND mode=?').run(kept, owner, mode)
     })
     return { resetAt, scope: this.userRecords(owner, mode).scope }
   }
@@ -142,14 +144,16 @@ export class ProgressStore {
   /**
    * Story chapters of a character (`characterId`, else the one synced last in this mode): the readings sent are kept
    * when newer than the kept ones, readings from before the character's last reset are refused, and every kept one comes
-   * back. Without a character nothing is kept.
+   * back. Without a character nothing is kept. `onChange`: a reading was kept (a reading held back to the server's clock counts as
+   * newer at every sync, so it says nothing).
    */
-  syncStory(owner: string, mode: RaidMode, input: { characterId?: string; records: StoryRecord[] }, now = Date.now()): StoryAnswer {
+  syncStory(owner: string, mode: RaidMode, input: { characterId?: string; records: StoryRecord[] }, now = Date.now(), onChange?: () => void): StoryAnswer {
     const scope = this.scope(owner, mode)
     const characterId = input.characterId ?? scope?.characterId
     if (!characterId) return { characterId: null, records: [] }
     const resetAt = scope?.characterId === characterId ? scope.resetAt : undefined
     const latestAllowed = new Date(now + 60_000).toISOString()
+    let changed = false
     transaction(this.db, () => {
       const upsert = this.db.prepare(`INSERT INTO story_records (owner, mode, character_id, chapter_id, status, stage_id, updated_at) VALUES (?,?,?,?,?,?,?)
         ON CONFLICT(owner, mode, character_id, chapter_id) DO UPDATE SET status=excluded.status, stage_id=excluded.stage_id, updated_at=excluded.updated_at
@@ -158,19 +162,22 @@ export class ProgressStore {
         // A client clock far ahead must not make its reading «newer» than every other for good.
         const updatedAt = record.updatedAt > latestAllowed ? latestAllowed : record.updatedAt
         if (resetAt && updatedAt < resetAt) continue
-        upsert.run(owner, mode, characterId, record.chapterId, record.status, record.stageId ?? null, updatedAt)
+        const { changes } = upsert.run(owner, mode, characterId, record.chapterId, record.status, record.stageId ?? null, updatedAt)
+        if (Number(changes) && updatedAt === record.updatedAt) changed = true
       }
     })
+    if (changed) onChange?.()
     return this.storyRecords(owner, mode, characterId)
   }
 
   /**
    * Manual marks of one mode: those sent are kept when newer than the kept ones (a mark from before the mode's reset is
-   * refused), and every kept one comes back.
+   * refused), and every kept one comes back. `onChange`: a mark was kept, as in syncStory.
    */
-  syncManualMarks(owner: string, mode: RaidMode, marks: readonly ManualMarkRecord[], now = Date.now()): { marks: ManualMarkRecord[] } {
+  syncManualMarks(owner: string, mode: RaidMode, marks: readonly ManualMarkRecord[], now = Date.now(), onChange?: () => void): { marks: ManualMarkRecord[] } {
     const resetAt = this.scope(owner, mode)?.resetAt
     const latestAllowed = new Date(now + 60_000).toISOString()
+    let changed = false
     transaction(this.db, () => {
       const upsert = this.db.prepare(`INSERT INTO manual_marks (owner, mode, task_id, status, marked_at) VALUES (?,?,?,?,?)
         ON CONFLICT(owner, mode, task_id) DO UPDATE SET status=excluded.status, marked_at=excluded.marked_at
@@ -179,15 +186,17 @@ export class ProgressStore {
         // A client clock far ahead must not make its mark «newer» than every other for good.
         const at = mark.at > latestAllowed ? latestAllowed : mark.at
         if (resetAt && at < resetAt) continue
-        upsert.run(owner, mode, mark.taskId, mark.status, at)
+        const { changes } = upsert.run(owner, mode, mark.taskId, mark.status, at)
+        if (Number(changes) && at === mark.at) changed = true
       }
     })
+    if (changed) onChange?.()
     return { marks: this.manualMarks(owner, mode) }
   }
 
   manualMarks(owner: string, mode: RaidMode): ManualMarkRecord[] {
     const rows = this.db.prepare('SELECT task_id, status, marked_at FROM manual_marks WHERE owner=? AND mode=? ORDER BY task_id').all(owner, mode) as Row[]
-    return rows.map((row) => ({ taskId: String(row.task_id), status: row.status === 'completed' ? 'completed' : row.status === 'active' ? 'active' : 'cleared', at: String(row.marked_at) }))
+    return rows.map((row) => ({ taskId: String(row.task_id), status: row.status === 'completed' ? 'completed' : row.status === 'active' ? 'active' : row.status === 'absent' ? 'absent' : 'cleared', at: String(row.marked_at) }))
   }
 
   storyRecords(owner: string, mode: RaidMode, characterId = this.scope(owner, mode)?.characterId): StoryAnswer {

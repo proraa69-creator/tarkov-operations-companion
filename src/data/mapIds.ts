@@ -18,6 +18,10 @@ export const MAP_DISPLAY_NAMES: Record<string, string> = {
 
 const MAP_ID_ALIASES: Record<string, string> = {
   'night-factory': 'factory',
+  // «Заражённый завод» (Halloween event, tarkov.dev infected-factory: no map picture, no exits) is drawn as our Factory
+  // map (owner, 01.11.2026: «на карте зараженный завод показывай нашу карту завода»).
+  'infected-factory': 'factory',
+  factory4_infected: 'factory',
   'factory-night': 'factory',
   factory4: 'factory',
   factory4_day: 'factory',
@@ -29,6 +33,10 @@ const MAP_ID_ALIASES: Record<string, string> = {
   labs: 'the-lab',
   'the-lab-dark': 'the-lab',
   'laboratory-dark': 'the-lab',
+  // «Заражённая лаборатория» (Halloween 2026) the same way: the points of its quests on our Lab map (owner, 02.11.2026:
+  // «ставь точки на обычных картах»)
+  'infected-lab': 'the-lab',
+  laboratory_infected: 'the-lab',
   labyrinth: 'the-labyrinth',
   tarkovstreets: 'streets-of-tarkov',
   streets: 'streets-of-tarkov',

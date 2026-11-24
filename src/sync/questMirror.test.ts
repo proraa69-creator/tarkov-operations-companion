@@ -34,6 +34,9 @@ describe('quest mirror (the PC\'s quests on the phone)', () => {
     expect(shown.q9).toBeUndefined()
     expect(shown.q2).toMatchObject({ status: 'completed', source: 'manual-fix' })
     expect(mirroredTaskProgress(progress, null)).toBe(progress.taskProgress)
+    // «У меня нет этого квеста» on this device, after the copy: the quest is not shown.
+    const withoutIt = mirroredTaskProgress({ taskProgress: {}, questInputs: { log: {}, server: {}, manual: { gone: { status: 'absent', at: new Date(Date.parse(mirror.at) + 1000).toISOString() } }, table: {}, story: {}, legacy: {} } }, { ...mirror, records: { ...mirror.records, gone: { taskId: 'gone', status: 'active', source: 'eft-log', updatedAt: mirror.at } } })
+    expect(withoutIt.gone).toBeUndefined()
   })
 
   it('holds copies per account and drops them for another account', () => {

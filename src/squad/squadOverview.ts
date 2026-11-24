@@ -5,6 +5,7 @@
  * are identified by tarkov.dev taskId / objectiveId.
  */
 import type { Quest } from '../domain/types'
+import { requirementObjectiveIds } from '../raidprep/objectives'
 
 export const SQUAD_MAX_MEMBERS = 5
 
@@ -71,7 +72,8 @@ export function doneObjectives(member: Pick<SquadMemberQuests, 'objectives'>, qu
 export function questItemNeeds(quest: Quest, done: ReadonlySet<string> = new Set()) {
   const needs = new Map<string, { count: number; foundInRaid: boolean }>()
   for (const requirement of quest.raidRequirements ?? []) {
-    if (!requirement.itemId || (requirement.objectiveId && done.has(requirement.objectiveId))) continue
+    const objectives = requirementObjectiveIds(requirement)
+    if (!requirement.itemId || (objectives.length && objectives.every((objectiveId) => done.has(objectiveId)))) continue
     const entry = needs.get(requirement.itemId) ?? { count: 0, foundInRaid: false }
     entry.count += Math.max(1, requirement.count || 1)
     entry.foundInRaid ||= requirement.foundInRaid === true

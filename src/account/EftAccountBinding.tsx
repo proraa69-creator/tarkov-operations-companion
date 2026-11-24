@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
-import { detectedEftAccount, EFT_IN_USE_TEXT, EFT_OTHER_TEXT, EFT_REPORT_PATH, subscribeEftAccount } from './eftAccountLink'
+import { detectedEftAccounts, EFT_IN_USE_TEXT, EFT_OTHER_TEXT, reportEftAccounts, subscribeEftAccount } from './eftAccountLink'
 import './paywall.css'
 
 /**
@@ -11,9 +11,12 @@ import './paywall.css'
  * PC (one game account — one Raid OS account) the app locks with the reason (Paywall.tsx EftLock). The notice below is
  * only for a refusal that did not lock the app (a session without a registered device).
  */
+const NONE: readonly number[] = []
+
 export function EftAccountBinding() {
   const { status } = useServerAccount()
-  const accountId = useSyncExternalStore(subscribeEftAccount, detectedEftAccount, () => undefined)
+  const accounts = useSyncExternalStore(subscribeEftAccount, detectedEftAccounts, () => NONE)
+  const accountId = accounts.join(',')
   const [refused, setRefused] = useState<{ key: string; text: string } | null>(null)
   const [dismissed, setDismissed] = useState('')
   const sent = useRef('')
@@ -21,21 +24,19 @@ export function EftAccountBinding() {
 
   useEffect(() => {
     const request = window.tarkovDesktop?.serviceRequest
-    if (!request || !email || accountId === undefined) return
+    if (!request || !email || !accounts.length) return
     const key = `${email}:${accountId}`
     if (sent.current === key) return
     sent.current = key
-    request('POST', EFT_REPORT_PATH, { accountId: String(accountId) })
-      .then(() => { setRefused((current) => (current?.key === key ? null : current)); void refreshServerStatus() })
-      .catch((error: unknown) => {
-        const message = cleanIpcError(error)
-        if (/уже используется/i.test(message)) setRefused({ key, text: EFT_IN_USE_TEXT })
-        else if (/привязан другой аккаунт/i.test(message)) setRefused({ key, text: EFT_OTHER_TEXT })
-        // Offline or a server without the route yet: try again with the next sign-in or game account.
-        else { sent.current = ''; return }
-        void refreshServerStatus()
-      })
-  }, [email, accountId])
+    // every game account of the logs in turn, the newest first, until the server takes one (eftAccountLink.ts)
+    void reportEftAccounts(request, accounts, cleanIpcError).then((result) => {
+      if ('taken' in result) setRefused((current) => (current?.key === key ? null : current))
+      else if ('refused' in result) setRefused({ key, text: /уже используется/i.test(result.refused) ? EFT_IN_USE_TEXT : EFT_OTHER_TEXT })
+      // Offline or a server without the route yet: try again with the next sign-in or game account.
+      else { sent.current = ''; return }
+      void refreshServerStatus()
+    })
+  }, [email, accountId, accounts])
 
   if (!refused || dismissed === refused.key || !email || refused.key !== `${email}:${accountId}`) return null
   return (

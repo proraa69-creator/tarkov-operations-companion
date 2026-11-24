@@ -146,11 +146,11 @@ function PhoneApprove({ link, onClose }: { link: Extract<AccountDeepLink, { kind
 
   const place = info ? describePlace(info, locale) : ''
   return (
-    <Frame label={uiText('Подтвердить вход на сайте')} icon={<Globe size={28} />} onClose={onClose}>
-      <div className="eyebrow">{uiText('Сайт · вход по QR-коду')}</div>
-      <h2>{uiText(done ? 'Готово' : 'Подтвердить вход на сайте')}</h2>
+    <Frame label={uiText('Подтвердить вход')} icon={<Globe size={28} />} onClose={onClose}>
+      <div className="eyebrow">{uiText('Вход по QR-коду')}</div>
+      <h2>{uiText(done ? 'Готово' : 'Подтвердить вход')}</h2>
       {!signedIn && <p className="muted">{uiText('Сначала войдите в аккаунт в этом приложении (Ещё → Настройки), затем отсканируйте QR-код ещё раз.')}</p>}
-      {signedIn && !done && <p className="muted">{uiText('Браузер просит войти в ваш аккаунт')} {status?.email}</p>}
+      {signedIn && !done && <p className="muted">{uiText('Компьютер или браузер просит войти в ваш аккаунт')} {status?.email}</p>}
       {info && !done && (
         <div className="account-approve-info">
           <strong>{describeAgent(info.agent)}</strong>
@@ -166,7 +166,7 @@ function PhoneApprove({ link, onClose }: { link: Extract<AccountDeepLink, { kind
         </label>
       )}
       {signedIn && !done && complete && !matches && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText('Код не совпадает. Введите код, который показан под QR-кодом на экране, где вы входите.')}</span></div>}
-      {done && <div className="import-note" role="status"><Check size={14} />{uiText('Готово: браузер вошёл в ваш аккаунт.')}</div>}
+      {done && <div className="import-note" role="status"><Check size={14} />{uiText('Готово: устройство вошло в ваш аккаунт.')}</div>}
       {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
       {signedIn && !done && info && (
         <div className="account-approve-actions">

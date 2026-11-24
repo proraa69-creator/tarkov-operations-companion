@@ -124,7 +124,9 @@ export const SQUAD_PHRASES: Array<[string, string]> = [
   ['Нужен другу или участнику отряда', 'A friend or squad mate needs this'],
   // «План рейда» for the group and friends' quest points on the map (owner, 12.10.2026)
   ['Заданий группы на карте', "The group's quests on this map"],
-  ['Квесты друзей', "Friends' quests"], ['Заданий на этой карте', 'Quests on this map'],
+  ['Квесты друзей', "Friends' quests"], ['Квесты отряда', 'Squad quests'], ['Квесты отряда их цветами', 'Squad quests in their colours'], ['Квесты друзей их цветами', "Friends' quests in their colours"], ['Нет друзей с открытым прогрессом', 'No friends sharing progress'],
+  ['Настройки отряда', 'Squad settings'], ['Местоположение отряда', 'Squad positions'], ['Скриншот в рейде — тиммейты видят вас на карте, вы их', "A screenshot in raid shows you on your teammates' map, and them on yours"], ['Зарисовки отряда', 'Squad drawings'], ['Рисунок на карте после ✓ видят тиммейты, вы их', "A drawing kept with ✓ shows on your teammates' map, and theirs on yours"], ['Кнопка «Квесты отряда» над картой', 'The «Squad quests» button over the map'], ['Рисунки отряда', 'Squad drawings'], ['Убрать рисунок', 'Remove the drawing of'], ['Рисунок', 'Drawing by'], ['В отряде', 'In squad'], ['В отряд', 'To squad'], ['Приглашение в отряд отправлено: друг увидит его на странице «Отряд».', 'Squad invitation sent: your friend will see it on the «Squad» page.'], ['Не удалось создать отряд', 'Could not create a squad'], ['Заданий на этой карте', 'Quests on this map'],
+  ['Нет друзей с открытым прогрессом и отряда', 'No friends sharing progress and no squad'], ['Квесты друзей и отряда их цветами', "Friends' and squad quests in their colours"],
   ['Никто из друзей пока не открыл свой прогресс', 'None of your friends shares their progress yet'],
   ['Точки заданий друзей их цветами из раздела «Друзья»', "Friends' quest points in their colours from «Friends»"],
   // «Информация о друге» (src/squad/FriendInfoDialog.tsx)
@@ -133,7 +135,7 @@ export const SQUAD_PHRASES: Array<[string, string]> = [
   ['Загружаем профиль…', 'Loading the profile…'], ['Друг скрыл от вас прогресс — уровни не показываются.', 'Your friend hides their progress from you, so the levels are not shown.'],
   ['Престиж', 'Prestige'], ['Без престижа', 'No prestige'],
   // Under each level: «обновлено 13.10.2026» ('обновлено' is in uiEnglish.ts) and where the level came from.
-  ['Из приложения друга', "From your friend's app"], ['Из публичного профиля Tarkov.dev', 'From the public Tarkov.dev profile'],
+  ['Из приложения друга', "From your friend's app"], ['Из публичного профиля игрока', "From the player's public profile"],
   // Server answers (server/src/routes/squads.ts, friends.ts and their stores).
   ['Отряд доступен с активной подпиской', 'The squad needs an active subscription'],
   ['Друзья и общий прогресс доступны с активной подпиской', 'Friends and shared progress need an active subscription'],

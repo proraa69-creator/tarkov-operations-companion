@@ -39,8 +39,8 @@ async function openOverview(page: Page, locale: 'ru' | 'en', viewport: { width: 
     localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: saved.id, profiles: [saved] }))
     localStorage.setItem('tarkov-operations-ui-v2', JSON.stringify({ selectedMapId: 'streets-of-tarkov' }))
     localStorage.setItem('tarkov-operations-locale-v1', lang)
-    // The one-off «Сбор на рейд» tip (src/onboarding/RaidLoadoutTip.tsx) is accepted: it would cover the card.
-    localStorage.setItem('raidos-raid-loadout-tip-v1', 'seen')
+    // No tips about the functions (src/onboarding/tours.ts): they would cover the card.
+    localStorage.setItem('raidos-feature-tours-v1', JSON.stringify({ choice: 'no', since: '0', seen: ['news:deferred-quests'] }))
   }, { saved: { ...profile, modes: { ...profile.modes, pvp } }, lang: locale })
   await page.setViewportSize(viewport)
   await page.goto(path)
@@ -60,9 +60,9 @@ for (const locale of ['ru', 'en'] as const) {
     // the English catalog lends its names once loaded
     if (locale === 'en') await expect(page.locator('.current-tasks')).toContainText('Job for a Patriot', { timeout: 45_000 })
     await page.waitForLoadState('networkidle')
-    // the card keeps the stats row's height: as tall as «Текущие задания» beside it
+    // the card keeps the stats row's height: as tall as «Экран» beside it
     await expect.poll(async () => {
-      const [cardBox, tasksBox] = await Promise.all([card.boundingBox(), page.locator('[data-block="stat-tasks"] .stat-card').boundingBox()])
+      const [cardBox, tasksBox] = await Promise.all([card.boundingBox(), page.locator('[data-block="stat-screen"] .stat-card').boundingBox()])
       return cardBox && tasksBox ? Math.abs(cardBox.height - tasksBox.height) : Infinity
     }).toBeLessThan(2)
     await page.waitForTimeout(400)
@@ -153,7 +153,7 @@ test('«Сбор на рейд» on the phone width: beside «Текущие з�
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   // «Текущие задания» and this card share the first row
   await expect.poll(async () => {
-    const [cardBox, tasksBox] = await Promise.all([card.boundingBox(), page.locator('[data-block="stat-tasks"] .stat-card').boundingBox()])
+    const [cardBox, tasksBox] = await Promise.all([card.boundingBox(), page.locator('[data-block="stat-screen"] .stat-card').boundingBox()])
     return cardBox && tasksBox ? Math.abs(cardBox.y - tasksBox.y) : Infinity
   }).toBeLessThan(2)
   await page.waitForTimeout(400)

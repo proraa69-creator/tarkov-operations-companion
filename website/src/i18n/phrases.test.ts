@@ -4,9 +4,10 @@ import { CABINET_PHRASES } from './phrasesCabinet'
 import { LAYOUT_PHRASES } from './phrasesLayout'
 import { LEGAL_PHRASES } from './phrasesLegal'
 import { PUBLIC_PHRASES } from './phrasesPublic'
+import { PROMO_SITE_PHRASES } from './phrasesPromoSite'
 import { setSiteLocale, tr } from '.'
 
-const LISTS = { LAYOUT_PHRASES, PUBLIC_PHRASES, AUTH_PHRASES, CABINET_PHRASES, LEGAL_PHRASES }
+const LISTS = { LAYOUT_PHRASES, PUBLIC_PHRASES, AUTH_PHRASES, CABINET_PHRASES, LEGAL_PHRASES, PROMO_SITE_PHRASES }
 
 describe('website English phrases', () => {
   it('give one English text per Russian phrase, with the same placeholders and no Cyrillic', () => {

@@ -62,7 +62,7 @@ describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
     await user.click(screen.getByRole('checkbox', { name: /Я принимаю условия публичной оферты/ }))
     await user.click(go)
     await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith('https://pay.bezebee.com/iPnQLAib'))
-    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '6m', LEGAL_VERSION, false, undefined)
+    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '6m', LEGAL_VERSION, false, undefined, false)
   })
 
   it('the rest of the world in dollars; an invited account pays its first month at the friend price, as with ЮKassa', async () => {
@@ -80,7 +80,21 @@ describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
     await user.click(screen.getByRole('checkbox', { name: /Я принимаю условия публичной оферты/ }))
     await user.click(screen.getByRole('button', { name: 'Перейти к оплате' }))
     await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith('https://pay.bezebee.com/Xw98gnXM'))
-    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '1m', LEGAL_VERSION, true, undefined)
+    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '1m', LEGAL_VERSION, true, undefined, false)
+  })
+
+  it('the CIS price by a foreign card (owner, 02.11.2026): dollars, and the page asked for with `card`', async () => {
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...realLocation, assign: mocks.assign } })
+    mocks.bezebeeLink.mockResolvedValue({ url: 'https://pay.bezebee.com/H7uHXCvY', plan: '1m' })
+    const user = userEvent.setup()
+    const { container } = render(<MemoryRouter><BezebeePlans card region="CIS" plans={[{ plan: '1m', months: 1, price: 3.5 }, { plan: '3m', months: 3, price: 9.5 }]} currency="USD" /></MemoryRouter>)
+    expect(container).toHaveTextContent('Иностранной картой — в долларах США')
+    expect(container).not.toHaveTextContent('СНГ')
+    await user.click(screen.getByRole('button', { name: 'Оплатить 1 месяц' }))
+    await user.click(screen.getByRole('checkbox', { name: /Я принимаю условия публичной оферты/ }))
+    await user.click(screen.getByRole('button', { name: 'Перейти к оплате' }))
+    await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith('https://pay.bezebee.com/H7uHXCvY'))
+    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '1m', LEGAL_VERSION, false, undefined, true)
   })
 
   it('in English', async () => {

@@ -3,6 +3,7 @@ import { LoaderCircle, MapPinned, Power } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { parseFeatures, setRemoteFeatures, useRemoteFeatures, type RemoteFeatures } from '../announcement/features'
 import type { AdminRequest } from './ownerAccess'
+import { AdminQuestScanGrant } from './AdminQuestScanGrant'
 
 export const FEATURES_PATH = '/v1/accounts/me/admin/features'
 
@@ -80,6 +81,7 @@ export function AdminFeaturesSection({ request }: { request: AdminRequest }) {
             </div>
           )
         })}
+        <AdminQuestScanGrant request={request} />
         {changedAt && <small className="dim">{uiLabel('Последнее изменение')}: {new Date(changedAt).toLocaleString()}</small>}
         <small className="dim">{uiLabel('Приложения игроков узнают о переключении в течение нескольких минут или сразу, когда окно снова в фокусе.')}</small>
         {error && <p className="owner-notices-error" role="alert">{uiLabel(error)}</p>}

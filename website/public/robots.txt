@@ -12,7 +12,12 @@ Disallow: /r/
 Disallow: /streamer/
 Disallow: /squad/
 Disallow: /friend/
-Disallow: /download/
+# The files, not the «Скачать» page (/download): the page is indexed (25.10.2026).
+Disallow: /download/windows
+Disallow: /download/version.json
+Disallow: /downloads/
+Disallow: /app-delta/
+Disallow: /api/
 Disallow: /v1/
 
 Sitemap: https://raidos.app/sitemap.xml

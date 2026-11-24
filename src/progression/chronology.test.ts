@@ -98,6 +98,22 @@ describe('quest chronology', () => {
     expect(availability.get('prapor-debut')?.status).toBe('unknown')
   })
 
+  it('the traders\' screen\'s loyalty lifts a «may be open» quest to open, and a lower reading never locks one (02.11.2026)', () => {
+    const quests = [
+      ...Object.values(olderThanLogs),
+      quest('invasive', line('therapist-3', 3, 3)),
+      quest('decontamination', { traderLoyalty: { needed: [{ traderId: 'therapist', level: 4 }], reached: [] } }),
+    ]
+    const progress = progressOf({ invasive: logged('active'), veteran: logged('active') }, { faction: 'bear' })
+    expect(calculateAvailability(quests, progress).get('decontamination')?.status).toBe('unknown')
+    // The screen shows Therapist at IV (a crown): the quest is open.
+    expect(calculateAvailability(quests, progress, new Map([['therapist', 4]])).get('decontamination')).toEqual({ status: 'available', blockers: [] })
+    // A reading of III (old, or misread) changes nothing: still «may be open», never locked.
+    expect(calculateAvailability(quests, progress, new Map([['therapist', 3]])).get('decontamination')?.status).toBe('unknown')
+    // Another trader's reading says nothing about Therapist.
+    expect(calculateAvailability(quests, progress, new Map([['prapor', 4]])).get('decontamination')?.status).toBe('unknown')
+  })
+
   it('never dates the «Оружейник» parts (logs only)', () => {
     const quests = [
       ...Object.values(olderThanLogs),

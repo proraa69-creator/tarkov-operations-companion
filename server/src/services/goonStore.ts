@@ -29,8 +29,8 @@ export interface GoonSightingView { mapId: GoonMapId; reportedAt: string; nickna
 
 export interface GoonMapStat { mapId: GoonMapId; count: number; lastAt: string }
 export interface GoonSnapshot { latest: GoonSightingView | null; last5h: GoonMapStat[]; recent: GoonSightingView[] }
-/** How many of the newest sightings (last 5 hours) the snapshot lists with their nicknames. */
-export const GOON_RECENT_LIMIT = 8
+/** How many of the newest sightings (the day kept) the snapshot lists with their nicknames. */
+export const GOON_RECENT_LIMIT = 20
 
 /** Storage contract so the in-memory store can later be swapped for SQLite/Redis without touching the routes. */
 export interface GoonStore {
@@ -46,15 +46,23 @@ export interface GoonStore {
 }
 
 export const GOON_RETENTION_MS = 24 * 60 * 60 * 1000
-export const GOON_STATS_WINDOW_MS = 5 * 60 * 60 * 1000
+/**
+ * The counts and the «кто видел» list cover the whole day kept, no longer 5 hours (owner, 16.11.2026: «нужно, чтобы показывало
+ * всегда, даже если больше 5 часов прошло… По прошествию суток записи удаляются… отметок нет… А так пишется список, кто
+ * во сколько видел»). The answer's field keeps its old name `last5h` for the apps already out.
+ */
+export const GOON_STATS_WINDOW_MS = GOON_RETENTION_MS
 
 export class MemoryGoonStore implements GoonStore {
-  /** Kept sorted oldest → newest because entries are appended with server time. */
+  /** Kept sorted oldest → newest (by `reportedAt`). */
   private sightings: GoonSighting[] = []
   constructor(private readonly maxEntries = 50_000) {}
 
   add(sighting: GoonSighting) {
-    this.sightings.push(sighting)
+    // A sighting from another tracker (services/goonFeeds.ts) can be older than the newest one: kept in time order.
+    let at = this.sightings.length
+    while (at > 0 && this.sightings[at - 1]!.reportedAt > sighting.reportedAt) at -= 1
+    this.sightings.splice(at, 0, sighting)
     if (this.sightings.length > this.maxEntries) this.sightings.splice(0, this.sightings.length - this.maxEntries)
   }
 
@@ -135,8 +143,31 @@ export class SqliteGoonStore implements GoonStore {
 }
 
 /**
- * Latest sighting ever kept (24 h), per-map counts for the last 5 hours (most reported first) and the newest sightings
- * of those 5 hours with the nickname of who saw them — his account's current one for the mode when `nicknameOf` knows it.
+ * One nickname's repeats are not shown (owner, 17.11.2026: «Если один и тот же ник спамит… в течение 50 минут, показывает
+ * только первое отмеченное… а остальные не показывает»): after a shown sighting of a nickname (or of an account), the
+ * nickname's next ones within 50 minutes are left out — on any map. A sighting without a nickname is matched by who sent
+ * it and the map. Newest first in, newest first out.
+ */
+export const GOON_REPEAT_WINDOW_MS = 50 * 60_000
+
+export function withoutRepeats(entries: readonly GoonSighting[]): GoonSighting[] {
+  const shownAt = new Map<string, number>()
+  const kept: GoonSighting[] = []
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]!
+    const key = entry.account ? `account:${entry.account}` : entry.nickname ? `nick:${entry.nickname.toLowerCase()}` : `who:${entry.reporter}:${entry.mapId}`
+    const time = Date.parse(entry.reportedAt)
+    const previous = shownAt.get(key)
+    if (previous !== undefined && time - previous < GOON_REPEAT_WINDOW_MS) continue
+    shownAt.set(key, time)
+    kept.push(entry)
+  }
+  return kept.reverse()
+}
+
+/**
+ * Latest sighting ever kept (24 h), per-map counts for that day (most reported first) and the newest sightings
+ * of it with the nickname of who saw them — his account's current one for the mode when `nicknameOf` knows it.
  */
 export function summarizeGoons(store: GoonStore, mode: GoonMode, nowMs: number, nicknameOf?: GoonNicknameOf): GoonSnapshot {
   const viewOf = (entry: GoonSighting): GoonSightingView => {
@@ -144,7 +175,7 @@ export function summarizeGoons(store: GoonStore, mode: GoonMode, nowMs: number, 
     const nickname = current === undefined ? entry.nickname : current ?? undefined
     return { mapId: entry.mapId, reportedAt: entry.reportedAt, ...(nickname ? { nickname } : {}) }
   }
-  const day = store.list(mode, nowMs - GOON_RETENTION_MS)
+  const day = withoutRepeats(store.list(mode, nowMs - GOON_RETENTION_MS))
   const latest = day[0] ? viewOf(day[0]) : null
   const recent = day.filter((entry) => Date.parse(entry.reportedAt) >= nowMs - GOON_STATS_WINDOW_MS).slice(0, GOON_RECENT_LIMIT).map(viewOf)
   const stats = new Map<GoonMapId, GoonMapStat>()

@@ -1,70 +1,60 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Palette } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { THEMES, THEME_CHANGED_EVENT, applyAppearance, currentTheme, saveAppearance } from '../theme/theme'
+import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, currentTheme, saveAppearance } from '../theme/theme'
+import { prepareTheme, type ThemeOrigin } from '../theme/themeTransition'
 import '../styles/themePicker.css'
 import { StitchChooser } from '../theme/alcantara/StitchChooser'
+import { SettingHelp } from './SettingHelp'
+import { StyleSwitch } from '../theme/StyleSwitch'
 
 /** Thumbnails of the real interface in every theme (scripts/theme-previews.mjs). */
 const previews = import.meta.glob<string>('../assets/theme-previews/*.webp', { eager: true, import: 'default' })
 const previewOf = (id: string) => previews[`../assets/theme-previews/${id}.webp`]
 
 /**
- * Settings → «Цветовая схема». «Выбрать» slides the block open; a click on a scheme puts it on at once (a preview) and
- * the button turns into «ОК», which keeps the scheme and slides the block shut. Leaving the page without «ОК» brings
- * the saved scheme back.
+ * Settings → «Цветовая схема». «Выбрать» slides the block open; a click on a scheme puts it on and keeps it at once
+ * (owner, 01.11.2026: «когда выбираешь тему и переходишь на другую вкладку выбранная тобою тема не сохраняется» — it
+ * used to be a preview kept only by «ОК»); «Готово» slides the block shut.
  */
 export function ThemePicker() {
-  const [saved, setSaved] = useState(currentTheme)
+  const [shown, setShown] = useState(currentTheme)
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<string | null>(null)
-  const draftRef = useRef(draft)
-  useEffect(() => { draftRef.current = draft }, [draft])
 
   useEffect(() => {
-    // the top-bar button or the server sync changed the scheme: that one wins over an unconfirmed preview
-    const sync = () => { setSaved(currentTheme()); setDraft(null) }
+    // the top-bar button or the server sync changed the scheme
+    const sync = () => setShown(currentTheme())
     window.addEventListener(THEME_CHANGED_EVENT, sync)
-    return () => {
-      window.removeEventListener(THEME_CHANGED_EVENT, sync)
-      if (draftRef.current) applyAppearance(currentTheme())
-    }
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync)
   }, [])
 
-  const shown = draft ?? saved
-  const shownLabel = THEMES.find((theme) => theme.id === shown)?.label ?? ''
-  const confirming = open && draft !== null
+  const shownLabel = shown === DAY_NIGHT_THEME.id ? DAY_NIGHT_THEME.label : THEMES.find((theme) => theme.id === shown)?.label ?? ''
 
-  const pick = (id: string) => {
-    setDraft(id)
-    applyAppearance(id)
+  const pick = (id: string, origin?: ThemeOrigin) => {
+    saveAppearance(id, { origin })
+    setShown(id)
+    window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
   }
-  const press = () => {
-    if (!open) { setOpen(true); return }
-    if (draft !== null) {
-      draftRef.current = null
-      saveAppearance(draft)
-      setSaved(draft)
-      setDraft(null)
-      window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
-    }
-    setOpen(false)
-  }
+  const press = () => setOpen((value) => !value)
 
   return (
     <div className="theme-chooser">
+      <div className="setting-row theme-style-row">
+        <span><strong>{uiText('Стиль')}<SettingHelp id="style" /></strong><small>{uiText('Обычный или стеклянный, для любой цветовой схемы')}</small></span>
+        <StyleSwitch />
+      </div>
       <div className="setting-row theme-chooser-row">
         <span>
-          <strong>{uiText('Цветовая схема')}</strong>
+          <strong>{uiText('Цветовая схема')}<SettingHelp id="theme" /></strong>
           <small>{uiText('Оформление оболочки приложения')}</small>
           <span className="theme-chooser-current">
             {previewOf(shown) && <img src={previewOf(shown)} alt="" width={40} height={24} />}
             {uiText(shownLabel)}
           </span>
         </span>
-        <button type="button" className={`button small theme-chooser-button${confirming ? ' primary' : ''}`} aria-expanded={open} aria-controls="theme-chooser-grid" onClick={press}>
-          {confirming ? <Check size={14} /> : <Palette size={14} />}
-          {confirming ? uiText('ОК') : uiText('Выбрать')}
+        <button type="button" className={`button small theme-chooser-button${open ? ' primary' : ''}`} aria-expanded={open} aria-controls="theme-chooser-grid" onClick={press}>
+          {open ? <Check size={14} /> : <Palette size={14} />}
+          {open ? uiText('Готово') : uiText('Выбрать')}
         </button>
       </div>
       {shown === 'alcantara' && <StitchChooser />}
@@ -75,7 +65,7 @@ export function ThemePicker() {
               const active = shown === option.id
               const url = previewOf(option.id)
               return (
-                <button key={option.id} type="button" role="radio" aria-checked={active} className={`theme-card${active ? ' is-active' : ''}`} onClick={() => pick(option.id)} title={uiText(option.label)}>
+                <button key={option.id} type="button" role="radio" aria-checked={active} className={`theme-card${active ? ' is-active' : ''}`} onPointerEnter={() => prepareTheme(option.id)} onFocus={() => prepareTheme(option.id)} onClick={(event) => pick(option.id, event.currentTarget)} title={uiText(option.label)}>
                   <span className="theme-card-shot">
                     {url
                       ? <img src={url} alt="" width={200} height={120} loading="lazy" draggable={false} />
@@ -87,7 +77,7 @@ export function ThemePicker() {
               )
             })}
           </div>
-          <p className="theme-chooser-hint">{uiText(draft !== null ? 'Схема включена для просмотра. Нажмите «ОК», чтобы оставить её.' : 'Нажмите на схему — она сразу применится.')}</p>
+          <p className="theme-chooser-hint">{uiText('Нажмите на схему — она сразу применится и сохранится.')}</p>
         </div>
       </div>
     </div>

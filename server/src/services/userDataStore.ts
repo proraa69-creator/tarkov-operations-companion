@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { transaction } from './database.js'
 import type { RaidMode } from '../models/api.js'
 
 export interface StoredPosition {
@@ -16,6 +17,11 @@ export interface StoredPosition {
 export interface CollectorState { itemIds: string[]; updatedAt: string | null }
 /** «Убежище»: item id → pieces the player marked as found for the hideout. */
 export interface HideoutState { found: Record<string, number>; updatedAt: string | null }
+/**
+ * Item counts per account and mode besides the hideout's (owner, 31.10.2026): 'quests' — pieces the player put aside for
+ * the quests («Квесты» next to «Убежище»); 'stash' — what the last screen scan saw in the stash, for «Не нужны».
+ */
+export type ItemCountKind = 'quests' | 'stash'
 export interface SettingsState { settings: Record<string, unknown>; updatedAt: string | null }
 /**
  * The quest decisions of the account's PC as it shows them (src/sync/questMirror.ts), per mode: the phone shows the same.
@@ -38,12 +44,45 @@ export interface SharedLevel {
 }
 export type SharedLevels = Partial<Record<RaidMode, SharedLevel>>
 
+/**
+ * «Отложенные квесты» of one quest, as the account's devices exchange them (owner, 04.11.2026; a player's report: closed on
+ * the PC, still shown on the phone): put aside (with its term, if any) or returned, and when. Newest per quest wins.
+ */
+export interface DeferredQuestRecord {
+  taskId: string
+  status: 'deferred' | 'returned'
+  at: string
+  until?: string
+  level?: number
+  loyalty?: { traderId: string; trader: string; level: number }
+}
+/** Quests a list of one account and mode keeps: more than the game has, a bound against a client filling the table. */
+const DEFERRED_KEPT = 2000
+
 type Row = Record<string, unknown>
 
 /**
  * Small per-user documents: the Collector checklist, the latest position and the level the desktop app shared (per mode)
  * and the app settings blob. Only the latest position per user and mode is kept; nothing else about the raid is stored.
  */
+/**
+ * A list as the account holds it, with what one device changed since it last agreed with the server (`base`) on top: another device's
+ * change stays. `base` empty: the device's first time, it adds what it has and takes nothing away.
+ */
+export function mergedList(stored: readonly string[], local: readonly string[], base: readonly string[]) {
+  const before = new Set(base)
+  const mine = new Set(local)
+  return [...new Set([...stored.filter((id) => mine.has(id) || !before.has(id)), ...local.filter((id) => !before.has(id))])]
+}
+
+/** The same for item counts: an item this device changed takes its count, one it took off goes. */
+export function mergedCounts(stored: Readonly<Record<string, number>>, local: Readonly<Record<string, number>>, base: Readonly<Record<string, number>>) {
+  const merged: Record<string, number> = { ...stored }
+  for (const id of Object.keys(base)) if (!(id in local)) delete merged[id]
+  for (const [id, count] of Object.entries(local)) if (base[id] !== count) merged[id] = count
+  return merged
+}
+
 export class UserDataStore {
   constructor(private readonly db: DatabaseSync) {
     db.exec(`CREATE TABLE IF NOT EXISTS user_collector (
@@ -52,6 +91,9 @@ export class UserDataStore {
       CREATE TABLE IF NOT EXISTS user_hideout (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         found TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
+      CREATE TABLE IF NOT EXISTS user_item_counts (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), kind TEXT NOT NULL CHECK (kind IN ('quests','stash')),
+        found TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, mode, kind));
       CREATE TABLE IF NOT EXISTS user_quest_mirror (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         records TEXT NOT NULL, at TEXT NOT NULL, received_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
@@ -64,7 +106,12 @@ export class UserDataStore {
       CREATE TABLE IF NOT EXISTS user_levels (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         level INTEGER NOT NULL, prestige INTEGER, observed_at TEXT NOT NULL, received_at TEXT NOT NULL,
-        PRIMARY KEY(account_id, mode));`)
+        PRIMARY KEY(account_id, mode));
+      CREATE TABLE IF NOT EXISTS user_deferred_quests (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), task_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('deferred','returned')), term TEXT, at TEXT NOT NULL, PRIMARY KEY(account_id, mode, task_id));
+      CREATE TABLE IF NOT EXISTS user_deferred_resets (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), reset_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));`)
     db.exec(`CREATE TABLE IF NOT EXISTS user_game_mode (
         account_id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), at TEXT NOT NULL, received_at TEXT NOT NULL)`)
     // 0.6.0.77: the copy carries the level, faction, prestige and tracked quests too (a table of 0.6.0.75 has no column).
@@ -74,6 +121,12 @@ export class UserDataStore {
 
   /** The database these documents live in (objective progress is stored next to them). */
   get database() { return this.db }
+
+  /** The mode's last reset on this account, if any: it tells a list taken away by a reset from one never sent. */
+  modeResetAt(accountId: string, mode: RaidMode): string | undefined {
+    const row = this.db.prepare('SELECT reset_at FROM user_deferred_resets WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
+    return row ? String(row.reset_at) : undefined
+  }
 
   getCollector(accountId: string, mode: RaidMode): CollectorState {
     const row = this.db.prepare('SELECT item_ids, updated_at FROM user_collector WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
@@ -100,6 +153,20 @@ export class UserDataStore {
     const updatedAt = new Date().toISOString()
     this.db.prepare(`INSERT INTO user_hideout (account_id, mode, found, updated_at) VALUES (?,?,?,?)
       ON CONFLICT(account_id, mode) DO UPDATE SET found=excluded.found, updated_at=excluded.updated_at`).run(accountId, mode, JSON.stringify(kept), updatedAt)
+    return { found: kept, updatedAt }
+  }
+
+  getItemCounts(accountId: string, mode: RaidMode, kind: ItemCountKind): HideoutState {
+    const row = this.db.prepare('SELECT found, updated_at FROM user_item_counts WHERE account_id=? AND mode=? AND kind=?').get(accountId, mode, kind) as Row | undefined
+    if (!row) return { found: {}, updatedAt: null }
+    return { found: parseCounts(row.found), updatedAt: String(row.updated_at) }
+  }
+
+  setItemCounts(accountId: string, mode: RaidMode, kind: ItemCountKind, found: Record<string, number>): HideoutState {
+    const kept = Object.fromEntries(Object.entries(found).filter(([, count]) => Number.isInteger(count) && count > 0))
+    const updatedAt = new Date().toISOString()
+    this.db.prepare(`INSERT INTO user_item_counts (account_id, mode, kind, found, updated_at) VALUES (?,?,?,?,?)
+      ON CONFLICT(account_id, mode, kind) DO UPDATE SET found=excluded.found, updated_at=excluded.updated_at`).run(accountId, mode, kind, JSON.stringify(kept), updatedAt)
     return { found: kept, updatedAt }
   }
 
@@ -147,9 +214,56 @@ export class UserDataStore {
    * A reset of the whole mode (POST /v1/me/progress/:mode/reset): the Collector checklist and the shared level of that
    * mode, when they are older than `at` (a list ticked after the reset stays). Other modes are not touched.
    */
+  /**
+   * «Отложенные квесты» of one mode: those sent are kept when newer than the kept ones, and every kept one comes back with
+   * the mode's last reset: nothing older counts, on any device (a device that slept through the reset still holds it).
+   */
+  syncDeferredQuests(accountId: string, mode: RaidMode, quests: readonly DeferredQuestRecord[], now = Date.now(), onChange?: () => void) {
+    const { resetAt } = this.getDeferredQuests(accountId, mode)
+    const latestAllowed = new Date(now + 60_000).toISOString()
+    let changed = false
+    transaction(this.db, () => {
+      const upsert = this.db.prepare(`INSERT INTO user_deferred_quests (account_id, mode, task_id, status, term, at) VALUES (?,?,?,?,?,?)
+        ON CONFLICT(account_id, mode, task_id) DO UPDATE SET status=excluded.status, term=excluded.term, at=excluded.at
+        WHERE excluded.at > user_deferred_quests.at`)
+      for (const quest of quests) {
+        // A client clock far ahead must not make its choice «newer» than every other for good.
+        const at = quest.at > latestAllowed ? latestAllowed : quest.at
+        if (resetAt && at < resetAt) continue
+        const term = quest.status === 'deferred' && (quest.until || quest.level || quest.loyalty)
+          ? JSON.stringify({ ...(quest.until ? { until: quest.until } : {}), ...(quest.level ? { level: quest.level } : {}), ...(quest.loyalty ? { loyalty: quest.loyalty } : {}) })
+          : null
+        const { changes } = upsert.run(accountId, mode, quest.taskId, quest.status, term, at)
+        if (Number(changes) && at === quest.at) changed = true
+      }
+      this.db.prepare(`DELETE FROM user_deferred_quests WHERE account_id=? AND mode=? AND task_id IN (
+        SELECT task_id FROM user_deferred_quests WHERE account_id=? AND mode=? ORDER BY at DESC LIMIT -1 OFFSET ?)`).run(accountId, mode, accountId, mode, DEFERRED_KEPT)
+    })
+    if (changed) onChange?.()
+    return this.getDeferredQuests(accountId, mode)
+  }
+
+  getDeferredQuests(accountId: string, mode: RaidMode): { quests: DeferredQuestRecord[]; resetAt?: string } {
+    const rows = this.db.prepare('SELECT task_id, status, term, at FROM user_deferred_quests WHERE account_id=? AND mode=? ORDER BY task_id').all(accountId, mode) as Row[]
+    const reset = this.db.prepare('SELECT reset_at FROM user_deferred_resets WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
+    return {
+      quests: rows.map((row): DeferredQuestRecord => ({
+        taskId: String(row.task_id),
+        status: row.status === 'returned' ? 'returned' : 'deferred',
+        at: String(row.at),
+        ...(typeof row.term === 'string' ? JSON.parse(row.term) as Pick<DeferredQuestRecord, 'until' | 'level' | 'loyalty'> : {}),
+      })),
+      ...(reset ? { resetAt: String(reset.reset_at) } : {}),
+    }
+  }
+
   clearModeBefore(accountId: string, mode: RaidMode, at: string) {
+    this.db.prepare('DELETE FROM user_deferred_quests WHERE account_id=? AND mode=? AND at < ?').run(accountId, mode, at)
+    this.db.prepare(`INSERT INTO user_deferred_resets (account_id, mode, reset_at) VALUES (?,?,?)
+      ON CONFLICT(account_id, mode) DO UPDATE SET reset_at=excluded.reset_at WHERE excluded.reset_at > user_deferred_resets.reset_at`).run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_collector WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_hideout WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
+    this.db.prepare('DELETE FROM user_item_counts WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_quest_mirror WHERE account_id=? AND mode=? AND at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_levels WHERE account_id=? AND mode=? AND observed_at < ?').run(accountId, mode, at)
   }

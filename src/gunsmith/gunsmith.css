@@ -57,6 +57,7 @@
 .gs-stats li.is-missed .gs-stat-actual { color: var(--danger); }
 .gs-stat-hint { grid-column: 1 / -1; color: var(--text-dim); font-size: 11px; line-height: 1.4; }
 .gs-parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.gs-parts-note { margin: 8px 0 0; color: var(--text-dim); font-size: 12px; }
 .gs-build.is-compact .gs-parts { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
 .gs-part {
   display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 8px; padding: 6px;
@@ -77,6 +78,12 @@ span.gs-part { cursor: default; }
 .gunsmith-list .panel-title { display: flex; align-items: center; gap: 7px; }
 .gunsmith-list .panel-title svg { color: var(--brass); }
 .gunsmith-parts { margin: 0; padding: 8px 10px 12px; list-style: none; max-height: calc(100vh - var(--topbar, 60px) - 200px); overflow: auto; }
+/* PC, two columns: the list ends at the bottom of the window like the part's card (GunsmithPage useFitBelow); the parts
+   scroll inside it and the page stays put (owner, 03.11.2026: «не должны листаться вверх или низ»). */
+@media (min-width: 1101px) {
+  :root:not([data-layout="mobile"]) .gunsmith-list { display: flex; flex-direction: column; max-height: var(--fit-below, none); }
+  :root:not([data-layout="mobile"]) .gunsmith-list .gunsmith-parts { flex: 1 1 auto; min-height: 0; max-height: none; }
+}
 .gunsmith-parts li + li { margin-top: 3px; }
 .gunsmith-part-row {
   width: 100%; display: grid; grid-template-columns: 24px 54px minmax(0, 1fr) auto; align-items: center; gap: 10px;
@@ -102,13 +109,31 @@ span.gs-part { cursor: default; }
 .gunsmith-part-row.is-completed strong { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--text-muted); }
 .gunsmith-part-row.is-completed .gunsmith-part-index, .gunsmith-part-row.is-completed .gunsmith-part-status { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); color: var(--green); }
 .gunsmith-part-row.is-locked .gunsmith-part-copy strong { color: var(--text-muted); }
+/* The part's checkmark beside its row (a player's ticket, 02.11.2026): a tick is the player's own «Выполнено». */
+.gunsmith-parts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.gunsmith-part-check { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 7px; background: transparent; color: var(--green); cursor: pointer; transition: border-color .15s var(--ease-soft), background .15s var(--ease-soft); }
+.gunsmith-part-check:hover:not(:disabled), .gunsmith-part-check:focus-visible { border-color: var(--green); outline: none; }
+.gunsmith-part-check[aria-checked="true"] { border-color: color-mix(in srgb, var(--green) 50%, var(--line)); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.gunsmith-part-check.is-manual { border-style: dashed; }
+.gunsmith-part-check:disabled { cursor: default; }
+.gunsmith-parts-hint { margin: 0; padding: 10px 14px 0; color: var(--text-dim); font-size: 11.5px; line-height: 1.45; }
+.gunsmith-detail .manual-mark-actions { margin-top: 12px; }
 
 .gunsmith-detail .detail-hero h2 { margin: 10px 0 10px; font-size: 24px; line-height: 1.15; }
 
 @media (max-width: 1100px) {
   .gunsmith-layout { grid-template-columns: 1fr; }
-  .gunsmith-parts { max-height: 340px; }
+  /* Every part at full height on the phone (owner, 01.11.2026: the list on the whole screen), no inner scroll box. */
+  .gunsmith-parts { max-height: none; }
 }
+
+/* The phone (owner, 16.11.2026): a part as a window with «Назад», or unfolded under its row with a cross on the right. */
+.gunsmith-window-bar { position: sticky; top: 0; z-index: 3; display: flex; padding: 0 0 10px; background: var(--bg); }
+.gunsmith-parts li.is-unfolded { align-items: start; }
+.gunsmith-unfolded { grid-column: 1 / -1; margin: 6px 0 10px; }
+.gunsmith-part-row.has-close { grid-template-columns: 24px 44px minmax(0, 1fr) auto; }
+.gunsmith-part-close { grid-column: 4; grid-row: 1 / span 2; display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text-muted); }
+.gunsmith-part-row.has-close .gunsmith-part-status { grid-column: 3; }
 
 @media (max-width: 560px) {
   .gs-stats li { grid-template-columns: minmax(0, 1fr) auto; }
@@ -143,7 +168,6 @@ span.gs-part { cursor: default; }
 .gs-build .gs-weapon .gs-build-image img { display: block; width: 100%; height: auto; max-height: none; aspect-ratio: auto; padding: 0; border: 0; border-radius: 0; background: none; transition: transform .25s var(--ease-soft); }
 .gs-build .gs-build-image:hover img, .gs-build .gs-build-image:focus-visible img { transform: scale(1.015); }
 .gs-build-image:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
-.gs-weapon-credit { display: block; margin-top: 2px; }
 .gs-lightbox { position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center; padding: 24px; background: rgb(4 5 4 / 90%); cursor: zoom-out; }
 .gs-lightbox img { max-width: min(100%, 1920px); max-height: 100%; border-radius: 8px; box-shadow: 0 20px 60px rgb(0 0 0 / 60%); }
 .gs-lightbox-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; }
@@ -151,3 +175,15 @@ span.gs-part { cursor: default; }
 .gunsmith-weapon-count { margin: 0; padding: 18px 20px 0; color: var(--brass-strong); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .gunsmith-weapon-count.is-compact { margin: 10px 0 4px; padding: 0; }
 @media (prefers-reduced-motion: reduce) { .gs-build .gs-weapon .gs-build-image img { transition: none; } .gs-build .gs-build-image:hover img { transform: none; } }
+
+/* A Gunsmith task's build in the bench of «Сборка оружия», the screenshot small below it */
+.gs-weapon.is-bench { gap: 6px; }
+.gs-guide { display: grid; gap: 8px; }
+.gs-guide .wb-stage-scroll { margin-top: 0; }
+.gs-guide-tools { display: flex; justify-content: flex-end; }
+.gs-guide-shot { display: grid; gap: 4px; width: min(240px, 100%); margin: 0; }
+.gs-guide-shot figcaption { color: var(--text-dim); font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.gs-guide-shot .gs-build-image { border-radius: 6px; }
+.gs-weapon-name { margin: 0; }
+.gs-weapon-name strong { display: block; font-size: 13.5px; }
+.gs-weapon-name small { color: var(--text-dim); font-size: 11px; }

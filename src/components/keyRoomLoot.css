@@ -1,0 +1,14 @@
+/* «Что в комнате» on a key's card: the containers as small tags, the items as pictures with their short names */
+.key-room-loot-empty { margin: 0; color: var(--text-muted, #97a49a); font-size: 13px; }
+.key-room-loot-boxes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.key-room-loot-box { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border: 1px solid var(--line, #2b3a30); border-radius: 7px; background: color-mix(in srgb, var(--text, #edf2ed) 4%, transparent); color: var(--text, #edf2ed); font-size: 12px; font-weight: 600; }
+.key-room-loot-box svg { color: var(--brass-strong, #dfbd70); }
+.key-room-loot-box b { color: var(--text-muted, #97a49a); font-weight: 700; }
+.key-room-loot-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+/* the picture keeps the game's own frame only: no second one round it, just rounded corners */
+.key-room-loot-items li { display: grid; justify-items: center; gap: 4px; min-width: 0; }
+.key-room-loot-picture { display: grid; place-items: center; width: 44px; height: 44px; }
+.key-room-loot-picture img { max-width: 44px; max-height: 44px; object-fit: contain; border-radius: 6px; }
+.key-room-loot-name { max-width: 100%; overflow: hidden; color: var(--text, #edf2ed); font-size: 10.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.key-room-loot-more { margin-top: 8px; height: 28px; padding: 0 12px; border: 1px solid var(--line, #2b3a30); border-radius: 7px; background: transparent; color: var(--brass-strong, #dfbd70); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.key-room-loot-more:hover { background: color-mix(in srgb, var(--brass, #c4a665) 10%, transparent); }

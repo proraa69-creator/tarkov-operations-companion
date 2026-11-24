@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { PurchaseAccess } from '../arsenal/buildStats'
 import type { Quest, RaidMode, TaskProgressStatus, Trader } from '../domain/types'
+import { TRADER_SCREEN_NAMES } from '../import/traderLoyalty'
 
 /**
  * The player's trader loyalty levels for «Оружейник» (owner, 11.10.2026: show whether a part can be bought from the
@@ -17,7 +18,7 @@ import type { Quest, RaidMode, TaskProgressStatus, Trader } from '../domain/type
 export const MAX_TRADER_LEVEL = 4
 /** The traders in the game's order (the strip of portraits at the trader screen). */
 export const TRADER_ORDER = ['prapor', 'therapist', 'fence', 'skier', 'peacekeeper', 'mechanic', 'ragman', 'jaeger', 'ref']
-/** Flea market from character level 15. */
+/** Flea market from character level 15, unless the mode's data names its own (tarkov.dev `fleaMarket.minPlayerLevel`). */
 export const FLEA_PLAYER_LEVEL = 15
 
 export interface TraderLevelInfo {
@@ -33,6 +34,20 @@ export interface TraderLevelInfo {
 }
 
 const clampLevel = (value: number) => Math.min(MAX_TRADER_LEVEL, Math.max(1, Math.round(value)))
+
+/**
+ * The loyalty levels a trader has in the game. Fence has the first and the crown only (report №199, owner 19.11.2026:
+ * «у скупщика реально только первый уровень и корона, других уровней у него нет»).
+ */
+export function traderLevelChoices(key: string): readonly number[] {
+  return key === 'fence' ? [1, MAX_TRADER_LEVEL] : [1, 2, 3, MAX_TRADER_LEVEL]
+}
+
+/** A level the trader has: the highest of its levels at or below `level` (Fence's «2» or «3» is his first). */
+export function traderLevelOf(key: string, level: number) {
+  const choices = traderLevelChoices(key)
+  return choices.filter((choice) => choice <= clampLevel(level)).at(-1) ?? choices[0]!
+}
 
 export function traderKey(trader: Pick<Trader, 'normalizedName' | 'name'>) {
   return trader.normalizedName || trader.name.toLowerCase().replace(/\s+/g, '-')
@@ -79,7 +94,7 @@ function jsonStore<T extends object>(key: string) {
     window.addEventListener('storage', onStorage)
     return () => { listeners.delete(listener); window.removeEventListener('storage', onStorage) }
   }
-  return { read, write, subscribe }
+  return { key, read, write, subscribe }
 }
 
 /**
@@ -95,6 +110,8 @@ export interface TraderScreenLevels { at: string; levels: Record<string, number>
 type ScreenStored = Partial<Record<RaidMode, Record<string, TraderScreenLevels>>>
 const screenStore = jsonStore<ScreenStored>('raid-os-trader-screen-v1')
 const NONE: ManualStored & ScreenStored = {}
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const TRADER_LEVELS_SYNC = { manual: manualStore, screen: screenStore } as const
 /** Characters kept per mode (the newest readings): a few profiles, never a growing list. */
 const SCREEN_CHARACTERS_KEPT = 4
 
@@ -140,11 +157,44 @@ export function saveScreenTraderLevels(mode: RaidMode, character: string | undef
  * «Престиж +» or a nickname change (src/state/modeReset.ts): the mode's loyalty starts again — the traders' screen's
  * readings of every character of that mode and the player's own levels for it go; other modes keep theirs.
  */
+/**
+ * The player's own «Барахолка доступна» of «Сборка оружия», per mode: no longer read (owner, 15.11.2026: the character's
+ * level alone decides), still cleared with the mode's levels so no old choice lingers.
+ */
+export const FLEA_CHOICE_KEY = 'raid-os-gun-flea-v3'
+
 export function clearTraderLevels(mode: RaidMode) {
+  try { localStorage.removeItem(`${FLEA_CHOICE_KEY}:${mode}`) } catch { /* storage unavailable */ }
   const screen = screenStore.read()
   if (screen[mode]) { const next = { ...screen }; delete next[mode]; screenStore.write(next) }
   const manual = manualStore.read()
   if (manual[mode]) { const next = { ...manual }; delete next[mode]; manualStore.write(next) }
+}
+
+const loyaltyCache = new WeakMap<TraderScreenLevels, WeakMap<readonly Quest[], ReadonlyMap<string, number>>>()
+
+/**
+ * The traders' screen's levels of a character by the catalog's trader ids, for the quests' availability (owner,
+ * 02.11.2026: the quest chain «будет учитывать уровень торговца»; src/progression/requirementEngine.ts TraderLoyaltyKnown).
+ * A profile id is one mode's, so the reading is found by the character alone. The same object while nothing changed.
+ */
+export function screenLoyaltyByTraderId(quests: readonly Quest[], character: string | undefined): ReadonlyMap<string, number> | undefined {
+  if (!character) return undefined
+  const reading = Object.values(screenStore.read()).map((forMode) => forMode?.[character]).find((entry): entry is TraderScreenLevels => Boolean(entry))
+  if (!reading) return undefined
+  let byCatalog = loyaltyCache.get(reading)
+  if (!byCatalog) { byCatalog = new WeakMap(); loyaltyCache.set(reading, byCatalog) }
+  const kept = byCatalog.get(quests)
+  if (kept) return kept
+  // The screen names traders by key (Прапор → prapor); the quests carry each trader's id with its name.
+  const idByKey = new Map<string, string>()
+  for (const quest of quests) {
+    const key = TRADER_SCREEN_NAMES[quest.trader.toLowerCase()]
+    if (key && quest.traderId && !idByKey.has(key)) idByKey.set(key, quest.traderId)
+  }
+  const value: ReadonlyMap<string, number> = new Map(Object.entries(reading.levels).flatMap(([key, level]) => idByKey.has(key) ? [[idByKey.get(key)!, clampLevel(level)] as const] : []))
+  byCatalog.set(quests, value)
+  return value
 }
 
 export function traderLevelInfos(traders: Trader[], quests: Quest[], statusOf: (questId: string) => TaskProgressStatus | undefined, playerLevel: number, manual: Record<string, number> = {}, screen: Record<string, number> = {}): TraderLevelInfo[] {
@@ -158,18 +208,24 @@ export function traderLevelInfos(traders: Trader[], quests: Quest[], statusOf: (
       const seen = screen[key] ? clampLevel(screen[key]) : undefined
       // The game's screen proves at least its level; the tasks may prove more since, and the bound from the character's
       // level never hides what the game showed.
-      const min = Math.max(estimate.min, seen ?? 1)
-      const max = Math.max(estimate.max, min)
-      return { trader, key, min, max, ...(own ? { manual: own } : {}), ...(seen ? { screen: seen } : {}), level: own ? clampLevel(own) : min }
+      // Only the levels the trader has (Fence: the first and the crown).
+      const min = traderLevelOf(key, Math.max(estimate.min, seen ?? 1))
+      const max = traderLevelOf(key, Math.max(estimate.max, min))
+      return { trader, key, min, max, ...(own ? { manual: own } : {}), ...(seen ? { screen: seen } : {}), level: own ? traderLevelOf(key, own) : min }
     })
     .sort((a, b) => order(a.key) - order(b.key))
 }
 
-/** What the player can buy under these levels in this mode (flea from character level 15, when the mode has a flea). */
-export function playerAccess(infos: TraderLevelInfo[], playerLevel: number, fleaEnabled: boolean, taskDone?: (taskId: string) => boolean): PurchaseAccess {
+/**
+ * What the player can buy under these levels in this mode: the flea from the market's level (`fleaLevel`, 15) when the mode
+ * has a flea, and each item there from its own level when that is higher (buildStats.ts offerAccess, `playerLevel`).
+ */
+export function playerAccess(infos: TraderLevelInfo[], playerLevel: number, fleaEnabled: boolean, taskDone?: (taskId: string) => boolean, fleaLevel = FLEA_PLAYER_LEVEL): PurchaseAccess {
   return {
     traderLevel: 1,
-    flea: fleaEnabled && playerLevel >= FLEA_PLAYER_LEVEL,
+    flea: fleaEnabled && playerLevel >= fleaLevel,
+    playerLevel,
+    ...(fleaEnabled ? { fleaOpensAt: fleaLevel } : {}),
     traderLevels: Object.fromEntries(infos.map((info) => [info.key, info.level])),
     ...(taskDone ? { taskDone } : {}),
   }

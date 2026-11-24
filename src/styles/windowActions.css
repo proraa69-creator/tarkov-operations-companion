@@ -1,0 +1,35 @@
+/*
+ * Every window's answer row (owner, 06.11.2026: «Скорректируй окно, чтобы все было посередине, там где-то аккуратно и
+ * равномерно. И сделай так со всеми окнами, чтобы они были не косые, кривые»): in the middle, the buttons one width, on the PC
+ * and the phone. A new window with its own row of buttons joins this list. The site's windows: website/src/payments.css.
+ */
+:root :is(
+  .update-overlay-actions, .subscription-expiry-actions, .deferred-quests-actions, .story-picker-actions, .bug-report-actions,
+  .notice-actions, .prestige-reset-actions, .manual-add-actions, .optimize-confirm-actions, .screen-dialog-actions,
+  .photo-sync-actions, .account-approve-actions, .goon-report-actions
+) {
+  display: flex; flex-direction: row; flex-wrap: wrap; align-items: stretch; justify-content: center; gap: 10px;
+}
+
+:root :is(
+  .update-overlay-actions, .subscription-expiry-actions, .deferred-quests-actions, .story-picker-actions, .bug-report-actions,
+  .notice-actions, .prestige-reset-actions, .manual-add-actions, .optimize-confirm-actions, .screen-dialog-actions,
+  .photo-sync-actions, .account-approve-actions
+) > .button {
+  flex: 1 1 150px; width: auto; min-width: 0; max-width: 260px; margin: 0; justify-content: center;
+}
+
+/* A small menu's two buttons: one width, as narrow as it is. */
+:root .goon-report-actions > .button { flex: 1 1 0; justify-content: center; }
+
+/* Windows that only ask: everything in the middle. */
+:root :is(.update-overlay-card, .subscription-expiry-card, .prestige-reset-dialog, .optimize-confirm) { text-align: center; }
+:root .update-overlay-versions { justify-content: center; }
+:root .update-overlay-steps li { text-align: left; }
+:root .subscription-expiry-icon, :root .prestige-reset-icon { margin-left: auto; margin-right: auto; }
+:root .optimize-confirm ul { display: inline-block; margin-left: 0; padding-left: 18px; text-align: left; }
+
+/* «Удалить из друзей?»: the question over its buttons. */
+:root .squad-confirm { justify-content: center; text-align: center; }
+:root .squad-confirm > span { flex: 1 1 100%; }
+:root .squad-confirm > .button { flex: 0 1 150px; justify-content: center; }

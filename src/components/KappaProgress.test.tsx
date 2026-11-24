@@ -35,7 +35,7 @@ describe('Kappa card', () => {
   it('keeps the card plain and opens the Fence conditions with the four key tasks from «Квесты»', async () => {
     const user = userEvent.setup()
     const { container } = render(<KappaHarness />)
-    expect(screen.getByText('Задания для Капы', { selector: '.stat-label' })).toBeInTheDocument()
+    expect(screen.getByText('Задания для Каппы', { selector: '.stat-label' })).toBeInTheDocument()
     expect(screen.getByText('Выполнено 1 из 4', { selector: '.stat-meta' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Предметы' })).toHaveAttribute('href', '/kappa-items')
     const quests = screen.getByRole('button', { name: 'Квесты' })
@@ -44,7 +44,7 @@ describe('Kappa card', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
 
     await user.click(quests)
-    const dialog = screen.getByRole('dialog', { name: 'Задания для Капы' })
+    const dialog = screen.getByRole('dialog', { name: 'Задания для Каппы' })
     expect(quests).toHaveAttribute('aria-expanded', 'true')
     expect(quests).toHaveAttribute('aria-controls', 'kappa-list')
     expect(dialog).toHaveAttribute('id', 'kappa-list')
@@ -58,7 +58,8 @@ describe('Kappa card', () => {
     expect(tasks.map((task) => task.querySelector('strong')?.textContent)).toEqual(['Реагент. Часть 4', 'Стрелок от бога', 'Тарковский стрелок. Часть 4', 'Шить — не тужить. Часть 4'])
     expect(tasks.map((task) => task.querySelector('.kappa-quest-state')?.textContent)).toEqual(['выполнено', 'не выполнено', 'текущее', 'не выполнено'])
     expect(tasks[0]).toHaveTextContent('Лыжник · или «Большой заказчик» (Прапор), «Простое любопытство» (Терапевт)')
-    expect(tasks[0]).toHaveAttribute('href', '/quests?selected=big')
+    // «Все», not «Текущие»: a quest not taken has no card there
+    expect(tasks[0]).toHaveAttribute('href', '/quests?filter=all&selected=big')
     expect(tasks[3].tagName).toBe('DIV')
 
     await user.click(within(dialog).getByRole('button', { name: 'Закрыть' }))

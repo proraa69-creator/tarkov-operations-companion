@@ -29,4 +29,25 @@ describe('items the hideout still needs', () => {
     expect(needs.items).toHaveLength(1)
     expect(needs.items[0]).toMatchObject({ itemId: 'bandage', found: 1, remaining: 0 })
   })
+  // owner, 07.11.2026: «под каждой картинкой сделай галочку… только предметы выбранных галочкой модулей»
+  it('the ticked modules only', () => {
+    const all = [...stations, station('library', [[['book', 2]]])]
+    const needs = hideoutNeeds(all, {}, new Map(), { stations: new Set(['medstation', 'library']) })
+    expect(needs.items.map((need) => need.itemId).sort()).toEqual(['bandage', 'book'])
+    expect(hideoutNeeds(all, {}, new Map(), { stations: new Set() }).items).toHaveLength(4)
+  })
+
+  // owner, 07.11.2026: «я нажимаю правой кнопкой на биткоин-ферму второго уровня, и он мне показывает, что нужно для биткоин-фермы второго уровня. Только для нее»
+  it('one level of one module, not the levels above it', () => {
+    const second = hideoutNeeds(stations, { generator: 0 }, new Map([['bolts', 4]]), { level: { stationId: 'generator', level: 2 } })
+    expect(second.items.map(({ itemId, total, found, remaining }) => ({ itemId, total, found, remaining }))).toEqual([
+      { itemId: 'bolts', total: 3, found: 3, remaining: 0 },
+      { itemId: 'wires', total: 4, found: 0, remaining: 4 },
+    ])
+    expect(second.money.roubles).toBe(50_000)
+    const first = hideoutNeeds(stations, { generator: 0 }, new Map(), { level: { stationId: 'generator', level: 1 } })
+    expect(first.items.map((need) => [need.itemId, need.total])).toEqual([['bolts', 2]])
+    // the level wins over the ticks
+    expect(hideoutNeeds(stations, {}, new Map(), { stations: new Set(['medstation']), level: { stationId: 'generator', level: 1 } }).items.map((need) => need.itemId)).toEqual(['bolts'])
+  })
 })

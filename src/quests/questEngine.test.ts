@@ -42,7 +42,27 @@ describe('the precedence, case by case (docs/quests/quest-state-engine.md)', () 
     expect(decide({ manual: { [A]: { status: 'cleared', at: t(10) } } }).status).toBe('not-started')
   })
 
-  it('4. the Tasks table fills gaps in PvE only, never against a log event and never «completed»', () => {
+  it('3b. «У меня нет этого квеста»: back to not taken; a newer game event or the player\'s mark brings it back, a later reading does not', () => {
+    const absent = { [A]: { status: 'absent' as const, at: t(10) } }
+    // Against what the logs or the screen held before it.
+    expect(decide({ log: { [A]: { status: 'active', at: t(9) } }, manual: absent })).toMatchObject({ status: 'not-started' })
+    expect(decide({ table: { [A]: screen(A, 'active', 9) }, manual: absent })).toMatchObject({ status: 'not-started' })
+    expect(decide({ mirror: { [A]: screen(A, 'active', 9) }, manual: absent })).toMatchObject({ status: 'not-started' })
+    expect(decide({ legacy: { [A]: screen(A, 'active', 9) }, manual: absent })).toMatchObject({ status: 'not-started' })
+    expect(resolveQuestStates(inputs({ log: { [A]: { status: 'active', at: t(9) } }, manual: absent })).taskProgress[A]).toBeUndefined()
+    // The screen read it again: most often what it got wrong in the first place.
+    expect(decide({ table: { [A]: screen(A, 'active', 11) }, manual: absent })).toMatchObject({ status: 'not-started' })
+    // The game says so after it: the quest is back.
+    expect(decide({ log: { [A]: { status: 'active', at: t(11) } }, manual: absent })).toMatchObject({ status: 'active', source: 'log' })
+    expect(decide({ server: { [A]: { status: 'completed', at: t(11) } }, manual: absent })).toMatchObject({ status: 'completed' })
+    // «Ручное добавление» after it, one mark in the layer's place.
+    expect(decide({ log: { [A]: { status: 'active', at: t(9) } }, manual: { [A]: { status: 'active', at: t(11) } } })).toMatchObject({ status: 'active', source: 'manual' })
+    // Another quest is not touched.
+    expect(decide({ log: { [B]: { status: 'active', at: t(9) } }, manual: absent }).status).toBe('not-started')
+    expect(resolveQuestStates(inputs({ log: { [B]: { status: 'active', at: t(9) } }, manual: absent })).states.get(B)?.status).toBe('active')
+  })
+
+  it('4. the Tasks table fills gaps in every mode, never against a log event and never «completed»', () => {
     expect(decide({ table: { [A]: screen(A, 'active', 10) } })).toMatchObject({ status: 'active', source: 'table', confidence: 0.7 })
     // A newer reading that disagrees with the logs: the logs win, the disagreement is listed.
     const against = decide({ log: { [A]: { status: 'completed', at: t(9) } }, table: { [A]: screen(A, 'active', 10) } })
@@ -52,11 +72,9 @@ describe('the precedence, case by case (docs/quests/quest-state-engine.md)', () 
     const guessed = decide({ table: { [A]: screen(A, 'completed', 10) } })
     expect(guessed.status).toBe('not-started')
     expect(guessed.conflicts[0]).toMatchObject({ kind: 'table-completed-unproven' })
-    // PvP and Season: the table is ignored.
+    // PvP and Season too (owner, 31.10.2026): the table is read there only where the logs miss the history.
     for (const mode of ['pvp', 'seasonal'] as const) {
-      const state = decide({ table: { [A]: screen(A, 'active', 10) } }, mode)
-      expect(state.status).toBe('not-started')
-      expect(state.conflicts[0]).toMatchObject({ kind: 'table-outside-pve' })
+      expect(decide({ table: { [A]: screen(A, 'active', 10) } }, mode)).toMatchObject({ status: 'active', source: 'table' })
     }
   })
 
@@ -76,13 +94,33 @@ describe('the precedence, case by case (docs/quests/quest-state-engine.md)', () 
     expect(resolution.states.get(B)).toMatchObject({ status: 'completed', source: 'legacy', confidence: 0.4 })
     expect(decide({ log: { [A]: { status: 'active', at: t(1) } }, legacy: { [A]: { taskId: A, status: 'completed', source: 'manual', updatedAt: t(5) } } }).source).toBe('log')
   })
+
+  it('5b. the account\'s copy from the server fills what this PC knows nothing about, as it came; this PC\'s own word wins (03.11.2026)', () => {
+    const copy = (taskId: string, status: TaskProgressRecord['status'], hour: number): TaskProgressRecord => ({ taskId, status, source: 'eft-log', updatedAt: t(hour) })
+    // The older quests a new PC's few days of logs miss: from the copy, marked as the server's.
+    const resolution = resolveQuestStates(inputs({ log: { [B]: { status: 'active', at: t(9) } }, mirror: { [A]: copy(A, 'completed', 2), [B]: copy(B, 'completed', 3) } }))
+    expect(resolution.taskProgress[A]).toEqual({ taskId: A, status: 'completed', source: 'eft-log', updatedAt: t(2), origin: 'server' })
+    expect(resolution.states.get(A)).toMatchObject({ status: 'completed', source: 'mirror', confidence: 0.6 })
+    // This PC's logs know B: they decide, the copy does not.
+    expect(resolution.states.get(B)).toMatchObject({ status: 'active', source: 'log' })
+    // The Tasks table and a mark of this PC win too.
+    expect(decide({ table: { [A]: screen(A, 'active', 1) }, mirror: { [A]: copy(A, 'completed', 5) } }).source).toBe('table')
+    expect(decide({ manual: { [A]: { status: 'active', at: t(1) } }, mirror: { [A]: copy(A, 'completed', 5) } }).source).toBe('manual')
+    // «Снять отметку» after the copy's record keeps it out; one before it does not.
+    expect(decide({ manual: { [A]: { status: 'cleared', at: t(6) } }, mirror: { [A]: copy(A, 'completed', 5) } }).status).toBe('not-started')
+    expect(decide({ manual: { [A]: { status: 'cleared', at: t(4) } }, mirror: { [A]: copy(A, 'completed', 5) } })).toMatchObject({ status: 'completed', source: 'mirror' })
+    // Nothing older than the mode's reset (a prestige, a wipe).
+    expect(decide({ mirror: { [A]: copy(A, 'completed', 5) } }, 'pve', t(6)).status).toBe('not-started')
+    expect(resolution.diagnostics.layerSizes.mirror).toBe(2)
+    expect(diagnosticsLine(resolution.diagnostics)).toContain('копия аккаунта: +1')
+  })
 })
 
 describe('the engine as a whole', () => {
-  it('modes never mix: the same layers decide per mode, and only PvE takes the table', () => {
+  it('modes never mix: the same layers decide per mode', () => {
     const layers = { log: { [B]: { status: 'active' as const, at: t(9) } }, table: { [A]: screen(A, 'active', 10) } }
     expect([...resolveQuestStates(inputs(layers, 'pve')).states.values()].filter((state) => state.status !== 'not-started')).toHaveLength(2)
-    expect(Object.keys(resolveQuestStates(inputs(layers, 'pvp')).taskProgress)).toEqual([B])
+    expect(Object.keys(resolveQuestStates(inputs(layers, 'pvp')).taskProgress).sort()).toEqual([A, B].sort())
   })
 
   it('lists the catalog\'s contradictions: a completion whose prerequisite is still active, an id the catalog does not have', () => {

@@ -8,7 +8,7 @@ describe('the saving of a longer plan', () => {
   it('is measured against paying month by month: «2 400 ₽ вместо 3 600 ₽, экономия 1 200 ₽»', () => {
     expect(SUBSCRIPTION_PREVIEW.map((plan) => planSaving(plan, SUBSCRIPTION_PREVIEW))).toEqual([
       null,
-      { full: 900, saving: 90 },
+      { full: 900, saving: 100 },
       { full: 1800, saving: 300 },
       { full: 3600, saving: 1200 },
     ])

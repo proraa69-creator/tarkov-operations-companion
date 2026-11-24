@@ -17,17 +17,48 @@
  *   GET  /v1/me/support/attachments/:id     -> { mime, data: base64, width, height }: a screenshot of this account's own
  *        conversation; 404 for any other (the gateways forward JSON only)
  *   POST /v1/me/support/read                -> 204: the owner's answers are seen
+ *   POST /v1/me/support/messages/:id/reactions { emoji, on? } -> { message }: sets (`on` true) or takes back (`on` false;
+ *        absent: the other way round) the player's reaction on a message of their own conversation (owner, 07.11.2026:
+ *        «смайлики или лайки можно было ставить на сообщения»); `emoji` one of SUPPORT_REACTIONS (400 «Такой реакции нет»),
+ *        404 «Сообщение не найдено» for a message of another conversation; 60 a minute
+ *
+ * A guest of the site (owner, 17.11.2026: «Можно войти как гость… если он не авторизован, то пишется как гость»; the site's
+ * «Поддержка» button, website/src/components/SupportWidget.tsx), text only, the token in the header `x-support-guest`:
+ *   POST /v1/support/guest                 -> 201 { token, name: «Гость N» }; 5 an hour per IP. The conversation id is
+ *        shaped like an account's, so the owner's apps list and answer it as any other («Гость N», `guest: true`, no e-mail)
+ *   GET  /v1/support/guest/messages?after   -> as the player's; 401 «Гостевой чат не найден» for an unknown token
+ *   POST /v1/support/guest/messages { text } -> 201 { message }; the player's limits
+ *   POST /v1/support/guest/read            -> 204
+ *
+ * Replies and stickers (owner, 07.11.2026: «нажать правой клавишей и нажать «Ответить» именно на это сообщение… стикеры в
+ * стиле Таркова отправлять»), on both message routes: `replyTo: <message id>` answers a message of the same conversation
+ * (404 «Сообщение не найдено» for any other); the message then carries `replyTo: { id, author, text, sticker? }` (a short
+ * excerpt as it read). `sticker: <id>` (a built-in one of SUPPORT_STICKER_IDS or one of a published pack of the owner's,
+ * routes/stickers.ts; 400 «Неизвестный стикер» for any other) sends a sticker, without text or screenshots (400
+ * otherwise); the message carries `sticker` and the text «[стикер: Крыса]» («[стикер: <pack>]») for older apps. A sticker
+ * deleted later: the message reads «[стикер]» without `sticker`.
+ * A message with reactions carries `reactions: [{ emoji, authors: ['user' | 'owner'] }]`, the first one set first.
  *
  * Owner only (TARKOV_OWNER_EMAILS with a confirmed e-mail): 401 without a session, 404 for everybody else.
  *   GET  /v1/accounts/me/admin/support/threads?limit&offset -> { threads: [{ accountId, email, nickname?, nicknames,
  *        lastMessage, lastAt, unread }], total, unread }: the latest message first; `unread` of a conversation: the
  *        player's messages not seen yet, at the top: conversations with any
  *   GET  /v1/accounts/me/admin/support/threads/:accountId   -> { account: { id, email, nickname?, nicknames }, messages }
- *   POST /v1/accounts/me/admin/support/threads/:accountId/messages { text, images? } -> 201 { message } (audit:
- *        support.reply); an answer also marks the player's messages seen; screenshots as for the player
+ *   POST /v1/accounts/me/admin/support/threads/:accountId/messages { text, images?, reportId? } -> 201 { message } (audit:
+ *        support.reply); an answer also marks the player's messages seen; screenshots as for the player. `reportId`
+ *        (owner, 04.11.2026: «прям там могу ответить, не открывая чат»): the answer is about that report of this player;
+ *        the message then carries `report: { id, kind, title, text }` and `text` starts with «Ответ на заявку №N «…»» for
+ *        apps that know nothing of `report`. 404 for another player's report or one that does not exist. The report then
+ *        reads `answeredAt` («Отвечено», owner 04.11.2026), also after «Проблема решена» deletes the conversation.
  *   GET  /v1/accounts/me/admin/support/attachments/:id                  -> { mime, data: base64, width, height }: any
  *        conversation's screenshot
+ *   POST /v1/accounts/me/admin/support/threads/:accountId/messages/:id/edit { text } -> { message }: «Редактировать»
+ *        (owner, 15.11.2026): new words for the owner's own message, nothing marks it as changed for the player; 404
+ *        «Сообщение не найдено» for the player's message, a sticker or another conversation's; 400 for empty or too long
+ *        words (with screenshots they may be empty)
  *   POST /v1/accounts/me/admin/support/threads/:accountId/read             -> 204
+ *   POST /v1/accounts/me/admin/support/threads/:accountId/messages/:id/reactions { emoji, on? } -> { message }: the
+ *        owner's reaction, as the player's
  *   GET  /v1/accounts/me/admin/support/search?q=<part of an e-mail>      -> { users: [{ id, email, nickname?, country?,
  *        countryOther?, region, subscription: { status, paidUntil?, trialEndsAt? }, hasThread }] } at most 20, the
  *        e-mails that start with it first («Написать пользователю»); 2–254 characters, 60 a minute
@@ -38,11 +69,11 @@
  *   будет писать» — the owner opens the chat from a report in «Заявки» and writes first); 404 for an id that is not a
  *   live account's.
  *
- * At once on the other side, through what the apps already wait on: an answer, the owner's read mark or a deleted
- * conversation moves the player's GET /v1/me/social-events (services/socialSignals.ts), and so does the player's own
- * read mark for their other devices; a player's message, the owner's read mark or a deleted conversation moves the owner
- * app's GET /v1/accounts/me/admin/requests/events (routes/bugReports.ts), whose answers carry `unreadChats` next to
- * `open`.
+ * At once on the other side, through what the apps already wait on: an answer, the owner's read mark or reaction or a
+ * deleted conversation moves the player's GET /v1/me/social-events (services/socialSignals.ts), and so does the player's
+ * own read mark for their other devices; a player's message or reaction, the owner's read mark or a deleted conversation
+ * moves the owner app's GET /v1/accounts/me/admin/requests/events (routes/bugReports.ts), whose answers carry
+ * `unreadChats` next to `open`.
  *
  * The two message routes with screenshots take a larger body than the global 1 MB JSON parser:
  * createSupportChatUploadParser, mounted in app.ts before that parser, checks the session (and the owner) and a global
@@ -54,10 +85,12 @@ import { z } from 'zod'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { ipRateKey } from '../services/securityGuard.js'
 import type { SocialSignals } from '../services/socialSignals.js'
-import { EMPTY_MESSAGE, IMAGE_STORAGE_FULL, SupportChatError, supportText, TOO_LONG_MESSAGE, TOO_MANY_IMAGES, type SupportChatStore } from '../services/supportChatStore.js'
+import { EMPTY_MESSAGE, IMAGE_STORAGE_FULL, MESSAGE_NOT_FOUND, STICKER_ALONE, SupportChatError, supportText, TOO_LONG_MESSAGE, TOO_MANY_IMAGES, UNKNOWN_REACTION, UNKNOWN_STICKER, type SupportChatStore, type SupportMessageExtra } from '../services/supportChatStore.js'
 import type { MapUpdates } from './mapUpdates.js'
+import type { EmailMessage, EmailSender } from '../services/email/types.js'
 import { regionOf } from '../../../src/shared/countries.js'
-import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX } from '../../../src/shared/supportChat.js'
+import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportReportRef } from '../../../src/shared/supportChat.js'
+import { isSupportStickerId, SUPPORT_REACTIONS } from '../../../src/shared/supportStickers.js'
 
 /** Base64 of four 5 MB screenshots is ~26.7 MB; the text and the JSON around it fit in the rest. */
 export const SUPPORT_UPLOAD_BODY_LIMIT = '28mb'
@@ -65,6 +98,8 @@ export const SUPPORT_UPLOAD_BODY_LIMIT = '28mb'
 export const MAX_CONCURRENT_SUPPORT_UPLOADS = 2
 /** A message without screenshots is a few kilobytes; a bigger body while the screenshot storage is full is refused unread. */
 const TEXT_ONLY_BODY_BYTES = 64 * 1024
+/** The raw text before cleaning: generous, the 2000 characters are counted after it (supportText). */
+const RAW_TEXT_MAX = 8000
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/
 const DATA_URL_PREFIX = /^data:image\/(?:png|jpeg|webp);base64,/
 const PLAYER_MESSAGES_PATH = '/v1/me/support/messages'
@@ -74,9 +109,16 @@ const textSchema = z.object({
   text: z.string().default(''),
   // Counted below with a readable answer; past 20 the body is simply wrong.
   images: z.array(z.object({ data: z.string().max(Math.ceil(SUPPORT_IMAGE_LIMITS.fileBytes / 3) * 4 + 64) })).max(20).default([]),
+  /** The owner's answer from a report's card; a player's message never carries one. */
+  reportId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+  /** Checked below with a readable answer: a sticker's id (built-in or the owner's), the id of a message of this conversation. */
+  sticker: z.unknown().optional(),
+  replyTo: z.unknown().optional(),
 })
-/** The raw text before cleaning: generous, the 2000 characters are counted after it (supportText). */
-const RAW_TEXT_MAX = 8000
+const guestTextSchema = z.object({ text: z.string() })
+const reactionSchema = z.object({ emoji: z.unknown(), on: z.boolean().optional() })
+const editSchema = z.object({ text: z.string().max(RAW_TEXT_MAX) })
+const messageIdSchema = z.string().regex(/^\d{1,12}$/).transform(Number)
 const afterSchema = z.object({ after: z.string().regex(/^\d{1,12}$/).transform(Number).optional() })
 const pageSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -88,10 +130,44 @@ export type SupportChatAudit = (actor: string, action: 'support.reply' | 'suppor
 /** «Написать пользователю»: the search text (part of an e-mail) and the most it answers. */
 const searchSchema = z.object({ q: z.string().trim().min(2).max(254) })
 export const SUPPORT_SEARCH_LIMIT = 20
-export interface SupportChatLimits { perAccount: number; perIp: number; windowMs: number; imagesPerHour: number }
-export const SUPPORT_CHAT_RATE_LIMITS: SupportChatLimits = { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000, imagesPerHour: 40 }
+export interface SupportChatLimits { perAccount: number; perIp: number; windowMs: number; imagesPerHour: number; guestsPerHour: number }
+export const SUPPORT_CHAT_RATE_LIMITS: SupportChatLimits = { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000, imagesPerHour: 40, guestsPerHour: 5 }
+/** A guest of the site's chat as the owner's apps show him: «Гость 12». */
+export const GUEST_NAME = 'Гость'
+export const GUEST_UNKNOWN = 'Гостевой чат не найден'
+export const BAD_GUEST_EMAIL = 'Проверьте адрес почты'
+const GUEST_NAME_MAX = 60
+const guestContactSchema = z.object({ name: z.string().max(400).optional(), email: z.string().max(254).optional() }).passthrough()
+const emailSchema = z.string().email()
+
+/** A guest's name (one line, ≤ 60 characters) and e-mail (lower case) from a body; null for an address that is not one. */
+export function guestContact(body: unknown): { name?: string; email?: string } | null {
+  const parsed = guestContactSchema.safeParse(body ?? {})
+  if (!parsed.success) return null
+  const name = cleanSupportText(parsed.data.name ?? '').replace(/\s+/g, ' ').trim().slice(0, GUEST_NAME_MAX)
+  const email = (parsed.data.email ?? '').trim().toLowerCase()
+  if (email && !emailSchema.safeParse(email).success) return null
+  return { ...(name ? { name } : {}), ...(email ? { email } : {}) }
+}
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!)
+
+/** The answer as a letter: the text, and where to go on writing. */
+export function guestAnswerMail(to: string, text: string): EmailMessage {
+  const subject = 'Ответ поддержки Raid OS'
+  const more = 'Продолжить разговор можно в чате «Поддержка» на сайте https://raidos.app (кнопка в правом нижнем углу).'
+  const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>${subject}</title></head><body style="margin:0;padding:24px;background:#0a0f0c;color:#edf2ed;font-family:Arial,sans-serif;font-size:15px;line-height:1.5">
+<div style="max-width:560px;margin:0 auto;padding:22px 24px;border:1px solid #2b3a30;border-radius:14px;background:#141d18">
+<h1 style="margin:0 0 12px;font-size:19px;color:#dfbd70">${subject}</h1>
+<p style="margin:0 0 16px;white-space:pre-wrap">${escapeHtml(text)}</p>
+<p style="margin:0;color:#97a49a;font-size:13px">${escapeHtml(more)}</p>
+</div></body></html>`
+  return { to, subject, html, text: `${text}\n\n${more}` }
+}
+
 export const SUPPORT_IMAGE_RATE_MESSAGE = 'Слишком много скриншотов. Попробуйте через час.'
 export const SUPPORT_RATE_MESSAGE = 'Слишком много сообщений. Подождите несколько минут.'
+export const REPORT_NOT_FOUND = 'Заявка не найдена'
 
 export interface SupportChatRouterOptions {
   limits?: Partial<SupportChatLimits>
@@ -99,7 +175,11 @@ export interface SupportChatRouterOptions {
   social?: SocialSignals
   /** The owner app's «Заявки» wait (a MapUpdates whose answers carry the counts, routes/bugReports.ts). */
   ownerSignals?: MapUpdates
+  /** The reports an answer may be about (services/bugReportStore.ts). */
+  reports?: { get(id: number): { accountId?: string; kind: 'bug' | 'idea'; topic: string } | undefined; markAnswered(id: number): void }
   audit?: SupportChatAudit
+  /** Sends an answer to a guest who left an e-mail (services/email). Without it the answer stays in the chat only. */
+  mail?: EmailSender
   now?: () => number
 }
 
@@ -116,8 +196,16 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
   const attachmentLimiter = new FixedWindowRateLimiter(300, 60 * 1000, options.now)
   const readLimiter = new FixedWindowRateLimiter(600, 60 * 1000, options.now)
   const writeLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
+  // A player's reactions: tapping on and off, never a flood of the owner app's refreshes.
+  const reactionLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
   // «Написать пользователю»: typing searches as it goes, never a crawl of every address.
   const searchLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
+  // A guest's name and e-mail: changed now and then, never a crawl.
+  const contactLimiter = new FixedWindowRateLimiter(20, 10 * 60 * 1000, options.now)
+  // Answers by e-mail to one guest: at most 30 an hour.
+  const mailLimiter = new FixedWindowRateLimiter(30, 60 * 60 * 1000, options.now)
+  // A guest of the site's chat: a few new conversations an hour per address.
+  const guestCreateLimiter = new FixedWindowRateLimiter(limits.guestsPerHour, 60 * 60 * 1000, options.now)
   const signal = (work: () => void) => { try { work() } catch { /* the other side catches up on its next read */ } }
 
   /** The signed-in player's account, or an answer was already sent. */
@@ -141,8 +229,10 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     return accounts.emailOf(id) ?? id
   }
 
-  /** Who wrote: the e-mail and the Escape from Tarkov nickname (one for every mode). */
+  /** Who wrote: the e-mail and the Escape from Tarkov nickname (one for every mode); a guest of the site: «Гость N». */
   const who = (accountId: string) => {
+    const guest = store.guestOf(accountId)
+    if (guest) return { email: guest.email ?? '', nickname: guest.name ? `${guest.name} (${GUEST_NAME.toLowerCase()})` : `${GUEST_NAME} ${guest.number}`, nicknames: {}, guest: true as const }
     try {
       const view = accounts.view(accountId)
       return { email: view.email, ...(view.nickname ? { nickname: view.nickname } : {}), nicknames: view.nicknames }
@@ -154,7 +244,7 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
   /** The account of the owner's conversation (any live one: the owner may write first), or 404. */
   const thread = (req: Request, res: Response) => {
     const id = accountIdSchema.safeParse(req.params.accountId)
-    if (id.success && accounts.exists(id.data)) return id.data
+    if (id.success && (accounts.exists(id.data) || store.guestNumber(id.data) !== undefined)) return id.data
     res.status(404).json({ error: 'Переписка не найдена' })
     return undefined
   }
@@ -163,17 +253,28 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
    * The cleaned text of the body and its screenshots' bytes (not yet checked: SupportChatStore.add does), or a 400 was
    * sent. With screenshots the text may be empty.
    */
-  const text = (req: Request, res: Response): { text: string; files: Buffer[] } | undefined => {
+  const text = (req: Request, res: Response): { text: string; files: Buffer[]; reportId?: number; extra: SupportMessageExtra } | undefined => {
     const body = textSchema.safeParse(req.body)
     try {
       if (!body.success) throw new SupportChatError(400, EMPTY_MESSAGE)
       if (body.data.text.length > RAW_TEXT_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
       if (body.data.images.length > SUPPORT_IMAGE_LIMITS.files) throw new SupportChatError(400, TOO_MANY_IMAGES)
+      const { sticker, replyTo } = body.data
+      // Whether an owner's sticker is published, SupportChatStore.add checks.
+      if (sticker !== undefined && !isSupportStickerId(sticker)) throw new SupportChatError(400, UNKNOWN_STICKER)
+      // Not a message id: answered as one that is not in the conversation.
+      if (replyTo !== undefined && (typeof replyTo !== 'number' || !Number.isSafeInteger(replyTo) || replyTo < 1)) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      const extra: SupportMessageExtra = { ...(sticker !== undefined ? { sticker: sticker as string } : {}), ...(replyTo !== undefined ? { replyTo: replyTo as number } : {}) }
       const files = body.data.images.map((image) => decodeImage(image.data))
-      if (!files.length) return { text: supportText(body.data.text), files }
+      const about = body.data.reportId ? { reportId: body.data.reportId } : {}
+      if (extra.sticker !== undefined) {
+        if (cleanSupportText(body.data.text) || files.length) throw new SupportChatError(400, STICKER_ALONE)
+        return { text: '', files, ...about, extra }
+      }
+      if (!files.length) return { text: supportText(body.data.text), files, ...about, extra }
       const written = cleanSupportText(body.data.text)
       if (written.length > SUPPORT_MESSAGE_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
-      return { text: written, files }
+      return { text: written, files, ...about, extra }
     } catch (error) {
       if (!(error instanceof SupportChatError)) throw error
       res.status(error.status).json({ error: error.message })
@@ -195,10 +296,34 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     imageBudget.take(`ip:${ipRateKey(req.ip)}`, count)
   }
 
+  /** The player's own report an answer is about, as it reads now; another player's reads as one that does not exist. */
+  const reportOf = (id: number, accountId: string): SupportReportRef | undefined => {
+    const report = options.reports?.get(id)
+    return report && report.accountId === accountId ? { id, kind: report.kind, title: report.topic } : undefined
+  }
+
   /** Writes the message; a refused screenshot (400) or a full storage (507) is answered here (undefined). */
-  const write = (res: Response, accountId: string, author: 'user' | 'owner', written: { text: string; files: Buffer[] }) => {
+  const write = (res: Response, accountId: string, author: 'user' | 'owner', written: { text: string; files: Buffer[]; extra: SupportMessageExtra }, report?: SupportReportRef) => {
     try {
-      return store.add(accountId, author, written.text, written.files)
+      return store.add(accountId, author, written.text, written.files, report, written.extra)
+    } catch (error) {
+      if (!(error instanceof SupportChatError)) throw error
+      res.status(error.status).json({ error: error.message })
+      return undefined
+    }
+  }
+
+  /**
+   * The reaction of `author` on the message `:id` of the account's conversation (reactionSchema), or an answer was
+   * already sent: 400 for an emoji not in SUPPORT_REACTIONS, 404 for a message of another conversation or none.
+   */
+  const react = (req: Request, res: Response, accountId: string, author: 'user' | 'owner') => {
+    const id = messageIdSchema.safeParse(req.params.id)
+    const body = reactionSchema.safeParse(req.body)
+    try {
+      if (!id.success) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      if (!body.success || typeof body.data.emoji !== 'string' || !SUPPORT_REACTIONS.includes(body.data.emoji)) throw new SupportChatError(400, UNKNOWN_REACTION)
+      return store.react(accountId, id.data, author, body.data.emoji, body.data.on)
     } catch (error) {
       if (!(error instanceof SupportChatError)) throw error
       res.status(error.status).json({ error: error.message })
@@ -210,6 +335,80 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
   const sendAttachment = (res: Response, attachment: { mime: string; width: number; height: number; data: Buffer }) => {
     res.json({ mime: attachment.mime, data: attachment.data.toString('base64'), width: attachment.width, height: attachment.height })
   }
+
+  /** The guest of the site's chat by the token the browser sent (header `x-support-guest`), or an answer was sent. */
+  const guest = (req: Request, res: Response, limiter = userLimiter) => {
+    res.set('Cache-Control', 'no-store')
+    const id = store.guestByToken(String(req.get('x-support-guest') ?? ''))
+    if (!id) { res.status(401).json({ error: GUEST_UNKNOWN }); return undefined }
+    const retry = limiter.hit(`guest:${id}`)
+    if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' }); return undefined }
+    return id
+  }
+
+  router.post('/v1/support/guest', (req, res) => {
+    res.set('Cache-Control', 'no-store')
+    const retry = guestCreateLimiter.hit(ipRateKey(req.ip))
+    if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: SUPPORT_RATE_MESSAGE }); return }
+    const contact = guestContact(req.body)
+    if (contact === null) { res.status(400).json({ error: BAD_GUEST_EMAIL }); return }
+    const created = store.createGuest((id) => accounts.exists(id))
+    if (contact.name || contact.email) store.setGuestContact(created.id, contact)
+    res.status(201).json({ token: created.token, name: `${GUEST_NAME} ${created.number}`, contact })
+  })
+
+  // The name and e-mail a guest leaves (both optional): the owner sees them, an answer also goes to the e-mail.
+  router.post('/v1/support/guest/contact', (req, res) => {
+    const id = guest(req, res, contactLimiter)
+    if (!id) return
+    const contact = guestContact(req.body)
+    if (contact === null) { res.status(400).json({ error: BAD_GUEST_EMAIL }); return }
+    store.setGuestContact(id, contact)
+    res.json({ contact })
+    signal(() => options.ownerSignals?.changed())
+  })
+
+  router.get('/v1/support/guest/messages', (req, res) => {
+    const id = guest(req, res)
+    if (!id) return
+    const query = afterSchema.safeParse(req.query)
+    if (!query.success) { res.status(400).json({ error: 'Некорректные данные запроса' }); return }
+    const { name, email } = store.guestOf(id) ?? {}
+    res.json({ messages: store.messages(id, query.data.after), unread: store.unreadForUser(id), oldestId: store.oldestId(id), contact: { ...(name ? { name } : {}), ...(email ? { email } : {}) } })
+  })
+
+  // A guest writes text only: no screenshots, stickers or replies.
+  router.post('/v1/support/guest/messages', (req, res) => {
+    const id = guest(req, res)
+    if (!id) return
+    const body = guestTextSchema.safeParse(req.body)
+    let written: string
+    try {
+      if (!body.success) throw new SupportChatError(400, EMPTY_MESSAGE)
+      if (body.data.text.length > RAW_TEXT_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
+      written = supportText(body.data.text)
+    } catch (error) {
+      if (!(error instanceof SupportChatError)) throw error
+      res.status(error.status).json({ error: error.message })
+      return
+    }
+    const address = ipRateKey(req.ip)
+    const retry = sendLimiter.peek(`guest:${id}`) || sendIpLimiter.peek(address)
+    if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: SUPPORT_RATE_MESSAGE }); return }
+    const message = write(res, id, 'user', { text: written, files: [], extra: {} })
+    if (!message) return
+    sendLimiter.hit(`guest:${id}`)
+    sendIpLimiter.hit(address)
+    res.status(201).json({ message })
+    signal(() => options.ownerSignals?.changed())
+  })
+
+  router.post('/v1/support/guest/read', (req, res) => {
+    const id = guest(req, res)
+    if (!id) return
+    store.markRead(id, 'user')
+    res.status(204).end()
+  })
 
   router.get('/v1/me/support/messages', (req, res) => {
     const accountId = player(req, res)
@@ -255,6 +454,16 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     const attachment = SUPPORT_ATTACHMENT_ID.test(id) ? store.attachment(id) : undefined
     if (!attachment) { res.status(404).json({ error: 'Скриншот не найден' }); return }
     sendAttachment(res, attachment)
+  })
+
+  router.post('/v1/me/support/messages/:id/reactions', (req, res) => {
+    const accountId = player(req, res, reactionLimiter)
+    if (!accountId) return
+    const result = react(req, res, accountId, 'user')
+    if (!result) return
+    res.json({ message: result.message })
+    // The owner's open conversation shows it at once.
+    if (result.changed) signal(() => options.ownerSignals?.changed())
   })
 
   router.post('/v1/me/support/read', (req, res) => {
@@ -314,17 +523,57 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     const answer = text(req, res)
     if (answer === undefined) return
     if (tooManyImages(`owner:${actor}`, req, res, answer.files.length)) return
+    const report = answer.reportId === undefined ? undefined : reportOf(answer.reportId, accountId)
+    if (answer.reportId !== undefined && !report) { res.status(404).json({ error: REPORT_NOT_FOUND }); return }
     // The owner writes first into an empty conversation: «Написать пользователю» (or «Открыть чат» on a report).
     const starts = store.oldestId(accountId) === null
-    const message = write(res, accountId, 'owner', answer)
+    const message = write(res, accountId, 'owner', answer, report)
     if (!message) return
+    if (report) signal(() => options.reports?.markAnswered(report.id))
     took(`owner:${actor}`, req, answer.files.length)
     // Answering is reading: the conversation leaves the unread ones.
     const marked = store.markRead(accountId, 'owner')
     res.status(201).json({ message })
     signal(() => options.social?.changed([accountId]))
     if (marked) signal(() => options.ownerSignals?.changed())
-    signal(() => options.audit?.(actor, starts ? 'support.start' : 'support.reply', who(accountId).email || accountId, { id: message.id }))
+    signal(() => options.audit?.(actor, starts ? 'support.start' : 'support.reply', who(accountId).email || accountId, { id: message.id, ...(report ? { report: report.id } : {}) }))
+    // A guest who left an e-mail gets the answer there too (never logged: the address and the text).
+    const to = store.guestOf(accountId)?.email
+    if (to && options.mail && message.text && mailLimiter.hit(accountId) === 0) {
+      void options.mail.send(guestAnswerMail(to, message.text)).catch((error: unknown) => {
+        console.warn(`Support guest mail failed: ${error instanceof Error ? error.name : 'error'}`)
+      })
+    }
+  })
+
+  router.post('/v1/accounts/me/admin/support/threads/:accountId/messages/:id/reactions', (req, res) => {
+    if (!owner('write', req, res)) return
+    const accountId = thread(req, res)
+    if (!accountId) return
+    const result = react(req, res, accountId, 'owner')
+    if (!result) return
+    res.json({ message: result.message })
+    // The player's open chat shows it at once.
+    if (result.changed) signal(() => options.social?.changed([accountId]))
+  })
+
+  // «Редактировать» (owner, 15.11.2026): the player's open chat shows the new words at once, with no mark.
+  router.post('/v1/accounts/me/admin/support/threads/:accountId/messages/:id/edit', (req, res) => {
+    if (!owner('write', req, res)) return
+    const accountId = thread(req, res)
+    if (!accountId) return
+    const id = messageIdSchema.safeParse(req.params.id)
+    const body = editSchema.safeParse(req.body)
+    try {
+      if (!id.success) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      if (!body.success) throw new SupportChatError(400, body.error.issues.some((issue) => issue.code === 'too_big') ? TOO_LONG_MESSAGE : EMPTY_MESSAGE)
+      const message = store.edit(accountId, id.data, body.data.text)
+      res.json({ message })
+      signal(() => options.social?.changed([accountId]))
+    } catch (error) {
+      if (!(error instanceof SupportChatError)) throw error
+      res.status(error.status).json({ error: error.message })
+    }
   })
 
   router.post('/v1/accounts/me/admin/support/threads/:accountId/read', (req, res) => {

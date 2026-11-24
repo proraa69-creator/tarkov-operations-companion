@@ -1,10 +1,23 @@
 import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerLock, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
+import { addedExtractRecords } from './addedExtracts'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
-import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
+import { KEY_DOOR_EXTRA_LOCKS, keyDoorExcluded } from './keyDoorNames'
+import { lootContainerTitle } from './lootContainerKinds'
+import { GUARANTEED_SPAWNS, ROUTE_ITEM_GROUPS, type GuaranteedSpawn } from './guaranteedSpawns'
+import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
+import { CAR_LOCK_TITLE, CAR_PHOTOS, SPAWN_PHOTOS, carName, carNeedsText } from './carLocks'
+import { isStalePlace } from './stalePlaces'
+import { byObjective } from './objectiveGameIds'
+import sptKeySpots from './sptKeySpots.json'
+import sniperSpots from './sniperSpots.json'
+import gameLootContainers from './gameLootContainers.json'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
 import { adaptMapTransits, questTransitPoints, questTransitTexts } from './questTransits'
+import { POWER_SWITCHES } from './powerSwitches'
+import { minesRemoved } from './removedMines'
+import { SCAV_TWIN_SUFFIX } from '../domain/mapLayers'
 
 type JsonRecord = Record<string, unknown>
 
@@ -32,10 +45,15 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptBosses(map, rawMap, mobs, context.items, context.mode))
     markers.push(...adaptSpawns(map, rawMap))
     markers.push(...adaptHazards(map, rawMap))
+    markers.push(...adaptSniperSpots(map))
     markers.push(...adaptLoot(map, rawMap, context.items))
     markers.push(...adaptLocks(map, rawMap, context.items))
     markers.push(...adaptStationaryWeapons(map, rawMap, context.items))
     markers.push(...adaptBattlePassDocuments(map, rawMap))
+    markers.push(...adaptPowerSwitches(map, rawMap))
+    markers.push(...adaptBtrStops(map, rawMap))
+    markers.push(...adaptRouteItems(map, rawMap, context.items))
+    markers.push(...adaptGuaranteedSpawns(map, context.items))
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
@@ -61,6 +79,7 @@ function adaptBattlePassDocuments(map: GameMap, rawMap: JsonRecord): MapMarker[]
       description: `${kinds.map((kind) => BATTLE_PASS_DOCUMENT_KINDS[kind].ru).join(', ')}.`,
       meta: 'Боевой пропуск',
       itemId: BATTLE_PASS_DOCUMENT_KINDS[kinds[0]].itemId,
+      documentKinds: kinds,
       source: 'json.tarkov.dev/maps',
     }]
   })
@@ -81,10 +100,41 @@ function adaptBattlePassDocuments(map: GameMap, rawMap: JsonRecord): MapMarker[]
       source: 'battle-pass-documents',
     }]
   })
-  return [...live, ...community]
+  // The feed's points are the game's own, as many as there are spawns: once it lists a map's documents, the pins placed by hand
+  // would only stand next to them.
+  return live.length ? live : community
 }
 
 const SHARED_EXTRACT_DISTANCE = 15
+/** How far past the map's bounds (a share of their size) a point still counts as on the map. */
+const MAP_BOUNDS_MARGIN = 0.15
+/**
+ * Exits tarkov.dev lists on a map that has no such exit, at another map's coordinates (checked against the EFT Wiki's
+ * «Extractions» of the map, 02.11.2026). Ground Zero: Woods' «UN Roadblock» and «East Gate» (Scav Bunker), far off the
+ * map, and Streets' co-op E10 «Подвал в Pinewood», 15 m past the map's edge — too close for the bounds check.
+ */
+const MISPLACED_EXTRACTS: Record<string, readonly string[]> = {
+  'ground-zero': ['495c627fb5f7498fb7621bf193f16b74e1c952b9', '47e9492ade77358f16b17e94f44e09fa50b82276', 'b8427fbbffcf849ead5619fcc6c4d19225468f28'],
+}
+
+/** The game x / z of a feed point lie on the map (its tile bounds plus a margin); a map without bounds takes every point. */
+function onMap(map: GameMap, position: JsonRecord) {
+  const x = Number(position.x)
+  const z = Number(position.z)
+  if (!map.bounds || !Number.isFinite(x) || !Number.isFinite(z)) return true
+  const [[x1, z1], [x2, z2]] = map.bounds
+  if (![x1, z1, x2, z2].every(Number.isFinite)) return true
+  const marginX = Math.abs(x2 - x1) * MAP_BOUNDS_MARGIN
+  const marginZ = Math.abs(z2 - z1) * MAP_BOUNDS_MARGIN
+  return x >= Math.min(x1, x2) - marginX && x <= Math.max(x1, x2) + marginX && z >= Math.min(z1, z2) - marginZ && z <= Math.max(z1, z2) + marginZ
+}
+
+/** A true co-op exit, by its name in either language or the data's own key. */
+const COOP_EXIT = /\((?:совм|co-?op)|coop/i
+
+/** Customs' railway to Reserve: its PMC record (the game's key ex_customs_pmc_rail_milbase) is listed as the Scavs'. */
+const EXIT_SIDE_FIX: Readonly<Record<string, string>> = { f367bab752ed8474989104613d1151e9434f2bd4: 'pmc' }
+const sideOf = (extract: JsonRecord) => EXIT_SIDE_FIX[text(extract.id)] ?? text(extract.faction)
 
 function sameExtractSpot(a: JsonRecord, b: JsonRecord) {
   if (text(a.name).trim().toLowerCase() !== text(b.name).trim().toLowerCase()) return false
@@ -96,30 +146,41 @@ function sameExtractSpot(a: JsonRecord, b: JsonRecord) {
 }
 
 function adaptExtracts(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
-  const extracts = asArray(rawMap.extracts)
-  const pmcExtracts = extracts.filter((extract) => text(extract.faction) === 'pmc')
-  // tarkov.dev lists shared exits (e.g. Woods "Outskirts") once per faction at the same spot; show them as one PMC exit.
-  const sharedWithScav = new Set(pmcExtracts.filter((pmc) => extracts.some((other) => text(other.faction) === 'scav' && sameExtractSpot(pmc, other))))
+  // Exits the game has that tarkov.dev does not list yet (src/data/addedExtracts.ts).
+  const listed = asArray(rawMap.extracts)
+  const extracts = [...listed, ...addedExtractRecords(text(rawMap.normalizedName), listed) as unknown as JsonRecord[]]
+  const pmcExtracts = extracts.filter((extract) => sideOf(extract) === 'pmc')
   return extracts.flatMap((extract, index) => {
-    if (text(extract.faction) === 'scav' && pmcExtracts.some((pmc) => sameExtractSpot(pmc, extract))) return []
-    const base = baseMarker(map, `extract-${text(extract.id, String(index))}`, extract.position, extract.outline, extract.top, extract.bottom)
+    // Another map's exit listed on this one is not drawn: one far off the map, or one of MISPLACED_EXTRACTS.
+    if (MISPLACED_EXTRACTS[map.id]?.includes(text(extract.id)) || !onMap(map, asRecord(extract.position))) return []
+    // Every exit is its own mark for who may use it (owner, 06.11.2026: «каждый выход должен быть отдельно, а не в одном окне»).
+    // The same exit listed once per side is one place: the Scavs' mark stands by the PMC's, with its text and photo.
+    const raw = sideOf(extract)
+    const pmcOfSamePlace = raw === 'scav' ? pmcExtracts.find((pmc) => sameExtractSpot(pmc, extract)) : undefined
+    const place = pmcOfSamePlace ?? extract
+    const base = baseMarker(map, `extract-${text(place.id, String(index))}`, place.position, place.outline, place.top, place.bottom)
     if (!base) return []
-    const faction = extractFaction(text(extract.faction))
-    const shared = sharedWithScav.has(extract)
-    const factionLabel = faction === 'pmc' ? 'Выход ЧВК' : faction === 'scav' ? 'Выход Диких' : 'Совместный выход'
-    return [{
-      ...base,
-      type: 'extract',
-      layerId: faction === 'pmc' ? 'extract.pmc' : faction === 'scav' ? 'extract.scav' : 'extract.coop',
-      extractFaction: faction,
-      extractId: text(extract.id),
-      title: localizeMapCopy(text(extract.name, factionLabel)),
-      description: extractDescription(faction, extract, items, shared),
-      meta: factionLabel,
-      requiresPower: strings(extract.switches).length > 0 || Boolean(text(extract.switch)),
-      requiresCoop: faction === 'coop',
-      source: 'json.tarkov.dev/maps',
-    }]
+    const mark = (faction: 'pmc' | 'scav' | 'coop', scavTwin: boolean): MapMarker => {
+      const factionLabel = faction === 'pmc' ? 'Выход ЧВК' : faction === 'scav' ? 'Выход Диких' : 'Совместный выход'
+      return {
+        ...base,
+        id: scavTwin ? `${base.id}${SCAV_TWIN_SUFFIX}` : base.id,
+        type: 'extract',
+        layerId: faction === 'pmc' ? 'extract.pmc' : faction === 'scav' ? 'extract.scav' : 'extract.coop',
+        extractFaction: faction,
+        extractId: text(place.id),
+        title: localizeMapCopy(text(extract.name, factionLabel)),
+        description: extractDescription(faction, extract, items),
+        meta: factionLabel,
+        requiresPower: strings(extract.switches).length > 0 || Boolean(text(extract.switch)),
+        requiresCoop: faction === 'coop',
+        source: 'json.tarkov.dev/maps',
+      }
+    }
+    if (raw === 'pmc') return [mark('pmc', false)]
+    if (raw === 'scav') return [mark('scav', Boolean(pmcOfSamePlace))]
+    // «Совместный» in the data is either a true co-op exit, named so, or an exit both sides may use alone: a mark for each.
+    return COOP_EXIT.test(text(extract.name)) || raw !== 'shared' ? [mark('coop', false)] : [mark('pmc', false), mark('scav', true)]
   })
 }
 
@@ -144,10 +205,19 @@ function adaptTransits(map: GameMap, rawMap: JsonRecord, context: MarkerContext)
 
 const GEAR_SLOTS = ['FirstPrimaryWeapon', 'SecondPrimaryWeapon', 'Holster', 'Headwear', 'ArmorVest', 'TacticalVest']
 
-/** Spawn zones tarkov.dev does not list yet, keyed by map and mob normalizedName. */
+/**
+ * Spawn zones tarkov.dev does not list yet, keyed by map and mob normalizedName. `preferred`: where it merges with a
+ * feed point, the marker stands here (a place a player saw the boss).
+ */
 const EXTRA_BOSS_LOCATIONS: Record<string, Record<string, JsonRecord[]>> = {
   shoreline: {
     sanitar: [{ name: 'Санаторий (главный корпус)', positions: [{ x: -250, y: -2, z: -138 }] }],
+  },
+  // A player's report (serdub203, 01.11.2026, owner: «Добавь босса глухаря еще на это место. На резерве»): Glukhar and his
+  // guards spawned here less than a minute into the raid — by the railway, south of the transit's building, read off the
+  // player's map picture (approximate). The feed's rail-storage point in that building is 49 m north and joins this marker.
+  reserve: {
+    glukhar: [{ name: 'Ж/д пути у перехода', preferred: true, positions: [{ x: -135, y: -5, z: -83 }] }],
   },
 }
 
@@ -183,6 +253,8 @@ interface BossSpawnPoint {
   /** `bossIndex-locationIndex`: the zone of one listing, so its chance is counted once per merged marker. */
   zoneKey: string
   zoneChance: number
+  /** An extra location the merged marker should stand on (EXTRA_BOSS_LOCATIONS). */
+  preferred?: boolean
 }
 
 interface BossGroup {
@@ -233,7 +305,7 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
       const valid = positions.filter((position) => Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z)))
       // A zone without usable coordinates keeps its (unplaceable) first point, like before: baseMarker drops it.
       for (const position of valid.length ? valid : positions.slice(0, 1)) {
-        group.points.push({ position, x: number(position.x), z: number(position.z), zone, zoneKey, zoneChance: number(location.chance) })
+        group.points.push({ position, x: number(position.x), z: number(position.z), zone, zoneKey, zoneChance: number(location.chance), ...(location.preferred === true ? { preferred: true } : {}) })
       }
     })
   })
@@ -348,7 +420,7 @@ function bossEscorts(boss: JsonRecord, mobs: Map<string, JsonRecord>, isGoons: b
  * its most central real spawn point (the medoid) — an average landed on roads and open ground between buildings
  * (Killa outside the mall, Shturman beside the sawmill), sometimes outside the building.
  */
-export function mergeBossSpawnPoints<T extends { x: number; z: number }>(points: T[], metres = BOSS_MERGE_METRES): Array<{ center: T; points: T[] }> {
+export function mergeBossSpawnPoints<T extends { x: number; z: number; preferred?: boolean }>(points: T[], metres = BOSS_MERGE_METRES): Array<{ center: T; points: T[] }> {
   if (!points.length) return []
   const distance = (a: T, b: T) => Math.hypot(a.x - b.x, a.z - b.z)
   const order = new Map(points.map((point, index) => [point, index]))
@@ -371,7 +443,9 @@ export function mergeBossSpawnPoints<T extends { x: number; z: number }>(points:
   return clusters.sort((a, b) => b.points.length - a.points.length || a.center.x - b.center.x || a.center.z - b.center.z)
 }
 
-function medoid<T>(points: T[], distance: (a: T, b: T) => number) {
+function medoid<T extends { preferred?: boolean }>(points: T[], distance: (a: T, b: T) => number) {
+  const preferred = points.find((point) => point.preferred)
+  if (preferred) return preferred
   const spread = (candidate: T) => points.reduce((sum, other) => sum + distance(other, candidate), 0)
   return points.reduce((best, candidate) => (spread(candidate) < spread(best) ? candidate : best), points[0])
 }
@@ -413,26 +487,77 @@ function prettifyZone(zone: string) {
     .trim()
 }
 
+/**
+ * Spawn points this near are one mark (owner, 07.11.2026: «Добавь на все карты, спавны ЧВК и места спавна диких»). A map lists
+ * up to 200 of each, in groups a few metres apart, where an icon covers many at once. PMC groups stand clear of each other at
+ * this distance (their count barely changes up to 40 m); Scav points are spread wider.
+ */
+export const SPAWN_MERGE_METRES = { pmc: 15, scav: 25 } as const
+/** Points further apart than this in height are on different floors: never one mark. */
+const SPAWN_SAME_LEVEL_METRES = 3
+/** The Lab's bots are Raiders, not Scavs, and it has no Scav players: its points would name someone who is not there. */
+const MAPS_WITHOUT_SCAVS = new Set(['the-lab', 'the-lab-dark', 'infected-lab'])
+
+function spawnSide(spawn: JsonRecord, mapId: string): 'pmc' | 'scav' | undefined {
+  const sides = strings(spawn.sides), categories = strings(spawn.categories)
+  // A sniper's perch is not where a raid starts; those stand in «Опасности».
+  if (categories.includes('sniper')) return undefined
+  if ((sides.includes('pmc') || sides.includes('all')) && categories.includes('player')) return 'pmc'
+  if (!sides.includes('scav') || MAPS_WITHOUT_SCAVS.has(mapId)) return undefined
+  return categories.includes('player') || categories.includes('bot') || categories.includes('all') ? 'scav' : undefined
+}
+
+/** The kept point is a real one: the one with the most others near it. */
+function mergeNearSpawns(points: JsonRecord[], metres: number) {
+  const place = (point: JsonRecord) => asRecord(point.position)
+  const near = (a: JsonRecord, b: JsonRecord) => {
+    const from = place(a), to = place(b)
+    return Math.hypot(number(from.x) - number(to.x), number(from.z) - number(to.z)) <= metres && Math.abs(number(from.y) - number(to.y)) <= SPAWN_SAME_LEVEL_METRES
+  }
+  const left = [...points]
+  const kept: JsonRecord[] = []
+  while (left.length) {
+    let best = left[0]!
+    let most = -1
+    for (const point of left) {
+      const around = left.filter((other) => near(point, other)).length
+      if (around > most) { best = point; most = around }
+    }
+    kept.push(best)
+    for (let index = left.length - 1; index >= 0; index -= 1) if (near(left[index]!, best)) left.splice(index, 1)
+  }
+  return kept
+}
+
 function adaptSpawns(map: GameMap, rawMap: JsonRecord): MapMarker[] {
-  return asArray(rawMap.spawns).flatMap((spawn, index) => {
-    const base = baseMarker(map, `spawn-${index}`, spawn.position, undefined, asRecord(spawn.position).y, asRecord(spawn.position).y)
-    if (!base) return []
-    return [{
-      ...base,
-      type: 'spawn',
-      layerId: 'spawn',
-      title: strings(spawn.sides).includes('pmc') ? 'Спавн ЧВК' : strings(spawn.sides).includes('scav') ? 'Спавн Диких' : 'Спавн',
-      description: strings(spawn.categories).join(', ') || 'Точка появления.',
-      meta: text(spawn.zoneName, 'спавн'),
-      source: 'json.tarkov.dev/maps',
-    }]
+  const spawns = asArray(rawMap.spawns)
+  return (['pmc', 'scav'] as const).flatMap((side) => {
+    const points = mergeNearSpawns(spawns.filter((spawn) => spawnSide(spawn, map.id) === side), SPAWN_MERGE_METRES[side])
+    return points.flatMap((spawn, index): MapMarker[] => {
+      const base = baseMarker(map, `spawn-${side}-${index}`, spawn.position, undefined, asRecord(spawn.position).y, asRecord(spawn.position).y)
+      if (!base) return []
+      return [{
+        ...base,
+        type: 'spawn',
+        layerId: side === 'pmc' ? 'spawn.pmc' : 'spawn.scav',
+        title: side === 'pmc' ? 'Спавн ЧВК' : 'Спавн дикого',
+        description: side === 'pmc' ? 'Здесь ЧВК начинают рейд.' : 'Здесь появляются дикие.',
+        source: 'json.tarkov.dev/maps',
+      }]
+    })
   })
 }
 
 function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
-  const hazards = [...asArray(rawMap.hazards), ...asArray(asRecord(rawMap.artillery).zones)]
+  const listed = asArray(rawMap.hazards).filter((hazard) => !(minesRemoved(map.id) && text(hazard.hazardType) === 'minefield'))
+  const hazards = [...listed, ...asArray(asRecord(rawMap.artillery).zones)]
+  const seen = new Set<string>()
   return hazards.flatMap((hazard, index) => {
-    const base = baseMarker(map, `hazard-${text(hazard.id, String(index))}`, hazard.position, hazard.outline, hazard.top, hazard.bottom ?? hazard.botom)
+    // The Labyrinth's corridors repeat one id for ten zones: each is its own point.
+    const id = text(hazard.id, String(index))
+    const unique = seen.has(id) ? `${id}-${index}` : id
+    seen.add(id)
+    const base = baseMarker(map, `hazard-${unique}`, hazard.position, hazard.outline, hazard.top, hazard.bottom ?? hazard.botom)
     if (!base) return []
     return [{
       ...base,
@@ -446,6 +571,144 @@ function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
   })
 }
 
+const SNIPER_SPOTS = (sniperSpots as unknown as { maps: Record<string, Array<[number, number, number, string]>> }).maps
+export const SNIPER_SPOT_TITLE = 'Снайпер (дикий)'
+export const SNIPER_SPOT_TEXT = 'Здесь появляется дикий-снайпер.'
+
+/**
+ * Where Scav snipers appear (report 131, 10.11.2026: «добавьте пожалуйста места снайперов на карте»): the sniper bot zones of the
+ * game's own location files (src/data/sniperSpots.json; the feed tells them on Streets only). A layer of their own, «Снайперы»
+ * (owner, 12.11.2026: on «Опасности», hidden by default, nobody saw them); apps before it get them on «Опасности» (catalogWire).
+ */
+function adaptSniperSpots(map: GameMap): MapMarker[] {
+  return (SNIPER_SPOTS[map.id] ?? []).flatMap(([x, y, z], index): MapMarker[] => {
+    const base = baseMarker(map, `sniper-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    // No floor, height or roof on them (owner, 13.11.2026: «убери у точек снайперов этажи»): no badge, shown on every floor.
+    return [{ ...base, floor: undefined, height: undefined, heightRange: undefined, type: 'danger', layerId: 'sniper', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
+  })
+}
+
+/** The levers that turn on an exit or the power (src/data/powerSwitches.ts); other tarkov.dev switches are not drawn. */
+function adaptPowerSwitches(map: GameMap, rawMap: JsonRecord): MapMarker[] {
+  return asArray(rawMap.switches).flatMap((entry) => {
+    const known = POWER_SWITCHES[text(entry.id)]
+    const base = known && baseMarker(map, `switch-${text(entry.id)}`, entry.position, undefined, entry.top, entry.bottom)
+    if (!base) return []
+    return [{ ...base, type: 'landmark', layerId: 'switch', title: known.title, description: known.description, meta: 'Рубильник', source: 'json.tarkov.dev/maps' }]
+  })
+}
+
+/**
+ * Lighthouse has BTR stops since 1.1.5, but upstream's map data lists none (06.11.2026). Their places are read off the wiki's map
+ * of the stops, matched to game metres by that map's door padlocks against upstream's doors (owner: «Да, добавь примерно»;
+ * docs/quests/lighthouse-balance-shift.md), a few metres off in the north, more in the far south; the card says the place is
+ * approximate. They give way as soon as upstream lists the map's own. «Честный отзыв» points at three of them (src/data/curatedQuests.ts).
+ */
+const APPROXIMATE_BTR_STOPS: Readonly<Record<string, ReadonlyArray<{ name: string; x: number; z: number }>>> = {
+  lighthouse: [
+    { name: 'Северный КПП', x: 101, z: -944 },
+    { name: 'Парковка корпуса 2 водоочистки', x: -165, z: -748 },
+    { name: 'Парковка корпуса 1 водоочистки', x: 37, z: -576 },
+    { name: 'Перекрёсток у деревни', x: -195, z: -243 },
+    { name: 'Стройка', x: 7, z: -186 },
+    { name: 'КПП ООН', x: 17, z: 117 },
+    { name: 'Южная дорога', x: -209, z: 419 },
+    { name: 'Дорога к маяку', x: 0, z: 467 },
+  ],
+}
+
+/** The BTR's stops (owner, 06.11.2026: «добавь на всех картах, где есть остановки БТРа… обозначь значком БТРа»); upstream lists them for Streets and Woods. */
+function adaptBtrStops(map: GameMap, rawMap: JsonRecord): MapMarker[] {
+  const listed = asArray(rawMap.btrStops)
+  if (!listed.length) {
+    return (APPROXIMATE_BTR_STOPS[map.id] ?? []).flatMap((stop) => {
+      const base = baseMarker(map, `btr-stop-${stop.x}-${stop.z}`, stop, undefined, undefined, undefined)
+      return base ? [{ ...base, type: 'landmark' as const, layerId: 'btr' as const, title: stop.name, description: 'Здесь останавливается БТР. Место примерное.', meta: 'Остановка БТР', source: 'approximate' }] : []
+    })
+  }
+  return listed.flatMap((stop) => {
+    const base = baseMarker(map, `btr-stop-${Math.round(Number(stop.x))}-${Math.round(Number(stop.z))}`, stop, undefined, stop.y, stop.y)
+    const name = text(stop.name)
+    // A name without its translation is a key of the game's: the marker still says what it is.
+    if (!base) return []
+    return [{ ...base, type: 'landmark', layerId: 'btr', title: name && !name.includes('/') ? name : 'Остановка БТР', description: 'Здесь останавливается БТР.', meta: 'Остановка БТР', source: 'json.tarkov.dev/maps' }]
+  })
+}
+
+/**
+ * The Labyrinth's keys and tools, each spot of each item its own point (owner, 06.11.2026: «Указать все спавны ключей и
+ * инструментов (газовый резак) для прохождения "головоломок-ловушек"»). A loose spot lists all it may hold, so the plain loot
+ * layers cannot show which key lies where.
+ */
+const ROUTE_ITEMS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'the-labyrinth': {
+    '679baa2c61f588ae2b062a24': 'Открывает проход в комнате 1.',
+    '679baa4f59b8961f370dd683': 'Открывает проход в комнате 2.',
+    '679baa5a59b8961f370dd685': 'Открывает проход в комнате 3.',
+    '679baa9091966fe40408f149': 'Открывает проход в комнате 4.',
+    '67ab3d4b83869afd170fdd3f': 'Вскрывает двери в комнатах 3 и 5.',
+    '678fa929819ddc4c350c0317': 'Отключает пар в комнате 2.',
+    '679bab714e9ca6b3d80586b4': 'Открывает помещение с телами.',
+    '679baace4e9ca6b3d80586b2': 'Открывает комнату наблюдения.',
+  },
+}
+
+/**
+ * Where on a spot of the feed a route item lies, as players told (report 182, 17.11.2026: «Спавн ключа на лопате в этом месте»,
+ * Лабиринт, beside «Комната 1»): within EXTRA_KEY_SAME_SPOT_METRES of the feed's spot of that item. The text goes after the
+ * item's own (src/i18n/uiEnglishMap.ts has its English), and the spot keeps its own point (`ownSpot`).
+ */
+export const ROUTE_ITEM_PLACES: ReadonlyArray<{ mapId: string; itemId: string; x: number; z: number; ru: string }> = [
+  // «Ключ 01»: the middle of the three rooms by the toxic pool (room 1), the feed's spot at y 0.5 — on the floor, on the shovel
+  { mapId: 'the-labyrinth', itemId: '679baa2c61f588ae2b062a24', x: -42.57, z: 64.85, ru: 'Лежит на лопате.' },
+]
+
+/** Two spots of a route item group this close are one place (SPT lists a few twice, a hand's width apart). */
+const ROUTE_GROUP_SAME_SPOT_METRES = 1
+
+/** A group's spots, one per place. */
+function routeGroupSpots(group: GuaranteedSpawn) {
+  const spots: Array<{ x: number; y: number; z: number }> = []
+  for (const position of group.positions) {
+    if (!spots.some((spot) => Math.hypot(spot.x - position.x, spot.y - position.y, spot.z - position.z) < ROUTE_GROUP_SAME_SPOT_METRES)) spots.push(position)
+  }
+  return spots
+}
+
+/** Card text of a route item spot of a group that always holds one (src/data/guaranteedSpawns.ts, ROUTE_ITEM_GROUPS). */
+export const routeGroupText = (count: number) => `Всегда в одной из ${count} точек.`
+
+function adaptRouteItems(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
+  const route = ROUTE_ITEMS[map.id]
+  if (!route) return []
+  const groups = ROUTE_ITEM_GROUPS.filter((group) => group.mapId === map.id)
+  const near = (a: JsonRecord | { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
+    Math.hypot(number(a.x) - b.x, number(a.y) - b.y, number(a.z) - b.z) < ROUTE_GROUP_SAME_SPOT_METRES
+  const groupOf = (itemId: string, at: JsonRecord) => groups.find((group) => group.itemId === itemId && group.positions.some((spot) => near(at, spot)))
+  const marker = (itemId: string, id: string, at: JsonRecord, source: string): MapMarker[] => {
+    const description = route[itemId]
+    const item = items.get(itemId)
+    const base = description && item && baseMarker(map, id, at, undefined, at.y, at.y)
+    if (!base) return []
+    const place = ROUTE_ITEM_PLACES.find((spot) => spot.mapId === map.id && spot.itemId === itemId
+      && Math.hypot(number(at.x) - spot.x, number(at.z) - spot.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    const group = groupOf(itemId, at)
+    const text = [description, group ? routeGroupText(routeGroupSpots(group).length) : '', place?.ru ?? ''].filter(Boolean).join(' ')
+    return [{
+      ...base, type: 'cache', layerId: 'loot.key', title: item.name, description: text,
+      meta: item.shortName, itemId, source, ...(place ? { ownSpot: true } : {}),
+    }]
+  }
+  const loose = asArray(rawMap.lootLoose)
+  const listed = loose.flatMap((loot, index) => strings(loot.items).flatMap((itemId) => marker(itemId, `route-item-${itemId}-${index}`, asRecord(loot.position), 'json.tarkov.dev/maps')))
+  // The spots of a group the feed has not got (SPT's raid statistics).
+  const added = groups.flatMap((group, at) => routeGroupSpots(group)
+    .filter((spot) => !loose.some((loot) => strings(loot.items).includes(group.itemId) && near(asRecord(loot.position), spot)))
+    .flatMap((spot, index) => marker(group.itemId, `route-item-${group.itemId}-group-${at}-${index}`, { ...spot }, 'raid-statistics')))
+  return [...listed, ...added]
+}
+
 /** Card text of a jewelry spot: the items are listed in `meta` (and the first one's icon); the data has no chance. */
 export const VALUABLE_SPOT_TEXT = 'Здесь может появиться драгоценность. Шанс появления не указан.'
 
@@ -457,18 +720,25 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       ...base,
       type: 'cache',
       layerId: 'loot.container' as MarkerLayerId,
-      title: 'Контейнер с лутом',
+      title: lootContainerTitle(text(container.lootContainer)) ?? 'Контейнер с лутом',
       description: 'Контейнер или ящик с добычей.',
       meta: text(container.lootContainer, 'container'),
       source: 'json.tarkov.dev/maps',
     }]
   })
+  containerMarkers.push(...adaptGameContainers(map, rawMap))
+  const routeIds = new Set(Object.keys(ROUTE_ITEMS[map.id] ?? {}))
   const looseMarkers: MapMarker[] = asArray(rawMap.lootLoose).flatMap((loot, index) => {
     // Battle pass documents get their own layer (adaptBattlePassDocuments).
     if (strings(loot.items).some((id) => BATTLE_PASS_DOCUMENT_ITEM_IDS.has(id))) return []
     const base = baseMarker(map, `loot-loose-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
     if (!base) return []
-    const itemIds = strings(loot.items)
+    // Keys and keycards lying loose go on «Ключи» (report №108); the spot's other items stay on their layer.
+    const keyIds = strings(loot.items).filter((id) => isKeyItem(items.get(id)))
+    const keySpot = keyMarker(base, keyIds.filter((id) => !routeIds.has(id) && !isGroupSpot(map.id, id, asRecord(loot.position))), items)
+      .map((marker) => withKeySpotPhotos(marker, map.id, asRecord(loot.position)))
+    const itemIds = strings(loot.items).filter((id) => !keyIds.includes(id))
+    if (!itemIds.length) return keySpot
     // Jewelry / valuables (by the items' categories) first: the spot is drawn on the «Драгоценности» layer and its card
     // starts with them. tarkov.dev gives loose loot no spawn chance, so these spots never claim a certain spawn.
     const valuables = itemIds.filter((id) => items.get(id)?.valuable)
@@ -485,10 +755,157 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       description: valuables.length ? VALUABLE_SPOT_TEXT : 'Точка свободного лута.',
       meta: shown.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
       itemId: shown[0],
+      lootIds: shown,
       source: 'json.tarkov.dev/maps',
+    }, ...keySpot]
+  })
+  return [...containerMarkers, ...looseMarkers, ...adaptExtraKeySpots(map, rawMap, items), ...adaptSptKeySpots(map, rawMap, items)]
+}
+
+const SPT_KEY_SPOTS = (sptKeySpots as unknown as { maps: Record<string, Array<[number, number, number, string[]]>> }).maps
+
+/**
+ * Loose key spots of live raids' statistics (SPT database, src/data/sptKeySpots.json) the feed lacks (owner, 10.11.2026: «на картах
+ * не хватает очень много спавнов ключей»); one the feed lists later, within EXTRA_KEY_SAME_SPOT_METRES, is not drawn twice.
+ */
+function adaptSptKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
+  const loose = asArray(rawMap.lootLoose)
+  return (SPT_KEY_SPOTS[map.id] ?? []).flatMap(([x, y, z, keyIds], index): MapMarker[] => {
+    const known = keyIds.filter((id) => items.has(id))
+    if (!known.length) return []
+    const listed = loose.some((loot) => strings(loot.items).some((id) => known.includes(id))
+      && Math.hypot(number(asRecord(loot.position).x) - x, number(asRecord(loot.position).z) - z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    if (listed) return []
+    const base = baseMarker(map, `spt-key-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    return keyMarker(base, known, items).map((marker) => withKeySpotPhotos({ ...marker, source: 'raidos' }, map.id, { x, z }))
+  })
+}
+
+/** The photos players gave of a feed key spot (src/data/extraKeySpots.ts): on the point of the same key within reach. */
+function withKeySpotPhotos(marker: MapMarker, mapId: string, position: JsonRecord): MapMarker {
+  const keys = marker.keyIds ?? (marker.itemId ? [marker.itemId] : [])
+  const photos = EXTRA_KEY_SPOTS.filter((spot) => spot.mapId === mapId && keys.includes(spot.itemId)
+    && Math.hypot(number(position.x) - spot.position.x, number(position.z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    .flatMap((spot) => spot.photos.map((photo) => ({ ...photo })))
+  return photos.length ? { ...marker, spotPhotos: photos } : marker
+}
+
+/** Keys players found where the feed has none (src/data/extraKeySpots.ts), with the photo of the place; not where the feed has them now. */
+function adaptExtraKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
+  return EXTRA_KEY_SPOTS.flatMap((spot, index): MapMarker[] => {
+    if (spot.mapId !== map.id) return []
+    const listed = asArray(rawMap.lootLoose).some((loot) => strings(loot.items).includes(spot.itemId)
+      && Math.hypot(number(asRecord(loot.position).x) - spot.position.x, number(asRecord(loot.position).z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    // a spot of a «один из N» group (guaranteedSpawns.ts): its photo goes on that point (adaptGuaranteedSpawns)
+    if (listed || isGroupSpot(map.id, spot.itemId, spot.position)) return []
+    const base = baseMarker(map, `extra-key-${spot.itemId}-${index}`, spot.position, undefined, spot.position.y, spot.position.y)
+    if (!base) return []
+    return keyMarker(base, [spot.itemId], items).map((marker) => ({ ...marker, source: 'raidos', spotPhotos: spot.photos.map((photo) => ({ ...photo })) }))
+  })
+}
+
+const isKeyItem = (item: Item | undefined) => item?.category === 'Ключ'
+/** A key of a «один из N» group (guaranteedSpawns.ts) at one of its spots: drawn once, by the group's own point. */
+const GROUP_SPOT_METRES = 3
+function isGroupSpot(mapId: string, itemId: string, position: JsonRecord) {
+  const x = number(position.x), z = number(position.z)
+  return GUARANTEED_SPAWNS.some((spawn) => spawn.mapId === mapId && spawn.itemId === itemId && spawn.kind === 'one-of'
+    && spawn.positions.some((spot) => Math.hypot(spot.x - x, spot.z - z) < GROUP_SPOT_METRES))
+}
+/** How many key names a key spot's card lists. */
+const KEY_NAMES_SHOWN = 8
+
+/** Card text of a loose key spot: what may lie there. */
+export const keySpotText = (names: readonly string[]) => names.length === 1
+  ? 'Может лежать здесь.'
+  : `Может лежать один из: ${names.slice(0, KEY_NAMES_SHOWN).join(', ')}${names.length > KEY_NAMES_SHOWN ? ` и ещё ${names.length - KEY_NAMES_SHOWN}` : ''}.`
+
+/**
+ * A spot where keys or keycards lie loose, not in a container (report №108, owner 09.11.2026: «где прям ключи спавнятся… именно
+ * где они просто лежат на карте… Ключ-карт, ключей… в одной вкладке»). One point per spot, its first key's picture and name.
+ */
+/** A key's worth for the point's picture: the flea price, else the handbook price (marked keys and keycards first). */
+export const keyWorth = (item: Pick<Item, 'fleaPrice' | 'basePrice'> | undefined) => item?.fleaPrice ?? item?.basePrice ?? 0
+
+function keyMarker(base: NonNullable<ReturnType<typeof baseMarker>>, spotKeys: readonly string[], items: Map<string, Item>): MapMarker[] {
+  if (!spotKeys.length) return []
+  // Owner, 09.11.2026: «на основной картинке самый дорогой ключ, который там бывает»: the dearest first.
+  const keyIds = [...spotKeys].sort((a, b) => keyWorth(items.get(b)) - keyWorth(items.get(a)))
+  const names = keyIds.map((id) => items.get(id)?.name ?? id)
+  return [{
+    ...base,
+    id: base.id.replace('-loot-loose-', '-loot-key-'),
+    type: 'cache',
+    layerId: 'loot.key',
+    title: keyIds.length === 1 ? names[0]! : `Ключи: ${keyIds.length}`,
+    description: keySpotText(names),
+    meta: keyIds.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
+    itemId: keyIds[0],
+    ...(keyIds.length > 1 ? { keyCount: keyIds.length } : {}),
+    keyIds: [...keyIds],
+    source: 'json.tarkov.dev/maps',
+  }]
+}
+
+/** A game-file container this close to one of tarkov.dev's is that one. */
+const SAME_CONTAINER_METRES = 2
+const GAME_CONTAINERS = (gameLootContainers as unknown as { points: Record<string, Array<[string, number, number, number]>> }).points
+
+/**
+ * Containers the game's own scene files hold and tarkov.dev had not (09.11.2026: the new camps of Interchange and
+ * Lighthouse, Terminal, Icebreaker, the infected maps). The same container id as tarkov.dev's, so the kind and icon match;
+ * a point tarkov.dev adds later is drawn once.
+ */
+function adaptGameContainers(map: GameMap, rawMap: JsonRecord): MapMarker[] {
+  const listed = asArray(rawMap.lootContainers).map((container) => asRecord(container.position))
+  return (GAME_CONTAINERS[map.id] ?? []).flatMap(([containerId, x, y, z], index): MapMarker[] => {
+    if (listed.some((position) => Math.hypot(number(position.x) - x, number(position.y) - y, number(position.z) - z) < SAME_CONTAINER_METRES)) return []
+    const base = baseMarker(map, `loot-container-game-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    return [{
+      ...base,
+      type: 'cache',
+      layerId: 'loot.container',
+      title: lootContainerTitle(containerId) ?? 'Контейнер с лутом',
+      description: 'Контейнер или ящик с добычей.',
+      meta: containerId,
+      source: 'game-files',
     }]
   })
-  return [...containerMarkers, ...looseMarkers]
+}
+
+/** Card text of a «Спавн 100 %» point. */
+export const guaranteedSpawnText = (kind: 'here' | 'one-of', count: number) =>
+  kind === 'here' || count < 2 ? 'Лежит здесь в каждом рейде.' : `Одна из ${count} возможных точек спавна.`
+
+/** Our frames of a guaranteed spawn's spot (owner, 23.11.2026: the machinery key's jacket): its own, else the offline game's. */
+const spawnPhotos = (spawn: GuaranteedSpawn, mapId: string) => spawn.photos ?? SPAWN_PHOTOS[`${canonicalMapId(mapId)}/${spawn.itemId}`] ?? []
+
+/** «Спавн 100 %»: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts). */
+function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarker[] {
+  return GUARANTEED_SPAWNS.filter((spawn) => spawn.mapId === map.id).flatMap((spawn) => spawn.positions.flatMap((position, index): MapMarker[] => {
+    const base = baseMarker(map, `guaranteed-${spawn.itemId}-${index}`, position, undefined, position.y, position.y)
+    if (!base) return []
+    const item = items.get(spawn.itemId)
+    // Owner, 09.11.2026: only an item that always lies at its one spot is «Спавн 100 %»; a spot of a group («один из 12») is a
+    // possible spawn on «Ключи», with the other keys.
+    const certain = spawn.kind === 'here' || spawn.positions.length < 2
+    return [withKeySpotPhotos({
+      ...base,
+      type: 'cache',
+      layerId: certain ? 'loot.guaranteed' : 'loot.key',
+      ...(certain ? {} : { possibleSpawn: true }),
+      title: item?.name ?? spawn.name,
+      description: spawn.text ?? guaranteedSpawnText(spawn.kind, spawn.positions.length),
+      meta: item?.shortName,
+      itemId: spawn.itemId,
+      ...(spawnPhotos(spawn, map.id).length ? { spotPhotos: spawnPhotos(spawn, map.id).map((photo) => ({ ...photo })) } : {}),
+      // The badge only where the item always lies; a spot of a group holds it in some raids.
+      guaranteedSpawn: spawn.kind === 'here' || spawn.positions.length < 2,
+      source: 'raid-statistics',
+    }, map.id, position)]
+  }))
 }
 
 /** TerraGroup Labs keycards by tarkov.dev item id (names are localized, ids are not). */
@@ -545,6 +962,12 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
     const base = baseMarker(map, `lock-${text(lock.id, String(index))}`, lock.position, undefined, asRecord(lock.position).y, asRecord(lock.position).y)
     if (!base) return []
     const keyId = text(lock.key) || text(asRecord(lock.key).id)
+    const lockType = text(lock.lockType, 'door')
+    // A lock ruled out for its key (src/data/keyDoorNames.ts KEY_DOOR_EXCLUSIONS) is not drawn either, as the key's door
+    // list already leaves it out: report 156 (14.11.2026, «маркер авто за картой»), the Factory emergency exit key on
+    // car trunks of Ground Zero (one beyond the map's edge), Lighthouse, Streets and Shoreline.
+    const point = asRecord(lock.position)
+    if (keyId && keyDoorExcluded(keyId, canonicalMapId(map.id), Number(point.x), Number(point.z), typeof point.y === 'number' ? point.y : undefined, lockKind(lockType))) return []
     const key = items.get(keyId)
     const keycard = keycardColor(keyId, key?.name ?? text(asRecord(lock.key).name))
     // tarkov.dev names the card in the catalog language; a Russian catalog without the name gets our label.
@@ -552,14 +975,17 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
     const shownName = keyName || (keycard ? KEYCARD_LABELS[keycard] : '')
     const needsPower = Boolean(lock.needsPower)
     const needs = keycard ? `Нужна ключ-карта «${shownName}».` : `Нужен ключ «${shownName}».`
-    const lockType = text(lock.lockType, 'door')
-    const lockLabel = lockType === 'container' ? 'Запертый контейнер' : lockType === 'trunk' ? 'Дверь или багажник машины' : 'Дверь'
+    const lockLabel = lockType === 'container' ? 'Запертый контейнер' : 'Дверь'
+    // A car (owner, 23.11.2026): «Багажник машины. Нужен ключ от автомобиля «Жигули»», with our frame of the car.
+    const car = lockType === 'trunk'
+    const carPhotos = car ? CAR_PHOTOS[text(lock.id)] : undefined
     return [{
       ...base,
       type: 'key' as const,
       layerId: 'key' as const,
-      title: shownName ? `${lockLabel} · открывает: ${shownName}` : lockType === 'door' ? 'Запертая дверь' : lockLabel,
-      description: `${shownName ? needs : 'Требуется ключ.'}${needsPower ? ' Также необходимо питание.' : ''}`,
+      title: car ? CAR_LOCK_TITLE : shownName ? `${lockLabel} · открывает: ${shownName}` : lockType === 'door' ? 'Запертая дверь' : lockLabel,
+      description: `${car && shownName && !keycard ? carNeedsText(carName(keyId, shownName)) : shownName ? needs : 'Требуется ключ.'}${needsPower ? ' Также необходимо питание.' : ''}`,
+      ...(carPhotos?.length ? { spotPhotos: carPhotos.map((photo) => ({ ...photo })) } : {}),
       // Keycard doors show the card colour in the tooltip instead.
       meta: keycard ? undefined : 'Запертая дверь',
       itemId: keyId || undefined,
@@ -567,6 +993,22 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
       source: lock.kept ? 'json.tarkov.dev/maps 29.09.2026' : 'json.tarkov.dev/maps',
     }]
   })
+}
+
+/**
+ * Quest points whose floor the map's heights get wrong, by objective id: the floor's number (report №101, 08.11.2026, «Слежка» on
+ * Streets: «Метки указывают на первый. Это второй этаж» — the place stands at 5–7 m, Streets' floors start at 10 m for the whole
+ * map, so it fell on the main level).
+ */
+export const QUEST_POINT_FLOORS: Readonly<Record<string, number>> = {
+  // «Слежка»: «Обнаружить место слежки» and «Найти результаты наблюдений»
+  '63a7d8665199ab1f7d4a7747': 2,
+  '639136fa9444fb141f4e6eef': 2,
+}
+
+/** The map's floor of this number («2 этаж» / «2nd Floor»), if it has one. */
+function floorNumbered(map: GameMap, number: number) {
+  return map.floors?.find((name) => Number(/^(\d+)/.exec(name)?.[1]) === number)
 }
 
 function lockKind(lockType: string): MarkerLock['kind'] {
@@ -598,6 +1040,13 @@ export const POSSIBLE_SPOT_METRES = 20
 const SAME_FLOOR_METRES = 3
 /** The same zone or spawn point listed twice (e.g. once per map variant) is drawn once; distinct points are all kept. */
 const DUPLICATE_POINT_METRES = 0.25
+/**
+ * Spawn points of one quest item within this distance of a kept spawn, on any floor, are drawn as that one point (owner,
+ * 02.11.2026: «там где показывается возможное место квестового предмета, их бывает несколько рядом, показывай только одну
+ * точку»). Quest points are shown on every floor (mapProjection.ts markerVisibleOnFloor), so spawns of one room or one
+ * stairwell stood on top of each other. The kept point is a real spawn: the one with the most others near it.
+ */
+export const ITEM_SPOT_MERGE_METRES = 15
 
 interface QuestPoint {
   kind: 'zone' | 'item'
@@ -608,6 +1057,17 @@ interface QuestPoint {
   idSuffix: string
   zone?: JsonRecord
   position: JsonRecord
+  /** A spawn the app added to the feed's (src/data/questItemSpots.ts, `added`): never the id of a merged point. */
+  added?: boolean
+}
+
+/**
+ * Places of an objective the feed does not mark, by objective id (game coordinates of a place the maps file has): report 123
+ * (10.11.2026), «Умный в гору не пойдёт», «доп место секрет выход» — Customs' other secret exit, «Лодка Контрабандистов»,
+ * opened by the same note «Ворон» as the bunker ZB-1012 the feed marks.
+ */
+export const QUEST_EXTRA_PLACES: Record<string, ReadonlyArray<{ map: string; id: string; position: { x: number; y: number; z: number } }>> = {
+  '675c1cf4a757ddd00404f0a6': [{ map: 'customs', id: 'smugglers-boat', position: { x: -41.51, y: -12.63, z: 122.67 } }],
 }
 
 function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarker[] {
@@ -617,8 +1077,12 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
   for (const quest of context.quests) {
     const rawTask = asRecord(asRecord(taskRoot.tasks)[quest.id])
     const questMarkers: MapMarker[] = []
-    for (const objective of asArray(rawTask.objectives)) {
+    const details = quest.objectiveDetails ?? []
+    for (const [objectiveIndex, objective] of asArray(rawTask.objectives).entries()) {
       const objectiveId = text(objective.id)
+      // the hand fixes below are by the game's id; the translated objective has its text as id (src/data/objectiveGameIds.ts)
+      const detail = details[objectiveIndex]?.id === objectiveId ? details[objectiveIndex] : details.find((entry) => entry.id === objectiveId)
+      const gameId = detail?.gameId ?? objectiveId
       const points: QuestPoint[] = []
       for (const zone of asArray(objective.zones)) {
         const map = resolveMap(text(zone.map) || strings(objective.maps)[0], context, maps)
@@ -626,13 +1090,17 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
         const center = asRecord(zone.position)
         points.push({ kind: 'zone', map, ...pointCoords(center), idSuffix: text(zone.id, objectiveId), zone, position: center })
       }
+      for (const place of byObjective(QUEST_EXTRA_PLACES, gameId, objectiveId) ?? []) {
+        const map = maps.get(place.map)
+        if (map) points.push({ kind: 'zone', map, ...pointCoords(place.position), idSuffix: place.id, position: place.position })
+      }
       // Quest items (findQuestItem) carry exact spawn points instead of zones.
       asArray(objective.possibleLocations).forEach((location, locationIndex) => {
         const map = resolveMap(text(location.map) || strings(objective.maps)[0], context, maps)
-        if (!map) return
+        if (!map || isStalePlace(gameId, map.id)) return
         asArray(location.positions).forEach((position, index) => {
           const idSuffix = `${objectiveId}-${locationIndex ? `${locationIndex}-` : ''}${index}`
-          points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position })
+          points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position, ...(position.added === true ? { added: true } : {}) })
         })
       })
       const itemObjective = objectiveLayer(objective) === 'quest.item' || asArray(objective.possibleLocations).length > 0
@@ -641,16 +1109,27 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
       // A quest item with one listed spawn position in the whole data (all maps) is always there: «Спавн 100 %».
       const singleItemSpot = unique.filter((point) => point.kind === 'item').length === 1
       for (const mapPoints of groupBy(unique, (point) => point.map.id).values()) {
-        const possible = possibleSpots(mapPoints, itemObjective)
-        mapPoints.forEach((point, index) => {
+        const shown = mergeNearbyItemSpots(mapPoints)
+        const possible = possibleSpots(shown.map((entry) => entry.point), itemObjective)
+        shown.forEach(({ point, members }, index) => {
+          // A merged point keeps the id of the feed's own spawn it covers, when the kept one is an added spawn: the owner's
+          // point edits find markers by id.
+          const idSuffix = point.added ? (members.find((member) => !member.added) ?? point).idSuffix : point.idSuffix
           const base = point.kind === 'zone'
             ? baseMarker(point.map, `quest-zone-${quest.id}-${point.idSuffix}`, point.position, point.zone?.outline, point.zone?.top, point.zone?.bottom)
-            : baseMarker(point.map, `quest-item-${quest.id}-${point.idSuffix}`, point.position, undefined, undefined, undefined)
+            : baseMarker(point.map, `quest-item-${quest.id}-${idSuffix}`, point.position, undefined, undefined, undefined)
           if (!base) return
           const spot = possible.get(index)
           const isItem = point.kind === 'item'
+          // The floors of the spawns this point stands for: on more than one, the point has no floor of its own.
+          const floors = members.length > 1 ? [...new Set(members.map((member) => baseMarker(member.map, 'floor', member.position, undefined, undefined, undefined)?.floor ?? ''))].filter(Boolean) : []
+          const floorNumber = byObjective(QUEST_POINT_FLOORS, gameId, objectiveId)
+          const fixedFloor = floorNumber ? floorNumbered(point.map, floorNumber) : undefined
           questMarkers.push({
             ...base,
+            ...(floors.length > 1 ? { floor: undefined } : {}),
+            ...(fixedFloor ? { floor: fixedFloor } : {}),
+            ...(members.length > 1 ? { nearbySpots: { count: members.length, ...(floors.length > 1 ? { floors } : {}) } } : {}),
             type: 'quest',
             layerId: isItem ? 'quest.item' : objectiveLayer(objective),
             title: quest.name,
@@ -728,6 +1207,37 @@ function uniquePoints(points: QuestPoint[]) {
 }
 
 /**
+ * The points of one objective on one map as drawn: zones as they are; item spawns within ITEM_SPOT_MERGE_METRES of a kept
+ * spawn (any floor) become that one point, `members` being the spawns it stands for. A kept spawn is the one with the most
+ * others near it (then the least spread, then the first listed), so a group never reaches further than the distance from
+ * it, and the same data always keeps the same point (its marker id; the owner's point edits find markers by id).
+ */
+export function mergeNearbyItemSpots<T extends { kind: 'zone' | 'item'; x: number; z: number }>(points: T[]): Array<{ point: T; members: T[] }> {
+  const items = points.filter((point) => point.kind === 'item')
+  const left = new Set(items.map((_, index) => index))
+  const near = (a: T, b: T) => Math.hypot(a.x - b.x, a.z - b.z) <= ITEM_SPOT_MERGE_METRES
+  const groups = new Map<T, T[]>()
+  while (left.size) {
+    let kept = -1
+    let keptCount = -1
+    let keptSpread = Infinity
+    for (const index of left) {
+      const around = [...left].filter((other) => near(items[index], items[other]))
+      const spread = around.reduce((sum, other) => sum + Math.hypot(items[index].x - items[other].x, items[index].z - items[other].z), 0)
+      if (around.length > keptCount || (around.length === keptCount && spread < keptSpread)) {
+        kept = index
+        keptCount = around.length
+        keptSpread = spread
+      }
+    }
+    const members = [...left].filter((other) => near(items[kept], items[other]))
+    for (const member of members) left.delete(member)
+    groups.set(items[kept], members.sort((a, b) => a - b).map((member) => items[member]))
+  }
+  return points.flatMap((point) => point.kind === 'zone' ? [{ point, members: [point] }] : groups.has(point) ? [{ point, members: groups.get(point)! }] : [])
+}
+
+/**
  * Candidate points of one objective on one map. The item of a find objective lies at one of its listed
  * spawn points, so all of them are «possible places». Zones of other objectives count as alternatives
  * only when several of them sit in one room / building (closer than POSSIBLE_SPOT_METRES, same floor).
@@ -747,10 +1257,20 @@ export function possibleSpots(points: Array<{ x: number; y?: number; z: number }
 
 /** The tooltip / card line of a spawn the data gives as certain (MapMarker.guaranteedSpawn). */
 export const GUARANTEED_SPAWN_TEXT = 'Спавн 100 %'
+/** A spot of a «Спавн 100 %» group (owner, 09.11.2026): one of them holds it, so no «100 %» there — «возможная точка спавна». */
+export const POSSIBLE_SPAWN_LABEL = 'Возможная точка спавна'
+export const isPossibleSpawnSpot = (marker: { layerId?: string; guaranteedSpawn?: boolean; possibleSpawn?: boolean }) => marker.possibleSpawn === true || (marker.layerId === 'loot.guaranteed' && !marker.guaranteedSpawn)
+/** The «?» badge: a possible spawn still drawn on «Спавн 100 %» (on «Ключи» the key icon stays). */
+export const usesPossibleSpawnBadge = (marker: { layerId?: string; guaranteedSpawn?: boolean }) => marker.layerId === 'loot.guaranteed' && !marker.guaranteedSpawn
 
 /** «Возможное место предмета · 2 из 4»: the tooltip / card line for a candidate point (also for the map card). */
 export function possibleSpotText(spot: PossibleSpot) {
   return `${spot.kind === 'item' ? 'Возможное место предмета' : 'Возможная точка задания'} · ${spot.index} из ${spot.count}`
+}
+
+/** «Мест рядом: 4»: the tooltip line of a point that stands for several spawns close together (MapMarker.nearbySpots). */
+export function nearbySpotsText(count: number) {
+  return `Мест рядом: ${count}`
 }
 
 /**
@@ -809,14 +1329,8 @@ function baseMarker(
   }
 }
 
-function extractFaction(faction: string) {
-  if (faction === 'pmc') return 'pmc'
-  if (faction === 'scav') return 'scav'
-  return 'coop'
-}
-
-function extractDescription(faction: string, extract: JsonRecord, items: Map<string, Item>, shared = false) {
-  const parts = [faction === 'pmc' ? 'Выход ЧВК.' : faction === 'scav' ? 'Выход Диких.' : 'Совместный или общий выход.']
+function extractDescription(faction: string, extract: JsonRecord, items: Map<string, Item>) {
+  const parts = [faction === 'pmc' ? 'Выход ЧВК.' : faction === 'scav' ? 'Выход Диких.' : 'Совместный выход.']
   if (strings(extract.switches).length || text(extract.switch)) parts.push('Может требовать активации.')
   const transfer = asRecord(extract.transferItem)
   const itemId = text(transfer.item)
@@ -825,7 +1339,7 @@ function extractDescription(faction: string, extract: JsonRecord, items: Map<str
     const count = Math.max(1, number(transfer.count))
     parts.push(`Требуется: ${item?.name ?? itemId}${count > 1 ? ` ×${count}` : ''}.`)
   }
-  if (shared) parts.push('Также доступен Диким.')
+  if (text(extract.note)) parts.push(text(extract.note))
   return parts.join(' ')
 }
 

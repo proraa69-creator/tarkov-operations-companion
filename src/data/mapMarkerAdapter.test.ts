@@ -1,20 +1,118 @@
 import { describe, expect, it } from 'vitest'
-import { adaptLiveMapMarkers, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
+import { adaptLiveMapMarkers, SPAWN_MERGE_METRES, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, nearbySpotsText, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
+import { mainFloor } from './mapProjection'
 import { BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { translateUiText } from '../i18n/uiEnglish'
+import gameLootContainers from './gameLootContainers.json'
 import { maps } from './demo'
 import type { Item, Quest } from '../domain/types'
 
+describe('PMC and Scav spawns (owner, 07.11.2026)', () => {
+  const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const point = (x: number, sides: string[], categories: string[], z = 0, y = 0) => ({ position: { x, y, z }, sides, categories, zoneName: 'ZoneFactorySide' })
+  const spawnsOf = (normalizedName: string, spawns: unknown[]) => adaptLiveMapMarkers({ maps: { a: { normalizedName, spawns } } }, {}, context).filter((marker) => marker.type === 'spawn')
+
+  it('tells the sides apart as the game lists them', () => {
+    const marks = spawnsOf('customs', [
+      point(0, ['pmc'], ['player']),
+      point(100, ['all'], ['player']),
+      point(200, ['scav'], ['player', 'bot']),
+      point(300, ['scav'], ['bot']),
+      point(400, ['scav'], ['player']),
+      point(500, ['scav'], ['bot', 'sniper']),
+      point(600, ['pmc'], ['boss']),
+      point(700, ['scav'], ['boss']),
+      point(800, ['none'], ['player', 'bot']),
+      point(900, ['all'], ['botpmc']),
+    ])
+    expect(marks.filter((marker) => marker.layerId === 'spawn.pmc')).toHaveLength(2)
+    expect(marks.filter((marker) => marker.layerId === 'spawn.scav')).toHaveLength(3)
+    expect(marks).toHaveLength(5)
+  })
+
+  it('points close together are one mark, on a real point; another floor stays its own', () => {
+    const close = SPAWN_MERGE_METRES.pmc - 1
+    const marks = spawnsOf('customs', [point(0, ['pmc'], ['player']), point(close, ['pmc'], ['player']), point(close * 2, ['pmc'], ['player']), point(close, ['pmc'], ['player'], 0, 10), point(500, ['pmc'], ['player'])])
+    expect(marks).toHaveLength(3)
+    // The middle one has the others around it.
+    const groups = marks.map((marker) => marker.height)
+    expect(groups.filter((height) => height === 10)).toHaveLength(1)
+  })
+
+  it('reads plainly in both languages: no raw names of the data on the card', () => {
+    const [mark] = spawnsOf('customs', [point(0, ['pmc'], ['player'])])
+    expect(mark!.title).toBe('Спавн ЧВК')
+    expect(mark!.description).toBe('Здесь ЧВК начинают рейд.')
+    expect(mark!.meta).toBeUndefined()
+    for (const text of ['Спавн ЧВК', 'Спавн дикого', 'Спавны ЧВК', 'Спавны диких', 'Здесь ЧВК начинают рейд.', 'Здесь появляются дикие.']) expect(translateUiText(text)).toMatch(/^[A-Za-z .]+$/)
+  })
+
+  it('the Lab has PMC spawns and no Scavs: its bots are Raiders', () => {
+    const marks = spawnsOf('the-lab', [point(0, ['all'], ['player']), point(500, ['scav'], ['bot', 'boss'])])
+    expect(marks.map((marker) => marker.layerId)).toEqual(['spawn.pmc'])
+  })
+})
+
 describe('live map catalog resilience', () => {
+  it('Маяк has no mines any more (report №79): its sniper zones stay, Берег keeps its mines', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const zone = (id: string, hazardType: string) => ({ id, hazardType, name: hazardType, position: { x: 1, y: 0, z: 1 }, outline: [{ x: 0, z: 0 }, { x: 2, z: 0 }, { x: 2, z: 2 }] })
+    const raw = (normalizedName: string) => ({ normalizedName, hazards: [zone(`${normalizedName}-mine`, 'minefield'), zone(`${normalizedName}-sniper`, 'sniper')], artillery: { zones: [{ id: `${normalizedName}-gun`, position: { x: 1, y: 0, z: 1 } }] } })
+    const dangers = adaptLiveMapMarkers({ maps: { a: raw('lighthouse'), b: raw('shoreline') } }, {}, context).filter((marker) => marker.layerId === 'hazard' && marker.source !== 'game-sniper-zones').map((marker) => marker.id).sort()
+    expect(dangers.filter((id) => id.includes('lighthouse'))).toEqual(['hazard-lighthouse-gun', 'hazard-lighthouse-sniper'].map((id) => expect.stringContaining(id)))
+    expect(dangers.filter((id) => id.includes('shoreline'))).toHaveLength(3)
+  })
+
   it('does not lose the catalog when a boss has no spawn coordinates', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
-    // Battle pass document pins and the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) are static data and always present; this
-    // test is about the live feed.
-    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key')
+    // Battle pass document pins, the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) and the game-file containers are static data
+    // and always present; this test is about the live feed.
+    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos' && marker.source !== 'game-sniper-zones')
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
+  })
+
+  it('adds the Lighthouse vehicle exit tarkov.dev does not list, and drops it once tarkov.dev lists one (owner, 01.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const exits = (extracts: unknown[]) => adaptLiveMapMarkers({ maps: { lighthouse: { normalizedName: 'lighthouse', extracts } } }, {}, context).filter((marker) => marker.type === 'extract')
+    const added = exits([{ id: 'north', name: 'Nothern_Checkpoint', faction: 'pmc', position: { x: 115, y: 12, z: -989 } }])
+    expect(added.map((marker) => marker.title)).toEqual(['Nothern_Checkpoint', 'Дорога к военной базе (V-Ex)'])
+    expect(added[1]?.description).toContain('у перехода на Резерв')
+    expect(exits([{ id: 'car', name: 'Lighthouse V-Ex', faction: 'pmc', position: { x: -300, y: 15, z: -780 } }]).map((marker) => marker.title)).toEqual(['Lighthouse V-Ex'])
+  })
+  it('draws the BTR stops by the name upstream gives them; a map without stops has none (owner, 06.11.2026)', () => {
+    const context = { items: new Map(), quests: [], maps: [{ id: 'woods', name: 'Лес' }, { id: 'customs', name: 'Таможня' }] } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+    const stops = adaptLiveMapMarkers({ maps: {
+      woods: { normalizedName: 'woods', btrStops: [{ name: 'Лесопилка', x: -2.15, y: 8.128, z: -139.15 }, { name: 'Trading/Dialog/PlayerTaxi/Woods/p5/Name', x: 240.12, y: -2.088, z: -65.14 }] },
+      customs: { normalizedName: 'customs', btrStops: [] },
+    } }, {}, context).filter((marker) => marker.layerId === 'btr')
+    expect(stops.map((marker) => [marker.mapId, marker.title, marker.meta])).toEqual([['woods', 'Лесопилка', 'Остановка БТР'], ['woods', 'Остановка БТР', 'Остановка БТР']])
+    expect(stops[0].position).toEqual([-139.15, -2.15])
+  })
+
+  it('Lighthouse\'s stops, approximate while upstream lists none, say so; upstream\'s own replace them', () => {
+    const context = { items: new Map(), quests: [], maps: [{ id: 'lighthouse', name: 'Маяк' }] } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+    const stops = (btrStops: unknown[]) => adaptLiveMapMarkers({ maps: { lighthouse: { normalizedName: 'lighthouse', btrStops } } }, {}, context).filter((marker) => marker.layerId === 'btr')
+    const approximate = stops([])
+    expect(approximate).toHaveLength(8)
+    expect(approximate.map((marker) => marker.title)).toEqual(expect.arrayContaining(['Северный КПП', 'КПП ООН', 'Южная дорога']))
+    expect(approximate[0].description).toContain('примерное')
+    expect(stops([{ name: 'Новая', x: 1, y: 2, z: 3 }]).map((marker) => marker.title)).toEqual(['Новая'])
+  })
+
+  it('draws the power switches that turn on an exit, not every tarkov.dev switch (owner, 02.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const switches = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', switches: [
+      { id: '9cad024bc31223f02f7296c3cb1834c5f6fa2fe2', name: 'switch_autoId_00000_D2_LEVER_reserve_electric_switcher_lever', position: { x: -117, y: -13, z: 23 }, top: -12.6, bottom: -13.3 },
+      { id: '2c4a9ff1d031afefbd0965b189f58e3834cdb367', name: 'switch_autoId_00632_EXFIL_reserve_electric_switcher_lever', position: { x: -61, y: -6, z: 78 } },
+      { id: '5173fd12', name: 'switch_Shopping_Mall_DesignStuff_00064_urinal (3)', position: { x: -52, y: 37, z: -125 } },
+    ] } } }, {}, context).filter((marker) => marker.layerId === 'switch')
+    expect(switches.map((marker) => marker.title)).toEqual(['Рубильник выхода D-2', 'Рубильник гермозатвора'])
+    expect(switches[0].position).toEqual([23, -117])
+    expect(switches[0].description).toContain('откроется выход D-2')
+    expect(translateUiText(switches[1].title)).toBe('Hermetic door switch')
   })
 
   it('attaches boss portrait, gear, chance and escorts from tarkov.dev mobs', () => {
@@ -62,6 +160,23 @@ describe('live map catalog resilience', () => {
     expect(sanitar).toEqual(['Port', 'Санаторий (главный корпус)'])
   })
 
+  it('Reserve: Glukhar is drawn where a player saw him spawn, by the railway south of the transit (01.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const result = adaptLiveMapMarkers({
+      mobs: { bossGluhar: { name: 'Глухарь', normalizedName: 'glukhar' } },
+      maps: { reserve: { normalizedName: 'reserve', bosses: [
+        { mob: 'bossGluhar', spawnChance: 0.37, spawnLocations: [
+          { name: 'ZoneRailStrorage', chance: 0.25, positions: [{ x: -143, y: -6, z: -131 }, { x: 243, y: -7, z: -88 }] },
+          { name: 'ZonePTOR2', chance: 0.25, positions: [{ x: 74, y: -6, z: -41 }] },
+        ] },
+      ] } },
+    }, {}, context)
+    const glukhar = result.filter((marker) => marker.boss?.key === 'glukhar')
+    const railway = glukhar.find((marker) => marker.boss?.locationName?.includes('Ж/д пути у перехода'))
+    expect(railway?.boss?.locationName).toContain('Rail')
+    expect(glukhar).toHaveLength(3)
+  })
+
   it('labels extracts, scav exits and transits in Russian', () => {
     const context = {
       maps,
@@ -85,7 +200,7 @@ describe('live map catalog resilience', () => {
     expect(result.find((marker) => marker.layerId === 'transit')?.title).toBe('Переход на карту Резерв')
   })
 
-  it('shows an exit listed for both factions at one spot as a single PMC exit', () => {
+  it('shows an exit listed for both factions at one spot as a mark for each, at one place', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const result = adaptLiveMapMarkers({
       maps: {
@@ -100,10 +215,34 @@ describe('live map catalog resilience', () => {
       },
     }, {}, context)
     const outskirts = result.filter((marker) => marker.extractId?.startsWith('outskirts'))
-    expect(outskirts).toHaveLength(1)
-    expect(outskirts[0].layerId).toBe('extract.pmc')
-    expect(outskirts[0].description).toContain('Также доступен Диким')
+    expect(outskirts.map((marker) => marker.layerId)).toEqual(['extract.pmc', 'extract.scav'])
+    expect(outskirts[1].id).toBe(`${outskirts[0].id}--scav`)
+    expect(outskirts[1].position).toEqual(outskirts[0].position)
+    expect(outskirts[0].description).not.toContain('Диким')
     expect(result.find((marker) => marker.extractId === 'house')?.layerId).toBe('extract.scav')
+  })
+
+  it('does not draw another map\'s exits that tarkov.dev lists on Ground Zero (02.11.2026), nor any exit far off its map', () => {
+    const groundZero = { ...maps.find((map) => map.id === 'ground-zero')!, bounds: [[-99, -124], [249, 364]] as [[number, number], [number, number]] }
+    const context = { maps: [groundZero], quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const result = adaptLiveMapMarkers({
+      maps: {
+        gz: {
+          normalizedName: 'ground-zero',
+          extracts: [
+            { id: 'mira', faction: 'pmc', name: 'Mira Ave', position: { x: 10, y: 0, z: 300 } },
+            // tarkov.dev's copies of Woods' UN Roadblock and Streets' Pinewood basement
+            { id: '495c627fb5f7498fb7621bf193f16b74e1c952b9', faction: 'pmc', name: 'UN Roadblock', position: { x: -527.87, y: 1.68, z: 288.23 } },
+            { id: 'b8427fbbffcf849ead5619fcc6c4d19225468f28', faction: 'shared', name: 'Exit_E10_coop', position: { x: -113.71, y: -2.93, z: 65.63 } },
+            // an unknown exit 600 m off the map
+            { id: 'stray', faction: 'scav', name: 'Somewhere', position: { x: 900, y: 0, z: 0 } },
+            // just past the edge, like Customs' railway flare exit: kept
+            { id: 'edge', faction: 'pmc', name: 'Edge', position: { x: 255, y: 0, z: 0 } },
+          ],
+        },
+      },
+    }, {}, context)
+    expect(result.filter((marker) => marker.type === 'extract').map((marker) => marker.extractId).sort()).toEqual(['edge', 'mira'])
   })
 
   it('places quests with real zone coordinates and skips quests without a zone', () => {
@@ -216,14 +355,71 @@ describe('quest markers: one icon per quest and «возможное место�
       ] }] },
     ] } } }, context([quest('mole', 'Спасти крота')]))
     const markers = result.filter((marker) => marker.questId === 'mole')
-    expect(markers).toHaveLength(4)
+    // The three spawns lie within 2 m of each other: one point that stands for them (owner, 02.11.2026).
+    expect(markers).toHaveLength(2)
     expect(new Set(markers.map((marker) => marker.layerId))).toEqual(new Set(['quest.zone']))
     const spawns = markers.filter((marker) => marker.objectiveId === 'drive')
+    expect(spawns).toHaveLength(1)
+    expect(spawns[0].possibleSpot).toBeUndefined()
+    expect(spawns[0].nearbySpots).toEqual({ count: 3 })
+    // The kept point is a real spawn, the one in the middle of the three.
+    expect(spawns[0].id).toBe('ground-zero-quest-item-mole-drive-1')
+    expect(spawns[0].itemId).toBe('hdd')
+    expect(spawns[0].guaranteedSpawn).toBeUndefined()
+    expect(markers.find((marker) => marker.objectiveId === 'visit')?.possibleSpot).toBeUndefined()
+  })
+
+  it('draws spawns of one quest item close together as one point, keeps far ones apart and counts the points drawn (owner, 02.11.2026)', () => {
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { wine: { objectives: [
+      { id: 'bottle', type: 'findQuestItem', questItem: { id: 'wine' }, possibleLocations: [{ map: 'gz', positions: [
+        // the shop: four spawns within 12 m, the middle one is kept
+        { x: 0, y: 1, z: 0 }, { x: 6, y: 1, z: 0 }, { x: 12, y: 1, z: 0 }, { x: 6, y: 1, z: 5 },
+        // a kiosk 80 m away and a flat upstairs 200 m away: places of their own
+        { x: 80, y: 1, z: 0 }, { x: 200, y: 7, z: 0 },
+      ] }] },
+    ] } } }, context([quest('wine', 'Вино')]))
+    const spawns = result.filter((marker) => marker.questId === 'wine')
+    expect(spawns.map((marker) => marker.id.replace('ground-zero-quest-item-wine-bottle-', ''))).toEqual(['1', '4', '5'])
     expect(spawns.map((marker) => marker.possibleSpot)).toEqual([
       { kind: 'item', index: 1, count: 3 }, { kind: 'item', index: 2, count: 3 }, { kind: 'item', index: 3, count: 3 },
     ])
-    expect(spawns.every((marker) => marker.itemId === 'hdd')).toBe(true)
-    expect(markers.find((marker) => marker.objectiveId === 'visit')?.possibleSpot).toBeUndefined()
+    expect(spawns.map((marker) => marker.nearbySpots)).toEqual([{ count: 4 }, undefined, undefined])
+    expect(translateUiText(nearbySpotsText(4))).toBe('Places close together: 4')
+  })
+
+  it('a point standing for spawns on several floors has no floor of its own and names them; one floor keeps its floor', () => {
+    const floored = { ...maps.find((map) => map.id === 'ground-zero')!, layers: [
+      { name: '2 этаж', extents: [{ height: [5, 12] as [number, number] }] },
+    ] } as unknown as (typeof maps)[number]
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { flat: { objectives: [
+      { id: 'note', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 0, y: 1, z: 0 }, { x: 2, y: 8, z: 1 }, { x: 300, y: 8, z: 0 }, { x: 304, y: 8, z: 0 }] }] },
+    ] } } }, { ...context([quest('flat', 'Квартира')]), maps: [floored] })
+    const spawns = result.filter((marker) => marker.questId === 'flat')
+    expect(spawns).toHaveLength(2)
+    const stairwell = spawns.find((marker) => marker.nearbySpots?.floors)
+    expect(stairwell?.floor).toBeUndefined()
+    expect(stairwell?.nearbySpots?.floors?.sort()).toEqual(['2 этаж', mainFloor(floored)].sort())
+    const upstairs = spawns.find((marker) => marker !== stairwell)
+    expect(upstairs?.floor).toBe('2 этаж')
+    expect(upstairs?.nearbySpots).toEqual({ count: 2 })
+  })
+
+  it('report №101: «Слежка» stands on the 2nd floor though the map’s floors start higher (owner, 08.11.2026)', () => {
+    // Streets: the floors start at 10 m for the whole map; the surveillance flat is at 5–7 m
+    const streets = { ...maps.find((map) => map.id === 'ground-zero')!, floors: ['Основной', '2 этаж', '3 этаж'], layers: [
+      { name: '2 этаж', extents: [{ height: [10, 15] as [number, number] }] },
+      { name: '3 этаж', extents: [{ height: [15, 20] as [number, number] }] },
+    ] } as unknown as (typeof maps)[number]
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { slezhka: { objectives: [
+      { id: '63a7d8665199ab1f7d4a7747', type: 'visit', zones: [{ id: 'quest_zone_c21_look', map: 'gz', position: { x: -67.75, y: 5.95, z: 65.88 }, top: 6.95, bottom: 4.95 }] },
+      { id: '639136fa9444fb141f4e6eef', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: -70.079, y: 5.752, z: 69.437 }, { x: -65.262, y: 5.89, z: 66.363 }] }] },
+      { id: 'other', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 200, y: 5.8, z: 0 }] }] },
+    ] } } }, { ...context([quest('slezhka', 'Слежка')]), maps: [streets] })
+    const points = result.filter((marker) => marker.questId === 'slezhka')
+    expect(points.filter((marker) => marker.objectiveId !== 'other').map((marker) => marker.floor)).toEqual(expect.arrayContaining(['2 этаж']))
+    expect(points.filter((marker) => marker.objectiveId !== 'other').every((marker) => marker.floor === '2 этаж')).toBe(true)
+    // any other point at that height is left to the map's floors
+    expect(points.find((marker) => marker.objectiveId === 'other')?.floor).toBe(mainFloor(streets))
   })
 
   it('keeps the quest-item icon for a quest that only has item spawns; one spawn is not a «possible» place', () => {
@@ -308,6 +504,35 @@ describe('locks the current tarkov.dev feed lost (keyDoorNames.ts KEY_DOOR_EXTRA
     expect(again.map((marker) => marker.source)).toEqual(['json.tarkov.dev/maps', 'json.tarkov.dev/maps 29.09.2026'])
     // Not on other maps.
     expect(adaptLiveMapMarkers({ maps: { woods: { normalizedName: 'woods', locks: [] } } }, {}, context).some((marker) => marker.lock?.keyId === EXIT_KEY)).toBe(false)
+  })
+
+  it('draws no car trunk «opened» by the Factory exit key (report 156: Ground Zero\'s, beyond the map\'s edge); other trunks stay', () => {
+    const OTHER_KEY = '61aa5ba8018e9821b7368da9'
+    const locks = (mapId: string, rows: unknown[]) => adaptLiveMapMarkers({ maps: { [mapId]: { normalizedName: mapId, locks: rows } } }, {}, context).filter((marker) => marker.layerId === 'key')
+    const groundZero = locks('ground-zero', [
+      { id: 'beyond-edge', lockType: 'trunk', key: EXIT_KEY, position: { x: 264.95, y: 17.95, z: 56.14 } },
+      { id: 'street', lockType: 'trunk', key: EXIT_KEY, position: { x: 80.03, y: 15.74, z: 147.8 } },
+    ])
+    expect(groundZero).toEqual([])
+    const streets = locks('streets-of-tarkov', [
+      { id: 'placeholder', lockType: 'trunk', key: EXIT_KEY, position: { x: 98.78, y: 3.8, z: 332.94 } },
+      { id: 'real', lockType: 'trunk', key: OTHER_KEY, position: { x: 120, y: 3.8, z: 300 } },
+    ])
+    expect(streets.map((marker) => [marker.id, marker.lock?.kind])).toEqual([['streets-of-tarkov-lock-real', 'trunk']])
+    // The key's own doors on Factory stay on the map.
+    const factory = locks('factory', [{ id: 'gate', lockType: 'door', key: EXIT_KEY, position: { x: 10, y: 0.5, z: 10 } }])
+    expect(factory.map((marker) => marker.lock?.keyId)).toEqual([EXIT_KEY])
+  })
+
+  it('names a locked car «Багажник машины» and its key by the car (owner, 23.11.2026: «Нужен ключ от автомобиля «Жигули»»)', () => {
+    const ZHIGULI = '5913651986f774432f15d132'
+    const items = new Map([[ZHIGULI, { id: ZHIGULI, name: 'Ключ от автомобиля Жигули', shortName: 'Шоха' } as never]])
+    const [car] = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', locks: [
+      { id: 'zhiguli', lockType: 'trunk', key: ZHIGULI, position: { x: -269.53, y: 1.67, z: -133.86 } },
+    ] } } }, {}, { ...context, items }).filter((marker) => marker.layerId === 'key')
+    expect(car).toMatchObject({ title: 'Багажник машины', description: 'Нужен ключ от автомобиля «Жигули».' })
+    expect(translateUiText('Багажник машины')).toBe('Car trunk')
+    expect(translateUiText('Нужен ключ от автомобиля «Жигули».')).toBe('Requires the “Zhiguli” car key.')
   })
 })
 
@@ -401,15 +626,16 @@ describe('battle pass documents', () => {
     expect(oldGas?.position).toEqual([-186.86, 318.24])
   })
 
-  it('uses exact tarkov.dev loose-loot documents when the feed has them, instead of a pin at the same spot', () => {
+  it('uses exact tarkov.dev loose-loot documents when the feed has them, instead of the pins placed by hand', () => {
     const pin = BATTLE_PASS_DOCUMENTS.customs[0]
     const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose: [
       { items: [BATTLE_PASS_DOCUMENT_KINDS.financial.itemId], position: { x: pin.x + 1, y: 5, z: pin.z } },
     ] } } }, {}, context)
     const documents = result.filter((marker) => marker.layerId === 'loot.documents')
-    expect(documents).toHaveLength(BATTLE_PASS_DOCUMENTS.customs.length)
-    expect(documents.filter((marker) => !marker.approximate)).toHaveLength(1)
-    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents')).toBe(false)
+    expect(documents).toHaveLength(1)
+    expect(documents[0]!.approximate).toBeFalsy()
+    expect(documents[0]!.documentKinds).toEqual(['financial'])
+    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos' && marker.source !== 'game-sniper-zones')).toBe(false)
   })
 
   it('has every document name translated and every point on a known map', { timeout: 30_000 }, () => {
@@ -481,5 +707,200 @@ describe('jewelry spots and certain quest-item spawns', () => {
     expect(several).toHaveLength(3)
     expect(several.every((marker) => !marker.guaranteedSpawn)).toBe(true)
     expect(translateUiText(GUARANTEED_SPAWN_TEXT)).toBe('Spawn 100 %')
+  })
+})
+
+describe('«Спавн 100 %» layer and the containers of the game files (09.11.2026)', () => {
+  const context = { maps, quests: [] as Quest[], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const markersOf = (mapId: string, extra: Record<string, unknown> = {}) =>
+    adaptLiveMapMarkers({ maps: { [mapId]: { normalizedName: mapId, ...extra } } }, {}, context)
+
+  it('keeps «Спавн 100 %» for the item that always lies at its one spot; the spots of a group are possible spawns on «Ключи»', () => {
+    const streets = markersOf('streets-of-tarkov')
+    const certain = streets.filter((marker) => marker.layerId === 'loot.guaranteed')
+    expect(certain).toHaveLength(1)
+    expect(certain[0]).toMatchObject({ itemId: '63a39e1d234195315d4020bd', guaranteedSpawn: true, description: 'Лежит здесь в каждом рейде.' })
+    const relaxation = streets.filter((marker) => marker.itemId === '6582dbf0b8d7830efc45016f')
+    expect(relaxation).toHaveLength(12)
+    expect(relaxation.every((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 12 возможных точек спавна.')).toBe(true)
+    const lab = markersOf('the-lab')
+    expect(lab.some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
+    expect(lab.filter((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 11 возможных точек спавна.')).toHaveLength(11)
+    // Report 121: the jacket on the dorms' second floor always holds «Ключ от спецтехники» (SPT statistics); the card says so
+    // (owner, 23.11.2026: «Он лежит в куртке. Это нужно пометить, записать»).
+    const machinery = markersOf('customs').filter((marker) => marker.layerId === 'loot.guaranteed')
+    expect(machinery.map((marker) => marker.itemId)).toEqual(['5937ee6486f77408994ba448'])
+    expect(machinery[0]!.description).toBe('Лежит в куртке в каждом рейде.')
+  })
+
+  it('has English for the new texts', () => {
+    expect(translateUiText('Лежит здесь в каждом рейде.')).toBe('Here every raid.')
+    expect(translateUiText('Лежит в куртке в каждом рейде.')).toBe('In the jacket every raid.')
+    expect(translateUiText('Одна из 12 возможных точек спавна.')).toBe('One of 12 possible spawn spots.')
+    expect(translateUiText('Возможная точка спавна')).toBe('Possible spawn spot')
+  })
+
+  it('adds the game-file containers tarkov.dev lacks, with the kind of tarkov.dev\'s ids, and draws a shared one once', () => {
+    const terminal = markersOf('terminal').filter((marker) => marker.layerId === 'loot.container')
+    expect(terminal.length).toBeGreaterThan(200)
+    expect(terminal.every((marker) => marker.title !== 'Контейнер с лутом')).toBe(true)
+    // A tarkov.dev container at the same spot: the game-file one is not drawn again.
+    const data = gameLootContainers.points.customs[0] as [string, number, number, number]
+    const listed = markersOf('customs', { lootContainers: [{ lootContainer: data[0], position: { x: data[1] + 1, y: data[2], z: data[3] } }] })
+      .filter((marker) => marker.layerId === 'loot.container')
+    expect(listed).toHaveLength(1)
+    expect(listed[0]!.source).toBe('json.tarkov.dev/maps')
+    expect(markersOf('customs').filter((marker) => marker.source === 'game-files')).toHaveLength(1)
+  })
+})
+
+describe('«Ключи»: keys and keycards lying loose (report №108)', () => {
+  const key = (id: string, name: string, shortName: string) => [id, { id, name, shortName, category: 'Ключ' }] as const
+  const items = new Map<string, unknown>([
+    key('k1', 'Ключ от кабинета директора ТарКон', 'ТарКон'),
+    key('k2', 'Ключ от комнаты 203', '203'),
+    ['bolts', { id: 'bolts', name: 'Болты', shortName: 'Болты', category: 'Бартер', types: ['barter'] }],
+  ])
+  const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+
+  it('puts a loose key spot on «Ключи» and the rest of the spot on its own layer', () => {
+    const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose: [
+      { items: ['k1'], position: { x: 10, y: 1, z: 10 } },
+      { items: ['k1', 'k2', 'bolts'], position: { x: 40, y: 1, z: 40 } },
+    ] } } }, {}, context)
+    // the feed's own spots (the players' and the statistics' key spots of Customs are static data)
+    const keys = result.filter((marker) => marker.layerId === 'loot.key' && marker.source !== 'raidos' && marker.source !== 'raid-statistics')
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatchObject({ title: 'Ключ от кабинета директора ТарКон', description: 'Может лежать здесь.', itemId: 'k1' })
+    expect(keys[0]!.keyCount).toBeUndefined()
+    expect(keys[1]).toMatchObject({ title: 'Ключи: 2', keyCount: 2, description: 'Может лежать один из: Ключ от кабинета директора ТарКон, Ключ от комнаты 203.' })
+    // the bolts stay a loose loot point; the key-only spot leaves nothing on the other layers
+    const loose = result.filter((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.key' && marker.source === 'json.tarkov.dev/maps')
+    expect(loose).toHaveLength(1)
+    expect(loose[0]!.meta).toBe('Болты')
+  })
+
+  it('puts the photo players gave of a key spot on the feed point of that key, and adds a point where the feed has none', () => {
+    const dorm = new Map<string, unknown>([key('664d4b0103ef2c61246afb56', 'Ключ от комнаты заведующего общежития', 'Зав. общ')])
+    const shore = { ...context, items: dorm } as typeof context
+    const keys = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { shoreline: { normalizedName: 'shoreline', lootLoose } } }, {}, shore)
+      .filter((marker) => marker.layerId === 'loot.key' && marker.itemId === '664d4b0103ef2c61246afb56')
+    // the feed's spot in the living container (reports of 10.11.2026): its own point carries the photo, nothing is added
+    const listed = keys([
+      { items: ['664d4b0103ef2c61246afb56'], position: { x: -653.4, y: -25.0, z: -237.2 } },
+      { items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } },
+    ])
+    expect(listed).toHaveLength(2)
+    expect(listed.filter((marker) => marker.spotPhotos?.length).map((marker) => marker.spotPhotos![0]!.file)).toEqual(['shoreline-scav-farm-dorm-overseer.webp'])
+    // a feed without that spot: the point of its own, with the photo
+    const own = keys([{ items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } }]).filter((marker) => marker.spotPhotos?.length)
+    expect(own).toHaveLength(1)
+    expect(own[0]).toMatchObject({ title: 'Ключ от комнаты заведующего общежития', itemId: '664d4b0103ef2c61246afb56', source: 'raidos' })
+  })
+
+  it('adds the key spots of live raids the feed lacks (SPT statistics), once the feed has none of them there', () => {
+    const spotKeys = new Map<string, unknown>([key('5e42c83786f7742a021fdf3c', 'Ключ', 'К')])
+    const ctx = { ...context, maps: [...maps, { ...maps[0]!, id: 'customs' }], items: spotKeys } as typeof context
+    const spt = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { m: { normalizedName: 'customs', lootLoose } } }, {}, ctx)
+      .filter((marker) => marker.layerId === 'loot.key' && marker.id.includes('spt-key-'))
+    expect(spt([]).length).toBeGreaterThan(0)
+    expect(spt([{ items: ['5e42c83786f7742a021fdf3c'], position: { x: 182.02, y: 7.03, z: 183.02 } }]).some((marker) => marker.id.endsWith('spt-key-0'))).toBe(false)
+  })
+
+  it('is translated', () => {
+    expect(translateUiText('Может лежать здесь.')).not.toMatch(/[А-Яа-яЁё]/)
+    expect(translateUiText('Ключи: 2')).not.toMatch(/[А-Яа-яЁё]/)
+    expect(translateUiText('Может лежать один из: Ключ от комнаты 203, Ключ от комнаты 204.')).toMatch(/^May lie here: one of /)
+  })
+})
+
+describe('report 123: «Умный в гору не пойдёт» — Customs\' other secret exit', () => {
+  it('the objective «Найти секретный выход» has a point at «Лодка Контрабандистов» too', () => {
+    const quest: Quest = { id: '675c1cf4a757ddd00404f0a3', name: 'Умный в гору не пойдёт', trader: 'Егерь', mapId: 'customs', mapIds: ['customs'], level: 1, kappa: false, description: '', objectives: [], rewards: [] }
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { [quest.id]: { objectives: [
+      { id: '675c1cf4a757ddd00404f0a6', type: 'visit', description: 'Найти секретный выход на локации Таможня', zones: [{ id: 'exit777', map: 'customs', position: { x: 462, y: -2, z: -112 } }] },
+    ] } } }, { maps, quests: [quest], items: new Map(), mapNameByApiId: new Map() })
+    const points = result.filter((marker) => marker.questId === quest.id)
+    expect(points.map((marker) => marker.id).sort()).toEqual(['customs-quest-zone-675c1cf4a757ddd00404f0a3-exit777', 'customs-quest-zone-675c1cf4a757ddd00404f0a3-smugglers-boat'])
+    expect(points.find((marker) => marker.id.endsWith('smugglers-boat'))?.position).toEqual([122.67, -41.51])
+  })
+})
+
+describe('Лабиринт: «Ключ 01» on the shovel (report 182, 17.11.2026)', () => {
+  const KEY_01 = '679baa2c61f588ae2b062a24'
+  const items = new Map<string, Item>([[KEY_01, { id: KEY_01, name: 'Ключ 01', shortName: 'Ключ 01', category: 'Ключ' } as Item]])
+  const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() }
+  const lootLoose = [
+    { position: { x: -44.7063045, y: 1.6026986500000002, z: 59.787786 }, items: [KEY_01] },
+    { position: { x: -42.565002, y: 0.50310004, z: 64.84801 }, items: [KEY_01] },
+  ]
+  const all = adaptLiveMapMarkers({ maps: { a: { normalizedName: 'the-labyrinth', lootLoose } } }, {}, context)
+    .filter((marker) => marker.id.includes('route-item'))
+  const spots = all.filter((marker) => marker.source === 'json.tarkov.dev/maps')
+
+  it('the feed spot by the toxic pool says where the key lies and keeps its own point; the other spot says nothing more', () => {
+    expect(spots).toHaveLength(2)
+    const shovel = spots.find((marker) => marker.position[1] === -42.565002)!
+    expect(shovel.description).toBe('Открывает проход в комнате 1. Всегда в одной из 6 точек. Лежит на лопате.')
+    expect(shovel.ownSpot).toBe(true)
+    const other = spots.find((marker) => marker !== shovel)!
+    expect(other.description).toBe('Открывает проход в комнате 1. Всегда в одной из 6 точек.')
+    expect(other.ownSpot).toBeUndefined()
+    expect(translateUiText(shovel.description)).toBe('Opens the way in room 1. Always at one of 6 spots. Lies on the shovel.')
+  })
+
+  it('adds the spots of the key\'s group the feed has not got (SPT 4.1.6, 20.11.2026)', () => {
+    const added = all.filter((marker) => marker.source === 'raid-statistics')
+    expect(added).toHaveLength(4)
+    expect(new Set(added.map((marker) => marker.id)).size).toBe(4)
+    expect(added.every((marker) => marker.layerId === 'loot.key' && marker.itemId === KEY_01 && marker.description === 'Открывает проход в комнате 1. Всегда в одной из 6 точек.')).toBe(true)
+  })
+})
+
+describe('Лабиринт: the route items always lie at one of a few spots (SPT 4.1.6, 20.11.2026)', () => {
+  const CUTTER = '67ab3d4b83869afd170fdd3f'
+  const WHEEL = '678fa929819ddc4c350c0317'
+  const KEY_01 = '679baa2c61f588ae2b062a24'
+  const KEY_03 = '679baa5a59b8961f370dd685'
+  const items = new Map<string, Item>([
+    [CUTTER, { id: CUTTER, name: 'Газовый резак "Огонёк BBQ-S43"', shortName: 'Огонёк', category: 'Ключ' } as Item],
+    [WHEEL, { id: WHEEL, name: 'Штурвал вентиля', shortName: 'Штурвал', category: 'Ключ' } as Item],
+    [KEY_01, { id: KEY_01, name: 'Ключ 01', shortName: 'Ключ 01', category: 'Ключ' } as Item],
+    [KEY_03, { id: KEY_03, name: 'Ключ 03', shortName: 'Ключ 03', category: 'Ключ' } as Item],
+  ])
+  const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() }
+  // tarkov.dev's spots of 20.11.2026 (json.tarkov.dev regular/maps): the cutter's two groups, the wheel and «Ключ 03»
+  const lootLoose = [
+    { position: { x: -35.04, y: 0.61, z: -18.01 }, items: [CUTTER] },
+    { position: { x: 31.76, y: -0.39, z: 47.07 }, items: [CUTTER] },
+    { position: { x: -2.89, y: 3.91, z: -31 }, items: [WHEEL] },
+    { position: { x: -43.87, y: 0.69, z: -14.98 }, items: [KEY_03] },
+    { position: { x: -50.45, y: 0.76, z: -13.38 }, items: [KEY_03] },
+    { position: { x: -30.6, y: 1.18, z: -15.52 }, items: [KEY_03] },
+    // not a spot of any group: no count
+    { position: { x: 0, y: 0, z: 0 }, items: [KEY_01] },
+  ]
+  const route = adaptLiveMapMarkers({ maps: { a: { normalizedName: 'the-labyrinth', lootLoose } } }, {}, context)
+    .filter((marker) => marker.id.includes('route-item'))
+  const listed = route.filter((marker) => marker.source === 'json.tarkov.dev/maps')
+
+  it('counts each of the cutter\'s two groups on its own and the wheel\'s five spots', () => {
+    const cutter = listed.filter((marker) => marker.itemId === CUTTER)
+    expect(cutter.map((marker) => marker.description)).toEqual(['Вскрывает двери в комнатах 3 и 5. Всегда в одной из 5 точек.', 'Вскрывает двери в комнатах 3 и 5. Всегда в одной из 5 точек.'])
+    expect(route.filter((marker) => marker.itemId === CUTTER)).toHaveLength(10)
+    expect(listed.filter((marker) => marker.itemId === WHEEL).every((marker) => marker.description === 'Отключает пар в комнате 2. Всегда в одной из 5 точек.')).toBe(true)
+  })
+
+  it('takes two spots half a metre apart for one place («Ключ 03»: three, the feed has all three)', () => {
+    expect(route.filter((marker) => marker.itemId === KEY_03)).toHaveLength(3)
+    expect(route.filter((marker) => marker.itemId === KEY_03).every((marker) => marker.description === 'Открывает проход в комнате 3. Всегда в одной из 3 точек.')).toBe(true)
+  })
+
+  it('says nothing more on a spot of no group', () => {
+    expect(listed.find((marker) => marker.itemId === KEY_01)?.description).toBe('Открывает проход в комнате 1.')
+  })
+
+  it('has English for the count', () => {
+    expect(translateUiText('Отключает пар в комнате 2. Всегда в одной из 5 точек.')).toBe('Turns off the steam in room 2. Always at one of 5 spots.')
   })
 })

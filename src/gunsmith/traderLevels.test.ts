@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { cheapestOffer, offerAccess } from '../arsenal/buildStats'
+import { cheapestOffer, offerAccess, unlockHint } from '../arsenal/buildStats'
+import { unlockLabel } from '../arsenal/gunFormat'
 import type { Quest, TaskProgressStatus, Trader } from '../domain/types'
-import { estimateTraderLevel, loyaltyNumeral, playerAccess, readManualTraderLevels, readScreenTraderLevels, saveScreenTraderLevels, traderLevelInfos } from './traderLevels'
+import { estimateTraderLevel, loyaltyNumeral, playerAccess, readManualTraderLevels, readScreenTraderLevels, saveScreenTraderLevels, traderLevelChoices, traderLevelInfos } from './traderLevels'
 
 const trader = (id: string, normalizedName: string, levelPlayerLevels = [1, 15, 26, 36]): Trader => ({ id, name: normalizedName, normalizedName, role: '', loyalty: 4, accent: '', levelPlayerLevels })
 const quest = (id: string, loyalty: Quest['traderLoyalty']): Quest => ({ id, name: id, trader: '', level: 1, kappa: false, description: '', objectives: [], rewards: [], traderLoyalty: loyalty })
@@ -44,6 +45,51 @@ describe('trader loyalty estimate (EFT logs carry no loyalty)', () => {
     expect(cheapestOffer(part, access)?.priceRUB).toBe(7000)
   })
 
+  // Owner, 04.11.2026: «Какой уровень барахолки? Какой уровень персонажа?… модули должны быть открыты при достижении этих условий».
+  it('holds an item to its own flea level, not only the market\'s', () => {
+    const access = playerAccess([], 16, true)
+    expect(access).toMatchObject({ flea: true, playerLevel: 16, fleaOpensAt: 15 })
+    const flea = { vendor: 'flea-market', vendorName: 'Барахолка', priceRUB: 9000 }
+    const part = { noFlea: false, fleaLevel: 25, offers: [flea] }
+    expect(offerAccess(flea, part, access)).toEqual({ ok: false, reason: 'flea-level', level: 25 })
+    expect(cheapestOffer(part, access)).toBeUndefined()
+    expect(cheapestOffer(part, { ...access, playerLevel: 25 })?.priceRUB).toBe(9000)
+    // ticked by hand, a level the app may not know does not hold it back
+    expect(cheapestOffer(part, { ...access, playerLevel: undefined })?.priceRUB).toBe(9000)
+    expect(cheapestOffer({ noFlea: false, offers: [flea] }, access)?.priceRUB).toBe(9000)
+  })
+
+  it('says what opens a part, the nearest way first', () => {
+    const access = { ...playerAccess([], 16, true, () => false), traderLevels: { mechanic: 1 } }
+    const flea = { vendor: 'flea-market', vendorName: 'Барахолка', priceRUB: 9000 }
+    const trader = (minTraderLevel: number) => ({ vendor: 'mechanic', vendorName: 'Механик', priceRUB: 5000, minTraderLevel })
+    const quest = { ...trader(1), taskUnlock: { id: 'q', name: 'Оружейник' } }
+    expect(unlockHint({ noFlea: false, fleaLevel: 25, offers: [flea, trader(2)] }, access)).toEqual({ kind: 'trader', vendorName: 'Механик', level: 2 })
+    expect(unlockHint({ noFlea: false, fleaLevel: 25, offers: [flea, trader(4)] }, access)).toEqual({ kind: 'flea', level: 25 })
+    expect(unlockHint({ noFlea: true, offers: [flea, trader(4)] }, access)).toEqual({ kind: 'trader', vendorName: 'Механик', level: 4 })
+    expect(unlockHint({ noFlea: false, fleaLevel: 25, offers: [flea, quest] }, access)).toEqual({ kind: 'task', task: 'Оружейник', taskId: 'q' })
+    // owner, 20.11.2026: a quest the trading data names by its id — its name from the game data, else just «квест»
+    const byId = { kind: 'task' as const, task: '67a097379f2068e74603c6ac', taskId: '67a097379f2068e74603c6ac' }
+    expect(unlockLabel(byId, 'ru')).toBe('квест')
+    expect(unlockLabel(byId, 'ru', (id) => (id === byId.taskId ? 'Пробный заход' : undefined))).toBe('квест «Пробный заход»')
+    expect(unlockLabel({ kind: 'task', task: 'Оружейник', taskId: 'q' }, 'en')).toBe('quest «Оружейник»')
+    // already on sale, or sold by nobody: nothing to open
+    expect(unlockHint({ noFlea: false, offers: [flea] }, access)).toBeUndefined()
+    expect(unlockHint({ noFlea: true, offers: [] }, access)).toBeUndefined()
+    // the flea closed by level: from its level, the item's own when higher; a mode without a flea says nothing of it
+    const low = playerAccess([], 5, true)
+    expect(unlockHint({ noFlea: false, offers: [flea] }, low)).toEqual({ kind: 'flea', level: 15 })
+    expect(unlockHint({ noFlea: false, fleaLevel: 30, offers: [flea] }, low)).toEqual({ kind: 'flea', level: 30 })
+    expect(unlockHint({ noFlea: false, offers: [flea] }, playerAccess([], 40, false))).toBeUndefined()
+  })
+
+  // Owner, 15.11.2026: the character's level alone decides; the market's level is the mode's own when its data names one.
+  it('opens the flea at the level the data of the mode names', () => {
+    expect(playerAccess([], 16, true, undefined, 20)).toMatchObject({ flea: false, fleaOpensAt: 20 })
+    expect(playerAccess([], 20, true, undefined, 20)).toMatchObject({ flea: true, playerLevel: 20 })
+    expect(playerAccess([], 15, true)).toMatchObject({ flea: true, fleaOpensAt: 15 })
+  })
+
   it('takes the traders\' screen as proof of at least its level, not as an override (audit P18)', () => {
     // Read 3 on the screen: the estimate alone said 1.
     expect(traderLevelInfos([prapor], quests, () => undefined, 40, {}, { prapor: 3 }).map((info) => [info.level, info.min, info.screen])).toEqual([[3, 3, 3]])
@@ -79,5 +125,20 @@ describe('trader loyalty estimate (EFT logs carry no loyalty)', () => {
 
   it('writes loyalty like the game: I, II, III, then a crown', () => {
     expect([1, 2, 3, 4].map(loyaltyNumeral)).toEqual(['I', 'II', 'III', ''])
+  })
+})
+
+// Report №199 (owner, 19.11.2026): «у скупщика реально только первый уровень и корона, других уровней у него нет».
+describe('Fence: the first level and the crown only', () => {
+  const fence = trader('t-fence', 'fence')
+  it('offers I and the crown to pick, other traders all four', () => {
+    expect(traderLevelChoices('fence')).toEqual([1, 4])
+    expect(traderLevelChoices('prapor')).toEqual([1, 2, 3, 4])
+  })
+  it('never shows his second or third level, whatever the estimate, the screen or an old choice says', () => {
+    expect(traderLevelInfos([fence], [], () => undefined, 40).map((info) => [info.level, info.min, info.max])).toEqual([[1, 1, 4]])
+    expect(traderLevelInfos([fence], [], () => undefined, 40, { fence: 3 })[0]!.level).toBe(1)
+    expect(traderLevelInfos([fence], [], () => undefined, 40, {}, { fence: 4 })[0]!.level).toBe(4)
+    expect(traderLevelInfos([fence], [], () => undefined, 20, {}, { fence: 2 })[0]!.level).toBe(1)
   })
 })

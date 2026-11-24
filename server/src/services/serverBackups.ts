@@ -26,7 +26,7 @@ export function stripTransientBackupData(file: string) {
     copy.exec('PRAGMA secure_delete = ON')
     const support = copy.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'support_messages'").get()
     if (support) {
-      for (const table of ['support_attachments', 'support_message_files']) {
+      for (const table of ['support_attachments', 'support_message_files', 'support_reactions']) {
         const exists = copy.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table)
         if (exists) copy.exec(`DELETE FROM ${table}`)
       }

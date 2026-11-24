@@ -7,6 +7,15 @@ import { applicationGraphqlRequests, type LegacyGraphqlRequest } from './legacyG
 import type { MirrorStorage } from './mirrorStorage.js'
 
 const MINUTE = 60_000
+/**
+ * How often the answers are made again: RAIDOS_LEGACY_GRAPHQL_MINUTES, 30 by default (was every minute). Only POST
+ * /v1/data/graphql reads them, and no app asked it in 4.6 million requests (13.11.2026), while the pass took about 13
+ * seconds of almost two cores every minute — most of the API's load.
+ */
+export function legacyGraphqlIntervalMs(minutes: string | undefined = process.env.RAIDOS_LEGACY_GRAPHQL_MINUTES) {
+  const value = Number(minutes)
+  return Number.isFinite(value) && value >= 1 ? Math.round(value) * MINUTE : 30 * MINUTE
+}
 
 export interface LegacyGraphqlStatus {
   state: 'idle' | 'running' | 'done' | 'degraded' | 'error'
@@ -44,7 +53,7 @@ export class LegacyGraphqlBuilder {
     const kick = () => { void this.run().catch(() => undefined) }
     this.initial = setTimeout(kick, this.options.initialDelayMs ?? 30_000)
     this.initial.unref?.()
-    this.timer = setInterval(kick, this.options.intervalMs ?? MINUTE)
+    this.timer = setInterval(kick, this.options.intervalMs ?? legacyGraphqlIntervalMs())
     this.timer.unref?.()
   }
 
@@ -103,8 +112,15 @@ export class LegacyGraphqlBuilder {
     return { items, names, traders, barters, crafts, maps, prices, mode: mode === 'regular' ? 'pvp' : mode === 'pve' ? 'pve' : 'seasonal', imageBaseUrl: process.env.RAIDOS_ITEM_IMAGE_URL || 'https://raidos.app/v1/item-images' }
   }
 
+  /** The legacy items of a bundle, made once per pass for its several answers (guns, mods, ammo, prices). */
+  private readonly itemsOf = new WeakMap<TarkovJsonBundle, ReturnType<typeof buildLegacyItems>>()
+
   private response(request: LegacyGraphqlRequest, bundle: TarkovJsonBundle) {
-    const items = () => buildLegacyItems(bundle)
+    const items = () => {
+      let rows = this.itemsOf.get(bundle)
+      if (!rows) { rows = buildLegacyItems(bundle); this.itemsOf.set(bundle, rows) }
+      return rows
+    }
     switch (request.kind) {
       case 'bosses': return { data: { bosses: buildLegacyBosses(bundle) } }
       case 'guns': return { data: { items: items().filter((row) => Array.isArray(row.types) && row.types.includes('gun')) } }

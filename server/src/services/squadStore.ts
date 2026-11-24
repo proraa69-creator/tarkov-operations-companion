@@ -65,6 +65,13 @@ export class SquadStore {
     // Every squad ever created, for the owner's statistics (owner, 20.10.2026: «сколько создано отрядов вообще, сколько
     // расформировано»): a squad is deleted when it is disbanded, its id stays here. The squads of before are taken in once.
     db.exec('INSERT OR IGNORE INTO squad_log (squad_id, created_at) SELECT id, created_at FROM squads')
+    // The statistics count only a squad of two or more (owner, 15.11.2026: «не бери в нее больше отряды, в которых был только
+    // один человек. Записываю в статистику отряды, в которых было 2 и более человека»): it joins this log when its second member
+    // comes. Made once from the squads of two or more of that moment; squad_log above stays as it was, unread.
+    const fresh = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'squad_team_log'").get()
+    db.exec('CREATE TABLE IF NOT EXISTS squad_team_log (squad_id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)')
+    if (fresh) db.exec(`INSERT OR IGNORE INTO squad_team_log (squad_id, created_at)
+      SELECT s.id, s.created_at FROM squads s WHERE (SELECT COUNT(*) FROM squad_members m WHERE m.squad_id = s.id) >= 2`)
   }
 
   /** The squad of this account, or undefined. */
@@ -215,6 +222,8 @@ export class SquadStore {
 
   private addMember(squadId: string, accountId: string, joinedAt: number) {
     this.db.prepare('INSERT INTO squad_members (account_id, squad_id, member_id, joined_at) VALUES (?,?,?,?)').run(accountId, squadId, randomBytes(12).toString('hex'), joinedAt)
+    const members = Number((this.db.prepare('SELECT COUNT(*) AS n FROM squad_members WHERE squad_id = ?').get(squadId) as Row).n)
+    if (members >= 2) this.db.prepare('INSERT OR IGNORE INTO squad_team_log (squad_id, created_at) VALUES (?,?)').run(squadId, joinedAt)
   }
 
   private load(squadId: string): SquadRow | undefined {

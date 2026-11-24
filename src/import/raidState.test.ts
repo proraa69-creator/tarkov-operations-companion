@@ -22,6 +22,15 @@ describe('raid state from the game logs', () => {
     expect(raidStateFromLogs([[...APP, BACK].join('\n')], now).inRaid).toBe(false)
   })
 
+  // Owner, 15.11.2026: «ждет, пока у него идет загрузка. Как только рейд начинается, должно всплывать уведомление».
+  it('tells when the raid itself began («GameStarted»), apart from its loading', () => {
+    expect(raidStateFromLogs([APP.slice(0, 4).join('\n')], now).begun).toBeUndefined()
+    expect(raidStateFromLogs([APP.join('\n')], now)).toMatchObject({ inRaid: true, since: Date.parse('2026-09-27T16:04:48.192'), begun: Date.parse('2026-09-27T16:07:31.540') })
+    // the next raid starts without it until its own «GameStarted»
+    const next = '2026-09-27 16:50:00.000|1.1.5.1.47510|Info|application|LocationLoaded:20.00 real:30.00 diff:10'
+    expect(raidStateFromLogs([[...APP, OVER, BACK, next].join('\n')], Date.parse('2026-09-27T16:51:00')).begun).toBeUndefined()
+  })
+
   it('leaves the raid when matching is aborted', () => {
     const aborted = '2026-09-27 16:05:10.000|1.1.5.1.47510|Info|application|Network game matching aborted. ErrorCode: 0'
     expect(raidStateFromLogs([[...APP.slice(0, 3), aborted].join('\n')], now).inRaid).toBe(false)
@@ -68,7 +77,7 @@ describe('raid state from the game logs', () => {
   })
 
   it('the game\'s map names — location ids, display names, scene bundles — read as the app\'s maps; anything else not', () => {
-    for (const [token, map] of [['factory4_day', 'factory'], ['factory_rework_night_preset', 'factory'], ['bigmap', 'customs'], ['customs_preset', 'customs'], ['shopping_mall', 'interchange'], ['Interchange', 'interchange'], ['rezerv_base_preset', 'reserve'], ['laboratory_preset', 'the-lab'], ['city_preset', 'streets-of-tarkov'], ['TarkovStreets', 'streets-of-tarkov'], ['sandbox_high_preset', 'ground-zero'], ['Lighthouse', 'lighthouse'], ['Shoreline', 'shoreline'], ['Woods', 'woods'], ['Labyrinth', 'the-labyrinth']]) {
+    for (const [token, map] of [['factory4_day', 'factory'], ['infected_factory_preset', 'factory'], ['factory4_infected', 'factory'], ['factory_rework_night_preset', 'factory'], ['bigmap', 'customs'], ['customs_preset', 'customs'], ['shopping_mall', 'interchange'], ['Interchange', 'interchange'], ['rezerv_base_preset', 'reserve'], ['laboratory_preset', 'the-lab'], ['city_preset', 'streets-of-tarkov'], ['TarkovStreets', 'streets-of-tarkov'], ['sandbox_high_preset', 'ground-zero'], ['Lighthouse', 'lighthouse'], ['Shoreline', 'shoreline'], ['Woods', 'woods'], ['Labyrinth', 'the-labyrinth']]) {
       expect(canonicalMapId(raidMapToken(token) ?? ''), token).toBe(map)
     }
     for (const token of ['hideout_preset', 'main_menu', '', undefined]) expect(raidMapToken(token), String(token)).toBeUndefined()

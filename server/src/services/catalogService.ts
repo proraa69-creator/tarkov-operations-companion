@@ -1,13 +1,15 @@
 import type { AppDataset, RaidMode } from '../../../src/domain/types'
 import { fetchLiveCatalog } from '../../../src/data/catalogSource'
+import { catalogForWire } from '../../../src/data/catalogWire'
 import type { EventQuestDefinition } from '../../../src/data/eventQuestDefinitions'
 import { resolvePlayerByNickname } from '../../../electron/playerProfileService'
 import type { CatalogLocale } from './catalogCache.js'
 import { applyMirroredPrices, createCatalogAnswers, MirroredPrices, type CatalogAnswer } from './catalogAnswers.js'
 import { itemImageVersion, withCachedItemImages } from './itemImageCache.js'
+import { layOwnTiles } from './mapMirror.js'
 import type { GuideImageMirror } from './guideImages.js'
 import type { MirrorStorage } from './mirrorStorage.js'
-import { QuestBase, type QuestBaseAppVersion } from './questBase.js'
+import { QuestBase, type QuestBaseAppVersion, type QuestBaseFollow } from './questBase.js'
 import { WikiCache } from './wikiCache.js'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -29,7 +31,9 @@ let questBase = createQuestBase()
 
 const MIRROR_MODE: Record<RaidMode, string> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season' }
 
-function createQuestBase(options: { dir?: string; periodMs?: number; app?: QuestBaseAppVersion; log?: (message: string) => void } = {}) {
+type QuestBaseSetup = { dir?: string; periodMs?: number; app?: QuestBaseAppVersion; log?: (message: string) => void; follow?: QuestBaseFollow }
+
+function createQuestBase(options: QuestBaseSetup = {}) {
   return new QuestBase({
     ...options,
     load: (mode, locale) => fetchLiveCatalog(mode, locale, catalogFetch, { wiki: () => wiki.load(), eventQuests: () => eventQuests() }),
@@ -52,7 +56,8 @@ const answers = createCatalogAnswers({
   inputsVersion: itemImageVersion,
   decorate: (catalog, prices) => {
     const withImages = withCachedItemImages(prices ? applyMirroredPrices(catalog, prices) : catalog)
-    return guideImages ? guideImages.rewrite(withImages) : withImages
+    // as every app version reads it, a base read back from disk after a restart too (src/data/catalogWire.ts)
+    return catalogForWire(guideImages ? guideImages.rewrite(withImages) : withImages)
   },
 })
 
@@ -82,7 +87,8 @@ export function configureCatalogMirror(storage: MirrorStorage) {
       return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : strict ? new Response('Mirror snapshot unavailable', { status: 503 }) : fetch(input, init)
     }
     if ((url.hostname === 'raidos.app' && url.pathname === '/v1/map-tiles/maps.json') || (url.hostname === 'raw.githubusercontent.com' && url.pathname.endsWith('/src/data/maps.json'))) {
-      const bytes = await readFile(join(storage.root, 'maps.json')).catch(() => undefined)
+      // Our own «Спутник» sets laid over it as for /v1/map-tiles/maps.json: the apps draw maps from this catalog.
+      const bytes = await readFile(join(storage.root, 'maps.json')).then((raw) => layOwnTiles(raw, storage.root)).catch(() => undefined)
       return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : strict ? new Response('Mirror snapshot unavailable', { status: 503 }) : fetch(input, init)
     }
     return strict ? new Response('External catalog source disabled', { status: 503 }) : fetch(input, init)
@@ -93,8 +99,9 @@ export function configureCatalogMirror(storage: MirrorStorage) {
 /**
  * The server's quest base: kept in `dir` (one folder per mode, plus the wiki's answer), built every `periodMs`.
  * index.ts calls it once at start, before `start()`; without it the base lives in memory and builds on the first request.
+ * With `follow` the API only reads the base the background worker builds (src/worker.ts, services/background.ts).
  */
-export function configureQuestBase(options: { dir?: string; periodMs?: number; app?: QuestBaseAppVersion; log?: (message: string) => void }) {
+export function configureQuestBase(options: QuestBaseSetup) {
   questBase.stop()
   wiki = new WikiCache({ file: options.dir ? join(options.dir, 'wiki.json') : undefined, log: options.log })
   questBase = createQuestBase(options)

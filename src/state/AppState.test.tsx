@@ -88,8 +88,8 @@ describe('records of a changed character or a reset (R4, step 25)', () => {
   it('no profile line in the logs is no change: the records stay (P17)', async () => {
     act(() => state.applyLogStateForMode('pvp', [{ taskId: OTHER, status: 'active', timestamp: '2026-10-06T00:00:00.000Z' }]))
     expect(pvp().taskProgress[QUEST]).toMatchObject({ status: 'completed' })
-    // A Tasks-table reading in PvP (an earlier version's) went at the load: trader quests come from the logs there.
-    expect(pvp().taskProgress.scanned).toBeUndefined()
+    // A Tasks-table reading in PvP stays (owner, 01.11.2026: the table counts in every mode, next to the logs).
+    expect(pvp().taskProgress.scanned).toMatchObject({ status: 'active', source: 'screen-scan' })
     expect(pvp().taskProgress['story-tour']).toMatchObject({ source: 'screen-scan', currentStageIndex: 2 })
     expect(pvp().taskProgress[OTHER]).toMatchObject({ status: 'active' })
     expect(pvp().logCharacterId).toBe(OLD)
@@ -102,6 +102,19 @@ describe('records of a changed character or a reset (R4, step 25)', () => {
     act(() => state.applyLogStateForMode('pve', [], OLD))
     expect(pvp().taskProgress[QUEST]).toMatchObject({ status: 'completed' })
     expect(state.activeProfile.modes.pve.taskProgress[OTHER]).toBeUndefined()
+  })
+
+  // a player's report (20.11.2026): on the phone «Перейти на следующий этап» and «Изменить главу» went back to the PC's chapter
+  it('a stage chosen by hand stays against a reading timed ahead of this clock, and is sent as the newest', () => {
+    const ahead = new Date(Date.now() + 3 * 3600_000).toISOString()
+    act(() => state.applyRemoteStoryForMode('pvp', [{ taskId: 'story-tour', status: 'active', updatedAt: ahead, currentStageIndex: 1 }], OLD))
+    expect(pvp().taskProgress['story-tour']).toMatchObject({ currentStageIndex: 1 })
+    act(() => state.setStoryChapter('pvp', 'story-tour', { status: 'active', stageIndex: 2 }))
+    expect(pvp().taskProgress['story-tour']).toMatchObject({ status: 'active', currentStageIndex: 2 })
+    expect(pvp().taskProgress['story-tour']!.updatedAt > ahead).toBe(true)
+    // the same reading comes back at the next sync: the choice stays
+    act(() => state.applyRemoteStoryForMode('pvp', [{ taskId: 'story-tour', status: 'active', updatedAt: ahead, currentStageIndex: 1 }], OLD))
+    expect(pvp().taskProgress['story-tour']).toMatchObject({ currentStageIndex: 2 })
   })
 
   it('takes a story chapter another PC read when it is newer; a chapter done stays done; another character\'s are not taken', () => {

@@ -5,6 +5,7 @@ import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
 import { Loading } from './adminShared'
 import { dateTime, failure, numberFormat, useAdminData, type Failure } from './adminData'
+import { OWNER_TIME_ZONE } from '../../../../src/shared/ownerTime'
 import { REASON_LABEL, securityApi, type GuardReason, type SecurityBan, type SecurityView, type SeriesRow } from './securityApi'
 import '../../admin-security.css'
 
@@ -16,7 +17,7 @@ const BAN_HOURS = [
   { hours: 720, label: '30 дней' },
 ]
 const LEVEL_LABEL = ['15 мин', '1 час', '24 часа']
-const timeShort = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
+const timeShort = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: OWNER_TIME_ZONE })
 const percent = (rate: number) => `${(Math.round(rate * 1000) / 10).toLocaleString('ru-RU')}%`
 const megabytes = (bytes: number) => `${(Math.round(bytes / 1024 / 102.4) / 10).toLocaleString('ru-RU')} МБ`
 
@@ -108,7 +109,7 @@ function ErrorChart({ data }: { data: SecurityView }) {
       </div>
       <figure className="admin-chart guard-chart">
         <figcaption>
-          <span className="field-label">{range === 'day' ? 'По часам' : 'По 5 минут'} (время МСК)</span>
+          <span className="field-label">{range === 'day' ? 'По часам' : 'По 5 минут'} (время Бангкока)</span>
           <span className="admin-chart-readout mono" aria-live="polite">
             {hovered
               ? <>{timeShort.format(new Date(hovered.at))}: <strong>{hovered.errors}</strong> ошибок из {numberFormat.format(hovered.requests)}{hovered.requests ? ` (${percent(hovered.errors / hovered.requests)})` : ''}</>
@@ -165,7 +166,7 @@ function BansSection({ bans, onBans }: { bans: SecurityBan[]; onBans: (bans: Sec
       {bans.length > 0 && (
         <div className="table-scroll">
           <table className="pay-table admin-table guard-table">
-            <thead><tr><th scope="col">Адрес</th><th scope="col">Причина</th><th scope="col">Срок</th><th scope="col">С (МСК)</th><th scope="col">До (МСК)</th><th scope="col">Статус</th><th scope="col"><span className="visually-hidden">Действие</span></th></tr></thead>
+            <thead><tr><th scope="col">Адрес</th><th scope="col">Причина</th><th scope="col">Срок</th><th scope="col">С (Бангкок)</th><th scope="col">До (Бангкок)</th><th scope="col">Статус</th><th scope="col"><span className="visually-hidden">Действие</span></th></tr></thead>
             <tbody>
               {bans.map((ban) => (
                 <tr key={ban.id}>
@@ -239,7 +240,7 @@ function EventsSection() {
       {data && data.events.length > 0 && (
         <div className="table-scroll">
           <table className="pay-table admin-table guard-table admin-audit">
-            <thead><tr><th scope="col">Когда (МСК)</th><th scope="col">Адрес</th><th scope="col">Причина</th><th scope="col">Путь</th><th scope="col">Раз</th></tr></thead>
+            <thead><tr><th scope="col">Когда (Бангкок)</th><th scope="col">Адрес</th><th scope="col">Причина</th><th scope="col">Путь</th><th scope="col">Раз</th></tr></thead>
             <tbody>
               {data.events.map((event) => (
                 <tr key={event.id}>

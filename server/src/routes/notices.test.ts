@@ -6,7 +6,7 @@ import { AccountStore } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { ProgressStore } from '../services/progressStore.js'
-import { audienceMatches } from '../services/noticeStore.js'
+import { audienceMatches, PERSONAL_NOTICE_BASE } from '../services/noticeStore.js'
 import { SURVEY_LATER_MAX } from '../../../src/shared/notices.js'
 
 /**
@@ -128,7 +128,8 @@ test('announcements: «Россия»/«Мир»/«Все» × payment, once per
     assert.deepEqual(unpaid.json.notice.audience, { regions: [], payment: 'unpaid' }, 'all three regions are everybody')
     assert.equal(unpaid.json.notice.targeted, 4)
 
-    const titles = async (token: string) => (await t.call<Inbox>('GET', '/me/notices', token)).json.notices.map((notice) => notice.title)
+    // The announcements only: the popup of days granted by hand (Berlin's 30) is tested in trialDays.test.ts.
+    const titles = async (token: string) => (await t.call<Inbox>('GET', '/me/notices', token)).json.notices.filter((notice) => notice.id < PERSONAL_NOTICE_BASE).map((notice) => notice.title)
     assert.deepEqual(await titles(berlin), ['Для оплативших'])
     assert.deepEqual(await titles(moscow), ['Россиянам', 'Попробуйте подписку'])
     assert.deepEqual(await titles(tokyo), ['Попробуйте подписку'])
@@ -317,7 +318,7 @@ test('survey results: counts and shares per option, the free answers, e-mails fo
     assert.equal(results.questions[1]!.answered, 2)
     assert.deepEqual(results.questions[1]!.options!.map((option) => [option.count, option.percent]), [[1, 50], [2, 100], [0, 0]])
     assert.deepEqual(results.questions[2]!.answers!.map((answer) => [answer.text, answer.email]), [['=HYPERLINK("x")', 'tokyo@example.com'], ['Миникарту', 'moscow@example.com']])
-    assert.deepEqual(results.responses.map((response) => [response.email, response.country, response.region]), [['tokyo@example.com', 'JP', 'world'], ['berlin@example.com', 'DE', 'world'], ['moscow@example.com', 'RU', 'ru']])
+    assert.deepEqual(results.responses.map((response) => [response.email, response.country, response.region]), [['tokyo@example.com', 'JP', 'cis'], ['berlin@example.com', 'DE', 'world'], ['moscow@example.com', 'RU', 'ru']])
 
     const csv = await t.call('GET', `/accounts/me/admin/surveys/${id}/responses.csv`, t.owner)
     assert.equal(csv.status, 200)
@@ -325,7 +326,7 @@ test('survey results: counts and shares per option, the free answers, e-mails fo
     const lines = csv.text.replace(/^\uFEFF/, '').trim().split('\r\n')
     assert.equal(lines[0], 'Дата (МСК);E-mail;Страна;Регион;1. Где играете?;2. Что нравится?;3. Что добавить?')
     assert.equal(lines.length, 4)
-    assert.match(lines[1]!, /tokyo@example\.com;Япония;Мир;PvP;;"'=HYPERLINK\(""x""\)"$/, 'a formula is neutralised')
+    assert.match(lines[1]!, /tokyo@example\.com;Япония;СНГ;PvP;;"'=HYPERLINK\(""x""\)"$/, 'a formula is neutralised')
     assert.match(lines[3]!, /moscow@example\.com;Россия;Россия;PvP;Карты, Квесты;Миникарту$/)
 
     const withdrawn = await t.call<{ notice: Notice }>('POST', `/accounts/me/admin/notices/${id}/withdraw`, t.owner, {})

@@ -1,4 +1,4 @@
-import { Crosshair, ExternalLink, Mail, ShieldCheck, Users } from 'lucide-react'
+import { Crosshair, Mail, ShieldCheck, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Reveal } from '../components/Reveal'
 import { stagger } from '../hooks/motion'
@@ -6,8 +6,6 @@ import { tr } from '../i18n'
 
 /** Public contact address (owner, 01.10.2026). */
 const CONTACT_EMAIL = 'raidosapp@gmail.com'
-/** Our page on Boosty (owner, 21.10.2026: «добавь на сайт в раздел «О нас» … кнопка должна называться «Мы на Boosty»»). */
-export const BOOSTY_PAGE = 'https://boosty.to/raidosapp'
 
 export function AboutPage() {
   return (
@@ -52,7 +50,6 @@ export function AboutPage() {
             <p className="mono contact-mail"><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
           </div>
           <div className="contact-actions">
-            <a href={BOOSTY_PAGE} className="button" target="_blank" rel="noopener noreferrer">{tr('Мы на Boosty')}<ExternalLink size={15} aria-hidden="true" /></a>
             <Link to="/download" className="button primary">{tr('Скачать приложение')}</Link>
           </div>
         </Reveal>

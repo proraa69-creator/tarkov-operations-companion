@@ -1,10 +1,16 @@
+import { repeatsTitle } from '../maps/repeatsTitle'
+import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
+import { battlePassDocumentKindsOf, battlePassDocumentTitle } from '../data/battlePassDocuments'
 import { uiText } from '../i18n/renderText'
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
 import type { BossInfo, Item, KeycardColor, MapMarker, PossibleSpot } from '../domain/types'
-import { GUARANTEED_SPAWN_TEXT, possibleSpotText } from '../data/mapMarkerAdapter'
+import { GUARANTEED_SPAWN_TEXT, nearbySpotsText, possibleSpotText } from '../data/mapMarkerAdapter'
 import { bossBustFor, isGenericPortrait } from '../assets/bossBusts'
+import { extractGuideOf, extractPhotoUrl } from '../data/extractGuide'
+import { useLocale } from '../i18n/LocaleProvider'
 import { MarkerHintBlock } from './QuestCuratedInfo'
+import { servedItemPicture } from '../data/servedItemPicture'
 
 interface MapMarkerTooltipProps {
   marker: MapMarker
@@ -13,6 +19,14 @@ interface MapMarkerTooltipProps {
   floor: string
   item?: Item
   boss?: BossInfo
+  /** A quest's point: the keys the quest needs on this map, and whether the player has each (report №113). */
+  keys?: ReadonlyArray<{ item: Item; owned: boolean }>
+  /** A spot of several keys: their pictures instead of the list of names (maps/KeySpotKeys.tsx). */
+  spotKeys?: ReactNode
+  /** A point behind a locked door: the key of the room, on top of the card (maps/LockedNote.tsx). */
+  entry?: ReactNode
+  /** A quest's point: the place's photo, small (QuestGuidePhotos.tsx MarkerPlacePhoto; report 167). */
+  photo?: ReactNode
 }
 
 /** Screenshots live in public/extract-shots/<mapId>/<extractId>.jpg — see docs/extract-screenshots.md. */
@@ -26,38 +40,66 @@ function ExtractShot({ url, alt }: { url: string; alt: string }) {
   return <img className="mmt-shot" src={url} alt={alt} loading="lazy" onError={() => setMissing(true)} />
 }
 
-export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }: MapMarkerTooltipProps) {
-  const indoor = floor !== 'Основной'
-  const shot = extractScreenshotUrl(marker)
+export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, keys, spotKeys, entry, photo }: MapMarkerTooltipProps) {
+  const { locale } = useLocale()
+  // A battle pass document: its picture, its name and the floor, nothing else (owner, 05.11.2026: «нужно только название… и этаж»).
+  const documentKinds = marker.layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+  if (documentKinds.length) {
+    return (
+      <div className="mmt" style={{ '--marker-color': color } as CSSProperties}>
+        {entry}
+        <div className="mmt-title-row">
+          {documentKinds.map((kind) => <img key={kind} className="mmt-item-icon" src={DOCUMENT_PICTURES[kind]} alt="" />)}
+          <div className="mmt-title-copy">
+            <strong className="mmt-title">{battlePassDocumentTitle(documentKinds, locale)}</strong>
+            <span className="mmt-sub">{uiText(floor)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  // An exit's own text, floor and photo (src/data/extractGuide.ts).
+  const guide = extractGuideOf(marker.id)
+  const guideFloor = guide?.floor?.[locale]
+  const indoor = guide?.floor ? guide.floor.ru !== 'Основной' : floor !== 'Основной'
+  const shot = guide?.photos?.[0] ? extractPhotoUrl(guide.photos[0], true) : extractScreenshotUrl(marker)
   return (
     <div className="mmt" style={{ '--marker-color': color } as CSSProperties}>
+      {entry}
       <div className="mmt-head">
         <span className="mmt-type"><span className="mmt-dot" />{uiText(typeLabel)}</span>
         <span className={`mmt-floor${indoor ? ' is-indoor' : ''}`}>
           {uiText(indoor ? <Building2 size={11} /> : <Layers size={11} />)}
-          {uiText(floor)}
+          {guideFloor ?? uiText(floor)}
         </span>
       </div>
 
-      {shot && <ExtractShot key={shot} url={shot} alt={uiText(marker.title)} />}
+      {photo ?? (shot && <ExtractShot key={shot} url={shot} alt={uiText(marker.title)} />)}
 
       {uiText(boss ? <BossBlock boss={boss} title={marker.title} guaranteed={marker.guaranteedSpawn === true} /> : (
         <div className="mmt-title-row">
           {uiText(item?.iconUrl && <img className="mmt-item-icon" src={item.iconUrl} alt={uiText("")} loading="lazy" />)}
           <div className="mmt-title-copy">
             <strong className="mmt-title">{uiText(marker.title)}</strong>
-            {uiText(item && <span className="mmt-sub">{uiText(item.name)}</span>)}
+            {uiText(item && !repeatsTitle(item.name, marker.title) && <span className="mmt-sub">{uiText(item.name)}</span>)}
           </div>
         </div>
       ))}
 
       {uiText(!boss && marker.guaranteedSpawn && <p className="mmt-meta mmt-guaranteed">{uiText(GUARANTEED_SPAWN_TEXT)}</p>)}
+      {spotKeys}
+      {marker.roomSpots && marker.roomSpots > 1 ? <p className="mmt-meta mmt-room-spots">{uiText('Мест спавна в этой комнате')}: {marker.roomSpots}</p> : null}
+      {keys && keys.length > 0 && <div className="mmt-keys">{keys.map(({ item: key, owned }) => <span key={key.id} className={`mmt-key${owned ? ' is-owned' : ''}`}>
+        {key.iconUrl && <img src={key.iconUrl} alt="" loading="lazy" />}
+        <span>{uiText('Нужен ключ')}: {uiText(key.shortName || key.name)}{owned ? <> · {uiText('есть')}</> : null}</span>
+      </span>)}</div>}
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
+      {uiText(marker.nearbySpots && <NearbySpotsLine spots={marker.nearbySpots} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
-      {uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
+      {guide && (locale === 'en' ? guide.en : guide.ru) ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(!spotKeys && marker.description && !repeatsTitle(marker.description, marker.title) && <p className="mmt-desc">{uiText(marker.description)}</p>)}
       {/* the owner's «где искать» and the items tied to this point (quest constructor) */}
       {marker.hint && <MarkerHintBlock hint={marker.hint} />}
-      {uiText(!boss && marker.meta && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
+      {uiText(!boss && !guide && !spotKeys && marker.meta && marker.layerId !== 'loot.container' && !repeatsTitle(marker.meta, marker.title) && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
       {uiText(marker.approximate && <p className="mmt-meta">{uiText("Точка приблизительная")}</p>)}
     </div>
   )
@@ -72,6 +114,16 @@ function PossibleSpotLine({ spot }: { spot: PossibleSpot }) {
     <p className="mmt-meta mmt-possible" style={{ color: 'var(--marker-color)', fontWeight: 700 }}>
       <span aria-hidden="true" style={possibleRing} />
       {uiText(possibleSpotText(spot))}
+    </p>
+  )
+}
+
+/** A quest-item point standing for several spawns close together (mapMarkerAdapter.ts ITEM_SPOT_MERGE_METRES). */
+function NearbySpotsLine({ spots }: { spots: NonNullable<MapMarker['nearbySpots']> }) {
+  return (
+    <p className="mmt-meta">
+      {uiText(nearbySpotsText(spots.count))}
+      {spots.floors?.length ? ` · ${uiText('этажи')}: ${spots.floors.map((floor) => uiText(floor)).join(', ')}` : null}
     </p>
   )
 }
@@ -123,7 +175,7 @@ function BossBlock({ boss, title, guaranteed }: { boss: BossInfo; title: string;
         <div className="mmt-gear">
           {uiText(boss.gear.slice(0, 5).map((entry) => (
             <span className="mmt-gear-item" key={`${entry.slot ?? ''}${entry.name}`} title={uiText(entry.name)}>
-              {uiText(entry.iconUrl && <img src={entry.iconUrl} alt={uiText("")} loading="lazy" />)}
+              {uiText(entry.iconUrl && <img src={servedItemPicture(entry.iconUrl)} alt={uiText("")} loading="lazy" />)}
               {uiText(entry.name)}
             </span>
           )))}

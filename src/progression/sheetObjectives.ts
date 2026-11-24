@@ -8,15 +8,31 @@ import type { Item, ModeProgress, Quest, QuestObjective } from '../domain/types'
 import { canonicalMapId, mapDisplayName } from '../data/mapIds'
 import { objectiveDone } from '../raidprep/objectives'
 
-export type SheetGroupKind = 'raid' | 'place' | 'find' | 'handover' | 'other'
+/** How much of an objective of `target` is counted: all of it once done, else the stored count. */
+function counted(progress: ModeProgress | undefined, questId: string, objectiveId: string, target: number) {
+  if (!progress) return 0
+  if (objectiveDone(progress, questId, objectiveId)) return target
+  return Math.min(target, Math.max(0, Math.round(progress.objectiveProgress?.[objectiveId]?.current ?? 0)))
+}
+
+export type SheetGroupKind = 'raid' | 'place' | 'find' | 'extract' | 'handover' | 'other'
 
 export interface SheetObjective {
   id: string
+  /** The game's own id when `id` is the catalog's text: the quest's «Фото мест» name it (src/components/QuestGuidePhotos.tsx). */
+  gameId?: string
   /** The catalog's text; a hand-over shows `item` instead when the item is known. */
   text: string
   /** Hand-over of one known item: its name (shown as «Сдать торговцу: <item>»). */
   item?: string
   count?: number
+  /**
+   * An objective of more than one (kills, items to hand over…): how many it asks for and how many are counted so far
+   * (report 144, 11.11.2026: «показывало сколько ты убил типо 7 из 10»). The game writes no counter into its logs: the
+   * player counts by hand, a tick fills it.
+   */
+  target?: number
+  current?: number
   foundInRaid?: boolean
   optional?: boolean
   /** Where it is done: map names, «Любая карта», or null (at the trader, in the menu). */
@@ -26,15 +42,55 @@ export interface SheetObjective {
   done: boolean
   /** The owner's descriptions «где искать» of this objective's points (quest constructor). */
   hints?: Array<{ markerId: string; title?: string; text: string; items?: Array<{ itemId: string; name: string; iconUrl?: string }>; photoIds?: string[] }>
+  /** What the objective needs, with the item's picture: keys, what to plant or bring, what to hand over (report of 10.11.2026). */
+  needs?: SheetNeed[]
 }
+
+/** One item an objective needs, from the quest's raid requirements. */
+export interface SheetNeed {
+  itemId: string
+  name: string
+  iconUrl?: string
+  count: number
+  /** «Ключ», «Заложить», «Взять в рейд»… */
+  label: string
+  /** What it is for (the raid requirement's purpose): «Найти в рейде» of the window takes `find` and `handover`. */
+  purpose?: NonNullable<Quest['raidRequirements']>[number]['purpose']
+  foundInRaid?: boolean
+}
+
+/** Where a group is done: in the raid, at the trader with what is in the stash, or outside the raid (level, skill, build…). */
+export type SheetStageKind = 'raid' | 'trader' | 'out'
 
 export interface SheetGroup { kind: SheetGroupKind; title: string; objectives: SheetObjective[] }
 
+export interface SheetStage {
+  kind: SheetStageKind
+  title: string
+  /** One short line under the title: where it is done. */
+  hint: string
+  groups: SheetGroup[]
+  /** What the quest asks to take into the raid without naming an objective. */
+  needs?: SheetNeed[]
+}
+
 export interface SheetObjectives {
   groups: SheetGroup[]
+  /** The groups by where they are done (the quest card's blocks); built from `groups` when left out (stagesOf). */
+  stages?: SheetStage[]
   /** The objectives are on more than one map (or some on any map): every in-raid line names its map. */
   showWhere: boolean
+  /** Only the objectives of the map being viewed are listed (PER_MAP_SHEET_QUESTS). */
+  onlyHere?: boolean
 }
+
+/**
+ * Quests whose window on the map lists only the objectives of the map being viewed, so that each map has its own (owner,
+ * 08.11.2026, «Что-то мне это напоминает...», 27 cameras on 8 maps: «на каждой карте свои точки этого квеста. Не должно быть,
+ * например, на карте берег в этом же квесте точек улиц Таркова, чтобы не был большой список. Сделай это именно для квеста»).
+ * On a map without any of them the window lists them all, as before; «Открыть задание» always shows them all.
+ */
+export const PER_MAP_SHEET_QUESTS: ReadonlySet<string> = new Set(['66d9cbb67b491f9d5304f6e6'])
 
 const KIND_BY_TYPE: Record<string, SheetGroupKind> = {
   plantItem: 'place',
@@ -46,11 +102,13 @@ const KIND_BY_TYPE: Record<string, SheetGroupKind> = {
   shoot: 'raid',
   visit: 'raid',
   mark: 'raid',
-  extract: 'raid',
+  // Getting out comes last in the raid, after what is found and placed there (owner, 11.11.2026, «Компромат»: «Выжить и выйти
+  // с локации Таможня» stood under the Factory's room, above the case to find on Customs — «перенести ниже, проверь все такие квесты»).
+  extract: 'extract',
   useItem: 'raid',
 }
 
-const ORDER: SheetGroupKind[] = ['raid', 'place', 'find', 'handover', 'other']
+const ORDER: SheetGroupKind[] = ['raid', 'place', 'find', 'extract', 'handover', 'other']
 export const ANY_MAP = 'Любая карта'
 const MAX_MAP_NAMES = 3
 
@@ -75,6 +133,7 @@ function titleOf(kind: SheetGroupKind, objectives: SheetObjective[]) {
   if (kind === 'raid') return 'В рейде'
   if (kind === 'place') return 'Заложить'
   if (kind === 'find') return objectives.every((objective) => objective.foundInRaid) ? 'Найти в рейде' : 'Найти'
+  if (kind === 'extract') return 'Выход из рейда'
   if (kind === 'handover') return 'Сдать торговцу'
   return 'Вне рейда'
 }
@@ -94,6 +153,42 @@ function hintsOf(quest: Quest, objectiveId: string) {
   return hints.length ? { hints } : {}
 }
 
+const NEED_LABEL: Record<NonNullable<Quest['raidRequirements']>[number]['purpose'], string> = {
+  key: 'Ключ', place: 'Заложить', mark: 'Маркер', bring: 'Взять в рейд', use: 'Использовать', signal: 'Ракетница', handover: 'Сдать', find: 'Найти',
+}
+
+const STAGE_OF: Record<SheetGroupKind, SheetStageKind> = { raid: 'raid', place: 'raid', find: 'raid', extract: 'raid', handover: 'trader', other: 'out' }
+const STAGE_TEXT: Record<SheetStageKind, { title: string; hint: string }> = {
+  raid: { title: 'В рейде', hint: 'Сделать на карте' },
+  trader: { title: 'Торговцу', hint: 'Из схрона, после рейда' },
+  out: { title: 'Вне рейда', hint: 'Условия задания' },
+}
+
+function needOf(requirement: NonNullable<Quest['raidRequirements']>[number], itemsById: Map<string, Item>): SheetNeed {
+  const item = itemsById.get(requirement.itemId)
+  return {
+    itemId: requirement.itemId,
+    name: item?.name ?? requirement.itemId,
+    ...(item?.iconUrl ? { iconUrl: item.iconUrl } : {}),
+    count: requirement.count,
+    label: NEED_LABEL[requirement.purpose],
+    purpose: requirement.purpose,
+    ...(requirement.foundInRaid ? { foundInRaid: true } : {}),
+  }
+}
+
+/** The quest's raid requirements of one objective, one row per item and kind. */
+function needsOf(quest: Quest, objectiveId: string, itemsById: Map<string, Item>): SheetNeed[] {
+  const seen = new Set<string>()
+  return (quest.raidRequirements ?? []).filter((requirement) => {
+    const ids = requirement.objectiveIds ?? (requirement.objectiveId ? [requirement.objectiveId] : [])
+    const key = `${requirement.itemId}:${requirement.purpose}`
+    if (!ids.includes(objectiveId) || seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).map((requirement) => needOf(requirement, itemsById))
+}
+
 /** Null when the quest has no structured objectives (the card then lists the plain texts as before). */
 export function sheetObjectives(
   quest: Quest,
@@ -102,17 +197,23 @@ export function sheetObjectives(
   const details = quest.objectiveDetails ?? []
   if (!details.length) return null
   const mapId = canonicalMapId(options.mapId)
+  const mapsOf = (objective: QuestObjective) => [...new Set((objective.mapIds ?? []).map(canonicalMapId).filter(Boolean))]
+  const onlyHere = PER_MAP_SHEET_QUESTS.has(quest.id) && details.some((objective) => mapsOf(objective).includes(mapId))
   const grouped = new Map<SheetGroupKind, SheetObjective[]>()
   for (const objective of details) {
     const kind = kindOf(objective)
-    const mapIds = [...new Set((objective.mapIds ?? []).map(canonicalMapId).filter(Boolean))]
+    const mapIds = mapsOf(objective)
+    // another map's objective is left for that map's window; one done at the trader or in the menu stays
+    if (onlyHere && mapIds.length && !mapIds.includes(mapId) && kind !== 'handover' && kind !== 'other') continue
     const single = objective.itemIds?.length === 1 ? options.itemsById.get(objective.itemIds[0]) : undefined
     const line: SheetObjective = {
       id: objective.id,
+      ...(objective.gameId ? { gameId: objective.gameId } : {}),
       text: objective.description,
       ...(kind === 'handover' && single ? { item: single.name } : {}),
       // «×5» unless the text already says the number
       ...(objective.count > 1 && !new RegExp(`(^|\\D)${objective.count}(\\D|$)`).test(objective.description) ? { count: objective.count } : {}),
+      ...(objective.count > 1 ? { target: objective.count, current: counted(options.progress, quest.id, objective.id, objective.count) } : {}),
       ...(objective.foundInRaid ? { foundInRaid: true } : {}),
       ...(objective.optional ? { optional: true } : {}),
       where: whereOf(kind, mapIds, options.maps),
@@ -120,6 +221,8 @@ export function sheetObjectives(
       done: options.progress ? objectiveDone(options.progress, quest.id, objective.id) : false,
       ...hintsOf(quest, objective.id),
     }
+    const needs = needsOf(quest, objective.id, options.itemsById)
+    if (needs.length) line.needs = needs
     grouped.set(kind, [...(grouped.get(kind) ?? []), line])
   }
   const groups = ORDER.flatMap((kind) => {
@@ -127,5 +230,22 @@ export function sheetObjectives(
     return objectives?.length ? [{ kind, title: titleOf(kind, objectives), objectives }] : []
   })
   const places = new Set(groups.flatMap((group) => group.objectives.flatMap((objective) => (objective.where ? [objective.where] : []))))
-  return { groups, showWhere: places.size > 1 }
+  // What to take into the raid that names no objective (a key of the whole quest, an item the owner added).
+  const listedIds = new Set(details.map((objective) => objective.id))
+  const loose = (quest.raidRequirements ?? []).filter((requirement) => {
+    const ids = requirement.objectiveIds ?? (requirement.objectiveId ? [requirement.objectiveId] : [])
+    return !ids.some((id) => listedIds.has(id)) && requirement.purpose !== 'handover' && requirement.purpose !== 'find'
+  })
+  const stages = stagesOf(groups, loose.map((requirement) => needOf(requirement, options.itemsById)))
+  return { groups, stages, showWhere: places.size > 1, ...(onlyHere ? { onlyHere: true } : {}) }
+}
+
+/** The groups by where they are done: in the raid (with what to take that names no objective), at the trader, outside the raid. */
+export function stagesOf(groups: readonly SheetGroup[], raidNeeds: readonly SheetNeed[] = []): SheetStage[] {
+  return (['raid', 'trader', 'out'] as const).flatMap((kind): SheetStage[] => {
+    const own = groups.filter((group) => STAGE_OF[group.kind] === kind)
+    const extra = kind === 'raid' ? [...raidNeeds] : []
+    if (!own.length && !extra.length) return []
+    return [{ kind, ...STAGE_TEXT[kind], groups: own, ...(extra.length ? { needs: extra } : {}) }]
+  })
 }

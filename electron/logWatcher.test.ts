@@ -128,6 +128,26 @@ describe('the main process follows the logs', () => {
     watcher.stop()
   })
 
+  // Owner, 31.10.2026: a player who closes the game right after a raid and deletes the logs before the next start.
+  it('a closed game is in no raid: its quests are read even when the logs still say «in a raid»', async () => {
+    const scan = vi.fn(async () => buildScanResult([], 1))
+    let running: boolean | null = true
+    const watcher = createLogWatcher({
+      discover: async () => 'L', identity: async () => identityScanResult(buildScanResult([], 1)), scan,
+      raidState: async () => ({ inRaid: true, since: 1 }), send: () => {}, gameRunning: async () => running,
+    })
+    watcher.watch('L')
+    await watcher.poll()
+    expect(scan).not.toHaveBeenCalled()
+    running = null
+    await watcher.poll()
+    expect(scan).not.toHaveBeenCalled()
+    running = false
+    await watcher.poll()
+    expect(scan).toHaveBeenCalledTimes(1)
+    watcher.stop()
+  })
+
   it('tells the window the raid\'s map when the logs name it after the raid began (owner, 20.10.2026)', async () => {
     let raid: RaidState = { inRaid: false }
     const sent: Array<{ channel: string; payload: unknown }> = []
@@ -259,11 +279,12 @@ describe('constant log tracking (owner, 15.10.2026: «сделай постоя�
     for (let index = 0; index < 5; index += 1) watches[0]!.change()
     await vi.advanceTimersByTimeAsync(WATCH_DEBOUNCE_MS)
     expect(scan.mock.calls.length).toBe(after + 1)
-    // No change: only the safety poll, not the 5-second one.
-    await vi.advanceTimersByTimeAsync(LOG_POLL_MS * 3)
+    // No change: the safety poll, every 2 s (owner, 11.11.2026: «очень долго обновляет логи по квестам»; it was 45 s).
+    await vi.advanceTimersByTimeAsync(LOG_SAFETY_POLL_MS - WATCH_DEBOUNCE_MS - 1)
     expect(scan.mock.calls.length).toBe(after + 1)
-    await vi.advanceTimersByTimeAsync(LOG_SAFETY_POLL_MS)
+    await vi.advanceTimersByTimeAsync(1)
     expect(scan.mock.calls.length).toBe(after + 2)
+    expect(LOG_POLL_MS).toBeLessThan(LOG_SAFETY_POLL_MS)
     watcher.stop()
     expect(watches[0]!.closed).toBe(true)
   })
@@ -286,12 +307,12 @@ describe('constant log tracking (owner, 15.10.2026: «сделай постоя�
     watches[0]!.error(Object.assign(new Error('EPERM'), { code: 'EPERM' }))
     expect(watches[0]!.closed).toBe(true)
     expect(tracked.watchState().mode).toBe('poll')
-    // Retries after 1 s, 2 s, 4 s, 8 s… (each fails while broken): meanwhile the 5-second poll reads the folder.
+    // Retries after 1 s, 2 s, 4 s, 8 s… (each fails while broken): meanwhile the fast poll reads the folder.
     const before = scan.mock.calls.length
     await vi.advanceTimersByTimeAsync(WATCH_RETRY_MS * 3)
     expect(tracked.watchState().mode).toBe('poll')
-    await vi.advanceTimersByTimeAsync(LOG_POLL_MS)
-    expect(scan.mock.calls.length).toBeGreaterThan(before)
+    await vi.advanceTimersByTimeAsync(WATCH_RETRY_MS * 5)
+    expect(scan.mock.calls.length).toBeGreaterThan(before + 3)
     broken = false
     // The try due at 15 s takes.
     await vi.advanceTimersByTimeAsync(WATCH_RETRY_MS * 6)

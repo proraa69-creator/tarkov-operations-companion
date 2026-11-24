@@ -89,7 +89,8 @@ describe('registration on the site asks the country', () => {
     expect(optionNames()).toEqual(['Казахстан'])
     await user.clear(search)
     await user.type(search, 'сша')
-    expect(optionNames()[0]).toBe('Соединенные Штаты')
+    // owner, 09.11.2026: the USA by its full English name, as registrations usually show it.
+    expect(optionNames()[0]).toBe('США (United States of America)')
     await user.clear(search)
     await user.type(search, 'zzzz')
     expect(screen.queryAllByRole('option')).toHaveLength(0)

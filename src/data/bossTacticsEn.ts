@@ -378,6 +378,8 @@ export const BOSS_TACTICS_EN: Record<string, BossTacticsText> = {
       'He can appear anywhere on the small map and corners you.',
       'The map itself is dangerous: tripwires, poison barbed wire and spike pits, placed differently every raid.',
       'In PvE since 1.2.0.0, PMC bots also show up in the Labyrinth.',
+      'His retinue: up to 6 fighters named after Greek gods, geared better than Raiders. Once one sees you, they all converge.',
+      'The retinue likes to shoot lying down (drop-shot) and keeps arriving over time, not only at the start of the raid.',
     ],
     weakPoints: [
       'Mask and plate carrier are class 6: the head (105 HP) only with M995, M61, M993, BS and the like.',
@@ -390,13 +392,16 @@ export const BOSS_TACTICS_EN: Record<string, BossTacticsText> = {
       'If he gets close, do not trade blows with him: back off and restore the distance.',
       'Bring a multitool to disarm traps and an antidote for the poison.',
       'After he dies, get ready for a second fight: Vengeful Killa (about 960 HP) is very aggressive.',
+      'Against the retinue aim lower: they often drop prone mid-fight.',
+      'A cleared room is not safe for long: more of the retinue will come.',
     ],
     dangers: [
       'A dead end or a corner where he has trapped you with the axe.',
       'Counting on grenades: explosions do not hurt him.',
       'Vengeful Killa while you loot or heal after the Shadow.',
+      'The retinue coming from behind while you fight the Shadow.',
     ],
-    loot: 'His axe and mask cannot be taken — the value is mostly the Labyrinth\'s own loot.',
+    loot: 'His axe and mask cannot be taken — the value is mostly the Labyrinth\'s own loot. The retinue may carry the Ariadne key, Labrys notes and an xTG-12 antidote.',
   },
   'cultist-priest': {
     summary: 'The Cultist Priest with a group of cultists (usually 3–4, more in some sources). Night raids only: Customs, Woods, Shoreline, night Factory and Ground Zero 21+.',

@@ -1,9 +1,11 @@
-import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Megaphone, Radio, Receipt, ScrollText, Target, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
 import { AdminBezebee } from '../components/admin/AdminBezebee'
 import { AdminInviteRewards } from '../components/admin/AdminInviteRewards'
+import { AdminReferrals } from '../components/admin/AdminReferrals'
+import { AdminAds } from '../components/admin/AdminAds'
 import { AdminAudit } from '../components/admin/AdminSales'
 import { AdminStreamers } from '../components/admin/AdminStreamers'
 import { AdminSummary } from '../components/admin/AdminSummary'
@@ -16,6 +18,8 @@ import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
 import { AdminQuestBase } from '../components/admin/AdminQuestBase'
 import { AdminNotices } from '../components/admin/AdminNotices'
 import { AdminSurveys } from '../components/admin/AdminSurveys'
+import { AdminUpdateHistory } from '../components/admin/AdminUpdateHistory'
+import { History as HistoryIcon } from 'lucide-react'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -24,15 +28,23 @@ const TABS = [
   { id: 'summary', label: 'Сводка', icon: LayoutDashboard },
   { id: 'payments', label: 'Платежи', icon: Receipt },
   { id: 'users', label: 'Пользователи', icon: Users },
+  // «Привлечение друзей» (owner, 03.11.2026): «Пригласи друга» — who brought whom, who paid, the reward days and when.
+  { id: 'referrals', label: 'Привлечение друзей', icon: HeartHandshake },
   { id: 'streamers', label: 'Стримеры', icon: Radio },
+  // «Реклама» (owner, 09.11.2026): переходы, регистрации и оплаты по ссылке рекламы Reddit.
+  { id: 'ads', label: 'Реклама', icon: Megaphone },
   // «Друзья», «Настройки продаж» and «Обновление» were removed (owner, 13.10.2026); their old links open «Сводка».
   // «Отчёты» (owner, 11.10.2026): the bug reports with the reporter's e-mail and «+1 день» for each
   { id: 'reports', label: 'Отчёты', icon: Bug },
+  // «убери из отчетов все и сделай там таблицу» (owner, 05.11.2026): the quest tools that shared «Отчёты» moved here.
+  { id: 'quests', label: 'Квесты', icon: Target },
   // «Объявления по регионам» / «Опросы» (owner, 15.10.2026): created here or in the owner app; the surveys' statistics.
   { id: 'notices', label: 'Объявления', icon: BellRing },
   { id: 'surveys', label: 'Опросы', icon: ClipboardList },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
+  // «История обновлений» (owner, 05.11.2026): every version with its main changes.
+  { id: 'history', label: 'История обновлений', icon: HistoryIcon },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -90,6 +102,8 @@ export function AdminPage() {
           {tab === 'summary' && <AdminSummary />}
           {tab === 'payments' && <><AdminBezebee /><AdminPayments /><AdminInviteRewards /></>}
           {tab === 'users' && <AdminUsers />}
+          {tab === 'referrals' && <AdminReferrals />}
+          {tab === 'ads' && <AdminAds />}
           {tab === 'streamers' && <>
             <AdminStreamers />
             <section className="panel owner-panel admin-streamer-payouts" aria-labelledby="admin-payouts-title">
@@ -97,11 +111,13 @@ export function AdminPage() {
               <div className="panel-body owner-body"><OwnerPayoutsList /></div>
             </section>
           </>}
-          {tab === 'reports' && <><AdminBugReports /><AdminQuestPoints /><AdminQuestBase /></>}
+          {tab === 'reports' && <AdminBugReports />}
+          {tab === 'quests' && <><AdminQuestPoints /><AdminQuestBase /></>}
           {tab === 'notices' && <AdminNotices />}
           {tab === 'surveys' && <AdminSurveys />}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
+          {tab === 'history' && <AdminUpdateHistory />}
         </div>
       </div>
     </div>

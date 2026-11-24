@@ -120,6 +120,18 @@ describe('«Оружейник» builds from tarkov.help', () => {
     expect(presetOnly.objectiveDetails![0].build!.guide!.parts.map((part) => part.name)).toEqual(['MOD*X', 'PM II'])
   })
 
+  it('a table without its weapon goes to the weapon whose parts it holds, not to the one in the same place (Мастер. Часть 12)', () => {
+    const table = (image: string, itemIds: string[]) => ({ image, itemIds, names: {}, sellers: {} })
+    const tables = [table('rifle.png', ['bipod', 'scope']), table('pistol.png', ['flashlight', 'slide', 'barrel']), table('smg.png', ['flashlight', 'cover', 'stock', 'grip'])]
+    const guides = new Map([['master-12', { url: 'u', name: 'Оружейник - Мастер. Часть 12', tables }]])
+    const task = quest('master-12', 'Оружейник - Мастер. Часть 12', [build('rifle', ['scope']), build('smg', ['flashlight', 'cover', 'stock']), build('pistol', ['flashlight', 'slide', 'barrel'])])
+    const [result] = withHelpGuides([task], guides, () => false)
+    expect(result.objectiveDetails!.map((objective) => [objective.build!.weaponId, objective.build!.guide?.image])).toEqual([['rifle', 'rifle.png'], ['smg', 'smg.png'], ['pistol', 'pistol.png']])
+    // No table holds the parts a weapon asks for: no build rather than another weapon's.
+    const [none] = withHelpGuides([quest('master-12', 'x', [build('rifle', ['scope']), build('other', ['nothing']), build('pistol', ['slide'])])], guides, () => false)
+    expect(none.objectiveDetails!.map((objective) => objective.build!.guide?.image)).toEqual(['rifle.png', undefined, 'pistol.png'])
+  })
+
   it('finds the pages through the trader lists, by the task’s Russian name, and keeps them for a while', async () => {
     const asked: string[] = []
     const fetcher = (async (input: string | URL | Request) => {

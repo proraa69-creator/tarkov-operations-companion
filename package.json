@@ -4,7 +4,7 @@
   "description": "Local-first Escape from Tarkov maps, quests, economy and progress companion.",
   "author": "Raid OS contributors",
   "private": true,
-  "version": "0.6.0-98",
+  "version": "0.6.0-339",
   "type": "module",
   "main": "dist-electron/electron/boot.js",
   "scripts": {
@@ -14,6 +14,7 @@
     "build": "npm run build:renderer && npm run build:electron && npm run build:local-server && node scripts/write-build-info.mjs",
     "desktop": "npm run build && electron .",
     "dist:win": "npm run build && electron-builder --win portable",
+    "dist:win:setup": "npm run build && electron-builder --win nsis",
     "server:dev": "npm --prefix server run dev",
     "server:test": "npm --prefix server test",
     "preview": "vite preview",
@@ -37,6 +38,7 @@
     },
     "files": [
       "dist/**/*",
+      "!dist/assets/selfie_segmentation*",
       "dist-electron/**/*",
       "electron/preload.cjs",
       "package.json"
@@ -67,6 +69,28 @@
     },
     "portable": {
       "unpackDirName": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Raid OS",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "multiLanguageInstaller": true,
+      "installerLanguages": [
+        "ru_RU",
+        "en_US"
+      ],
+      "artifactName": "RaidOSSetup ${version}.exe",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "include": "build/installer.nsh"
     },
     "electronFuses": {
       "runAsNode": false,
@@ -102,6 +126,7 @@
     "@capacitor/ios": "^8.5.2",
     "@eslint/js": "latest",
     "@imgly/background-removal-node": "^1.4.5",
+    "@mediapipe/selfie_segmentation": "0.1.1675465747",
     "@playwright/test": "latest",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",

@@ -10,7 +10,7 @@ export const OVERVIEW_DEFAULTS_PATH = '/v1/accounts/me/admin/overview-defaults'
  * What the owner edits: every part filled in (the built-in values where the server has none). `bosses`: only the maps
  * whose list the owner changed (the others keep the built-in bosses).
  */
-export interface BlocksDraft { layout: OverviewLayout; phone: string[]; hidden: string[]; titles: Record<string, BlockTitle>; bosses: Record<string, MapBossEntry[]> }
+export interface BlocksDraft { layout: OverviewLayout; phone: string[]; hidden: string[]; titles: Record<string, BlockTitle>; btrStopsOff: boolean; bosses: Record<string, MapBossEntry[]> }
 
 const copyList = (list: readonly MapBossEntry[]) => list.map((entry) => ({ ...entry, modes: [...entry.modes] }))
 
@@ -20,6 +20,7 @@ export function draftOf(defaults: OverviewDefaults | null | undefined): BlocksDr
     phone: defaults?.phone ? [...defaults.phone] : [...PHONE_BLOCKS],
     hidden: [...(defaults?.hidden ?? [])],
     titles: { ...(defaults?.titles ?? {}) },
+    btrStopsOff: defaults?.btrStopsOff === true,
     bosses: Object.fromEntries(Object.entries(defaults?.bosses ?? {}).map(([mapId, list]) => [mapId, copyList(list)])),
   }
 }
@@ -27,7 +28,7 @@ export function draftOf(defaults: OverviewDefaults | null | undefined): BlocksDr
 /** The body of PUT …/overview-defaults (empty headings dropped). */
 export function bodyOf(draft: BlocksDraft): OverviewDefaults {
   const titles = Object.fromEntries(Object.entries(draft.titles).map(([id, title]) => [id, { ru: title.ru.trim(), en: title.en.trim() }]).filter(([, title]) => (title as BlockTitle).ru || (title as BlockTitle).en))
-  return { layout: draft.layout, phone: draft.phone, hidden: draft.hidden, titles, ...(Object.keys(draft.bosses).length ? { bosses: draft.bosses } : {}) }
+  return { layout: draft.layout, phone: draft.phone, hidden: draft.hidden, titles, ...(draft.btrStopsOff ? { btrStopsOff: true } : {}), ...(Object.keys(draft.bosses).length ? { bosses: draft.bosses } : {}) }
 }
 
 /** A map's built-in bosses as the editor lists them (every mode spelled out). */

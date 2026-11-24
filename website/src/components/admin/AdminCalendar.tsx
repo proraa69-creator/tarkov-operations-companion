@@ -6,15 +6,20 @@ import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { AccountRef, Loading, PaymentWho } from './adminShared'
 import { failure, formatRub, inviterText, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, REWARD_KIND, REWARD_TONE, rewardStatusText, useAdminData, type Failure } from './adminData'
+import { OWNER_TIME_ZONE, ownerDay } from '../../../../src/shared/ownerTime'
+import { pickDay, pickedDayState, pickedRange, type PickedDays } from '../../../../src/shared/adminPeriod'
+import { AdminPeriodSummary } from './AdminPeriodSummary'
+// The day window is a .pay-dialog: its sheet comes with it, the PC owner app has no other page that loads it (owner, 17.11.2026).
+import '../../payments.css'
 import '../../admin-calendar.css'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const monthTitle = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 const dayTitle = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
-const timeOnly = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
+const timeOnly = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: OWNER_TIME_ZONE })
 
-/** Today's month in Moscow time, YYYY-MM. */
-const currentMonth = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 7)
+/** Today's month in the owner's time (Bangkok), YYYY-MM. */
+const currentMonth = () => ownerDay(Date.now()).slice(0, 7)
 function shiftMonth(month: string, by: number) {
   const date = new Date(`${month}-15T00:00:00Z`)
   date.setUTCMonth(date.getUTCMonth() + by)
@@ -26,11 +31,17 @@ function shiftDay(date: string, by: number) {
 const rub = (value: number) => `${formatRub(value)} ₽`
 const capitalize = (text: string) => text.slice(0, 1).toUpperCase() + text.slice(1)
 
-/** «Календарь» of «Сводка»: a month of days; a click opens the day with everything that happened. */
+/**
+ * «Календарь» of «Сводка»: a month of days; a click opens the day with everything that happened. A right click picks the
+ * first and the second day of a period (owner, 15.11.2026; the months can be turned in between), a third one drops them:
+ * «Сводка за период» shows above the days.
+ */
 export function AdminCalendar() {
   const [month, setMonth] = useState(currentMonth)
   const [open, setOpen] = useState<string | null>(null)
-  const [fallbackToday] = useState(() => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10))
+  const [picked, setPicked] = useState<PickedDays>({})
+  const range = pickedRange(picked)
+  const [fallbackToday] = useState(() => ownerDay(Date.now()))
   const calendar = useAdminData(useCallback((token: string) => api.adminCalendar(token, month), [month]))
   const data = calendar.data?.month === month ? calendar.data : null
   const today = data?.today ?? fallbackToday
@@ -54,6 +65,8 @@ export function AdminCalendar() {
           </div>
         )}
       </div>
+      {range && <AdminPeriodSummary from={range.from} to={range.to} onClear={() => setPicked({})} />}
+      {picked.first && !range && <div className="admin-period-wait"><span>Выберите второй день правой кнопкой</span><button type="button" className="icon-button" aria-label="Снять выбор" onClick={() => setPicked({})}><X size={16} aria-hidden="true" /></button></div>}
       {calendar.error && <Notice tone={calendar.error.offline ? 'offline' : 'error'}>{calendar.error.message}</Notice>}
       {!data && !calendar.error && <Loading text="Загружаем календарь…" />}
       {data && (
@@ -61,17 +74,17 @@ export function AdminCalendar() {
           {WEEKDAYS.map((name) => <div key={name} className="calendar-weekday" role="columnheader">{name}</div>)}
           {Array.from({ length: lead }, (_, index) => <div key={`lead-${index}`} className="calendar-cell is-empty" aria-hidden="true" />)}
           {data.days.map((day) => (
-            <DayCell key={day.date} day={day} today={today} heat={maxRevenue ? day.revenue / maxRevenue : 0} onOpen={() => setOpen(day.date)} />
+            <DayCell key={day.date} day={day} today={today} heat={maxRevenue ? day.revenue / maxRevenue : 0} picked={pickedDayState(picked, day.date)} onOpen={() => setOpen(day.date)} onPick={() => setPicked((value) => pickDay(value, day.date))} />
           ))}
         </div>
       )}
-      <p className="field-hint" style={{ margin: 0 }}>Время — московское. Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни.</p>
+      <p className="field-hint" style={{ margin: 0 }}>Время — по Бангкоку (UTC+7). Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни. Правая кнопка — начало и конец периода.</p>
       {open && <DayDialog date={open} today={today} onChange={setOpen} onClose={() => setOpen(null)} />}
     </div>
   )
 }
 
-function DayCell({ day, today, heat, onOpen }: { day: AdminCalendarDay; today: string; heat: number; onOpen: () => void }) {
+function DayCell({ day, today, heat, picked, onOpen, onPick }: { day: AdminCalendarDay; today: string; heat: number; picked?: ReturnType<typeof pickedDayState>; onOpen: () => void; onPick: () => void }) {
   const future = day.date > today
   const quiet = !day.registrations && !day.payments
   const label = `${Number(day.date.slice(8))} число: выручка ${rub(day.revenue)}, оплат ${day.payments}, регистраций ${day.registrations}`
@@ -79,11 +92,13 @@ function DayCell({ day, today, heat, onOpen }: { day: AdminCalendarDay; today: s
     <button
       type="button"
       role="gridcell"
-      className={`calendar-cell${day.date === today ? ' is-today' : ''}${future ? ' is-future' : ''}${quiet ? ' is-quiet' : ''}`}
+      className={`calendar-cell${day.date === today ? ' is-today' : ''}${future ? ' is-future' : ''}${quiet ? ' is-quiet' : ''}${picked ? ` is-picked is-picked-${picked}` : ''}`}
       style={{ ['--heat' as string]: heat.toFixed(3) }}
       disabled={future}
       aria-label={label}
+      aria-pressed={picked ? true : undefined}
       onClick={onOpen}
+      onContextMenu={(event) => { event.preventDefault(); if (!future) onPick() }}
     >
       <span className="calendar-day">{Number(day.date.slice(8))}</span>
       {!future && (
@@ -130,7 +145,8 @@ function DayDialog({ date, today, onChange, onClose }: { date: string; today: st
   const day = result?.date === date ? result.day ?? null : null
   const error = result?.date === date ? result.error ?? null : null
   return createPortal(
-    <div className="pay-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    // site-admin-layer: the PC owner app styles this window with the site's sheets too (src/admin/SiteAdminSummary.tsx).
+    <div className="pay-dialog-backdrop site-admin-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <div className="pay-dialog day-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialog} tabIndex={-1}>
         <div className="pay-dialog-head">
           <div>

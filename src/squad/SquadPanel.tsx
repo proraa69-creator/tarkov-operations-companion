@@ -12,8 +12,9 @@ import {
 import { invalidateSquads, useSquad, useSquadComputed } from './useSquad'
 import { CopyField, ErrorLine, MemberAvatar, MemberChips } from './squadUi'
 import { SquadMapBoard } from './SquadMapBoard'
+import { SquadSettingsPanel } from './SquadSettingsPanel'
 import { friendLabel, memberLabel, modeLabel } from './squadLabels'
-import { isIosApp } from '../platform'
+import { hidesPayments } from '../platform'
 
 type Data = Pick<AppDataset, 'quests' | 'items' | 'maps'>
 
@@ -69,6 +70,8 @@ export function SquadPanel({ mode, data, friends, initialCode }: { mode: RaidMod
           <JoinSquadCard disabled={!mine.access || Boolean(busy)} busy={busy === 'join'} initialCode={initialCode} onJoin={(code) => void run('join', () => joinSquad(code))} />
         </div>
         <ErrorLine message={actionError} />
+        {/* Every player has them, in a squad or not yet (owner, 14.11.2026: «настройки отряда должны быть у всех участников»). */}
+        <SquadSettingsPanel />
       </div>
     )
   }
@@ -81,10 +84,10 @@ function AccessNotice() {
     <div className="panel squad-paywall">
       <ShieldAlert size={20} />
       {/* The App Store build names no subscription (src/account/IosAccount.tsx). */}
-      {isIosApp()
+      {hidesPayments()
         ? <div><strong>{uiText('Отряд недоступен')}</strong><p className="muted">{uiText('Создать отряд, вступить в него и видеть общие задания этот аккаунт сейчас не может. Покинуть отряд можно всегда.')}</p></div>
         : <div><strong>{uiText('Отряд — функция подписки')}</strong><p className="muted">{uiText('Создать отряд, вступить в него и видеть общие задания можно с активной подпиской. Покинуть отряд можно всегда.')}</p></div>}
-      <Link className="button small" to="/profile">{uiText(isIosApp() ? 'Аккаунт' : 'Подписка')}</Link>
+      <Link className="button small" to="/profile">{uiText(hidesPayments() ? 'Аккаунт' : 'Подписка')}</Link>
     </div>
   )
 }
@@ -208,6 +211,9 @@ function SquadView({ squad, overview, mode, data, friends, access, busy, run, ac
         <ErrorLine message={actionError} />
         {notice && <p className="squad-notice" role="status">{uiText(notice)}</p>}
       </section>
+
+      {/* Owner, 14.11.2026: «В блоке отряд у нас будет настройка отряда». */}
+      <SquadSettingsPanel />
 
       {access && computed && (
         <>

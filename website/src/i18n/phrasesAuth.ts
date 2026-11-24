@@ -5,6 +5,8 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Пароль', 'Password'], ['Забыли пароль?', 'Forgot your password?'], ['Входим…', 'Signing in…'], ['Войти', 'Sign in'], ['или', 'or'],
   ['Войти по QR-коду', 'Sign in with a QR code'], ['Войти по коду из письма', 'Sign in with a code from the e-mail'],
   ['Нет аккаунта?', 'No account yet?'], ['Зарегистрироваться', 'Sign up'], ['Войти по e-mail и паролю', 'Sign in with e-mail and password'],
+  // «Войти через Google» (components/GoogleSignIn.tsx)
+  ['Укажите страну, чтобы создать аккаунт.', 'Choose your country to create the account.'], ['Войти через Google', 'Sign in with Google'], ['Продолжить', 'Continue'],
   // QR sign-in on the sign-in page
   ['Отсканируйте QR-код телефоном, на котором открыто приложение Raid OS с вашим аккаунтом, или введите код в приложении для Windows.',
     'Scan the QR code with a phone where the Raid OS app is signed in to your account, or enter the code in the Windows app.'],
@@ -17,7 +19,7 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
 
   // Sign up (pages/RegisterPage.tsx)
   ['Регистрация', 'Sign up'], ['Один аккаунт для сайта и приложения.', 'One account for the website and the app.'],
-  ['Сутки бесплатно', 'One day free'], ['с первого входа в приложение Raid OS, без оплаты.', 'from your first sign-in in the Raid OS app, no payment needed.'],
+  ['2 дня бесплатно', 'Two days free'], ['с первого входа в приложение Raid OS, без оплаты.', 'from your first sign-in in the Raid OS app, no payment needed.'],
   ['Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.',
     'Invite friends: for every friend who pays for the first month with the 20% discount through your link, you get 7 days of Premium — even if you have never paid yourself.'],
   ['Регистрация · подтверждение e-mail', 'Sign up · e-mail confirmation'], ['Проверьте почту', 'Check your inbox'],
@@ -96,6 +98,11 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Зарегистрируйтесь — скидка 20 % на первый месяц.', 'Sign up and get 20% off the first month.'],
   ['Код можно указать в личном кабинете, если он ещё не указан.', 'You can enter the code in your account if you have not entered one yet.'],
   ['Зарегистрируйтесь по приглашению.', 'Sign up with the invitation.'],
+  ['По этой ссылке — скидка 20 % на первый месяц', 'This link gives you 20% off the first month'],
+  ['Код {code} можно указать в личном кабинете до первой оплаты.', 'You can enter the code {code} in your account before the first payment.'],
+  ['Зарегистрируйтесь — скидка применится сама.', 'Sign up — the discount is applied automatically.'],
+  ['Скидка 20 % на первый месяц · {code}', '20% off the first month · {code}'],
+  ['Код из ссылки применится сам — вводить ничего не нужно.', 'The code from the link is applied automatically — nothing to enter.'],
   ['Зарегистрируйтесь по приглашению — скидка 20 % на первый месяц применится сама.', 'Sign up with the invitation — 20% off the first month is applied automatically.'],
   ['Открыть кабинет', 'Open my account'],
 

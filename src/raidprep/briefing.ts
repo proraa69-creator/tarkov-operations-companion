@@ -1,7 +1,7 @@
 import type { Item, MapMarker, ModeProgress, Quest } from '../domain/types'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import { questAppliesToMap } from '../progression/questLocation'
-import { objectiveDone } from './objectives'
+import { keyUsed, objectiveDone } from './objectives'
 
 export interface BriefingObjective {
   id: string
@@ -34,6 +34,8 @@ export interface BriefingItem {
   count: number
   foundInRaid: boolean
   questNames: string[]
+  /** Keys: the others that open the same door, any one being enough (report №90: «ключ 219 или ключ 220»). */
+  or?: Array<{ itemId: string; item?: Item }>
 }
 
 export interface RaidBriefing {
@@ -84,22 +86,37 @@ export function buildRaidBriefing({ mapId, quests, items, markers, progress }: B
   const find = new ItemTally(byId)
   const bring = new ItemTally(byId)
   const keys = new ItemTally(byId)
+  // Either key opens the door: added once the other keys are known, so a key wanted anyway for another door does both.
+  const eitherKeys = new Map<string, { questName: string; ids: string[] }>()
   for (const quest of current) {
     if (isStoryQuest(quest)) continue
     for (const requirement of quest.raidRequirements ?? []) {
       const here = requirement.mapIds.includes(mapId)
       const anywhere = !requirement.mapIds.length
+      if (requirement.purpose === 'key' && (requirement.alternatives ?? 1) > 1 && requirement.objectiveId) {
+        if (keyUsed(progress, quest.id, requirement) || !(here || (anywhere && !quest.anyMap))) continue
+        const id = `${quest.id}:${requirement.objectiveId}`
+        const either = eitherKeys.get(id) ?? { questName: quest.name, ids: [] }
+        if (!either.ids.includes(requirement.itemId)) either.ids.push(requirement.itemId)
+        eitherKeys.set(id, either)
+        continue
+      }
       if ((requirement.alternatives ?? 1) > 1 && requirement.purpose !== 'key') continue
       if (requirement.purpose === 'find' && here) find.add(requirement.itemId, requirement.count, Boolean(requirement.foundInRaid), quest.name)
-      else if (['place', 'mark', 'bring'].includes(requirement.purpose) && (here || anywhere)) bring.add(requirement.itemId, requirement.count, false, quest.name)
-      else if (requirement.purpose === 'key' && (here || (anywhere && !quest.anyMap))) keys.add(requirement.itemId, 1, false, quest.name, true)
+      else if (['place', 'mark', 'bring', 'signal', 'use'].includes(requirement.purpose) && (here || anywhere)) bring.add(requirement.itemId, requirement.count, false, quest.name)
+      else if (requirement.purpose === 'key' && !keyUsed(progress, quest.id, requirement) && (here || (anywhere && !quest.anyMap))) keys.add(requirement.itemId, 1, false, quest.name, true)
     }
   }
   const currentIds = new Map(current.map((quest) => [quest.id, quest]))
   for (const marker of markers) {
     if (marker.mapId !== mapId || !marker.lock?.keyId || !marker.questId) continue
     const quest = currentIds.get(marker.questId)
-    if (quest) keys.add(marker.lock.keyId, 1, false, quest.name, true)
+    if (quest && !objectiveDone(progress, quest.id, marker.objectiveId)) keys.add(marker.lock.keyId, 1, false, quest.name, true)
+  }
+  for (const { questName, ids } of eitherKeys.values()) {
+    const known = ids.find((id) => keys.has(id))
+    if (known) keys.add(known, 1, false, questName, true)
+    else keys.add(ids[0]!, 1, false, questName, true, ids.slice(1))
   }
 
   return { mapId, groups: groupRows, questCount: current.length, find: find.rows(), bring: bring.rows(), keys: keys.rows() }
@@ -130,9 +147,14 @@ function objectivesOnMap(quest: Quest, mapId: string, progress: ModeProgress): A
 class ItemTally {
   private entries = new Map<string, BriefingItem>()
   constructor(private readonly items: Map<string, Item>) {}
-  add(itemId: string, count: number, foundInRaid: boolean, questName: string, once = false) {
+  has(itemId: string) {
+    return this.entries.has(itemId)
+  }
+  add(itemId: string, count: number, foundInRaid: boolean, questName: string, once = false, or: string[] = []) {
     if (!itemId) return
-    const entry = this.entries.get(itemId) ?? { itemId, item: this.items.get(itemId), count: 0, foundInRaid: false, questNames: [] }
+    const entry: BriefingItem = this.entries.get(itemId) ?? { itemId, item: this.items.get(itemId), count: 0, foundInRaid: false, questNames: [] }
+    const others = or.filter((id) => id !== itemId && !entry.or?.some((known) => known.itemId === id))
+    if (others.length) entry.or = [...(entry.or ?? []), ...others.map((id) => ({ itemId: id, item: this.items.get(id) }))]
     // A key opens the door for every quest at once: one is enough.
     entry.count = once ? 1 : entry.count + Math.max(1, Math.round(count) || 1)
     entry.foundInRaid ||= foundInRaid

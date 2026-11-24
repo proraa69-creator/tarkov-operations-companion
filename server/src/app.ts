@@ -12,7 +12,10 @@ import { createQuestBaseRouter } from './routes/questBase.js'
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
+import { createEftCasesRouter } from './routes/eftCases.js'
 import { createLoginCodesRouter, proxiedCountry } from './routes/loginCodes.js'
+import { createGoogleRouter } from './routes/google.js'
+import { GOOGLE_CLIENT_ID, type GoogleVerifier } from './services/googleSignIn.js'
 import { createPhoneRouter } from './routes/phone.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
 import { createEmailRouter } from './routes/email.js'
@@ -22,6 +25,8 @@ import { AccountError, AccountStore, bearer, FixedWindowRateLimiter } from './se
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { createLiveRouter, LIVE_PUBLISH_LIMITS } from './routes/live.js'
 import { LiveRelay } from './services/liveRelay.js'
+import type { SquadLive } from './services/squadLive.js'
+import { ScreenRelay } from './services/screenRelay.js'
 import { BezebeePayments } from './services/bezebee.js'
 import { BezebeeCredentialStore, BezebeeWebhooks } from './services/bezebeeWebhook.js'
 import { BezebeeMailbox } from './services/bezebeeMail.js'
@@ -30,15 +35,15 @@ import { createBezebeeWebhookRouter } from './routes/bezebeeWebhook.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import type { FriendsRouterOptions } from './routes/friends.js'
 import { SocialSignals } from './services/socialSignals.js'
+import { TrialFeatureStore } from './services/trialFeatures.js'
+import { createTrialFeaturesRouter } from './routes/trialFeatures.js'
 import { createPaymentsRouter } from './routes/payments.js'
-import { BoostyPayments } from './services/boosty.js'
-import type { BoostySync } from './services/boostySync.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
 import { InviteProgram } from './services/invites.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createPayoutsRouter } from './routes/payouts.js'
-import { createOwnerAdminRouter, type BoostySessionHooks } from './routes/ownerAdmin.js'
+import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
 import { createPresenceRouter } from './routes/presence.js'
 import { PresenceTracker } from './services/presence.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
@@ -49,6 +54,7 @@ import { createQuestPointPhotoUploadRouter, createQuestPointsRouter } from './ro
 import { QuestPointPhotoStore } from './services/questPointPhotoStore.js'
 import { createQuestTextsRouter } from './routes/questTexts.js'
 import { catalogItemCheck, createQuestRequirementsRouter } from './routes/questRequirements.js'
+import { createOwnerBuildsRouter } from './routes/ownerBuilds.js'
 import { createAnnouncementRouter } from './routes/announcement.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
@@ -61,24 +67,33 @@ import type { MirrorStorage } from './services/mirrorStorage.js'
 import type { PriceMirror } from './services/priceMirror.js'
 import type { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
+import type { StatusSource } from './services/background.js'
+import type { TradingStats } from './services/tradingStats.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
 import { EventQuestStore } from './services/eventQuestStore.js'
 import { createEventQuestsRouter } from './routes/eventQuests.js'
 import { QuestRequirementStore } from './services/questRequirementStore.js'
+import { OwnerBuildStore } from './services/ownerBuildStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
 import { OverviewDefaultsStore } from './services/overviewDefaultsStore.js'
+import { PlayerNewsStore } from './services/playerNewsStore.js'
+import { createPlayerNewsRouter } from './routes/playerNews.js'
 import { createOverviewDefaultsRouter } from './routes/overviewDefaults.js'
+import { HideoutModulesStore } from './services/hideoutModulesStore.js'
+import { createHideoutModulesRouter } from './routes/hideoutModules.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
+import { startGoonFeeds, type GoonFeedOptions } from './services/goonFeeds.js'
 import { UserDataStore } from './services/userDataStore.js'
 import { openDatabase } from './services/database.js'
 import { EntitlementService } from './services/entitlement.js'
 import { DataGateway } from './services/dataGateway.js'
 import { createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/data.js'
+import { PlayerPrices } from './services/playerPrices.js'
 import { createEntitlementRouter } from './routes/entitlement.js'
 import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
 import { createSelfUpdateRouter } from './routes/selfUpdate.js'
@@ -86,14 +101,20 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createMobileDownloadsRouter } from './routes/mobileDownloads.js'
 import type { MobileDownloads } from './services/mobileDownloads.js'
-import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
+import type { IphoneStore } from './services/iphoneStore.js'
+import { createBugReportsRouter, type BugReportLimits, type ReportWorkEffects } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
 import { createSupportChatRouter, createSupportChatUploadParser, type SupportChatLimits } from './routes/supportChat.js'
 import { SupportChatStore } from './services/supportChatStore.js'
+import { createStickersRouter } from './routes/stickers.js'
+import { StickerStore } from './services/stickerStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
+import { grantNoticeTexts, reportDoneNoticeTexts, reportTakenNoticeTexts } from './services/grantNotice.js'
+import { checkPromoCodes, PROMO_CHECK_MS, PromoCodeStore } from './services/promoCodes.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
+import type { ReleaseReportsWiring } from './services/releaseReports.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
 import type { EmailSender } from './services/email/types.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
@@ -104,7 +125,19 @@ const syncSchema = z.object({
   events: z.array(z.object({ taskId: z.string().regex(/^[a-f0-9]{24}$/i), status: z.enum(['active', 'completed', 'failed']), timestamp: z.string().datetime().transform((date) => new Date(date).toISOString()) })).max(2000),
 })
 
+
+/**
+ * Registration asks for the code from the e-mail only while this is on. Off for now (owner, 01.11.2026: «убери пока
+ * подтверждение почты при регистрации» — codes did not reach two players): a new account is created at once, as before the
+ * e-mail codes; sign-in by code and the password reset by code stay as they are. Turn back on once the mail is delivered.
+ */
+export const REGISTRATION_EMAIL_CODE = false
+
 export interface ApiOptions {
+  /** Look for promo codes every two hours (the real server, not the tests). */
+  promoChecks?: boolean
+  /** A report closes with the release that lists it (services/releaseReports.ts): the real server starts it here, with what only the API holds. */
+  releaseReports?: (wiring: ReleaseReportsWiring) => void
   /** Copy of tarkov.dev's maps served at /v1/map-tiles (services/mapMirror.ts); none in tests. */
   mapMirror?: MapMirror
   /** Persistent Tarkov datasets and prices stored on the server's RaidNVMe. */
@@ -113,9 +146,14 @@ export interface ApiOptions {
   priceMirror?: PriceMirror
   legacyGraphql?: LegacyGraphqlBuilder
   priceHistory?: PriceHistoryMirror
+  tradingStats?: TradingStats
+  /** RAIDOS_BACKGROUND=external: the statuses of the work the worker does (services/background.ts), over the local jobs'. */
+  backgroundStatus?: Partial<Record<StatusSource, { status(): unknown }>>
   itemImageDir?: string
   /** The phone apps for the site's «Скачать приложение» and the Android in-app update (services/mobileDownloads.ts). */
   mobileDownloads?: MobileDownloads
+  /** The App Store switch for the iPhone app's «Обновить» (services/iphoneStore.ts). */
+  iphoneStore?: () => Promise<IphoneStore | undefined>
   /** «Оружейник»: the guides' screenshots kept on the server (services/guideImages.ts). */
   guideImages?: GuideImageMirror
   /**
@@ -127,6 +165,8 @@ export interface ApiOptions {
   questPointPhotoUploadsPerHour?: number
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
+  /** Sightings from other trackers saved beside ours (services/goonFeeds.ts): true on the players' server. */
+  goonFeeds?: boolean | Omit<GoonFeedOptions, 'store' | 'onImported'>
   /** Per-user documents (Collector, position, settings); defaults to a private in-memory database. */
   userData?: UserDataStore
   /** Already-loaded catalog for summaries (Kappa / Collector totals). Defaults to the server catalog cache. */
@@ -148,12 +188,6 @@ export interface ApiOptions {
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
   invites?: InviteProgram
-  /** Boosty (CIS / WORLD): links, issuance and the review list; defaults to one on the payments' database. */
-  boosty?: BoostyPayments
-  /** The automatic Boosty issuance (services/boostySync.ts): only when the server has the Boosty secrets. */
-  boostySync?: BoostySync
-  /** «Токен Boosty» in the owner's panel: where a pasted session is kept and how the issuance starts with it. */
-  boostySession?: BoostySessionHooks
   /** BZB's API token and webhook secret (services/bezebeeWebhook.ts); tests: in memory. */
   bezebeeCredentials?: BezebeeCredentialStore
   /** Roubles per dollar for the revenue of a WORLD BZB payment (BEZEBEE_USD_RUB; default 90). */
@@ -170,12 +204,18 @@ export interface ApiOptions {
   phones?: PhoneAuthService
   /** E-mail one-time codes; defaults to switched off (no e-mail provider: registration works without codes). */
   emails?: EmailAuthService
+  /** «Войти через Google»: the ID-token check (tests give their own; default: Google's keys). */
+  googleVerifier?: GoogleVerifier
+  /** Registration asks for the e-mail code (default REGISTRATION_EMAIL_CODE). */
+  registrationEmailCode?: boolean
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
   rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
   /** Signed entitlements and devices; defaults to a key for this process only (index.ts passes the persistent one). */
   entitlements?: EntitlementService
   /** tarkov.dev gateway with the shared cache (tests pass one with a fake upstream). */
   data?: DataGateway
+  /** Flea prices read on the players' screens (services/playerPrices.ts); tests pass one with their clock. */
+  playerPrices?: PlayerPrices
   /** Per-minute limits of the paid data routes (defaults: DATA_RATE_LIMITS). */
   dataRateLimits?: Partial<typeof DATA_RATE_LIMITS>
   /** The PC's live position and recognised item for the phone (services/liveRelay.ts); tests pass one with their clock. */
@@ -186,6 +226,8 @@ export interface ApiOptions {
   guard?: ServerGuardOptions
   /** «Отряд» and friends (routes/social.ts): rate limits for tests. */
   squadLimits?: SocialLimits['squadLimits']
+  /** The squad's positions and drawings (services/squadLive.ts); tests pass one with a short wait. */
+  squadLive?: SquadLive
   friendLimits?: SocialLimits['friendLimits']
   /** The friend's info (routes/friends.ts): public game profiles; default the tarkov.dev lookup, tests pass a fake. */
   playerProfile?: FriendsRouterOptions['playerProfile']
@@ -214,6 +256,8 @@ export const PUBLIC_RATE_LIMITS = { catalog: 120, players: 30, geo: 60 }
  * (Capacitor: https://localhost on Android, capacitor://localhost on iOS). Personal routes still need a Bearer token.
  */
 export const DEFAULT_WEB_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5202,http://127.0.0.1:5202,https://localhost,capacitor://localhost'
+/** How long a browser may keep a CORS preflight answer (Access-Control-Max-Age). */
+export const CORS_PREFLIGHT_MAX_AGE_S = 7200
 
 /** What a client sees for any 5xx: the details go to the server log only. */
 export const INTERNAL_ERROR = 'Внутренняя ошибка сервера'
@@ -253,8 +297,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use((_req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' }); next() })
   // Everything under /v1/accounts is personal: set before any parsing, so unknown paths and errors are never cached.
   app.use('/v1/accounts', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
-  // WEB_ORIGIN may list several origins separated by commas (app renderer, website).
-  app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean) }))
+  // WEB_ORIGIN may list several origins separated by commas (app renderer, website). The phone apps ask from their own
+  // origin, so every request with a token is preceded by a preflight: without maxAge a browser keeps it 5 s, and from
+  // Bangkok each request cost two trips of ~0.3 s (owner, 03.11.2026: «долго загружает»). WebKit keeps it at most 10 min,
+  // Chromium 2 h.
+  app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean), maxAge: CORS_PREFLIGHT_MAX_AGE_S }))
   // «Сообщить об ошибке»: before the global JSON parser, because the upload (screenshots in base64, up to 25 MB) has its
   // own larger limit; everything else keeps the 1 MB limit below. The audit log is read lazily (created further down).
   // Every report also goes to the owner's mailbox as a PDF; the owner grants days for it in «Отчёты» (AdminStore.grant).
@@ -262,19 +309,36 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const bugReportMail = new BugReportMailer(bugReports, options.bugReportMail?.sender, options.bugReportMail?.to, (message) => console.warn(message))
   // «Чат с поддержкой» (routes/supportChat.ts, mounted with the players' routes below): its unread conversations count on
   // the same «Заявки» badge.
-  const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock })
+  // The owner's sticker packs (routes/stickers.ts): a chat message may carry one of their published stickers.
+  const stickers = new StickerStore(accounts.database, { now: accounts.clock })
+  const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock, stickers })
   // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
   // the support chat (routes/bugReports.ts).
-  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.openCount(), unreadChats: supportChat.unreadThreads() }))
-  app.use(createBugReportsRouter(accounts, bugReports, {
-    limits: options.bugReportLimits,
+  // `open` counts the new «Аккаунты Таркова» cases too: the owner's red badge lights up for them (owner, 15.11.2026: «присылай мне уведомление»).
+  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount() + accounts.eftLedger.counts().active, eftCases: accounts.eftLedger.counts().active, unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
+  accounts.onEftRebind = (caseId) => {
+    adminStore?.audit('server', 'eft.rebind-case', String(caseId), {})
+    reportSignals.changed()
+  }
+  // Who hears of a button on a report: the owner's route and the release that presses «Готово» (services/releaseReports.ts).
+  const reportWork: ReportWorkEffects = {
     signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
+    taken: (accountId, id, kind, topic) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind, topic)) },
+    done: (accountId, id, kind, topic) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind, topic)) },
+  }
+  // «Отчёты» → «Аккаунты Таркова» (routes/eftCases.ts).
+  app.use(createEftCasesRouter(accounts, { audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) }, changed: () => reportSignals.changed() }))
+  app.use(createBugReportsRouter(accounts, bugReports, {
+    ...reportWork,
+    limits: options.bugReportLimits,
     mail: bugReportMail,
     grant: (actor, accountId, days, reason) => {
       if (!adminStore) throw new AccountError(503, 'Выдача подписки на этом сервере недоступна')
       adminStore.grant(actor, accountId, days, reason)
     },
+    // «Принять точку» (the stores are made further down; read when the owner presses the button).
+    points: () => ({ store: questPoints, changed: () => mapUpdates.changed() }),
   }))
   // «Объявления по регионам»: a photo (≤ 5 MB) is uploaded on its own, with its own body limit (routes/notices.ts).
   const notices = new NoticeStore(accounts.database, accounts.clock)
@@ -296,7 +360,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Goons card as soon as anybody reports them (routes/mapUpdates.ts).
   const mapUpdates = new MapUpdates()
   // «Кочевники»: reported by a signed-in account; his Tarkov nickname (one for all modes) is shown to everybody.
-  app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore(), {
+  const goonStore = options.goons ?? new MemoryGoonStore()
+  if (options.goonFeeds) {
+    startGoonFeeds({ log: (line) => console.warn(line), ...(typeof options.goonFeeds === 'object' ? options.goonFeeds : {}), store: goonStore, onImported: () => mapUpdates.changed() })
+  }
+  app.use('/v1/goons', createGoonsRouter(goonStore, {
     identify: (req) => {
       const id = accounts.authenticate(bearer(req.get('authorization')))
       if (!id) return null
@@ -311,11 +379,14 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Payments share the accounts' database: the owner's admin panel joins accounts with payments and payouts.
   const payments = options.payments ?? new PaymentStore(accounts.database, undefined)
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
-  const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
+  // Days the owner grants (by hand, in bulk, a report's reward) pop up in the player's apps: «Вам зачислено N дней…».
+  const adminStore = payments.database === accounts.database
+    ? new AdminStore(accounts, payments, { onGrant: (accountId, days, reason) => { notices.personal(accountId, grantNoticeTexts(days, reason)) } })
+    : undefined
+  // Past `notices` and `adminStore`: a look at the start may already close a report. Never in the way of the server's start.
+  try { options.releaseReports?.({ db: accounts.database, store: bugReports, effects: reportWork, now: accounts.clock }) } catch (error) { console.error('Release reports failed', error instanceof Error ? error.message : 'unknown error') }
   const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
-  // Boosty for CIS / WORLD (services/boosty.ts): links by the saved country; issued by the sync or the owner's confirmation.
-  const boosty = options.boosty ?? (adminStore ? new BoostyPayments(accounts, payments, invites, { now: accounts.clock }) : undefined)
-  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites, boosty))
+  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites))
   if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
   app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
@@ -343,16 +414,21 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   })
   if (options.bezebeeMailEveryMs) bezebeeMailbox.start(options.bezebeeMailEveryMs)
   const bezebee = adminStore ? bezebeePayments : undefined
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession, bezebee, bezebeeWebhooks, bezebeeMailbox))
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, bezebee, bezebeeWebhooks, bezebeeMailbox))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
   app.use(createMapTilesRouter(options.mapMirror))
-  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory }))
+  const remote = options.backgroundStatus ?? {}
+  // In this process whatever the background mode: the apps send to it, and it lays them over the prices it serves.
+  const playerPrices = options.playerPrices ?? new PlayerPrices(accounts.clock)
+  app.use(createDataMirrorRouter({ players: playerPrices, storage: options.mirrorStorage, datasets: remote.datasets ?? options.dataMirror, prices: remote.prices ?? options.priceMirror, maps: remote.maps ?? options.mapMirror, legacyGraphql: remote.legacyGraphql ?? options.legacyGraphql, priceHistory: remote.priceHistory ?? options.priceHistory, trading: remote.trading ?? options.tradingStats }))
   app.use(createItemImagesRouter(options.itemImageDir))
-  app.use(createMobileDownloadsRouter(options.mobileDownloads))
+  app.use(createMobileDownloadsRouter(options.mobileDownloads, { iphoneStore: options.iphoneStore }))
   app.use(createGuideImagesRouter(options.guideImages))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // The owner's sticker packs: every app's picker reads the published ones, the iPhone admin makes them (routes/stickers.ts).
+  app.use(createStickersRouter(accounts, stickers, { now: accounts.clock, audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined }))
   // «Топ сборок»: weapon builds players publish from «Сборка оружия» (routes/buildCatalog.ts).
   app.use(createBuildCatalogRouter(accounts, new BuildCatalogStore(accounts.database, accounts.clock)))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
@@ -372,6 +448,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     changed: () => mapUpdates.changed(),
     knownItem: catalogItemCheck(options.catalog ?? peekCatalogSnapshot),
   }))
+  // The weapon builds the owner set by hand and what his edits taught the solver (routes/ownerBuilds.ts): read by every
+  // player, written by the owner.
+  app.use(createOwnerBuildsRouter(accounts, new OwnerBuildStore(accounts.database), {
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+  }))
   // The server's quest base (services/questBase.ts): its versions, sources and changes, for the owner only.
   app.use(createQuestBaseRouter(accounts, options.questBase ?? currentQuestBase()))
   // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once, in
@@ -379,9 +460,19 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const announcements = new AnnouncementStore(accounts.database)
   const announcementSignals = new MapUpdates()
   // «Админ панель» → «Блоки»: the Overview every player starts from, read by the apps with the notice below.
+  // «Обновление»: the owner's own text of a release, read by every app as soon as it is saved (routes/playerNews.ts).
+  app.use(createPlayerNewsRouter(accounts, new PlayerNewsStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, () => mapUpdates.changed()))
   const overviewDefaults = new OverviewDefaultsStore(accounts.database)
-  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => announcementSignals.changed()))
-  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView() })))
+  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => { announcementSignals.changed(); socialSignals.changedAll() }))
+  // «Админ панель» → «Модули убежища»: per mode, the modules open from the start or turned off, read by the apps with the notice.
+  const hideoutModules = new HideoutModulesStore(accounts.database)
+  const catalogOf = options.catalog ?? peekCatalogSnapshot
+  app.use(createHideoutModulesRouter(accounts, hideoutModules, {
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+    changed: () => { announcementSignals.changed(); socialSignals.changedAll() },
+    knownModule: (id) => (['pvp', 'pve', 'seasonal'] as const).some((mode) => catalogOf(mode)?.hideout?.some((station) => station.id === id)),
+  }))
+  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView(), hideoutModules: hideoutModules.publicView() })))
   // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
   // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
   app.use(createAgentRequestsRouter(accounts, new RequestsKeyStore(accounts.database, { now: accounts.clock }), bugReports, {
@@ -390,22 +481,44 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))
   const emails = options.emails ?? new EmailAuthService(accounts)
-  app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
+  app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails, registrationEmailCode: options.registrationEmailCode ?? REGISTRATION_EMAIL_CODE }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
+  // «Войти через Google» (routes/google.ts): every country but Russia.
+  app.use('/v1/accounts', createGoogleRouter(accounts, options.googleVerifier ? { verify: options.googleVerifier } : {}))
   const phones = options.phones ?? new PhoneAuthService(accounts)
-  app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => emails.publicConfig() }))
+  app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => ({ ...emails.publicConfig(), googleClientId: GOOGLE_CLIENT_ID }) }))
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()
+  // «Промокоды» (services/promoCodes.ts): open to every app; a new code is told to all that wait.
+  const promoCodes = new PromoCodeStore(accounts.database, accounts.clock)
+  app.get('/v1/promo-codes', (_req, res) => { res.set('Cache-Control', 'no-store').json({ codes: promoCodes.list() }) })
+  if (options.promoChecks) {
+    const checkPromos = () => void checkPromoCodes(promoCodes, {
+      onNew: (codes) => { console.log(`promo codes: ${codes.length} new`); socialSignals.changedAll() },
+      log: (line) => console.log(line),
+    }).catch((error: unknown) => console.log(`promo codes: ${String(error).slice(0, 120)}`))
+    setTimeout(checkPromos, 60_000).unref()
+    setInterval(checkPromos, PROMO_CHECK_MS).unref()
+  }
+  // «Поиск квестов по экрану» for one player for a while («Админ панель» → «Функции»): the player's apps hear it at once.
+  const trials = new TrialFeatureStore(accounts.database, accounts.clock)
+  app.use(createTrialFeaturesRouter(accounts, trials, {
+    social: socialSignals,
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+  }))
   // «Чат с поддержкой»: before /v1/me, whose router answers every other path under it. The owner's answer reaches the
   // player's app through the social events, a player's message the owner app through the «Заявки» wait.
   app.use(createSupportChatRouter(accounts, supportChat, {
     limits: options.supportChatLimits,
+    reports: bugReports,
     social: socialSignals,
     ownerSignals: reportSignals,
     now: accounts.clock,
+    // a guest of the site who left an e-mail gets the answer there (the same sender as the codes and the reports)
+    mail: options.bugReportMail?.sender,
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))
   // «Объявления по регионам» and «Опросы» (owner, 15.10.2026): per account, before /v1/me as well; the targeted apps
@@ -422,8 +535,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // The PC's position and recognised item for the phone, in memory only (services/liveRelay.ts, routes/live.ts).
   const live = options.live ?? new LiveRelay(accounts.clock)
   live.gameModeOf = (accountId) => userData.getGameMode(accountId)
-  app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) }, live }))
-  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
+  app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) }, live, trials }))
+  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, squadLive: options.squadLive, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
   // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site
@@ -458,8 +571,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
   // The same access as the game data, with limits of its own: the phone's waits must not use up the catalog's.
-  app.use('/v1/live', createLiveRouter(live, requireDataAccess(accounts, entitlements, { perIp: 600, perAccount: 300 }), { now: accounts.clock, limits: options.livePublishLimits }))
-  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory))
+  app.use('/v1/live', createLiveRouter(live, requireDataAccess(accounts, entitlements, { perIp: 600, perAccount: 300 }), { now: accounts.clock, limits: options.livePublishLimits, screen: new ScreenRelay(accounts.clock) }))
+  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory, playerPrices))
   // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
   // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.
   app.get('/v1/geo', perIp('geo'), (req, res) => {

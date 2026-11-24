@@ -146,7 +146,8 @@ export function inferChronology(quests: Quest[], known: Record<string, TaskProgr
   if (!historyBeforeLogs) return { completed, lineLevels, traderStages, historyBeforeLogs, stages, knownLevel }
 
   const eligible = (quest: Quest) => {
-    if (known[quest.id] || options.exclude?.has(quest.id) || isBranch(quest) || quest.level > knownLevel) return false
+    // a prestige's «Новое начало» is never «probably done»: each prestige gives it again (report №100)
+    if (known[quest.id] || options.exclude?.has(quest.id) || isBranch(quest) || quest.level > knownLevel || quest.prestige != null) return false
     const faction = questFaction(quest.faction)
     return !faction || faction === options.faction
   }

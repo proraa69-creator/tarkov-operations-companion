@@ -56,8 +56,9 @@ export class ObjectiveStore {
   }
 
   /** Merges the app's copy into the server copy and returns the merged state. */
-  sync(owner: string, mode: RaidMode, input: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }): ObjectiveSnapshot {
+  sync(owner: string, mode: RaidMode, input: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }, onChange?: () => void): ObjectiveSnapshot {
     const now = new Date().toISOString()
+    let changed = false
     transaction(this.db, () => {
       const select = this.db.prepare('SELECT * FROM objective_progress WHERE owner=? AND mode=? AND objective_id=?')
       const count = Number((this.db.prepare('SELECT COUNT(*) AS n FROM objective_progress WHERE owner=? AND mode=?').get(owner, mode) as Row).n)
@@ -69,10 +70,12 @@ export class ObjectiveStore {
         if (decide(row ? toObjective(row) : undefined, incoming) !== 'apply') continue
         if (!row) added += 1
         this.upsertObjective(owner, mode, incoming, now)
+        changed = true
       }
-      for (const event of input.events) this.upsertEvent(owner, mode, event, now)
+      for (const event of input.events) if (this.upsertEvent(owner, mode, event, now)) changed = true
       this.pruneEvents(owner, mode)
     })
+    if (changed) onChange?.()
     return this.get(owner, mode)
   }
 
@@ -104,6 +107,7 @@ export class ObjectiveStore {
       .run(owner, mode, value.objectiveId, value.taskId, value.type, value.target, value.current, value.completedAt ?? null, value.source, value.confidence, value.observedAt, now)
   }
 
+  /** True when it kept something new. */
   private upsertEvent(owner: string, mode: RaidMode, event: ProgressEvent, now: string) {
     const known = this.db.prepare('SELECT * FROM progress_events WHERE owner=? AND mode=? AND event_id=?').get(owner, mode, event.id) as Row | undefined
     if (known) {
@@ -111,13 +115,15 @@ export class ObjectiveStore {
       const merged = mergeEventLists([toEvent(known, mode)], [{ ...event, mode }])[0]
       if (merged.undoneAt && merged.undoneAt !== (known.undone_at ?? undefined)) {
         this.db.prepare('UPDATE progress_events SET undone_at=? WHERE owner=? AND mode=? AND event_id=?').run(merged.undoneAt, owner, mode, event.id)
+        return true
       }
-      return
+      return false
     }
     this.db.prepare(`INSERT INTO progress_events (owner, mode, event_id, task_id, objective_id, event_type, old_value, new_value, source, confidence, observed_at, reversible, undone_at, refers_to, received_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(owner, mode, event.id, event.taskId, event.objectiveId ?? null, event.eventType, JSON.stringify(event.oldValue ?? null), JSON.stringify(event.newValue ?? null),
         event.source, event.confidence, event.observedAt, event.reversible ? 1 : 0, event.undoneAt ?? null, event.refersTo ?? null, now)
+    return true
   }
 
   private pruneEvents(owner: string, mode: RaidMode) {

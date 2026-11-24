@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { uiText } from '../../i18n/renderText'
 import { ALCANTARA_STITCHES, currentStitch, saveStitch } from '../theme'
+import { SettingHelp } from '../../components/SettingHelp'
 
 /** Settings → «Цветовая схема», shown while «Алькантара» is on: the thread colour of the seams (dark by default). */
 export function StitchChooser() {
@@ -8,7 +9,7 @@ export function StitchChooser() {
   return (
     <div className="setting-row alc-stitch-row">
       <span>
-        <strong>{uiText('Строчка')}</strong>
+        <strong>{uiText('Строчка')}<SettingHelp id="stitch" /></strong>
         <small>{uiText('Цвет ниток на швах')}</small>
       </span>
       <div className="alc-stitch-options" role="radiogroup" aria-label={uiText('Строчка')}>

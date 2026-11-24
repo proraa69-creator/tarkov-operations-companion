@@ -4,7 +4,7 @@ import { foldOcrGlyphs, matchQuestsFromOcr, ocrKey, titleKeys as questTitleKeys 
 import { isTasksMenuText, tableRowCount } from './screenScanSync'
 import { completedStoryStageIndexes, hasExactStoryStageEvidence, storyObjectivesBlock, storyStageCopies } from './storyStageOcr'
 import { readStoryObjectives } from './storyObjectives'
-import { storyPaneText, type StoryPaneReading } from './storyPaneLayout'
+import { storyPaneText, withoutGameStamp, type StoryPaneReading } from './storyPaneLayout'
 
 export interface StoryScanMatch {
   questId: string
@@ -62,7 +62,10 @@ export function storyPaneChapter(text: string, story: Quest[], status?: string):
     // read «CHAPTER к аа A “а», «пет», then «Batya ‚ в -» (englishGameOcr.ts). The name is looked for three lines down.
     const window = [header[1]!, ...lines.slice(index + 1, index + 4)]
     for (const [offset, candidate] of window.entries()) {
-      const found = titleKeys(candidate.replace(STATUS, ' ')).map((key) => names.find((entry) => entry.keys.some((name) => sameTitle(name, key))))
+      // A long name may wrap on the banner («НЕБЕСА В» / «ОГНЕ»): the line with the next one is tried too.
+      const found = [candidate, `${candidate} ${window[offset + 1] ?? ''}`]
+        .flatMap((text) => titleKeys(text.replace(STATUS, ' ')))
+        .map((key) => names.find((entry) => entry.keys.some((name) => sameTitle(name, key))))
         .find(Boolean)
       if (found) {
         // The header down to the line under the name: the status label sits beside or under it.
@@ -136,7 +139,7 @@ export function tasksScreenKind(text: string, story?: StoryPaneReading | null): 
 export function matchStoryChapters(screen: string, quests: Quest[], parts?: StoryPaneReading): StoryScanMatch[] {
   // The pane read part by part (electron/screenOcr.ts) replaces the whole-screen text: no merged columns, the real title.
   if (!parts && !isStoryMenuText(screen)) return []
-  const text = parts ? storyPaneText(parts) : screen
+  const text = parts ? storyPaneText(parts) : withoutGameStamp(screen)
   const story = quests.filter((quest) => quest.kind === 'story')
   const matches = matchQuestsFromOcr(text, story)
     .filter((match) => story.some((quest) => quest.id === match.questId))

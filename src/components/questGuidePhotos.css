@@ -1,0 +1,17 @@
+/* «Фото мест» of a quest (QuestGuidePhotos.tsx). */
+.quest-guide-photos h4 { display: flex; align-items: center; gap: 6px; }
+.quest-guide-group + .quest-guide-group { margin-top: 10px; }
+.quest-guide-objective { margin: 0 0 6px; color: var(--text-muted); font-size: 12.5px; line-height: 1.4; }
+.quest-guide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.quest-guide-photo { display: grid; gap: 4px; align-content: start; min-width: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text); cursor: zoom-in; overflow: hidden; text-align: left; transition: border-color .15s ease; }
+.quest-guide-photo:hover { border-color: var(--brass); }
+.quest-guide-photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #0c0f0d; }
+.quest-guide-photo span { padding: 0 8px 7px; font-size: 11.5px; line-height: 1.35; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* The camera on a line with its own photos opens them full size. */
+.sheet-objective-photos { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 0 4px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--brass); font: inherit; font-size: 10.5px; line-height: 1.5; vertical-align: 1px; cursor: pointer; }
+:root[data-layout="mobile"] .quest-guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* The place's photo in its point's card on the map, small (MarkerPlacePhoto; report 167). */
+/* Small (owner, 15.11.2026: «чуть-чуть меньше», then «ещё меньше, почти в 2 раза»): 110 × 62. */
+.mmt-place-photo { position: relative; width: 110px; margin: 0 auto; pointer-events: auto; cursor: zoom-in; }
+.mmt-place-photo:hover .mmt-shot { border-color: var(--brass, #c9b26a); }
+.mmt-place-photo b { position: absolute; right: 3px; bottom: 11px; padding: 0 4px; border-radius: 3px; background: rgb(8 10 8 / 72%); color: #e8e4d4; font-size: 10px; font-weight: 800; line-height: 1.5; }

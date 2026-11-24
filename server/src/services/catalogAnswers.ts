@@ -1,4 +1,5 @@
-import type { AppDataset, RaidMode } from '../../../src/domain/types'
+import { BASE_PRICE_SOURCE, FLEA_SOURCE, quoteKind, steadyFleaPrice } from '../../../src/domain/itemPrices.js'
+import type { AppDataset, Item, PriceQuote, RaidMode } from '../../../src/domain/types'
 import { catalogEtag, type CatalogLocale } from './catalogCache.js'
 import type { MirrorStorage } from './mirrorStorage.js'
 import type { PriceSnapshot } from './priceMirror.js'
@@ -99,14 +100,51 @@ export class MirroredPrices {
   }
 }
 
-/** The mirrored flea prices over a catalog: the cheapest current offer, else the 24-hour average (flagged), and the mode's flea fees. */
+const MINUTE_MS = 60_000
+const RAID_MODE: Record<PriceSnapshot['mode'], RaidMode> = { regular: 'pvp', pve: 'pve', 'pvp-season': 'seasonal' }
+type SteadyPrice = ReturnType<typeof steadyFleaPrice>
+
+/**
+ * The item's quotes with this mode's flea quote at the minute's price and at that price's own time (`at`, whole minutes);
+ * the quote goes when the item has no flea price now. The other modes' quotes and the traders' stay as they are.
+ */
+function withMinuteFleaQuote(item: Item, mode: RaidMode, steady: SteadyPrice, at: number | undefined, askedAt: string): PriceQuote[] {
+  const quotes = item.prices ?? []
+  const index = quotes.findIndex((quote) => quote.mode === mode && quoteKind(quote) === 'flea')
+  const known = index === -1 ? undefined : quotes[index]
+  if (!steady) {
+    if (!known) return quotes
+    const rest = quotes.filter((_, position) => position !== index)
+    // Nothing else of this mode: the base price as a reference, as the catalog itself does (src/data/catalogSource.ts).
+    return rest.some((quote) => quote.mode === mode) || !item.basePrice ? rest : [...rest, { source: BASE_PRICE_SOURCE, price: item.basePrice, mode, updatedAt: known.updatedAt, kind: 'base' }]
+  }
+  const unchanged = known !== undefined && known.price === steady.price && known.basis === steady.basis
+  const updatedAt = at && at > 0 ? new Date(at * MINUTE_MS).toISOString() : unchanged ? known.updatedAt : askedAt
+  const quote: PriceQuote = { source: known?.source ?? FLEA_SOURCE, kind: 'flea', mode, price: steady.price, basis: steady.basis, updatedAt }
+  if (known) return quotes.map((entry, position) => (position === index ? quote : entry))
+  // The flea price first; «Базовая цена» stands only where there is no offer.
+  return [quote, ...quotes.filter((entry) => !(entry.mode === mode && quoteKind(entry) === 'base'))]
+}
+
+/**
+ * The mirrored flea prices over a catalog, and the mode's flea fees. One rule for everything a page reads (owner,
+ * 09.11.2026: «написано цена обновилась 2 минуты назад, смотрю цену а она очень сильно другая»): the lowest offer now, or
+ * the 24-hour average when there is none or the offer is a lone listing (src/domain/itemPrices.ts steadyFleaPrice) — in
+ * `fleaPrice` AND in the mode's flea quote of `prices`, which «Барахолка», the barters, the crafts and the on-screen item
+ * card show. Until then the quote kept the price of the hourly data set the quest base was built from: a median of
+ * 1.5 hours old, a quarter of the items more than 10% off the minute price (measured 09.11.2026). The quote's time is the
+ * price's own, so a page can say how old each price is. PvP, PvE and Season never mix: only the quote of the prices' mode.
+ */
 export function applyMirroredPrices(catalog: AppDataset, snapshot: PriceSnapshot): AppDataset {
+  const mode = RAID_MODE[snapshot.mode]
+  const fleaOpen = snapshot.fleaMarket.enabled !== false
   return {
     ...catalog,
     items: catalog.items.map((item) => {
       const price = snapshot.items[item.id]
-      const fleaPrice = price?.lastLowPrice ?? price?.avg24hPrice
-      return price ? { ...item, fleaPrice, fleaPriceBasis: price.lastLowPrice ? 'last-low' as const : fleaPrice ? 'avg-24h' as const : undefined } : item
+      if (!price) return item
+      const steady = fleaOpen && !price.noFlea ? steadyFleaPrice(price.lastLowPrice, price.avg24hPrice) : undefined
+      return { ...item, fleaPrice: steady?.price, fleaPriceBasis: steady?.basis, prices: mode ? withMinuteFleaQuote(item, mode, steady, price.at, snapshot.updatedAt) : item.prices }
     }),
     metadata: { ...catalog.metadata!, fleaMarket: { enabled: snapshot.fleaMarket.enabled, offerFeeRate: snapshot.fleaMarket.sellOfferFeeRate, requirementFeeRate: snapshot.fleaMarket.sellRequirementFeeRate } },
   }

@@ -4,6 +4,7 @@ import { createHmac } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
+import { BEZEBEE_CARD_TARIFFS } from '../services/bezebee.js'
 import { BezebeeCredentialStore, bezebeeSignatureValid, readBezebeeNotice } from '../services/bezebeeWebhook.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
@@ -71,8 +72,8 @@ test('the signature: HMAC-SHA256 of the raw body in v1 (hex or base64, with or w
 })
 
 test('the notification is read loosely: link → plan and region, e-mail, amount, paid or failed', () => {
-  const cis = readBezebeeNotice(paid('p1', 'EIV5foW0', 'Buyer@Example.com', 810))
-  assert.deepEqual([cis.status, cis.email, cis.amount, cis.paymentId, cis.tariff?.region, cis.tariff?.plan, cis.tariff?.friend], ['paid', 'buyer@example.com', 810, 'p1', 'CIS', '3m', false])
+  const cis = readBezebeeNotice(paid('p1', 'EIV5foW0', 'Buyer@Example.com', 800))
+  assert.deepEqual([cis.status, cis.email, cis.amount, cis.paymentId, cis.tariff?.region, cis.tariff?.plan, cis.tariff?.friend], ['paid', 'buyer@example.com', 800, 'p1', 'CIS', '3m', false])
   const friend = readBezebeeNotice({ status: 'paid', link_url: 'https://pay.bezebee.com/Xw98gnXM', email: 'x@example.com', amount: 5.5 })
   assert.deepEqual([friend.tariff?.region, friend.tariff?.plan, friend.tariff?.friend], ['WORLD', '1m', true])
   assert.equal(readBezebeeNotice({ status: 'failed', link: 'EIV5foW0' }).status, 'failed')
@@ -80,7 +81,7 @@ test('the notification is read loosely: link → plan and region, e-mail, amount
   assert.equal(readBezebeeNotice({ status: 'paid', link: 'zzzzzzzz' }).tariff, undefined)
   // The API names links by UUID (owner's screenshot): the sum, in roubles or kopecks, with or without a currency, names the tariff.
   const byUuid = (amount: number, currency?: string) => readBezebeeNotice({ status: 'succeeded', payment_link_id: 'c69b2878-546d-4dee-8384-a6680e71e42b', amount, ...(currency ? { currency } : {}) }).tariff
-  assert.deepEqual([byUuid(810, 'RUB')?.region, byUuid(810, 'RUB')?.plan], ['CIS', '3m'])
+  assert.deepEqual([byUuid(800, 'RUB')?.region, byUuid(800, 'RUB')?.plan], ['CIS', '3m'])
   assert.deepEqual([byUuid(24000)?.plan, byUuid(24000)?.friend], ['1m', true])
   assert.deepEqual([byUuid(5.5, 'USD')?.region, byUuid(5.5, 'USD')?.friend], ['WORLD', true])
   assert.equal(byUuid(60, 'USD')?.plan, '12m')
@@ -132,6 +133,20 @@ test('the friend price spends the discount; a WORLD payment is kept in roubles a
     assert.equal((await t.notify(paid('w1', 'EpGyVETp', 'de@example.com', 19, 'USD'))).json.status, 'confirmed')
     const row = t.db.prepare("SELECT amount FROM payments WHERE account_id = ? AND status = 'succeeded'").get(t.idOf('de@example.com')) as { amount: number }
     assert.equal(row.amount, 190000, '$19 at 100 ₽')
+  } finally { await t.close() }
+})
+
+test('the CIS price by a foreign card (owner, 02.11.2026): its dollar page or its sum opens the subscription, kept in roubles', async () => {
+  const t = await setup()
+  try {
+    await t.call('PUT', '/accounts/me/admin/bezebee/credentials', t.owner, { webhookSecret: SECRET })
+    await t.player('tbilisi@example.com', 'GE')
+    const [month, quarter] = BEZEBEE_CARD_TARIFFS.plans
+    assert.equal((await t.notify(paid('c1', month.url.split('/').pop()!, 'tbilisi@example.com', 3.5, 'USD'))).json.status, 'confirmed')
+    const rows = () => t.db.prepare("SELECT plan, amount FROM payments WHERE account_id = ? AND status = 'succeeded' ORDER BY created_at").all(t.idOf('tbilisi@example.com')) as Array<{ plan: string; amount: number }>
+    assert.deepEqual(rows().map((row) => [row.plan, row.amount]), [['1m', 35000]], '$3.5 at 100 ₽')
+    // A sale letter names no link: the sum in dollars finds the tariff.
+    assert.deepEqual(readBezebeeNotice({ status: 'paid', amount: 9.5, currency: 'USD' }).tariff, { region: 'CIS', plan: quarter.plan, friend: false, price: 9.5, currency: 'USD', link: quarter.url.split('/').pop() })
   } finally { await t.close() }
 })
 

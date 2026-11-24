@@ -1,16 +1,16 @@
-import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { closeSync, createWriteStream, existsSync, mkdirSync, openSync, readFileSync, readSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
+import { PAUSE_1S, runHiddenScript } from './hiddenScript.js'
 import { pipeline } from 'node:stream/promises'
 import { app, shell } from 'electron'
 import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
 import { runningBuild } from './localServer.js'
 import { apiBaseUrl, loadServerUrl, ownerExeLink, ownerExeManifest } from './serviceGateway.js'
 import { verifiedUpdateManifest } from './updateManifest.js'
+import { fetchSetupManifest, installedExe, openSetupForPortable, prepareSetupDownloadFolder, runSetupWhenClosed, SETUP_FILE_PATH, setupDownloadFile, updatableExe } from './appInstall.js'
 import type { DeltaInfo } from './appDelta.js'
 import { activateDeltaUpdate, classifyStagedUpdate, fetchDeltaInfo, liveRendererIndex, markStagedBuildBad, relaunchWhenClosed, stagedBuildBad, stageDeltaUpdate } from './deltaUpdate.js'
 
@@ -23,7 +23,17 @@ import { activateDeltaUpdate, classifyStagedUpdate, fetchDeltaInfo, liveRenderer
  *    stay — and starts in full next time; a page that fails to load goes back to the old one and is never tried again;
  *  - anything else waits for the next start (a staged build is started by electron/boot.ts, the whole exe by the
  *    startup installation). The open app never restarts by itself and nothing is installed on close.
- * Never in a raid: the raid gate is asked before the download and again before the page is switched.
+ * Never in a raid: the raid gate is asked before the download and again before the page is switched. With «Автообновление»
+ * the download goes on while the game runs, out of a raid (owner, 11.11.2026: «У кого стоит автообновление, файлы должны
+ * скачаться и сами установиться без каких-либо нажатий… скачивай при открытой игре» — told that a player had stutters in
+ * the menu for about 2 minutes, 03.11.2026, while a partial update rebuilt the ~200 MB archive). Without it nothing is
+ * downloaded or built in the background while the game runs: it waits for the game to close or for the next start;
+ * «Установить обновление» pressed by the player still downloads at once.
+ *
+ * Without «Автообновление» (owner, 29.10.2026: «приложение должно автоматически начать скачиваться при выходе обновления,
+ * но устанавливается по нажатию… «Установить обновление»»): a new release is still downloaded and checked in the
+ * background, but nothing is switched — neither into the window nor for the next start; «Установить обновление» in the
+ * top bar installs what was downloaded (installUpdate reuses it) and restarts.
  */
 export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 'error'
 /**
@@ -34,8 +44,16 @@ export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 
 /**
  * nextStart: downloaded in the background and starts with the next launch («Обновление скачано — применится при следующем
  * запуске»). liveVersion: the open window was switched to this version without a restart (the page shows it once).
+ * While downloading (owner, 03.11.2026: «обновление загружается очень медленно… ты до сих пор не обновляешь приложение
+ * кусочками»): received of size bytes, speed in bytes per second over the last seconds; parts: only the release's changed
+ * files come (electron/appDelta.ts), whole: the size of the whole exe they spare.
  */
-export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string }
+/**
+ * heldByGame: a release the background does not download while the game runs (owner, 03.11.2026: «пусть появится кнопка
+ * загрузить обновление и после скачивания вылезет кнопка обновить да или нет»): the top bar offers «Загрузить обновление».
+ * askInstall: that click's download is ready: «Обновить сейчас?» — «Да» installs and restarts, «Нет» leaves it for later.
+ */
+export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string; received?: number; size?: number; speed?: number; parts?: boolean; whole?: number; heldByGame?: boolean; askInstall?: boolean }
 // Preserve the existing persisted keys: autoCheck controls notifications, autoInstall «Автообновление» (startup and background).
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /**
@@ -53,9 +71,10 @@ export interface UpdateCheckResult { outcome: UpdateCheckOutcome; status: Update
  * it, so the whole owner exe comes from the owner-only route (server/src/routes/serverDownload.ts); version, build,
  * size and SHA-256 are those of its own signed manifest (edition 'owner'), downloaded, checked and swapped in exactly
  * like the players' exe. ownerExe: the same release while the server has no such signed manifest — the owner
- * downloads it in the admin panel («Серверная версия») as before.
+ * downloads it in the admin panel («Серверная версия») as before. setup: a copy installed by RaidOSSetup.exe and a release
+ * parts cannot bring: the installer itself (electron/appInstall.ts), its own signed manifest's size and SHA-256.
  */
-interface Remote { version: string; build: number; commit: string; size: number; sha256: string; delta?: DeltaInfo; deltaOnly?: boolean; ownerExe?: boolean; owner?: boolean }
+interface Remote { version: string; build: number; commit: string; size: number; sha256: string; delta?: DeltaInfo; deltaOnly?: boolean; ownerExe?: boolean; owner?: boolean; setup?: boolean }
 
 const CHECK_DELAY_MS = 3_000
 const CHECK_EVERY_MS = 5 * 60_000
@@ -74,6 +93,8 @@ let firstCheck: NodeJS.Timeout | null = null
 /** startUpdateChecks was called: a normal (not server, not test) copy of the app. */
 let enabled = false
 let inRaid: () => boolean | Promise<boolean> = () => false
+/** Whether Escape from Tarkov runs now (main.ts: its process): background downloads wait while it does. */
+let gameRunning: () => boolean | Promise<boolean> = () => false
 let settings: UpdateSettings | null = null
 /** A verified file retained for a later manual retry, never installed on close. */
 let downloaded: { file: string; build: number; size: number; sha256: string } | null = null
@@ -105,6 +126,33 @@ let windowIdle: () => boolean = () => false
 function set(next: UpdateStatus) {
   status = { ...next, notify: updateSettings().autoCheck, ...(live ? { liveVersion: live.version } : {}) }
   notify(status)
+}
+
+/** Bytes per second over the last `windowMs` of a download, from its running byte count (0 for the first half second). */
+export function speedMeter(windowMs = 4_000, now: () => number = Date.now) {
+  const samples: Array<{ at: number; bytes: number }> = []
+  return (bytes: number) => {
+    const at = now()
+    samples.push({ at, bytes })
+    while (samples.length > 1 && at - samples[0].at > windowMs) samples.shift()
+    const first = samples[0]
+    return at - first.at >= 500 ? Math.max(0, Math.round((bytes - first.bytes) * 1000 / (at - first.at))) : 0
+  }
+}
+
+/** The status of a running download: its percent, bytes and speed, sent on a new percent or at most every 250 ms. */
+function downloadReporter(base: Omit<UpdateStatus, 'state'>) {
+  const speed = speedMeter()
+  let lastShown = -1, shownAt = 0
+  return (done: number, total: number) => {
+    const progress = total ? Math.min(99, Math.floor(done / total * 100)) : 99
+    const perSecond = speed(done)
+    const at = Date.now()
+    if (progress === lastShown && at - shownAt < 250) return
+    lastShown = progress
+    shownAt = at
+    set({ state: 'downloading', ...base, progress, received: done, size: total, speed: perSecond })
+  }
 }
 
 /** The version the window shows (app:version): after a live update that of the page, not of the main process. */
@@ -141,7 +189,7 @@ async function probe(): Promise<UpdateCheckOutcome> {
 }
 
 async function probeOnce(): Promise<UpdateCheckOutcome> {
-  const exe = process.env.PORTABLE_EXECUTABLE_FILE
+  const exe = updatableExe()
   if (status.state === 'downloading' || status.state === 'installing') return 'busy'
   if (!exe) return 'not-portable'
   const local = await runningBuild()
@@ -171,13 +219,18 @@ async function probeOnce(): Promise<UpdateCheckOutcome> {
     // players' exe), otherwise the admin panel as before.
     const ownerWhole = ownerDelta && !delta ? await signedOwnerExe(localBuild) : null
     const ownerExe = ownerDelta && !delta && !ownerWhole
+    // An installed copy: what parts cannot bring comes as the installer of the same release, or not at all.
+    const setup = !ownerDelta && !delta && installedExe() ? await fetchSetupManifest(base) : null
+    if (!ownerDelta && !delta && installedExe() && setup?.build !== signed.build) return 'latest'
     const next: Remote = ownerWhole
       ? { version: ownerWhole.version, build: ownerWhole.build, commit: ownerWhole.commit, size: ownerWhole.size, sha256: ownerWhole.sha256, owner: true }
+      : setup
+      ? { version: setup.version, build: setup.build, commit: setup.commit, size: setup.size, sha256: setup.sha256, setup: true }
       : { version: signed.version, build: signed.build, commit: signed.commit, size: signed.size, sha256: signed.sha256, ...(delta ? { delta, deltaOnly: ownerDelta } : {}), ...(ownerExe ? { ownerExe } : {}) }
     const known = remote?.build === next.build && status.state === 'available' && Boolean(status.ownerExe) === ownerExe
     remote = next
     source = base
-    if (!known) set({ state: 'available', version: next.version, commit: next.commit, ...(ownerExe ? { ownerExe } : { ready: downloaded?.build === next.build || staged === next.build, ...(nextStartBuild === next.build ? { nextStart: true } : {}) }) })
+    if (!known) set({ state: 'available', version: next.version, commit: next.commit, ...(ownerExe ? { ownerExe } : { ready: downloaded?.build === next.build || staged === next.build, ...(nextStartBuild === next.build && updateSettings().autoInstall ? { nextStart: true } : {}) }) })
     return ownerExe ? 'owner-exe' : 'available'
   } catch { return 'offline' } // server offline: try again later
 }
@@ -244,9 +297,10 @@ async function automaticCheck(startup: boolean) {
   // A launch inside a raid never installs (and restarts) when that raid ends: later checks download in the background.
   const startupSafe = startup && !(await raidBlocksInstall())
   const outcome = await probe()
-  if (outcome !== 'available' || !updateSettings().autoInstall) return
-  if (startupSafe) await installUpdate()
-  else if (!startup) await backgroundUpdate()
+  if (outcome !== 'available') return
+  const auto = updateSettings().autoInstall
+  if (startupSafe && auto) await installUpdate()
+  else if (!startup || !auto) await backgroundUpdate()
 }
 
 /**
@@ -259,16 +313,22 @@ function backgroundUpdate() {
   return background
 }
 
-async function backgroundOnce() {
+/** `byClick`: «Загрузить обновление» — the player's choice, so neither the game nor a raid holds it back. */
+async function backgroundOnce(byClick = false) {
   const target = remote
-  const exe = process.env.PORTABLE_EXECUTABLE_FILE
+  const exe = updatableExe()
   if (!exe || !target || target.ownerExe || swapStarted || status.state === 'downloading' || status.state === 'installing') return
-  if (backgroundFailedBuild === target.build || nextStartBuild === target.build || pendingLive?.target.build === target.build) return
+  const base = { version: target.version, commit: target.commit }
+  // Already downloaded (in the background or by an earlier click): the click only asks «Обновить сейчас?».
+  if (byClick && (nextStartBuild === target.build || pendingLive?.target.build === target.build)) { set({ state: 'available', ...base, ready: true, askInstall: true }); return }
+  if (!byClick && (backgroundFailedBuild === target.build || nextStartBuild === target.build || pendingLive?.target.build === target.build)) return
   const parts = target.delta && deltaFailedBuild !== target.build ? target.delta : null
   // A build whose page failed in the window or whose start failed: only «Обновить» by hand puts it in again.
   if (parts && stagedBuildBad(parts.build)) return
-  if (await raidBlocksInstall()) return
-  const base = { version: target.version, commit: target.commit }
+  if (!byClick && await raidBlocksInstall()) return
+  // Without «Автообновление», not while the game runs: the download and the archive's rebuild would take the PC from it
+  // (see the top); the top bar offers it by hand instead. With it, the raid gate above is the only one.
+  if (!byClick && !updateSettings().autoInstall && await gameBlocksBackground()) { if (status.state === 'available' && !status.heldByGame) set({ ...status, heldByGame: true }); return }
   const quiet = { background: true }
   set({ state: 'downloading', ...base, progress: 0, ...quiet })
   try {
@@ -282,7 +342,8 @@ async function backgroundOnce() {
         console.warn(`Raid OS: partial update failed in the background (${failure(error)})`)
         deltaFailedBuild = target.build
         if (remote?.build === target.build) remote = { ...remote, delta: undefined, deltaOnly: undefined }
-        set({ state: 'available', ...base })
+        // By the click: the next click takes the whole release.
+        set({ state: 'available', ...base, ...(byClick ? { heldByGame: true } : {}) })
         return
       }
       // A newer release replaces one that still waits for the window (its staged files go with the next activation).
@@ -290,33 +351,41 @@ async function backgroundOnce() {
       stopLiveWatch()
       if (applyLive && classifyStagedUpdate(delta) === 'renderer') {
         pendingLive = { target, delta }
-        set({ state: 'available', ...base, ready: true })
+        set({ state: 'available', ...base, ready: true, ...(byClick ? { askInstall: true } : {}) })
         watchForLiveUpdate()
         return
       }
-      activate(delta)
+      // Switched on for the next start only with «Автообновление»; otherwise it waits for «Установить обновление».
+      if (updateSettings().autoInstall) activate(delta)
     } else {
-      const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : keptDownload(exe, target) ?? await download(target, quiet)
+      const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : keptDownload(target) ?? await download(target, quiet)
       downloaded = { file, build: target.build, size: target.size, sha256: target.sha256 }
     }
     nextStartBuild = target.build
-    set({ state: 'available', ...base, ready: true, nextStart: true })
+    set({ state: 'available', ...base, ready: true, ...(updateSettings().autoInstall ? { nextStart: true } : {}), ...(byClick ? { askInstall: true } : {}) })
   } catch (error) {
-    // Not shown as an error (the player did not start it): offered by hand, tried again on the next launch.
     console.warn(`Raid OS: background update failed (${failure(error)})`)
+    // The click's download says what went wrong; one the player did not start is offered by hand and tried again later.
+    if (byClick) { set({ state: 'error', ...base, error: failure(error) }); return }
     backgroundFailedBuild = target.build
     set({ state: 'available', ...base })
   }
 }
 
+/**
+ * «Загрузить обновление» (the top bar, while the game runs, heldByGame): downloads and checks the release now and installs
+ * nothing; the window then asks «Обновить сейчас?» (askInstall).
+ */
+export async function downloadUpdate() {
+  if (background) await background.catch(() => {})
+  background = backgroundOnce(true).finally(() => { background = null })
+  await background
+  return status
+}
+
 async function stageInBackground(target: Remote, delta: DeltaInfo) {
   if (staged === target.build) return
-  const base = { version: target.version, commit: target.commit }
-  let lastShown = -1
-  await stageDeltaUpdate(source, delta, (done, total) => {
-    const progress = total ? Math.min(99, Math.floor(done / total * 100)) : 99
-    if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress, background: true }) }
-  })
+  await stageDeltaUpdate(source, delta, downloadReporter({ version: target.version, commit: target.commit, background: true, parts: true, whole: target.size }))
   staged = target.build
 }
 
@@ -390,6 +459,11 @@ async function raidBlocksInstall() {
   try { return await inRaid() } catch { return true }
 }
 
+/** A game that cannot be told running (tasklist failed) does not hold the update back: the raid gate still does. */
+async function gameBlocksBackground() {
+  try { return await gameRunning() === true } catch { return false }
+}
+
 function schedule() {
   if (timer) { clearInterval(timer); timer = null }
   if (!enabled || !app.isPackaged || !(updateSettings().autoCheck || updateSettings().autoInstall)) return
@@ -400,9 +474,10 @@ function schedule() {
  * `applyLive`: main.ts loads a verified staged page into the window and resolves whether it works (false: the old page
  * is back). `windowIdle`: the window is not in use. Without them a page-only release waits for the next start.
  */
-export function startUpdateChecks(onStatus: (status: UpdateStatus) => void, options: { inRaid?: () => boolean | Promise<boolean>; applyLive?: (indexFile: string) => Promise<boolean | null>; windowIdle?: () => boolean } = {}) {
+export function startUpdateChecks(onStatus: (status: UpdateStatus) => void, options: { inRaid?: () => boolean | Promise<boolean>; gameRunning?: () => boolean | Promise<boolean>; applyLive?: (indexFile: string) => Promise<boolean | null>; windowIdle?: () => boolean } = {}) {
   notify = onStatus
   if (options.inRaid) inRaid = options.inRaid
+  if (options.gameRunning) gameRunning = options.gameRunning
   if (options.applyLive) applyLive = options.applyLive
   if (options.windowIdle) windowIdle = options.windowIdle
   if (enabled) return
@@ -424,7 +499,7 @@ function failure(error: unknown) {
  */
 export async function installUpdate(options: { manual?: boolean } = {}) {
   const raidBlocks = async () => !options.manual && await raidBlocksInstall()
-  const exe = process.env.PORTABLE_EXECUTABLE_FILE
+  const exe = updatableExe()
   if (!exe || !remote || swapStarted || status.state === 'downloading' || status.state === 'installing') return status
   let target = remote
   // The fallback: the server has no signed manifest of the owner's exe for this release, so it is only in the admin
@@ -460,7 +535,7 @@ export async function installUpdate(options: { manual?: boolean } = {}) {
         if (remote?.build === target.build) remote = { ...remote, delta: undefined, deltaOnly: undefined }
       }
     }
-    const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : keptDownload(exe, target) ?? await download(target)
+    const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : keptDownload(target) ?? await download(target)
     // The signed size and SHA-256 once more, right before the helper swaps the file in (it may have changed on disk).
     if (!fileMatches(file, target.size, target.sha256)) {
       await rm(file, { force: true }).catch(() => {})
@@ -471,7 +546,8 @@ export async function installUpdate(options: { manual?: boolean } = {}) {
     if (await raidBlocks()) { set({ state: 'available', ...base, ready: true, blockedByRaid: true }); return status }
     set({ state: 'installing', ...base, progress: 100 })
     swapStarted = true
-    startSwapHelper(exe, file, true)
+    if (target.setup) runSetupWhenClosed(file, exe)
+    else startSwapHelper(exe, file, true)
     app.quit()
   } catch (error) {
     swapStarted = false
@@ -491,11 +567,7 @@ async function installDelta(exe: string, target: Remote, delta: DeltaInfo, raidB
   const base = { version: target.version, commit: target.commit }
   if (firstCheck) { clearTimeout(firstCheck); firstCheck = null }
   if (staged !== target.build) {
-    let lastShown = -1
-    await stageDeltaUpdate(source, delta, (done, total) => {
-      const progress = total ? Math.min(99, Math.floor(done / total * 100)) : 99
-      if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress }) }
-    })
+    await stageDeltaUpdate(source, delta, downloadReporter({ ...base, parts: true, whole: target.size }))
     staged = target.build
   }
   if (await raidBlocks()) { set({ state: 'available', ...base, ready: true, blockedByRaid: true }); return status }
@@ -504,7 +576,8 @@ async function installDelta(exe: string, target: Remote, delta: DeltaInfo, raidB
   activate(delta)
   set({ state: 'installing', ...base, progress: 100 })
   swapStarted = true
-  relaunchWhenClosed(exe)
+  // The portable exe once its launcher (which deletes the unpacked files) is gone; the installed one once this copy is.
+  relaunchWhenClosed(exe, installedExe() ? process.pid : process.ppid)
   app.quit()
   return status
 }
@@ -515,14 +588,15 @@ async function installDelta(exe: string, target: Remote, delta: DeltaInfo, raidB
  * the owner's session (electron/serviceGateway.ts) on the same server.
  */
 async function download(target: Remote, extra: Partial<UpdateStatus> = {}) {
-  const exe = process.env.PORTABLE_EXECUTABLE_FILE
-  if (!exe) throw new Error('Обновление доступно только для portable-версии')
-  const partial = `${exe}.update`
+  const exe = updatableExe()
+  if (!exe) throw new Error('Обновление доступно только в собранном приложении')
+  const partial = wholeFile(target, exe)
+  if (target.setup) prepareSetupDownloadFolder()
   const base = { version: target.version, commit: target.commit, ...extra }
   if (firstCheck) { clearTimeout(firstCheck); firstCheck = null }
   set({ state: 'downloading', ...base, progress: 0 })
   try {
-    let url = `${source}/download/windows`
+    let url = `${source}${target.setup ? SETUP_FILE_PATH : '/download/windows'}`
     if (target.owner) {
       const link = await ownerExeLink()
       if (!link.url.startsWith(`${source}/`)) throw new Error('Сервер обновления сменился, проверьте обновление ещё раз')
@@ -532,7 +606,8 @@ async function download(target: Remote, extra: Partial<UpdateStatus> = {}) {
     const response = await fetch(url, { signal: AbortSignal.timeout(30 * 60_000) })
     if (!response.ok || !response.body) throw new Error(`Сервер не отдал файл: HTTP ${response.status}`)
     const hash = createHash('sha256')
-    let received = 0, lastShown = 0
+    const report = downloadReporter(base)
+    let received = 0
     // pipeline closes the writer even if the connection fails, allowing a clean retry on Windows.
     await pipeline(
       Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>),
@@ -540,8 +615,7 @@ async function download(target: Remote, extra: Partial<UpdateStatus> = {}) {
         received += chunk.length
         if (received > target.size) { callback(new Error('Файл обновления повреждён, попробуйте ещё раз')); return }
         hash.update(chunk)
-        const progress = Math.min(99, Math.floor(received / target.size * 100))
-        if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress }) }
+        report(received, target.size)
         callback(null, chunk)
       } }),
       createWriteStream(partial, { mode: 0o600 }),
@@ -556,13 +630,61 @@ async function download(target: Remote, extra: Partial<UpdateStatus> = {}) {
   }
 }
 
+/** Where the whole release is downloaded: next to the portable exe (`<exe>.update`), or the installer (electron/appInstall.ts). */
+function wholeFile(target: Remote, exe: string) {
+  return target.setup ? setupDownloadFile() : `${exe}.update`
+}
+
 /**
- * The whole exe a background download of an earlier session left next to this one (`<exe>.update`), when it is exactly
- * this release (the signed size and SHA-256): the next start installs it without downloading it again.
+ * The whole exe (or installer) a background download of an earlier session left, when it is exactly this release (the
+ * signed size and SHA-256): the next start installs it without downloading it again.
  */
-function keptDownload(exe: string, target: Remote) {
-  const file = `${exe}.update`
+function keptDownload(target: Remote) {
+  const exe = updatableExe()
+  if (!exe) return null
+  const file = wholeFile(target, exe)
   return existsSync(file) && fileMatches(file, target.size, target.sha256) ? file : null
+}
+
+/**
+ * A portable player's copy: the installer of the site's release, when it is published and signed (null otherwise) — the
+ * window at the start offers it (src/components/InstallerOffer.tsx).
+ */
+export async function installerOffer(): Promise<{ version: string; size: number } | null> {
+  if (!app.isPackaged || !process.env.PORTABLE_EXECUTABLE_FILE || isOwnerBuild()) return null
+  const base = await updateSource()
+  const setup = base ? await fetchSetupManifest(base) : null
+  return setup ? { version: setup.version, size: setup.size } : null
+}
+
+/**
+ * «Установить» in that window: the installer is downloaded and checked against its signed manifest, opened with its
+ * window (the player picks the folder) and this copy quits. The player's click, so not held back by a raid, like
+ * «Обновить».
+ */
+export async function installFromPortable(): Promise<UpdateStatus> {
+  if (!process.env.PORTABLE_EXECUTABLE_FILE || isOwnerBuild() || swapStarted || status.state === 'downloading' || status.state === 'installing') return status
+  const base = await updateSource()
+  const setup = base ? await fetchSetupManifest(base) : null
+  if (!setup) return { state: 'error', error: 'Установщик пока недоступен, попробуйте позже' }
+  source = base
+  const target: Remote = { version: setup.version, build: setup.build, commit: setup.commit, size: setup.size, sha256: setup.sha256, setup: true }
+  // Its progress is shown by that window, not by the top bar's update window (background); a failure is told to it only.
+  const before = status
+  const quiet = { background: true }
+  try {
+    const file = keptDownload(target) ?? await download(target, quiet)
+    if (!fileMatches(file, target.size, target.sha256)) throw new Error('Файл установщика изменился после проверки, попробуйте ещё раз')
+    set({ state: 'installing', version: target.version, commit: target.commit, progress: 100, ...quiet })
+    swapStarted = true
+    await openSetupForPortable(file)
+    app.quit()
+    return status
+  } catch (error) {
+    swapStarted = false
+    set(before)
+    return { state: 'error', version: target.version, commit: target.commit, error: failure(error) }
+  }
 }
 
 /** True when `file` has exactly `size` bytes and this SHA-256 (synchronous: also used from the quit handler). */
@@ -595,27 +717,19 @@ export function fileMatches(file: string, size: number, sha256: string) {
  * Synchronous, so it also works from the quit handler.
  */
 function startSwapHelper(exe: string, partial: string, relaunch: boolean) {
-  const script = join(tmpdir(), `tarkov-operator-update-${process.pid}.cmd`)
-  writeFileSync(script, [
-    '@echo off',
-    'timeout /t 2 /nobreak >nul',
+  // No window at all (electron/hiddenScript.ts).
+  const script = runHiddenScript(`tarkov-operator-update-${process.pid}.cmd`, [
+    PAUSE_1S,
+    PAUSE_1S,
     'set n=0',
     ':move',
     'move /y "%TO_NEW%" "%TO_EXE%" >nul 2>&1 && goto run',
     'set /a n+=1',
     'if %n% geq 60 goto run',
-    'timeout /t 1 /nobreak >nul',
+    PAUSE_1S,
     'goto move',
     ':run',
     'if "%TO_RUN%"=="1" start "" "%TO_EXE%"',
-    '(goto) 2>nul & del "%~f0"',
-  ].join('\r\n'), 'utf8')
+  ], { TO_NEW: partial, TO_EXE: exe, TO_RUN: relaunch ? '1' : '0' })
   if (!existsSync(script)) throw new Error('Не удалось подготовить обновление')
-  const child = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/c', script], {
-    detached: true,
-    windowsHide: true,
-    stdio: 'ignore',
-    env: { ...process.env, TO_NEW: partial, TO_EXE: exe, TO_RUN: relaunch ? '1' : '0' },
-  })
-  child.unref()
 }

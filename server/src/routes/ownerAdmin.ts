@@ -6,9 +6,10 @@
  *   GET  /me/admin/overview                          -> users, subscriptions, revenue (today / month / all), payouts
  *   GET  /me/admin/series?period=day|month|year      -> { period, rows: [{ period, registrations, payments, revenue,
  *                                                         plans: { 1m: { count, revenue }, … } }] }
+ *   GET  /me/admin/ads?period=day|month|year         -> «Реклама»: { period, sources: [{ source, label, totals, rows, campaigns }] }
  *   GET  /me/admin/calendar?month=YYYY-MM            -> { month, today, days: [{ date, registrations, payments, revenue, plans }] }
  *   GET  /me/admin/day?date=YYYY-MM-DD               -> { date, totals, registrations, payments, grants, invites } (the calendar day window)
- *   GET  /me/admin/stats?from=YYYY-MM-DD&to=YYYY-MM-DD -> one aggregate for the owner app (AdminStore.stats; Moscow
+ *   GET  /me/admin/stats?from=YYYY-MM-DD&to=YYYY-MM-DD -> one aggregate for the owner app (AdminStore.stats; Bangkok
  *                                                       days, default the last 30): users, regions, countries,
  *                                                       subscriptions, payers, revenue, referrals, trial conversion
  *   GET  /me/admin/payments?from&to&dateField=created|paid&status&plan&provider&method&region&q&limit&offset
@@ -27,22 +28,13 @@
  *                                                    -> { affected, sample, skipped, dryRun } (one audit entry
  *                                                       subscription.bulk-grant; 400 { code: 'too_many', affected })
  *   GET  /me/admin/users/:id                         -> { user, payments, grants }
+ *   GET  /me/admin/users/:id/profile                 -> AccountProfile «Посмотреть профиль» (services/adminStore.ts):
+ *                                                       account, subscription, origin, payments (first, by months and
+ *                                                       plans, the list), grants, activity (apps, devices, online now),
+ *                                                       referrals (friends brought and what they paid); 404 unknown id
  *   POST /me/admin/users/:id/grant           { days 1–3650, reason }   -> { user, payments, grants }
  *   POST /me/admin/users/:id/revoke          { days 1–3650, reason }   -> { user, payments, grants } (takes paid days off; 409 when none)
  *   POST /me/admin/users/:id/cancel-autopay                            -> { user, payments, grants } (an archived one is closed here only)
- *   GET  /me/admin/users/:id/boosty          -> { region, friendAvailable, friendPercent, requests: [{ offer, region, at }] }
- *   Boosty (services/boosty.ts, services/boostySync.ts; docs/payments/payment-regions-and-announcements.md «API for the
- *   subscription tool»):
- *   GET  /me/admin/boosty                    -> { sync: BoostySyncStatus, review: { items, total }, levels, offers }
- *   GET  /me/admin/boosty/payments?email&limit&offset -> { payments: BoostyPaymentRecord[], total }
- *   GET  /me/admin/boosty/review?status=open|all&limit&offset -> { items: BoostyReviewItem[], total }
- *   POST /me/admin/boosty/payments           { email, offer: 'standard'|'friend', region?: 'CIS'|'WORLD', months?: 1|3|6|12 |
- *                                            days?: 1–400 | paidUntil?: 'YYYY-MM-DD', amount?: ₽, netAmount?: ₽ after the
- *                                            commission, reference?, reviewId?, recalculate?: the other region's offer issued
- *                                            for the days its sum is worth (owner, 20.10.2026) }
- *                                            -> 201 { payment, user, recalculatedDays? } «Подтвердить оплату Boosty» (the sync's grant
- *                                            path); 404/409 { error, code: unknown_email|no_country|region_mismatch|
- *                                            friend_without_referral } when the rules refuse it
  *   POST /me/admin/bezebee/payments          { email, plan: '1m'|'3m'|'6m'|'12m', friend?: true, amount?: ₽ received, reference? }
  *                                            -> 201 { payment, user } «Подтвердить оплату BZB» (services/bezebee.ts): the months
  *                                            are added; the referral price spends the friend discount; 404/409/400 { error,
@@ -54,14 +46,12 @@
  *                                            removes) -> status; a new mailbox / password is read at once
  *   POST /me/admin/bezebee/mail/check        -> { mail: { configured, user?, checkedAt?, error?, read } } «Проверить почту
  *                                            сейчас» (services/bezebeeMail.ts: BZB's sale letters, else every minute)
- *   POST /me/admin/boosty/review/:id/dismiss -> { ok: true }
- *   PUT  /me/admin/boosty/levels/:levelId    { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }
- *   PUT  /me/admin/boosty/pause              { paused: boolean } -> { sync }
- *   POST /me/admin/boosty/sync               -> { sync } «Проверить сейчас» (409 when the server has no Boosty secrets)
  *   POST /me/admin/users/:id/block           { reason? }               -> { user, … } (sessions revoked, login 403)
  *   POST /me/admin/users/:id/unblock                                   -> { user, … }
  *   POST /me/admin/users/:id/revoke-sessions                           -> { revoked, user, … }
  *   POST /me/admin/users/:id/eft-account/unbind                        -> { user, … } (the bound Escape from Tarkov account is freed)
+ *   POST /me/admin/users/:id/bezebee         { allowed }               -> { user, … } BZB's CIS pages for an account from Russia
+ *                                                                         (409 for any other country)
  *   POST /me/admin/users/:id/delete                                    -> { deleted: true } (as «Удалить аккаунт»; 409 owner / active autopay)
  *   POST /me/admin/users/:id/email           { email }                 -> { user, … } «Изменить e-mail» (a typo at registration):
  *                                                                         unconfirmed until a code reaches it; 400 bad
@@ -72,8 +62,13 @@
  *   POST /me/admin/streamers/:code/revoke                              -> streamer settings (the account becomes a user)
  *   GET  /me/admin/sales-settings                    -> prices, plans, providers (no keys; editing stays in the desktop app)
  *   GET  /me/admin/audit?limit&offset                -> { entries, total }
- *   GET  /me/admin/online                            -> { online, pc, phone, windowMinutes, at } («Онлайн сейчас»: accounts
- *                                                       in the PC or phone app within the window, services/presence.ts)
+ *   GET  /me/admin/online                            -> { online, pc, phone, android, ios, windowMinutes, at } («Онлайн сейчас»:
+ *                                                       accounts in the PC or phone app within the window, services/presence.ts)
+ *   GET  /me/admin/phones                            -> { users, phones, android, ios, online, at } («Телефоны»: phones
+ *                                                       signed in by system, their accounts, who is in each app now)
+ *
+ *   GET  /me/admin/update-history                    -> { versions: [{ version, date, changes }] } («История обновлений»,
+ *                                                       newest first: src/data/updateHistory.json, in no client bundle)
  *
  * Docs for the owner app: docs/codex/owner-admin-api.md.
  *
@@ -90,9 +85,7 @@ import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from 
 import { BULK_GRANT_MAX, BulkGrantLimitError, userQueryDetails, type AdminStore, type PaymentFilter, type UserQuery } from '../services/adminStore.js'
 import { PaymentError } from '../services/paymentStore.js'
 import type { PresenceTracker } from '../services/presence.js'
-import { BOOSTY_OFFER_KEYS, BOOSTY_OFFER_TABLE, BoostyGrantError, type BoostyPayments } from '../services/boosty.js'
-import { BOOSTY_SYNC_OFF, type BoostySync } from '../services/boostySync.js'
-import { boostySessionFrom, type BoostyCredentials } from '../services/boostyClient.js'
+import UPDATE_HISTORY from '../../../src/data/updateHistory.json'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 /** YYYY-MM-DD that is a real date. */
@@ -110,7 +103,7 @@ const paymentFilterSchema = z.object({
   status: z.enum(['pending', 'succeeded', 'canceled', 'refunded']).optional(),
   plan: z.enum(['1m', '3m', '6m', '12m']).optional(),
   q: z.string().trim().max(254).optional(),
-  provider: z.enum(['yookassa', 'boosty', 'bezebee', 'archive']).optional(),
+  provider: z.enum(['yookassa', 'bezebee', 'archive']).optional(),
   method: z.string().trim().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
   region: z.enum(['RU', 'CIS', 'WORLD', 'none']).optional(),
   dateField: z.enum(['created', 'paid']).default('created'),
@@ -150,25 +143,6 @@ const grantSchema = z.object({ days: z.number().int().min(1).max(3650), reason: 
 const blockSchema = z.object({ reason: z.string().trim().max(200).optional() })
 const percentSchema = z.object({ percent: z.number().min(0).max(100).nullable() })
 const linkSchema = z.object({ enabled: z.boolean() })
-/**
- * «Подтвердить оплату Boosty»: what the owner saw on Boosty. `region`: the region of the offer that was bought (default:
- * the account's); the period: `months` added, or `paidUntil` (Boosty's «оплачено до», a date); `amount` in roubles
- * (optional, for the statistics), `reference` the owner's note (the same one is refused twice), `reviewId` the review
- * item this settles.
- */
-const boostyPaymentSchema = z.object({
-  email: z.string().trim().min(3).max(254),
-  offer: z.enum(['standard', 'friend']),
-  region: z.enum(['CIS', 'WORLD']).optional(),
-  months: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]).optional(),
-  days: z.number().int().min(1).max(400).optional(),
-  paidUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/).optional(),
-  amount: z.number().finite().min(0).max(1_000_000).optional(),
-  netAmount: z.number().finite().min(0).max(1_000_000).optional(),
-  reference: z.string().trim().max(120).optional().transform((value) => value || undefined),
-  reviewId: z.number().int().positive().optional(),
-  recalculate: z.boolean().optional(),
-}).strict().refine((input) => [input.months, input.days, input.paidUntil].filter((value) => value !== undefined).length === 1, { message: 'period' })
 const bezebeeCredentialsSchema = z.object({
   apiToken: z.string().trim().max(512).nullable().optional(),
   webhookSecret: z.string().trim().max(512).nullable().optional(),
@@ -183,14 +157,8 @@ const bezebeePaymentSchema = z.object({
   friend: z.boolean().optional(),
   amount: z.number().finite().min(0).max(1_000_000).optional(),
   reference: z.string().trim().max(120).optional().transform((value) => value || undefined),
+  noDays: z.boolean().optional(),
 }).strict()
-const boostyListSchema = z.object({ email: z.string().trim().max(254).optional() })
-const reviewListSchema = z.object({ status: z.enum(['open', 'all']).default('open') })
-const levelSchema = z.object({ offer: z.enum(BOOSTY_OFFER_KEYS).nullable() }).strict()
-const pauseSchema = z.object({ paused: z.boolean() }).strict()
-const sessionSchema = z.object({ session: z.string().min(20).max(12_000).optional(), auth: z.string().min(20).max(12_000).optional(), clientId: z.string().min(8).max(300).optional() }).strict()
-  .refine((value) => Boolean(value.session || (value.auth && value.clientId)), 'Вставьте данные Boosty')
-const MAX_PAID_AHEAD_MS = 400 * 24 * 60 * 60 * 1000
 
 /** Existing owner routes whose successful calls go to the audit log too. Only validated, non-secret fields are kept. */
 const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' | 'payout.decide' | 'payout.limits'; describe: (body: Record<string, unknown>) => { target?: string; details?: Record<string, unknown> } }> = [
@@ -199,18 +167,7 @@ const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' |
   { method: 'PUT', path: '/me/admin/payout-limits', action: 'payout.limits', describe: (body) => ({ details: { min: Number(body.min), max: Number(body.max) } }) },
 ]
 
-/**
- * The Boosty session the owner pastes in the panel (PUT /me/admin/boosty/session): `save` keeps it next to the database,
- * `connect` starts the automatic issuance when the server had none.
- */
-export interface BoostySessionHooks {
-  blog: string
-  save(credentials: BoostyCredentials): void
-  connect(credentials: BoostyCredentials): BoostySync
-}
-
-export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySyncAtStart?: BoostySync, boostySession?: BoostySessionHooks, bezebee?: BezebeePayments, bezebeeWebhooks?: BezebeeWebhooks, bezebeeMailbox?: BezebeeMailbox) {
-  let boostySync = boostySyncAtStart
+export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, bezebee?: BezebeePayments, bezebeeWebhooks?: BezebeeWebhooks, bezebeeMailbox?: BezebeeMailbox) {
   const router = express.Router()
   const readLimiter = new FixedWindowRateLimiter(240, 60 * 1000)
   const writeLimiter = new FixedWindowRateLimiter(30, 60 * 1000)
@@ -267,6 +224,7 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   }))
 
   router.get('/me/admin/overview', owner('read', (_req, res) => { res.json(admin.overview()) }))
+  router.get('/me/admin/update-history', owner('read', (_req, res) => { res.json({ versions: UPDATE_HISTORY }) }))
   router.get('/me/admin/online-stats', owner('read', (req, res) => {
     const { days } = onlineSchema.parse(req.query)
     res.json(admin.onlineStats(days))
@@ -274,6 +232,10 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.get('/me/admin/series', owner('read', (req, res) => {
     const { period } = periodSchema.parse(req.query)
     res.json({ period, rows: admin.series(period) })
+  }))
+  router.get('/me/admin/ads', owner('read', (req, res) => {
+    const { period } = periodSchema.parse(req.query)
+    res.json(admin.adSources(period))
   }))
 
   router.post('/me/admin/payments/:id/refunded', owner('write', (req, res, actor) => {
@@ -336,6 +298,11 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     }
   }))
   router.get('/me/admin/users/:id', owner('read', (req, res) => { res.json(admin.user(idSchema.parse(req.params.id))) }))
+  // «Посмотреть профиль» from the chat (owner, 24.11.2026): the whole account in one answer, with «в приложении сейчас».
+  router.get('/me/admin/users/:id/profile', owner('read', (req, res) => {
+    const id = idSchema.parse(req.params.id)
+    res.json(admin.profile(id, presence?.of(id)))
+  }))
   router.post('/me/admin/users/:id/grant', owner('write', (req, res, actor) => {
     const { days, reason } = grantSchema.parse(req.body)
     res.json(admin.grant(actor, idSchema.parse(req.params.id), days, reason))
@@ -344,56 +311,12 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     const { days, reason } = grantSchema.parse(req.body)
     res.json(admin.revoke(actor, idSchema.parse(req.params.id), days, reason))
   }))
-  router.get('/me/admin/users/:id/boosty', owner('read', (req, res) => {
-    const id = idSchema.parse(req.params.id)
-    admin.user(id)
-    if (!boosty) throw new AccountError(503, 'Boosty не подключён')
-    res.json(boosty.ownerView(id))
-  }))
-  const needBoosty = () => {
-    if (!boosty) throw new AccountError(503, 'Boosty не подключён')
-    return boosty
-  }
-  const syncStatus = () => boostySync?.status() ?? BOOSTY_SYNC_OFF
-  router.get('/me/admin/boosty', owner('read', (_req, res) => {
-    const store = needBoosty()
-    res.json({ sync: syncStatus(), review: store.review({ status: 'open', limit: 50, offset: 0 }), levels: store.levels(), offers: BOOSTY_OFFER_TABLE.map(({ key, region, kind, levelId }) => ({ key, region, kind, levelId })) })
-  }))
-  router.post('/me/admin/boosty/payments', owner('write', (req, res, actor) => {
-    const store = needBoosty()
-    const input = boostyPaymentSchema.parse(req.body)
-    let paidUntil: number | undefined
-    if (input.paidUntil) {
-      // A plain date is the end of that day (Moscow): Boosty shows «оплачено до» as a date.
-      paidUntil = Date.parse(input.paidUntil.length === 10 ? `${input.paidUntil}T23:59:59+03:00` : input.paidUntil)
-      const now = accounts.clock()
-      if (!Number.isFinite(paidUntil) || paidUntil <= now || paidUntil > now + MAX_PAID_AHEAD_MS) throw new AccountError(400, 'Дата «оплачено до» должна быть в будущем, не дальше чем через 400 дней')
-    }
-    const amount = input.amount ?? 0
-    try {
-      const done = store.confirm(actor, {
-        email: input.email, offer: input.offer, amount: Math.round(amount * 100),
-        ...(input.netAmount !== undefined ? { netAmount: Math.round(input.netAmount * 100) } : {}),
-        ...(input.region ? { region: input.region } : {}),
-        ...(input.months !== undefined ? { months: input.months } : input.days !== undefined ? { days: input.days } : { paidUntil }),
-        ...(input.recalculate ? { recalculate: true } : {}),
-        ...(input.reference ? { reference: input.reference } : {}),
-        ...(input.reviewId !== undefined ? { reviewId: input.reviewId } : {}),
-      })
-      admin.audit(actor, 'payment.boosty-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, offer: input.offer, region: done.region, ...(input.months ? { months: input.months } : done.days !== undefined || input.days !== undefined ? { days: done.days ?? input.days } : { paidUntil: input.paidUntil }), amount, ...(input.netAmount !== undefined ? { netAmount: input.netAmount } : {}), ...(done.days !== undefined ? { recalculated: true } : {}), ...(input.reference ? { reference: input.reference } : {}) })
-      const record = store.list({ accountId: done.accountId, limit: 50, offset: 0 }).payments.find((item) => item.id === done.payment.id)
-      res.status(201).json({ payment: record, user: admin.user(done.accountId).user, ...(done.days !== undefined ? { recalculatedDays: done.days } : {}) })
-    } catch (error) {
-      if (error instanceof BoostyGrantError) { res.status(error.status).json({ error: error.message, code: error.reason }); return }
-      throw error
-    }
-  }))
   router.post('/me/admin/bezebee/payments', owner('write', (req, res, actor) => {
     if (!bezebee) throw new AccountError(503, 'Оплата через BZB не подключена')
     const input = bezebeePaymentSchema.parse(req.body)
     try {
       const done = bezebee.confirm(actor, input)
-      admin.audit(actor, 'payment.bezebee-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, plan: input.plan, region: done.region, ...(input.friend ? { friend: true } : {}), amount: done.payment.amount, ...(input.reference ? { reference: input.reference } : {}) })
+      admin.audit(actor, 'payment.bezebee-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, plan: input.plan, region: done.region, ...(input.friend ? { friend: true } : {}), amount: done.payment.amount, ...(input.reference ? { reference: input.reference } : {}), ...(input.noDays ? { noDays: true } : {}) })
       res.status(201).json({ payment: done.payment, user: admin.user(done.accountId).user })
     } catch (error) {
       if (error instanceof BezebeeConfirmError) { res.status(error.status).json({ error: error.message, code: error.code }); return }
@@ -457,53 +380,6 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
       throw error
     }
   }))
-  router.get('/me/admin/boosty/payments', owner('read', (req, res) => {
-    const store = needBoosty()
-    const { email } = boostyListSchema.parse(req.query)
-    const { limit, offset } = pageSchema.parse(req.query)
-    const accountId = email ? accounts.accountByEmail(email)?.id : undefined
-    if (email && !accountId) { res.json({ payments: [], total: 0 }); return }
-    res.json(store.list({ ...(accountId ? { accountId } : {}), limit, offset }))
-  }))
-  router.get('/me/admin/boosty/review', owner('read', (req, res) => {
-    const store = needBoosty()
-    const { status } = reviewListSchema.parse(req.query)
-    const { limit, offset } = pageSchema.parse(req.query)
-    res.json(store.review({ status, limit, offset }))
-  }))
-  router.post('/me/admin/boosty/review/:id/dismiss', owner('write', (req, res, actor) => {
-    needBoosty().dismissReview(actor, z.coerce.number().int().positive().parse(req.params.id))
-    res.json({ ok: true })
-  }))
-  router.put('/me/admin/boosty/levels/:levelId', owner('write', (req, res) => {
-    const levelId = z.string().regex(/^\d{1,20}$/).parse(req.params.levelId)
-    needBoosty().mapLevel(levelId, levelSchema.parse(req.body).offer)
-    res.json({ levels: needBoosty().levels() })
-  }))
-  router.put('/me/admin/boosty/pause', owner('write', (req, res) => {
-    const { paused } = pauseSchema.parse(req.body)
-    if (!boostySync) throw new AccountError(409, 'Автовыдача Boosty выключена: на сервере нет BOOSTY_AUTH и BOOSTY_CLIENT_ID')
-    boostySync.setPaused(paused)
-    res.json({ sync: syncStatus() })
-  }))
-  // «Токен Boosty» (owner, 17.10.2026): a new session pasted in the panel replaces BOOSTY_AUTH without the server's files.
-  // The values are never echoed, logged or audited.
-  router.put('/me/admin/boosty/session', owner('write', (req, res, actor) => {
-    needBoosty()
-    if (!boostySession) throw new AccountError(503, 'Этот сервер не принимает токен Boosty из панели')
-    const input = sessionSchema.parse(req.body)
-    const credentials = boostySessionFrom(input, boostySession.blog)
-    if (!credentials) throw new AccountError(400, 'Не похоже на данные Boosty: нужны auth (с accessToken и refreshToken) и _clientId с boosty.to')
-    boostySession.save(credentials)
-    if (boostySync) boostySync.replaceCredentials(credentials)
-    else { boostySync = boostySession.connect(credentials); boostySync.start(1000) }
-    admin.audit(actor, 'boosty.session', undefined, {})
-    res.json({ sync: syncStatus() })
-  }))
-  router.post('/me/admin/boosty/sync', owner('write', async (_req, res) => {
-    if (!boostySync) throw new AccountError(409, 'Автовыдача Boosty выключена: на сервере нет BOOSTY_AUTH и BOOSTY_CLIENT_ID')
-    res.json({ sync: await boostySync.runOnce(true) })
-  }))
   router.post('/me/admin/users/:id/cancel-autopay', owner('write', async (req, res, actor) => { res.json(await admin.cancelAutopay(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/block', owner('write', (req, res, actor) => {
     const { reason } = blockSchema.parse(req.body ?? {})
@@ -512,6 +388,10 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.post('/me/admin/users/:id/unblock', owner('write', (req, res, actor) => { res.json(admin.setBlocked(actor, idSchema.parse(req.params.id), false)) }))
   router.post('/me/admin/users/:id/revoke-sessions', owner('write', (req, res, actor) => { res.json(admin.revokeSessions(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/eft-account/unbind', owner('write', (req, res, actor) => { res.json(admin.unbindEftAccount(actor, idSchema.parse(req.params.id))) }))
+  router.post('/me/admin/users/:id/bezebee', owner('write', (req, res, actor) => {
+    const { allowed } = z.object({ allowed: z.boolean() }).parse(req.body)
+    res.json(admin.setBezebeeAllowed(actor, idSchema.parse(req.params.id), allowed))
+  }))
   router.post('/me/admin/users/:id/delete', owner('write', (req, res, actor) => { res.json(admin.deleteUser(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/email', owner('write', (req, res, actor) => {
     const { email } = z.object({ email: z.string().trim().max(254) }).parse(req.body)
@@ -534,6 +414,18 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.get('/me/admin/online', owner('read', (_req, res) => {
     if (!presence) throw new AccountError(404, 'Не найдено')
     res.json(presence.count())
+  }))
+  // «Телефоны» (owner, 23.11.2026): the users, the phones signed in on Android and iPhone, and who is in each app now.
+  router.get('/me/admin/phones', owner('read', (_req, res) => {
+    const now = presence?.count()
+    const stats = admin.phoneStats()
+    res.json({
+      ...stats,
+      android: { ...stats.android, online: now?.android ?? 0 },
+      ios: { ...stats.ios, online: now?.ios ?? 0 },
+      online: { phone: now?.phone ?? 0, pc: now?.pc ?? 0, all: now?.online ?? 0, windowMinutes: now?.windowMinutes ?? 0 },
+      at: now?.at ?? new Date().toISOString(),
+    })
   }))
 
   router.get('/me/admin/sales-settings', owner('read', (_req, res) => { res.json(admin.salesSettings()) }))

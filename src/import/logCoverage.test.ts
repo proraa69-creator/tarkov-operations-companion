@@ -92,14 +92,25 @@ describe('each mode on its own', () => {
     ...events.map((event): LogSignal => ({ kind: 'quest', at: tick(), taskId: event.taskId, status: event.status })),
   ]
   const PVP = 'a'.repeat(24), PVE = 'b'.repeat(24), SEASON = 'c'.repeat(24)
-  /** An older launch on disk that logged something before these profiles first appeared (they started inside the logs). */
-  const before = () => ({ oldestLaunchUntil: at })
+  /**
+   * An older launch on disk where each mode loaded another profile (a former character): the profiles after it are new
+   * ones, started inside the logs. Its signals go first in the scan; the options carry the end of that launch.
+   */
+  const replaced = () => {
+    const old: LogSignal[] = [
+      ...session('pvp', 'd'.repeat(24), []),
+      ...session('pve', 'e'.repeat(24), []),
+      ...session('seasonal', 'f'.repeat(24), []),
+    ]
+    return { old, options: { oldestLaunchUntil: at } }
+  }
 
   it('never lends one mode the history of another', () => {
     // PvP from its start; PvE took «Search Mission» after a «Debut» only PvP's logs show; the season handed in a quest it
     // never accepted in its logs.
-    const options = before()
+    const { old, options } = replaced()
     const scan = buildScanResult([
+      ...old,
       ...session('pvp', PVP, FRESH),
       ...session('pve', PVE, [accept(SEARCH)]),
       ...session('seasonal', SEASON, [done(DEBUT)]),
@@ -109,8 +120,8 @@ describe('each mode on its own', () => {
   })
 
   it('follows the logs: whole in PvE, cut in PvP, and the screen comes back once a gap shows', () => {
-    const options = before()
-    const signals = [...session('pvp', PVP, FRESH.slice(4)), ...session('pve', PVE, FRESH)]
+    const { old, options } = replaced()
+    const signals = [...old, ...session('pvp', PVP, FRESH.slice(4)), ...session('pve', PVE, FRESH)]
     expect(logsCoverModes(buildScanResult(signals, 2, 0, options), QUESTS)).toEqual({ pvp: false, pve: true, seasonal: false })
     // The next launch logs a quest handed in that was accepted in a log the game has deleted since.
     const later = buildScanResult([...signals, { kind: 'quest', at: tick(), taskId: id(60), status: 'completed' }], 3, 0, options)
@@ -139,14 +150,21 @@ describe('each mode on its own', () => {
     const inOldest = buildScanResult(signals, 1, 0, { oldestLaunchUntil: profileLine })
     expect(inOldest.summaryByMode.pvp.historyStartsInLogs).toBeUndefined()
     expect(logsCoverModes(inOldest, QUESTS).pvp).toBe(false)
-    // An older launch logged something else before: the profile started inside the logs.
-    const later = buildScanResult(signals, 2, 0, { oldestLaunchUntil: profileLine - 1 })
-    expect(later.summaryByMode.pvp.historyStartsInLogs).toBe(true)
-    expect(logsCoverModes(later, QUESTS).pvp).toBe(true)
+    // The oldest launch played another mode, or closed before a profile loaded: this profile may still be older than
+    // every log (support chat 01.11.2026: 4 of a player's 62 current PvP quests found, the Tasks table never read).
+    const otherMode = buildScanResult(signals, 2, 0, { oldestLaunchUntil: profileLine - 1 })
+    expect(otherMode.summaryByMode.pvp.historyStartsInLogs).toBeUndefined()
+    expect(logsCoverModes(otherMode, QUESTS).pvp).toBe(false)
+    // Another profile of the mode loaded before it: a new character, started inside the logs.
+    const { old, options } = replaced()
+    const fresh = buildScanResult([...old, ...session('pvp', PVP, FRESH)], 2, 0, options)
+    expect(fresh.summaryByMode.pvp.historyStartsInLogs).toBe(true)
+    expect(logsCoverModes(fresh, QUESTS).pvp).toBe(true)
   })
 
   it('knows nothing from a scan of an older app', () => {
-    const scan = buildScanResult(session('pve', PVE, FRESH), 2, 0, before())
+    const { old, options } = replaced()
+    const scan = buildScanResult([...old, ...session('pve', PVE, FRESH)], 2, 0, options)
     expect(logsCoverModes({ ...scan, acceptedByMode: undefined }, QUESTS).pve).toBe(false)
     // Without the time signal (an app from before it) the content alone never counts.
     expect(logsCoverModes({ eventsByMode: scan.eventsByMode, acceptedByMode: scan.acceptedByMode }, QUESTS).pve).toBe(false)

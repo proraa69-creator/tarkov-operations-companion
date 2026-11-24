@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { isIosApp } from '../platform'
+import { hidesPayments } from '../platform'
 import { createPortal } from 'react-dom'
 import { CalendarClock, CreditCard, X } from 'lucide-react'
+import { useWindowTurn } from '../app/windowTurn'
 import type { ServerAccountStatus, UpdateCheckResult, UpdateStatus } from '../electron'
 import { uiText } from '../i18n/renderText'
 import { useServerAccount } from '../sync/serverSync'
 import { openWebsite, subscriptionText } from './accountActions'
 import './subscriptionExpiry.css'
+import { ruDaysLeft } from '../i18n/ruPlural'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WARNING_DAYS = new Set([1, 3])
 
 export function subscriptionDaysLeft(subscription: ServerAccountStatus['subscription'], now = Date.now()) {
   if (!subscription || subscription.status === 'inactive' || subscription.status === 'lifetime') return null
+  // Free days waiting for the first raid: nothing counts down yet.
+  if (subscription.status === 'trial' && subscription.trialRaidDays) return null
   const value = subscription.status === 'trial' ? subscription.trialEndsAt : subscription.paidUntil
   if (!value) return null
   const expires = new Date(value).getTime()
@@ -59,13 +63,12 @@ function useStartupUpdateReady() {
 
 function remainingText(days: number) {
   if (days === 0) return 'Подписка заканчивается сегодня'
-  if (days === 1) return 'Остался 1 день'
-  return `Осталось ${days} дня`
+  return ruDaysLeft(days)
 }
 
 /** The iPhone app (App Store build) shows no subscription and no way to pay (src/account/IosAccount.tsx). */
 export function SubscriptionExpiryNotice(props: { compact?: boolean }) {
-  return isIosApp() ? null : <ExpiryNotice {...props} />
+  return hidesPayments() ? null : <ExpiryNotice {...props} />
 }
 
 function ExpiryNotice({ compact = false }: { compact?: boolean }) {
@@ -84,6 +87,8 @@ function ExpiryNotice({ compact = false }: { compact?: boolean }) {
     setOpen(true)
   }, [startupUpdateReady, subscription])
   useEffect(() => { if (!startupUpdateReady) setOpen(false) }, [startupUpdateReady])
+  // One window at a time (app/windowTurn.ts): the reminder waits for the window on screen; the chip stays as it is.
+  const turn = useWindowTurn('subscription-expiry', open && days !== null)
 
   if (!subscription || subscription.status === 'inactive') return null
   const label = subscription.status === 'lifetime' ? 'Подписка навсегда' : subscriptionText(subscription)
@@ -96,7 +101,7 @@ function ExpiryNotice({ compact = false }: { compact?: boolean }) {
         <span>{uiText(label)}</span>
         {days !== null && <small>{uiText(remainingText(days))}</small>}
       </button>
-      {open && days !== null && createPortal(
+      {open && days !== null && turn && createPortal(
         <div className="subscription-expiry-overlay" role="dialog" aria-modal="true" aria-labelledby="subscription-expiry-title">
           <section className="subscription-expiry-card">
             <button type="button" className="icon-button subscription-expiry-close" onClick={() => setOpen(false)} aria-label={uiText('Закрыть')}><X size={16} /></button>

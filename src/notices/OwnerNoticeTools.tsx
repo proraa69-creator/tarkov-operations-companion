@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
+import { useFileSink } from '../app/fileSink'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardList, ExternalLink, Eye, ImagePlus, LoaderCircle, Megaphone, Plus, RotateCcw, Send, Trash2, Undo2, X } from 'lucide-react'
 import { audienceText, NOTICE_LIMITS, NOTICE_REGIONS, PAYMENT_NAMES, REGION_NAMES, safeNoticeUrl, SURVEY_LIMITS, type NoticeAudience, type NoticePayment, type NoticeRegion, type PlayerNotice, type SurveyQuestion, type SurveyQuestionType } from '../shared/notices'
 import { NoticePopup } from './NoticePopup'
@@ -110,7 +111,8 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
   const [preview, setPreview] = useState(false)
   const uploading = photos.some((photo) => !photo.id && !photo.error)
 
-  const addPhotos = async (files: FileList | null) => {
+  useFileSink(photos.length < NOTICE_LIMITS.images, { take: (files) => void addPhotos(files) })
+  const addPhotos = async (files: Iterable<File> | null) => {
     const room = NOTICE_LIMITS.images - photos.length
     for (const file of [...(files ?? [])].slice(0, Math.max(0, room))) {
       const key = `${file.name}-${file.size}-${Math.random()}`

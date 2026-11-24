@@ -4,13 +4,14 @@
  */
 export const CHARACTER_PHRASES: Array<[string, string]> = [
   ['Первый запуск', 'First launch'],
-  ['Перезапустите Escape from Tarkov', 'Restart Escape from Tarkov'],
-  ['Если игра запущена — закройте её и запустите снова. При входе игра покажет «Выбор профиля и режима»: Raid OS прочитает с этого экрана ваш ник и уровень в PvP, PvE и Сезоне. Вводить ник не нужно.', 'If the game is running, close it and start it again. On entry the game shows “Profile and mode selection”: Raid OS reads your nickname and your level in PvP, PvE and Season from that screen. No need to type the nickname.'],
+  ['Сначала Raid OS, потом игра', 'First Raid OS, then the game'],
+  ['Закройте игру, если она открыта.', 'Close the game if it is open.'], ['Оставьте Raid OS запущенным и только потом запустите игру.', 'Keep Raid OS running and only then start the game.'], ['Приложение само найдёт на экране ваш логин и уровень.', 'The app finds your login and level on the screen by itself.'],
+  ['Квесты берутся из логов игры, а игра сама удаляет старые логи, поэтому часть квестов может не найтись — обойти это нельзя. Один раз откройте в игре «Персонаж» → «Задания» и пролистайте весь список, квесты добавятся сами, или добавьте их через «Ручное добавление». Дальше всё обновляется по логам.', 'Quests come from the game\'s logs, and the game deletes old logs itself, so some quests may be missing — there is no way around it. Once, open Character → Tasks in the game and scroll through the whole list: the quests add themselves. Or add them with «Add manually». After that everything updates from the logs.'],
   ['Ждём экран выбора режима…', 'Waiting for the mode selection screen…'],
-  ['Это нужно только при первом запуске. Экран читается на этом компьютере, картинки никуда не отправляются.', 'Only needed on the first launch. The screen is read on this computer; no pictures are sent anywhere.'],
+  ['Raid OS не нарушает правила игры: не использует её память и не внедряется в неё. Переживать не о чем.', 'Raid OS does not break the game rules: it does not use the game memory or inject into it. There is nothing to worry about.'],
   ['Ник и уровень появятся сами: запустите игру — Raid OS прочитает их с экрана «Выбор профиля и режима».', 'Your nickname and level appear by themselves: start the game and Raid OS reads them from the “Profile and mode selection” screen.'],
   ['Указать вручную', 'Enter manually'],
-  ['Ник и уровень приходят с экрана игры и из tarkov.dev, задания — из логов игры.', 'Nickname and level come from the game screen and tarkov.dev; quests come from the game logs.'],
+  ['Ник и уровень приходят с экрана игры, задания — из логов игры.', 'Nickname and level come from the game screen; quests come from the game logs.'],
   ['Ник увидят друзья и отряд.', 'Friends and your squad will see your nickname.'],
   ['Уровень появится, когда вы запустите игру: Raid OS прочитает его с экрана «Выбор профиля и режима».', 'Your level appears when you start the game: Raid OS reads it from the “Profile and mode selection” screen.'],
   ['с экрана игры', 'from the game screen'],

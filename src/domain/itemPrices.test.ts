@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Item, PriceQuote, RaidMode } from './types'
-import { bestSale, displayPrice, favoritePriceLabel, fleaQuote, fleaSale, modeQuotes, traderQuotes } from './itemPrices'
+import { bestSale, displayPrice, favoritePriceLabel, fleaQuote, fleaSale, modeQuotes, steadyFleaPrice, traderQuotes } from './itemPrices'
 import { fleaMarketFee } from './fleaFee'
 
 const quote = (source: string, price: number, mode: RaidMode, extra: Partial<PriceQuote> = {}): PriceQuote => ({ source, price, mode, updatedAt: '', ...extra })
@@ -72,5 +72,17 @@ describe('item prices: no inflated «best price»', () => {
     const old = item([quote('Барахолка', 29600, 'pvp'), quote('Терапевт', 22500, 'pvp'), quote('Барахолка', 34000, 'pve')])
     expect(fleaQuote(old, 'pvp')?.price).toBe(29600)
     expect(traderQuotes(old, 'pvp').map((entry) => entry.source)).toEqual(['Терапевт'])
+  })
+})
+
+describe('item prices: a lone listing is not the price (owner, 02.11.2026: «проверь все цены! на какие то предметы очень сильно отличаются»)', () => {
+  it('takes the lowest offer, unless it is more than twice the 24-hour average', () => {
+    expect(steadyFleaPrice(41_000, 45_000)).toEqual({ price: 41_000, basis: 'last-low' })
+    // CQR: one listing at 500 000 ₽ against 67 410 ₽ a day.
+    expect(steadyFleaPrice(500_000, 67_410)).toEqual({ price: 67_410, basis: 'avg-24h' })
+    // An offer below the average is what it costs now.
+    expect(steadyFleaPrice(1_000, 41_885)).toEqual({ price: 1_000, basis: 'last-low' })
+    expect(steadyFleaPrice(undefined, 9_000)).toEqual({ price: 9_000, basis: 'avg-24h' })
+    expect(steadyFleaPrice(0, 0)).toBeUndefined()
   })
 })

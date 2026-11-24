@@ -1,4 +1,4 @@
-import { findTooltipAtScales, ocrVariants, tooltipForOcr, tooltipScaleSchedule, type Bitmap, type Rect } from './tooltipDetect.js'
+import { findTooltipAtScales, isTinted, ocrVariants, tooltipForOcr, tooltipScaleSchedule, type Bitmap, type Rect } from './tooltipDetect.js'
 
 /** A grab of the screen around the cursor (see TOOLTIP_CAPTURE). */
 export interface TooltipShot {
@@ -33,21 +33,36 @@ export interface TooltipLookupSteps<Answer, Shot extends TooltipShot> {
   match: (text: string) => Promise<Answer | null>
   /** A tooltip was found (e.g. show the card in its «reading…» state right there). */
   onTooltip?: (shot: Shot, rect: Rect) => void
+  /** Every grab, with the tooltip found in it (and its UI unit) or null — the picture search starts from the first. */
+  onShot?: (shot: Shot, rect: Rect | null, unit: number | null) => void
+  /**
+   * The lookup is answered already (by the item's picture): no more grabs once a tooltip has been read. Until then the
+   * grabs go on, so the tooltip — which names exactly the hovered item — can still replace a wrong picture (report 202,
+   * 20.11.2026: «Кейс для инъекторов» stayed on the card for a «Золотой петух» whose name the game showed a moment later).
+   */
+  done?: () => boolean
   now?: () => number
   sleep?: (ms: number) => Promise<void>
 }
 
 export const TOOLTIP_TIMING = {
-  /** The game shows the name a moment after the cursor stops on an item: wait this long for it to appear. */
-  appearMs: 900,
-  /** A tooltip read without a match (still fading in, or the previous item's) is looked at again until then. */
-  totalMs: 1800,
+  /**
+   * The game shows the name a moment after the cursor stops on an item: wait this long for it to appear. The key may be
+   * pressed the moment the cursor lands, before the name shows (owner, 15.11.2026: «навел и тут же нажал»), and the
+   * picture search answers meanwhile; 1.6 s covers the game's slower tooltips (the logged «no-tooltip» gave up at ~0.93 s).
+   */
+  appearMs: 1600,
+  /**
+   * A tooltip read without a match (still fading in, or the previous item's) is looked at again until then. A long
+   * name is read whole at once now (two lines side by side, ocrVariants), so 1.5 s instead of 1.8 s.
+   */
+  totalMs: 2000,
   /**
    * Between grabs. Each grab is a copy of the screen around the cursor and a search of it on the main process (players,
    * 14.10.2026: «при использовании приложения начинает тупить экран и мышка»): every 120 ms, at most 9 grabs while the
-   * tooltip has not appeared, instead of 16 at 60 ms.
+   * tooltip has not appeared, instead of 16 at 60 ms. Every 160 ms since the wait grew to 1.6 s: 11 grabs at most.
    */
-  intervalMs: 120,
+  intervalMs: 160,
 }
 
 /** The game's interface scale the last tooltip was found at: tried first by the next lookups (tooltipScaleSchedule). */
@@ -71,13 +86,14 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
   let latest: Shot | null = null
   let grabs = 0
   for (;;) {
+    if (read.size > 0 && steps.done?.()) break
     const shot = await steps.grab().catch(() => null)
     // At most two of the game's interface scales a grab: the last one found first.
     const found = shot ? findTooltipAtScales(shot.image, shot.cursor, shot.unit, tooltipScaleSchedule(grabs, scales.factor)) : null
     grabs += 1
     latest = shot ?? latest
-    if (found) scales.factor = found.factor
     const rect = found?.rect ?? null
+    if (shot) steps.onShot?.(shot, rect, found?.unit ?? null)
     if (shot && rect) {
       const key = tooltipKey(shot.image, rect)
       if (!last) steps.onTooltip?.(shot, rect)
@@ -90,7 +106,9 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
           tries.push(text)
           if (!text) continue
           const answer = await steps.match(text)
-          if (answer) return { answer, shot, rect, unit: found!.unit, first, tries, grabs, latest }
+          // The interface scale is remembered only once a tooltip found at it named an item: a box found at a wrong
+          // scale (an inventory cell taken for a tooltip at 2×) no longer sends the next lookups to that scale first.
+          if (answer) { scales.factor = found!.factor; return { answer, shot, rect, unit: found!.unit, first, tries, grabs, latest } }
         }
       }
     }
@@ -116,6 +134,8 @@ export function retryOcrReadings(image: Bitmap, rect: Rect, cursor: { x: number;
     for (let x = rect.x; x < rect.x + rect.width; x += 1) {
       if (x >= mask.x && x <= mask.x + mask.width && y >= mask.y && y <= mask.y + mask.height) continue
       const index = (y * image.width + x) * 4
+      // A trader's price row (coloured) is no part of the name (report 183).
+      if (isTinted(image.data[index + 2]!, image.data[index + 1]!, image.data[index]!)) continue
       const value = (image.data[index + 2]! * 54 + image.data[index + 1]! * 183 + image.data[index]! * 19) >> 8
       levels.push(value)
       row.push(value)

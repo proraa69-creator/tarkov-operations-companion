@@ -2,8 +2,11 @@
  * «Отчёты» tab of the admin panel: the owner-only API of server/src/routes/bugReports.ts. Kept apart from api.ts;
  * the same error handling (ApiError, network message). Screenshots are fetched with the owner's token as blobs.
  */
+import type { EftCasesPage, EftCaseStatus } from '../../../../src/reports/EftCasesTable'
 import { ApiError, NETWORK_ERROR_MESSAGE } from '../../api'
 import { API_URL } from '../../config'
+import type { ReportPage, ReportRow } from '../../../../src/reports/ReportsTable'
+import type { ReportTableView, ReportWorkAction } from '../../../../src/shared/reportWork'
 
 export type BugReportStatus = 'open' | 'closed'
 /** 'bug': «Сообщить об ошибке»; 'idea': «Ваши предложения» (owner, 13.10.2026). Absent from servers before that: a bug. */
@@ -46,6 +49,8 @@ export interface BugReportSummary {
   mailedAt?: string
   mailError?: string
 }
+/** A line of «Отчёты»: what the old list held, the text, what Claude drew from it, the plan and the status. */
+export type BugReportRow = Omit<BugReportSummary, 'quest' | 'kind'> & ReportRow & { quest?: BugReportQuest }
 export interface BugReportFile { idx: number; mime: string; size: number }
 export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }
 /** `counts`: open / closed of the listed kind; `kinds`: open reports of each kind. */
@@ -53,13 +58,13 @@ export interface BugReportList { reports: BugReportSummary[]; total: number; cou
 
 const BASE = '/v1/accounts/me/admin/bug-reports'
 
-async function send(token: string, path: string, body?: unknown) {
+async function send(token: string, path: string, body?: unknown, base = BASE, timeoutMs = 30_000) {
   try {
-    return await fetch(`${API_URL}${BASE}${path}`, {
+    return await fetch(`${API_URL}${base}${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(timeoutMs),
     })
   } catch {
     throw new ApiError(0, NETWORK_ERROR_MESSAGE, true)
@@ -78,14 +83,38 @@ async function call<T>(token: string, path: string, body?: unknown): Promise<T> 
 }
 
 export const bugReportsApi = {
-  list: (token: string, status: BugReportStatus, limit: number, offset: number, kind: ReportKind = 'bug') =>
-    call<BugReportList>(token, `?kind=${kind}&status=${status}&limit=${limit}&offset=${offset}`),
+  /** «Отчёты»: a page of the one table, the newest number first. */
+  table: (token: string, view: ReportTableView, limit: number, offset: number) =>
+    call<ReportPage<BugReportRow>>(token, `/table?view=${view}&limit=${limit}&offset=${offset}`),
+  /** The owner's buttons. */
+  work: (token: string, id: number, action: ReportWorkAction) => call<{ report: BugReportDetail }>(token, `/${id}/work`, { action }),
+  /** The long wait for the next change of the table (src/reports/reportEvents.ts): up to ~25 s on the server. */
+  events: async (token: string, path: string) => {
+    const response = await send(token, path, undefined, '', 45_000)
+    const data = await response.json().catch(() => undefined) as { error?: unknown } | undefined
+    if (!response.ok) throw refused(response, data)
+    return data
+  },
   get: (token: string, id: number) => call<{ report: BugReportDetail }>(token, `/${id}`),
-  setStatus: (token: string, id: number, status: BugReportStatus) => call<{ report: BugReportDetail }>(token, `/${id}/status`, { status }),
   /** Grants the reporter `days` of subscription for this report (reason «Отчёт об ошибке №N» / «Предложение №N»). */
   reward: (token: string, id: number, days: number) => call<{ report: BugReportDetail }>(token, `/${id}/reward`, { days }),
+  /** «Принять точку»: the proposed point goes on the map, the report closes, its author gets a day. */
+  point: (token: string, id: number) => call<{ report: BugReportDetail; days: number }>(token, `/${id}/point`, {}),
   /** Sends the report's PDF to the owner's mailbox again. */
   mail: (token: string, id: number) => call<{ report: BugReportDetail }>(token, `/${id}/mail`, {}),
+  /** «Аккаунты Таркова» (server/src/routes/eftCases.ts): a game account back on a new account after a deletion. */
+  eftCases: async (token: string, view: EftCaseStatus): Promise<EftCasesPage> => {
+    const response = await send(token, `/v1/accounts/me/admin/eft-cases?view=${view}&limit=100`, undefined, '')
+    const data = await response.json().catch(() => undefined) as { error?: unknown } | undefined
+    if (!response.ok) throw refused(response, data)
+    return data as unknown as EftCasesPage
+  },
+  eftStatus: async (token: string, id: number, status: EftCaseStatus) => {
+    const response = await send(token, `/v1/accounts/me/admin/eft-cases/${id}/status`, { status }, '')
+    const data = await response.json().catch(() => undefined) as { error?: unknown } | undefined
+    if (!response.ok) throw refused(response, data)
+    return data
+  },
   /** The screenshot's bytes (never a URL with the token in it). */
   file: async (token: string, id: number, idx: number): Promise<Blob> => {
     const response = await send(token, `/${id}/files/${idx}`)

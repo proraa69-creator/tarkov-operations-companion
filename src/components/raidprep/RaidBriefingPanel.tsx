@@ -27,8 +27,9 @@ export function RaidBriefingPanel({ mapId, route, compact, fromRaid }: Props) {
   const state = useAppState()
   const progress = state.activeProfile.modes[state.raidMode]
   const briefing = useMemo(
-    () => buildRaidBriefing({ mapId, quests: data.quests, items: data.items, markers: data.markers, progress }),
-    [mapId, data.quests, data.items, data.markers, progress],
+    // the quests' quest items too: what to find or plant shows with its name and picture (report 162)
+    () => buildRaidBriefing({ mapId, quests: data.quests, items: [...data.items, ...(data.questItems ?? [])], markers: data.markers, progress }),
+    [mapId, data.quests, data.items, data.questItems, data.markers, progress],
   )
   const map = data.maps.find((entry) => entry.id === mapId)
   const questName = (questId?: string) => data.quests.find((quest) => quest.id === questId)?.name
@@ -129,6 +130,7 @@ function ItemSection({ icon, title, rows }: { icon: ReactNode; title: string; ro
           <span>
             <strong>{uiText(row.item?.name ?? row.itemId)}{row.count > 1 ? ` ×${row.count}` : ''}</strong>
             {row.foundInRaid && <span className="keep-fir">{uiText('FIR')}</span>}
+            {row.or?.length ? <small>{uiText('или')}: {row.or.map((other) => uiText(other.item?.name ?? other.itemId)).join(', ')}</small> : null}
             <small className="dim">{uiText(row.questNames.join(', '))}</small>
           </span>
         </Link>

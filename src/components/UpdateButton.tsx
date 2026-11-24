@@ -1,11 +1,13 @@
+import { ToastDock, TOAST_MS } from '../notifications/ToastDock'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, Download, LoaderCircle, RotateCcw, Sparkles, X } from 'lucide-react'
 import { displayVersion, useAppVersion } from '../app/appVersion'
-import { useLocale } from '../i18n/LocaleProvider'
+import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import type { UpdateStatus } from '../electron'
 import '../styles/updateOverlay.css'
+import { useNotificationKinds } from '../notifications/notificationKinds'
 
 type Step = 'download' | 'verify' | 'install'
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -25,12 +27,32 @@ const OWNER_EXE_TEXT = 'Частями её не поставить, а подп
 const NEXT_START_TEXT = 'Обновление скачано — применится при следующем запуске'
 /** The live update of the interface is announced once per version, also after the page reloads. */
 const LIVE_SHOWN_KEY = 'raidos.liveUpdateShown'
-const LIVE_TOAST_MS = 9_000
 
 function stepOf(status: UpdateStatus): Step {
   if (status.state === 'installing') return 'install'
   if (status.state === 'downloading' && status.phase === 'verifying') return 'verify'
   return 'download'
+}
+
+/** «0,36», «3,1», «224»: megabytes in the update window. */
+function megabytes(bytes: number, locale: AppLocale) {
+  const value = bytes / 1048576
+  return value.toLocaleString(locale === 'en' ? 'en-US' : 'ru-RU', { maximumFractionDigits: value < 1 ? 2 : value < 10 ? 1 : 0 })
+}
+
+/**
+ * Under the bar while downloading (owner, 03.11.2026: «обновление загружается очень медленно… ты до сих пор не обновляешь
+ * приложение кусочками»): how much of how much and how fast; for a release in parts (electron/appUpdate.ts parts), that
+ * only the changes come and how large the whole app is.
+ */
+function transferText(status: UpdateStatus, locale: AppLocale) {
+  const mb = (bytes = 0) => megabytes(bytes, locale)
+  const en = locale === 'en'
+  const amount = en ? `${mb(status.received)} of ${mb(status.size)} MB` : `${mb(status.received)} из ${mb(status.size)} МБ`
+  const speed = status.speed ? (en ? ` · ${mb(status.speed)} MB/s` : ` · ${mb(status.speed)} МБ/с`) : ''
+  if (!status.parts) return `${amount}${speed}`
+  const whole = status.whole ? (en ? ` (the whole app is ${mb(status.whole)} MB)` : ` (всё приложение — ${mb(status.whole)} МБ)`) : ''
+  return en ? `Only the changes: ${amount}${whole}${speed}` : `Только изменения: ${amount}${whole}${speed}`
 }
 
 /**
@@ -46,6 +68,9 @@ export function UpdateButton() {
   const api = window.tarkovDesktop?.update
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' })
   const [open, setOpen] = useState(false)
+  // «Обновить сейчас?» answered «Нет» for this version; the click on «Загрузить обновление» started the download.
+  const [askDismissed, setAskDismissed] = useState('')
+  const [downloadClicked, setDownloadClicked] = useState(false)
   useEffect(() => {
     if (!api) return
     void api.status().then((next) => {
@@ -61,29 +86,42 @@ export function UpdateButton() {
   const toast = <LiveUpdateToast version={status.liveVersion} />
   if (!api || status.state === 'idle') return toast
   const busy = status.state === 'downloading' || status.state === 'installing'
+  // Owner, 03.11.2026: «пусть появится кнопка загрузить обновление и после скачивания вылезет кнопка обновить да или нет»:
+  // while the game runs the background does not download (electron/appUpdate.ts heldByGame), the bar offers it instead,
+  // and the download it starts ends with «Обновить сейчас?» (askInstall).
+  const asking = status.state === 'available' && status.askInstall === true && askDismissed !== (status.version ?? '')
   // Notifications off: nothing in the bar unless the player started something (a background download stays quiet).
-  if (!open && status.notify === false && (!busy || status.background)) return toast
+  if (!open && !asking && status.notify === false && (!busy || status.background)) return toast
+  const download = () => { setDownloadClicked(true); void api.download?.().then(setStatus).catch(() => {}) }
   const start = () => {
     // The fallback (no signed owner exe on the server): the click checks once more, then opens the admin panel — or, if
     // a signed owner exe appeared meanwhile, starts the update here, which then opens the window by its status.
     if (status.ownerExe) { void api.install().then(setStatus).catch(() => {}); return }
+    // «Загрузить обновление», or «Повторить» after its download failed: download only, the window asks afterwards.
+    if (!busy && api.download && (held || (status.state === 'error' && downloadClicked))) { download(); return }
     setOpen(true)
     if (!busy) void api.install().then(setStatus).catch(() => {})
   }
   const nextStart = status.state === 'available' && status.nextStart === true
-  const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : status.ownerExe ? 'Скачать новую версию' : nextStart ? NEXT_START_TEXT : 'Обновить приложение'
+  // Downloaded in the background (owner, 29.10.2026): «Установить обновление» — the click installs and restarts.
+  const downloaded = status.state === 'available' && (status.ready === true || nextStart)
+  const held = status.state === 'available' && status.heldByGame === true && !downloaded && Boolean(api.download)
+  const label = status.state === 'error' ? 'Повторить обновление' : busy ? (status.background && downloadClicked ? 'Загрузка…' : 'Обновление…') : status.ownerExe ? 'Скачать новую версию' : downloaded ? 'Установить обновление' : held ? 'Загрузить обновление' : 'Обновить приложение'
   const newVersion = `${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}.`
   const title = status.state === 'error' ? uiText(status.error ?? 'Ошибка обновления')
     : status.ownerExe ? `${newVersion} ${uiText(OWNER_EXE_TEXT)}`
     : nextStart ? `${uiText(NEXT_START_TEXT)}. ${uiText('Нажмите, чтобы перезапустить сейчас: настройки и прогресс сохранятся.')}`
+    : downloaded ? `${newVersion} ${uiText('Обновление скачано. Нажмите, чтобы установить: приложение перезапустится, настройки и прогресс сохранятся.')}`
+    : held ? `${newVersion} ${uiText('Пока игра запущена, обновление не скачивается само, чтобы не мешать игре. Нажмите, чтобы скачать сейчас.')}`
     : `${newVersion} ${uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}`
   return (
     <>
-      <button type="button" className={`button small update-button${status.state === 'error' ? ' is-error' : ' primary'}${busy ? ' is-busy' : ''}${nextStart ? ' is-next-start' : ''}`} title={title} aria-haspopup="dialog" onClick={start}>
-        {busy ? <LoaderCircle size={14} className="spin" /> : status.state === 'error' ? <AlertTriangle size={14} /> : nextStart ? <Check size={14} /> : <Download size={14} />}
+      <button type="button" className={`button small update-button${status.state === 'error' ? ' is-error' : ' primary'}${busy ? ' is-busy' : ''}${downloaded ? ' is-next-start' : ''}`} title={title} aria-haspopup="dialog" onClick={start}>
+        {busy ? <LoaderCircle size={14} className="spin" /> : status.state === 'error' ? <AlertTriangle size={14} /> : downloaded ? <Check size={14} /> : <Download size={14} />}
         <span className="update-button-label">{uiText(label)}</span>
       </button>
       {open && createPortal(<UpdateOverlay status={status} onRetry={() => void api.install().then(setStatus).catch(() => {})} onClose={() => setOpen(false)} />, document.body)}
+      {asking && !open && createPortal(<UpdateAsk onYes={() => { setAskDismissed(status.version ?? ''); setDownloadClicked(false); setOpen(true); void api.install().then(setStatus).catch(() => {}) }} onNo={() => { setAskDismissed(status.version ?? ''); setDownloadClicked(false) }} />, document.body)}
       {toast}
     </>
   )
@@ -101,19 +139,21 @@ export function LiveUpdateToast({ version }: { version?: string }) {
   // Announced before this page mounted (the same version after a reload or a remount is not announced again).
   const [seen] = useState(liveShown)
   const [closed, setClosed] = useState<string | null>(null)
-  const shown = version && version !== seen && version !== closed ? version : null
+  // switched off in «Уведомления» → «Настроить»
+  const on = useNotificationKinds()['app-updated']
+  const shown = on && version && version !== seen && version !== closed ? version : null
   useEffect(() => {
     if (!shown) return
     try { localStorage.setItem(LIVE_SHOWN_KEY, shown) } catch { /* shown again next time */ }
-    const timer = window.setTimeout(() => setClosed(shown), LIVE_TOAST_MS)
+    const timer = window.setTimeout(() => setClosed(shown), TOAST_MS)
     return () => window.clearTimeout(timer)
   }, [shown])
   if (!shown) return null
-  return createPortal(<div className="update-live-toast panel" role="status" aria-live="polite">
+  return <ToastDock><div className="update-live-toast panel" role="status" aria-live="polite">
     <Sparkles size={16} aria-hidden="true" />
     <span>{uiText('Приложение обновлено до версии')} {displayVersion(shown)}</span>
     <button type="button" className="icon-button" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={() => setClosed(shown)}><X size={14} /></button>
-  </div>, document.body)
+  </div></ToastDock>
 }
 
 /** The full-screen «Обновление до актуальной версии» window. Closable only when nothing is running (available / error). */
@@ -158,6 +198,7 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
           <span>{busy ? <LoaderCircle size={14} className="spin" /> : failed ? <AlertTriangle size={14} /> : null}{uiText(stateText)}</span>
           {!failed && <b>{progress}%</b>}
         </div>
+        {status.state === 'downloading' && step === 'download' && status.size ? <p className="update-overlay-transfer">{transferText(status, locale)}</p> : null}
 
         <ol className="update-overlay-steps">
           {STEPS.map((entry, index) => {
@@ -174,13 +215,37 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
           <span>{uiText('Автоматически обновление не ставится во время рейда. Нажмите «Обновить», чтобы установить сейчас.')}</span>
           <button type="button" className="update-overlay-note-close" aria-label={uiText('Скрыть')} onClick={() => setRaidNoteHidden(true)}><X size={14} /></button>
         </p>}
+        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
         {!busy && <div className="update-overlay-actions">
           {failed
             ? <button type="button" className="button primary" onClick={onRetry}><RotateCcw size={15} />{uiText(' Повторить')}</button>
             : <button type="button" className="button primary" onClick={onRetry}><Download size={15} />{locale === 'en' ? ' Update' : ' Обновить'}</button>}
           <button type="button" className="button" ref={closeRef} onClick={onClose}>{uiText('Закрыть')}</button>
         </div>}
+      </div>
+    </div>
+  )
+}
+
+/** After «Загрузить обновление»: «Обновить сейчас?» — «Да» installs and restarts, «Нет» leaves «Установить обновление» in the bar. */
+function UpdateAsk({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
+  const yesRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { yesRef.current?.focus() }, [])
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onNo() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onNo])
+  return (
+    <div className="update-overlay" role="dialog" aria-modal="true" aria-labelledby="update-ask-title">
+      <div className="update-overlay-card">
+        <div className="update-overlay-eyebrow">Raid OS</div>
+        <h2 id="update-ask-title" className="update-overlay-title">{uiText('Обновление скачано. Обновить сейчас?')}</h2>
         <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
+        <div className="update-overlay-actions">
+          <button type="button" className="button primary" ref={yesRef} onClick={onYes}><Check size={15} />{uiText('Да')}</button>
+          <button type="button" className="button" onClick={onNo}>{uiText('Нет')}</button>
+        </div>
       </div>
     </div>
   )

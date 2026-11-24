@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { EftCasesPage, EftCaseStatus } from '../reports/EftCasesTable'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { serviceClient } from '../account/nicknameBinding'
 import { isOwnerApp } from '../app/buildEdition'
 import { useServerAccount } from '../sync/serverSync'
 import type { QuestIssue, ReportCategory, ReportMode } from '../shared/reportCategories'
-import { cleanSupportMessage, cleanSupportMessages, supportMessageBody, type SupportImageUpload, type SupportMessage } from '../support/supportChatClient'
+import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
+import { watchReportEvents } from '../reports/reportEvents'
+import type { ReportPage, ReportRow } from '../reports/ReportsTable'
+import { cleanSupportMessage, cleanSupportMessages, supportMessageBody, supportReactionPath, type SupportImageUpload, type SupportMessage, type SupportSendExtra } from '../support/supportChatClient'
 
 /**
  * «Заявки» in the owner app (owner, 13.10.2026: «в админ приложении добавь снизу слева кнопку заявки и если они
@@ -42,6 +46,19 @@ export interface OwnerReport {
   createdAt: string
   files: number
   rewardDays: number
+  /** When the owner last answered it from its card («Отвечено»). */
+  answeredAt?: string
+  /** Absent from a server before «Отчёты». */
+  work?: { status: ReportWorkStatus; note?: string; commit?: string }
+}
+/** A line of the table: the report with its text, what Claude drew from it, the plan and the status. */
+export interface OwnerReportRow extends Omit<OwnerReport, 'work' | 'rewardDays'>, ReportRow {
+  rewardDays: number
+  quest?: OwnerQuestReport
+  category?: ReportCategory
+  appVersion: string
+  platform: string
+  work: ReportRow['work']
 }
 
 export interface OwnerReportDetail extends Omit<OwnerReport, 'files'> { description: string; files: Array<{ idx: number; mime: string; size: number }> }
@@ -50,79 +67,84 @@ export const OWNER_REPORTS_KEY = ['owner-reports'] as const
 export const OWNER_CHATS_KEY = ['owner-chats'] as const
 /** Pause after a failed wait (no server, an older server without the route, not the owner's session). */
 const RETRY_MS = 30_000
-/** An unchanged count answered at once is not a reason to ask again right away. */
-const QUICK_ANSWER_MS = 2_000
-const QUICK_PAUSE_MS = 5_000
 
 type Request = NonNullable<ReturnType<typeof serviceClient>>
 
 /** Open reports and conversations with unseen messages (0 from a server before the support chat). */
-export interface OwnerRequestCounts { open: number; unreadChats: number }
+export interface OwnerRequestCounts { open: number; unreadChats: number; eftCases: number }
 
 /**
  * Long polling of GET /v1/accounts/me/admin/requests/events: `onCount` gets the counts on every answer (at once, then
  * whenever a report arrives or is closed or a player writes, or every ~25 s); `changed`: the server says something moved
  * since the previous answer. Runs until `signal` aborts.
  */
-export async function watchOwnerRequests(request: Request, onCount: (counts: OwnerRequestCounts, changed: boolean) => void, signal: AbortSignal, retryMs = RETRY_MS) {
-  let version: number | undefined
-  const pause = (ms: number) => new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms)
-    signal.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
-  })
-  while (!signal.aborted) {
-    try {
-      const asked = Date.now()
-      const answer = await request('GET', version === undefined ? '/v1/accounts/me/admin/requests/events' : `/v1/accounts/me/admin/requests/events?since=${version}`) as { version?: unknown; open?: unknown; unreadChats?: unknown } | null
-      if (signal.aborted) return
-      const next = typeof answer?.version === 'number' && Number.isSafeInteger(answer.version) ? answer.version : undefined
-      if (next === undefined || typeof answer?.open !== 'number') { await pause(retryMs); continue }
-      const same = next === version
-      const changed = version !== undefined && !same
-      version = next
-      onCount({ open: answer.open, unreadChats: typeof answer.unreadChats === 'number' && answer.unreadChats > 0 ? answer.unreadChats : 0 }, changed)
-      if (same && Date.now() - asked < QUICK_ANSWER_MS) await pause(Math.min(QUICK_PAUSE_MS, retryMs))
-    } catch {
-      await pause(retryMs)
-    }
-  }
+export function watchOwnerRequests(request: Request, onCount: (counts: OwnerRequestCounts, changed: boolean) => void, signal: AbortSignal, retryMs = RETRY_MS) {
+  return watchReportEvents((path) => request('GET', path), ({ open, unreadChats, eftCases }, changed) => onCount({ open, unreadChats, eftCases }, changed), signal, retryMs)
 }
 
 /**
- * The owner app's «Заявки» count: open reports plus conversations with unseen messages (null until known, or outside the
- * owner app / signed out). Re-reads the reports when their count moves and the chats on every change.
+ * One wait for the whole owner app: the sidebar's «Админ панель» and its «Отчёты» / «Чат» read the same counts (owner,
+ * 15.11.2026: «Красная цифра непрочитанных… должна гореть на кнопке «Админ панель»»). It runs while any of them is shown;
+ * whatever moved, the table and the chats on screen read it again.
  */
-export function useOwnerRequestCount() {
+const shared = { counts: null as OwnerRequestCounts | null, users: 0, stop: null as AbortController | null, listeners: new Set<() => void>() }
+const notify = () => { for (const listener of shared.listeners) listener() }
+const subscribeCounts = (listener: () => void) => { shared.listeners.add(listener); return () => { shared.listeners.delete(listener) } }
+
+function shareOwnerWatch(request: Request, client: QueryClient) {
+  shared.users += 1
+  if (shared.users === 1) {
+    const stop = new AbortController()
+    shared.stop = stop
+    void watchOwnerRequests(request, (counts, changed) => {
+      if (stop.signal.aborted) return
+      shared.counts = counts
+      notify()
+      if (!changed) return
+      void client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
+      // A player wrote (or the owner read a conversation on another device): the list and the open one follow.
+      void client.invalidateQueries({ queryKey: OWNER_CHATS_KEY })
+    }, stop.signal)
+  }
+  return () => {
+    shared.users -= 1
+    if (shared.users > 0) return
+    shared.stop?.abort()
+    shared.stop = null
+    shared.counts = null
+    notify()
+  }
+}
+
+/** Reports that wait for the owner and conversations with unseen messages (null until known, outside the owner app or signed out). */
+export function useOwnerRequestCounts(): OwnerRequestCounts | null {
   const client = useQueryClient()
   const { status } = useServerAccount()
   const enabled = isOwnerApp() && Boolean(status?.signedIn)
-  const [count, setCount] = useState<number | null>(null)
+  const counts = useSyncExternalStore(subscribeCounts, () => shared.counts, () => null)
   useEffect(() => {
     const request = enabled ? serviceClient() : undefined
     if (!request) return
-    const stop = new AbortController()
-    let last: number | undefined
-    void watchOwnerRequests(request, (counts, changed) => {
-      setCount(counts.open + counts.unreadChats)
-      if (last !== undefined && counts.open !== last) void client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
-      // A player wrote (or the owner read a conversation on another device): the list and the open one follow.
-      if (changed) void client.invalidateQueries({ queryKey: OWNER_CHATS_KEY })
-      last = counts.open
-    }, stop.signal)
-    return () => { stop.abort(); setCount(null) }
+    return shareOwnerWatch(request, client)
   }, [client, enabled])
-  return enabled ? count : null
+  return enabled ? counts : null
 }
 
-/** Open (or closed) reports, newest first, with the agreement counts of quest corrections. */
-export function useOwnerReports(status: 'open' | 'closed') {
+/** The red number on «Админ панель»: reports that wait plus conversations with unseen messages. */
+export function useOwnerRequestCount() {
+  const counts = useOwnerRequestCounts()
+  return counts ? counts.open + counts.unreadChats : null
+}
+
+/** «Отчёты»: the latest 200 of the table, the newest number first; the sidebar's wait reads it again on every change. */
+export function useOwnerReportTable(view: ReportTableView) {
   return useQuery({
-    queryKey: [...OWNER_REPORTS_KEY, status],
-    queryFn: async () => {
+    queryKey: [...OWNER_REPORTS_KEY, 'table', view],
+    queryFn: async (): Promise<ReportPage<OwnerReportRow>> => {
       const request = serviceClient()
       if (!request) throw new Error('Нет связи с сервером')
-      const answer = await request('GET', `/v1/accounts/me/admin/bug-reports?status=${status}&limit=${status === 'open' ? 200 : 50}`) as { reports?: OwnerReport[] } | null
-      return answer?.reports ?? []
+      const answer = await request('GET', `/v1/accounts/me/admin/bug-reports/table?view=${view}&limit=200`) as ReportPage<OwnerReportRow> | null
+      return answer ?? { rows: [], total: 0, counts: { active: 0, working: 0, closed: 0, awaiting: 0 } }
     },
     enabled: isOwnerApp(),
     staleTime: 30_000,
@@ -146,8 +168,14 @@ export function useOwnerReportActions() {
       const file = await call('GET', `/v1/accounts/me/admin/bug-reports/${id}/files/${idx}/data`) as { mime: string; data: string }
       return `data:${file.mime};base64,${file.data}`
     },
-    setStatus: async (ids: number[], status: 'open' | 'closed') => {
-      for (const id of ids) await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/status`, { status })
+    /** The owner's buttons in the table. */
+    work: async (ids: number[], action: ReportWorkAction) => {
+      for (const id of ids) await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/work`, { action })
+      await refresh()
+    },
+    /** «Принять точку»: the proposed point on the map, the report closed, a day to its author. */
+    acceptPoint: async (id: number) => {
+      await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/point`, {})
       await refresh()
     },
     /** Subscription days for each report's sender («+1 день» for a confirmed report). */
@@ -219,19 +247,64 @@ export function useOwnerChat(accountId: string | null) {
   })
 }
 
-/** The owner's answer (with screenshots, owner 15.10.2026) and «прочитано»; both refresh the conversations. */
+/**
+ * The owner's answer (with screenshots, owner 15.10.2026; `reportId`: from a report's card, owner 04.11.2026; `extra`: the
+ * message it answers or a sticker, owner 07.11.2026) and «прочитано»; both refresh the conversations. A reaction shows in
+ * the open conversation at once.
+ */
 export function useOwnerChatActions() {
   const client = useQueryClient()
   const refresh = useCallback(() => client.invalidateQueries({ queryKey: OWNER_CHATS_KEY }), [client])
   return {
-    reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = []) => {
-      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads)) as { message?: unknown } | null
-      await refresh()
-      return cleanSupportMessage(answer?.message)
-    }, [refresh]),
+    reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = [], reportId?: number, extra: SupportSendExtra = {}) => {
+      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads, reportId, extra)) as { message?: unknown } | null
+      const sent = cleanSupportMessage(answer?.message)
+      // In the open conversation at once (owner, 15.11.2026: «отправка долго думает»); the lists follow in the background.
+      if (sent) client.setQueryData<OwnerChatDetail>([...OWNER_CHATS_KEY, 'thread', accountId], (current) => (current && !current.messages.some((known) => known.id === sent.id)
+        ? { ...current, messages: [...current.messages, sent] }
+        : current))
+      void refresh()
+      // The card shows «Отвечено» from the server's word.
+      if (reportId) await client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
+      return sent
+    }, [client, refresh]),
     markRead: useCallback(async (accountId: string) => {
       await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/read`)
       await refresh()
     }, [refresh]),
+    /** «Редактировать» (owner, 15.11.2026): the owner's own message with new words, in the open conversation at once. */
+    edit: useCallback(async (accountId: string, id: number, text: string) => {
+      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages/${id}/edit`, { text }) as { message?: unknown } | null
+      const message = cleanSupportMessage(answer?.message)
+      if (!message) throw new Error('Сервер вернул неожиданный ответ')
+      client.setQueryData<OwnerChatDetail>([...OWNER_CHATS_KEY, 'thread', accountId], (current) => (current
+        ? { ...current, messages: current.messages.map((known) => (known.id === message.id ? message : known)) }
+        : current))
+      void refresh()
+      return message
+    }, [client, refresh]),
+    react: useCallback(async (accountId: string, id: number, emoji: string, on: boolean) => {
+      const answer = await ownerCall('POST', supportReactionPath(id, accountId), { emoji, on }) as { message?: unknown } | null
+      const message = cleanSupportMessage(answer?.message)
+      if (!message) throw new Error('Сервер вернул неожиданный ответ')
+      client.setQueryData<OwnerChatDetail>([...OWNER_CHATS_KEY, 'thread', accountId], (current) => (current
+        ? { ...current, messages: current.messages.map((known) => (known.id === message.id ? message : known)) }
+        : current))
+      return message
+    }, [client]),
   }
+}
+
+/** «Аккаунты Таркова» (server/src/routes/eftCases.ts) through the owner app's gateway. */
+export const ownerEftCases = {
+  list: async (view: EftCaseStatus): Promise<EftCasesPage> => {
+    const request = serviceClient()
+    if (!request) throw new Error('Нет связи с сервером')
+    return await request('GET', `/v1/accounts/me/admin/eft-cases?view=${view}&limit=100`) as EftCasesPage
+  },
+  setStatus: async (id: number, status: EftCaseStatus) => {
+    const request = serviceClient()
+    if (!request) throw new Error('Нет связи с сервером')
+    return request('POST', `/v1/accounts/me/admin/eft-cases/${id}/status`, { status })
+  },
 }

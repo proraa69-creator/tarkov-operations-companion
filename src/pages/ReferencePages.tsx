@@ -1,14 +1,20 @@
+import { setMapFollowEnabled, useMapFollowEnabled } from "../maps/mapFollowSetting";
 import { uiLabel, uiText } from '../i18n/renderText'
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { rangeEnabled } from "../app/rangeFeature";
+import { LoaderCircle } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { TraderQuestBoard } from "../components/TraderQuestBoard";
 import { TraderFigure } from "../components/TraderFigure";
 import { traderPortrait } from "../data/traderPortraits";
+import { useGunsmithAccess } from "../gunsmith/useGunsmithAccess";
+import { loyaltyNumeral, traderLevelChoices, type TraderLevelInfo } from "../gunsmith/traderLevels";
 import {
   AlertTriangle,
   ArrowUpRight,
   Boxes,
   Crosshair,
+  Crown,
   Database,
   Gift,
   HardDrive,
@@ -27,11 +33,14 @@ import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
 import { EconomyTabs } from "../components/EconomyParts";
 import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats, withModePrices } from "../arsenal/ammoSource";
+import { sortAmmo, type AmmoOrder } from "../arsenal/ammoOrder";
 import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
 import { BulletDropPanel } from "../arsenal/BulletDrop";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
+import { setRaidStartNotice, useRaidStartNotice } from "../notifications/raidStartNotice";
+import { PHONE_GUNSMITH_VIEWS, PHONE_GUNSMITH_VIEW_LABELS, setPhoneGunsmithView, usePhoneGunsmithView } from "../gunsmith/phoneGunsmithView";
 
 export function EconomyPage() {
   const { data, source } = useTarkovData();
@@ -260,7 +269,31 @@ export function KeysPage() {
   );
 }
 
-/** «Баллистика 2.0» (sidebar group «Арсенал»): live tarkov.dev ammo stats, chart, armor table and drop-off. */
+const AMMO_ORDERS: readonly { key: AmmoOrder; label: string; title: string }[] = [
+  { key: "penetration", label: "Пробитие", title: "Сначала с самым большим пробитием" },
+  { key: "damage", label: "Урон", title: "Сначала с самым большим уроном" },
+  { key: "balance", label: "Баланс", title: "Сначала сильные и в уроне, и в пробитии" },
+];
+
+const BALLISTICS_TABS = [
+  // «Полигон» first, and the tab «Баллистика» opens on (owner, 23.11.2026: «Это у нас будет первая вкладка… сразу вот это
+  // открывается тир. Но с тира мы переименуем в полигон»); in test builds only (src/app/rangeFeature.ts)
+  { key: "range", label: "Полигон" },
+  { key: "scatter", label: "Пробитие и урон" },
+  { key: "drop", label: "Падение пули" },
+  { key: "armor", label: "Пробитие брони" },
+  { key: "rounds", label: "Список патронов" },
+] as const;
+type BallisticsTab = (typeof BALLISTICS_TABS)[number]["key"];
+
+// «Тир» (owner, 22.11.2026: «Тир у нас будет в баллистике»): the shooting range, in test builds only (src/app/rangeFeature.ts)
+const RangeShooting = lazy(() => import("../range/RangeShooting").then((module) => ({ default: module.RangeShooting })));
+
+/**
+ * «Баллистика» (sidebar group «Арсенал»): live ammo stats, one table at a time (owner, 06.11.2026: «переключаться между таблицами»,
+ * «не чтобы листать вниз, одну страницу»). «Пробитие и урон» first, «Список патронов» on the right, with its order by
+ * penetration, damage and balance. The round chosen in one tab is the round of the others; the tab stays in the address.
+ */
 export function AmmoPage() {
   const { data } = useTarkovData();
   const state = useAppState();
@@ -271,11 +304,22 @@ export function AmmoPage() {
     [live.data, data.items, state.raidMode],
   );
   const { colorOf, ordered } = useMemo(() => caliberColors(ammo), [ammo]);
+  const [params, setParams] = useSearchParams();
+  const shownTabs = BALLISTICS_TABS.filter((entry) => entry.key !== "range" || rangeEnabled());
+  const firstTab: BallisticsTab = shownTabs[0]?.key ?? "scatter";
+  const tab: BallisticsTab = shownTabs.find((entry) => entry.key === params.get("tab"))?.key ?? firstTab;
+  const openTab = (next: BallisticsTab) => setParams((current) => {
+    const value = new URLSearchParams(current);
+    if (next === firstTab) value.delete("tab");
+    else value.set("tab", next);
+    return value;
+  }, { replace: true });
   const [caliber, setCaliber] = useState("");
+  const [order, setOrder] = useState<AmmoOrder>("penetration");
   const [selectedId, setSelectedId] = useState<string>();
   const filtered = useMemo(
-    () => ammo.filter((round) => !caliber || round.caliber === caliber).sort((a, b) => b.penetration - a.penetration),
-    [ammo, caliber],
+    () => sortAmmo(ammo.filter((round) => !caliber || round.caliber === caliber), order),
+    [ammo, caliber, order],
   );
   const selected = filtered.find((round) => round.id === selectedId) ?? filtered[0];
   const isLive = Boolean(live.data?.length);
@@ -292,8 +336,13 @@ export function AmmoPage() {
           {uiText(isLive ? "Живые данные" : live.isLoading ? "Загрузка данных…" : "Каталог: только урон и пробитие")}
         </span>
       </header>
-      <div className="filter-row">
-        <select
+      <div className="filter-row ballistics-bar">
+        <div className="mode-switch ballistics-tabs" role="tablist" aria-label={uiLabel("Баллистика")}>
+          {shownTabs.map((entry) => (
+            <button key={entry.key} type="button" role="tab" aria-selected={tab === entry.key} className={tab === entry.key ? "active" : ""} onClick={() => openTab(entry.key)}>{uiLabel(entry.label)}</button>
+          ))}
+        </div>
+        {tab !== "range" && <select
           className="select"
           aria-label={uiText("Калибр")}
           value={caliber}
@@ -303,10 +352,16 @@ export function AmmoPage() {
           {ordered.map((entry) => (
             <option key={entry} value={entry}>{caliberLabel(entry)}</option>
           ))}
-        </select>
+        </select>}
+        {tab === "rounds" && <div className="mode-switch ammo-order" role="group" aria-label={uiLabel("Сначала")}>
+          {AMMO_ORDERS.map((entry) => (
+            <button key={entry.key} type="button" className={order === entry.key ? "active" : ""} aria-pressed={order === entry.key} title={uiLabel(entry.title)} onClick={() => setOrder(entry.key)}>{uiText(entry.label)}</button>
+          ))}
+        </div>}
       </div>
+      {tab === "range" && <Suspense fallback={<div className="panel range-loading"><LoaderCircle className="spin" size={18} /></div>}><RangeShooting /></Suspense>}
       <div className="ballistics-layout">
-        <section className="panel">
+        {tab === "scatter" && <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText("Пробитие и урон")}</div>
             <small className="dim">{filtered.length}{uiText(" патронов")}</small>
@@ -317,28 +372,33 @@ export function AmmoPage() {
             </div>
             <CaliberLegend calibers={ordered} colorOf={colorOf} active={caliber} onPick={setCaliber} />
           </div>
-        </section>
+        </section>}
         {/* «Падение пули» (owner, 17.10.2026): the game's G1 solver, up to four rounds, zeroing 50–200 m. */}
-        <section className="panel">
+        {tab === "drop" && <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText("Падение пули")}</div>
             <small className="dim">{uiText("до 600 м · сравнение до 4 патронов")}</small>
           </div>
           <div className="panel-body"><BulletDropPanel key={selected?.id} ammo={ammo} selected={selected} colorOf={colorOf} /></div>
-        </section>
-        {selected && (
+        </section>}
+        {tab === "armor" && selected && (
           <section className="panel">
             <div className="panel-header">
               <div className="panel-title selected-ammo-head">
                 <span className="swatch" style={{ background: colorOf(selected.caliber) }} />
-                {uiText("Против брони")}{" · "}{selected.shortName}
+                {uiLabel("Пробитие брони")}{" · "}{selected.shortName}
               </div>
-              <small className="dim">{caliberLabel(selected.caliber)}{" · "}{uiText("пробитие")}{" "}{selected.penetration}</small>
+              <span className="ballistics-round">
+                <small className="dim">{caliberLabel(selected.caliber)}{" · "}{uiText("пробитие")}{" "}{selected.penetration}</small>
+                <select className="select" aria-label={uiText("Патрон")} value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>
+                  {filtered.map((round) => <option key={round.id} value={round.id}>{caliberLabel(round.caliber)}{" · "}{round.shortName}</option>)}
+                </select>
+              </span>
             </div>
             <div className="panel-body"><ArmorEffectivenessTable ammo={selected} /></div>
           </section>
         )}
-        <section className="panel">
+        {tab === "rounds" && <section className="panel">
           <div className="panel-body" style={{ overflowX: "auto" }}>
             <table className="price-table ammo-table">
               <thead>
@@ -391,7 +451,7 @@ export function AmmoPage() {
               </tbody>
             </table>
           </div>
-        </section>
+        </section>}
       </div>
     </div>
   );
@@ -556,8 +616,44 @@ export function HideoutPage() {
   );
 }
 
+/** The level as in the game: I, II, III, a crown. */
+const loyaltyGlyph = (level: number) => (level >= 4 ? <Crown size={13} strokeWidth={2.5} aria-label="IV" /> : loyaltyNumeral(level));
+
+/**
+ * The loyalty badge on a trader's card (owner, 04.11.2026: «уровни лояльности торговцев менялись вручную по нажатию на каждый
+ * значок»): a click offers the levels; the choice counts everywhere the app uses the level, in this mode (gunsmith/traderLevels.ts),
+ * until «из игры» gives it back to what the app reads itself.
+ */
+function TraderLevelBadge({ info, onLevel }: { info: TraderLevelInfo; onLevel: (key: string, level: number | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", outside, true);
+    window.addEventListener("keydown", key);
+    return () => { document.removeEventListener("pointerdown", outside, true); window.removeEventListener("keydown", key); };
+  }, [open]);
+  const choose = (level: number | null) => { onLevel(info.key, level); setOpen(false); };
+  return (
+    <div className="trader-level-box" ref={root}>
+      <button type="button" className={`trader-level${info.manual !== undefined ? " is-manual" : ""}`} aria-expanded={open} aria-label={`${uiText("Изменить уровень лояльности")}: ${uiText(info.trader.name)}`} title={uiText("Изменить уровень лояльности")} onClick={() => setOpen((value) => !value)}>
+        {loyaltyGlyph(info.level)}
+      </button>
+      {open && (
+        <div className="trader-level-menu" role="radiogroup" aria-label={uiText(info.trader.name)}>
+          {traderLevelChoices(info.key).map((level) => <button type="button" key={level} role="radio" aria-checked={info.level === level} onClick={() => choose(level)}>{loyaltyGlyph(level)}</button>)}
+          {info.manual !== undefined && <button type="button" className="trader-level-auto" onClick={() => choose(null)}>{uiText("из игры")}</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TradersPage() {
   const { data } = useTarkovData();
+  const shop = useGunsmithAccess();
   // The selected trader (and the opened quest) live in the address, so «Назад» returns to the previous quest.
   const [params, setParams] = useSearchParams();
   const selectedTrader = data.traders.find((trader) => trader.id === params.get("trader")) ?? data.traders[0];
@@ -568,6 +664,7 @@ export function TradersPage() {
     if (id !== selectedId) next.delete("quest");
     return next;
   });
+  const levels = new Map(shop.infos.map((info) => [info.trader.id, info]));
   return (
     <div className="page">
       <header className="page-header">
@@ -582,26 +679,28 @@ export function TradersPage() {
       <div className="trader-top">
       <div className="trader-grid">
         {uiText(data.traders.map((trader) => (
+          <div className="trader-slot" key={trader.id}>
           <button
             className={`panel trader-card ${selectedId === trader.id ? "active" : ""}`}
-            key={trader.id}
             onClick={() => setSelectedId(trader.id)}
             aria-label={uiText(trader.name)}
             aria-pressed={selectedId === trader.id}
           >
-            <div
-              className="trader-portrait"
-              style={{ borderColor: trader.accent }}
-            >
+            <div className="trader-portrait">
               {uiText(traderPortrait(trader) ? (
                 <img src={traderPortrait(trader)} alt={uiText("")} />
               ) : (
                 trader.name[0]
               ))}
             </div>
-            <strong>{uiText(trader.name)}</strong>
-            <TraderRestockTimer trader={trader} />
+            <span className="trader-caption">
+              <strong>{uiText(trader.name)}</strong>
+              <TraderRestockTimer trader={trader} />
+            </span>
           </button>
+          {/* Owner, 04.11.2026: the level as in the game, by what the app knows of this mode. Beside the card, a button of its own. */}
+          {levels.has(trader.id) && <TraderLevelBadge info={levels.get(trader.id)!} onLevel={shop.setLevel} />}
+          </div>
         )))}
       </div>
       {selectedTrader && <TraderFigure trader={selectedTrader} />}
@@ -615,11 +714,15 @@ import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
 import { AccountDeletionPanel } from "../account/IosAccount";
-import { isAndroidApp, isDesktopShell, isIosApp, isMobileLayout } from "../platform";
+import { isAndroidApp, isDesktopShell, hidesPayments, isMobileLayout } from "../platform";
 import { BackButtonSettings } from "../mobile/backNavigation";
+import { setCurrentTasksView, useCurrentTasksView, type CurrentTasksView } from "../overview/currentTasksView";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
+import { SettingHelp } from "../components/SettingHelp";
+import { ClickVolumeSetting } from "../components/ClickVolumeSetting";
+import { FONT_SIZES, FONT_SIZE_LABELS, setFontSize, useFontSize } from "../theme/fontSize";
 import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
 
 /** «Поддержка»: the chat, a bug report with its reward, an idea, and the donation card. */
@@ -633,27 +736,182 @@ function SupportPanel() {
         <div className="setting-row">
           <span>
             {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-            <strong>{uiText("Нашли ошибку или есть вопрос?")} {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
-            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!isIosApp() && <> {uiText(REWARD_NOTE)}</>}</small>
+            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!hidesPayments() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+2 дня за ошибку")}</span>}</strong>
+            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!hidesPayments() && <> {uiText(REWARD_NOTE)}</>}</small>
           </span>
         </div>
         <div className="support-row"><SupportButtons variant="panel" /></div>
         {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
-        {!isIosApp() && <div className="support-row"><DonateCard /></div>}
+        {!hidesPayments() && <div className="support-row"><DonateCard /></div>}
       </div>
     </section>
   );
 }
 
+/** «Оружейник» on the phone (owner, 16.11.2026): a part opens as a window with «Назад» or unfolds under its row. */
+function PhoneGunsmithSetting() {
+  const view = usePhoneGunsmithView();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Квест оружейника")}<SettingHelp id="phoneGunsmithView" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Квест оружейника")}>
+        {PHONE_GUNSMITH_VIEWS.map((id) => <button type="button" role="radio" aria-checked={view === id} key={id} className={view === id ? "active" : ""} onClick={() => setPhoneGunsmithView(id)}>{uiText(PHONE_GUNSMITH_VIEW_LABELS[id])}</button>)}
+      </div>
+    </div>
+  );
+}
+
+/** «Размер шрифта» (owner, 21.11.2026): the standard text or a little larger, on this device (src/theme/fontSize.ts). */
+function FontSizeSetting() {
+  const size = useFontSize();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Размер шрифта")}<SettingHelp id="fontSize" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Размер шрифта")}>
+        {FONT_SIZES.map((id) => <button type="button" role="radio" aria-checked={size === id} key={id} className={size === id ? "active" : ""} onClick={() => setFontSize(id)}>{uiText(FONT_SIZE_LABELS[id])}</button>)}
+      </div>
+    </div>
+  );
+}
+
+function CurrentTasksViewSetting() {
+  const view = useCurrentTasksView();
+  const choices: Array<[CurrentTasksView, string]> = [["expand", "Разворачивать список"], ["scroll", "Прокручивать список"]];
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Текущие задания")}<SettingHelp id="currentTasksView" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Текущие задания")}>
+        {choices.map(([id, name]) => <button type="button" role="radio" aria-checked={view === id} key={id} className={view === id ? "active" : ""} onClick={() => setCurrentTasksView(id)}>{uiText(name)}</button>)}
+      </div>
+    </div>
+  );
+}
+
+/** «Перемещать карту к точке» (report 143): whether the map flies to a picked point (src/maps/mapFollowSetting.ts). */
+function MapFollowSetting() {
+  const follow = useMapFollowEnabled();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Перемещать карту к точке")}<SettingHelp id="mapFollow" /></strong>
+        <small>{uiText("При нажатии на метку и после галочки в квесте")}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={follow}
+        aria-label={uiText("Перемещать карту к точке")}
+        className={`toggle ${follow ? "on" : ""}`}
+        onClick={() => setMapFollowEnabled(!follow)}
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+
+/** «Рейд начался» (owner, 15.11.2026): the small card when the raid itself begins (src/notifications/RaidStartNotifier.tsx). */
+function RaidStartSetting() {
+  const on = useRaidStartNotice();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Уведомление о начале рейда")}<SettingHelp id="raidStartNotice" /></strong>
+        <small>{uiText("Когда загрузка закончилась и рейд начался")}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={uiText("Уведомление о начале рейда")}
+        className={`toggle ${on ? "on" : ""}`}
+        onClick={() => setRaidStartNotice(!on)}
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+
 export function SettingsPage() {
-  const { data, source } = useTarkovData();
+  const { source } = useTarkovData();
   const { updatedAt } = useTarkovDataStatus();
-  const state = useAppState();
   const { locale, setLocale } = useLocale();
   const raidSmoke = useRaidSmokeEnabled();
-  const counts = data.metadata?.counts;
   const raidTools = hasRaidTools();
   const support = <SupportPanel />;
+  const interfacePanel = (
+    <section className="panel">
+      <div className="panel-header">
+        <div className="panel-title">{uiText("Интерфейс")}</div>
+      </div>
+      <div className="panel-body">
+        <div className="setting-row">
+          <span>
+            <strong>{uiText("Дым за боссами")}<SettingHelp id="raidSmoke" /></strong>
+            <small>{uiText("Сигнальный дым в карточке рейда на обзоре")}</small>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={raidSmoke}
+            aria-label={uiText("Дым за боссами")}
+            className={`toggle ${raidSmoke ? "on" : ""}`}
+            onClick={() => setRaidSmokeEnabled(!raidSmoke)}
+          >
+            <span />
+          </button>
+        </div>
+        {/* The colour scheme and the language are in the top bar on the PC (owner, 28.10.2026: «убери из настроек, у нас
+            есть наверху»); the phone keeps them here. */}
+        {isMobileLayout() && <ThemePicker />}
+        {isMobileLayout() && <div className="setting-row">
+          <span>
+            <strong>{uiText("Язык интерфейса")}<SettingHelp id="language" /></strong>
+            <small>{uiText("Первая версия")}</small>
+          </span>
+          <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
+        </div>}
+        <MapFollowSetting />
+        <RaidStartSetting />
+        <FontSizeSetting />
+        <ClickVolumeSetting />
+        {!isMobileLayout() && <CurrentTasksViewSetting />}
+        <GuideReplaySetting />
+        {isMobileLayout() && <BackButtonSettings />}
+        {isMobileLayout() && <PhoneGunsmithSetting />}
+      </div>
+    </section>
+  );
+  const dataPanel = (
+    <section className="panel">
+      <div className="panel-header">
+        {/* uiLabel: «Данные» is also the short name of a game item, which read «PMC» in English. */}
+        <div className="panel-title">{uiLabel("Данные")}</div>
+      </div>
+      <div className="panel-body">
+        {/* No «Каталог» counts row (owner, 28.10.2026: «удали строку каталог… задания, предметы, карты»). */}
+        {/* iPhone: no app update in the app (owner, 17.10.2026: «функции автообновления на айфоне не будет, на андроиде да»). */}
+        {isAndroidApp() ? <AndroidUpdateSettings /> : isDesktopShell() ? <AppUpdateSettings /> : null}
+      </div>
+    </section>
+  );
+  const restockPanel = (
+    <section className="panel">
+      <div className="panel-header">
+        <div className="panel-title">{uiText("Ресток торговцев")}</div>
+      </div>
+      <div className="panel-body">
+        <RestockSettingsPanel />
+      </div>
+    </section>
+  );
   return (
     <div className="page">
       <header className="page-header">
@@ -667,77 +925,12 @@ export function SettingsPage() {
           {uiText(source === "demo" ? "Демо-режим" : `Данные ${timeAgo(updatedAt)}`)}
         </span>
       </header>
-      {/* The PC app: the item key and the position, the settings of the former «Мини Карта» page (owner, 15.10.2026).
-          «Поддержка» stands there beside «Клавиши» (owner, 15.10.2026); elsewhere (site, phone) it stays in the grid below. */}
-      <RaidToolsSettings support={raidTools ? support : undefined} />
-      <div className="settings-grid">
-        <section className="panel">
-          <div className="panel-header">
-            <div className="panel-title">{uiText("Интерфейс")}</div>
-          </div>
-          <div className="panel-body">
-            <div className="setting-row">
-              <span>
-                <strong>{uiText("Дым за боссами")}</strong>
-                <small>{uiText("Сигнальный дым в карточке рейда на обзоре")}</small>
-              </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={raidSmoke}
-                aria-label={uiText("Дым за боссами")}
-                className={`toggle ${raidSmoke ? "on" : ""}`}
-                onClick={() => setRaidSmokeEnabled(!raidSmoke)}
-              >
-                <span />
-              </button>
-            </div>
-            <ThemePicker />
-            <div className="setting-row">
-              <span>
-                <strong>{uiText("Язык интерфейса")}</strong>
-                <small>{uiText("Первая версия")}</small>
-              </span>
-              <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
-            </div>
-            <GuideReplaySetting />
-            {isMobileLayout() && <BackButtonSettings />}
-          </div>
-        </section>
-        {!raidTools && support}
-        <section className="panel">
-          <div className="panel-header">
-            {/* uiLabel: «Данные» is also the short name of a game item, which read «PMC» in English. */}
-            <div className="panel-title">{uiLabel("Данные")}</div>
-          </div>
-          <div className="panel-body">
-            {uiText(counts && (
-              <div className="setting-row">
-                <span>
-                  <strong>{uiText("Каталог")}</strong>
-                  <small>
-                    {uiText(counts.quests.toLocaleString("ru-RU"))}{uiText(" заданий ·")}{uiText(" ")}
-                    {uiText(counts.items.toLocaleString("ru-RU"))}{uiText(" предметов ·")}{uiText(" ")}
-                    {uiText(counts.maps.toLocaleString("ru-RU"))}{uiText(" карт ")}</small>
-                </span>
-                <span className="tag brass">
-                  {uiText(state.raidMode.toUpperCase())}
-                </span>
-              </div>
-            ))}
-            {/* iPhone: no app update in the app (owner, 17.10.2026: «функции автообновления на айфоне не будет, на андроиде да»). */}
-            {isAndroidApp() ? <AndroidUpdateSettings /> : isDesktopShell() ? <AppUpdateSettings /> : null}
-          </div>
-        </section>
-        <section className="panel">
-          <div className="panel-header">
-            <div className="panel-title">{uiText("Ресток торговцев")}</div>
-          </div>
-          <div className="panel-body">
-            <RestockSettingsPanel />
-          </div>
-        </section>
-      </div>
+      {/* The PC app: the item key and the position, the settings of the former «Мини Карта» page (owner, 15.10.2026), and
+          the rest continues its two columns: «Поддержка», «Данные» and «Ресток торговцев» one under the other on the right
+          (owner, 04.11.2026), with no gap under the shorter one. Elsewhere (site, phone) one grid of the same panels. */}
+      {raidTools
+        ? <RaidToolsSettings left={interfacePanel} right={<>{support}{dataPanel}{restockPanel}</>} />
+        : <div className="settings-grid">{interfacePanel}{support}{dataPanel}{restockPanel}</div>}
       {/* The phone always talks to raidos.app (owner, 13.10.2026: «убрать в настройках адрес сервера»); a QR sign-in from
           the desktop app still brings its own server along (mobile/DeepLinkLogin.tsx). */}
       {usesWebAccount() && (

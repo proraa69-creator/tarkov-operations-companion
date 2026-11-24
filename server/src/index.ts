@@ -13,14 +13,10 @@ import { EmailAuthService } from './services/emailAuth.js'
 import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './services/email/index.js'
 import { bugReportEmailFromEnv } from './services/bugReportMail.js'
 import { dirname, join } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { MobileDownloads } from './services/mobileDownloads.js'
-import { MapMirror } from './services/mapMirror.js'
+import { iphoneStoreReader } from './services/iphoneStore.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
-import { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
-import { PriceHistoryMirror } from './services/priceHistoryMirror.js'
-import { TarkovDataMirror, type MirrorMode } from './services/tarkovDataMirror.js'
-import { PriceMirror } from './services/priceMirror.js'
 import { DataGateway } from './services/dataGateway.js'
 import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
@@ -28,12 +24,11 @@ import { configureCatalogMirror, configureEventQuests, configureGuideImages, con
 import { EventQuestStore } from './services/eventQuestStore.js'
 import { GuideImageMirror } from './services/guideImages.js'
 import { questBasePeriodMs } from './services/questBase.js'
-import { BoostyPayments } from './services/boosty.js'
-import { BoostyClient, BoostyCredentialStore, BoostyTokenStore, boostyCredentialsFromEnv, boostyPeriodMs, type BoostyCredentials } from './services/boostyClient.js'
-import { BoostySync } from './services/boostySync.js'
 import { BezebeeCredentialStore } from './services/bezebeeWebhook.js'
-import type { RaidMode } from '../../src/domain/types'
 import { OnlineStatsStore, ONLINE_SAMPLE_MS } from './services/onlineStatsStore.js'
+import { BackgroundStatusReader, backgroundModeFromEnv, backgroundPaths, createMirrorJobs, requestQuestBaseBuild, startMirrorJobs, stopMirrorJobs } from './services/background.js'
+import { fetchLiveVersion, startReleaseReports, type ReleaseReportsWiring } from './services/releaseReports.js'
+import UPDATE_HISTORY from '../../src/data/updateHistory.json'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
 installProcessGuards()
@@ -42,8 +37,9 @@ installProcessGuards()
 const dbPath = resolveDbPath()
 const db = openDatabase(dbPath)
 const store = new ProgressStore(db)
-// The streamer programme is paused (owner, 09.10.2026): a streamer's code gives no free days.
-const accounts = new AccountStore({ db, streamerTrial: false })
+// The streamer programme is paused (owner, 09.10.2026): a streamer's code gives no free days. The free days count from
+// the first raid (owner, 08.11.2026: «все последующие, кто будут регистрироваться, у них должна быть такая же система»).
+const accounts = new AccountStore({ db, streamerTrial: false, trialFromFirstRaid: true })
 const payments = new PaymentStore(db, paymentConfigFromEnv())
 accounts.attachSubscriptions(payments)
 // Server-owned online history: one sample a minute, whether or not an admin panel is open.
@@ -71,18 +67,9 @@ setInterval(runAutoPayouts, 60 * 60 * 1000).unref()
 const runRecurring = () => { payments.runRecurring().catch((error: unknown) => console.error('Autopayment run failed', error instanceof Error ? error.message : 'unknown error')) }
 runRecurring()
 setInterval(runRecurring, 60 * 60 * 1000).unref()
-// Boosty (CIS / WORLD): links, issuance and the owner's review list. The automatic issuance through Boosty's unofficial
-// API runs only with BOOSTY_AUTH + BOOSTY_CLIENT_ID (aliases: BOOSTY_AUTH_JSON, BOOSTY_DEVICE_ID, BOOSTY_CLIENTID);
-// the refreshed tokens live next to the database (boosty-tokens.json, mode 600). Without them nothing calls Boosty.
-const boosty = new BoostyPayments(accounts, payments, invites, { levelMap: process.env.BOOSTY_LEVEL_MAP, ...(process.env.BOOSTY_WORLD_PRICE_RUB ? { worldPriceRub: Number(process.env.BOOSTY_WORLD_PRICE_RUB) } : {}) })
-// A session the owner pasted in the panel («Токен Boosty», boosty-credentials.json, mode 600) wins over the environment.
-const boostyBlog = boostyCredentialsFromEnv({ ...process.env, BOOSTY_AUTH: 'x', BOOSTY_CLIENT_ID: 'x' })!.blog
-const boostyCredentialStore = new BoostyCredentialStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-credentials.json'))
-const connectBoosty = (credentials: BoostyCredentials) => new BoostySync(boosty, new BoostyClient(credentials, new BoostyTokenStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-tokens.json'))), { periodMs: boostyPeriodMs(process.env.BOOSTY_SYNC_MINUTES) })
-const boostyCredentials = boostyCredentialStore.load(boostyBlog) ?? boostyCredentialsFromEnv()
-const boostySync = boostyCredentials ? connectBoosty(boostyCredentials) : undefined
-boostySync?.start()
-const boostySession = { blog: boostyBlog, save: (credentials: BoostyCredentials) => boostyCredentialStore.save(credentials), connect: connectBoosty }
+// Boosty is gone (owner, 03.11.2026: «все что связано с бусти удаляй, с ними мы больше не работаем»): the Boosty sessions
+// an older server kept next to the database go too (its tables: PaymentStore, removeBoosty).
+if (dbPath !== ':memory:') for (const name of ['boosty-tokens.json', 'boosty-credentials.json']) rmSync(join(dirname(dbPath), name), { force: true })
 // SMS one-time codes (phone binding, sign-in and password reset by phone): only with a provider set in the owner's app.
 const smsConfig = smsConfigFromEnv()
 const phones = new PhoneAuthService(accounts, { sender: smsConfig ? createSmsSender(smsConfig) : undefined, limits: smsLimitsFromEnv() })
@@ -113,38 +100,49 @@ const guideImages = mirrorEnabled ? new GuideImageMirror({
   log: (message) => console.log(message),
 }) : undefined
 configureGuideImages(guideImages)
+// «Фото мест»: every quest photo of the lists kept on our server ahead of the players (GuideImageMirror.storeListed) — a
+// minute after the start, then every 6 hours for one that failed; a line when something was downloaded or failed.
+if (guideImages) {
+  let first = true
+  const storeGuidePhotos = () => guideImages.storeListed().then((result) => {
+    if (first || result.downloaded || result.failed) console.log(`Quest photos on the server: ${result.listed} listed, ${result.stored} stored before, ${result.downloaded} downloaded, ${result.failed} failed`)
+    first = false
+  }, (error: unknown) => console.error('Quest photos failed', error instanceof Error ? error.message : 'unknown error'))
+  setTimeout(() => void storeGuidePhotos(), 60_000).unref()
+  setInterval(() => void storeGuidePhotos(), 6 * 60 * 60 * 1000).unref()
+}
+// The background work (datasets, prices, maps, price history, «Торговля», legacy GraphQL, quest base builds): here, or
+// with RAIDOS_BACKGROUND=external in the worker on its own core (src/worker.ts, services/background.ts). Not on a
+// server without a database file.
+const background = dbPath === ':memory:' ? 'inline' : backgroundModeFromEnv()
+const backgroundFiles = backgroundPaths(dirname(dbPath))
 // «Одна общая база квестов» (owner, 14.10.2026): every mode's catalog in Russian and English, built every
 // RAIDOS_QUEST_BASE_MINUTES (30) and after each new tarkov.dev download, kept next to the database and read back at once
-// after a restart (services/questBase.ts). The players' apps get it from there; nothing is built per request.
+// after a restart (services/questBase.ts). The players' apps get it from there; nothing is built per request. With the
+// worker the API only reads what the worker saves there, and asks it for a build when the owner edits an event quest.
 const questBase = configureQuestBase({
   dir: dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'quest-base'),
   periodMs: questBasePeriodMs(process.env.RAIDOS_QUEST_BASE_MINUTES),
   app: { version: process.env.TARKOV_APP_VERSION, build: Number(process.env.TARKOV_APP_BUILD) || undefined, commit: process.env.TARKOV_APP_COMMIT },
   log: (message) => console.log(message),
+  ...(background === 'external' ? {
+    follow: {
+      requestBuild: (modes) => {
+        requestQuestBaseBuild(backgroundFiles.buildRequest, modes).catch((error: unknown) => console.error('Quest base build request failed', error instanceof Error ? error.message : 'unknown error'))
+      },
+    },
+  } : {}),
 })
 // «Ивент-квесты» (routes/eventQuests.ts): every build adds them; a saved change asks for a new build.
 const eventQuests = new EventQuestStore(db)
 configureEventQuests(() => eventQuests.list())
-const QUEST_BASE_MODE: Record<MirrorMode, RaidMode> = { regular: 'pvp', pve: 'pve', 'pvp-season': 'seasonal' }
-const dataMirror = mirrorStorage ? new TarkovDataMirror({
-  storage: mirrorStorage,
-  log: (message) => console.log(message),
-  onPublished: (modes) => questBase.mirrorUpdated(modes.map((mode) => QUEST_BASE_MODE[mode])),
-}) : undefined
-const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
-const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
-  // Keep the existing layout: maps.json at the mirror root, tiles below root/maps/*.
-  ? new MapMirror({ dir: mirrorRoot, storage: mirrorStorage, log: (message) => console.log(message) })
-  : undefined
-mapMirror?.start()
+const jobs = createMirrorJobs({ storage: mirrorStorage, mirrorRoot, maps: mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0', questBase })
+const { dataMirror, priceMirror, mapMirror, priceHistory, tradingStats, legacyGraphql } = jobs
 void questBase.start()
-dataMirror?.start()
-priceMirror?.start()
-const priceHistory = mirrorStorage ? new PriceHistoryMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
-priceHistory?.start()
+if (background === 'inline') startMirrorJobs(jobs)
+// The owner's views of the work the worker does: its status file, read every few seconds.
+const backgroundStatus = background === 'external' ? new BackgroundStatusReader(backgroundFiles.status).start() : undefined
 const data = new DataGateway({ mirror: mirrorStorage, strict: process.env.RAIDOS_DATA_STRICT === '1', priceHistory })
-const legacyGraphql = mirrorStorage ? new LegacyGraphqlBuilder({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
-legacyGraphql?.start()
 // Photos of the quest constructor's points (owner app): files next to the database, never in the repository.
 const questPointPhotoDir = dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'quest-point-photos')
 // The phone apps from GitHub releases, served from the site (services/mobileDownloads.ts); RAIDOS_MOBILE_DOWNLOADS=0 turns it off.
@@ -158,13 +156,22 @@ if (mobileDownloads) {
 // (bezebee-credentials.json, mode 600) or BEZEBEE_API_TOKEN / BEZEBEE_WEBHOOK_SECRET (services/bezebeeWebhook.ts).
 const bezebeeCredentials = new BezebeeCredentialStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'bezebee-credentials.json'), { apiToken: process.env.BEZEBEE_API_TOKEN?.trim() || undefined, webhookSecret: process.env.BEZEBEE_WEBHOOK_SECRET?.trim() || undefined })
 const bezebeeUsdRub = Number(process.env.BEZEBEE_USD_RUB) > 0 ? Number(process.env.BEZEBEE_USD_RUB) : undefined
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, boosty, boostySync, boostySession, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+// A report the owner took closes by itself once the release that lists it is live (services/releaseReports.ts). Not on the
+// owner's own PC: its database is not the players' one.
+const releaseReports = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION === 'owner' ? undefined : (wiring: ReleaseReportsWiring) => {
+  startReleaseReports({ ...wiring, history: UPDATE_HISTORY, liveVersion: () => fetchLiveVersion(process.env.TARKOV_PUBLIC_URL || 'https://raidos.app'), log: (line) => console.log(line) })
+}
+// The App Store switch for the iPhone app's «Обновить» (services/iphoneStore.ts): a JSON file beside the database.
+const iphoneStore = dbPath === ':memory:' ? undefined : iphoneStoreReader(process.env.RAIDOS_IPHONE_STORE_FILE ?? join(dirname(dbPath), 'iphone-store.json'))
+// «Кочевники» from other trackers beside ours (services/goonFeeds.ts): only on the players' server, never the owner's PC.
+const goonFeeds = dbPath !== ':memory:' && process.env.TARKOV_APP_EDITION !== 'owner' && process.env.RAIDOS_GOON_FEEDS !== '0'
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), goonFeeds, userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, ...(backgroundStatus ? { backgroundStatus: backgroundStatus.sources() } : {}), itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase: backgroundStatus ? { report: () => backgroundStatus.questBase() ?? questBase.report() } : questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
-const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
+const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; background ${background === 'external' ? 'in the worker' : 'here'}; payments ${payments.enabled ? 'on' : 'off'}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => {
   clearInterval(onlineTimer)
-  mapMirror?.stop(); dataMirror?.stop(); priceMirror?.stop(); legacyGraphql?.stop(); priceHistory?.stop(); questBase.stop()
+  stopMirrorJobs(jobs); backgroundStatus?.stop(); questBase.stop()
   listener.close(() => { db.close(); process.exit(0) })
 })

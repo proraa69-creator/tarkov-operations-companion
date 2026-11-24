@@ -23,8 +23,8 @@
 
 /* Weapon index */
 .wb-index { display: flex; flex-direction: column; gap: 4px; max-height: min(640px, calc(100vh - var(--topbar) - 160px)); padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
-.wb-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin: 4px 0 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-0); }
-.wb-segment button { min-height: 26px; border: 0; border-radius: 5px; background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 750; cursor: pointer; }
+.wb-segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin: 4px 0 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-0); }
+.wb-segment button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 26px; border: 0; border-radius: 5px; background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 750; cursor: pointer; }
 .wb-segment button.is-active { background: var(--surf-2); color: var(--brass-strong); }
 .wb-index-group { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
 .wb-index-group h3 { display: flex; align-items: center; gap: 7px; margin: 4px 6px; color: var(--text); font-size: 11px; font-weight: 850; letter-spacing: .06em; }
@@ -185,9 +185,15 @@
 /* «заменит: …» — a part that conflicts with installed ones takes them off when picked (owner, 20.10.2026) */
 .wb-option-replaces { color: var(--amber); font-size: 11px; }
 .wb-picker-note { margin: 6px 0 0; color: var(--text-dim); font-size: 11.5px; line-height: 1.35; }
+.wb-kit-icons { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; width: 52px; }
+.wb-kit-icons .gb-icon { width: 52px; height: 18px; object-fit: contain; }
 .wb-option-price { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 12px; white-space: nowrap; }
 .wb-option-price strong { color: var(--text); font-variant-numeric: tabular-nums; }
 .wb-option-price small { color: var(--text-dim); font-size: 10.5px; }
+.wb-option.is-locked :is(img, .wb-option-text) { opacity: .6; }
+.wb-part-lock { display: inline-flex; align-items: center; gap: 4px; max-width: 150px; overflow: hidden; color: var(--brass); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.wb-part-lock svg { flex: none; }
+.wb-picker-closed { color: var(--text-dim); }
 .wb-none { margin: 12px; font-size: 12px; }
 
 .wb-saved-hint { margin: 0 14px 8px; padding: 9px 11px; border-left: 2px solid var(--brass); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--surf-1); color: var(--text-muted); font-size: 12px; line-height: 1.45; }
@@ -216,14 +222,16 @@
 }
 
 /* «Мои сборки» / «Топ сборок» (owner, 17.10.2026). */
-.wb-side-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 10px 10px 8px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surf-1); }
+.wb-side-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 10px 10px 8px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surf-1); }
 .wb-side-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--text-muted); font-weight: 700; font-size: 12px; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
 .wb-side-tabs button.active { background: var(--surf-3, var(--surf-2)); color: var(--text); }
-.wb-top-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 10px 8px; }
-.wb-top-switch { flex: 1 1 auto; }
-.wb-top-switch button { flex: 1; white-space: nowrap; }
 .wb-top-rank { flex: none; width: 20px; color: var(--brass-strong); font-weight: 800; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
 .wb-like { display: inline-flex; flex: none; align-items: center; gap: 4px; min-width: 46px; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; transition: border-color 160ms ease, color 160ms ease; }
+/* «Сборки игроков»: the price of the mods in a column of its own, and the place of the bin kept where a row has none. */
+.wb-saved-open .wb-top-name { flex: 1; }
+.wb-saved-open .wb-top-cost { flex: none; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.wb-saved-open .wb-top-cost strong { color: var(--brass); }
+.wb-top-gap { flex: none; width: 38px; }
 .wb-like.is-liked { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
 .wb-like.is-liked svg { fill: currentColor; }
 .wb-like:disabled { cursor: default; opacity: .75; }
@@ -235,13 +243,18 @@
 .wb-auto { margin: 0 0 4px; }
 .wb-auto h4, .wb-auto-head { display: flex; align-items: center; gap: 6px; margin: 4px 14px 6px; color: var(--text-dim); font-size: 10.5px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
 .wb-auto-head { margin-top: 8px; }
-.wb-auto-tier { flex: none; min-width: 78px; padding: 3px 7px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 11px; font-weight: 800; text-align: center; }
-.wb-auto-tier.is-budget { color: var(--text-muted); }
-.wb-auto-tier.is-middle { border-color: color-mix(in srgb, var(--brass) 40%, var(--line)); color: var(--brass); }
-.wb-auto-tier.is-top { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass); }
+/* One frame for all three, and one width, so what stands beside them starts level (owner, 06.11.2026: «ровно стоять»). */
+.wb-auto-tier { flex: none; box-sizing: border-box; width: 152px; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--brass) 40%, var(--line)); border-radius: var(--radius-sm); color: var(--brass); font-size: 11px; font-weight: 800; text-align: center; white-space: nowrap; }
 
 /* «Торговцы»: each trader's loyalty for prices, «Можно купить» and the ready-made builds. */
 .wb-traders { position: relative; }
+/* «Цена оружия» right of «Торговцы» (owner, 17.11.2026): the gun's own price in the total, off by default. */
+.wb-gun-price-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text-muted); font-size: 12.5px; font-weight: 700; cursor: pointer; user-select: none; transition: border-color .18s ease, color .18s ease, background-color .18s ease; }
+.wb-gun-price-toggle:hover { border-color: var(--line-strong, var(--line)); color: var(--text); }
+.wb-gun-price-toggle.is-on { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); background: color-mix(in srgb, var(--brass) 10%, transparent); color: var(--text); }
+.wb-gun-price-toggle input { width: 14px; height: 14px; margin: 0; accent-color: var(--brass); cursor: pointer; }
+.wb-buy-gun td { animation: wb-pop 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.wb-buy-gun.is-bad td:nth-child(2) { color: var(--danger, #bd6d60); }
 .wb-traders > .button { gap: 6px; }
 .wb-traders-panel { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 320px; padding: 12px; border: 1px solid var(--line-strong, var(--line)); border-radius: var(--radius-md); background: var(--panel, #151a17); box-shadow: 0 18px 40px rgba(0, 0, 0, .55); transform-origin: top left; animation: wb-pop 160ms cubic-bezier(0.23, 1, 0.32, 1); }
 .wb-traders-panel .wb-note { margin: 0 0 8px; }
@@ -254,83 +267,166 @@
 .wb-trader-auto { justify-self: end; padding: 0; border: 0; background: none; color: var(--text-dim); font-size: 10.5px; cursor: pointer; }
 button.wb-trader-auto { color: var(--brass); }
 @media (prefers-reduced-motion: reduce) { .wb-traders-panel { animation: none; } }
+/* «Выберите патрон»: a small flat note under the empty round cell (owner, 28.10.2026). */
+.wb-ammo-hint { display: block; width: 100%; margin-top: 4px; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--brass) 55%, var(--line)); border-radius: 6px; background: color-mix(in srgb, var(--brass) 14%, var(--panel)); color: var(--text); font: inherit; font-size: 11px; font-weight: 650; text-align: center; cursor: pointer; animation: wb-ammo-hint-in .25s var(--ease-out, ease-out) both; }
+@keyframes wb-ammo-hint-in { from { opacity: 0; transform: translateY(-3px); } }
 
-/* ---------- Phone (owner, 21.10.2026: «сделай сборку оружия более удобную в приложении сделай картинки больше») ----------
-   The weapon large on top with four numbers; the slots as rows («Список»), tiles («Плитки») or the PC board with bigger
-   cells («Схема»); a tap on a slot opens the modules as a sheet over the weapon. */
-.wb-phone-hero { display: grid; gap: 10px; padding: 10px 0 12px; border-bottom: 1px solid var(--line); }
-.wb-phone-hero-picture { display: flex; align-items: center; justify-content: center; height: 136px; border: 1px solid var(--line); border-radius: var(--radius-md); background: radial-gradient(ellipse at 50% 55%, #1f2823 0%, #101412 75%); }
-.wb-phone-hero-picture img { max-width: 92%; max-height: 120px; object-fit: contain; filter: drop-shadow(0 6px 12px rgb(0 0 0 / 55%)); }
-.wb-phone-hero-name strong { display: block; font-size: 16px; line-height: 1.25; }
-.wb-phone-hero-name small { color: var(--text-dim); font-size: 12px; }
-.wb-phone-numbers { display: grid; grid-template-columns: repeat(3, minmax(0, .8fr)) minmax(0, 1.3fr); gap: 6px; }
-/* The hint under the title is the PC's; on a phone the weapon comes first. */
-:root[data-layout='mobile'] .weapon-builds .page-subtitle { display: none; }
-.wb-phone-numbers > span { display: flex; min-width: 0; flex-direction: column; gap: 1px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
-.wb-phone-numbers small { color: var(--text-dim); font-size: 10.5px; }
-.wb-phone-numbers strong { font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.wb-phone-numbers .wb-delta { font-size: 11px; }
-.wb-phone-numbers .is-total { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); }
-.wb-phone-numbers .is-total strong { overflow: hidden; color: var(--brass-strong); font-size: 14px; text-overflow: ellipsis; }
-.wb-phone-view { grid-template-columns: repeat(3, 1fr); margin: 0; }
-.wb-phone-view button { min-height: 34px; font-size: 13px; }
+/* «Избранные» (WeaponBuildsPage FavoriteWeapons): the weapons, one open at a time; its builds slide out and push the rest down. */
+.wb-favorites { display: grid; gap: 4px; margin: 0; padding: 8px; overflow-y: auto; list-style: none; }
+.wb-favorite { border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--surf-1) 70%, transparent); }
+.wb-favorite.is-open { border-color: var(--line-strong); }
+.wb-favorite-weapon { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; width: 100%; padding: 6px 10px 6px 6px; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.wb-favorite-weapon span { display: grid; gap: 2px; min-width: 0; }
+.wb-favorite-weapon strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.wb-favorite-weapon small { color: var(--text-dim); font-size: 11px; }
+.wb-favorite-star { color: var(--brass-strong); }
+.wb-favorite-chevron { color: var(--text-dim); transition: rotate .3s cubic-bezier(.22, 1, .36, 1); }
+.wb-favorite.is-open .wb-favorite-chevron { rotate: 180deg; }
+.wb-favorite-builds { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .36s cubic-bezier(.22, 1, .36, 1); }
+.wb-favorite.is-open .wb-favorite-builds { grid-template-rows: 1fr; }
+.wb-favorite-builds > ul { min-height: 0; overflow: hidden; display: grid; gap: 2px; margin: 0; padding: 0 6px; list-style: none; }
+.wb-favorite.is-open .wb-favorite-builds > ul { padding-bottom: 6px; }
+.wb-favorite-builds li { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 2px 2px 2px 8px; border-radius: 8px; }
+.wb-favorite-builds li.is-current { background: color-mix(in srgb, var(--brass) 12%, transparent); }
+.wb-favorite-builds .wb-saved-open { flex: 1; min-width: 0; }
+.wb-favorite-builds .icon-button { width: 28px; height: 28px; flex: none; }
+.wb-favorite-builds .icon-button.is-starred { color: var(--brass-strong); }
+.wb-favorite-rename { display: flex; flex: 1; gap: 4px; min-width: 0; }
+.wb-favorite-rename .input { flex: 1; min-width: 0; height: 30px; }
+@media (prefers-reduced-motion: reduce) { .wb-favorite-builds, .wb-favorite-chevron { transition: none; } }
 
-/* A slot on a phone: its part's picture large, the slot's name over the part's. */
-.wb-pslot { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px;
-  background: linear-gradient(180deg, #1b221e, #141917); color: var(--text-muted); font: inherit; text-align: left; cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease, transform 100ms ease; }
-.wb-pslot:active { transform: scale(.985); }
-.wb-pslot.is-selected { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; background: #241e12; }
-.wb-pslot:not(.is-filled) { border-style: dashed; background: #121614; }
-.wb-pslot.is-missing { border-color: color-mix(in srgb, var(--danger) 70%, transparent); }
-.wb-pslot-picture { display: flex; flex: none; align-items: center; justify-content: center; width: 96px; height: 64px; overflow: hidden; border-radius: 7px; background: radial-gradient(ellipse at 50% 55%, #34403a 0%, #1a201c 85%); }
-.wb-pslot-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 6px rgb(0 0 0 / 50%)); }
-.wb-pslot-picture .wb-slot-picture { width: 100%; height: 100%; object-fit: cover; opacity: .55; }
-.wb-pslot-picture .wb-silhouette { width: 60px; height: 30px; opacity: .3; }
-.wb-pslot-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
-.wb-pslot-text small { display: inline-flex; align-items: center; gap: 5px; overflow: hidden; color: var(--brass); font-size: 10.5px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
-.wb-pslot.is-missing .wb-pslot-text small { color: var(--danger); }
-.wb-pslot-text strong { overflow: hidden; color: var(--text); font-size: 14px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.wb-pslot:not(.is-filled) .wb-pslot-text strong { color: var(--text-dim); font-weight: 650; }
-.wb-pslot-stats { display: flex; flex-wrap: wrap; gap: 2px 9px; font-size: 11.5px; font-weight: 750; font-variant-numeric: tabular-nums; }
-.wb-pslot-stats span { display: inline-flex; align-items: center; gap: 3px; }
-.wb-pslot-stats .is-good { color: var(--success); }
-.wb-pslot-stats .is-bad { color: var(--danger); }
-.wb-pslot-stats .is-info { color: var(--brass-strong); }
-.wb-pslot-go { flex: none; color: var(--text-dim); }
+/* The build drawn from the game's part pictures with small cells around it at their places (src/arsenal/BuildStage.tsx). */
+.wb-stage-scroll { position: relative; margin-top: 10px; padding: 38px 12px 12px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: radial-gradient(ellipse at 50% 50%, #1a231e 0%, #101412 72%); }
+.wb-stage-label { position: absolute; top: 8px; left: 12px; z-index: 1; display: flex; align-items: baseline; gap: 8px; pointer-events: none; }
+.wb-stage-label strong { color: var(--text-dim); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.wb-stage-label span { color: var(--brass-strong); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.build-stage { position: relative; width: 100%; }
+.build-stage-picture { position: absolute; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .55)); pointer-events: none; }
+.build-stage-lines { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.build-stage-lines line { stroke: color-mix(in srgb, var(--brass) 16%, transparent); stroke-width: 1; }
+.build-stage-lines circle { fill: color-mix(in srgb, var(--brass) 32%, transparent); }
+.build-stage-lines .is-selected line { stroke: color-mix(in srgb, var(--brass-strong) 75%, transparent); stroke-width: 1.4; }
+.build-stage-lines .is-selected circle { fill: var(--brass-strong); }
+.build-stage .wb-cell { z-index: 1; padding-top: 10px; }
+.build-stage .wb-cell-name { font-size: 8px; }
+.build-stage .wb-cell-slot { font-size: 7px; }
+/* the phone: the module's picture over the whole cell, its name laid over the bottom (owner, 22.11.2026: «картинки модулей по
+   прежнему маленькие» — a tall part, a magazine or a grip, fitted to the 31 px above the name was a sliver) */
+.build-stage:is(.is-phone, .is-phoneFull) .wb-cell.is-filled > .gb-icon { inset: 1px; width: calc(100% - 2px); height: calc(100% - 2px); }
+.build-stage:is(.is-phone, .is-phoneFull) .wb-cell-name { font-size: 7.5px; }
+:is(.build-stage.is-full, .build-stage.is-large) .wb-cell-name { font-size: 9px; }
 
-/* «Список»: rows in the order the parts hang on each other; a part on a part is indented under it. */
-.wb-plist { display: grid; gap: 6px; margin-top: 12px; }
-.wb-pslot.is-list { margin-left: calc(min(var(--wb-depth, 0), 4) * 14px); width: calc(100% - min(var(--wb-depth, 0), 4) * 14px); }
+/* «На весь экран»: the build over the whole window, the chosen cell's modules at the side, the stats in a window of their own. */
+.wb-full { position: fixed; inset: 0; z-index: 4500; display: flex; flex-direction: column; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #1a231e 0%, #0c0f0e 70%); color: var(--text); }
+/* the theme's picture behind the whole screen (owner, 20.11.2026: «фон на весь экран… как на ПК, так и на телефоне») */
+.wb-full.has-backdrop { isolation: isolate; background: #0d110f; }
+.wb-full-backdrop { position: absolute; inset: -24px; z-index: 0; background-position: center; background-size: cover; filter: blur(14px) brightness(.42) saturate(.9); transform: scale(1.04); pointer-events: none; }
+.wb-full-vignette { position: absolute; inset: 0; z-index: 0; background: radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(6, 8, 7, .55) 100%); pointer-events: none; }
+.wb-full > .wb-full-body { position: relative; z-index: 1; }
+.wb-full .wb-stage-backdrop, .wb-full .wb-stage-scroll.has-backdrop::after { display: none; }
+.wb-full .wb-stage-scroll.has-backdrop { background: transparent; }
+.wb-full-exit { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(12, 16, 14, .85); color: var(--text); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .wb-full-exit:hover { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); } }
+.wb-full.has-picker .wb-full-exit { right: 392px; }
+.wb-full-body { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+.wb-full-body.has-picker { grid-template-columns: minmax(0, 1fr) 380px; }
+.wb-full-stage { display: flex; flex-direction: column; min-height: 0; padding: 12px 28px; padding-top: max(12px, env(safe-area-inset-top)); overflow: auto; }
+.wb-full-stage-room { display: flex; flex: 1; align-items: center; min-height: 0; }
+.wb-full-stage-room > .wb-stage-scroll, .wb-full-stage-room > .wb-bench-box { flex: 1; margin: 0; border: 0; background: none; }
+.wb-full-side { min-height: 0; overflow: auto; border-left: 1px solid var(--line); background: var(--surf-1, #131816); }
+.wb-full-side > .panel { min-height: 100%; border: 0; border-radius: 0; }
+/* The stats over the full screen: small and still at the top left (owner, 21.11.2026: «сделай это окно меньше и зафиксируй… слева
+   сверху, сделай такого размера что бы не мешал сборке оружия»); nothing to hold or drag. */
+.wb-stats-window { position: fixed; z-index: 4510; top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); width: 184px; border: 1px solid color-mix(in srgb, var(--brass) 30%, var(--line)); border-radius: 7px; background: rgba(14, 18, 16, .9); box-shadow: 0 8px 22px rgba(0, 0, 0, .45); backdrop-filter: blur(6px); overflow: hidden; pointer-events: none; user-select: none; -webkit-user-select: none; }
+.wb-stats-window-title { overflow: hidden; padding: 4px 8px; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .03); color: var(--text-dim); font-size: 9px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.wb-stats-window-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: baseline; gap: 5px; padding: 2px 8px; font-size: 10.5px; line-height: 1.35; }
+.wb-stats-window-row + .wb-stats-window-row { border-top: 1px solid rgba(255, 255, 255, .04); }
+.wb-stats-window-row > span { color: var(--text-muted); white-space: nowrap; }
+.wb-stats-window-row > strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wb-stats-window-row > .wb-delta { justify-self: end; font-size: 9.5px; }
+@media (max-width: 760px) {
+  .wb-full-body.has-picker { grid-template-columns: minmax(0, 1fr); }
+  .wb-full-stage { padding: 8px; padding-top: max(8px, env(safe-area-inset-top)); }
+  .wb-full.has-picker .wb-full-exit { right: max(12px, env(safe-area-inset-right)); }
+  .wb-full-exit > span { display: none; }
+  .wb-full-exit { width: 36px; padding: 0; justify-content: center; }
+  .wb-full-side { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; max-height: 58vh; border-top: 1px solid var(--line); border-left: 0; border-radius: 12px 12px 0 0; box-shadow: 0 -12px 28px rgba(0, 0, 0, .5); }
+  /* the modules' list below: the weapon in the part above it, the stats window out of the way */
+  .wb-full-body.has-picker .wb-full-stage { height: calc(42vh - 52px); overflow: hidden; }
+  .wb-full-body.has-picker .wb-full-stage-room { align-items: flex-start; }
+  .wb-full.has-picker .wb-stats-window { display: none; }
+}
+.wb-bench-box { position: relative; }
+.wb-stage-expand { position: absolute; top: 8px; right: 8px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: rgba(12, 16, 14, .8); color: var(--text-muted); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
+.wb-bench-box > .wb-stage-expand { top: 18px; }
+@media (hover: hover) and (pointer: fine) { .wb-stage-expand:hover { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); color: var(--text); } }
+@media (max-width: 640px) { .wb-stage-expand > span { display: none; } .wb-stage-expand { width: 30px; padding: 0; justify-content: center; } }
+@media (max-width: 640px) { .wb-stage-scroll { padding: 38px 6px 8px; } }
+.wb-full-stage-room > .wb-stage-scroll { padding-top: 44px; }
+/* A phone on its side: the stats in a small window over the top left, the weapon from edge to edge with its cells round the window
+   (owner, 20.11.2026: «оружие должно быть от края до края… модули должны огибать окошечко характеристик») */
+@media (orientation: landscape) and (max-height: 520px) {
+  .wb-full-stage { position: relative; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+}
+/* a phone, upright or on its side: narrower, without the deltas */
+.wb-stats-window.is-compact { width: 148px; }
+.wb-stats-window.is-compact .wb-stats-window-row { grid-template-columns: minmax(0, 1fr) auto; padding: 2px 7px; font-size: 10px; }
+.wb-stats-window.is-compact .wb-stats-window-row > .wb-delta { display: none; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .wb-stats-window { width: 148px; }
+  .wb-stats-window .wb-stats-window-row { grid-template-columns: minmax(0, 1fr) auto; padding: 2px 7px; font-size: 10px; }
+  .wb-stats-window .wb-stats-window-row > .wb-delta { display: none; }
+}
 
-/* «Плитки»: big square tiles, grouped by where they sit on the weapon. */
-.wb-ptiles { display: grid; gap: 14px; margin-top: 12px; }
-.wb-ptiles-zone h3 { margin: 0 0 7px 2px; color: var(--text-dim); font-size: 11px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
-.wb-ptiles-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.wb-pslot.is-tiles { flex-direction: column; align-items: stretch; gap: 6px; padding: 6px; }
-.wb-pslot.is-tiles .wb-pslot-picture { width: 100%; height: auto; aspect-ratio: 4 / 3; }
-.wb-pslot.is-tiles .wb-pslot-text small { font-size: 9.5px; }
-.wb-pslot.is-tiles .wb-pslot-text strong { font-size: 12.5px; }
-.wb-pslot.is-tiles .wb-pslot-stats { font-size: 10.5px; gap: 1px 6px; }
+/* A slot's modules in a small window at its cell (src/arsenal/ModGrid.tsx), like the game's. */
+.wb-grid-window { position: fixed; z-index: 4520; display: flex; flex-direction: column; overflow: hidden; border: 1px solid color-mix(in srgb, var(--brass) 45%, var(--line)); border-radius: 8px; background: rgba(14, 18, 16, .97); box-shadow: 0 14px 36px rgba(0, 0, 0, .6); animation: wb-grid-in 140ms ease-out; }
+@keyframes wb-grid-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .wb-grid-window { animation: none; } }
+.wb-grid-head { display: flex; flex: none; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--line); }
+.wb-grid-head > strong { flex: 1; min-width: 0; overflow: hidden; color: var(--text-dim); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.wb-grid-close { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .wb-grid-close:hover { background: var(--surf-2, #1c2420); color: var(--text); } }
+.wb-grid { display: grid; grid-template-columns: repeat(auto-fill, var(--wb-tile)); gap: 4px; justify-content: center; min-height: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; }
+.wb-tile { position: relative; display: flex; flex-direction: column; align-items: stretch; width: var(--wb-tile); height: calc(var(--wb-tile) + 14px); padding: 2px 3px 3px; border: 1px solid var(--line); border-radius: 4px; background: linear-gradient(180deg, #1b221e, #121715); color: var(--text); font: inherit; text-align: center; cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease; }
+@media (hover: hover) and (pointer: fine) { .wb-tile:hover { border-color: color-mix(in srgb, var(--brass) 65%, var(--line)); background: #1d2621; } }
+.wb-tile:active { transform: scale(.97); }
+.wb-tile.is-current { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; background: #241e12; }
+.wb-tile.is-locked { opacity: .5; }
+.wb-tile-stats { display: flex; justify-content: space-between; gap: 2px; min-height: 12px; font-size: 9px; font-weight: 850; line-height: 12px; font-variant-numeric: tabular-nums; }
+.wb-tile-stats .is-good { color: var(--success, #8fbf6a); }
+.wb-tile-stats .is-bad { color: var(--danger, #d0675a); }
+.wb-tile-picture { flex: 1; min-height: 0; width: 100%; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .6)); }
+.wb-tile > .gb-icon { flex: 1; min-height: 0; width: 100%; border: 0; background: transparent; }
+.wb-tile-name { overflow: hidden; color: var(--text); font-size: 9px; font-weight: 750; line-height: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wb-tile-price { display: flex; align-items: center; justify-content: center; min-height: 12px; color: var(--brass-strong); font-size: 9px; font-weight: 800; line-height: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wb-tile-swap { position: absolute; right: 3px; top: 16px; color: var(--brass-strong); }
+.wb-tile.is-remove { align-items: center; justify-content: center; gap: 6px; border-style: dashed; color: var(--text-muted); }
+.wb-grid-none { grid-column: 1 / -1; margin: 10px; color: var(--text-muted); font-size: 12px; text-align: center; }
+.wb-tile-price > .wb-part-lock { display: inline-flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; color: var(--text-muted); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 
-/* «Схема»: the PC board, with cells big enough for the pictures. */
-:root[data-layout='mobile'] .wb-board { --wb-cell: 72px; }
-:root[data-layout='mobile'] .wb-cell-name { font-size: 10px; }
-:root[data-layout='mobile'] .wb-cell-slot { font-size: 8.5px; }
-:root[data-layout='mobile'] .wb-weapon-cell { width: 190px; }
-:root[data-layout='mobile'] .wb-weapon-cell-picture img { max-height: 46px; }
+/* The order of the modules in the window at the cell; a kit's two pictures side by side */
+/* a sight slot's tabs: rings, optical scopes, rail scopes and red dots, thermal and night */
+.wb-grid-tabs { display: flex; flex: none; flex-wrap: wrap; gap: 4px; padding: 6px 6px 0; }
+.wb-grid-tab { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 11px; font-weight: 750; line-height: 1.15; text-align: left; cursor: pointer; }
+.wb-grid-tab.is-on { border-color: var(--brass); background: #241e12; color: var(--brass-strong, var(--text)); }
+@media (hover: hover) and (pointer: fine) { .wb-grid-tab:not(.is-on):hover { color: var(--text); border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); } }
+.wb-grid-tab-count { color: var(--text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+.wb-grid-sort { flex: none; max-width: 52%; height: 24px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surf-2, #1c2420); color: var(--text); font: inherit; font-size: 11px; }
+.wb-tile-pair { display: flex; flex: 1; min-height: 0; align-items: center; gap: 1px; }
+.wb-tile-pair > .wb-tile-picture, .wb-tile-pair > .gb-icon { flex: 1; min-width: 0; height: 100%; }
 
-/* The module list as a sheet over the weapon. */
-.wb-sheet-backdrop { position: fixed; inset: 0; z-index: 42; background: rgb(0 0 0 / 50%); animation: mobile-fade .18s ease both; }
-.wb-sheet { position: fixed; inset: auto 0 var(--tabbar) 0; z-index: 43; display: flex; max-height: calc(100dvh - var(--topbar) - var(--tabbar) - 24px);
-  padding: 0 var(--safe-right) 0 var(--safe-left); animation: mobile-sheet-in .22s var(--ease-soft) both; }
-.wb-sheet .wb-picker { flex: 1; min-width: 0; max-height: none; border-radius: 16px 16px 0 0; box-shadow: 0 -18px 40px rgb(0 0 0 / 65%); }
-.wb-sheet .wb-picker-head::before { content: ''; position: absolute; left: 50%; top: 6px; width: 42px; height: 4px; margin-left: -21px; border-radius: 4px; background: var(--line-strong, var(--line)); }
-.wb-sheet .wb-picker-head { position: relative; padding-top: 16px; }
-.wb-sheet .wb-picker-head .icon-button { width: 40px; height: 40px; }
-.wb-sheet .wb-option { grid-template-columns: 84px minmax(0, 1fr) auto; gap: 10px; padding: 8px; }
-.wb-sheet .wb-option-picture, .wb-sheet .wb-picker-current .wb-option-picture { width: 84px; height: 58px; border: 0; border-radius: 7px; background: radial-gradient(ellipse at 50% 55%, #34403a 0%, #1a201c 85%); object-fit: contain; }
-.wb-sheet .wb-picker-current .wb-option-picture { width: 64px; height: 44px; }
-.wb-sheet .wb-option-text strong { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 13.5px; }
-.wb-sheet .wb-option-stats, .wb-sheet .wb-option-after { font-size: 12px; }
-.wb-sheet .wb-option-price { font-size: 13px; }
-@media (prefers-reduced-motion: reduce) { .wb-sheet, .wb-sheet-backdrop { animation: none; } }
+/* «Сложить приклад» / «Разложить приклад» beside «На весь экран» */
+.wb-stage-fold { position: absolute; top: 8px; right: 140px; z-index: 3; height: 26px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: rgba(12, 16, 14, .8); color: var(--text-muted); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
+.wb-stage-fold.is-on { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); color: var(--brass-strong); }
+@media (hover: hover) and (pointer: fine) { .wb-stage-fold:hover { color: var(--text); } }
+/* over the full screen: right under «Свернуть», wherever the bench is (a tall build pushed it under the button) */
+.wb-full .wb-stage-fold { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 42px); right: max(12px, env(safe-area-inset-right)); }
+/* the name is the stats window's title there (src/arsenal/FullBench.tsx), the window is at this corner */
+.wb-full .wb-stage-label { display: none; }
+@media (max-width: 640px) { .wb-stage-fold { right: 46px; } }
+
+/* The bench's backdrop: a place of the game for the colour scheme, blurred and dark under the weapon (src/arsenal/benchBackdrop.ts) */
+.wb-stage-scroll.has-backdrop { isolation: isolate; background: #0d110f; }
+.wb-stage-backdrop { position: absolute; inset: -24px; z-index: -1; background-position: center; background-size: cover; filter: blur(14px) brightness(.42) saturate(.9); transform: scale(1.04); pointer-events: none; }
+.wb-stage-scroll.has-backdrop::after { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(6, 8, 7, .55) 100%); pointer-events: none; }
+.wb-full-stage-room > .wb-stage-scroll.has-backdrop { border-radius: 10px; }

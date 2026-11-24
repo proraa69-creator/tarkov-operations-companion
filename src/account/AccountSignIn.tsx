@@ -1,10 +1,10 @@
-import { useState, type FormEvent } from 'react'
-import { AlertTriangle, Check, Clock, Gift, LoaderCircle, LogIn, Mail, QrCode, RefreshCw, UserPlus, Users } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { AlertTriangle, Check, Clock, Gift, LoaderCircle, LogIn, Mail, Monitor, QrCode, RefreshCw, UserPlus, Users } from 'lucide-react'
 import type { PendingServerRegistration, ServerAccountStatus } from '../electron'
 import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
-import { isDesktopShell, isIosApp } from '../platform'
+import { appStoreRules, isDesktopShell, isIosApp } from '../platform'
 import { countryGroups } from '../shared/countries'
 import { confirmRegistrationOnServer, registerOnServer, useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { LEGAL_VERSION, legalUrl, PHONE_AUTH_UI } from './authFeatures'
@@ -12,9 +12,13 @@ import { CodeInput, Warning } from './codeFields'
 import { postService, useCooldown, waitFrom, type CodeChallenge } from './codeRequest'
 import { EmailSignInForm, EmailSignInLinks } from './EmailAccount'
 import { PhoneSignInForm, PhoneSignInLinks } from './PhoneAccount'
+import { QrSignIn } from './QrSignIn'
+import { googleSignInOffered } from '../shared/googleRegion'
 import './account.css'
 
 type Nicknames = Partial<Record<RaidMode, string>>
+/** While the server is out of reach the window asks again this often. */
+const OFFLINE_RETRY_MS = 10_000
 export type AccountGateTab = 'login' | 'register'
 
 interface StepProps {
@@ -28,26 +32,36 @@ interface StepProps {
 
 /**
  * Step 1 of the account window (AccountController): «Вход» / «Регистрация» right in the app.
- * - Вход: e-mail + password, a code from the e-mail, «Забыли пароль?» by e-mail code (both only while the server sends
- *   e-mail codes), on the phone a hint for the QR sign-in from the PC.
+ * - Вход: e-mail + password, «Войти по QR-коду» (owner, 09.11.2026: instead of «Войти по коду из письма»), «Забыли
+ *   пароль?» by e-mail code (while the server sends e-mail codes).
  * - Регистрация: e-mail, password twice, the country, an optional invitation code and the consent with the documents on
  *   raidos.app; with e-mail codes on, the code from the e-mail creates the account, otherwise it is signed in at once.
  * The desktop app goes through the main process (electron/serviceGateway.ts: the session never reaches this page),
  * the phone through sync/webAccount.ts. Phone / SMS options stay hidden while PHONE_AUTH_UI is off.
  */
 export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'login' }: StepProps) {
-  const { status, checking, refresh } = useServerAccount()
+  const { status, refresh } = useServerAccount()
   const [tab, setTab] = useState<AccountGateTab>(initialTab)
   const [emailMode, setEmailMode] = useState<'login' | 'reset' | null>(null)
   const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
+  const [qrMode, setQrMode] = useState<false | 'qr' | 'google'>(false)
   const online = status?.online ?? false
+  // The server out of reach: asked again by itself (owner, 09.11.2026: «Кнопку «Проверить» убери, она не нужна»).
+  const unreachable = Boolean(status && !online)
+  useEffect(() => {
+    if (!unreachable) return
+    const timer = window.setInterval(() => { void refresh() }, OFFLINE_RETRY_MS)
+    return () => window.clearInterval(timer)
+  }, [unreachable, refresh])
   const signedIn = (next: ServerAccountStatus) => { onSigningIn(); onSignedIn(next.nicknames) }
   // The tab names by locale: a bare «Вход» in the shared dictionary would also rename map labels («Вход в …»).
   const { locale } = useLocale()
   const en = locale === 'en'
 
   let body
-  if (emailMode) {
+  if (qrMode) {
+    body = <QrSignIn onSignedIn={signedIn} onBack={() => setQrMode(false)} google={qrMode === 'google'} />
+  } else if (emailMode) {
     body = <>
       <h2>{uiText(emailMode === 'login' ? 'Вход по коду из письма' : 'Восстановление пароля')}</h2>
       <EmailSignInForm purpose={emailMode} onSignedIn={signedIn} onBack={() => setEmailMode(null)} />
@@ -66,7 +80,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
       </div>
       <div id="account-gate-panel" role="tabpanel" aria-labelledby={`account-gate-tab-${tab}`}>
         {tab === 'login'
-          ? <PasswordSignIn online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onPickEmail={setEmailMode} onPickPhone={setPhoneMode} onRegister={() => setTab('register')} />
+          ? <PasswordSignIn online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onPickEmail={setEmailMode} onPickPhone={setPhoneMode} onPickQr={() => setQrMode('qr')} onPickGoogle={() => setQrMode('google')} onRegister={() => setTab('register')} />
           : <Registration online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onLogin={() => setTab('login')} />}
       </div>
     </>
@@ -77,17 +91,18 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
       <div className="eyebrow">Raid OS</div>
       {body}
       {status && !online && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Сервер недоступен. Проверьте интернет и адрес сервера или попробуйте позже.')}</span></div>}
-      {status && !online && (
+      {status && !online && onSkip && (
         <div className="account-gate-offline">
-          <button type="button" className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить снова')}</button>
-          {onSkip && <button type="button" className="button ghost" onClick={onSkip}>{uiText('Продолжить без входа')}</button>}
+          <button type="button" className="button ghost" onClick={onSkip}>{uiText('Продолжить без входа')}</button>
         </div>
       )}
     </div>
   )
 }
 
-function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPhone, onRegister }: {
+function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPhone, onPickQr, onPickGoogle, onRegister }: {
+  onPickQr: () => void
+  onPickGoogle: () => void
   online: boolean
   onSigningIn: () => void
   onSignedIn: (nicknames?: Nicknames) => void
@@ -100,8 +115,12 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  // The phone signs in by the QR code of the signed-in PC app (Профиль → «Войти в мобильную версию»).
-  const phone = usesWebAccount() && !isDesktopShell()
+  // «Войти по QR-коду»: the phone by the QR code of the signed-in PC app, the PC by a QR code the signed-in phone
+  // approves (QrSignIn.tsx; owner, 28.10.2026).
+  // Not in the iPhone app for now (owner, 12.11.2026: «вход по qr удали позже мы их добавим»).
+  const qr = !appStoreRules() && ((usesWebAccount() && !isDesktopShell()) || Boolean(window.tarkovDesktop?.account?.qrStart))
+  // «Войти через Google» on the PC (owner, 15.11.2026): not in Russia (src/shared/googleRegion.ts); the browser does the Google part.
+  const google = !appStoreRules() && Boolean(window.tarkovDesktop?.account?.qrStart) && googleSignInOffered()
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -132,9 +151,10 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
       <button className="button primary account-gate-submit" type="submit" disabled={busy || !online}>
         {busy ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}{uiText(busy ? 'Входим…' : 'Войти')}
       </button>
+      {google && <button type="button" className="button account-gate-google" disabled={!online} onClick={onPickGoogle}><GoogleMark />{uiText('Войти через Google')}</button>}
+      {qr && <button type="button" className="button ghost account-gate-qr" onClick={onPickQr}><QrCode size={16} />{uiText('Войти по QR-коду')}</button>}
       <EmailSignInLinks online={online} onPick={onPickEmail} />
       {PHONE_AUTH_UI && <PhoneSignInLinks online={online} onPick={onPickPhone} resetLabel="Сбросить пароль по SMS" />}
-      {phone && <p className="dim account-gate-hint"><QrCode size={14} />{uiText('Вход по QR-коду: в приложении на компьютере откройте Профиль → «Войти в мобильную версию» и наведите камеру телефона на QR-код.')}</p>}
       <div className="account-gate-links">
         <span>{uiText('Нет аккаунта?')}</span>
         <button type="button" className="link-button" onClick={onRegister}><UserPlus size={14} />{uiText('Зарегистрироваться')}</button>
@@ -144,6 +164,8 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
 }
 
 const REFERRAL_CODE = /^[a-zA-Z0-9_-]{3,24}$/
+/** Where the PC program is downloaded (the site's «Скачать» page). */
+const PC_DOWNLOAD_URL = 'https://raidos.app/download'
 
 function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   online: boolean
@@ -167,6 +189,9 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   const [code, setCode] = useState('')
   const cooldown = useCooldown()
   const ios = isIosApp()
+  // The phone and the browser: the app works together with the PC program (owner, 09.11.2026: «при регистрации укажи, что
+  // для того, чтобы приложение функционировало, нужно скачать приложение на ПК»).
+  const needsPc = !isDesktopShell()
 
   /** The account exists and the app is signed in: record the accepted documents, then the nickname step. */
   const finish = (status: ServerAccountStatus) => {
@@ -260,10 +285,11 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   return (
     <form className="stack account-gate-form" onSubmit={(event) => void submit(event)}>
       <p className="muted">{uiText(ios ? 'Один аккаунт для сайта и приложения: ники и прогресс заданий хранятся в нём.' : 'Один аккаунт для сайта и приложения: ники, прогресс заданий и подписка хранятся в нём.')}</p>
+      {needsPc && <div className="account-gate-pc" role="note"><Monitor size={16} /><span>{uiText('Чтобы приложение работало, скачайте Raid OS на ПК.')} <a href={PC_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">raidos.app</a></span></div>}
       {/* owner, 12.10.2026: «При регистрации пиши что даются сутки бесплатно…», «сутки должны начинаться после первого входа в приложение».
           Not in the App Store build: no free period, referral discounts or invitation codes there (src/account/IosAccount.tsx). */}
       {!ios && <ul className="account-gate-perks">
-        <li><Clock size={14} /><span>{uiText('Сутки бесплатно — с первого входа в приложение, без оплаты.')}</span></li>
+        <li><Clock size={14} /><span>{uiText('2 дня бесплатно — с первого рейда, без оплаты.')}</span></li>
         <li><Users size={14} /><span>{uiText('Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.')}</span></li>
       </ul>}
       <label className="field-label">{uiText('E-mail')}
@@ -316,4 +342,14 @@ function ConsentText() {
   return locale === 'en'
     ? <span>I accept the {link('offer', 'terms of the offer')} and give my {link('consent', 'consent to the processing of personal data')} under the {link('privacy', 'privacy policy')}</span>
     : <span>Я принимаю условия {link('offer', 'оферты')} и даю {link('consent', 'согласие на обработку персональных данных')} в соответствии с {link('privacy', 'политикой конфиденциальности')}</span>
+}
+
+/** Google's «G» in the brand's four colours (Google's sign-in guidelines ask for it on a «Sign in with Google» button). */
+function GoogleMark() {
+  return <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+  </svg>
 }

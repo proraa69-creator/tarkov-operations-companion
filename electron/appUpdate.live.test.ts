@@ -203,7 +203,7 @@ describe('any other release while the app is open', () => {
     expect(updater.updateStatus()).toMatchObject({ state: 'available', version: '0.6.2', nextStart: true, liveVersion: '0.6.1' })
   })
 
-  it('nothing is downloaded during a raid, a bad build is never staged by itself, and without «Автообновление» it is only offered', async () => {
+  it('nothing is downloaded during a raid, a bad build is never staged by itself, and without «Автообновление» it is downloaded but never switched on by itself', async () => {
     env.raid = true
     const inRaid = await publishedWhileOpen()
     await vi.advanceTimersByTimeAsync(20 * 60_000)
@@ -226,7 +226,14 @@ describe('any other release while the app is open', () => {
     vi.resetModules()
     release = { build: 100, version: '0.6.0' }
     delta.stagedBuildBad.mockReturnValue(false)
-    await publishedWhileOpen(200, '0.6.1', false)
-    expect(delta.stageDeltaUpdate).not.toHaveBeenCalled()
+    const manual = await publishedWhileOpen(200, '0.6.1', false)
+    // Owner, 29.10.2026: downloaded in the background, installed only by «Установить обновление».
+    await vi.waitFor(() => expect(manual.updateStatus()).toMatchObject({ state: 'available', ready: true }))
+    expect(delta.stageDeltaUpdate).toHaveBeenCalledOnce()
+    expect(delta.activateDeltaUpdate).not.toHaveBeenCalled()
+    expect(manual.updateStatus().nextStart).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(delta.activateDeltaUpdate).not.toHaveBeenCalled()
+    expect(delta.relaunchWhenClosed).not.toHaveBeenCalled()
   })
 })

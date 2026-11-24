@@ -1,10 +1,11 @@
-import { Activity, CreditCard, Gift, LineChart, RefreshCw, Shield, UserPlus, Users, Wifi } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { Activity, ChevronDown, CreditCard, Gift, LineChart, RefreshCw, Shield, Smartphone, UserPlus, Users, Wifi } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type AdminOnlineStats, type AdminOverview, type AdminRevenue, type StatsPeriod } from '../../api'
 import { Notice } from '../Notice'
 import { ColumnChart, Loading, PlanCounts } from './adminShared'
 import { AdminCalendar } from './AdminCalendar'
 import { formatPeriodKey, formatRub, numberFormat, PLAN_IDS, PLAN_LABEL, useAdminData } from './adminData'
+import { NEW_USERS_PERIODS, newUsersRange, ownerRangeText, type NewUsersPeriod } from '../../../../src/shared/ownerTime'
 
 type View = 'calendar' | Exclude<StatsPeriod, 'day'>
 const PERIODS: Array<{ id: View; label: string }> = [
@@ -33,15 +34,15 @@ export function AdminSummary() {
       {data && (
         <>
           <div className="stat-grid admin-stats">
-            <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)}`} />
-            <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta="только те, кто оплатил и подписка идёт" accent />
-            <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta="1 день с первого входа в приложение" />
-            <Stat icon={UserPlus} label="Новые за 30 дней" value={numberFormat.format(data.users.days30)} meta={data.users.blocked ? `заблокировано аккаунтов: ${numberFormat.format(data.users.blocked)}` : `за 7 дней: ${numberFormat.format(data.users.days7)}`} />
+            <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)}${data.users.blocked ? ` · заблокировано ${numberFormat.format(data.users.blocked)}` : ''}`} />
+            <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta={data.subscriptions.activeRepeat === undefined ? 'только те, кто оплатил и подписка идёт' : `из них повторных: ${numberFormat.format(data.subscriptions.activeRepeat)}`} accent />
+            <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta={data.subscriptions.trialsDead === undefined || data.subscriptions.trialsAlive === undefined ? '2 дня с первого рейда' : `мёртвых ${numberFormat.format(data.subscriptions.trialsDead)} · реальных ${numberFormat.format(data.subscriptions.trialsAlive)}`} title="Мёртвый — за 21 день так и не воспользовался пробным периодом" />
+            <NewUsersStat />
           </div>
           <div className="admin-revenue">
             <RevenueCard title="Выручка сегодня" revenue={data.revenue.today} />
             <RevenueCard title="За этот месяц" revenue={data.revenue.month} />
-            <RevenueCard title="За всё время" revenue={data.revenue.all} />
+            <RevenueCard title="За всё время" revenue={data.revenue.all} repeatPayers={data.repeatPayers} />
           </div>
           {data.plans && (
             <section className="admin-section" aria-labelledby="admin-plans-title">
@@ -50,9 +51,10 @@ export function AdminSummary() {
             </section>
           )}
           {data.squads && <SquadStats squads={data.squads} />}
-          <p className="field-hint" style={{ margin: 0 }}>Время — московское. Выданные вручную дни подписки не считаются выручкой.</p>
+          <p className="field-hint" style={{ margin: 0 }}>Время — по Бангкоку (UTC+7). Выданные вручную дни подписки не считаются выручкой.</p>
         </>
       )}
+      <PhoneStats />
       <OnlineStats />
       <SeriesSection />
     </div>
@@ -70,6 +72,40 @@ function SquadStats({ squads }: { squads: NonNullable<AdminOverview['squads']> }
         <Stat icon={Users} label="Играют в отрядах" value={numberFormat.format(squads.players)} meta={squads.active ? `в среднем ${(squads.players / squads.active).toFixed(1)} в отряде` : 'отрядов сейчас нет'} />
         <Stat icon={UserPlus} label="Создано всего" value={numberFormat.format(squads.created)} meta={since ? `учёт с ${since}` : 'учёт идёт с этой версии'} />
         <Stat icon={Activity} label="Расформировано" value={numberFormat.format(squads.disbanded)} meta="распущены или все вышли" />
+      </div>
+    </section>
+  )
+}
+
+/** How often «Телефоны» asks again while «Сводка» is open: its «сейчас» is the last few minutes. */
+const PHONES_REFRESH_MS = 60_000
+
+/**
+ * «Телефоны» (owner, 23.11.2026: «сколько у нас пользователей, сколько телефонов… сколько с андроида установило и зашло,
+ * сколько с айфона установило и зашло, и сколько в данный момент онлайн с телефонов с каждого вида»): accounts that signed
+ * in from the phone app, by system, with their devices, and who is in the phone app now.
+ */
+function PhoneStats() {
+  const stats = useAdminData(useCallback((token: string) => api.adminPhones(token), []))
+  const { reload } = stats
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void reload() }, PHONES_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [reload])
+  const data = stats.data
+  if (stats.error || !data) return null
+  const count = (value: number) => numberFormat.format(value)
+  return (
+    <section className="admin-section" aria-labelledby="admin-phones-title">
+      <div className="admin-section-head">
+        <h2 className="field-label" id="admin-phones-title"><Smartphone aria-hidden="true" /> Телефоны</h2>
+        <button type="button" className="button small ghost" onClick={() => void stats.refresh()} disabled={stats.loading} aria-label="Обновить телефоны"><RefreshCw aria-hidden="true" className={stats.loading ? 'spinner' : undefined} /></button>
+      </div>
+      <div className="stat-grid admin-stats">
+        <Stat icon={Smartphone} label="Вошли с телефона" value={count(data.phones.accounts)} meta={`телефонов ${count(data.phones.devices)} · всего пользователей ${count(data.users)}`} />
+        <Stat icon={Smartphone} label="Android" value={count(data.android.accounts)} meta={`установили и вошли · телефонов ${count(data.android.devices)}`} />
+        <Stat icon={Smartphone} label="iPhone" value={count(data.ios.accounts)} meta={`установили и вошли · телефонов ${count(data.ios.devices)}`} />
+        <Stat icon={Wifi} label="Онлайн с телефонов" value={count(data.online.phone)} meta={`Android ${count(data.android.online)} · iPhone ${count(data.ios.online)} · за ${data.online.windowMinutes} мин`} accent />
       </div>
     </section>
   )
@@ -113,9 +149,50 @@ function OnlineStats() {
   )
 }
 
-function Stat({ icon: Icon, label, value, meta, accent = false }: { icon: typeof Users; label: string; value: string; meta: string; accent?: boolean }) {
+/**
+ * «Новые за …» (owner, 03.11.2026: «нажимаешь — выбираешь период»): new accounts of the owner's days of the period, the
+ * same periods as in the phone admin app (src/shared/ownerTime.ts); 30 days at first.
+ */
+function NewUsersStat() {
+  const [period, setPeriod] = useState<NewUsersPeriod>('30d')
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const { from, to } = newUsersRange(period)
+  const stats = useAdminData(useCallback((token: string) => api.adminStats(token, from, to), [from, to]))
+  // The answer for another period is not shown under this one's title.
+  const count = stats.data?.range.from === from && stats.data.range.to === to ? stats.data.users.new : null
+  const current = NEW_USERS_PERIODS.find((item) => item.id === period)!
+
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: MouseEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', outside)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('mousedown', outside); document.removeEventListener('keydown', escape) }
+  }, [open])
+
   return (
-    <div className={`stat-card${accent ? ' is-accent' : ''}`}>
+    <div className="admin-new-users" ref={box}>
+      <button type="button" className="stat-card admin-stat-button" aria-expanded={open} aria-label={`${current.title}: ${count ?? '…'}. Выбрать период`} onClick={() => setOpen((value) => !value)}>
+        <div className="stat-label"><UserPlus aria-hidden="true" />{current.title}<ChevronDown aria-hidden="true" className="admin-stat-caret" /></div>
+        <div className="stat-value mono">{count === null ? (stats.error ? '—' : '…') : numberFormat.format(count)}</div>
+        <div className="stat-meta">{ownerRangeText(from, to)} · сменить период</div>
+      </button>
+      {open && (
+        <div className="admin-period-menu" role="group" aria-label="Период для новых пользователей">
+          {NEW_USERS_PERIODS.map((item) => (
+            <button key={item.id} type="button" aria-pressed={period === item.id} className={`button small ${period === item.id ? 'primary' : 'ghost'}`} onClick={() => { setPeriod(item.id); setOpen(false) }}>{item.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Stat({ icon: Icon, label, value, meta, accent = false, title }: { icon: typeof Users; label: string; value: string; meta: string; accent?: boolean; title?: string }) {
+  return (
+    <div className={`stat-card${accent ? ' is-accent' : ''}`} title={title}>
       <div className="stat-label"><Icon aria-hidden="true" />{label}</div>
       <div className="stat-value mono">{value}</div>
       <div className="stat-meta">{meta}</div>
@@ -123,13 +200,20 @@ function Stat({ icon: Icon, label, value, meta, accent = false }: { icon: typeof
   )
 }
 
-function RevenueCard({ title, revenue }: { title: string; revenue: AdminRevenue }) {
+/**
+ * `repeatPayers` (all the time only): «Оплатили повторно» (owner, 12.11.2026: «счёт того, сколько человек оплатили
+ * повторно») — people with two or more paid payments; granted days are not payments. «Повторных» (owner, 15.11.2026): of the
+ * payments, those of an account that had paid before.
+ */
+function RevenueCard({ title, revenue, repeatPayers }: { title: string; revenue: AdminRevenue; repeatPayers?: number }) {
   return (
     <div className="stat-card admin-revenue-card">
       <div className="stat-label"><LineChart aria-hidden="true" />{title}</div>
       <div className="stat-value mono">{rub(revenue.total)}</div>
       <dl className="admin-split">
         <div><dt>Оплат</dt><dd className="mono">{numberFormat.format(revenue.payments)}</dd></div>
+        {revenue.repeat !== undefined && <div><dt>Повторных</dt><dd className="mono">{numberFormat.format(revenue.repeat)}</dd></div>}
+        {repeatPayers !== undefined && <div><dt>Оплатили повторно</dt><dd className="mono">{numberFormat.format(repeatPayers)}</dd></div>}
       </dl>
     </div>
   )

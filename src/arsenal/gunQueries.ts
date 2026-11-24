@@ -1,4 +1,5 @@
 import type { AmmoStats, GunOffer, GunPart, GunPreset, GunSlot, Weapon } from './gunTypes'
+import { steadyFleaPrice } from '../domain/itemPrices'
 
 /**
  * tarkov.dev GraphQL (https://api.tarkov.dev/graphql, schema: github.com/the-hideout/tarkov-api schema-static.mjs).
@@ -11,7 +12,7 @@ const SLOT_FIELDS = `fragment SlotFields on ItemSlot { id name nameId required f
  * `lastLowPrice` is asked next to `buyFor`: tarkov.dev's flea entry in `buyFor` is priced at the 24-hour average
  * (`avg24hPrice || lastLowPrice`, tarkov-api datasources/items.mjs), above the cheapest offer one can buy right now.
  */
-const OFFER_FIELDS = `lastLowPrice buyFor { priceRUB vendor { name normalizedName ... on TraderOffer { minTraderLevel taskUnlock { id name } trader { id imageLink } } } }`
+const OFFER_FIELDS = `lastLowPrice minLevelForFlea buyFor { priceRUB vendor { name normalizedName ... on TraderOffer { minTraderLevel taskUnlock { id name } trader { id imageLink } } } }`
 
 export const GUNS_QUERY = `query RaidOsGuns($lang: LanguageCode, $gameMode: GameMode) {
   items(type: gun, lang: $lang, gameMode: $gameMode) {
@@ -24,7 +25,7 @@ export const GUNS_QUERY = `query RaidOsGuns($lang: LanguageCode, $gameMode: Game
       ... on ItemPropertiesWeapon {
         caliber fireRate ergonomics recoilVertical recoilHorizontal centerOfImpact
         defaultAmmo { id }
-        defaultPreset { id name image512pxLink inspectImageLink gridImageLink width height containsItems { item { id } count } }
+        defaultPreset { id name iconLink image512pxLink inspectImageLink gridImageLink width height containsItems { item { id } count } }
         slots { ...SlotFields }
       }
     }
@@ -76,13 +77,27 @@ export function asFraction(value: unknown): number {
   return Math.abs(raw) > 1 ? raw / 100 : raw
 }
 
-/** Buy offers; the flea one at the current lowest offer (`lastLowPrice`) when there is one, not the 24-hour average. */
+/**
+ * A recoil or accuracy modifier as a fraction. The properties always give fractions — the 12/70 «Магнум» is +1.15, i.e. +115 %,
+ * which the guess by size (asFraction) took for percent and showed as +1.15 % (the check against the game's own data, 20.11.2026:
+ * an MP-133 with it showed recoil 294/387 instead of 746/981); the item's own field (an older path, a barrel's accuracy) is percent.
+ */
+export function modifierOf(fraction: unknown, percent: unknown): number {
+  if (fraction !== undefined && fraction !== null && fraction !== '') return num(fraction)
+  return num(percent) / 100
+}
+
+/**
+ * Buy offers; the flea one at the current lowest offer (`lastLowPrice`) when there is one, not the 24-hour average —
+ * unless that offer is a lone listing at more than twice the average (itemPrices.ts steadyFleaPrice: a 115 000 ₽ grip
+ * whose day average is a third of it is not what it costs).
+ */
 export function adaptOffers(item: Json): GunOffer[] {
   const lastLow = num(item.lastLowPrice)
   return list(item.buyFor).flatMap((entry) => {
     const vendor = record(entry.vendor)
     const key = text(vendor.normalizedName)
-    const priceRUB = key === 'flea-market' && lastLow > 0 ? lastLow : num(entry.priceRUB)
+    const priceRUB = key === 'flea-market' ? steadyFleaPrice(lastLow, num(entry.priceRUB))?.price ?? 0 : num(entry.priceRUB)
     if (!key || priceRUB <= 0) return []
     const level = optional(vendor.minTraderLevel)
     const trader = record(vendor.trader)
@@ -127,8 +142,8 @@ function basePart(item: Json, properties: Json): GunPart {
     ...(text(item.baseImageLink) ? { baseImageLink: text(item.baseImageLink) } : {}),
     weight: num(item.weight),
     ergonomics: num(properties.ergonomics ?? item.ergonomicsModifier),
-    recoilModifier: asFraction(properties.recoilModifier ?? item.recoilModifier),
-    accuracyModifier: asFraction(properties.accuracyModifier ?? item.accuracyModifier),
+    recoilModifier: modifierOf(properties.recoilModifier, item.recoilModifier),
+    accuracyModifier: modifierOf(properties.accuracyModifier, item.accuracyModifier),
     centerOfImpact: optional(properties.centerOfImpact),
     capacity: optional(properties.capacity),
     ...fieldOptics(item, properties, types),
@@ -139,6 +154,7 @@ function basePart(item: Json, properties: Json): GunPart {
     offers: adaptOffers(item),
     ...(num(item.avg24hPrice) > 0 ? { fleaAvg24h: num(item.avg24hPrice) } : {}),
     noFlea: types.includes('noFlea'),
+    ...(optional(item.minLevelForFlea) ? { fleaLevel: optional(item.minLevelForFlea) } : {}),
     category: text(record(item.category).normalizedName) || undefined,
     ...(Array.isArray(item.categories) ? { categoryIds: list(item.categories).map((entry) => text(entry.id)).filter(Boolean) } : {}),
     ...sizeIncreaseOf(properties),
@@ -189,7 +205,7 @@ function adaptPreset(value: unknown, weaponId: string): GunPreset | undefined {
     const count = Math.max(1, Math.round(num(entry.count)) || 1)
     return itemId && itemId !== weaponId ? Array.from({ length: count }, () => itemId) : []
   })
-  return { id, name: text(preset.name), imageLink: text(preset.image512pxLink) || text(preset.inspectImageLink) || undefined, ...gridOf(preset), itemIds }
+  return { id, name: text(preset.name), ...(text(preset.iconLink) ? { iconLink: text(preset.iconLink) } : {}), imageLink: text(preset.image512pxLink) || text(preset.inspectImageLink) || undefined, ...gridOf(preset), itemIds }
 }
 
 const itemsOf = (payload: unknown) => list(record(record(payload).data).items)
@@ -253,8 +269,9 @@ export function adaptAmmo(payload: unknown): AmmoStats[] {
       fragmentationChance: num(entry.fragmentationChance),
       initialSpeed: num(entry.initialSpeed),
       projectileCount: num(entry.projectileCount) || 1,
-      recoilModifier: asFraction(entry.recoilModifier),
-      accuracyModifier: asFraction(entry.accuracyModifier),
+      // a round's modifiers are fractions however large (the «Магнум» +1.15, SuperFormance's accuracy +1.7)
+      recoilModifier: num(entry.recoilModifier),
+      accuracyModifier: num(entry.accuracyModifier),
       tracer: entry.tracer === true,
       ...(optional(entry.bulletMassGrams) ? { bulletMassGrams: optional(entry.bulletMassGrams) } : {}),
       ...(optional(entry.bulletDiameterMilimeters) ? { bulletDiameterMm: optional(entry.bulletDiameterMilimeters) } : {}),
@@ -262,6 +279,7 @@ export function adaptAmmo(payload: unknown): AmmoStats[] {
       ...(optional(item.weight) ? { weight: optional(item.weight) } : {}),
       offers: adaptOffers(item),
       noFlea: types.includes('noFlea'),
+      ...(optional(item.minLevelForFlea) ? { fleaLevel: optional(item.minLevelForFlea) } : {}),
     } satisfies AmmoStats]
   })
 }

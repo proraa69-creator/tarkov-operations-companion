@@ -1,8 +1,7 @@
-import type { ModeProgress, Quest, TaskProgressRecord, TaskRequirement } from '../domain/types'
+import type { ModeProgress, Quest, TaskProgressRecord } from '../domain/types'
 import { latinize } from './modeSelectScreen'
-import { ocrKey, type QuestRowStatus } from './questOcr'
-import { reconcileWithSession, type QuestScanSession } from './questSession'
-import { questRequirements } from '../progression/requirementEngine'
+import { ocrKey, rowStatus, type QuestRowStatus } from './questOcr'
+import { questFaction } from '../progression/questBasics'
 
 /** Screens that mention quests but are not the Tasks list: messenger, trading, flea market. */
 const NOT_TASKS_SCREEN = /сообщени[яй]|отправить|барахолк|купить|продать/
@@ -80,12 +79,13 @@ function isRussianTasksMenu(text: string) {
 }
 
 /**
- * The rows of a table frame that may count as current. A row whose status cell was not read counts only on a frame with
- * two or more status cells read — the Tasks table itself. A trader's own Tasks tab shows the status of the open quest
- * only and lists quests not taken yet beside it (audit P13): there only the rows with a status read count.
+ * The rows of a table frame that may count as current: only those whose status cell was read. A row without one used to
+ * count on the Tasks table itself, and brought into «Текущие» quests long handed in and quests not given yet — a completed
+ * row whose «выполнено!» was missed, a trader's list beside it (a player, 13.11.2026: «появляются квесты которые он уже
+ * сдал в игре»). A quest really taken still comes from the game's logs.
  */
-export function tableMatches<T extends { status?: QuestRowStatus }>(text: string, matches: T[]): T[] {
-  return tableRowCount(text) >= 2 ? matches : matches.filter((match) => match.status !== undefined)
+export function tableMatches<T extends { status?: QuestRowStatus }>(_text: string, matches: T[]): T[] {
+  return matches.filter((match) => match.status !== undefined)
 }
 
 /** The table's status cell, Russian and English (questOcr.ts rowStatus); not the trader tab's «ЗАВЕРШИТЬ» / «COMPLETE» button. */
@@ -112,22 +112,30 @@ export interface ScreenScanOptions {
   /**
    * Live watch: a quest not tracked yet must be seen in two consecutive frames before it is added — unless its own row
    * reads «активно!» / «active!» (audit step 16): the status cell beside the title is the game saying so, and a
-   * scrolled position no longer costs two readings (about 7 s) before its rows count.
+   * scrolled position no longer costs two readings (about 7 s) before its rows count. Nor when its title was read
+   * exactly as the game writes it (owner, 03.11.2026: «обнаружение как с предметами» — the titles are the same for
+   * everyone): only a looser reading waits for the second frame.
    */
   requireConfirmation?: boolean
-  /** Live watch session: a whole current list read twice ends the OCR quests it no longer shows (questSession.ts). */
-  session?: QuestScanSession
   now?: number
 }
 
-/** A row of the Tasks table: the quest, the stage its title named (if any) and the status cell (if read). */
-export interface ScreenScanMatch { questId: string; stageIndex?: number; status?: QuestRowStatus }
+/**
+ * A row of the Tasks table: the quest, the stage its title named (if any), the status cell (if read) and how surely the
+ * title was read (src/import/questOcr.ts: 1 — exactly a quest's title).
+ */
+export interface ScreenScanMatch { questId: string; stageIndex?: number; status?: QuestRowStatus; score?: number; twin?: 'row' | 'faction' | 'guess' }
 
 /**
  * One Tasks-table frame applied to a mode's records. Story chapters are not read here (the story pane has its reader,
  * storyScan.ts). A record changes only when its status does or it is new (audit P5f): a row read again as it is stored
  * keeps its record — its time included — so a frame showing nothing new changes nothing (the same object comes back),
  * and the app does not write and re-render its profiles every few seconds while the table is open.
+ *
+ * It only adds (owner, 05.11.2026). A row read «провалено» takes nothing away: the player takes that quest again. Nor does the
+ * next quest of a chain on the screen: the reading may be wrong, and a hand-in shows in the logs by itself. A quest the screen
+ * alone knows leaves by those logs (src/quests/questChain.ts) or the player's right click. One exception: the other
+ * faction's version of a title, which an earlier frame guessed, goes once a row's location (or the faction) tells them apart.
  */
 export function applyScreenScanProgress(
   progress: ModeProgress,
@@ -135,29 +143,38 @@ export function applyScreenScanProgress(
   quests: Quest[],
   options?: ScreenScanOptions,
 ): ModeProgress {
-  if (!matches.length && !options?.session) return progress
+  if (!matches.length) return progress
   const nowMs = options?.now ?? Date.now()
   const now = new Date(nowMs).toISOString()
   const byId = new Map(quests.map((quest) => [quest.id, quest]))
   const previous = new Set((options?.previousSeenIds ?? []).filter(Boolean))
   const traderRow = (match: ScreenScanMatch) => Boolean(match.questId) && !match.questId.startsWith('wiki:') && byId.get(match.questId)?.kind !== 'story'
   const current = matches.filter((match) => traderRow(match) && isCurrentRow(match.status))
-  const seen = new Set(current.map((match) => match.questId))
   let taskProgress = progress.taskProgress
-  const write = (taskId: string, record: TaskProgressRecord | undefined) => {
+  const write = (taskId: string, record: TaskProgressRecord) => {
     if (taskProgress === progress.taskProgress) taskProgress = { ...progress.taskProgress }
-    if (record) taskProgress[taskId] = record
-    else delete taskProgress[taskId]
+    taskProgress[taskId] = record
   }
-
-  for (const match of matches) {
-    if (match.status !== 'failed' || !traderRow(match)) continue
-    const record = taskProgress[match.questId]
-    if (record?.status === 'active' && record.source === 'screen-scan') write(match.questId, undefined)
+  const drop = (taskId: string) => {
+    if (taskProgress === progress.taskProgress) taskProgress = { ...progress.taskProgress }
+    delete taskProgress[taskId]
+  }
+  /** The other faction's quest of the same title (report 209: «Путь охотника. Администратор», BEAR at Reserve, USEC at Lighthouse). */
+  const factionTwins = (taskId: string) => {
+    const quest = byId.get(taskId)
+    const own = questFaction(quest?.faction)
+    if (!quest || !own) return []
+    return quests.filter((other) => other.id !== taskId && other.name === quest.name && questFaction(other.faction) && questFaction(other.faction) !== own).map((other) => other.id)
   }
 
   for (const match of current) {
     const taskId = match.questId
+    const twins = match.twin ? factionTwins(taskId) : []
+    // A shared title neither the row's location nor the faction told: not over the version already being done.
+    if (match.twin === 'guess' && twins.some((id) => taskProgress[id]?.status === 'active')) continue
+    // Told by them: the other version goes when only an earlier guess of this scanner wrote it.
+    const accepted = !(options?.requireConfirmation && !previous.has(taskId) && match.status !== 'active' && (match.score ?? 0) < 1)
+    if (accepted && (match.twin === 'row' || match.twin === 'faction')) for (const id of twins) if (taskProgress[id]?.source === 'screen-scan') drop(id)
     const record = taskProgress[taskId]
     // Messages / reward screens repeat finished quest names, so only a table row with an explicit
     // «активно!» / «выполнено!» status can bring back a quest the scanner itself moved to completed.
@@ -172,60 +189,16 @@ export function applyScreenScanProgress(
       if (record.source === 'screen-scan' && stageIndex !== record.currentStageIndex) write(taskId, { ...record, currentStageIndex: stageIndex, updatedAt: now })
       continue
     }
-    if (options?.requireConfirmation && !previous.has(taskId) && match.status !== 'active') continue
+    if (options?.requireConfirmation && !previous.has(taskId) && match.status !== 'active' && (match.score ?? 0) < 1) continue
     const stageIndex = typeof match.stageIndex === 'number' ? match.stageIndex : record?.currentStageIndex
     write(taskId, { taskId, status: 'active', source: 'screen-scan', updatedAt: now, currentStageIndex: stageIndex })
   }
 
-  // Quests that are complete-prerequisites of something now on screen are no longer current («Завершить» → the next
-  // quest of the chain appears): their Tasks-table record goes. Not «completed»: a chain is inference, and inference never
-  // decides a status (src/quests/questEngine.ts) — the lists show such a quest as «вероятно выполнено», uncounted.
-  // A row counts once its quest is current — confirmed by two frames, or known from the logs.
-  const confirmed = new Set([...seen].filter((taskId) => taskProgress[taskId]?.status === 'active'))
-  const prerequisites = new Set<string>()
-  for (const taskId of confirmed) collectCompletePrerequisites(taskId, byId, confirmed, prerequisites, new Set())
-
-  // Unseen quests stay current: switching trader tabs, scrolling or closing the menu must not drop them.
-  for (const [taskId, record] of Object.entries(taskProgress)) {
-    if (record.source !== 'screen-scan' || record.status !== 'active') continue
-    if (seen.has(taskId) || byId.get(taskId)?.kind === 'story') continue
-    if (confirmed.size && prerequisites.has(taskId)) write(taskId, undefined)
-  }
-
-  // Keep active rows discovered in EFT logs. OCR only sees the currently visible page of the
-  // table, so deleting log rows here truncated long PvE task lists after the very first frame.
-
   const next = taskProgress === progress.taskProgress ? progress : { ...progress, taskProgress }
-  return options?.session ? reconcileWithSession(next, options.session, quests) : next
+  return next
 }
 
-/** Rows marked «доступно» / «заблокировано» / «провалено» are listed but not being done. */
+/** Only a row read «активно!» / «можно сдать» is being done; «доступно» / «заблокировано» / «провалено» or no status read is not. */
 function isCurrentRow(status?: QuestRowStatus) {
-  return status === undefined || status === 'active' || status === 'ready'
-}
-
-function collectCompletePrerequisites(
-  taskId: string,
-  byId: Map<string, Quest>,
-  seen: Set<string>,
-  completed: Set<string>,
-  visiting: Set<string>,
-) {
-  if (visiting.has(taskId)) return
-  visiting.add(taskId)
-  const quest = byId.get(taskId)
-  if (!quest) return
-  for (const requirement of completeOnlyRequirements(quest)) {
-    if (seen.has(requirement.taskId) || requirement.taskId.startsWith('wiki:')) continue
-    completed.add(requirement.taskId)
-    collectCompletePrerequisites(requirement.taskId, byId, seen, completed, visiting)
-  }
-}
-
-function completeOnlyRequirements(quest: Quest): TaskRequirement[] {
-  return questRequirements(quest).filter((requirement) => (
-    !requirement.group
-    && requirement.allowedStatuses.length === 1
-    && requirement.allowedStatuses[0] === 'complete'
-  ))
+  return status === 'active' || status === 'ready'
 }

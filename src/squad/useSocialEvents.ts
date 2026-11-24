@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
 import { watchVersion } from '../data/mapUpdates'
 import type { RaidMode } from '../domain/types'
+import { playerStateChannel } from '../sync/playerState'
 import { useServerAccount } from '../sync/serverSync'
 import { loadFriends, resetFriends, useFriends } from './useFriends'
 import { invalidateSquads, loadSquad, useSquad } from './useSquad'
@@ -29,7 +30,7 @@ export function useSocialEvents(mode: RaidMode) {
       void loadSquad(mode)
       void loadFriends()
       window.dispatchEvent(new Event(SOCIAL_UPDATE_EVENT))
-    }, stop.signal)
+    }, stop.signal, undefined, playerStateChannel)
     return () => stop.abort()
   }, [account, mode])
 }

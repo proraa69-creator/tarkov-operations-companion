@@ -1,0 +1,235 @@
+import { readFileSync } from 'node:fs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const read = (file: string) => readFileSync(file, 'utf8')
+const css = read('src/startup/intro.css')
+const markup = read('src/startup/intro.html')
+
+describe('the start intro in the page', () => {
+  it('index.html has its two places, and the build fills them in', () => {
+    const html = read('index.html')
+    expect(html).toContain('<!-- startup-intro:head -->')
+    expect(html).toContain('<!-- startup-intro:body -->')
+    const config = read('vite.config.ts')
+    expect(config).toContain('startupIntro()')
+    expect(config).toContain("order: 'post'")
+  })
+
+  it('no words on it: the name is drawn, the same in Russian and English', () => {
+    const withoutTags = markup.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]*>/g, '').trim()
+    expect(withoutTags).toBe('')
+  })
+
+  it('is the real logo: the R of build/brand/icon.svg, the six letters of name.svg', () => {
+    const R = /<g clip-path="url\(#nl168\)"><path d="([^"]+)"/.exec(read('build/brand/icon.svg'))?.[1]
+    expect(R).toBeTruthy()
+    expect(markup.split(R!).length - 1).toBe(2)
+    expect(markup.match(/class="si-l[ "]/g)).toHaveLength(6)
+    expect(markup.match(/class="si-l si-os/g)).toHaveLength(2)
+    for (const [, d] of read('build/brand/name.svg').matchAll(/<path d="([^"]+)"/g)) {
+      for (const part of d!.match(/M[^M]*/g)!) expect(markup).toContain(part.trim())
+    }
+  })
+
+  it('moves only by opacity and transform: those run while the app\'s code keeps the page busy', () => {
+    const blocks = [...css.matchAll(/@keyframes [\w-]+ \{((?:[^{}]*\{[^{}]*\})+)[^{}]*\}/g)]
+    expect(blocks.length).toBeGreaterThanOrEqual(9)
+    for (const [, body] of blocks) {
+      for (const [, frame] of body!.matchAll(/\{([^{}]*)\}/g)) {
+        const properties = frame!.split(';').map((rule) => rule.split(':')[0]!.trim()).filter(Boolean)
+        for (const property of properties) expect(['opacity', 'transform']).toContain(property)
+      }
+    }
+  })
+
+  it('stands on the colour of the window on every platform, so nothing flashes before the first frame', () => {
+    const ground = '#0d1110'
+    expect(css).toContain(`background: ${ground}`)
+    expect(read('electron/main.ts')).toContain(`backgroundColor: '${ground}'`)
+    expect(read('capacitor.config.ts').match(new RegExp(`backgroundColor: '${ground}'`, 'g'))).toHaveLength(2)
+  })
+})
+
+describe('the intro\'s size (owner, 06.11.2026)', () => {
+  const run = () => new Function(read('public/startup-intro.js'))()
+  const size = () => document.documentElement.getAttribute('data-startup-intro-size')
+  beforeEach(() => {
+    sessionStorage.clear()
+    document.documentElement.removeAttribute('data-startup-intro')
+    document.documentElement.removeAttribute('data-startup-intro-size')
+  })
+  afterEach(() => { delete (window as { tarkovDesktop?: unknown }).tarkovDesktop })
+
+  it('a third on the iPhone and on Android: the way Capacitor itself tells them, and not in a browser', () => {
+    vi.stubGlobal('navigator', { ...navigator, webdriver: false })
+    vi.stubGlobal('webkit', { messageHandlers: { bridge: {} } })
+    run()
+    expect(size()).toBe('third')
+    document.documentElement.removeAttribute('data-startup-intro-size')
+    vi.stubGlobal('webkit', { messageHandlers: {} })
+    run()
+    expect(size()).toBeNull()
+    vi.stubGlobal('androidBridge', { postMessage: () => {} })
+    run()
+    expect(size()).toBe('third')
+    vi.unstubAllGlobals()
+    expect(css).toContain('--si-t: calc(50vmin / 3); --si-nh: calc(14.5vmin / 3); --si-gap: calc(7vmin / 3)')
+    expect(css).toContain('--si-t: 50vmin; --si-nh: 14.5vmin; --si-gap: 7vmin')
+  })
+
+  it('small in the PC app, at its full size on the phone and in a browser', () => {
+    vi.stubGlobal('navigator', { ...navigator, webdriver: false })
+    run()
+    expect(size()).toBeNull()
+    document.documentElement.removeAttribute('data-startup-intro')
+    ;(window as { tarkovDesktop?: unknown }).tarkovDesktop = {}
+    run()
+    expect(size()).toBe('small')
+    vi.unstubAllGlobals()
+  })
+
+  it('the small size is a little over the 38 px logo, the row kept even in a tall window', () => {
+    expect(css).toMatch(/\[data-startup-intro-size="small"\] #startup-intro \{ --si-t: 64px/)
+    expect(css).toMatch(/\[data-startup-intro-size="small"\] \.si-lockup \{ flex-direction: row \}/)
+  })
+})
+
+describe('the thread keeps turning while the app loads (owner, 07.11.2026: «Люди подумают, что приложение зависло»)', () => {
+  it('on the emblem\'s own stitch, right after the intro, with no end and no script', () => {
+    expect(css).toMatch(/\.si-spin i \{[^}]*animation: si-spin 1\.5s linear infinite/)
+    expect(markup.match(/class="si-spin"/g)).toHaveLength(1)
+    for (const size of ['--si-m3', '--si-m5', '--si-m7']) expect(markup).toContain(`${size}:url('data:image/svg+xml,`)
+  })
+
+  // Owner, 07.11.2026: «более плавной… Кажется, какой-то нарезкой и дергается».
+  it('one arc that turns, by transform alone: nothing lights stitch by stitch, and a busy page cannot hold it up', () => {
+    expect(markup).not.toContain('si-run')
+    expect(css).not.toContain('si-turn')
+    expect(css).toMatch(/@keyframes si-spin \{ to \{ transform: rotate\(360deg\) \} \}/)
+    expect(css).toMatch(/\.si-spin i \{[^}]*will-change: transform/)
+  })
+
+  it('dark from the first moment, with or without the intro', () => {
+    expect(css.split('#startup-intro {')[0]).toMatch(/html \{ background: #0d1110 \}/)
+  })
+
+  it('every picture has one animation: two on one element would stop whenever the page is busy', () => {
+    for (const start of ['.si-d.si-hot {', '.si-spin {', '.si-spin i {']) {
+      const rule = css.split('\n').find((line) => line.startsWith(start))
+      expect(rule, start).toContain('animation: ')
+      expect(rule!.split('animation: ')[1], start).not.toContain(',')
+    }
+  })
+
+  it('also after a reload in the same window, where everything else stands', () => {
+    expect(css).toMatch(/\[data-startup-intro="still"\] #startup-intro \*:not\(\.si-spin, \.si-spin i\) \{ animation: none !important \}/)
+    expect(css).toMatch(/\[data-startup-intro="still"\] #startup-intro \.si-spin \{ animation-delay: 0s !important \}/)
+  })
+
+  it('motion turned off: it only brightens and dims, nothing travels', () => {
+    const off = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(off).toContain('si-breathe 1.8s ease-in-out infinite !important')
+    expect(off).not.toContain('calc(var(--k)')
+  })
+})
+
+describe('public/startup-intro.js decides before anything is drawn', () => {
+  const run = () => new Function(read('public/startup-intro.js'))()
+  const state = () => document.documentElement.getAttribute('data-startup-intro')
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    sessionStorage.clear()
+    document.documentElement.removeAttribute('data-startup-intro')
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    document.getElementById('startup-intro')?.remove()
+    document.getElementById('startup-failure')?.remove()
+    document.documentElement.removeAttribute('data-startup-intro')
+    delete (window as { __raidosAppStarted?: boolean }).__raidosAppStarted
+    delete (window as { __raidosStartNotes?: string[] }).__raidosStartNotes
+  })
+
+  it('plays once in a window; a reload there shows the finished logo', () => {
+    run()
+    expect(state()).toBe('play')
+    run()
+    expect(state()).toBe('still')
+  })
+
+  it('plays when the storage is closed', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementationOnce(() => { throw new Error('closed') })
+    run()
+    expect(state()).toBe('play')
+  })
+
+  it('stays away from browser automation (the e2e tests)', () => {
+    vi.stubGlobal('navigator', { webdriver: true })
+    run()
+    expect(state()).toBeNull()
+  })
+
+  it('never hides the screen for longer than 20 seconds, even with no app code at all', () => {
+    const element = document.createElement('div')
+    element.id = 'startup-intro'
+    document.body.append(element)
+    run()
+    vi.advanceTimersByTime(19_999)
+    expect(document.getElementById('startup-intro')).toBe(element)
+    vi.advanceTimersByTime(1)
+    expect(document.getElementById('startup-intro')).toBeNull()
+    expect(state()).toBeNull()
+  })
+
+  // owner, 23.11.2026: a player's window stayed dark at every start, with the graphics card off too
+  it('with no app code at all, says after 20 seconds that the app did not start, with the version and a restart', () => {
+    vi.stubGlobal('navigator', { ...navigator, language: 'ru-RU' })
+    ;(window as { __raidosStartNotes?: string[] }).__raidosStartNotes = ['Версия 0.6.0-335 · Windows 10.0.26100 x64']
+    run()
+    vi.advanceTimersByTime(19_999)
+    expect(document.getElementById('startup-failure')).toBeNull()
+    vi.advanceTimersByTime(1)
+    const failure = document.getElementById('startup-failure')!
+    expect(failure.getAttribute('role')).toBe('alert')
+    expect(failure.querySelector('h1')!.textContent).toBe('Приложение не запустилось')
+    expect(failure.querySelector('pre')!.textContent).toContain('Версия 0.6.0-335 · Windows 10.0.26100 x64')
+    expect(failure.querySelector('pre')!.textContent).toContain('Ошибок не поймано')
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload })
+    localStorage.setItem('tarkov-operations-ui-v2', '{}')
+    failure.querySelector<HTMLButtonElement>('[data-action="restart"]')!.click()
+    expect(reload).toHaveBeenCalled()
+    expect(localStorage.getItem('tarkov-operations-ui-v2')).toBeNull()
+  })
+
+  it('an error or a file that did not load before the app started: the reason at 8 seconds, ready to copy', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', { ...navigator, language: 'ru-RU', clipboard: { writeText } })
+    run()
+    window.dispatchEvent(new ErrorEvent('error', { message: 'Uncaught TypeError: x is undefined', filename: 'file:///app/dist/assets/index-abc.js', lineno: 12 }))
+    const script = document.createElement('script')
+    script.src = 'file:///app/dist/assets/index-abc.js'
+    document.head.append(script)
+    script.dispatchEvent(new Event('error'))
+    script.remove()
+    vi.advanceTimersByTime(8000)
+    const text = document.querySelector('#startup-failure pre')!.textContent!
+    expect(text).toContain('Uncaught TypeError: x is undefined (index-abc.js:12)')
+    expect(text).toContain('Не загрузился файл: file:///app/dist/assets/index-abc.js')
+    const copy = document.querySelector<HTMLButtonElement>('#startup-failure [data-action="copy"]')!
+    copy.click()
+    await vi.waitFor(() => expect(copy.textContent).toBe('Скопировано'))
+    expect(writeText).toHaveBeenCalledWith(text)
+  })
+
+  it('once the app\'s code runs, its own screens answer: nothing over them', () => {
+    run()
+    ;(window as { __raidosAppStarted?: boolean }).__raidosAppStarted = true
+    window.dispatchEvent(new ErrorEvent('error', { message: 'later' }))
+    vi.advanceTimersByTime(20_000)
+    expect(document.getElementById('startup-failure')).toBeNull()
+  })
+})

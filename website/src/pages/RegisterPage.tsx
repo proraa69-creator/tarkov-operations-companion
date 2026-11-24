@@ -5,6 +5,8 @@ import { ApiError, api, errorMessage, type PendingRegistration } from '../api'
 import { useAuth } from '../auth'
 import { ConsentCheckbox } from '../components/ConsentCheckbox'
 import { CountrySelect } from '../components/CountrySelect'
+import { GoogleSignIn } from '../components/GoogleSignIn'
+import { useAuthConfig } from '../components/authConfig'
 import { Notice } from '../components/Notice'
 import { RegistrationCodeStep } from '../components/EmailAuth'
 import { tr } from '../i18n'
@@ -26,6 +28,7 @@ export function RegisterPage() {
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const config = useAuthConfig()
   const [localError, setLocalError] = useState<string | null>(null)
   // With e-mail codes on: the account appears only after the code from the e-mail (server/src/routes/email.ts).
   const [pending, setPending] = useState<{ registration: PendingRegistration; email: string; code: string } | null>(null)
@@ -86,7 +89,7 @@ export function RegisterPage() {
         <p className="lead">{tr('Один аккаунт для сайта и приложения.')}</p>
         {/* owner, 12.10.2026: «При регистрации пиши что даются сутки бесплатно… и если по его ссылке пришли оплатившие друзья, то ему дают бонусы» */}
         <ul className="auth-perks">
-          <li><Clock aria-hidden="true" /><span><strong>{tr('Сутки бесплатно')}</strong> {tr('с первого входа в приложение Raid OS, без оплаты.')}</span></li>
+          <li><Clock aria-hidden="true" /><span><strong>{tr('2 дня бесплатно')}</strong> {tr('с первого входа в приложение Raid OS, без оплаты.')}</span></li>
           <li><Users aria-hidden="true" /><span>{tr('Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.')}</span></li>
         </ul>
         <form className="form" onSubmit={submit}>
@@ -111,7 +114,7 @@ export function RegisterPage() {
           {linkCode && !showCode ? (
             <div className="notice success" role="status">
               <Gift aria-hidden="true" />
-              <div><strong>{tr('Вы пришли по приглашению · {code}', { code: linkCode })}</strong>{tr('Код применится автоматически — вводить ничего не нужно. Скидка 20 % действует на первый месяц по ссылке друга.')}</div>
+              <div><strong>{tr('Скидка 20 % на первый месяц · {code}', { code: linkCode })}</strong>{tr('Код из ссылки применится сам — вводить ничего не нужно.')}</div>
             </div>
           ) : showCode || referral.trim() ? (
             <label className="field">
@@ -128,6 +131,8 @@ export function RegisterPage() {
             {busy ? tr('Создаём аккаунт…') : tr('Зарегистрироваться')}
           </button>
         </form>
+        {config?.googleClientId && <div className="auth-divider">{tr('или')}</div>}
+        <GoogleSignIn clientId={config?.googleClientId} referralCode={normalizeReferralCode(referral) || undefined} />
         <p className="auth-switch">{tr('Уже есть аккаунт?')} <Link to="/login">{tr('Войти')}</Link></p>
       </div>
     </div>

@@ -72,6 +72,12 @@ describe('SupportButtons', () => {
     await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
     // A bug report starts with its category; until then the form stays folded and nothing can be sent.
     expect(await screen.findByRole('button', { name: 'Отправить отчёт' })).toBeDisabled()
+    // The groups first, then the topic; «Назад» goes back to the groups (owner, 11.11.2026).
+    expect(screen.queryByRole('radio', { name: 'Карта и метки' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Аккаунт и оплата' }))
+    expect(screen.getByRole('radio', { name: 'Подписка и оплата' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Назад' }))
+    await user.click(screen.getByRole('button', { name: 'Квесты и карта' }))
     await user.click(screen.getByRole('radio', { name: 'Карта и метки' }))
     const topic = await screen.findByLabelText('Тема')
     await user.type(topic, 'Карта не открывается')
@@ -106,7 +112,7 @@ describe('SupportButtons', () => {
     const user = userEvent.setup()
     render(<SupportButtons variant="panel" />)
     await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
-    await user.click(await screen.findByRole('radio', { name: 'Другое' }))
+    await user.click(await screen.findByRole('button', { name: 'Другое' }))
     await user.upload(await screen.findByLabelText('Скриншоты'), new File([PNG_BYTES], 'a.png', { type: 'image/png' }))
     await user.click(await screen.findByRole('button', { name: 'Убрать скриншот a.png' }))
     await waitFor(() => expect(screen.queryByRole('img')).toBeNull())

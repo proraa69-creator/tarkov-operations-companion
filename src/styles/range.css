@@ -1,0 +1,267 @@
+/* «Тир» (src/pages/RangePage.tsx): settings on the left, the target in the middle, the hit results on the right. */
+.range-page .page-header { align-items: flex-end; }
+.range-loading { display: flex; align-items: center; gap: 10px; padding: 18px; color: var(--text-muted); }
+.range-loading .spin { animation: range-spin 1s linear infinite; }
+@keyframes range-spin { to { transform: rotate(360deg); } }
+
+.range-layout { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) minmax(260px, 320px); gap: 14px; align-items: start; }
+.range-side { display: grid; gap: 12px; min-width: 0; }
+.range-main { display: grid; gap: 12px; min-width: 0; }
+.range-card { padding: 14px; display: grid; gap: 10px; }
+.range-card-title { margin: 0; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--brass); }
+.range-field { display: grid; gap: 5px; min-width: 0; }
+.range-field > span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.range-field .select { width: 100%; min-width: 0; }
+.range-field .segmented-filter button { display: inline-flex; align-items: center; gap: 5px; }
+.range-groups button { flex: 1 1 auto; }
+
+.range-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.range-facts-wide { grid-template-columns: minmax(0, 1fr); }
+.range-fact { display: flex; justify-content: space-between; gap: 8px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); font-size: 12px; min-width: 0; }
+.range-fact span { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.range-fact b { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.range-class { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; color: #111; font-size: 11px; font-weight: 800; }
+
+.range-toolbar { padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.range-distance { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); flex: 1 1 280px; }
+.range-distance input[type="range"] { flex: 1 1 auto; accent-color: var(--brass); }
+.range-distance-value { min-width: 58px; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.range-inline { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.range-inline .select { height: 32px; }
+.range-toggles, .range-zone-picks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.range-divider { width: 1px; height: 20px; margin: 0 4px; background: var(--line); }
+.range-chip { min-height: 30px; padding: 0 11px; border: 1px solid var(--line); border-radius: 99px; background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 650; cursor: pointer; }
+.range-chip.is-on { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); color: var(--text); background: color-mix(in srgb, var(--brass) 14%, transparent); }
+
+.range-stage { padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 12px; }
+.range-stage-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted); }
+.range-stage-head b { color: var(--text); font-variant-numeric: tabular-nums; }
+.range-mag em { color: var(--amber); font-style: normal; }
+.range-stage-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.range-stage-actions .button { min-height: 32px; padding: 0 11px; font-size: 12px; }
+.range-target-wrap { position: relative; min-height: 420px; border: 1px solid var(--line); border-radius: 12px; background:
+  radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--panel-3, var(--panel)) 70%, transparent), transparent 70%),
+  repeating-linear-gradient(0deg, transparent 0 39px, rgb(255 255 255 / 3%) 39px 40px), var(--bg-elevated); overflow: hidden; }
+.range-target { display: block; width: 100%; height: min(68vh, 640px); cursor: none; touch-action: none; user-select: none; }
+.range-ground { fill: rgb(0 0 0 / 22%); }
+.range-body { fill: #46544a; }
+.range-body-line { fill: none; stroke: rgb(0 0 0 / 55%); stroke-width: .45; pointer-events: none; }
+.range-zone { stroke: rgb(255 255 255 / 10%); stroke-width: .25; transition: fill .25s var(--ease-soft); }
+.range-zone:hover { filter: brightness(1.18); }
+.range-figure-zone { stroke-width: .35; transition: fill .25s var(--ease-soft); }
+.range-figure-zone:hover { fill: rgb(255 255 255 / 10%); }
+.range-target.is-pictured .range-hp { font-size: 3px; }
+.range-plate { fill-opacity: .2; stroke-width: .5; stroke-dasharray: 1.4 .8; pointer-events: none; }
+.range-plate.is-broken { fill-opacity: .05; stroke-opacity: .4; }
+.range-hp { font-size: 3.4px; font-weight: 800; fill: rgb(255 255 255 / 82%); pointer-events: none; paint-order: stroke; stroke: rgb(0 0 0 / 55%); stroke-width: .6px; }
+.range-hp.is-out { fill: #e2574c; }
+.range-mark { stroke: rgb(0 0 0 / 65%); stroke-width: .25; pointer-events: none; }
+.range-cover { fill: rgb(60 55 48 / 82%); stroke: rgb(0 0 0 / 40%); stroke-width: .3; pointer-events: none; }
+.range-aim line { stroke: #f3e7c6; stroke-width: .35; }
+.range-spread { fill: rgb(243 231 198 / 6%); stroke: rgb(243 231 198 / 55%); stroke-width: .25; stroke-dasharray: .8 .6; }
+.range-dead { position: absolute; z-index: 4; left: 50%; top: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--bg) 88%, var(--danger)); font-size: 13px; }
+.range-dead b { color: #ff8a7d; letter-spacing: .06em; text-transform: uppercase; }
+.range-dead .button { min-height: 30px; padding: 0 10px; font-size: 12px; }
+
+.range-health { display: grid; gap: 7px; align-content: start; }
+.range-hp-row { display: grid; grid-template-columns: 62px minmax(0, 1fr) 58px; gap: 6px; align-items: center; font-size: 12px; color: var(--text-muted); }
+.range-hp-row i, .range-armor-row i { display: block; height: 7px; border-radius: 99px; background: rgb(255 255 255 / 6%); overflow: hidden; }
+.range-hp-row s, .range-armor-row s { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #7fa983, #a8c48a); text-decoration: none; transition: width .25s var(--ease-soft); }
+.range-hp-row b { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.range-hp-row.is-out { color: #e2574c; }
+.range-hp-row.is-out s { background: #e2574c; }
+
+.range-counters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: 8px; }
+.range-reset { min-height: 33px; font-size: 12px; }
+
+.range-tabs { width: 100%; }
+.range-tabs button { flex: 1 1 auto; }
+.range-empty { margin: 4px 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+.range-result { display: grid; gap: 8px; }
+.range-result-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 14px; }
+.range-result-head span { color: var(--text-muted); }
+.range-result-head em { margin-left: auto; font-style: normal; font-weight: 750; }
+.range-layer { display: grid; gap: 3px; padding: 8px 9px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; background: var(--surf-1); font-size: 12px; }
+.range-layer div { display: flex; align-items: center; gap: 6px; }
+.range-layer em { margin-left: auto; font-style: normal; color: var(--text-muted); }
+.range-layer small { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.range-layer.is-through { border-left-color: #e2574c; }
+.range-layer.is-stopped { border-left-color: #e0b552; }
+.range-layer.is-ricochet { border-left-color: #6aa6c8; }
+.range-layer.is-behind, .range-layer.is-broken { border-left-color: var(--line-strong); opacity: .8; }
+.range-applied { display: flex; flex-wrap: wrap; gap: 6px; }
+.range-applied span { padding: 3px 8px; border-radius: 99px; background: color-mix(in srgb, var(--danger) 18%, transparent); color: #f1b2a9; font-size: 12px; font-variant-numeric: tabular-nums; }
+.range-kill { margin: 0; color: #ff8a7d; font-weight: 750; }
+
+.range-armor-list { display: grid; gap: 8px; max-height: 70vh; overflow-y: auto; }
+.range-armor-row { display: grid; gap: 4px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); font-size: 12px; }
+.range-armor-row div { display: flex; align-items: center; gap: 6px; }
+.range-armor-row small { color: var(--text-dim); }
+.range-armor-row.is-broken { opacity: .6; }
+.range-armor-row.is-broken s { background: #e2574c; }
+
+.range-log { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; max-height: 70vh; overflow-y: auto; font-size: 12px; }
+.range-log li { display: grid; grid-template-columns: 10px 38px minmax(0, 1fr) 44px auto; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 6px; background: var(--surf-1); }
+.range-log li i { width: 8px; height: 8px; border-radius: 50%; }
+.range-log li span:nth-child(2) { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.range-log li span:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
+.range-log li b { color: #ff8a7d; font-size: 11px; }
+
+.range-note { margin: 0; color: var(--text-muted); font-size: 12px; }
+
+.range-card-title small { margin-left: 6px; color: var(--text-dim); font-size: 11px; letter-spacing: 0; }
+
+@media (max-width: 1380px) {
+  .range-layout { grid-template-columns: minmax(300px, 340px) minmax(0, 1fr); }
+  .range-results { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .range-layout { grid-template-columns: minmax(0, 1fr); }
+  .range-stage { grid-template-columns: minmax(0, 1fr); }
+  .range-counters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .range-target { height: 60vh; cursor: crosshair; }
+}
+
+/* a hit body part: its exact outline flashes, its shape darkens as it loses health (owner, 22.11.2026) */
+.range-part-hurt { pointer-events: none; mix-blend-mode: multiply; }
+.range-part-flash { pointer-events: none; filter: drop-shadow(0 0 .9px #ffd65c) drop-shadow(0 0 2px rgb(255 214 92 / 70%)); animation: range-part-flash 1.4s var(--ease-soft) forwards; }
+@keyframes range-part-flash { 0% { opacity: 1; } 70% { opacity: .85; } 100% { opacity: 0; } }
+.range-zone.is-hit { stroke: #ffd65c; stroke-width: .6; }
+/* the chosen build small, its modules changed at their cells */
+.range-build-panel { padding-bottom: 10px; }
+.range-build { display: grid; gap: 6px; }
+.range-build .build-bench { min-height: 0; }
+.range-build-reset { justify-self: start; }
+/* a boss's own kit */
+.range-locked-note { margin: 0 0 8px; font-size: 12px; color: var(--text-muted); }
+.range-locked-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+.range-locked-list li { display: flex; align-items: center; gap: 6px; }
+.range-armor-hp { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.range-armor-hp .range-hp-row { grid-template-columns: minmax(0, 150px) minmax(0, 1fr) 70px; }
+.range-armor-hp .range-hp-row span { display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the covers as things (src/range/RangeCover.tsx) */
+.range-cover-post { fill: #1f3a4a; }
+.range-cover-frame { fill: #5b4630; stroke: #2c2116; stroke-width: .6; }
+.range-cover-sill { fill: #8a8378; }
+/* where the barrel points with the recoil */
+.range-muzzle { fill: #ff5a4a; stroke: #fff; stroke-width: .35; }
+/* the view through a scope (src/range/RangeScopeView.tsx) */
+.range-scope { position: relative; width: min(100%, 72vh); aspect-ratio: 1; margin: 0 auto; border-radius: 50%; overflow: hidden; cursor: crosshair; user-select: none;
+  background: #0b0d0c; box-shadow: 0 0 0 10px #050605, 0 0 40px 18px rgb(0 0 0 / 70%) inset; }
+.range-scope.is-locked { cursor: none; }
+.range-scope-world { position: absolute; inset: 0; width: 100%; height: 100%; }
+.range-scope-sky { fill: #8fa9b5; }
+.range-scope-grass { fill: #6c6a45; }
+/* larger than the scope at a first focal plane scope's high magnification: never capped (the global img max-width made it oval) */
+.range-scope-reticle { position: absolute; left: 50%; top: 50%; max-width: none; max-height: none; transform: translate(-50%, -50%); pointer-events: none; image-rendering: auto; }
+.range-scope-reticle.is-drawn { width: 100%; height: 100%; }
+.range-scope-reticle.is-drawn path { stroke: #111; stroke-width: .35; fill: none; }
+.range-scope::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; box-shadow: inset 0 0 60px 26px rgb(0 0 0 / 85%); }
+.range-scope-hint { position: absolute; left: 50%; bottom: 10%; max-width: 70%; transform: translateX(-50%); padding: 5px 9px; border-radius: 8px; background: rgb(0 0 0 / 55%); color: #e8e4d8; font-size: 11.5px; text-align: center; pointer-events: none; z-index: 1; animation: range-scope-hint-out .5s ease 3s forwards; }
+@keyframes range-scope-hint-out { to { opacity: 0; } }
+.range-holdover { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: var(--surf-1); font-size: 12.5px; color: var(--text-muted); }
+.range-holdover b { color: var(--brass, #d8c27a); font-size: 14px; }
+.range-scope-select { max-width: 220px; }
+.range-cover-seam { stroke: #1f2a12; stroke-width: 1.2; fill: none; }
+.range-scope-impact { pointer-events: none; }
+/* a single shot's bullet in flight (src/range/RangeTracer.tsx): a warm trail and a bright head, the time, speed and distance under it */
+.range-scope-tracer { pointer-events: none; }
+.range-scope-tracer polyline, .range-scope-tracer line { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+.range-scope-tracer .is-trail { stroke: rgb(255 196 92 / 85%); stroke-width: 2px; filter: drop-shadow(0 0 2px rgb(255 160 60 / 90%)); }
+.range-scope-tracer .is-head { stroke: #fff6d8; stroke-width: 7px; filter: drop-shadow(0 0 4px #ffb04a); }
+.range-tracer-readout { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); padding: 3px 8px; border-radius: 6px; background: rgb(0 0 0 / 55%); color: #ffe7b0; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+/* the hold bar: red with a dark rim on a black reticle, black with a light rim on a red one; a little thicker than the reticle's
+   lines (owner, 24.11.2026: «чуть-чуть шире… но не такую огромную») */
+.range-scope-impact line { vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.range-scope-impact .is-halo { stroke-width: 5px; }
+.range-scope-impact .is-bar { stroke-width: 3px; }
+.range-scope-impact.is-red .is-halo { stroke: rgb(0 0 0 / 70%); }
+.range-scope-impact.is-red .is-bar { stroke: #ff2418; }
+.range-scope-impact.is-black .is-halo { stroke: rgb(255 255 255 / 75%); }
+.range-scope-impact.is-black .is-bar { stroke: #050505; }
+.range-scope-enter { position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%); z-index: 2; }
+.range-scope-world.is-night { filter: grayscale(1) sepia(1) hue-rotate(55deg) saturate(3.2) brightness(1.1); }
+.range-scope-world.is-thermal { filter: grayscale(1) invert(1) contrast(1.6) brightness(1.1); }
+.range-stage > .range-holdover, .range-stage > .range-armor-hp { grid-column: 1 / -1; }
+.range-target-wrap:has(.range-scope) { display: grid; place-items: center; padding: 10px; background: #070807; }
+/* the weapon's card holds the small build window */
+.range-build .wb-stage-scroll { border-radius: 10px; }
+
+/* «Выйти из прицела» (owner, 23.11.2026), where the page could not take the mouse */
+.range-scope-leave { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); z-index: 2; }
+/* the keys on the buttons: R reloads, F gives a new target */
+.range-key { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 4px; border: 1px solid var(--line-strong); border-radius: 4px; font: 600 11px/16px var(--font-mono, monospace); text-align: center; color: var(--text-muted); }
+/* the hold: the figures, a «?» with what each means, how to aim */
+.range-hold-main { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.range-hold-aim { color: var(--text); }
+.range-help { position: relative; display: inline-flex; }
+.range-help-mark { width: 18px; height: 18px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surf-2, transparent); color: var(--text-muted); font: 700 11px/16px inherit; cursor: help; }
+.range-help-mark:hover, .range-help-mark:focus-visible { color: var(--text); border-color: var(--brass, #d8c27a); }
+.range-help-text { position: absolute; left: 50%; top: calc(100% + 6px); z-index: 30; width: min(340px, 80vw); padding: 10px 12px; transform: translateX(-50%); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surf-1); box-shadow: 0 14px 34px rgb(0 0 0 / 45%); color: var(--text); font-size: 12.5px; line-height: 1.45; visibility: hidden; opacity: 0; transition: opacity .12s ease; pointer-events: none; }
+.range-help:hover .range-help-text, .range-help:focus-within .range-help-text, .range-help.is-open .range-help-text { visibility: visible; opacity: 1; }
+/* the drop by distance */
+.range-drops { grid-column: 1 / -1; margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: var(--surf-1); font-size: 12.5px; }
+.range-drops summary { cursor: pointer; color: var(--text); font-weight: 600; }
+.range-drops table { width: 100%; margin-top: 8px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.range-drops th, .range-drops td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.range-drops th:first-child, .range-drops td:first-child { text-align: left; }
+.range-drops th { color: var(--text-muted); font-weight: 600; }
+.range-drops tr.is-current td { background: color-mix(in srgb, var(--brass, #d8c27a) 16%, transparent); color: var(--text); }
+.range-drops tr.is-zero td { color: var(--brass, #d8c27a); }
+.range-drops p { margin: 6px 0 0; color: var(--text-muted); }
+
+/* the lists with pictures: scopes, helmets, body armour (owner, 23.11.2026) */
+.range-picker { position: relative; min-width: 0; }
+.range-picker-button { display: inline-flex; align-items: center; gap: 8px; width: 100%; min-width: 200px; max-width: 300px; text-align: left; cursor: pointer; }
+.range-card .range-picker-button { max-width: none; }
+.range-picker-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* one track the tile's size: a picture larger than the tile (a helmet's 128 px icon) shrinks into it, never out of the box (owner, 23.11.2026, FLUX / OTV) */
+.range-pick-thumb { display: inline-grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; flex: none; box-sizing: border-box; width: 56px; height: 30px; padding: 2px 4px; overflow: hidden; border-radius: 6px; background: radial-gradient(ellipse at 50% 50%, #4a5650 0%, #262e2a 85%); color: var(--text-muted); }
+/* the part's picture as large as the tile (the build's cells size it themselves) */
+.range-pick-thumb img, .range-pick-thumb .gb-icon { width: 100%; height: 100%; min-width: 0; min-height: 0; max-width: none; max-height: none; object-fit: contain; }
+.range-pick-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 60; width: min(380px, 90vw); max-height: min(60vh, 520px); margin: 0; padding: 4px; overflow-y: auto; list-style: none; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surf-1); box-shadow: 0 18px 40px rgb(0 0 0 / 50%); }
+.range-pick-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.range-pick-list button:hover, .range-pick-list button:focus-visible { background: var(--surf-2, rgb(255 255 255 / 6%)); }
+.range-pick-list [aria-selected="true"] button { background: color-mix(in srgb, var(--brass, #d8c27a) 14%, transparent); }
+.range-pick-list .range-pick-thumb { width: 112px; height: 56px; }
+.range-pick-name { display: flex; flex: 1; flex-direction: column; min-width: 0; font-size: 13px; }
+.range-pick-name small { color: var(--text-muted); font-size: 11.5px; }
+.range-pick-group { padding: 10px 8px 4px; color: var(--brass, #d8c27a); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+/* without optics: the view at ×1, not a scope's circle */
+.range-scope.is-irons { border-radius: 14px; }
+/* a red dot: its housing seen from the eye, over the target and under its mark */
+.range-scope-housing { position: absolute; left: 50%; top: 50%; max-width: none; max-height: none; transform: translate(-50%, -50%); pointer-events: none; user-select: none; }
+.range-scope.is-irons::after { border-radius: 14px; box-shadow: inset 0 0 40px 10px rgb(0 0 0 / 45%); }
+/* the quick distances */
+.range-distance-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.range-distance-chips button { padding: 3px 8px; border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.range-distance-chips button.is-on { border-color: var(--brass, #d8c27a); color: var(--text); }
+
+/* the scope's corners (owner, 24.11.2026): the fire mode top left, the phone's full screen top right, reload and a new target below */
+.range-corner { position: absolute; z-index: 3; display: flex; gap: 6px; }
+.range-corner.is-top-left { left: 10px; top: 10px; }
+.range-corner.is-top-right { right: 10px; top: 10px; }
+.range-corner.is-bottom-left { left: 10px; bottom: 10px; }
+.range-corner.is-bottom-right { right: 10px; bottom: 10px; }
+.range-corner-button { min-height: 32px; padding: 0 10px; font-size: 12px; gap: 6px; background: rgb(12 13 12 / 82%); }
+.range-corner-button .range-key { margin-left: 2px; }
+@media (max-width: 520px) { .range-target-wrap:not(.is-full) .range-corner-button > span { display: none; } }
+
+/* the phone's full screen: the scope in the middle, the stick on the left, the fire button on the right */
+.range-target-wrap.is-full { position: fixed; inset: 0; z-index: 2000; min-height: 0; padding: 0; border: 0; border-radius: 0; background: #050505;
+  container-type: size; touch-action: none; overscroll-behavior: contain; -webkit-user-select: none; user-select: none; }
+.range-target-wrap.is-full.is-turned { inset: auto; left: 50%; top: 50%; width: 100dvh; height: 100dvw; transform: translate(-50%, -50%) rotate(90deg); }
+.range-target-wrap.is-full .range-scope { width: min(100cqh - 12px, 100cqw - 300px); }
+.range-target-wrap.is-full .range-corner { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.range-stick { position: absolute; z-index: 3; left: max(18px, calc((100cqw - min(100cqh - 12px, 100cqw - 300px)) / 2 - 140px)); top: 50%; width: 120px; height: 120px;
+  margin-top: -60px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 22%); background: radial-gradient(circle, rgb(255 255 255 / 10%), rgb(255 255 255 / 3%) 70%); touch-action: none; }
+.range-stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgb(255 255 255 / 30%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 60%), inset 0 1px 0 rgb(255 255 255 / 30%); pointer-events: none; }
+.range-fire-side { position: absolute; z-index: 3; right: max(18px, calc((100cqw - min(100cqh - 12px, 100cqw - 300px)) / 2 - 140px)); top: 50%; display: grid;
+  justify-items: center; gap: 8px; transform: translateY(-50%); }
+.range-fire { width: 104px; height: 104px; border-radius: 50%; border: 2px solid rgb(255 120 100 / 70%); background: radial-gradient(circle at 50% 40%, #b0342a, #6e1a14);
+  color: #fff; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 15px; box-shadow: 0 4px 14px rgb(0 0 0 / 70%); touch-action: none; }
+.range-fire.is-down { transform: scale(.94); background: radial-gradient(circle at 50% 40%, #e0493a, #8c2219); }
+.range-fire-mag { padding: 2px 8px; border-radius: 6px; background: rgb(0 0 0 / 60%); color: #e8e4d8; font-size: 13px; font-variant-numeric: tabular-nums; }
+.range-fire-mag.is-empty { color: var(--amber); }

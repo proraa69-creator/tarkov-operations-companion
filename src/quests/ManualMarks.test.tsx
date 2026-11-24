@@ -14,11 +14,11 @@ import { QuestsPage } from '../pages/QuestsPage'
 import { completedQuestStats } from '../progression/requirementEngine'
 import { AppStateProvider, useAppState } from '../state/AppState'
 import { dismissModeResetNotice, useModeResetNotices } from '../state/modeReset'
-import { MANUAL_MARKS_KEY } from './manualMarksSetting'
 import { questAvailabilityOf } from './questReadModel'
 
 const dataset: AppDataset = { ...demoDataset, quests: demoDataset.quests.filter((quest) => quest.kind !== 'story') }
-const [FIRST, SECOND] = dataset.quests.map((quest) => quest.id)
+const [FIRST, SECOND, THIRD] = dataset.quests.map((quest) => quest.id)
+const nameOf = (id: string) => dataset.quests.find((quest) => quest.id === id)!.name
 const probe: { app?: ReturnType<typeof useAppState>; notices?: ReturnType<typeof useModeResetNotices> } = {}
 function Probe() {
   const app = useAppState()
@@ -47,24 +47,37 @@ afterEach(() => {
 })
 
 describe('«Ручная отметка» (owner, 15.10.2026)', () => {
-  it('a compact switch right under the Kappa badge: off by default, its tooltip, remembered on this device', () => {
-    const page = renderQuests()
-    const toggle = screen.getByRole('switch', { name: 'Ручная отметка' })
-    expect(toggle).toHaveAttribute('aria-checked', 'false')
-    expect(toggle).toHaveAttribute('title', 'Если квест не появился или статус неверный из-за ошибки — отметьте вручную.')
-    // Right under «Капа: выполнено N из M».
-    expect(toggle.previousElementSibling).toHaveTextContent(/Капа: выполнено \d+ из \d+/)
-    expect(screen.queryByRole('button', { name: /В текущие/ })).toBeNull()
-    fireEvent.click(toggle)
-    expect(toggle).toHaveAttribute('aria-checked', 'true')
-    expect(localStorage.getItem(MANUAL_MARKS_KEY)).toBe('1')
-    page.unmount()
+  it('«Ручное добавление» under the Kappa badge: search, tick, «Добавить» — the ticked quests go to «Текущие» as marks (03.11.2026)', () => {
     renderQuests()
-    expect(screen.getByRole('switch', { name: 'Ручная отметка' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByRole('switch', { name: 'Ручная отметка' })).toBeNull()
+    const open = screen.getByRole('button', { name: /Ручное добавление/ })
+    expect(open.parentElement?.textContent).toMatch(/Капа: выполнено \d+ из \d+/)
+    fireEvent.click(open)
+    const dialog = screen.getByRole('dialog', { name: 'Ручное добавление' })
+    const box = (id: string) => within(dialog).getByText(nameOf(id), { selector: '.manual-add-name' }).closest('label')!.querySelector('input')!
+    // The quest the logs already hold is ticked and cannot be added again; nothing ticked yet: nothing to add.
+    expect(box(FIRST!)).toBeChecked()
+    expect(box(FIRST!)).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Добавить' })).toBeDisabled()
+    // The search narrows the list; the ticks stay while it changes.
+    const search = within(dialog).getByRole('textbox', { name: 'Поиск квеста…' })
+    fireEvent.change(search, { target: { value: nameOf(SECOND!) } })
+    expect(within(dialog).queryByText(nameOf(THIRD!), { selector: '.manual-add-name' })).toBeNull()
+    fireEvent.click(box(SECOND!))
+    fireEvent.change(search, { target: { value: '' } })
+    fireEvent.click(box(THIRD!))
+    expect(box(SECOND!)).toBeChecked()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить (2)' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(record(SECOND!)).toMatchObject({ status: 'active', source: 'manual-fix' })
+    expect(record(THIRD!)).toMatchObject({ status: 'active', source: 'manual-fix' })
+    expect(pvp().questInputs!.manual[SECOND!]).toMatchObject({ status: 'active' })
+    // From then on the logs decide: the game hands one in later.
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: SECOND!, status: 'completed', timestamp: new Date(Date.now() + 60_000).toISOString() }], {}))
+    expect(record(SECOND!)).toMatchObject({ status: 'completed', source: 'eft-log' })
   })
 
-  it('rows and the quest card offer «В текущие», «Выполнено», «Снять отметку»; a mark shows «вручную» and counts', () => {
-    localStorage.setItem(MANUAL_MARKS_KEY, '1')
+  it('the quest card offers «В текущие», «Выполнено», «Снять отметку» without any switch; a mark shows «вручную» and counts', () => {
     renderQuests('ru', `/quests?filter=all&selected=${SECOND}`)
     const card = document.querySelector('.quest-detail')! as HTMLElement
     expect(within(card).getByRole('button', { name: /В текущие/ })).toBeInTheDocument()
@@ -74,9 +87,10 @@ describe('«Ручная отметка» (owner, 15.10.2026)', () => {
     expect(within(card).getByText('вручную')).toBeInTheDocument()
     // Counted in «Выполнено».
     expect(completedQuestStats(dataset.quests, questAvailabilityOf(dataset.quests, pvp())).completed).toBe(1)
-    // The row of the list shows the tag and the actions too.
+    // The row of the list shows the tag, without the actions.
     const rows = [...document.querySelectorAll('.quest-catalog-card')] as HTMLElement[]
     expect(rows.some((row) => within(row).queryByText('вручную'))).toBe(true)
+    expect(rows.every((row) => within(row).queryByRole('button', { name: /В текущие/ }) === null)).toBe(true)
     // «Снять отметку»: back to what the other sources say (nothing for this quest).
     fireEvent.click(within(card).getByRole('button', { name: /Снять отметку/ }))
     expect(record(SECOND!)).toBeUndefined()
@@ -84,7 +98,6 @@ describe('«Ручная отметка» (owner, 15.10.2026)', () => {
   })
 
   it('against the logs: a mark beats an older log event, a newer log event beats the mark', () => {
-    localStorage.setItem(MANUAL_MARKS_KEY, '1')
     renderQuests()
     // Taken in the logs at 10:00; marked done at 11:00.
     act(() => probe.app!.setManualQuestMark('pvp', FIRST!, 'completed', '2026-10-15T11:00:00.000Z'))
@@ -100,6 +113,37 @@ describe('«Ручная отметка» (owner, 15.10.2026)', () => {
     expect(record(FIRST!)?.status).toBe('completed')
   })
 
+  it('«Отменить» in a quest\'s history brings the status back as a mark, and the next run of the engine keeps it (02.11.2026)', () => {
+    renderQuests()
+    // The logs hand the quest in at 11:00: an automatic change with «Отменить».
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: FIRST!, status: 'completed', timestamp: '2026-10-15T11:00:00.000Z' }], {}))
+    expect(record(FIRST!)).toMatchObject({ status: 'completed', source: 'eft-log' })
+    const change = pvp().progressEvents.filter((event) => event.eventType === 'task-status' && event.taskId === FIRST && event.newValue === 'completed').at(-1)
+    expect(change).toMatchObject({ oldValue: 'active', reversible: true })
+    act(() => probe.app!.undoProgressEvent(change!.id))
+    expect(record(FIRST!)).toMatchObject({ status: 'active', source: 'manual-fix' })
+    expect(pvp().questInputs!.manual[FIRST!]).toMatchObject({ status: 'active' })
+    // The same scan again (the next minute): the undo stays.
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: FIRST!, status: 'completed', timestamp: '2026-10-15T11:00:00.000Z' }], {}))
+    expect(record(FIRST!)).toMatchObject({ status: 'active', source: 'manual-fix' })
+  })
+
+  it('marks the server keeps from the character before this one do not come back (02.11.2026)', () => {
+    renderQuests()
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: FIRST!, status: 'active', timestamp: '2026-10-15T10:00:00.000Z' }], { characterId: 'old-character' }))
+    // A new character of the mode from 12:00 (the logs' profile changed).
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: SECOND!, status: 'active', timestamp: '2026-10-15T12:30:00.000Z' }], { characterId: 'new-character', characterSince: '2026-10-15T12:00:00.000Z' }))
+    const epoch = pvp().logEpochAt
+    expect(epoch).toBeTruthy()
+    // The server still holds the old character's mark of 11:00, and a mark made after the change.
+    act(() => probe.app!.applyRemoteManualMarks('pvp', [
+      { taskId: FIRST!, status: 'completed', at: '2026-10-15T11:00:00.000Z' },
+      { taskId: SECOND!, status: 'completed', at: '2026-10-15T13:00:00.000Z' },
+    ]))
+    expect(pvp().questInputs!.manual[FIRST!]).toBeUndefined()
+    expect(record(SECOND!)).toMatchObject({ status: 'completed', source: 'manual-fix' })
+  })
+
   it('«Престиж +» and «Вайп» clear the mode\'s marks; other modes keep theirs', () => {
     renderQuests()
     act(() => probe.app!.setManualQuestMark('pvp', SECOND!, 'completed'))
@@ -111,10 +155,12 @@ describe('«Ручная отметка» (owner, 15.10.2026)', () => {
   })
 
   it('in English', () => {
-    localStorage.setItem(MANUAL_MARKS_KEY, '1')
     renderQuests('en', `/quests?filter=all&selected=${SECOND}`)
-    const toggle = screen.getByRole('switch', { name: 'Manual marks' })
-    expect(toggle).toHaveAttribute('title', 'If a quest did not appear or its status is wrong because of a bug, mark it by hand.')
+    fireEvent.click(screen.getByRole('button', { name: /Add manually/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Add quests manually' })
+    expect(within(dialog).getByRole('textbox', { name: 'Search quests…' })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
     const card = document.querySelector('.quest-detail')! as HTMLElement
     fireEvent.click(within(card).getByRole('button', { name: /To current/ }))
     expect(record(SECOND!)).toMatchObject({ status: 'active', source: 'manual-fix' })

@@ -13,6 +13,9 @@ let cached: string | null = null
  */
 export const displayVersion = (version: string) => version.replace(/^(\d+\.\d+\.\d+)-(\d+)$/, '$1.$2')
 
+/** The version of this interface itself (an interface-only update may run it in an older desktop shell). */
+export const interfaceVersion = displayVersion(packageVersion)
+
 export function useAppVersion() {
   const [version, setVersion] = useState(cached ?? packageVersion)
   useEffect(() => {

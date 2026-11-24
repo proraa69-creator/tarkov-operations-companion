@@ -1,41 +1,79 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { EftCasesTable } from '../reports/EftCasesTable'
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { LocalNotifications } from '@capacitor/local-notifications'
 import {
-  Activity, ArrowLeft, BadgeRussianRuble, CalendarDays, Check, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LoaderCircle,
-  Maximize2, MessagesSquare, MessageSquareWarning, Paperclip, RefreshCw, Search, Send, ShieldCheck, Trash2, UserPlus, Users, Wifi, X,
+  Activity, ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LineChart, LoaderCircle,
+  Maximize2, Megaphone, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Smartphone, Sticker, Trash2, UserPlus, UserRound, Users, Wifi, WifiOff, X,
 } from 'lucide-react'
-import { uiText } from '../i18n/renderText'
+import { uiLabel, uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
-import { SupportComposer, SupportMessageList } from '../support/SupportChat'
-import type { SupportImageUpload } from '../support/supportChatClient'
+import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
+import { SupportComposer, SupportMessageList, SupportReportCard } from '../support/SupportChat'
+import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
+import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from '../support/supportChatTools'
+import { useLocale } from '../i18n/LocaleProvider'
 import {
-  adminApi, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPayment, type AdminPaymentPeriod, type AdminPayments,
-  type AdminRegionCounts, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
-  type AdminUserFilter, type AdminUserRegion, type BugReportDetail, type BugReportList, type BugReportStatus,
+  adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPhones, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
+  type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
+  type AdminUserFilter, type AdminUserRegion, type BugReportDetail,
   type PaymentStatus, type PlanId,
 } from './adminApi'
+import { ReportsTable } from '../reports/ReportsTable'
+import { REPORT_WORK_LABELS, type ReportTableView } from '../shared/reportWork'
+import { OPEN_REPORT_EVENT } from './useAdminNotifications'
+import { count, dateOnly, dateTime, errorText, money, PLAN_IDS, PLAN_LABEL } from './adminFormat'
+import { AdminEmpty, AdminLoading, PaymentRow } from './adminShared'
+import { RegistrationsBlock } from './AdminRegistrations'
+import { ReferralsSheet } from './AdminReferralsSheet'
+import { AdsSheet } from './AdminAdsSheet'
+import { StreamersSheet } from './AdminStreamersSheet'
+import { AdminNewsSheet } from './AdminNewsEditor'
+import { AdminBezebeeBlock } from './AdminBezebeeBlock'
+import { useAdminAnswer, type AdminAnswer } from './useAdminAnswer'
+import { ChatPersonMenu } from './ChatPersonMenu'
+import { usePersonMenu } from './personMenu'
+import { AccountProfile } from './AccountProfile'
 import './adminMobile.css'
+import { ruDays } from '../i18n/ruPlural'
+
+/**
+ * «Стикеры» (owner, 07.11.2026: «в админ приложении на телефоне сделай мне функцию добавлять стикеры»): the packs and the
+ * editor load only when opened (src/admin/stickers/), with the segmenter and the fonts.
+ */
+const StickerPacksSheet = lazy(() => import('./stickers/StickerPacksSheet').then((module) => ({ default: module.StickerPacksSheet })))
 
 /**
  * The admin app's sections, one bottom bar (owner, 20.10.2026: «снизу панель управления: сводка, платежи, пользователи,
- * заявки, чаты»); the app opens on «Сводка».
+ * заявки, чаты»; 05.11.2026: «блок заявки переделай на блок отчеты»); the app opens on «Сводка».
  */
 type Section = 'summary' | 'payments' | 'users' | 'requests' | 'chats'
-/** How often the open app looks for new requests and chat messages (the red dots of the bottom bar). */
-const ADMIN_BADGE_POLL_MS = 15_000
+/**
+ * How often the open app looks for new requests and chat messages (the red dots of the bottom bar): with the
+ * notifications' 20 s (useAdminNotifications.ts), so both share one request (adminApi.ts).
+ */
+const ADMIN_BADGE_POLL_MS = 20_000
+/** A screen whose data did not come is asked again by itself after this long. */
+const ADMIN_RETRY_MS = 15_000
+/** Back on the screen after this long: its data is asked again. */
+const ADMIN_RESUME_RELOAD_MS = 60_000
 /** Days of «История по дням» shown before «Показать все». */
 const ONLINE_DAYS_FOLDED = 3
 
+/** As on the site (website/src/components/admin/AdminUsers.tsx). */
 const USER_FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'all', label: 'Все' },
-  { id: 'active', label: 'Активные' },
-  { id: 'trial', label: 'Пробные' },
+  { id: 'active', label: 'Подписка' },
+  { id: 'trial', label: 'Пробный' },
   { id: 'inactive', label: 'Без подписки' },
+  { id: 'streamers', label: 'Стримеры' },
+  { id: 'blocked', label: 'Заблокированы' },
 ]
 
 const PRIMARY_USER_REGIONS: Array<{ id: Extract<AdminUserRegion, 'russia' | 'cis' | 'world'>; label: string; hint: string }> = [
   { id: 'russia', label: 'Россия', hint: 'Только Россия' },
-  { id: 'cis', label: 'СНГ', hint: 'Все страны СНГ, кроме России' },
+  { id: 'cis', label: 'СНГ', hint: 'СНГ, Украина, Латвия, Литва' },
   { id: 'world', label: 'Мир', hint: 'Все страны вне России и СНГ' },
 ]
 
@@ -44,12 +82,15 @@ const SECONDARY_USER_REGIONS: Array<{ id: Extract<AdminUserRegion, 'all' | 'none
   { id: 'none', label: 'Не указана' },
 ]
 
+/** The site's periods of «Платежи» (and «Вчера» of the app); «Даты»: from / to. */
 const PERIODS: Array<{ id: AdminPaymentPeriod; label: string }> = [
   { id: 'today', label: 'Сегодня' },
   { id: 'yesterday', label: 'Вчера' },
   { id: '7d', label: '7 дней' },
   { id: '30d', label: '30 дней' },
+  { id: 'month', label: 'Этот месяц' },
   { id: 'all', label: 'Всё время' },
+  { id: 'custom', label: 'Даты' },
 ]
 
 const STATUSES: Array<{ id: PaymentStatus | 'all'; label: string }> = [
@@ -60,16 +101,6 @@ const STATUSES: Array<{ id: PaymentStatus | 'all'; label: string }> = [
   { id: 'all', label: 'Все статусы' },
 ]
 
-const PLAN_LABEL: Record<PlanId, string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
-
-const money = (value: number) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value) + ' ₽'
-const dateTime = (value?: string) => value ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—'
-const dateOnly = (value?: string) => value ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium' }).format(new Date(value)) : '—'
-
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : 'Не удалось загрузить данные'
-}
-
 async function prepareSupportImage(file: File): Promise<SupportImageUpload> {
   return { data: (await prepareNoticeImage(file)).data }
 }
@@ -78,90 +109,150 @@ export function AdminMobilePage() {
   const [section, setSection] = useState<Section>('summary')
   // Open requests and unread chats for the bottom bar, and the banner when a new one comes while the app is open.
   const [badges, setBadges] = useState<{ requests: number; chats: number } | null>(null)
-  const [banner, setBanner] = useState<{ text: string; section: Section } | null>(null)
-  const [overview, setOverview] = useState<AdminOverview | null>(null)
-  const [online, setOnline] = useState<AdminOnlineStats | null>(null)
-  const [users, setUsers] = useState<AdminUser[]>([])
-  const [usersTotal, setUsersTotal] = useState(0)
-  const [regionCounts, setRegionCounts] = useState<AdminRegionCounts | null>(null)
+  const [banner, setBanner] = useState<{ text: string; section: Section; report?: number } | null>(null)
   const [userFilter, setUserFilter] = useState<AdminUserFilter>('all')
   const [userRegion, setUserRegion] = useState<AdminUserRegion>('all')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [payments, setPayments] = useState<AdminPayments | null>(null)
   const [period, setPeriod] = useState<AdminPaymentPeriod>('30d')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | 'all'>('succeeded')
+  const [paymentPlan, setPaymentPlan] = useState<PlanId | ''>('')
+  const [paymentSearch, setPaymentSearch] = useState('')
+  const [paymentQuery, setPaymentQuery] = useState('')
+  const [customDates, setCustomDates] = useState(() => ({ from: ownerDayAgo(29), to: ownerDayAgo(0) }))
   const [selected, setSelected] = useState<AdminUserDetail | null>(null)
-  const [reports, setReports] = useState<BugReportList | null>(null)
-  const [reportStatus, setReportStatus] = useState<BugReportStatus>('open')
+  const [reportView, setReportView] = useState<ReportTableView>('active')
+  // «Аккаунты Таркова» (owner, 15.11.2026): the tab next to the three lists and its count of new cases.
+  const [eftSelected, setEftSelected] = useState(false)
+  const [eftCount, setEftCount] = useState(0)
+  const [focusReport, setFocusReport] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
-  const [requestView, setRequestView] = useState<'bugs' | 'ideas'>('bugs')
-  const [threads, setThreads] = useState<AdminSupportThreads | null>(null)
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+  // «Посмотреть профиль» (owner, 24.11.2026): a long press on a person in «Чаты», or the open chat's head.
+  const [profileOf, setProfileOf] = useState<{ accountId: string; name?: string } | null>(null)
   const [error, setError] = useState('')
+  // «Обновить», a change, the app back on the screen: the screen's data again (the calendar and «Новые за …» too).
+  const [version, setVersion] = useState(0)
+  // «Статистика онлайна» every minute; the chats after a chat was read or answered.
+  const [onlineTick, setOnlineTick] = useState(0)
+  const [chatsTick, setChatsTick] = useState(0)
+  // «Отчёты» read again: something changed on the server, or a button here.
+  const [reportsTick, setReportsTick] = useState(0)
+  const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'ads' | 'news' | 'stickers' | null>(null)
+  // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
+  const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search), 300)
     return () => window.clearTimeout(timer)
   }, [search])
-
-  const loadOverview = useCallback(async () => {
-    const [summary, presence] = await Promise.all([adminApi.overview(), adminApi.online()])
-    setOverview(summary)
-    setOnline(presence)
-  }, [])
-  const loadUsers = useCallback(async () => {
-    const result = await adminApi.users(query, userFilter, userRegion)
-    setUsers(result.users)
-    setUsersTotal(result.total)
-    setRegionCounts(result.regions)
-  }, [query, userFilter, userRegion])
-  const loadPayments = useCallback(async () => setPayments(await adminApi.payments(period, paymentStatus)), [period, paymentStatus])
-  const loadReports = useCallback(async () => setReports(await adminApi.bugReports(reportStatus)), [reportStatus])
-  const loadThreads = useCallback(async () => setThreads(await adminApi.supportThreads()), [])
-  const chatChanged = useCallback(() => { void loadThreads() }, [loadThreads])
-  const loadSection = useCallback(() => section === 'summary' ? Promise.resolve() : section === 'users' ? loadUsers() : section === 'payments' ? loadPayments() : section === 'chats' ? loadThreads() : loadReports(), [loadPayments, loadReports, loadThreads, loadUsers, section])
-
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPaymentQuery(paymentSearch), 300)
+    return () => window.clearTimeout(timer)
+  }, [paymentSearch])
   useEffect(() => {
     let active = true
-    const overviewRequest = Promise.all([adminApi.overview(), adminApi.online()]).then(([summary, presence]) => { if (active) { setOverview(summary); setOnline(presence) } })
-    const sectionRequest = section === 'summary'
-      ? Promise.resolve()
-      : section === 'users'
-        ? adminApi.users(query, userFilter, userRegion).then((result) => { if (active) { setUsers(result.users); setUsersTotal(result.total); setRegionCounts(result.regions) } })
-        : section === 'payments'
-          ? adminApi.payments(period, paymentStatus).then((result) => { if (active) setPayments(result) })
-          : section === 'chats'
-            ? adminApi.supportThreads().then((result) => { if (active) setThreads(result) })
-            : adminApi.bugReports(reportStatus).then((result) => { if (active) setReports(result) })
-    Promise.all([overviewRequest, sectionRequest])
-      .catch((reason) => { if (active) setError(errorText(reason)) })
-      .finally(() => { if (active) setLoading(false) })
+    adminApi.referrals('', 'invited').then(() => { if (active) setReferrals(true) }, (reason: unknown) => { if (active && (reason as { status?: number }).status === 404) setReferrals(false) })
     return () => { active = false }
-  }, [paymentStatus, period, query, reportStatus, section, userFilter, userRegion])
+  }, [version])
+
+  const paymentFilter = useMemo<AdminPaymentQuery>(() => ({
+    status: paymentStatus, ...(paymentPlan ? { plan: paymentPlan } : {}), ...(paymentQuery.trim() ? { q: paymentQuery.trim() } : {}),
+    ...(period === 'custom' ? { custom: customDates } : {}),
+  }), [customDates, paymentPlan, paymentQuery, paymentStatus, period])
+
+  // «Сводка» loads at the start and on «Обновить» only, not again with every tab (owner, 03.11.2026: «долго загружает»);
+  // each part on its own, so one slow answer never holds or hides the others.
+  const loadOnline = useCallback(() => adminApi.online(), [])
+  const loadPhones = useCallback(() => adminApi.phones(), [])
+  const loadUsers = useCallback(() => adminApi.users(query, userFilter, userRegion), [query, userFilter, userRegion])
+  const loadPayments = useCallback(() => adminApi.payments(period, paymentFilter), [period, paymentFilter])
+  const loadReports = useCallback(() => adminApi.reportTable(reportView), [reportView])
+  const loadThreads = useCallback(() => adminApi.supportThreads(), [])
+  const overview = useAdminAnswer(adminPaths.overview(), adminApi.overview, version)
+  const online = useAdminAnswer(adminPaths.online(), loadOnline, `${version}:${onlineTick}`)
+  // «Телефоны»: with «Статистика онлайна», every minute (its «сейчас» is the last few minutes)
+  const phones = useAdminAnswer(section === 'summary' ? adminPaths.phones() : null, loadPhones, `${version}:${onlineTick}`)
+  const users = useAdminAnswer(section === 'users' ? adminPaths.users(query, userFilter, userRegion) : null, loadUsers, version, { keepPrevious: true })
+  const payments = useAdminAnswer(section === 'payments' ? adminPaths.payments(period, paymentFilter) : null, loadPayments, version, { keepPrevious: true })
+  const reports = useAdminAnswer(section === 'requests' ? adminPaths.reportTable(reportView) : null, loadReports, `${version}:${reportsTick}`, { keepPrevious: true })
+  const threads = useAdminAnswer(section === 'chats' ? adminPaths.supportThreads() : null, loadThreads, `${version}:${chatsTick}`, { keepPrevious: true })
+  const shown: AdminAnswer<unknown> = section === 'summary' ? overview : section === 'users' ? users : section === 'payments' ? payments : section === 'requests' ? reports : threads
+  const refreshing = overview.loading || shown.loading
+  const reload = useCallback(() => setVersion((value) => value + 1), [])
+  const chatChanged = useCallback(() => setChatsTick((value) => value + 1), [])
+  const reportsChanged = useCallback(() => setReportsTick((value) => value + 1), [])
+
+  // «Эта таблица должна в режиме онлайн пополняться» (owner, 05.11.2026): while «Отчёты» is on the screen, one request waits
+  // on the server for the next change (src/reports/reportEvents.ts); nothing asks while it is not.
+  useEffect(() => {
+    if (section !== 'requests') return
+    const stop = new AbortController()
+    void adminApi.watchReports(reportsChanged, stop.signal, setEftCount)
+    return () => stop.abort()
+  }, [section, reportsChanged])
+
+  // A notification, tapped or seen as the banner: «Отчёты» with its report at hand (owner, 05.11.2026: «мне приходит уведомление»).
+  const openReportRow = useCallback((id: number) => {
+    setSection('requests')
+    setReportView('active')
+    setFocusReport(id)
+    setSelected(null)
+    setSelectedReport(null)
+    setSelectedThread(null)
+  }, [])
+  useEffect(() => {
+    const onOpen = (event: Event) => { const id = (event as CustomEvent<number>).detail; if (Number.isSafeInteger(id) && id > 0) openReportRow(id) }
+    window.addEventListener(OPEN_REPORT_EVENT, onOpen)
+    const native = Capacitor.isNativePlatform()
+      ? LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+        const id = Number((action.notification.extra as { reportId?: unknown } | undefined)?.reportId)
+        if (Number.isSafeInteger(id) && id > 0) openReportRow(id)
+      })
+      : null
+    return () => { window.removeEventListener(OPEN_REPORT_EVENT, onOpen); void native?.then((handle) => handle.remove()) }
+  }, [openReportRow])
 
   useEffect(() => {
-    const timer = window.setInterval(() => { void adminApi.online().then(setOnline).catch(() => undefined) }, 60_000)
+    const timer = window.setInterval(() => setOnlineTick((value) => value + 1), 60_000)
     return () => window.clearInterval(timer)
+  }, [])
+
+  // No answer: asked again by itself after a while; the last data stays on screen meanwhile.
+  const failed = shown.error || overview.error
+  useEffect(() => {
+    if (!failed) return
+    const timer = window.setTimeout(() => setVersion((value) => value + 1), ADMIN_RETRY_MS)
+    return () => window.clearTimeout(timer)
+  }, [failed, version])
+
+  // Back on the screen after a while (the phone was locked, another app): the screen's data again.
+  useEffect(() => {
+    let hiddenAt = 0
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now()
+      else if (hiddenAt && Date.now() - hiddenAt > ADMIN_RESUME_RELOAD_MS) { hiddenAt = 0; setVersion((value) => value + 1) }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
   // New requests and chat messages without a manual refresh (owner, 20.10.2026: «приложение само каждые 10–30 секунд
   // обновляет заявки, и появляется кружочек уведомления»); a rise shows a banner at the top while the app is open.
   useEffect(() => {
     let active = true
-    let last: { requests: number; chats: number } | null = null
+    let last: { requests: number; chats: number; latest: number } | null = null
     const check = async () => {
       if (document.visibilityState === 'hidden') return
       try {
         const [open, chats] = await Promise.all([adminApi.bugReports('open', 1), adminApi.supportThreads(1)])
         if (!active) return
-        const next = { requests: open.counts.open, chats: chats.unread }
-        if (last && next.requests > last.requests) setBanner({ text: 'Новая заявка', section: 'requests' })
+        const newest = open.reports[0]
+        const next = { requests: open.awaiting ?? open.counts.open, chats: chats.unread, latest: newest?.id ?? 0 }
+        if (last && newest && next.latest > last.latest) setBanner({ text: `${uiText(newest.kind === 'idea' ? 'Новое предложение' : 'Новый отчёт')} №${newest.id}`, section: 'requests', report: newest.id })
         else if (last && next.chats > last.chats) setBanner({ text: 'Новое сообщение в чате', section: 'chats' })
         last = next
-        setBadges(next)
+        setBadges({ requests: next.requests, chats: next.chats })
       } catch { /* offline: the dots stay as they were */ }
     }
     void check()
@@ -177,12 +268,10 @@ export function AdminMobilePage() {
     return () => window.clearTimeout(timer)
   }, [banner])
 
-  const refresh = async () => {
-    setRefreshing(true)
+  const refresh = () => {
     setError('')
-    try { await Promise.all([loadOverview(), loadSection()]) }
-    catch (reason) { setError(errorText(reason)) }
-    finally { setRefreshing(false) }
+    adminApi.forget()
+    reload()
   }
 
   const openUser = async (user: AdminUser) => {
@@ -193,8 +282,7 @@ export function AdminMobilePage() {
 
   const updateSelected = async (detail: AdminUserDetail) => {
     setSelected(detail)
-    setUsers((current) => current.map((item) => item.id === detail.user.id ? detail.user : item))
-    await loadOverview()
+    reload()
   }
 
   const openReport = async (id: number) => {
@@ -207,17 +295,20 @@ export function AdminMobilePage() {
     setSection('chats')
     setSelected(null)
     setSelectedReport(null)
+    setProfileOf(null)
     setSelectedThread(accountId)
   }
+  const openProfile = (accountId: string, name?: string) => setProfileOf({ accountId, ...(name ? { name } : {}) })
 
   const TABS: Array<{ id: Section; label: string; icon: typeof Users; badge?: number }> = [
     { id: 'summary', label: 'Сводка', icon: Activity },
     { id: 'payments', label: 'Платежи', icon: CreditCard },
     { id: 'users', label: 'Пользователи', icon: Users },
-    { id: 'requests', label: 'Заявки', icon: MessageSquareWarning, badge: badges?.requests },
+    { id: 'requests', label: 'Отчёты', icon: MessageSquareWarning, badge: badges?.requests },
     { id: 'chats', label: 'Чаты', icon: MessagesSquare, badge: badges?.chats },
   ]
   const current = TABS.find((tab) => tab.id === section)!
+  const stale = shown.data && shown.error ? shown : overview.data && overview.error ? overview : null
 
   return (
     <div className="page admin-mobile-page has-tabbar">
@@ -226,32 +317,72 @@ export function AdminMobilePage() {
           <div className="eyebrow">RAID OS · OWNER</div>
           <h1 className="page-title">{uiText(current.label)}</h1>
         </div>
-        <button type="button" className="icon-button" onClick={refresh} disabled={refreshing} aria-label={uiText('Обновить')}>
+        <button type="button" className="icon-button" onClick={refresh} aria-busy={refreshing} aria-label={uiText('Обновить')}>
           <RefreshCw size={18} className={refreshing ? 'spin' : ''} />
         </button>
       </header>
 
-      {banner && <button type="button" className="admin-banner" role="status" onClick={() => { setSection(banner.section); setBanner(null) }}>
+      {banner && <button type="button" className="admin-banner" role="status" onClick={() => { if (banner.report) openReportRow(banner.report); else setSection(banner.section); setBanner(null) }}>
         <span className="admin-banner-icon">{banner.section === 'chats' ? <MessagesSquare size={18} /> : <MessageSquareWarning size={18} />}</span>
         <span><strong>Raid OS</strong><small>{uiText(banner.text)}</small></span>
       </button>}
 
       {error && <div className="admin-error" role="alert"><ShieldCheck size={18} /><span>{uiText(error)}</span></div>}
+      {/* One request without an answer is not «нет связи»: the last data stays, a quiet line says so (owner, 03.11.2026). */}
+      {stale && <div className="admin-stale" role="status"><WifiOff size={15} /><span>{uiText(stale.keptAt ? `Сервер не ответил — показаны данные от ${dateTime(new Date(stale.keptAt).toISOString())}, повторим сами` : 'Сервер не ответил — показаны последние данные, повторим сами')}</span><button type="button" onClick={refresh}>{uiText('Повторить')}</button></div>}
 
       {section === 'summary' ? <>
-        <OverviewCards data={overview} />
-        {overview?.plans && <PlanTable title="Подписки по срокам" columns={[{ title: 'Этот месяц', plans: overview.plans.month }, { title: 'Всё время', plans: overview.plans.all }]} />}
-        {overview?.squads && <SquadStats squads={overview.squads} />}
-        <OnlineStatsBlock data={online} />
-      </> : loading ? <AdminLoading /> : section === 'users' ? (
-        <UsersSection users={users} total={usersTotal} region={userRegion} regions={regionCounts} filter={userFilter} search={search} onRegion={setUserRegion} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
-      ) : section === 'payments' ? <>
-        <PaymentsSection data={payments} period={period} status={paymentStatus} onPeriod={setPeriod} onStatus={setPaymentStatus} onChanged={loadPayments} />
-      </> : section === 'chats' ? (
-        <ChatsSection threads={threads} onOpenChat={openChat} />
-      ) : (
-        <RequestsSection view={requestView} onView={setRequestView} data={reports} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} />
-      )}
+        {/* «Стримеры» and «Пригласи друга» as the site's tabs (owner, 03.11.2026), each in its own window. No «История
+          обновлений» (owner, 15.11.2026): it is in «Обновление», where it is read and edited. */}
+        <div className="admin-quick-links">
+          <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
+          {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
+          {/* «Реклама» (owner, 09.11.2026): переходы, регистрации и оплаты по ссылке рекламы Reddit. */}
+          <button type="button" onClick={() => setSheet('ads')}><Megaphone size={18} /><span>{uiText('Реклама')}</span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => setSheet('news')}><Newspaper size={18} /><span>{uiLabel('Обновление')}</span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => setSheet('stickers')}><Sticker size={18} /><span>{uiText('Стикеры')}</span><ChevronRight size={16} /></button>
+        </div>
+        {!overview.data && overview.error && <AdminFailure text={overview.error} onRetry={refresh} />}
+        <OverviewCards data={overview.data} refreshKey={version} />
+        <RevenueCards data={overview.data} />
+        {overview.data?.plans && <PlanTable title="Подписки по срокам" columns={[{ title: 'Этот месяц', plans: overview.data.plans.month }, { title: 'За всё время', plans: overview.data.plans.all }]} />}
+        {overview.data?.squads && <SquadStats squads={overview.data.squads} />}
+        {phones.data && <PhoneStatsBlock data={phones.data} />}
+        <OnlineStatsBlock data={online.data} />
+        <RegistrationsBlock refreshKey={version} />
+        <p className="admin-summary-note">{uiText('Время — по Бангкоку (UTC+7). Выданные вручную дни подписки не считаются выручкой.')}</p>
+      </> : !shown.data ? (shown.error ? <AdminFailure text={shown.error} onRetry={refresh} /> : <AdminLoading />)
+        : section === 'users' && users.data ? (
+          <UsersSection users={users.data.users} total={users.data.total} region={userRegion} regions={users.data.regions} filter={userFilter} search={search} onRegion={setUserRegion} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
+        ) : section === 'payments' && payments.data ? (
+          <PaymentsSection
+            data={payments.data} period={period} status={paymentStatus} plan={paymentPlan} search={paymentSearch} custom={customDates}
+            onPeriod={setPeriod} onStatus={setPaymentStatus} onPlan={setPaymentPlan} onSearch={setPaymentSearch} onCustom={setCustomDates} onChanged={reload}
+          />
+        ) : section === 'chats' && threads.data ? (
+          <ChatsSection threads={threads.data} onOpenChat={openChat} onOpenProfile={openProfile} />
+        ) : reports.data ? (
+          <section className="admin-block admin-reports-block">
+            <ReportsTable
+              page={reports.data}
+              view={reportView}
+              onView={(next) => { setReportView(next); setEftSelected(false) }}
+              eft={{
+                count: eftCount,
+                selected: eftSelected,
+                onSelect: () => setEftSelected(true),
+                content: <EftCasesTable load={adminApi.eftCases} setStatus={adminApi.eftStatus} t={uiText} reloadKey={reportsTick} />,
+              }}
+              t={uiText}
+              focusId={focusReport}
+              onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}
+              onReward={async (id, days) => { await adminApi.rewardReport(id, days); reportsChanged() }}
+              onAcceptPoint={async (id) => { await adminApi.acceptPoint(id); reportsChanged() }}
+              loadImage={(row, index) => adminApi.bugReportImage(row.id, index)}
+              onOpen={(row) => void openReport(row.id)}
+            />
+          </section>
+        ) : <AdminLoading />}
 
       <nav className="admin-tabbar" aria-label={uiText('Разделы админ-панели')}>
         {TABS.map(({ id, label, icon: Icon, badge }) => <button type="button" key={id} className={section === id ? 'active' : ''} aria-current={section === id ? 'page' : undefined} aria-label={uiText(badge ? `${label}, новых: ${badge}` : label)} onClick={() => setSection(id)}>
@@ -261,53 +392,53 @@ export function AdminMobilePage() {
       </nav>
 
       {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} onOpenChat={openChat} />}
-      {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); void loadReports() }} />}
-      {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} />}
+      {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); reportsChanged() }} />}
+      {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} onOpenProfile={openProfile} />}
+      {profileOf && <ProfileSheet accountId={profileOf.accountId} name={profileOf.name} onClose={() => setProfileOf(null)} onOpenChat={openChat} />}
+      {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
+      {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
+      {sheet === 'ads' && <AdsSheet onClose={() => setSheet(null)} />}
+      {sheet === 'news' && <AdminNewsSheet request={adminApi.ownerRequest} onClose={() => setSheet(null)} />}
+      {sheet === 'stickers' && <Suspense fallback={<div className="admin-sheet-backdrop"><AdminLoading /></div>}><StickerPacksSheet onClose={() => setSheet(null)} /></Suspense>}
     </div>
   )
 }
 
-function RequestsSection({ view, onView, data, status, onStatus, onOpen }: {
-  view: 'bugs' | 'ideas'; onView: (view: 'bugs' | 'ideas') => void; data: BugReportList | null
-  status: BugReportStatus; onStatus: (status: BugReportStatus) => void; onOpen: (id: number) => void
-}) {
-  const reports = (data?.reports ?? []).filter((report) => view === 'ideas' ? report.kind === 'idea' : report.kind !== 'idea')
-  const bugCount = (data?.reports ?? []).filter((report) => report.kind !== 'idea').length
-  const ideaCount = (data?.reports ?? []).filter((report) => report.kind === 'idea').length
-  return <section className="admin-block">
-    <div className="admin-request-head">
-      <button type="button" className={view === 'bugs' ? 'active' : ''} onClick={() => onView('bugs')}><span>{uiText('Ошибки и проблемы')}</span><strong>{bugCount}</strong></button>
-      <button type="button" className={view === 'ideas' ? 'active' : ''} onClick={() => onView('ideas')}><span>{uiText('Предложения')}</span><strong>{ideaCount}</strong></button>
-    </div>
-    <div className="admin-chip-row admin-request-filters" role="group" aria-label={uiText('Статус заявок')}>
-      <button type="button" className={status === 'open' ? 'active' : ''} onClick={() => onStatus('open')}>{uiText('Новые и в работе')}</button>
-      <button type="button" className={status === 'closed' ? 'active' : ''} onClick={() => onStatus('closed')}>{uiText('Закрытые')}</button>
-    </div>
-    <div className="admin-list">
-      {reports.map((report) => <button type="button" className="admin-user-row admin-request-row" key={report.id} onClick={() => onOpen(report.id)}>
-        <span className={`admin-payment-icon ${report.status === 'open' ? 'pending' : 'succeeded'}`}><MessageSquareWarning size={18} /></span>
-        <span className="admin-row-copy"><strong>{report.topic}</strong><small>{uiText(report.kind === 'idea' ? 'Предложение' : 'Заявка')} · {report.email ?? uiText('Без почты')}</small></span>
-        <span className="admin-row-side">{report.files > 0 && <strong className="admin-attachment"><Paperclip size={13} />{report.files}</strong>}<small>{dateTime(report.createdAt)}</small></span>
-        <ChevronRight size={17} />
-      </button>)}
-      {!reports.length && <AdminEmpty text={view === 'ideas' ? 'Предложений в этой категории нет' : status === 'open' ? 'Новых сообщений об ошибках нет' : 'Закрытых сообщений об ошибках нет'} />}
-    </div>
-  </section>
+/** Nothing to show and no answer from the server: what happened and «Повторить». */
+function AdminFailure({ text, onRetry }: { text: string; onRetry: () => void }) {
+  return <div className="admin-error admin-failure" role="alert"><WifiOff size={18} /><span>{uiText(text)}</span><button type="button" className="button small" onClick={onRetry}>{uiText('Повторить')}</button></div>
 }
 
-/** «Чаты» (its own tab, owner 20.10.2026): the players' support conversations, unread ones marked. */
-function ChatsSection({ threads, onOpenChat }: { threads: AdminSupportThreads | null; onOpenChat: (accountId: string) => void }) {
+/**
+ * «Чаты» (its own tab, owner 20.10.2026): the players' support conversations, unread ones marked. A long press on a person
+ * (owner, 24.11.2026: «на телефоне зажимаю пальцем… посмотреть профиль») opens the menu with «Посмотреть профиль».
+ */
+function ChatsSection({ threads, onOpenChat, onOpenProfile }: { threads: AdminSupportThreads | null; onOpenChat: (accountId: string) => void; onOpenProfile: (accountId: string, name?: string) => void }) {
+  const { locale } = useLocale()
+  const people = usePersonMenu()
+  const nameOf = (thread: AdminSupportThreads['threads'][number]) => thread.nickname || thread.email || uiText('Пользователь')
   return <section className="admin-block">
     <div className="admin-list admin-chat-list">
-      {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}>
+      {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}
+        {...people.bind({ accountId: thread.accountId, name: nameOf(thread) })}>
         <span className="admin-payment-icon pending"><MessagesSquare size={18} /></span>
-        <span className="admin-row-copy"><strong>{thread.nickname || thread.email || uiText('Пользователь')}</strong><small>{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{thread.lastMessage.text}</small></span>
+        <span className="admin-row-copy"><strong>{thread.nickname || thread.email || uiText('Пользователь')}</strong><small>{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{supportPreviewText(thread.lastMessage, locale)}</small></span>
         <span className="admin-row-side">{thread.unread > 0 && <strong className="admin-unread">{thread.unread}</strong>}<small>{dateTime(thread.lastAt)}</small></span>
         <ChevronRight size={17} />
       </button>)}
       {!threads?.threads.length && <AdminEmpty text="Переписок пока нет" />}
     </div>
+    <ChatPersonMenu menu={people.menu} onClose={people.close} onProfile={(accountId) => onOpenProfile(accountId, people.menu?.name)} onChat={onOpenChat} />
   </section>
+}
+
+/** «Посмотреть профиль»: the player's whole account on a full screen sheet (admin/AccountProfile.tsx). */
+function ProfileSheet({ accountId, name, onClose, onOpenChat }: { accountId: string; name?: string; onClose: () => void; onOpenChat: (accountId: string) => void }) {
+  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section className="panel admin-user-sheet account-profile-sheet" role="dialog" aria-modal="true" aria-label={uiText(name ? `Профиль ${name}` : 'Профиль')}>
+      <AccountProfile accountId={accountId} name={name} load={adminApi.profile} onBack={onClose} onOpenChat={onOpenChat} variant="sheet" />
+    </section>
+  </div>
 }
 
 function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugReportDetail; onClose: () => void; onUpdated: (report: BugReportDetail) => void; onOpenChat: (accountId: string) => void }) {
@@ -328,18 +459,13 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     return () => { active = false }
   }, [detail.files, detail.id])
 
-  const toggle = async () => {
-    setSaving(true); setError('')
-    try { onUpdated((await adminApi.setBugReportStatus(detail.id, detail.status === 'open' ? 'closed' : 'open')).report) }
-    catch (reason) { setError(errorText(reason)) }
-    finally { setSaving(false) }
-  }
   const answer = async () => {
     if (!detail.accountId || (!reply.trim() && !photo)) return
     setSaving(true); setError(''); setMessage('')
     try {
-      await adminApi.supportReply(detail.accountId, reply.trim(), photo ? [await prepareSupportImage(photo)] : [])
+      await adminApi.supportReply(detail.accountId, reply.trim(), photo ? [await prepareSupportImage(photo)] : [], detail.id)
       setReply(''); setPhoto(null); setMessage('Ответ отправлен пользователю')
+      onUpdated({ ...detail, answeredAt: new Date().toISOString() })
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
   }
@@ -349,7 +475,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     setSaving(true); setError(''); setMessage('')
     try {
       const updated = (await adminApi.rewardReport(detail.id, days)).report
-      onUpdated(updated); setRewardDays(''); setMessage(`Начислено ${days} дней`)
+      onUpdated(updated); setRewardDays(''); setMessage(`Начислено: ${ruDays(days)}`)
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
   }
@@ -358,9 +484,8 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{detail.topic}</strong><small>{detail.email ?? uiText('Без почты')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
         <div className="admin-user-facts">
-          <article><span>{uiText('Статус')}</span><strong>{uiText(detail.status === 'open' ? 'Открыта' : 'Закрыта')}</strong></article>
-          <article><span>{uiText('Создана')}</span><strong>{dateTime(detail.createdAt)}</strong></article>
-          <article><span>{uiText('Платформа')}</span><strong>{detail.platform || '—'}</strong><small>{detail.appVersion || ''}</small></article>
+          <article><span>{uiText('Статус')}</span><strong>{detail.work ? uiText(REPORT_WORK_LABELS[detail.work.status]) : '—'}</strong>{detail.answeredAt && <small>{uiText('Отвечено')}</small>}</article>
+          <article><span>{uiText('Создан')}</span><strong>{dateTime(detail.createdAt)}</strong></article>
           <article><span>{uiText('Вложения')}</span><strong>{detail.files.length}</strong></article>
         </div>
         <div className="admin-report-description"><h2>{uiText('Сообщение')}</h2><p>{detail.description}</p></div>
@@ -372,7 +497,8 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
         </div>}
         {detail.accountId && <div className="admin-report-reply">
           <h2>{uiText('Ответ пользователю')}</h2>
-          <textarea className="input" rows={4} maxLength={2000} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={uiText('Напишите ответ по заявке…')} />
+          <SupportReportCard report={{ id: detail.id, title: detail.topic }} />
+          <textarea className="input" rows={4} maxLength={2000} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={uiText('Напишите ответ по отчёту…')} />
           <div className="admin-report-reply-actions">
             <label className="button ghost"><ImagePlus size={16} />{uiText(photo ? 'Фото выбрано' : 'Добавить фото')}<input type="file" accept="image/*" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></label>
             <button type="button" className="button primary" disabled={saving || (!reply.trim() && !photo)} onClick={() => void answer()}>{saving ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}{uiText('Отправить')}</button>
@@ -386,29 +512,61 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
         {error && <div className="admin-inline-error">{uiText(error)}</div>}
         {message && <div className="admin-inline-success"><Check size={16} />{uiText(message)}</div>}
         {detail.accountId && <button type="button" className="button admin-report-action" onClick={() => onOpenChat(detail.accountId!)}><MessagesSquare size={17} />{uiText('Открыть чат')}</button>}
-        <button type="button" className={`button admin-report-action${detail.status === 'open' ? ' primary' : ''}`} disabled={saving} onClick={toggle}>{saving ? <LoaderCircle size={17} className="spin" /> : <Check size={17} />}{uiText(detail.status === 'open' ? 'Закрыть заявку' : 'Вернуть в работу')}</button>
       </div>
       {expanded && <div className="admin-report-lightbox" role="dialog" aria-modal="true" aria-label={uiText('Просмотр скриншота')} onClick={() => setExpanded('')}><button type="button" className="icon-button" aria-label={uiText('Закрыть')} onClick={() => setExpanded('')}><X size={22} /></button><img src={expanded} alt={uiText('Скриншот отчёта')} onClick={(event) => event.stopPropagation()} /></div>}
     </section>
   </div>
 }
 
-/** The cards of «Сводка», as on the site: users, real paid subscriptions, the trial, the new ones of 30 days, the money. */
-function OverviewCards({ data }: { data: AdminOverview | null }) {
+/**
+ * The tiles of «Сводка», as on the site: users, really paid subscriptions, the trial, and «Новые за …» — a tap chooses the
+ * period (owner, 03.11.2026: «7 дней, эта неделя, этот месяц, прошлый месяц, 30 дней»), the same as on the site.
+ */
+function OverviewCards({ data, refreshKey }: { data: AdminOverview | null; refreshKey: number }) {
+  const [period, setPeriod] = useState<NewUsersPeriod>('30d')
+  const [choosing, setChoosing] = useState(false)
+  const { from, to } = newUsersRange(period)
+  const loadRange = useCallback(() => adminApi.rangeStats(from, to), [from, to])
+  const range = useAdminAnswer<AdminRangeStats>(adminPaths.rangeStats(from, to), loadRange, refreshKey)
+  const current = NEW_USERS_PERIODS.find((item) => item.id === period)!
+  const failed = Boolean(range.error) && range.data === null
+  // Without an answer for «30 дней» the tile keeps the overview's own 30 days.
+  const value = range.data?.users.new ?? (failed && period === '30d' ? data?.users.days30 : undefined)
+  const users = data?.users
   return (
     <section className="admin-overview" aria-label={uiText('Сводка')}>
-      <article><span><Users size={16} />{uiText('Пользователи')}</span><strong>{data?.users.total ?? '—'}</strong><small>{uiText(`+${data?.users.today ?? 0} сегодня`)}</small></article>
-      <article><span><ShieldCheck size={16} />{uiText('Платные подписки')}</span><strong>{data?.subscriptions.active ?? '—'}</strong><small>{uiText('реально оплаченные')}</small></article>
-      <article><span><Gift size={16} />{uiText('Пробный')}</span><strong>{data?.subscriptions.trials ?? '—'}</strong><small>{uiText('сейчас на пробном')}</small></article>
-      <article><span><UserPlus size={16} />{uiText('Новые за 30 дней')}</span><strong>{data?.users.days30 ?? '—'}</strong><small>{uiText(`+${data?.users.days7 ?? 0} за 7 дней`)}</small></article>
-      <article><span><BadgeRussianRuble size={16} />{uiText('За месяц')}</span><strong>{data ? money(data.revenue.month.total) : '—'}</strong><small>{uiText(`${data?.revenue.month.payments ?? 0} оплат`)}</small></article>
-      <article><span><CalendarDays size={16} />{uiText('За всё время')}</span><strong>{data ? money(data.revenue.all.total) : '—'}</strong><small>{uiText(`${data?.revenue.all.payments ?? 0} оплат`)}</small></article>
+      <article><span><Users size={16} />{uiText('Пользователи')}</span><strong>{users ? count.format(users.total) : '—'}</strong><small>{uiText(users ? `сегодня +${users.today} · 7 дн. +${users.days7}${users.blocked ? ` · заблокировано ${users.blocked}` : ''}` : '')}</small></article>
+      <article><span><ShieldCheck size={16} />{uiText('Платные подписки')}</span><strong>{data ? count.format(data.subscriptions.active) : '—'}</strong><small>{uiText(data?.subscriptions.activeRepeat === undefined ? 'только те, кто оплатил и подписка идёт' : `из них повторных: ${count.format(data.subscriptions.activeRepeat)}`)}</small></article>
+      {/* «мёртвых» — 21 days registered without the free days used; «реальных» — the rest (owner, 16.11.2026). */}
+      <article><span><Gift size={16} />{uiText('Пробный период')}</span><strong>{data ? count.format(data.subscriptions.trials) : '—'}</strong><small>{uiText(data?.subscriptions.trialsDead === undefined || data.subscriptions.trialsAlive === undefined ? 'сейчас на пробном' : `мёртвых ${count.format(data.subscriptions.trialsDead)} · реальных ${count.format(data.subscriptions.trialsAlive)}`)}</small></article>
+      <button type="button" className={`admin-overview-pick${choosing ? ' is-open' : ''}`} aria-expanded={choosing} aria-label={uiText(`${current.title}: ${value ?? '…'}. Выбрать период`)} onClick={() => setChoosing((open) => !open)}>
+        <span><UserPlus size={16} />{uiText(current.title)}<ChevronDown size={14} className="admin-overview-caret" /></span>
+        <strong>{value === undefined ? (failed ? '—' : '…') : count.format(value)}</strong>
+        <small>{uiText(`${ownerRangeText(from, to)} · сменить период`)}</small>
+      </button>
+      {choosing && <div className="admin-period-picker" role="group" aria-label={uiText('Период для новых пользователей')}>
+        {NEW_USERS_PERIODS.map((item) => <button type="button" key={item.id} className={period === item.id ? 'active' : ''} aria-pressed={period === item.id} onClick={() => { setPeriod(item.id); setChoosing(false) }}>{uiText(item.label)}</button>)}
+      </div>}
     </section>
   )
 }
 
+/**
+ * «Выручка сегодня», «За этот месяц», «За всё время», as on the site; the owner's days. «За всё время» also counts
+ * «оплатили повторно» (owner, 12.11.2026: «счёт того, сколько человек оплатили повторно»): two or more paid payments.
+ */
+function RevenueCards({ data }: { data: AdminOverview | null }) {
+  const cards: Array<{ title: string; revenue?: AdminRevenue; repeat?: number }> = [
+    { title: 'Выручка сегодня', revenue: data?.revenue.today },
+    { title: 'За этот месяц', revenue: data?.revenue.month },
+    { title: 'За всё время', revenue: data?.revenue.all, repeat: data?.repeatPayers },
+  ]
+  return <section className="admin-revenue-cards" aria-label={uiText('Выручка')}>
+    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${revenue?.repeat === undefined ? '' : ` · повторных: ${count.format(revenue.repeat)}`}`)}</small>{repeat !== undefined && <small>{uiText(`оплатили повторно: ${count.format(repeat)}`)}</small>}</article>)}
+  </section>
+}
+
 type PlanCounts = Record<PlanId, { count: number; revenue: number }>
-const PLAN_IDS: PlanId[] = ['1m', '3m', '6m', '12m']
 
 /** Paid subscriptions of each term: 1, 3, 6 and 12 months, in one or two columns (this month, all the time). */
 function PlanTable({ title, columns }: { title: string; columns: Array<{ title: string; plans?: PlanCounts }> }) {
@@ -425,18 +583,34 @@ function PlanTable({ title, columns }: { title: string; columns: Array<{ title: 
   </section>
 }
 
-/** «Отряды»: created, disbanded, active now and the players in them (the hideout is not counted, owner 20.10.2026). */
+/** «Отряды», as on the site: now, the players in them, created since the count began, disbanded (the hideout is not counted). */
 function SquadStats({ squads }: { squads: NonNullable<AdminOverview['squads']> }) {
   return <section className="admin-block" aria-label={uiText('Отряды')}>
-    <div className="admin-block-heading"><Users size={15} /><span>{uiText('Отряды')}</span>{squads.since && <small>{uiText(`с ${dateOnly(squads.since)}`)}</small>}</div>
-    <div className="admin-mini-grid">
-      <article><span>{uiText('Создано')}</span><strong>{squads.created}</strong><small>{uiText(`+${squads.created30} за 30 дней`)}</small></article>
-      <article><span>{uiText('Активные')}</span><strong>{squads.active}</strong><small>{uiText(`${squads.players} игроков`)}</small></article>
-      <article><span>{uiText('Распущено')}</span><strong>{squads.disbanded}</strong><small>{uiText('всего')}</small></article>
+    <div className="admin-block-heading"><Shield size={15} /><span>{uiText('Отряды')}</span>{squads.since && <small>{uiText(`учёт с ${dateOnly(squads.since)}`)}</small>}</div>
+    <div className="admin-mini-grid admin-squad-grid">
+      <article><span>{uiText('Сейчас отрядов')}</span><strong>{count.format(squads.active)}</strong><small>{uiText(`за 30 дней создано: ${squads.created30}`)}</small></article>
+      <article><span>{uiText('Играют в отрядах')}</span><strong>{count.format(squads.players)}</strong><small>{uiText(squads.active ? `в среднем ${(squads.players / squads.active).toFixed(1).replace('.', ',')} в отряде` : 'отрядов сейчас нет')}</small></article>
+      <article><span>{uiText('Создано всего')}</span><strong>{count.format(squads.created)}</strong><small>{uiText(squads.since ? 'с начала учёта' : 'учёт идёт с этой версии')}</small></article>
+      <article><span>{uiText('Расформировано')}</span><strong>{count.format(squads.disbanded)}</strong><small>{uiText('распущены или все вышли')}</small></article>
     </div>
   </section>
 }
 
+/**
+ * «Телефоны» (owner, 23.11.2026: «сколько с андроида установило и зашло, сколько с айфона установило и зашло, и сколько в
+ * данный момент онлайн с телефонов с каждого вида»): accounts signed in from the phone app by system, and who is in it now.
+ */
+function PhoneStatsBlock({ data }: { data: AdminPhones }) {
+  return <section className="admin-block" aria-label={uiText('Телефоны')}>
+    <div className="admin-block-heading"><Smartphone size={15} /><span>{uiText('Телефоны')}</span><small>{uiText(`всего пользователей ${count.format(data.users)}`)}</small></div>
+    <div className="admin-mini-grid admin-squad-grid">
+      <article><span>{uiText('Вошли с телефона')}</span><strong>{count.format(data.phones.accounts)}</strong><small>{uiText(`телефонов: ${count.format(data.phones.devices)}`)}</small></article>
+      <article><span>{uiText('Онлайн с телефонов')}</span><strong>{count.format(data.online.phone)}</strong><small>{uiText(`за ${data.online.windowMinutes} мин`)}</small></article>
+      <article><span>Android</span><strong>{count.format(data.android.accounts)}</strong><small>{uiText(`установили и вошли · онлайн ${count.format(data.android.online)}`)}</small></article>
+      <article><span>iPhone</span><strong>{count.format(data.ios.accounts)}</strong><small>{uiText(`установили и вошли · онлайн ${count.format(data.ios.online)}`)}</small></article>
+    </div>
+  </section>
+}
 
 function OnlineStatsBlock({ data }: { data: AdminOnlineStats | null }) {
   const today = data?.today
@@ -496,10 +670,12 @@ function UsersSection({ users, total, region, regions, filter, search, onRegion,
   )
 }
 
-function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }: {
-  data: AdminPayments | null; period: AdminPaymentPeriod; status: PaymentStatus | 'all'
-  onPeriod: (value: AdminPaymentPeriod) => void; onStatus: (value: PaymentStatus | 'all') => void
-  /** A payment amount was changed: the list and the totals are read again. */
+/** «Платежи», as on the site: the period (or «Даты»), the status, the plan, a search by e-mail, totals, every payment. */
+function PaymentsSection({ data, period, status, plan, search, custom, onPeriod, onStatus, onPlan, onSearch, onCustom, onChanged }: {
+  data: AdminPayments | null; period: AdminPaymentPeriod; status: PaymentStatus | 'all'; plan: PlanId | ''; search: string; custom: { from: string; to: string }
+  onPeriod: (value: AdminPaymentPeriod) => void; onStatus: (value: PaymentStatus | 'all') => void; onPlan: (value: PlanId | '') => void
+  onSearch: (value: string) => void; onCustom: (value: { from: string; to: string }) => void
+  /** A payment amount was changed or a refund marked: the list and the totals are read again. */
   onChanged?: () => Promise<unknown> | void
 }) {
   const serverPlans = data?.totals.plans
@@ -516,11 +692,20 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }
   }, [data, serverPlans])
 
   return (
+    <>
+    <AdminBezebeeBlock onCredited={() => void onChanged?.()} />
     <section className="admin-block">
       <div className="admin-filter-grid">
         <label><span>{uiText('Период')}</span><select className="select" value={period} onChange={(event) => onPeriod(event.target.value as AdminPaymentPeriod)}>{PERIODS.map((item) => <option key={item.id} value={item.id}>{uiText(item.label)}</option>)}</select></label>
         <label><span>{uiText('Статус')}</span><select className="select" value={status} onChange={(event) => onStatus(event.target.value as PaymentStatus | 'all')}>{STATUSES.map((item) => <option key={item.id} value={item.id}>{uiText(item.label)}</option>)}</select></label>
+        {period === 'custom' && <>
+          <label><span>{uiText('С')}</span><input className="input" type="date" value={custom.from} max={custom.to || undefined} onChange={(event) => onCustom({ ...custom, from: event.target.value })} /></label>
+          <label><span>{uiText('По')}</span><input className="input" type="date" value={custom.to} min={custom.from || undefined} onChange={(event) => onCustom({ ...custom, to: event.target.value })} /></label>
+        </>}
+        <label><span>{uiText('Тариф')}</span><select className="select" value={plan} onChange={(event) => onPlan(event.target.value as PlanId | '')}><option value="">{uiText('Все тарифы')}</option>{PLAN_IDS.map((id) => <option key={id} value={id}>{uiText(PLAN_LABEL[id])}</option>)}</select></label>
       </div>
+      <label className="admin-search admin-payment-search"><Search size={17} /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder={uiText('Поиск по e-mail')} aria-label={uiText('Поиск по e-mail')} />{search && <button type="button" onClick={() => onSearch('')} aria-label={uiText('Очистить')}><X size={16} /></button>}</label>
+      {data && <div className="admin-payment-counts"><span>{uiText('Платежей')}<strong>{count.format(data.total)}</strong></span><span>{uiText('Оплачено')}<strong>{count.format(data.totals.succeeded)}</strong></span></div>}
       <div className="admin-payment-total">
         <span><Check size={18} />{uiText('Оплачено')}</span><strong>{money(data?.totals.revenue ?? 0)}</strong><small>{uiText(`${data?.totals.succeeded ?? 0} успешных платежей`)}</small>
         {data?.totals.net !== undefined && <small className="admin-payment-net">{uiText(`Чистыми: ${money(data.totals.net)}`)}</small>}
@@ -533,68 +718,8 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }
         {!data?.payments.length && <AdminEmpty text="За выбранный период платежей нет" />}
       </div>
     </section>
+    </>
   )
-}
-
-const PROVIDER_TEXT: Record<string, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', bezebee: 'BZB', archive: 'Архив', lava: 'Архив' }
-const accountText = (email?: string, nickname?: string) => (email ? `${email}${nickname ? ` · ${nickname}` : ''}` : 'аккаунт удалён')
-
-/** Where the payer came from (owner, 17.10.2026: «от кого человек пришёл»): a friend with his account, a streamer's code, nobody. */
-function originText(payment: AdminPayment) {
-  const inviter: { email?: string; nickname?: string; deleted?: true } | undefined = payment.invitedBy ?? (payment.friendDiscount && (payment.friendDiscount.inviter || payment.friendDiscount.inviterDeleted) ? { email: payment.friendDiscount.inviter, deleted: payment.friendDiscount.inviterDeleted } : undefined)
-  if (inviter) return `Пришёл по приглашению: ${accountText(inviter.deleted ? undefined : inviter.email, inviter.nickname)}`
-  if (payment.friendDiscount) return 'Пришёл по коду друга'
-  return payment.referralCode ? `Пришёл по коду стримера ${payment.referralCode}` : 'Пришёл без приглашения'
-}
-
-/** A payment in plain words: who paid, where he came from, plan, Boosty or ЮKassa, discount; «Изменить сумму» when `onChanged`. */
-function PaymentRow({ payment, onChanged }: { payment: AdminPayment; onChanged?: () => Promise<unknown> | void }) {
-  const [editing, setEditing] = useState(false)
-  const details = [PLAN_LABEL[payment.plan], PROVIDER_TEXT[payment.provider] ?? payment.provider, statusText(payment.status), payment.friendDiscount ? `скидка друга −${payment.friendDiscount.percent} %` : ''].filter(Boolean).join(' · ')
-  return <article className={`admin-payment-row${editing ? ' is-editing' : ''}`}>
-    <span className={`admin-payment-icon ${payment.status}`}><CreditCard size={18} /></span>
-    <span className="admin-row-copy">
-      <strong title={payment.email}>{uiText('Оплатил:')} {accountText(payment.email, payment.nickname)}</strong>
-      <small className="admin-payment-origin">{uiText(originText(payment))}</small>
-      <small>{uiText(details)}</small>
-    </span>
-    <span className="admin-row-side">
-      <strong>{money(payment.amount)}</strong>
-      {payment.netAmount !== undefined && payment.netAmount !== payment.amount && <small className="admin-payment-net">{uiText(`чистыми ${money(payment.netAmount)}`)}</small>}
-      {payment.amountEdited && <small className="admin-payment-edited">{uiText(`изменено, было ${money(payment.amountEdited.before)}`)}</small>}
-      <small>{dateTime(payment.paidAt ?? payment.createdAt)}</small>
-      {onChanged && payment.provider !== 'archive' && payment.provider !== 'lava' && !editing && <button type="button" className="button small ghost admin-payment-edit" onClick={() => setEditing(true)}>{uiText('Изменить сумму')}</button>}
-    </span>
-    {editing && onChanged && <PaymentAmountEditor payment={payment} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await onChanged() }} />}
-  </article>
-}
-
-/** «Изменить сумму» (owner, 17.10.2026): the new amount, an optional comment, the old amount in sight. */
-function PaymentAmountEditor({ payment, onCancel, onSaved }: { payment: AdminPayment; onCancel: () => void; onSaved: () => Promise<void> }) {
-  const [value, setValue] = useState(String(payment.amount))
-  const [comment, setComment] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const amount = Number(value.replace(',', '.').replace(/\s/g, ''))
-  const valid = value.trim() !== '' && Number.isFinite(amount) && amount >= 0 && amount <= 1_000_000 && Math.abs(Math.round(amount * 100) - amount * 100) < 1e-6
-  const save = async () => {
-    if (!valid || saving) return
-    setSaving(true); setError('')
-    try {
-      await adminApi.setPaymentAmount(payment.id, amount, comment.trim() || undefined)
-      await onSaved()
-    } catch (reason) { setError(errorText(reason)); setSaving(false) }
-  }
-  return <div className="admin-amount-editor">
-    <small>{uiText(`Было: ${money(payment.amount)}${payment.amountEdited ? ` (до первого изменения ${money(payment.amountEdited.before)})` : ''}`)}</small>
-    <label><span>{uiText('Новая сумма, ₽')}</span><input className="input" inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} aria-invalid={!valid} autoFocus /></label>
-    <label><span>{uiText('Комментарий (необязательно)')}</span><input className="input" value={comment} maxLength={200} onChange={(event) => setComment(event.target.value)} /></label>
-    {error && <div className="admin-inline-error">{uiText(error)}</div>}
-    <div className="admin-amount-buttons">
-      <button type="button" className="button primary" disabled={!valid || saving} onClick={() => void save()}>{saving ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}{uiText('Сохранить')}</button>
-      <button type="button" className="button ghost" disabled={saving} onClick={onCancel}>{uiText('Отмена')}</button>
-    </div>
-  </div>
 }
 
 function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUserDetail; onClose: () => void; onUpdated: (detail: AdminUserDetail) => Promise<void>; onOpenChat: (accountId: string) => void }) {
@@ -611,7 +736,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
 
   const grant = async () => {
     if (!valid) return
-    const label = unit === 'months' ? `${number} мес. (${days} дней)` : `${days} дней`
+    const label = unit === 'months' ? `${number} мес. (${ruDays(days)})` : ruDays(days)
     if (!window.confirm(`Выдать ${label} пользователю ${user.email}?`)) return
     setSaving(true); setError(''); setMessage('')
     try {
@@ -627,7 +752,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{user.email}</strong><small>{subscriptionText(user)}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
         <div className="admin-user-facts">
-          <article><span>{uiText('Подписка до')}</span><strong>{user.subscription.lifetime ? uiText('Навсегда') : dateOnly(user.subscription.paidUntil ?? user.subscription.trialEndsAt)}</strong></article>
+          <article><span>{uiText('Подписка до')}</span><strong>{user.subscription.lifetime ? uiText('Навсегда') : !user.subscription.paidUntil && user.subscription.trialRaidDays ? uiText('ждёт первого рейда') : dateOnly(user.subscription.paidUntil ?? user.subscription.trialEndsAt)}</strong></article>
           <article><span>{uiText('Всего оплат')}</span><strong>{user.payments.count}</strong><small>{money(user.payments.total)}</small></article>
           <article><span>{uiText('Регистрация')}</span><strong>{dateOnly(user.createdAt)}</strong></article>
           <article><span>{uiText('Пригласил')}</span><strong>{user.referredBy ?? '—'}</strong><small>{user.referralCode ? uiText(`код ${user.referralCode}`) : ''}</small></article>
@@ -645,7 +770,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
             <label><span>{uiText('Единица')}</span><select className="select" value={unit} onChange={(event) => setUnit(event.target.value as 'days' | 'months')}><option value="days">{uiText('Дни')}</option><option value="months">{uiText('Месяцы')}</option></select></label>
           </div>
           <label className="admin-reason"><span>{uiText('Причина')}</span><input className="input" value={reason} maxLength={200} onChange={(event) => setReason(event.target.value)} /></label>
-          {unit === 'months' && valid && <small className="admin-conversion"><Clock3 size={14} />{uiText(`Будет начислено ${days} дней`)}</small>}
+          {unit === 'months' && valid && <small className="admin-conversion"><Clock3 size={14} />{uiText(`Будет начислено: ${ruDays(days)}`)}</small>}
           {error && <div className="admin-inline-error">{uiText(error)}</div>}
           {message && <div className="admin-inline-success"><Check size={16} />{uiText(message)}</div>}
           <button type="button" className="button primary admin-grant-submit" disabled={!valid || saving} onClick={grant}>{saving ? <LoaderCircle size={17} className="spin" /> : <UserPlus size={17} />}{uiText(saving ? 'Выдаём…' : 'Выдать подписку')}</button>
@@ -664,7 +789,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
   </div>
 }
 
-function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClose: () => void; onChanged: () => void }) {
+function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId: string; onClose: () => void; onChanged: () => void; onOpenProfile: (accountId: string, name?: string) => void }) {
   const [detail, setDetail] = useState<AdminSupportDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -689,9 +814,26 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
     }
   }, [load])
 
-  const reply = async (text: string, images: SupportImageUpload[]) => {
-    await adminApi.supportReply(accountId, text, images)
-    await load()
+  // Sent at once, the box and the keyboard ready for the next one (owner, 15.11.2026: «после отправки сообщения нельзя
+  // сразу отправить второе… Отправка долго думает»): the server's message joins the conversation as it comes, nothing is
+  // read again for it.
+  const sendReply = useCallback(async (text: string, images: SupportImageUpload[], extra: SupportSendExtra) => {
+    const { message } = await adminApi.supportReply(accountId, text, images, undefined, extra)
+    setDetail((current) => (current && !current.messages.some((known) => known.id === message.id) ? { ...current, messages: [...current.messages, message] } : current))
+    onChanged()
+  }, [accountId, onChanged])
+  const [sending, send] = useSupportOutbox(detail?.messages ?? [], 'owner', sendReply)
+  // «Редактировать» (owner, 15.11.2026): the owner's own messages; the player sees only the new words.
+  const editor = useSupportEdit(sending, async (message, text) => {
+    const answer = await adminApi.supportEdit(accountId, message.id, text)
+    setDetail((current) => (current ? { ...current, messages: current.messages.map((known) => (known.id === answer.message.id ? answer.message : known)) } : current))
+  })
+  const messages = editor.messages
+  // Reactions, «Ответить» and stickers (owner, 07.11.2026): as in the owner app's «Чаты».
+  const [replying, setReplying] = useSupportReply(messages)
+  const react = async (message: SupportMessage, emoji: string, on: boolean) => {
+    const answer = await adminApi.supportReact(accountId, message.id, emoji, on)
+    setDetail((current) => (current ? { ...current, messages: current.messages.map((known) => (known.id === answer.message.id ? answer.message : known)) } : current))
   }
   const remove = async () => {
     if (!window.confirm(uiText('Удалить переписку без возможности восстановления?'))) return
@@ -705,11 +847,14 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
   const name = detail?.account.nickname || detail?.account.email || uiText('Чат с пользователем')
   return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet admin-chat-sheet" role="dialog" aria-modal="true" aria-label={name}>
-      <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
+      <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div>
+        <div className="admin-sheet-actions"><button type="button" className="icon-button" onClick={() => onOpenProfile(accountId, detail ? name : undefined)} aria-label={uiText('Профиль')}><UserRound size={18} /></button><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></div></header>
       <div className="admin-chat-body">
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
-        <SupportMessageList messages={detail?.messages ?? []} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет." />
-        <SupportComposer onSend={reply} placeholder="Ответ пользователю…" allowImages />
+        <SupportMessageList messages={messages} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет."
+          onReact={react} onReply={setReplying} onEdit={editor.start} />
+        <SupportComposer onSend={send} placeholder="Ответ пользователю…" allowImages allowEmoji allowStickers replyTo={replying} onCancelReply={() => setReplying(null)}
+          editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
         <button type="button" className="button danger admin-delete-chat" disabled={deleting} onClick={() => void remove()}>{deleting ? <LoaderCircle size={16} className="spin" /> : <Trash2 size={16} />}{uiText(deleting ? 'Удаляем…' : 'Удалить чат с сервера')}</button>
         <small className="admin-delete-note">{uiText('После удаления переписка не хранится в рабочей базе и не попадает в управляемые резервные копии.')}</small>
       </div>
@@ -721,18 +866,8 @@ function subscriptionText(user: AdminUser) {
   if (user.blockedAt) return uiText('Заблокирован')
   if (user.subscription.lifetime) return uiText('Пожизненная подписка')
   if (user.subscription.status === 'active') return uiText(`активна до ${dateOnly(user.subscription.paidUntil)}`)
+  // owner, 12.11.2026: «ждёт первого рейда (2 дня)» instead of the latest end
+  if (user.subscription.status === 'trial' && user.subscription.trialRaidDays) return uiText(`ждёт первого рейда (${user.subscription.trialRaidDays} ${user.subscription.trialRaidDays === 1 ? 'день' : 'дня'})`)
   if (user.subscription.status === 'trial') return uiText(`пробная до ${dateOnly(user.subscription.trialEndsAt)}`)
   return uiText('подписки нет')
-}
-
-function statusText(status: PaymentStatus) {
-  return uiText({ succeeded: 'оплачено', pending: 'ожидает', canceled: 'отменено', refunded: 'возврат' }[status])
-}
-
-function AdminLoading() {
-  return <div className="admin-loading" role="status"><LoaderCircle size={28} className="spin" /><span>{uiText('Загружаем данные…')}</span></div>
-}
-
-function AdminEmpty({ text }: { text: string }) {
-  return <div className="admin-empty"><span>{uiText(text)}</span></div>
 }

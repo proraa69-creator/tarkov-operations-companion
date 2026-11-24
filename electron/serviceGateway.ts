@@ -1,7 +1,7 @@
 /**
  * The only way the app talks to the Raid OS API server (main process only).
  *
- * - Base URL: env TARKOV_API_URL, else the address saved in the app, else the build's default server
+ * - Base URL: env TARKOV_API_URL (not in a packaged players' app), else the address saved in the app, else the build's default server
  *   (https://raidos.app, scripts/write-build-info.mjs), else this PC (http://127.0.0.1:8787). The owner's app uses this
  *   PC's server by default only while «Сервер и сайт на этом компьютере» is on (the server laptop): a gaming PC signs
  *   in to raidos.app, where the owner's account lives. Only HTTPS or plain HTTP to localhost / 127.0.0.1 is accepted.
@@ -10,6 +10,7 @@
  *   never sent to the renderer, never logged. Login / logout / status have their own IPC (see main.ts).
  * - A server that is not running is reported as `ServiceUnavailableError`, so callers can fall back to local work.
  */
+import { hedgedFetch, warmConnection, type HedgeOptions } from './hedgedFetch.js'
 import { app, safeStorage } from 'electron'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -22,7 +23,7 @@ import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
 /** The live relay's wait for the phone (GET /v1/live/:mode?since=): answered within ~25 s. */
-const LIVE_WAIT = /^\/v1\/live\/[a-z]+\?since=/
+const LIVE_WAIT = /^\/v1\/(?:live\/[a-z]+(?:\/pc)?|squad-live\/[a-f0-9]{32}\/[a-z]+)\?since=/
 /** «Онлайн сейчас»: the heartbeat goes with this device's id too, which tells the PC from the phone (server/src/routes/presence.ts). */
 const PRESENCE_PATH = '/v1/me/presence'
 
@@ -37,6 +38,12 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Paid game data through the server only (server/src/routes/data.ts, docs/subscription-protection.md).
   { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
+  // The minute prices (src/data/livePrices.ts, src/data/tarkovDataset.ts) and the statistics of «Торговля» (src/data/tradingApi.ts).
+  { methods: ['GET'], path: new RegExp(`^/v1/data/(?:prices|trading)/${MODE}$`) },
+  // Flea prices the player's screen showed (src/data/screenFleaPrices.ts, server/src/services/playerPrices.ts).
+  { methods: ['POST'], path: new RegExp(`^/v1/data/prices/${MODE}/sightings$`) },
+  // One item's price history (src/data/economyApi.ts).
+  { methods: ['GET'], path: new RegExp(`^/v1/data/price-history/${MODE}/[a-z0-9]{16,48}\\?days=\\d{1,4}$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
   // Plans and prices for the paywall (public, server/src/routes/payments.ts).
   { methods: ['GET'], path: /^\/v1\/payments\/plans$/ },
@@ -65,13 +72,30 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/announcement$/ },
   // The owner's minimap switch for every app (the same route file): read with the notice above, set by the owner.
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/features$/ },
+  // «Поиск квестов по экрану для игрока» (server/src/routes/trialFeatures.ts): the owner turns it on by e-mail; the player's
+  // app asks which functions are on for its account (GET /v1/me/features, src/sync/serverSync.ts pullTrialFeatures).
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/trial-features$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/features$/ },
   // «Админ панель» → «Блоки» (server/src/routes/overviewDefaults.ts): the Overview every player starts from. The apps read
   // it with the notice above; the owner keeps it here.
   { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  // «Обновление»: the owner's text of a release (server/src/routes/playerNews.ts).
+  { methods: ['GET'], path: /^\/v1\/player-news$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/player-news$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/player-news\/reset$/ },
+  // «Промокоды» (server/src/services/promoCodes.ts).
+  { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
+  // «Админ панель» → «Модули убежища» (server/src/routes/hideoutModules.ts): per mode, the modules open from the start or turned
+  // off. The apps read it with the notice; the owner keeps it here.
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/hideout-modules$/ },
+  // «История обновлений» (server/src/routes/ownerAdmin.ts): the server answers 404 to everybody but the owner.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/update-history$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
-  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16}(?:&state=\d{1,16})?)?$/ },
+  // The player's own lists on every device of the account (src/sync/playerState.ts, server/src/services/playerStateStore.ts).
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/state(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): about once a minute while signed in; the owner app reads the count under «Ваши
   // предложения» (src/data/ownerOnline.ts). The server answers 404 to everybody but the owner.
   { methods: ['POST'], path: /^\/v1\/me\/presence$/ },
@@ -87,9 +111,16 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // screenshots as base64 JSON, close / reopen and «Начислить дни». The server answers 404 to everybody but the owner.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
+  // «Телефоны» of «Сводка» (owner, 23.11.2026): phones signed in by system and who is in each app now.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/phones$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\?status=(?:open|closed)&limit=\d{1,3}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward)$/ },
+  // «Отчёты» (src/reports/ReportsTable.tsx): the table, the owner's buttons and his corrections to the plan.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/table\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
+  // «Отчёты» → «Аккаунты Таркова» (server/src/routes/eftCases.ts)
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/eft-cases\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/eft-cases\/\d{1,12}\/status$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward|work|plan|point)$/ },
   // «Доступ Claude к заявкам» (src/requests/ClaudeAccessPanel.tsx, server/src/routes/agentRequests.ts): the state of the
   // owner's read-only key, a new key (shown once) and revoking it. The reports read with the key never pass here.
   { methods: ['GET', 'POST', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/requests-key$/ },
@@ -98,6 +129,16 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // conversation (owner, 14.10.2026).
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
+  // A reaction on a message (owner, 07.11.2026: «смайлики или лайки можно было ставить на сообщения»): the player's on their
+  // own conversation, the owner's on any.
+  { methods: ['POST'], path: /^\/v1\/me\/support\/messages\/\d{1,12}\/reactions$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
+  // «Редактировать»: new words for the owner's own message (owner, 15.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/edit$/ },
+  // The owner's published sticker packs for the chat's picker (server/src/routes/stickers.ts; owner, 07.11.2026: «паки
+  // стикеров… по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон»). Public; the pictures are
+  // <img> addresses of the server (src/support/stickerCatalog.ts), never through here.
+  { methods: ['GET'], path: /^\/v1\/stickers$/ },
   // A chat screenshot (owner, 15.10.2026) as base64 JSON: the player's own conversation's, or any for the owner.
   { methods: ['GET'], path: /^\/v1\/me\/support\/attachments\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/attachments\/[a-f0-9]{24}$/ },
@@ -113,9 +154,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Престиж +» / a nickname change: the whole mode starts again (src/state/modeReset.ts, server/src/routes/me.ts).
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/reset$`) },
   // Story chapters and «Ручная отметка» of the mode (server/src/routes/me.ts; src/sync/serverSync.ts syncStory / syncManualMarks).
-  { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual)$`) },
+  { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual|deferred-quests/${MODE})$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/hideout/${MODE}$`) },
+  // Pieces put aside for the quests and the last stash scan (server/src/routes/me.ts /items).
+  { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/items/${MODE}/(?:quests|stash)$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/quest-mirror/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: /^\/v1\/me\/game-mode$/ },
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
@@ -123,6 +166,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // account; nothing is stored on the server. The PC publishes; reading is the phone's (and kept here for the owner's tests).
   { methods: ['POST'], path: new RegExp(`^/v1/live/${MODE}/(?:position|item)$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/live/${MODE}(?:\\?since=\\d{1,16})?$`) },
+  // «Пресеты экрана» from the phone (routes/live.ts, src/screen/ScreenRemote.tsx): the PC publishes its presets and waits for
+  // the phone's commands.
+  { methods: ['PUT'], path: /^\/v1\/live\/screen\/state$/ },
+  { methods: ['GET'], path: /^\/v1\/live\/screen\/pc(?:\?since=\d{1,16})?$/ },
   // Objective progress and its history (server/src/routes/me.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/me/objectives/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
@@ -150,6 +197,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/initial-country$/ },
   // «Пригласи друга»: the Escape from Tarkov AccountId read from the game logs (one game account — one Raid OS account).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/eft-account$/ },
+  // The first raid start the game logs show (src/account/FirstRaidReport.tsx): free days waiting for it start then.
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/first-raid$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
   // Phone number and SMS codes (server/src/routes/phone.ts). Only the code *requests* go through here: the calls that
   // return a session (/phone/login, /phone/reset) have their own IPC, so the token never reaches the renderer.
@@ -177,6 +226,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/squads/[a-f0-9]{32}/overview/${MODE}$`) },
   { methods: ['POST'], path: /^\/v1\/squads\/[a-f0-9]{32}\/(?:invites|leave|disband|kick|invite-friend)$/ },
   { methods: ['POST'], path: /^\/v1\/squads\/invitations\/[a-f0-9]{24}\/(?:accept|decline)$/ },
+  // «Местоположение тиммейтов» and «Передача зарисовок» (server/src/routes/squadLive.ts): members only, in memory on the server.
+  { methods: ['GET'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}(?:\\?since=\\d{1,16})?$`) },
+  { methods: ['POST'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}/position$`) },
+  { methods: ['PUT'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}/sketch/[A-Za-z0-9_-]{1,40}$`) },
   // «Топ сборок» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
   { methods: ['GET'], path: /^\/v1\/builds\?mode=(?:pvp|pve|seasonal)(?:&weapon=[a-f0-9]{24})?(?:&sort=(?:top|new))?(?:&offset=\d{1,6})?$/ },
   { methods: ['POST'], path: /^\/v1\/builds$/ },
@@ -274,8 +327,15 @@ export function defaultApiUrl() {
   return buildDefaultServerUrl() || DEFAULT_API_URL
 }
 
+/**
+ * TARKOV_API_URL / TARKOV_API_TOKEN: the owner's development integration (server/README.md). Not in a packaged players'
+ * app (security review, 03.11.2026): any program of the player's can set them, and the app would then send the
+ * account's password to that address.
+ */
+const developmentEnv = (name: 'TARKOV_API_URL' | 'TARKOV_API_TOKEN') => (app.isPackaged && !isOwnerBuild() ? undefined : process.env[name])
+
 export function apiBaseUrl() {
-  return checkServerUrl((process.env.TARKOV_API_URL?.trim() || savedServerUrl || defaultApiUrl()).replace(/\/+$/, ''))
+  return checkServerUrl((developmentEnv('TARKOV_API_URL')?.trim() || savedServerUrl || defaultApiUrl()).replace(/\/+$/, ''))
 }
 
 export const isLocalAddress = (url: string) => {
@@ -372,20 +432,35 @@ async function clearSession() {
 // HTTP
 // --------------------------------------------------------------------------------------------------------------
 
-async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string; headers?: Record<string, string> } = {}) {
+/** When the last answer came: fetch keeps that connection a few seconds, so a write soon after needs no new one. */
+let lastAnswerAt = 0
+const CONNECTION_KEPT_MS = 3_000
+
+/**
+ * `hedge`: a read with no answer after a moment goes again on a new connection (electron/hedgedFetch.ts; reads only — a
+ * long wait for news, `false`, must not run twice). A write first brings a connection up the same way when none is kept.
+ */
+async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string; headers?: Record<string, string>; hedge?: false | HedgeOptions } = {}) {
   await loadServerUrl()
+  const base = apiBaseUrl()
+  const init = {
+    method,
+    signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
+    headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  }
   let response: Response
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
-      method,
-      signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    })
+    if (method === 'GET' && options.hedge !== false) response = await hedgedFetch(`${base}${path}`, init, options.hedge ?? {})
+    else {
+      if (method !== 'GET' && Date.now() - lastAnswerAt > CONNECTION_KEPT_MS) await warmConnection(base)
+      response = await fetch(`${base}${path}`, init)
+    }
   } catch (error) {
     // a timed-out request may have reached the server; anything else never left this PC
     throw new ServiceUnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
+  lastAnswerAt = Date.now()
   // 204 No Content and 304 Not Modified carry no body (and no content type).
   const empty = response.status === 204 || response.status === 304
   if (!empty && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
@@ -422,22 +497,34 @@ function withCatalogVersion(result: unknown, etag: string | null) {
   return result
 }
 
+/**
+ * «Сводка» of the owner app's «Админ панель» (owner, 15.11.2026: «точная копия сайта: сводка, платежи, пользователи,
+ * привлечение друзей, стримеры»; src/admin/SiteAdminSummary.tsx): the site's owner requests of those tabs, in the owner's
+ * build only (the server answers 404 to anybody but the owner anyway). Path parts are ids and codes only (no dots, so
+ * no «..»); the CSV files are not here: they are downloaded on the site.
+ */
+const OWNER_SITE_ADMIN = /^\/v1\/accounts\/me\/admin\/(?:overview|online|online-stats|phones|calendar|day|series|stats|bezebee|payments|users|streamers|streamer-settings|streamer-stats|streamer-invites|payouts|payout-limits|invite-rewards|referrals)(?:\/[A-Za-z0-9_-]{1,128}){0,4}(?:\?[A-Za-z0-9%._~=&+@-]{0,2000})?$/
+const OWNER_SITE_METHODS: readonly Method[] = ['GET', 'POST', 'PUT']
+export function ownerSiteAdminAllowed(method: string, path: string, owner = isOwnerBuild()) {
+  return owner && OWNER_SITE_METHODS.includes(method as Method) && OWNER_SITE_ADMIN.test(path)
+}
+
 /** A support chat message may carry screenshots (up to ~28 MB): it gets the bug report's time to upload. */
 const SUPPORT_MESSAGE_PATH = /^\/v1\/(?:me\/support\/messages|accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages)$/
 
 /** Whitelisted request from the renderer. `/v1/me/*` returns null when no account is signed in. */
 export async function serviceRequest(method: string, path: string, body?: unknown): Promise<unknown | null> {
   const route = ROUTES.find((entry) => entry.path.test(String(path)))
-  if (!route || !route.methods.includes(method as Method)) throw new Error('Неизвестный запрос сервиса')
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  if ((!route || !route.methods.includes(method as Method)) && !ownerSiteAdminAllowed(method, String(path))) throw new Error('Неизвестный запрос сервиса')
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|squad-live|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
   await loadSessionForServer()
   if (personal && !sessionToken) return null
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
-  const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
+  const token = path === '/v1/sync/events' ? developmentEnv('TARKOV_API_TOKEN') ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
-  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}), hedge: LIVE_WAIT.test(path) ? false : gated ? { hedgeMs: 3_000, attempts: 2 } : {} })
   const { response, result } = retriesWhileRestarting(method, path)
     ? await retryWhileRestarting(request, (error) => error instanceof ServiceUnavailableError && error.notTaken)
     : await request()
@@ -449,12 +536,15 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   // The game account of this PC was reported (src/account/EftAccountBinding.tsx): the server may now refuse or allow this
   // device (one game account — one Raid OS account), so the next status asks for the entitlement at once.
   if (path === EFT_ACCOUNT_PATH && method === 'POST') entitlementDue = true
+  // The free days began with the first raid: the entitlement's end moved closer.
+  if (path === FIRST_RAID_PATH && method === 'POST') entitlementDue = true
   if (response.status === 304 && catalog.headers) return { notModified: true }
   if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
   return CATALOG_PATH.test(path) ? withCatalogVersion(result, response.headers.get('etag')) : result
 }
 
 const EFT_ACCOUNT_PATH = '/v1/accounts/me/eft-account'
+const FIRST_RAID_PATH = '/v1/accounts/me/first-raid'
 const MASKED_EFT = /^••••\d{1,3}$/
 
 /** The server's eft_conflict answer, shape-checked (AccountStore.eftConflictBody). */
@@ -552,7 +642,7 @@ export async function serviceRequestOrNull(method: string, path: string, body?: 
 }
 
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
-export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
+export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number; trialRaidDays?: number }
 
 export interface AccountStatus {
   signedIn: boolean
@@ -567,6 +657,8 @@ export interface AccountStatus {
   emailVerified?: boolean
   /** When the account was registered (ISO): the renderer's first-run guide is for new accounts. */
   createdAt?: string
+  /** The Apple reviewer's test account (server AccountView.storeReview): the renderer names no payment (hidesPayments). */
+  storeReview?: true
   online: boolean
   serverUrl: string
   /** false when the OS offers no secure storage: the session is kept only until the app closes. */
@@ -582,13 +674,14 @@ export async function accountStatus(): Promise<AccountStatus> {
   let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> = {}
   try {
     serverUrl = apiBaseUrl()
-    const health = await send('GET', '/health', { timeoutMs: 3000 })
+    // 10 s with new connections every 1.5 s (electron/hedgedFetch.ts): 3 s took a slow first connection for «нет связи».
+    const health = await send('GET', '/health', { timeoutMs: 10_000 })
     online = health.response.ok
     if (online && sessionToken) {
-      const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
+      const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 10_000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; storeReview?: unknown }
         const next: StoredAccount = { email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== account?.email || next.kind !== account?.kind) await saveSession(sessionToken, next)
         details = accountDetails(view)
@@ -612,7 +705,7 @@ let entitlementDue = false
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
 /** Only the fields the app shows, shape-checked (the server is trusted, the network is not). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> {
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; storeReview?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'storeReview'> {
   const nicknames: Partial<Record<AccountMode, string>> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -627,13 +720,16 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   const trialEndsAt = date(sub.trialEndsAt)
   // The free period waiting for the first sign-in in an app: its length in days.
   const pending = typeof sub.trialPendingDays === 'number' && Number.isFinite(sub.trialPendingDays) && sub.trialPendingDays > 0 ? sub.trialPendingDays : undefined
+  // The free days waiting for the first raid (server: AccountStore.firstRaid): their length in days.
+  const raid = typeof sub.trialRaidDays === 'number' && Number.isFinite(sub.trialRaidDays) && sub.trialRaidDays > 0 ? sub.trialRaidDays : undefined
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
   const createdAt = date(view.createdAt)
   return {
+    ...(view.storeReview === true ? { storeReview: true as const } : {}),
     nicknames,
-    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
+    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}), ...(raid ? { trialRaidDays: raid } : {}) },
     ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
   }
 }
@@ -687,6 +783,49 @@ export async function ownerExeLink(): Promise<{ url: string; size: number }> {
   const answer = result as { url?: unknown; size?: unknown } | null
   if (typeof answer?.url !== 'string' || !/^\/v1\/server-exe\/[a-f0-9]{48}$/.test(answer.url) || typeof answer.size !== 'number') throw new Error('Сервер вернул неожиданный ответ')
   return { url: `${apiBaseUrl()}${answer.url}`, size: answer.size }
+}
+
+/**
+ * «Войти по QR-коду» on this PC (owner, 28.10.2026: «при входе в приложение на ПК будет войти по QR-коду… человек
+ * сканирует и входит»): the same one-time request the website makes (POST /v1/accounts/qr-login). The PC shows its code
+ * as a QR code; the phone app signed in to the account approves it (DeepLinkLogin.tsx PhoneApprove) and this PC polls
+ * until the server gives it a session. The poll secret stays in this process: the page sees only the code.
+ */
+let qrRequest: { requestId: string; pollSecret: string; code: string; expiresAt: string } | null = null
+
+export async function accountQrStart(): Promise<{ code: string; expiresAt: string }> {
+  await loadServerUrl()
+  let sent: Awaited<ReturnType<typeof send>>
+  try {
+    sent = await send('POST', '/v1/accounts/qr-login', { body: {}, headers: { 'User-Agent': `RaidOS-Desktop/${app.getVersion()} (Windows)` } })
+  } catch (error) {
+    if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
+    throw error
+  }
+  const { response, result } = sent
+  const answer = result as { requestId?: unknown; pollSecret?: unknown; code?: unknown; expiresAt?: unknown; error?: unknown } | null
+  if (!response.ok) throw new Error(typeof answer?.error === 'string' ? answer.error : `Не удалось создать код: ${response.status}`)
+  if (typeof answer?.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(answer.requestId)
+    || typeof answer.pollSecret !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(answer.pollSecret)
+    || typeof answer.code !== 'string' || !/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(answer.code)
+    || typeof answer.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  qrRequest = { requestId: answer.requestId, pollSecret: answer.pollSecret, code: answer.code, expiresAt: answer.expiresAt }
+  return { code: answer.code, expiresAt: answer.expiresAt }
+}
+
+/** One look at the QR request: `pending`, `expired`, or signed in (the session is saved like a password sign-in's). */
+export async function accountQrPoll(): Promise<{ state: 'pending' | 'expired' } | { state: 'done'; status: AccountStatus }> {
+  const request = qrRequest
+  if (!request) return { state: 'expired' }
+  const { response, result } = await send('POST', '/v1/accounts/qr-login/poll', { body: { requestId: request.requestId, pollSecret: request.pollSecret } })
+  if (response.status === 202) return { state: 'pending' }
+  if (response.status === 410 || response.status === 404) { qrRequest = null; return { state: 'expired' } }
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
+  if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  qrRequest = null
+  await saveSession(answer.token, { email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
+  return { state: 'done', status: await accountStatus() }
 }
 
 export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Promise<AccountStatus> {

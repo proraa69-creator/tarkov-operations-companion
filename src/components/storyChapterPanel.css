@@ -1,0 +1,52 @@
+/* A story chapter marked by hand (StoryChapterPanel.tsx). */
+.story-chapter h4 { margin: 10px 0 6px; }
+.story-chapter-head { display: flex; align-items: center; gap: 8px; }
+.story-chapter-change { margin-left: auto; padding: 0; border: 0; background: none; color: var(--brass); font: inherit; font-size: 12px; cursor: pointer; }
+.story-chapter-change:hover, .story-chapter-change:focus-visible { text-decoration: underline; }
+.story-chapter-note { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; color: var(--green); font-weight: 700; }
+
+/* A chapter not started glows until it is. */
+.story-chapter-start, .story-chapter-glow { animation: story-chapter-glow 1.6s ease-in-out infinite; }
+@keyframes story-chapter-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(242 210 122 / 0%); }
+  50% { box-shadow: 0 0 12px 3px rgb(242 210 122 / 55%); }
+}
+@media (prefers-reduced-motion: reduce) { .story-chapter-start, .story-chapter-glow { animation: none; box-shadow: 0 0 8px 2px rgb(242 210 122 / 45%); } }
+
+.story-goals { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.story-goals-or { display: block; margin: 0 0 6px 2px; color: var(--text-dim); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.story-goal { display: flex; align-items: flex-start; gap: 8px; line-height: 1.35; cursor: pointer; }
+.story-goal input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--green); cursor: pointer; }
+.story-goal.is-counter { align-items: center; justify-content: space-between; cursor: default; }
+.story-goal.is-done .story-goal-text { color: var(--text-dim); text-decoration: line-through; }
+.story-goal-text { min-width: 0; overflow-wrap: anywhere; }
+.story-goal-text small { color: var(--text-dim); font-size: 11px; }
+.story-goal-counter { display: inline-flex; flex: none; align-items: center; gap: 6px; }
+.story-goal-counter b { min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
+.story-goal-counter button { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surf-1); color: var(--text); cursor: pointer; }
+.story-goal-counter button:disabled { opacity: .4; cursor: default; }
+
+.story-route { display: grid; gap: 6px; margin-top: 12px; padding: 10px; border: 1px solid var(--brass); border-radius: 10px; }
+.story-route h4 { margin: 0 0 2px; }
+.story-route-option { display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surf-1); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.story-route-option:hover, .story-route-option:focus-visible { border-color: var(--brass); }
+.story-route-option small { color: var(--text-muted); font-size: 12px; line-height: 1.3; }
+.story-route-endings { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.story-chapter-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 14px; }
+.story-chapter-actions .button { gap: 5px; }
+
+.story-picker { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
+.story-picker h2 { margin: 0 36px 2px 0; font-size: 20px; }
+.story-picker > p { margin: 0 0 10px; }
+.story-picker-list { min-height: 0; overflow: auto; padding-right: 4px; }
+.story-picker-list h3 { margin: 10px 0 4px; color: var(--brass); font-size: 12px; font-weight: 700; line-height: 1.3; }
+.story-picker-list label { display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px; border-radius: 6px; line-height: 1.3; cursor: pointer; }
+.story-picker-list label:hover { background: rgb(255 255 255 / 5%); }
+.story-picker-list label.is-chosen { background: rgb(255 255 255 / 8%); }
+.story-picker-list input { flex: none; margin-top: 2px; }
+.story-picker-done { margin-top: 8px; border-top: 1px solid var(--line); }
+.story-picker-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.registration-dialog > .story-picker-actions .button { width: auto; margin: 0; }
+:root[data-layout="mobile"] .story-goal-counter button { width: 32px; height: 32px; }
+:root[data-layout="mobile"] .story-goal input { width: 20px; height: 20px; }

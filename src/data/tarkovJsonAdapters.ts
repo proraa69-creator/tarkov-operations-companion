@@ -1,4 +1,5 @@
 import type { RaidMode } from '../domain/types'
+import { steadyFleaPrice } from '../domain/itemPrices'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import type { Barter, Craft, EconomyItem, EconomySnapshot, ItemCount, PricePoint, TaskRef, VendorPrice } from './economyApi'
 import { traderDisplayName } from './traderNames'
@@ -11,10 +12,14 @@ export interface MinutePrice {
   avg24hPrice?: number
   low24hPrice?: number
   noFlea?: boolean
+  /** When this price was last renewed, in whole minutes since 1970. */
+  at?: number
 }
 
 export interface MinutePriceSnapshot {
   mode?: string
+  /** When tarkov.dev last renewed a price here. */
+  pricesAt?: string
   updatedAt?: string
   fleaMarket?: { enabled?: boolean; sellOfferFeeRate?: number; sellRequirementFeeRate?: number }
   items?: Record<string, MinutePrice>
@@ -35,6 +40,11 @@ export interface TarkovJsonBundle {
 const object = (value: unknown): Json => value && typeof value === 'object' && !Array.isArray(value) ? value as Json : {}
 const array = (value: unknown): Json[] => Array.isArray(value) ? value.map(object) : []
 const text = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback
+/** Whose icon a row shows: a gun's is its default build's, the whole gun; the base item's own is a bare part. A made-up build id has no picture of its own. */
+const wholeGunId = (row: Json, id: string) => {
+  const preset = Array.isArray(row.types) && row.types.includes('gun') ? text(object(row.properties).defaultPreset) : ''
+  return preset && !preset.startsWith('707265736574') ? preset : id
+}
 const number = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) ? value : undefined
 const positive = (value: unknown) => { const parsed = number(value); return parsed !== undefined && parsed > 0 ? parsed : undefined }
 
@@ -109,7 +119,8 @@ function legacyOffers(item: Json, traders: Record<string, Json>, names: Json, pr
   const lastLowPrice = positive(price?.lastLowPrice) ?? positive(item.lastLowPrice)
   const avg24hPrice = positive(price?.avg24hPrice) ?? positive(item.avg24hPrice)
   const buyFor: Json[] = []
-  if (lastLowPrice ?? avg24hPrice) buyFor.push({ priceRUB: lastLowPrice ?? avg24hPrice, vendor: { name: 'Flea Market', normalizedName: 'flea-market' } })
+  const flea = steadyFleaPrice(lastLowPrice, avg24hPrice)?.price
+  if (flea) buyFor.push({ priceRUB: flea, vendor: { name: 'Flea Market', normalizedName: 'flea-market' } })
   for (const row of array(item.buyFromTrader)) {
     const traderId = text(row.trader)
     const priceRUB = positive(row.priceRUB)
@@ -135,6 +146,7 @@ function legacyProperties(value: unknown, items: Record<string, Json>, names: Js
   const defaultPreset = presetId ? {
     id: presetId,
     name: localized(names, presetId, 'Name', text(preset?.name, presetId)),
+    iconLink: localImage(imageBase, presetId, 'icon'),
     image512pxLink: localImage(imageBase, presetId, 'grid'),
     inspectImageLink: localImage(imageBase, presetId, 'grid'),
     gridImageLink: localImage(imageBase, presetId, 'grid'),
@@ -186,8 +198,9 @@ export function buildLegacyItems(bundle: TarkovJsonBundle): Json[] {
   })
 }
 
-export function buildLegacyAmmo(bundle: TarkovJsonBundle): Json[] {
-  return buildLegacyItems(bundle).filter((item) => Array.isArray(item.types) && item.types.includes('ammo')).flatMap((item) => {
+/** `items`: the bundle's items already converted (buildLegacyItems), when the caller has them — the conversion takes a while. */
+export function buildLegacyAmmo(bundle: TarkovJsonBundle, items: Json[] = buildLegacyItems(bundle)): Json[] {
+  return items.filter((item) => Array.isArray(item.types) && item.types.includes('ammo')).flatMap((item) => {
     const properties = object(item.properties)
     if (!text(properties.caliber) || number(properties.damage) === undefined || number(properties.penetrationPower) === undefined) return []
     return [{ item, ...properties }]
@@ -222,15 +235,16 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
     const quote = minute.items?.[id]
     const lastLowPrice = positive(quote?.lastLowPrice) ?? positive(row.lastLowPrice)
     const avg24hPrice = positive(quote?.avg24hPrice) ?? positive(row.avg24hPrice)
-    const flea = lastLowPrice ?? avg24hPrice
+    const flea = steadyFleaPrice(lastLowPrice, avg24hPrice)?.price
     const buyFor = array(row.buyFromTrader).map((entry) => vendorPrice(entry, traders, names, 'buy')).filter((entry): entry is VendorPrice => entry !== null)
     if (flea) buyFor.unshift({ source: 'Flea Market', kind: 'flea', price: flea })
     const sellFor = array(row.sellToTrader).map((entry) => vendorPrice(entry, traders, names, 'sell')).filter((entry): entry is VendorPrice => entry !== null)
     items[id] = {
       id, name: localized(names, id, 'Name', text(row.name, id)), shortName: localized(names, id, 'ShortName', text(row.shortName, text(row.name, id))),
-      iconUrl: localImage(imageBase, id, 'icon'), basePrice: number(row.basePrice) ?? 0,
+      iconUrl: localImage(imageBase, wholeGunId(row, id), 'icon'), basePrice: number(row.basePrice) ?? 0,
       avg24hPrice, low24hPrice: positive(quote?.low24hPrice) ?? positive(row.low24hPrice), lastLowPrice,
       noFlea: quote?.noFlea === true || (Array.isArray(row.types) && row.types.includes('noFlea')), buyFor, sellFor,
+      ...(positive(row.minLevelForFlea) ? { fleaLevel: positive(row.minLevelForFlea) } : {}),
     }
   }
   const barters: Barter[] = tarkovRecords(bundle.barters, 'barters').flatMap((row, index) => {

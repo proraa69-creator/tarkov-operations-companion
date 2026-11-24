@@ -12,7 +12,7 @@ import type { StoryRecord } from './storyRecords'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindManualSync, bindQuestMirrorSource, pullQuestMirror, pushGameMode, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindDeferredSync, parseDeferredQuests, syncDeferredQuests, bindManualSync, bindQuestMirrorLayer, bindQuestMirrorSource, pullQuestMirror, pushGameMode, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -81,7 +81,7 @@ describe('server sync with the desktop gateway', () => {
     expect(isCollectorDirty('pvp')).toBe(true)
     serviceRequest.mockResolvedValueOnce({ itemIds: ['axe'], updatedAt: 'now' })
     await syncCollector('pvp')
-    expect(serviceRequest).toHaveBeenCalledWith('PUT', '/v1/me/collector/pvp', { itemIds: ['axe'] })
+    expect(serviceRequest).toHaveBeenCalledWith('PUT', '/v1/me/collector/pvp', { itemIds: ['axe'], base: [] })
     expect(isCollectorDirty('pvp')).toBe(false)
 
     serviceRequest.mockResolvedValueOnce({ itemIds: ['axe', 'book'], updatedAt: 'later' })
@@ -90,6 +90,42 @@ describe('server sync with the desktop gateway', () => {
     expect(loadCollected('pvp')).toEqual(['axe', 'book'])
     expect(isCollectorDirty('pvp')).toBe(false)
     expect(loadCollected('pve')).toEqual([])
+  })
+
+  it('a push says what this device last agreed with the server, and takes what the server made of it', async () => {
+    serviceRequest.mockResolvedValueOnce({ itemIds: ['axe', 'book'], updatedAt: 'then' })
+    await syncCollector('pvp')
+    expect(loadCollected('pvp')).toEqual(['axe', 'book'])
+
+    saveCollected('pvp', ['book', 'mine'])
+    // Another device added «theirs» meanwhile: the server keeps it, on top of this device's changes.
+    serviceRequest.mockResolvedValueOnce({ itemIds: ['book', 'theirs', 'mine'], updatedAt: 'now' })
+    await syncCollector('pvp')
+    expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/me/collector/pvp', { itemIds: ['book', 'mine'], base: ['axe', 'book'] })
+    expect(loadCollected('pvp')).toEqual(['book', 'theirs', 'mine'])
+    expect(isCollectorDirty('pvp')).toBe(false)
+
+    // What it last agreed with another account says nothing here.
+    localStorage.setItem('raidos-sync-base-v1:collector:pve', JSON.stringify({ account: 'somebody else', value: ['axe'] }))
+    saveCollected('pve', ['book'])
+    serviceRequest.mockResolvedValueOnce({ itemIds: ['book'], updatedAt: 'now' })
+    await syncCollector('pve')
+    expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/me/collector/pve', { itemIds: ['book'], base: [] })
+  })
+
+  it('an empty account copy wipes nothing: what the device holds goes up; after a reset the empty list is the list', async () => {
+    localStorage.setItem('tarkov-collector-items-v1:pvp', JSON.stringify(['axe']))
+    serviceRequest.mockResolvedValueOnce({ itemIds: [], updatedAt: null })
+    serviceRequest.mockResolvedValueOnce({ itemIds: ['axe'], updatedAt: 'now' })
+    await syncCollector('pvp')
+    expect(loadCollected('pvp')).toEqual(['axe'])
+    expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/me/collector/pvp', { itemIds: ['axe'], base: [] })
+
+    localStorage.setItem('tarkov-collector-items-v1:pve', JSON.stringify(['book']))
+    serviceRequest.mockResolvedValueOnce({ itemIds: [], updatedAt: null, resetAt: '2026-11-01T00:00:00.000Z' })
+    await syncCollector('pve')
+    expect(loadCollected('pve')).toEqual([])
+    expect(serviceRequest).toHaveBeenLastCalledWith('GET', '/v1/me/collector/pve', undefined)
   })
 
   it('keeps the local checklist when the server is down', async () => {
@@ -145,6 +181,24 @@ describe('server sync with the desktop gateway', () => {
     }
     const queue = () => JSON.parse(localStorage.getItem('raidos-mode-resets-v1') ?? '{}') as Record<string, Record<string, { at: string; pending?: boolean }>>
     const resetCalls = () => serviceRequest.mock.calls.filter(([, path]) => String(path).endsWith('/reset'))
+
+    // Owner, 04.11.2026: «Вайп или Престиж … ему не нужны старые логи»: the server and the other devices keep the floor too.
+    it('a press with a floor: the server is told, the queue keeps it, and the log pushes carry it as their reset', async () => {
+      const at = '2026-09-25T12:30:00.000Z'
+      serviceRequest.mockResolvedValue({ resetAt: at, scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
+      queueModeReset('pve', at, at)
+      await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at, floor: at }))
+      await vi.waitFor(() => expect(queue()).toEqual({ [`${SERVER}|e:a@example.com`]: { pve: { at, floor: at } } }))
+      // The next push of the logs says it too: a server without the character yet keeps nothing older.
+      serviceRequest.mockClear()
+      await pushLogProgress(scan(), () => unregistered, vi.fn())
+      expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', expect.objectContaining({ characterId: CHARACTER, resetAt: at }))
+      // «Сброс» after it takes the floor away.
+      const later = '2026-09-25T13:30:00.000Z'
+      queueModeReset('pve', later)
+      await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at: later }))
+      await vi.waitFor(() => expect(queue()).toEqual({ [`${SERVER}|e:a@example.com`]: { pve: { at: later } } }))
+    })
 
     it('the same account: sent at once, then not again; then every log event goes again (no floor at the press)', async () => {
       const at = '2026-09-25T12:30:00.000Z'
@@ -320,41 +374,57 @@ describe('server sync with the desktop gateway', () => {
     expect([pullsServerProgress('pvp'), pullsServerProgress('pve'), pullsServerProgress('seasonal')]).toEqual([true, true, true])
   })
 
-  it('the PC sends every mode it has quests of — logs or screen — once per change; a mode it has not, it takes the copy of', async () => {
+  it('the PC reads the account copy of every mode first, fills its gaps from it, and only then sends its own (owner, 03.11.2026)', async () => {
     Object.assign(window.tarkovDesktop!, { isDesktop: true })
+    const OTHER = 'bbbbbbbbbbbbbbbbbbbbbbbb'
     const records = { [TASK]: { taskId: TASK, status: 'completed' as const, source: 'screen-scan' as const, updatedAt: '2026-09-25T12:00:00.000Z' } }
     const progress = (taskProgress: Record<string, unknown>) => ({ taskProgress, playerLevel: 39, faction: 'bear', prestige: 0, trackedTaskIds: [] }) as never
     const fromServer = { [TASK]: { ...records[TASK], source: 'eft-log' as const, origin: 'server' as const } }
     bindQuestMirrorSource((mode) => progress(mode === 'pve' ? records : mode === 'pvp' ? fromServer : {}))
+    // The layer «changes» only for the copy with OTHER in it (AppState answers whether the stored layer changed).
+    const layer = vi.fn((_mode: string, copy: Record<string, unknown>) => OTHER in copy)
+    bindQuestMirrorLayer(layer)
+    const puts = () => serviceRequest.mock.calls.filter(([method]) => method === 'PUT')
     serviceRequest.mockResolvedValue({ mirror: { at: 'x', receivedAt: 'x', count: 1 } })
     // Before this start's log search has an answer, nothing: a half-read copy must not replace the phone's full one.
     await pushQuestMirror('pve')
     expect(serviceRequest).not.toHaveBeenCalled()
-    // PvE read from the Tasks screen, no Logs folder on this PC: sent all the same, with the level the lists depend on.
+    // PvE read from the Tasks screen, no Logs folder on this PC — and still nothing before the account copy was read: a
+    // short list must never replace a fuller one on the server.
     noteDesktopLogsMissing()
     await pushQuestMirror('pve')
+    expect(serviceRequest).not.toHaveBeenCalled()
+    // The copy of PvE read: it changes nothing here, so this PC's own goes up at once, with the level the lists depend on.
+    serviceRequest.mockResolvedValueOnce({ mirror: { at: '2026-09-26T00:00:00.000Z', records, receivedAt: 'x' } })
+    await pullQuestMirror('pve')
+    expect(serviceRequest).toHaveBeenCalledWith('GET', '/v1/me/quest-mirror/pve', undefined)
+    expect(layer).toHaveBeenCalledWith('pve', { [TASK]: expect.objectContaining({ status: 'completed' }) })
     expect(serviceRequest).toHaveBeenCalledWith('PUT', '/v1/me/quest-mirror/pve', { at: expect.any(String), records, profile: { playerLevel: 39, faction: 'bear', prestige: 0, trackedTaskIds: [] } })
     serviceRequest.mockClear()
     await pushQuestMirror('pve')
     expect(serviceRequest).not.toHaveBeenCalled()
-    // Nothing of its own in Season (an app just installed), only the server's records in PvP: nothing sent.
-    await pushQuestMirror('seasonal')
-    await pushQuestMirror('pvp')
-    expect(serviceRequest).not.toHaveBeenCalled()
-
-    // PvP: it takes the PC copy another app sent; PvE it has itself.
-    serviceRequest.mockResolvedValue({ mirror: { at: '2026-09-26T00:00:00.000Z', records, receivedAt: 'x' } })
-    await pullQuestMirror('pvp')
-    expect(serviceRequest).toHaveBeenCalledWith('GET', '/v1/me/quest-mirror/pvp', undefined)
-    expect(JSON.parse(localStorage.getItem('raidos-quest-mirror-v1') ?? '{}').mirrors.pvp.records[TASK].status).toBe('completed')
-    // The server has no copy (any more): the copy held stays — the last PC data is shown until a newer one comes.
-    serviceRequest.mockResolvedValue({ mirror: null })
-    await pullQuestMirror('pvp')
-    expect(JSON.parse(localStorage.getItem('raidos-quest-mirror-v1') ?? '{}').mirrors.pvp.records[TASK].status).toBe('completed')
-    serviceRequest.mockClear()
+    // Read again only after a while (it changes only when another PC sends one).
     await pullQuestMirror('pve')
     expect(serviceRequest).not.toHaveBeenCalled()
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 11 * 60_000)
+    // A copy with a quest this PC does not know: into the layer, and nothing goes up yet — AppShell sends the copy once the
+    // stored progress has it.
+    serviceRequest.mockResolvedValueOnce({ mirror: { at: '2026-09-27T00:00:00.000Z', records: { ...records, [OTHER]: { ...records[TASK], taskId: OTHER, status: 'active' } }, receivedAt: 'x' } })
+    await pullQuestMirror('pve')
+    expect(layer).toHaveBeenLastCalledWith('pve', expect.objectContaining({ [OTHER]: expect.objectContaining({ status: 'active' }) }))
+    expect(puts()).toEqual([])
+    // Nothing of its own in Season (an app just installed), only the server's records in PvP: read, nothing sent.
+    serviceRequest.mockResolvedValue({ mirror: null })
+    await pullQuestMirror('seasonal')
+    await pullQuestMirror('pvp')
+    expect(puts()).toEqual([])
+    // No copy on the server: the layer stays as it was.
+    expect(layer.mock.calls.filter(([mode]) => mode !== 'pve')).toEqual([])
+    // A PC never shows a copy over its own records (the phone does).
+    expect(localStorage.getItem('raidos-quest-mirror-v1')).toBeNull()
     bindQuestMirrorSource(null)
+    bindQuestMirrorLayer(null)
+    vi.restoreAllMocks()
   })
 
   it('the PC tells each switch of its mode once; the phone follows the newest one once', async () => {
@@ -391,13 +461,35 @@ describe('server sync with the desktop gateway', () => {
       local = { characterId: CHARACTER, records: [tour, batya] }
       await syncStory('pvp')
       expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { characterId: CHARACTER, records: [] })
-      // No catalog of the mode: nothing at all. No character known: only the server's chapters are asked for.
+      // No catalog of the mode: nothing at all. No character known (the phone): its new chapters still go, for the server's
+      // character (a player's report, 20.11.2026: the phone's own stage went back to the PC's one).
       await syncStory('pve')
       expect(serviceRequest).toHaveBeenCalledTimes(2)
       local = { characterId: undefined, records: [{ ...tour, updatedAt: '2026-10-03T10:00:00.000Z' }] }
       await syncStory('pvp')
-      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { records: [] })
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { records: [{ ...tour, updatedAt: '2026-10-03T10:00:00.000Z' }] })
     } finally { bindStorySync(null) }
+  })
+  it('«Отложенные квесты»: sends what changed of a mode, applies every quest the server keeps with the mode\'s reset', async () => {
+    const quest = { taskId: TASK, status: 'deferred' as const, at: '2026-11-04T10:00:00.000Z', level: 20 }
+    const other = { taskId: '5936d90786f7742b1420ba5c', status: 'returned' as const, at: '2026-11-04T09:00:00.000Z' }
+    serviceRequest.mockResolvedValue({ quests: [quest, other, { taskId: '<b>', status: 'deferred', at: 'x' }], resetAt: '2026-11-01T00:00:00.000Z' })
+    let local: Array<typeof quest | typeof other> = [quest]
+    const apply = vi.fn()
+    bindDeferredSync({ read: () => local, apply })
+    try {
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: [quest] })
+      expect(apply).toHaveBeenCalledWith('pve', [quest, other], '2026-11-01T00:00:00.000Z')
+      // Nothing new: nothing sent again, the list is still read; a changed quest is sent.
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: [] })
+      local = [{ taskId: TASK, status: 'returned', at: '2026-11-04T11:00:00.000Z' }]
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: local })
+    } finally { bindDeferredSync(null) }
+    expect(parseDeferredQuests({ quests: [{ taskId: TASK, status: 'done', at: '2026-11-04T10:00:00.000Z' }] })).toEqual({ quests: [] })
+    expect(parseDeferredQuests(null)).toBeNull()
   })
   it('«Ручная отметка»: sends the new marks of a mode with their time, applies every mark the server keeps; a reset sends them again', async () => {
     const mark = { taskId: TASK, status: 'completed' as const, at: '2026-10-15T10:00:00.000Z' }

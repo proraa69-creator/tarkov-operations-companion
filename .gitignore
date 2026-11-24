@@ -26,3 +26,9 @@ scratch-out.txt
 *.key.pem
 android/local.properties
 website/.prerender/
+
+# Test exe packs (TEST_BUILD=1); the weapon part pictures (public/gun-parts) are in the repo: they ship in the app
+release-test/
+
+# «Полигон»'s pictures (public/range-figures, rendered in the offline game: E:\SPT-photo\studio) are in the repo since 0.6.0.338:
+# only the files src/range/rangePack.ts RANGE_PACK_FILE packs; a build ships them as dist/range-figures.pack, never plain

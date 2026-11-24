@@ -29,7 +29,10 @@
 .scourge-open-boss { width: 100%; margin-bottom: 8px; }
 
 /* The Overview button, on the title's line (wraps under it on narrow windows). */
-.overview-title-row { display: flex; align-items: center; gap: 14px 22px; flex-wrap: wrap; }
+.overview-title-row { display: flex; align-items: center; gap: 8px 22px; flex-wrap: wrap; margin: 7px 0 5px; }
+/* The event's button no higher than the heading beside it (owner, 06.11.2026). */
+.overview-title-row .page-title { margin: 0; }
+.overview-title-row .button { min-height: 0; height: 28px; padding-block: 0; }
 .scourge-event-button {
   border-color: color-mix(in srgb, #c0392b 60%, var(--line)); color: #f1d2cc;
   background: linear-gradient(180deg, color-mix(in srgb, #c0392b 26%, var(--panel-2)), color-mix(in srgb, #c0392b 14%, var(--panel)));

@@ -40,7 +40,7 @@ describe('no in-game overlays', () => {
   it('a recognised item goes to the main window for «Карты», not to a window of its own', () => {
     const lookup = game.slice(game.indexOf('async function lookupItem('), game.indexOf('\n}\n', game.indexOf('async function lookupItem(')))
     expect(lookup).toMatch(/sendItem\(\{ state: 'loading' \}\)/)
-    expect(lookup).toMatch(/sendItem\(answer \?\? \{ state: 'not-found'/)
+    expect(lookup).toMatch(/sendItem\(second\.answer \?\? \{ state: 'not-found'/)
     expect(game).toMatch(/webContents\.send\('experimental:item', payload\)/)
   })
 

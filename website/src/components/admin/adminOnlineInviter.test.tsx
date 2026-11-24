@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, type AdminCalendar as Calendar, type AdminDay, type AdminUser } from '../../api'
+import { ownerDay } from '../../../../src/shared/ownerTime'
 
 /**
  * Owner, 14.10.2026: «Онлайн сейчас» at the top of the admin panel, and «Пришёл от» naming the friend whose code gave
@@ -113,7 +114,7 @@ const plans = { '1m': { count: 1, revenue: 240 }, '3m': { count: 0, revenue: 0 }
 
 describe('calendar day and payments: the inviter instead of a bare flag', () => {
   it('the day window names the inviter of a registration and of a discounted payment', async () => {
-    const month = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 7)
+    const month = ownerDay(Date.now()).slice(0, 7)
     const date = `${month}-01`
     const calendar: Calendar = { month, today: `${month}-28`, days: Array.from({ length: 28 }, (_, index) => ({ date: `${month}-${String(index + 1).padStart(2, '0')}`, registrations: index === 0 ? 3 : 0, payments: index === 0 ? 1 : 0, revenue: index === 0 ? 240 : 0, plans })) }
     const day: AdminDay = {

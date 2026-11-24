@@ -6,6 +6,29 @@ let context: AudioContext | null = null
 let master: GainNode | null = null
 let noise: AudioBuffer | null = null
 
+/** The sounds' level at full volume. */
+const MASTER_LEVEL = 0.55
+/**
+ * Settings → «Громкость щелчков» (owner, 03.11.2026: «сделай ползунок громкости, если минимальный, это выкл щелчки»): 0–1 of
+ * the level above, kept on this device; at 0 nothing plays and no sound device is opened.
+ */
+export const UI_SOUND_VOLUME_KEY = 'raidos-ui-sound-volume'
+let volume: number | null = null
+
+export function uiSoundVolume() {
+  if (volume !== null) return volume
+  let saved = Number.NaN
+  try { saved = Number(localStorage.getItem(UI_SOUND_VOLUME_KEY) ?? Number.NaN) } catch { /* storage unavailable: full volume */ }
+  volume = Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 1
+  return volume
+}
+
+export function setUiSoundVolume(next: number) {
+  volume = Math.min(1, Math.max(0, next))
+  try { localStorage.setItem(UI_SOUND_VOLUME_KEY, String(volume)) } catch { /* kept for this run */ }
+  if (master) master.gain.value = MASTER_LEVEL * volume
+}
+
 /**
  * A running AudioContext keeps the sound device open and its audio thread mixing silence all the time, the player in
  * the game included. After this long without a sound it is suspended; the next sound resumes it (it is scheduled on the
@@ -26,13 +49,39 @@ function restLater(ctx: AudioContext) {
   }, UI_SOUND_REST_MS)
 }
 
+/**
+ * The iPhone's WebKit takes the context to 'interrupted' (a call, another app's sound, the app in the background) or
+ * closes it, and a plain resume() did not bring the clicks back — they were gone until the app restarted (owner,
+ * 13.11.2026: «пропадает звук в приложении щелчков»). Such a context is dropped and the next sound makes a new one.
+ */
+let broken = false
+
+function dropContext() {
+  const old = context
+  context = null
+  master = null
+  noise = null
+  clickSample = null
+  clickLoading = null
+  broken = false
+  resting = false
+  clearTimeout(restTimer)
+  restTimer = undefined
+  if (old && old.state !== 'closed') void old.close().catch(() => {})
+}
+
 function audio() {
   if (context) return context
   const Ctor = typeof window === 'undefined' ? undefined : window.AudioContext
   if (!Ctor) return null
   context = new Ctor()
+  const created = context
+  created.onstatechange = () => {
+    const state = created.state as string
+    if (created === context && (state === 'interrupted' || state === 'closed')) broken = true
+  }
   master = context.createGain()
-  master.gain.value = 0.55
+  master.gain.value = MASTER_LEVEL * uiSoundVolume()
   master.connect(context.destination)
   noise = context.createBuffer(1, Math.ceil(context.sampleRate * 0.05), context.sampleRate)
   const data = noise.getChannelData(0)
@@ -63,15 +112,28 @@ function burst(ctx: AudioContext, at: number, frequency: number, q: number, peak
   source.stop(at + decay + 0.01)
 }
 
-/** Hover: a short synthesized tick. Press: the owner's click recording (softened, see playClickSample). */
-export function playUiSound(kind: SoundKind) {
-  const ctx = audio()
-  if (!ctx || !master) return
-  if (resting || ctx.state === 'suspended') {
+/** The context ready to play now: a broken one is replaced, a resting one resumed. */
+function readyContext() {
+  let ctx = audio()
+  if (ctx && (broken || (ctx.state as string) === 'interrupted' || ctx.state === 'closed')) {
+    dropContext()
+    ctx = audio()
+  }
+  if (!ctx || !master) return null
+  if (resting || ctx.state !== 'running') {
     resting = false
-    void ctx.resume().catch(() => {})
+    const current = ctx
+    void ctx.resume().catch(() => { if (current === context) broken = true })
   }
   restLater(ctx)
+  return ctx
+}
+
+/** Hover: a short synthesized tick. Press: the owner's click recording (softened, see playClickSample). */
+export function playUiSound(kind: SoundKind) {
+  if (uiSoundVolume() <= 0) return
+  const ctx = readyContext()
+  if (!ctx) return
   const at = ctx.currentTime + 0.002
   if (kind === 'hover') {
     // «Алькантара»: a soft brush over suede instead of the tick
@@ -136,6 +198,36 @@ function playClickSample(ctx: AudioContext, at: number) {
 
 /** Loads the click recording ahead of the first press. */
 export function preloadUiSounds() {
+  if (uiSoundVolume() <= 0) return
   const ctx = audio()
   if (ctx) void loadClickSample(ctx)
+}
+
+/**
+ * Player report 177 (owner, 17.11.2026): «простенький разовый сигнал по окончанию таймера, негромкий и тихий» — the map's
+ * fatigue timer, when «Сигнал в конце» is on. Two soft sine notes, about a second, played once. It follows «Громкость
+ * щелчков», but clicks turned off do not silence it: the player asked for the chime by its own switch.
+ */
+const CHIME_LEVEL = 0.1
+const CHIME_NOTES = [{ at: 0, hz: 880 }, { at: 0.16, hz: 1318.5 }] as const
+const CHIME_DECAY = 0.9
+
+export function playTimerChime() {
+  const ctx = readyContext()
+  if (!ctx) return
+  const level = CHIME_LEVEL * (uiSoundVolume() || 1)
+  const start = ctx.currentTime + 0.01
+  for (const note of CHIME_NOTES) {
+    const at = start + note.at
+    const tone = ctx.createOscillator()
+    tone.type = 'sine'
+    tone.frequency.value = note.hz
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0, at)
+    gain.gain.linearRampToValueAtTime(level, at + 0.008)
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + CHIME_DECAY)
+    tone.connect(gain).connect(ctx.destination)
+    tone.start(at)
+    tone.stop(at + CHIME_DECAY + 0.02)
+  }
 }

@@ -274,9 +274,10 @@
   --gear-wear-over: var(--gear-p-scratch-b) 72% 70% / 60px 27px no-repeat;
   --gear-cut: var(--gear-p-tear-cut) 0 100% / 46px 30px no-repeat;
 }
-/* name tape: dark ranger webbing with a merrowed edge, the text in tan thread */
+/* name tape: dark ranger webbing with a merrowed edge, the text in tan thread. As wide as its text wherever it stands: stretched
+   across a grid or a column, the slight tilt drew a long slanted strip («Позвать друзей» on «Отряд», owner 14.11.2026). */
 :root[data-theme="gear"] .stat-label {
-  display: inline-block; padding: 5px 11px 4px; border-radius: 3px;
+  display: inline-block; width: fit-content; max-width: 100%; justify-self: start; padding: 5px 11px 4px; border-radius: 3px;
   color: #e3d3a6; font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; font-size: 11px; letter-spacing: .16em;
   background: linear-gradient(180deg, rgb(255 244 214 / 9%), rgb(0 0 0 / 18%)), var(--gear-web-ranger) 0 0 / 256px 256px;
   box-shadow:
@@ -456,8 +457,6 @@
 .gear-patch { display: block; filter: drop-shadow(0 1.5px 0 rgb(0 0 0 / 70%)) drop-shadow(1px 3px 3px rgb(0 0 0 / 45%)); }
 .gear-patch-name { transform: rotate(-1.2deg); }
 .gear-patch-blood { transform: rotate(1.5deg); }
-.gear-patch-moon { transform: rotate(-4deg); }
-.gear-patch-faction { transform: rotate(3deg); margin-left: 6px; }
 .gear-patch-text { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; }
 /* In the sidebar's foot: part of the menu's flow, above the app version — the menu items never slide under them. */
 .sidebar-operator .gear-patches { position: static; order: -1; width: auto; padding: 4px 6px 2px; z-index: auto; }
@@ -474,7 +473,7 @@
 }
 /* the stats sheet's heading is plain text, not a sewn-on name tape */
 :root[data-theme="gear"] .goon-stats-popover .stat-label {
-  display: block; padding: 0; background: none; box-shadow: none; transform: none;
+  display: block; width: auto; padding: 0; background: none; box-shadow: none; transform: none;
   font-size: 10.5px; letter-spacing: .14em; color: #cdc2a1; text-shadow: 0 1px 1px #000;
 }
 :root[data-theme="gear"] .raid-map-name { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .02em; }
@@ -537,3 +536,32 @@
 }
 .gear-helmet-nudge:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong, #5d5a44); }
 .gear-helmet-nudge:disabled { opacity: .35; cursor: default; }
+
+/*
+ * The buttons: dark glass, and a sand frame marks what is chosen (owner, 07.11.2026: «Только само теплое свечение не делай, а вот как ниже две
+ * карты подсвечивается, вот как в рамочке, вот такое должно быть выбор»). Under the mouse the same frame, dimmer.
+ */
+:root[data-theme="gear"] {
+  --v-glass: linear-gradient(180deg, rgb(255 240 205 / 7%), rgb(255 240 205 / 2%));
+  --v-lift: linear-gradient(180deg, rgb(255 240 205 / 15%), rgb(255 240 205 / 5%));
+  --v-frame: rgb(236 214 164 / 88%);
+  --v-frame-dim: rgb(230 205 152 / 36%);
+}
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link { border: 1.5px solid transparent; border-radius: 9px; color: #e6dfca; background: var(--v-glass) padding-box, rgb(14 15 9 / 56%) padding-box; box-shadow: inset 0 1px 0 rgb(255 240 205 / 8%); }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link.active::before { display: none; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link:hover { color: #fff; outline: 0; border-color: var(--v-frame-dim); background: var(--v-lift) padding-box, rgb(20 21 13 / 78%) padding-box; box-shadow: inset 0 1px 0 rgb(255 240 205 / 16%), 0 3px 8px rgb(0 0 0 / 60%); text-shadow: 0 1px 2px #000; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link:hover svg { color: #ecd7a5; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link.active, :root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link.active:hover { color: #fff; font-weight: 750; outline: 0; border-color: var(--v-frame); background: var(--v-lift) padding-box, rgb(20 21 13 / 78%) padding-box; box-shadow: inset 0 1px 0 rgb(255 240 205 / 16%), 0 3px 8px rgb(0 0 0 / 60%); text-shadow: 0 1px 2px #000; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link.active svg { color: #ecd7a5; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 1px; }
+/* other buttons */
+:root[data-theme="gear"] .button { color: #f4eedc; border: 1px solid rgb(230 205 152 / 30%); border-radius: 9px; background: var(--v-glass), #16170f; box-shadow: inset 0 1px 0 rgb(255 240 205 / 12%), 0 3px 8px rgb(0 0 0 / 55%); }
+:root[data-theme="gear"] .button.primary { color: #fff; border: 1px solid var(--v-frame); text-shadow: 0 1px 2px #000; background: var(--v-lift), #1a1b11; box-shadow: inset 0 1px 0 rgb(255 240 205 / 16%), 0 3px 8px #000; }
+:root[data-theme="gear"] .button.primary svg { color: #ecd7a5; }
+:root[data-theme="gear"] :is(.icon-button, .profile-chip) { color: #f4eedc; border-color: rgb(230 205 152 / 30%); border-radius: 9px; background: var(--v-glass), #16170f; box-shadow: inset 0 1px 0 rgb(255 240 205 / 12%), 0 2px 5px rgb(0 0 0 / 50%); }
+:root[data-theme="gear"] :is(.mode-switch, .locale-switch) { background: var(--v-glass), #121309; border-color: rgb(230 205 152 / 30%); border-radius: 9px; box-shadow: 0 2px 5px rgb(0 0 0 / 50%); }
+:root[data-theme="gear"] :is(.mode-switch, .locale-switch) button.active { color: #fff; border: 1px solid var(--v-frame); border-radius: 6px; text-shadow: 0 1px 2px #000; background: var(--v-lift); box-shadow: none; }
+/* phone */
+:root[data-layout="mobile"][data-theme="gear"] .nav-link:hover:not(.active) { background: none; box-shadow: none; outline: 0; }
+:root[data-layout="mobile"][data-theme="gear"] :is(.mobile-tabbar .nav-link.mobile-tab, .mobile-more-grid .nav-link.mobile-more-link).active { color: #fff; outline: 0; border: 1.5px solid var(--v-frame); text-shadow: 0 1px 2px #000; background: var(--v-lift), #1a1b11; box-shadow: none; }
+:root[data-layout="mobile"][data-theme="gear"] :is(.mobile-tabbar .nav-link.mobile-tab, .mobile-more-grid .nav-link.mobile-more-link).active svg { color: #ecd7a5; }

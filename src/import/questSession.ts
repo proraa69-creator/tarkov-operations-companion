@@ -1,22 +1,17 @@
-import type { ModeProgress, Quest } from '../domain/types'
+import type { Quest } from '../domain/types'
 import type { QuestRowStatus } from './questOcr'
 import { tableRowLines } from './screenScanSync'
 
 /**
- * A watch of the Tasks table (audit P8): what may end an OCR-sourced «active» record that the table no longer lists.
- *
- * Only a view that provably shows the whole current list counts, and only to remove such a record — never to mark one
- * completed, and never for a record that came from the logs (the logs' own hand-in event completes a quest). The table
- * scrolls, and a scrolled page, a quest scrolled out of sight or re-sorted after items were handed over looks exactly
- * like a hand-in; so the old rules («missing while its trader's rows show», «gone while its neighbours stay») are gone.
- * A view is the whole list when:
+ * A watch of the Tasks table: whether the whole current list was read, which ends a mode's first sync (src/import/tableSync.ts).
+ * It removes nothing (owner, 04.11.2026: «если поиск не нашел, значит не надо удалять, он может не увидеть и удалит квесты …
+ * по списку только обнаруживаются квесты»): a quest the table does not show stays; an extra one is the player's right click,
+ * «У меня нет этого квеста». A view is the whole list when:
  *   - it is the table (two or more rows with a status cell) and every such row is a catalog trader quest — no row whose
  *     title was not read, which could be the missing quest itself, and no other tab (story chapters, operational tasks);
  *   - it holds at most WHOLE_LIST_MAX_ROWS rows: a page of the table holds about nine at any screen ratio, so the list
  *     fits on the page and nothing is scrolled away;
  *   - the same rows were read twice in a row, from two fresh readings (not the main process's copy of one).
- * Then a stored OCR quest missing from it is no longer current — at most WHOLE_LIST_MAX_GONE at once: more missing at
- * once is more likely another view than that many hand-ins, and nothing is removed.
  */
 export interface QuestScanSession {
   /** The last fresh reading of the table. */
@@ -37,8 +32,6 @@ export interface TableView {
 
 /** The list fits on one page of the table with room to spare (about nine rows a page). */
 export const WHOLE_LIST_MAX_ROWS = 6
-/** Stored OCR quests a whole list may end at once. */
-export const WHOLE_LIST_MAX_GONE = 2
 
 export function createScanSession(): QuestScanSession {
   return {}
@@ -73,24 +66,4 @@ export function recordTableView(session: QuestScanSession, view: TableView): Que
   if (last && !(view.observedAt > last.observedAt)) return session
   const twice = Boolean(last?.whole && view.whole && last.rows.join('|') === view.rows.join('|'))
   return { last: view, ...(twice ? { wholeList: { ids: view.ids, at: view.observedAt } } : {}) }
-}
-
-/**
- * Ends what the whole current list no longer shows: OCR-sourced «active» trader quests are removed — not completed, the
- * table cannot tell a hand-in from a failed or abandoned quest. Logs' records, story chapters and anything else stay.
- */
-export function reconcileWithSession(progress: ModeProgress, session: QuestScanSession, quests: Quest[]): ModeProgress {
-  const whole = session.wholeList
-  if (!whole) return progress
-  const listed = new Set(whole.ids)
-  const byId = new Map(quests.map((quest) => [quest.id, quest]))
-  const gone = Object.values(progress.taskProgress).filter((record) => {
-    if (record.source !== 'screen-scan' || record.status !== 'active' || listed.has(record.taskId)) return false
-    const quest = byId.get(record.taskId)
-    return Boolean(quest) && quest!.kind !== 'story'
-  })
-  if (!gone.length || gone.length > WHOLE_LIST_MAX_GONE) return progress
-  const taskProgress = { ...progress.taskProgress }
-  for (const record of gone) delete taskProgress[record.taskId]
-  return { ...progress, taskProgress }
 }

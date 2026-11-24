@@ -1,0 +1,38 @@
+/* The menu on a person in the admin chats (src/admin/ChatPersonMenu.tsx): by the pointer on the PC, a sheet for the finger. */
+.chat-person-menu-layer { --ap-accent: var(--brass, var(--green, #65d990)); position: fixed; inset: 0; z-index: 1200; }
+.chat-person-menu-layer.is-sheet { display: flex; align-items: flex-end; justify-content: center; background: rgb(0 0 0 / 45%); backdrop-filter: blur(3px); animation: chat-person-fade .16s ease-out; }
+.chat-person-menu {
+  position: fixed; min-width: 210px; max-width: min(300px, calc(100vw - 16px)); padding: 5px; display: grid; gap: 2px;
+  border: 1px solid var(--line-strong, var(--line)); border-radius: 10px; background: var(--surf-2, #16201a); color: var(--text);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 45%); animation: chat-person-pop .12s ease-out;
+}
+.chat-person-menu-title { min-width: 0; padding: 6px 9px 7px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); margin-bottom: 3px; }
+.chat-person-menu-title strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); font-size: 12px; font-weight: 750; }
+.chat-person-menu-item {
+  min-height: 34px; padding: 0 10px; display: flex; align-items: center; gap: 9px; border: 0; border-radius: 7px; background: transparent;
+  color: var(--text); font-size: 13.5px; font-weight: 650; text-align: left; cursor: pointer;
+}
+.chat-person-menu-item svg { color: var(--ap-accent); flex: none; }
+.chat-person-menu-item:hover, .chat-person-menu-item:focus-visible { outline: none; background: color-mix(in srgb, var(--ap-accent) 16%, transparent); }
+.chat-person-menu.is-sheet {
+  position: relative; width: min(520px, 100%); max-width: none; padding: 10px 12px calc(14px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+  border-radius: 18px 18px 0 0; border-bottom: 0; gap: 4px; animation: chat-person-rise .2s cubic-bezier(.2, .8, .2, 1);
+}
+.chat-person-menu.is-sheet::before { content: ''; justify-self: center; width: 38px; height: 4px; margin: 0 0 6px; border-radius: 4px; background: var(--line-strong, var(--line)); }
+.chat-person-menu.is-sheet .chat-person-menu-title { padding: 4px 4px 12px; margin-bottom: 4px; }
+.chat-person-menu.is-sheet .chat-person-menu-title strong { color: var(--text); font-size: 16px; }
+.chat-person-menu.is-sheet .chat-person-menu-item { min-height: 52px; padding: 0 14px; gap: 12px; border-radius: 12px; font-size: 16px; }
+.chat-person-menu-avatar {
+  width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 50%;
+  background: color-mix(in srgb, var(--ap-accent) 20%, transparent); color: var(--ap-accent); font-weight: 850;
+}
+.chat-person-menu-cancel {
+  min-height: 48px; margin-top: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1, transparent);
+  color: var(--text-muted, var(--text-dim)); font-size: 15px; font-weight: 700; cursor: pointer;
+}
+/* The rows a finger holds: no text selection, no system callout under the long press. */
+.owner-chat-item, .admin-chat-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+@keyframes chat-person-pop { from { opacity: 0; transform: translateY(-3px) scale(.98); } }
+@keyframes chat-person-rise { from { transform: translateY(100%); } }
+@keyframes chat-person-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .chat-person-menu, .chat-person-menu-layer.is-sheet, .chat-person-menu.is-sheet { animation: none; } }

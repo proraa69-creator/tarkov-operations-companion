@@ -1,6 +1,11 @@
+import { useMemo } from 'react'
 import { X } from 'lucide-react'
+import { useOptionalTarkovData } from '../data/DataProvider'
+import { itemTier } from '../screen/tierLists'
+import { useOptionalAppState } from '../state/AppState'
 import { uiText } from '../i18n/renderText'
 import { closeRecognisedItem, useRecognisedItem } from '../items/recognisedItem'
+import type { RaidMode } from '../domain/types'
 import type { ItemOverlayInfo } from '../overlay/types'
 import '../styles/mapItemCard.css'
 
@@ -11,8 +16,8 @@ const rub = (value: number) => `${Math.round(value).toLocaleString('ru-RU')} ₽
  * picture and name, the flea and best trader price, and only whether the Collector («Каппа») or a friend needs it —
  * no quest list (owner, 20.10.2026: «сколько нужно на квест убираем, оставляем только если нужно на капу… либо капа,
  * либо ник друга»). At the left edge of the map's HUD on a line of its own, never over the map controls (their menus
- * open over it). Stays until the next item or «Закрыть». The same on the phone, from the PC of the account
- * (items/recognisedItem.ts).
+ * open over it). Goes by itself 10 seconds after the answer (owner, 03.11.2026), or earlier at the next item or
+ * «Закрыть». The same on the phone, from the PC of the account (items/recognisedItem.ts).
  */
 export function MapItemCard() {
   const item = useRecognisedItem()
@@ -29,19 +34,25 @@ export function MapItemCard() {
             <small>{uiText('Наведите курсор на предмет в игре, дождитесь подсказки с названием и нажмите клавишу ещё раз.')}</small>
           </div>
         )}
-        {payload.state === 'found' && <FoundItem item={payload} />}
+        {payload.state === 'found' && <FoundItem item={payload} mode={item.mode} />}
       </section>
     </div>
   )
 }
 
-function FoundItem({ item }: { item: ItemOverlayInfo }) {
+function FoundItem({ item, mode }: { item: ItemOverlayInfo; mode?: RaidMode }) {
+  // its letter in «Тир-листы», in their colour (owner, 08.11.2026: «буковка S с красным фоном… все с соответствием с тир-листом»)
+  // (none outside the app's providers, as in a test of the card alone)
+  const items = useOptionalTarkovData()?.data.items
+  const raidMode = useOptionalAppState()?.raidMode
+  const tier = useMemo(() => (items && (mode ?? raidMode) ? itemTier(items, (mode ?? raidMode)!, item.itemId) : undefined), [items, item.itemId, mode, raidMode])
   const trader = item.bestTrader
   const names = item.mateNames ?? []
   return <>
     <header className="map-item-card-head">
       {item.iconUrl && <span className={`map-item-card-icon${item.weaponPreset ? ' is-weapon' : ''}`}><img src={item.iconUrl} alt="" title={item.weaponPreset ? uiText('Стандартная сборка: обвесы и цвет могут отличаться') : undefined} /></span>}
       <strong className="map-item-card-name" title={uiText(item.name)}>{uiText(item.name)}</strong>
+      {tier && <span className={`map-item-card-tier tier-${tier.toLowerCase()}`} title={`${uiText('Тир-лист')}: ${tier}`}>{tier}</span>}
     </header>
     <dl className="map-item-card-prices">
       <div><dt>{uiText('Барахолка')}{item.fleaAverage ? <small> · {uiText('средняя за 24 ч')}</small> : null}</dt><dd>{item.fleaPrice ? rub(item.fleaPrice) : '—'}</dd></div>

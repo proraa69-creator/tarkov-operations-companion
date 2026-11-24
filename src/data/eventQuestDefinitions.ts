@@ -15,15 +15,15 @@ import { CURATED_SERIES, type CuratedObjective, type CuratedQuest, type CuratedS
  */
 export type EventObjectiveType =
   | 'visit' | 'extract' | 'shoot' | 'findItem' | 'giveItem' | 'plantItem' | 'findQuestItem' | 'giveQuestItem' | 'plantQuestItem'
-  | 'useItem' | 'transit' | 'hideout'
+  | 'useItem' | 'transit' | 'hideout' | 'mark'
 
 export const EVENT_OBJECTIVE_TYPES: readonly EventObjectiveType[] = [
-  'visit', 'extract', 'shoot', 'findItem', 'giveItem', 'plantItem', 'findQuestItem', 'giveQuestItem', 'plantQuestItem', 'useItem', 'transit', 'hideout',
+  'visit', 'extract', 'shoot', 'findItem', 'giveItem', 'plantItem', 'findQuestItem', 'giveQuestItem', 'plantQuestItem', 'useItem', 'transit', 'hideout', 'mark',
 ]
 /** Objective types whose items are quest items (one item: tarkov.dev `questItem`). */
 export const QUEST_ITEM_OBJECTIVES: ReadonlySet<EventObjectiveType> = new Set(['findQuestItem', 'giveQuestItem', 'plantQuestItem'])
 /** Objective types that name catalog items. */
-export const ITEM_OBJECTIVES: ReadonlySet<EventObjectiveType> = new Set(['findItem', 'giveItem', 'plantItem', 'useItem', 'findQuestItem', 'giveQuestItem', 'plantQuestItem'])
+export const ITEM_OBJECTIVES: ReadonlySet<EventObjectiveType> = new Set(['findItem', 'giveItem', 'plantItem', 'useItem', 'findQuestItem', 'giveQuestItem', 'plantQuestItem', 'mark'])
 /** Kill targets as the game names them (tarkov.dev `targetNames`). */
 export const SHOOT_TARGETS = ['Any', 'AnyPmc', 'Usec', 'Bear', 'Savage', 'pmcBot'] as const
 

@@ -1,4 +1,4 @@
-import type { Quest } from '../domain/types'
+import type { Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 
 /**
@@ -10,6 +10,8 @@ interface QuestCorrection {
   /** Where the corrected values come from and when the owner checked them. */
   source: string
   checkedAt: string
+  /** The modes it is for; every mode when absent. */
+  modes?: readonly RaidMode[]
   apply: (quest: Quest, locale: AppLocale) => Quest
 }
 
@@ -17,7 +19,9 @@ const PRAPOR = '54cb50c76803fa8b248b4571'
 const AK12 = '6499849fc93611967b034949'
 const AK12_SUPPRESSOR = '64c196ad26a15b84aa07132f'
 const PS320 = '5c0517910db83400232ffee5'
-const PATRIOT_MAPS = ['streets-of-tarkov', 'shoreline', 'ground-zero']
+const TRAILER_CABIN_KEY = '5913611c86f77479e0084092'
+const PATRIOT_MAPS =['streets-of-tarkov', 'shoreline', 'ground-zero']
+const LEVELS_SOURCE = 'EFT wiki: loyalty 4; tarkov.dev traders: the level of loyalty 4; the players\' logs on the server'
 
 const CORRECTIONS: Record<string, QuestCorrection> = {
   // «Работа для патриота» (owner, 14.10.2026: «у нас не правильная информация», tarkov.help): Streets, Shoreline or Ground
@@ -52,13 +56,43 @@ const CORRECTIONS: Record<string, QuestCorrection> = {
       }
     },
   },
+  // «Золотые понты» (owner, 31.10.2026, a player's report: «для золотых понтов он больше не нужен»): the golden Zibbo is no
+  // longer in the trailer park cabin — it is found on Customs and an ordinary Zibbo is planted in dorm room 303 (tarkov.dev's
+  // own objective texts); tarkov.dev still lists the cabin key from the old version. The room 303 key stays.
+  '5979eee086f774311955e614': {
+    source: 'tarkov.dev objectives, player report',
+    checkedAt: '2026-10-31',
+    apply: (quest) => ({
+      ...quest,
+      requiredItems: quest.requiredItems?.filter((id) => id !== TRAILER_CABIN_KEY),
+      raidRequirements: quest.raidRequirements?.filter((requirement) => requirement.itemId !== TRAILER_CABIN_KEY),
+    }),
+  },
+  // Owner, 04.11.2026: tarkov.dev's levels of these two (46, 55) are far above where the game gives them. The players' logs,
+  // with a level read after the event: «Конвоир» 38 of 178 below 46, and within 3 days of it 102 of 104 at 36 or more;
+  // «Путь охотника. Непреклонный» 227 of 249 below 55, none below 36. The EFT wiki asks loyalty 4 of each and no level of its
+  // own, and loyalty 4 asks level 36 of Prapor, 33 of Jaeger (tarkov.dev traders): so those. «Поставщик» stays at 36, that same
+  // level of Prapor: its holders below it are months-old records against a level read now, not takes at that level.
+  '60e71b62a0beca400d69efc4': { source: LEVELS_SOURCE, checkedAt: '2026-11-04', apply: (quest) => ({ ...quest, level: 36 }) },
+  '60e71e8ed54b755a3b53eb67': { source: LEVELS_SOURCE, checkedAt: '2026-11-04', apply: (quest) => ({ ...quest, level: 33 }) },
+  // «Освободить помещение» in Season (report 192, the game's screen): Ragman wants the PMCs driven out, not «лишних людей»
+  // (the PvP text); its objective and rewards are corrected in the Season data (SEASON_TASK_FIXES, src/data/catalogSource.ts).
+  '67d03be712fb5f8fd2096332': {
+    source: 'the game (Season), player report',
+    checkedAt: '2026-11-18',
+    modes: ['seasonal'],
+    apply: (quest) => ({ ...quest, description: quest.description.replace('лишних людей оттуда погонял', 'ЧВК оттуда погонял') }),
+  },
 }
 
+/** The quests a pinned correction is for (each is listed in src/data/manualQuests.json too). */
+export const CORRECTED_QUEST_IDS: readonly string[] = Object.keys(CORRECTIONS)
+
 /** The catalog's quests with the pinned corrections applied (both languages), each marked with `manualCorrection`. */
-export function applyQuestCorrections(quests: Quest[], locale: AppLocale): Quest[] {
+export function applyQuestCorrections(quests: Quest[], locale: AppLocale, mode?: RaidMode): Quest[] {
   return quests.map((quest) => {
     const correction = CORRECTIONS[quest.id]
-    if (!correction) return quest
+    if (!correction || (correction.modes && (!mode || !correction.modes.includes(mode)))) return quest
     return { ...correction.apply(quest, locale), manualCorrection: { source: correction.source, checkedAt: correction.checkedAt } }
   })
 }

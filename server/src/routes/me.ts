@@ -4,7 +4,7 @@
  *
  *   GET  /progress/:mode                 -> { revision, records, coverage, scope: { accountId, characterId, syncedAt, resetAt? } | null }
  *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records and the scope
- *   POST /progress/:mode/reset           { at? } -> { resetAt, scope } («Престиж +» / a nickname change: the whole mode
+ *   POST /progress/:mode/reset           { at?, floor? } -> { resetAt, scope } («Престиж +» / a nickname change: the whole mode
  *                                        starts again; its older quest events, story chapters, objectives, Collector
  *                                        checklist and shared level go, other modes stay)
  *   GET  /story/:mode?characterId=       -> { characterId, records: [{ chapterId, status, stageId?, updatedAt }] }
@@ -13,6 +13,10 @@
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
  *   GET  /hideout/:mode                  -> { found: { itemId: pieces }, updatedAt } («Убежище»: items found for the hideout)
  *   PUT  /hideout/:mode                  { found } -> { found, updatedAt }
+ *   GET  /items/:mode/:kind              -> { found, updatedAt } (kind 'quests': put aside for the quests; 'stash': the last scan)
+ *   PUT  /items/:mode/:kind              { found } -> { found, updatedAt }
+ *   GET  /features                       -> { features: { questTableScan: until | null, mapFloorWheel: until | null } } (functions on for this account
+ *                                        only, for a while: services/trialFeatures.ts)
  *   GET  /game-mode                      -> { gameMode: { mode, at, receivedAt } | null } (the game's mode on the PC)
  *   PUT  /game-mode                      { mode, at } -> { gameMode } (a later switch wins; the phone follows it)
  *   GET  /position/:mode                 -> { position | null } (the newer of the stored one and the live one, routes/live.ts)
@@ -25,6 +29,9 @@
  *                                        -> { modes } (the desktop app's own levels; friends see them, routes/friends.ts)
  *   GET  /progress/:mode/manual          -> { marks } («Ручная отметка» of the mode)
  *   POST /progress/:mode/manual          { marks: [{ taskId, status: active|completed|cleared, at }] } -> { marks }
+ *   GET  /deferred-quests/:mode          -> { quests, resetAt? } («Отложенные квесты» of the mode, on every device of the account)
+ *   POST /deferred-quests/:mode          { quests: [{ taskId, status: deferred|returned, at, until?, level?, loyalty? }] } -> { quests, resetAt? };
+ *                                        newest per quest, nothing older than the mode's last reset (`resetAt`)
  *   GET  /summary                        -> per-mode counts for the website cabinet
  *   GET  /objectives/:mode               -> { objectives, events, updatedAt } (objective progress and its history)
  *   POST /objectives/:mode/sync          { objectives[], events[] } -> merged { objectives, events, updatedAt }
@@ -38,11 +45,13 @@ import { z } from 'zod'
 import type { AppDataset, RaidMode } from '../models/api.js'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import type { ProgressStore } from '../services/progressStore.js'
-import type { UserDataStore } from '../services/userDataStore.js'
+import { mergedCounts, mergedList, type UserDataStore } from '../services/userDataStore.js'
+import { PlayerStateStore, STATE_LIMITS, type StateRow } from '../services/playerStateStore.js'
 import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.js'
 import type { SocialSignals } from '../services/socialSignals.js'
 import { resolvedRecords } from '../services/sharedProgress.js'
 import type { LiveRelay } from '../services/liveRelay.js'
+import { trialFeatures, type TrialFeatureStore } from '../services/trialFeatures.js'
 import { collectorEntries } from '../../../src/kappa/collector'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../../../src/progression/objectiveProgress'
 
@@ -58,16 +67,46 @@ const eventsSchema = z.object({
   resetAt: isoTime.optional(),
   events: z.array(z.object({ taskId: hexId, status: z.enum(['active', 'completed', 'failed']), timestamp: isoTime })).max(2000),
 }).strict()
-const resetSchema = z.object({ at: isoTime.optional() }).strict()
+const resetSchema = z.object({ at: isoTime.optional(), floor: isoTime.optional() }).strict()
 /** «Ручная отметка»: the marks of one mode (a few hundred at most: one per quest). */
 const manualSchema = z.object({
-  marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
+  marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared', 'absent']), at: isoTime }).strict()).max(1000),
 }).strict()
-const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
-const hideoutSchema = z.object({
-  found: z.record(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), z.number().int().min(0).max(100_000))
-    .refine((found) => Object.keys(found).length <= 2000, 'Слишком много предметов'),
+/** «Отложенные квесты»: what one device knows of a mode (one per quest), with the term a quest comes back at. */
+const deferredSchema = z.object({
+  quests: z.array(z.object({
+    taskId: z.string().regex(ENTITY_ID_PATTERN),
+    status: z.enum(['deferred', 'returned']),
+    at: isoTime,
+    until: isoTime.optional(),
+    level: z.number().int().min(1).max(1000).optional(),
+    loyalty: z.object({ traderId: z.string().min(1).max(64), trader: z.string().max(60), level: z.number().int().min(1).max(10) }).strict().optional(),
+  }).strict()).max(1000),
 }).strict()
+/**
+ * `base`: the list as this device last agreed with the server. Only what it changed since then goes on top of the account's copy, so
+ * another device's change is not lost. An older app sends none and replaces the list, as it always did.
+ */
+const collectorSchema = z.object({
+  itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000),
+  base: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000).optional(),
+}).strict()
+const foundSchema = z.record(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), z.number().int().min(0).max(100_000))
+  .refine((found) => Object.keys(found).length <= 2000, 'Слишком много предметов')
+const hideoutSchema = z.object({ found: foundSchema, base: foundSchema.optional() }).strict()
+/** The player's own lists (services/playerStateStore.ts): one row per item, null when it was taken off. */
+const stateSchema = z.object({
+  since: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  items: z.array(z.object({
+    kind: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
+    mode: z.enum(['', 'pvp', 'pve', 'seasonal']),
+    item: z.string().min(1).max(300),
+    at: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    value: z.unknown().refine((value) => value !== undefined),
+  }).strict()).max(STATE_LIMITS.itemsPerSync),
+}).strict()
+/** What a reset of the mode wipes on a device (src/state/modeReset.ts): an older app's press reaches the newer devices too. */
+const STATE_KINDS_OF_A_RESET = ['quest-checks', 'quest-key-favorites', 'hideout-levels', 'item-counts', 'story-marks', 'trader-levels', 'trader-screen']
 /** Story chapters per character (the screen reads them; the game does not log them): a few dozen at most. */
 const storyRecordSchema = z.object({
   chapterId: z.string().regex(ENTITY_ID_PATTERN),
@@ -172,6 +211,10 @@ export interface MeRouterOptions {
    * and a position an older PC posts here reaches the new phones at once.
    */
   live?: LiveRelay
+  /** Functions the owner turned on for one account for a while («Админ панель» → «Функции», services/trialFeatures.ts). */
+  trials?: TrialFeatureStore
+  /** Writes of the player's own lists per account. Default 600 per 10 minutes: a change goes out in one write, whatever it holds. */
+  stateRateLimit?: { max: number; windowMs: number }
 }
 
 export interface ModeSummary {
@@ -189,6 +232,10 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   const ipLimiter = new FixedWindowRateLimiter(limit.max * 3, limit.windowMs, options.now)
   const owner = (accountId: string) => `user:${accountId}`
   const objectives = options.objectives ?? new ObjectiveStore(userData.database)
+  const playerState = new PlayerStateStore(userData.database)
+  const stateRate = options.stateRateLimit ?? { max: 600, windowMs: 10 * 60 * 1000 }
+  const stateLimiter = new FixedWindowRateLimiter(stateRate.max, stateRate.windowMs, options.now)
+  if (options.social) options.social.signals.stateRevOf = (accountId) => playerState.rev(accountId)
 
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store')
@@ -205,7 +252,11 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   const bad = (res: Response, message = 'Некорректные данные запроса') => { res.status(400).json({ error: message }) }
   const account = (res: Response) => String(res.locals.accountId)
   const mode = (req: Request) => modeSchema.safeParse(req.params.mode)
+  // Only for what a write really kept (owner, 05.11.2026, the server's load): an app reloads on this signal and a reload syncs
+  // again, so a signal on every sync sent ~200 apps round in a circle every 1 to 3 s, 13 million requests a day against 1.5.
   const progressChanged = (accountId: string) => { if (options.social) options.social.signals.changed(options.social.circle(accountId)) }
+  // An empty list after a reset is the list; an empty one never sent says nothing (a device then sends its own, never loses it).
+  const resetOf = (accountId: string, raidMode: RaidMode) => { const resetAt = userData.modeResetAt(accountId, raidMode); return resetAt ? { resetAt } : {} }
 
   router.get('/progress/:mode', (req, res) => {
     const parsed = mode(req)
@@ -223,17 +274,19 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   })
 
   // «Престиж +», «Вайп», «Сброс» or a nickname change in the app (src/state/modeReset.ts): the account's copy of one mode
-  // is wiped (the app sends its logs again right after). No floor is kept.
+  // is wiped (the app sends its logs again right after). `floor`: nothing older counts any more («Престиж +», «Вайп»).
   router.post('/progress/:mode/reset', (req, res) => {
     const parsed = mode(req)
     const body = resetSchema.safeParse(req.body ?? {})
     if (!parsed.success || !body.success) { bad(res); return }
     const now = (options.now ?? Date.now)()
-    const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now)
+    const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now, body.data.floor)
     objectives.dropBefore(owner(account(res)), parsed.data, answer.resetAt)
     userData.clearModeBefore(account(res), parsed.data, answer.resetAt)
+    const wiped = playerState.clearModeBefore(account(res), parsed.data, STATE_KINDS_OF_A_RESET, Date.parse(answer.resetAt))
     res.json(answer)
     progressChanged(account(res))
+    if (wiped) options.social?.signals.stateChanged(account(res))
   })
 
   // «Ручная отметка» (owner, 15.10.2026): the player's own marks of the mode, newest per quest; every kept one comes back.
@@ -247,8 +300,22 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const parsed = mode(req)
     const body = manualSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)()))
-    if (body.data.marks.length) progressChanged(account(res))
+    res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)(), () => progressChanged(account(res))))
+  })
+
+  // «Отложенные квесты» (owner, 04.11.2026; a player's report: put aside on the PC, still shown on the phone).
+  router.get('/deferred-quests/:mode', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json(userData.getDeferredQuests(account(res), parsed.data))
+  })
+
+  router.post('/deferred-quests/:mode', (req, res) => {
+    const parsed = mode(req)
+    const body = deferredSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    // Only this account's own devices: friends see nothing of it.
+    res.json(userData.syncDeferredQuests(account(res), parsed.data, body.data.quests, (options.now ?? Date.now)(), () => options.social?.signals.changed([account(res)])))
   })
 
   router.get('/story/:mode', (req, res) => {
@@ -262,29 +329,50 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const parsed = mode(req)
     const body = storySchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(progress.syncStory(owner(account(res)), parsed.data, body.data, (options.now ?? Date.now)()))
-    if (body.data.records.length) progressChanged(account(res))
+    res.json(progress.syncStory(owner(account(res)), parsed.data, body.data, (options.now ?? Date.now)(), () => progressChanged(account(res))))
   })
 
   // «Моментально»: waits up to ~25 s for anything new among this account's friends and squad (services/socialSignals.ts).
   router.get('/social-events', (req, res) => {
     const since = typeof req.query.since === 'string' && /^\d{1,16}$/.test(req.query.since) ? Number(req.query.since) : undefined
-    if (req.query.since !== undefined && since === undefined) { bad(res); return }
+    // `state`: the counter of the player's own lists this app last heard; an older app does not send it.
+    const state = typeof req.query.state === 'string' && /^\d{1,16}$/.test(req.query.state) ? Number(req.query.state) : undefined
+    if ((req.query.since !== undefined && since === undefined) || (req.query.state !== undefined && state === undefined)) { bad(res); return }
     if (!options.social) { res.json({ version: 0 }); return }
-    options.social.signals.wait(res, account(res), since)
+    options.social.signals.wait(res, account(res), since, state)
+  })
+
+  // The player's own lists (services/playerStateStore.ts, src/sync/playerState.ts): what changed after `since`.
+  router.get('/state', (req, res) => {
+    const since = req.query.since === undefined ? 0 : typeof req.query.since === 'string' && /^\d{1,16}$/.test(req.query.since) ? Number(req.query.since) : -1
+    if (since < 0) { bad(res); return }
+    res.json({ ...playerState.changesSince(account(res), since), now: (options.now ?? Date.now)() })
+  })
+
+  // A change goes in, the account's other devices hear of it at once, and only if something was really kept.
+  router.post('/state', (req, res) => {
+    const retry = stateLimiter.hit(`state:${account(res)}`)
+    if (retry) { res.status(429).set('Retry-After', String(retry)).json({ error: 'Слишком много запросов. Попробуйте позже.' }); return }
+    const body = stateSchema.safeParse(req.body)
+    if (!body.success) { bad(res); return }
+    const answer = playerState.sync(account(res), body.data.since, body.data.items as StateRow[], (options.now ?? Date.now)())
+    res.json(answer)
+    if (answer.kept) options.social?.signals.stateChanged(account(res))
   })
 
   router.get('/collector/:mode', (req, res) => {
     const parsed = mode(req)
     if (!parsed.success) { bad(res, 'Некорректный режим'); return }
-    res.json(userData.getCollector(account(res), parsed.data))
+    res.json({ ...userData.getCollector(account(res), parsed.data), ...resetOf(account(res), parsed.data) })
   })
 
   router.put('/collector/:mode', (req, res) => {
     const parsed = mode(req)
     const body = collectorSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(userData.setCollector(account(res), parsed.data, body.data.itemIds))
+    const kept = userData.getCollector(account(res), parsed.data)
+    const itemIds = body.data.base ? mergedList(kept.itemIds, body.data.itemIds, body.data.base).slice(0, 1000) : body.data.itemIds
+    res.json(userData.setCollector(account(res), parsed.data, itemIds))
     // The account's other devices (the PC while a phone ticks, and back) reload it at once (owner, 17.10.2026).
     progressChanged(account(res))
   })
@@ -292,14 +380,34 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   router.get('/hideout/:mode', (req, res) => {
     const parsed = mode(req)
     if (!parsed.success) { bad(res, 'Некорректный режим'); return }
-    res.json(userData.getHideout(account(res), parsed.data))
+    res.json({ ...userData.getHideout(account(res), parsed.data), ...resetOf(account(res), parsed.data) })
   })
 
   router.put('/hideout/:mode', (req, res) => {
     const parsed = mode(req)
     const body = hideoutSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(userData.setHideout(account(res), parsed.data, body.data.found))
+    const kept = userData.getHideout(account(res), parsed.data)
+    res.json(userData.setHideout(account(res), parsed.data, body.data.base ? mergedCounts(kept.found, body.data.found, body.data.base) : body.data.found))
+    progressChanged(account(res))
+  })
+
+  // Pieces put aside for the quests and what the last screen scan saw in the stash (owner, 31.10.2026).
+  const itemKind = (req: express.Request) => z.enum(['quests', 'stash']).safeParse(req.params.kind)
+  router.get('/items/:mode/:kind', (req, res) => {
+    const parsed = mode(req)
+    const kind = itemKind(req)
+    if (!parsed.success || !kind.success) { bad(res); return }
+    res.json({ ...userData.getItemCounts(account(res), parsed.data, kind.data), ...resetOf(account(res), parsed.data) })
+  })
+
+  router.put('/items/:mode/:kind', (req, res) => {
+    const parsed = mode(req)
+    const kind = itemKind(req)
+    const body = hideoutSchema.safeParse(req.body)
+    if (!parsed.success || !kind.success || !body.success) { bad(res); return }
+    const kept = userData.getItemCounts(account(res), parsed.data, kind.data)
+    res.json(userData.setItemCounts(account(res), parsed.data, kind.data, body.data.base ? mergedCounts(kept.found, body.data.found, body.data.base) : body.data.found))
     progressChanged(account(res))
   })
 
@@ -324,6 +432,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   })
 
   // The mode the game is in on the PC (its logs): the phone switches to it (owner, 20.10.2026), and reloads at once.
+  router.get('/features', (_req, res) => { res.json({ features: trialFeatures(accounts.emailOf(account(res)), (options.now ?? accounts.clock)(), options.trials, account(res)) }) })
+
   router.get('/game-mode', (_req, res) => { res.json({ gameMode: userData.getGameMode(account(res)) }) })
 
   router.put('/game-mode', (req, res) => {
@@ -402,12 +512,13 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     // Nothing from before the character's last reset comes back (an app that has not heard of it yet).
     const resetAt = progress.scope(owner(account(res)), parsed.data)?.resetAt
     const fresh = (time: string) => !resetAt || time >= resetAt
+    // A value held back to the server's clock counts as newer at every sync: it says nothing, as in progress.syncStory.
+    const ahead = body.data.objectives.some((entry) => entry.observedAt > latest)
     try {
       res.json(objectives.sync(owner(account(res)), parsed.data, {
         objectives: body.data.objectives.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
         events: body.data.events.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
-      }))
-      progressChanged(account(res))
+      }, ahead ? undefined : () => progressChanged(account(res))))
     } catch (error) {
       if (error instanceof ObjectiveLimitError) { res.status(413).json({ error: error.message }); return }
       throw error
@@ -422,6 +533,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     if (result.status === 'not-found') { res.status(404).json({ error: 'Событие не найдено' }); return }
     if (result.status === 'not-undoable') { res.status(409).json({ error: 'Это изменение нельзя отменить' }); return }
     res.json(result.snapshot)
+    // the other devices of the account at once, as every other change (owner, 11.11.2026: «должны моментально срабатывать на компьютере»)
+    progressChanged(account(res))
   })
 
   router.get('/summary', (_req, res) => {

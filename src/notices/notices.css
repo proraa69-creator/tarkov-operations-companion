@@ -1,6 +1,20 @@
 /* The owner's announcements and surveys over the app (src/notices/*): the app's dialog (.registration-overlay /
    .registration-dialog, pages.css), so every theme styles them like the other dialogs. Under «Укажите страну». */
 .notice-overlay { z-index: 3050; overflow-y: auto; }
+/* In the corner (NoticeToast.tsx): photos and all. A long text scrolls inside, under a resting mouse. */
+.notice-toast { width: min(380px, calc(100vw - 36px)); max-width: none; }
+.notice-toast > svg { flex: none; margin-top: 2px; color: var(--brass-strong, var(--brass)); }
+.notice-toast-body { display: grid; gap: 6px; flex: 1; min-width: 0; max-height: min(60dvh, 480px); overflow-y: auto; overflow-wrap: anywhere; scrollbar-width: thin; }
+.notice-toast-body > p { margin: 0; color: var(--text-muted); line-height: 1.45; white-space: pre-line; }
+.notice-toast .notice-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.notice-toast .notice-gallery.count-1 { grid-template-columns: 1fr; }
+.notice-toast .notice-photo { height: 84px; }
+.notice-toast .notice-gallery.count-1 .notice-photo { height: 170px; }
+.restock-toast .notice-toast-link { justify-self: start; margin: 0; gap: 6px; }
+/* A survey asks for an answer: a panel in the corner, over nothing, until it or «Позже». */
+.notice-survey-corner .notice-dialog { width: min(440px, calc(100vw - 36px)); max-height: min(72dvh, 640px); padding: 16px; box-shadow: 0 14px 34px rgb(0 0 0 / 45%); }
+:root[data-layout="mobile"] .notice-survey-corner .notice-dialog { width: auto; max-height: calc(100dvh - var(--window-top, 80px) - var(--tabbar, 70px) - 20px); }
+:root[data-layout="mobile"] .notice-toast { width: auto; max-width: none; }
 .notice-dialog { width: min(560px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; display: grid; gap: 12px; }
 .notice-dialog h2 { margin: 0; overflow-wrap: anywhere; }
 .notice-head { display: flex; align-items: center; gap: 12px; }

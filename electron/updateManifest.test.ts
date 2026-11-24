@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { canonicalUpdatePayload, verifiedUpdateManifest, type UpdateManifest } from './updateManifest'
+import { canonicalUpdatePayload, SETUP_PAYLOAD_PREFIX, verifiedSetupManifest, verifiedUpdateManifest, type UpdateManifest } from './updateManifest'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey'
 import * as script from '../scripts/sign-client-release.mjs'
 
@@ -56,6 +56,19 @@ describe('signed update manifest (electron/updateManifest.ts)', () => {
     expect(() => canonicalUpdatePayload({ ...manifest, sha256: 'AB'.repeat(32) })).toThrow()
     expect(() => canonicalUpdatePayload({ ...manifest, edition: 'beta' as UpdateManifest['edition'] })).toThrow()
   })
+
+  // The installer (RaidOSSetup.exe) and the portable exe have the same fields: neither signature may pass for the other.
+  it('an installer manifest and an exe manifest are never taken for each other', () => {
+    const setup = { ...manifest, signature: sign(null, Buffer.from(canonicalUpdatePayload(manifest, SETUP_PAYLOAD_PREFIX), 'utf8'), privateKey).toString('base64') }
+    expect(verifiedSetupManifest(setup, publicKey)).toEqual(manifest)
+    expect(verifiedUpdateManifest(setup, publicKey)).toBeNull()
+    expect(verifiedSetupManifest(signed(manifest), publicKey)).toBeNull()
+    expect(verifiedSetupManifest({ ...setup, sha256: 'cd'.repeat(32) }, publicKey)).toBeNull()
+    expect(verifiedSetupManifest(setup, stranger.publicKey)).toBeNull()
+    // Only the players' edition has an installer.
+    const owner = { ...manifest, edition: 'owner' as const }
+    expect(verifiedSetupManifest({ ...owner, signature: sign(null, Buffer.from(canonicalUpdatePayload(owner, SETUP_PAYLOAD_PREFIX), 'utf8'), privateKey).toString('base64') }, publicKey)).toBeNull()
+  })
 })
 
 describe('scripts/sign-client-release.mjs', () => {
@@ -65,6 +78,9 @@ describe('scripts/sign-client-release.mjs', () => {
   it('builds exactly the same canonical text as the app', () => {
     const samples: UpdateManifest[] = [manifest, { ...manifest, edition: 'owner', version: '', commit: '' }, { ...manifest, version: '1.0.0-beta.2', build: 1, size: 1, sha256: '0'.repeat(64) }]
     for (const sample of samples) expect(script.canonicalUpdatePayload(sample)).toBe(canonicalUpdatePayload(sample))
+    expect(script.SETUP_PAYLOAD_PREFIX).toBe(SETUP_PAYLOAD_PREFIX)
+    for (const sample of samples) expect(script.canonicalUpdatePayload(sample, script.SETUP_PAYLOAD_PREFIX)).toBe(canonicalUpdatePayload(sample, SETUP_PAYLOAD_PREFIX))
+    expect(canonicalUpdatePayload(manifest, SETUP_PAYLOAD_PREFIX).startsWith(`raidos-setup-v1\nclient\n`)).toBe(true)
     expect(canonicalUpdatePayload(manifest)).toBe(`raidos-update-v1\nclient\n0.5.4\n1790000000000\nabc1234\n131072\n${'ab'.repeat(32)}`)
     for (const bad of [{ ...manifest, version: 'a\nb' }, { ...manifest, build: -1 }, { ...manifest, sha256: 'x' }]) {
       expect(() => script.canonicalUpdatePayload(bad)).toThrow()
@@ -84,6 +100,19 @@ describe('scripts/sign-client-release.mjs', () => {
     // Only characters cmd.exe echoes as they are (Server-Laptop-Setup.cmd writes this line with echo).
     expect(JSON.stringify(result)).toMatch(/^[A-Za-z0-9{}":,._+/=-]+$/)
     await expect(script.signClientRelease({ exe, buildInfo, privateKey: stranger.privateKey, publicKey })).rejects.toThrow(/does not match/)
+  })
+
+  it('signs the players' + "'" + ' installer so that the app takes it as the installer only (--setup)', async () => {
+    const setup = join(dir, 'RaidOSSetup 0.5.4.exe')
+    const buildInfo = join(dir, 'setup-build-info.json')
+    writeFileSync(setup, Buffer.alloc(8192, 3))
+    writeFileSync(buildInfo, JSON.stringify({ version: '0.5.4', build: 1790000000000, commit: 'abc1234', edition: 'client' }))
+    const result = await script.signClientSetup({ setup, buildInfo, privateKey, publicKey })
+    expect(Object.keys(result)).toEqual(['version', 'build', 'commit', 'edition', 'size', 'sha256', 'signature'])
+    expect(verifiedSetupManifest(result, publicKey)).toEqual({ edition: 'client', version: '0.5.4', build: 1790000000000, commit: 'abc1234', size: 8192, sha256: result.sha256 })
+    expect(verifiedUpdateManifest(result, publicKey)).toBeNull()
+    writeFileSync(buildInfo, JSON.stringify({ version: '0.5.4', build: 1, commit: 'abc', edition: 'owner' }))
+    await expect(script.signClientSetup({ setup, buildInfo, privateKey, publicKey })).rejects.toThrow(/not a client build-info/)
   })
 
   it('refuses the owner build-info', async () => {

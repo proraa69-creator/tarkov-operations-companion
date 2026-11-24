@@ -1,5 +1,6 @@
 import type { Item, Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
+import { KORD_BREACH } from './kordBreachQuests'
 
 /**
  * Quests the game has and tarkov.dev does not, curated from the community sources (owner, 15.10.2026: «еще в нашей базе
@@ -16,7 +17,8 @@ import type { AppLocale } from '../i18n/LocaleProvider'
  * on the mountain, the tennis court at the chalets), and takes that place's coordinates at build time; a place the files do
  * not have gives no point. The exceptions are copied, never made up: `archived`, the zone tarkov.dev published for the same
  * objective of the same quest id before it dropped the quest (docs/quests/na-svet-audit.md names the copies it was read
- * from), and a `floor`, the heights of a floor in tarkov.dev's map config.
+ * from), a `floor`, the heights of a floor in tarkov.dev's map config, and a `point`, a place a public community map marks
+ * for the quest, carried over to game coordinates by the exits both maps have (docs/quests/halloween-2026.md).
  */
 
 type JsonRecord = Record<string, unknown>
@@ -40,8 +42,15 @@ type CuratedPlace =
   | { map: string; lockKey: string }
   | { map: string; taskZone: { task: string; zone: string } }
   | { map: string; archived: ArchivedZone }
+  | { map: string; point: MarkedPoint }
 
 export type CuratedSpot = CuratedPlace & { building?: boolean; floor?: [bottom: number, top: number] }
+
+/**
+ * A place a community map marks (game coordinates, no height); `id` names the marker it came from. `y`: the height, when the
+ * point was measured in the game itself (the offline copy) — it then shows on its own level of the map.
+ */
+export interface MarkedPoint { id: string; x: number; z: number; y?: number }
 
 /** A zone of tarkov.dev's shape (game coordinates) as tarkov.dev published it. */
 export interface ArchivedZone {
@@ -53,6 +62,8 @@ export interface ArchivedZone {
 }
 
 export interface CuratedObjective {
+  /** The game's objective id, where it is known (the same quest in another mode's tasks file). */
+  id?: string
   /** tarkov.dev objective type; `hideout` (return to the hideout) and `transit` are the game's, tarkov.dev has no name for them. */
   type: string
   text: Text
@@ -85,10 +96,18 @@ export interface CuratedQuest {
   after?: string[]
   /** Quests that only need to be taken (active or complete), e.g. a side task given on accepting another one. */
   afterAccepted?: string[]
+  /** Quests of a choice that must be over either way (complete, or failed by the other side's quest). */
+  afterDecided?: string[]
+  /** The game's other ids of the same quest (a choice quest given under another id on the other branch): their log lines count here. */
+  otherIds?: string[]
+  /** The character level the quest needs. */
+  level?: number
   experience: number
   objectives: CuratedObjective[]
   /** Items given on completion (tarkov.dev `finishRewards.items`). */
   rewards?: Array<[itemId: string, count: number]>
+  /** A mode's own `rewards`, where it gives other items than the rest («Позывной "Малахит"» in Season). */
+  modeRewards?: Partial<Record<RaidMode, Array<[itemId: string, count: number]>>>
   /** Items given when the quest is taken (tarkov.dev `startRewards.items`). */
   startRewards?: Array<[itemId: string, count: number]>
   standing?: Array<[traderId: string, value: number]>
@@ -96,14 +115,18 @@ export interface CuratedQuest {
   guideImages?: Array<{ file: string; caption: Text }>
   /** Skill rewards as the game's reward line names them («Здоровье +1 уровень»). */
   skills?: Text[]
+  /** Reward lines the item list cannot carry: a branch's own rewards of a choice quest, an achievement. */
+  rewardNotes?: Text[]
   craftUnlock?: { itemId: string; station: Text }
   /** Trader loyalty levels needed to get the quest. */
   loyalty?: Array<[traderId: string, level: number]>
   /** Given in a trader dialogue (tarkov.dev `otherRequirements` type dialogue). */
   dialogue?: boolean
+  /** Opens at something the app cannot see (a stage of a story chapter): held back as «откроется в игре» until the logs show it. */
+  opensInGame?: boolean
   /** Seconds after the previous quest before this one appears (min, max). */
   delay?: [number, number]
-  /** Items to bring that the task data cannot name (a flare of `useAny`, the transponder). */
+  /** Items to bring that the task data cannot name (the transponder); a flare of `useAny` comes with its objective. */
   bring?: Array<{ itemIds: string[]; count: number; maps: string[]; objective: number }>
   /**
    * The quest's description in the app: how it opens, what to do, tips. Player-facing: no source names and no notes about
@@ -142,9 +165,13 @@ const MECHANIC = '5a7c2eca46aef81a7ca2145d'
 const RAGMAN = '5ac3b934156ae10c4430e83c'
 const JAEGER = '5c0647fdd443bc2504c2d371'
 const LIGHTKEEPER = '638f541a29ffd1183d187f57'
+const BTR_DRIVER = '656f0f98d80a697f855d34b1'
+/** «Рука помощи» (Mechanic): taking it opens the BTR Driver's quests. */
+const A_HELPING_HAND = '6752f6d83038f7df520c83e8'
 
 const ROUBLES = '5449016a4bdc2d6f028b456f'
 const DOLLARS = '5696686a4bdc2da3298b456a'
+const EUROS = '569668774bdc2da2298b4568'
 const SIGNAL_JAMMER = '5ac78a9b86f7741cca0bbd8d'
 const WIFI_CAMERA = '5b4391a586f7745321235ab2'
 const RSP_YELLOW = '624c0b3340357b5f566e8766'
@@ -159,6 +186,57 @@ const DOGTAG_USEC = '59f32c3b86f77472a31742f0'
 const SVDS = '5c46fbd72e2216398b5a8c9c'
 const SVD_MAG_10 = '5c471c442e221602b542a6f8'
 const PS_GZH_PACK_20 = '6570257cc5d7d4cb4d078579'
+const ELECTRONIC_COMPONENTS = '6389c70ca33d8c4cdf4932c6'
+const MILITARY_CABLE = '5d0375ff86f774186372f685'
+const CAPACITORS = '5c06782b86f77426df5407d2'
+const RIG_6B45_MEDIC = '68948aebd8f2b85fb705e2b0'
+const RSP_RED = '62178c4d4ecf221597654e3d'
+const FLARE_26X75_RED = '62389ba9a63f32501b1b4451'
+const GRENADE_CASE = '5e2af55f86f7746d4159f07c'
+const AS_VAL = '57c44b372459772d2b39b8ce'
+const VAL_MAG_6L25 = '57838f9f2459774a150289a0'
+const PAB9_PACK_20 = '657025cfbfc87b3a34093253'
+/** S.I. Tretyakov's personnel file: the game's id (the wiki's item page); tarkov.dev's quest items do not have it. */
+const TRETYAKOV_FILE = '6a8c6ff9795e10dd8c01d2ba'
+/** The hard drive with false data Mechanic gives with «Доверяй, но проверяй»: the game's id (the wiki's item page, `node`); tarkov.dev has not got it. */
+const FALSE_DATA_DRIVE = '6a8993cab2713c27d90e9bb7'
+
+/**
+ * Quest items of the curated quests that tarkov.dev's `questItems` has not got: their names, for «Требования рейда» (report 162).
+ * Their pictures are the app's own (src/data/localItemPictures.ts).
+ */
+export const CURATED_QUEST_ITEMS: Readonly<Record<string, Text>> = {
+  [FALSE_DATA_DRIVE]: { ru: 'Жесткий диск с дезой', en: 'Hard drive with false data' },
+  [TRETYAKOV_FILE]: { ru: 'Личное дело Третьякова С.И.', en: 'S.I. Tretyakov’s personnel file' },
+}
+const MASKA_SHIELD_OD = '5c0919b50db834001b7ce3b9'
+const MASKA_HELMET_OD = '5c091a4e0db834001d5addc8'
+const LSHZ_SHIELD = '5d6d3829a4b9361bc8618943'
+const LSHZ_HELMET_BLACK = '5d6d3716a4b9361bc8618872'
+/** «Бронепоезд» on Lighthouse: the extract's id in the maps file. */
+const ARMORED_TRAIN_EXIT = 'cc16b27f07697867c3afe8731a5323f8b6db7574'
+const KIRASA_N = '5b44d22286f774172b0c9de8'
+const KIRASA_N_GREEN = '67ab2f28dafe3b22670c9116'
+const THOR_CRV = '609e8540d5c319764c2bc2e9'
+const THOR_CRV_HEAD_EYES = '68a89146212dbbeead0d5636'
+const PROFLEX_DX5 = '69413241b1ce1e5fbb09ed0a'
+const NL545_GP = '68c2940aecc41cc5490bd40e'
+const PMAG_545_FDE = '68d566b2aa07af2e14059e01'
+const AMMO_7N40_120 = '6570900858b315e8b70a8a98'
+const SICC = '5d235bb686f77443f4331278'
+const BITCOIN = '59faff1d86f7746c51718c9c'
+const MS2000 = '5991b51486f77447b112d44f'
+const MCX_SPEAR = '65290f395ae2ae97b80fdf2d'
+const L7AWM_MAG_20 = '65293c38fc460e50a509cb25'
+const SIG_FMJ_PACK_20 = '67600a42b32eb5d23e0eb459'
+const SUBSTATION_MARKED_KEY = '62987dfc402c7f69bf010923'
+const VPX_STORAGE = '5c05300686f7746dce784e5d'
+const VIRTEX = '5c05308086f7746b2101e90b'
+const MILITARY_FLASH_DRIVE = '62a0a16d0b9d3c46de5b6e97'
+const PIPE_GRIP_WRENCH = '619cbfccbedcde2f5b3f7bdd'
+const RATCHET_WRENCH = '60391afc25aff57af81f7085'
+const ELECTRIC_DRILL = '59e35de086f7741778269d84'
+const SUDAK_TUDAK_KIT = '6a8c4c7999baf8bd5802f7fe'
 
 /** Traders of the standing rewards, as the reward lines name them. */
 const STANDING_NAMES: Record<string, Text> = { [LIGHTKEEPER]: { ru: 'Смотрителя', en: 'Lightkeeper' } }
@@ -251,6 +329,7 @@ export const TO_THE_LIGHT: CuratedSeries = {
         {
           type: 'plantQuestItem',
           maps: ['the-lab'],
+          questItem: FALSE_DATA_DRIVE,
           text: {
             ru: 'Заложить жесткий диск с дезой на Лабе в крытой серверной рядом с зоной испытаний оружия на локации Лаборатория (В одном рейде)',
             en: 'Stash the Hard drive with false data in the server room near the weapon testing area in The Lab (In one raid)',
@@ -296,7 +375,6 @@ export const TO_THE_LIGHT: CuratedSeries = {
         },
         { type: 'useItem', maps: ['customs'], useAny: [RSP_YELLOW, FLARE_26X75_YELLOW], spots: [{ map: 'customs', transit: '42' }], text: { ru: 'Подать сигнал РСП (Жёлтый) у перехода на локацию Берег (В одном рейде)', en: 'Launch a yellow signal flare at the Shoreline transit on Customs (In one raid)' } },
       ],
-      bring: [{ itemIds: [RSP_YELLOW, FLARE_26X75_YELLOW], count: 1, maps: ['customs'], objective: 3 }],
       note: {
         ru: 'Появляется через 10–30 минут после «Доверяй, но проверяй». Всё — за один ночной рейд на Таможне. Возьмите ПНВ. Сигнал: РСП-30 (жёлтый) или жёлтый патрон 26x75 из сигнального пистолета СП-81 — стрелять вверх прямо у перехода на Берег, у автобуса.',
         en: 'Appears 10–30 minutes after Trust but Verify. Everything in one night raid on Customs. Bring NVGs. The signal: an RSP-30 (yellow) or a yellow 26x75 flare from the SP-81 signal pistol, fired upwards right at the Shoreline transit, by the bus.',
@@ -622,59 +700,905 @@ export const SCOURGE_INVASION: CuratedSeries = {
 
 export const BALANCE_SHIFT_QUEST_IDS = {
   fogOfWar: 'raidos-balance-fog-of-war',
+  numberUnavailable: '6a763a2fce9a947b4d0918a6',
+  allInclusive: '6a763c7bd31fb1191903fc15',
+  loseTheTail: '6a76422ae432ba0a190a7fe4',
+  callsignMalachite: '6a764367850f975dc00bc5bd',
+  familiarFace: '6a763df2161e4b45b1015663',
+  scopeTheClearing: '6a763f35ce9a947b4d0918b6',
+  cutDownToTheRoot: '6a76466e752258ce02073d07',
+  easeTheMove: '6a764462e432ba0a190a7fe9',
+  preserveValuablePiece: '6a885ad91006f9d30a0ed61b',
 } as const
 
+export const LIGHTHOUSE_BTR_QUEST_IDS = {
+  honestReview: '6a764077161e4b45b101566e',
+  btrMyself: '6a76457a80a94c0cbf0b07ae',
+} as const
+
+/** The game's id of «Туман войны» (the game's log, 11.09.2026): the quest keeps our own id, its log lines count here. */
+const FOG_OF_WAR_GAME_ID = '6a7637fed31fb1191903fc07'
+
+const LIGHTHOUSE = ['lighthouse']
+const lighthousePoint = (id: string, x: number, z: number): CuratedSpot => ({ map: 'lighthouse', point: { id: `lh-${id}`, x, z } })
+
 /**
- * «Смещение баланса» (event of 8.09.2026, temporary): Prapor's «Туман войны» on Lighthouse, which a player has in the game
- * (PvP and PvE screenshots, 16.10.2026) while tarkov.dev lists it in no mode. Objectives and rewards as tarkov.help gives
- * them (ru and en), checked against the ru and en wiki and the BLAST guide (all three places in one raid, Prapor
- * loyalty 2). The previous quest («Ключевые квесты» on tarkov.help) is no quest of tarkov.dev's, so the quest has none
- * here; the id is our own and the quest steps aside as soon as tarkov.dev lists a quest of the same title.
+ * Places of the series on Lighthouse (docs/quests/lighthouse-balance-shift.md): the marks of the public Lighthouse pictures
+ * of each quest, carried over to game metres by the map's door padlocks (9 doors and trunks, 1.6 m off on average, north of
+ * the mountain pass) and checked on our own map, where each lies on what its objective names. The camp lies further south,
+ * where the same fit is up to some 25 m off. No heights: the pictures have none.
+ */
+const LIGHTHOUSE_SPOTS = {
+  brdm: [lighthousePoint('fog-brdm', -67.1, -695.8)],
+  towerCheckpoint: [lighthousePoint('fog-checkpoint', 22.6, -450.8)],
+  plantRoofs: [lighthousePoint('wtp-roof-1', 41.0, -624.5), lighthousePoint('wtp-roof-2', -97.3, -741.4), lighthousePoint('wtp-roof-3', -186.2, -666.1)],
+  praporCamp: [lighthousePoint('prapor-camp', -54.1, 446.7)],
+  lakeCabin: [lighthousePoint('lake-cabin', -370.2, -624.5)],
+  platformSouth: [lighthousePoint('platform-south', 6.7, -851.6)],
+  platformNorth: [lighthousePoint('platform-north', 7.9, -892.3)],
+  woodsTransit: [lighthousePoint('woods-transit', 97.8, -936.3)],
+  villageStashes: [lighthousePoint('stash-1-1', -35.9, -384.4), lighthousePoint('stash-1-2', -156.6, -380.9), lighthousePoint('stash-1-3', -301.0, -217.4)],
+  farStashes: [lighthousePoint('stash-2-1', -413.4, -276.4), lighthousePoint('stash-2-2', -429.8, -327.2)],
+  grottoStash: [lighthousePoint('stash-grotto', 182.4, -489.4)],
+  // the same places as the map's BTR stops (src/data/mapMarkerAdapter.ts APPROXIMATE_BTR_STOPS)
+  stopVillage: [lighthousePoint('btr-village', -195, -243)],
+  stopUn: [lighthousePoint('btr-un', 17, 117)],
+  stopPlantParking: [lighthousePoint('btr-wtp-2', -165, -748)],
+} satisfies Record<string, CuratedSpot[]>
+
+/**
+ * «Смещение баланса» (event of 8.09.2026): what game version 1.1.5.0 brought to Lighthouse after the smugglers drove the Rogues
+ * out of the water treatment plant. tarkov.dev lists none of it in any mode. Two lines: Prapor's («Туман войны» …
+ * «Позывной "Малахит"»), and Skier's («Знакомое лицо...», «Сечь поляну») with what follows it at Jaeger, Peacekeeper and
+ * Lightkeeper. The sources disagree on the order and the game's log settles part of it: a Season character took
+ * «Знакомое лицо...» minutes after handing in Prapor's first quest (31.10.2026), so Prapor's line cannot be what opens it.
+ * docs/quests/lighthouse-balance-shift.md gives the sources, each one's order and why this one. Ids: the game's, from the
+ * Russian wiki's pages (`node`), «Знакомое лицо...» and «Туман войны» also from the game's log; «Туман войны» keeps the
+ * own id it had. Rewards are the base amounts, without the Intelligence Center bonus.
  */
 export const BALANCE_SHIFT: CuratedSeries = {
   id: 'balance-shift',
   name: { ru: 'Смещение баланса', en: 'Balance Shift' },
   route: { ru: 'временный ивент', en: 'temporary event' },
   event: true,
-  gameVersion: 'event 09.2026',
-  checkedAt: '2026-10-16',
+  gameVersion: '1.1.5.0.47242',
+  checkedAt: '2026-11-06',
   modes: ['pvp', 'pve', 'seasonal'],
   sources: [
     'https://tarkov.help/ru/quest/fog-of-war', 'https://tarkov.help/en/quest/fog-of-war',
     'https://escapefromtarkov.fandom.com/ru/wiki/Туман_войны', 'https://escapefromtarkov.fandom.com/wiki/Fog_of_War',
     'https://blast.tv/gaming/news/escape-from-tarkov-fog-of-war-task-guide',
+    'https://escapefromtarkov.fandom.com/wiki/A_Familiar_Face...', 'https://escapefromtarkov.fandom.com/wiki/Scope_the_Clearing',
+    'https://tarkov.help/api/ru/quest-map?game_mode=regular', 'https://tarkovforge.com/event-quests',
   ],
   quests: [
     {
       id: BALANCE_SHIFT_QUEST_IDS.fogOfWar,
       trader: PRAPOR,
       name: { ru: 'Туман войны', en: 'Fog of War' },
+      otherIds: [FOG_OF_WAR_GAME_ID],
+      loyalty: [[PRAPOR, 2]],
       experience: 10_000,
       objectives: [
         {
-          type: 'visit', maps: ['lighthouse'],
+          type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.brdm,
           text: { ru: 'Разведать позицию отступников с БРДМ в северной части комплекса очистных сооружений', en: 'Scout the Rogues\' position near the BRDM car in the northern part of the water treatment plant on Lighthouse' },
         },
         {
-          type: 'visit', maps: ['lighthouse'],
+          type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.towerCheckpoint,
           text: { ru: 'Посетить блокпост отступников с дозорной вышкой в юго-западной части очистных сооружений', en: 'Scout the Rogues\' checkpoint with the guard tower in the southwestern part of the water treatment plant on Lighthouse' },
         },
         {
-          type: 'visit', maps: ['lighthouse'],
+          type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.plantRoofs,
           text: { ru: 'Осмотреть территорию очистных сооружений с крыши любого из корпусов', en: 'Scout the water treatment plant territory from the roof of any of the plant buildings on Lighthouse' },
         },
       ],
-      rewards: [[ROUBLES, 300_000], [SVDS, 1], [SVD_MAG_10, 3], [PS_GZH_PACK_20, 42]],
+      rewards: [[ROUBLES, 300_000], [SVDS, 1], [SVD_MAG_10, 3], [PS_GZH_PACK_20, 2]],
       note: {
         ru: 'Задание Прапора (нужен 2-й уровень лояльности). Все три места на Маяке, в комплексе очистных сооружений, где стоят отступники: позиция с БРДМ на севере, блокпост с дозорной вышкой на юго-западе и крыша любого корпуса. Лучше пройти все три за один рейд. Отступники стреляют без предупреждения — идите подготовленными. Следующее задание — «Абонент временно недоступен».',
-        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, in the water treatment plant held by the Rogues: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. Best done in one raid. The Rogues shoot on sight, so come prepared. The next task is «Subscriber Temporarily Unavailable».',
+        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, in the water treatment plant held by the Rogues: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. Best done in one raid. The Rogues shoot on sight, so come prepared. The next task is «Number Temporarily Unavailable».',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.numberUnavailable,
+      trader: PRAPOR,
+      name: { ru: 'Абонент временно недоступен', en: 'Number Temporarily Unavailable' },
+      aliases: ['Subscriber temporarily unavailable'],
+      after: [BALANCE_SHIFT_QUEST_IDS.fogOfWar],
+      experience: 15_000,
+      objectives: [
+        { type: 'plantItem', count: 3, maps: LIGHTHOUSE, items: [ELECTRONIC_COMPONENTS], spots: LIGHTHOUSE_SPOTS.praporCamp, text: { ru: 'Заложить в новом лагере людей Прапора компоненты электроники', en: 'Stash Electronic components at Prapor\'s new camp on Lighthouse' } },
+        { type: 'plantItem', maps: LIGHTHOUSE, items: [MILITARY_CABLE], spots: LIGHTHOUSE_SPOTS.praporCamp, text: { ru: 'Заложить в новом лагере людей Прапора военный кабель', en: 'Stash a Military cable at Prapor\'s new camp on Lighthouse' } },
+        { type: 'plantItem', count: 3, maps: LIGHTHOUSE, items: [CAPACITORS], spots: LIGHTHOUSE_SPOTS.praporCamp, text: { ru: 'Заложить в новом лагере людей Прапора конденсаторы', en: 'Stash Capacitors at Prapor\'s new camp on Lighthouse' } },
+      ],
+      rewards: [[ROUBLES, 300_000], [RIG_6B45_MEDIC, 2]],
+      note: {
+        ru: 'Лагерь людей Прапора стоит на вершине горы на юге карты, напротив перехода на полуостров с маяком: туда ведёт мосток. Точка на карте примерная. Всё закладывается в одном месте, в медицинских ящиках лагеря.',
+        en: 'Prapor\'s camp is on the mountaintop in the south of the map, across from the way to the lighthouse peninsula; a footbridge leads up. The point on the map is approximate. Everything goes into one place, the camp\'s medical boxes.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.allInclusive,
+      trader: PRAPOR,
+      name: { ru: 'Поддержка «всё включено»', en: 'All-Inclusive Support' },
+      aliases: ['Поддержка "всё включено"', '"All-inclusive" support'],
+      after: [BALANCE_SHIFT_QUEST_IDS.numberUnavailable],
+      experience: 20_000,
+      objectives: [
+        { type: 'shoot', count: 15, maps: LIGHTHOUSE, shoot: { targets: ['Any'] }, text: { ru: 'Устранить любые цели на локации Маяк', en: 'Eliminate any targets on Lighthouse' } },
+        { type: 'transit', maps: LIGHTHOUSE, spots: [{ map: 'lighthouse', transit: '22' }], text: { ru: 'Совершить переход с локации Маяк на локацию Резерв', en: 'Use the transit from Lighthouse to Reserve' } },
+        { type: 'useItem', maps: LIGHTHOUSE, useAny: [RSP_RED, FLARE_26X75_RED], spots: LIGHTHOUSE_SPOTS.lakeCabin, text: { ru: 'Использовать РСП-30 (Красный) у заброшенного дома на озере в горах на локации Маяк', en: 'Launch a red signal flare at the abandoned mountain lake cabin on Lighthouse' } },
+      ],
+      rewards: [[ROUBLES, 300_000], [GRENADE_CASE, 1]],
+      note: {
+        ru: 'Дом стоит на островке в озере в горах, у выхода «Проход у озера». Нужна красная ракета: РСП-30 или патрон для СП-81. Цели можно набирать за несколько рейдов; переход на Резерв удобнее сделать в последнюю очередь.',
+        en: 'The cabin stands on an islet in the mountain lake, by the «Passage by the Lake» exit. A red flare is needed: an RSP-30 or a cartridge for the SP-81. The targets can be spread over several raids; the transit to Reserve is best left for last.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.loseTheTail,
+      trader: PRAPOR,
+      name: { ru: 'Избавиться от хвоста', en: 'Lose the Tail' },
+      after: [BALANCE_SHIFT_QUEST_IDS.allInclusive],
+      experience: 30_000,
+      objectives: [
+        { type: 'shoot', count: 5, maps: LIGHTHOUSE, shoot: { targets: ['followerGluharAssault', 'followerGluharScout', 'followerGluharSecurity', 'followerGluharSnipe'] }, text: { ru: 'Устранить бойцов из свиты Глухаря на локации Маяк', en: 'Eliminate Glukhar\'s guards on Lighthouse' } },
+        { type: 'shoot', maps: LIGHTHOUSE, shoot: { targets: ['bossGluhar'] }, text: { ru: 'Найти и нейтрализовать Глухаря на локации Маяк', en: 'Locate and neutralize Glukhar on Lighthouse' } },
+      ],
+      rewards: [[ROUBLES, 450_000], [AS_VAL, 1], [VAL_MAG_6L25, 3], [PAB9_PACK_20, 4]],
+      note: {
+        ru: 'На время ивента Глухарь со свитой появляется на очистных сооружениях Маяка: чаще всего в центре комплекса, иногда на третьем корпусе или внутри. Стреляйте из-за укрытий и не задерживайтесь у тел: на выстрелы придут другие ЧВК.',
+        en: 'During the event Glukhar and his guards appear at Lighthouse\'s water treatment plant: most often in the middle of it, sometimes on or inside building no. 3. Fight from cover and do not linger over the bodies: other PMCs come to the shots.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.callsignMalachite,
+      trader: PRAPOR,
+      name: { ru: 'Позывной «Малахит»', en: 'Callsign Malachite' },
+      aliases: ['Позывной "Малахит"'],
+      after: [BALANCE_SHIFT_QUEST_IDS.loseTheTail],
+      experience: 20_000,
+      objectives: [
+        { type: 'findQuestItem', maps: LIGHTHOUSE, questItem: TRETYAKOV_FILE, spots: LIGHTHOUSE_SPOTS.lakeCabin, text: { ru: 'Найти личное дело Третьякова С.И. на локации Маяк', en: 'Locate and obtain the BEAR operative\'s personnel file on Lighthouse' } },
+        { type: 'giveQuestItem', questItem: TRETYAKOV_FILE, text: { ru: 'Передать личное дело Третьякова С.И.', en: 'Hand over the found intel' } },
+        { type: 'useItem', optional: true, text: { ru: 'Изучить личное дело Третьякова С.И.', en: 'Read S.I. Tretyakov\'s personnel file' } },
+      ],
+      rewards: [[ROUBLES, 300_000], [MASKA_SHIELD_OD, 2], [MASKA_HELMET_OD, 2]],
+      modeRewards: { seasonal: [[ROUBLES, 300_000], [LSHZ_SHIELD, 2], [LSHZ_HELMET_BLACK, 2]] },
+      note: {
+        ru: 'Личное дело лежит в том же доме на островке в озере в горах, за матрасом. С ним надо выжить: если погибнете, идти придётся заново.',
+        en: 'The file lies in the same cabin on the islet in the mountain lake, behind a mattress. You have to survive with it: die and you go again.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.familiarFace,
+      trader: SKIER,
+      name: { ru: 'Знакомое лицо...', en: 'A Familiar Face...' },
+      loyalty: [[SKIER, 2]],
+      experience: 15_000,
+      objectives: [
+        { type: 'extract', maps: LIGHTHOUSE, exitName: 'EXFIL_Train', spots: [{ map: 'lighthouse', extract: ARMORED_TRAIN_EXIT }], text: { ru: 'Воспользоваться выходом «Бронепоезд» на локации Маяк, используя бронежилет NFM "THOR Concealable Reinforced Vest" или Кираса-N', en: 'Extract from Lighthouse through the Armored Train while wearing a Kirasa-N or NFM THOR CRV body armor' } },
+      ],
+      bring: [{ itemIds: [KIRASA_N, KIRASA_N_GREEN, THOR_CRV, THOR_CRV_HEAD_EYES], count: 1, maps: LIGHTHOUSE, objective: 0 }],
+      rewards: [[EUROS, 1_800], [PROFLEX_DX5, 2]],
+      note: {
+        ru: 'Задание Лыжника (нужен 2-й уровень лояльности). Бронежилет должен быть на вас при выходе, подойдёт и другая расцветка. Бронепоезд приходит на станцию на севере карты не сразу: прибывает с двумя гудками и стоит около 7 минут.',
+        en: 'Skier\'s task (needs loyalty level 2). The armor must be on you when you leave; the other colour counts too. The Armored Train reaches the station in the north of the map only some time into the raid: it arrives with two horn blasts and stays about 7 minutes.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.scopeTheClearing,
+      trader: SKIER,
+      name: { ru: 'Сечь поляну', en: 'Scope the Clearing' },
+      after: [BALANCE_SHIFT_QUEST_IDS.familiarFace],
+      experience: 15_000,
+      objectives: [
+        { type: 'plantItem', maps: LIGHTHOUSE, items: [WIFI_CAMERA], spots: LIGHTHOUSE_SPOTS.platformSouth, text: { ru: 'Установить первую Wi-Fi камеру у перрона контрабандистов на локации Маяк', en: 'Plant the first Wi-Fi Camera at the smuggler train platform on Lighthouse' } },
+        { type: 'plantItem', maps: LIGHTHOUSE, items: [WIFI_CAMERA], spots: LIGHTHOUSE_SPOTS.platformNorth, text: { ru: 'Установить вторую Wi-Fi камеру у перрона контрабандистов на локации Маяк', en: 'Plant the second Wi-Fi Camera at the smuggler train platform on Lighthouse' } },
+        { type: 'plantItem', maps: LIGHTHOUSE, items: [WIFI_CAMERA], spots: LIGHTHOUSE_SPOTS.woodsTransit, text: { ru: 'Установить третью Wi-Fi камеру у перехода на лес на локации Маяк', en: 'Plant the third Wi-Fi Camera at the Woods transit on Lighthouse' } },
+      ],
+      rewards: [[EUROS, 1_800], [NL545_GP, 1], [PMAG_545_FDE, 3], [AMMO_7N40_120, 1]],
+      note: {
+        ru: 'Нужны 3 Wi-Fi камеры, их продаёт Механик. Две ставятся в грудах коробок у перрона, у первого и последнего входа в поезд, третья на севере, у перехода на Лес, возле перевёрнутой машины и первого бетонного ограждения.',
+        en: 'You need 3 Wi-Fi Cameras, which Mechanic sells. Two go into the piles of boxes at the platform, by the first and the last door of the train, the third in the north, at the Woods transit, by the overturned car and the first concrete barrier.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.cutDownToTheRoot,
+      trader: JAEGER,
+      name: { ru: 'Вырубить под корень', en: 'Cut Down to the Root' },
+      aliases: ['Вырубить под корень [выбор]', 'Cut Down to the Root [choice]'],
+      after: [BALANCE_SHIFT_QUEST_IDS.scopeTheClearing],
+      experience: 30_000,
+      objectives: [
+        { type: 'shoot', count: 15, maps: LIGHTHOUSE, shoot: { targets: ['ExUsec'] }, text: { ru: 'Устранить Отступников на локации Маяк', en: 'Eliminate Rogues on Lighthouse' } },
+      ],
+      rewards: [[ROUBLES, 450_000], [SICC, 1], [BITCOIN, 2]],
+      note: {
+        ru: 'Развилка: выполните это задание — и «Сберечь ценную фигуру» Смотрителя провалится. Отступники теперь держатся у шале, их новые позиции легко оборонять, и они заметят вас издалека. Отступники с Ледокола могут не засчитываться.',
+        en: 'A choice: complete this task and Lightkeeper\'s «Preserve a Valuable Piece» fails. The Rogues now hold the chalets, their new positions are easy to defend, and they spot you from far away. Rogues on the Icebreaker may not count.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.easeTheMove,
+      trader: PEACEKEEPER,
+      name: { ru: 'Облегчить переезд', en: 'Ease the Move' },
+      after: [BALANCE_SHIFT_QUEST_IDS.scopeTheClearing],
+      experience: 20_000,
+      objectives: [
+        { type: 'mark', maps: LIGHTHOUSE, items: [MS2000], spots: LIGHTHOUSE_SPOTS.villageStashes, text: { ru: 'Найти и пометить маяком MS2000 первый схрон отступников в заброшенной деревне на острове', en: 'Locate and mark the first Rogue stash at the abandoned island village with an MS2000 Marker on Lighthouse' } },
+        { type: 'mark', maps: LIGHTHOUSE, items: [MS2000], spots: LIGHTHOUSE_SPOTS.farStashes, text: { ru: 'Найти и пометить маяком MS2000 второй схрон отступников в заброшенной деревне на острове', en: 'Locate and mark the second Rogue stash at the abandoned island village with an MS2000 Marker on Lighthouse' } },
+        { type: 'mark', maps: LIGHTHOUSE, items: [MS2000], spots: LIGHTHOUSE_SPOTS.grottoStash, text: { ru: 'Найти и пометить маяком MS2000 схрон отступников в гроте', en: 'Locate and mark the Rogue stash at the grotto with an MS2000 Marker on Lighthouse' } },
+      ],
+      rewards: [[DOLLARS, 2_000], [MCX_SPEAR, 1], [L7AWM_MAG_20, 3], [SIG_FMJ_PACK_20, 3]],
+      note: {
+        ru: 'Нужны 3 маркера MS2000. Первый схрон бывает в трёх местах, второй в двух, поэтому на карте по несколько точек; какие подойдут, может зависеть от фракции. Схрон это лагерь со снаряжением и баррикадами. Поставьте маркер и дождитесь конца таймера.',
+        en: 'You need 3 MS2000 Markers. The first stash has three possible places and the second two, hence several points on the map; which ones count may depend on your faction. A stash is a camp with gear and barricades. Place the marker and wait for the timer to end.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.preserveValuablePiece,
+      trader: LIGHTKEEPER,
+      name: { ru: 'Сберечь ценную фигуру', en: 'Preserve a Valuable Piece' },
+      aliases: ['Сберечь ценную фигуру [выбор]', 'Preserve a valuable piece [choice]'],
+      afterAccepted: [BALANCE_SHIFT_QUEST_IDS.cutDownToTheRoot],
+      experience: 40_000,
+      objectives: [
+        { type: 'shoot', count: 7, maps: LIGHTHOUSE, shoot: { targets: ['AnyPmc'] }, text: { ru: 'Устранить бойцов ЧВК на локации Маяк', en: 'Eliminate PMC operatives on Lighthouse' } },
+      ],
+      rewards: [[SUBSTATION_MARKED_KEY, 1]],
+      note: {
+        ru: 'Развилка: выполните это задание — и «Вырубить под корень» Егеря провалится. Убивать ЧВК можно в любом месте Маяка и в группе. К шале не ходите: отступники стреляют и по вам.',
+        en: 'A choice: complete this task and Jaeger\'s «Cut Down to the Root» fails. PMCs count anywhere on Lighthouse, in a group too. Stay away from the chalets: the Rogues shoot at you as well.',
+      },
+    },
+  ],
+}
+
+/**
+ * The BTR Driver's two Lighthouse quests of game version 1.1.5.0 (September 2026), not tied to the event. tarkov.dev has
+ * neither. A player has «Честный отзыв» open at once with «Сечь поляну» (a Tasks-table reading of 01.11.2026), so this line
+ * does not lead to that quest, whatever one community tree says (docs/quests/lighthouse-balance-shift.md). The driver's
+ * quests open once Mechanic's «Рука помощи» is taken.
+ */
+export const LIGHTHOUSE_BTR: CuratedSeries = {
+  id: 'lighthouse-btr',
+  name: { ru: 'БТР на Маяке', en: 'BTR on Lighthouse' },
+  route: { ru: 'задания Водителя БТР', en: 'BTR Driver\'s tasks' },
+  gameVersion: '1.1.5.0.47242',
+  checkedAt: '2026-11-06',
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: [
+    'https://escapefromtarkov.fandom.com/wiki/Honest_Review', 'https://escapefromtarkov.fandom.com/ru/wiki/Честный_отзыв',
+    'https://escapefromtarkov.fandom.com/wiki/I\'m_Something_of_a_BTR_Myself', 'https://tarkov.help/ru/quest/chestnyy-otzyv',
+    'https://tarkovforge.com/task-guide/honest-review',
+  ],
+  quests: [
+    {
+      id: LIGHTHOUSE_BTR_QUEST_IDS.honestReview,
+      trader: BTR_DRIVER,
+      name: { ru: 'Честный отзыв', en: 'Honest Review' },
+      afterAccepted: [A_HELPING_HAND],
+      experience: 15_000,
+      objectives: [
+        { type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.stopVillage, text: { ru: 'Посетить остановку БТР на перекрёстке в деревне на локации Маяк', en: 'Scout the intersection at the village on Lighthouse' } },
+        { type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.stopUn, text: { ru: 'Посетить остановку БТР у блокпоста ООН на главной дороге на локации Маяк', en: 'Scout the UN checkpoint at the main road on Lighthouse' } },
+        { type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.stopPlantParking, text: { ru: 'Посетить остановку БТР на парковке между двумя корпусами очистных сооружений', en: 'Scout the parking between the two main buildings at the water treatment plant on Lighthouse' } },
+        RETURN,
+        { type: 'dialogue', text: { ru: 'Дать мехводу БТР обратную связь', en: 'Share your feedback with the BTR Driver' } },
+      ],
+      note: {
+        ru: 'Три остановки БТР на Маяке. Можно проехать их на самом БТР услугой «Подвезти», выходить не нужно. После рейда поговорите с водителем.',
+        en: 'Three BTR stops on Lighthouse. You can ride through them on the BTR itself with its «Ride» service, without getting off. Talk to the driver after the raid.',
+      },
+    },
+    {
+      id: LIGHTHOUSE_BTR_QUEST_IDS.btrMyself,
+      trader: BTR_DRIVER,
+      name: { ru: 'Сам себе БТР', en: 'I\'m Something of a BTR Myself' },
+      after: [LIGHTHOUSE_BTR_QUEST_IDS.honestReview],
+      experience: 30_000,
+      objectives: [
+        { type: 'shoot', count: 15, maps: LIGHTHOUSE, shoot: { targets: ['Savage'] }, text: { ru: 'Устранить Диких, используя оружие калибра 7.62х54R на локации Маяк', en: 'Eliminate Scavs with any 7.62x54R caliber weapon on Lighthouse' } },
+        { type: 'dialogue', text: { ru: 'Доложить мехводу БТР', en: 'Report back to the BTR Driver' } },
+      ],
+      rewards: [[VPX_STORAGE, 2], [VIRTEX, 2], [MILITARY_FLASH_DRIVE, 2]],
+      note: {
+        ru: 'Подойдёт любое оружие калибра 7.62x54R. Дикие проще всего на главной дороге и у очистных; можно за несколько рейдов. Боссы и их свита не засчитываются.',
+        en: 'Any 7.62x54R weapon will do. Scavs are easiest on the main road and at the water treatment plant, and it can take several raids. Bosses and their guards do not count.',
+      },
+    },
+  ],
+}
+
+/** The game's id of «За проезд передаём!» (the Russian wiki's page, `node`). */
+export const PAY_THE_FARE_ID = '6a8b8266f47489e5720a63b7'
+
+/**
+ * Ragman's «За проезд передаём!» of game version 1.1.5.0 (September 2026): tarkov.dev does not have it in any mode. It opens at
+ * a stage of the story chapter «Борей» (telling Mechanic transport to the Icebreaker is found), which the app cannot see, so it
+ * is held back until the logs show it (`opensInGame`). No place on any map: the tools come from any toolbox. Three sources say
+ * it is live; its rewards as the English wiki gives them (10 kits in PvE). docs/quests/lighthouse-balance-shift.md, «Рядом».
+ */
+export const BOREAS_RAGMAN: CuratedSeries = {
+  id: 'boreas-ragman',
+  name: { ru: 'Борей', en: 'Boreas' },
+  route: { ru: 'задание Барахольщика', en: 'Ragman\'s task' },
+  gameVersion: '1.1.5.0.47242',
+  checkedAt: '2026-11-07',
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: [
+    'https://escapefromtarkov.fandom.com/wiki/Pay_the_Fare!', 'https://escapefromtarkov.fandom.com/ru/wiki/За_проезд_передаём!',
+    'https://tarkov.help/ru/quest/za-proezd-peredayom', 'https://tarkovforge.com/task-guide/pay-the-fare',
+  ],
+  quests: [
+    {
+      id: PAY_THE_FARE_ID,
+      trader: RAGMAN,
+      name: { ru: 'За проезд передаём!', en: 'Pay the Fare!' },
+      opensInGame: true,
+      experience: 30_000,
+      objectives: [
+        { type: 'findItem', items: [PIPE_GRIP_WRENCH], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Шарнирный ключ КШС', en: 'Find the item in raid: Pipe grip wrench' } },
+        { type: 'giveItem', items: [PIPE_GRIP_WRENCH], foundInRaid: true, text: { ru: 'Передать ключ КШС', en: 'Hand over the Pipe grip wrench' } },
+        { type: 'findItem', items: [RATCHET_WRENCH], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Трещоточный ключ', en: 'Find the item in raid: Ratchet wrench' } },
+        { type: 'giveItem', items: [RATCHET_WRENCH], foundInRaid: true, text: { ru: 'Передать трещоточный ключ', en: 'Hand over the Ratchet wrench' } },
+        { type: 'findItem', items: [ELECTRIC_DRILL], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Электродрель', en: 'Find the item in raid: Electric drill' } },
+        { type: 'giveItem', items: [ELECTRIC_DRILL], foundInRaid: true, text: { ru: 'Передать электродрель', en: 'Hand over the Electric drill' } },
+      ],
+      rewards: [[SUDAK_TUDAK_KIT, 5]],
+      modeRewards: { pve: [[SUDAK_TUDAK_KIT, 10]] },
+      rewardNotes: [{ ru: 'Ежедневное оперативное задание с наградой наборами «Судак-тудак»', en: 'A daily operational task that pays in Sudak-Tudak kits' }],
+      note: {
+        ru: 'Открывается в главе «Борей», когда вы сообщите Механику, что транспорт на Ледокол найден. Все три инструмента должны быть найдены в рейде, чаще всего они лежат в ящиках с инструментами. Наборы «Судак-тудак» нужны для дороги на Ледокол на катере.',
+        en: 'Opens in the «Boreas» chapter, once you tell Mechanic that transport to the Icebreaker is found. All three tools must be found in raid, most often in toolboxes. The Sudak-Tudak kits are for the boat ride to the Icebreaker.',
+      },
+    },
+  ],
+}
+
+/** The game's quest ids of «Хеллоуин 2026» (the Russian EFT Wiki's quest pages, `node`). */
+export const HALLOWEEN_QUEST_IDS = {
+  rumors: '6aba40a15ef26da1360746b8',
+  bestDefense: '6aba7df2bb9829de330494c7',
+  followUp: '6aba7f65443c3da4df01bb3e',
+  unexpectedHelp: '6abb7e59dcebb0efbc0fda7b',
+  initialExamination: '6abb7e434f0ef29f16066d77',
+  tightening: '6abb92e1505493a036006ee0',
+  newVaccine: '6abd0ff5d383d797d602d6c4',
+  highRisk: '6abf70a8e4732bc101051bf2',
+  firstResults: '6abf93f0e6a93c846b0fe382',
+  studyingEnemy: '6abf92bee6a93c846b0fe37d',
+  greaterGood: '6abfae3485f9ebf648025acc',
+  greaterGoodAgreement: '6abfafda95e39cdaad0bda27',
+  finalPush: '6abfb582eac8c75de80bd930',
+  dangerZone: '6abb99516cdfa16e93028439',
+  coincidence: '6abbb8845baa9031ac068833',
+  prototyping: '6abbae9ee591db528505e3e9',
+  enemyOfEnemy: '6abbbc647aea5f936906e29d',
+  enemyAgreement: '6abbbde75f084d06ce014688',
+  blindEnemy: '6abbc2bb71588b5b110f34a5',
+} as const
+
+/**
+ * When the app stops showing the event: the game has not announced the end (02.11.2026); the last Halloween ended on
+ * 11 November. Moved as soon as the end is known (src/events/halloweenEvent.ts shows the same date).
+ */
+export const HALLOWEEN_2026_END = '2026-11-12T07:00:00.000Z'
+
+const H = HALLOWEEN_QUEST_IDS
+const LABS_KEYCARD = '5c94bbff86f7747ee735c08f'
+const MEDICAL_TOOLS = '619cc01e0a7c3a1a2731940c'
+const BLOOD_SAMPLE = '6acc4988059559342f0830d8'
+const TISSUE_SAMPLE = '6acc4af5ada0d6309902b049'
+const VACCINE_PROTOTYPE = '6acc4c757587fb38c508c5fa'
+const RDA78_VACCINE = '6acc4e8fada0d6309902b04d'
+const DORM_105_KEY = '591382d986f774465a6413a7'
+const INFECTED_MAPS = ['infected-factory', 'infected-lab']
+
+/**
+ * The places of the event on the ordinary maps (owner, 02.11.2026: «ставь точки на обычных картах»). Customs, Woods and
+ * Factory: tarkov.help's quest markers carried over by the exits (docs/quests/halloween-2026.md); the other maps: the
+ * door or the zone tarkov.dev has in the building the walkthroughs name.
+ */
+const HALLOWEEN_SPOTS = {
+  factoryScientists: [
+    { map: 'factory', point: { id: 'th-16040', x: -10.7, z: 29.5 } },
+    { map: 'factory', point: { id: 'th-16041', x: 17.3, z: -29.0 } },
+    { map: 'factory', point: { id: 'th-16042', x: 51.3, z: 4.5 } },
+  ],
+  labScientists: [
+    // the tunnel to «Накопительный коллектор»; the tents by the blue keycard room
+    { map: 'the-lab', extract: '70e59e240344a72e8dbb151c370f32851997fd50', building: true },
+    { map: 'the-lab', lockKey: '5c1d0c5f86f7744bb2683cf0', building: true },
+  ],
+  infectedExits: [
+    { map: 'factory', extract: '99c2f21880da0baf75d431a5f45b462fde2f79b1' },
+    { map: 'factory', extract: 'f16ce849a9d153a8813b6bf6a049d530f1cc44c2' },
+    { map: 'the-lab', extract: '99477cb352520521b92ba91a2c1cfd7fc219ad26' },
+    { map: 'the-lab', extract: '70e59e240344a72e8dbb151c370f32851997fd50' },
+  ],
+  labExits: [
+    { map: 'the-lab', extract: '99477cb352520521b92ba91a2c1cfd7fc219ad26' },
+    { map: 'the-lab', extract: '70e59e240344a72e8dbb151c370f32851997fd50' },
+  ],
+  // water treatment building no. 3 (the Rogue USEC barrack door) and no. 2 (the storage room door)
+  vaccine: [{ map: 'lighthouse', lockKey: '62a9cb937377a65d7b070cef', building: true }],
+  signal: [{ map: 'lighthouse', lockKey: '62987e26a77ec735f90a2995', building: true }],
+  room105: [{ map: 'customs', lockKey: DORM_105_KEY }],
+  woodsCameras: [
+    { map: 'woods', point: { id: 'th-16029', x: -664.0, z: 145.0 } },
+    { map: 'woods', point: { id: 'th-16030', x: -647.0, z: 113.4 } },
+  ],
+  customsCameras: [
+    { map: 'customs', point: { id: 'th-16026', x: 233.9, z: 128.5 } },
+    { map: 'customs', point: { id: 'th-16027', x: 183.9, z: 168.6 } },
+    { map: 'customs', point: { id: 'th-16028', x: 167.8, z: 184.6 } },
+  ],
+  reserveDepot: [{ map: 'reserve', taskZone: { task: '639136df4b15ca31f76bc31f', zone: 'jaegar_collection_point_rezerve_base' } }],
+  // the west wing's third floor (room 301) and the east wing's far end (room 328)
+  resort: [
+    { map: 'shoreline', lockKey: '5a13ef7e86f7741290491063', building: true },
+    { map: 'shoreline', lockKey: '5a0eee1486f77402aa773226', building: true },
+  ],
+} satisfies Record<string, CuratedSpot[]>
+
+const killInfected = (count: number, maps: string[], ru: string, en: string): CuratedObjective => ({ type: 'shoot', count, maps, shoot: { targets: ['Infected'] }, text: { ru, en } })
+
+/**
+ * «Хеллоуин 2026» (owner, 02.11.2026: «найди все данные по Хеллоуинским квестам… добавь их так же как у нас был ивент»):
+ * the event of game version 1.3.0.0 (29.10.2026), Skier's and Therapist's line. Two choices split it: the vaccine batch
+ * for Skier («Неожиданная помощь») or Therapist («Первичная проверка»), then «Усиление карантина» or «Новая вакцина»;
+ * each fails the other one. Those two are given under two ids, one per branch (`otherIds`), with the branch's own
+ * objectives and rewards, which the notes give. Objectives in the game's words; rewards as the English wiki gives them
+ * (without the Intelligence Center bonus). docs/quests/halloween-2026.md lists the sources.
+ */
+export const HALLOWEEN_2026: CuratedSeries = {
+  id: 'halloween-2026',
+  name: { ru: 'Хеллоуин 2026', en: 'Halloween 2026' },
+  route: { ru: 'ивент Лыжника и Терапевта', en: 'Skier and Therapist event' },
+  event: true,
+  endsAt: HALLOWEEN_2026_END,
+  gameVersion: '1.3.0.0.48484',
+  checkedAt: '2026-11-02',
+  // tarkov.dev lists the infected Factory and Lab in all three modes' maps files
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: [
+    'escapefromtarkov.fandom.com/ru Halloween: … (infobox `node` = quest id)',
+    'escapefromtarkov.fandom.com (EN) Halloween: … (objectives, rewards, guide)',
+    'tarkov.help/ru|en/quest/halloween-… (objectives, walkthroughs, pictures, map markers)',
+    'json.tarkov.dev regular/maps (extracts, locks), regular/tasks (the Reserve depot zone)',
+  ],
+  quests: [
+    {
+      id: H.rumors,
+      trader: SKIER,
+      name: { ru: 'Halloween: Слухи', en: 'Halloween: Rumors' },
+      experience: 26_000,
+      objectives: [
+        { type: 'visit', maps: ['infected-factory'], text: { ru: 'Попасть на локацию «Заражённый завод»', en: 'Visit the Infected Factory' } },
+        killInfected(10, ['infected-factory'], 'Убить 10 заражённых на локации «Заражённый завод»', 'Eliminate 10 infected on Infected Factory'),
+      ],
+      rewards: [[EUROS, 1_800], ['67124dcfa3541f2a1f0e788b', 1], ['6709133fa532466d5403fb7c', 3], ['6570247ebfc87b3a34093229', 4]],
+      note: {
+        ru: 'Заражённый завод — отдельная ивентовая локация: на экране выбора локации переключитесь на ивентовые в правом верхнем углу. На карте медленные и быстрые заражённые, часть из них с оружием, и Заражённый Тагилла. Надёжнее всего стрелять в голову. Выходы — «Ворота 0» и «Ворота 3».',
+        en: 'The Infected Factory is a separate event location: switch to the event locations in the top right of the location screen. It has slow and fast infected, some of them armed, and the Infected Tagilla. Headshots work best. The exits are Gate 0 and Gate 3.',
+      },
+    },
+    {
+      id: H.bestDefense,
+      trader: SKIER,
+      name: { ru: 'Halloween: Лучшая защита', en: 'Halloween: The Best Defense' },
+      after: [H.rumors],
+      experience: 36_000,
+      objectives: [
+        { type: 'visit', maps: ['infected-lab'], text: { ru: 'Попасть на локацию «Заражённая лаборатория»', en: 'Visit the Infected Lab' } },
+        { type: 'findQuestItem', optional: true, maps: ['infected-lab'], text: { ru: '(опционально) Найти подсказку для секретного выхода', en: '(Optional) Find the hint for the secret exit' } },
+        { type: 'extract', optional: true, maps: ['infected-lab'], spots: HALLOWEEN_SPOTS.labExits, text: { ru: '(опционально) Выжить и выйти с локации «Заражённая лаборатория»', en: '(Optional) Survive and extract from the Infected Lab' } },
+        killInfected(10, ['infected-lab'], 'Убить 10 заражённых на локации «Заражённая лаборатория»', 'Eliminate 10 infected on the Infected Lab'),
+      ],
+      rewards: [[EUROS, 2_700], ['69f9ebbcaae020b0db02f65d', 1], ['69f9ec5a7596e93e340c0a1e', 3], ['6a9961d053d704c9d005660e', 4]],
+      note: {
+        ru: 'В Заражённой лаборатории очень темно — нужен фонарь или ПНВ. Выйти можно только через «Парковку» (нужен ключ от машины) или «Накопительный коллектор» (нужна схема коллектора) — это и есть подсказка для секретного выхода. Ключ и схема лежат на круглом столе со статуями котов и рядом с ним в зоне отдыха на втором уровне; ключ ещё бывает в пасти заражённой головы на кулере в офисе O23, схема — на столе в O23 и за монитором в кабинете Круглова.',
+        en: 'The Infected Lab is very dark: bring a flashlight or night vision. The only exits are the Parking gate (needs the car keys) and the Sewage conduit (needs the collector map): that is the hint for the secret exit. The keys and the map lie on and around the round table with the cat statues in the recreation area on the second level; the keys also spawn in the mouth of an infected head on the water dispenser in office O23, the map on a desk in O23 and behind the screen in Kruglov\'s office.',
+      },
+    },
+    {
+      id: H.followUp,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Контрольная проверка', en: 'Halloween: Follow-Up Examination' },
+      aliases: ['Halloween: Hollow-Up Examination'],
+      afterAccepted: [H.bestDefense],
+      experience: 40_000,
+      objectives: [
+        { type: 'visit', maps: INFECTED_MAPS, spots: [...HALLOWEEN_SPOTS.labScientists, ...HALLOWEEN_SPOTS.factoryScientists], text: { ru: 'Найти тело сотрудника лаборатории в защитном костюме', en: 'Locate the dead scientist in a hazmat suit on the Infected Lab or the Infected Factory' } },
+        { type: 'useItem', maps: INFECTED_MAPS, useAny: [MEDICAL_TOOLS], text: { ru: 'Вскрыть труп лаборанта, используя медицинские инструменты', en: 'Open the scientist\'s body using medical tools' } },
+        { type: 'findQuestItem', maps: INFECTED_MAPS, text: { ru: 'Взять образец крови на локации «Заражённая лаборатория» или «Заражённый завод»', en: 'Obtain the blood sample on the Infected Lab or the Infected Factory' } },
+        { type: 'giveItem', items: [BLOOD_SAMPLE], text: { ru: 'Передать образец крови', en: 'Hand over the blood sample' } },
+      ],
+      rewards: [[ROUBLES, 300_000], [LABS_KEYCARD, 2], ['5c10c8fd86f7743d7d706df3', 2], ['637b620db7afa97bfc3d7009', 2]],
+      note: {
+        ru: 'Открывается после взятия «Лучшей защиты». Возьмите медицинские инструменты — они расходуются при вскрытии. Тела учёных в защитных костюмах: в Заражённой лаборатории — в тоннеле к выходу «Накопительный коллектор» в подвале и в палаточной зоне у комнаты синей ключ-карты на первом уровне; на Заражённом заводе — у лаборатории, на цистернах у насосной напротив «Ворот 3» и у офисов. Держите кнопку действия, пока идёт таймер (около 30 секунд), иначе образец не возьмётся. Образец крови продаётся и на барахолке.',
+        en: 'Opens once «The Best Defense» is taken. Bring medical tools: one set is used up per body. The scientists in hazmat suits: on the Infected Lab in the tunnel to the Sewage conduit exit in the basement and in the tent area by the blue keycard room on the first level; on the Infected Factory by the laboratory, on the tanks at the pumping station opposite Gate 3 and by the offices. Hold the action key for the whole timer (about 30 seconds) or no sample is taken. The blood sample is also sold on the flea market.',
+      },
+    },
+    {
+      id: H.unexpectedHelp,
+      trader: SKIER,
+      name: { ru: 'Halloween: Неожиданная помощь', en: 'Halloween: Unexpected Help' },
+      after: [H.followUp],
+      experience: 38_000,
+      objectives: [
+        { type: 'findQuestItem', maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.vaccine, text: { ru: 'Забрать партию вакцины с очистных на локации Маяк', en: 'Locate and obtain the vaccine shipment at the water treatment plant on Lighthouse' } },
+        { type: 'plantQuestItem', maps: ['customs'], spots: HALLOWEEN_SPOTS.room105, requiredKeys: [[DORM_105_KEY]], text: { ru: 'Заложить партию вакцины в 105 комнате двухэтажной общаги на локации Таможня', en: 'Stash the vaccine shipment in room 105 of the two-story dorm on Customs' } },
+      ],
+      rewards: [[EUROS, 2_700], ['5aafbde786f774389d0cbc0f', 1]],
+      note: {
+        ru: 'Развилка: выполните это задание — и «Первичная проверка» Терапевта провалится. Партия вакцины лежит на столе в западном офисе второго этажа здания №3 очистных сооружений на Маяке. Её нужно вынести с Маяка (погибнете — потеряете) и заложить в комнате 105 двухэтажной общаги на Таможне; нужен ключ от комнаты 105 общежития.',
+        en: 'A choice: complete this task and Therapist\'s «Initial Examination» fails. The vaccine shipment lies on a desk in the western office on the second floor of water treatment building no. 3 on Lighthouse. Extract with it (dying loses it), then stash it in room 105 of the two-story dorm on Customs; it needs the Dorm room 105 key.',
+      },
+    },
+    {
+      id: H.initialExamination,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Первичная проверка', en: 'Halloween: Initial Examination' },
+      aliases: ['Halloween: Initial Check'],
+      afterAccepted: [H.unexpectedHelp],
+      experience: 38_000,
+      objectives: [
+        { type: 'giveQuestItem', maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.vaccine, text: { ru: 'Передать партию вакцины Терапевту', en: 'Hand over the vaccine shipment to Therapist' } },
+      ],
+      rewards: [[ROUBLES, 200_000], ['590c60fc86f77412b13fddcf', 1]],
+      note: {
+        ru: 'Развилка: выполните это задание — и «Неожиданная помощь» Лыжника провалится. Партия вакцины лежит на столе в западном офисе второго этажа здания №3 очистных сооружений на Маяке: вынесите её и сдайте Терапевту.',
+        en: 'A choice: complete this task and Skier\'s «Unexpected Help» fails. The vaccine shipment lies on a desk in the western office on the second floor of water treatment building no. 3 on Lighthouse: extract with it and hand it to Therapist.',
+      },
+    },
+    {
+      id: H.tightening,
+      otherIds: ['6abb86cddcebb0efbc0fda8f'],
+      trader: SKIER,
+      name: { ru: 'Halloween: Усиление карантина', en: 'Halloween: Tightening the Quarantine' },
+      afterDecided: [H.unexpectedHelp],
+      delay: [900, 3600],
+      experience: 48_000,
+      objectives: [
+        { type: 'giveItem', text: { ru: 'Передать найденные в рейде аптечки, снимающие сильные кровотечения (5 или 7)', en: 'Hand over found in raid medkits that stop heavy bleeding (5 or 7)' } },
+        { type: 'giveItem', text: { ru: 'Передать найденные в рейде лечебные мази (2 или 3)', en: 'Hand over found in raid medical balms (2 or 3)' } },
+        { type: 'giveItem', text: { ru: 'Передать найденные в рейде хирургические наборы (2 или 3)', en: 'Hand over found in raid surgical kits (2 or 3)' } },
+      ],
+      rewardNotes: [
+        { ru: 'Если вакцину получил Лыжник: 1 800 €, AK-12, 3 магазина и пачка 7Н40 (120 шт.)', en: 'If Skier got the vaccine: €1,800, an AK-12, 3 magazines and a 7N40 pack (120 pcs)' },
+        { ru: 'Если вакцину получил Терапевт: 2 700 €, кейс для денег', en: 'If Therapist got the vaccine: €2,700 and a Money case' },
+      ],
+      note: {
+        ru: 'Даётся при любом выборе на первой развилке, через 15–60 минут. Вторая развилка: выполнение этого задания провалит «Новую вакцину» Терапевта, и наоборот; после него идёт линия Лыжника («Зона риска»). Если вакцину получил Лыжник — 5 аптечек, 2 мази и 2 хирургических набора; если Терапевт — 7, 3 и 3. Всё должно быть найдено в рейде.',
+        en: 'Given after either side of the first choice, 15–60 minutes later. The second choice: completing it fails Therapist\'s «A New Vaccine», and the other way round; Skier\'s line («Danger Zone») follows it. If Skier got the vaccine: 5 medkits, 2 balms and 2 surgical kits; if Therapist did: 7, 3 and 3. All found in raid.',
+      },
+    },
+    {
+      id: H.newVaccine,
+      otherIds: ['6abd18fed383d797d602d6c9'],
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Новая вакцина', en: 'Halloween: A New Vaccine' },
+      afterDecided: [H.initialExamination],
+      delay: [900, 900],
+      experience: 41_000,
+      objectives: [
+        { type: 'extract', maps: INFECTED_MAPS, spots: HALLOWEEN_SPOTS.infectedExits, text: { ru: 'Выжить и выйти с локации «Заражённый завод» или «Заражённая лаборатория»', en: 'Survive and extract from the Infected Factory or the Infected Lab' } },
+      ],
+      rewardNotes: [
+        { ru: 'Если вакцину получил Терапевт: 150 000 ₽, 2 ключ-карты Лаборатории, 2 набора Surv12', en: 'If Therapist got the vaccine: 150,000 ₽, 2 Labs keycards, 2 Surv12 kits' },
+        { ru: 'Если вакцину получил Лыжник: 300 000 ₽, термосумка «Мистер Холодильник»', en: 'If Skier got the vaccine: 300,000 ₽ and a Mr. Holodilnick thermal bag' },
+      ],
+      note: {
+        ru: 'Даётся при любом выборе на первой развилке. Вторая развилка: выполнение этого задания провалит «Усиление карантина» Лыжника, и наоборот; после него идёт линия Терапевта. Если вакцину получил Терапевт — выжить и выйти с одной из заражённых локаций; если Лыжник — выжить и выйти с обеих и передать 2 000 $.',
+        en: 'Given after either side of the first choice. The second choice: completing it fails Skier\'s «Tightening the Quarantine», and the other way round; Therapist\'s line follows it. If Therapist got the vaccine: survive and extract from one of the infected locations; if Skier did: from both of them, and hand over $2,000.',
+      },
+    },
+    {
+      id: H.highRisk,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: High-Risk, High-Reward', en: 'Halloween: High-Risk, High-Reward' },
+      after: [H.newVaccine],
+      experience: 44_000,
+      objectives: [killInfected(30, INFECTED_MAPS, 'Убить заражённых на Заражённом заводе или в Заражённой лаборатории', 'Eliminate infected on the Infected Factory or the Infected Lab')],
+      rewards: [[ROUBLES, 300_000], ['5c0e530286f7747fa1419862', 3], ['5c0e533786f7747fa23f4d47', 3], [VACCINE_PROTOTYPE, 2]],
+      note: {
+        ru: 'Удобнее на Заражённом заводе: карта маленькая, заражённых много. Берите надёжное оружие без глушителя, например дробовик, — шум сам приводит заражённых. Задание можно делать в группе. После него у Терапевта появляются ежедневные задания с прототипами вакцины.',
+        en: 'Easiest on the Infected Factory: a small map with plenty of infected. Bring a reliable unsuppressed weapon such as a shotgun: the noise brings the infected to you. It can be done in a group. Afterwards Therapist gives daily tasks that pay vaccine prototypes.',
+      },
+    },
+    {
+      id: H.firstResults,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Первые результаты', en: 'Halloween: First Results' },
+      after: [H.highRisk],
+      experience: 42_000,
+      objectives: [
+        killInfected(25, INFECTED_MAPS, 'Убить заражённых, которые находятся под эффектом экспериментальной гранаты', 'Eliminate infected while they are under the effect of the experimental gas grenade'),
+        { type: 'findItem', optional: true, text: { ru: '(опционально) Получить экспериментальную газовую гранату РДЭ-68', en: '(Optional) Obtain the RDE-68 experimental gas grenade' } },
+      ],
+      rewards: [[ROUBLES, 300_000], ['590c657e86f77412b013051d', 5]],
+      note: {
+        ru: 'При взятии Терапевт выдаёт 3 газовые гранаты РДЭ-68 и открывает бартер на них. Засчитываются только заражённые, убитые в облаке газа. Обязательно наденьте противогаз или респиратор. Займите место, куда заражённые не достанут (ящики, трубы, столы), бросьте гранату, подождите, пока газ разойдётся, и стреляйте по тем, кто в нём. Можно сделать за один рейд.',
+        en: 'Therapist gives 3 RDE-68 gas grenades with the task and a barter for more. Only the infected killed inside the gas count. Wear a gas mask or a respirator. Stand where the infected cannot reach (crates, pipes, tables), throw the grenade, let the gas spread and shoot the ones inside it. It can be done in one raid.',
+      },
+    },
+    {
+      id: H.studyingEnemy,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Изучение врага', en: 'Halloween: Studying the Enemy' },
+      after: [H.highRisk],
+      experience: 34_000,
+      objectives: [{ type: 'giveItem', count: 2, items: [TISSUE_SAMPLE], text: { ru: 'Передать образцы тканей заражённых', en: 'Hand over infected tissue samples' } }],
+      rewards: [[ROUBLES, 150_000]],
+      note: {
+        ru: 'Образцы тканей заражённых Лыжник платит за ежедневные задания своей линии; на линии Терапевта их можно получить за «Ради общей цели. Договор» (2 шт.) или купить на барахолке. После задания у Терапевта открываются бартеры, в том числе кейс для вещей.',
+        en: 'Skier pays infected tissue samples for the daily tasks of his line; on Therapist\'s line they come with «For the Greater Good - An Agreement» (2) or from the flea market. Afterwards Therapist opens barters, the Item case among them.',
+      },
+    },
+    {
+      id: H.greaterGood,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Ради общей цели', en: 'Halloween: For the Greater Good' },
+      aliases: ['Halloween: For the Common Goal'],
+      after: [H.firstResults],
+      experience: 24_000,
+      objectives: [{ type: 'giveQuestItem', text: { ru: 'Передать данные о заражении Лыжнику', en: 'Hand over the infection data to Skier' } }],
+      rewards: [[ROUBLES, 150_000], [LABS_KEYCARD, 4], ['5af0548586f7743a532b7e99', 2], ['590c695186f7741e566b64a2', 2]],
+      note: {
+        ru: 'Данные о заражении приходят в сообщении при взятии задания — передайте их Лыжнику в задании «Ради общей цели. Договор». Лыжник отдаст за них 2 образца тканей заражённых для «Изучения врага».',
+        en: 'The infection data comes in a message with the task: hand it to Skier in «For the Greater Good - An Agreement». Skier pays 2 infected tissue samples for it, for «Studying the Enemy».',
+      },
+    },
+    {
+      id: H.greaterGoodAgreement,
+      trader: SKIER,
+      name: { ru: 'Halloween: Ради общей цели. Договор', en: 'Halloween: For the Greater Good - An Agreement' },
+      aliases: ['Halloween: For the Common Goal. The Deal'],
+      afterAccepted: [H.greaterGood],
+      experience: 18_000,
+      objectives: [{ type: 'giveQuestItem', text: { ru: 'Передать данные о заражении Лыжнику', en: 'Hand over the infection data to Skier' } }],
+      rewards: [[EUROS, 1_800], [TISSUE_SAMPLE, 2]],
+      note: {
+        ru: 'Передайте Лыжнику данные о заражении из задания Терапевта «Ради общей цели».',
+        en: 'Hand Skier the infection data of Therapist\'s «For the Greater Good».',
+      },
+    },
+    {
+      id: H.finalPush,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Последний рывок', en: 'Halloween: The Final Push' },
+      aliases: ['Halloween: Final Push'],
+      after: [H.greaterGood],
+      experience: 60_000,
+      objectives: [
+        killInfected(30, INFECTED_MAPS, 'Убить заражённых, которые находятся под эффектом экспериментальной гранаты', 'Eliminate infected while they are under the effect of the experimental gas grenade'),
+        { type: 'findItem', optional: true, text: { ru: '(опционально) Получить экспериментальную газовую гранату РДЭ-78', en: '(Optional) Obtain the RDE-78 experimental gas grenade' } },
+        { type: 'shoot', maps: INFECTED_MAPS, shoot: { targets: ['InfectedTagilla'] }, text: { ru: 'Убить Заражённого Тагиллу', en: 'Eliminate the infected Tagilla' } },
+      ],
+      rewards: [[ROUBLES, 450_000], ['59fb042886f7746c5005a7b2', 1], [RDA78_VACCINE, 1], [VACCINE_PROTOTYPE, 2]],
+      rewardNotes: [{ ru: 'Достижение «Торжество науки»', en: 'The «Triumph of Science» achievement' }],
+      note: {
+        ru: 'Терапевт открывает бартер на новые газовые гранаты РДЭ-78 (за образцы тканей заражённых). Газ РДЭ-78 сам убивает заражённых, а засчитываются только убитые из вашего оружия — стреляйте сразу после броска; лучше всего оружие с большим магазином или автоматический дробовик. Нужен противогаз или респиратор. Заражённый Тагилла есть на заражённых локациях — его тоже нужно убить. Последнее задание линии Терапевта.',
+        en: 'Therapist opens a barter for the new RDE-78 gas grenades (for infected tissue samples). The RDE-78 gas kills the infected by itself and only kills with your weapon count, so shoot right after the throw; a big magazine or an automatic shotgun works best. Wear a gas mask or a respirator. The Infected Tagilla is on the infected locations and has to be killed too. The last task of Therapist\'s line.',
+      },
+    },
+    {
+      id: H.dangerZone,
+      trader: SKIER,
+      name: { ru: 'Halloween: Зона риска', en: 'Halloween: Danger Zone' },
+      aliases: ['Halloween: Зона Риска'],
+      after: [H.tightening],
+      experience: 44_000,
+      objectives: [
+        { type: 'shoot', count: 15, maps: ['ground-zero', 'customs'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Эпицентр или Таможня', en: 'Eliminate any target on Ground Zero or Customs' } },
+        { type: 'shoot', count: 15, maps: ['woods', 'interchange'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Лес или Развязка', en: 'Eliminate any target on Woods or Interchange' } },
+        { type: 'shoot', count: 15, maps: ['streets-of-tarkov', 'shoreline'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Улицы Таркова или Берег', en: 'Eliminate any target on Streets of Tarkov or Shoreline' } },
+        { type: 'shoot', count: 15, maps: ['lighthouse', 'reserve'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Маяк или Резерв', en: 'Eliminate any target on Lighthouse or Reserve' } },
+      ],
+      rewards: [[EUROS, 2_800], ['5910968f86f77425cf569c32', 1], ['5b44cd8b86f774503d30cba2', 1], [TISSUE_SAMPLE, 2]],
+      note: {
+        ru: 'Обычные, не заражённые локации: по 15 любых целей в каждой паре. Без глушителя Дикие сами идут на звук. Можно делать в группе. После задания у Терапевта открываются бартеры, а у Лыжника — ежедневные задания с образцами тканей заражённых.',
+        en: 'The ordinary, not infected locations: 15 targets of any kind in each pair. Without a suppressor the Scavs come to the noise. It can be done in a group. Afterwards Therapist opens barters and Skier gives daily tasks that pay infected tissue samples.',
+      },
+    },
+    {
+      id: H.coincidence,
+      trader: SKIER,
+      name: { ru: 'Halloween: Совпадение?', en: 'Halloween: Coincidence?' },
+      after: [H.dangerZone],
+      experience: 42_000,
+      objectives: [
+        { type: 'visit', maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.signal, text: { ru: 'Найти место распространения сигнала', en: 'Locate the source of the signal on Lighthouse' } },
+        { type: 'findQuestItem', maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.signal, text: { ru: 'Найти улики', en: 'Obtain any clues in the area' } },
+        { type: 'giveQuestItem', text: { ru: 'Передать улики Лыжнику', en: 'Hand over the clues to Skier' } },
+      ],
+      rewards: [[EUROS, 2_700], ['64637076203536ad5600c990', 1], ['646372518610c40fc20204e8', 2], ['65702572c5d7d4cb4d078576', 10]],
+      note: {
+        ru: 'Источник сигнала — в здании №2 очистных сооружений на Маяке. Заходите со стороны выхода на машине (ворота промзоны), поверните направо к двери: на первом этаже комната с радиостанцией и картой мира. Папка с уликами лежит там же, у одной из дверей.',
+        en: 'The signal comes from water treatment building no. 2 on Lighthouse. Enter from the vehicle exit side (the industrial zone gates) and turn right to the door: the room with the radio station and the world map is on the first floor. The folder with the clues is in the same room, by one of the doors.',
+      },
+    },
+    {
+      id: H.prototyping,
+      trader: SKIER,
+      name: { ru: 'Halloween: Прототипирование', en: 'Halloween: Prototyping' },
+      after: [H.dangerZone],
+      experience: 34_000,
+      objectives: [
+        { type: 'findQuestItem', text: { ru: 'Найти прототипы вакцины', en: 'Obtain the TG-Vi-24 vaccine prototypes' } },
+        { type: 'giveItem', count: 2, items: [VACCINE_PROTOTYPE], text: { ru: 'Передать Лыжнику прототипы вакцины', en: 'Hand over the vaccine prototypes to Skier' } },
+      ],
+      rewards: [[EUROS, 1_800]],
+      note: {
+        ru: 'Прототипы вакцины TG-Vi-24 Терапевт платит за ежедневные задания своей линии; на линии Лыжника их можно получить за «Враг моего врага. Договор» (2 шт.) или купить на барахолке. После задания Лыжник открывает бартеры: AA-12 Gen 2, Sako TRG M10 и физический биткоин.',
+        en: 'Therapist pays TG-Vi-24 vaccine prototypes for the daily tasks of his line; on Skier\'s line they come with «Enemy of My Enemy - An Agreement» (2) or from the flea market. Afterwards Skier opens barters: the AA-12 Gen 2, the Sako TRG M10 and the Physical Bitcoin.',
+      },
+    },
+    {
+      id: H.enemyOfEnemy,
+      trader: SKIER,
+      name: { ru: 'Halloween: Враг моего врага', en: 'Halloween: Enemy of My Enemy' },
+      after: [H.coincidence],
+      experience: 24_000,
+      objectives: [{ type: 'giveQuestItem', text: { ru: 'Передать улики Терапевту', en: 'Hand over the clues to Therapist' } }],
+      rewards: [[EUROS, 1_800], ['5ab8e79e86f7742d8b372e78', 3]],
+      note: {
+        ru: 'Лыжник присылает папку с уликами в сообщении — передайте её Терапевту в задании «Враг моего врага. Договор»: это засчитывает оба задания.',
+        en: 'Skier sends the folder with the clues in a message: hand it to Therapist in «Enemy of My Enemy - An Agreement», which completes both tasks.',
+      },
+    },
+    {
+      id: H.enemyAgreement,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Враг моего врага. Договор', en: 'Halloween: Enemy of My Enemy - An Agreement' },
+      afterAccepted: [H.enemyOfEnemy],
+      experience: 18_000,
+      objectives: [{ type: 'giveQuestItem', text: { ru: 'Передать улики Терапевту', en: 'Hand over the clues to Therapist' } }],
+      rewards: [[ROUBLES, 150_000], [RDA78_VACCINE, 1], [VACCINE_PROTOTYPE, 2]],
+      note: {
+        ru: 'Передайте Терапевту папку, которую прислал Лыжник. В награду — вакцина РДЭ-78 (нужна для «Ослепить противника») и 2 прототипа вакцины TG-Vi-24 (для «Прототипирования»); открываются бартеры у Терапевта, Егеря, Прапора, Лыжника, Барахольщика и Миротворца.',
+        en: 'Hand Therapist the folder Skier sent. The reward is the RDA-78 vaccine (for «Blind the Enemy») and 2 TG-Vi-24 vaccine prototypes (for «Prototyping»); it opens barters at Therapist, Jaeger, Prapor, Skier, Ragman and Peacekeeper.',
+      },
+    },
+    {
+      id: H.blindEnemy,
+      trader: SKIER,
+      name: { ru: 'Halloween: Ослепить противника', en: 'Halloween: Blind the Enemy' },
+      after: [H.enemyOfEnemy],
+      experience: 60_000,
+      objectives: [
+        { type: 'giveItem', items: [RDA78_VACCINE], text: { ru: 'Передать вакцину Лыжнику', en: 'Hand over the RDA-78 vaccine' } },
+        { type: 'visit', count: 2, maps: ['woods'], spots: HALLOWEEN_SPOTS.woodsCameras, text: { ru: 'Уничтожить камеры в депо на локации Лес', en: 'Destroy the cameras at the train depot on Woods' } },
+        { type: 'visit', count: 3, maps: ['customs'], spots: HALLOWEEN_SPOTS.customsCameras, text: { ru: 'Уничтожить камеры в общежитии на локации Таможня', en: 'Destroy the cameras at the dorms on Customs' } },
+        { type: 'visit', count: 3, maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.signal, text: { ru: 'Уничтожить камеры на очистных сооружениях на локации Маяк', en: 'Destroy the cameras at the water treatment plant on Lighthouse' } },
+        { type: 'visit', count: 3, maps: ['reserve'], spots: HALLOWEEN_SPOTS.reserveDepot, text: { ru: 'Уничтожить камеры в депо на локации Резерв', en: 'Destroy the cameras at the train depot on Reserve' } },
+        { type: 'visit', count: 3, maps: ['shoreline'], spots: HALLOWEEN_SPOTS.resort, text: { ru: 'Уничтожить камеры в санатории на локации Берег', en: 'Destroy the cameras at the Health Resort on Shoreline' } },
+      ],
+      rewards: [[EUROS, 4_000], ['59fb023c86f7746d0d4b423c', 1]],
+      rewardNotes: [{ ru: 'Достижение «Поднять щиты!»', en: 'The «Shields Up!» achievement' }],
+      note: {
+        ru: 'Вакцина РДЭ-78 — награда за «Враг моего врага. Договор». Камеры: Лес — депо (стрела крана, край зелёного контейнера); Таможня — общежития (угол крыши двухэтажной общаги, подоконники второго этажа трёхэтажной); Маяк — здание №2 очистных (у АГС и у фонаря на краю крыши, на синей вентиляции под потолком внутри); Резерв — вокзал в депо (крыша и второй этаж); Берег — санаторий (балкон третьего этажа западного крыла, над переходом ближе к восточному крылу, край кирпичной пристройки за восточным крылом). Последнее задание линии Лыжника.',
+        en: 'The RDA-78 vaccine comes with «Enemy of My Enemy - An Agreement». The cameras: Woods, the depot (the crane boom, the edge of a green container); Customs, the dorms (the roof corner of the two-story dorm, second-floor windowsills of the three-story one); Lighthouse, water treatment building no. 2 (by the AGS and by the lamp on the roof edge, on the blue ventilation under the ceiling inside); Reserve, the station at the depot (its roof and second floor); Shoreline, the Health Resort (the third-floor balcony of the west wing, above the walkway near the east wing, the edge of the brick annex behind the east wing). The last task of Skier\'s line.',
       },
     },
   ],
 }
 
 /** Every curated series. */
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, SCOURGE_INVASION]
+/** Figurines «Новое начало» takes, any one of each list (tarkov.dev PvP tasks file, the same quests' objectives). */
+const PMC_FIGURINES = [
+  '655c652d60d0ac437100fed7', '655c663a6689c676ce57af85', '66572b8d80b1cd4b6a67847f', '6841b6b674a3c16f5e03d653', '68f11224197b61ffe703b16f', '68f26124b84c6e1f8a09cfff', '697cddb414e932098005748d',
+]
+const SCAV_FIGURINES = [
+  '655c66e40b2de553b618d4b8', '655c673673a43e23e857aebd', '655c67782a1356436041c9c5', '68f260d7b84c6e1f8a09cffd', '68f261f6928cd23ddf0471fd', '690c70a2a1461a01d605a1bd',
+]
+const BOSS_FIGURINES = [
+  '655c669103999d3c810c025b', '655c67ab0d37ca5135388f4b', '66572be36a723f7f005a066e', '66572c82ad599021091c6118', '66572cbdad599021091c611a',
+]
+const TRADER_FIGURINES = [
+  '68f25c64b2b53abd200b954f', '68f25ce9b2b53abd200b9551', '68f25da3b84c6e1f8a09cffb', '68f25eba19a2b503d70dc28f', '68f25eef19a2b503d70dc291', '68f25f1201fb9de974058be4', '68f25f3a5d977110860c3350', '68f25faa22c8979ee308f4da', '68f25fdf928cd23ddf0471fb', '68f26063b2b53abd200b9553', '68f2608301fb9de974058be6',
+]
+const PHYSICAL_BITCOIN = '59faff1d86f7746c51718c9c'
+
+/** The game's ids of «Новое начало» for prestige 2, 3 and 4 (src/progression/prestigeQuests.ts). */
+export const NEW_BEGINNING_IDS = { prestige2: '6761ff17cdc36bd66102e9d0', prestige3: '6848100b00afffa81f09e365', prestige4: '68481881f43abfdda2058369' } as const
+
+const figurines = (ids: readonly [string, string, string, string], count: number): CuratedObjective[] => [
+  { id: ids[0], type: 'giveItem', count, items: PMC_FIGURINES, foundInRaid: true, text: { ru: 'Передать найденные в рейде фигурки ЧВК (любые)', en: 'Hand over found in raid PMC figurines (any)' } },
+  { id: ids[1], type: 'giveItem', count, items: SCAV_FIGURINES, foundInRaid: true, text: { ru: 'Передать найденные в рейде фигурки Диких (любые)', en: 'Hand over found in raid Scav figurines (any)' } },
+  { id: ids[2], type: 'giveItem', count, items: BOSS_FIGURINES, foundInRaid: true, text: { ru: 'Передать найденные в рейде фигурки боссов (любые)', en: 'Hand over found in raid Boss figurines (any)' } },
+  { id: ids[3], type: 'giveItem', count, items: TRADER_FIGURINES, foundInRaid: true, text: { ru: 'Передать найденные в рейде фигурки торговцев (любые)', en: 'Hand over found in raid Trader figurines (any)' } },
+]
+
+const anyPmc = (id: string, count: number): CuratedObjective => ({ id, type: 'shoot', count, shoot: { targets: ['AnyPmc'] }, text: { ru: 'Устранить бойцов ЧВК на любой локации', en: 'Eliminate PMC operatives on any location' } })
+
+/**
+ * «Новое начало» in PvE (report №100, 08.11.2026): tarkov.dev's PvE file has none of them, its PvP file has them. The
+ * quests and their objectives are PvP's (the same game ids); the levels are PvE's (wiki: 20, 30 and 35; PvP 30, 35 and
+ * 40). The first one, for prestige 1, is PvP only: PvE prestige 1 does not need it. docs/quests/new-beginning.md.
+ */
+export const NEW_BEGINNING_PVE: CuratedSeries = {
+  id: 'new-beginning-pve',
+  name: { ru: 'Новое начало', en: 'New Beginning' },
+  route: { ru: 'задания Барахольщика для престижа', en: 'Ragman\'s prestige tasks' },
+  gameVersion: '1.3.0.1.48558',
+  checkedAt: '2026-11-08',
+  modes: ['pve'],
+  sources: [
+    'https://json.tarkov.dev/regular/tasks', 'https://escapefromtarkov.fandom.com/wiki/Prestige',
+    'https://escapefromtarkov.fandom.com/wiki/New_Beginning_(Prestige_2)', 'https://escapefromtarkov.fandom.com/wiki/New_Beginning_(Prestige_3)',
+    'https://escapefromtarkov.fandom.com/wiki/New_Beginning_(Prestige_4)', 'https://tarkov.help/ru/quest/novoe-nachalo-pve',
+  ],
+  quests: [
+    {
+      id: NEW_BEGINNING_IDS.prestige2,
+      trader: RAGMAN,
+      name: { ru: 'Новое начало', en: 'New Beginning' },
+      level: 20,
+      experience: 11_000,
+      objectives: [
+        anyPmc('6762015739c53fca8ac51336', 10),
+        { id: '6761ff17cdc36bd66102e9d6', type: 'extract', maps: ['the-lab'], text: { ru: 'Выжить и выйти с локации Лаборатория', en: 'Survive and extract from The Lab' } },
+        ...figurines(['6761ff17cdc36bd66102e9d8', '6761ff17cdc36bd66102e9d9', '6761ff17cdc36bd66102e9da', '6761ff17cdc36bd66102e9e1'], 2),
+      ],
+      rewards: [[ROUBLES, 200_000]],
+      standing: [[RAGMAN, 0.01]],
+      note: {
+        ru: 'Нужно для 2-го престижа. Барахольщик даёт его на 1-м престиже с 20-го уровня. Фигурки — только найденные в рейде.',
+        en: 'Needed for Prestige 2. Ragman gives it at Prestige 1 from level 20. The figurines must be found in raid.',
+      },
+    },
+    {
+      id: NEW_BEGINNING_IDS.prestige3,
+      trader: RAGMAN,
+      name: { ru: 'Новое начало', en: 'New Beginning' },
+      level: 30,
+      experience: 11_000,
+      objectives: [
+        anyPmc('6848100b00afffa81f09e369', 15),
+        { id: '684812156189183883f13947', type: 'shoot', count: 20, shoot: { targets: ['PmcBot'] }, text: { ru: 'Устранить Рейдеров на любой локации', en: 'Eliminate Raiders on any location' } },
+        { id: '6848100b00afffa81f09e36b', type: 'transit', maps: ['the-lab'], spots: [{ map: 'the-lab', transit: '8' }], text: { ru: 'Совершить переход с Лаборатории на Улицы Таркова', en: 'Use the transit from The Lab to Streets of Tarkov' } },
+        { id: '6848116061809d65b8503617', type: 'extract', maps: ['streets-of-tarkov'], text: { ru: 'Выжить и выйти с локации Улицы Таркова', en: 'Survive and extract from Streets of Tarkov' } },
+        ...figurines(['6848100b00afffa81f09e36d', '6848100b00afffa81f09e36e', '6848100b00afffa81f09e36f', '6848100b00afffa81f09e376'], 3),
+      ],
+      rewards: [[ROUBLES, 2_000_000], [PHYSICAL_BITCOIN, 2]],
+      standing: [[RAGMAN, 0.01]],
+      note: {
+        ru: 'Нужно для 3-го престижа. Барахольщик даёт его на 2-м престиже с 30-го уровня. Фигурки — только найденные в рейде.',
+        en: 'Needed for Prestige 3. Ragman gives it at Prestige 2 from level 30. The figurines must be found in raid.',
+      },
+    },
+    {
+      id: NEW_BEGINNING_IDS.prestige4,
+      trader: RAGMAN,
+      name: { ru: 'Новое начало', en: 'New Beginning' },
+      level: 35,
+      experience: 11_000,
+      objectives: [
+        anyPmc('68481881f43abfdda205836d', 20),
+        { id: '68481a8eda10b760b3b1a73f', type: 'shoot', count: 30, shoot: { targets: ['ExUsec'] }, text: { ru: 'Устранить Отступников на любой локации', en: 'Eliminate Rogues on any location' } },
+        { id: '68481881f43abfdda205836f', type: 'transit', maps: ['the-lab'], spots: [{ map: 'the-lab', transit: '8' }], text: { ru: 'Совершить переход с Лаборатории на Улицы Таркова', en: 'Use the transit from The Lab to Streets of Tarkov' } },
+        { id: '68483a05801f8d9e40ac05b1', type: 'transit', maps: ['streets-of-tarkov'], spots: [{ map: 'streets-of-tarkov', transit: '4' }], text: { ru: 'Совершить переход с Улиц Таркова на Развязку', en: 'Use the transit from Streets of Tarkov to Interchange' } },
+        { id: '68486a0eda4828c0772e337b', type: 'extract', maps: ['interchange'], text: { ru: 'Выжить и выйти с локации Развязка', en: 'Survive and extract from Interchange' } },
+        ...figurines(['68481881f43abfdda2058371', '68481881f43abfdda2058372', '68481881f43abfdda2058373', '68481881f43abfdda205837a'], 3),
+      ],
+      rewards: [[ROUBLES, 3_000_000], [PHYSICAL_BITCOIN, 3]],
+      standing: [[RAGMAN, 0.01]],
+      note: {
+        ru: 'Нужно для 4-го престижа. Барахольщик даёт его на 3-м престиже с 35-го уровня. Фигурки — только найденные в рейде.',
+        en: 'Needed for Prestige 4. Ragman gives it at Prestige 3 from level 35. The figurines must be found in raid.',
+      },
+    },
+  ],
+}
+
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, LIGHTHOUSE_BTR, BOREAS_RAGMAN, SCOURGE_INVASION, HALLOWEEN_2026, NEW_BEGINNING_PVE, KORD_BREACH]
+
+/** The game's other ids of the curated quests → the id the app keeps the quest under (src/quests/questInputs.ts). */
+export const CURATED_QUEST_IDS_BY_OTHER: ReadonlyMap<string, string> = new Map(CURATED_SERIES.flatMap((series) => series.quests.flatMap((quest) => (quest.otherIds ?? []).map((other) => [other, quest.id] as const))))
 
 export interface CuratedTaskContext {
   mode: RaidMode
@@ -735,14 +1659,19 @@ export function withCuratedTasks(tasksRoot: JsonRecord, context: CuratedTaskCont
   for (const { quest } of curatedQuestsFor(context.mode, context.series ?? CURATED_SERIES, context.now ?? Date.now())) {
     if (tasks[quest.id] || !traderIds.has(quest.trader)) continue
     if ([quest.name[context.locale], ...(quest.aliases ?? [])].some((title) => titles.has(title.trim().toLowerCase()))) continue
-    next[quest.id] = rawTask(quest, context.locale, spots)
+    next[quest.id] = rawTask(quest, context.mode, context.locale, spots)
     added.add(quest.id)
   }
   const source = asRecord(next[INFORMATION_SOURCE])
   if (added.has(ID.gettingAcquainted) && Object.keys(source).length && !asArray(source.taskRequirements).length) {
     next[INFORMATION_SOURCE] = { ...source, taskRequirements: [{ task: ID.gettingAcquainted, status: ['complete'] }] }
   }
-  return { tasks: added.size || next[INFORMATION_SOURCE] !== tasks[INFORMATION_SOURCE] ? { ...tasksRoot, tasks: next } : tasksRoot, added }
+  if (!added.size && next[INFORMATION_SOURCE] === tasks[INFORMATION_SOURCE]) return { tasks: tasksRoot, added }
+  // The added quests' own quest items, where tarkov.dev's list has not got them.
+  const questItems = asRecord(tasksRoot.questItems)
+  const missing = Object.entries(CURATED_QUEST_ITEMS).filter(([id]) => !questItems[id])
+  const items = missing.length ? { questItems: { ...questItems, ...Object.fromEntries(missing.map(([id, name]) => [id, { id, name: name[context.locale], shortName: name[context.locale], width: 1, height: 1 }])) } } : {}
+  return { tasks: { ...tasksRoot, ...items, tasks: next }, added }
 }
 
 /**
@@ -782,6 +1711,7 @@ export function applyCuratedQuestNotes(
         ? `${STANDING_NAMES[traderId]?.en ?? traderId} standing +${value}`
         : `Репутация у ${STANDING_NAMES[traderId]?.ru ?? traderId} +${String(value).replace('.', ',')}`),
       ...(quest.skills ?? []).map((skill) => skill[locale]),
+      ...(quest.rewardNotes ?? []).map((line) => line[locale]),
       ...(quest.startRewards ?? []).map(([itemId, count]) => `${locale === 'en' ? 'On taking the task' : 'При взятии задания'}: ${itemName(itemId)} × ${count}`),
       ...(quest.craftUnlock ? [`${locale === 'en' ? 'Unlocks the craft' : 'Открывает крафт'}: ${itemName(quest.craftUnlock.itemId)} (${quest.craftUnlock.station[locale]})`] : []),
     ]
@@ -831,6 +1761,7 @@ function spotKey(spot: CuratedSpot) {
   if ('extract' in spot) return `${spot.map}|extract|${spot.extract}`
   if ('lockKey' in spot) return `${spot.map}|lock|${spot.lockKey}`
   if ('taskZone' in spot) return `${spot.map}|task|${spot.taskZone.task}|${spot.taskZone.zone}`
+  if ('point' in spot) return `${spot.map}|point|${spot.point.id}`
   return `${spot.map}|archived|${spot.archived.id}`
 }
 
@@ -839,6 +1770,7 @@ function spotZoneId(spot: CuratedSpot) {
   if ('extract' in spot) return `extract-${spot.extract}`
   if ('lockKey' in spot) return `lock-${spot.lockKey}`
   if ('taskZone' in spot) return `zone-${spot.taskZone.zone}`
+  if ('point' in spot) return `point-${spot.point.id}`
   return `zone-${spot.archived.id}`
 }
 
@@ -848,6 +1780,11 @@ function spotZoneId(spot: CuratedSpot) {
  * heights instead of the room's height).
  */
 function zoneAt(spot: CuratedSpot, spots: SpotIndex): JsonRecord | undefined {
+  // a marked point: its position only (the community map gives no height; one measured in the game has it)
+  if ('point' in spot) {
+    const { x, y, z } = spot.point
+    return { id: spotZoneId(spot), map: spot.map, position: y === undefined ? { x, z } : { x, y, z } }
+  }
   const place = 'archived' in spot ? spot.archived as unknown as JsonRecord : spots.get(spotKey(spot))
   const position = asRecord(place?.position)
   if (!place || typeof position.x !== 'number' || typeof position.z !== 'number') return undefined
@@ -869,24 +1806,25 @@ function zoneAt(spot: CuratedSpot, spots: SpotIndex): JsonRecord | undefined {
   }
 }
 
-function rawTask(quest: CuratedQuest, locale: AppLocale, spots: SpotIndex): JsonRecord {
+function rawTask(quest: CuratedQuest, mode: RaidMode, locale: AppLocale, spots: SpotIndex): JsonRecord {
   const items = (list: Array<[string, number]> = []) => list.map(([item, count]) => ({ item, count, attributes: {} }))
   return {
     id: quest.id,
     name: quest.name[locale],
     trader: quest.trader,
-    minPlayerLevel: 0,
+    minPlayerLevel: quest.level ?? 0,
     taskRequirements: [
       ...(quest.after ?? []).map((task) => ({ task, status: ['complete'] })),
       ...(quest.afterAccepted ?? []).map((task) => ({ task, status: ['active', 'complete'] })),
+      ...(quest.afterDecided ?? []).map((task) => ({ task, status: ['complete', 'failed'] })),
     ],
     traderRequirements: (quest.loyalty ?? []).map(([trader, value]) => ({ trader, requirementType: 'level', compareMethod: '>=', value })),
-    otherRequirements: quest.dialogue ? [{ type: 'dialogue', traders: [quest.trader] }] : [],
+    otherRequirements: quest.dialogue ? [{ type: 'dialogue', traders: [quest.trader] }] : quest.opensInGame ? [{ type: 'storyStage' }] : [],
     objectives: quest.objectives.map((objective, index) => rawObjective(quest.id, index, objective, locale, spots)),
     failConditions: [],
     startRewards: { items: items(quest.startRewards), craftUnlock: quest.craftUnlock ? [{ items: [{ item: quest.craftUnlock.itemId, count: 1 }] }] : [] },
     finishRewards: {
-      items: items(quest.rewards),
+      items: items(quest.modeRewards?.[mode] ?? quest.rewards),
       traderStanding: (quest.standing ?? []).map(([trader, standing]) => ({ trader, standing })),
     },
     experience: quest.experience,
@@ -905,7 +1843,7 @@ function rawObjective(questId: string, index: number, objective: CuratedObjectiv
   const zones = (objective.spots ?? []).map((spot) => zoneAt(spot, spots)).filter((zone): zone is JsonRecord => Boolean(zone))
   return {
     // The game's objective ids are not published; these are stable and never look like a game id.
-    id: `${questId}-objective-${index + 1}`,
+    id: objective.id ?? `${questId}-objective-${index + 1}`,
     type: objective.type,
     description: objective.text[locale],
     count: objective.count ?? 1,

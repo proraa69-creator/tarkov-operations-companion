@@ -108,7 +108,6 @@ button.quest-full-link:hover, button.quest-full-link:focus-visible { border-colo
   .quest-chronology-level { margin-top: 4px; }
 }
 .quest-full-note { margin: 10px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
-.quest-full-condition.is-help { color: var(--text-dim); }
 
 /* Quests → «Хронология»: the counts, the history from the logs and every trader's chronology (QuestChronologyPanel.tsx). */
 .quest-chronology-panel { display: grid; gap: 14px; }

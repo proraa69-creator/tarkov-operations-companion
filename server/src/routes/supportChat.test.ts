@@ -10,6 +10,7 @@ import { SUPPORT_CHAT_LIMITS, SUPPORT_IMAGE_STORAGE, SupportChatError, SupportCh
 import { imageSize } from '../services/imageSize.js'
 import { SUPPORT_CHAT_RATE_LIMITS, type SupportChatLimits } from './supportChat.js'
 import { cleanSupportText, SUPPORT_IMAGE_PLACEHOLDER } from '../../../src/shared/supportChat.js'
+import { SUPPORT_STICKERS } from '../../../src/shared/supportStickers.js'
 
 /** «Чат с поддержкой» (owner, 13.10.2026: «сделай обратную связь в приложении, чат с пользователем»). */
 const password = 'correct horse battery'
@@ -50,6 +51,78 @@ test('support chat text: line breaks stay, control characters and direction over
   assert.equal(cleanSupportText('строка 1   \n\n\n\n  строка 2'), 'строка 1\n\n  строка 2')
   assert.equal(cleanSupportText(' \r\n\t '), '')
   assert.equal(cleanSupportText('Карта 🗺️ не грузится'), 'Карта 🗺️ не грузится')
+})
+
+// Owner, 04.11.2026: «прям там могу ответить, не открывая чат. У человека появляется в чате номер его заявки, и название его заявки».
+test('support chat: an answer from a report\'s card carries its number and title; only that player\'s report; older apps read them in the text', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const other = await t.register('other@example.com')
+    const playerId = t.idOf('player@example.com')
+    const report = { kind: 'idea', topic: 'Квесты и их баги', description: 'Лаунчер поставил квест, которого нет', appVersion: '0.6.0.225', platform: 'Windows' }
+    const { id } = (await t.call<{ id: number }>('POST', '/bug-reports', player, report)).json
+    const foreign = (await t.call<{ id: number }>('POST', '/bug-reports', other, { ...report, topic: 'Чужая заявка' })).json.id
+    const path = `/accounts/me/admin/support/threads/${playerId}/messages`
+
+    const answer = await t.call<{ message: Message & { report?: unknown } }>('POST', path, owner, { text: 'Нашли причину', reportId: id })
+    assert.equal(answer.status, 201)
+    const expected = { id, kind: 'idea', title: 'Квесты и их баги', text: 'Нашли причину' }
+    assert.deepEqual(answer.json.message.report, expected)
+    assert.equal(answer.json.message.text, `Ответ на заявку №${id} «Квесты и их баги»\n\nНашли причину`)
+
+    // The player reads the same; a plain answer stays as it was.
+    await t.call('POST', path, owner, { text: 'Без заявки' })
+    const read = (await t.call<{ messages: Array<Message & { report?: unknown }> }>('GET', '/me/support/messages', player)).json.messages
+    assert.deepEqual(read.map((message) => message.report), [expected, undefined])
+    assert.equal(read[1]!.text, 'Без заявки')
+    const thread = (await t.call<{ messages: Array<Message & { report?: unknown }> }>('GET', `/accounts/me/admin/support/threads/${playerId}`, owner)).json
+    assert.deepEqual(thread.messages[0]!.report, expected)
+
+    // Another player's report, or one that does not exist: refused, nothing written.
+    for (const wrong of [foreign, 999_999]) {
+      const refused = await t.call<{ error: string }>('POST', path, owner, { text: 'Мимо', reportId: wrong })
+      assert.equal(refused.status, 404)
+      assert.equal(refused.json.error, 'Заявка не найдена')
+    }
+    assert.equal((await t.call<{ messages: unknown[] }>('GET', '/me/support/messages', player)).json.messages.length, 2)
+
+    // A plain chat message marks no report: this player's second report stays unanswered.
+    const second = (await t.call<{ id: number }>('POST', '/bug-reports', player, { ...report, topic: 'Вторая' })).json.id
+    assert.equal((await t.call<{ report: { answeredAt?: string } }>('GET', `/accounts/me/admin/bug-reports/${second}`, owner)).json.report.answeredAt, undefined)
+    await t.call('POST', `/accounts/me/admin/bug-reports/${second}/status`, owner, { status: 'closed' })
+
+    // «Отвечено»: on the answered report only, and it stays after «Проблема решена» deletes the chat.
+    const answeredAtOf = async (reportId: number) => (await t.call<{ report: { answeredAt?: string } }>('GET', `/accounts/me/admin/bug-reports/${reportId}`, owner)).json.report.answeredAt
+    assert.ok(await answeredAtOf(id))
+    assert.equal(await answeredAtOf(foreign), undefined)
+    const listed = (await t.call<{ reports: Array<{ id: number; answeredAt?: string }> }>('GET', '/accounts/me/admin/bug-reports?status=open', owner)).json.reports
+    assert.deepEqual(listed.map((entry) => [entry.id, Boolean(entry.answeredAt)]).sort((a, b) => Number(a[0]) - Number(b[0])), [[id, true], [foreign, false]])
+    assert.equal((await t.call('DELETE', `/accounts/me/admin/support/threads/${playerId}`, owner)).status, 204)
+    assert.ok(await answeredAtOf(id))
+
+    // A player's own message never claims to answer a report.
+    const own = await t.call<{ message: Message & { report?: unknown } }>('POST', '/me/support/messages', player, { text: 'Спасибо', reportId: id })
+    assert.equal(own.status, 201)
+    assert.equal(own.json.message.report, undefined)
+    assert.equal(own.json.message.text, 'Спасибо')
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat: a message written before the report columns existed reads as before', () => {
+  const db = openDatabase(':memory:')
+  db.exec(`CREATE TABLE support_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL, author TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL, owner_read_at INTEGER, user_read_at INTEGER);
+    INSERT INTO support_messages (account_id, author, body, created_at) VALUES ('a', 'owner', 'Старое', 1000)`)
+  const store = new SupportChatStore(db)
+  const [old] = store.messages('a')
+  assert.equal(old!.text, 'Старое')
+  assert.equal(old!.report, undefined)
+  const answered = store.add('a', 'owner', 'Ответ', [], { id: 5, kind: 'bug', title: 'Карта' })
+  assert.deepEqual(answered.report, { id: 5, kind: 'bug', title: 'Карта', text: 'Ответ' })
+  assert.deepEqual(store.messages('a').at(-1)!.report, answered.report)
 })
 
 test('support chat: a player writes, the owner reads and answers; unread marks on both sides; the answer is in the audit log', async () => {
@@ -185,7 +258,7 @@ test('support chat: a session is required; the owner routes answer 404 to everyb
 })
 
 test('support chat: 20 messages per 10 minutes per account and per address; a refused empty message does not count', async () => {
-  assert.deepEqual(SUPPORT_CHAT_RATE_LIMITS, { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000, imagesPerHour: 40 })
+  assert.deepEqual(SUPPORT_CHAT_RATE_LIMITS, { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000, imagesPerHour: 40, guestsPerHour: 5 })
   const t = await setup({ perAccount: 2, perIp: 3 })
   try {
     const a = await t.register('a@example.com')
@@ -665,4 +738,271 @@ test('support chat screenshots: the storage quota (507), retention, the oldest m
   const third = upgraded.add(account, 'user', 'x', [png(5, 5)])
   old.prepare('DELETE FROM support_messages WHERE account_id = ?').run(account)
   assert.equal(upgraded.attachment(third.attachments![0]!.id), undefined)
+})
+
+// Owner, 07.11.2026: «и пользователь, и я смог ставить на сообщения лайки или нажать правой клавишей и нажать «Ответить» именно
+// на это сообщение… стикеры в стиле Таркова отправлять».
+interface Rich extends Message { sticker?: string; replyTo?: { id: number; author: string; text: string; sticker?: string }; reactions?: Array<{ emoji: string; authors: string[] }> }
+
+// Owner, 15.11.2026: «Редактирование своих сообщений только у админа… Человек не видит, что сообщение отредактировано».
+test('support chat edit: the owner changes the own words, the player reads only the new ones, quotes follow; a player message and a sticker are refused', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const playerId = t.idOf('player@example.com')
+    const otherId = t.idOf('owner@example.com')
+    const asked = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Карта не грузится' })).json.message
+    const answered = (await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: 'Обновите прилоение' })).json.message
+    const quoted = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Обновил', replyTo: answered.id })).json.message
+    const sticker = (await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: '', sticker: 'thanks' })).json.message
+    const edit = (id: number | string, body: unknown, token = owner, accountId = playerId) => t.call<{ message: Rich; error?: string }>('POST', `/accounts/me/admin/support/threads/${accountId}/messages/${id}/edit`, token, body)
+
+    const changed = await edit(answered.id, { text: '  Обновите приложение  ' })
+    assert.equal(changed.status, 200, JSON.stringify(changed.json))
+    assert.equal(changed.headers.get('cache-control'), 'no-store')
+    assert.deepEqual([changed.json.message.id, changed.json.message.text, changed.json.message.createdAt], [answered.id, 'Обновите приложение', answered.createdAt])
+    // The player reads the new words, in the same place, with nothing that says they changed.
+    const mine = (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages
+    assert.deepEqual(mine.map((message) => message.text), ['Карта не грузится', 'Обновите приложение', 'Обновил', '[стикер: Спасибо, бро]'])
+    assert.deepEqual(Object.keys(mine[1]!).sort(), Object.keys(answered).sort())
+    assert.equal(mine.find((message) => message.id === quoted.id)!.replyTo!.text, 'Обновите приложение')
+
+    for (const [answer, status] of [
+      [await edit(asked.id, { text: 'чужое' }), 404],
+      [await edit(sticker.id, { text: 'текст' }), 404],
+      [await edit(999_999, { text: 'текст' }), 404],
+      [await edit('abc', { text: 'текст' }), 404],
+      [await edit(answered.id, { text: 'текст' }, owner, otherId), 404],
+      [await edit(answered.id, { text: '   ' }), 400],
+      [await edit(answered.id, { text: 'я'.repeat(2001) }), 400],
+      [await edit(answered.id, {}), 400],
+    ] as const) assert.equal(answer.status, status, JSON.stringify(answer.json))
+    // The owner's route is the owner's; a session is required.
+    assert.equal((await edit(answered.id, { text: 'x' }, player)).status, 404)
+    assert.equal((await t.call('POST', `/accounts/me/admin/support/threads/${playerId}/messages/${answered.id}/edit`, undefined, { text: 'x' })).status, 401)
+    assert.equal((await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages[1]!.text, 'Обновите приложение')
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat reactions: each side toggles its own on any message; both read them; a wrong emoji or another conversation is refused', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const other = await t.register('other@example.com')
+    const playerId = t.idOf('player@example.com')
+    const otherId = t.idOf('other@example.com')
+    const asked = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Карта не грузится' })).json.message
+    const answered = (await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: 'Обновите приложение' })).json.message
+    const foreign = (await t.call<{ message: Rich }>('POST', '/me/support/messages', other, { text: 'Чужое' })).json.message
+    const playerReacts = (id: number | string, body: unknown) => t.call<{ message: Rich; error?: string }>('POST', `/me/support/messages/${id}/reactions`, player, body)
+    const ownerReacts = (accountId: string, id: number, body: unknown) => t.call<{ message: Rich; error?: string }>('POST', `/accounts/me/admin/support/threads/${accountId}/messages/${id}/reactions`, owner, body)
+
+    // The player likes the answer; the owner likes it too and laughs at the question.
+    const liked = await playerReacts(answered.id, { emoji: '👍' })
+    assert.equal(liked.status, 200, JSON.stringify(liked.json))
+    assert.equal(liked.headers.get('cache-control'), 'no-store')
+    assert.deepEqual([liked.json.message.id, liked.json.message.reactions], [answered.id, [{ emoji: '👍', authors: ['user'] }]])
+    assert.deepEqual((await ownerReacts(playerId, answered.id, { emoji: '👍', on: true })).json.message.reactions, [{ emoji: '👍', authors: ['user', 'owner'] }])
+    assert.deepEqual((await ownerReacts(playerId, asked.id, { emoji: '😂' })).json.message.reactions, [{ emoji: '😂', authors: ['owner'] }])
+    // `on` says what is wanted: the same twice changes nothing; absent, it is the other way round.
+    assert.deepEqual((await playerReacts(answered.id, { emoji: '👍', on: true })).json.message.reactions, [{ emoji: '👍', authors: ['user', 'owner'] }])
+    assert.deepEqual((await playerReacts(answered.id, { emoji: '🔥', on: true })).json.message.reactions, [{ emoji: '👍', authors: ['user', 'owner'] }, { emoji: '🔥', authors: ['user'] }])
+    assert.deepEqual((await playerReacts(answered.id, { emoji: '👍' })).json.message.reactions, [{ emoji: '👍', authors: ['owner'] }, { emoji: '🔥', authors: ['user'] }])
+    assert.deepEqual((await playerReacts(answered.id, { emoji: '🔥', on: false })).json.message.reactions, [{ emoji: '👍', authors: ['owner'] }])
+
+    // Both sides read them with the conversation; a message without any keeps its old shape.
+    const mine = (await t.call<{ messages: Rich[]; unread: number }>('GET', '/me/support/messages', player)).json
+    assert.deepEqual(mine.messages.map((message) => message.reactions), [[{ emoji: '😂', authors: ['owner'] }], [{ emoji: '👍', authors: ['owner'] }]])
+    const opened = (await t.call<{ messages: Rich[] }>('GET', `/accounts/me/admin/support/threads/${playerId}`, owner)).json.messages
+    assert.deepEqual(opened.map((message) => message.reactions), mine.messages.map((message) => message.reactions))
+    assert.equal('reactions' in (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', other)).json.messages[0]!, false)
+    // Reactions are not messages: no new message, the text as before, the unread answer still unread.
+    assert.deepEqual([mine.messages.length, mine.messages[1]!.text, mine.unread], [2, 'Обновите приложение', 1])
+
+    // Only SUPPORT_REACTIONS, only a message of this conversation.
+    for (const emoji of ['🍕', '', 'like', 5, '👍👍']) {
+      const refused = await playerReacts(answered.id, { emoji })
+      assert.deepEqual([refused.status, refused.json.error], [400, 'Такой реакции нет'], String(emoji))
+    }
+    assert.equal((await playerReacts(answered.id, {})).status, 400)
+    for (const answer of [
+      await playerReacts(foreign.id, { emoji: '👍' }),
+      await playerReacts(999_999, { emoji: '👍' }),
+      await playerReacts('abc', { emoji: '👍' }),
+      await ownerReacts(playerId, foreign.id, { emoji: '👍' }),
+      await ownerReacts(otherId, answered.id, { emoji: '👍' }),
+    ]) assert.deepEqual([answer.status, answer.json.error], [404, 'Сообщение не найдено'])
+    assert.equal('reactions' in (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', other)).json.messages[0]!, false)
+    // A session is required; the owner's route is the owner's.
+    assert.equal((await t.call('POST', `/me/support/messages/${answered.id}/reactions`, undefined, { emoji: '👍' })).status, 401)
+    assert.equal((await t.call('POST', `/accounts/me/admin/support/threads/${playerId}/messages/${answered.id}/reactions`, player, { emoji: '👍' })).status, 404)
+
+    // «Проблема решена»: the reactions go with the conversation.
+    const stored = () => Number((t.db.prepare('SELECT COUNT(*) AS n FROM support_reactions').get() as { n: number }).n)
+    assert.equal(stored(), 2)
+    assert.equal((await t.call('DELETE', `/accounts/me/admin/support/threads/${playerId}`, owner)).status, 204)
+    assert.equal(stored(), 0)
+    assert.equal((await playerReacts(answered.id, { emoji: '👍' })).status, 404)
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat reactions: the other side\'s app wakes at once; the player\'s reactions are limited', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const playerId = t.idOf('player@example.com')
+    const asked = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Вопрос' })).json.message
+    const answered = (await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: 'Ответ' })).json.message
+
+    type Events = { version: number }
+    const first = (await t.call<Events>('GET', '/accounts/me/admin/requests/events', owner)).json.version
+    const ownerWaits = t.call<Events>('GET', `/accounts/me/admin/requests/events?since=${first}`, owner)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.equal((await t.call('POST', `/me/support/messages/${answered.id}/reactions`, player, { emoji: '❤️' })).status, 200)
+    assert.ok((await ownerWaits).json.version > first)
+
+    const before = (await t.call<Events>('GET', '/me/social-events', player)).json.version
+    const playerWaits = t.call<Events>('GET', `/me/social-events?since=${before}`, player)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.equal((await t.call('POST', `/accounts/me/admin/support/threads/${playerId}/messages/${asked.id}/reactions`, owner, { emoji: '🤝' })).status, 200)
+    assert.notEqual((await playerWaits).json.version, before)
+
+    let limited = 0
+    for (let index = 0; index < 61; index += 1) if ((await t.call('POST', `/me/support/messages/${answered.id}/reactions`, player, { emoji: '🔥' })).status === 429) limited += 1
+    assert.ok(limited > 0)
+    // Writing is not limited by the reactions.
+    assert.equal((await t.call('POST', '/me/support/messages', player, { text: 'Ещё вопрос' })).status, 201)
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat replies: to a message of the same conversation only, quoted as it read; older apps read the text alone', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const other = await t.register('other@example.com')
+    const playerId = t.idOf('player@example.com')
+    const long = `Не открывается карта Таможни.\n${'Очень длинное описание. '.repeat(10)}`
+    const asked = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: long })).json.message
+    const shot = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { images: [{ data: b64(png(10, 10)) }] })).json.message
+    const foreign = (await t.call<{ message: Rich }>('POST', '/me/support/messages', other, { text: 'Чужое' })).json.message
+
+    // The owner answers the question: the quote is a short excerpt on one line.
+    const answer = await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: 'Обновите приложение', replyTo: asked.id })
+    assert.equal(answer.status, 201, JSON.stringify(answer.json))
+    const quote = answer.json.message.replyTo!
+    assert.deepEqual([quote.id, quote.author, 'sticker' in quote], [asked.id, 'user', false])
+    assert.ok(quote.text.startsWith('Не открывается карта Таможни. Очень длинное описание.') && quote.text.endsWith('…') && Array.from(quote.text).length <= 120, quote.text)
+    // Older apps: the text is the owner's words, as before.
+    assert.equal(answer.json.message.text, 'Обновите приложение')
+    // The player answers the owner, and their screenshot (no words: an empty excerpt) with another one.
+    const back = await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Спасибо', replyTo: answer.json.message.id })
+    assert.deepEqual(back.json.message.replyTo, { id: answer.json.message.id, author: 'owner', text: 'Обновите приложение' })
+    const again = await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: '', images: [{ data: b64(png(10, 10)) }], replyTo: shot.id })
+    assert.equal(again.status, 201, JSON.stringify(again.json))
+    assert.deepEqual(again.json.message.replyTo, { id: shot.id, author: 'user', text: '' })
+
+    // Read back the same on both sides; a message without a reply keeps its old shape.
+    const mine = (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages
+    assert.deepEqual(mine.map((message) => message.replyTo?.id ?? null), [null, null, asked.id, answer.json.message.id, shot.id])
+    assert.equal('replyTo' in mine[0]!, false)
+    const opened = (await t.call<{ messages: Rich[] }>('GET', `/accounts/me/admin/support/threads/${playerId}`, owner)).json.messages
+    assert.deepEqual(opened.map((message) => message.replyTo), mine.map((message) => message.replyTo))
+
+    // Another conversation's message, one that does not exist, or no message id: refused, nothing written.
+    for (const replyTo of [foreign.id, 999_999, 0, -1, 1.5, 'x']) {
+      const refused = await t.call<{ error: string }>('POST', '/me/support/messages', player, { text: 'Мимо', replyTo })
+      assert.deepEqual([refused.status, refused.json.error], [404, 'Сообщение не найдено'], String(replyTo))
+    }
+    const ownerRefused = await t.call<{ error: string }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: 'Мимо', replyTo: foreign.id })
+    assert.deepEqual([ownerRefused.status, ownerRefused.json.error], [404, 'Сообщение не найдено'])
+    assert.equal((await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages.length, 5)
+
+    // The quote stays when the original goes (past the kept messages): it is kept as it read.
+    t.db.prepare('DELETE FROM support_messages WHERE id = ?').run(asked.id)
+    const kept = (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages
+    assert.equal(kept.find((message) => message.id === answer.json.message.id)!.replyTo!.id, asked.id)
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat stickers: one of the pack, on its own; older apps read «[стикер: …]»; a wrong one is refused', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const playerId = t.idOf('player@example.com')
+    const rat = SUPPORT_STICKERS.find((sticker) => sticker.id === 'rat')!
+
+    const sent = await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { sticker: 'rat' })
+    assert.equal(sent.status, 201, JSON.stringify(sent.json))
+    assert.deepEqual([sent.json.message.sticker, sent.json.message.text, 'attachments' in sent.json.message], ['rat', `[стикер: ${rat.ru}]`, false])
+    // The owner answers it with a sticker; the quote names the sticker.
+    const answer = await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: '', sticker: 'thanks', replyTo: sent.json.message.id })
+    assert.equal(answer.status, 201, JSON.stringify(answer.json))
+    assert.deepEqual([answer.json.message.sticker, answer.json.message.text, answer.json.message.replyTo], ['thanks', '[стикер: Спасибо, бро]', { id: sent.json.message.id, author: 'user', text: '', sticker: 'rat' }])
+
+    // Both read them; the owner's list shows the text older apps would.
+    const mine = (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages
+    assert.deepEqual(mine.map((message) => [message.sticker, message.text]), [['rat', `[стикер: ${rat.ru}]`], ['thanks', '[стикер: Спасибо, бро]']])
+    const threads = (await t.call<{ threads: Thread[] }>('GET', '/accounts/me/admin/support/threads', owner)).json.threads
+    assert.equal(threads[0]!.lastMessage.text, '[стикер: Спасибо, бро]')
+    // The stored text is empty: what older apps read follows the pack.
+    assert.deepEqual((t.db.prepare('SELECT body, sticker FROM support_messages ORDER BY id').all() as Array<Record<string, unknown>>).map((row) => [row.body, row.sticker]), [['', 'rat'], ['', 'thanks']])
+
+    // Only the pack's ids; a sticker goes without text or screenshots.
+    for (const sticker of ['nope', '', 5, null, 'RAT']) {
+      const refused = await t.call<{ error: string }>('POST', '/me/support/messages', player, { sticker })
+      assert.deepEqual([refused.status, refused.json.error], [400, 'Неизвестный стикер'], String(sticker))
+    }
+    for (const body of [{ sticker: 'rat', text: 'и текст' }, { sticker: 'rat', images: [{ data: b64(png(10, 10)) }] }]) {
+      const refused = await t.call<{ error: string }>('POST', '/me/support/messages', player, body)
+      assert.deepEqual([refused.status, refused.json.error], [400, 'Стикер отправляется без текста и скриншотов'])
+    }
+    // Spaces count as no text.
+    assert.equal((await t.call('POST', '/me/support/messages', player, { sticker: 'heal', text: '  \n ' })).status, 201)
+    assert.equal((await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages.length, 3)
+    // A message without a sticker keeps its old shape.
+    assert.equal('sticker' in (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Текст' })).json.message, false)
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat storage: an older table gets the sticker and reply columns and the reactions table; a message\'s reactions go with it', () => {
+  const db = openDatabase(':memory:')
+  db.exec(`CREATE TABLE support_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL, author TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL, owner_read_at INTEGER, user_read_at INTEGER);
+    INSERT INTO support_messages (account_id, author, body, created_at) VALUES ('a', 'user', 'Старое', 1000)`)
+  let clock = Date.parse('2026-11-07T10:00:00.000Z')
+  const store = new SupportChatStore(db, { now: () => (clock += 1000), keep: 3 })
+  const [old] = store.messages('a')
+  assert.deepEqual([old!.text, 'sticker' in old!, 'replyTo' in old!, 'reactions' in old!], ['Старое', false, false, false])
+  const reply = store.add('a', 'owner', 'Ответ', [], undefined, { replyTo: old!.id })
+  assert.deepEqual(reply.replyTo, { id: old!.id, author: 'user', text: 'Старое' })
+  assert.equal(store.react('a', old!.id, 'owner', '👍').changed, true)
+  assert.equal(store.react('a', old!.id, 'owner', '👍', true).changed, false)
+  store.react('a', reply.id, 'user', '❤️')
+  assert.throws(() => store.react('b', old!.id, 'user', '👍'), (error: unknown) => error instanceof SupportChatError && error.status === 404)
+  assert.throws(() => store.react('a', old!.id, 'user', '🍕'), (error: unknown) => error instanceof SupportChatError && error.status === 400)
+  assert.throws(() => store.add('b', 'user', 'x', [], undefined, { replyTo: old!.id }), (error: unknown) => error instanceof SupportChatError && error.status === 404)
+  assert.throws(() => store.add('a', 'user', '', [], undefined, { sticker: 'unknown' }), (error: unknown) => error instanceof SupportChatError && error.status === 400)
+  const reactions = () => (db.prepare('SELECT message_id FROM support_reactions ORDER BY message_id').all() as Array<{ message_id: number }>).map((row) => row.message_id)
+  assert.deepEqual(reactions(), [old!.id, reply.id])
+  // Past `keep`: the oldest message goes with its reaction.
+  store.add('a', 'user', '', [], undefined, { sticker: 'rat' })
+  store.add('a', 'user', '', [], undefined, { sticker: 'thanks' })
+  assert.deepEqual(reactions(), [reply.id])
+  // A deleted account (its messages deleted any way) takes them along.
+  db.prepare('DELETE FROM support_messages WHERE account_id = ?').run('a')
+  assert.deepEqual(reactions(), [])
 })

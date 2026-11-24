@@ -27,6 +27,15 @@ describe('preload.cjs mirrors preload.ts', () => {
     expect([...channels('preload.ts')].filter((channel) => !cjs.has(channel))).toEqual([])
   })
 
+  // The events the page listens to go through subscribe(): the game's exit list never reached the map because only
+  // preload.ts listened to 'game:raid-extracts' (owner, 19.11.2026: «Выходы на карте до сих пор не обнаруживаются»).
+  it('listens to every event the typed preload listens to', () => {
+    const listened = (file: string) => new Set(source(file).match(/subscribe\('[a-z-]+:[a-z-]+'/g) ?? [])
+    const cjs = listened('preload.cjs')
+    expect([...listened('preload.ts')].filter((channel) => !cjs.has(channel))).toEqual([])
+    expect(cjs.has("subscribe('game:raid-extracts'")).toBe(true)
+  })
+
   // An argument added to preload.ts only never reaches the main process: the country of a registration and the saved
   // Logs folder were dropped that way (13.10.2026).
   it('passes the same arguments on every channel', () => {

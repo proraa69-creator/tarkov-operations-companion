@@ -8,7 +8,7 @@ export const planLabel = (id: PlanId) => tr(PLAN_LABELS[id])
 /** The tariff grid when the server has no price for a plan (or is not reachable): the cabinet and the «Покупателям» page. */
 export const SUBSCRIPTION_PREVIEW: PlansResponse['plans'] = [
   { id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 },
-  { id: '3m', months: 3, price: 810, currency: 'RUB', discountPercent: 10 },
+  { id: '3m', months: 3, price: 800, currency: 'RUB', discountPercent: 11 },
   { id: '6m', months: 6, price: 1500, currency: 'RUB', discountPercent: 17 },
   { id: '12m', months: 12, price: 2400, currency: 'RUB', discountPercent: 33 },
 ]

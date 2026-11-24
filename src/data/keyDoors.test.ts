@@ -48,7 +48,7 @@ describe('key → doors index (data/keyDoors.ts)', () => {
     const storage = index.get(STORAGE_CARD_ID)!
     expect(storage.map((door) => [door.mapId, door.kind, door.floor])).toEqual([['factory', 'door', 'Тоннели'], ['customs', 'trunk', 'Основной']])
     expect(storage.every((door) => door.number === undefined)).toBe(true)
-    expect(keyDoorKindLabel(storage[1]!)).toBe('Дверь машины')
+    expect(keyDoorKindLabel(storage[1]!)).toBe('Багажник машины')
   })
 
   it('links a door to the Maps page focus parameter', () => {

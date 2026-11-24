@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AppDataset, GameMap, Item, Quest } from '../domain/types'
 import { setRenderLanguage } from '../i18n/renderText'
@@ -87,7 +87,9 @@ describe('QuestConditionsCard', () => {
   })
 
   it('hovering unfolds the card in place: its quest with all of its info, every other quest below as a full-size card', async () => {
-    renderCard([patriot, dandies, shooter])
+    // Each one hides something at rest (here, a third map), whichever the random pick shows: a hover unfolds only then.
+    const wide = (quest: Quest): Quest => ({ ...quest, objectiveDetails: [{ ...quest.objectiveDetails![0], mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'] }] })
+    renderCard([wide(patriot), wide(dandies), wide(shooter)])
     const pop = card().querySelector('.qc-pop') as HTMLElement
     expect(pop).not.toHaveClass('is-open')
     expect(pop).toHaveAttribute('inert')
@@ -141,6 +143,15 @@ describe('QuestConditionsCard', () => {
     expect(full.querySelector('.is-weapons .qc-choice-more')).toHaveTextContent('или любое из 3')
     expect(full.querySelectorAll('.qc-chip')).toHaveLength(3)
     expect(full.querySelector('.qc-line')).toHaveTextContent('Причал')
+  })
+
+  // Owner, 10.11.2026: «если в карточке хватает места под все надписи, модули, не нужно ее раскладывать».
+  it('a card that shows all of its quest stays as it is on hover; «ещё N» still lists the others', () => {
+    renderCard([dandies, { ...dandies, id: 'dandies-2', name: 'Стиляги 2' }])
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    expect(card().querySelector('.qc-pop.is-open')).toBeNull()
+    fireEvent.click(card().querySelector(':scope > .qc-head .qc-count')!)
+    expect(card().querySelector('.qc-pop.is-open')).not.toBeNull()
   })
 
   it('a click on a list card opens its build and keeps it in the card', async () => {
@@ -263,17 +274,26 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
   const popup = () => document.querySelector('.qc-variants') as HTMLElement | null
   const names = () => [...popup()!.querySelectorAll('.qc-variant-name')].map((node) => node.textContent)
 
-  it('hovering a weapon of «any of N» lists every allowed weapon with its picture; leaving it closes the list', async () => {
+  it('a click on the weapon of «any of N» lists every allowed weapon with its picture; a hover shows nothing; another click closes it (03.11.2026)', async () => {
     renderCard([shooter])
+    // A weapon of three and nothing hidden: a hover does not unfold the card (owner, 11.11.2026: «нет никакой дополнительной
+    // информации при наведении, то не надо раскладывать»); the choice is on the card itself — one example and «+2».
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
-    const full = card().querySelector('.qc-pop.is-open .qc-card.is-full') as HTMLElement
-    const example = full.querySelector('.is-weapons .qc-choice') as HTMLElement
-    // still one example and «или любое из 3»
+    expect(card().querySelector('.qc-pop.is-open')).toBeNull()
+    const example = card().querySelector('.qc-main .qc-choice.qc-weapon-group') as HTMLElement
     expect(example.querySelectorAll('.qc-weapon')).toHaveLength(1)
-    expect(example.querySelector('.qc-choice-more')).toHaveTextContent('или любое из 3')
+    expect(example.querySelector('.qc-choice-more')).toHaveTextContent('+2')
     expect(popup()).toBeNull()
-    fireEvent.pointerEnter(example.querySelector('.qc-weapon')!, { pointerType: 'mouse' })
-    await waitFor(() => expect(popup()).not.toBeNull())
+    // A hover shows nothing (owner, 03.11.2026: «только когда наводишь на картинку оружия и нажимаешь лкм»).
+    const weapon = example.querySelector('.qc-weapon')!
+    fireEvent.pointerEnter(weapon, { pointerType: 'mouse' })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(popup()).toBeNull()
+    // A click on the picture lists them; the card's dialog stays closed.
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    expect(popup()).not.toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
     // in <body>, never clipped by the card: a fixed list with its heading and all three
     expect(popup()!.parentElement).toBe(document.body)
     expect(popup()).toHaveAttribute('role', 'tooltip')
@@ -281,16 +301,14 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
     expect(names().sort()).toEqual(['M700', 'Мосин', 'СВ-98'].sort())
     expect(popup()!.querySelectorAll('.qc-variant.is-weapon .qc-variant-weapon')).toHaveLength(3)
     expect(example).toHaveAttribute('aria-describedby', popup()!.id)
-    // the pointer may cross into the list
+    // Leaving it keeps it; another click on the picture closes it.
     fireEvent.pointerLeave(example, { pointerType: 'mouse' })
-    fireEvent.pointerEnter(popup()!, { pointerType: 'mouse' })
-    await new Promise((resolve) => setTimeout(resolve, 300))
     expect(popup()).not.toBeNull()
-    fireEvent.pointerLeave(popup()!, { pointerType: 'mouse' })
-    await waitFor(() => expect(popup()).toBeNull())
+    fireEvent.click(weapon)
+    expect(popup()).toBeNull()
   })
 
-  it('scopes too: the card at rest shows one scope and «+2»; hovering it lists all three; Escape closes the list, the card stays unfolded', async () => {
+  it('scopes too: the card at rest shows one scope and «+2»; a click lists all three; Escape closes the list, the card stays unfolded', async () => {
     renderCard([scopes])
     const group = rest().querySelector('.qc-reqs .is-mods') as HTMLElement
     expect(group.querySelectorAll('.qc-icon')).toHaveLength(1)
@@ -299,8 +317,8 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
     const full = card().querySelector('.qc-pop.is-open .qc-card.is-shown') as HTMLElement
     const mods = full.querySelector('.qc-full-row.is-mods .qc-choice') as HTMLElement
     expect(mods.querySelector('.qc-choice-more')).toHaveTextContent('или любое из 3')
-    fireEvent.pointerEnter(mods.querySelector('.qc-icon')!, { pointerType: 'mouse' })
-    await waitFor(() => expect(popup()).not.toBeNull())
+    fireEvent.click(mods.querySelector('.qc-icon')!)
+    expect(popup()).not.toBeNull()
     expect(names().sort()).toEqual(['EOTech EXPS3', 'ОКП-7', 'Оптический прицел Валдай ПС-320 1x/6x'].sort())
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(popup()).toBeNull()
@@ -358,11 +376,92 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
   it('speaks English', async () => {
     setRenderLanguage('en')
     renderCard([shooter])
-    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
-    const example = card().querySelector('.qc-pop.is-open .is-weapons .qc-choice') as HTMLElement
-    fireEvent.pointerEnter(example, { pointerType: 'mouse' })
-    await waitFor(() => expect(popup()).not.toBeNull())
+    const example = card().querySelector('.qc-main .qc-choice.qc-weapon-group') as HTMLElement
+    fireEvent.click(example)
+    expect(popup()).not.toBeNull()
     expect(popup()!.querySelector('.qc-variants-title')).toHaveTextContent('Any of 3 fits')
+  })
+})
+
+// Owner, 10.11.2026: «Сразу открывается окно не сборок человека, а сборки приложения… И все, и человек пользуется».
+describe('«Сбор на рейд»: a right click on a weapon opens «Готовые сборки»', () => {
+  const Where = () => { const location = useLocation(); return <output data-testid="where">{location.pathname + location.search}</output> }
+  const renderWith = (quests: Quest[]) => render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result(quests)} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+
+  it('the weapon of the dialog: «Открыть сборку» opens the builds on this weapon and on «Готовые сборки»', async () => {
+    renderWith([patriot])
+    fireEvent.click(card().querySelector('.qc-main')!)
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.contextMenu(dialog.querySelector('.qc-weapon-card')!, { clientX: 40, clientY: 40 })
+    const menu = screen.getByRole('menu', { name: 'Меню оружия' })
+    expect(menu).toHaveTextContent('Автомат Калашникова АК-12 5.45x39')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Открыть сборку оружия' }))
+    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=6499849fc93611967b034949&tab=ready')
+  })
+
+  it('every weapon of «или любое из N»: the right one, not the quest put aside', async () => {
+    const onDefer = vi.fn()
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" onDefer={onDefer} />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
+    fireEvent.contextMenu(sv98)
+    expect(onDefer).not.toHaveBeenCalled()
+    fireEvent.mouseDown(screen.getByRole('menuitem', { name: 'Открыть сборку оружия' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Открыть сборку оружия' }))
+    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=sv98&tab=ready')
+  })
+
+  it('the weapon on the card: a right click shows «Открыть сборку оружия», not the menu to put the quest aside (owner, 13.11.2026)', async () => {
+    const onDefer = vi.fn()
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" onDefer={onDefer} />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    fireEvent.contextMenu(card().querySelector('.qc-main .qc-weapon')!, { clientX: 30, clientY: 30 })
+    expect(onDefer).not.toHaveBeenCalled()
+    const menu = screen.getByRole('menu', { name: 'Меню оружия' })
+    fireEvent.mouseDown(within(menu).getByRole('menuitem', { name: 'Открыть сборку оружия' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Открыть сборку оружия' }))
+    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=')
+    // the rest of the card keeps its own menu
+    cleanup()
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" onDefer={onDefer} />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    fireEvent.contextMenu(card().querySelector('.qc-name')!)
+    expect(onDefer).toHaveBeenCalledTimes(1)
+  })
+
+  it('in the list a right press keeps the list, and the right click shows the weapon menu', () => {
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
+    expect(fireEvent.mouseDown(sv98, { button: 2 })).toBe(false)
+    fireEvent.contextMenu(sv98, { clientX: 50, clientY: 50 })
+    expect(document.querySelector('.qc-variants')).not.toBeNull()
+    expect(screen.getByRole('menu', { name: 'Меню оружия' })).toHaveTextContent('СВ-98')
+  })
+
+  it('a left click on a weapon of the list opens nothing and keeps the list (only the right click has the menu, owner 13.11.2026)', () => {
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    const weapon = card().querySelector('.qc-main .qc-choice.qc-weapon-group .qc-weapon')!
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
+    expect(sv98).not.toHaveAttribute('title')
+    expect(fireEvent.mouseDown(sv98, { button: 0 })).toBe(false)
+    fireEvent.click(sv98)
+    expect(document.querySelector('.qc-variants')).not.toBeNull()
+    expect(screen.queryByTestId('where')).toBeNull()
+  })
+
+  it('speaks English', async () => {
+    setRenderLanguage('en')
+    renderWith([patriot])
+    fireEvent.click(card().querySelector('.qc-main')!)
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.contextMenu(dialog.querySelector('.qc-weapon-card')!)
+    expect(screen.getByRole('menu', { name: 'Weapon menu' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Open weapon build' })).toBeInTheDocument()
   })
 })
 
@@ -411,10 +510,10 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
 
   it('replaces «Прогресс» in its slot and lists the current quests of Streets with their gear; «Работа для патриота» opens with its AK-12 build', async () => {
     const { container } = await renderOverview()
-    const blocks = [...container.querySelectorAll('.stat-grid > .overview-block')].map((block) => block.getAttribute('data-block'))
-    expect(blocks).toEqual(['stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons'])
+    const blocks = [...container.querySelectorAll('.overview-block.is-card')].map((block) => block.getAttribute('data-block'))
+    expect(blocks).toEqual(['stat-screen', 'stat-conditions', 'stat-kappa', 'stat-goons'])
     expect(container.querySelector('[data-block="stat-conditions"] .quest-conditions-card')).not.toBeNull()
-    expect(container.querySelector('.stat-grid')).not.toHaveTextContent('Прогресс')
+    for (const block of container.querySelectorAll('.overview-block.is-card')) expect(block).not.toHaveTextContent('Прогресс')
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
     const cards = [...card().querySelectorAll('.qc-pop .qc-card .qc-name')].map((entry) => entry.textContent)
     expect(cards.sort()).toEqual(['Работа для патриота', 'Стиляги', 'Тарковский стрелок. Часть 6'])
@@ -440,5 +539,24 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
     const needs = container.querySelector('.raid-needs') as HTMLElement
     expect(needs).not.toHaveTextContent('АК-12')
     expect(needs).not.toHaveTextContent('ПС-320')
+  })
+})
+
+// Owner, 12.11.2026: «Сделай для сбора на рейд список… чтобы он также листался ползунком справа… кнопка… больше не нужна».
+describe('«Сбор на рейд» on the phone: every quest in a list under the thumb, no «ещё N»', () => {
+  it('lists all the quests of the map, the picked one first, with no «ещё» and no unfolded copy', () => {
+    render(<MemoryRouter><QuestConditionsCard result={result([shooter, dandies, patriot])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" compactRows={2} /></MemoryRouter>)
+    const names = [...card().querySelectorAll('.thumb-scroll .qc-scroll-list > li .qc-name')].map((node) => node.textContent)
+    expect(names).toHaveLength(3)
+    expect(new Set(names)).toEqual(new Set(['Тарковский стрелок. Часть 1', 'Стиляги', 'Работа для патриота']))
+    expect(card()).toHaveClass('is-scroll')
+    expect(screen.queryByRole('button', { name: /ещё/ })).toBeNull()
+    expect(card().querySelector('.qc-pop')).toBeNull()
+  })
+
+  it('a quest of the list opens its build', () => {
+    render(<MemoryRouter><QuestConditionsCard result={result([shooter, dandies])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" compactRows={2} /></MemoryRouter>)
+    fireEvent.click(screen.getByText('Стиляги').closest('button')!)
+    expect(screen.getByRole('dialog', { name: 'Стиляги' })).toBeInTheDocument()
   })
 })

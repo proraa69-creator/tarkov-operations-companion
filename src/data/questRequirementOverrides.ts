@@ -94,7 +94,7 @@ export function requirementMatches(requirement: Pick<RaidRequirement, 'itemId' |
 /** The catalog's kind of a requirement, for «скрыть» (the reverse of PURPOSE_OF_KIND). */
 export function kindOfPurpose(purpose: RaidRequirement['purpose']): CuratedRequirementKind {
   if (purpose === 'place') return 'plant'
-  if (purpose === 'mark') return 'use'
+  if (purpose === 'mark' || purpose === 'signal') return 'use'
   return purpose
 }
 

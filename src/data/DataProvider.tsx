@@ -7,6 +7,7 @@ import { fetchTarkovCatalog } from './tarkovJsonClient'
 import { useAppState } from '../state/AppState'
 import { cleanDatasetText } from '../shared/questText'
 import { withQuestGrid } from './questGrid'
+import { withMapsGeometry } from './mapGeometry'
 import { useLocale } from '../i18n/LocaleProvider'
 import { loadEnglishCatalog } from '../i18n/catalogTranslations'
 import { useEnglishOverlay } from '../i18n/englishDataset'
@@ -14,10 +15,15 @@ import { CATALOG_REFRESH_MS, isInitialCatalogLoad, useCatalogAutoRefresh } from 
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useMapBossPlacements, withOwnerBosses } from './mapBossPlacements'
 import { useQuestPointOverrides, withQuestPointHints, withQuestPointOverrides } from './questPointOverrides'
+import { withMarkerFloorFixes } from './markerFloorFixes'
 import { useQuestRequirementOverrides, withQuestRequirementOverrides } from './questRequirementOverrides'
 import { useQuestTextOverrides, withQuestTextOverrides } from './questTextOverrides'
 import { useLiveMapUpdates } from './mapUpdates'
+import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { useEventQuestClock, useEventQuests, withEventQuests } from './eventQuests'
+import { withLocalItemPictures } from './localItemPictures'
+import { withQuestItemPictures } from './questItemPictures'
+import { withWholeGunPictures } from './wholeGunPictures'
 
 /**
  * The catalog for the pages. It changes only when the catalog does: a refresh that brings nothing new (or is still
@@ -75,7 +81,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
   // Each quest's trader line and level and tarkov.help's view of it (src/data/questGrid.ts): the quest chronology.
-  const russian = useMemo(() => cleanDatasetText(withQuestGrid(query.data ?? demoDataset, raidMode)), [query.data, raidMode])
+  const russian = useMemo(() => cleanDatasetText(withQuestGrid(withMapsGeometry(query.data ?? demoDataset), raidMode)), [query.data, raidMode])
   // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
   const translated = useEnglishOverlay(russian, raidMode, locale, allowed)
   // The owner's event quests (renamed, added, switched off, the event over) at once (src/data/eventQuests.ts).
@@ -94,15 +100,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const questRequirements = useQuestRequirementOverrides(allowed)
   // The owner's map corrections reach this app as soon as they are saved on the server (data/mapUpdates.ts).
   useLiveMapUpdates(allowed)
+  // The owner's switch in «Блоки»: no BTR stops for anybody, the moment it arrives.
+  const btrStopsOff = useOverviewDefaults()?.btrStopsOff === true
   const data = useMemo(() => {
     // Texts first: a point the owner added or moved then carries the corrected objective / stage text too.
     const lang = locale === 'en' ? 'en' : 'ru'
-    const texted = withQuestTextOverrides(evented, questTexts, lang)
+    // Whole guns first: the overrides below copy `iconUrl` out of the catalog.
+    const worded = withQuestTextOverrides(withWholeGunPictures(evented), questTexts, lang)
+    const floored = withMarkerFloorFixes(worded.markers)
+    const texted = floored === worded.markers ? worded : { ...worded, markers: floored }
     const withBosses = placements.length ? withOwnerBosses(texted.markers, placements, raidMode) : texted.markers
     const pointed = !placements.length && !questPoints.length ? texted : { ...texted, markers: withQuestPointOverrides(withBosses, questPoints, texted.quests, lang) }
     // Then the points' descriptions on their quests and the curated requirements (the same object when there are none).
-    return withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang)
-  }, [evented, questTexts, locale, placements, questPoints, questRequirements, raidMode])
+    const shown = withQuestItemPictures(withLocalItemPictures(withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang)))
+    return btrStopsOff ? { ...shown, markers: shown.markers.filter((marker) => marker.layerId !== 'btr') } : shown
+  }, [evented, questTexts, locale, placements, questPoints, questRequirements, raidMode, btrStopsOff])
   const refresh = useCallback(() => { void refetch() }, [refetch])
   const initialLoading = isInitialCatalogLoad({ hasData: Boolean(query.data), isFetching: query.isFetching, settledOnce: query.errorUpdateCount > 0 || query.dataUpdatedAt > 0 })
   const value = useMemo<DataContextValue>(() => ({ data, source, initialLoading, refresh }), [data, source, initialLoading, refresh])

@@ -2,7 +2,14 @@ name: RaidOS iOS IPA
 
 on:
   push:
-    branches: [release/production]
+    # mobile/release: a phone-only update, without the Windows app (owner, 18.11.2026: «выпусти новую версию только для
+    # телефона. Для ПК не надо»). The VPS publisher only watches release/production.
+    branches: [release/production, mobile/release]
+
+# onnxruntime-node's install script fetches CUDA binaries on Linux x64 from GitHub releases; that file is gone (404 since
+# 18.11.2026) and nothing here uses CUDA, so the download is skipped.
+env:
+  npm_config_onnxruntime_node_install_cuda: skip
 
 permissions:
   contents: read

@@ -1,0 +1,611 @@
+{
+ "source": "tarkov.help walkthroughs of the Halloween 2026 quests (docs/quests/halloween-2026.md) and of the Lighthouse quests of game version 1.1.5 (docs/quests/lighthouse-balance-shift.md)",
+ "builtAt": "2026-11-06",
+ "quests": {
+  "6aba7df2bb9829de330494c7": {
+   "photos": [
+    {
+     "id": "4b3685050c62f22d",
+     "caption": "Ключ и схема выхода — у круглого стола со статуями котов",
+     "captionEn": "The exit keys and documents spawn at the round table with the cat statues",
+     "objectiveId": "6aba7df2bb9829de330494c7-objective-2"
+    },
+    {
+     "id": "ef25d38166fde700",
+     "caption": "Место появления схемы выхода",
+     "captionEn": "Where the exit documents spawn",
+     "objectiveId": "6aba7df2bb9829de330494c7-objective-2"
+    },
+    {
+     "id": "ddc2d04ce79445e8",
+     "caption": "Ключ от машины для выхода через «Парковку»",
+     "captionEn": "The car keys for the Parking exit",
+     "objectiveId": "6aba7df2bb9829de330494c7-objective-2"
+    },
+    {
+     "id": "424d451de60ffd44",
+     "caption": "Схема выхода на картотеках",
+     "captionEn": "The exit documents on the filing cabinets",
+     "objectiveId": "6aba7df2bb9829de330494c7-objective-2"
+    },
+    {
+     "id": "481f56748da51cf2",
+     "caption": "Схема выхода на столе в офисе",
+     "captionEn": "The exit documents on an office desk",
+     "objectiveId": "6aba7df2bb9829de330494c7-objective-2"
+    }
+   ]
+  },
+  "6aba7f65443c3da4df01bb3e": {
+   "photos": [
+    {
+     "id": "e2fb7e8a40eff589",
+     "caption": "Лаборатория: учёный в канализации",
+     "captionEn": "Lab: the scientist in the sewer",
+     "objectiveId": "6aba7f65443c3da4df01bb3e-objective-1"
+    },
+    {
+     "id": "72c39851fd39a534",
+     "caption": "Лаборатория: учёный у серверной палатки в центре локации",
+     "captionEn": "Lab: the scientist by the server tent in the middle of the location",
+     "objectiveId": "6aba7f65443c3da4df01bb3e-objective-1"
+    },
+    {
+     "id": "6f484bbc88ce3e26",
+     "caption": "Завод: учёный снаружи офисов охраны, напротив погрузчика",
+     "captionEn": "Factory: the scientist outside the security offices, opposite the forklift",
+     "objectiveId": "6aba7f65443c3da4df01bb3e-objective-1"
+    },
+    {
+     "id": "ab0476bf1c84ced4",
+     "caption": "Завод: учёный на цистернах напротив «Ворот 3»",
+     "captionEn": "Factory: the scientist on the tanks opposite Gate 3",
+     "objectiveId": "6aba7f65443c3da4df01bb3e-objective-1"
+    },
+    {
+     "id": "4f2bf414b098652f",
+     "caption": "Завод: учёный у погрузчиков, недалеко от вертолёта и медицинских палаток",
+     "captionEn": "Factory: the scientist by the forklifts near the helicopter and the medical tents",
+     "objectiveId": "6aba7f65443c3da4df01bb3e-objective-1"
+    }
+   ]
+  },
+  "6abb7e59dcebb0efbc0fda7b": {
+   "photos": [
+    {
+     "id": "3e8b80b6f28e7530",
+     "caption": "Партия вакцины на столе в ангаре №3",
+     "captionEn": "The vaccine shipment on the desk in hangar no. 3",
+     "objectiveId": "6abb7e59dcebb0efbc0fda7b-objective-1"
+    }
+   ]
+  },
+  "6abb7e434f0ef29f16066d77": {
+   "photos": [
+    {
+     "id": "3e8b80b6f28e7530",
+     "caption": "Партия вакцины на столе в ангаре №3",
+     "captionEn": "The vaccine shipment on the desk in hangar no. 3",
+     "objectiveId": "6abb7e434f0ef29f16066d77-objective-1"
+    }
+   ]
+  },
+  "6abbb8845baa9031ac068833": {
+   "photos": [
+    {
+     "id": "95c581254c353193",
+     "caption": "Вход во второй ангар со стороны выхода на машине",
+     "captionEn": "The way into hangar no. 2 from the vehicle exit side",
+     "objectiveId": "6abbb8845baa9031ac068833-objective-1"
+    },
+    {
+     "id": "88a4e7c7995da90b",
+     "caption": "Направо к двери",
+     "captionEn": "Right, to the door",
+     "objectiveId": "6abbb8845baa9031ac068833-objective-1"
+    },
+    {
+     "id": "7e0f0074c7cde79f",
+     "caption": "Комната с радиостанцией",
+     "captionEn": "The room with the radio station",
+     "objectiveId": "6abbb8845baa9031ac068833-objective-1"
+    },
+    {
+     "id": "ac7e4f4855d416e4",
+     "caption": "Папка с уликами",
+     "captionEn": "The folder with the clues",
+     "objectiveId": "6abbb8845baa9031ac068833-objective-2"
+    }
+   ]
+  },
+  "6abbc2bb71588b5b110f34a5": {
+   "photos": [
+    {
+     "id": "f4910e14594941a0",
+     "caption": "Камера на краю зелёного контейнера",
+     "captionEn": "A camera on the edge of a green container",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-2"
+    },
+    {
+     "id": "24a9b546c46f4700",
+     "caption": "Камера на стреле крана",
+     "captionEn": "A camera on the crane boom",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-2"
+    },
+    {
+     "id": "5b35a205f900a4e7",
+     "caption": "Камера на подоконнике последней комнаты второго этажа",
+     "captionEn": "A camera on the windowsill of the last room on the second floor",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-3"
+    },
+    {
+     "id": "0612447f3bb3a9e7",
+     "caption": "Камера на подоконнике второго этажа в углу здания",
+     "captionEn": "A camera on a second-floor windowsill at the corner of the building",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-3"
+    },
+    {
+     "id": "afb2fda53065f3e5",
+     "caption": "Камера у края крыши у туалета",
+     "captionEn": "A camera at the edge of the roof by the toilet",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-3"
+    },
+    {
+     "id": "ce17302d96529f53",
+     "caption": "Камера на синей вентиляции под потолком",
+     "captionEn": "A camera on the blue ventilation under the ceiling",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-4"
+    },
+    {
+     "id": "0b542e3a98720bd8",
+     "caption": "Камера на краю второго ангара у АГС",
+     "captionEn": "A camera on the edge of hangar no. 2 by the AGS",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-4"
+    },
+    {
+     "id": "7b1060e71a4917ab",
+     "caption": "Камера на краю второго ангара у фонаря",
+     "captionEn": "A camera on the edge of hangar no. 2 by the lamp",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-4"
+    },
+    {
+     "id": "41189a83f083a62c",
+     "caption": "Камера на крыше вокзала у трупа",
+     "captionEn": "A camera on the station roof by the body",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-5"
+    },
+    {
+     "id": "b37481aa0aba22aa",
+     "caption": "Камера на втором этаже вокзала за металлическим щитом",
+     "captionEn": "A camera on the station's second floor behind a metal panel",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-5"
+    },
+    {
+     "id": "5781ce2770cd7821",
+     "caption": "Камера на втором этаже посередине вокзала",
+     "captionEn": "A camera in the middle of the station's second floor",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-5"
+    },
+    {
+     "id": "6fe4e3a159816f53",
+     "caption": "Камера на балконе третьего этажа западного крыла",
+     "captionEn": "A camera on a third-floor balcony of the west wing",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-6"
+    },
+    {
+     "id": "e9a237c4d373def4",
+     "caption": "Камера над переходом, ближе к восточному крылу",
+     "captionEn": "A camera above the walkway, closer to the east wing",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-6"
+    },
+    {
+     "id": "5c985cf075716156",
+     "caption": "Камера на краю кирпичной пристройки",
+     "captionEn": "A camera on the edge of the brick annex",
+     "objectiveId": "6abbc2bb71588b5b110f34a5-objective-6"
+    }
+   ]
+  },
+  "raidos-balance-fog-of-war": {
+   "photos": [
+    {
+     "id": "adb81c3fb8170828",
+     "caption": "БРДМ в северной части очистных",
+     "captionEn": "The BRDM car in the north of the plant",
+     "objectiveId": "raidos-balance-fog-of-war-objective-1"
+    },
+    {
+     "id": "d01ca3604956734e",
+     "caption": "Блокпост с дозорной вышкой на юго-западе",
+     "captionEn": "The checkpoint with the guard tower in the southwest",
+     "objectiveId": "raidos-balance-fog-of-war-objective-2"
+    }
+   ]
+  },
+  "6a763a2fce9a947b4d0918a6": {
+   "photos": [
+    {
+     "id": "5a7be961e4d75e92",
+     "caption": "Где закладывать: лагерь на горе",
+     "captionEn": "Where to stash: the camp on the mountain",
+     "objectiveId": "6a763a2fce9a947b4d0918a6-objective-1",
+     "alsoFor": [
+      "6a763a2fce9a947b4d0918a6-objective-2",
+      "6a763a2fce9a947b4d0918a6-objective-3"
+     ]
+    },
+    {
+     "id": "a25d8472b58d0354",
+     "caption": "Лагерь людей Прапора",
+     "captionEn": "Prapor's camp",
+     "objectiveId": "6a763a2fce9a947b4d0918a6-objective-1",
+     "alsoFor": [
+      "6a763a2fce9a947b4d0918a6-objective-2",
+      "6a763a2fce9a947b4d0918a6-objective-3"
+     ]
+    }
+   ]
+  },
+  "6a763c7bd31fb1191903fc15": {
+   "photos": [
+    {
+     "id": "6d59616dfe22fceb",
+     "caption": "Дом на озере: здесь подать сигнал",
+     "captionEn": "The lake cabin: launch the flare here",
+     "objectiveId": "6a763c7bd31fb1191903fc15-objective-3"
+    }
+   ]
+  },
+  "6a764077161e4b45b101566e": {
+   "photos": [
+    {
+     "id": "edd1c59df3d64f3c",
+     "caption": "Остановка БТР у блокпоста ООН",
+     "captionEn": "The BTR stop at the UN checkpoint",
+     "objectiveId": "6a764077161e4b45b101566e-objective-2"
+    }
+   ]
+  },
+  "6a763f35ce9a947b4d0918b6": {
+   "photos": [
+    {
+     "id": "a3c0f420d85e39c9",
+     "caption": "Первая камера: коробки у перрона",
+     "captionEn": "First camera: the boxes at the platform",
+     "objectiveId": "6a763f35ce9a947b4d0918b6-objective-1"
+    },
+    {
+     "id": "f94849c1f2e8c611",
+     "caption": "Вторая камера: коробки у перрона",
+     "captionEn": "Second camera: the boxes at the platform",
+     "objectiveId": "6a763f35ce9a947b4d0918b6-objective-2"
+    },
+    {
+     "id": "7c1f00cf9c72c112",
+     "caption": "Третья камера: у перехода на Лес",
+     "captionEn": "Third camera: at the Woods transit",
+     "objectiveId": "6a763f35ce9a947b4d0918b6-objective-3"
+    }
+   ]
+  },
+  "6a764367850f975dc00bc5bd": {
+   "photos": [
+    {
+     "id": "ffcfb426594162ed",
+     "caption": "Дом на озере",
+     "captionEn": "The lake cabin",
+     "objectiveId": "6a764367850f975dc00bc5bd-objective-1"
+    },
+    {
+     "id": "ff7cf03392a4514c",
+     "caption": "Личное дело за матрасом",
+     "captionEn": "The file behind the mattress",
+     "objectiveId": "6a764367850f975dc00bc5bd-objective-1"
+    }
+   ]
+  },
+  "6a764462e432ba0a190a7fe9": {
+   "photos": [
+    {
+     "id": "3662efa63d1e6bd3",
+     "caption": "Первый схрон отступников",
+     "captionEn": "The first Rogue stash",
+     "objectiveId": "6a764462e432ba0a190a7fe9-objective-1"
+    },
+    {
+     "id": "b8d959720ab6ff05",
+     "caption": "Схрон в гроте, у ящика",
+     "captionEn": "The grotto stash, by the crate",
+     "objectiveId": "6a764462e432ba0a190a7fe9-objective-3"
+    },
+    {
+     "id": "5dc8114649728484",
+     "caption": "Один из схронов для отметки",
+     "captionEn": "One of the stashes to mark"
+    },
+    {
+     "id": "4c47d2a6bcfdafbc",
+     "caption": "Ещё один схрон",
+     "captionEn": "Another stash"
+    },
+    {
+     "id": "6ffdb3e63be86f4e",
+     "caption": "Схрон за островом и затопленной деревней",
+     "captionEn": "The stash beyond the island and the flooded village"
+    }
+   ]
+  }
+ },
+ "files": {
+  "4b3685050c62f22d": {
+   "file": "f8ebdaba-a2cc-4d89-9305-4ccbb7bbcd81.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/f8ebdaba-a2cc-4d89-9305-4ccbb7bbcd81.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "ef25d38166fde700": {
+   "file": "8fdcd7be-a315-4879-9a54-d773d3f21c28.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/8fdcd7be-a315-4879-9a54-d773d3f21c28.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "ddc2d04ce79445e8": {
+   "file": "9e0a9401-f568-43e7-bf98-37c793c5177a.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/9e0a9401-f568-43e7-bf98-37c793c5177a.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "424d451de60ffd44": {
+   "file": "98b707bc-08f9-4556-95f0-5684834203c9.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/98b707bc-08f9-4556-95f0-5684834203c9.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "481f56748da51cf2": {
+   "file": "23159cc5-1d97-47e6-88ea-da26537f67c5.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/23159cc5-1d97-47e6-88ea-da26537f67c5.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "e2fb7e8a40eff589": {
+   "file": "0ab60f62-ded6-4f36-a5a4-861f52b99e11.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/0ab60f62-ded6-4f36-a5a4-861f52b99e11.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "72c39851fd39a534": {
+   "file": "99ea878b-fc0d-4658-b669-c91be810ba46.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/99ea878b-fc0d-4658-b669-c91be810ba46.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "6f484bbc88ce3e26": {
+   "file": "d9c95102-0380-430b-b4e0-6f3aa428811f.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/d9c95102-0380-430b-b4e0-6f3aa428811f.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "ab0476bf1c84ced4": {
+   "file": "b38b1aca-a6c9-42bd-8708-2bb875dee6f7.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/b38b1aca-a6c9-42bd-8708-2bb875dee6f7.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "4f2bf414b098652f": {
+   "file": "8ab1e18c-ba38-42e0-ac6c-f1d65179922d.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/8ab1e18c-ba38-42e0-ac6c-f1d65179922d.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "3e8b80b6f28e7530": {
+   "file": "e172d57f-486f-4a87-bf04-7bc3fcbc4560.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/e172d57f-486f-4a87-bf04-7bc3fcbc4560.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "95c581254c353193": {
+   "file": "00818c2b-a5ef-45f6-ba5b-a9d94bbec998.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/00818c2b-a5ef-45f6-ba5b-a9d94bbec998.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "88a4e7c7995da90b": {
+   "file": "9e31181f-1c8a-4b2b-93a9-d25fc9269d57.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/9e31181f-1c8a-4b2b-93a9-d25fc9269d57.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "7e0f0074c7cde79f": {
+   "file": "49c8c451-8380-4022-b4e0-aa643866e4f9.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/49c8c451-8380-4022-b4e0-aa643866e4f9.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "ac7e4f4855d416e4": {
+   "file": "e6b5e067-60af-44da-bda7-78116c9e4c5d.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/e6b5e067-60af-44da-bda7-78116c9e4c5d.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "f4910e14594941a0": {
+   "file": "ae708595-2af4-42e1-b9f4-adb16d26e2f0.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/ae708595-2af4-42e1-b9f4-adb16d26e2f0.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "24a9b546c46f4700": {
+   "file": "53efd54a-000e-40fe-b66b-fe14df81b067.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/53efd54a-000e-40fe-b66b-fe14df81b067.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "5b35a205f900a4e7": {
+   "file": "7252e26d-f2e3-48f9-8903-ab7690ebded2.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/7252e26d-f2e3-48f9-8903-ab7690ebded2.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "0612447f3bb3a9e7": {
+   "file": "5da4dfb6-52ce-44fb-92fb-0edabd003e04.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/5da4dfb6-52ce-44fb-92fb-0edabd003e04.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "afb2fda53065f3e5": {
+   "file": "3ae0686c-827b-4f9e-a60b-e9365ab6303b.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/3ae0686c-827b-4f9e-a60b-e9365ab6303b.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "ce17302d96529f53": {
+   "file": "be36c8a1-6256-4754-97ec-941f8971faae.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/be36c8a1-6256-4754-97ec-941f8971faae.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "0b542e3a98720bd8": {
+   "file": "94395fd3-d2a8-48b4-bb21-bee80a54c343.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/94395fd3-d2a8-48b4-bb21-bee80a54c343.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "7b1060e71a4917ab": {
+   "file": "5bab4642-8994-461c-b747-84349be4d456.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/5bab4642-8994-461c-b747-84349be4d456.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "41189a83f083a62c": {
+   "file": "75a90e65-e2be-475e-8fdb-2540edd6d0cd.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/75a90e65-e2be-475e-8fdb-2540edd6d0cd.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "b37481aa0aba22aa": {
+   "file": "044e6dc7-1193-4515-b837-ce62acdd82d6.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/044e6dc7-1193-4515-b837-ce62acdd82d6.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "5781ce2770cd7821": {
+   "file": "1f1c09c6-1b59-4951-b11e-1ec83aa7f4d0.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/1f1c09c6-1b59-4951-b11e-1ec83aa7f4d0.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "6fe4e3a159816f53": {
+   "file": "81b44b5a-d05e-4518-9a1b-df43cfed0240.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/81b44b5a-d05e-4518-9a1b-df43cfed0240.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "e9a237c4d373def4": {
+   "file": "a7effa04-a78a-40b6-8962-74ec68cbd8e1.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/a7effa04-a78a-40b6-8962-74ec68cbd8e1.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "5c985cf075716156": {
+   "file": "c8aa5ab6-ba6a-4e3b-879e-56c2b5723e9e.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/c8aa5ab6-ba6a-4e3b-879e-56c2b5723e9e.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "adb81c3fb8170828": {
+   "file": "2dce1ff8-967a-43e4-872c-7c218af5ee00.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/2dce1ff8-967a-43e4-872c-7c218af5ee00.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "d01ca3604956734e": {
+   "file": "7cf088b3-cd11-45de-a906-9eb9d4d9767e.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/7cf088b3-cd11-45de-a906-9eb9d4d9767e.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "5a7be961e4d75e92": {
+   "file": "7e43509c-0cb2-4ff4-ad85-72929a5a96f6.png",
+   "url": "https://minio.tarkov.help/production/img/articles/7e43509c-0cb2-4ff4-ad85-72929a5a96f6.png",
+   "width": 1277,
+   "height": 804
+  },
+  "a25d8472b58d0354": {
+   "file": "953091f4-f0d7-4b89-a000-381cee9a126b.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/953091f4-f0d7-4b89-a000-381cee9a126b.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "6d59616dfe22fceb": {
+   "file": "4ee2954f-464d-4e21-9f07-a4137d3b44fe.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/4ee2954f-464d-4e21-9f07-a4137d3b44fe.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "edd1c59df3d64f3c": {
+   "file": "44ee8d62-8d30-4ea1-8f4d-2406d646475b.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/44ee8d62-8d30-4ea1-8f4d-2406d646475b.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "a3c0f420d85e39c9": {
+   "file": "863b6420-c75d-4a53-82d9-b39b158b46ba.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/863b6420-c75d-4a53-82d9-b39b158b46ba.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "f94849c1f2e8c611": {
+   "file": "2ce988f3-bafd-4f71-9ceb-06a189b3d22a.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/2ce988f3-bafd-4f71-9ceb-06a189b3d22a.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "7c1f00cf9c72c112": {
+   "file": "daf3f88f-c4a8-4568-ae05-b0b961184e84.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/daf3f88f-c4a8-4568-ae05-b0b961184e84.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "ffcfb426594162ed": {
+   "file": "4c32e34f-c67a-4811-8a6c-414f387c04cb.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/4c32e34f-c67a-4811-8a6c-414f387c04cb.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "ff7cf03392a4514c": {
+   "file": "b6a6233f-5ec7-49e7-9900-60b2cdc15d5a.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/b6a6233f-5ec7-49e7-9900-60b2cdc15d5a.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "3662efa63d1e6bd3": {
+   "file": "7808d2a1-77b2-4945-8ea8-b3081e970c05.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/7808d2a1-77b2-4945-8ea8-b3081e970c05.jpg",
+   "width": 1829,
+   "height": 1154
+  },
+  "b8d959720ab6ff05": {
+   "file": "13eb07ee-db3c-4c26-be0f-cac24ae094b7.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/13eb07ee-db3c-4c26-be0f-cac24ae094b7.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "5dc8114649728484": {
+   "file": "000bd480-4adf-4c94-9da5-32c857eddc96.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/000bd480-4adf-4c94-9da5-32c857eddc96.jpg",
+   "width": 1750,
+   "height": 1136
+  },
+  "4c47d2a6bcfdafbc": {
+   "file": "54f9142c-f0be-4d73-87f0-9c5a9c260211.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/54f9142c-f0be-4d73-87f0-9c5a9c260211.jpg",
+   "width": 2073,
+   "height": 1158
+  },
+  "6ffdb3e63be86f4e": {
+   "file": "98f4872d-f69f-41f1-a984-567522b76348.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/98f4872d-f69f-41f1-a984-567522b76348.jpg",
+   "width": 1280,
+   "height": 720
+  }
+ }
+}

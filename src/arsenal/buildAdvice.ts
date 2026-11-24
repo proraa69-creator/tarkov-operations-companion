@@ -58,5 +58,3 @@ export function weaponNotes(weapon: Pick<Weapon, 'shortName'>): string[] {
   return WEAPON_NOTES.filter(([pattern]) => pattern.test(weapon.shortName.trim())).map(([, note]) => note)
 }
 
-/** Next to the recoil numbers: they compare builds of one weapon, not weapons with each other. */
-export const RECOIL_NOTE = 'Отдача сравнима только в пределах одного оружия: 35 у одного ствола может ощущаться сильнее, чем 60 у другого.'

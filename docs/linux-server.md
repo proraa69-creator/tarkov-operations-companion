@@ -54,9 +54,7 @@ previous build is restored and the new one is skipped (`/var/lib/raidos-updater/
   and `YOOKASSA_PAYMENT_METHODS=sbp,sberbank,tinkoff_bank`. List only methods actually enabled for the shop;
   unknown or unlisted methods are rejected by the API. Set `YOOKASSA_AUTOPAY=1` only after YooKassa enables saved
   payment methods and recurring charges for the shop. Keep it unset otherwise.
-  Boosty (CIS / WORLD) automatic issuance: `BOOSTY_AUTH` and `BOOSTY_CLIENT_ID` (see
-  `docs/payments/payment-regions-and-announcements.md`); the refreshed tokens are kept in
-  `/var/lib/raidos/boosty-tokens.json` (mode 600). Without both values the job stays off.
+- A second price source, optional: put the key in a file only `raidos` can read and name it in `RAIDOS_MARKET_API_KEY_FILE` (or the key itself in `RAIDOS_MARKET_API_KEY`). The file is read at each request, so a new key needs no restart. No key: tarkov.dev alone, as before (`docs/trading.md`).
 - Check now: `systemctl start raidos-update.service`
 - ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook` (payment.succeeded, payment.canceled;
   refund.succeeded takes a refunded payment back). As of 04.10.2026 the separate RaidOS shop, shopId 1481580, was
@@ -102,3 +100,53 @@ request. The first start after installing this version has no base yet: the thre
 (about a minute) and a request waits for its own mode; later starts never wait. Log lines start with `quest base`; the
 owner sees the state in the admin panel («Отчёты» → «База квестов»). Deleting the folder only makes the next start build
 it again.
+
+## Background worker (14.11.2026)
+
+The work that builds data on a schedule — tarkov.dev's datasets, the minute prices, the maps, the price history,
+«Торговля», the legacy GraphQL answers and the quest base builds — can run in its own process on its own core, so the
+API's cores only answer the players (owner, 14.11.2026: «3 ядра … под людей … и 1 под сборку»). Code:
+`server/src/worker.ts`, `server/src/services/background.ts`.
+
+- `RAIDOS_BACKGROUND=external` in `/etc/raidos/raidos-api.env` (both services read that file): the API runs none of
+  that work; it reads what the worker saves (the mirror storage, `/var/lib/raidos/quest-base`, looked at every 10 s)
+  and the worker's status (`/var/lib/raidos/background-status.json`, every 5 s) for `/v1/data/mirror/status` and the
+  owner's «База квестов». An edited event quest asks the worker for a build through
+  `/var/lib/raidos/quest-base-build-request.json`. Without the setting (the default) the API does everything, as before,
+  and the worker exits at once.
+- Both processes publish to the mirror: `snapshots/active.json` is changed under `active.json.lock`; a lock of a
+  process that is gone (or older than 10 minutes) is removed by the next publish.
+- The legacy GraphQL answers are made every `RAIDOS_LEGACY_GRAPHQL_MINUTES` (default 30, was every minute): no app
+  asked `POST /v1/data/graphql` in 4.6 million requests (11–13.11.2026), and that pass was most of the API's load.
+
+Install by hand once (the publisher only restarts `raidos-api`; `PartOf=` restarts the worker with it), at a quiet hour
+(03:00–08:00 Moscow), after a release that carries this code:
+
+```bash
+cp /etc/raidos/raidos-api.env /etc/raidos/raidos-api.env.bak-$(date +%s)
+install -m 644 docs/coordination/ops-reference/background/raidos-worker.service /etc/systemd/system/raidos-worker.service
+install -m 644 docs/coordination/ops-reference/background/raidos-api-cpu.conf /etc/systemd/system/raidos-api.service.d/cpu.conf
+echo RAIDOS_BACKGROUND=external >> /etc/raidos/raidos-api.env
+systemctl daemon-reload && systemctl enable raidos-worker && systemctl restart raidos-api && systemctl start raidos-worker
+journalctl -u raidos-worker -f          # «Raid OS worker ready», then «quest base …» and the mirrors' lines
+curl -fsS https://raidos.app/v1/data/mirror/status
+```
+
+Back to one process: remove the `RAIDOS_BACKGROUND` line, `systemctl disable --now raidos-worker`, restart `raidos-api`.
+
+## Exit and quest photos are cropped (05.11.2026)
+
+The game's version and the «screenshot saved to C:\Users\…» line are cut off the photos in `images/guides` (owner's word), originals in `images/guides-original`, what was done in `images/guides-cropped.json`. The server downloads a new photo as it is and never changes one, so after a new photo list has reached the server, and a minute for it to download them, run as `raidos-api` from the app's folder:
+
+```bash
+node scripts/crop-guide-photos.mjs /var/lib/raidos/map-mirror/images/guides
+```
+
+It takes only what the record does not list yet. Exceptions by hand are in `scripts/guide-photo-crops.json`. The battle pass documents' 368 photos (`src/data/documentGuidePhotos.json`) were put here and cropped by hand on 05.11.2026, ahead of the release that lists them: the route serves a photo only once a list in the running version names it.
+
+## Network and nginx settings kept by hand (05.11.2026)
+
+A new server needs these too; they are not installed by any script.
+
+- `/etc/sysctl.d/99-raidos-bbr.conf`: `net.core.default_qdisc = fq`, `net.ipv4.tcp_congestion_control = bbr`, `net.ipv4.tcp_slow_start_after_idle = 0`; `/etc/modules-load.d/raidos-bbr.conf`: `tcp_bbr`. With cubic one download ran at about 1 MB/s from Asia, with BBR about 5 MB/s.
+- `/etc/nginx/nginx.conf`: `worker_rlimit_nofile 20000`, `worker_connections 8192`; `gzip_vary on`, `gzip_proxied any`, `gzip_comp_level 4`, `gzip_min_length 1024` and `gzip_types` with JSON, JS and CSS.

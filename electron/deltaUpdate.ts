@@ -1,16 +1,17 @@
-import { spawn } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
-import { classifyStagedBuild, deltaMismatch, deltaSignatureValid, fileSha256, packageJsonOnlyVersion, parseDeltaInfo, readArchive, readPackedFile, RENDERER_INDEX_PATH, stageDelta, STAGED_INFO, type DeltaInfo, type DeltaSource } from './appDelta.js'
-import { confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
+import { PAUSE_1S, runHiddenScript, SYSTEM32 } from './hiddenScript.js'
+import { classifyStagedBuild, deltaMismatch, deltaSignatureValid, fileSha256, packageJsonOnlyVersion, parseDeltaInfo, readArchive, readPackedFile, RENDERER_INDEX_PATH, stageDelta, STAGED_INFO, type DeltaInfo } from './appDelta.js'
+import { abandonBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
+import { httpDeltaSource } from './deltaHttp.js'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
+import { updatableExe } from './appInstall.js'
 
 /**
- * The Electron side of the partial update (electron/appDelta.ts): the release's /app-delta/ files over HTTPS, the running
+ * The Electron side of the partial update (electron/appDelta.ts): the release's /app-delta/ files over HTTPS (electron/deltaHttp.ts), the running
  * archive, staging in %APPDATA%\Raid OS Updates (a player's copy: its «client» folder), switching to the staged build and
  * restarting the portable exe. electron/appUpdate.ts decides when (never in a raid: at startup, or in the background while
  * the app is open — owner, 17.10.2026), exactly as for the whole exe; a build that changes only the page is loaded into
@@ -43,7 +44,8 @@ function localResources() {
   const out: Record<string, string> = {}
   const walk = (dir: string, prefix: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (!prefix && (entry.name === 'app.asar' || entry.name === 'app.asar.unpacked')) continue
+      // elevate.exe: electron-builder's helper, put in resources and signed anew by every build after the partial update is published — never part of what a partial update must match (owner, 28.10.2026: «до сих пор приложение скачивается полностью»).
+      if (!prefix && (entry.name === 'app.asar' || entry.name === 'app.asar.unpacked' || entry.name === 'elevate.exe')) continue
       const path = join(dir, entry.name)
       const name = prefix ? `${prefix}/${entry.name}` : entry.name
       if (entry.isDirectory()) walk(path, name)
@@ -62,7 +64,7 @@ function localResources() {
  * parts — only a whole exe brings it (the reason, e.g. «Electron 44.4.5 → 45.0.0»).
  */
 export async function fetchDeltaInfo(base: string, release: { build: number; version: string; commit: string }, options: { signed: boolean; onWholeExe?: (reason: string) => void }): Promise<DeltaInfo | null> {
-  if (!base.startsWith('https://') || !process.env.PORTABLE_EXECUTABLE_FILE || !runningArchive()) return null
+  if (!base.startsWith('https://') || !updatableExe() || !runningArchive()) return null
   try {
     const response = await fetch(`${base}/app-delta/info.json?ts=${Date.now()}`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' }, cache: 'no-store' })
     if (!response.ok) return null
@@ -77,34 +79,13 @@ export async function fetchDeltaInfo(base: string, release: { build: number; ver
   }
 }
 
-function httpSource(base: string, info: DeltaInfo): DeltaSource {
-  const get = async (url: string, headers: Record<string, string> = {}) => fetch(url, { headers, cache: 'no-store', signal: AbortSignal.timeout(10 * 60_000) })
-  return {
-    async range(start, end) {
-      const response = await get(`${base}/app-delta/app.asar`, { Range: `bytes=${start}-${end}` })
-      if (response.status !== 206) throw new Error(`Сервер не отдал часть обновления: HTTP ${response.status}`)
-      // The release may have been replaced meanwhile: a different archive size stops at once.
-      const total = /\/([0-9]+)$/.exec(response.headers.get('content-range') ?? '')?.[1]
-      if (total && Number(total) !== info.asar.size) throw new Error('На сервере уже другой выпуск, попробуйте ещё раз')
-      const data = Buffer.from(await response.arrayBuffer())
-      if (data.length !== end - start + 1) throw new Error('Сервер отдал неполный кусок обновления')
-      return data
-    },
-    async unpacked(path) {
-      const response = await get(`${base}/app-delta/app.asar.unpacked/${path.split('/').map(encodeURIComponent).join('/')}`)
-      if (!response.ok) throw new Error(`Сервер не отдал ${path}: HTTP ${response.status}`)
-      return Buffer.from(await response.arrayBuffer())
-    },
-  }
-}
-
 /** Downloads the changed files and builds the new archive next to the others (not started yet). */
 export async function stageDeltaUpdate(base: string, info: DeltaInfo, onProgress: (done: number, total: number) => void) {
   const fs = originalFs()
   const outDir = join(root(), String(info.build))
   fs.rmSync(outDir, { recursive: true, force: true })
   try {
-    return await stageDelta({ fs, info, source: httpSource(base, info), localAsar: runningArchive(), localBuildInfo: runningBuildInfo(), outDir, onProgress })
+    return await stageDelta({ fs, info, source: httpDeltaSource(base, info), localAsar: runningArchive(), localBuildInfo: runningBuildInfo(), outDir, onProgress })
   } catch (error) {
     fs.rmSync(outDir, { recursive: true, force: true })
     throw error
@@ -163,7 +144,8 @@ export function liveRendererIndex(info: DeltaInfo) {
     if (readDeltaState(fs, root()).bad?.includes(info.build)) return ''
     if (!fs.statSync(join(dir, 'app.asar')).isFile()) return ''
     if (runningBuildInfo().edition === 'client') {
-      if (!stagedBuildVerified(fs, dir, info.build, UPDATE_SIGNING_PUBLIC_KEY)) return ''
+      // The page goes into the open window of a copy that runs as administrator: every file of it as signed (deltaBoot.ts).
+      if (!stagedBuildVerified(fs, dir, info.build, UPDATE_SIGNING_PUBLIC_KEY, 'dist/')) return ''
     } else {
       const staged = parseDeltaInfo(JSON.parse(fs.readFileSync(join(dir, STAGED_INFO), 'utf8')))
       if (!staged || staged.build !== info.build || staged.commit !== info.commit) return ''
@@ -190,31 +172,28 @@ export function confirmStagedBoot() {
   try { confirmBoot(originalFs(), root(), process.pid) } catch { /* not a staged start */ }
 }
 
+/** This start left for the copy that is running: no verdict on a staged build (electron/deltaBoot.ts). */
+export function abandonStagedBoot() {
+  if (!app.isPackaged) return
+  try { abandonBoot(originalFs(), root(), process.pid) } catch { /* not a staged start */ }
+}
+
 /**
- * Starts the portable exe again once this copy and its launcher (which deletes the unpacked files on exit) are gone. A
- * hidden cmd waits for the launcher's process id; paths travel in environment variables (non-Latin folder names).
+ * Starts the exe again once the process `waitFor` is gone: the portable exe's launcher (which deletes the unpacked files
+ * on exit), or this copy itself for an installed app. A hidden cmd (electron/hiddenScript.ts: no window at all) waits for
+ * that process id; paths travel in environment variables (non-Latin folder names).
  */
-export function relaunchWhenClosed(exe: string) {
-  const script = join(tmpdir(), `raidos-relaunch-${process.pid}.cmd`)
-  writeFileSync(script, [
-    '@echo off',
+export function relaunchWhenClosed(exe: string, waitFor: number = process.ppid) {
+  return runHiddenScript(`raidos-relaunch-${process.pid}.cmd`, [
     'set n=0',
     ':wait',
-    'tasklist /FI "PID eq %RO_PID%" /NH 2>nul | find " %RO_PID% " >nul || goto run',
+    `${SYSTEM32}\\tasklist.exe /FI "PID eq %RO_PID%" /NH 2>nul | ${SYSTEM32}\\find.exe " %RO_PID% " >nul || goto run`,
     'set /a n+=1',
     'if %n% geq 90 goto run',
-    'timeout /t 1 /nobreak >nul',
+    PAUSE_1S,
     'goto wait',
     ':run',
-    'timeout /t 1 /nobreak >nul',
+    PAUSE_1S,
     'start "" "%RO_EXE%"',
-    '(goto) 2>nul & del "%~f0"',
-  ].join('\r\n'), 'utf8')
-  const child = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/c', script], {
-    detached: true,
-    windowsHide: true,
-    stdio: 'ignore',
-    env: { ...process.env, RO_PID: String(process.ppid), RO_EXE: exe },
-  })
-  child.unref()
+  ], { RO_PID: String(waitFor), RO_EXE: exe })
 }

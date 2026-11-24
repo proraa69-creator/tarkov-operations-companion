@@ -159,3 +159,22 @@ test('catalog and player lookups are rate limited per IP with Retry-After (befor
     store.close()
   }
 })
+
+test('the phone apps keep a CORS preflight for two hours instead of asking before every request (owner, 03.11.2026)', async () => {
+  const store = new ProgressStore(':memory:')
+  const server = createApi(store, 'local-test-token').listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  try {
+    const preflight = await fetch(`http://127.0.0.1:${address.port}/v1/accounts/me/admin/overview`, {
+      method: 'OPTIONS', headers: { origin: 'capacitor://localhost', 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' },
+    })
+    assert.equal(preflight.status, 204)
+    assert.equal(preflight.headers.get('access-control-allow-origin'), 'capacitor://localhost')
+    assert.equal(preflight.headers.get('access-control-max-age'), '7200')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    store.close()
+  }
+})

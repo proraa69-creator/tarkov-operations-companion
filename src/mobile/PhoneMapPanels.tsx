@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { Check, ChevronDown, Map as MapIcon, Target, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, Crosshair, Layers3, Map as MapIcon, Target, X } from 'lucide-react'
 import type { Item, MapMarker, ModeProgress, Quest } from '../domain/types'
+import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
 import { uiText } from '../i18n/renderText'
 import { sheetObjectives } from '../progression/sheetObjectives'
+import { openRequiredItems } from '../raidprep/objectives'
+import { useHold } from './useHold'
 
 /**
  * Phone «Карты» (owner, 17.10.2026): the location list is a button where the map's name was, opening every map in
@@ -22,7 +25,7 @@ function useDismiss(open: boolean, close: () => void, ref: { current: HTMLElemen
   }, [close, open, ref])
 }
 
-export function PhoneMapPicker({ maps, activeId, onPick }: { maps: Array<{ id: string; name: string; accent?: string }>; activeId: string; onPick: (id: string) => void }) {
+export function PhoneMapPicker({ maps, activeId, onPick, onWorld }: { maps: Array<{ id: string; name: string; accent?: string }>; activeId: string; onPick: (id: string) => void; onWorld?: () => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const close = () => setOpen(false)
@@ -31,7 +34,7 @@ export function PhoneMapPicker({ maps, activeId, onPick }: { maps: Array<{ id: s
   return <div className={`phone-map-picker${open ? ' is-open' : ''}`} ref={ref}>
     <button type="button" className="phone-map-chip" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
       <MapIcon size={15} />
-      <span className="phone-map-chip-name">{uiText(active?.name ?? 'Карты')}</span>
+      <span className="phone-map-chip-name">{uiText(active?.name ?? (onWorld && activeId === 'world' ? 'Все локации' : 'Карты'))}</span>
       <ChevronDown size={14} className="phone-map-chip-chevron" />
     </button>
     <div className="phone-map-panel phone-map-list" role="listbox" aria-label={uiText('Карты')} inert={!open}>
@@ -39,45 +42,46 @@ export function PhoneMapPicker({ maps, activeId, onPick }: { maps: Array<{ id: s
         <span className="map-color" style={{ background: map.accent }} />
         <span>{uiText(map.name)}</span>
       </button>)}
+      {/* «Все локации» on the phone too (owner, 15.11.2026: «общую карту… нужно добавить на мобильное приложение»; «общая карта должна
+          называться все локации») */}
+      {onWorld && <button type="button" role="option" aria-selected={activeId === 'world'} className={`phone-map-option phone-map-option-world${activeId === 'world' ? ' active' : ''}`} onClick={() => { close(); onWorld() }}>
+        <MapIcon size={13} aria-hidden="true" />
+        <span>{uiText('Все локации')}</span>
+      </button>}
     </div>
   </div>
 }
 
 export interface PhoneQuestEntry { quest: Quest; marker?: MapMarker }
 
-const HOLD_MS = 450
-const MOVE_TOLERANCE = 10
-
-/** A tap or a held finger on one row; a scroll cancels both. */
-function useHold(onTap: () => void, onHold: () => void) {
-  const timer = useRef(0)
-  const start = useRef<{ x: number; y: number } | null>(null)
-  const held = useRef(false)
-  const cancel = () => { window.clearTimeout(timer.current); start.current = null }
-  return {
-    onPointerDown: (event: ReactPointerEvent) => {
-      held.current = false
-      start.current = { x: event.clientX, y: event.clientY }
-      window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(() => { held.current = true; start.current = null; onHold() }, HOLD_MS)
-    },
-    onPointerMove: (event: ReactPointerEvent) => {
-      if (start.current && Math.hypot(event.clientX - start.current.x, event.clientY - start.current.y) > MOVE_TOLERANCE) cancel()
-    },
-    onPointerUp: cancel,
-    onPointerCancel: cancel,
-    onContextMenu: (event: ReactMouseEvent) => event.preventDefault(),
-    onClick: () => { if (held.current) { held.current = false; return } onTap() },
-  }
+/**
+ * «Сделал в этом рейде» in the phone's «Квесты» (owner, 08.11.2026: «добавь галочки, чтобы нажал и пометил, что ты его выполнил.
+ * Галочки ставятся только на те квесты, которые имеют точки на карте… чтобы точки не отвлекали на карте»), as in the PC's
+ * «Квесты на карте» (components/QuestRaidCheck.tsx): a checked quest goes last and its points leave the map.
+ */
+export interface PhoneQuestChecks {
+  checked: (questId: string) => boolean
+  /** Every objective of the quest on this map is ticked: it stands checked by itself. */
+  settled: (questId: string) => boolean
+  onToggle: (questId: string) => void
+  any: boolean
+  /** The checks go by themselves when the next raid starts (only the desktop app sees that). */
+  autoReset: boolean
+  onClear: () => void
 }
 
-function QuestRow({ entry, onOpen, onPeek }: { entry: PhoneQuestEntry; onOpen: () => void; onPeek: () => void }) {
+function QuestRow({ entry, checks, onOpen, onPeek }: { entry: PhoneQuestEntry; checks?: PhoneQuestChecks; onOpen: () => void; onPeek: () => void }) {
   const hold = useHold(onOpen, onPeek)
   const { quest } = entry
-  return <button type="button" className="phone-quest-row" {...hold}>
-    <strong>{uiText(quest.name)}</strong>
-    <small>{uiText(`${quest.trader}${quest.anyMap ? ' · любая карта' : ` · ур. ${quest.level}`}${quest.kappa ? ' · капа' : ''}`)}</small>
-  </button>
+  // only a quest with its own point on this map: the tick is for taking its points off the map
+  const tick = checks && entry.marker ? { checked: checks.checked(quest.id), settled: checks.settled(quest.id) } : null
+  return <div className={`phone-quest-item${tick && (tick.checked || tick.settled) ? ' is-raid-checked' : ''}`}>
+    <button type="button" className="phone-quest-row" {...hold}>
+      <strong>{uiText(quest.name)}</strong>
+      <small>{uiText(`${quest.trader}${quest.anyMap ? ' · любая карта' : ` · ур. ${quest.level}`}${quest.kappa ? ' · капа' : ''}`)}</small>
+    </button>
+    {tick && checks && <QuestRaidCheck questName={quest.name} checked={tick.checked} settled={tick.settled} onToggle={() => checks.onToggle(quest.id)} />}
+  </div>
 }
 
 const PEEK_LINES = 6
@@ -91,7 +95,7 @@ function QuestPeek({ quest, mapId, maps, itemsById, progress, onClose, onOpen }:
     ? sheet.groups.filter((group) => group.kind !== 'handover').flatMap((group) => group.objectives.map((objective) => ({ text: objective.text, done: objective.done, count: objective.count })))
     : quest.objectives.map((text) => ({ text, done: false, count: undefined }))
   const handover = sheet?.groups.find((group) => group.kind === 'handover')?.objectives ?? []
-  const items = (quest.requiredItems ?? []).map((id) => itemsById.get(id)?.name).filter((name): name is string => Boolean(name))
+  const items = openRequiredItems(quest, progress).map((id) => itemsById.get(id)?.name).filter((name): name is string => Boolean(name))
   const needs = [
     `Уровень ${quest.level}+`,
     ...handover.map((objective) => `${objective.item ?? objective.text}${objective.count ? ` ×${objective.count}` : ''}${objective.foundInRaid ? ' (FIR)' : ''}`),
@@ -114,8 +118,10 @@ function QuestPeek({ quest, mapId, maps, itemsById, progress, onClose, onOpen }:
   </div>
 }
 
-export function PhoneMapQuests({ entries, mapId, maps, itemsById, progress, hidden, onOpen }: {
+export function PhoneMapQuests({ entries, mapId, maps, itemsById, progress, hidden, onOpen, checks, emptyText = 'На этой карте нет текущих квестов.' }: {
   entries: PhoneQuestEntry[]
+  /** The ticks of the quests with points on this map. */
+  checks?: PhoneQuestChecks
   mapId: string
   maps: Array<{ id: string; name: string }>
   itemsById: Map<string, Item>
@@ -123,21 +129,33 @@ export function PhoneMapQuests({ entries, mapId, maps, itemsById, progress, hidd
   /** The quest window is open over the bottom of the map. */
   hidden: boolean
   onOpen: (entry: PhoneQuestEntry) => void
+  /** With no quest listed (the ones that only ask to kill are in «Устранения»). */
+  emptyText?: string
 }) {
   const [open, setOpen] = useState(false)
   const [peek, setPeek] = useState<PhoneQuestEntry | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const close = () => setOpen(false)
   useDismiss(open && !peek, close, ref)
-  const choose = (entry: PhoneQuestEntry) => { setPeek(null); setOpen(false); onOpen(entry) }
+  // A quest picked from the list opens its window; closing that window (✕) brings the list back to pick the next one
+  // (owner, 28.10.2026: «нажимаю перекрестие, и у меня должно опять открыться окно с квестами»).
+  const reopen = useRef(false)
+  const choose = (entry: PhoneQuestEntry) => { setPeek(null); setOpen(false); reopen.current = true; onOpen(entry) }
+  const wasHidden = useRef(hidden)
+  useEffect(() => {
+    if (wasHidden.current && !hidden && reopen.current) setOpen(true)
+    if (wasHidden.current && !hidden) reopen.current = false
+    wasHidden.current = hidden
+  }, [hidden])
   if (hidden) return null
   return <>
     <div className={`phone-map-quests${open ? ' is-open' : ''}`} ref={ref}>
       <div className="phone-map-panel phone-quest-list" inert={!open}>
         {entries.length
-          ? entries.map((entry) => <QuestRow key={entry.quest.id} entry={entry} onOpen={() => choose(entry)} onPeek={() => setPeek(entry)} />)
-          : <p className="dim phone-quest-empty">{uiText('На этой карте нет текущих квестов.')}</p>}
+          ? entries.map((entry) => <QuestRow key={entry.quest.id} entry={entry} {...(checks ? { checks } : {})} onOpen={() => choose(entry)} onPeek={() => setPeek(entry)} />)
+          : <p className="dim phone-quest-empty">{uiText(emptyText)}</p>}
         {entries.length > 0 && <p className="phone-quest-hint">{uiText('Удерживайте квест — коротко цели и требования.')}</p>}
+        {checks?.any && <QuestRaidChecksNote autoReset={checks.autoReset} onClear={checks.onClear} />}
       </div>
       <button type="button" className="phone-map-chip phone-quests-chip" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <Target size={15} />
@@ -147,4 +165,38 @@ export function PhoneMapQuests({ entries, mapId, maps, itemsById, progress, hidd
     </div>
     {peek && <QuestPeek quest={peek.quest} mapId={mapId} maps={maps} itemsById={itemsById} progress={progress} onClose={() => setPeek(null)} onOpen={() => choose(peek)} />}
   </>
+}
+
+/**
+ * The map's floors on the phone, a button on the map (owner, 08.11.2026: the panel under the map — «Найти точку», the floors, the
+ * quests — «убери все, потому что у нас есть на самой карте кнопка квест»): the floor shown, and a tap lists the floors from the
+ * top down; the one the player is on (his position) has a crosshair. `note`: this floor has no picture of its own.
+ */
+export function PhoneMapFloors({ floors, floor, playerFloor, note, onPick }: {
+  /** Bottom up, as the map orders them. */
+  floors: readonly string[]
+  floor: string
+  playerFloor?: string | null
+  note?: string
+  onPick: (floor: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const close = () => setOpen(false)
+  useDismiss(open, close, ref)
+  if (floors.length < 2) return null
+  return <div className={`phone-map-floors${open ? ' is-open' : ''}`} ref={ref}>
+    <div className="phone-map-panel phone-floor-list" role="listbox" aria-label={uiText('Этажи')} inert={!open}>
+      {[...floors].reverse().map((entry) => <button type="button" role="option" aria-selected={entry === floor} key={entry} className={`phone-map-option${entry === floor ? ' active' : ''}`} onClick={() => { close(); onPick(entry) }}>
+        {entry === playerFloor && <Crosshair size={12} aria-label={uiText('Вы здесь')} />}
+        <span>{uiText(entry)}</span>
+      </button>)}
+      {note && <small className="phone-floor-note">{uiText(note)}</small>}
+    </div>
+    <button type="button" className="phone-map-chip phone-floors-chip" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <Layers3 size={15} />
+      <span className="phone-map-chip-name">{uiText(floor)}</span>
+      <ChevronDown size={14} className="phone-map-chip-chevron" />
+    </button>
+  </div>
 }

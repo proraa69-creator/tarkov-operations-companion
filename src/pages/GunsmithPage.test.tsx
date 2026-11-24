@@ -10,7 +10,8 @@ import { LocaleProvider } from '../i18n/LocaleProvider'
 import { GunsmithPage } from './GunsmithPage'
 
 const catalog = { weapons: adaptWeapons(gunsPayload('ru')), mods: adaptMods(modsPayload('ru')), ammo: [], loadedAt: '', source: 'live' as const }
-// The third part has tarkov.help's finished build, kept on our server.
+const SITE_NAME = /tarkov[ .]*(help|dev)/i
+// The third part's guide has another site's picture, kept on our server: never shown.
 const GUIDE_IMAGE = 'https://raidos.app/v1/guide-images/01237903-b29f-417c-83f3-671060fb220b.jpg'
 const quests: Quest[] = [1, 2, 3].map((n) => ({
   id: `gs${n}`, name: `Оружейник. Часть ${n}`, normalizedName: `gunsmith-part-${n}`, trader: 'Механик', level: 2 + n, kappa: true, description: '', objectives: [], rewards: ['5 000 опыта'],
@@ -31,10 +32,17 @@ const items: Item[] = [
   { id: FX.holo, name: 'Голографический прицел EOTech EXPS3', shortName: 'EXPS3', category: 'Оружие', description: '', prices: [] },
 ]
 const profile = createLocalProfile('Operator', 'p-gunsmith')
+// Two of Prapor's quests: one handed in with the other never in the logs — a history older than the logs.
+quests.push(
+  { id: 'q-early', name: 'Дебют', normalizedName: 'debut', trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [] },
+  { id: 'q-late', name: 'Проверка на вшивость', normalizedName: 'checking', trader: 'Прапор', level: 2, kappa: false, description: '', objectives: [], rewards: [], previous: ['q-early'] },
+)
 const traders = [{ id: 't-pk', name: 'Миротворец', normalizedName: 'peacekeeper', role: '', loyalty: 4, accent: '', levelPlayerLevels: [1, 15, 26, 36] }]
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests, items, traders, metadata: {} } }) }))
-vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: 'pvp', activeProfile: profile }) }))
+const appState = vi.hoisted(() => ({ profile: undefined as ReturnType<typeof createLocalProfile> | undefined, setManualQuestMark: vi.fn() }))
+vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: 'pvp', activeProfile: appState.profile ?? profile, setManualQuestMark: appState.setManualQuestMark }) }))
 vi.mock('../arsenal/gunCatalog', () => ({ useGunCatalog: () => ({ data: catalog, isLoading: false }) }))
+vi.mock('../components/FleaItemDetail', () => ({ FleaItemDetail: ({ item, onClose }: { item: { name: string }; onClose: () => void }) => <aside data-testid="flea-card">{item.name}<button type="button" onClick={onClose}>Закрыть карточку</button></aside> }))
 
 describe('«Оружейник → Посмотреть все»', () => {
   it('lists every part and shows the selected one: its stats and the modules, who sells each on hover; no example section', async () => {
@@ -46,37 +54,82 @@ describe('«Оружейник → Посмотреть все»', () => {
     await waitFor(() => expect(screen.getAllByText('в игре').length).toBeGreaterThan(0))
     expect(screen.queryByText('Как собрать · пример сборки')).toBeNull()
     expect(screen.queryByText('Что купить')).toBeNull()
-    const suppressor = screen.getByRole('link', { name: /SOCOM556-RC2/ })
+    const suppressor = screen.getByRole('button', { name: /SOCOM556-RC2/ })
     // Who sells it from which level (a new character: loyalty 1, so Peacekeeper's III is locked), in the hover window.
     await userEvent.hover(suppressor)
     const window = await screen.findByRole('tooltip')
     expect(window.textContent).toContain('Задание требует именно этот модуль')
     expect(window.querySelector('.gs-trader.is-locked .gs-trader-level')?.textContent).toBe('III')
+    // A click opens the part's card from «Барахолка» on the right (report 171); its cross closes it.
+    await userEvent.click(suppressor)
+    expect(screen.getByTestId('flea-card').textContent).toContain('Глушитель SureFire SOCOM556-RC2')
+    expect(screen.getByTestId('item-drawer')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Закрыть карточку' }))
+    expect(screen.queryByTestId('item-drawer')).toBeNull()
   })
 
-  it('shows the weapon instead of a finished-build screenshot that does not load', async () => {
+  it('a part without the owner\'s screenshot shows the weapon, never another site\'s picture or name', async () => {
     render(<LocaleProvider><MemoryRouter initialEntries={['/gunsmith?quest=gs3']}><GunsmithPage /></MemoryRouter></LocaleProvider>)
-    const screenshot = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
-    expect(screenshot.getAttribute('src')).toBe(GUIDE_IMAGE)
-    expect(screen.getByText('Готовая сборка: tarkov.help')).toBeInTheDocument()
-    fireEvent.error(screenshot)
     expect(screen.queryByRole('button', { name: 'Открыть сборку на весь экран' })).toBeNull()
-    expect(screen.queryByText('Готовая сборка: tarkov.help')).toBeNull()
-    // The whole rifle: its default preset's picture from the mod data.
-    await waitFor(() => expect(document.querySelector('.gs-weapon img')?.getAttribute('src')).toMatch(/m4/))
+    expect(document.body.innerHTML).not.toContain(GUIDE_IMAGE)
+    expect(document.body.textContent).not.toMatch(SITE_NAME)
+    // The whole rifle in the bench of «Сборка оружия» (owner, 20.11.2026): its default preset's picture while the parts' are not there.
+    await waitFor(() => expect(document.querySelector('.gs-weapon img')?.getAttribute('src')).toContain(FX.preset))
   })
 
-  it('shows the owner\'s own screenshot of the build instead of tarkov.help\'s, which stays as the fallback', () => {
+  it('shows the owner\'s own screenshot of the build; one that does not load gives way to the weapon', () => {
     render(<LocaleProvider><MemoryRouter initialEntries={[`/gunsmith?quest=${M4A1_PART}`]}><GunsmithPage /></MemoryRouter></LocaleProvider>)
     expect(screen.getByRole('heading', { level: 2, name: 'Оружейник. М4A1' })).toBeInTheDocument()
     const own = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
     expect(own.getAttribute('src')).toMatch(/gunsmith-m4a1[^/]*\.webp$/)
-    expect(screen.queryByText('Готовая сборка: tarkov.help')).toBeNull()
+    expect(document.body.textContent).not.toMatch(SITE_NAME)
     fireEvent.error(own)
-    const guide = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
-    expect(guide.getAttribute('src')).toBe(GUIDE_IMAGE)
-    expect(screen.getByText('Готовая сборка: tarkov.help')).toBeInTheDocument()
-    fireEvent.error(guide)
     expect(screen.queryByRole('button', { name: 'Открыть сборку на весь экран' })).toBeNull()
+    expect(document.body.innerHTML).not.toContain(GUIDE_IMAGE)
+  })
+
+  it('ticks the parts by hand: the player\'s own «Выполнено» of the mode (a player\'s ticket, 02.11.2026)', () => {
+    const ticked = createLocalProfile('Operator', 'p-ticked')
+    const at = '2026-11-02T09:00:00.000Z'
+    ticked.modes.pvp = {
+      ...ticked.modes.pvp,
+      taskProgress: {
+        gs1: { taskId: 'gs1', status: 'completed', source: 'eft-log', updatedAt: '2026-10-31T12:03:00.000Z' },
+        gs2: { taskId: 'gs2', status: 'completed', source: 'manual-fix', updatedAt: at },
+        'q-late': { taskId: 'q-late', status: 'completed', source: 'eft-log', updatedAt: '2026-10-30T10:00:00.000Z' },
+      },
+      questInputs: { log: {}, server: {}, manual: { gs2: { status: 'completed', at } }, table: {}, story: {}, legacy: {} },
+    }
+    appState.profile = ticked
+    try {
+      render(<LocaleProvider><MemoryRouter initialEntries={['/gunsmith?quest=gs2']}><GunsmithPage /></MemoryRouter></LocaleProvider>)
+      // The history is older than the logs: the parts they never saw are dimmed, and the list says why and what to do.
+      expect(screen.getByText(/Отметьте галочкой части, которые вы сделали раньше/)).toBeInTheDocument()
+      const byGame = screen.getByRole('checkbox', { name: 'Выполнено: Оружейник. Часть 1' })
+      expect(byGame).toHaveAttribute('aria-checked', 'true')
+      expect(byGame).toBeDisabled()
+      expect(byGame).toHaveAttribute('title', 'Выполнено в игре')
+      const byHand = screen.getByRole('checkbox', { name: 'Выполнено: Оружейник. Часть 2' })
+      expect(byHand).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByText('вручную')).toBeInTheDocument()
+      fireEvent.click(byHand)
+      expect(appState.setManualQuestMark).toHaveBeenLastCalledWith('pvp', 'gs2', null)
+      const notSeen = screen.getByRole('checkbox', { name: 'Выполнено: Оружейник. Часть 3' })
+      expect(notSeen).toHaveAttribute('aria-checked', 'false')
+      fireEvent.click(notSeen)
+      expect(appState.setManualQuestMark).toHaveBeenLastCalledWith('pvp', 'gs3', 'completed')
+      // The selected part's card: «В текущие», «Выполнено», «Снять отметку», as on «Квесты».
+      fireEvent.click(screen.getByRole('button', { name: 'В текущие' }))
+      expect(appState.setManualQuestMark).toHaveBeenLastCalledWith('pvp', 'gs2', 'active')
+    } finally {
+      appState.profile = undefined
+      appState.setManualQuestMark.mockReset()
+    }
+  })
+
+  it('asks for no ticks when the logs hold the whole history', () => {
+    render(<LocaleProvider><MemoryRouter initialEntries={['/gunsmith']}><GunsmithPage /></MemoryRouter></LocaleProvider>)
+    expect(screen.queryByText(/Отметьте галочкой/)).toBeNull()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(4)
   })
 })

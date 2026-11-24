@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft, CheckCircle2, Inbox, LoaderCircle, MessagesSquare } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, Inbox, LoaderCircle, MessagesSquare, UserRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { OWNER_CHATS_KEY, useOwnerChat, useOwnerChatActions, useOwnerChats, type OwnerChatDetail, type OwnerChatThread } from '../data/ownerRequests'
 import { cleanIpcError } from '../sync/serverSync'
 import { SupportComposer, SupportMessageList } from './SupportChat'
-import { supportTime } from './supportChatClient'
+import { supportTime, type SupportImageUpload, type SupportSendExtra } from './supportChatClient'
+import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from './supportChatTools'
 import { FindUserToWrite } from './FindUserToWrite'
-import { SUPPORT_IMAGE_PLACEHOLDER } from '../shared/supportChat'
+import { ChatPersonMenu } from '../admin/ChatPersonMenu'
+import { usePersonMenu } from '../admin/personMenu'
 import './supportChat.css'
 
 /** The player as the owner knows them: the game nickname, else the e-mail. */
@@ -26,11 +28,18 @@ const playerName = (player: { nickname?: string; email: string } | undefined) =>
  *
  * Screenshots (owner, 15.10.2026): the players' show in the conversation (a click opens them full size), and the owner
  * attaches them to an answer the same way (the paperclip, Ctrl+V, a drop on the conversation). A conversation whose
- * latest message is screenshots only reads «[скриншот]» in the list.
+ * latest message is screenshots only reads «[скриншот]» in the list, a sticker «Стикер: Крыса».
+ *
+ * Reactions, «Ответить», emoji and stickers (owner, 07.11.2026), as on the player's side: a right click on a message.
+ *
+ * «Посмотреть профиль» (owner, 24.11.2026: «нажимаю правой кнопкой, на телефоне зажимаю пальцем… посмотреть профиль»): a
+ * right click or a long press on a person in the list opens the menu (admin/ChatPersonMenu.tsx); `onProfile` opens the
+ * account's card. The open conversation has the same under its name («Профиль»).
  */
-export function OwnerChats({ selected, onSelect }: { selected: string | null; onSelect: (accountId: string | null) => void }) {
+export function OwnerChats({ selected, onSelect, onProfile }: { selected: string | null; onSelect: (accountId: string | null) => void; onProfile?: (accountId: string) => void }) {
   const { locale } = useLocale()
   const chats = useOwnerChats()
+  const people = usePersonMenu()
   const threads = chats.data?.threads ?? []
   const error = chats.error instanceof Error ? cleanIpcError(chats.error) : ''
   return (
@@ -42,17 +51,19 @@ export function OwnerChats({ selected, onSelect }: { selected: string | null; on
         {error && <p className="account-error" role="alert">{uiText(error)}</p>}
         {!chats.isLoading && !error && !threads.length && <p className="requests-empty"><Inbox size={20} /><span>{uiText('Переписок пока нет.')}</span></p>}
         {threads.map((thread) => (
-          <button key={thread.accountId} type="button" className={`owner-chat-item${thread.accountId === selected ? ' is-active' : ''}${thread.unread ? ' is-unread' : ''}`} aria-current={thread.accountId === selected ? 'true' : undefined} onClick={() => onSelect(thread.accountId)}>
+          <button key={thread.accountId} type="button" className={`owner-chat-item${thread.accountId === selected ? ' is-active' : ''}${thread.unread ? ' is-unread' : ''}`} aria-current={thread.accountId === selected ? 'true' : undefined} onClick={() => onSelect(thread.accountId)}
+            {...(onProfile ? people.bind({ accountId: thread.accountId, name: playerName(thread) }) : {})}>
             <span className="owner-chat-name">{playerName(thread)}</span>
             <time className="owner-chat-time" dateTime={thread.lastAt}>{supportTime(thread.lastAt, locale)}</time>
-            <span className="owner-chat-preview">{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{thread.lastMessage.text === SUPPORT_IMAGE_PLACEHOLDER ? uiText(SUPPORT_IMAGE_PLACEHOLDER) : thread.lastMessage.text}</span>
+            <span className="owner-chat-preview">{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{supportPreviewText(thread.lastMessage, locale)}</span>
             {thread.unread > 0 && <span className="requests-tab-count" aria-label={uiText(`Непрочитанных: ${thread.unread}`)}>{thread.unread}</span>}
           </button>
         ))}
       </section>
       {selected
-        ? <OwnerChatView key={selected} accountId={selected} thread={threads.find((thread) => thread.accountId === selected)} onBack={() => onSelect(null)} />
+        ? <OwnerChatView key={selected} accountId={selected} thread={threads.find((thread) => thread.accountId === selected)} onBack={() => onSelect(null)} onProfile={onProfile} />
         : <section className="panel owner-chat-pick"><span><MessagesSquare size={16} /> {uiText('Выберите переписку слева.')}</span></section>}
+      {onProfile && <ChatPersonMenu menu={people.menu} onClose={people.close} onProfile={onProfile} onChat={onSelect} />}
     </div>
   )
 }
@@ -74,9 +85,9 @@ function useResolveOwnerChat() {
 }
 
 /** One conversation: the player's messages on the left, the owner's answers on the right, the answer box under them. */
-function OwnerChatView({ accountId, thread, onBack }: { accountId: string; thread?: OwnerChatThread; onBack: () => void }) {
+function OwnerChatView({ accountId, thread, onBack, onProfile }: { accountId: string; thread?: OwnerChatThread; onBack: () => void; onProfile?: (accountId: string) => void }) {
   const chat = useOwnerChat(accountId)
-  const { reply, markRead } = useOwnerChatActions()
+  const { reply, markRead, react, edit } = useOwnerChatActions()
   const resolve = useResolveOwnerChat()
   const [confirming, setConfirming] = useState(false)
   const [resolving, setResolving] = useState(false)
@@ -108,7 +119,12 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
   const player = chat.data?.account ?? thread
   // Opened from a report, the conversation may not be in the list: no name until its account is read.
   const name = player || !chat.isLoading ? playerName(player) : '…'
-  const messages = chat.data?.messages ?? []
+  // Sent at once (owner, 15.11.2026), and «Редактировать» on the owner's own messages.
+  const sendReply = useCallback((text: string, images: SupportImageUpload[], extra: SupportSendExtra) => reply(accountId, text, images, undefined, extra), [accountId, reply])
+  const [sending, send] = useSupportOutbox(chat.data?.messages ?? [], 'owner', sendReply)
+  const editor = useSupportEdit(sending, (message, text) => edit(accountId, message.id, text))
+  const messages = editor.messages
+  const [replying, setReplying] = useSupportReply(messages)
   const cancel = () => setConfirming(false)
   const confirm = async () => {
     setResolving(true)
@@ -129,6 +145,7 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
           <h2>{name}</h2>
           {player?.nickname && player.email && <small>{player.email}</small>}
         </div>
+        {onProfile && player && <button type="button" className="button small ghost owner-chat-profile" onClick={() => onProfile(accountId)}><UserRound size={13} />{uiText('Профиль')}</button>}
         {(messages.length > 0 || confirming) && <div className="owner-chat-resolve" role="group" aria-label={uiText('Проблема решена')} onKeyDown={(event) => { if (event.key === 'Escape' && confirming && !resolving) cancel() }}>
           {confirming ? <>
             <span>{uiText('Удалить переписку?')}</span>
@@ -138,8 +155,10 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
         </div>}
       </header>
       {resolveError && <div className="support-chat-error" role="alert"><AlertTriangle size={15} /><span>{uiText(resolveError)}</span></div>}
-      <SupportMessageList messages={messages} viewer="owner" loading={chat.isLoading} error={chat.error instanceof Error ? cleanIpcError(chat.error) : ''} onRetry={() => void chat.refetch()} emptyText="Сообщений пока нет." />
-      <SupportComposer onSend={(text, images) => reply(accountId, text, images)} placeholder="Ответ игроку…" autoFocus allowImages dropZone={view} />
+      <SupportMessageList messages={messages} viewer="owner" peerName={player ? name : undefined} loading={chat.isLoading} error={chat.error instanceof Error ? cleanIpcError(chat.error) : ''} onRetry={() => void chat.refetch()} emptyText="Сообщений пока нет."
+        onReact={(message, emoji, on) => react(accountId, message.id, emoji, on)} onReply={setReplying} onEdit={editor.start} />
+      <SupportComposer onSend={send} placeholder="Ответ игроку…" autoFocus allowImages allowEmoji allowStickers dropZone={view}
+        replyTo={replying} onCancelReply={() => setReplying(null)} editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
     </section>
   )
 }

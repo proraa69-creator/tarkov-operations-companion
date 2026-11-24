@@ -72,6 +72,26 @@ export function AdminBlocksSection({ request }: { request: AdminRequest }) {
       setBusy(false)
     }
   }
+  // Saved at once, apart from the draft (owner, 06.11.2026: «я нажал, и они у всех тут же пропали, без обновления приложения»).
+  const toggleBtrStops = async () => {
+    const off = !saved?.btrStopsOff
+    setBusy(true)
+    setError('')
+    setDone('')
+    try {
+      const answer = await request('PUT', OVERVIEW_DEFAULTS_PATH, { ...bodyOf(draftOf(saved)), ...(off ? { btrStopsOff: true } : { btrStopsOff: false }) }) as { defaults?: unknown } | null
+      const value = sanitizeOverviewDefaults(answer?.defaults)
+      if (!value) throw new Error('Сервер недоступен')
+      setSaved(value)
+      setDraft((current) => ({ ...current, btrStopsOff: off }))
+      setOverviewDefaults(value)
+      setDone(uiLabel(off ? 'Остановки БТР скрыты у всех.' : 'Остановки БТР снова видны всем.'))
+    } catch (reason) {
+      setError(errorText(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
   const save = () => run(async () => {
     if (builtIn) {
       await request('POST', `${OVERVIEW_DEFAULTS_PATH}/reset`, {})
@@ -102,6 +122,10 @@ export function AdminBlocksSection({ request }: { request: AdminRequest }) {
         <LayoutGrid size={18} className="brass" aria-hidden="true" />
       </div>
       <div className="panel-body admin-blocks">
+        <div className="admin-btr-switch">
+          <span>{uiLabel('Остановки БТР на картах')}: <strong>{uiLabel(saved?.btrStopsOff ? 'скрыты' : 'показаны')}</strong></span>
+          <button type="button" className="button small" disabled={busy || saved === undefined} onClick={() => void toggleBtrStops()}>{uiLabel(saved?.btrStopsOff ? 'Показать всем' : 'Скрыть у всех')}</button>
+        </div>
         <p className="dim">{uiLabel('Какие блоки видны, их порядок и названия. Игрок, который сам настроил блоки, сохраняет свой порядок; скрытые блоки скрыты у всех.')}</p>
         {saved === undefined && !error && <small className="dim">{uiLabel('Загрузка с сервера…')}</small>}
 

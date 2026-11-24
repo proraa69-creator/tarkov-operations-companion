@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AppDataset, RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
-import { SCOURGE_INVASION, SCOURGE_QUEST_IDS } from './curatedQuests'
+import { HALLOWEEN_2026_END, SCOURGE_INVASION, SCOURGE_QUEST_IDS } from './curatedQuests'
 import { definitionOfBuiltIn, type EventQuestDefinition } from './eventQuestDefinitions'
 import { nextEventEnd, withEventQuests } from './eventQuests'
 import { OTHER_TASK_ID, toTheLightFetcher } from './__fixtures__/toTheLightFeed'
@@ -107,6 +107,8 @@ describe('the owner\'s event quests in the app, before the next catalog', () => 
   it('the clock moves on at the next end', () => {
     expect(nextEventEnd(undefined, DURING_EVENT)).toBe(END)
     expect(nextEventEnd([{ ...renamed, endsAt: '2026-10-18T00:00:00.000Z' }], DURING_EVENT)).toBe(Date.parse('2026-10-18T00:00:00.000Z'))
-    expect(nextEventEnd(undefined, END)).toBeUndefined()
+    // then Halloween 2026's, then none
+    expect(nextEventEnd(undefined, END)).toBe(Date.parse(HALLOWEEN_2026_END))
+    expect(nextEventEnd(undefined, Date.parse(HALLOWEEN_2026_END))).toBeUndefined()
   })
 })

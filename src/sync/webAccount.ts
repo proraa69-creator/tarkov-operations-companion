@@ -28,9 +28,12 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
   { methods: ['GET'], path: /^\/v1\/data\/prices\/(?:pvp|pve|seasonal)$/ },
+  // The statistics of «Торговля» (src/data/tradingApi.ts; electron/serviceGateway.ts had it, the phone did not — a player's
+  // phone showed «Не удалось получить статистику» in every mode, 11.11.2026).
+  { methods: ['GET'], path: /^\/v1\/data\/trading\/(?:pvp|pve|seasonal)$/ },
   { methods: ['GET'], path: /^\/v1\/data\/price-history\/(?:pvp|pve|seasonal)\/[a-z0-9]{16,48}(?:\?days=\d+)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
-  // «Топ сборок» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
+  // «Сборки игроков» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
   { methods: ['GET'], path: /^\/v1\/builds\?mode=(?:pvp|pve|seasonal)(?:&weapon=[a-f0-9]{24})?(?:&sort=(?:top|new))?(?:&offset=\d{1,6})?$/ },
   { methods: ['POST'], path: /^\/v1\/builds$/ },
   { methods: ['POST'], path: /^\/v1\/builds\/[a-f0-9]{24}\/(?:like|remove)$/ },
@@ -44,15 +47,20 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Престиж +» / a nickname change on the phone: the whole mode starts again (src/state/modeReset.ts).
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/reset$`) },
   // Story chapters and «Ручная отметка» of the mode (server/src/routes/me.ts; src/sync/serverSync.ts syncStory / syncManualMarks).
-  { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual)$`) },
+  { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual|deferred-quests/${MODE})$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/hideout/${MODE}$`) },
+  // Pieces put aside for the quests and the last stash scan (server/src/routes/me.ts /items).
+  { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/items/${MODE}/(?:quests|stash)$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/quest-mirror/${MODE}$`) },
   { methods: ['GET'], path: /^\/v1\/me\/game-mode$/ },
   { methods: ['GET'], path: /^\/v1\/me\/levels$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   // «Моментально в телефоне» (server/src/routes/live.ts): the PC's position and recognised item, pushed through a wait.
   { methods: ['GET'], path: new RegExp(`^/v1/live/${MODE}(?:\\?since=\\d{1,16})?$`) },
+  // «Пресеты экрана» (src/screen/MobileScreenPresets.tsx): the PC's presets and the phone's commands to it.
+  { methods: ['GET'], path: /^\/v1\/live\/screen(?:\?since=\d{1,16})?$/ },
+  { methods: ['POST'], path: /^\/v1\/live\/screen\/command$/ },
   // Objective progress and its history (server/src/routes/me.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/me/objectives/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
@@ -75,8 +83,20 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
   // «Блоки» of the owner's admin panel (server/src/routes/overviewDefaults.ts), also carried by the notice above.
   { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  // «Обновление»: the owner's text of a release (server/src/routes/playerNews.ts).
+  { methods: ['GET'], path: /^\/v1\/player-news$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/player-news$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/player-news\/reset$/ },
+  // «BZB — автозачисление оплат» of the admin app's «Платежи» (server/src/routes/ownerAdmin.ts).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bezebee\/(?:status|events\?limit=\d{1,3})$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/bezebee\/credentials$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bezebee\/(?:mail\/check|payments|events\/\d{1,12}\/(?:attach|dismiss))$/ },
+  // «Промокоды» (server/src/services/promoCodes.ts).
+  { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
-  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16}(?:&state=\d{1,16})?)?$/ },
+  // The player's own lists on every device of the account (src/sync/playerState.ts, server/src/services/playerStateStore.ts).
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/state(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): the phone app's heartbeat, with its device id (server/src/routes/presence.ts).
   { methods: ['POST'], path: /^\/v1\/me\/presence$/ },
   // «Кочевники» (server/src/routes/goons.ts): everybody reads; a signed-in account reports under his Tarkov nickname.
@@ -87,13 +107,34 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/overview$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
+  // «Телефоны» of «Сводка» (owner, 23.11.2026): phones signed in by system and who is in each app now.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/phones$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/amount$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/boosty\/payments$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/(?:amount|refunded)$/ },
+  // «Сводка» as on the site: the calendar, a day, the series, «Новые за …» (the owner's days, YYYY-MM-DD).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/calendar\?month=\d{4}-\d{2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/day\?date=\d{4}-\d{2}-\d{2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/series\?period=(?:day|month|year)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stats\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/ },
+  // «Стримеры» (routes/accounts.ts, ownerAdmin.ts, payouts.ts) and «Пригласи друга» (routes/invites.ts).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/(?:streamers|streamer-settings|payouts)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/streamer-stats\?code=[A-Za-z0-9_-]{3,24}&period=(?:day|month|year)$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/(?:streamer-invites|payouts\/decide)$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/(?:percent|link)$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/payout-limits$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/revoke$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals\/[a-f0-9]{24}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/update-history$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
+  // «Посмотреть профиль» from «Чаты» (owner, 24.11.2026; server/src/routes/ownerAdmin.ts).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/profile$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/table\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:work|plan|point)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/files\/\d{1,3}\/data$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/status$/ },
@@ -101,6 +142,17 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
+  // The owner's reaction on a message of a conversation (owner, 07.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
+  // «Редактировать»: new words for the owner's own message (owner, 15.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/edit$/ },
+  // «Стикеры» of the iPhone admin (server/src/routes/stickers.ts; owner, 07.11.2026: «И там я буду делать паки стикеров»):
+  // the packs, a new one, their order, a rename / «Добавить» / «Убрать», deleting one; a sticker's upload and order; deleting one.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stickers$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/stickers\/packs(?:\/order)?$/ },
+  { methods: ['PUT', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/stickers\/packs\/[a-f0-9]{24}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/stickers\/packs\/[a-f0-9]{24}\/(?:stickers|order)$/ },
+  { methods: ['DELETE'], path: /^\/v1\/accounts\/me\/admin\/stickers\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/attachments\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
@@ -132,6 +184,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/squads/[a-f0-9]{32}/overview/${MODE}$`) },
   { methods: ['POST'], path: /^\/v1\/squads\/[a-f0-9]{32}\/(?:invites|leave|disband|kick|invite-friend)$/ },
   { methods: ['POST'], path: /^\/v1\/squads\/invitations\/[a-f0-9]{24}\/(?:accept|decline)$/ },
+  // «Местоположение тиммейтов» and «Передача зарисовок» (server/src/routes/squadLive.ts): members only, in memory on the server.
+  { methods: ['GET'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}(?:\\?since=\\d{1,16})?$`) },
+  { methods: ['POST'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}/position$`) },
+  { methods: ['PUT'], path: new RegExp(`^/v1/squad-live/[a-f0-9]{32}/${MODE}/sketch/[A-Za-z0-9_-]{1,40}$`) },
   // Friends (server/src/routes/friends.ts): the server checks the friendship on every call.
   { methods: ['GET'], path: /^\/v1\/friends$/ },
   { methods: ['POST'], path: /^\/v1\/friends\/(?:requests|code)$/ },
@@ -151,8 +207,12 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner.
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
+  // The player's reaction on a message of their own conversation (owner, 07.11.2026).
+  { methods: ['POST'], path: /^\/v1\/me\/support\/messages\/\d{1,12}\/reactions$/ },
   // A screenshot of the player's own conversation as base64 JSON (owner, 15.10.2026).
   { methods: ['GET'], path: /^\/v1\/me\/support\/attachments\/[a-f0-9]{24}$/ },
+  // The owner's published sticker packs for the chat's picker (public; the pictures are <img> addresses, src/support/stickerCatalog.ts).
+  { methods: ['GET'], path: /^\/v1\/stickers$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -160,7 +220,7 @@ interface StoredSession { token: string; email: string; kind: 'user' | 'streamer
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
 /** The live relay's wait (GET /v1/live/:mode?since=): answered within ~25 s. */
-const LIVE_WAIT = /^\/v1\/live\/[a-z]+\?since=/
+const LIVE_WAIT = /^\/v1\/(?:live\/[a-z]+(?:\/pc)?|squad-live\/[a-f0-9]{32}\/[a-z]+)\?since=/
 /** «Онлайн сейчас»: the heartbeat goes with the device id, which tells the phone from the browser (server/src/routes/presence.ts). */
 const PRESENCE_PATH = '/v1/me/presence'
 
@@ -231,6 +291,33 @@ class UnavailableError extends Error {
   constructor(readonly notTaken = false) { super('Сервер недоступен') }
 }
 
+/** No answer, or a proxy's 502–504 in front of a stopped server: worth asking once more (src/admin/adminApi.ts). */
+export function isServerUnavailable(error: unknown) {
+  return error instanceof UnavailableError || [502, 503, 504].includes(Number((error as { status?: unknown } | null)?.status))
+}
+
+const answerListeners = new Set<() => void>()
+/**
+ * Called whenever the server answers (below 500): the owner app shows «Сервер подключён» while its requests go through,
+ * even when one status check did not (src/admin/AdminStandaloneApp.tsx).
+ */
+export function onServerAnswer(listener: () => void) {
+  answerListeners.add(listener)
+  return () => { answerListeners.delete(listener) }
+}
+
+/** How long a request waits: the owner app's reads 8 s, then adminApi asks once more on a new connection. */
+function requestTimeout(method: Method, path: string, gated: boolean) {
+  if (LIVE_WAIT.test(path)) return 45_000
+  if (gated) return 60_000
+  if (path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages')) return 180_000
+  // A sticker (≤ 512 KB) from the owner's phone network.
+  if (method === 'POST' && /^\/v1\/accounts\/me\/admin\/stickers\/packs\/[a-f0-9]{24}\/stickers$/.test(path)) return 60_000
+  if (path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events')) return 45_000
+  if (method === 'GET' && path.startsWith('/v1/accounts/me/admin/')) return 8_000
+  return 15_000
+}
+
 async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
   let response: Response
   try {
@@ -245,6 +332,7 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
     // a timed-out request may have reached the server; anything else never left this device
     throw new UnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
+  if (response.status < 500) for (const listener of answerListeners) listener()
   const result = response.status === 204 ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
 }
@@ -254,7 +342,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const route = ROUTES.find((entry) => entry.path.test(path))
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|squad-live|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
     || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
   // The owner's notice is in the language of the account's country (owner, 14.10.2026, server/src/routes/announcement.ts):
@@ -265,7 +353,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
   const retried = retriesWhileRestarting(method, path)
   const request = async () => {
-    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages') ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
+    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: requestTimeout(method, path, gated), ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
     if (retried && restartingStatus(answer.response.status) && !answer.result) throw new UnavailableError(true)
     return answer
   }
@@ -279,8 +367,9 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const code = (result as { code?: unknown } | null)?.code
   if (gated && response.status === 402) webRefuseEntitlement('subscription', result?.error)
   if (gated && response.status === 403 && (code === 'device_revoked' || code === 'device_inactive')) webRefuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
-  // The server's code goes with the message (the admin app tells region_mismatch apart, src/admin/AdminMobilePage.tsx).
-  if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), typeof code === 'string' ? { code } : {})
+  // The server's code and the status go with the message (the admin app tells region_mismatch apart, and hides
+  // «Пригласи друга» while an older server answers 404, src/admin/AdminMobilePage.tsx).
+  if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), { status: response.status }, typeof code === 'string' ? { code } : {})
   return result
 }
 
@@ -301,19 +390,22 @@ async function webEntitlement(session: StoredSession | null, online: boolean): P
   return webEntitlementFor(server)
 }
 
-async function accountStatus(checkEntitlement: boolean): Promise<ServerAccountStatus> {
+/** `patient`: the owner's admin app on a phone network — longer waits for the server (owner, 30.10.2026: «пишет нет связи с сервером»). */
+async function accountStatus(checkEntitlement: boolean, patient = false): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
   let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner'> = {}
   try {
-    const health = await send('GET', '/health', { timeoutMs: 4000 })
-    online = health.response.ok
+    // The owner app with a kept session asks for the account at once: its answer tells that the server is there — one
+    // trip from Bangkok instead of two (owner, 03.11.2026: «иногда пишет, что связи нет»).
+    online = patient && session ? true : (await send('GET', '/health', { timeoutMs: patient ? 12_000 : 4000 })).response.ok
     if (online && session) {
-      const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: 5000 })
+      const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: patient ? 10_000 : 5000 })
+      if (patient && me.response.status >= 500) online = false
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
-        const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }
+        const view = me.result as { email: string; kind?: string; owner?: unknown; storeReview?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }
         const next: StoredSession = { token: session.token, email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== session.email || next.kind !== session.kind) { saveSession(next); session = next }
         details = accountDetails(view)
@@ -330,11 +422,16 @@ export function webAccountStatus(): Promise<ServerAccountStatus> {
 
 /** Owner-only admin app: verifies the server session and owner flag, never requests a paid entitlement. */
 export function webAdminAccountStatus(): Promise<ServerAccountStatus> {
-  return accountStatus(false)
+  return accountStatus(false, true)
+}
+
+/** The e-mail of the session kept on this device (no server call), null without one: the admin app opens at once with it. */
+export function webStoredSessionEmail(): string | null {
+  return loadSession()?.email ?? null
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
-function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner' | 'deletionAt'> {
+function accountDetails(view: { owner?: unknown; storeReview?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner' | 'deletionAt' | 'storeReview'> {
   const nicknames: NonNullable<ServerAccountStatus['nicknames']> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -350,6 +447,8 @@ function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscripti
   const trialEndsAt = date(sub.trialEndsAt)
   // The free period waiting for the first sign-in in an app: its length in days.
   const pending = typeof sub.trialPendingDays === 'number' && Number.isFinite(sub.trialPendingDays) && sub.trialPendingDays > 0 ? sub.trialPendingDays : undefined
+  // The free days waiting for the first raid (server: AccountStore.firstRaid): their length in days.
+  const raid = typeof sub.trialRaidDays === 'number' && Number.isFinite(sub.trialRaidDays) && sub.trialRaidDays > 0 ? sub.trialRaidDays : undefined
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
@@ -357,9 +456,11 @@ function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscripti
   const deletionAt = date(view.deletionAt)
   return {
     ...(view.owner === true ? { owner: true as const } : {}),
+    // The Apple reviewer's test account: no payment mentions (platform.ts hidesPayments).
+    ...(view.storeReview === true ? { storeReview: true as const } : {}),
     ...(deletionAt ? { deletionAt } : {}),
     nicknames,
-    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
+    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}), ...(raid ? { trialRaidDays: raid } : {}) },
     ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
   }
 }

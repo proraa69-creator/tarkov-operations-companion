@@ -13,6 +13,8 @@
 .admin-section-tab.active { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); background: var(--surf-2); }
 .admin-section-tab.active svg { color: var(--brass); }
 .admin-section-tab:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+/* What waits in «Отчёты» and «Чат» (owner, 15.11.2026): the red number at the tab's end. */
+.admin-section-tab .admin-section-badge { flex: none; margin-left: auto; }
 
 .admin-content { display: grid; gap: 16px; min-width: 0; }
 .admin-content > .panel { margin: 0; }
@@ -32,6 +34,14 @@
 .admin-feature-state { font-weight: 650; color: var(--text-dim); }
 .admin-feature-state.is-on { color: var(--green); }
 .admin-feature .button { flex: none; }
+/* «Поиск квестов по экрану для игрока»: e-mail + «Включить на сутки», the players it is on for. */
+.admin-trial-feature { align-items: flex-start; }
+.admin-trial-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.admin-trial-form .input { flex: 1 1 220px; min-width: 0; }
+.admin-trial-list { display: grid; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.admin-trial-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.admin-trial-list li span { font-weight: 650; overflow-wrap: anywhere; }
+.admin-trial-list li .button { margin-left: auto; }
 
 /* «Квесты» */
 .admin-quests { display: grid; gap: 16px; }
@@ -103,3 +113,15 @@
 .admin-map-bosses-field { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
 .admin-map-boss > span:first-child { flex: 1 1 auto; min-width: 0; }
 .admin-map-boss-modes { display: inline-flex; flex-wrap: wrap; gap: 12px; }
+.admin-btr-switch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+
+/* «Модули убежища» (AdminHideoutModules.tsx) */
+.admin-modules { display: grid; gap: 4px; }
+.admin-module { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 4px 6px 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); }
+.admin-module.is-open { border-color: color-mix(in srgb, var(--green) 55%, var(--line)); }
+.admin-module.is-hidden .admin-module-name { color: var(--text-dim); text-decoration: line-through; }
+.admin-module-name { display: inline-flex; flex: 1 1 180px; align-items: center; gap: 8px; min-width: 0; font-weight: 600; }
+.admin-module-name img { width: 22px; height: 22px; object-fit: contain; }
+.admin-module-choice { flex: none; }
+.admin-module-choice button { min-height: 28px; }
+.admin-module-choice button:disabled { cursor: default; opacity: .6; }

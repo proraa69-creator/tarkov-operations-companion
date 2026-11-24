@@ -214,6 +214,9 @@ export function withWikiBuilds(quests: Quest[], tables: Map<string, WikiBuildRow
     const title = wikiPageTitle(quest.wikiLink)
     const table = title ? tables.get(title) : undefined
     if (!table || !quest.objectiveDetails?.some((objective) => objective.build)) return quest
+    // A page with several weapons has one table for all of them (owner, 06.11.2026, «Мастер. Часть 12»): only the parts this
+    // weapon's objective names are known to be its own.
+    const several = quest.objectiveDetails.filter((objective) => objective.build).length > 1
     return {
       ...quest,
       objectiveDetails: quest.objectiveDetails.map((objective) => {
@@ -223,6 +226,7 @@ export function withWikiBuilds(quests: Quest[], tables: Map<string, WikiBuildRow
         const parts: BuildGuidePart[] = table.flatMap((row) => {
           const itemId = resolve(row.name) ?? (row.title ? resolve(row.title) : undefined)
           if (row.handover || (itemId && itemId === build.weaponId)) return []
+          if (several && !(itemId && build.partIds.includes(itemId))) return []
           return [{ ...(itemId ? { itemId } : {}), name: row.name, ...(row.required ? { required: true } : {}), sellers: row.sellers }]
         })
         if (!parts.length) return objective

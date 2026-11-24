@@ -5,11 +5,21 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 
 const root = mkdtempSync(join(tmpdir(), 'raidos-shots-'))
 vi.mock('electron', () => ({ app: { getPath: () => join(root, 'documents') } }))
+// Every place the app looks is inside `root`: the profile too (homedir), not only the known folder and OneDrive. With the
+// real profile the lookup chose the player's own Screenshots folder (newer screenshots than these), and the tests wrote
+// fake coordinate screenshots into it (found 18.11.2026: three empty files with the tests' names).
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>()
+  const homedir = () => join(root, 'home')
+  return { ...actual, homedir, default: { ...actual, homedir } }
+})
 // Documents moved to OneDrive: EFT writes there (the app also looks under the OneDrive folder).
-const savedOneDrive = process.env.OneDrive
+const ONEDRIVE = ['OneDrive', 'OneDriveConsumer', 'OneDriveCommercial'] as const
+const savedOneDrive = Object.fromEntries(ONEDRIVE.map((name) => [name, process.env[name]]))
+for (const name of ONEDRIVE) Reflect.deleteProperty(process.env, name)
 process.env.OneDrive = join(root, 'onedrive')
 
-const { FOLDER_CACHE_MS, findScreenshotsFolder, PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride, watchedScreenshotFolders } = await import('./positionTracker')
+const { FOLDER_CACHE_MS, findScreenshotsFolder, PositionTracker, screenshotFolderCandidates, screenshotsFolder, setGameLogFolders, setScreenshotsOverride, steamScreenshotFolders, watchedScreenshotFolders } = await import('./positionTracker')
 
 const shot = (taken: string, x = 10) => `${taken}_${x}.5, 3.2, -77.1_0.02, -0.84, 0.03, 0.54_11.02 (0).png`
 function folderWith(base: string, files: Array<[string, number]>) {
@@ -23,9 +33,19 @@ function folderWith(base: string, files: Array<[string, number]>) {
 }
 
 afterAll(() => {
-  if (savedOneDrive === undefined) Reflect.deleteProperty(process.env, 'OneDrive')
-  else process.env.OneDrive = savedOneDrive
+  for (const name of ONEDRIVE) {
+    if (savedOneDrive[name] === undefined) Reflect.deleteProperty(process.env, name)
+    else process.env[name] = savedOneDrive[name]
+  }
   rmSync(root, { recursive: true, force: true })
+})
+
+describe('the tests themselves', () => {
+  it('look and write only inside their own temporary folder, never in the Screenshots of the player', () => {
+    const candidates = screenshotFolderCandidates()
+    expect(candidates.length).toBeGreaterThan(0)
+    for (const folder of [...candidates, ...watchedScreenshotFolders()]) expect(folder.startsWith(root)).toBe(true)
+  })
 })
 
 describe('EFT screenshots folder', () => {
@@ -152,5 +172,30 @@ describe('every place the game may write to is followed (the dot from the first 
     writeFileSync(join(screenshotsFolder(), shot('2026-10-12[19-00]', 46)), 'png')
     await new Promise((resolve) => setTimeout(resolve, 1500))
     expect(positions).toEqual([])
+  })
+})
+
+describe("the Steam build of the game (24.11.2026: a Steam player's screenshots folder beside its logs)", () => {
+  it("its screenshots folder is <game>/build/Escape from Tarkov/Screenshots, beside build/Logs; a launcher's Logs has none", () => {
+    expect(steamScreenshotFolders([String.raw`D:\SteamLibrary\steamapps\common\Escape from Tarkov\build\Logs`, String.raw`C:\Battlestate Games\EFT\Logs`, undefined, String.raw`D:\SteamLibrary\steamapps\common\Escape from Tarkov\build\Logs\ `.trim()]))
+      .toEqual([String.raw`D:\SteamLibrary\steamapps\common\Escape from Tarkov\build\Escape from Tarkov\Screenshots`])
+    // a POSIX path stays one (the gate runs these tests on Linux, with /tmp folders)
+    expect(steamScreenshotFolders(['/tmp/shots/steam/Escape from Tarkov/build/Logs/', '/tmp/shots/EFT/Logs']))
+      .toEqual(['/tmp/shots/steam/Escape from Tarkov/build/Escape from Tarkov/Screenshots'])
+  })
+
+  it('is followed beside Documents once the logs are found, and wins with the newest screenshots', async () => {
+    const steamGame = join(root, 'steam', 'Escape from Tarkov', 'build')
+    const logs = join(steamGame, 'Logs')
+    mkdirSync(logs, { recursive: true })
+    setGameLogFolders([logs])
+    const steamShots = join(steamGame, 'Escape from Tarkov', 'Screenshots')
+    expect(screenshotFolderCandidates().map((folder) => folder.toLowerCase())).toContain(steamShots.toLowerCase())
+    expect(watchedScreenshotFolders().map((folder) => folder.toLowerCase())).toContain(steamShots.toLowerCase())
+    folderWith(steamGame, [[shot('2026-11-24[02-00]'), Date.parse('2026-11-24T02:00:00Z')]])
+    setScreenshotsOverride('')
+    expect((await findScreenshotsFolder()).toLowerCase()).toBe(steamShots.toLowerCase())
+    setGameLogFolders([])
+    expect(screenshotFolderCandidates().map((folder) => folder.toLowerCase())).not.toContain(steamShots.toLowerCase())
   })
 })

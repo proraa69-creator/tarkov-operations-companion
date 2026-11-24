@@ -8,6 +8,8 @@ import { useSyncExternalStore } from 'react'
  */
 const KEY = 'tarkov-kappa-badge-missing-only'
 const EVENT = 'tarkov-kappa-badge-changed'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const KAPPA_BADGE_SYNC = { key: KEY, event: EVENT } as const
 
 export function isKappaBadgeMissingOnly() {
   try { return localStorage.getItem(KEY) !== '0' } catch { return true }

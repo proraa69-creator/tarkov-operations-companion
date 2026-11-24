@@ -16,7 +16,7 @@ const FILTERS: Array<{ id: InviteRewardStatus | ''; label: string }> = [
   { id: 'canceled', label: 'Не засчитано' },
 ]
 
-/** The friend's payment in words: amount, plan, Boosty or ЮKassa, the discount and when it was paid. */
+/** The friend's payment in words: amount, plan, the payment service (ЮKassa, BZB, «Архив»), the discount and when it was paid. */
 function paymentText(payment: NonNullable<AdminInviteReward['payment']>) {
   return [
     `${formatRub(payment.amount)} ₽`,

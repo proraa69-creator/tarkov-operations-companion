@@ -89,7 +89,7 @@ export function ImportProgressPage() {
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || b.timestamp.localeCompare(a.timestamp))
 
   return <div className="page import-page">
-    <header className="page-header"><div><div className="eyebrow">{uiText("Профиль · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText("Синхронизация по журналам")}</h1><p className="page-subtitle">{uiText("Задания читаются из журналов Escape from Tarkov. PvP, PvE и Сезон раскладываются отдельно — по режиму сессии, серверу и профилю.")}</p></div><span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение, локально")}</span></header>
+    <header className="page-header"><div><div className="eyebrow">{uiText("Профиль · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText("Синхронизация по журналам")}</h1><p className="page-subtitle">{uiText("Задания читаются из журналов Escape from Tarkov. PvP, PvE и Сезон раскладываются отдельно — по режиму сессии, серверу и профилю.")}</p></div><span className="tag green" title={uiText('Raid OS только читает журналы игры на этом компьютере и ничего в игре не меняет.')}><ShieldCheck size={12} />{uiText(" игра не изменяется")}</span></header>
 
     {uiText(error && <div className="panel import-warning"><AlertTriangle size={18} /> {uiText(error)}</div>)}
 

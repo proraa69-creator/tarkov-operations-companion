@@ -8,26 +8,31 @@
  * locally; nothing here ever throws into the UI. PvP, PvE and Seasonal are always sent and applied separately.
  */
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
-import type { ModeProgress, ModeRegistration, ObjectiveProgress, ProgressEvent, RaidMode } from '../domain/types'
+import type { ModeProgress, ModeRegistration, ObjectiveProgress, ProgressEvent, RaidMode, TaskProgressRecord } from '../domain/types'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../progression/objectiveProgress'
+import type { DeferredSyncEntry } from '../progression/deferredQuests'
 import type { ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { logEventsForMode } from '../import/logApply'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { clearCollectorDirty, COLLECTOR_CHANGED_EVENT, isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { clearHideoutDirty, HIDEOUT_FOUND_EVENT, isHideoutDirty, readHideoutFound, writeHideoutFound } from '../hideout/hideoutFound'
+import type { ItemCountStore } from '../items/itemCounts'
+import { questFoundStore } from '../quests/questFound'
+import { stashSeenStore } from '../stashScan/stashSeen'
 import { canonicalMapId } from '../data/mapIds'
-import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
+import { DAY_NIGHT_THEME, saveAppearance, savedTheme, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { withinBounds } from '../overlay/positionMap'
-import { isDesktopShell, isMobileLayout, isNative } from '../platform'
+import { isDesktopShell, isMobileLayout, isNative, noteStoreReviewAccount } from '../platform'
 import { featureEnabled } from '../app/archivedFeatures'
 import { liveItemBody, onRecognisedItem, parseLiveItem } from '../items/recognisedItem'
 import type { ItemOverlayInfo } from '../overlay/types'
 import { parseStoryAnswer, type StoryRecord } from './storyRecords'
 import { dropQuestMirror, holdQuestMirror, noteQuestMirrorAccount, parseQuestMirror, questMirrorBody } from './questMirror'
 import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
+import { parseTrialFeatures, setTrialFeatures } from '../account/trialFeatures'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 export const STATUS_REFRESH_MS = 30_000
@@ -43,7 +48,14 @@ const MAX_EVENTS_PER_BATCH = 2000
 export type ServerState = { status: ServerAccountStatus | null; checking: boolean }
 let state: ServerState = { status: null, checking: false }
 const listeners = new Set<() => void>()
-const setState = (next: Partial<ServerState>) => { state = { ...state, ...next }; for (const listener of listeners) listener() }
+const setState = (next: Partial<ServerState>) => {
+  state = { ...state, ...next }
+  // The reviewer's account (hidesPayments): known from the server while online, cleared on sign-out.
+  const status = state.status
+  if (status && !status.signedIn) noteStoreReviewAccount(false)
+  else if (status?.signedIn && status.online) noteStoreReviewAccount(status.storeReview === true)
+  for (const listener of listeners) listener()
+}
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 
 /**
@@ -189,6 +201,11 @@ export function currentServerStatus() {
   return state.status
 }
 
+/** The player's own lists (src/sync/playerState.ts): null without a session or an answer. */
+export function playerStateRequest(method: 'GET' | 'POST', path: string, body?: unknown) {
+  return meRequest<unknown>(method, path, body)
+}
+
 /** `/v1/me/*` through the main-process gateway. null = no desktop, not signed in or server offline. */
 async function meRequest<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T | null> {
   const request = serviceClient()
@@ -302,9 +319,12 @@ async function pushMode(mode: RaidMode): Promise<void> {
     }
     const registration = registrationOf(mode)
     const accountId = registration.status === 'registered' ? registration.accountId : result.latestAccountIdByMode?.[mode]
-    // The game's own last reset as the logs prove it — never a reset press in the app (owner, 15.10.2026: a press is no
-    // floor; the mode is found again from every log).
-    const resetAt = summary.resetAt ? isoTime(summary.resetAt) : null
+    // The game's own last reset as the logs prove it, or the floor of a press of «Престиж +» / «Вайп» made under this
+    // account (src/domain/progress.ts floorAfterReset), whichever is later.
+    const proven = summary.resetAt ? isoTime(summary.resetAt) : null
+    const account = accountIdentity()
+    const pressed = account ? readModeResets()[account]?.[mode]?.floor : undefined
+    const resetAt = proven && pressed ? (proven > pressed ? proven : pressed) : proven ?? pressed ?? null
     const key = `${accountKey()}|${characterId}|${resetAt ?? ''}`
     if (confirmed[mode]?.key !== key) confirmed[mode] = { key, events: new Set() }
     const known = confirmed[mode]!.events
@@ -360,7 +380,7 @@ async function fetchServerScope(mode: RaidMode) {
  * own account. A reset made signed out stays local (the mode is rebuilt from this PC's logs) and is never sent.
  */
 const MODE_RESETS_KEY = 'raidos-mode-resets-v1'
-type ModeResetEntry = { at: string; pending?: boolean }
+type ModeResetEntry = { at: string; pending?: boolean; floor?: string }
 type ModeResets = Record<string, Partial<Record<RaidMode, ModeResetEntry>>>
 /** Accounts whose resets are kept (the newest first): a few, never a growing list. */
 const MODE_RESET_ACCOUNTS_KEPT = 5
@@ -385,9 +405,10 @@ function readModeResets(): ModeResets {
       if (!account.includes('|') || !modes || typeof modes !== 'object') continue
       const kept: Partial<Record<RaidMode, ModeResetEntry>> = {}
       for (const mode of RAID_MODES) {
-        const entry = (modes as Record<string, { at?: unknown; pending?: unknown } | undefined>)[mode]
+        const entry = (modes as Record<string, { at?: unknown; pending?: unknown; floor?: unknown } | undefined>)[mode]
         const at = typeof entry?.at === 'string' ? isoTime(entry.at) : null
-        if (at) kept[mode] = { at, ...(entry?.pending === true ? { pending: true } : {}) }
+        const floor = typeof entry?.floor === 'string' ? isoTime(entry.floor) : null
+        if (at) kept[mode] = { at, ...(entry?.pending === true ? { pending: true } : {}), ...(floor ? { floor } : {}) }
       }
       if (Object.keys(kept).length) resets[account] = kept
     }
@@ -421,9 +442,10 @@ export function modeResetPending(mode: RaidMode) {
 /**
  * A mode was reset in this app at `at`: the signed-in account's server copy is told now (POST
  * /v1/me/progress/:mode/reset) or, offline, as soon as that same account is online again (runFullSync). Signed out:
- * nothing is queued — the reset stays local. An older reset than the one kept changes nothing.
+ * nothing is queued — the reset stays local. An older reset than the one kept changes nothing. `floor`: older than this
+ * counts for nobody any more (src/domain/progress.ts floorAfterReset); the server and the account's other devices keep it.
  */
-export function queueModeReset(mode: RaidMode, at: string) {
+export function queueModeReset(mode: RaidMode, at: string, floor?: string) {
   const time = isoTime(at)
   const account = accountIdentity()
   if (!time || !account) return
@@ -431,7 +453,8 @@ export function queueModeReset(mode: RaidMode, at: string) {
   const forAccount = { ...(resets[account] ?? {}) }
   const kept = forAccount[mode]
   if (kept && kept.at >= time && !kept.pending) return
-  forAccount[mode] = { at: kept && kept.at > time ? kept.at : time, pending: true }
+  const below = floor ? isoTime(floor) : null
+  forAccount[mode] = { at: kept && kept.at > time ? kept.at : time, pending: true, ...(below ? { floor: below } : {}) }
   writeModeResets({ ...resets, [account]: forAccount })
   // The PC's copy of the mode is from before the reset: it goes (the server removes its own too).
   dropQuestMirror(mode)
@@ -439,6 +462,7 @@ export function queueModeReset(mode: RaidMode, at: string) {
   delete confirmed[mode]
   delete storySent[mode]
   delete manualSent[mode]
+  delete deferredSent[mode]
   void sendModeResets().catch(() => {})
 }
 
@@ -453,7 +477,7 @@ export async function sendModeResets() {
       const entry = readModeResets()[account]?.[mode]
       if (!entry?.pending) continue
       if (accountIdentity() !== account) return
-      const answer = await meRequest<{ resetAt?: unknown; scope?: unknown }>('POST', `/v1/me/progress/${mode}/reset`, { at: entry.at })
+      const answer = await meRequest<{ resetAt?: unknown; scope?: unknown }>('POST', `/v1/me/progress/${mode}/reset`, { at: entry.at, ...(entry.floor ? { floor: entry.floor } : {}) })
       // Another account signed in meanwhile: its answer is not this reset's.
       if (accountIdentity() !== account) return
       if (!answer || typeof answer.resetAt !== 'string') continue
@@ -461,7 +485,7 @@ export async function sendModeResets() {
       if (scope) rememberScope(mode, scope)
       const now = readModeResets()
       // A newer reset queued meanwhile is sent on the next round.
-      if (now[account]?.[mode]?.at === entry.at) { now[account] = { ...now[account], [mode]: { at: entry.at } }; writeModeResets(now) }
+      if (now[account]?.[mode]?.at === entry.at) { now[account] = { ...now[account], [mode]: { at: entry.at, ...(entry.floor ? { floor: entry.floor } : {}) } }; writeModeResets(now) }
       // The server's copy of the mode is empty now: every event of the logs goes to it again (the rebuild).
       delete confirmed[mode]
       await pushMode(mode)
@@ -478,9 +502,11 @@ export function forgetProgressSync() {
   confirmed = {}
   storySent = {}
   manualSent = {}
+  deferredSent = {}
   desktopLogs = 'unknown'
   pushAgain.clear()
   for (const mode of RAID_MODES) delete mirrorSent[mode]
+  mirrorPulled.clear()
 }
 
 /** AppShell: the main process found no Logs folder on this PC — its quest progress comes from the server (P10). */
@@ -639,8 +665,10 @@ export function bindStorySync(binding: StorySyncBinding | null) {
 }
 
 /**
- * P9: sends this mode's new chapter readings (only with a character this app knows: its logs, or the server's scope it
- * pulled) and applies every chapter the server keeps for that character — a second PC and the phone show them too.
+ * P9: sends this mode's new chapter readings and applies every chapter the server keeps for the character — a second PC and the
+ * phone show them too. A device that knows no character (the phone: no logs) sends its chapters as well, for the character the
+ * server synced last: the stage and chapter chosen there by hand (a player's report, 20.11.2026: on the phone «Перейти на
+ * следующий этап» and «Изменить главу» went back to the PC's chapter) reach the server and the PC instead of being undone by them.
  */
 export async function syncStory(mode: RaidMode) {
   const binding = storyBinding
@@ -652,7 +680,7 @@ export async function syncStory(mode: RaidMode) {
     const key = `${accountKey()}|${local.characterId ?? ''}`
     if (storySent[mode]?.key !== key) storySent[mode] = { key, chapters: new Map() }
     const sent = storySent[mode]!.chapters
-    const records = local.characterId ? local.records.filter((record) => sent.get(record.chapterId) !== record.updatedAt) : []
+    const records = local.records.filter((record) => sent.get(record.chapterId) !== record.updatedAt)
     const answer = parseStoryAnswer(await meRequest('POST', `/v1/me/story/${mode}`, { ...(local.characterId ? { characterId: local.characterId } : {}), records }))
     if (!answer) return
     for (const record of [...records, ...answer.records]) sent.set(record.chapterId, record.updatedAt)
@@ -666,7 +694,7 @@ export async function syncStory(mode: RaidMode) {
 // «Ручная отметка» (src/quests/questEngine.ts: a mark beats older log events, loses to newer ones)
 // ------------------------------------------------------------------------------------------------------------
 
-export interface ManualMarkEntry { taskId: string; status: 'active' | 'completed' | 'cleared'; at: string }
+export interface ManualMarkEntry { taskId: string; status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 export interface ManualSyncBinding {
   /** This app's marks of the mode (with «Снять отметку» as `cleared`). */
   read: (mode: RaidMode) => ManualMarkEntry[]
@@ -692,7 +720,7 @@ export function parseManualMarks(value: unknown): ManualMarkEntry[] | null {
     const mark = entry as Partial<ManualMarkEntry> | null
     if (!mark || typeof mark.taskId !== 'string' || !ENTITY_ID_PATTERN.test(mark.taskId) || typeof mark.at !== 'string') return []
     const at = isoTime(mark.at)
-    if (!at || (mark.status !== 'active' && mark.status !== 'completed' && mark.status !== 'cleared')) return []
+    if (!at || (mark.status !== 'active' && mark.status !== 'completed' && mark.status !== 'cleared' && mark.status !== 'absent')) return []
     return [{ taskId: mark.taskId, status: mark.status, at }]
   })
 }
@@ -717,26 +745,116 @@ export async function syncManualMarks(mode: RaidMode) {
 }
 
 // ------------------------------------------------------------------------------------------------------------
+// «Отложенные квесты» (src/progression/deferredQuests.ts): one list on every device of the account
+// ------------------------------------------------------------------------------------------------------------
+
+export interface DeferredSyncBinding {
+  /** What this device knows of the mode: the quests put aside and the returned ones. */
+  read: (mode: RaidMode) => DeferredSyncEntry[]
+  /** Every quest the server keeps for the account and mode, and the mode's last reset. */
+  apply: (mode: RaidMode, quests: DeferredSyncEntry[], resetAt?: string) => void
+}
+
+let deferredBinding: DeferredSyncBinding | null = null
+const deferredBusy = new Set<RaidMode>()
+/** Per mode, what the server has (account → quest → time): only what changed is sent. */
+let deferredSent: Partial<Record<RaidMode, { key: string; quests: Map<string, string> }>> = {}
+
+/** Mounted once (AppShell): how the list of the active profile is read and applied. */
+export function bindDeferredSync(binding: DeferredSyncBinding | null) {
+  deferredBinding = binding
+}
+
+/** The server's answer (GET/POST /v1/me/deferred-quests/:mode), checked: null when it is not one. */
+export function parseDeferredQuests(value: unknown): { quests: DeferredSyncEntry[]; resetAt?: string } | null {
+  const answer = value as { quests?: unknown; resetAt?: unknown } | null
+  if (!Array.isArray(answer?.quests)) return null
+  const quests = answer.quests.flatMap((entry): DeferredSyncEntry[] => {
+    const quest = entry as Partial<DeferredSyncEntry> | null
+    if (!quest || typeof quest.taskId !== 'string' || !ENTITY_ID_PATTERN.test(quest.taskId) || typeof quest.at !== 'string') return []
+    const at = isoTime(quest.at)
+    if (!at || (quest.status !== 'deferred' && quest.status !== 'returned')) return []
+    const until = typeof quest.until === 'string' ? isoTime(quest.until) : undefined
+    const level = typeof quest.level === 'number' && Number.isInteger(quest.level) && quest.level >= 1 ? quest.level : undefined
+    const term = quest.loyalty
+    const loyalty = term && typeof term.traderId === 'string' && term.traderId && typeof term.level === 'number' && term.level >= 1
+      ? { traderId: term.traderId, trader: typeof term.trader === 'string' ? term.trader : '', level: term.level }
+      : undefined
+    return [{ taskId: quest.taskId, status: quest.status, at, ...(until ? { until } : {}), ...(level ? { level } : {}), ...(loyalty ? { loyalty } : {}) }]
+  })
+  const resetAt = typeof answer.resetAt === 'string' ? isoTime(answer.resetAt) : undefined
+  return { quests, ...(resetAt ? { resetAt } : {}) }
+}
+
+/** Sends what changed of the mode and applies every quest the server keeps (the other devices' choices among them). */
+export async function syncDeferredQuests(mode: RaidMode) {
+  const binding = deferredBinding
+  if (!binding || !connected() || deferredBusy.has(mode)) return
+  deferredBusy.add(mode)
+  try {
+    const key = accountKey()
+    if (deferredSent[mode]?.key !== key) deferredSent[mode] = { key, quests: new Map() }
+    const sent = deferredSent[mode]!.quests
+    const quests = binding.read(mode).filter((quest) => ENTITY_ID_PATTERN.test(quest.taskId) && sent.get(quest.taskId) !== quest.at).slice(0, 1000)
+    const answer = parseDeferredQuests(await meRequest('POST', `/v1/me/deferred-quests/${mode}`, { quests }))
+    if (!answer) return
+    for (const quest of [...answer.quests, ...quests]) sent.set(quest.taskId, quest.at)
+    binding.apply(mode, answer.quests, answer.resetAt)
+  } finally {
+    deferredBusy.delete(mode)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
 // Collector checklist
 // ------------------------------------------------------------------------------------------------------------
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((entry) => b.includes(entry))
 
-/** Local edits made offline are pushed first; otherwise the server copy replaces the local cache. */
+/**
+ * The lists the server keeps whole (the Collector, the items found): what this device last agreed with the server, per account. It goes
+ * with a push, and the server puts only what this device changed since then on top of its copy: a tick from another device stays, and
+ * one taken off here goes (server/src/services/userDataStore.ts mergedList). None yet: the push adds what it has and takes nothing away.
+ */
+const SYNC_BASE_PREFIX = 'raidos-sync-base-v1:'
+function readSyncBase<T>(scope: string): T | null {
+  try {
+    const kept = JSON.parse(localStorage.getItem(SYNC_BASE_PREFIX + scope) ?? 'null') as { account?: unknown; value?: T } | null
+    return kept && kept.value !== undefined && kept.account === accountIdentity() ? kept.value : null
+  } catch { return null }
+}
+function writeSyncBase(scope: string, value: unknown) {
+  try { localStorage.setItem(SYNC_BASE_PREFIX + scope, JSON.stringify({ account: accountIdentity(), value })) } catch { /* storage full: the next push takes nothing away */ }
+}
+
+/**
+ * Local edits made offline are pushed first; otherwise the server copy replaces the local cache. A list the account never held (no
+ * time, no reset) says nothing: the device's goes up instead, it is not wiped by an empty answer.
+ */
 export async function syncCollector(mode: RaidMode) {
   if (!connected()) return
-  if (isCollectorDirty(mode)) {
-    const local = loadCollected(mode).filter((id) => ITEM_ID.test(id))
-    const answer = await meRequest<{ itemIds?: unknown }>('PUT', `/v1/me/collector/${mode}`, { itemIds: local })
-    if (answer && sameSet(loadCollected(mode).filter((id) => ITEM_ID.test(id)), local)) clearCollectorDirty(mode)
-    return
+  const scope = `collector:${mode}`
+  const valid = () => loadCollected(mode).filter((id) => ITEM_ID.test(id))
+  const push = async () => {
+    const local = valid()
+    const answer = await meRequest<{ itemIds?: unknown }>('PUT', `/v1/me/collector/${mode}`, { itemIds: local, base: readSyncBase<string[]>(scope) ?? [] })
+    if (!answer) return
+    const merged = Array.isArray(answer.itemIds) ? answer.itemIds.filter((id): id is string => typeof id === 'string') : local
+    writeSyncBase(scope, merged)
+    if (!sameSet(valid(), local)) return
+    clearCollectorDirty(mode)
+    if (!sameSet(merged, local)) saveCollected(mode, merged, { fromServer: true })
   }
+  if (isCollectorDirty(mode)) { await push(); return }
   // A reset of the mode the server has not heard of yet (sendModeResets): its list there is the one from before.
   if (modeResetPending(mode)) return
-  const answer = await meRequest<{ itemIds?: unknown }>('GET', `/v1/me/collector/${mode}`)
+  const answer = await meRequest<{ itemIds?: unknown; updatedAt?: unknown; resetAt?: unknown }>('GET', `/v1/me/collector/${mode}`)
   if (!answer || !Array.isArray(answer.itemIds) || modeResetPending(mode)) return
+  if (answer.updatedAt == null && answer.resetAt == null && loadCollected(mode).length) { await push(); return }
   const remote = answer.itemIds.filter((id): id is string => typeof id === 'string')
-  if (!isCollectorDirty(mode) && !sameSet(remote, loadCollected(mode))) saveCollected(mode, remote, { fromServer: true })
+  if (isCollectorDirty(mode)) return
+  writeSyncBase(scope, remote)
+  if (!sameSet(remote, loadCollected(mode))) saveCollected(mode, remote, { fromServer: true })
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -755,19 +873,57 @@ const sameCounts = (a: ReadonlyMap<string, number>, b: ReadonlyMap<string, numbe
 /** Like the Collector checklist: a local change goes up first; otherwise the account's copy replaces the device's. */
 export async function syncHideout(mode: RaidMode) {
   const profileId = hideoutProfile?.()
-  if (!profileId || !connected()) return
-  if (isHideoutDirty(profileId, mode)) {
-    const local = readHideoutFound(profileId, mode)
-    const found = Object.fromEntries([...local].filter(([id]) => ITEM_ID.test(id)))
-    const answer = await meRequest<{ found?: unknown }>('PUT', `/v1/me/hideout/${mode}`, { found })
-    if (answer && sameCounts(readHideoutFound(profileId, mode), local)) clearHideoutDirty(profileId, mode)
-    return
+  if (!profileId) return
+  await syncCounts(mode, `/v1/me/hideout/${mode}`, {
+    read: () => readHideoutFound(profileId, mode), write: (found, options) => writeHideoutFound(profileId, mode, found, options),
+    isDirty: () => isHideoutDirty(profileId, mode), clearDirty: () => clearHideoutDirty(profileId, mode),
+  }, `hideout:${profileId}:${mode}`)
+  for (const store of [questFoundStore, stashSeenStore]) await syncItemCounts(mode, store, profileId).catch(() => {})
+}
+
+/** The pieces put aside for the quests and the last stash scan (items/itemCounts.ts), like the hideout's list. */
+function syncItemCounts(mode: RaidMode, store: ItemCountStore, profileId: string) {
+  return syncCounts(mode, `/v1/me/items/${mode}/${store.kind}`, {
+    read: () => store.read(profileId, mode), write: (found, options) => store.write(profileId, mode, found, options),
+    isDirty: () => store.isDirty(profileId, mode), clearDirty: () => store.clearDirty(profileId, mode),
+  }, `${store.kind}:${profileId}:${mode}`)
+}
+
+interface CountsSide {
+  read: () => ReadonlyMap<string, number>
+  write: (found: ReadonlyMap<string, number>, options: { fromServer: true }) => void
+  isDirty: () => boolean
+  clearDirty: () => void
+}
+
+const parseCounts = (found: unknown) => new Map(Object.entries(found as Record<string, unknown>).filter((entry): entry is [string, number] => ITEM_ID.test(entry[0]) && Number.isInteger(entry[1]) && (entry[1] as number) > 0))
+
+/**
+ * Item counts kept whole on the server, like the Collector checklist. A copy the account never wrote (no time, no reset) does not
+ * wipe the device's: the device's goes up (the quests' marks were kept on the device only before 31.10.2026).
+ */
+async function syncCounts(mode: RaidMode, path: string, side: CountsSide, scope: string) {
+  if (!connected()) return
+  const push = async () => {
+    const local = side.read()
+    const found = Object.fromEntries([...local].filter(([id, count]) => ITEM_ID.test(id) && Number.isInteger(count)))
+    const answer = await meRequest<{ found?: unknown }>('PUT', path, { found, base: readSyncBase<Record<string, number>>(scope) ?? {} })
+    if (!answer) return
+    const merged = answer.found && typeof answer.found === 'object' && !Array.isArray(answer.found) ? parseCounts(answer.found) : new Map(local)
+    writeSyncBase(scope, Object.fromEntries(merged))
+    if (!sameCounts(side.read(), local)) return
+    side.clearDirty()
+    if (!sameCounts(merged, local)) side.write(merged, { fromServer: true })
   }
+  if (side.isDirty()) { await push(); return }
   if (modeResetPending(mode)) return
-  const answer = await meRequest<{ found?: unknown }>('GET', `/v1/me/hideout/${mode}`)
+  const answer = await meRequest<{ found?: unknown; updatedAt?: unknown; resetAt?: unknown }>('GET', path)
   if (!answer || !answer.found || typeof answer.found !== 'object' || Array.isArray(answer.found) || modeResetPending(mode)) return
-  const remote = new Map(Object.entries(answer.found as Record<string, unknown>).filter((entry): entry is [string, number] => ITEM_ID.test(entry[0]) && Number.isInteger(entry[1]) && (entry[1] as number) > 0))
-  if (!isHideoutDirty(profileId, mode) && !sameCounts(remote, readHideoutFound(profileId, mode))) writeHideoutFound(profileId, mode, remote, { fromServer: true })
+  if (answer.updatedAt == null && answer.resetAt == null && side.read().size) { await push(); return }
+  const remote = parseCounts(answer.found)
+  if (side.isDirty()) return
+  writeSyncBase(scope, Object.fromEntries(remote))
+  if (!sameCounts(remote, side.read())) side.write(remote, { fromServer: true })
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -811,16 +967,16 @@ function writeMeta(meta: { hash: string; serverUpdatedAt?: string }) {
 }
 
 async function collectLocalSettings(): Promise<SyncedSettings> {
-  const settings: SyncedSettings = { theme: currentTheme() }
+  const settings: SyncedSettings = { theme: savedTheme() }
   const experimental = await window.tarkovDesktop?.experimental?.getSettings().catch(() => null)
   if (experimental) settings.experimental = Object.fromEntries(SYNCED_EXPERIMENTAL_KEYS.map((key) => [key, experimental[key]])) as Partial<ExperimentalSettings>
   return settings
 }
 
 async function applyServerSettings(remote: Record<string, unknown>) {
-  const theme = typeof remote.theme === 'string' && THEMES.some((entry) => entry.id === remote.theme) ? remote.theme : currentTheme()
-  if (theme !== currentTheme()) {
-    saveAppearance(theme)
+  const theme = typeof remote.theme === 'string' && (THEMES.some((entry) => entry.id === remote.theme) || remote.theme === DAY_NIGHT_THEME.id) ? remote.theme : savedTheme()
+  if (theme !== savedTheme()) {
+    saveAppearance(theme, { picked: false })
     window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
   }
   const experimental = remote.experimental
@@ -955,6 +1111,11 @@ export function parseLiveState(value: unknown): LiveState | null {
  * version the phone has) the server answers the moment something new comes, or after ~25 s. Null when signed out, offline,
  * without access or on a server from before the relay: the caller falls back to polling the stored position.
  */
+/** «Пресеты экрана» between the phone and the PC (src/screen/screenRemote.ts): null without a session or an answer. */
+export function screenLiveRequest<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) {
+  return meRequest<T>(method, path, body)
+}
+
 export async function fetchLiveState(mode: RaidMode, since?: number) {
   const answer = await meRequest<unknown>('GET', `/v1/live/${mode}${since === undefined ? '' : `?since=${Math.trunc(since)}`}`)
   return answer ? parseLiveState(answer) : null
@@ -996,6 +1157,25 @@ export function bindQuestMirrorSource(source: typeof questMirrorSource) {
 }
 
 /**
+ * Per account and mode: this run of the PC has read the account's copy (pullQuestMirror). Its copy goes up only after
+ * that (owner, 03.11.2026: a new PC with a few days of logs replaced the full copy on the server with its short list).
+ */
+/** When this run last read it, per account and mode: a PC reads it again at most every MIRROR_REPULL_MS. */
+const mirrorPulled = new Map<string, number>()
+/** The copy changes only when another PC sends one: a PC reads it at the sign-in and then at most this often. */
+const MIRROR_REPULL_MS = 10 * 60 * 1000
+const mirrorKey = (mode: RaidMode) => `${accountKey()}|${mode}`
+let questMirrorLayer: ((mode: RaidMode, records: Record<string, TaskProgressRecord>) => boolean) | null = null
+
+/**
+ * Mounted once (AppShell, the PC): the account's copy of a mode goes into the PC's gap-filling layer (AppState
+ * applyQuestMirrorLayer); true when that changed the stored layer.
+ */
+export function bindQuestMirrorLayer(target: typeof questMirrorLayer) {
+  questMirrorLayer = target
+}
+
+/**
  * Whether this PC has the mode's quests itself: its logs show the mode, or it holds quest records of its own — read from
  * the screen, marked by hand — and not only the ones it took from the server. The quests of the owner's PvE came from
  * the Tasks screen, not the logs: 0.6.0.75 sent only the modes of the logs, so the phone never got them (owner,
@@ -1015,6 +1195,9 @@ export async function pushQuestMirror(mode: RaidMode, progress = questMirrorSour
   if (!progress || desktopLogs === 'unknown' || !ownsModeQuests(mode, progress)) return
   dropQuestMirror(mode)
   if (!connected()) return
+  // Not before this run has read the account's copy of the mode: its records fill this PC's gaps first, so the copy sent
+  // is never shorter than the one on the server.
+  if (!mirrorPulled.has(mirrorKey(mode))) return
   const body = questMirrorBody(progress, new Date().toISOString())
   const key = `${accountKey()}|${JSON.stringify(body.records)}|${JSON.stringify(body.profile ?? {})}`
   if (mirrorSent[mode] === key) return
@@ -1022,16 +1205,33 @@ export async function pushQuestMirror(mode: RaidMode, progress = questMirrorSour
   if (answer) mirrorSent[mode] = key
 }
 
-/** The phone (always), and a PC without the mode's quests: the PC's copy of the mode, held and shown (AppState). */
+/**
+ * The account's copy of a mode. The phone holds and shows it (AppState). A PC — every mode, whether its logs show it or
+ * not — fills what it knows nothing about from it (owner, 03.11.2026: the game deletes its logs after about a week, so a
+ * new PC misses the older quests the account's copy has): the copy's records go into its gap-filling layer, and its own
+ * sources still decide every quest they know (src/quests/questEngine.ts). Then its copy may go up (pushQuestMirror):
+ * at once when the layer did not change, else from AppShell once the stored progress has the layer.
+ */
 export async function pullQuestMirror(mode: RaidMode) {
   if (!connected()) return
-  if (isDesktopShell() ? ownsModeQuests(mode) || !questMirrorSource : !usesWebAccount()) return
+  const desktop = isDesktopShell()
+  if (desktop ? !questMirrorSource || !questMirrorLayer : !usesWebAccount()) return
+  const pulledAt = desktop ? mirrorPulled.get(mirrorKey(mode)) : undefined
+  if (pulledAt !== undefined && Date.now() - pulledAt < MIRROR_REPULL_MS) return
   const account = accountIdentity()
   const answer = await meRequest<{ mirror?: unknown }>('GET', QUEST_MIRROR_PATH(mode))
   if (!account || !answer || typeof answer !== 'object' || !('mirror' in answer)) return
   // No copy on the server (none sent yet, or a reset removed it): the last one held stays — the phone keeps showing the
   // quests it last had from the PC until the PC sends newer ones (owner, 20.10.2026). A reset made here drops it itself.
   const mirror = parseQuestMirror(answer.mirror)
+  if (desktop) {
+    // A PC never shows a copy over its own records any more (older versions held one for a mode without logs).
+    dropQuestMirror(mode)
+    const changed = mirror ? questMirrorLayer?.(mode, mirror.records) ?? false : false
+    mirrorPulled.set(mirrorKey(mode), Date.now())
+    if (!changed) await pushQuestMirror(mode).catch(() => {})
+    return
+  }
   if (mirror) holdQuestMirror(account, mode, mirror)
 }
 
@@ -1040,6 +1240,13 @@ export async function pullQuestMirror(mode: RaidMode) {
 // автоматически переключаться»): the PC tells each switch (its own or the game's, AppShell), the phone follows the newest
 // one once — switching back by hand to look at another mode stays possible until the PC switches again
 // ------------------------------------------------------------------------------------------------------------
+
+/** Functions the owner turned on for this account only, for a while (src/account/trialFeatures.ts). */
+async function pullTrialFeatures() {
+  const answer = await meRequest<unknown>('GET', '/v1/me/features')
+  const features = parseTrialFeatures(answer)
+  if (features) setTrialFeatures(features)
+}
 
 const GAME_MODE_PATH = '/v1/me/game-mode'
 const FOLLOWED_PC_MODE_KEY = 'raidos-followed-pc-mode-v1'
@@ -1115,14 +1322,18 @@ export async function runFullSync() {
   try {
     // A reset made offline first: what follows must not bring back what it removed.
     await sendModeResets()
+    // The account's quest copy of every mode first: what this PC sends must never be shorter than it (pullQuestMirror).
+    if (isDesktopShell()) for (const mode of RAID_MODES) await pullQuestMirror(mode).catch(() => {})
     for (const mode of RAID_MODES) await syncCollector(mode)
     for (const mode of RAID_MODES) await syncHideout(mode)
     await syncLevels()
     for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
+    await pullTrialFeatures()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
     for (const mode of RAID_MODES) await syncStory(mode)
     for (const mode of RAID_MODES) await syncManualMarks(mode)
+    for (const mode of RAID_MODES) await syncDeferredQuests(mode).catch(() => {})
     for (const mode of RAID_MODES) await pushQuestMirror(mode).catch(() => {})
     if (pendingGameMode) await pushGameMode(pendingGameMode.mode, pendingGameMode.at).catch(() => {})
   } finally {
@@ -1159,7 +1370,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncLevels(); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current) }
+      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncLevels(); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current); await syncDeferredQuests(modeRef.current).catch(() => {}); await pullTrialFeatures() }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
@@ -1179,11 +1390,15 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
         if (!connected()) return
         const mode = modeRef.current
         void syncCollector(mode).catch(() => {}); void syncHideout(mode).catch(() => {}); void syncLevels().catch(() => {}); void syncObjectives(mode).catch(() => {})
-        void syncStory(mode).catch(() => {}); void syncManualMarks(mode).catch(() => {}); pullProgress(mode)
-      }, 400)
+        void syncStory(mode).catch(() => {}); void syncManualMarks(mode).catch(() => {}); void syncDeferredQuests(mode).catch(() => {}); pullProgress(mode)
+        // The owner turned a function on for this account («Админ панель» → «Функции»): on at once, not at the next poll.
+        void pullTrialFeatures().catch(() => {})
+      }, 150)
     }
     window.addEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
     window.addEventListener(HIDEOUT_FOUND_EVENT, onHideout)
+    window.addEventListener(questFoundStore.event, onHideout)
+    window.addEventListener(stashSeenStore.event, onHideout)
     window.addEventListener(THEME_CHANGED_EVENT, onTheme)
     window.addEventListener(SOCIAL_UPDATE_EVENT, onAccountChange)
     // Back in front (the phone was locked or the app minimised): the PC may have switched mode meanwhile.
@@ -1196,6 +1411,8 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       window.clearTimeout(reloadTimer)
       window.removeEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
       window.removeEventListener(HIDEOUT_FOUND_EVENT, onHideout)
+      window.removeEventListener(questFoundStore.event, onHideout)
+      window.removeEventListener(stashSeenStore.event, onHideout)
       window.removeEventListener(THEME_CHANGED_EVENT, onTheme)
       window.removeEventListener(SOCIAL_UPDATE_EVENT, onAccountChange)
     }
@@ -1251,6 +1468,6 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
   useEffect(() => {
     if (lastModeSync?.mode === raidMode && Date.now() - lastModeSync.at < STATUS_REFRESH_MS) return
     lastModeSync = { mode: raidMode, at: Date.now() }
-    void syncCollector(raidMode); void syncHideout(raidMode).catch(() => {}); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {}); void syncManualMarks(raidMode).catch(() => {})
+    void syncCollector(raidMode); void syncHideout(raidMode).catch(() => {}); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {}); void syncManualMarks(raidMode).catch(() => {}); void syncDeferredQuests(raidMode).catch(() => {})
   }, [raidMode, pullProgress])
 }

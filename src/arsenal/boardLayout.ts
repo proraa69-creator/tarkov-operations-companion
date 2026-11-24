@@ -56,8 +56,15 @@ export function slotKind(nameId: string): SlotKind {
 
 type PartLookup = Pick<GunCatalog, 'mods'>
 
-/** A mount is drawn above the weapon when what goes on it carries optics, below when it carries grips. */
-function mountZone(slot: GunSlot, catalog: PartLookup): 'top' | 'bottom' {
+const carriesGrip = (part: GunPart) => /foregrip|bipod/.test(part.category ?? '') || part.slots.some((own) => ['foregrip', 'bipod'].includes(slotKind(own.nameId)))
+
+/**
+ * A mount is drawn above the weapon when what goes on it carries optics, below when it carries grips. An installed part
+ * decides by itself: a chassis or rail that takes a foregrip goes below (owner, 28.10.2026: «блок для крепления рукоятки
+ * очутился наверху. Он должен быть внизу» — the СВД's mod_mount_001 mostly takes sight rails).
+ */
+function mountZone(slot: GunSlot, catalog: PartLookup, installed?: GunPart): 'top' | 'bottom' {
+  if (installed) return carriesGrip(installed) ? 'bottom' : 'top'
   let optics = 0
   let grips = 0
   for (const id of slot.allowed) {
@@ -70,10 +77,10 @@ function mountZone(slot: GunSlot, catalog: PartLookup): 'top' | 'bottom' {
   return grips > optics ? 'bottom' : 'top'
 }
 
-function zoneOf(kind: SlotKind, slot: GunSlot, catalog: PartLookup): Exclude<Zone, 'middle'> {
+function zoneOf(kind: SlotKind, slot: GunSlot, catalog: PartLookup, installed?: GunPart): Exclude<Zone, 'middle'> {
   if (kind === 'scope' || kind === 'sight' || kind === 'charge') return 'top'
   if (kind === 'tactical') return 'rail'
-  if (kind === 'mount') return mountZone(slot, catalog)
+  if (kind === 'mount') return mountZone(slot, catalog, installed)
   return 'bottom'
 }
 
@@ -96,8 +103,10 @@ export function boardLayout(build: Build, weapon: Weapon, catalog: PartLookup): 
       // goes below it instead).
       const isMain = mainColumn !== undefined && (depth === 1 || ownerMain) && !(kind === 'stock' && depth > 1)
       const column = isMain ? mainColumn! : depth === 1 ? weaponChildColumn(kind) : ownerColumn
-      // Parts on a part above or below the weapon stay on that side (a scope on a top mount goes higher still).
-      const zone: Zone = isMain ? 'middle' : !ownerMain && depth > 1 && ownerZone !== 'middle' && kind !== 'tactical' ? ownerZone : zoneOf(kind, slot, catalog)
+      // Parts on a part above or below the weapon stay on that side (a scope on a top mount goes higher still); foregrips,
+      // bipods and what carries them always go below, sights on a chassis below still above.
+      const below = kind === 'foregrip' || kind === 'bipod' || (!!part && carriesGrip(part) && kind !== 'handguard')
+      const zone: Zone = isMain ? 'middle' : below ? 'bottom' : (kind === 'scope' || kind === 'sight') && ownerZone === 'bottom' ? 'top' : !ownerMain && depth > 1 && ownerZone !== 'middle' && kind !== 'tactical' ? ownerZone : zoneOf(kind, slot, catalog, part)
       const cell: PlacedCell = { path: [...path, slot.nameId], slot, part, kind, column, zone, depth }
       cells.push(cell)
       if (part && child) walk(part, child, cell.path, depth + 1, column, isMain, zone)
@@ -142,4 +151,24 @@ export function rowSpans(counts: number[]): Array<{ start: number; span: number 
     }
     return { start, span: end - start + 1 }
   })
+}
+
+/** Kinds a part has one of: a second empty slot of the kind beside a filled one is not a place of its own on the board. */
+const ONE_OF: ReadonlySet<SlotKind> = new Set(['charge', 'handguard', 'barrel', 'gas', 'receiver', 'magazine', 'grip', 'stock'])
+
+/**
+ * Empty slots hidden behind a filled twin (owner, 20.11.2026: «если стоит стандартное цевье, то не должно быть второй кнопки… Нужно
+ * нажать на первое цевье и поставить нужное»): an empty slot of a part whose other slot of the same kind is filled — the M4A1's
+ * second charging handle slot (the B.A.D. lever) beside its charging handle, a stock tube's second stock slot beside its stock.
+ * Each hidden slot's key → the filled twin's key; it shows while its twin (or itself) is the chosen cell.
+ */
+export function hiddenTwins(cells: PlacedCell[], key: (path: string[]) => string): Map<string, string> {
+  const out = new Map<string, string>()
+  const owner = (cell: PlacedCell) => cell.path.slice(0, -1).join('/')
+  for (const cell of cells) {
+    if (cell.part || !ONE_OF.has(cell.kind)) continue
+    const twin = cells.find((other) => other !== cell && other.part && other.kind === cell.kind && owner(other) === owner(cell))
+    if (twin) out.set(key(cell.path), key(twin.path))
+  }
+  return out
 }

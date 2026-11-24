@@ -9,18 +9,31 @@ const sources = new Map<string, Promise<string>>()
 /** Thrown when a map's SVG has no building interiors kept with its ground level (nothing to draw, not an error). */
 const NO_GROUND_INTERIORS = 'The map SVG has no ground-floor interiors'
 
+/** Thrown when a map's SVG has no danger zones (Reserve, Factory, Labs: nothing to draw, not an error). */
+const NO_DANGER_ZONES = 'The map SVG has no danger zones'
+
+/** The scheme's danger zones: red fill and a red dashed outline (`.danger` 4,2; `.danger_small` 2,1 on Streets). */
+const DANGER_ZONES = '.danger, .danger_small'
+
+/** Elements that draw nothing themselves (styles, gradients, clip paths…): never hidden, the zones may need them. */
+const SVG_RESOURCES = new Set(['style', 'defs', 'title', 'desc', 'metadata', 'clippath', 'mask', 'pattern', 'lineargradient', 'radialgradient', 'symbol', 'filter', 'marker'])
+
 /**
  * `terrain: true` (default): the ground level stays visible and only the selected building floor is drawn above it.
  * `terrain: false`: only the selected floor's group is drawn (a floor plan over the satellite render).
  * `interiors: true`: only the groups the scheme keeps with the ground level (`data-keep-with-group`, e.g. the
  * buildings' ground-floor rooms «First_Floor» on Customs, Ground Zero, Shoreline) — drawn over the satellite render on
  * the main level, where tarkov.dev's top-down tiles leave the building interiors black.
+ * `danger: true`: only the danger zones (minefields «Minefield»/«Mines», sniper zones «Sniper», Развязка's «Danger»),
+ * with the groups they sit in; everything else is hidden — drawn over the satellite render on every level.
  */
-export function selectSvgFloor(source: string, layers: MapFloorLayer[], selected: string, options: { terrain?: boolean; interiors?: boolean } = {}) {
+export function selectSvgFloor(source: string, layers: MapFloorLayer[], selected: string, options: { terrain?: boolean; interiors?: boolean; danger?: boolean; removed?: readonly string[] } = {}) {
   const terrain = options.terrain ?? true
   const doc = new DOMParser().parseFromString(source, 'image/svg+xml')
   if (doc.querySelector('parsererror')) throw new Error('Invalid map SVG')
   doc.querySelectorAll('script, foreignObject').forEach((node) => node.remove())
+  // What the game no longer has, though the file still draws it (data/removedMines.ts).
+  for (const id of options.removed ?? []) doc.getElementById(id)?.remove()
   for (const node of doc.querySelectorAll('*')) {
     for (const attr of [...node.attributes]) {
       if (/^on/i.test(attr.name) || (/href$/i.test(attr.name) && !attr.value.startsWith('#'))) node.removeAttribute(attr.name)
@@ -42,6 +55,23 @@ export function selectSvgFloor(source: string, layers: MapFloorLayer[], selected
     if (!kept) throw new Error(NO_GROUND_INTERIORS)
     return new XMLSerializer().serializeToString(doc)
   }
+  if (options.danger) {
+    // A zone inside another zone goes with its outer one.
+    const zones = new Set([...doc.querySelectorAll(DANGER_ZONES)].filter((zone) => !zone.parentElement?.closest(DANGER_ZONES)))
+    if (!zones.size) throw new Error(NO_DANGER_ZONES)
+    // The groups the zones sit in stay (a hidden group would hide its zones); every other drawing beside them goes.
+    const path = new Set<Element>()
+    for (const zone of zones) {
+      for (let node = zone.parentElement; node && node !== doc.documentElement; node = node.parentElement) path.add(node)
+    }
+    for (const node of [...zones, ...path]) {
+      setDisplay(node, true)
+      for (const sibling of node.parentElement?.children ?? []) {
+        if (!zones.has(sibling) && !path.has(sibling) && !SVG_RESOURCES.has(sibling.tagName.toLowerCase())) setDisplay(sibling, false)
+      }
+    }
+    return new XMLSerializer().serializeToString(doc)
+  }
   let found = false
   const selectedGroups = new Set<string>()
   for (const layer of layers) {
@@ -53,6 +83,15 @@ export function selectSvgFloor(source: string, layers: MapFloorLayer[], selected
     if (layer.name === selected) { found = true; selectedGroups.add(layer.svgLayer) }
   }
   if (!found) throw new Error('Selected floor is missing from the map SVG')
+  if (terrain) {
+    // What stays with the terrain must not cover the chosen floor (a player's report, №73: «Первый этаж перекрывает подземный»):
+    // the files draw in their own order, First_Floor after Underground_Level on Берег, Таможня, Улицы, Эпицентр, the ground floor after
+    // the basement on Завод and Лаборатория. On another floor than the main one whatever comes after the chosen group goes; what lies under it stays.
+    const groups = [...doc.documentElement.children].filter((group) => group.tagName.toLowerCase() === 'g')
+    const last = groups.reduce((at, group, index) => selectedGroups.has(group.id) ? index : at, -1)
+    const onMain = layers.some((layer) => layer.id === 'main' && layer.name === selected)
+    if (!onMain && last >= 0) for (const group of groups.slice(last + 1)) setDisplay(group, false)
+  }
   if (!terrain) {
     // Groups no layer refers to (e.g. First_Floor kept with the ground level) belong to the terrain too.
     for (const group of doc.documentElement.children) {
@@ -66,7 +105,7 @@ export function selectSvgFloor(source: string, layers: MapFloorLayer[], selected
  * The map SVG with one floor selected. `base`: this is the digital map itself — the plain SVG is shown until
  * the floor-filtered copy is ready (or when it can't be made), and the previous copy stays up while switching floors.
  */
-export function FloorSvgOverlay({ url, layers, selected, bounds, terrain = true, interiors = false, base = false, opacity }: {
+export function FloorSvgOverlay({ url, layers, selected, bounds, terrain = true, interiors = false, danger = false, base = false, opacity, removed }: {
   url: string
   layers: MapFloorLayer[]
   selected: string
@@ -74,11 +113,15 @@ export function FloorSvgOverlay({ url, layers, selected, bounds, terrain = true,
   terrain?: boolean
   /** only the ground-floor interiors kept with the ground level (see selectSvgFloor) */
   interiors?: boolean
+  /** only the danger zones (see selectSvgFloor), above any other drawing of the scheme */
+  danger?: boolean
   base?: boolean
   opacity?: number
+  /** ids of groups the map must not draw (data/removedMines.ts); the plain file is not shown meanwhile, it would flash them */
+  removed?: readonly string[]
 }) {
   const [image, setImage] = useState<{ key: string; url: string } | null>(null)
-  const key = `${url}|${selected}|${terrain ? 1 : 0}|${interiors ? 1 : 0}`
+  const key = `${url}|${selected}|${terrain ? 1 : 0}|${interiors ? 1 : 0}|${danger ? 1 : 0}`
   // The shown copy is revoked only once the next one replaces it, so switching floors never blanks the map.
   const shown = useRef<string | undefined>(undefined)
   useEffect(() => () => { if (shown.current) URL.revokeObjectURL(shown.current) }, [])
@@ -94,7 +137,7 @@ export function FloorSvgOverlay({ url, layers, selected, bounds, terrain = true,
     }
     void request.then((source) => {
       if (!alive) return
-      const blobUrl = URL.createObjectURL(new Blob([selectSvgFloor(source, layers, selected, { terrain, interiors })], { type: 'image/svg+xml' }))
+      const blobUrl = URL.createObjectURL(new Blob([selectSvgFloor(source, layers, selected, { terrain, interiors, danger, ...(removed?.length ? { removed } : {}) })], { type: 'image/svg+xml' }))
       const previous = shown.current
       shown.current = blobUrl
       setImage({ key, url: blobUrl })
@@ -102,10 +145,11 @@ export function FloorSvgOverlay({ url, layers, selected, bounds, terrain = true,
     }).catch((error) => {
       if (!alive) return
       if (base) setImage({ key, url })
-      else if (!(error instanceof Error && error.message === NO_GROUND_INTERIORS)) console.error('Unable to load map floor', error)
+      else if (!(error instanceof Error && (error.message === NO_GROUND_INTERIORS || error.message === NO_DANGER_ZONES))) console.error('Unable to load map floor', error)
     })
     return () => { alive = false }
-  }, [url, layers, selected, terrain, interiors, base, key])
-  if (base) return <ImageOverlay url={image?.url ?? url} bounds={bounds} opacity={opacity ?? 1} zIndex={1} />
-  return image?.key === key ? <ImageOverlay url={image.url} bounds={bounds} opacity={opacity ?? 1} zIndex={5} /> : null
+  }, [url, layers, selected, terrain, interiors, danger, base, key, removed])
+  const baseUrl = image?.url ?? (removed?.length ? undefined : url)
+  if (base) return baseUrl ? <ImageOverlay url={baseUrl} bounds={bounds} opacity={opacity ?? 1} zIndex={1} /> : null
+  return image?.key === key ? <ImageOverlay url={image.url} bounds={bounds} opacity={opacity ?? 1} zIndex={danger ? 6 : 5} /> : null
 }

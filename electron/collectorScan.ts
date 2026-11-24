@@ -1,5 +1,5 @@
 import { desktopCapturer, screen } from 'electron'
-import { holdBackgroundScansFor, runOcrJob } from './ocrQueue.js'
+import { holdBackgroundScansFor, isOcrTimeout, runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
 import { captureScreenRegion, gameCaptureAvailable, visibleGameRect } from './experimental/win32.js'
 import { isGameWindowTitle } from './experimental/gameWindow.js'
@@ -23,11 +23,12 @@ export interface CollectorScan extends FrameReading {
 
 let engine: Promise<OcrWorker> | null = null
 /** The engine goes half a minute after the scan's last pass (a scan reads a frame every second or so while it runs). */
-const release = idleRelease(30_000, () => {
+function dropEngine() {
   const current = engine
   engine = null
   void current?.then((worker) => worker.terminate()).catch(() => {})
-})
+}
+const release = idleRelease(30_000, dropEngine)
 
 /** One OCR engine: one processor core at most, so the game keeps the rest (two made the game stutter). */
 function ocr() {
@@ -46,6 +47,11 @@ const reader = createLabelReader(async (picture) => {
   try {
     const image = toPgm(picture)
     const result = await runOcrJob(() => worker.recognize(Buffer.from(image.buffer, image.byteOffset, image.byteLength), {}, { blocks: true }), 'interactive')
+      .catch((error: unknown) => {
+        // A hung engine is dropped: the next pass starts a fresh one (ocrQueue.ts).
+        if (isOcrTimeout(error)) dropEngine()
+        throw error
+      })
     return (result.data.blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines))
       .map((line) => ({ text: line.text, top: line.bbox.y0, bottom: line.bbox.y1 }))
   } finally {

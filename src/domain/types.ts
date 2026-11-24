@@ -10,6 +10,9 @@ export type MarkerLayerId =
   | 'key'
   | 'boss'
   | 'spawn'
+  | 'spawn.pmc'
+  | 'spawn.scav'
+  | 'sniper'
   | 'hazard'
   | 'loot.valuable'
   | 'loot.weapon'
@@ -18,7 +21,11 @@ export type MarkerLayerId =
   | 'loot.technical'
   | 'loot.container'
   | 'loot.documents'
+  | 'loot.guaranteed'
+  | 'loot.key'
   | 'landmark'
+  | 'switch'
+  | 'btr'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
 /**
@@ -31,6 +38,15 @@ export interface TaskRequirement {
   taskId: string
   allowedStatuses: Array<'complete' | 'failed' | 'active'>
   group?: string
+}
+
+/**
+ * Story chapters marked by hand. A chapter's status and stage live in the story layer of `questInputs`, as a reading would; here is what
+ * no reading has: chapter → stage → goal → its mark (data/storyRoutes.ts, progression/storyStageGoals.ts), and the answers that choose a route.
+ */
+export interface StoryManual {
+  chapters: Record<string, { marks: Record<string, Record<string, number>> }>
+  choices: Record<string, string>
 }
 
 export interface TaskProgressRecord {
@@ -50,19 +66,25 @@ export interface TaskProgressRecord {
 /** One source's word on a quest: its status and when it was seen (ISO, UTC). */
 export interface QuestObservation { status: 'active' | 'completed' | 'failed'; at: string }
 /** A manual mark: `cleared` is «Снять отметку», kept as a tombstone so it syncs too. */
-export interface ManualMark { status: 'active' | 'completed' | 'cleared'; at: string }
+/** `absent`: «У меня нет этого квеста», the quest goes back to not taken (src/quests/questEngine.ts). */
+export interface ManualMark { status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 
 /** What each source said, per quest id, never merged (ModeProgress.questInputs). */
 export interface QuestInputLayers {
   log: Record<string, QuestObservation>
   server: Record<string, QuestObservation>
   manual: Record<string, ManualMark>
-  /** Tasks-table readings (source 'screen-scan'): PvE only. */
+  /** Tasks-table readings (source 'screen-scan'): every mode (owner, 01.11.2026). */
   table: Record<string, TaskProgressRecord>
   /** Story-pane readings of chapters (source 'screen-scan'): stage and objectives. */
   story: Record<string, TaskProgressRecord>
   /** `manual` records of older versions. */
   legacy: Record<string, TaskProgressRecord>
+  /**
+   * The account's copy from the server (PUT /v1/me/quest-mirror/:mode): another PC's decisions, or this one's from before
+   * the logs the game still keeps. Fills a gap only (owner, 03.11.2026). Missing on older profiles and on the server.
+   */
+  mirror?: Record<string, TaskProgressRecord>
 }
 
 export interface StoryObjectiveReading {
@@ -189,6 +211,8 @@ export interface ModeProgress {
   taskProgress: Record<string, TaskProgressRecord>
   /** What each quest source said, kept apart (src/quests/questInputs.ts). Missing in profiles of 0.6.0.41 and older. */
   questInputs?: QuestInputLayers
+  /** Story chapters marked by hand (components/StoryChapterPanel.tsx). */
+  storyManual?: StoryManual
   trackedTaskIds: string[]
   favoriteItemIds: string[]
   raidItemIds: string[]
@@ -206,21 +230,20 @@ export interface ModeProgress {
    */
   logEpochAt?: string
   /**
-   * The floor of 0.6.0.40/41: «Престиж +» or a nickname change at the press. No longer written (owner, 15.10.2026: «нужно
-   * что бы приложение находило все актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в
-   * игре нет»): a profile that has one gets a pending `resetMarker` instead at load (src/domain/progress.ts).
+   * The floor of 0.6.0.40/41: «Престиж +» or a nickname change at the press. No longer written: a profile that has one gets
+   * a pending `resetMarker` instead at load (src/domain/progress.ts). A press's floor is `logResetAt` now (floorAfterReset).
    */
   modeResetAt?: string
   /**
-   * «Престиж +» / «Вайп» / a new nickname: the player says the game's profile was reset around `at`. While pending, the
+   * A new nickname (and «Престиж +» / «Вайп» of versions before 0.6.0.233): the game's profile may be another since `at`. While pending, the
    * logs before it still count (it may be an app-only reset); the game's own reset after it in the logs (a new profile id,
    * a quest taken again after its hand-in, the prestige / new-profile request) becomes the floor and resolves it
    * (`resolvedAt`). src/state/AppState.tsx applyLogState.
    */
   resetMarker?: { kind: 'prestige' | 'wipe' | 'nickname'; at: string; resolvedAt?: string }
   /**
-   * The times of this app's reset presses (newest last, a few): a server that still answers one of them as a «reset»
-   * (0.6.0.41's floors) is not taken for the game's own reset.
+   * The times of this app's reset presses (newest last, a few): such a time is the press's floor, or a server's answer
+   * repeating it, never the game's own reset (floorAfterReset, src/state/AppState.tsx applyLogState).
    */
   appResetTimes?: string[]
   /** Objective state keyed by objectiveId (schema v6). */
@@ -228,6 +251,20 @@ export interface ModeProgress {
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */
   progressEvents: ProgressEvent[]
   objectiveConflicts: ObjectiveConflict[]
+  /** Kept on this PC, not sent anywhere. Missing until this version's first start, and after what empties the mode. */
+  tableSync?: TableSyncState
+}
+
+/** The first sync of a mode's Tasks table on this PC (src/import/tableSync.ts). */
+export interface TableSyncState {
+  /** When this PC began it, with the mended reader: a record of a title the old reader invented from before this goes (src/quests/questChain.ts). */
+  startedAt: string
+  /** The quests the table's readings named so far. */
+  seen: string[]
+  /** The visits to the table that counted. */
+  visits: number
+  /** It ended: the table is read no more, the logs go on. */
+  doneAt?: string
 }
 
 export interface LocalProfile {
@@ -331,6 +368,8 @@ export interface MapMarker {
   mapId: string
   type: MarkerType
   layerId?: MarkerLayerId
+  /** On the wire only: the marker's own layer while `layerId` names one older apps know (src/data/catalogWire.ts). */
+  wireLayer?: MarkerLayerId
   title: string
   description: string
   position: [number, number]
@@ -350,6 +389,11 @@ export interface MapMarker {
    * (`kind: 'item'`) or any of the close-together zones counts (`kind: 'zone'`). Shown as «Возможное место».
    */
   possibleSpot?: PossibleSpot
+  /**
+   * A quest-item point that stands for several spawns close together (mapMarkerAdapter.ts ITEM_SPOT_MERGE_METRES):
+   * how many, and their floors when they are on more than one (the point then has no `floor`).
+   */
+  nearbySpots?: { count: number; floors?: string[] }
   /** Locked door / keycard reader: which key opens it. */
   lock?: MarkerLock
   /**
@@ -357,6 +401,20 @@ export interface MapMarker {
    * item with a single listed spawn position. Never set from guesses; loose loot has no chance in the data.
    */
   guaranteedSpawn?: boolean
+  /** One of a group of spots, one of which holds the item every raid: «Возможная точка спавна». */
+  possibleSpawn?: boolean
+  /** A loose key spot (layer «Ключи»): how many keys may lie there. */
+  keyCount?: number
+  /** The key spots of one locked room drawn as one point: how many spots the room has (src/maps/lockedRoomSpots.ts). */
+  roomSpots?: number
+  /** A spot players described (where on it the item lies): its own point at any zoom, never one of a heap (lockedRoomSpots.ts). */
+  ownSpot?: boolean
+  /** A loose key spot: every key that may lie there («Нужные ключи» filters by them). */
+  keyIds?: string[]
+  /** A loose loot spot: every item that may lie there («Найти точку…» finds them by name, src/maps/mapSearch.ts). */
+  lootIds?: string[]
+  /** Photos of the place (a key players found where the feed has none, src/data/extraKeySpots.ts). */
+  spotPhotos?: Array<{ file: string; ru: string; en: string }>
   stageIndex?: number
   itemId?: string
   extractId?: string
@@ -366,6 +424,8 @@ export interface MapMarker {
   requiresItem?: boolean
   requiresCoop?: boolean
   meta?: string
+  /** A battle pass document: which of them lie here (src/data/battlePassDocuments.ts); a spot can hold two. */
+  documentKinds?: string[]
   /**
    * The owner's description of a quest point «где и что искать» in the app's language, and the curated requirements
    * linked to this point (src/data/questPointOverrides.ts, src/data/questRequirementOverrides.ts).
@@ -383,6 +443,10 @@ export interface MarkerHint {
   itemIds?: string[]
   items?: Array<{ itemId: string; name: string; iconUrl?: string }>
   photoIds?: string[]
+  /** «Требования рейда» (map editor, 10.11.2026): catalog items needed here (ids, then resolved) and a short condition. */
+  requiredItemIds?: string[]
+  requiredItems?: Array<{ itemId: string; name: string; iconUrl?: string }>
+  conditions?: string
 }
 
 /** A quest point's description, gathered on the quest for its card (objective / stage it belongs to). */
@@ -413,7 +477,7 @@ export interface QuestStage {
   /** Expected progress denominator when the stage shows counters like 0/3. */
   progressTotal?: number
   /** Known map points of the stage (game x/z, tarkov.dev space); `outline` ([x, z][]) marks an area. */
-  points?: Array<{ mapId: string; x: number; z: number; outline?: Array<[number, number]> }>
+  points?: Array<{ mapId: string; x: number; z: number; y?: number; outline?: Array<[number, number]>; note?: string }>
 }
 
 /** A map zone of an objective in game coordinates (tarkov.dev `zones`). */
@@ -430,6 +494,13 @@ export interface ObjectiveZone {
 /** One objective of a trader task as the catalog describes it (spec table `task_objectives`). */
 export interface QuestObjective {
   id: string
+  /**
+   * The server's catalog: the game's own id of a tarkov.dev objective whose `id` travels as its translated text, as every
+   * app before 0.6.0.184 keys its ticks; the app takes it as `id` on arrival (src/data/catalogWire.ts).
+   */
+  gameId?: string
+  /** In the app: the translated text this objective's ticks were kept under before (src/domain/progress.ts normalizeObjectiveKeys). */
+  legacyId?: string
   type: string
   description: string
   optional?: boolean
@@ -611,10 +682,11 @@ export interface Quest {
    */
   gameConditions?: Array<'dialogue' | 'progress' | 'badStanding'>
   /**
-   * The quest's data was corrected by hand from a checked source (src/data/questCorrections.ts) and is pinned: catalog
-   * and server updates do not overwrite it.
+   * The quest's data was corrected by hand from a checked source (src/data/questCorrections.ts, and the quests listed in
+   * src/data/manualQuests.json) and is pinned: catalog and server updates do not overwrite it. `changes`: what was changed and
+   * when, from the list.
    */
-  manualCorrection?: { source: string; checkedAt: string }
+  manualCorrection?: { source: string; checkedAt: string; changes?: string[] }
   /**
    * A quest the game has and tarkov.dev does not, added from Raid OS's own data (src/data/curatedQuests.ts): the id of
    * its series. The owner's event quests are laid over these (src/data/eventQuests.ts).
@@ -631,10 +703,17 @@ export interface Quest {
   objectives: string[]
   stages?: QuestStage[]
   rewards: string[]
+  /** What the quest opens at the traders once it is done (src/data/questOfferUnlocks.ts): items, parts, ammo. */
+  offerUnlocks?: QuestOfferUnlock[]
   requiredItems?: string[]
   previous?: string[]
   requirements?: TaskRequirement[]
   faction?: string
+  /**
+   * The prestige the character must have to be given the quest («Новое начало» for the next prestige,
+   * src/progression/prestigeQuests.ts): at any other prestige it is not given.
+   */
+  prestige?: number
   experience?: number
   wikiLink?: string
   imageUrl?: string
@@ -646,12 +725,15 @@ export interface Quest {
   raidRequirements?: Array<{
     itemId: string
     count: number
-    purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find'
+    /** `signal`: a flare to fire, for an objective or an exit opened by one; `use`: another item the objective has the player use. */
+    purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find' | 'signal' | 'use'
     mapIds: string[]
     /** The item must be found in raid (tarkov.dev TaskObjectiveItem.foundInRaid). */
     foundInRaid?: boolean
     /** tarkov.dev objective id the requirement comes from. */
     objectiveId?: string
+    /** A key several objectives need: all of them, `objectiveId` being the first. One row, as one key opens them all. */
+    objectiveIds?: string[]
     /** Number of items the objective accepts; above 1 any of them counts (e.g. «hand over 3 of any medical»). */
     alternatives?: number
     optional?: boolean
@@ -659,6 +741,13 @@ export interface Quest {
     minDurability?: number
     maxDurability?: number
     dogTagLevel?: number
+    /**
+     * A quest item to plant (tarkov.dev `questItem` of a plantQuestItem objective): not sold and not kept in the stash; its
+     * name in `AppDataset.questItems`. `pickUp`: the same quest has it found in a raid first (report 162, owner 15.11.2026:
+     * «квестовый предмет, который сначала нужно поднять, а потом заложить»); else the trader gives it or an earlier quest finds it.
+     */
+    questItem?: boolean
+    pickUp?: boolean
     /**
      * Added or corrected by the owner in the quest constructor («добавлено Raid OS»): its own kind, comment and the point
      * it is tied to; `replaced` when it corrects the catalog's requirement of the same item and kind.
@@ -689,8 +778,19 @@ export interface PriceQuote {
   basis?: 'last-low' | 'avg-24h'
 }
 
+/** An item a quest opens at a trader: on sale from this loyalty level once the quest is done (`barter`: for items only). */
+export interface QuestOfferUnlock {
+  itemId: string
+  /** The catalog's trader id. */
+  traderId: string
+  level: number
+  barter?: boolean
+}
+
 export interface Item {
   id: string
+  /** A key's uses (upstream `properties.uses`): how many doors one copy opens; 0: it does not wear out. */
+  keyUses?: number
   normalizedName?: string
   name: string
   shortName: string
@@ -725,6 +825,67 @@ export interface Item {
    * shows the assembled weapon; the base item's own icon is just the receiver. Missing for other items.
    */
   presetImageUrl?: string
+  /** How many fit in one cell (tarkov.dev `stackMaxSize`), when more than one: ammo's price per slot. */
+  stackSize?: number
+  /** Body armor, armored rigs, helmets and headsets: their stats for the tier lists (src/data/gearStats.ts). */
+  gear?: GearStats
+}
+
+/** tarkov.dev `properties` of wearable protection and headsets that the tier lists rank by (src/screen/tierLists.ts). */
+export interface GearStats {
+  kind: 'armor' | 'rig' | 'helmet' | 'headphones' | 'plate' | 'backpack'
+  /** Armor class with the default plates, 1–6 (an armor plate: its own). */
+  armorClass?: number
+  /** Points of durability with the default plates. */
+  durability?: number
+  /** tarkov.dev armor material id (`Aramid`, `UHMWPE`, `Ceramic`…) and how fast it wears (`destructibility`). */
+  material?: string
+  destructibility?: number
+  /** Hit zones the armor covers. */
+  zones?: number
+  /** Fractions, negative: −0.09 is −9 % movement speed. */
+  speedPenalty?: number
+  turnPenalty?: number
+  ergoPenalty?: number
+  /** Helmets: how much it muffles the sound and whether a headset fits under it. */
+  deafening?: 'None' | 'Low' | 'Medium' | 'High'
+  blocksHeadset?: boolean
+  /** Helmets: the class that guards the face — its own, or its best armored visor's (`visorId`); 0 when nothing does. */
+  faceClass?: number
+  visorId?: string
+  /** Helmets: the game's preset of the helmet with that visor on (its picture shows them together). */
+  presetId?: string
+  /**
+   * Helmets and their visors: the game's ricochet value (tarkov.dev `ricochetY`, the item's RicochetParams.y); the game's inventory
+   * calls it high above 0.3, medium above 0.15, else low (src/screen/tierLists.ts ricochetLevel).
+   */
+  ricochet?: number
+  /** Helmets: the visor's own stats (`visorId`), counted on the face only while it is down (src/screen/tierLists.ts helmetWorn). */
+  visor?: VisorStats
+  /** Backpacks: cells inside (owner, 02.11.2026: «Тир лист рюкзаков составь по количеству ячеек»). */
+  capacity?: number
+  /** Headsets: hearing distance multiplier (1.135 = +13.5 %), distortion 0–1 and the compressor. */
+  distanceModifier?: number
+  distortion?: number
+  ambientVolume?: number
+  compressorGain?: number
+  compressorThreshold?: number
+  /** Headsets: items they cannot be worn with (helmets among them). */
+  conflictingIds?: string[]
+}
+
+/** A helmet's armored visor by itself (tarkov.dev `properties` of the face shield; penalties are fractions, negative). */
+export interface VisorStats {
+  armorClass: number
+  durability?: number
+  material?: string
+  /** Hit zones it covers (the face: eyes, jaw…). */
+  zones?: number
+  ricochet?: number
+  speedPenalty: number
+  turnPenalty: number
+  ergoPenalty: number
+  weight?: number
 }
 
 export interface HideoutStation {
@@ -769,6 +930,8 @@ export interface AppDataset {
   items: Item[]
   hideout: HideoutStation[]
   traders: Trader[]
+  /** The quest items the quests plant (raid requirements with `questItem`): their names; pictures are the app's own (src/data/localItemPictures.ts). */
+  questItems?: Item[]
   metadata?: {
     source: string
     mode: RaidMode
@@ -781,7 +944,7 @@ export interface AppDataset {
     /** Upstream timestamp of the task data, ISO. */
     sourceUpdatedAt?: string
     /** The flea market of this mode (tarkov.dev `fleaMarket` of the items file): open or not, and its fee rates. */
-    fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number }
+    fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number; minPlayerLevel?: number }
     /**
      * Desktop app: the server's version of this catalog's content (its ETag, electron/serviceGateway.ts). The next
      * request sends it back and gets «not modified» while nothing changed (src/data/tarkovJsonClient.ts).

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
  */
 export type BuildEdition = 'owner' | 'client'
 
-interface BuildInfo { edition?: unknown; defaultServerUrl?: unknown; ownerEmails?: unknown; entitlementKeys?: unknown }
+interface BuildInfo { edition?: unknown; defaultServerUrl?: unknown; ownerEmails?: unknown; entitlementKeys?: unknown; testBuild?: unknown }
 let cached: BuildInfo | null | undefined
 
 function buildInfo(): BuildInfo | null {
@@ -47,6 +47,14 @@ export function buildEdition(): BuildEdition {
 }
 
 export const isOwnerBuild = () => buildEdition() === 'owner'
+
+/**
+ * A build only for testing a change (TEST_BUILD=1, scripts/write-build-info.mjs): the server and the account as usual, but no updates
+ * and never the staged update, its own data folder — the owner's real app and data stay as they are, and both run side by side.
+ */
+export const isTestBuild = () => buildInfo()?.testBuild === true
+export const TEST_BUILD_APP_NAME = 'Raid OS Test'
+export const TEST_BUILD_DATA_FOLDER = 'Raid OS Test Build'
 
 /** The server address baked into this build ('' = none: this PC, http://127.0.0.1:8787). */
 export function buildDefaultServerUrl() {

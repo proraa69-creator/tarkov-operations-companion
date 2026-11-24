@@ -1,0 +1,134 @@
+/* «Ключи для квестов» (pages/QuestKeysPage.tsx). */
+.quest-keys-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.quest-keys-search { position: relative; flex: 1 1 220px; min-width: 180px; display: block; }
+.quest-keys-search svg { position: absolute; top: 50%; left: 11px; translate: 0 -50%; color: var(--text-dim); pointer-events: none; }
+.quest-keys-search input { width: 100%; padding-left: 32px; }
+.quest-keys-map { flex: 0 1 190px; width: auto; }
+.quest-keys-notify { flex: none; gap: 5px; }
+.quest-keys-note { margin: 10px 0 0; color: var(--text-muted); font-size: 13px; }
+.quest-keys-empty { margin-top: 12px; padding: 18px; color: var(--text-dim); font-size: 14px; }
+
+.quest-keys-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 430px), 1fr)); align-items: stretch; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
+.quest-key { display: grid; align-content: start; gap: 8px; padding: 12px; }
+.quest-key-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.quest-key-picture { display: grid; flex: none; place-items: center; width: 48px; height: 48px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text-dim); }
+.quest-key-picture img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.quest-key-title { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.quest-key-title strong { font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+.quest-key-title small { color: var(--text-dim); font-size: 12px; }
+.quest-key-head .tag { flex: none; }
+.quest-key-star { flex: none; width: 34px; height: 34px; }
+.quest-key-star.is-on { border-color: var(--brass); color: var(--brass-strong, var(--brass)); }
+.quest-key-star.is-on svg { fill: currentColor; }
+
+.quest-key-quests { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.quest-key-quests li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 5px 0 0; border-top: 1px solid var(--line); }
+.quest-key-quest { display: flex; flex: 1 1 180px; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; font-size: 13px; }
+.quest-key-quest a { color: var(--text); font-weight: 600; text-decoration: none; }
+.quest-key-quest a:hover, .quest-key-quest a:focus-visible { color: var(--brass-strong, var(--brass)); text-decoration: underline; }
+.quest-key-quest small { color: var(--text-dim); font-size: 12px; }
+.quest-key-quests .button { gap: 4px; }
+.quest-key-quests.is-deferred .quest-key-quest a { color: var(--text-muted); }
+.quest-key-quests.is-done .quest-key-quest { align-items: center; color: var(--green); }
+.quest-key-quests.is-done .quest-key-quest a { color: var(--text-muted); font-weight: 500; }
+.quest-key-progress { color: var(--text-dim); font-size: 12px; }
+
+.quest-keys-toast { align-items: center; max-width: 400px; }
+.quest-keys-toast > svg { flex: none; color: var(--brass-strong, var(--brass)); }
+.quest-keys-toast-body { display: grid; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.quest-keys-toast-body:hover strong { text-decoration: underline; }
+
+:root[data-layout="mobile"] .quest-keys-filters .mode-switch { width: 100%; overflow-x: auto; }
+:root[data-layout="mobile"] .quest-keys-map { flex: 1 1 100%; width: 100%; }
+:root[data-layout="mobile"] .quest-keys-notify { flex: 1 1 100%; justify-content: center; min-height: 38px; }
+:root[data-layout="mobile"] .quest-key-star { width: 40px; height: 40px; }
+:root[data-layout="mobile"] .quest-key-quests .button { min-height: 34px; }
+
+/* The key's flea price, when it was renewed, and its barters (owner, 07.11.2026) */
+.quest-key-market { display: grid; flex: none; justify-items: end; gap: 3px; text-align: right; }
+.quest-key-price { display: grid; justify-items: end; gap: 1px; }
+.quest-key-price strong { color: var(--brass-strong, var(--brass)); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.quest-key-price small { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+.quest-key-barter { min-height: 26px; padding: 0 9px; gap: 5px; }
+.quest-key-barter-dialog { width: min(560px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.quest-key-barter-key { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; }
+.quest-key-barter-key img { width: 42px; height: 42px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); object-fit: contain; }
+.quest-key-barters { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.quest-key-barters > li { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
+.quest-key-barters > li.is-locked { opacity: .72; }
+.quest-key-barter-trader { display: flex; align-items: center; gap: 10px; }
+.quest-key-barter-trader img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; }
+.quest-key-barter-trader span { display: grid; gap: 2px; }
+.quest-key-barter-trader small { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); font-size: 12px; }
+.quest-key-barter-give > small { color: var(--text-dim); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.quest-key-barter-give ul { display: grid; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
+.quest-key-barter-give li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 13px; }
+.quest-key-barter-give li img { width: 30px; height: 30px; object-fit: contain; }
+.quest-key-barter-give li b { color: var(--brass-strong, var(--brass)); font-variant-numeric: tabular-nums; }
+:root[data-layout="mobile"] .quest-key-head { flex-wrap: wrap; }
+
+/* «Найти ключи», its «?», «Ключи в схроне» (owner, 07.11.2026) */
+.quest-keys-stash-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+.quest-keys-help { width: 32px; height: 32px; border-radius: 50%; }
+.quest-keys-scan-message { color: var(--text-muted); font-size: 12.5px; }
+.quest-key-owned { white-space: nowrap; }
+.quest-keys-help-dialog { width: min(500px, 100%); }
+.quest-keys-help-steps { display: grid; gap: 8px; margin: 6px 0 12px; padding-left: 20px; line-height: 1.45; }
+.quest-keys-stash-dialog { width: min(620px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.quest-keys-stash-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 10px; }
+.quest-keys-stash-add { display: grid; gap: 8px; margin-bottom: 12px; }
+.quest-keys-stash-found { display: grid; gap: 4px; max-height: 240px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.quest-keys-stash-found button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.quest-keys-stash-found button span:first-of-type { flex: 1; }
+.quest-keys-stash-found img { width: 28px; height: 28px; object-fit: contain; }
+.quest-keys-stash-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.quest-keys-stash-list > li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto auto; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
+.quest-keys-stash-list .quest-key-picture { width: 40px; height: 40px; }
+.quest-keys-stash-name { display: grid; gap: 2px; min-width: 0; }
+.quest-keys-stash-name strong { font-size: 13px; overflow-wrap: anywhere; }
+.quest-keys-stash-needed { color: var(--brass-strong, var(--brass)); font-size: 11px; }
+.quest-keys-stash-uses { display: inline-flex; align-items: center; gap: 4px; }
+.quest-keys-stash-list .quest-keys-stash-uses input.input { width: 62px; min-width: 0; flex: none; min-height: 30px; padding: 0 6px; }
+.quest-keys-stash-uses small { color: var(--text-dim); }
+.quest-keys-stash-count { display: inline-flex; align-items: center; gap: 4px; }
+.quest-keys-stash-count .icon-button { width: 26px; height: 26px; }
+.quest-keys-stash-empty { margin: 8px 0; }
+:root[data-layout="mobile"] .quest-keys-stash-list > li { grid-template-columns: 40px minmax(0, 1fr) auto; }
+:root[data-layout="mobile"] .quest-keys-stash-uses { grid-column: 2; }
+.quest-keys-stash-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+/* «Ключи в схроне» in the page (owner, 11.11.2026): the stash under the buttons, not over the page; «Нет в наличии» as the Overview. */
+.quest-keys-stash-inline { margin: 0 0 12px; padding: 12px 14px; }
+.quest-key-missing { white-space: nowrap; border-color: color-mix(in srgb, #d78a6e 55%, transparent); color: #e2a28c; }
+button.quest-key-missing { cursor: pointer; }
+button.quest-key-missing:hover { border-color: #d78a6e; color: #f0b9a5; }
+.quest-key-stock-dialog { width: min(420px, 100%); }
+.quest-key-stock-dialog .quest-key-barter-key svg { color: var(--text-muted); }
+
+/* One key in a window over the map (quests/QuestKeyDialog.tsx): small, everything in the middle */
+.quest-key-dialog { width: min(320px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 20px 18px; text-align: center; }
+.quest-key-dialog-picture { display: grid; place-items: center; width: 76px; height: 76px; border: 1px solid var(--line-strong); border-radius: 12px; background: rgb(0 0 0 / 28%); color: var(--text-dim); }
+.quest-key-dialog-picture img { width: 64px; height: 64px; object-fit: contain; }
+.quest-key-dialog-name { max-width: 100%; font-size: 15px; line-height: 1.3; text-wrap: balance; }
+.quest-key-dialog .quest-key-market { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 2px 0 0; }
+.quest-key-dialog .quest-key-price { justify-items: center; text-align: center; }
+.quest-key-dialog-actions { display: grid; gap: 8px; width: 100%; margin-top: 4px; }
+.quest-key-dialog-actions .button { justify-content: center; gap: 6px; width: 100%; }
+.quest-key-dialog-star.is-on { color: var(--brass-strong, var(--brass)); border-color: var(--brass); }
+
+/* One frame per key picture (owner, 11.11.2026: «не должно быть двойных рамок… Учитывай это везде»): the icon's own, rounded. */
+.quest-key-picture { border: 0; background: none; border-radius: 8px; }
+.quest-key-picture img { border-radius: 8px; }
+.quest-key-barter-key img { padding: 0; border: 0; background: none; border-radius: 8px; }
+.quest-key-dialog-picture { width: auto; height: auto; border: 0; background: none; border-radius: 0; }
+.quest-key-dialog-picture img { width: 72px; height: 72px; border-radius: 10px; }
+
+/* A key of «Требуемые предметы» open in the quest window (QuestKeyInline.tsx): compact, the buy section right under it. */
+.sheet-needs li.is-expanded { grid-column: 1 / -1; }
+.quest-key-inline { display: grid; gap: 6px; margin: 6px 0 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--surf-1) 80%, transparent); }
+.quest-key-inline-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.quest-key-inline-tier { position: static !important; }
+.quest-key-inline-actions { display: flex; gap: 6px; margin-left: auto; }
+.quest-key-inline-actions .icon-button { width: 30px; height: 30px; }
+.quest-key-inline-actions .is-on { color: var(--brass-strong); }
+.quest-key-inline .detail-section { margin: 0; padding: 6px 0 0; border-top: 1px solid var(--line); }
+.quest-key-inline .item-buy-list li { font-size: 12px; }

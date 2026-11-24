@@ -1,12 +1,18 @@
 import { API_URL } from './config'
+import type { AdminPeriodStats } from '../../src/shared/adminPeriod'
 import { siteLocale, tr } from './i18n'
+import { loadAdMark, saveAdMark } from './storage'
+import type { AdSource } from '../../src/shared/adSources'
 
 export type AccountKind = 'user' | 'streamer'
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
 
 export interface ReferralStats {
   visits: number
+  /** Every registration the link brought: with the code, and without it after a visit of the link (`linkRegistrations`). */
   registrations: number
+  /** Of them, made without a code from an address that opened the link in the 7 days before (none from older servers). */
+  linkRegistrations?: number
   activeSubscriptions: number
   /** Sum of confirmed payments by users who came through the streamer's code. Owner view only: never sent to the streamer. */
   revenue?: { amount: number; currency: string }
@@ -44,8 +50,15 @@ export interface Account {
    */
   subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
   stats?: ReferralStats
+  /** A streamer with a 0 % share: the cabinet shows the statistics only — no earnings, no payouts (owner, 30.10.2026). */
+  statsOnly?: true
   /** The service owner (server-side check of TARKOV_OWNER_EMAILS): sees the owner section. */
   owner?: true
+  /**
+   * The Apple reviewer's test account (TARKOV_STORE_REVIEW_EMAILS; owner, 12.11.2026): the cabinet and the menu show no
+   * subscription, price, payment, donation or «Пригласи друга».
+   */
+  storeReview?: true
   /** When the e-mail was confirmed with a code; absent = not confirmed («Подтвердите e-mail»). */
   emailVerifiedAt?: string
   /** «Удалить аккаунт» was requested: the account is deleted at this time unless cancelled (servers from 20.10.2026). */
@@ -60,6 +73,8 @@ export interface Account {
  */
 export interface AuthConfig {
   emailEnabled?: boolean; email?: { codeLength: number; codeTtlSeconds: number; resendSeconds: number }
+  /** «Войти через Google»: the server's Google client (absent on an older server: no button). */
+  googleClientId?: string
 }
 /** A code was requested: what the next step sends back. The e-mail itself holds the code. */
 export interface CodeChallenge { challengeId: string; expiresAt: string; resendSeconds: number }
@@ -142,7 +157,7 @@ export interface AccountSummary {
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 /** `price` is null only from servers before 13.10.2026 that had no rouble price. */
 export interface Plan { id: PlanId; months: number; price: number | null; currency: 'RUB'; discountPercent: number }
-export type YooKassaPaymentMethod = 'sbp' | 'sberbank' | 'tinkoff_bank'
+export type YooKassaPaymentMethod = 'sbp' | 'bank_card' | 'sberbank' | 'tinkoff_bank' | 'yoo_money'
 export interface PaymentProviders { yookassa: boolean; autopay: boolean; methods?: YooKassaPaymentMethod[] }
 export interface PlansResponse {
   enabled: boolean
@@ -154,10 +169,10 @@ export interface PlansResponse {
 }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 /**
- * 'boosty': CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'archive': a payment service that is no
- * longer connected (owner, 13.10.2026); its payments stay as history.
+ * 'bezebee': BZB for the CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'archive': a payment service
+ * that is no longer connected (Lava.top, owner 13.10.2026; Boosty, owner 03.11.2026); its payments stay as history.
  */
-export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive'
+export type PaymentProvider = 'yookassa' | 'bezebee' | 'archive'
 /** `mail`: the project mailbox with BZB's sale letters (server/src/services/bezebeeMail.ts); the password is never sent. */
 export interface AdminBezebeeMail { configured: boolean; user?: string; checkedAt?: string; error?: string; read: number }
 export interface AdminBezebeeStatus { apiToken: boolean; webhookSecret: boolean; webhookUrl: string; lastEventAt?: string; lastSignature?: string; mail?: AdminBezebeeMail }
@@ -167,31 +182,26 @@ export interface AdminBezebeeEvent {
 }
 /** The payment region the server derives from the account's saved country (src/shared/paymentRegions.ts). */
 export type PaymentRegion = 'RU' | 'CIS' | 'WORLD'
-export type BoostyOffer = 'standard' | 'friend'
 /** The owner's preview of a region's checkout (server/src/routes/payments.ts). */
 export interface BezebeePreview { as: 'CIS' | 'WORLD'; friend: boolean }
-/** GET /v1/payments/boosty/public (no longer used by the site: Boosty removed, owner 20.10.2026). */
-export interface BoostyPublicResponse {
-  offers: Array<{ key: string; region: 'CIS' | 'WORLD'; kind: BoostyOffer; url: string }>
-  regionHint?: PaymentRegion
-}
 /**
- * GET /v1/payments. `region` / `provider` / `boosty` are missing on an older server (then only ЮKassa); `region` null:
- * the account has no country yet — no payment until it is named. `boosty.offers`: never links, the server hands out the
- * link of the account's region only after the e-mail warning was acknowledged (api.boostyLink).
+ * GET /v1/payments. `region` / `provider` are missing on an older server (then only ЮKassa); `region` null: the account
+ * has no country yet — no payment until it is named. `provider`: ЮKassa for Russia, BZB for the CIS and the world.
  */
+export interface BezebeeOffer { currency: string; plans: Array<{ plan: PlanId; months: number; price: number }>; friend?: { plan: '1m'; price: number } | null }
+
 export interface PaymentsOverview {
   payments: Payment[]
   autopay?: Autopay | null
   friendDiscount?: FriendDiscount | null
   region?: PaymentRegion | null
-  provider?: 'yookassa' | 'boosty' | null
-  boosty?: { offers: BoostyOffer[] } | null
+  provider?: 'yookassa' | 'bezebee' | null
   /**
    * The tariffs on BZB (server/src/services/bezebee.ts): roubles for a CIS account, dollars for WORLD, none for Russia;
    * never links (api.bezebeeLink). `friend`: the first month at the friend price while the friend discount is open.
+   * `card` (CIS only): the same prices in dollars for a foreign card.
    */
-  bezebee?: { currency: string; plans: Array<{ plan: PlanId; months: number; price: number }>; friend?: { plan: '1m'; price: number } | null } | null
+  bezebee?: BezebeeOffer & { card?: BezebeeOffer } | null
   /** The owner's preview of another region (BezebeePreview). */
   preview?: boolean
 }
@@ -216,7 +226,35 @@ export interface Autopay {
 export interface PaymentOptions { method?: YooKassaPaymentMethod; /** The separate autopayment consent (LEGAL_VERSION) — only when ticked. */ autopayVersion?: string }
 export interface CreatedPayment { paymentId: string; confirmationUrl: string }
 
+/**
+ * Another way to the server instead of fetch (the PC owner app's «Сводка», src/admin/SiteAdminSummary.tsx: the session
+ * lives in its main process, so the site's admin tabs ask through its gateway). `path` is the whole API path, with its
+ * query; the answer is the JSON, a failure an Error with the server's reason.
+ */
+export type ApiTransport = (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown>
+let transport: ApiTransport | null = null
+export function setApiTransport(next: ApiTransport | null) { transport = next }
+/** Whether the requests go through a transport (no file downloads there). */
+export const usesApiTransport = () => transport !== null
+
+/** A transport failure as ApiError: «не найдено» is the owner routes' 404, «недоступен» / a timeout the network. */
+function transportError(reason: unknown) {
+  const message = reason instanceof Error ? reason.message : String(reason)
+  if (/Не найдено|Not found|404/i.test(message)) return new ApiError(404, message)
+  if (/недоступен|unavailable|timed? ?out|ECONN|fetch failed/i.test(message)) return new ApiError(0, NETWORK_ERROR_MESSAGE, true)
+  return new ApiError(400, message || 'Сервер вернул неожиданный ответ')
+}
+
+export async function viaTransport<T>(method: string, path: string, body?: unknown): Promise<T> {
+  try {
+    return await transport!((method as 'GET' | 'POST' | 'PUT'), path, body) as T
+  } catch (reason) {
+    throw transportError(reason)
+  }
+}
+
 async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null; root?: string; timeoutMs?: number } = {}): Promise<T> {
+  if (transport) return viaTransport<T>(options.method ?? 'GET', `${options.root ?? '/v1/accounts'}${path}`, options.body)
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000)
   let response: Response
@@ -253,7 +291,9 @@ export interface ReferralSeriesRow {
   /** 2026-10-01 / 2026-10 / 2026 (Moscow time) */
   period: string
   visits: number
+  /** With the code and, of them, `linkRegistrations` without it (as in ReferralStats). */
   registrations: number
+  linkRegistrations?: number
   payments: number
   months: Record<PlanId, number>
   /** Owner view only. */
@@ -302,11 +342,18 @@ export interface AuthResult { token: string; account: Account; referralApplied?:
 export interface PendingRegistration { pending: true; message: string; challengeId: string; expiresAt: string; resendSeconds: number }
 
 /** «Админ-панель» (owner only; server/src/routes/ownerAdmin.ts, services/adminStore.ts). Money in roubles. */
-export interface AdminRevenue { total: number; payments: number }
+/** `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»). */
+export interface AdminRevenue { total: number; payments: number; repeat?: number }
 export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
-  subscriptions: { active: number; trials: number; autopay: number; streamers: number }
+  /**
+   * Servers of 15.11.2026 on: `activeRepeat` — of `active`, paid twice or more; `trialsDead` / `trialsAlive` — of `trials`,
+   * «мёртвые» (21 days registered without the free days used) and «реальные».
+   */
+  subscriptions: { active: number; activeRepeat?: number; trials: number; trialsDead?: number; trialsAlive?: number; autopay: number; streamers: number }
+  /** «Оплатили повторно»: people with two or more paid payments, all the time (servers before 12.11.2026 omit it). */
+  repeatPayers?: number
   revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue }
   payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
   /** Paid payments of each plan this month and all the time (servers before 20.10.2026 omit it). */
@@ -318,6 +365,12 @@ export interface AdminOverview {
 export interface AdminOnlineDay { date: string; users: number; minimum: number; maximum: number; average: number; samples: number }
 export interface AdminOnlineStats { generatedAt: string; windowMinutes: number; current: number; today: AdminOnlineDay | null; history: AdminOnlineDay[] }
 export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
+/** «Реклама» (GET /me/admin/ads, server/src/services/adminStore.ts adSources): money in roubles, campaign '' = without a name. */
+export interface AdminAdNumbers { visits: number; registrations: number; payments: number; revenue: number }
+export interface AdminAdSource { source: AdSource; label: string; totals: AdminAdNumbers & { payers: number }; rows: Array<AdminAdNumbers & { period: string }>; campaigns: Array<AdminAdNumbers & { campaign: string }> }
+export interface AdminAds { period: StatsPeriod; sources: AdminAdSource[] }
+/** GET /me/admin/stats, the part «Новые за …» reads: accounts created on the owner's days `from`..`to` (deleted ones not counted). */
+export type AdminRangeStats = Pick<AdminPeriodStats, 'range' | 'users'> & Partial<Omit<AdminPeriodStats, 'range' | 'users'>>
 export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendar { month: string; today: string; days: AdminCalendarDay[] }
 /**
@@ -352,45 +405,18 @@ export interface AdminPayment {
   invitedBy?: AdminInviter
   /** The owner changed the amount («Изменить сумму»): the amount before the first change and when. */
   amountEdited?: { before: number; at: string }
-  /** Roubles left after the commission (the owner's second sum on «Подтвердить оплату Boosty»). */
+  /** Roubles left after the commission, when it was given with a confirmation by hand. */
   netAmount?: number
 }
 export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; plan?: PlanId; q?: string }
-/** The owner's Boosty panel (server/src/routes/ownerAdmin.ts, services/boosty.ts, services/boostySync.ts). */
-export type BoostyOfferKey = 'WORLD_STANDARD' | 'WORLD_FRIEND' | 'CIS_STANDARD' | 'CIS_FRIEND'
-export interface AdminBoostySync {
-  configured: boolean; paused: boolean; running: boolean; blog?: string; periodMinutes?: number
-  lastSyncAt?: string; lastSuccessAt?: string; lastError?: string; tokenDead: boolean; nextRunAt?: string
-  lastResult?: { subscribers: number; active: number; granted: number; adopted: number; review: number; unchanged: number }
-}
-export interface AdminBoostyReviewItem {
-  id: number; reason: string; reasonText: string; email: string; accountId?: string; boostyUserId?: string; levelId?: string; levelName?: string
-  offerKey?: BoostyOfferKey; price?: number; periodEnd?: string; status: 'open' | 'resolved' | 'dismissed'; createdAt: string; updatedAt: string
-}
-export interface AdminBoostyLevel { levelId: string; name: string; price: number; offerKey?: BoostyOfferKey; lastSeenAt: string; subscribers: number }
-export interface AdminBoostyPanel {
-  sync: AdminBoostySync
-  review: { items: AdminBoostyReviewItem[]; total: number }
-  levels: AdminBoostyLevel[]
-  offers: Array<{ key: BoostyOfferKey; region: 'CIS' | 'WORLD'; kind: BoostyOffer; levelId: string }>
-}
-export interface AdminBoostyPayment {
-  id: string; accountId: string; email?: string; region: PaymentRegion; offer: BoostyOffer; offerKey?: BoostyOfferKey; plan: PlanId; amount: number
-  status: 'succeeded' | 'refunded'; source: 'auto' | 'manual'; confirmedAt: string; confirmedBy: string; periodEnd?: string; paidUntilAfter?: string; boostyUserId?: string; reference?: string
-}
-export interface AdminBoostyConfirm {
-  email: string; offer: BoostyOffer; region?: 'CIS' | 'WORLD'; months?: 1 | 3 | 6 | 12; days?: number; paidUntil?: string; amount?: number; netAmount?: number
-  reference?: string; reviewId?: number
-  /** «Выдать с перерасчётом»: the other region's offer issued for the days its sum is worth for this account. */
-  recalculate?: boolean
-}
 export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number; net?: number; plans?: Record<PlanId, { count: number; revenue: number }> } }
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 /** Billing regions of «Пользователи»: Russia, CIS without Russia, and the rest of the world. */
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
-  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
+  /** `trialRaidDays`: the free days still wait for the first raid (trialEndsAt is only their latest end). */
+  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   /** lastSeenAt: the last request from anywhere; pcSeenAt: the last use of the PC app. */
   lastSeenAt?: string; pcSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
@@ -404,9 +430,21 @@ export interface AdminUser {
   nickname?: string
   /** «Пригласи друга»: the player whose code this account used (a streamer's code stays in `referredBy`). */
   invitedBy?: AdminInviter
+  /** An account from Russia the owner opened BZB's CIS pages to (server/src/services/adminStore.ts setBezebeeAllowed). */
+  bezebeeAllowed?: true
 }
 /** «Онлайн сейчас»: accounts in the PC or phone app within the last `windowMinutes` (server/src/services/presence.ts). */
 export interface AdminOnline { online: number; pc: number; phone: number; windowMinutes: number; at: string }
+/** «Телефоны» of «Сводка» (server/src/routes/ownerAdmin.ts GET /me/admin/phones): signed in all the time, and in the app now. */
+export interface AdminPhoneCount { accounts: number; devices: number }
+export interface AdminPhones {
+  users: number
+  phones: AdminPhoneCount
+  android: AdminPhoneCount & { online: number }
+  ios: AdminPhoneCount & { online: number }
+  online: { phone: number; pc: number; all: number; windowMinutes: number }
+  at: string
+}
 /** `regions`: users per region tab within the search and the status filter (servers before the country omit it). */
 export interface AdminUserList { users: AdminUser[]; total: number; regions?: Record<AdminUserRegion, number> }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
@@ -479,6 +517,77 @@ export interface AdminInviteReward extends InviteReward {
 }
 export interface AdminInviteRewards { rewards: AdminInviteReward[]; total: number; counts: Partial<Record<InviteRewardStatus, number>> }
 
+/** «Привлечение друзей» (server/src/services/invites.ts adminReferrals): most friends, most paying friends, most days, latest. */
+export type ReferralSort = 'invited' | 'paid' | 'days' | 'recent'
+/** One account that brought friends with its counts and reward days. */
+export interface AdminReferrer {
+  id: string
+  /** Absent once the account is deleted. */
+  email?: string
+  nickname?: string
+  code?: string
+  streamer?: true
+  deleted?: true
+  blocked?: true
+  /** Registered with the code, deleted accounts included; `paid` + `unpaid` = `invited`. */
+  invited: number
+  paid: number
+  unpaid: number
+  friendsDeleted: number
+  lastInvitedAt?: string
+  confirmed: number
+  rank?: { id: InviteRankId; title: string }
+  /** Days granted, on hold (granted when the hold is over), waiting for the owner's decision. */
+  days: { granted: number; pending: number; review: number }
+  lifetime?: true
+  rewards: Record<InviteRewardStatus, number>
+  /** Rewards on hold whose friend has not signed in to the desktop app yet. */
+  waitingEft: number
+  nextReleaseAt?: string
+}
+export interface AdminReferralSummary {
+  /** Players who have opened «Пригласи друга» (their code exists). */
+  withCode: number
+  referrers: number
+  invited: number
+  paid: number
+  unpaid: number
+  friendsDeleted: number
+  top?: { id: string; invited: number; email?: string; nickname?: string }
+  days: { granted: number; pending: number; review: number }
+  rewards: Record<InviteRewardStatus, number>
+  waitingEft: number
+  lifetime: number
+  rewardDays: number
+  holdDays: number
+  discountPercent: number
+  /** The rank bonuses: friends needed and the days they add (Raid Commander and Legend after the owner's review). */
+  ranks: InviteRank[]
+}
+export interface AdminReferrals { summary: AdminReferralSummary; referrers: AdminReferrer[]; total: number }
+/** A reward as «Привлечение друзей» shows it. */
+export interface AdminReferralReward extends InviteReward { flags: string[]; comment?: string; decidedBy?: string }
+export interface AdminReferralFriend {
+  id: string
+  /** Absent once the friend deleted his account (`deleted`). */
+  email?: string
+  nickname?: string
+  deleted?: true
+  blocked?: true
+  invitedAt: string
+  paid: boolean
+  payments: number
+  /** Roubles of the payments that went through. */
+  amount: number
+  /** Paid once, the money went back. */
+  refunded?: true
+  /** The friend's desktop app has bound his Escape from Tarkov account. */
+  eftBound: boolean
+  first?: { amount: number; plan: string; provider: PaymentProvider; status: string; discountPercent?: number; paidAt?: string }
+  reward?: AdminReferralReward
+}
+export interface AdminReferrerDetail { referrer: AdminReferrer; friends: AdminReferralFriend[]; rewards: AdminReferralReward[] }
+
 export interface AdminAuditEntry { id: number; at: string; actor: string; action: string; target?: string; details?: Record<string, unknown> }
 
 function adminQuery(params: Record<string, string | number | undefined>) {
@@ -490,6 +599,7 @@ function adminQuery(params: Record<string, string | number | undefined>) {
 
 /** «Скачать CSV»: the file needs the session header, so it is fetched here and saved through a blob link. */
 export async function downloadAdminPaymentsCsv(token: string, filter: AdminPaymentFilter) {
+  if (transport) throw new ApiError(400, 'CSV скачивается на сайте')
   let response: Response
   try {
     response = await fetch(`${API_URL}/v1/accounts/me/admin/payments.csv${adminQuery({ ...filter })}`, { headers: { authorization: `Bearer ${token}` } })
@@ -513,9 +623,18 @@ export async function downloadAdminPaymentsCsv(token: string, filter: AdminPayme
 }
 
 export const api = {
-  /** 201 AuthResult (e-mail codes off) or 202 PendingRegistration (e-mail codes on). */
-  register: (email: string, password: string, referralCode?: string, country?: string) =>
-    request<AuthResult | PendingRegistration>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) } }),
+  /**
+   * 201 AuthResult (e-mail codes off) or 202 PendingRegistration (e-mail codes on). The label of an ad's link the site was
+   * opened with lately goes along (storage.ts loadAdMark, «Реклама») and is forgotten once the server took it.
+   */
+  register: async (email: string, password: string, referralCode?: string, country?: string) => {
+    const ad = loadAdMark()
+    const result = await request<AuthResult | PendingRegistration>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}), ...(ad ? { adSource: ad.source, ...(ad.campaign ? { adCampaign: ad.campaign } : {}) } : {}) } })
+    if (ad) saveAdMark(null)
+    return result
+  },
+  /** «Реклама»: the site was opened from an ad's link (adVisit.ts); 404 for an unknown platform. */
+  adVisit: (source: string, campaign?: string) => request<{ ok: true }>('/ad-visits', { method: 'POST', body: { source, ...(campaign ? { campaign } : {}) } }),
   registerConfirm: (challengeId: string, code: string) => request<AuthResult>('/register/confirm', { method: 'POST', body: { challengeId, code } }),
   registerResend: (challengeId: string) => request<CodeChallenge>('/register/resend', { method: 'POST', body: { challengeId } }),
   /** The same answer whether or not the address has an account; the code goes only to an existing one. */
@@ -526,6 +645,8 @@ export const api = {
   emailVerifyStart: (token: string) => request<CodeChallenge>('/me/email/start', { method: 'POST', token, body: {} }),
   emailVerifyConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/email/confirm', { method: 'POST', token, body: { challengeId, code } }),
   login: (email: string, password: string) => request<AuthResult>('/login', { method: 'POST', body: { email, password } }),
+  /** «Войти через Google» (server/src/routes/google.ts): 409 asks the country of a new account. */
+  googleSignIn: (body: { credential: string; country?: string; referralCode?: string }) => request<AuthResult & { created: boolean; referralApplied: boolean }>('/google', { method: 'POST', body }),
   logout: (token: string) => request<void>('/logout', { method: 'POST', token }),
   me: (token: string) => request<Account>('/me', { token }),
   /** «Сменить пароль»: every other session ends; the answer holds a new session for this browser. */
@@ -548,23 +669,21 @@ export const api = {
   /** Records that the signed-in user accepted the documents of `version` (website/src/legal/documents.ts). */
   recordConsent: (token: string, kind: 'registration' | 'payment', version: string) => request<unknown>('/me/consents', { method: 'POST', token, body: { kind, version } }),
   ownerStreamers: (token: string) => request<OwnerStreamers>('/me/admin/streamers', { token }),
-  ownerStreamerStats: (token: string, code: string, period: StatsPeriod) => request<OwnerStreamerStats>(`/me/admin/streamer-stats?code=${encodeURIComponent(code)}&period=${period}`, { token }),
+  /** `month` (YYYY-MM) with period day: every day of that month (the calendar). */
+  ownerStreamerStats: (token: string, code: string, period: StatsPeriod, month?: string) => request<OwnerStreamerStats>(`/me/admin/streamer-stats?code=${encodeURIComponent(code)}&period=${period}${month ? `&month=${month}` : ''}`, { token }),
   ownerCreateStreamerInvite: (token: string, code: string) => request<CreatedStreamerInvite>('/me/admin/streamer-invites', { method: 'POST', token, body: { code } }),
   ownerPayouts: (token: string) => request<OwnerPayouts>('/me/admin/payouts', { token }),
   ownerDecidePayout: (token: string, id: string, status: 'paid' | 'rejected', comment?: string) => request<PayoutItem>('/me/admin/payouts/decide', { method: 'POST', token, body: { id, status, ...(comment ? { comment } : {}) } }),
   ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
   adminOnline: (token: string) => request<AdminOnline>('/me/admin/online', { token }),
+  adminPhones: (token: string) => request<AdminPhones>('/me/admin/phones', { token }),
   adminOnlineStats: (token: string, days = 30) => request<AdminOnlineStats>(`/me/admin/online-stats?days=${days}`, { token }),
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
-  adminBoosty: (token: string) => request<AdminBoostyPanel>('/me/admin/boosty', { token }),
-  adminBoostyPayments: (token: string, limit: number, offset: number) => request<{ payments: AdminBoostyPayment[]; total: number }>(`/me/admin/boosty/payments?limit=${limit}&offset=${offset}`, { token }),
-  adminBoostyConfirm: (token: string, input: AdminBoostyConfirm) => request<{ payment: AdminBoostyPayment; recalculatedDays?: number }>('/me/admin/boosty/payments', { method: 'POST', token, body: input }),
-  adminBoostyDismiss: (token: string, id: number) => request<{ ok: true }>(`/me/admin/boosty/review/${id}/dismiss`, { method: 'POST', token, body: {} }),
-  adminBoostyMapLevel: (token: string, levelId: string, offer: BoostyOfferKey | null) => request<{ levels: AdminBoostyLevel[] }>(`/me/admin/boosty/levels/${encodeURIComponent(levelId)}`, { method: 'PUT', token, body: { offer } }),
-  adminBoostyPause: (token: string, paused: boolean) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/pause', { method: 'PUT', token, body: { paused } }),
+  adminAds: (token: string, period: StatsPeriod) => request<AdminAds>(`/me/admin/ads?period=${period}`, { token }),
+  adminStats: (token: string, from: string, to: string) => request<AdminRangeStats>(`/me/admin/stats?from=${from}&to=${to}`, { token }),
   /** BZB notifications (server/src/services/bezebeeWebhook.ts): key/secret set, the address for BZB, the last one received. */
   adminBezebeeStatus: (token: string) => request<AdminBezebeeStatus>('/me/admin/bezebee/status', { token }),
   /** Blank keeps what is set; the server never sends the values back. */
@@ -577,9 +696,7 @@ export const api = {
   /** «Убрать»: a waiting notification that is no payment (a test, a stray request) leaves «Ждут привязки». */
   adminBezebeeDismiss: (token: string, id: number) => request<{ event: AdminBezebeeEvent }>(`/me/admin/bezebee/events/${id}/dismiss`, { method: 'POST', token, body: {} }),
   /** «Зачислить вручную»: a BZB payment that sent no notification; `amount` in roubles (required for Global accounts). */
-  adminBezebeeConfirm: (token: string, input: { email: string; plan: PlanId; friend?: true; amount?: number }) => request<{ payment: AdminPayment }>('/me/admin/bezebee/payments', { method: 'POST', token, body: input }),
-  adminBoostySession: (token: string, session: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/session', { method: 'PUT', token, body: { session } }),
-  adminBoostySync: (token: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/sync', { method: 'POST', token, body: {} }),
+  adminBezebeeConfirm: (token: string, input: { email: string; plan: PlanId; friend?: true; amount?: number; noDays?: true }) => request<{ payment: AdminPayment }>('/me/admin/bezebee/payments', { method: 'POST', token, body: input }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
   adminSetPaymentAmount: (token: string, id: string, amount: number, comment?: string) => request<AdminPayment>(`/me/admin/payments/${id}/amount`, { method: 'POST', token, body: { amount, ...(comment ? { comment } : {}) } }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
@@ -592,6 +709,7 @@ export const api = {
   adminBlock: (token: string, id: string, blocked: boolean, reason?: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/${blocked ? 'block' : 'unblock'}`, { method: 'POST', token, body: blocked && reason ? { reason } : {} }),
   adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),
   adminUnbindEft: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/eft-account/unbind`, { method: 'POST', token, body: {} }),
+  adminBezebee: (token: string, id: string, allowed: boolean) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/bezebee`, { method: 'POST', token, body: { allowed } }),
   adminDeleteUser: (token: string, id: string) => request<{ deleted: true }>(`/me/admin/users/${encodeURIComponent(id)}/delete`, { method: 'POST', token, body: {} }),
   /** «Изменить e-mail» (a typo at registration): the account signs in with the new address and confirms it with a code. */
   adminChangeEmail: (token: string, id: string, email: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/email`, { method: 'POST', token, body: { email } }),
@@ -605,13 +723,15 @@ export const api = {
   adminYookassaSettings: (token: string) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { token }),
   adminSaveYookassaSettings: (token: string, body: YookassaSettingsInput) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { method: 'PUT', token, body }),
   adminInviteRewards: (token: string, status: InviteRewardStatus | undefined, limit: number, offset: number) => request<AdminInviteRewards>(`/me/admin/invite-rewards${adminQuery({ status, limit, offset })}`, { token }),
+  adminReferrals: (token: string, q: string, sort: ReferralSort) => request<AdminReferrals>(`/me/admin/referrals${adminQuery({ q: q.trim(), sort })}`, { token }),
+  adminReferrer: (token: string, id: string) => request<AdminReferrerDetail>(`/me/admin/referrals/${encodeURIComponent(id)}`, { token }),
   adminDecideInviteReward: (token: string, id: number, decision: 'approve' | 'cancel', comment?: string) => request<AdminInviteReward>(`/me/admin/invite-rewards/${id}/decide`, { method: 'POST', token, body: { decision, ...(comment ? { comment } : {}) } }),
   adminAudit: (token: string, limit: number, offset: number) => request<{ entries: AdminAuditEntry[]; total: number }>(`/me/admin/audit${adminQuery({ limit, offset })}`, { token }),
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),
   savePayoutSettings: (token: string, settings: PayoutSettingsInput) => request<PayoutOverview>('/me/payout-settings', { method: 'PUT', token, body: settings }),
   requestPayout: (token: string, amount: number) => request<PayoutItem>('/me/payouts', { method: 'POST', token, body: { amount } }),
   summary: (token: string) => request<AccountSummary>('/summary', { token, root: '/v1/me' }),
-  referralSeries: (token: string, period: StatsPeriod) => request<ReferralSeries>(`/me/referral-stats?period=${period}`, { token }),
+  referralSeries: (token: string, period: StatsPeriod, month?: string) => request<ReferralSeries>(`/me/referral-stats?period=${period}${month ? `&month=${month}` : ''}`, { token }),
   streamerInvite: (inviteToken: string) => request<StreamerInvite>('/streamer-invite', { method: 'POST', body: { token: inviteToken } }),
   redeemStreamerInvite: (token: string, inviteToken: string) => request<Account>('/me/streamer-invite', { method: 'POST', token, body: { token: inviteToken } }),
   plans: () => request<PlansResponse>('/plans', { root: '/v1/payments' }),
@@ -625,9 +745,8 @@ export const api = {
   payment: (token: string, id: string) => request<Payment>(`/${encodeURIComponent(id)}`, { token, root: '/v1/payments' }),
   /** `preview`: the owner's look at another region's checkout (`?as=CIS|WORLD&friend=1`, ignored for anybody else). */
   payments: (token: string, preview?: BezebeePreview) => request<PaymentsOverview>(preview ? `?as=${preview.as}${preview.friend ? '&friend=1' : ''}` : '', { token, root: '/v1/payments' }),
-  /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
   /** The BZB page of a tariff of the account's region, with the offer / personal data consent of this version. */
-  bezebeeLink: (token: string, plan: PlanId, consentVersion: string, friend = false, as?: 'CIS' | 'WORLD') => request<{ url: string; plan: PlanId; friend: boolean }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, consent: { version: consentVersion }, ...(friend ? { friend: true } : {}), ...(as ? { as } : {}) } }),
+  bezebeeLink: (token: string, plan: PlanId, consentVersion: string, friend = false, as?: 'CIS' | 'WORLD', card = false) => request<{ url: string; plan: PlanId; friend: boolean }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, consent: { version: consentVersion }, ...(friend ? { friend: true } : {}), ...(as ? { as } : {}), ...(card ? { card: true } : {}) } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
   invites: (token: string) => request<InviteProgram>('/me/invites', { token }),
   setInviteCode: (token: string, code: string) => request<InviteProgram>('/me/invites/code', { method: 'PUT', token, body: { code } }),

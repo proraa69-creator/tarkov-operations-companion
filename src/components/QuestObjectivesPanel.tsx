@@ -5,6 +5,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { canUndo, objectiveViews, questHistory, type ObjectiveView } from '../progression/objectiveProgress'
+import { pairedFindDef } from '../progression/objectivePairs'
 import { catalogStamp, isOverrideStale, objectiveNote, upsertObjectiveNote, useQuestOverrides } from '../progression/questOverrides'
 import { useAppState } from '../state/AppState'
 import { featureEnabled } from '../app/archivedFeatures'
@@ -19,6 +20,13 @@ const SOURCE_LABELS: Record<ObjectiveSource, string> = {
 }
 
 const STATUS_LABELS: Record<string, string> = { active: 'принято', completed: 'выполнено', failed: 'провалено' }
+
+/**
+ * «Заложить» and «Пометить» cannot be undone in the game (owner, 28.10.2026: «если предмет закладывается, он уже не
+ * отменится… если человек ставит галочку… значит, оно висит выполнено»): once ticked, the box stays ticked.
+ */
+export const IRREVERSIBLE_OBJECTIVES: ReadonlySet<string> = new Set(['plantItem', 'plantQuestItem', 'mark'])
+export const lockedDone = (view: ObjectiveView) => view.done && IRREVERSIBLE_OBJECTIVES.has(view.def.type)
 
 /**
  * Objectives of one trader quest in the current mode with checkboxes / counters the user can correct, the
@@ -63,21 +71,41 @@ export function QuestObjectivesPanel({ quest }: { quest: Quest }) {
  */
 function ObjectiveReadOnly({ quest, view, tickable }: { quest: Quest; view: ObjectiveView; tickable: boolean }) {
   const state = useAppState()
+  const { data } = useTarkovData()
   const { def } = view
+  // «Пометить» closes the «Найти» at its place too (progression/objectivePairs.ts).
+  const toggle = () => {
+    state.setObjectiveValue(def, view.done ? 0 : def.target)
+    const found = view.done ? undefined : pairedFindDef(quest, def.id, data.markers)
+    if (found) state.setObjectiveValue(found, found.target)
+  }
   const text = <>
     <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
-    <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
+    <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('опционально')}</small>}</span>
   </>
-  const canTick = tickable && !view.derived
+  const canTick = tickable && !view.derived && !lockedDone(view)
+  // the last one ticks it (with its paired «Найти»), as the box does
+  const count = (value: number) => {
+    const next = Math.min(def.target, Math.max(0, value))
+    if (next >= def.target && !view.done) toggle()
+    else state.setObjectiveValue(def, next)
+  }
   return <li className={`quest-objective-row ${canTick ? '' : 'is-readonly'} ${view.done ? 'is-done' : ''}`}>
     <div className="quest-objective-main">
       {canTick
         ? <label className="quest-objective-check" title={uiText(view.done ? 'Снять галочку' : 'Цель выполнена')}>
-          <input type="checkbox" checked={view.done} onChange={() => state.setObjectiveValue(def, view.done ? 0 : def.target)} />
+          <input type="checkbox" checked={view.done} onChange={toggle} />
           {text}
         </label>
         : <span className="quest-objective-check">{text}</span>}
-      {def.target > 1 && <span className="quest-objective-counter"><strong>{view.current}/{def.target}</strong></span>}
+      {def.target > 1 && (canTick
+        // «7 из 10» counted by hand (report 144, 11.11.2026): the game writes no counter into its logs.
+        ? <span className="quest-objective-counter">
+          <button type="button" className="icon-button" onClick={() => count(view.current - 1)} disabled={view.current <= 0} aria-label={uiText('Меньше')}><Minus size={13} /></button>
+          <strong>{view.current}/{def.target}</strong>
+          <button type="button" className="icon-button" onClick={() => count(view.current + 1)} disabled={view.current >= def.target} aria-label={uiText('Больше')}><Plus size={13} /></button>
+        </span>
+        : <span className="quest-objective-counter"><strong>{view.current}/{def.target}</strong></span>)}
     </div>
   </li>
 }
@@ -96,9 +124,9 @@ function ObjectiveRow({ quest, view }: { quest: Quest; view: ObjectiveView }) {
   return <li className={`quest-objective-row ${view.done ? 'is-done' : ''}`}>
     <div className="quest-objective-main">
       <label className="quest-objective-check">
-        <input type="checkbox" checked={view.done} onChange={() => set(view.done ? 0 : def.target)} />
+        <input type="checkbox" checked={view.done} disabled={lockedDone(view)} title={lockedDone(view) ? uiText('Заложено — в игре это не отменяется') : undefined} onChange={() => { if (!lockedDone(view)) set(view.done ? 0 : def.target) }} />
         <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
-        <span className="quest-objective-text">{uiText(text)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
+        <span className="quest-objective-text">{uiText(text)}{def.optional && <small className="dim"> · {uiText('опционально')}</small>}</span>
       </label>
       {def.target > 1 && <span className="quest-objective-counter">
         <button type="button" className="icon-button" onClick={() => set(view.current - 1)} disabled={view.current <= 0} aria-label={uiText('Меньше')}><Minus size={13} /></button>

@@ -47,6 +47,24 @@ describe('buildRaidBriefing', () => {
     expect(briefing.keys.map((row) => [row.itemId, row.questNames])).toEqual([['key-206', ['Проверка']], ['flash', ['Дальнобойщик']]])
   })
 
+  // Owner, 06.11.2026: a key is not needed once the objective it opens is ticked.
+  it('drops a key and a locked door once their objective is ticked, and brings them back with the tick', () => {
+    const room = quest('room', 'Кабинет', {
+      mapIds: ['customs'],
+      objectiveDetails: [{ id: 'xray', type: 'visit', description: 'Кабинет', count: 1, mapIds: ['customs'] }, { id: 'hall', type: 'visit', description: 'Коридор', count: 1, mapIds: ['customs'] }],
+      raidRequirements: [{ itemId: 'key-206', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'xray' }],
+    })
+    const keysWith = (objectiveProgress: object) => buildRaidBriefing({
+      mapId: 'customs', quests: [room], items,
+      markers: [marker('door', [0, 0], { questId: 'room', objectiveId: 'xray', lock: { keyId: 'flash', keyName: 'Флешка' } })],
+      progress: { ...progressWith({ room: 'active' }), objectiveProgress: objectiveProgress as never },
+    }).keys.map((row) => row.itemId)
+    expect(keysWith({})).toEqual(['key-206', 'flash'])
+    expect(keysWith({ hall: { current: 1, target: 1 } })).toEqual(['key-206', 'flash'])
+    expect(keysWith({ xray: { current: 1, target: 1 } })).toEqual([])
+    expect(keysWith({ xray: { current: 0, target: 1 } })).toEqual(['key-206', 'flash'])
+  })
+
   it('splits zone-bound objectives (map points) from the checklist', () => {
     const typed = quest('q6', 'Разведка', {
       trader: 'Механик', mapIds: ['customs'],
@@ -81,5 +99,28 @@ describe('buildRaidBriefing', () => {
     const empty = buildRaidBriefing({ mapId: 'lighthouse', quests: quests.filter((entry) => !entry.anyMap), items, markers: [], progress })
     expect(empty.groups).toEqual([])
     expect(empty.questCount).toBe(0)
+  })
+})
+
+// Report №90: «ключ 219 или ключ 220» — one key in the list, the other named under it.
+describe('either key of a door in the briefing', () => {
+  const keys = [item('k219', 'Ключ 219'), item('k220', 'Ключ 220')]
+  const either = quest('e1', 'Энергия', {
+    trader: 'Механик', mapIds: ['shoreline'],
+    raidRequirements: [
+      { itemId: 'k219', count: 1, purpose: 'key', mapIds: ['shoreline'], objectiveId: 'gen', alternatives: 2 },
+      { itemId: 'k220', count: 1, purpose: 'key', mapIds: ['shoreline'], objectiveId: 'gen', alternatives: 2 },
+    ],
+  })
+
+  it('lists one of them with the other as «или»', () => {
+    const briefing = buildRaidBriefing({ mapId: 'shoreline', quests: [either], items: keys, markers: [], progress: progressWith({ e1: 'active' }) })
+    expect(briefing.keys.map((row) => [row.itemId, row.or?.map((other) => other.itemId)])).toEqual([['k219', ['k220']]])
+  })
+
+  it('takes the key another door needs anyway, alone', () => {
+    const other = quest('e2', 'Другое', { trader: 'Прапор', mapIds: ['shoreline'], raidRequirements: [{ itemId: 'k220', count: 1, purpose: 'key', mapIds: ['shoreline'] }] })
+    const briefing = buildRaidBriefing({ mapId: 'shoreline', quests: [either, other], items: keys, markers: [], progress: progressWith({ e1: 'active', e2: 'active' }) })
+    expect(briefing.keys.map((row) => [row.itemId, row.or, row.questNames])).toEqual([['k220', undefined, ['Другое', 'Энергия']]])
   })
 })

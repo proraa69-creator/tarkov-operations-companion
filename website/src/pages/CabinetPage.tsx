@@ -9,6 +9,7 @@ import { CountrySelect } from '../components/CountrySelect'
 import { AutopayCard, YooKassaPaymentDialog } from '../components/PaymentRegionDialog'
 import { BezebeePlans } from '../components/BezebeeCheckout'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
+import { ReferralCalendar } from '../components/ReferralCalendar'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
 import { Notice } from '../components/Notice'
@@ -18,6 +19,7 @@ import { EmailVerifyBanner } from '../components/EmailAuth'
 import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { DownloadButton } from './DownloadPage'
+import { useSetupPublished } from '../hooks/setupDownload'
 import { InviteFriendsPanel } from '../components/InviteFriendsPanel'
 import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
 import { PlanSaving } from '../components/PlanSaving'
@@ -25,7 +27,7 @@ import { LEGAL_VERSION } from '../legal/documents'
 import { localeTag, siteLocale, tr } from '../i18n'
 import { countryName, REGION_LABELS, regionOf } from '../../../src/shared/countries'
 import '../invites.css'
-import { DonateCard } from '../components/DonateCard'
+import { DonateCard, SITE_DONATE } from '../components/DonateCard'
 
 /** «12 октября 2026» / «October 12, 2026»: dates and numbers in the site's language (src/i18n). */
 const formatDate = (value: string) => new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(value))
@@ -72,6 +74,8 @@ export function CabinetPage() {
   }
 
   const account = auth.account
+  // The Apple reviewer's test account: no subscription, prices, donation or invitations (owner, 12.11.2026).
+  const paid = !account.storeReview
   return (
     <div className="page page-in">
       <div className="container">
@@ -111,16 +115,16 @@ export function CabinetPage() {
         <div className="cabinet-grid">
           <div className="cabinet-col">
             {account.kind === 'streamer' && account.referralCode && <ReferralProgramPanel account={account} />}
-            <SubscriptionPanel account={account} />
-            {account.kind === 'user' && <InviteFriendsPanel />}
+            {paid && <SubscriptionPanel account={account} />}
+            {paid && account.kind === 'user' && <InviteFriendsPanel />}
             <NicknamesPanel account={account} />
             <CountryPanel account={account} />
           </div>
           <div className="cabinet-col">
             {/* «Поддержать проект» (owner, 13.10.2026). */}
-            <DonateCard />
+            {SITE_DONATE && paid && <DonateCard />}
             <AppPanel />
-            {account.kind === 'user' && <InviteCodePanel account={account} />}
+            {paid && account.kind === 'user' && <InviteCodePanel account={account} />}
             <PasswordPanel />
             <SignOutEverywherePanel />
             <DeleteAccountPanel />
@@ -262,7 +266,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
   // The payment region and the BZB tariffs (server-side, from the saved country); undefined until loaded / older server.
   const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'bezebee' | 'preview'>>({})
   // No prices before the server has named the region (owner, 16.10.2026: a WORLD account saw the Russian plans for a
-  // moment on every reload, then Boosty). 'error': the request failed and nothing was loaded yet.
+  // moment on every reload, then its own). 'error': the request failed and nothing was loaded yet.
   const [regionState, setRegionState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -344,7 +348,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
         : tr('Не активна')
   // owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»
   const hint = active ? tr('Ваша подписка продолжает действовать.')
-    : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Бесплатные сутки идут с первого входа в приложение.')
+    : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Бесплатные дни идут с первого входа в приложение.')
       : trialPendingDays ? tr('Отсчёт начнётся, когда вы впервые войдёте в аккаунт в приложении Raid OS.') : ''
   const shownPlans = visiblePlans(plans)
   const checkoutPlan = selectedPlan && friendDiscount?.plan === selectedPlan.id && selectedPlan.price !== null
@@ -377,11 +381,17 @@ function SubscriptionPanel({ account }: { account: Account }) {
         ) : regionChoice.region === null ? (
           <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
         ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
-          // The tariffs on BZB, a button per plan (owner, 20.10.2026: Boosty removed from the site).
+          // The tariffs on BZB, a button per plan (owner, 20.10.2026).
           regionChoice.bezebee?.plans.length
             ? <>
                 {regionChoice.preview && <Notice tone="info" title={tr('Предпросмотр для владельца')}>{tr(regionChoice.region === 'CIS' ? 'Так оплату видит аккаунт из СНГ.' : 'Так оплату видит аккаунт из другой страны (Global).')}{preview?.friend ? ` ${tr('Со скидкой друга.')}` : ''}</Notice>}
                 <BezebeePlans region={regionChoice.region} plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} preview={regionChoice.preview ? regionChoice.region : undefined} />
+                {regionChoice.bezebee.card?.plans.length ? (
+                  <div className="bezebee-card">
+                    <h3>{tr('Иностранной картой (USD)')}</h3>
+                    <BezebeePlans card region={regionChoice.region} plans={regionChoice.bezebee.card.plans} currency={regionChoice.bezebee.card.currency} friend={regionChoice.bezebee.card.friend ?? null} preview={regionChoice.preview ? regionChoice.region : undefined} />
+                  </div>
+                ) : null}
               </>
             : <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Попробуйте ещё раз позже.')}</Notice>
         ) : (
@@ -420,6 +430,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
               })}
             </div>
             {!plans?.providers?.yookassa && <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Тарифы и цены показаны для ознакомления. Попробуйте ещё раз позже.')}</Notice>}
+            {/* An account from Russia the owner opened BZB to (owner, 02.11.2026): BZB's rouble pages next to ЮKassa. */}
+            {regionChoice.bezebee?.plans.length ? (
+              <div className="bezebee-card">
+                <h3>{tr('Оплата через BZB')}</h3>
+                <BezebeePlans region="CIS" plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} />
+              </div>
+            ) : null}
           </>
         )}
 
@@ -470,15 +487,21 @@ function ReferralProgramPanel({ account }: { account: Account }) {
   const token = auth.token
   const code = account.referralCode!
   const link = audienceLink(code)
-  const stats = { visits: 0, registrations: 0, activeSubscriptions: 0, ...account.stats }
+  const stats = { visits: 0, registrations: 0, linkRegistrations: 0, activeSubscriptions: 0, ...account.stats }
   const counters = [
     { icon: MousePointerClick, label: tr('Переходы'), value: formatNumber(stats.visits), meta: tr('по вашим ссылкам') },
-    { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations), meta: tr('по вашему коду') },
+    // Every registration the link brought: with the code, and without it after a visit (server LINK_ATTRIBUTION_MS).
+    { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations),
+      meta: tr('{code} по коду · {link} без кода', { code: formatNumber(stats.registrations - stats.linkRegistrations), link: formatNumber(stats.linkRegistrations) }) },
     { icon: BadgeCheck, label: tr('Подписки'), value: formatNumber(stats.activeSubscriptions), meta: tr('активные сейчас') },
   ]
   const loadSeries = useCallback((period: StatsPeriod) => {
     if (!token) return Promise.reject(new ApiError(401, 'Требуется вход в аккаунт'))
     return api.referralSeries(token, period)
+  }, [token])
+  const loadMonth = useCallback((month: string) => {
+    if (!token) return Promise.reject(new ApiError(401, 'Требуется вход в аккаунт'))
+    return api.referralSeries(token, 'day', month)
   }, [token])
   return (
     <section className="panel streamer-panel" aria-labelledby="ref-title">
@@ -507,14 +530,17 @@ function ReferralProgramPanel({ account }: { account: Account }) {
             </div>
           ))}
         </div>
-        <StreamerPayouts />
-        <ReferralStatsTable load={loadSeries} />
+        {!account.statsOnly && <StreamerPayouts />}
+        <ReferralCalendar load={loadMonth} />
+        <ReferralStatsTable load={loadSeries} showEarnings={!account.statsOnly} />
         <div className="how-it-works">
           <div className="field-label">{tr('Как это работает')}</div>
           <ol className="steps">
-            <li><span><strong>{tr('Поделитесь ссылкой или QR-кодом.')}</strong> {tr('Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат 3 дня бесплатного доступа.')}</span></li>
+            <li><span><strong>{tr('Поделитесь ссылкой или QR-кодом.')}</strong> {tr('Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат скидку 20 % на первый месяц.')}</span></li>
+            {account.statsOnly ? <li><span><strong>{tr('Статистика.')}</strong> {tr('Переходы, регистрации и оплаты по вашей ссылке видны здесь по дням, месяцам и годам.')}</span></li> : <>
             <li><span><strong>{tr('Приглашённые оформляют подписку.')}</strong> {tr('С каждой их оплаты вам начисляется ваша доля — она появляется в «Заработано». Учитываются только подтверждённые платежи.')}</span></li>
             <li><span><strong>{tr('Выплаты.')}</strong> {tr('Запросите выплату любой суммы от минимальной до доступной или включите автовыплату — раз в несколько дней заявка создастся сама.')}</span></li>
+            </>}
           </ol>
         </div>
       </div>
@@ -530,17 +556,15 @@ function accountNickname(account: Account) {
 /**
  * «Ник в Escape from Tarkov»: one for PvP, PvE and «Сезон» — in the game a character has the same nickname everywhere.
  * Read only: the desktop app reads it from the game logs by itself and saves it on the account (no manual binding).
+ * One line, the nickname beside the title (owner, 31.10.2026: «сделай окно в личном кабинете меньше и убери надпись»).
  */
 function NicknamesPanel({ account }: { account: Account }) {
   const nickname = accountNickname(account)
   return (
     <section className="panel" aria-labelledby="nick-title">
-      <div className="panel-header">
+      <div className="panel-header nick-panel">
         <div className="panel-title" id="nick-title"><BadgeCheck aria-hidden="true" />{tr('Ник в Escape from Tarkov')}</div>
-      </div>
-      <div className="panel-body form">
-        <p className="nick-value">{nickname ? <strong className="mono">{nickname}</strong> : <span className="muted">{tr('Ещё не найден')}</span>}</p>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.')}</p>
+        {nickname ? <strong className="mono nick-inline">{nickname}</strong> : <span className="muted">{tr('Ещё не найден')}</span>}
       </div>
     </section>
   )
@@ -604,6 +628,7 @@ function CountryPanel({ account }: { account: Account }) {
 }
 
 function AppPanel() {
+  const setup = useSetupPublished()
   return (
     <section className="panel" aria-labelledby="app-title">
       <div className="panel-header">
@@ -611,7 +636,7 @@ function AppPanel() {
         <span className="tag brass">v{APP_VERSION}</span>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 14 }}>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.')}</p>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{setup ? tr('Установщик для Windows. Войдите в приложении с тем же e-mail и паролем.') : tr('Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.')}</p>
         <DownloadButton large={false} />
       </div>
     </section>
@@ -647,12 +672,8 @@ function InviteCodePanel({ account }: { account: Account }) {
         <div className="panel-title" id="invite-title"><Gift aria-hidden="true" />{tr('Код приглашения')}</div>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 12 }}>
-        {account.referredBy ? (
-          <dl className="kv">
-            <div><dt>{tr('Вы приглашены по коду')}</dt><dd className="mono" style={{ color: 'var(--brass-strong)' }}>{account.referredBy}</dd></div>
-          </dl>
-        ) : account.invitedByFriend ? (
-          <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.')}</p>
+        {account.referredBy || account.invitedByFriend ? (
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Код по ссылке применён: скидка 20 % на первый месяц действует до первой оплаты.')}</p>
         ) : (
           <form onSubmit={apply} style={{ display: 'grid', gap: 12 }}>
             <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Есть код друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц.')}</p>

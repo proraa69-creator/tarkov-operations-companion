@@ -22,6 +22,24 @@ describe('MapMarkerTooltip', () => {
     expect(screen.getByText('Дверь · открывает: Ключ-карта TerraGroup Labs (Красная)')).toBeTruthy()
   })
 
+  // Owner, 04.11.2026, a player's report on «Лифт в стилобате»: «добавь всю информацию и этаж … только показывай описание и этаж».
+  const lift: MapMarker = { ...base, id: 'streets-of-tarkov-extract-321358e7c712157a0692f8212c0ce644a85d8d9a', mapId: 'streets-of-tarkov', type: 'extract', layerId: 'extract.pmc', title: 'Лифт в стилобате', description: 'Выход ЧВК.', meta: 'Выход ЧВК', floor: '2 этаж' }
+
+  it('an exit shows its place, its real floor and a photo instead of the catalog\'s generic words', () => {
+    const { container } = render(<MapMarkerTooltip marker={lift} typeLabel="Выходы ЧВК" color="#d5b76f" floor="2 этаж" />)
+    expect(screen.getByText(/За барной стойкой на 3-м этаже ресторана «Белуга», проход через кухню/)).toBeTruthy()
+    expect(screen.getByText('3 этаж')).toBeTruthy()
+    expect(screen.queryByText('2 этаж')).toBeNull()
+    expect(screen.queryByText('Выход ЧВК.')).toBeNull()
+    expect(container.querySelector('img.mmt-shot')?.getAttribute('src')).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}-t\.png\?v=2$/)
+  })
+
+  it('an exit not in the list keeps what the catalog says', () => {
+    render(<MapMarkerTooltip marker={{ ...lift, id: 'not-listed', extractId: undefined }} typeLabel="Выходы ЧВК" color="#d5b76f" floor="2 этаж" />)
+    expect(screen.getByText('Выход ЧВК.')).toBeTruthy()
+    expect(screen.getByText('2 этаж')).toBeTruthy()
+  })
+
   it('has English for the new texts', () => {
     setRenderLanguage('en')
     expect(uiText(possibleSpotText({ kind: 'item', index: 2, count: 3 }))).toBe('Possible item location · 2 of 3')

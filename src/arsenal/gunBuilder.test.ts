@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
+import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction, modifierOf } from './gunQueries'
 import { canInstall, emptyBuild, hasInstallable, installedParts, installPart, installReplacing, missingRequired, presetBuild, removePart } from './buildModel'
 import { boardLayout, rowSpans, slotKind, WEAPON_COLUMN, zoneCells } from './boardLayout'
 import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeExtraCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
 import { ammoPayload, FX, gunsPayload, modsPayload } from './fixtures/gunFixture'
-import { prettyCaliber } from './gunFormat'
+import { formatModifier, prettyCaliber, signedExact } from './gunFormat'
 import { applyPatchFixes, fixedPart } from './patchFixes'
 import type { Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 
@@ -32,12 +32,39 @@ describe('tarkov.dev adapters', () => {
     expect(asFraction(-5)).toBe(-0.05)
     expect(asFraction(undefined)).toBe(0)
   })
+  // the check against the game's own data (20.11.2026): the 12/70 «Магнум» recoil +115 % was shown as +1.15 %
+  it('a modifier from the properties is a fraction however large; the field of the item itself is percent', () => {
+    expect(modifierOf(1.15, undefined)).toBe(1.15)
+    expect(modifierOf(-0.04, 99)).toBe(-0.04)
+    expect(modifierOf(undefined, 5)).toBe(0.05)
+    expect(modifierOf(null, -3)).toBe(-0.03)
+    expect(modifierOf(undefined, undefined)).toBe(0)
+    const magnum = adaptAmmo({ data: { ammo: [{ item: { id: 'magnum', name: '12/70 Магнум' }, caliber: 'Caliber12g', recoilModifier: 1.15, accuracyModifier: 1.7 }] } })
+    expect(magnum[0]).toMatchObject({ recoilModifier: 1.15, accuracyModifier: 1.7 })
+  })
   it('reads ammo ballistics', () => {
     expect(catalog.ammo.find((ammo) => ammo.id === FX.m995)).toMatchObject({ penetration: 53, damage: 42, noFlea: true, caliber: 'Caliber556x45NATO' })
   })
 })
 
 describe('build tree and compatibility', () => {
+  // owner, 20.11.2026: the Vltor CMRD handguard on an AK-105 — it lists that weapon, the game never puts it there
+  it('a part that lists the weapon itself among its conflicts never goes on it, nor in place of another', () => {
+    const build = presetBuild(m4, catalog).build
+    const filled = Object.keys(build.root.children)[0]!
+    const slot = m4.slots.find((entry) => entry.nameId === filled)!
+    const other = slot.allowed.find((id) => catalog.mods.has(id))!
+    const original = catalog.mods.get(other)!
+    try {
+      catalog.mods.set(other, { ...original, conflicts: [...original.conflicts, m4.id] })
+      expect(canInstall(build, [filled], slot, other, catalog, m4)).toEqual({ ok: false, reason: 'conflict', conflictWith: m4.id })
+      expect(installReplacing(build, [filled], slot, other, catalog, m4)).toBeUndefined()
+      expect(hasInstallable(emptyBuild(m4), [filled], { ...slot, allowed: [other] }, catalog, m4)).toBe(false)
+    } finally {
+      catalog.mods.set(other, original)
+    }
+  })
+
   it('rebuilds the default preset tree from its flat item list', () => {
     const { build, unplaced } = presetBuild(m4, catalog)
     expect(unplaced).toEqual([])
@@ -94,6 +121,27 @@ describe('stats', () => {
     expect(stats.recoilVertical).toBe(Math.round(56 * (1 - 0.19 + 0.04)))
     // 50 + grip 6 − mag 2 + upper 4 − barrel 11 − hider 1 + 0 + handguard 4 + 0 + 0 + stock 7 + 0
     expect(stats.ergonomics).toBe(57)
+  })
+  // the check against the game's own data (20.11.2026): an AKS-74U (its own −17.9 %) showed 890 m/s with PS instead of 731
+  it('the bullet velocity counts the change of the weapon itself with those of its parts', () => {
+    const m995 = catalog.ammo.find((ammo) => ammo.id === FX.m995)!
+    const short = { ...m4, velocity: -17.9 }
+    const build = emptyBuild(m4)
+    const stats = computeStats(build, short, catalog, m995)
+    expect(stats.velocityModifierSum).toBeCloseTo(-17.9)
+    expect(stats.velocity).toBeCloseTo(m995.initialSpeed * 0.821)
+    expect(computeStats(build, m4, catalog, m995).velocity).toBeCloseTo(m995.initialSpeed)
+  })
+  // −0.07 × 100 is −7.000000000000001: «−7.0 %» was shown; a rail's −0.15 ergonomics showed «−0.1»
+  it('a percent and a value show the decimals the game gives them, at most two', () => {
+    expect(formatModifier(-0.07)).toBe('−7 %')
+    expect(formatModifier(-0.0325)).toBe('−3.25 %')
+    expect(formatModifier(0.025)).toBe('+2.5 %')
+    expect(formatModifier(1.15)).toBe('+115 %')
+    expect(signedExact(-0.15)).toBe('−0.15')
+    expect(signedExact(1.75)).toBe('+1.75')
+    expect(signedExact(0.5)).toBe('+0.5')
+    expect(signedExact(-3)).toBe('−3')
   })
   it('clamps ergonomics to 0…100 and sums weight', () => {
     const heavy = { ...m4, ergonomics: 5 }
@@ -301,6 +349,17 @@ describe('«Сборка оружия» board and the game rules (owner, 17.10.2
     expect(installReplacing(build, ['mod_magazine'], magSlot, FX.mag60, catalog, m4)!.removed).toEqual([])
     expect(installReplacing(build, ['mod_magazine'], magSlot, FX.grip, catalog, m4)).toBeUndefined()
   })
+  it('a grip-stock in the grip slot takes the buffer tube off with its stock, and the stock slot is then not missing (owner, 28.10.2026)', () => {
+    const { build } = presetBuild(m4, catalog)
+    const tubeId = build.root.children.mod_stock.itemId
+    // the A2 grip made a one-piece grip-stock (the ADAR wooden stock goes into the grip slot as a «stock»)
+    const gripStock = withParts({ [FX.grip]: { category: 'stock' } })
+    const done = installReplacing(build, ['mod_pistol_grip'], slotOf(FX.m4, 'mod_pistol_grip'), FX.grip, gripStock, m4)!
+    expect(done.removed.map((part) => part.id)).toEqual([tubeId])
+    expect(done.build.root.children.mod_stock).toBeUndefined()
+    expect(missingRequired(done.build, m4, gripStock).some((entry) => entry.path[0] === 'mod_stock')).toBe(false)
+    expect(hasInstallable(done.build, ['mod_stock'], slotOf(FX.m4, 'mod_stock'), gripStock, m4)).toBe(false)
+  })
   it('conflictingCategories: a part does not go with any part of a conflicting category', () => {
     const { build } = presetBuild(m4, catalog)
     const stockId = build.root.children.mod_stock.itemId
@@ -317,6 +376,10 @@ describe('patch fixes on top of tarkov.dev', () => {
     expect(fixed.recoilModifier).toBeCloseTo(-0.015)
     expect(fixed.ergonomics).toBe(5)
     expect(applyPatchFixes(catalog.mods, sets).get(FX.mag30)).toBe(catalog.mods.get(FX.mag30))
+  })
+  it('the Magpul MIAD grip keeps its +6 and -1.2%: the set of 17.10 had the patch backwards', () => {
+    const miad = { ...catalog.mods.get(FX.grip)!, id: '5a339805c4a2826c6e06d73d', ergonomics: 6, recoilModifier: -0.012 }
+    expect(fixedPart(miad)).toEqual(miad)
   })
   it('stops once tarkov.dev has updated the item', () => {
     const updated = new Map(catalog.mods)

@@ -7,6 +7,9 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Админ панель доступна только в приложении владельца, вошедшем в аккаунт владельца.', 'The admin panel is available only in the owner app signed in to the owner account.'],
   ['Войдите в аккаунт владельца на странице «Профиль» — без него сервер не примет изменения.', 'Sign in to the owner account on the “Profile” page — without it the server will not accept changes.'],
   ['Открыть профиль', 'Open profile'],
+  // «Профиль» of a player, opened from «Чат» (src/admin/AccountProfile.tsx; its own texts are in both languages there).
+  ['Аккаунт игрока', 'Player account'],
+  ['История обновлений', 'Update history'], ['Все версии, новые сверху', 'All versions, newest first'], ['Что изменилось', 'What changed'],
   ['Объявления', 'Announcements'], ['Всем или по регионам', 'To everybody or by region'],
   ['Создать, результаты', 'Create, results'],
   ['Баннер', 'Banner'], ['Сверху у всех игроков', 'At the top for every player'],
@@ -23,6 +26,11 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Позиция игрока по скриншотам игры на «Картах» и в телефоне. Выключено — ни у кого нет позиции, приложение не следит за папкой скриншотов.', 'The player’s position from the game’s screenshots on “Maps” and on the phone. Off — nobody has a position and the app does not watch the screenshots folder.'],
   ['Включено у всех', 'On for everybody'], ['Выключено у всех', 'Off for everybody'], ['Последнее изменение', 'Last change'],
   ['Приложения игроков узнают о переключении в течение нескольких минут или сразу, когда окно снова в фокусе.', 'Players’ apps learn about the switch within a few minutes, or at once when their window gets the focus back.'],
+  // «Модули убежища» (src/admin/AdminHideoutModules.tsx)
+  ['Модули убежища', 'Hideout modules'], ['Со старта или выключить', 'From the start or off'], ['Убежище у всех игроков', 'The hideout for every player'],
+  ['Со старта — строится сразу, без других модулей. Выключен — модуля нет в убежище этого режима.', 'From the start: built at once, no other modules needed. Off: the module is not in this mode’s hideout.'],
+  ['Как в игре', 'As in the game'], ['Со старта', 'From the start'], ['Выключен', 'Off'],
+  ['Сохранено. У игроков — в течение нескольких минут.', 'Saved. Players get it within a few minutes.'],
   // «Квесты»
   ['Точки, тексты и требования квестов', 'Quest points, texts and requirements'],
   ['Изменения в конструкторе сохраняются сразу и видны всем игрокам — обновлять приложение или сервер не нужно.', 'Constructor changes are saved at once and every player sees them — no app or server update needed.'],
@@ -55,11 +63,21 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Выберите босса', 'Choose a boss'],
   ['Все боссы уже на карте', 'Every boss is on the map already'],
   ['Добавить на карту', 'Add to the map'],
-
+  // «Сводка» (owner, 15.11.2026): the site's tabs in the PC app; the period of the phone admin app's calendar.
+  ['Сводка', 'Summary'], ['Как на сайте', 'As on the website'],
+  ['Сводка за период', 'Period summary'], ['Снять выбор', 'Clear selection'], ['Долгое нажатие — второй день', 'Long press — the second day'],
+  ['новых аккаунтов', 'new accounts'], ['Платные подписки', 'Paid subscriptions'], ['Выручка', 'Revenue'],
+  ['Время — по Бангкоку (UTC+7). Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни. Долгое нажатие — начало и конец периода.', 'Bangkok time (UTC+7). Tap a day to open its sign-ups, payments and granted days. Long press — the start and the end of a period.'],
+  // «Отчёты» and «Чат» in the panel, the red numbers (owner, 15.11.2026).
+  ['Чат', 'Chat'], ['Переписка с игроками', 'Conversations with players'], ['Новых', 'New'], ['Ждут ответа', 'Waiting'],
 ]
 
 /** Server answers with a variable part. */
 export const ADMIN_PANEL_RULES: Array<[RegExp, string]> = [
+  // «Сводка» numbers (owner, 15.11.2026), one part of a «… · …» line each.
+  [/^из них повторных: (\d+)$/g, 'repeat of them: $1'], [/^повторных: (\d+)$/g, 'repeat: $1'], [/^оплат: (\d+)$/g, 'payments: $1'],
+  [/^мёртвых (\d+)$/g, 'dead $1'], [/^реальных (\d+)$/g, 'real $1'], [/^впервые (\d+)$/g, 'first time $1'], [/^повторно (\d+)$/g, 'again $1'],
+  [/^оплатили (\d+)$/g, 'paid $1'], [/^возвратов: (\d+)$/g, 'refunds: $1'], [/^Сводка за период (.+)$/g, 'Period summary $1'],
   [/^Некорректные настройки блоков \(([^)]*)\): проверьте блоки(?:, боссов)? и длину названий \(до (\d+) символов\)$/g, 'Invalid block settings ($1): check the blocks, the bosses and the title length (up to $2 characters)'],
   [/^Некорректные настройки блоков: проверьте блоки(?:, боссов)? и длину названий \(до (\d+) символов\)$/g, 'Invalid block settings: check the blocks, the bosses and the title length (up to $1 characters)'],
 ]

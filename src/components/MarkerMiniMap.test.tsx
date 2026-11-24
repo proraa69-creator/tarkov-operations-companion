@@ -10,6 +10,7 @@ vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Marker: () => null,
   Pane: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SVGOverlay: () => null,
   // Tile layers leave their address in the page, so the test sees which floor is drawn.
   TileLayer: ({ url }: { url: string }) => <i data-testid="tiles" data-url={url} />,
   useMap: () => ({ setView: () => {}, getMaxZoom: () => 6 }),

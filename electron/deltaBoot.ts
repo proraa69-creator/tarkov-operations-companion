@@ -12,7 +12,8 @@ import { deltaSignatureValid, parseDeltaInfo, STAGED_INFO } from './deltaInfo.js
  *
  * A staged build starts only when it is newer than the one inside the exe. Its first start is «pending» until the window
  * has loaded its page (confirmBoot); a start that never got there (crash, error) marks the build bad and the next start
- * runs the exe's own build again. A copy that is still running (a second launch, the elevated relaunch) is not a failure.
+ * runs the exe's own build again. A copy that is still running (the elevated relaunch) is not a failure, and neither is a
+ * second launch that left for the running copy (abandonBoot).
  * A player's copy also starts only a build whose signed manifest verifies (stagedBuildVerified).
  */
 export const DELTA_FOLDER = 'Raid OS Updates'
@@ -41,9 +42,10 @@ export const deltaRoot = (appData: string, edition: DeltaEdition = 'owner') => e
 /**
  * A player's staged build is the release exactly as signed: its delta-info.json verifies with the update key and names
  * this build, the archive has the signed size and header (which holds every file's SHA-256). The whole archive was
- * checked against the signed SHA-256 when it was built (stageDelta); each start reads only the header, not 150 MB again.
+ * checked against the signed SHA-256 when it was built (stageDelta); a start reads only the header, not 150 MB again —
+ * unless `filesUnder` is given (stagedFilesVerified): '' every file that can run, 'dist/' the window's page only.
  */
-export function stagedBuildVerified(fs: BootFs, dir: string, build: number, publicKey: string) {
+export function stagedBuildVerified(fs: BootFs, dir: string, build: number, publicKey: string, filesUnder?: string) {
   try {
     const info = parseDeltaInfo(JSON.parse(fs.readFileSync(join(dir, STAGED_INFO), 'utf8')))
     if (!info || info.build !== build || !info.asar.headerSha256 || !deltaSignatureValid(info, publicKey)) return false
@@ -52,19 +54,83 @@ export function stagedBuildVerified(fs: BootFs, dir: string, build: number, publ
     const header = Buffer.alloc(info.asar.dataStart)
     const fd = fs.openSync(archive, 'r')
     try {
-      for (let done = 0; done < header.length;) {
-        const read = fs.readSync(fd, header, done, header.length - done, done)
-        if (!read) return false
-        done += read
-      }
+      if (!readExactly(fs, fd, header, 0)) return false
     } finally {
       fs.closeSync(fd)
     }
-    return createHash('sha256').update(header).digest('hex') === info.asar.headerSha256
+    if (createHash('sha256').update(header).digest('hex') !== info.asar.headerSha256) return false
+    return filesUnder === undefined || stagedFilesVerified(fs, dir, header, filesUnder)
   } catch {
     return false
   }
 }
+
+/** What an archive holds that never runs: 3D models, pictures, video, sound, source maps, OCR models, type files, fonts. */
+const NEVER_RUNS = /\.(glb|gltf|webp|png|jpe?g|gif|avif|ico|mp4|webm|mp3|ogg|wav|map|traineddata|ts|mts|cts|md|txt|ttf|otf|woff2?)$/i
+
+interface AsarEntry { files?: Record<string, AsarEntry>; size?: number; offset?: string; unpacked?: boolean; link?: string; integrity?: { algorithm?: string; hash?: string } }
+
+/**
+ * Security review, 03.11.2026: the staged build lies in %APPDATA%, which the player's other programs may write, and the
+ * app runs it as administrator — a file changed behind the signed header ran. Every file under `prefix` that can run
+ * (scripts, wasm, native modules, pages, JSON, anything not NEVER_RUNS), packed or in app.asar.unpacked, must have the
+ * SHA-256 the signed header gives it: about 100 MB of 250, a quarter of a second.
+ */
+export function stagedFilesVerified(fs: BootFs, dir: string, header: Buffer, prefix = '') {
+  const tree = JSON.parse(header.subarray(16, 16 + header.readUInt32LE(12)).toString('utf8')) as AsarEntry
+  const chunk = Buffer.allocUnsafe(1 << 20)
+  const hashAt = (fd: number, start: number, size: number) => {
+    const hash = createHash('sha256')
+    for (let done = 0; done < size;) {
+      const read = fs.readSync(fd, chunk, 0, Math.min(chunk.length, size - done), start + done)
+      if (!read) return ''
+      hash.update(chunk.subarray(0, read))
+      done += read
+    }
+    return hash.digest('hex')
+  }
+  const archive = fs.openSync(join(dir, 'app.asar'), 'r')
+  const hashOf = (file: string | null, start: number, size: number) => {
+    if (file === null) return hashAt(archive, start, size)
+    if (fs.statSync(file).size !== size) return ''
+    const fd = fs.openSync(file, 'r')
+    try {
+      return hashAt(fd, start, size)
+    } finally {
+      fs.closeSync(fd)
+    }
+  }
+  const check = (node: AsarEntry, path: string): boolean => {
+    for (const [name, entry] of Object.entries(node.files ?? {})) {
+      const at = path ? `${path}/${name}` : name
+      if (entry.files) {
+        if (!check(entry, at)) return false
+        continue
+      }
+      if (entry.link || NEVER_RUNS.test(name) || !at.startsWith(prefix)) continue
+      const size = entry.size ?? -1
+      if (entry.integrity?.algorithm !== 'SHA256' || !entry.integrity.hash || !Number.isSafeInteger(size) || size < 0) return false
+      const sum = entry.unpacked ? hashOf(join(dir, 'app.asar.unpacked', ...at.split('/')), 0, size) : hashOf(null, header.length + Number(entry.offset), size)
+      if (sum !== entry.integrity.hash) return false
+    }
+    return true
+  }
+  try {
+    return check(tree, '')
+  } finally {
+    fs.closeSync(archive)
+  }
+}
+
+function readExactly(fs: BootFs, fd: number, into: Buffer, position: number) {
+  for (let done = 0; done < into.length;) {
+    const read = fs.readSync(fd, into, done, into.length - done, position + done)
+    if (!read) return false
+    done += read
+  }
+  return true
+}
+
 const DIR = /^[0-9]{13}$/
 const isBuild = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 const builds = (value: unknown) => (Array.isArray(value) ? value.filter(isBuild).slice(-20) : [])
@@ -128,6 +194,17 @@ export function confirmBoot(fs: BootFs, root: string, pid: number) {
   if (!state.pending || state.pending.pid !== pid) return false
   const build = state.pending.build
   writeDeltaState(fs, root, { ...state, pending: undefined, confirmed: [...new Set([...(state.confirmed ?? []), build])] })
+  return true
+}
+
+/**
+ * This start left at once because another copy runs (electron/singleInstance.ts): it says nothing about the build. Without
+ * this a build staged while the app runs would count as failed after a second launch: pending, its process gone, no window.
+ */
+export function abandonBoot(fs: BootFs, root: string, pid: number) {
+  const state = readDeltaState(fs, root)
+  if (!state.pending || state.pending.pid !== pid) return false
+  writeDeltaState(fs, root, { ...state, pending: undefined })
   return true
 }
 

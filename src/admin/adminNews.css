@@ -1,0 +1,38 @@
+/* «Обновление» of the admin apps (AdminNewsEditor.tsx). */
+.admin-news { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.admin-news-entry { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); }
+.admin-news-entry > header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-news-entry > header strong { font-size: 14px; font-variant-numeric: tabular-nums; }
+.admin-news-entry > header small { color: var(--text-dim); font-size: 12px; }
+.admin-news-entry > header .button { margin-left: auto; }
+.admin-news-entry > header .tag svg { margin-right: 3px; vertical-align: -1px; }
+.admin-news-read { margin-top: 10px; }
+.admin-news-read h4, .admin-news-block h4 { margin: 0; color: var(--brass); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.admin-news-read ul { margin: 5px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+.admin-news-editor { display: grid; gap: 12px; margin-top: 12px; }
+.admin-news-block { padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; }
+.admin-news-block > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.admin-news-block > header .icon-button { width: 28px; height: 28px; }
+.admin-news-block ul { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.admin-news-point { position: relative; display: grid; grid-template-columns: 10px minmax(0, 1fr) 24px; align-items: start; gap: 6px; }
+.admin-news-point::before { content: ""; width: 5px; height: 5px; margin-top: 15px; border-radius: 50%; background: var(--brass); }
+.admin-news-point textarea { width: 100%; min-height: 34px; padding: 7px 9px; overflow: hidden; line-height: 1.4; resize: none; }
+.admin-news-remove { display: grid; place-items: center; width: 24px; height: 34px; padding: 0; border: 0; background: none; color: var(--text-dim); cursor: pointer; }
+.admin-news-remove:hover { color: var(--danger); }
+.admin-news-add, .admin-news-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-news-error { margin: 0; color: color-mix(in srgb, var(--danger) 46%, var(--text)); font-size: 13px; }
+
+/* «BZB — автозачисление оплат» of the phone's «Платежи» (AdminBezebeeBlock.tsx). */
+.admin-bzb { margin-bottom: 12px; }
+.admin-bzb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px; }
+.admin-bzb-head > strong { flex: 1 1 180px; font-size: 14px; }
+.admin-bzb-buttons { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.admin-bzb-line { padding: 0 14px 12px; }
+.admin-bzb-body { display: grid; gap: 14px; padding: 0 14px 14px; }
+.admin-bzb-done { margin: 0; color: var(--green, #86e09d); font-size: 13px; }
+.admin-bzb-form { display: grid; gap: 8px; font-size: 13px; }
+.admin-bzb-form label { display: grid; gap: 4px; }
+.admin-bzb-form label > span, .admin-bzb-form small { color: var(--text-dim); font-size: 12px; }
+.admin-bzb-form code { overflow-wrap: anywhere; font-size: 12px; }
+.admin-bzb-check { display: flex !important; align-items: center; gap: 6px; }
+.admin-bzb-event { display: grid; gap: 5px; padding: 8px 0; border-top: 1px solid var(--line); }

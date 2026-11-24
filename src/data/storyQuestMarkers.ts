@@ -19,13 +19,15 @@ export function adaptStoryQuestMarkers(quests: Quest[], maps: GameMap[], landmar
         pointMaps.add(point.mapId)
         const outline = point.outline?.map(([x, z]): [number, number] => [z, x])
         markers.push({
-          floor: markerFloor(map, undefined, [point.z, point.x]),
+          floor: markerFloor(map, undefined, [point.z, point.x], point.y),
+          ...(point.y === undefined ? {} : { height: point.y }),
           id: `${point.mapId}-${quest.id}-stage-${stageIndex}${pointIndex ? `-${pointIndex}` : ''}`,
           mapId: point.mapId,
           type: 'quest',
           layerId: 'quest.zone',
           title: quest.name,
-          description: stage.description || stage.title,
+          // What is at this very point, when the source says.
+          description: point.note || stage.description || stage.title,
           position: [point.z, point.x],
           outline: outline && outline.length >= 3 ? outline : undefined,
           questId: quest.id,

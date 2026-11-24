@@ -1,51 +1,63 @@
+import { NewsButton } from '../news/NewsButton'
+import { NotificationsButton } from '../notifications/NotificationsButton'
 import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
-import { RequestsNavButton } from '../components/RequestsNavButton'
+import { useTradingSignalCount } from '../trading/tradingClock'
 import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
+import { InstallerOffer } from '../components/InstallerOffer'
 import { SupportButtons } from '../components/SupportButtons'
 import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X,
-} from 'lucide-react'
+  ArrowLeftRight, ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
+  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { useQuestExperienceLevel } from '../profile/questExperience'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
+import { FloatingItemCard } from '../components/FloatingItemCard'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { usePlayerStateSync } from '../sync/usePlayerStateSync'
+import { bindDeferredSync, syncDeferredQuests, bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
+import { questCardHref } from '../quests/questCardLink'
+import { applyRemoteDeferredQuests, DEFERRED_QUESTS_EVENT, deferredSyncEntries } from '../progression/deferredQuests'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
 import type { RaidMode } from '../domain/types'
+import { legacyObjectiveIds, withCurrentObjectiveIds, type LegacyObjectiveIds } from '../progression/objectiveProgress'
 import { useLocale } from '../i18n/LocaleProvider'
-import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
+import { DAY_NIGHT_THEME, THEMES, THEME_CHANGED_EVENT, cycleTheme, currentTheme, nextTheme } from '../theme/theme'
+import { prepareTheme, prepareThemeWhenIdle } from '../theme/themeTransition'
+import { useThemeSchemeMenu } from '../theme/ThemeSchemeMenu'
 import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
-import { isAndroidApp, useMobileLayout } from '../platform'
+import { isAndroidApp, isIosApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { PhoneBackButton } from '../mobile/backNavigation'
 import { useScrollMemory } from '../mobile/backHistory'
 import { DesktopBackButton, noteSidebarNavigation, useDesktopBackOrigin } from './desktopBack'
 import { LiveFeedRunner } from '../mobile/livePosition'
+import { ScreenRemoteRunner } from '../screen/screenRemote'
 import { useOpenMapOnScreenshot } from './useOpenMapOnScreenshot'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
+import { IphoneUpdateBanner } from '../mobile/IphoneUpdateBanner'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
+import { useSquadLocationShare } from '../squad/useSquadLocationShare'
 import { usePresenceHeartbeat } from '../sync/presence'
 import { useShareLevels } from '../squad/useShareLevels'
 import { setMapMirrorServer } from '../data/mapMirror'
@@ -54,6 +66,8 @@ import { SupportNotice } from '../support/SupportChat'
 import { ModeResetToast } from '../components/ModeResetToast'
 import { PrestigeIcon } from '../components/PrestigeIcon'
 import { prestigeLabel } from '../profile/prestige'
+import { endStartupIntro } from '../startup/startupIntro'
+import { openApp, prepareAppOpening } from '../startup/appOpening'
 
 
 const navigation = [
@@ -80,8 +94,12 @@ const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
+  // Owner, 06.11.2026: «Перенеси блок ключи для квестов в экономику».
+  { to: '/quest-keys', ru: 'Ключи для квестов', en: 'Quest keys', icon: KeyRound },
+  { to: '/economy/trading', ru: 'Торговля', en: 'Trading', icon: ArrowLeftRight },
+  { to: '/tier-lists', ru: 'Тир листы', en: 'Tier lists', icon: ListOrdered },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
-  { to: '/hideout', ru: 'Убежище', en: 'Hideout', icon: Warehouse },
+  { to: '/hideout', ru: 'Убежище и квесты', en: 'Hideout & quests', icon: Warehouse },
   { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true, feature: 'economyTools' },
   { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat, feature: 'economyTools' },
   { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical, feature: 'economyTools' },
@@ -97,12 +115,15 @@ const arsenalNavigation = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const tradingSignals = useTradingSignalCount()
   const state = useAppState()
   const { locale, setLocale } = useLocale()
   const { raidMode, setRaidMode, activeProfile } = state
   const nickname = useAccountNickname()
   // Friend requests and squad invitations arrive at once; the «Отряд» button counts them (squad/useSocialEvents.ts).
   useSocialEvents(raidMode)
+  // «Местоположение отряда»: each screenshot's place goes to the squad while it is on (squad/useSquadLocationShare.ts).
+  useSquadLocationShare(raidMode)
   // «Онлайн сейчас»: this app tells the server it is open while signed in, about once a minute (sync/presence.ts).
   usePresenceHeartbeat()
   // Our server's copy of the maps (data/mapMirror.ts) lives on the account's server.
@@ -110,6 +131,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
   const socialBadge = useSocialBadge(raidMode)
   const { initialLoading, refresh, data, source: dataSource } = useTarkovData()
+  useEffect(() => {
+    if (initialLoading) return
+    prepareAppOpening()
+    endStartupIntro(document, openApp)
+  }, [initialLoading])
   // Quests turned in since the level was read raise it (src/profile/questExperience.ts).
   useQuestExperienceLevel()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
@@ -119,6 +145,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     return map ? { id: map.id, bounds: map.bounds } : null
   }, [data.maps, state.selectedMapId])
   useServerSync(raidMode, state.applyLogStateForMode, shownMap)
+  // The player's own lists on every device of the account, both ways, at once (owner, 07.11.2026; sync/playerState.ts).
+  usePlayerStateSync(state.profiles.find((profile) => profile.id === activeProfile.id) ?? activeProfile, state.applyPlayerLists)
   useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
   // The page left is scrolled back where it was on the phone and on the PC («Назад», owner 17.10 / 20.10.2026).
@@ -132,11 +160,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state })
 
-  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts): the ticks reach the other devices.
+  // The catalog's way from an objective's text, the id older apps keep its ticks under, to its game id (per mode).
+  const objectiveIdsRef = useRef<{ mode?: RaidMode; ids: LegacyObjectiveIds }>({ ids: legacyObjectiveIds([]) })
+  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts): the ticks reach the other devices,
+  // those an older app sent under the text arriving under the game id.
   useEffect(() => {
     bindObjectiveSync({
       read: (mode) => stateRef.current.activeProfile.modes[mode],
-      apply: (mode, remote) => stateRef.current.applyRemoteObjectives(mode, remote),
+      apply: (mode, remote) => {
+        const known = objectiveIdsRef.current
+        stateRef.current.applyRemoteObjectives(mode, known.mode === mode ? withCurrentObjectiveIds(remote, known.ids) : remote)
+      },
     })
     return () => bindObjectiveSync(null)
   }, [])
@@ -152,7 +186,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const storedModes = state.profiles.find((profile) => profile.id === activeProfile.id)?.modes
   useEffect(() => {
     bindQuestMirrorSource((mode) => stateRef.current.profiles.find((profile) => profile.id === stateRef.current.activeProfile.id)?.modes[mode])
-    return () => bindQuestMirrorSource(null)
+    // The account's copy from the server fills what this PC knows nothing about (owner, 03.11.2026).
+    bindQuestMirrorLayer(window.tarkovDesktop ? (mode, records) => stateRef.current.applyQuestMirrorLayer(mode, records) : null)
+    return () => { bindQuestMirrorSource(null); bindQuestMirrorLayer(null) }
   }, [])
   // The PC's mode — switched here or by the game's logs — goes to the phone, which switches too (owner, 20.10.2026).
   useEffect(() => {
@@ -171,14 +207,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (mirrorPvp) void pushQuestMirror('pvp', mirrorPvp).catch(() => {})
       if (mirrorPve) void pushQuestMirror('pve', mirrorPve).catch(() => {})
       if (mirrorSeason) void pushQuestMirror('seasonal', mirrorSeason).catch(() => {})
-    }, 2000)
+    }, 500)
     return () => window.clearTimeout(timer)
   }, [mirrorPvp, mirrorPve, mirrorSeason])
-  // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
+  // A local objective change (or undo) reaches the server in a moment instead of on the next 30 s poll.
   const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced && (manualObjectives || objectiveEvent(event))).length
   useEffect(() => {
     if (!unsyncedEvents) return
-    const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 3000)
+    const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 300)
     return () => window.clearTimeout(timer)
   }, [raidMode, unsyncedEvents])
   // Profile resets in the logs count only for the catalog's trader quests (P3): the main process gets this mode's ids
@@ -207,11 +243,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     })
     return () => bindStorySync(null)
   }, [])
-  // A chapter read on this PC reaches the server a few seconds later (not on the next 30 s poll).
+  // A chapter read on this PC reaches the server in a moment (not on the next 30 s poll).
   const storyKey = useMemo(() => catalogMode === raidMode ? JSON.stringify(storyRecordsOf(activeProfile.modes[raidMode], data.quests)) : '', [catalogMode, raidMode, activeProfile.modes, data.quests])
   useEffect(() => {
     if (!storyKey) return
-    const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 3000)
+    const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 500)
     return () => window.clearTimeout(timer)
   }, [raidMode, storyKey])
   // «Ручная отметка» through the server (src/quests/questEngine.ts weighs each against the logs): another PC and the phone
@@ -226,13 +262,43 @@ export function AppShell({ children }: { children: ReactNode }) {
   const manualKey = useMemo(() => JSON.stringify(manualMarksOf(activeProfile.modes[raidMode])), [activeProfile.modes, raidMode])
   useEffect(() => {
     if (manualKey === '[]') return
-    const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 1500)
+    const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 300)
     return () => window.clearTimeout(timer)
   }, [raidMode, manualKey])
-  // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids.
+  // «Отложенные квесты»: one list on every device of the account (src/progression/deferredQuests.ts): a change goes out in
+  // a moment, the other devices hear it through the social events (serverSync onAccountChange).
   useEffect(() => {
-    if (dataSource !== 'demo' && data.quests.length) stateRef.current.normalizeTaskKeys(data.quests)
-  }, [data.quests, dataSource])
+    bindDeferredSync({
+      read: (mode) => deferredSyncEntries(stateRef.current.activeProfile.id, mode),
+      apply: (mode, quests, resetAt) => applyRemoteDeferredQuests(stateRef.current.activeProfile.id, mode, quests, resetAt),
+    })
+    return () => bindDeferredSync(null)
+  }, [])
+  useEffect(() => {
+    let timer = 0
+    const changed = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => void syncDeferredQuests(raidMode).catch(() => {}), 300)
+    }
+    window.addEventListener(DEFERRED_QUESTS_EVENT, changed)
+    return () => { window.clearTimeout(timer); window.removeEventListener(DEFERRED_QUESTS_EVENT, changed) }
+  }, [raidMode])
+  // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids, and the ticks of
+  // its mode kept under an objective's text move to the objective's game id (src/progression/objectiveProgress.ts).
+  useEffect(() => {
+    if (dataSource === 'demo' || !data.quests.length) return
+    stateRef.current.normalizeTaskKeys(data.quests)
+    if (!catalogMode) return
+    const ids = legacyObjectiveIds(data.quests)
+    objectiveIdsRef.current = { mode: catalogMode, ids }
+    stateRef.current.normalizeObjectiveKeys(catalogMode, ids)
+  }, [data.quests, dataSource, catalogMode])
+  // Whatever brought them (a scan, the logs of a hand-in, the account's copy): the chain of the mode's catalog over them.
+  const catalogRecords = catalogMode ? storedModes?.[catalogMode]?.taskProgress : undefined
+  const catalogSyncFrom = catalogMode ? storedModes?.[catalogMode]?.tableSync?.startedAt : undefined
+  useEffect(() => {
+    if (catalogMode && catalogRecords && data.quests.length) stateRef.current.applyQuestChain(catalogMode, data.quests)
+  }, [data.quests, catalogMode, catalogRecords, catalogSyncFrom])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -305,7 +371,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const normalized = query.trim().toLowerCase()
     if (normalized.length < 2) return []
     const matches = (...values: string[]) => values.some((value) => `${value} ${uiText(value)}`.toLowerCase().includes(normalized))
-    const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: `/quests?selected=${entry.id}`, icon: Target }))
+    const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: questCardHref(entry), icon: Target }))
     const items = data.items.filter((entry) => matches(entry.name, entry.shortName)).slice(0, 7).map((entry) => ({ id: entry.id, title: entry.name, detail: entry.category, url: `/flea?selected=${entry.id}`, icon: PackageSearch }))
     const maps = data.maps.filter((entry) => matches(entry.name)).map((entry) => ({ id: entry.id, title: entry.name, detail: 'Карта', url: `/maps/${entry.id}`, icon: Map }))
     return [...maps, ...quests, ...items].slice(0, 12)
@@ -350,15 +416,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ECONOMY' : 'ЭКОНОМИКА')}</div>
         <nav className="nav-list" aria-label={uiText('Экономика')}>
-          {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
+          {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span>{to === '/economy/trading' && tradingSignals > 0 && <span className="nav-badge" aria-label={locale === 'en' ? `Trading signals: ${tradingSignals}` : `Сигналов торговли: ${tradingSignals}`}>{tradingSignals > 99 ? '99+' : tradingSignals}</span>}</NavLink>)}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ARSENAL' : 'АРСЕНАЛ')}</div>
         <nav className="nav-list" aria-label={uiText('Арсенал')}>
           {arsenalNavigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
-        <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink><SupportButtons variant="nav" /></nav>
-        <RequestsNavButton locale={locale} />
+        <nav className="nav-list">{window.tarkovDesktop?.screen && <NavLink to="/screen" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><SunMedium /><span>{uiText(locale === 'en' ? 'Screen settings' : 'Настройка экрана')}</span></NavLink>}<NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink><SupportButtons variant="nav" /></nav>
         <SidebarOperator />
       </aside>}
       {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}
@@ -367,27 +432,33 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* The owner's notice («ведутся технические работы»), until he turns it off (src/announcement). */}
       <AnnouncementBanner />
+      {/* the item key's price card on every tab (owner, 07.11.2026: «окно цены будет появляться всегда, везде») */}
+      <FloatingItemCard />
       {mobile ? (
         <header className="topbar mobile-topbar">
           <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
           <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
           <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}>{activeProfile.modes[raidMode].prestige > 0 ? <span className="op-prestige-chip" title={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)}><PrestigeIcon level={activeProfile.modes[raidMode].prestige} size={18} label={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)} mode={raidMode} /></span> : <UserRound size={16} />}<span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
+          <NewsButton />
           <ThemeButton />
           <SubscriptionExpiryNotice compact />
         </header>
       ) : (
       <header className="topbar">
-        <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span><kbd>Ctrl K</kbd></button>
+        <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span></button>
         <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
         <RefreshDataButton onRefresh={refresh} />
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
         <TopbarRestock />
         <UpdateButton />
+        <InstallerOffer />
         <SubscriptionExpiryNotice />
         <ThemeButton />
         <ServerQuickButton />
-        <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>
+        {/* Where «Настройки» stood (owner, 06.11.2026): they stay in the left menu. */}
+        <NewsButton />
+        <NotificationsButton />
       </header>
       )}
 
@@ -409,7 +480,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* The PC's position and looked-up item reach the phone on every screen; the item shows on «Карты» only, as on the
           PC — no banner at the top any more (owner, 20.10.2026: «уведомления … которое сверху выскакивает … убираем»). */}
       {mobile && <LiveFeedRunner mode={raidMode} />}
+      {/* The PC app hands its screen presets to the phone and takes the phone's commands (src/screen/screenRemote.ts). */}
+      {window.tarkovDesktop?.screen && <ScreenRemoteRunner />}
       {mobile && isAndroidApp() && <AndroidUpdateBanner />}
+      {mobile && isIosApp() && <IphoneUpdateBanner />}
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}
       <SupportNotice />
@@ -434,13 +508,26 @@ function ShellTabBar(props: Omit<Parameters<typeof MobileTabBar>[0], 'refreshing
   return <MobileTabBar {...props} refreshing={isFetching} />
 }
 
-/** Cycles the colour schemes in order; the current one's name is in the tooltip. */
+/**
+ * Cycles the ordinary colour schemes in order; the current one's name is in the tooltip. The right click opens them all in a
+ * menu, with «Смена дня и ночи» under them (theme/ThemeSchemeMenu.tsx); the left click never goes to that one.
+ */
 function ThemeButton() {
   const [theme, setTheme] = useState(currentTheme)
-  const label = THEMES.find((entry) => entry.id === theme)?.label ?? ''
-  return (
-    <button className="icon-button theme-cycle" onClick={() => setTheme(cycleTheme().id)} title={`${uiText('Цветовая схема')}: ${uiText(label)}`} aria-label={uiText('Сменить цветовую схему')}>
+  useEffect(() => {
+    const sync = () => setTheme(currentTheme())
+    window.addEventListener(THEME_CHANGED_EVENT, sync)
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync)
+  }, [])
+  // The next scheme's pictures are decoded before the press (theme/themeTransition.ts): the circle starts at once.
+  useEffect(() => { prepareThemeWhenIdle(() => nextTheme().id, 4000) }, [])
+  const label = theme === DAY_NIGHT_THEME.id ? DAY_NIGHT_THEME.label : THEMES.find((entry) => entry.id === theme)?.label ?? ''
+  const menu = useThemeSchemeMenu(theme, setTheme)
+  const prepareNext = () => { prepareTheme(nextTheme().id) }
+  return <>
+    <button className="icon-button theme-cycle" onClick={(event) => setTheme(cycleTheme(event.currentTarget).id)} onPointerEnter={prepareNext} onPointerDown={prepareNext} onFocus={prepareNext} onContextMenu={menu.onContextMenu} title={`${uiText('Цветовая схема')}: ${uiText(label)}`} aria-label={uiText('Сменить цветовую схему')}>
       <Palette size={16} />
     </button>
-  )
+    {menu.overlay}
+  </>
 }

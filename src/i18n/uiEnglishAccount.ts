@@ -7,7 +7,7 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Ник сохраняется в вашем аккаунте и один для всех режимов. Изменить его можно позже в профиле.', 'The nickname is saved in your account and is the same for every mode. You can change it later in the profile.'],
   ['Ник в игре', 'In-game nickname'], ['Один для PvP, PvE и «Сезона», хранится в аккаунте', 'One for PvP, PvE and Season, kept in your account'],
   ['Сменить ник? Он сменится во всех режимах. Прогресс режима сбросится, только если новый ник — другой аккаунт Escape from Tarkov.', 'Change the nickname? It changes in every mode. A mode\'s progress is reset only if the new nickname is another Escape from Tarkov account.'],
-  ['Сменить ник', 'Change nickname'], ['профиль с этим ником пока не найден', 'no profile with this nickname yet'],
+  ['Сменить ник', 'Change nickname'], ['Поменять ник', 'Change nickname'], ['профиль с этим ником пока не найден', 'no profile with this nickname yet'],
   ['Привяжите ник — он один для всех режимов', 'Link your nickname — it is the same for every mode'],
   ['профиль найден', 'profile found'], ['профиля нет', 'no profile'],
   ['Ник ещё не найден', 'Nickname not found yet'],
@@ -28,7 +28,7 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   // «Личный кабинет»
   ['Личный кабинет', 'Personal account'], ['Аккаунт', 'Account'], ['Подписка', 'Subscription'], ['Ники', 'Nicknames'],
   ['Хранятся в аккаунте отдельно для каждого режима', 'Kept in your account separately for each mode'],
-  ['Бесплатно навсегда', 'Free forever'], ['Пробный период до', 'Trial until'], ['Пробный период', 'Trial'], ['Не активна', 'Not active'], ['Активна до', 'Active until'], ['Активна', 'Active'],
+  ['Бесплатно навсегда', 'Free forever'], ['Пробный период с первого рейда', 'Trial from your first raid'], ['Пробный период до', 'Trial until'], ['Пробный период', 'Trial'], ['Не активна', 'Not active'], ['Активна до', 'Active until'], ['Активна', 'Active'],
   ['Нет данных: сервер недоступен', 'No data: the server is unavailable'], ['Аккаунт стримера', 'Streamer account'], ['Все функции доступны', 'All features are available'],
   ['Оформить можно в личном кабинете на сайте', 'You can subscribe in your account on the website'],
   ['Открыть кабинет на сайте', 'Open account on the website'], ['Оформить подписку', 'Subscribe'],
@@ -58,6 +58,22 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Сейчас телефон подключён к другому серверу. После входа он переключится на этот.', 'The phone is connected to another server now. After signing in it switches to this one.'],
   ['Сначала войдите в аккаунт в этом приложении (Ещё → Настройки), затем отсканируйте QR-код ещё раз.', 'Sign in in this app first (More → Settings), then scan the QR code again.'],
   ['Браузер просит войти в ваш аккаунт', 'A browser asks to sign in to your account'], ['код', 'code'],
+  // «Войти по QR-коду» on the sign-in screen and the phone's approval (QrSignIn.tsx, mobile/DeepLinkLogin.tsx; 28.10.2026)
+  ['Войти по QR-коду', 'Sign in with a QR code'], ['Вход по QR-коду', 'QR code sign-in'], ['Подтвердить вход', 'Approve the sign-in'],
+  ['Компьютер или браузер просит войти в ваш аккаунт', 'A computer or a browser asks to sign in to your account'],
+  ['Готово: устройство вошло в ваш аккаунт.', 'Done: the device is signed in to your account.'],
+  ['Наведите камеру телефона, где открыт Raid OS с вашим аккаунтом, на QR-код. В приложении введите код с этого экрана и нажмите «Разрешить вход» — компьютер войдёт сам.', 'Point the camera of the phone where Raid OS is signed in to your account at the QR code. In the app type the code from this screen and tap «Allow sign-in»: this computer signs in by itself.'],
+  // «Войти через Google» on the PC (AccountSignIn.tsx, QrSignIn.tsx)
+  ['Войти через Google', 'Sign in with Google'], ['Вход через Google', 'Sign in with Google'],
+  ['В браузере войдите через Google, введите код с этого экрана и нажмите «Подтвердить» — компьютер войдёт сам.', 'In the browser, sign in with Google, enter the code from this screen and press “Confirm” — this PC signs in by itself.'],
+  ['Ждём подтверждения в браузере', 'Waiting for the browser'], ['Открыть сайт ещё раз', 'Open the website again'], ['Новый код', 'New code'],
+  ['QR-код для входа', 'Sign-in QR code'], ['Код для телефона', 'Code for the phone'], ['Ждём подтверждения с телефона', 'Waiting for the phone'],
+  ['Код истёк', 'The code expired'], ['Новый QR-код', 'New QR code'], ['В QR-коде нет пароля: только одноразовый код на 2 минуты.', 'The QR code holds no password: only a one-time code for 2 minutes.'],
+  ['Войти по e-mail и паролю', 'Sign in with e-mail and password'],
+  ['На компьютере откройте Raid OS, где вы уже вошли в аккаунт.', 'On the computer open Raid OS signed in to your account.'],
+  ['Профиль → «Войти в мобильную версию»: появится QR-код.', 'Profile → «Sign in on the phone»: a QR code appears.'],
+  ['Наведите камеру телефона на QR-код и нажмите «Открыть в приложении» — телефон войдёт сам.', 'Point the phone camera at the QR code and tap «Open in the app»: the phone signs in by itself.'],
+  ['Загрузка данных…', 'Loading data…'], ['Raid OS для Windows', 'Raid OS for Windows'], ['Ник в игре', 'In-game nickname'],
   ['Незнакомый сервер', 'Unknown server'], ['Не входить', "Don't sign in"], ['Приложение подключается только к серверу Raid OS. Эту ссылку мог прислать мошенник — не входите и не вводите пароль.', 'The app connects only to the Raid OS server. This link may come from a scammer: do not sign in or enter your password.'], ['Подключиться к этому серверу', 'Connect to this server'],
   ['Ссылка для входа ведёт на сервер, которого нет в приложении:', 'The sign-in link leads to a server this app does not know:'],
   ['Подключайтесь, только если это ваш сервер. Чужой сервер получит доступ к тому, что вы делаете в приложении, и может притвориться Raid OS. Если ссылку прислал кто-то другой, нажмите «Отмена».', 'Connect only if this is your own server. Another server gets access to what you do in the app and can pretend to be Raid OS. If somebody else sent you the link, press «Cancel».'],
@@ -71,7 +87,8 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Адрес сайта недоступен: ссылка появится, когда сервер будет доступен по интернету.', 'The website address is unavailable: the link appears when the server is reachable over the internet.'],
   ['Код стримера загружается…', 'Loading the streamer code…'],
   ['Статистика', 'Statistics'], ['По дням', 'By day'], ['По месяцам', 'By month'], ['По годам', 'By year'], ['Период', 'Period'],
-  ['Переходы по ссылкам', 'Link visits'], ['дн. Следующая:', 'days. Next:'], ['Регистрации', 'Sign-ups'], ['Оплатили', 'Paid'], ['Заработок', 'Earnings'],
+  ['Переходы по ссылкам', 'Link visits'], ['Активные подписки сейчас', 'Active subscriptions now'], ['дн. Следующая:', 'days. Next:'], ['Регистрации', 'Sign-ups'], ['Оплатили', 'Paid'], ['Заработок', 'Earnings'],
+  ['по коду', 'with the code'], ['без кода', 'without code'], ['Без кода', 'Without code'],
   ['Пока пусто: переходов и оплат по вашим ссылкам ещё не было.', 'Nothing yet: no visits or payments through your links so far.'], ['Загружаем…', 'Loading…'],
   ['Выплаты', 'Payouts'], ['Реквизиты (СБП)', 'Payout details (SBP)'], ['Не указаны: без них выплата невозможна', 'Not set: payouts need them'],
   ['Телефон', 'Phone'], ['Банк и получатель', 'Bank and recipient'], ['Т-Банк', 'T-Bank'], ['Имя Фамилия', 'First Last name'],
@@ -83,4 +100,16 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Дата', 'Date'], ['Сумма', 'Amount'], ['Статус', 'Status'], ['Куда', 'To'], ['авто', 'auto'],
   ['Ожидает выплаты', 'Waiting for payout'], ['Отклонено', 'Rejected'],
   ['Сначала укажите реквизиты для выплаты', 'Set the payout details first'], ['Выплаты доступны только стримерам', 'Payouts are for streamers only'],
+]
+
+/** The subscription's days left (src/i18n/ruPlural.ts ruDaysLeft) and grants: «Осталось 36 дней», «Остался 1 день», «Начислено: 2 дня». */
+export const ACCOUNT_RULES: Array<[RegExp, string]> = [
+  [/(?:Остался|Осталось) 1 день/g, '1 day left'],
+  [/(?:Остался|Осталось) (\d+) (?:день|дня|дней)/g, '$1 days left'],
+  [/Подписка заканчивается сегодня/g, 'The subscription ends today'],
+  [/Доступ действует до ([^.]+)\. Продлите подписку, чтобы приложение продолжило работать без перерыва\./g, 'Access lasts until $1. Renew the subscription to keep the app working without a break.'],
+  [/Будет начислено: 1 день/g, 'Will grant: 1 day'],
+  [/Начислено: 1 день/g, 'Granted: 1 day'],
+  [/Будет начислено: (\d+) (?:день|дня|дней)/g, 'Will grant: $1 days'],
+  [/Начислено: (\d+) (?:день|дня|дней)/g, 'Granted: $1 days'],
 ]

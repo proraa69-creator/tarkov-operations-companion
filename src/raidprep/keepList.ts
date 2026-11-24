@@ -1,3 +1,4 @@
+import { prestigeMismatch } from '../progression/prestigeQuests'
 import type { HideoutStation, Item, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
 import { findCollectorQuest } from '../kappa/collector'
 import { calculateAvailability, isLiveGameQuest, questFaction, type TaskAvailability } from '../progression/requirementEngine'
@@ -38,7 +39,7 @@ export interface KeepListInput {
   quests: Quest[]
   hideout: HideoutStation[]
   items: Item[]
-  progress: Pick<ModeProgress, 'taskProgress' | 'hideoutLevels' | 'itemCounts' | 'faction' | 'playerLevel' | 'lastLogSyncAt'>
+  progress: Pick<ModeProgress, 'taskProgress' | 'hideoutLevels' | 'itemCounts' | 'faction' | 'playerLevel' | 'lastLogSyncAt'> & Partial<Pick<ModeProgress, 'prestige'>>
   /** Quest availability of this mode; computed from `progress` when absent. */
   availability?: Map<string, TaskAvailability>
   /** Items ticked on the Collector checklist of this mode: they count as had for the Kappa part. */
@@ -47,7 +48,7 @@ export interface KeepListInput {
 
 /** Roubles, dollars, euros: handing over money is not an item to keep. */
 const CURRENCY_IDS = new Set(['5449016a4bdc2d6f028b456f', '5696686a4bdc2da3298b456a', '569668774bdc2da2298b4568'])
-const ITEM_PURPOSES = new Set(['handover', 'find', 'place', 'mark', 'bring'])
+const ITEM_PURPOSES = new Set(['handover', 'find', 'place', 'mark', 'bring', 'signal', 'use'])
 
 export function isCurrencyItem(item: Pick<Item, 'id' | 'types'> | undefined) {
   return Boolean(item && (CURRENCY_IDS.has(item.id) || item.types?.includes('money')))
@@ -77,6 +78,8 @@ export function computeKeepList(input: KeepListInput): KeepRow[] {
     if (status === 'completed' || status === 'failed') continue
     const faction = questFaction(quest.faction)
     if (faction && progress.faction !== 'unknown' && faction !== progress.faction) continue
+    // a «Новое начало» of a prestige already behind the character (report №100)
+    if (prestigeMismatch(quest, progress.prestige ?? 0) === 'before') continue
     const kind: KeepSource = collector && quest.id === collector.id ? 'kappa' : 'quest'
     for (const [itemId, need] of questItemNeeds(quest)) {
       add(itemId, {
@@ -128,7 +131,8 @@ export interface QuestItemNeed {
 export function questItemNeeds(quest: Quest) {
   const objectives = new Map<string, NonNullable<Quest['raidRequirements']>>()
   for (const [index, requirement] of (quest.raidRequirements ?? []).entries()) {
-    if (!ITEM_PURPOSES.has(requirement.purpose) || !requirement.itemId) continue
+    // a quest item to plant is given with its quest or found in the raid: nothing to keep in the stash (report 162)
+    if (!ITEM_PURPOSES.has(requirement.purpose) || !requirement.itemId || requirement.questItem) continue
     const key = requirement.objectiveId ? `${requirement.objectiveId}:${requirement.purpose}` : `#${index}`
     const list = objectives.get(key) ?? []
     // One objective lists an item once; the same objective read twice must not double it.

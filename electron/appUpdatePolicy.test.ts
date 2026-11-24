@@ -59,6 +59,13 @@ afterEach(() => {
   delete process.env.PORTABLE_EXECUTABLE_FILE
   vi.unstubAllGlobals()
 })
+/** Offered only: launched during a raid, so nothing is downloaded in the background; the raid then ends. */
+async function offered() {
+  env.raid = true
+  const updater = await launch(true, false)
+  env.raid = false
+  return updater
+}
 async function launch(autoCheck = true, autoInstall = true) {
   vi.resetModules()
   const updater = await import('./appUpdate')
@@ -77,11 +84,18 @@ describe('desktop update policy', () => {
     expect(env.quit).toHaveBeenCalledOnce()
     expect(env.spawn).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ windowsHide: true }))
   })
-  it('with automatic installation off only offers the header button', async () => {
+  // Owner, 29.10.2026: «приложение должно автоматически начать скачиваться… устанавливается по нажатию… «Установить обновление»».
+  it('without «Автообновление» the update is downloaded in the background and installed only by the click', async () => {
     const updater = await launch(true, false)
-    expect(updater.updateStatus()).toMatchObject({ state: 'available', notify: true })
-    expect(downloads()).toBe(0)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true, notify: true }))
+    expect(updater.updateStatus().nextStart).toBeUndefined()
+    expect(downloads()).toBe(1)
+    expect(env.spawn).not.toHaveBeenCalled()
     expect(env.quit).not.toHaveBeenCalled()
+    await updater.installUpdate({ manual: true })
+    expect(downloads()).toBe(1)
+    expect(env.spawn).toHaveBeenCalledOnce()
+    expect(env.quit).toHaveBeenCalledOnce()
   })
   // Owner, 17.10.2026: «обновление приложения в фоновом режиме… не закрывая приложение» — never in a raid, never on close.
   it('an update published later is downloaded and checked in the background, never restarting the open app', async () => {
@@ -99,14 +113,15 @@ describe('desktop update policy', () => {
     expect(downloads()).toBe(1)
     expect(env.quit).not.toHaveBeenCalled()
   })
-  it('with automatic installation off an update published later is only offered', async () => {
+  it('without «Автообновление» an update published later is downloaded too, but not set for the next start', async () => {
     remoteBuild = 100
     const updater = await launch(true, false)
     remoteBuild = 300
     await vi.advanceTimersByTimeAsync(5 * 60_000)
-    expect(updater.updateStatus()).toMatchObject({ state: 'available' })
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true }))
     expect(updater.updateStatus().nextStart).toBeUndefined()
-    expect(downloads()).toBe(0)
+    expect(downloads()).toBe(1)
+    expect(env.quit).not.toHaveBeenCalled()
   })
   it('the next start installs the update downloaded in the background without downloading it again', async () => {
     remoteBuild = 100
@@ -119,6 +134,75 @@ describe('desktop update policy', () => {
     await vi.waitFor(() => expect(next.updateStatus().state).toBe('installing'))
     expect(downloads()).toBe(1)
     expect(env.spawn).toHaveBeenCalledOnce()
+  })
+  // A player, 03.11.2026: «с запущенной прогой… статтеры в игре, они идут минуты 2 потом пропадают».
+  it('nothing is downloaded in the background while the game runs, even out of a raid; after it closes, it is', async () => {
+    remoteBuild = 100
+    vi.resetModules()
+    const updater = await import('./appUpdate')
+    updater.setUpdateSettings({ autoCheck: true, autoInstall: false })
+    let game = true
+    updater.startUpdateChecks(() => {}, { inRaid: async () => false, gameRunning: async () => game })
+    await vi.advanceTimersByTimeAsync(3000)
+    remoteBuild = 300
+    await vi.advanceTimersByTimeAsync(15 * 60_000)
+    expect(updater.updateStatus().state).toBe('available')
+    expect(downloads()).toBe(0)
+    game = false
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true }))
+    expect(downloads()).toBe(1)
+    expect(env.quit).not.toHaveBeenCalled()
+  })
+  // Owner, 11.11.2026: «У кого стоит автообновление, файлы должны скачаться и сами установиться без каких-либо нажатий…
+  // скачивай при открытой игре».
+  it('with «Автообновление» the download goes on while the game runs out of a raid; in a raid it waits', async () => {
+    remoteBuild = 100
+    vi.resetModules()
+    const updater = await import('./appUpdate')
+    updater.setUpdateSettings({ autoCheck: true, autoInstall: true })
+    let raid = true
+    updater.startUpdateChecks(() => {}, { inRaid: async () => raid, gameRunning: async () => true })
+    await vi.advanceTimersByTimeAsync(3000)
+    remoteBuild = 300
+    await vi.advanceTimersByTimeAsync(15 * 60_000)
+    expect(downloads()).toBe(0)
+    raid = false
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true, nextStart: true }))
+    expect(updater.updateStatus().heldByGame).toBeUndefined()
+    expect(downloads()).toBe(1)
+    expect(env.spawn).not.toHaveBeenCalled()
+    expect(env.quit).not.toHaveBeenCalled()
+  })
+  it('while the game runs the bar offers the download; «Загрузить обновление» downloads only, then asks', async () => {
+    vi.resetModules()
+    const updater = await import('./appUpdate')
+    updater.setUpdateSettings({ autoCheck: true, autoInstall: false })
+    updater.startUpdateChecks(() => {}, { inRaid: async () => false, gameRunning: async () => true })
+    await vi.advanceTimersByTimeAsync(3000)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', heldByGame: true }))
+    expect(downloads()).toBe(0)
+    await updater.downloadUpdate()
+    expect(downloads()).toBe(1)
+    expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true, askInstall: true })
+    expect(env.spawn).not.toHaveBeenCalled()
+    expect(env.quit).not.toHaveBeenCalled()
+    // «Нет», then «Установить обновление» later: no second download.
+    await updater.installUpdate({ manual: true })
+    expect(downloads()).toBe(1)
+    expect(env.quit).toHaveBeenCalledOnce()
+  })
+  it('«Установить обновление» pressed while the game runs downloads at once', async () => {
+    vi.resetModules()
+    const updater = await import('./appUpdate')
+    updater.setUpdateSettings({ autoCheck: true, autoInstall: false })
+    updater.startUpdateChecks(() => {}, { inRaid: async () => false, gameRunning: async () => true })
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(downloads()).toBe(0)
+    await updater.installUpdate({ manual: true })
+    expect(downloads()).toBe(1)
+    expect(env.quit).toHaveBeenCalledOnce()
   })
   it('a startup during a raid never installs; nothing is downloaded while the raid lasts, then only in the background', async () => {
     env.raid = true
@@ -150,7 +234,7 @@ describe('desktop update policy', () => {
     expect(downloads()).toBe(1)
   })
   it('an installation the player did not press waits in a raid', async () => {
-    const updater = await launch(true, false)
+    const updater = await offered()
     env.raid = true
     await updater.installUpdate()
     expect(updater.updateStatus().blockedByRaid).toBe(true)
@@ -158,7 +242,7 @@ describe('desktop update policy', () => {
     expect(env.quit).not.toHaveBeenCalled()
   })
   it('«Обновить» pressed by the player installs even when the logs say a raid is on', async () => {
-    const updater = await launch(true, false)
+    const updater = await offered()
     env.raid = true
     await updater.installUpdate({ manual: true })
     expect(updater.updateStatus().blockedByRaid).toBeUndefined()
@@ -167,7 +251,7 @@ describe('desktop update policy', () => {
     expect(env.quit).toHaveBeenCalled()
   })
   it('an interrupted download leaves no partial file or restart and can be retried', async () => {
-    const updater = await launch(true, false)
+    const updater = await offered()
     interrupted = true
     await updater.installUpdate()
     expect(updater.updateStatus().state).toBe('error')

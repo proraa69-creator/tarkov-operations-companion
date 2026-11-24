@@ -3,9 +3,12 @@ import { apiBaseUrl } from '../sync/webAccount'
 
 /** Words of the iPhone app's account screens (src/account/IosAccount.tsx): no subscription, price or payment in them. */
 
-/** «Политика конфиденциальности» on the site of the server the app uses (the owner's address serves both). */
+/**
+ * «Политика конфиденциальности» on the site of the server the app uses (the owner's address serves both): /app/privacy,
+ * the document alone, with no button to the plans or the cabinet (owner, 13.11.2026).
+ */
 export function privacyPolicyUrl() {
-  try { return `${new URL(apiBaseUrl()).origin}/legal/privacy` } catch { return 'https://raidos.app/legal/privacy' }
+  try { return `${new URL(apiBaseUrl()).origin}/app/privacy` } catch { return 'https://raidos.app/app/privacy' }
 }
 
 const date = (value?: string) => (value ? new Date(value).toLocaleDateString('ru-RU') : '')
@@ -17,7 +20,8 @@ export const deletionDate = (value: string) => date(value)
 export function accessText(subscription?: ServerAccountStatus['subscription']) {
   if (!subscription) return 'Нет данных: сервер недоступен'
   if (subscription.status === 'lifetime') return 'Доступ открыт'
-  const until = subscription.status === 'active' ? subscription.paidUntil : subscription.status === 'trial' ? subscription.trialEndsAt : undefined
+  // Free days waiting for the first raid have no end date yet.
+  const until = subscription.status === 'active' ? subscription.paidUntil : subscription.status === 'trial' && !subscription.trialRaidDays ? subscription.trialEndsAt : undefined
   if (subscription.status === 'active' || subscription.status === 'trial') return until ? `Доступ открыт до ${date(until)}` : 'Доступ открыт'
   return 'Нет доступа'
 }

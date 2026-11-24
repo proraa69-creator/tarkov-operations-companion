@@ -26,9 +26,24 @@ const PART_AREAS: ReadonlyArray<readonly Point[]> = [
   [[740, 955], [588, 885], [540, 1000], [535, 1300], [495, 1560], [470, 1680], [610, 1680], [625, 1500], [665, 1250], [705, 1100]],
 ]
 
-/** CSS clip-path of an area, in % of the cut-out skeleton. */
-const clipOf = (area: readonly Point[]) => `polygon(${area.map(([x, y]) => `${((x - SKELETON_CROP.left) / SKELETON_CROP.width * 100).toFixed(2)}% ${((y - SKELETON_CROP.top) / SKELETON_CROP.height * 100).toFixed(2)}%`).join(', ')})`
-const CLIPS = PART_AREAS.map(clipOf)
+/**
+ * How far a part's highlight fades out across its border, in pixels of the picture (owner, 17.11.2026: «Подсветка должна
+ * быть не резкой, а с плавными границами… плавный мягкий переход на каждой зоне»).
+ */
+export const ZONE_FEATHER = 30
+
+/**
+ * A part's highlight as a CSS mask: its area, blurred, so the light fades in and out over ZONE_FEATHER instead of the cut of
+ * a clip-path. An SVG of the cut-out skeleton's box, stretched over the picture like the areas below.
+ */
+export function zoneMask(area: readonly Point[]) {
+  const { left, top, width, height } = SKELETON_CROP
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='${left} ${top} ${width} ${height}' preserveAspectRatio='none'>`
+    + `<filter id='f' x='${left}' y='${top}' width='${width}' height='${height}' filterUnits='userSpaceOnUse'><feGaussianBlur stdDeviation='${ZONE_FEATHER / 2}'/></filter>`
+    + `<polygon fill='white' filter='url(#f)' points='${area.map(([x, y]) => `${x},${y}`).join(' ')}'/></svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+const MASKS = PART_AREAS.map(zoneMask)
 
 /**
  * Centre of each part's HP window in % of the card (the skeleton fills the middle 60% of its width and its full
@@ -57,8 +72,9 @@ export function BodyHealthFigure({ body }: { body: BodyParts }) {
     <figure className={`body-figure${active === null ? '' : ' has-active'}`} aria-label={`${uiText('Здоровье')}: ${body.map((value, part) => `${uiText(BODY_PART_NAMES[part])} ${value}`).join(', ')}`}>
       <div className="body-figure-skeleton">
         <img className="body-figure-base" src={skeletonPicture} alt="" width={640} height={1339} decoding="async" draggable={false} />
-        {CLIPS.map((clip, part) => (
-          <img key={part} className={`body-figure-glow${active === part ? ' is-active' : ''}`} src={skeletonPicture} alt="" aria-hidden="true" draggable={false} style={{ clipPath: clip }} />
+        {MASKS.map((mask, part) => (
+          <img key={part} className={`body-figure-glow${active === part ? ' is-active' : ''}`} src={skeletonPicture} alt="" aria-hidden="true" draggable={false}
+            style={{ maskImage: mask, WebkitMaskImage: mask }} />
         ))}
         <svg className="body-figure-areas" viewBox={`${SKELETON_CROP.left} ${SKELETON_CROP.top} ${SKELETON_CROP.width} ${SKELETON_CROP.height}`} preserveAspectRatio="none" aria-hidden="true">
           {PART_AREAS.map((area, part) => (
