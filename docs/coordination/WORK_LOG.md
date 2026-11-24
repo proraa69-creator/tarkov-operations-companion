@@ -9672,3 +9672,24 @@ Not pushed, not released, nothing uploaded.
   Pictures: E:\SPT-photo\server-upload\interchange (102 files), on the server with this entry.
 - The worker lays a quest item free now (Worker.cs Free: raised out of anything solid in its box, then onto what is under its whole
   footprint, logged «STILL IN SOMETHING» when it cannot be) and its close-up uses the documents' every-edge check (build out-free).
+- 0.6.0.340 (owner, 24.11.2026, phone screenshot of «Полигон»: «При выходе из полноэкранного режима стрельбы, ломается страница
+  полигона… При нажатии войти в прицел, в вертикальном положении прицел не включается. В прицеле нужно сделать не джойстик а левую
+  часть экрана для наведения… ползунок для увеличения дистанции… и увеличение кратности прицела»): over 0.6.0.339 (13bd9519) —
+  87e81032 (on the working branch dc63f50d) and the release commit a1596328. Cause of the broken page: Capacitor iOS turns on the web
+  view's element full screen (isElementFullscreenEnabled), requestFullscreen showed the range in WebKit's own window and the page
+  came back with that window's landscape safe-area insets (no room under the clock, ~50 pt margins). Now: no requestFullscreen on
+  iOS (src/range/useRangeFullScreen.ts), the full screen is portalled to <body> in a clipping screen-sized host with the turned
+  frame inside (no fixed box wider than the page), html.range-full-open holds the page, NO_ZOOM_VIEWPORT adds minimum-scale=1.
+  «Войти в прицел» on a phone opens the full screen (RangeScopeView `onEnter`, the aim kept via `startAim`). The stick is gone:
+  RangeLookArea (left half, finger deltas × 0.85 of a scope pixel, eased with a 45 ms time constant in ScopeHandle.look);
+  RangeTouchSlider for the distance (5–1000 m) and the magnification (src/range/rangeTouchZoom.ts: a variable mode smoothly, fixed
+  magnifications step; none for the open sights or a red dot; HHS-1 steps ×1/×3). Ballistics tabs on a phone: a 14 px rounded box
+  (src/arsenal/arsenal.css). Also electron/experimental/positionTracker.test.ts: the Steam shot's time was fixed at 24.11 02:00 UTC
+  and lost to the other tests' «now» after that hour (failed for every release); now Date.now() + 1 min.
+  Tests: full vitest 4513 passed; typecheck, website and server tsc, eslint on the changed files clean; Chromium 393×852 touch:
+  portrait (iOS UA, lock refused) turned full screen, page scrollWidth 393 before/during/after, finger down → view right when
+  turned, the distance slider; landscape 852×393. Server npm test: 603 pass, 3 cancelled in services/background.test.ts
+  («Promise resolution is still pending…», server untouched, same on release/production in this container).
+  Pushed to release/production for the next 13:00/20:00 Bangkok window. Risks: not tried on a real iPhone/Android; the iPhone app
+  keeps its status bar over the full screen (no browser full screen there); the sliders' feel and the 0.85 sensitivity to be
+  judged by the owner.
