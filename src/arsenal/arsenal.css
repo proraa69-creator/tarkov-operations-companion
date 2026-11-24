@@ -4,6 +4,12 @@
 /* One table at a time, chosen here (owner, 06.11.2026); on a phone the four buttons wrap rather than leave the screen. */
 .ballistics-bar { align-items: center; }
 .ballistics-tabs { flex-wrap: wrap; }
+/*
+ * On a phone the tabs take two rows or more (owner, 24.11.2026: «кнопки выходят из рамок»): the row's pill becomes a rounded box,
+ * so the rows' ends stay inside its frame, the buttons share each row.
+ */
+:root[data-layout="mobile"][data-layout] .mode-switch.ballistics-tabs { width: 100%; gap: 2px; border-radius: 14px; }
+:root[data-layout="mobile"][data-layout] .mode-switch.ballistics-tabs button { flex: 1 1 auto; border-radius: 10px; }
 .ballistics-round { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .armor-table, .dropoff-table-wrap { overflow-x: auto; }
 @media (max-width: 760px) { .ballistics-scroll .ballistics-scatter { min-width: 680px; } }
