@@ -5,6 +5,7 @@ import { adLink } from '../shared/adSources'
 import { adminApi, type AdminAds, type AdminAdSource, type StatsPeriod } from './adminApi'
 import { count, errorText, money } from './adminFormat'
 import { AdminLoading } from './adminShared'
+import { SheetPortal } from './SheetPortal'
 
 const PERIODS: Array<{ id: StatsPeriod; label: string }> = [
   { id: 'day', label: 'По дням' },
@@ -33,7 +34,7 @@ export function AdsSheet({ onClose }: { onClose: () => void }) {
   const data = result?.period === period ? result.data ?? null : null
   const error = result?.period === period ? result.error ?? '' : ''
 
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet admin-wide-sheet" role="dialog" aria-modal="true" aria-label={uiText('Реклама')}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{uiText('Реклама')}</strong><small>{uiText('Переходы, регистрации и оплаты')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
@@ -42,7 +43,7 @@ export function AdsSheet({ onClose }: { onClose: () => void }) {
         {data?.sources.map((source) => <AdSourceBlock key={source.source} source={source} period={period} onPeriod={setPeriod} />)}
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 function AdSourceBlock({ source, period, onPeriod }: { source: AdminAdSource; period: StatsPeriod; onPeriod: (period: StatsPeriod) => void }) {

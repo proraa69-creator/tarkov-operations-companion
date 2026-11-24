@@ -5,6 +5,7 @@ import { apiBaseUrl } from '../sync/webAccount'
 import { adminApi, type AdminStreamerSettings, type CreatedStreamerInvite, type OwnerPayouts, type OwnerStreamers, type OwnerStreamerStats, type StatsPeriod } from './adminApi'
 import { count, dateOnly, dateTime, errorText, money, PLAN_IDS, PLAN_SHORT } from './adminFormat'
 import { AdminEmpty, AdminLoading } from './adminShared'
+import { SheetPortal } from './SheetPortal'
 
 const PERIODS: Array<{ id: StatsPeriod; label: string }> = [
   { id: 'day', label: 'По дням' },
@@ -47,7 +48,7 @@ export function StreamersSheet({ onClose }: { onClose: () => void }) {
   }), { visits: 0, registrations: 0, active: 0, revenue: 0, earnings: 0 })
   const invites = data?.streamers.invites ?? []
 
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet admin-wide-sheet" role="dialog" aria-modal="true" aria-label={uiText('Стримеры')}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{uiText('Стримеры')}</strong><small>{uiText('Ссылки, статистика, доля и выплаты')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
@@ -93,7 +94,7 @@ export function StreamersSheet({ onClose }: { onClose: () => void }) {
         </>}
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 /** «Пригласить стримера»: a one-time secret link for 7 days; it is shown once. */

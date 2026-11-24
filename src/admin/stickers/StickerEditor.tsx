@@ -10,6 +10,7 @@ import {
 } from './stickerLayout'
 import { canvas2d, drawSticker, exportSticker, updateCut, type StickerPhoto } from './stickerRender'
 import './stickers.css'
+import { SheetPortal } from '../SheetPortal'
 
 type Tool = 'move' | 'erase' | 'restore' | 'text'
 type Step = 'pick' | 'cutting' | 'edit'
@@ -287,7 +288,7 @@ export function StickerEditor({ onCancel, onSave }: { onCancel: () => void; onSa
   const layer = texts.find((entry) => entry.id === selected)
   const zoom = Math.round((view.scale / Math.max(0.0001, baseScale)) * 100)
 
-  return <div className="admin-sheet-backdrop sticker-editor-backdrop">
+  return <SheetPortal><div className="admin-sheet-backdrop sticker-editor-backdrop">
     <section className="panel admin-user-sheet sticker-editor" role="dialog" aria-modal="true" aria-label={uiText('Новый стикер')}>
       <header className="admin-sheet-head">
         <button type="button" className="icon-button" onClick={onCancel} aria-label={uiText('Назад')} disabled={saving}><ArrowLeft size={18} /></button>
@@ -376,5 +377,5 @@ export function StickerEditor({ onCancel, onSave }: { onCancel: () => void; onSa
         <button type="button" className="button primary" onClick={() => void save()} disabled={saving}>{saving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}{uiText(saving ? 'Сохраняем…' : 'Сохранить')}</button>
       </footer>}
     </section>
-  </div>
+  </div></SheetPortal>
 }

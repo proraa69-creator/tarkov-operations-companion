@@ -6,6 +6,7 @@ import { NEWS_GROUPS, type NewsItem, type NewsKind } from '../news/newsState'
 import { errorText } from './adminFormat'
 import type { AdminRequest } from './ownerAccess'
 import './adminNews.css'
+import { SheetPortal } from './SheetPortal'
 
 const PATH = '/v1/accounts/me/admin/player-news'
 
@@ -178,10 +179,10 @@ export function AdminNewsEditor({ request }: { request: AdminRequest }) {
 
 /** The phone: in its own window, as «История обновлений». */
 export function AdminNewsSheet({ request, onClose }: { request: AdminRequest; onClose: () => void }) {
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet admin-wide-sheet" role="dialog" aria-modal="true" aria-label={uiLabel('Обновление')}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiLabel('Назад')}><ArrowLeft size={18} /></button><strong>{uiLabel('Обновление')}</strong></header>
       <div className="admin-sheet-scroll"><AdminNewsEditor request={request} /></div>
     </section>
-  </div>
+  </div></SheetPortal>
 }

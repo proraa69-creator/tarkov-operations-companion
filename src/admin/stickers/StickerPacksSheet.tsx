@@ -8,6 +8,7 @@ import { STICKER_LIMITS } from '../../shared/supportStickers'
 import { stickerPictureSrc } from '../../support/stickerCatalog'
 import { moved } from './stickerLayout'
 import './stickers.css'
+import { SheetPortal } from '../SheetPortal'
 
 /** The editor, the segmenter and the fonts load only when «Новый стикер» is pressed. */
 const StickerEditor = lazy(() => import('./StickerEditor').then((module) => ({ default: module.StickerEditor })))
@@ -66,7 +67,7 @@ export function StickerPacksSheet({ onClose }: { onClose: () => void }) {
   if (pack) return <PackView pack={pack} busy={busy} error={error} change={change} onBack={() => { setOpenId(null); setError('') }} onClose={onClose} />
 
   const ids = (packs ?? []).map((entry) => entry.id)
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet" role="dialog" aria-modal="true" aria-label={uiText('Стикеры')}>
       <header className="admin-sheet-head">
         <button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button>
@@ -96,7 +97,7 @@ export function StickerPacksSheet({ onClose }: { onClose: () => void }) {
         {error && !packs && <button type="button" className="button" onClick={() => setVersion((value) => value + 1)}>{uiText('Повторить')}</button>}
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 /** One pack: «Добавить» / «Убрать», its stickers, «Новый стикер», rename and delete. */
@@ -141,7 +142,7 @@ function PackView({ pack, busy, error, change, onBack, onClose }: {
     setSaved('Стикер сохранён')
   }
 
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet" role="dialog" aria-modal="true" aria-label={pack.name}>
       <header className="admin-sheet-head">
         <button type="button" className="icon-button" onClick={onBack} aria-label={uiText('Все паки')}><ArrowLeft size={18} /></button>
@@ -186,5 +187,5 @@ function PackView({ pack, busy, error, change, onBack, onClose }: {
     {editing && <Suspense fallback={<div className="admin-sheet-backdrop sticker-editor-backdrop" role="status" aria-label={uiText('Загружаем редактор…')}><LoaderCircle className="spin" size={26} /></div>}>
       <StickerEditor onCancel={() => setEditing(false)} onSave={save} />
     </Suspense>}
-  </div>
+  </div></SheetPortal>
 }
