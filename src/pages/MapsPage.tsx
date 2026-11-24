@@ -46,6 +46,7 @@ import { countDocumentFound, DOCUMENT_DAILY_LIMIT, useDocumentDay } from '../pro
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { exitNames, exitShortName } from '../data/exitShortNames'
 import { exitHighlights, useRaidExtracts } from '../maps/raidExtracts'
+import { useGameNames } from '../data/gameNamesLoader'
 import { MarkerCanvasLayer, type CanvasPoint } from '../maps/MarkerCanvasLayer'
 import { wasCanvasPick } from '../maps/canvasPick'
 import { canvasMarkers, type SpriteSpec } from '../maps/markerSprites'
@@ -936,9 +937,11 @@ export function MapsPage() {
   // Report №105: the exits the game listed after a double O, lit until the raid ends; the others dimmed.
   const raidState = useRaidState()
   const raidExtracts = useRaidExtracts()
+  // A German, Japanese or Chinese game lists its exits in its language: their names come with the game's names.
+  const gameNames = useGameNames()
   // In a raid by the logs: readings since its start; no logs at all: the last 50 minutes' reading (raidExtracts.ts).
   const exitStates = useMemo(() => exitHighlights(raidExtracts, raidState?.inRaid ? raidState.since : raidState ? Number.MAX_SAFE_INTEGER : undefined,
-    mapMarkers.filter((marker) => marker.type === 'extract').map((marker) => ({ id: marker.id, title: marker.title, titles: exitNames(marker.title) }))), [raidExtracts, raidState, mapMarkers])
+    mapMarkers.filter((marker) => marker.type === 'extract').map((marker) => ({ id: marker.id, title: marker.title, titles: exitNames(marker.title, gameNames) }))), [raidExtracts, raidState, mapMarkers, gameNames])
 
   const bossesVisible = useMemo(() => mapMarkers.some((marker) => markerLayerId(marker) === 'boss'), [mapMarkers])
   const bossProfiles = useBossProfiles(bossesVisible)

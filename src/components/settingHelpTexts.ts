@@ -17,6 +17,10 @@ export const SETTING_HELP = {
     ru: 'Прямо из игры включает и выключает выбранный пресет экрана. Пресеты выбираются на странице «Настройка экрана».',
     en: 'Turns the chosen screen preset on and off right from the game. Presets are chosen on the Screen settings page.',
   },
+  gameLanguage: {
+    ru: 'Язык, на котором приложение читает экран игры: задания, торговцев, предметы и выходы. «Определять сам» берёт язык из настроек игры.',
+    en: 'The language the app reads the game screen in: tasks, traders, items and exits. “Detect automatically” takes it from the game settings.',
+  },
   presetCycle: {
     ru: 'Прямо из игры включает следующий пресет экрана из списка.',
     en: 'Turns on the next screen preset in the list, right from the game.',

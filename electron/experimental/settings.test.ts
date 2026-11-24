@@ -57,3 +57,14 @@ describe('the owner\'s switch for every app (owner, 14.10.2026: «у всех п
     expect(trackingOn(on, true)).toBe(true)
   })
 })
+
+describe('«Язык игры» (24.11.2026)', () => {
+  it('is the game\'s own by default, keeps a language picked by hand, and drops anything else', () => {
+    expect(DEFAULT_SETTINGS.gameLanguage).toBe('auto')
+    expect(sanitize({}).gameLanguage).toBe('auto')
+    expect(sanitize({ gameLanguage: 'zh' }).gameLanguage).toBe('zh')
+    expect(sanitize({ gameLanguage: 'de' }).gameLanguage).toBe('de')
+    expect(sanitize({ gameLanguage: 'fr' }).gameLanguage).toBe('auto')
+    expect(sanitize({ gameLanguage: 7 }).gameLanguage).toBe('auto')
+  })
+})
