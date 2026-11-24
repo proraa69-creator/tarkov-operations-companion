@@ -8,6 +8,8 @@ import { uiText } from '../i18n/renderText'
 import { QrCode } from '../components/QrCode'
 import { cleanIpcError } from '../sync/serverSync'
 import { serviceClient } from './nicknameBinding'
+import { openAccountLink } from '../mobile/deepLink'
+import { QrScanner } from '../mobile/QrScanner'
 import './account.css'
 
 /** Over the whole window, outside the page: the page is a layer under the menu and the top bar (styles/global.css). */
@@ -135,6 +137,27 @@ export function ApproveWebLoginDialog({ onClose, initialCode = '' }: { onClose: 
       )}
       {done && <div className="import-note" role="status"><Check size={14} />{uiText('Готово: браузер вошёл в ваш аккаунт.')}</div>}
       {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
+    </Overlay>
+  )
+}
+
+/**
+ * «Войти по QR-коду» in the phone's profile (owner, 25.11.2026: «если приложение на ПК вылетит или случайно человек выйдет
+ * со своего аккаунта, чтобы быстро войти через телефон»): the phone's camera reads the QR code of the PC's (or the
+ * website's) «Войти по QR-коду», and the approval window of the phone (mobile/DeepLinkLogin.tsx PhoneApprove) shows who
+ * asks and lets the PC in. The code under the QR can be typed instead.
+ */
+export function ScanQrDialog({ onClose }: { onClose: () => void }) {
+  const [typing, setTyping] = useState(false)
+  if (typing) return <ApproveWebLoginDialog onClose={onClose} />
+  return (
+    <Overlay label={uiText('Войти по QR-коду')} onClose={onClose}>
+      <div className="registration-icon"><QrIcon size={28} /></div>
+      <div className="eyebrow">{uiText('Вход по QR-коду')}</div>
+      <h2>{uiText('Войти по QR-коду')}</h2>
+      <p className="muted">{uiText('На компьютере или на сайте нажмите «Войти по QR-коду» и наведите камеру на QR-код — компьютер войдёт в этот аккаунт.')}</p>
+      <QrScanner onLink={(link) => { onClose(); openAccountLink(link) }} />
+      <button type="button" className="button ghost" onClick={() => setTyping(true)}>{uiText('Ввести код вручную')}</button>
     </Overlay>
   )
 }

@@ -95,7 +95,7 @@ export function startDomTranslation(language: AppLanguage): () => void {
     for (const record of records) {
       if (record.type === 'characterData') drawText(record.target as Text)
       else if (record.type === 'attributes' && record.attributeName) drawAttribute(record.target as Element, record.attributeName)
-      else for (const node of record.addedNodes) drawTree(node)
+      else record.addedNodes.forEach((node) => drawTree(node))
     }
   })
   const redraw = () => drawTree(document.body)

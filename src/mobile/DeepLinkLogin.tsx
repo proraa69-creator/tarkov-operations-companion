@@ -5,7 +5,7 @@ import { uiText, languageTag } from '../i18n/renderText'
 import { isNative } from '../platform'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
 import { apiBaseUrl, DEFAULT_API_URL, isHomeNetworkServer, normalizeApiUrl, setApiBaseUrl, webAccountRedeemLoginCode, webServiceRequest } from '../sync/webAccount'
-import { parseAccountDeepLink, type AccountDeepLink } from './deepLink'
+import { ACCOUNT_LINK_EVENT, parseAccountDeepLink, type AccountDeepLink } from './deepLink'
 import { describeAgent, describePlace, normalizeLoginCode, type Inspected } from '../account/qrInspect'
 import { useLocale } from '../i18n/LocaleProvider'
 import '../account/account.css'
@@ -23,6 +23,13 @@ function isKnownServer(server: string) {
  */
 export function DeepLinkLogin() {
   const [link, setLink] = useState<AccountDeepLink | null>(null)
+
+  // A QR code read by the app's own scanner (mobile/QrScanner.tsx) comes the same way as one the camera opened.
+  useEffect(() => {
+    const take = (event: Event) => { const detail = (event as CustomEvent<AccountDeepLink>).detail; if (detail) setLink(detail) }
+    window.addEventListener(ACCOUNT_LINK_EVENT, take)
+    return () => window.removeEventListener(ACCOUNT_LINK_EVENT, take)
+  }, [])
 
   useEffect(() => {
     if (!isNative()) return
