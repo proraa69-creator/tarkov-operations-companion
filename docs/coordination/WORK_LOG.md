@@ -9834,3 +9834,17 @@ Not pushed, not released, nothing uploaded.
 - Still not read (any language, ru/en alike): «LVL 69» close-up in SPT's font (the level stays unconfirmed), loyalty crowns but
   Jaeger/Ref, Customs' exit list on a bright sky (only some lines), ZB-numbers («28-213»). Chinese: the item card 1 of 3, Customs'
   list. Short English titles with a misread location («Debtor Tena») in pt/tr/ko. No story pane in SPT 4.1.6.
+- Commit `123523e4`, merged into `claude/languages-zh-ja-de` as `b2503ed2` (only conflict: this log, both entries kept).
+
+## 2026-11-24 21:00 — Claude: the 20:00 release held, SPT shots stopped, readers merged, test build 4
+
+- Owner, 24.11.2026 19:5x: «пока ничего не публикуй в 20:00». At 19:56 `b03662d9` was pushed to `release/production` on top of
+  `177c01e8` (a normal push): its tree is the live release `972bafe6` (0.6.0-340). Its gate run 45398400337 was cancelled at
+  19:57, since `buildOnDocumentationChange` would otherwise have rebuilt 0.6.0-340 once green. The server skips a head without
+  a green gate: nothing goes out until the next push there. Checked 20:04 and (release session) to 20:50: live stays 0.6.0-340.
+  0.6.0.341 (website in 12 languages, Reserve places) comes back by `git revert b03662d9`, only on the owner's word.
+- Owner: SPT shooting stopped, SPT closed; resume point `E:\SPT-photo\RESUME.md` (Lighthouse: quests 49/49, documents 27/30).
+- Tests after the merge: typecheck clean; full run 4612 passed, 14 failed, all known or load-only: the page tests pass alone
+  (87/89; the two left are the space-in-path `appVersion` and the CRLF source check of `AdminPanelPage`), plus Linux updater,
+  staleServer, two script files that do not load on Windows.
+- Test build `Raid OS тест Языки 4.exe` on the desktop. Not pushed, not released.
