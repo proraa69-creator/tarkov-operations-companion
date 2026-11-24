@@ -12,7 +12,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { extraGameLanguage, isGameLanguage, type GameLanguage } from '../import/gameLanguage'
 import { gameWordPattern, languageWords } from '../import/gameWordPatterns'
-import { letterWeight } from '../shared/cjk'
+import { foldTurkishI, letterWeight } from '../shared/cjk'
 import { noteGameLanguage } from '../data/gameNamesLoader'
 
 /**
@@ -38,16 +38,23 @@ function listLanguage(language?: GameLanguage | null) {
   const words = languageWords(language)
   if (!words) return null
   const { exfil, transit, find, stay, back } = words.words.exits
+  // The list's word starts a word of the line («EXFIL01», «WYJŚCIE01», «EXT.01»): no word boundary after it.
+  const start = (list: readonly string[]) => new RegExp(`^(?:${list.map((word) => gameWordPattern(word).replace(/\(\?!\[\\p\{L\}\]\)$/, '')).filter(Boolean).join('|') || '(?!)'})`, 'iu')
   return {
-    exit: new RegExp(`^${gameWordPattern(exfil).replace(/\(\?!\[\\p\{L\}\]\)$/, '')}`, 'iu'),
-    transit: new RegExp(`^${gameWordPattern(transit).replace(/\(\?!\[\\p\{L\}\]\)$/, '')}`, 'iu'),
-    header: new RegExp([find, stay, back].filter(Boolean).map(gameWordPattern).join('|'), 'iu'),
-    stay: new RegExp([stay, back].filter(Boolean).map(gameWordPattern).join('|'), 'iu'),
+    exit: start(exfil),
+    transit: start(transit),
+    header: new RegExp(words.any([...find, ...stay, ...back]), 'iu'),
+    stay: new RegExp(words.any([...stay, ...back]), 'iu'),
+    /** The shortest of the list's words («EXT.»): a word as short is still the list's own. */
+    shortest: Math.min(...[...exfil, ...transit].map((word) => letterWeight(word)), 5),
   }
 }
 
-/** A word of the game's own list words: long enough (a Chinese character counts as two letters), and the word itself. */
-const ownListWord = (word: string, pattern: RegExp) => letterWeight(word) >= 5 && pattern.test(word)
+/**
+ * A word of the game's own list words: long enough (a Chinese character counts as two letters; the shortest of the list's
+ * own words, «EXT.», as long as itself), and the word itself.
+ */
+const ownListWord = (word: string, pattern: RegExp, shortest = 5) => letterWeight(word) >= shortest && pattern.test(word)
 
 /**
  * The exit names of the game's list, in its order (the header and the transits left out), wherever the line starts.
@@ -60,9 +67,9 @@ export function parseExtractList(text: string, language?: GameLanguage | null): 
     // the header («Найдите зону выхода», «Оставайтесь в зоне выхода»): its «выхода» is no exit
     if (/(?:зон[уеы]|find|stay)/iu.test(raw) || /найдите|оставай/i.test(raw) || own?.header.test(raw)) continue
     const words = raw.trim().replace(TIMER, '').split(/\s+/)
-    if (words.some((word) => listWord(word, TRANSIT_WORD) || (own && ownListWord(word, own.transit)))) continue
+    if (words.some((word) => listWord(word, TRANSIT_WORD) || (own && ownListWord(word, own.transit, own.shortest)))) continue
     let at = words.findIndex((word) => listWord(word, EXIT_WORD))
-    if (at < 0 && own) at = words.findIndex((word) => ownListWord(word, own.exit))
+    if (at < 0 && own) at = words.findIndex((word) => ownListWord(word, own.exit, own.shortest))
     if (at < 0) continue
     // The list's number may come apart from its word («撤离点 01»).
     const rest = own ? words.slice(at + 1).join(' ').replace(/^[\d@]{1,2}\s+/, '') : words.slice(at + 1).join(' ')
@@ -80,8 +87,8 @@ export const isStayReading = (text: string, language?: GameLanguage | null) => /
  * names keep their own letters («Lagerhaus», «工厂棚屋»).
  */
 export function exitKey(name: string, language?: GameLanguage | null) {
-  const base = name.toLowerCase().replace(/ё/g, 'е').replace(/\((совм|co-?op)\.?\)/g, '')
-  return extraGameLanguage(language) ? base.replace(/[（(][^)）]*(?:co-?op|совм)[^)）]*[)）]/g, '').replace(/[^\p{L}\p{N}]/gu, '') : base.replace(/[^a-zа-я0-9]/g, '')
+  const base = (extraGameLanguage(language) ? foldTurkishI(name) : name).toLowerCase().replace(/ё/g, 'е').replace(/\((совм|co-?op)\.?\)/g, '')
+  return extraGameLanguage(language) ? foldTurkishI(base).replace(/[（(][^)）]*(?:co-?op|совм)[^)）]*[)）]/g, '').replace(/[^\p{L}\p{N}]/gu, '') : base.replace(/[^a-zа-я0-9]/g, '')
 }
 
 /** For the matching only: the letters the OCR takes for digits and back as one («ЗБ-1011» read «35-1011» or «26-1013»). */
@@ -167,7 +174,7 @@ export function exitsInText(text: string, exits: readonly ExitPoint[], language?
   for (const raw of text.split(/\r?\n/)) {
     if (/(?:зон[уеы]|find|stay)/iu.test(raw) || /найдите|оставай/i.test(raw) || own?.header.test(raw)) continue
     const words = raw.trim().replace(TIMER, '').split(/\s+/).filter(Boolean)
-    if (words.some((word) => listWord(word, TRANSIT_WORD) || (own && ownListWord(word, own.transit)))) continue
+    if (words.some((word) => listWord(word, TRANSIT_WORD) || (own && ownListWord(word, own.transit, own.shortest)))) continue
     const line = matchKey(words.join(' '), language)
     const tokens = new Set(words.flatMap((word, at) => [matchKey(word, language), matchKey(`${word}${words[at + 1] ?? ''}`, language)]))
     for (const exit of exits) {

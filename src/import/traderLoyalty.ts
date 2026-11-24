@@ -10,6 +10,7 @@
  */
 import type { OcrWordBox, PaneRect } from './storyPaneLayout.js'
 import type { GameLanguage } from './gameLanguage.js'
+import { foldTurkishI } from '../shared/cjk.js'
 import { languageWords, umlautForms } from './gameWordPatterns.js'
 
 /** The names under the portraits (Russian and English interface) and the app's trader keys (src/gunsmith/traderLevels.ts). */
@@ -32,7 +33,7 @@ function screenNames(language?: GameLanguage | null): Record<string, string> {
   return { ...TRADER_SCREEN_NAMES, ...own }
 }
 
-const foldName = (text: string) => text.toLowerCase().replace(/[^\p{L}]/gu, '')
+const foldName = (text: string) => foldTurkishI(text).toLowerCase().replace(/[^\p{L}]/gu, '')
 
 /** Card step / interface height on the owner's screenshot (97 px at 837 px): used when only one name was read. */
 const STEP_PER_UNIT = 0.1165

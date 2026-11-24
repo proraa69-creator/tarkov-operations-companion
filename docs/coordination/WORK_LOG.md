@@ -9788,3 +9788,18 @@ Not pushed, not released, nothing uploaded.
   (electron/gameLanguage.ts removed). «Язык игры» is the player's choice: English (default) / Русский / Deutsch / 日本語 /
   简体中文; English and Russian are read alike (rus+eng, as before), so Russian players need not change it; an «auto» saved by
   the test build counts as English.
+
+## 2026-11-24 17:40 — Claude: screen readers for Polish, Spanish, Brazilian Portuguese, French, Korean and Turkish games
+
+- Branch `claude/ocr-languages` fast-forwarded to `claude/languages-zh-ja-de` b8e4f001 (the owner's decision: «Язык игры» is the
+  player's choice only, English by default, nothing read from the game), then 6dc9702b. Not pushed, not released.
+- Every reader of the de/ja/zh work now also reads pl, es, pt, fr, ko, tr: models pol/spa/por/fra/kor/tur (tessdata_fast) shipped with
+  the others; words from SPT's pl, es + es-mx (both Spanish wordings kept where they differ), po, fr, kr, tu locales; names from
+  tarkov.dev's _{pl,es,pt,fr,ko,tr} dictionaries through the data gateway. Accents optional in the game's words, the Turkish İ/ı folded,
+  Korean syllables weighed and joined by their gaps, Polish «ukończone!» (ready) apart from «ukończone» (handed in).
+- Tests: gameLanguageReadersMore.test.ts (real tesseract.js output of every language's table, traders, modes, exits, tooltips,
+  labels, flea lines), gameLanguageWords.test.ts; touched areas 772/772 and the wider set green but the old AdminPanelPage sidebar
+  test; both typechecks, eslint clean (one old warning).
+- To check on real screenshots in each of these languages (as for de/ja/zh): Tasks table (active / ready / locked rows, a part 2
+  title), traders' screen, mode cards, item tooltip, stash labels, flea, O exit list; Spanish both in «Español» and «Español
+  Latinoamérica». Story pane words are still in no source (SPT 0.16.9).

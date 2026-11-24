@@ -15,7 +15,7 @@ import type { RaidMode } from '../domain/types.js'
 import type { OcrWordBox, PaneRect } from './storyPaneLayout.js'
 import { joinCjkWords } from '../shared/cjk.js'
 import type { GameLanguage } from './gameLanguage.js'
-import { gameWordPattern, languageWords } from './gameWordPatterns.js'
+import { languageWords } from './gameWordPatterns.js'
 
 /** The highest character level in the game (src/profile/playerLevels.ts). */
 export const MAX_PLAYER_LEVEL = 79
@@ -105,9 +105,8 @@ export function withEnglishModes(text: string, language?: GameLanguage | null) {
   const words = languageWords(language)
   if (!words) return text
   let out = text
-  for (const [mode, name] of [['pve', words.words.modes.pve], ['pvp', words.words.modes.pvp]] as const) {
-    const pattern = gameWordPattern(name)
-    if (pattern) out = out.replace(new RegExp(pattern, 'giu'), `${mode} zone`)
+  for (const [mode, names] of [['pve', words.words.modes.pve], ['pvp', words.words.modes.pvp]] as const) {
+    if (names.length) out = out.replace(new RegExp(words.any(names), 'giu'), `${mode} zone`)
   }
   // The Chinese cards' «区域» (zone) read apart from «PVE».
   if (words.language === 'zh') out = out.replace(/区域/g, ' zone')
@@ -145,8 +144,15 @@ export function modeSelectHeaders(words: OcrWordBox[], size: { width: number; he
     const first = token(withEnglishModes(word.text, language))
     let mode: RaidMode | undefined
     const joined = JOINED.exec(first)
+    // «STREFA PVE», «ZONA PVE», «ZONE JcE», «PVE BÖLGESİ»: two words of the game's own name of the mode, its zone word first
+    // or last (src/import/gameWords.ts); the next word on the same row is read with it.
+    const pair = language && words[index + 1] && Math.abs(middleOf(words[index + 1]!.bbox) - middleOf(word.bbox)) <= Math.max(6, word.bbox.y1 - word.bbox.y0)
+      ? JOINED.exec(token(withEnglishModes(`${word.text} ${words[index + 1]!.text}`, language))) : null
     if (joined) mode = joined[2]![0] === 's' ? 'seasonal' : joined[1] === 'e' ? 'pve' : 'pvp'
-    else {
+    else if (pair) {
+      mode = pair[2]![0] === 's' ? 'seasonal' : pair[1] === 'e' ? 'pve' : 'pvp'
+      index += 1
+    } else {
       const head = MODE.exec(first)
       const next = words[index + 1]
       if (!head || !next || Math.abs(middleOf(next.bbox) - middleOf(word.bbox)) > Math.max(6, word.bbox.y1 - word.bbox.y0)) continue
@@ -290,16 +296,18 @@ function traderMarks(language?: GameLanguage | null) {
   const words = languageWords(language)
   if (!words) return null
   const { attitude, you } = words.words.trader
-  const bare = you.replace(/[()（）\s]/g, '')
-  const first = attitude.split(/\s+/)[0]!.replace(/[:：]+$/, '')
+  // «(Du)» → «Du»; «(내 정보)» → «내 정보» (the OCR makes two words of it: «(내» and «정보)»).
+  const bare = you.map((mark) => mark.replace(/[()（）]/g, '').trim()).filter(Boolean)
+  const firsts = bare.map((mark) => mark.split(/\s+/)[0]!)
+  const starts = attitude.map((phrase) => phrase.split(/\s+/)[0]!.replace(/[:：]+$/, '')).filter(Boolean)
   return {
-    attitude: new RegExp(gameWordPattern(attitude), 'iu'),
-    you: new RegExp(gameWordPattern(you), 'iu'),
-    /** «(Du)» as one word, maybe its brackets split off or lost. */
-    youWord: new RegExp(`^[(（]?\\s*${gameWordPattern(bare)}\\s*[)）]?$`, 'iu'),
-    youInText: new RegExp(`[(（]\\s*${gameWordPattern(bare)}\\s*[)）]`, 'giu'),
+    attitude: new RegExp(words.any(attitude), 'iu'),
+    you: new RegExp(words.any(you), 'iu'),
+    /** «(Du)» as one word, maybe its brackets split off or lost; a mark of two words by its first. */
+    youWord: new RegExp(`^[(（]?\\s*${words.any(firsts)}\\s*[)）]?$`, 'iu'),
+    youInText: new RegExp(`[(（]\\s*${words.any(bare)}\\s*[)）]`, 'giu'),
     /** The standing row's first word («Aktuelles»), or the whole phrase as the Japanese and Chinese OCR give it. */
-    attitudeStart: new RegExp(`^${gameWordPattern(first)}`, 'iu'),
+    attitudeStart: new RegExp(`^${words.any(starts)}`, 'iu'),
     youLoose: words.language === 'ja' || words.language === 'zh' ? CJK_YOU : null,
   }
 }

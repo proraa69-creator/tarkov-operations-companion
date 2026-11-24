@@ -30,7 +30,10 @@ export const TRACKING_OFF_FOR_ALL = 'Местоположение по скри�
 const EXCLUSIVE_NOTE = 'Игра сейчас в эксклюзивном полноэкранном режиме: так она скрыта от чтения экрана, и предмет не распознаётся. Поставьте в настройках графики режим «Безрамочный».'
 
 /** The game's languages by their own names (shown as they are, in every interface language). */
-const GAME_LANGUAGE_NAMES: Record<GameLanguageSetting, string> = { ru: 'Русский', en: 'English', de: 'Deutsch', ja: '日本語', zh: '简体中文' }
+const GAME_LANGUAGE_NAMES: Record<GameLanguageSetting, string> = {
+  en: 'English', ru: 'Русский', de: 'Deutsch', ja: '日本語', zh: '简体中文', pl: 'Polski', es: 'Español', pt: 'Português (Brasil)',
+  fr: 'Français', ko: '한국어', tr: 'Türkçe',
+}
 
 const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: string }> = [
   { id: 'arrow', label: 'Стрелка' },

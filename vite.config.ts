@@ -11,7 +11,7 @@ import { RANGE_PACK_FILE, RANGE_PACK_NAME } from './src/range/rangePack.ts'
 /**
  * The OCR engine of «Синхронизация по фото» (src/stashPhoto/browser.ts) served from the app itself under ocr/, never
  * from a CDN: the worker, the plain WebAssembly core (runs on every phone) and the models already kept for the Windows
- * app (electron/tessdata: Russian and English; German, Japanese and Simplified Chinese for a game in those languages).
+ * app (electron/tessdata: Russian and English; the game's other languages for a game in one of them).
  * Copied at build time, so the binaries are not committed twice; loaded only when the button is pressed.
  */
 const OCR_FILES: Record<string, string> = {
@@ -19,10 +19,17 @@ const OCR_FILES: Record<string, string> = {
   'ocr/tesseract-core-lstm.wasm.js': 'node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js',
   'ocr/rus.traineddata': 'electron/tessdata/rus.traineddata',
   'ocr/eng.traineddata': 'electron/tessdata/eng.traineddata',
-  // German, Japanese and Simplified Chinese games' labels (src/import/gameLanguage.ts): loaded only for such a game.
+  // The other game languages' labels (src/import/gameLanguage.ts): loaded only for a game in that language.
   'ocr/deu.traineddata': 'electron/tessdata/deu.traineddata',
   'ocr/jpn.traineddata': 'electron/tessdata/jpn.traineddata',
   'ocr/chi_sim.traineddata': 'electron/tessdata/chi_sim.traineddata',
+  // Polish, Spanish, Brazilian Portuguese, French, Korean and Turkish games (src/import/gameLanguage.ts OCR_MODEL_FILES).
+  'ocr/pol.traineddata': 'electron/tessdata/pol.traineddata',
+  'ocr/spa.traineddata': 'electron/tessdata/spa.traineddata',
+  'ocr/por.traineddata': 'electron/tessdata/por.traineddata',
+  'ocr/fra.traineddata': 'electron/tessdata/fra.traineddata',
+  'ocr/kor.traineddata': 'electron/tessdata/kor.traineddata',
+  'ocr/tur.traineddata': 'electron/tessdata/tur.traineddata',
 }
 
 function ocrAssets(): Plugin {

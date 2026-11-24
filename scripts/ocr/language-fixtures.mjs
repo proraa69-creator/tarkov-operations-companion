@@ -2,10 +2,11 @@
 /**
  * Writes src/import/__fixtures__/gameLanguageOcr.ts: real Tesseract output (tesseract.js, tessdata_fast, the models and
  * page modes the app reads with: electron/screenOcr.ts, electron/collectorScan.ts) on pictures of the game's screens in
- * German, Japanese and Simplified Chinese drawn from the game's own words (src/import/gameWords.ts, tarkov.dev's names):
- * the Tasks table, the traders' screen, the exit list, the item tooltip, the stash labels, the flea's lines, the mode
- * cards. Not screenshots of the game — its font (Bender) is not on this PC: Bahnschrift, Yu Gothic UI and Microsoft
- * YaHei UI stand in for it, light on dark as the menus are. The real screens are to be checked on the player's
+ * German, Japanese, Simplified Chinese, Polish, Spanish, Brazilian Portuguese, French, Korean and Turkish drawn from the
+ * game's own words (src/import/gameWords.ts, tarkov.dev's names): the Tasks table, the traders' screen, the exit list, the
+ * item tooltip, the stash labels, the flea's lines, the mode cards. Not screenshots of the game — its font (Bender) is not
+ * on this PC: Bahnschrift, Yu Gothic UI, Microsoft YaHei UI and Malgun Gothic stand in for it, light on dark as the menus
+ * are. The real screens are to be checked on the player's
  * screenshots (docs: the list in the work log).
  *
  *   node scripts/ocr/language-fixtures.mjs [work folder]     (Windows: the pictures are drawn by PowerShell/GDI+)
@@ -19,8 +20,9 @@ import { createWorker } from 'tesseract.js'
 const work = resolve(process.argv[2] ?? join(tmpdir(), 'raidos-language-fixtures'))
 mkdirSync(work, { recursive: true })
 const TESSDATA = resolve('electron/tessdata')
-const FONTS = { de: 'Bahnschrift SemiCondensed', ja: 'Yu Gothic UI', zh: 'Microsoft YaHei UI' }
-const MODELS = { de: 'deu+eng', ja: 'jpn+eng', zh: 'chi_sim+eng' }
+const LATIN = 'Bahnschrift SemiCondensed'
+const FONTS = { de: LATIN, ja: 'Yu Gothic UI', zh: 'Microsoft YaHei UI', pl: LATIN, es: LATIN, pt: LATIN, fr: LATIN, ko: 'Malgun Gothic', tr: LATIN }
+const MODELS = { de: 'deu+eng', ja: 'jpn+eng', zh: 'chi_sim+eng', pl: 'pol+eng', es: 'spa+eng', pt: 'por+eng', fr: 'fra+eng', ko: 'kor+eng', tr: 'tur+eng' }
 const LIGHT = '#d8d8cf', DIM = '#8f8f86', GREEN = '#9acd32', DARK = '#16181a', INK = '#000000', PAPER = '#ffffff'
 
 /** One picture: its size, background, font and texts ({ x, y, text, size?, color? }); `read`: how the app reads it. */
@@ -55,10 +57,95 @@ function traders(language, you, standing, names) {
 const exits = (language, lines) => picture(`${language}-exits`, language, 1100, 60 + lines.length * 56, lines.map((text, index) => ({ x: 30, y: 24 + index * 56, text, size: 26 })), { psm: '6' }, { background: PAPER, color: INK })
 
 /** One line, black on white, as the item card and the flea's lines are read (TOOLTIP_OCR_PARAMETERS). */
-const line = (name, language, text) => picture(name, language, Math.max(300, 40 + text.length * (language === 'de' ? 13 : 30)), 56, [{ x: 16, y: 12, text, size: 24 }], { psm: '7', tooltip: true }, { background: PAPER, color: INK })
+const line = (name, language, text) => picture(name, language, Math.max(300, 40 + text.length * (['ja', 'zh', 'ko'].includes(language) ? 30 : 13)), 56, [{ x: 16, y: 12, text, size: 24 }], { psm: '7', tooltip: true }, { background: PAPER, color: INK })
 
 /** Stash labels, one under the other, as electron/collectorScan.ts stacks them (sparse text). */
 const labels = (language, names) => picture(`${language}-labels`, language, 420, 40 + names.length * 48, names.map((text, index) => ({ x: 20, y: 16 + index * 48, text, size: 22 })), { psm: '11', dpi: '300' }, { background: PAPER, color: INK })
+
+/**
+ * The other six languages, each the same set of screens: its Tasks table (title, location, status, progress), the
+ * traders' screen, the exit list, three tooltips, the stash labels, the flea's chips and lines, the mode cards.
+ */
+const MORE = [
+  {
+    language: 'pl', heads: ['Handlarz', 'Typ', 'Zadanie', 'Lokalizacja', 'Status', 'Postęp'], tabs: ['OGÓLNE', 'EKWIPUNEK', 'ZDROWIE', 'ZADANIA'],
+    panel: 'Przedmioty fabularne w ekwipunku (podczas rajdu)',
+    rows: [['Debiut', 'Skład celny', 'aktywne!', '0%'], ['Prywatna opieka zdrowotna – część 2', 'Dowolna lokalizacja', 'ukończone!', '100%'],
+      ['Potrząsając kasjerem', 'Węzeł drogowy', 'aktywne!', '50%'], ['Farmaceuta', 'Dowolna lokalizacja', 'Zablokowane', '0%']],
+    you: '(ty)', standing: 'Obecne nastawienie:', traders: ['Prapor', 'Therapist', 'Fence', 'Skier', 'Peacekeeper', 'Mechanic', 'Ragman', 'Jaeger'],
+    exits: ['Znajdź strefę ewakuacji', 'WYJŚCIE01 Stara stacja paliw 0:39:54', 'WYJŚCIE02 Parking naczep 0:39:54', 'WYJŚCIE03 ZB-1011 ??:??:??', 'WYJŚCIE04 Magazyn 4 0:39:54', 'PRZEJŚ.01 Przejście do fabryki 0:39:54'],
+    tooltips: ['Karta graficzna', 'Zestaw pierwszej pomocy Salewa', 'Złoty łańcuszek na szyję'], labels: ['Złoty łań.', 'Dostęp', 'Salewa', 'GPU'],
+    flea: ['Stan od: 100%', 'Wyklucz oferty barterowe', 'Łącznie 1670000'], modes: ['STREFA PVE', 'STREFA PVP'],
+  },
+  {
+    language: 'es', heads: ['Vendedor', 'Tipo', 'Misión', 'Ubicación', 'Estado', 'Progreso'], tabs: ['GENERAL', 'EQUIPO', 'SALUD', 'MISIONES'],
+    panel: 'Objetos de misión en el Personaje',
+    // «¡Terminada!»: the wording of «Español Latinoamérica» (es-mx), «¡Finalizada!» that of «Español» (es).
+    rows: [['Debut', 'Customs', '¡Activa!', '0%'], ['Atención Médica - Parte 2', 'Cualquier ubicación', '¡Terminada!', '100%'],
+      ['Sacudiendo al cajero', 'Interchange', '¡Activa!', '50%'], ['Farmacéutico', 'Cualquier ubicación', 'Bloqueada', '0%']],
+    you: '(tú)', standing: 'Lealtad actual:', traders: ['Prapor', 'Therapist', 'Fence', 'Skier', 'Peacekeeper', 'Mechanic', 'Ragman', 'Jaeger'],
+    exits: ['Encuentra un punto de extracción:', 'EXT. 01 Antigua Gasolinera 0:39:54', 'EXT. 02 Parking de Tráileres 0:39:54', 'EXT. 03 ZB-1011 ??:??:??', 'TRÁN. 01 Transitar a Factory 0:39:54'],
+    tooltips: ['Tarjeta gráfica', 'Botiquín de primeros auxilios Salewa', 'Cadena de oro'], labels: ['Cad. Oro', 'T. Acceso', 'Salewa', 'T. Gráfica'],
+    flea: ['Condición de: 100%', 'Excluir ofertas de trueque', 'Total 1670000'], modes: ['ZONA PVE', 'ZONA PVP'],
+  },
+  {
+    language: 'pt', heads: ['Comerciante', 'Tipo', 'Missão', 'Localização', 'Situação', 'Progresso'], tabs: ['GERAL', 'EQUIPAMENTO', 'SAÚDE', 'TAREFAS'],
+    panel: 'Itens de missão no inventário (em incursão)',
+    rows: [['Estréia', 'Customs', 'ativa!', '0%'], ['Atenção Médica - Parte 2', 'Qualquer local', 'finalizada!', '100%'],
+      ['Agitando o caixa', 'Interchange', 'ativa!', '50%'], ['Farmacêutico', 'Qualquer local', 'Bloqueada', '0%']],
+    you: '(você)', standing: 'Reputação atual:', traders: ['Prapor', 'Therapist', 'Fence', 'Skier', 'Peacekeeper', 'Mechanic', 'Ragman', 'Jaeger'],
+    exits: ['Encontre um ponto de extração', 'EXFIL01 Posto de Gasolina Antigo 0:39:54', 'EXFIL02 Estacionamento de Trailers 0:39:54', 'EXFIL03 ZB-1011 ??:??:??', 'TRANSIT01 Transição para Factory 0:39:54'],
+    tooltips: ['Placa de vídeo', 'Kit de primeiros socorros Salewa', 'Colar de ouro'], labels: ['Corr.ouro', 'Cartão', 'Salewa', 'GPU'],
+    flea: ['Condição: 100%', 'Excluir ofertas de trocas', 'Total 1670000'], modes: ['ZONA PVE', 'ZONA PVP'],
+  },
+  {
+    language: 'fr', heads: ['Marchand', 'Type', 'Quête', 'Zone', 'Statut', 'Progression'], tabs: ['APERÇU', 'ÉQUIPEMENT', 'SANTÉ', 'QUÊTES'],
+    panel: "Objets de quête dans l'inventaire (en raid)",
+    rows: [['Première fois', 'Douanes', 'Active !', '0%'], ['Soins privés - Partie 2', 'Toutes', 'Terminée !', '100%'],
+      ['Secouez le caissier', 'Échangeur', 'Active !', '50%'], ['Pharmacien', 'Toutes', 'Verrouillé', '0%']],
+    you: '(vous)', standing: 'Attitude actuelle :', traders: ['Prapor', 'Therapist', 'Fence', 'Skier', 'Peacekeeper', 'Mechanic', 'Ragman', 'Jaeger'],
+    exits: ["Trouvez le point d'extraction", 'EXFIL01 Ancienne station-service 0:39:54', 'EXFIL02 Parc à remorques 0:39:54', 'EXFIL03 ZB-1011 ??:??:??', 'EXFIL04 Entrepôt 4 0:39:54', "TRANSIT01 Transit vers l'usine 0:39:54"],
+    tooltips: ['Carte graphique', 'Kit de premiers secours Salewa', 'Collier doré'], labels: ['CollierOr', 'Accès', 'Salewa', 'Carte Graph.'],
+    flea: ['État de : 100%', 'Exclure les échanges', 'Total 1670000'], modes: ['ZONE JcE', 'Zone JcJ'],
+  },
+  {
+    language: 'ko', heads: ['상인', '종류', '임무', '지역', '상태', '진행률'], tabs: ['종합', '장비', '체력', '임무'],
+    panel: '퀘스트 아이템 전용 인벤토리 (레이드용)',
+    rows: [['데뷔', '세관', '진행 중', '0%'], ['의료 개인 정보 보호 - 파트 2', '아무 지역', '완료!', '100%'],
+      ['돈가방을 갖고 튀어라', '인터체인지', '진행 중', '50%'], ['약사', '아무 지역', '잠김', '0%']],
+    you: '(내 정보)', standing: '현재 상태:', traders: ['프라퍼', '테라피스트', '펜스', '스키어', '피스키퍼', '메카닉', '래그맨', '예거'],
+    exits: ['탈출구 목록', '탈출구01 Old Gas Station 0:39:54', '탈출구02 Trailer Park 0:39:54', '탈출구03 ZB-1011 ??:??:??', 'TRANSIT01 공장으로 이동 0:39:54'],
+    tooltips: ['GPU 그래픽 카드', 'Salewa 응급 치료 키트', 'Golden neck chain 금목걸이'], labels: ['금목걸이', 'Access', 'Salewa', 'GPU'],
+    flea: ['물건 상태 : 100%', '물물교환 제외', '재고량 40 (제한 5)'], modes: ['PVE ZONE', 'PVP ZONE'],
+  },
+  {
+    language: 'tr', heads: ['Tüccar', 'Tür', 'Görev', 'Konum', 'Durum', 'İlerleme'], tabs: ['GENEL', 'TEÇHİZAT', 'SAĞLIK', 'GÖREVLER'],
+    panel: 'Envanterdeki görev eşyaları (baskın)',
+    rows: [['Başlangıç', 'Gümrük', 'aktif!', '0%'], ['Sağlık Hizmetleri Gizliliği - Bölüm 2', 'Herhangi bir bölge', 'bitti!', '100%'],
+      ['Kasiyeri Uyandır', 'Değişim', 'aktif!', '50%'], ['Eczacı', 'Herhangi bir bölge', 'kilitli', '0%']],
+    you: '(sen)', standing: 'Geçerli tutum:', traders: ['Prapor', 'Therapist', 'Fence', 'Skier', 'Peacekeeper', 'Mechanic', 'Ragman', 'Jaeger'],
+    exits: ['Tahliye noktası bul', 'TAHLİYE01 Eski Yakıt İstasyonu 0:39:54', 'TAHLİYE02 Treyler Parkı 0:39:54', 'TAHLİYE03 ZB-1011 ??:??:??', 'TAHLİYE04 Depo 4 0:39:54', 'TRANSIT01 Transit to Factory 0:39:54'],
+    tooltips: ['Ekran Kartı', 'Salewa ilk yardım kiti', 'Altın kolye'], labels: ['Altın Kolye', 'Erişim Kartı', 'Salewa', 'Ekran kartı'],
+    flea: ['Durum: 100%', 'Takas tekliflerini yoksay', 'Toplam 1670000'], modes: ['PVE BÖLGESİ', 'PVP BÖLGESİ'],
+  },
+]
+
+/** One language's set of screens (MORE). */
+function languagePictures(entry) {
+  const { language } = entry
+  return [
+    table(language, entry.heads, entry.rows, entry.tabs, entry.panel),
+    traders(language, entry.you, entry.standing, entry.traders),
+    exits(language, entry.exits),
+    ...entry.tooltips.map((text, index) => line(`${language}-tooltip-${['gpu', 'salewa', 'chain'][index]}`, language, text)),
+    labels(language, entry.labels),
+    ...entry.flea.map((text, index) => line(`${language}-flea-${['condition', 'barter', 'total'][index]}`, language, text)),
+    picture(`${language}-modes`, language, 1400, 220, [
+      { x: 120, y: 30, text: entry.modes[0], size: 26 }, { x: 600, y: 30, text: entry.modes[1], size: 26 },
+      { x: 120, y: 130, text: 'Raid_OS | 41', size: 22 }, { x: 600, y: 130, text: 'Raid_OS | 39', size: 22 },
+    ], { psm: '6', words: true }),
+  ]
+}
 
 const pictures = [
   table('de', ['Händler', 'Typ', 'Aufgabe', 'Standort', 'Status', 'Fortschritt'], [
@@ -111,6 +198,7 @@ const pictures = [
     { x: 120, y: 30, text: 'PVE区域', size: 26 }, { x: 600, y: 30, text: 'PVP区域', size: 26 },
     { x: 120, y: 130, text: 'Raid_OS | 41', size: 22 }, { x: 600, y: 130, text: 'Raid_OS | 39', size: 22 },
   ], { psm: '6', words: true }),
+  ...MORE.flatMap(languagePictures),
   picture('de-modes', 'de', 1400, 220, [
     { x: 120, y: 30, text: 'PVE-ZONE', size: 26 }, { x: 600, y: 30, text: 'PVP-ZONE', size: 26 },
     { x: 120, y: 130, text: 'Raid_OS | 41', size: 22 }, { x: 600, y: 130, text: 'Raid_OS | 39', size: 22 },
@@ -152,7 +240,7 @@ const ENGINES = {
 }
 const engineOf = (entry) => (entry.read.tooltip ? 'tooltip' : entry.read.psm === '11' ? 'labels' : 'quest')
 const results = {}
-for (const language of ['de', 'ja', 'zh']) {
+for (const language of Object.keys(MODELS)) {
   for (const [engine, parameters] of Object.entries(ENGINES)) {
     const group = pictures.filter((item) => item.language === language && engineOf(item) === engine)
     if (!group.length) continue
@@ -162,7 +250,7 @@ for (const language of ['de', 'ja', 'zh']) {
       const image = readFileSync(join(work, `${entry.name}.png`))
       const { data } = await worker.recognize(image, {}, { text: true, blocks: true })
       const words = (data.blocks ?? []).flatMap((block) => block.paragraphs.map((paragraph) => paragraph.lines.map((lineEntry) => lineEntry.words.map((word) => ({ text: word.text, bbox: word.bbox })))))
-      results[entry.name] = { text: data.text, ...(entry.read.words || /^(ja|zh)-/.test(entry.name) ? { blocks: words } : {}), size: { width: entry.width, height: entry.height } }
+      results[entry.name] = { text: data.text, ...(entry.read.words || /^(ja|zh|ko)-/.test(entry.name) || /-(traders|modes)$/.test(entry.name) ? { blocks: words } : {}), size: { width: entry.width, height: entry.height } }
     }
     await worker.terminate()
   }
@@ -171,9 +259,9 @@ for (const language of ['de', 'ja', 'zh']) {
 const out = resolve('src/import/__fixtures__/gameLanguageOcr.ts')
 writeFileSync(out, `/**
  * GENERATED by scripts/ocr/language-fixtures.mjs — do not edit by hand. Real Tesseract output (tesseract.js, tessdata_fast:
- * deu+eng, jpn+eng, chi_sim+eng; the page modes the app reads with) on pictures of the game's screens in German, Japanese
- * and Simplified Chinese drawn from the game's own words (src/import/gameWords.ts) and names (tarkov.dev). Not screenshots:
- * Bahnschrift, Yu Gothic UI and Microsoft YaHei UI stand in for the game's font. \`blocks\`: paragraphs → lines → words with
+ * deu, jpn, chi_sim, pol, spa, por, fra, kor, tur, each +eng; the page modes the app reads with) on pictures of the game's
+ * screens in its languages beyond Russian and English drawn from the game's own words (src/import/gameWords.ts) and names
+ * (tarkov.dev). Not screenshots: Bahnschrift, Yu Gothic UI, Microsoft YaHei UI and Malgun Gothic stand in for the game's font. \`blocks\`: paragraphs → lines → words with
  * their boxes, as electron/screenOcr.ts gets them (Japanese and Chinese readings are rebuilt from them: src/shared/cjk.ts).
  */
 export interface FixtureWord { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }

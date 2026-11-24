@@ -12,7 +12,7 @@ import { app, nativeImage, screen, type NativeImage } from 'electron'
 import { recognizeRegion } from './screenOcr.js'
 import { gameLanguageNow } from './ocrEngine.js'
 import type { GameLanguage } from '../src/import/gameLanguage.js'
-import { gameWordPattern, languageWords } from '../src/import/gameWordPatterns.js'
+import { anyGameWord, languageWords } from '../src/import/gameWordPatterns.js'
 import { captureScreenRegion, foregroundDisplayMode, visibleGameRect } from './experimental/win32.js'
 
 export interface ScreenRect { x: number; y: number; width: number; height: number }
@@ -185,8 +185,8 @@ export async function readExtractsPanel(send: (payload: ExtractsPayload) => void
 
 /** The list's own words in a reading: «ВЫХОД» / «EXFIL», and the game's own («脱出地点», «撤离点»: src/import/gameWords.ts). */
 export function listWords(value: string, language?: GameLanguage | null) {
-  const own = languageWords(language)?.words.exits.exfil
-  const extra = own && !/^exfil$/i.test(own) ? (value.match(new RegExp(gameWordPattern(own), 'giu')) ?? []).length : 0
+  const own = (languageWords(language)?.words.exits.exfil ?? []).filter((word) => !/^exfil$/i.test(word))
+  const extra = own.length ? (value.match(new RegExp(anyGameWord(own), 'giu')) ?? []).length : 0
   return (value.match(/ВЫХ|EXF|BЫX/gi) ?? []).length + extra
 }
 
