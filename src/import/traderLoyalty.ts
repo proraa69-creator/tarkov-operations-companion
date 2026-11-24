@@ -9,6 +9,8 @@
  * the top (the middle point) and wide at the base, numerals are one to three vertical strokes.
  */
 import type { OcrWordBox, PaneRect } from './storyPaneLayout.js'
+import type { GameLanguage } from './gameLanguage.js'
+import { languageWords, umlautForms } from './gameWordPatterns.js'
 
 /** The names under the portraits (Russian and English interface) and the app's trader keys (src/gunsmith/traderLevels.ts). */
 export const TRADER_SCREEN_NAMES: Record<string, string> = {
@@ -17,6 +19,20 @@ export const TRADER_SCREEN_NAMES: Record<string, string> = {
   prapor: 'prapor', therapist: 'therapist', fence: 'fence', skier: 'skier', peacekeeper: 'peacekeeper',
   mechanic: 'mechanic', ragman: 'ragman', jaeger: 'jaeger', ref: 'ref',
 }
+
+/**
+ * The names under the portraits in a German, Japanese or Chinese game (the game's own: «Jäger», Chinese «竞技场裁判» for
+ * Ref; src/import/gameWords.ts), folded as the screen's words are, beside the Russian and English ones.
+ */
+function screenNames(language?: GameLanguage | null): Record<string, string> {
+  const words = languageWords(language)
+  if (!words) return TRADER_SCREEN_NAMES
+  // «Jäger» also as the OCR may read it: «Jager», «Jaeger».
+  const own = Object.fromEntries(Object.entries(words.words.traders).flatMap(([key, name]) => umlautForms(name).map((form) => [foldName(form), key])).filter(([name]) => name))
+  return { ...TRADER_SCREEN_NAMES, ...own }
+}
+
+const foldName = (text: string) => text.toLowerCase().replace(/[^\p{L}]/gu, '')
 
 /** Card step / interface height on the owner's screenshot (97 px at 837 px): used when only one name was read. */
 const STEP_PER_UNIT = 0.1165
@@ -29,9 +45,12 @@ const middle = (box: OcrWordBox['bbox']) => ({ x: (box.x0 + box.x1) / 2, y: (box
  * Each trader whose name the pass read, with the rectangle of its badge. Names at another height than most (a quest
  * text mentioning «Прапор») are left out.
  */
-export function traderBadgeRects(words: OcrWordBox[], size: { width: number; height: number }): TraderBadge[] {
+export function traderBadgeRects(words: OcrWordBox[], size: { width: number; height: number }, language?: GameLanguage | null): TraderBadge[] {
+  const names = screenNames(language)
+  // Russian and English: the letters as before; another game's names keep theirs («Jäger», «竞技场裁判»).
+  const fold = names === TRADER_SCREEN_NAMES ? (text: string) => text.toLowerCase().replace(/[^a-zа-яё]/gi, '') : foldName
   const named = words
-    .map((word) => ({ key: TRADER_SCREEN_NAMES[word.text.toLowerCase().replace(/[^a-zа-яё]/gi, '')], ...middle(word.bbox), height: word.bbox.y1 - word.bbox.y0 }))
+    .map((word) => ({ key: Object.hasOwn(names, fold(word.text)) ? names[fold(word.text)] : undefined, ...middle(word.bbox), height: word.bbox.y1 - word.bbox.y0 }))
     .filter((entry): entry is { key: string; x: number; y: number; height: number } => Boolean(entry.key))
   if (!named.length) return []
   // The strip: the names on the row most of them share.

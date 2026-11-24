@@ -13,6 +13,9 @@
  */
 import type { RaidMode } from '../domain/types.js'
 import type { OcrWordBox, PaneRect } from './storyPaneLayout.js'
+import { joinCjkWords } from '../shared/cjk.js'
+import type { GameLanguage } from './gameLanguage.js'
+import { gameWordPattern, languageWords } from './gameWordPatterns.js'
 
 /** The highest character level in the game (src/profile/playerLevels.ts). */
 export const MAX_PLAYER_LEVEL = 79
@@ -93,9 +96,27 @@ export function findNameLevel(text: string): NameLevel | null {
   return null
 }
 
+/**
+ * The modes' names as a German, Japanese or Chinese game writes them («PVE-ZONE», «PVE区域»: the game's localisation,
+ * src/import/gameWords.ts) turned into the English «pve zone» / «pvp zone» the readers look for. Russian and English
+ * text, and every other word, stay as they are.
+ */
+export function withEnglishModes(text: string, language?: GameLanguage | null) {
+  const words = languageWords(language)
+  if (!words) return text
+  let out = text
+  for (const [mode, name] of [['pve', words.words.modes.pve], ['pvp', words.words.modes.pvp]] as const) {
+    const pattern = gameWordPattern(name)
+    if (pattern) out = out.replace(new RegExp(pattern, 'giu'), `${mode} zone`)
+  }
+  // The Chinese cards' «区域» (zone) read apart from «PVE».
+  if (words.language === 'zh') out = out.replace(/区域/g, ' zone')
+  return out
+}
+
 /** The screen's own words: its title or at least two mode cards. */
-export function isModeSelectText(text: string) {
-  const latin = latinize(text).toLowerCase()
+export function isModeSelectText(text: string, language?: GameLanguage | null) {
+  const latin = latinize(withEnglishModes(text, language)).toLowerCase()
   const title = /выбор\s+профил[а-я]*\s+и\s+режим/i.test(text) || /profile\s+and\s+mode|select\s+(a\s+)?(profile|mode)/.test(latin)
   const modes = new Set<string>()
   for (const match of latin.matchAll(/p[vyu]([ep])\s*([z2][o0][nh]e|s[ec]a[s5][o0][nh])/g)) modes.add(`${match[1]}${match[2]![0] === 's' ? 's' : 'z'}`)
@@ -116,12 +137,12 @@ function clampRect(rect: PaneRect, size: { width: number; height: number }): Pan
  * interface unit under the title, the card about a third of a unit wide) and that line, when the pass read it.
  * Two titles of one mode, or titles at different heights, are not this screen: nothing is returned.
  */
-export function modeSelectHeaders(words: OcrWordBox[], size: { width: number; height: number }): ModeSelectHeader[] {
+export function modeSelectHeaders(words: OcrWordBox[], size: { width: number; height: number }, language?: GameLanguage | null): ModeSelectHeader[] {
   const unit = interfaceUnit(size)
   const found: Array<{ mode: RaidMode; x0: number; middle: number }> = []
   for (let index = 0; index < words.length; index += 1) {
     const word = words[index]!
-    const first = token(word.text)
+    const first = token(withEnglishModes(word.text, language))
     let mode: RaidMode | undefined
     const joined = JOINED.exec(first)
     if (joined) mode = joined[2]![0] === 's' ? 'seasonal' : joined[1] === 'e' ? 'pve' : 'pvp'
@@ -129,7 +150,7 @@ export function modeSelectHeaders(words: OcrWordBox[], size: { width: number; he
       const head = MODE.exec(first)
       const next = words[index + 1]
       if (!head || !next || Math.abs(middleOf(next.bbox) - middleOf(word.bbox)) > Math.max(6, word.bbox.y1 - word.bbox.y0)) continue
-      const second = token(next.text)
+      const second = token(withEnglishModes(next.text, language))
       if (SEASON.test(second)) mode = 'seasonal'
       else if (ZONE.test(second)) mode = head[1] === 'e' ? 'pve' : 'pvp'
     }
@@ -226,9 +247,9 @@ export function screenNickname(cards: Array<Pick<ModeSelectCard, 'nickname'>>, k
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0]
 }
 
-/** The words of each line of a Tesseract result (its `blocks` output). */
+/** The words of each line of a Tesseract result (its `blocks` output), Japanese and Chinese runs one word each. */
 export function ocrLines(blocks: Array<{ paragraphs: Array<{ lines: Array<{ words: OcrWordBox[] }> }> }> | null | undefined): OcrWordBox[][] {
-  return (blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.map((line) => line.words)))
+  return (blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.map((line) => joinCjkWords(line.words))))
 }
 
 const hasDigit = (word: OcrWordBox) => /\d/.test(word.text)
@@ -250,9 +271,37 @@ export function cardLevelWord(lines: OcrWordBox[][], lineOnly: boolean): OcrWord
 // ------------------------------------------------------------------------------------------------------------
 
 /** The traders' screen: the standing line and the player's own name marked «(вы)» / «(you)». */
-export function isTraderScreenText(text: string) {
+export function isTraderScreenText(text: string, language?: GameLanguage | null) {
   // The English game says «Current attitude:» (owner's PvE screenshot, 14.10.2026).
-  return /текущее\s+отношени|current\s+(?:standing|attitude)/i.test(text) && YOU_MARK.test(text)
+  if (/текущее\s+отношени|current\s+(?:standing|attitude)/i.test(text) && YOU_MARK.test(text)) return true
+  // German, Japanese, Chinese: «Aktuelles Ansehen:» and «(Du)», «現在の状態:» and «(あなた)», «商人当前态度:» and «(你)».
+  const marks = traderMarks(language)
+  return Boolean(marks && marks.attitude.test(text) && (marks.you.test(text) || marks.youLoose?.test(text)))
+}
+
+/**
+ * A Japanese or Chinese «(あなた)» / «(你)» after the nickname, one character of it misread («(あなだ)», «(从»: the
+ * pictures of scripts/ocr/language-fixtures.mjs): a Latin name, then a bracket and one to four other characters.
+ */
+const CJK_YOU = /[A-Za-z0-9_-]{2,15}\s*[(（]\s*[^\s()（）A-Za-z0-9]{1,4}\s*[)）]?/u
+
+/** The traders' screen's words in a German, Japanese or Chinese game (the game's localisation); null in the others. */
+function traderMarks(language?: GameLanguage | null) {
+  const words = languageWords(language)
+  if (!words) return null
+  const { attitude, you } = words.words.trader
+  const bare = you.replace(/[()（）\s]/g, '')
+  const first = attitude.split(/\s+/)[0]!.replace(/[:：]+$/, '')
+  return {
+    attitude: new RegExp(gameWordPattern(attitude), 'iu'),
+    you: new RegExp(gameWordPattern(you), 'iu'),
+    /** «(Du)» as one word, maybe its brackets split off or lost. */
+    youWord: new RegExp(`^[(（]?\\s*${gameWordPattern(bare)}\\s*[)）]?$`, 'iu'),
+    youInText: new RegExp(`[(（]\\s*${gameWordPattern(bare)}\\s*[)）]`, 'giu'),
+    /** The standing row's first word («Aktuelles»), or the whole phrase as the Japanese and Chinese OCR give it. */
+    attitudeStart: new RegExp(`^${gameWordPattern(first)}`, 'iu'),
+    youLoose: words.language === 'ja' || words.language === 'zh' ? CJK_YOU : null,
+  }
 }
 
 const LEVEL_WORD = /^(lvl|lvi|lv1|lul|iv1|ivl)$/
@@ -265,15 +314,16 @@ const YOU_WORD = /^\(?(вы|ву|you)\)?$/i
  * the number after «LVL» on the row that starts «Текущее отношение» / «Current standing». Each comes with its box for a
  * close-up; what the pass read is checked against that close-up (electron/screenOcr.ts).
  */
-export function traderScreenParts(words: OcrWordBox[], size: { width: number; height: number }) {
+export function traderScreenParts(words: OcrWordBox[], size: { width: number; height: number }, language?: GameLanguage | null) {
   const unit = interfaceUnit(size)
+  const marks = traderMarks(language)
   const sameRow = (a: OcrWordBox, b: OcrWordBox) => Math.abs(middleOf(a.bbox) - middleOf(b.bbox)) <= Math.max(5, (a.bbox.y1 - a.bbox.y0) * 0.7)
   let nickname: { value: string; box: PaneRect } | undefined
   let level: { value: number; box: PaneRect } | undefined
   for (let index = 0; index < words.length; index += 1) {
     const word = words[index]!
     // «(вы)» (or «(you)»), maybe split as «(вы» «)»; the name is the word before it on the same row.
-    if (!nickname && YOU_WORD.test(word.text.trim())) {
+    if (!nickname && (YOU_WORD.test(word.text.trim()) || marks?.youWord.test(word.text.trim()))) {
       const before = words[index - 1]
       const name = before ? before.text.replace(/[^A-Za-z0-9_-]/g, '') : ''
       if (before && sameRow(before, word) && NICKNAME.test(latinize(name)) && /[A-Za-z]/.test(latinize(name))) {
@@ -281,7 +331,7 @@ export function traderScreenParts(words: OcrWordBox[], size: { width: number; he
       }
     }
     // «Текущее отношение» … «LVL» «12» on one row.
-    if (!level && /^(текущее|current)$/i.test(word.text.replace(/[^A-Za-zА-яЁё]/g, ''))) {
+    if (!level && (/^(текущее|current)$/i.test(word.text.replace(/[^A-Za-zА-яЁё]/g, '')) || marks?.attitudeStart.test(word.text.trim()))) {
       const row = words.slice(index + 1, index + 12).filter((other) => sameRow(other, word))
       for (let at = 0; at + 1 < row.length; at += 1) {
         if (!LEVEL_WORD.test(token(row[at]!.text))) continue
@@ -329,8 +379,9 @@ export function confirmTraderLevel(whole: number | undefined, close: number | nu
 }
 
 /** The nickname a close-up of «Raid_OS» reads (the icon or «(вы)» around it dropped). */
-export function parseTraderNickname(text: string) {
-  const words = latinize(text).replace(/\((вы|ву|you)\)/gi, ' ').split(/\s+/).map((part) => part.replace(/[^A-Za-z0-9_-]/g, '')).filter((part) => NICKNAME.test(part) && /[A-Za-z]/.test(part))
+export function parseTraderNickname(text: string, language?: GameLanguage | null) {
+  const marks = traderMarks(language)
+  const words = latinize(marks ? text.replace(marks.youInText, ' ') : text).replace(/\((вы|ву|you)\)/gi, ' ').split(/\s+/).map((part) => part.replace(/[^A-Za-z0-9_-]/g, '')).filter((part) => NICKNAME.test(part) && /[A-Za-z]/.test(part))
   return words.at(-1) ?? null
 }
 

@@ -10,15 +10,19 @@ import { RANGE_PACK_FILE, RANGE_PACK_NAME } from './src/range/rangePack.ts'
 
 /**
  * The OCR engine of «Синхронизация по фото» (src/stashPhoto/browser.ts) served from the app itself under ocr/, never
- * from a CDN: the worker, the plain WebAssembly core (runs on every phone) and the Russian and English models already
- * kept for the Windows app (electron/tessdata). Copied at build time, so the binaries are not committed twice; loaded
- * only when the button is pressed.
+ * from a CDN: the worker, the plain WebAssembly core (runs on every phone) and the models already kept for the Windows
+ * app (electron/tessdata: Russian and English; German, Japanese and Simplified Chinese for a game in those languages).
+ * Copied at build time, so the binaries are not committed twice; loaded only when the button is pressed.
  */
 const OCR_FILES: Record<string, string> = {
   'ocr/worker.min.js': 'node_modules/tesseract.js/dist/worker.min.js',
   'ocr/tesseract-core-lstm.wasm.js': 'node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js',
   'ocr/rus.traineddata': 'electron/tessdata/rus.traineddata',
   'ocr/eng.traineddata': 'electron/tessdata/eng.traineddata',
+  // German, Japanese and Simplified Chinese games' labels (src/import/gameLanguage.ts): loaded only for such a game.
+  'ocr/deu.traineddata': 'electron/tessdata/deu.traineddata',
+  'ocr/jpn.traineddata': 'electron/tessdata/jpn.traineddata',
+  'ocr/chi_sim.traineddata': 'electron/tessdata/chi_sim.traineddata',
 }
 
 function ocrAssets(): Plugin {

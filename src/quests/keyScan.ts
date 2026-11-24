@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Item, RaidMode } from '../domain/types'
-import { screenEntries } from '../kappa/collector'
+import { labelNames, screenEntries } from '../kappa/collector'
 import { countScreenItems } from '../stashScan/screenSync'
 import { forgetKeysAddedByTaken } from '../progression/takenItems'
 import { addSeenKeys } from './ownedKeys'
@@ -32,7 +32,7 @@ export function createKeyScan(input: { items: Item[]; wanted: readonly string[];
   const entries = screenEntries(new Map(keys.map((item) => [item.id, 1])), input.items)
   const wanted = new Set(input.wanted)
   const names = [...keys.filter((item) => wanted.has(item.id)), ...keys.filter((item) => !wanted.has(item.id))]
-    .map((item) => item.shortName ?? '').filter(Boolean).slice(0, NAMES_LIMIT)
+    .flatMap((item) => labelNames(item)).slice(0, NAMES_LIMIT)
   const seen = new Map<string, number>()
   let added = 0
 

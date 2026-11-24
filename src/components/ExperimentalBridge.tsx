@@ -21,6 +21,20 @@ import { mateNamesFor, mateNeedsItem, useMateNeedsRefresh } from '../squad/mateN
 import { featureEnabled } from '../app/archivedFeatures'
 import { setFleaCatalog } from '../data/screenFleaPrices'
 import { notificationOn } from '../notifications/notificationKinds'
+import type { GameNames } from '../data/gameNames'
+import { noteGameLanguage, useGameNames } from '../data/gameNamesLoader'
+
+/**
+ * The item names of the tooltip matcher: the Russian and English ones, and the game's own when it runs in German, Japanese
+ * or Chinese (src/data/gameNames.ts) — the game's tooltip shows its language's name.
+ */
+function withGameItemNames(variants: Map<string, ItemNameVariant[]> | null, names: GameNames | null): ReadonlyMap<string, ItemNameVariant[]> | undefined {
+  const own = names?.items
+  if (!own?.size) return variants ?? undefined
+  const merged = new Map(variants ?? [])
+  for (const [id, names] of own) merged.set(id, [...(merged.get(id) ?? []), names])
+  return merged
+}
 
 /** Readings the second attempt found an item for (one list for the app, see createLookupMemory). */
 const lookupMemory = createLookupMemory(() => window.localStorage, foldTooltipText)
@@ -143,7 +157,16 @@ export function ExperimentalBridge() {
     timer = setTimeout(load, 3000)
     return () => { active = false; clearTimeout(timer) }
   }, [])
-  const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items, nameVariants ?? undefined), [data.items, nameVariants])
+  // A German, Japanese or Chinese game shows its own names (src/data/gameNames.ts): matched beside the Russian and English.
+  const currentGameNames = useGameNames()
+  const alternates = useMemo(() => withGameItemNames(nameVariants, currentGameNames), [nameVariants, currentGameNames])
+  // The game's language as the main process knows it (its settings file or the player's choice): its names load at once.
+  useEffect(() => {
+    const api = window.tarkovDesktop?.experimental
+    if (!api) return
+    void api.getStatus().then((status) => { if (status.gameLanguage) noteGameLanguage(status.gameLanguage.language) }).catch(() => {})
+  }, [])
+  const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items, alternates), [data.items, alternates])
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   // «Что не продавать» of the selected mode, for the badge on the item card (computed once per progress change).
   const progressNow = state.activeProfile.modes[state.raidMode]
@@ -183,6 +206,7 @@ export function ExperimentalBridge() {
       })
       if (query.kind === 'item') {
         const { input } = query
+        if (input.language) noteGameLanguage(input.language)
         let source: ItemOverlayInfo['source']
         let item: Item | null | undefined
         if (input.test) item = data.items.find((entry) => (entry.fleaPrice ?? 0) > 0 && data.quests.some((quest) => quest.requiredItems?.includes(entry.id)))

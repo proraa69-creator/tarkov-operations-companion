@@ -2,6 +2,8 @@ import type { RaidMode } from '../domain/types.js'
 import { gameUiBox } from './storyPaneLayout.js'
 import { colourAt, currencyOf, decodeDigitShapes, FLEA_LIST, luminance, priceBand, priceGlyphs, readDigits, screenPoint, type DigitSample, type FleaCurrency, type FleaLayout, type FleaPixels } from './fleaDigits.js'
 import { FLEA_DIGIT_SHAPES } from './fleaDigitShapes.js'
+import type { GameLanguage } from './gameLanguage.js'
+import { gameWordPattern, languageWords, umlautForms } from './gameWordPatterns.js'
 
 /**
  * The flea market on the player's screen → the lowest price of the items it shows (docs/flea-prices-from-players.md;
@@ -184,8 +186,12 @@ export function fleaFilterChips(pixels: FleaPixels, layout: FleaLayout) {
  * currencies hidden), a price or a count range — may hide a cheaper offer: the list then gives no price at all. By its
  * first word, as the OCR reads it on the owner's frames («Kpome» on Season's green).
  */
-export function fleaFilterAllows(chip: string) {
-  return /^\W*(сост|cond|кром|kpom|kpoм|крom|excl|without|no barter)/i.test(chip.trim())
+export function fleaFilterAllows(chip: string, language?: GameLanguage | null) {
+  if (/^\W*(сост|cond|кром|kpom|kpoм|крom|excl|without|no barter)/i.test(chip.trim())) return true
+  // A German, Japanese or Chinese game: its own «Zustand von:» / «状態:» and «Tauschangebote ignorieren» / «物々交換を除外».
+  const words = languageWords(language)
+  if (!words) return false
+  return [words.words.flea.condition, words.words.flea.noBarter].some((word) => word && new RegExp(`^[^\\p{L}\\p{N}]*${gameWordPattern(word.split(/\s+/)[0]!)}`, 'iu').test(chip.trim()))
 }
 
 /** Cyrillic letters the OCR (Russian and English at once) reads the Latin «PvE» / «PvP S» as: «РУЕ», «РУР 5». */
@@ -218,12 +224,23 @@ const TRADER_STOCK = 100_000
  * its own («99 Прапор», «EF Прапор», «Егерь Е:») — or its offer has a trader's «(лимит N)» (read «numut», «rum» too) or a
  * trader's stock. A nickname is one word: «Prapor_fan» is no trader.
  */
-export function isTraderRow(seller: string, info: string) {
+export function isTraderRow(seller: string, info: string, language?: GameLanguage | null) {
   const words = seller.split(/\s+/).map(fold).filter(Boolean)
   if (words.some((word) => TRADERS.has(word)) && words.every((word) => TRADERS.has(word) || word.length <= 3)) return true
   const stock = /(?:всего|total)\s*(\d+)/i.exec(info)
-  return /лимит|limit|numut/i.test(info) || (stock !== null && Number(stock[1]) >= TRADER_STOCK)
+  if (/лимит|limit|numut/i.test(info) || (stock !== null && Number(stock[1]) >= TRADER_STOCK)) return true
+  // A German, Japanese or Chinese game: its traders' names («Jäger»), «Gesamt» / «合計» and «Limit» / «上限».
+  const own = languageWords(language)
+  if (!own) return false
+  const names = new Set(Object.values(own.words.traders).flatMap(umlautForms).map(foldAll))
+  const sellerWords = seller.split(/\s+/).map(foldAll).filter(Boolean)
+  if (sellerWords.some((word) => names.has(word)) && sellerWords.every((word) => names.has(word) || TRADERS.has(word) || word.length <= 3)) return true
+  const total = own.words.flea.total ? new RegExp(`${gameWordPattern(own.words.flea.total)}\\s*(\\d+)`, 'iu').exec(info) : null
+  return (own.words.flea.limit !== '' && new RegExp(gameWordPattern(own.words.flea.limit), 'iu').test(info)) || (total !== null && Number(total[1]) >= TRADER_STOCK)
 }
+
+/** A word of another script folded: lower case, its letters only (umlauts, characters). */
+const foldAll = (text: string) => text.toLowerCase().replace(/[^\p{L}]/gu, '')
 
 /** «⚒ 40/40» of the info line: the item's condition, null when the line names none (a stack has none). */
 export function fleaCondition(info: string) {
@@ -320,14 +337,14 @@ export interface FleaSightingResult {
  * its cheapest offer in roubles is unknown. `exclude`: items whose copies differ (weapons, armour…: docs/trading.md), by the
  * offer's info line (a key counts only with all its uses: screenFleaPrices.ts).
  */
-export function fleaSightings(rows: FleaRow[], exclude: (itemId: string, info: string) => boolean = () => false, rates: FleaRates = {}): FleaSightingResult {
+export function fleaSightings(rows: FleaRow[], exclude: (itemId: string, info: string) => boolean = () => false, rates: FleaRates = {}, language?: GameLanguage | null): FleaSightingResult {
   const sightings: FleaSighting[] = []
   const seen = new Set<string>()
   for (const [row, entry] of rows.entries()) {
     const { price } = entry
     if (price.kind === 'empty') return { sightings, stoppedAt: { row, reason: 'end' } }
     if (price.kind === 'banner') return { sightings, stoppedAt: { row, reason: 'banner' } }
-    if (isTraderRow(entry.seller, entry.info)) continue
+    if (isTraderRow(entry.seller, entry.info, language)) continue
     if (price.kind === 'dim') return { sightings, stoppedAt: { row, reason: 'dim' } }
     if (!price.sure) return { sightings, stoppedAt: { row, reason: 'unsure' } }
     if (!entry.itemId) return { sightings, stoppedAt: { row, reason: 'unknown-item' } }

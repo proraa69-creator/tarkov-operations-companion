@@ -9733,3 +9733,30 @@ Not pushed, not released, nothing uploaded.
   news «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
   src/data/questGuidePhotos.json, documentGuidePhotos.json, their two tests and these two data files change. For the 13:00 Bangkok
   window, not started by hand. The photo session says its 1384 pictures are all on the server (0 missing).
+
+## 2026-11-24 15:10 — Claude: screen readers for a game in German, Japanese and Simplified Chinese (branch claude/ocr-languages)
+
+- Branch `claude/ocr-languages` from `claude/languages-zh-ja-de` 4e689c13; not pushed, not released. Commits b0847fd8 (game language,
+  the game's words, CJK helpers), 0b7b69fa (the readers), c1eef15c (engines, models, «Язык игры»). Their branch's f6d881c2 touches none of
+  these files.
+- Game language: %APPDATA%\Battlestate Games\Escape from Tarkov\Settings\Game.ini (only read; ge→de, jp→ja, ch→zh, any other →
+  English), or «Язык игры» in «Карта и предметы в рейде» (auto / ru / en / de / ja / zh). ru/en read exactly as before (rus+eng);
+  de/ja/zh with deu+eng / jpn+eng / chi_sim+eng (tessdata_fast in electron/tessdata, shipped with rus/eng, vite ocr/ for the phone).
+- Words from SPT's locales (EFT 0.16.9: SPT_Data/database/locales/global/{ge,jp,ch}.json) via scripts/ocr/game-words.mjs →
+  src/import/gameWords.ts; names (quests, items, exits/transits) from tarkov.dev's {tasks,items,maps}_{de,ja,zh} through the data
+  gateway at run time (src/data/gameNamesLoader.ts, cached 3 days).
+- Readers: Tasks table, traders' screen (level, nickname, loyalty strip), mode cards, flea chips/trader rows, exit list, item card,
+  Kappa/key/stash labels, stash photo. NOT the story pane: its words (CHAPTER, Main/Optional objectives) and the chapters' names in
+  de/ja/zh are in no source we have (SPT 0.16.9 predates story chapters; tarkov.dev has no story dictionaries): a de/ja/zh story frame
+  is read as nothing (no false chapters).
+- Tests: src/import/gameLanguageReaders.test.ts (real tesseract.js output of pictures drawn from the game's words, fixtures by
+  scripts/ocr/language-fixtures.mjs — Bahnschrift / Yu Gothic UI / Microsoft YaHei UI stand in for the game's font),
+  gameLanguageWords, cjk, gameNames, electron gameLanguage / ocrEngine / settings. Touched areas 1912/1919 pass; the 1 failing
+  (AdminPanelPage sidebar source test) fails the same on 4e689c13 (AppShell of the languages branch); MapsPage tests time out only
+  under the full parallel run and pass alone. Both typechecks, eslint on touched files clean (one old warning).
+- Risks: chi_sim+eng reads short Chinese titles in small type as Latin junk now and then (2 of 4 rows in one picture; such a row
+  names nothing rather than a guess); «(你)» / «(あなた)» read with a character wrong (allowed for ja/zh). To check on real
+  screenshots of each language: Tasks table (side tasks, scrolled; active / ready / locked rows; a «Teil 2» / «- 2» title), traders'
+  screen (portraits with loyalty badges, «(Du)», the standing row with LVL), mode selection (PvE/PvP/Season cards, nick | level),
+  item tooltip (long and short names), stash with labels (Kappa scan), flea (sorted by price, a trader row, filter chips), the O exit
+  list (header, EXFIL/TRANSIT lines), and a story chapter pane (to get its words).
