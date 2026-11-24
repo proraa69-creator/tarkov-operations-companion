@@ -35,6 +35,9 @@
 /* «Время в Таркове», one block (owner, 19.11.2026): the clocks large, then the picked traders' resets and the raid in one style. */
 .info-tarkov-time.is-combined .info-clock strong { font-size: 28px; line-height: 1; letter-spacing: .01em; }
 .info-tarkov-time.is-combined .info-clock svg { width: 18px; height: 18px; }
+/* The whole width in every theme: «Снаряжение» lines a card's content up at its left (align-items: flex-start), which left the
+   two clocks' grid no width and laid one over the other (report 222, 25.11.2026). */
+.info-tarkov-time .info-clocks, .info-tarkov-time .info-lines { align-self: stretch; }
 .info-lines { display: grid; gap: 4px; padding-top: 6px; border-top: 1px solid var(--line); }
 .info-lines:empty { display: none; }
 .info-line { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 12.5px; text-align: left; }
