@@ -7,7 +7,6 @@ import { useHashScroll } from '../hooks/hashScroll'
 import { useRipple } from '../hooks/motion'
 import { CookieNotice } from './CookieNotice'
 import { LanguageSwitch } from './LanguageSwitch'
-import { LanguageOffer } from './LanguageOffer'
 import { siteLocale, tr } from '../i18n'
 import { SubscriptionDialog } from './SubscriptionDialog'
 import { CountryGateDialog } from './CountryGateDialog'
@@ -61,7 +60,7 @@ export function SiteLayout() {
             {HEADER_SUBSCRIPTION && account && !account.storeReview && <button type="button" className="button header-subscription" aria-haspopup="dialog" onClick={() => setSubscriptionOpen(true)}>
               <Crown aria-hidden="true" />
               <span className="label-long">{tr('Подписка')}</span>
-              <span className="label-short">{siteLocale() === 'ru' ? 'Подписка' : tr('Тарифы')}</span>
+              <span className="label-short">{siteLocale() === 'en' ? 'Plans' : 'Подписка'}</span>
             </button>}
             <Link to="/download" className="button primary">
               <Download aria-hidden="true" />
@@ -126,7 +125,6 @@ export function SiteLayout() {
       {subscriptionOpen && <SubscriptionDialog onClose={() => setSubscriptionOpen(false)} />}
       {/* «Укажите страну» (owner, 15.10.2026): the cabinet and the admin panel wait for the country of an account without one. */}
       {(pathname.startsWith('/cabinet') || pathname.startsWith('/admin')) && <CountryGateDialog />}
-      <LanguageOffer />
       <CookieNotice />
       <SupportWidget />
     </div>

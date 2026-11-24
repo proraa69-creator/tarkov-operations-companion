@@ -1,4 +1,4 @@
-import { tr, siteBaseLocale } from '../../i18n'
+import { siteLocale, tr } from '../../i18n'
 import overviewShot from '../../assets/promo/overview.webp'
 import overviewShotEn from '../../assets/promo/overview-en.webp'
 import mapsLive from '../../assets/promo/maps-live.webp'
@@ -27,7 +27,7 @@ import bustKaban from '../../assets/promo/bust-kaban.webp'
 import bustZryachiy from '../../assets/promo/bust-zryachiy.webp'
 
 /** The screenshot in the site language: the app's Russian or English interface. */
-const shot = (ru: string, en: string) => (siteBaseLocale() === 'en' ? en : ru)
+const shot = (ru: string, en: string) => (siteLocale() === 'en' ? en : ru)
 
 /**
  * Pictures of the home page presentation: real screens of the current desktop app (owner, 10.11.2026: «с реальными

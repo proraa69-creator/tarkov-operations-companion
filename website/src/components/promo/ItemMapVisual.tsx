@@ -1,11 +1,11 @@
-import { tr, siteBaseLocale } from '../../i18n'
+import { siteLocale, tr } from '../../i18n'
 import itemPc from '../../assets/promo/item-pc.webp'
 import itemPcEn from '../../assets/promo/item-pc-en.webp'
 import itemPhone from '../../assets/promo/item-phone.webp'
 import itemPhoneEn from '../../assets/promo/item-phone-en.webp'
 import './itemMap.css'
 
-const shot = (ru: string, en: string) => (siteBaseLocale() === 'en' ? en : ru)
+const shot = (ru: string, en: string) => (siteLocale() === 'en' ? en : ru)
 
 /**
  * «Информация о предмете в приложении на ПК и в телефоне» (owner, 10.11.2026: «в точности, как у нас в приложении… окно

@@ -10,7 +10,7 @@ import '../extras.css'
 function LegalNav({ current }: { current?: string }) {
   return (<>
     {/* Terms and documents stay in Russian (owner, 11.10.2026): the English site says so here. */}
-    {siteLocale() !== 'ru' && <p className="legal-language-note">{tr('Условия и документы доступны только на русском языке: они составлены по законодательству РФ.')}</p>}
+    {siteLocale() === 'en' && <p className="legal-language-note" lang="en">{tr('Условия и документы доступны только на русском языке: они составлены по законодательству РФ.')}</p>}
     <nav className="legal-nav" aria-label="Документы">
       <Link to="/legal" className={!current ? 'active' : undefined}>Тарифы, оплата и возврат</Link>
       {LEGAL_DOCUMENTS.map((doc) => <Link key={doc.slug} to={`/legal/${doc.slug}`} className={current === doc.slug ? 'active' : undefined}>{doc.short}</Link>)}
@@ -57,7 +57,7 @@ export function PrivacyPage() {
       <div className="container narrow legal">
         <h1 className="page-title">{doc.title}</h1>
         <p className="page-subtitle">Редакция от {LEGAL_VERSION_LABEL}</p>
-        {siteLocale() !== 'ru' && <p className="legal-language-note">{tr('Условия и документы доступны только на русском языке: они составлены по законодательству РФ.')}</p>}
+        {siteLocale() === 'en' && <p className="legal-language-note" lang="en">{tr('Условия и документы доступны только на русском языке: они составлены по законодательству РФ.')}</p>}
         <article className="panel legal-doc">
           {doc.sections.map((section) => (
             <section key={section.title}>

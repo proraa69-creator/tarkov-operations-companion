@@ -16,7 +16,7 @@ export function HomePage({ banner }: { banner?: ReactNode }) {
         <div className="container">
           {banner}
           <div className="hero-head">
-            <h1 className="hero-title hero-wordmark stagger" style={stagger(1)}><img src={locale === 'ru' ? '/brand/wordmark.svg' : '/brand/wordmark-en.svg'} alt={tr('Raid OS — помощник в рейдах · Escape from Tarkov')} /></h1>
+            <h1 className="hero-title hero-wordmark stagger" style={stagger(1)}><img src={locale === 'en' ? '/brand/wordmark-en.svg' : '/brand/wordmark.svg'} alt={tr('Raid OS — помощник в рейдах · Escape from Tarkov')} /></h1>
             <p className="hero-lead stagger" style={stagger(2)}>{tr('Всё важное перед рейдом — в одном окне.')}</p>
           </div>
 
