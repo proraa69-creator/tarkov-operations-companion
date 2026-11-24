@@ -10116,3 +10116,15 @@ Not pushed, not released, nothing uploaded.
   zones, a uk browser) to Russian. The news lines lost their `uk`. The trailer session was told: no Ukrainian trailer.
   Checks: typecheck (app, site, server) clean; vitest website/src, src/i18n, src/news, src/shared, src/account and the game
   language tests 410/410; server playerNews, initialCountry, accounts 28/28. Release 0.6.0.342 stays local, not pushed.
+## 2026-11-25: Claude, the site's trailer in every language (claude/site-trailers-v7)
+
+- Owner, 25.11: the v7 trailer approved («отличный»), «Делай версии для всех языков и добавляй на сайт… при выборе языка на сайте
+  … соответствующее видео»; then «украинский язык удали. Это тот же русский».
+- Branch `claude/site-trailers-v7` from release/production a1d97c0d (0.6.0.341): website/src/components/Trailer.tsx plays
+  `trailer-<lang>.mp4` with `trailer-poster-<lang>.jpg` for ru (trailer.mp4), en, de, ja, zh, pl, es, pt, fr, ko, tr; the Ukrainian
+  site the Russian one; Trailer.test.tsx checks every language and every file. 22 media files, 720p, 88.8 s, 45 MB together
+  (they ship inside the server exe). Checks: website tsc clean, website vitest 48 files / 195 tests passed.
+- The videos come from scripts/trailer5 on branch claude/trailer-v5 (489e921b: every language's captures and captions;
+  ee80d2eb: the vertical cut for social networks, English only so far, waiting for the owner's word).
+- Not pushed, not released: a site-only change; the release integrator takes it into the next release (no app change; the
+  release still needs its own updateHistory row).
