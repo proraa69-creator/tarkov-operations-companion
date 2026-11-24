@@ -1074,6 +1074,7 @@
 "Choose map": "マップを選択",
 "Choose screenshots folder": "スクリーンショットフォルダーを選択",
 "Choose the key from the list": "リストから鍵を選択してください",
+"Choose the language your game runs in: the app reads tasks, traders, items and exits in it. English by default; Russian and English are read alike.": "ゲームを起動している言語を選んでください。アプリはその言語でタスク、トレーダー、アイテム、脱出地点を読み取ります。既定は英語で、ロシア語と英語は同じように読み取られます。",
 "Choose the point icon.": "ポイントのアイコンを選択してください。",
 "Choose the regions and the payment": "地域と支払い方法を選択",
 "Choose the task the point belongs to": "ポイントが属するタスクを選択",

@@ -11,7 +11,7 @@ import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import { comboMouseHotkey, HOTKEYS, hotkeyCode, hotkeyLabel, isHoldKey, isKnownHotkey, keyLabel, modifierOfCode, mouseHotkey, parseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
 import { PresetKeyRows } from '../screen/ScreenRaidPanel'
-import { GAME_LANGUAGE_SETTINGS, isGameLanguageSetting, type GameLanguage, type GameLanguageSetting } from '../import/gameLanguage'
+import { GAME_LANGUAGE_SETTINGS, isGameLanguageSetting, resolveGameLanguage, type GameLanguageSetting } from '../import/gameLanguage'
 import { noteGameLanguage } from '../data/gameNamesLoader'
 import './raidToolsSettings.css'
 import '../styles/playerMarker.css'
@@ -30,7 +30,7 @@ export const TRACKING_OFF_FOR_ALL = 'Местоположение по скри�
 const EXCLUSIVE_NOTE = 'Игра сейчас в эксклюзивном полноэкранном режиме: так она скрыта от чтения экрана, и предмет не распознаётся. Поставьте в настройках графики режим «Безрамочный».'
 
 /** The game's languages by their own names (shown as they are, in every interface language). */
-const GAME_LANGUAGE_NAMES: Record<GameLanguage, string> = { ru: 'Русский', en: 'English', de: 'Deutsch', ja: '日本語', zh: '简体中文' }
+const GAME_LANGUAGE_NAMES: Record<GameLanguageSetting, string> = { ru: 'Русский', en: 'English', de: 'Deutsch', ja: '日本語', zh: '简体中文' }
 
 const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: string }> = [
   { id: 'arrow', label: 'Стрелка' },
@@ -160,12 +160,11 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
               {/* «Настройка экрана»: on/off and the next preset (owner, 28.10.2026: «клавиши сюда добавь»). */}
               <PresetKeyRows />
               <GameLanguageRow
-                value={settings?.gameLanguage ?? 'auto'}
-                detected={status?.gameLanguage?.detected ?? null}
+                value={resolveGameLanguage(settings?.gameLanguage)}
                 onChange={(gameLanguage) => {
                   update({ gameLanguage })
                   // The names of the language chosen load at once (src/data/gameNamesLoader.ts).
-                  noteGameLanguage(gameLanguage === 'auto' ? status?.gameLanguage?.detected ?? null : gameLanguage)
+                  noteGameLanguage(gameLanguage)
                 }}
               />
             </div>
@@ -208,18 +207,17 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
 
 /**
  * «Язык игры» (24.11.2026): the language the app reads the game's screens in — the Tasks table, the traders, the item
- * card, the flea, the exit list, the Kappa scan (src/import/gameLanguage.ts). «Определять сам» takes the game's own
- * setting (its Game.ini), shown beside it; a language picked here wins over it.
+ * card, the flea, the exit list, the Kappa scan (src/import/gameLanguage.ts). The player picks it; English by default
+ * (owner: «Пользователь сам выберет язык. Стандартный язык английский»); Russian and English are read alike.
  */
-function GameLanguageRow({ value, detected, onChange }: { value: GameLanguageSetting; detected: GameLanguage | null; onChange: (value: GameLanguageSetting) => void }) {
-  const auto = `${uiText('Определять сам')}${detected ? ` (${GAME_LANGUAGE_NAMES[detected]})` : ''}`
+function GameLanguageRow({ value, onChange }: { value: GameLanguageSetting; onChange: (value: GameLanguageSetting) => void }) {
   return (
     <div className="setting-row">
       <span>
         <strong>{uiText('Язык игры')}<SettingHelp id="gameLanguage" /></strong>
       </span>
       <select className="select" value={value} aria-label={uiText('Язык игры')} onChange={(event) => { if (isGameLanguageSetting(event.target.value)) onChange(event.target.value) }}>
-        {GAME_LANGUAGE_SETTINGS.map((option) => <option key={option} value={option}>{option === 'auto' ? auto : GAME_LANGUAGE_NAMES[option]}</option>)}
+        {GAME_LANGUAGE_SETTINGS.map((option) => <option key={option} value={option}>{GAME_LANGUAGE_NAMES[option]}</option>)}
       </select>
     </div>
   )

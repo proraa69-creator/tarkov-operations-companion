@@ -145,7 +145,7 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
   let freshGame: boolean | undefined
   let gameSince: number | undefined
   const identity = context.identity === true
-  // The game's language (its Game.ini or the player's choice): the engine, the words and the names of this look.
+  // The game's language (the player's choice in «Язык игры»): the engine, the words and the names of this look.
   const { language, model } = await gameLanguageNow()
   const reading: Reading = { language, model }
   if (watch && process.platform === 'win32') {

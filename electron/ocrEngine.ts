@@ -5,8 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
 import type { OcrWordBox } from '../src/import/storyPaneLayout.js'
-import { ocrModelFiles } from '../src/import/gameLanguage.js'
-import { createGameLanguageReader, gameSettingsFile } from './gameLanguage.js'
+import { ocrModel, ocrModelFiles, resolveGameLanguage } from '../src/import/gameLanguage.js'
 import { readSettings } from './experimental/settings.js'
 
 /** Tesseract (tesseract.js) for the quest scanner, the item card and the Collector scan. */
@@ -75,15 +74,13 @@ async function ensureLanguageData(directory: string, files: string[]) {
 }
 
 /**
- * The game's language for every reader (electron/gameLanguage.ts): the player's choice in «Язык игры», else the game's own
- * settings file. Each engine is made for the language's models and made again when the language changes.
+ * The game's language for every reader: the player's choice in «Язык игры» (English by default). Nothing of the game is
+ * read for it. Each engine is made for the language's models and made again when the choice changes.
  */
-const gameLanguage = createGameLanguageReader(
-  () => gameSettingsFile(app.getPath('appData')),
-  () => readSettings().gameLanguage,
-)
-
-export const gameLanguageNow = (fresh = false) => gameLanguage.current(fresh)
+export async function gameLanguageNow(_fresh = false) {
+  const setting = resolveGameLanguage(readSettings().gameLanguage)
+  return { setting, language: setting, model: ocrModel(setting) }
+}
 
 /**
  * One OCR engine of a reader, for the game's language: `make(model)` starts one; `get()` gives the engine of the language

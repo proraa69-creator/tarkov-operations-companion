@@ -36,7 +36,6 @@ export const NO_OVERLAY_PHRASES: Array<[string, string]> = [
   ['Не удалось проверить состояние функций.', 'Could not check the features’ state.'],
   ['Клавиши', 'Keys'],
   ['Язык игры', 'Game language'],
-  ['Определять сам', 'Detect automatically'],
   ['Клавиша информации о предмете', 'Item info key'],
   ['Наведите курсор на предмет в игре и нажмите клавишу: цена на барахолке и у выгодного торговца, для каких квестов он нужен и нужен ли для Каппы, появится на «Картах» под кнопкой «Вид» и в телефоне.', 'Hover an item in the game and press the key: the flea and best trader price, the quests that need it and whether Kappa needs it appear on “Maps” under the “View” button and on your phone.'],
   ['Местоположение на карте', 'Position on the map'],

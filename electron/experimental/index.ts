@@ -200,8 +200,8 @@ function registerIpc() {
     lastPosition: freshPosition(),
     raid: options.raidState(),
     displayMode,
-    // The game's language for the screen readers (electron/gameLanguage.ts): its settings file read again now.
-    gameLanguage: await gameLanguageNow(true).then(({ setting, detected, language }) => ({ setting, detected, language })).catch(() => undefined),
+    // The game's language for the screen readers: the player's choice in «Язык игры».
+    gameLanguage: await gameLanguageNow().then(({ setting, language }) => ({ setting, language })).catch(() => undefined),
   }))
   ipcMain.handle('experimental:answer', (_event, id: unknown, payload: unknown) => {
     const resolve = pending.get(Number(id))

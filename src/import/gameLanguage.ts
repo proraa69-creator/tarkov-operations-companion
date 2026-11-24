@@ -1,55 +1,32 @@
 /**
- * The language the game itself runs in (not the app's): the screen readers read its words and names. Russian and English
- * are read as before (one engine for both); German, Japanese and Simplified Chinese each with their own model beside the
- * English one, since the game keeps many English words in those languages (map names, «EXFIL», the traders).
+ * The language the game itself runs in (not the app's): the screen readers read its words and names. The player picks it
+ * in the app's settings («Язык игры»); the app never looks into the game or its files for it (owner, 24.11.2026: «нам в
+ * игру нельзя внедряться … Пользователь сам выберет язык. Стандартный язык английский»).
  *
- * The game keeps its choice in %APPDATA%\Battlestate Games\Escape from Tarkov\Settings\Game.ini (JSON, "Language") with
- * its own codes: «ge» German, «jp» Japanese, «ch» Chinese. Any other language the game has (French, Polish…) is read with
- * the English words and models: its menus share their Latin letters, and its names are not known to the app.
+ * Russian and English are read as before, with one engine for both, so a Russian game keeps working under the default
+ * «English»; German, Japanese and Simplified Chinese each get their own model beside the English one, since the game
+ * keeps many English words in those languages (map names, «EXFIL», the traders).
  */
-export type GameLanguage = 'ru' | 'en' | 'de' | 'ja' | 'zh'
-/** The player's choice in the app's settings: the game's own language, or one picked by hand. */
-export type GameLanguageSetting = 'auto' | GameLanguage
+export type GameLanguage = 'en' | 'ru' | 'de' | 'ja' | 'zh'
+/** The player's choice in the app's settings. */
+export type GameLanguageSetting = GameLanguage
 /** The game languages beyond Russian and English: their words and names are added to the Russian and English ones. */
 export type ExtraGameLanguage = Exclude<GameLanguage, 'ru' | 'en'>
 
-export const GAME_LANGUAGES: readonly GameLanguage[] = ['ru', 'en', 'de', 'ja', 'zh']
-export const GAME_LANGUAGE_SETTINGS: readonly GameLanguageSetting[] = ['auto', ...GAME_LANGUAGES]
-
-/** The game's own codes in Game.ini. */
-const GAME_CODES: Record<string, GameLanguage> = { ru: 'ru', en: 'en', ge: 'de', de: 'de', jp: 'ja', ja: 'ja', ch: 'zh', zh: 'zh', cn: 'zh' }
+/** In the order of the settings' list: English first, the default. */
+export const GAME_LANGUAGES: readonly GameLanguage[] = ['en', 'ru', 'de', 'ja', 'zh']
+export const GAME_LANGUAGE_SETTINGS: readonly GameLanguageSetting[] = GAME_LANGUAGES
+export const DEFAULT_GAME_LANGUAGE: GameLanguage = 'en'
 
 export function isGameLanguage(value: unknown): value is GameLanguage {
   return typeof value === 'string' && (GAME_LANGUAGES as readonly string[]).includes(value)
 }
 
-export function isGameLanguageSetting(value: unknown): value is GameLanguageSetting {
-  return typeof value === 'string' && (GAME_LANGUAGE_SETTINGS as readonly string[]).includes(value)
-}
+export const isGameLanguageSetting = isGameLanguage
 
-/** The game's language code («ge», «jp», «ch», «fr»…) as a language the app reads: an unknown one counts as English. */
-export function gameLanguageFromCode(code: string): GameLanguage | null {
-  const value = code.trim().toLowerCase()
-  if (!value) return null
-  return GAME_CODES[value] ?? 'en'
-}
-
-/** "Language" of the game's Game.ini (JSON; a damaged file is searched for the key alone); null when it names none. */
-export function parseGameIniLanguage(text: string): GameLanguage | null {
-  const body = text.replace(/^\uFEFF/, '')
-  let code: unknown
-  try {
-    code = (JSON.parse(body) as Record<string, unknown>).Language
-  } catch {
-    code = /"Language"\s*:\s*"([^"]*)"/.exec(body)?.[1]
-  }
-  return typeof code === 'string' ? gameLanguageFromCode(code) : null
-}
-
-/** The language the readers use: the player's choice, else the game's own, else Russian (the reading as it always was). */
-export function resolveGameLanguage(setting: GameLanguageSetting | undefined, detected: GameLanguage | null): GameLanguage {
-  if (setting && setting !== 'auto') return setting
-  return detected ?? 'ru'
+/** The language the readers use: the player's choice, else English (a setting from before, «auto», counts as none). */
+export function resolveGameLanguage(setting: unknown): GameLanguage {
+  return isGameLanguage(setting) ? setting : DEFAULT_GAME_LANGUAGE
 }
 
 /** German, Japanese or Chinese; null for Russian and English (read as before). */

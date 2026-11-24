@@ -1,34 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { extraGameLanguage, gameLanguageFromCode, ocrModel, ocrModelFiles, parseGameIniLanguage, resolveGameLanguage } from './gameLanguage'
+import { extraGameLanguage, ocrModel, ocrModelFiles, resolveGameLanguage } from './gameLanguage'
 import { gameWordPattern, languageWords, umlautForms } from './gameWordPatterns'
 import { GAME_WORDS } from './gameWords'
 
 describe('the game language', () => {
-  it('is read from the game\'s Game.ini with the game\'s own codes', () => {
-    const ini = (language: string) => JSON.stringify({ Version: 1, Language: language, FieldOfView: 66 }, null, 2)
-    expect(parseGameIniLanguage(ini('ru'))).toBe('ru')
-    expect(parseGameIniLanguage(ini('en'))).toBe('en')
-    expect(parseGameIniLanguage(ini('ge'))).toBe('de')
-    expect(parseGameIniLanguage(ini('jp'))).toBe('ja')
-    expect(parseGameIniLanguage(ini('ch'))).toBe('zh')
-    // Any other language of the game is read with the English words and models.
-    expect(parseGameIniLanguage(ini('fr'))).toBe('en')
-    expect(parseGameIniLanguage(ini('po'))).toBe('en')
-  })
-
-  it('survives a byte order mark, a damaged file and a file without the key', () => {
-    expect(parseGameIniLanguage(`\uFEFF${JSON.stringify({ Language: 'ge' })}`)).toBe('de')
-    expect(parseGameIniLanguage('{ "Version": 1, "Language": "jp", "Broken": ')).toBe('ja')
-    expect(parseGameIniLanguage(JSON.stringify({ Version: 1 }))).toBeNull()
-    expect(parseGameIniLanguage('')).toBeNull()
-    expect(gameLanguageFromCode('  ')).toBeNull()
-  })
-
-  it('takes the player\'s choice over the game\'s, and reads as before without either', () => {
-    expect(resolveGameLanguage('auto', 'zh')).toBe('zh')
-    expect(resolveGameLanguage('de', 'zh')).toBe('de')
-    expect(resolveGameLanguage('auto', null)).toBe('ru')
-    expect(resolveGameLanguage(undefined, null)).toBe('ru')
+  it('is the player\'s choice, English by default; nothing is read from the game (owner, 24.11.2026)', () => {
+    expect(resolveGameLanguage('de')).toBe('de')
+    expect(resolveGameLanguage('zh')).toBe('zh')
+    expect(resolveGameLanguage('ru')).toBe('ru')
+    expect(resolveGameLanguage(undefined)).toBe('en')
+    // A setting from before («auto», when the game's file was read) or anything else: English.
+    expect(resolveGameLanguage('auto')).toBe('en')
+    expect(resolveGameLanguage('fr')).toBe('en')
   })
 
   it('reads Russian and English with one engine as before, the others with their model and the English one', () => {

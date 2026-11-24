@@ -9783,3 +9783,8 @@ Not pushed, not released, nothing uploaded.
 - Test build: `Raid OS тест Языки 1.exe` on the desktop (owner build, TEST_BUILD). Not released.
 - Open: the readers on real game screenshots in de/ja/zh (being taken from SPT); the story pane in de/ja/zh needs the live game
   1.x words (SPT 0.16.9 has no story); the site's trailers in ZH/JA (new trailer in the works, owner reviews first).
+- Correction (owner, 24.11.2026: «нам не нужно, чтобы приложение само брало из игры. Нам в игру нельзя внедряться …
+  Пользователь сам выберет язык. Стандартный язык английский»): the game's Game.ini is no longer read at all
+  (electron/gameLanguage.ts removed). «Язык игры» is the player's choice: English (default) / Русский / Deutsch / 日本語 /
+  简体中文; English and Russian are read alike (rus+eng, as before), so Russian players need not change it; an «auto» saved by
+  the test build counts as English.

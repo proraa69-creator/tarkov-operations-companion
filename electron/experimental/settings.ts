@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { DEFAULT_ITEM_KEY, isKnownHotkey } from '../../src/overlay/hotkeys.js'
-import { isGameLanguageSetting, type GameLanguageSetting } from '../../src/import/gameLanguage.js'
+import { DEFAULT_GAME_LANGUAGE, resolveGameLanguage, type GameLanguageSetting } from '../../src/import/gameLanguage.js'
 
 /**
  * The settings of the game-related functions (the item key, the Collector scan key, the position from the game's
@@ -36,8 +36,8 @@ export interface ExperimentalSettings {
    */
   minimapOff: boolean
   /**
-   * «Язык игры»: the language the screen readers read the game in — its own (`auto`, from the game's Game.ini) or one
-   * picked by hand (src/import/gameLanguage.ts). Of this computer only: another PC of the account may run another game.
+   * «Язык игры»: the language the screen readers read the game in, picked by the player (src/import/gameLanguage.ts);
+   * English by default. Of this computer only: another PC of the account may run another game.
    */
   gameLanguage: GameLanguageSetting
 }
@@ -54,7 +54,7 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   playerMarker: 'arrow',
   screenshotsDir: '',
   minimapOff: false,
-  gameLanguage: 'auto',
+  gameLanguage: DEFAULT_GAME_LANGUAGE,
 }
 
 /**
@@ -120,6 +120,6 @@ export function sanitize(raw: unknown): ExperimentalSettings {
     screenshotsDir: typeof value.screenshotsDir === 'string' ? value.screenshotsDir.slice(0, 500) : '',
     // Only the owner turns the position off now (see trackingOn): a player's earlier «выключено» is dropped.
     minimapOff: false,
-    gameLanguage: isGameLanguageSetting(value.gameLanguage) ? value.gameLanguage : 'auto',
+    gameLanguage: resolveGameLanguage(value.gameLanguage),
   }
 }
