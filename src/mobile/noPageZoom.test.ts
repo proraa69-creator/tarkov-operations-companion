@@ -12,6 +12,7 @@ describe('installNoPageZoom', () => {
     expect(document.querySelector<HTMLMetaElement>('meta[name="viewport"]')?.content).toBe(NO_ZOOM_VIEWPORT)
     expect(NO_ZOOM_VIEWPORT).toContain('user-scalable=no')
     expect(NO_ZOOM_VIEWPORT).toContain('viewport-fit=cover')
+    expect(NO_ZOOM_VIEWPORT).toContain('minimum-scale=1')
     expect(document.documentElement.hasAttribute('data-no-zoom')).toBe(true)
     const pinch = new Event('gesturestart', { cancelable: true })
     document.dispatchEvent(pinch)

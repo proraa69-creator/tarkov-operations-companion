@@ -4,6 +4,7 @@ import { RangeScene, type SceneProps } from './RangeTarget'
 import { fovMrad, holdBarHalfCm, mradToCm, reticleAt, tickAt, type ScopeMode } from './rangeScope'
 import { swayAt, useSwayTime } from './rangeSway'
 import { RangeTracer, type Tracer } from './RangeTracer'
+import { fixedZooms } from './rangeTouchZoom'
 
 /**
  * The target seen through a scope (owner, 22.11.2026: «в режиме прицела… выставлять персонажей на дистанции… я поставил 600
@@ -18,19 +19,23 @@ import { RangeTracer, type Tracer } from './RangeTracer'
  * только либо 1, либо 6, то меняется кратность… резко. Если… плавно, то… плавно роликом»): a variable mode turns smoothly, a
  * scope of fixed magnifications steps to the next one; in the scope the page under it never scrolls.
  *
- * On a phone, full screen (owner, 24.11.2026: «Джойстик… лево-право водить и кнопка огня… Джойстик слева, огонь справа»): the
- * stick turns the view at a speed by how far it is pushed, the fire button fires at the reticle (`handle`).
+ * On a phone, full screen (owner, 24.11.2026: «В прицеле нужно сделать не джойстик а левую часть экрана для наведения, сделай более
+ * плавнее управление»): a finger drawn over the left half turns the view by as much as it moves, eased over a few frames, the fire
+ * button fires at the reticle (`handle`). «Войти в прицел» on a phone opens that full screen (`onEnter`; owner, 24.11.2026: «При
+ * нажатии войти в прицел, в вертикальном положении прицел не включается»: the mouse the button took on a computer is not there).
  */
 export interface ScopeHandle {
-  /** The stick, −1…1 to the right and up; 0, 0: still. */
-  stick(x: number, y: number): void
+  /** The finger's way over the screen, the picture's pixels to the right and down. */
+  look(dx: number, dy: number): void
   fireStart(): void
   fireEnd(): void
 }
-/** The stick pushed all the way turns the view by this share of its width a second. */
-const STICK_SPEED = 0.7
+/** A finger's pixel turns the view by this share of a pixel of the scope's picture: a little finer than the finger. */
+const LOOK_SENSITIVITY = 0.85
+/** The view follows the finger with this time constant, seconds: smooth, never behind by more than a few frames. */
+const LOOK_EASE = 0.045
 
-export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, irons, collimator, housingUrl, tracer, onFireStart, onFireEnd, onAim, lang, handle, touch }: {
+export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode, zoom, onZoom, reticleUrls, boreCm, viewCm, dropCm, swayCm, irons, collimator, housingUrl, tracer, onFireStart, onFireEnd, onAim, lang, handle, touch, onEnter, startAim }: {
   scene: SceneProps
   distance: number
   mode: ScopeMode
@@ -66,13 +71,17 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   /** Where the reticle's centre is on the target's plane (figure centimetres, without the recoil). */
   onAim: (point: { x: number; y: number }) => void
   lang: 'ru' | 'en'
-  /** The stick and the fire button of the phone's full screen. */
+  /** The finger and the fire button of the phone's full screen. */
   handle?: Ref<ScopeHandle>
-  /** Driven by the stick and the fire button: no «Войти в прицел», no mouse hints. */
+  /** Driven by the finger and the fire button: no «Войти в прицел», no mouse hints. */
   touch?: boolean
+  /** «Войти в прицел» does this instead of taking the mouse (the phone's full screen). */
+  onEnter?: () => void
+  /** Where the reticle starts (the full screen opens a view of its own). */
+  startAim?: { x: number; y: number }
 }) {
   const box = useRef<HTMLDivElement>(null)
-  const [aim, setAim] = useState({ x: 0, y: 130 })
+  const [aim, setAim] = useState(() => startAim ?? { x: 0, y: 130 })
   /** In the scope: the mouse taken ('locked'), or turning the view as the cursor moves over it ('free'). */
   const [inside, setInside] = useState<'locked' | 'free' | null>(null)
   const locked = inside !== null
@@ -98,26 +107,31 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
   useEffect(() => { fireEndRef.current = onFireEnd }, [onFireEnd])
   const fireStartRef = useRef(onFireStart)
   useEffect(() => { fireStartRef.current = onFireStart }, [onFireStart])
-  // the stick: the view turns while it is pushed, faster the further, slow near the middle for fine aiming
+  // the finger: its way turned into the target's centimetres at the magnification now, the view easing after it frame by frame
   const fovRef = useRef(fovCm)
   useEffect(() => { fovRef.current = fovCm }, [fovCm])
-  const stickRef = useRef({ x: 0, y: 0, frame: 0, last: 0 })
-  useEffect(() => () => cancelAnimationFrame(stickRef.current.frame), [])
+  const lookRef = useRef({ x: 0, y: 0, frame: 0, last: 0 })
+  useEffect(() => () => cancelAnimationFrame(lookRef.current.frame), [])
   useImperativeHandle(handle, () => ({
-    stick(x, y) {
-      const state = stickRef.current
-      state.x = x
-      state.y = y
-      if (state.frame || (!x && !y)) return
+    look(dx, dy) {
+      const state = lookRef.current
+      const perPixel = fovRef.current / (box.current?.clientWidth || 300) * LOOK_SENSITIVITY
+      state.x += dx * perPixel
+      state.y -= dy * perPixel
+      if (state.frame) return
       state.last = performance.now()
       const step = (now: number) => {
         const seconds = Math.min(0.05, Math.max(0, (now - state.last) / 1000))
         state.last = now
-        if (!state.x && !state.y) { state.frame = 0; return }
-        const speed = fovRef.current * STICK_SPEED * seconds
-        const curve = (value: number) => Math.sign(value) * value * value
-        setAim((current) => ({ x: current.x + curve(state.x) * speed, y: current.y + curve(state.y) * speed }))
-        state.frame = requestAnimationFrame(step)
+        // the rest is too small to see: put it on and stop
+        const done = Math.hypot(state.x, state.y) < fovRef.current * 2e-4
+        const share = done ? 1 : 1 - Math.exp(-seconds / LOOK_EASE)
+        const x = state.x * share
+        const y = state.y * share
+        state.x -= x
+        state.y -= y
+        if (x || y) setAim((current) => ({ x: current.x + x, y: current.y + y }))
+        state.frame = done ? 0 : requestAnimationFrame(step)
       }
       state.frame = requestAnimationFrame(step)
     },
@@ -193,6 +207,7 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
     else setInside(null)
   }
   const enter = () => {
+    if (onEnter) { onEnter(); return }
     const element = box.current
     if (!element?.requestPointerLock) { setInside('free'); return }
     try {
@@ -256,9 +271,7 @@ export function RangeScopeView({ scene, distance, mode, modes, modeIndex, onMode
 function nextFixedMode(modes: ScopeMode[], index: number, up: boolean): number | undefined {
   const current = modes[index]?.zoom
   if (current === undefined || modes.length < 2) return undefined
-  const firsts = new Map<number, number>()
-  modes.forEach((entry, at) => { if (!firsts.has(entry.zoom)) firsts.set(entry.zoom, at) })
-  const zooms = [...firsts.keys()].sort((a, b) => a - b)
-  const next = zooms[zooms.indexOf(current) + (up ? 1 : -1)]
-  return next === undefined ? undefined : firsts.get(next)
+  const zooms = fixedZooms(modes)
+  const at = zooms.findIndex((entry) => entry.zoom === current)
+  return at < 0 ? undefined : zooms[at + (up ? 1 : -1)]?.index
 }

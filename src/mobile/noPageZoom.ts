@@ -5,7 +5,8 @@
  * Android WebView then drop double-tap and pinch zoom of the page and the zoom-in on a focused input — and Safari's
  * pinch gesture events are cancelled. The map keeps its own pinch zoom: Leaflet reads the touches itself.
  */
-export const NO_ZOOM_VIEWPORT = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
+// minimum-scale too: a box wider than the screen for a moment (a picture turned on its side) never zooms the page out to fit it
+export const NO_ZOOM_VIEWPORT = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
 
 const cancel = (event: Event) => event.preventDefault()
 
