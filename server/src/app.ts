@@ -325,7 +325,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
     taken: (accountId, id, kind, topic) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind, topic)) },
-    done: (accountId, id, kind, topic) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind, topic)) },
+    done: (accountId, id, kind, topic, live) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind, topic, live)) },
   }
   // «Отчёты» → «Аккаунты Таркова» (routes/eftCases.ts).
   app.use(createEftCasesRouter(accounts, { audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) }, changed: () => reportSignals.changed() }))

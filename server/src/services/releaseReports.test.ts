@@ -74,8 +74,9 @@ test('a report in work closes with its release, and its author is told once', as
     // Exactly what «Готово» makes of it: the list, the old status, the author's window, the audit, the owner's table.
     for (const id of [bug, idea]) assert.deepEqual([(await t.report(id)).work.status, (await t.report(id)).status], ['implemented', 'closed'])
     const windows = await t.notices()
-    assert.deepEqual(windows.map((notice) => notice.title), [`Отчёт №${bug} принят в работу`, `Предложение №${idea} принято в работу`, `Ваш отчёт №${bug} выполнен`, `Ваше предложение №${idea} добавлено`])
-    assert.deepEqual([windows[2]!.titleEn, windows[2]!.text], [`Your report №${bug} has been resolved`, '«Карта». Спасибо!'])
+    // The release is out: ready now, not «в следующем обновлении».
+    assert.deepEqual(windows.map((notice) => notice.title), [`Отчёт №${bug} принят в работу`, `Предложение №${idea} принято в работу`, `Ваша заявка №${bug} готова`, `Ваша заявка №${idea} готова`])
+    assert.deepEqual([windows[2]!.titleEn, windows[2]!.text], [`Your request №${bug} is ready`, '«Карта». Спасибо!'])
     assert.deepEqual(await t.notices(t.owner), [])
     const audit = t.db.prepare("SELECT actor, target, details FROM owner_audit_log WHERE action = 'bug.work' AND actor LIKE 'Выпуск%' ORDER BY id").all() as Array<{ actor: string; target: string; details: string }>
     assert.deepEqual(audit.map((line) => [line.actor, line.target, JSON.parse(line.details)]), [bug, idea].map((id) => ['Выпуск 0.6.0.272', String(id), { action: 'implemented', status: 'implemented' }]))
@@ -105,7 +106,7 @@ test('a failed window never undoes the change, and a report without an account s
     await job.check()
     assert.equal(await job.check(), 0)
     assert.deepEqual([await t.status(failing), await t.status(gone)], ['implemented', 'implemented'])
-    assert.equal((await t.told()).filter((title) => title.includes('выполнен')).length, 0)
+    assert.equal((await t.told()).filter((title) => title.includes('готова')).length, 0)
   } finally { await t.close() }
 })
 
@@ -144,7 +145,7 @@ test('a new start changes nothing: no second window, and a report taken again st
     await later.check()
     assert.equal(await later.check(), 0)
     assert.equal(await t.status(id), 'implemented')
-    assert.equal((await t.told()).at(-1), `Ваш отчёт №${id} выполнен`)
+    assert.equal((await t.told()).at(-1), `Ваша заявка №${id} готова`)
     assert.equal((await t.told()).length, 4)
   } finally { await t.close() }
 })

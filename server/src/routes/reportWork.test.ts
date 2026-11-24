@@ -101,7 +101,7 @@ test('an owner\'s action is written to the audit log', async () => {
   }
 })
 
-test('«Готово» on an idea says it was added; it says so to its author only', async () => {
+test('«Готово» on an idea says it comes with the next update; it says so to its author only', async () => {
   const t = await setup()
   try {
     const id = await t.send({ kind: 'idea', topic: 'Тёмная тема', description: 'Хочу темнее' })
@@ -109,8 +109,9 @@ test('«Готово» on an idea says it was added; it says so to its author on
     assert.equal((await work('take')).status, 200)
     assert.equal((await work('implemented')).status, 200)
     const told = (await t.call<{ notices: Array<{ title: string; titleEn?: string }> }>('GET', '/me/notices', t.player)).json.notices
-    assert.deepEqual(told.map((notice) => notice.title), [`Предложение №${id} принято в работу`, `Ваше предложение №${id} добавлено`])
-    assert.equal(told[1]!.titleEn, `Your idea №${id} has been added`)
+    // owner, 25.11.2026: «По нажатию „Готово“ пиши, что ваша заявка будет готова в следующем обновлении»
+    assert.deepEqual(told.map((notice) => notice.title), [`Предложение №${id} принято в работу`, `Ваша заявка №${id} будет готова в следующем обновлении`])
+    assert.equal(told[1]!.titleEn, `Your request №${id} will be ready in the next update`)
     assert.deepEqual((await t.call<{ notices: unknown[] }>('GET', '/me/notices', t.owner)).json.notices, [])
   } finally { await t.close() }
 })
@@ -148,12 +149,46 @@ test('the owner works a report himself: «Взял в работу», «Гото
     assert.deepEqual(await lists(), [0, 0, 1])
     // «Готово»: its author hears of that too (owner, 06.11.2026).
     const told = await t.call<{ notices: Array<{ title: string; titleEn?: string }> }>('GET', '/me/notices', t.player)
-    assert.deepEqual([told.json.notices.at(-1)!.title, told.json.notices.at(-1)!.titleEn], [`Ваш отчёт №${id} выполнен`, `Your report №${id} has been resolved`])
+    assert.deepEqual([told.json.notices.at(-1)!.title, told.json.notices.at(-1)!.titleEn], [`Ваша заявка №${id} будет готова в следующем обновлении`, `Your request №${id} will be ready in the next update`])
     const closed = await table('closed')
     assert.deepEqual([closed.rows[0]!.work.status, closed.rows[0]!.status], ['implemented', 'closed'])
     assert.equal((await work({ action: 'take' })).status, 409, 'closed: only back to the active list first')
     assert.equal((await work({ action: 'reopen' })).status, 200)
     assert.deepEqual(await lists(), [1, 0, 0])
+  } finally { await t.close() }
+})
+
+// owner, 25.11.2026: «По ошибкам кнопка „Разъяснить“… И заявка закрывается. Ему никакие уведомления поэтому не приходят. По отмене
+// заявки тоже уведомления не приходят человеку. Уведомления приходят только: взял в работу и готово.»
+test('«Разъяснить» closes a bug without a word, an idea has no such button; «Отклонить» and the rest say nothing either', async () => {
+  const t = await setup()
+  try {
+    const bug = await t.send({ kind: 'bug', topic: 'Не вижу квест', description: 'Пропал' })
+    const taken = await t.send({ kind: 'bug', topic: 'Цены старые', description: 'Не те' })
+    const idea = await t.send({ kind: 'idea', topic: 'Тёмная тема', description: 'Хочу темнее' })
+    const other = await t.send({ kind: 'idea', topic: 'Звук', description: 'Громче' })
+    const work = (id: number, action: string) => t.call<{ report: { work: { status: string }; status: string } }>('POST', `/accounts/me/admin/bug-reports/${id}/work`, t.owner, { action })
+    const titles = async () => (await t.call<{ notices: Array<{ title: string }> }>('GET', '/me/notices', t.player)).json.notices.map((notice) => notice.title)
+
+    const explained = await work(bug, 'explain')
+    assert.equal(explained.status, 200)
+    assert.deepEqual([explained.json.report.work.status, explained.json.report.status], ['explained', 'closed'])
+    assert.equal((await work(idea, 'explain')).status, 409, 'an idea is not explained')
+    assert.equal(t.agent.get(idea)!.work.status, 'review')
+    assert.equal((await work(idea, 'already')).status, 200)
+    assert.equal((await work(other, 'reject')).status, 200)
+    assert.deepEqual(await titles(), [], 'nothing reaches the player')
+
+    // Taken first, then found not to be a bug: only «Взял в работу» was told.
+    assert.equal((await work(taken, 'take')).status, 200)
+    assert.equal((await work(taken, 'explain')).status, 200)
+    assert.deepEqual(await titles(), [`Отчёт №${taken} принят в работу`])
+    // Back to the active list and closed again: still nothing.
+    assert.equal((await work(bug, 'reopen')).status, 200)
+    assert.equal((await work(bug, 'reject')).status, 200)
+    assert.deepEqual(await titles(), [`Отчёт №${taken} принят в работу`])
+    const closed = (await t.call<{ rows: Row[]; counts: Record<string, number> }>('GET', '/accounts/me/admin/bug-reports/table?view=closed', t.owner)).json
+    assert.deepEqual(closed.rows.map((row) => [row.id, row.work.status]), [[other, 'rejected'], [idea, 'already'], [taken, 'explained'], [bug, 'rejected']])
   } finally { await t.close() }
 })
 

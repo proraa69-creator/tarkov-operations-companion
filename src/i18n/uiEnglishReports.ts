@@ -57,6 +57,8 @@ export const REPORTS_TABLE_PHRASES: Array<[string, string]> = [
   ['Уже реализовано', 'Already implemented'],
   ['Отдать в работу', 'Give to work'],
   ['Отклонить', 'Decline'],
+  ['Разъяснить', 'Explain'],
+  ['Разъяснено', 'Explained'],
   ['Вернуть на проверку', 'Back to check'],
   ['Точка применена, отчёты закрыты', 'Point applied, reports closed'],
   ['Новый отчёт', 'New report'],

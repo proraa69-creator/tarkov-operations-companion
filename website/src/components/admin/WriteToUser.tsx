@@ -26,8 +26,14 @@ export function WriteToUser({ accountId, email, small = true }: { accountId: str
   </>
 }
 
-function WriteDialog({ accountId, email, onClose }: { accountId: string; email: string; onClose: () => void }) {
+/**
+ * The conversation with one player. `report` («Разъяснить» in «Отчёты», owner 25.11.2026: «открывается окно в чате с ним и ответ
+ * на его сообщение»): the first message answers that report — «Ответ на заявку №N» above it, for the player too
+ * (`reportId`, server/src/routes/supportChat.ts); «×» drops it and the message goes as a plain one.
+ */
+export function WriteDialog({ accountId, email, report, onClose }: { accountId: string; email: string; report?: { id: number; title: string }; onClose: () => void }) {
   const { token } = useAuth()
+  const [about, setAbout] = useState(report)
   const titleId = useId()
   const [messages, setMessages] = useState<ChatMessage[] | null>(null)
   const [text, setText] = useState('')
@@ -51,9 +57,10 @@ function WriteDialog({ accountId, email, onClose }: { accountId: string; email: 
     setBusy(true)
     setError('')
     try {
-      const answer = await ownerCall<{ message?: ChatMessage }>(token, 'POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, { text })
+      const answer = await ownerCall<{ message?: ChatMessage }>(token, 'POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, { text, ...(about ? { reportId: about.id } : {}) })
       if (answer?.message) setMessages((current) => [...(current ?? []), answer.message!])
       setText('')
+      setAbout(undefined)
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
@@ -80,6 +87,11 @@ function WriteDialog({ accountId, email, onClose }: { accountId: string; email: 
             ))}
         </div>
         <form className="admin-write-form" onSubmit={(event) => void send(event)}>
+          {about && <div className="admin-write-about" role="group" aria-label="Ответ на заявку">
+            <span>Ответ на заявку №{about.id}</span>
+            <strong>{about.title}</strong>
+            <button type="button" className="icon-button" aria-label="Не отвечать на заявку" disabled={busy} onClick={() => setAbout(undefined)}><X size={14} aria-hidden="true" /></button>
+          </div>}
           <textarea ref={box} className="input" rows={3} maxLength={MAX} aria-label="Сообщение" placeholder="Сообщение игроку…" value={text} disabled={busy} onChange={(event) => setText(event.target.value)} />
           {error && <p className="field-error" role="alert" style={{ margin: 0 }}>{error}</p>}
           <div className="pay-dialog-actions">

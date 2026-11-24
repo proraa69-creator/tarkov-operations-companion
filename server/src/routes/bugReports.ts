@@ -23,8 +23,9 @@
  *   GET  /v1/accounts/me/admin/bug-reports/table?view=active|working|closed&limit&offset -> { rows, total, counts: { active, closed,
  *        awaiting }, agentSeenAt? }: «Отчёты», the owner's one table of reports and ideas (src/shared/reportWork.ts), with
  *        the texts, what Claude drew from them, the plan and the status; the newest number first
- *   POST /v1/accounts/me/admin/bug-reports/:id/work  { action: take | implemented | reject | already | reopen | approve, plan? } -> { report } the
- *        owner's buttons (audit: bug.work). «approve» is the only thing that ever gives a report to Claude, with the plan
+ *   POST /v1/accounts/me/admin/bug-reports/:id/work  { action: take | implemented | reject | already | explain | reopen | approve, plan? } -> { report } the
+ *        owner's buttons (audit: bug.work); the player hears only of `take` and `implemented`; `explain` (a bug only, 409 on an idea)
+ *        closes it as «Разъяснено» without a word, the owner answers in the support chat. «approve» is the only thing that ever gives a report to Claude, with the plan
  *        sent or the one stored; 400 without a plan, 409 when the report no longer stands where it did. The release that
  *        lists a report presses «Готово» itself (`workReport`, services/releaseReports.ts)
  *   POST /v1/accounts/me/admin/bug-reports/:id/plan  { plan }             -> { report } the owner corrects the plan
@@ -186,7 +187,8 @@ export interface ReportWorkEffects {
   audit?: BugReportAudit
   signals?: MapUpdates
   taken?: (accountId: string, id: number, kind: ReportKind, topic: string) => void
-  done?: (accountId: string, id: number, kind: ReportKind, topic: string) => void
+  /** `live`: it is with the players already (a release that lists it, a point put on the map); else it comes with the next update. */
+  done?: (accountId: string, id: number, kind: ReportKind, topic: string, live?: boolean) => void
 }
 
 /** The audit line and the waiting apps, after any change of the table. A failure here never undoes the change. */
@@ -199,13 +201,17 @@ function noteWork(effects: ReportWorkEffects, actor: string, action: string, rep
  * A button on a report, whoever presses it: the owner in «Отчёты» (the route below) or the release that implements it
  * (services/releaseReports.ts). One path, so a report closed by a release is exactly what «Готово» makes of it.
  */
-export function workReport(store: BugReportStore, effects: ReportWorkEffects, actor: string, id: number, action: ReportWorkAction, plan?: string) {
+export function workReport(store: BugReportStore, effects: ReportWorkEffects, actor: string, id: number, action: ReportWorkAction, plan?: string, released = false) {
   const report = store.ownerWork(id, action, plan)
   if (!report) return undefined
-  // «Взял в работу» and «Готово»: the player hears of it; a failed popup never undoes the change.
-  if (report.accountId && (action === 'take' || action === 'implemented')) {
-    const tell = action === 'take' ? effects.taken : effects.done
-    try { tell?.(report.accountId, report.id, report.kind, report.topic) } catch { /* the change is already saved */ }
+  // Only «Взял в работу» and «Готово» reach the player (owner, 25.11.2026: «Игрокам только должны приходить уведомления, что взято
+  // в работу и готово. Все другие уведомления им не нужны»): «Разъяснить», «Отклонить», «Уже реализовано» and «Вернуть в активные»
+  // say nothing. A failed popup never undoes the change.
+  if (report.accountId && action === 'take') {
+    try { effects.taken?.(report.accountId, report.id, report.kind, report.topic) } catch { /* the change is already saved */ }
+  }
+  if (report.accountId && action === 'implemented') {
+    try { effects.done?.(report.accountId, report.id, report.kind, report.topic, released) } catch { /* the change is already saved */ }
   }
   noteWork(effects, actor, action, report)
   return report
@@ -468,7 +474,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
       } catch { /* the account is gone or grants are off */ }
     }
     if (accepted.accountId) {
-      try { options.done?.(accepted.accountId, accepted.id, accepted.kind, accepted.topic) } catch { /* the point is already on the map */ }
+      try { options.done?.(accepted.accountId, accepted.id, accepted.kind, accepted.topic, true) } catch { /* the point is already on the map */ }
     }
     try { options.audit?.(actor, 'bug.point', String(accepted.id), { pointId: saved.id, mapId: suggest.mapId, icon: suggest.icon, days, email: accepted.email ?? null }) } catch { /* the point is already on the map */ }
     try { options.signals?.changed() } catch { /* the table catches up on its next wait */ }

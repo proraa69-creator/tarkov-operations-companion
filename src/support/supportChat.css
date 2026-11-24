@@ -171,6 +171,7 @@ button.support-chat-reaction { cursor: pointer; }
 .support-chat-replying > .icon-button { flex: none; width: 28px; height: 28px; }
 /* «Редактирование»: the owner's own message whose words are in the box. */
 .support-chat-replying.is-editing { color: var(--text); }
+.support-chat-answering { padding: 6px 10px 0; }
 /* The emoji and the stickers, between the conversation and the box. */
 .support-chat-picker {
   display: grid; gap: 2px; max-height: 196px; overflow-y: auto; overscroll-behavior: contain; padding: 6px;

@@ -9,7 +9,6 @@ import { uiText } from '../i18n/renderText'
 import { useRemoteScreen } from '../screen/screenRemote'
 import { useServerStatus } from '../sync/serverSync'
 import { TOAST_MS } from './ToastDock'
-import { addNotification } from './notificationCenter'
 import { RAID_TOAST_ARM_MS, takeRaidStart, useRaidStartNotice } from './raidStartNotice'
 import { notificationOn } from './notificationKinds'
 import { playTimerChime } from '../shared/uiSound'
@@ -18,9 +17,11 @@ import '../arsenal/arsenal.css'
 
 /**
  * «Рейд начался» (owner, 15.11.2026: «как только рейд начинается, должно всплывать уведомление в приложении… маленькое сбоку,
- * аккуратное»): the small card of the corner dock, a line in «Уведомления», and on the PC a Windows notification too (the window
- * may be behind a video; Windows' own is held back while the game is in front). Once per raid, when the raid itself begins
- * (src/import/raidState.ts `begun`), not when its loading starts. Switched off in «Настройки».
+ * аккуратное»): the small card of the corner dock and the chime, and on the PC a Windows notification too (the window may be
+ * behind a video; Windows' own is held back while the game is in front). Not a line in «Уведомления» (owner, 25.11.2026: «в
+ * уведомлениях сверху не нужно показывать… Уведомление о начале рейда только появляется снизу справа, и всё»): the bell stays
+ * dark for it. Once per raid, when the raid itself begins (src/import/raidState.ts `begun`), not when its loading starts.
+ * Switched off in «Настройки».
  */
 /** Before the game data is there (or outside its provider): no map names, the notice still comes. */
 const NO_MAPS: ReadonlyArray<{ id: string; name: string }> = []
@@ -72,7 +73,6 @@ export function RaidStartNotifier() {
     if (!on || !takeRaidStart(begun)) return
     const title = uiText('Рейд начался')
     const name = mapId ? uiText(maps.find((map) => map.id === mapId)?.name ?? '') : ''
-    addNotification({ title, text: name, ...(mapId ? { open: `/maps/${mapId}` } : {}) })
     // the sound is the app's own chime, switched in «Уведомления» → «Настроить» (owner, 18.11.2026); Windows stays silent
     if (notificationOn('raid-start-sound')) playTimerChime()
     void window.tarkovDesktop?.notify?.(title, name, undefined, true).catch(() => false)
@@ -111,8 +111,6 @@ function PhoneWatcher() {
   const mapId = raidMapId(pc?.state.raidLocation, maps)
   useEffect(() => {
     if (!takeRaidStart(begun)) return
-    const name = mapId ? uiText(maps.find((map) => map.id === mapId)?.name ?? '') : ''
-    addNotification({ title: uiText('Рейд начался'), text: name, ...(mapId ? { open: `/maps/${mapId}` } : {}) })
     if (notificationOn('raid-start-sound')) playTimerChime()
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the card comes once, when the raid has begun
     setShown({ begun: begun!, ...(mapId ? { mapId } : {}) })

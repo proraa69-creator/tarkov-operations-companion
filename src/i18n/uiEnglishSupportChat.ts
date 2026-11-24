@@ -38,6 +38,7 @@ export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Ответ игроку…', 'Reply to the player…'],
   // «Ответить» on a report and its card in the chat (owner, 04.11.2026).
   ['Ответ на заявку', 'Reply to request'],
+  ['Не отвечать на заявку', 'Not a reply to the request'],
   ['Ответить', 'Reply'],
   ['Ответ отправлен', 'Reply sent'],
   ['Отвечено', 'Answered'],

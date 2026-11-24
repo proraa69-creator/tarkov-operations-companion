@@ -111,3 +111,38 @@ describe('«Принять точку» (owner, 10.11.2026: «Добавить �
     expect(screen.getByRole('alert')).toHaveTextContent('Такая точка уже есть на карте')
   })
 })
+
+// owner, 25.11.2026: «ошибки и предложения должны быть разные кнопки. „Взял в работу“ должно быть у всех. По ошибкам кнопка „Разъяснить“»
+describe('a bug and an idea have their own buttons', () => {
+  const names = (title: string) => Array.from(screen.getByText(title).closest('tr')!.querySelectorAll('.rt-actions button')).map((button) => button.textContent)
+
+  it('active: «Взял в работу» for both, a bug «Разъяснить», an idea «Уже реализовано», both «Отклонить»; in the work a bug can still be explained', () => {
+    render(<ReportsTable page={page([
+      row({ id: 1, topic: 'Ошибка', work: { status: 'review' } }), row({ id: 2, kind: 'idea', topic: 'Идея', work: { status: 'review' } }),
+      row({ id: 3, topic: 'Ошибка в работе' }), row({ id: 4, kind: 'idea', topic: 'Идея в работе' }),
+      row({ id: 5, topic: 'Разъяснена', work: { status: 'explained' } }),
+    ])} view="active" onView={() => {}} onAct={vi.fn()} />)
+    expect(names('Ошибка')).toEqual(['Взял в работу', 'Разъяснить', 'Отклонить'])
+    expect(names('Идея')).toEqual(['Взял в работу', 'Уже реализовано', 'Отклонить'])
+    expect(names('Ошибка в работе')).toEqual(['Готово', 'Разъяснить', 'Вернуть в активные'])
+    expect(names('Идея в работе')).toEqual(['Готово', 'Вернуть в активные'])
+    expect(names('Разъяснена')).toEqual(['Вернуть в активные'])
+    expect(screen.getByText('Разъяснено')).toBeInTheDocument()
+  })
+
+  it('«Разъяснить» opens the answer once the server has closed the bug; a refusal or a deleted account opens nothing', async () => {
+    const onExplain = vi.fn()
+    const onAct = vi.fn(async () => undefined).mockRejectedValueOnce(new Error('Отчёт №1 уже в другом статусе: обновите таблицу'))
+    const bug = row({ id: 1, accountId: 'a'.repeat(24), work: { status: 'review' } })
+    render(<ReportsTable page={page([bug, row({ id: 2, topic: 'Без аккаунта', email: undefined, work: { status: 'review' } })])} view="active" onView={() => {}} onAct={onAct} onExplain={onExplain} />)
+    const press = (title: string) => fireEvent.click(Array.from(screen.getByText(title).closest('tr')!.querySelectorAll('button')).find((button) => button.textContent === 'Разъяснить')!)
+    await act(async () => { press('Нет квеста Новое начало') })
+    expect(onExplain).not.toHaveBeenCalled()
+    await act(async () => { press('Нет квеста Новое начало') })
+    expect(onAct).toHaveBeenLastCalledWith(1, 'explain')
+    expect(onExplain).toHaveBeenCalledWith(bug)
+    await act(async () => { press('Без аккаунта') })
+    expect(onAct).toHaveBeenLastCalledWith(2, 'explain')
+    expect(onExplain).toHaveBeenCalledTimes(1)
+  })
+})
