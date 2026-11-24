@@ -9966,3 +9966,9 @@ Not pushed, not released, nothing uploaded.
   (87/89; the two left are the space-in-path `appVersion` and the CRLF source check of `AdminPanelPage`), plus Linux updater,
   staleServer, two script files that do not load on Windows.
 - Test build `Raid OS тест Языки 4.exe` on the desktop. Not pushed, not released.
+- 25.11 ~00:10, owner: «языки… добавляй»: claude/languages-zh-ja-de (bda2488c: the app in 12 languages, the language window, the
+  game language picked by hand for the readers, default en; readers checked on SPT screenshots in nine languages) merged into
+  this release (conflicts: this log, scripts/i18n/merge-chunks.py → the languages branch's). News (owner's words): added «На
+  сайт и в приложение добавлены новые языки»; improved «Обновили фото, снимки квестов и данные по квестам»; nothing about the
+  start. Checks after the merge: typecheck clean; vitest 4624 passed, 12 failed = machine-only + ObjectivePhotos / MapsPage ×3
+  that pass per file; website/src 193/193.
