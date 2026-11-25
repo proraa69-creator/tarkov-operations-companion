@@ -38,6 +38,7 @@ import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
 import { BulletDropPanel } from "../arsenal/BulletDrop";
+import { PenetrationGuide } from "../arsenal/PenetrationGuide";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 import { setRaidStartNotice, useRaidStartNotice } from "../notifications/raidStartNotice";
 import { PHONE_GUNSMITH_VIEWS, PHONE_GUNSMITH_VIEW_LABELS, setPhoneGunsmithView, usePhoneGunsmithView } from "../gunsmith/phoneGunsmithView";
@@ -361,6 +362,8 @@ export function AmmoPage() {
       </div>
       {tab === "range" && <Suspense fallback={<div className="panel range-loading"><LoaderCircle className="spin" size={18} /></div>}><RangeShooting /></Suspense>}
       <div className="ballistics-layout">
+        {/* «Как работает пробитие» (report 226): folded, over every table */}
+        {tab !== "range" && <PenetrationGuide />}
         {tab === "scatter" && <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText("Пробитие и урон")}</div>

@@ -29,4 +29,13 @@ export const ARSENAL_PHRASES: Array<[string, string]> = [
   ['За сколько минут', 'Minutes before'], ['Торговцы для уведомлений', 'Traders to notify about'],
   ['На компьютере — системное уведомление Windows, в приложении для телефона — сообщение внутри приложения, пока оно открыто.', 'On the PC a Windows notification, in the phone app an in-app message while the app is open.'],
   ['Скоро ресток', 'Restock soon'], ['Понятно', 'Got it'],
+  // «Как работает пробитие» (src/arsenal/PenetrationGuide.tsx, report 226)
+  ['Как работает пробитие', 'How penetration works'],
+  ['Класс брони × 10 — её стойкость: 4 класс — 40. Изношенная броня держит хуже: чем меньше прочность, тем ниже стойкость.', 'Armor class × 10 is its resistance: class 4 is 40. Worn armor holds worse: the lower the durability, the lower the resistance.'],
+  ['Шанс пробития: пробитие равно стойкости — около 90 %, выше — почти 100 %, ниже — быстро падает, ниже на 15 и больше — 0. Пробитие у каждой пули немного разное.', 'Penetration chance: penetration equal to resistance — about 90%, above — nearly 100%, below — it drops fast, 15 or more below — 0. Each bullet\'s penetration varies a little.'],
+  ['Каждое попадание снимает прочность брони: тем больше, чем выше пробитие и «урон броне» патрона; материал брони тоже влияет.', 'Every hit takes armor durability: the more, the higher the round\'s penetration and armor damage; the armor\'s material matters too.'],
+  ['Пробила — пуля теряет до 40 % урона и пробития и летит дальше: пластина, мягкая броня, тело.', 'Penetrated — the bullet loses up to 40% of its damage and penetration and goes on: plate, soft armor, body.'],
+  ['Не пробила — в тело проходит тупой урон: тем меньше, чем сильнее стойкость брони превышает пробитие.', 'Stopped — blunt damage gets through to the body: the less, the more the armor\'s resistance exceeds the penetration.'],
+  ['Рикошет: шлем или забрало могут отразить пулю, пришедшую под острым углом; шанс у каждого шлема свой. Отражённая пуля дальше не идёт.', 'Ricochet: a helmet or visor may deflect a bullet that comes in at a shallow angle; each helmet has its own chance. A deflected bullet goes no further.'],
+  ['Фрагментация: с этим шансом пуля разлетается на осколки, и каждый осколок попадает отдельно.', 'Fragmentation: with this chance the bullet breaks into fragments, and each fragment hits on its own.'],
 ]
