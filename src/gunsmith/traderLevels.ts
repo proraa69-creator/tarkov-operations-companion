@@ -154,7 +154,7 @@ export function saveScreenTraderLevels(mode: RaidMode, character: string | undef
 }
 
 /**
- * «Престиж +» or a nickname change (src/state/modeReset.ts): the mode's loyalty starts again — the traders' screen's
+ * «Престиж +», «Вайп» or «Сброс» (src/state/modeReset.ts): the mode's loyalty starts again — the traders' screen's
  * readings of every character of that mode and the player's own levels for it go; other modes keep theirs.
  */
 /**

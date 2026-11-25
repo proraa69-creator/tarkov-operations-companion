@@ -13,7 +13,7 @@
  *
  * Kept per profile and mode (PvP, PvE and Season apart) as `{ questId: deferredAt (ms) }`, or
  * `{ questId: { at, until?, level?, loyalty? } }` with a term. No raid clears them: only «Вернуть», the term, a reset of the
- * mode («Престиж +», «Вайп», «Сброс», a new nickname: clearDeferredQuests) or «Удалить все данные».
+ * mode («Престиж +», «Вайп», «Сброс»: clearDeferredQuests) or «Удалить все данные».
  *
  * One list on every device of the account (owner, 04.11.2026; a player's report: «все равно показывается даже с учетом того
  * что на ПК они закрыты»): the device's copy goes through the server (sync/serverSync.ts syncDeferredQuests, POST
@@ -229,7 +229,7 @@ export function settleDeferredQuests(profileId: string, isDone: (mode: RaidMode,
 }
 
 /**
- * A reset of the mode («Престиж +», «Вайп», «Сброс», a new nickname; state/modeReset.ts): nothing is put aside any more, and
+ * A reset of the mode («Престиж +», «Вайп», «Сброс»; state/modeReset.ts): nothing is put aside any more, and
  * what another device still holds from before `at` does not come back. The server's list goes with its reset route.
  */
 export function clearDeferredQuests(profileId: string, mode: RaidMode, at = Date.now()) {

@@ -110,7 +110,7 @@ describe('the chain in the app state', () => {
     expect(mode('pvp').tableSync).toBe(pvp)
   })
 
-  for (const [press, reason] of [['«Сброс»', 'rebuild'], ['«Вайп»', 'wipe'], ['«Престиж»', 'prestige'], ['a new nickname', 'nickname']] as const) {
+  for (const [press, reason] of [['«Сброс»', 'rebuild'], ['«Вайп»', 'wipe'], ['«Престиж»', 'prestige']] as const) {
     it(`${press} opens that mode's first sync again, the others keep theirs`, () => {
       start(false)
       act(() => state.startTableSync())

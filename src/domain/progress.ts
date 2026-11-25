@@ -84,23 +84,23 @@ export function laterTime(a: string | undefined, b: string | undefined) {
 }
 
 /**
- * «Престиж +», «Вайп», «Сброс» or a nickname change (src/state/modeReset.ts): every progress record of one mode goes —
+ * «Престиж +», «Вайп» or «Сброс» (src/state/modeReset.ts): every progress record of one mode goes —
  * quests of every source (logs, server, Tasks table, story pane, manual marks), objective progress, conflicts and the
  * history of changes, hideout levels, «Что не продавать» counts, and the level, faction and Tarkov.dev profile read for
  * the mode. Kept: the game account binding and the logs' character of the mode (identity, not progress), the tracked
  * quests, favourite and raid items (preferences; a press clears them, clearPlayerLists) and the season.
  *
  * The mode is rebuilt from the logs right after (AppState.resetModeProgress), from `floor.at` on (floorAfterReset; without
- * `floor`, the mode's floor stays). `marker`: a new nickname says the game's profile may be another; the logs' own reset
- * after it becomes the floor (src/state/AppState.tsx applyLogState). Other modes are not touched.
+ * `floor`, the mode's floor stays). Other modes are not touched. A new nickname resets nothing (owner, 25.11.2026: «При
+ * смене ника не нужно сбрасывать прогресс»).
  */
-export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: string, now = new Date().toISOString(), prestige?: { keep?: boolean; level?: number }, marker?: NonNullable<ModeProgress['resetMarker']>['kind'], floor?: { at?: string }): LocalProfile {
+export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: string, now = new Date().toISOString(), prestige?: { keep?: boolean; level?: number }, floor?: { at?: string }): LocalProfile {
   const current = profile.modes[mode]
   const next: ModeProgress = {
     ...createModeProgress(),
     questInputs: emptyQuestInputs(),
     // «Престиж +»: the level the player chose, from the press on. «Вайп», «Сброс»: the prestige stays (a game wipe keeps it,
-    // BSG 0.16.0.0: «Prestige levels and rewards do not reset with wipes»). A nickname change: Tarkov.dev reads it again.
+    // BSG 0.16.0.0: «Prestige levels and rewards do not reset with wipes»).
     ...(prestige?.level != null ? { prestige: prestige.level, prestigeSetAt: at }
       : prestige?.keep ? { prestige: current.prestige, ...(current.prestigeSetAt ? { prestigeSetAt: current.prestigeSetAt } : {}) } : {}),
     registration: current.registration,
@@ -112,7 +112,6 @@ export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: stri
     ...(current.logCharacterId ? { logCharacterId: current.logCharacterId } : {}),
     ...((floor ? floor.at : current.logResetAt) ? { logResetAt: (floor ? floor.at : current.logResetAt)! } : {}),
     ...(current.logEpochAt ? { logEpochAt: current.logEpochAt } : {}),
-    ...(marker ? { resetMarker: { kind: marker, at } } : {}),
     appResetTimes: [...(current.appResetTimes ?? []), at].slice(-5),
   }
   return { ...profile, updatedAt: now, modes: { ...profile.modes, [mode]: next } }
@@ -128,12 +127,10 @@ const RECENT_GAME_RESET_MS = 7 * 24 * 60 * 60 * 1000
  *  - «Престиж +», «Вайп»: the press, nothing older counts. If the logs proved the game's own reset in the days before it,
  *    that one: the quests taken since are the new profile's (a press only to choose the prestige must not hide them).
  *  - «Сброс»: only what the logs proved, so a press by mistake is undone by it: the quests of the logs come back.
- *  - A new nickname: as it is (it comes by itself).
  * A floor an earlier press set (`appResetTimes`) is no proof. `seenInLogs`: the game's reset in the latest scan, in case no
  * scan was applied since.
  */
-export function floorAfterReset(current: Pick<ModeProgress, 'logResetAt' | 'logEpochAt' | 'appResetTimes'>, at: string, reason: 'prestige' | 'wipe' | 'rebuild' | 'nickname', seenInLogs?: string) {
-  if (reason === 'nickname') return current.logResetAt
+export function floorAfterReset(current: Pick<ModeProgress, 'logResetAt' | 'logEpochAt' | 'appResetTimes'>, at: string, reason: 'prestige' | 'wipe' | 'rebuild', seenInLogs?: string) {
   const pressed = new Set(current.appResetTimes ?? [])
   const proven = (time: string | undefined) => (time && !pressed.has(time) ? time : undefined)
   const reset = laterTime(proven(current.logResetAt), proven(seenInLogs))
@@ -145,8 +142,7 @@ export function floorAfterReset(current: Pick<ModeProgress, 'logResetAt' | 'logE
 /**
  * «Престиж +», «Вайп» and «Сброс» clear what the player gathered too (owner, 04.11.2026: «должно сбрасываться все, что в
  * избранном все квесты актуальные итд»): this mode's tracked quests and raid list, and «Избранное», which is one list for
- * every mode of a profile (migrateProfile joins them), so it goes for all of them. A new nickname keeps these: it comes by
- * itself, not from a press.
+ * every mode of a profile (migrateProfile joins them), so it goes for all of them.
  */
 export function clearPlayerLists(profile: LocalProfile, mode: RaidMode, now = new Date().toISOString()): LocalProfile {
   const modes = { ...profile.modes }

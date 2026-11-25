@@ -7,8 +7,8 @@ import type { ModeProgress, Quest, RaidMode, TableSyncState } from '../domain/ty
  * (src/account/trialFeatures.ts) read it again, for a while.
  *
  * One for each mode of each profile on each PC: the state is in the mode (`ModeProgress.tableSync`) and is not sent anywhere,
- * so PvP, PvE and the season each have their own and a new PC has its own. What empties a mode opens its sync again: «Сброс»,
- * «Вайп / Престиж» and a new nickname build the mode anew (wipeModeProgress), a new character or the game's own reset in the
+ * so PvP, PvE and the season each have their own and a new PC has its own. What empties a mode opens its sync again: «Сброс»
+ * and «Вайп / Престиж» build the mode anew (wipeModeProgress), a new character or the game's own reset in the
  * logs drops it (AppState applyLogState). A profile of an older version has none yet, so every player already here gets one
  * read with the mended reader (src/import/questOcr.ts): that is what brings back a real quest of the titles the old reader
  * invented (src/quests/questChain.ts).

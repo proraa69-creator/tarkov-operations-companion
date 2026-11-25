@@ -235,7 +235,7 @@ export interface ModeProgress {
    */
   modeResetAt?: string
   /**
-   * A new nickname (and «Престиж +» / «Вайп» of versions before 0.6.0.233): the game's profile may be another since `at`. While pending, the
+   * A new nickname of versions up to 0.6.0.345 (and «Престиж +» / «Вайп» of versions before 0.6.0.233): the game's profile may be another since `at`. While pending, the
    * logs before it still count (it may be an app-only reset); the game's own reset after it in the logs (a new profile id,
    * a quest taken again after its hand-in, the prestige / new-profile request) becomes the floor and resolves it
    * (`resolvedAt`). src/state/AppState.tsx applyLogState.

@@ -1,12 +1,12 @@
 /**
- * The reset of one game mode (owner, 15.10.2026: «при смене ника … прогресс сбрасывается полностью в данном режиме,
- * квесты, и все все обнуляется, но только в выбраном режиме» and «кнопку Престиж +, по этой кнопке просто обнуляется
- * прогресс в выбраном режиме»), «Вайп» and «Сброс». All go through AppState's `resetModeProgress(mode, at, reason)`:
+ * The reset of one game mode: «Престиж +» (owner, 15.10.2026: «кнопку Престиж +, по этой кнопке просто обнуляется
+ * прогресс в выбраном режиме»), «Вайп» and «Сброс». A new nickname resets nothing (owner, 25.11.2026: «При смене ника не
+ * нужно сбрасывать прогресс»; up to 0.6.0.345 it reset the mode it was seen in). All go through AppState's
+ * `resetModeProgress(mode, at, reason)`:
  *   - the mode's records in the profile go (src/domain/progress.ts wipeModeProgress) and the mode is read again from the
  *     logs. «Престиж +», «Вайп»: the player starts over, nothing older than the press counts (owner, 04.11.2026: «квестов у
  *     человека не будет, и он все проходит заново. То есть ему не нужны старые логи»). «Сброс»: every log counts, the
- *     quests are found again («логи опять находиться, которые были»), also what a press by mistake hid (floorAfterReset).
- *     A nickname leaves a pending marker that the game's own reset in the logs resolves;
+ *     quests are found again («логи опять находиться, которые были»), also what a press by mistake hid (floorAfterReset);
  *   - here, the per-mode stores outside the profile (afterModeReset), the server of the account signed in now (queued
  *     while offline, sent only to that account; a reset made signed out stays local) and the notice.
  * Other modes, settings, the account and the nickname are not touched, but for «Избранное»: one list for every mode, it
@@ -26,8 +26,8 @@ import { clearQuestKeyFavorites } from '../quests/questKeyFavorites'
 import { stashSeenStore } from '../stashScan/stashSeen'
 import { queueModeReset } from '../sync/serverSync'
 
-/** What reset the mode: «Престиж +», «Вайп», «Сброс» (`rebuild`) or a confirmed new nickname (src/account/nicknameChange.ts). */
-export type ModeResetReason = 'prestige' | 'wipe' | 'rebuild' | 'nickname'
+/** What reset the mode: «Престиж +», «Вайп» or «Сброс» (`rebuild`). */
+export type ModeResetReason = 'prestige' | 'wipe' | 'rebuild'
 
 export interface ModeResetNotice { id: number; mode: RaidMode; reason: ModeResetReason; at: string }
 
@@ -89,17 +89,15 @@ export function modeResetName(mode: RaidMode, locale: 'ru' | 'en') {
 }
 
 /**
- * The notice after a reset: «Ник изменился — прогресс режима PvE сброшен», «Прогресс режима PvE найден заново по
- * журналам» after «Сброс», and after «Престиж +» / «Вайп» that the quests start over.
+ * The notice after a reset: «Прогресс режима PvE найден заново по журналам» after «Сброс», and after «Престиж +» / «Вайп»
+ * that the quests start over.
  */
 export function modeResetMessage(reason: ModeResetReason, mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   if (locale === 'en') {
-    if (reason === 'nickname') return `Nickname changed — ${name} progress was reset`
     if (reason === 'rebuild') return `${name} progress found again from the logs`
     return `${reason === 'wipe' ? 'Wipe' : 'Prestige'} — ${name} progress was reset, quests start over`
   }
-  if (reason === 'nickname') return `Ник изменился — прогресс режима ${name} сброшен`
   if (reason === 'rebuild') return `Прогресс режима ${name} найден заново по журналам`
   return `${reason === 'wipe' ? 'Вайп' : 'Престиж'} — прогресс режима ${name} сброшен, квесты начнутся заново`
 }

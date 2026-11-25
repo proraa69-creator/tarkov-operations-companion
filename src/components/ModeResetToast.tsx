@@ -6,8 +6,9 @@ import { ToastDock, TOAST_MS } from '../notifications/ToastDock'
 import '../styles/modeReset.css'
 
 /**
- * The short notice after a reset of one mode (src/state/modeReset.ts): «Ник изменился — прогресс режима PvE сброшен» /
- * «Nickname changed — PvE progress was reset», or the same after «Престиж +». Mounted once (AppShell), PC and phone.
+ * The short notice after a reset of one mode (src/state/modeReset.ts): «Престиж — прогресс режима PvE сброшен, квесты
+ * начнутся заново», the same after «Вайп», and «Прогресс режима PvE найден заново по журналам» after «Сброс». Mounted once
+ * (AppShell), PC and phone.
  */
 export function ModeResetToast() {
   const notices = useModeResetNotices()
