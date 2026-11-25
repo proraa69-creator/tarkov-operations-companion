@@ -418,7 +418,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Before every router of those paths; sign-in, payments, support, notices and the cabinet's counts stay open.
   if (options.paidContent) {
     const content = requireDataAccess(accounts, entitlements, { ...CONTENT_RATE_LIMITS, ...options.contentRateLimits })
-    app.use((req, res, next) => { if (PAID_CONTENT_PATH.test(req.path)) content(req, res, next); else next() })
+    // Express matches its routes in any letter case (/v1/ME/progress is /v1/me/progress), so the check does too: otherwise
+    // another spelling of the path reached the routes past it (tests: routes/authzBypass.test.ts).
+    app.use((req, res, next) => { if (PAID_CONTENT_PATH.test(req.path.toLowerCase())) content(req, res, next); else next() })
   }
   // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
   const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
