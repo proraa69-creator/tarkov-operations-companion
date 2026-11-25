@@ -6,6 +6,7 @@ import { DEFAULT_OFFER_FEE_RATE, DEFAULT_REQUIREMENT_FEE_RATE } from '../domain/
 export { economyQueries, economyQuery } from './economyQueries'
 import { loadTarkovDataset, mirrorMode } from './tarkovDataset'
 import { buildEconomySnapshot as buildJsonEconomy, normalizePriceHistory } from './tarkovJsonAdapters'
+import { fleaBanned } from '../shared/fleaBan'
 
 /**
  * Barters, hideout crafts and per-mode prices from the Raid OS JSON mirror.
@@ -153,7 +154,7 @@ export function parseEconomyResponse(data: unknown, mode: RaidMode, loadedAt = n
       avg24hPrice: positive(entry.avg24hPrice),
       low24hPrice: positive(entry.low24hPrice),
       lastLowPrice: positive(entry.lastLowPrice),
-      noFlea: types.includes('noFlea'),
+      noFlea: fleaBanned({ types, lastOfferCount: entry.lastOfferCount, lastScan: entry.lastScan }, Date.now()),
       ...(positive(entry.minLevelForFlea) ? { fleaLevel: positive(entry.minLevelForFlea) } : {}),
       buyFor: asArray(entry.buyFor).map(vendorPrice).filter((quote): quote is VendorPrice => quote !== null),
       sellFor: asArray(entry.sellFor).map(vendorPrice).filter((quote): quote is VendorPrice => quote !== null),

@@ -21,7 +21,9 @@
 @media (prefers-reduced-motion: reduce) { .deferred-quests-button.is-glowing { animation: none; } }
 
 /* The map: the top right corner of the map, over the zoom buttons (.leaflet-top.leaflet-right is 52px down). */
-.map-deferred { position: absolute; top: 14px; right: 10px; z-index: 600; display: flex; gap: 6px; }
+.map-deferred { position: absolute; top: 14px; right: 10px; z-index: 600; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+/* «Отложенные квесты» with the fatigue timer beside it; the raid's time under them (report 239, maps/MapRaidInfo.tsx). */
+.map-deferred-row { display: flex; gap: 6px; }
 
 .deferred-quests-dialog { position: relative; width: min(620px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; gap: 12px; }
 .deferred-quests-dialog h2 { margin: 0; }

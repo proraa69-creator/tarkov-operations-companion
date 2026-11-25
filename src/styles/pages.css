@@ -190,6 +190,9 @@
 .leaflet-container { width: 100%; height: 100%; background: var(--surf-0); font: inherit; }
 .leaflet-control-zoom a { color: #d7dfd9 !important; background: var(--surf-2) !important; border-color: var(--line) !important; }
 .leaflet-top.leaflet-right { top: 52px; right: 10px; }
+/* The map's zoom buttons: halfway down its right edge and a little lower, clear of «Отложенные квесты» and the raid's time under
+   it (report 239, owner 25.11.2026: «сделай плюс-минус где-то посередине, чуть ниже»). */
+:root:not([data-layout="mobile"]) .map-stage .leaflet-top.leaflet-right { top: calc(50% + 36px); transform: translateY(-50%); }
 .leaflet-control-attribution { display: none !important; }
 .map-quest-sheet {
   /* a compact card in the bottom-left corner (about half the old full-width sheet each way), so the map centre stays clear */

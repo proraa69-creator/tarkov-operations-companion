@@ -66,8 +66,9 @@ export function ItemBuySection({ itemId }: { itemId: string }) {
         </span>
         <span className="item-buy-price mono">{formatPrice(options.flea.price)}{options.flea.average ? <small>{uiText('среднее за 24 ч')}</small> : null}</span>
       </li>}
-      {/* the owner, 17.11.2026: «Если она недоступна на барахолке, так и пиши: недоступна на барахолке, есть бартер такой-то» */}
-      {!options.flea && <li className="item-buy-note"><small>{uiText('Недоступно на барахолке')}</small></li>}
+      {/* the owner, 17.11.2026: «Если она недоступна на барахолке, так и пиши: недоступна на барахолке, есть бартер такой-то».
+          On sale there but no price known yet (report 240: the flea opened to an item before any price reached us): say that. */}
+      {!options.flea && <li className="item-buy-note"><small>{uiText(options.noFlea ? 'Недоступно на барахолке' : 'Цены на барахолке пока нет')}</small></li>}
       {options.barters.map((barter) => <li key={barter.id} className={`item-buy-barter${barter.lock ? ' is-locked' : ''}`}>
         <span className="item-buy-source">
           {portrait(barter.traderId) ? <img src={portrait(barter.traderId)} alt="" /> : <Repeat size={16} aria-hidden="true" />}
