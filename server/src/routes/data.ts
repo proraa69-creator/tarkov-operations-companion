@@ -15,7 +15,8 @@
  *   POST /v1/data/prices/:mode/sightings {sightings}     -> flea prices a player's app read on the screen
  *                                                           (services/playerPrices.ts, docs/flea-prices-from-players.md)
  *
- * `requireDataAccess` also guards /v1/catalog/* and /v1/players/* (app.ts).
+ * `requireDataAccess` also guards /v1/catalog/*, /v1/players/*, /v1/live and our own content with the account's synced data
+ * (src/shared/paidContent.ts, app.ts).
  */
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
@@ -28,6 +29,11 @@ import { layPlayerPrices, priceReferences, type PlayerPriceReference, type Playe
 import type { MirrorMode } from '../services/tarkovDataMirror.js'
 
 export const DATA_RATE_LIMITS = { perIp: 240, perAccount: 120 }
+/**
+ * The same check over our own content and the account's synced data (src/shared/paidContent.ts, app.ts): every app syncs
+ * a few lists each 30 s and a map loads its points' photos one by one, so the limits are wider than the game data's.
+ */
+export const CONTENT_RATE_LIMITS = { perIp: 1200, perAccount: 600 }
 export const DEVICE_HEADER = 'x-raid-device'
 
 export function requireDataAccess(accounts: AccountStore, entitlements: EntitlementService, limits: Partial<typeof DATA_RATE_LIMITS> = {}): express.RequestHandler {

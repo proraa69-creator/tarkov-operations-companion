@@ -12,6 +12,7 @@
 import type { EntitlementView, ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 import { webAcceptIssued, webClearEntitlement, webDeviceId, webDeviceName, webEntitlementDue, webEntitlementFor, webForgetKey, webPinKey, webRefuseEntitlement } from './webEntitlement'
 import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '../shared/sendRetry'
+import { isPaidContentPath } from '../shared/paidContent'
 
 /** The owner's permanent address (site + API under /v1), unless the build sets VITE_TARKOV_API_URL. */
 export const DEFAULT_API_URL = (import.meta.env.VITE_TARKOV_API_URL as string | undefined)?.trim() || 'https://raidos.app'
@@ -345,28 +346,34 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|squad-live|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
     || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
+  // Our own content and the account's synced data: the same server check as `gated`, with the session and this phone's id
+  // (src/shared/paidContent.ts).
+  const paidContent = isPaidContentPath(path)
   // The owner's notice is in the language of the account's country (owner, 14.10.2026, server/src/routes/announcement.ts):
   // it goes with the session too. Public all the same: an expired session gets the notice as without one.
   const notice = /^\/v1\/announcement(?:\?|$)/.test(path)
   if (personal && !session) return null
-  if (gated && !session) throw new Error('Требуется вход в аккаунт')
+  if ((gated || paidContent) && !session) throw new Error('Требуется вход в аккаунт')
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
   const retried = retriesWhileRestarting(method, path)
   const request = async () => {
-    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: requestTimeout(method, path, gated), ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
+    const answer = await send(method, path, { body, token: personal || gated || paidContent || notice ? session?.token : null, timeoutMs: requestTimeout(method, path, gated), ...(gated || paidContent || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
     if (retried && restartingStatus(answer.response.status) && !answer.result) throw new UnavailableError(true)
     return answer
   }
   const { response, result } = retried
     ? await retryWhileRestarting(request, (error) => error instanceof UnavailableError && error.notTaken)
     : await request()
-  if (response.status === 401 && (personal || gated)) {
+  if (response.status === 401 && (personal || gated || paidContent)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
   }
   const code = (result as { code?: unknown } | null)?.code
   if (gated && response.status === 402) webRefuseEntitlement('subscription', result?.error)
   if (gated && response.status === 403 && (code === 'device_revoked' || code === 'device_inactive')) webRefuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
+  // Refused there: nothing on this phone is cleared — the request fails like an offline one, and the next status asks for
+  // the entitlement at once (the paywall, or this phone's device registered for the session again).
+  if (paidContent && (response.status === 402 || response.status === 403)) entitlementDue = true
   // The server's code and the status go with the message (the admin app tells region_mismatch apart, and hides
   // «Пригласи друга» while an older server answers 404, src/admin/AdminMobilePage.tsx).
   if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), { status: response.status }, typeof code === 'string' ? { code } : {})

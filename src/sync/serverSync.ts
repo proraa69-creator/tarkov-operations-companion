@@ -194,7 +194,17 @@ export function useServerStatus() {
   return useSyncExternalStore(subscribe, () => state.status, () => state.status)
 }
 
-const connected = () => Boolean(state.status?.signedIn && state.status.online)
+/**
+ * The server refused this account's access (no subscription, this device switched off or not registered, the game account
+ * rule): its synced data is behind the same check (src/shared/paidContent.ts), so the sync waits — nothing is sent, nothing
+ * here or there is removed — and runs in full once the access is back (the status poll below).
+ */
+export function accessRefused(status: ServerAccountStatus | null | undefined) {
+  const entitlement = status?.entitlement
+  return entitlement?.valid === false && (entitlement.reason === 'subscription' || entitlement.reason === 'device-revoked' || entitlement.reason === 'device-inactive' || entitlement.reason === 'eft-conflict')
+}
+
+const connected = () => Boolean(state.status?.signedIn && state.status.online && !accessRefused(state.status))
 
 /** The server account status as last read (outside React). */
 export function currentServerStatus() {
@@ -203,6 +213,7 @@ export function currentServerStatus() {
 
 /** The player's own lists (src/sync/playerState.ts): null without a session or an answer. */
 export function playerStateRequest(method: 'GET' | 'POST', path: string, body?: unknown) {
+  if (accessRefused(state.status)) return Promise.resolve(null)
   return meRequest<unknown>(method, path, body)
 }
 

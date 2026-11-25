@@ -10156,3 +10156,44 @@ Not pushed, not released, nothing uploaded.
   or «Снимок из игры»; an exit list opened by a rebound key is seen within 1.5 s instead of 0.5 s.
 - Mistake fixed in-session: a PowerShell script with relative [IO.File] paths wrote 5 files into
   raidos-quest-photos-all (only my lines); restored there with git checkout of those 5 files, tree clean again.
+
+## 2026-11-25 — Claude: платный контент за проверкой подписки (claude/server-paywall)
+
+- Владелец: взломанный клиент не должен получать наше содержимое бесплатно. Закрыто тем же шлюзом, что и игровые данные
+  (`requireDataAccess`, server/src/routes/data.ts: вход → доступ владельца/стримера/оплаты/пробного → активное устройство
+  этой сессии; 401 / 402 «Нужна подписка» / 403 device_*). Ветка от release/production f444b3f3.
+- Общий модуль `src/shared/paidContent.ts` (`PAID_CONTENT_PATH`, `isPaidContentPath`): сервер проверяет `req.path`,
+  приложения отрезают query и шлют путь с сессией и `X-Raid-Device`.
+- Закрыто (было без входа): `/v1/quest-points`, `/v1/quest-texts`, `/v1/quest-requirements`, `/v1/map-bosses`,
+  `/v1/event-quests`. Закрыто (было с любым бесплатным аккаунтом): `/v1/me/quest-point-photos/:id`, синхронизация
+  `/v1/me/*` (progress, story, deferred-quests, collector, hideout, items, quest-mirror, position, settings, levels,
+  objectives, state, game-mode) и каталог сборок `/v1/builds` (+ owner-builds, like/remove).
+- Оставлено открытым намеренно: `/v1/map-tiles` (тайлы tarkov.dev рисуются `<img>`, который не шлёт ни токен, ни
+  устройство — этой проверкой их не закрыть, не сломав карту у подписчиков) и `/v1/map-updates` (только номер версии).
+  Служебное под `/v1/me` открыто: `summary` (кабинет сайта), `features`, `social-events`, `notices`, `support`,
+  `surveys`, `presence`. Не затронуты вход/регистрация/оплата/entitlement/geo/accounts/* (привязка игры, удаление,
+  QR, Google), объявления/опросы, «Пригласи друга».
+- Сервер: middleware включается `options.paidContent` и стоит до роутеров контента (server/src/app.ts); реальный сервер
+  включает её, если `RAIDOS_PAID_CONTENT` ≠ 0 (server/src/index.ts) — рубильник на случай старых телефонов без device.
+  Свои лимиты `CONTENT_RATE_LIMITS` (1200/600 в минуту: синк каждые 30 с, фото точек по одному). Владельцу устройство
+  не нужно, стример — lifetime.
+- Приложение без подписки не падает и не стирает данные: при 402/403 на контент serviceGateway только помечает
+  `entitlementDue` (кэш и списки целы, без `clearGameCache`), запрос падает как оффлайн. В serverSync `accessRefused`
+  (reason subscription / device-revoked / device-inactive / eft-conflict) гасит `connected()` и `playerStateRequest` —
+  синхронизация ждёт и целиком отрабатывает после продления. Телефон (src/sync/webAccount.ts) закрыт симметрично
+  (сессия + `webDeviceId()`), 402/403 только помечает entitlementDue.
+- Сайт (website/src) наш контент без входа не берёт: игровые точки только в админке владельца
+  (`/v1/accounts/me/admin/*`, вне регэкспа), публичной карты с нашими данными нет — закрытие сайт не задевает.
+- Доделано в этой сессии: тест `server/src/routes/paidContent.test.ts` зарегистрирован в `server/package.json` (его там
+  не было, набор его не запускал); в нём исправлена проверка «Нужна подписка» (welcome-триал стартует при первом
+  устройстве через claimTrialDevice, а не при регистрации — сначала старт, затем истечение, затем 402); в
+  `src/sync/webAccount.test.ts` пример personal-пути без device заменён с `/v1/me/settings` (теперь платный) на `/v1/me/summary`.
+- Файлы: electron/serviceGateway.ts, server/src/{app,index}.ts, server/src/routes/data.ts, server/package.json,
+  src/sync/{serverSync,webAccount}.ts, src/sync/webAccount.test.ts; новые src/shared/paidContent.ts,
+  server/src/routes/paidContent.test.ts.
+- Проверки: `npm --prefix server test` 618/618 (нестабильный support-chat прошёл в общем прогоне);
+  `npm --prefix server run typecheck` чисто; `npm run typecheck` (tsc -b) чисто; vitest src/sync + electron/serviceGateway
+  124/124 после правки; `npm --prefix website run build` ок. Не пушено, на сервер не писано.
+- Риски: старый телефон без `X-Raid-Device`, но с подпиской, получит 403 на /v1/me/* и builds — страхует
+  `RAIDOS_PAID_CONTENT=0`. `/v1/map-tiles` и `/v1/map-updates` остаются бесплатными (публичные тайлы и сигнал версии).
+  Выпуск — только с версией приложения, умеющей слать device на эти пути (пути уже в ROUTES обоих клиентов).

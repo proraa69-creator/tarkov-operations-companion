@@ -93,7 +93,8 @@ import { UserDataStore } from './services/userDataStore.js'
 import { openDatabase } from './services/database.js'
 import { EntitlementService } from './services/entitlement.js'
 import { DataGateway } from './services/dataGateway.js'
-import { createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/data.js'
+import { CONTENT_RATE_LIMITS, createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/data.js'
+import { PAID_CONTENT_PATH } from '../../src/shared/paidContent.js'
 import { PlayerPrices } from './services/playerPrices.js'
 import { createEntitlementRouter } from './routes/entitlement.js'
 import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
@@ -224,6 +225,14 @@ export interface ApiOptions {
   playerPrices?: PlayerPrices
   /** Per-minute limits of the paid data routes (defaults: DATA_RATE_LIMITS). */
   dataRateLimits?: Partial<typeof DATA_RATE_LIMITS>
+  /**
+   * Raid OS's own content and the account's synced data behind the game data's access check (src/shared/paidContent.ts,
+   * owner 25.11.2026). Off unless set: the routes' own tests call them without a subscription. The real server
+   * (index.ts) turns it on unless RAIDOS_PAID_CONTENT=0.
+   */
+  paidContent?: boolean
+  /** Per-minute limits of that check (defaults: CONTENT_RATE_LIMITS). */
+  contentRateLimits?: Partial<typeof CONTENT_RATE_LIMITS>
   /** The PC's live position and recognised item for the phone (services/liveRelay.ts); tests pass one with their clock. */
   live?: LiveRelay
   /** Publishes per account and minute on /v1/live (defaults: LIVE_PUBLISH_LIMITS). */
@@ -403,6 +412,14 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Signed entitlements, the device limit and the owner's device list (docs/subscription-protection.md).
   const entitlements = options.entitlements ?? new EntitlementService(accounts)
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
+  // Our own content (the owner's points, texts, requirements, bosses, event quests, builds, the points' photos) and the
+  // account's synced data (/v1/me progress, hideout, items, settings…): the same check as the game data — a session, a
+  // subscription / free period / streamer / owner, and this session's active device (402 «Нужна подписка», 403 device_*).
+  // Before every router of those paths; sign-in, payments, support, notices and the cabinet's counts stay open.
+  if (options.paidContent) {
+    const content = requireDataAccess(accounts, entitlements, { ...CONTENT_RATE_LIMITS, ...options.contentRateLimits })
+    app.use((req, res, next) => { if (PAID_CONTENT_PATH.test(req.path)) content(req, res, next); else next() })
+  }
   // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
   const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
   // «Подтвердить оплату BZB» (services/bezebee.ts): the owner's confirmation until BZB's API reaches this server.
