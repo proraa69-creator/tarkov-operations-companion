@@ -3,7 +3,7 @@ import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
 import { totalmem } from 'node:os'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { describeSystemBrief } from './systemBrief.js'
-import { fitMinimumSizeToDisplay, INTERFACE_ZOOM, INTERFACE_ZOOM_MODE, opensMaximized, pinInterfaceZoom, windowSizeFor } from './uiScale.js'
+import { displayScale, followDisplayScale, INTERFACE_ZOOM_MODE, opensMaximized, scaledWindowSize } from './uiScale.js'
 import { readSavedWindow, rememberWindow, restoredBounds } from './windowState.js'
 import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
@@ -438,15 +438,15 @@ function lockDevTools(contents: WebContents) {
 // Owner, 09.11.2026: «нужно максимально защитить приложение» — every packaged build, the owner's too, keeps DevTools shut.
 if (app.isPackaged) app.on('web-contents-created', (_event, contents) => lockDevTools(contents))
 
-/** The main window's size in Windows units, the same on every monitor (fitted into a smaller work area, electron/uiScale.ts). */
+/** The main window on a Full HD screen (bigger screens: in proportion, electron/uiScale.ts). */
 const MAIN_WINDOW = { width: 1500, height: 930, minWidth: 1050, minHeight: 700 }
 /** A page that never paints still gets its window, with whatever it has. */
 const WINDOW_REVEAL_MAX_MS = 5000
 
 function createWindow() {
-  // One size and one page zoom on every monitor: the monitor changes neither (report 234, electron/uiScale.ts).
+  // Sizes are for a Full HD screen; a bigger one gets them (and the page zoom) in proportion (electron/uiScale.ts).
   const display = screen.getPrimaryDisplay()
-  const size = windowSizeFor(MAIN_WINDOW, display.workArea)
+  const size = scaledWindowSize(MAIN_WINDOW, displayScale(display), display.workArea)
   const trialWindow = trialLaunchesAtStart() > 0
   // Where it was left (electron/windowState.ts); a monitor that is gone gives the usual size.
   const stateFile = join(app.getPath('userData'), 'window-state.json')
@@ -454,6 +454,8 @@ function createWindow() {
   const restored = saved && restoredBounds(saved, screen.getAllDisplays().map((entry) => entry.workArea), { width: size.minWidth, height: size.minHeight })
   // An upright monitor or a small screen: the first start fills it (electron/uiScale.ts opensMaximized).
   const maximizeAtStart = !restored && opensMaximized(size, display.workArea)
+  // The page starts at the zoom of the monitor it opens on: no first picture at another zoom (electron/uiScale.ts).
+  const startZoom = displayScale(restored ? screen.getDisplayMatching(restored) : display)
   mainWindow = new BrowserWindow({
     ...size,
     ...(restored ?? {}),
@@ -480,8 +482,8 @@ function createWindow() {
       backgroundThrottling: false,
       // The players' exe: no DevTools at all (lockDevTools also covers webviews).
       devTools: !app.isPackaged,
-      // One interface size (report 234): zoom 1 for the window's page, not one per page address (electron/uiScale.ts).
-      zoomFactor: INTERFACE_ZOOM,
+      // One zoom for the whole window, its monitor's, not one per page address (report 234, electron/uiScale.ts).
+      zoomFactor: startZoom,
       zoomMode: INTERFACE_ZOOM_MODE,
     },
   })
@@ -490,9 +492,8 @@ function createWindow() {
   mainWindow.webContents.once('did-finish-load', confirmStagedBoot)
   // The page's own title would replace it: beside the real app, the tester must see which one this is.
   if (trialWindow) mainWindow.on('page-title-updated', (event) => event.preventDefault())
-  pinInterfaceZoom(mainWindow.webContents)
-  fitMinimumSizeToDisplay(mainWindow, { width: MAIN_WINDOW.minWidth, height: MAIN_WINDOW.minHeight })
-  // Again, now that the minimum size is that monitor's own: opening on a monitor with another Windows scaling may have resized it.
+  followDisplayScale(mainWindow, { width: MAIN_WINDOW.minWidth, height: MAIN_WINDOW.minHeight })
+  // Again, now that the minimum size is that monitor's own: a monitor with another scale would have changed the size given above.
   if (restored) {
     mainWindow.setBounds(restored)
   }
