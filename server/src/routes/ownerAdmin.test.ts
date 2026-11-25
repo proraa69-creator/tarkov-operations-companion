@@ -463,7 +463,8 @@ test('statistics: users, revenue by plan per day / month, payouts, filters and C
     assert.equal(overview.subscriptions.active, 2)
     assert.equal(overview.subscriptions.streamers, 1)
     // 12 months: 2400 ₽ today + 900 ₽ (the 3 months inserted by SQL).
-    assert.deepEqual(overview.revenue.today, { total: 3300, payments: 2, repeat: 1, net: 3060, streamerEarnings: 240, fees: 0 })
+    // Чистыми: грязными 3300 − доля стримеров 240 − комиссия ЮKassa (2400 СБП 3.5 % + 900 по умолчанию 3.53 % = 115.77).
+    assert.deepEqual(overview.revenue.today, { total: 3300, payments: 2, repeat: 1, net: 2944.23, streamerEarnings: 240, fees: 115.77 })
     // a's first month with the 20 % a streamer's link gives (owner, 30.10.2026): 240 ₽.
     assert.equal(overview.revenue.all.total, 3540)
     assert.equal(overview.revenue.all.payments, 3)

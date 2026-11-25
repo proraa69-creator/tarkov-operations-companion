@@ -502,17 +502,15 @@ export class AdminStore {
     }
     // Every succeeded payment by its stored rouble amount: ЮKassa and the archived ones alike; `repeat`: REPEAT_PAYMENT_SQL.
     // «Грязными» — total; «чистыми» (net) — грязными минус доля стримеров минус комиссии платёжных систем, одной формулой
-    // из src/shared/revenue.ts (PROVIDER_FEE_PERCENT: BZB 5 %, ЮKassa/Boosty пока 0, ждём владельца). `amount` у нас всегда
-    // в рублях (долларовые BZB-оплаты владелец вносит рублями), поэтому грязными берём amount по провайдеру как есть; курс
-    // USD_RATE и toRoubles (src/shared/revenue.ts) заложены на будущее — для случая, если сумма начнёт храниться в валюте.
+    // из src/shared/revenue.ts. Комиссию ЮKassa считаем ПО СПОСОБУ оплаты (payments.method: СБП/Т-Банк 3.5 %, карта/Сбер
+    // 4.27 %, прочее 3.53 %), БЗБ — 5 %, Boosty — 0 (архив). `amount` у нас всегда в рублях (долларовые BZB-оплаты владелец
+    // вносит рублями), поэтому грязными берём amount как есть; USD_RATE/toRoubles (src/shared/revenue.ts) — на будущее.
     const revenueSince = (since: number) => {
       const row = this.db.prepare("SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(since) as Row
-      const grossByProvider: Record<string, number> = {}
-      for (const g of this.db.prepare("SELECT COALESCE(provider, 'yookassa') AS provider, COALESCE(SUM(amount), 0) AS amount FROM payments WHERE status = 'succeeded' AND paid_at >= ? GROUP BY 1").all(since) as Row[]) {
-        grossByProvider[String(g.provider)] = Number(g.amount)
-      }
+      const groups = (this.db.prepare("SELECT COALESCE(provider, 'yookassa') AS provider, method, COALESCE(SUM(amount), 0) AS amount FROM payments WHERE status = 'succeeded' AND paid_at >= ? GROUP BY 1, 2").all(since) as Row[])
+        .map((g) => ({ provider: String(g.provider), method: g.method == null ? null : String(g.method), gross: Number(g.amount) }))
       const earned = Number((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(since) as Row).n)
-      const parts = netRevenue(grossByProvider, earned)
+      const parts = netRevenue(groups, earned)
       return {
         total: rub(row.total),
         payments: Number(row.n),
