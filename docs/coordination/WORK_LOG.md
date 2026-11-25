@@ -10431,3 +10431,17 @@ Not pushed, not released, nothing uploaded.
   machine-only (linux/updater ×3, staleServer, appVersion, AdminPanelPage CRLF, two gate-excluded script files). Merge-touched
   tests pass per file (buildEdition, elevation, nativeIntegrity, serviceGateway.dataRoutes, sync, armoredTrain, btrQuests).
 - Server needs RAIDOS_PAID_CONTENT default on (index.ts: on unless =0). Owner exe carries the admin fixes as every release.
+
+## 2026-11-25 — Claude: чтение ника с экрана выбора профиля («J0hn_Ram60» → «hn_Ram62»; ветка claude/nickname-ocr)
+
+- Ветка `claude/nickname-ocr` от `origin/release/production` (`a52d596a`, Release 0.6.0.344), рабочее дерево `C:\Users\BANGKOK PC\raidos-nickname-ocr` (junction node_modules → raidos-stock-level, server/node_modules → raidos-quest-photos-all). Не запушено, не выпущено.
+- Заявка владельца (25.11.2026): приложение читает ник неверно — эталон «J0hn_Ram60», уровень 25; прочитало «hn_Ram62» (потеряло «J0», «60»→«62»). «Научись правильно читать и разделять, где цифра, где буква; выпусти в ближайшем обновлении».
+- Причина (`src/import/modeSelectScreen.ts`, `electron/screenOcr.ts` readModeSelect): полный проход OCR роняет первую букву имени там, где она лежит поверх арта персонажа, и читает «hn_Ram62» (`lineInBand` в modeSelectHeaders). Close-up строился по этому же обрезанному боксу слова (`header.full.box`), а `confirmCards` подтверждал ник, когда полный проход и close-up совпадают, — оба обрезаны одинаково, оттого «hn_Ram62» и сохранялся. «60»→«62» — шрифт игры Bender: Tesseract читает перечёркнутый «0» как «2»/«8» (как и для уровня, levelDigits.ts), одинаково в обоих проходах.
+- Исправлено (коммит `fa4eb584`):
+  1. `modeSelectHeaders` расширяет бокс close-up до собственной полосы карточки, привязанной к заголовку (`widenToBand`): левый (и правый) символ, обрезанный полным проходом, снова попадает в 3× close-up; полоса не выходит за карточку.
+  2. `readModeSelect` ставит вайтлист символов (латиница верх/низ, цифры, `_ - | ! / \`, пробел) на OCR close-up и снимает его после: буквы имени больше не подменяются кириллическими двойниками и не теряются. Уровень по-прежнему подтверждается формой цифр; цифры в буквы эвристикой не «чинятся».
+  3. `confirmCards`/`confirmedNickname` берёт написание из увеличенного close-up, когда он одинаков в двух кадрах, а полный проход лишь обрезал край того же имени (`closeUpHoldsWholePass`); другое имя в полном проходе — по-прежнему расхождение, ник не ставится.
+- Файлы: `src/import/modeSelectScreen.ts`, `electron/screenOcr.ts`, тесты `src/import/modeSelectScreen.test.ts` (парсинг «J0hn_Ram60», расширение бокса, восстановление обрезанного имени).
+- Тесты: `vitest src/import` — 433 passed (33 файла); `npm run typecheck` (tsc -b) — чисто; `npx tsc -p tsconfig.electron.json --noEmit` — чисто.
+- Остаточная неточность (честно): перечёркнутый «0» ВНУТРИ ника ещё может читаться как «2»/«8» — форма проверяется только для хвостового уровня, не для цифр имени. Зато символы больше не теряются, а при расхождении цифры с полным проходом ник не сохраняется (безопасно): прежнего неверного «hn_Ram62» больше нет. 0/O различить на 100% нельзя (foldNickname их сводит при сравнении).
+- Не проверено: настоящий экран игры/оболочка (не запускались). Правка только клиентская (OCR); VPS, база, секреты не трогались. Строки «Новости обновлений»/«История обновлений» — на шаг выпуска (фикс чтения ника — техническое улучшение; список новостей, если нужен, владельцу показать первым).
