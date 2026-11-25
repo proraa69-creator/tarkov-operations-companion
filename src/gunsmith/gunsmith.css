@@ -7,9 +7,12 @@
 .gunsmith-row-chevron { color: var(--text-dim); transition: transform .3s var(--ease-soft); }
 .gunsmith-current.is-open .gunsmith-row-chevron { transform: rotate(180deg); }
 
-/* Same calm reveal as «Ещё N заданий» (grid rows 0fr ↔ 1fr). */
-.gunsmith-details { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--ease-soft); }
-.gunsmith-details.is-open { grid-template-rows: 1fr; }
+/* The details open in one step and fade in: the free Overview glides the blocks below to their new place itself
+ * (useOverviewEditor FLIP). A height growing over .45 s re-packed the Overview every frame, so the block below jumped
+ * over the opening picture (owner, 25.11.2026: «Блок оружейника при раскладывании опять дергается»), as «Текущие
+ * задания» did before (pages.css .current-tasks-more). */
+.gunsmith-details { display: grid; grid-template-rows: 0fr; opacity: 0; transition: opacity .2s ease; }
+.gunsmith-details.is-open { grid-template-rows: 1fr; opacity: 1; transition: opacity .45s ease .05s; }
 .gunsmith-details-inner { min-height: 0; overflow: hidden; }
 .gunsmith-details.is-open .gunsmith-details-inner { padding-top: 12px; }
 

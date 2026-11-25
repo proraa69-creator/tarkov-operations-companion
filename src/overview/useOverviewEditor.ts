@@ -95,12 +95,14 @@ export function useOverviewEditor() {
   const [lifted, setLifted] = useState<string | null>(null)
   const [heights, setHeights] = useState<Record<string, number>>({})
   const [width, setWidth] = useState(0)
+  /** The least height the Overview keeps: the part of it that was in the window when a block got shorter. */
+  const [floor, setFloor] = useState(0)
   const [, setTick] = useState(0)
   const elements = useRef(new Map<string, HTMLElement>())
   const container = useRef<HTMLElement | null>(null)
   const layoutRef = useRef(layout)
   /** Where the blocks were on screen just before a move (the «first» of FLIP). */
-  const pending = useRef<Map<string, DOMRect> | null>(null)
+  const pending = useRef<Map<string, { left: number; top: number }> | null>(null)
   const drag = useRef<Drag | null>(null)
   /** Every block's last known height, kept after it is taken off: a block added back is placed by it. */
   const seen = useRef<Record<string, number>>({})
@@ -166,13 +168,15 @@ export function useOverviewEditor() {
     }
     Object.assign(seen.current, next)
     if (changed) {
+      // The Overview never gets shorter than the part of it in the window (owner, 25.11.2026: «Блок оружейника … дергается
+      // потому что край экрана»): folded at the bottom of the page, a block made the page shorter than the place shown and
+      // the browser pulled the whole page down at once. Taken now, while the page still has its old length; the room stays
+      // under the blocks and goes as the page is scrolled up past it (the scroll effect below).
+      const element = container.current
+      if (element) setFloor(Math.max(0, Math.min(element.offsetHeight, window.innerHeight - element.getBoundingClientRect().top)))
       // a block that grew or shrank: the ones it moves glide (not on the first measure, when nothing stood anywhere yet)
       const known = Object.keys(heights).length > 0 && [...elements.current.keys()].every((id) => id in heights)
-      if (known && !pending.current && canAnimate()) {
-        const before = new Map<string, DOMRect>()
-        for (const [id, element] of elements.current) before.set(id, element.getBoundingClientRect())
-        pending.current = before
-      }
+      if (known && !pending.current && canAnimate()) pending.current = pagePlaces(elements.current)
       if (burst.current++ === 0) requestAnimationFrame(() => { burst.current = 0 })
       setHeights(next)
     }
@@ -219,9 +223,7 @@ export function useOverviewEditor() {
 
   const apply = useCallback((next: FreeLayout) => {
     if (next === layoutRef.current) return
-    const before = new Map<string, DOMRect>()
-    for (const [id, element] of elements.current) before.set(id, element.getBoundingClientRect())
-    pending.current = before
+    pending.current = pagePlaces(elements.current)
     touched.current = true
     layoutRef.current = next
     setLayout(next)
@@ -253,7 +255,7 @@ export function useOverviewEditor() {
       }
       // taken where it is on screen now, mid-glide too, so a new move goes on from there without a jump
       for (const animation of animationsOf(element)) if (animation.id === 'overview-glide') animation.cancel()
-      const after = element.getBoundingClientRect()
+      const after = pagePlace(element)
       const dx = before.left - after.left
       const dy = before.top - after.top
       if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue
@@ -543,10 +545,28 @@ export function useOverviewEditor() {
     return style
   }, [heights, places, unit])
 
+  // The room kept under the blocks (floor, set where a block's height changed) goes as the page is scrolled up past it.
+  const packed = packedHeight(places)
+  useEffect(() => {
+    if (floor <= packed) return
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const element = container.current
+        const shown = element ? window.innerHeight - element.getBoundingClientRect().top : 0
+        if (shown < floor - 0.5) setFloor(shown > packed ? shown : 0)
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(frame) }
+  }, [floor, packed])
+
   return useMemo(() => ({
     layout,
     places,
-    height: packedHeight(places),
+    height: Math.max(packed, floor),
     single,
     editing,
     lifted,
@@ -560,7 +580,25 @@ export function useOverviewEditor() {
     container: setContainer,
     styleOf,
     handlers,
-  }), [add, base, editing, handlers, hidden, layout, lifted, places, register, remove, reset, setContainer, single, styleOf])
+  }), [add, base, editing, floor, handlers, hidden, layout, lifted, packed, places, register, remove, reset, setContainer, single, styleOf])
+}
+
+/**
+ * Where a block stands in the page (not on the screen): the «first» and «last» of the FLIP glide. On the screen, a scroll
+ * of the page between the two — the browser pulling the page up when the Overview got shorter under the window, or
+ * holding it in place when it grew — made every block, the ones that never moved too, slide by the whole scroll: the whole
+ * Overview drifted half a second each time a block opened or folded at the edge of the window (owner, 25.11.2026:
+ * «Блок оружейника при раскладывании опять дергается … дергается потому что край экрана»).
+ */
+function pagePlace(element: HTMLElement) {
+  const rect = element.getBoundingClientRect()
+  return { left: rect.left + window.scrollX, top: rect.top + window.scrollY }
+}
+
+function pagePlaces(elements: Map<string, HTMLElement>) {
+  const out = new Map<string, { left: number; top: number }>()
+  for (const [id, element] of elements) out.set(id, pagePlace(element))
+  return out
 }
 
 export type OverviewEditor = ReturnType<typeof useOverviewEditor>
