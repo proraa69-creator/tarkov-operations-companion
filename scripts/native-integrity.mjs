@@ -4,12 +4,15 @@
 // which the Electron asar-integrity fuse seals, so it is a trusted reference. Keys are each file's path under `resources`
 // at run time.
 //
-// Best-effort and never fatal: a native missing at build time is left out. @koromix/koffi-win32-* is a Windows-only
-// optional dependency, absent on the Linux release host (scripts/pack-windows-native.cjs fetches it during the pack), so
-// on the VPS koffi is recorded only when present; uiohook-napi ships prebuilt binaries for every platform and is always
-// recorded. Runs inside `npm run build`.
+// Best-effort and never fatal: anything that cannot be resolved is left out, the build goes on. uiohook-napi ships
+// prebuilt binaries for every platform (always recorded). Koffi's native is a Windows-only optional dependency, absent
+// on the Linux release host, so — exactly as scripts/pack-windows-native.cjs does when it packs the exe — this fetches
+// that same version's tarball to hash the same bytes that will ship (x64, the released architecture). Runs inside
+// `npm run build`.
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,12 +31,41 @@ function add(runtimeRelPath, sourcePath) {
   }
 }
 
-// Koffi FFI native — scripts/pack-windows-native.cjs copies it to resources/koffi/<triplet>/koffi.node.
+/**
+ * The koffi.node that scripts/pack-windows-native.cjs copies to resources/koffi/<triplet>/koffi.node: the installed
+ * optional dependency when present, else that exact version fetched from the registry (x64 only — the released
+ * architecture). Returns { path, temp? }; temp is a directory to remove afterwards. null when it cannot be resolved.
+ */
+function koffiSource(name, version, triplet) {
+  const direct = join(modules, name, triplet, 'koffi.node')
+  if (existsSync(direct)) return { path: direct }
+  if (triplet !== 'win32_x64' || !/^\d+\.\d+\.\d+$/.test(String(version || ''))) return null
+  const temp = mkdtempSync(join(tmpdir(), 'raidos-native-integrity-'))
+  const npmCli = process.env.npm_execpath
+  const command = npmCli ? process.execPath : process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const packArgs = ['pack', '--ignore-scripts', '--json', `${name}@${version}`]
+  const output = execFileSync(command, npmCli ? [npmCli, ...packArgs] : packArgs, { cwd: temp, encoding: 'utf8', windowsHide: true, shell: !npmCli && process.platform === 'win32' })
+  const [packed] = JSON.parse(output)
+  execFileSync('tar', ['-xf', join(temp, packed.filename), '-C', temp], { windowsHide: true })
+  return { path: join(temp, 'package', triplet, 'koffi.node'), temp }
+}
+
 try {
   const koffi = JSON.parse(readFileSync(join(modules, 'koffi', 'package.json'), 'utf8'))
   for (const arch of ['x64', 'ia32', 'arm64']) {
     const name = `@koromix/koffi-win32-${arch}`
-    if (koffi.optionalDependencies?.[name]) add(`koffi/win32_${arch}/koffi.node`, join(modules, name, `win32_${arch}`, 'koffi.node'))
+    const version = koffi.optionalDependencies?.[name]
+    if (!version) continue
+    const triplet = `win32_${arch}`
+    let resolved
+    try {
+      resolved = koffiSource(name, version, triplet)
+      if (resolved) add(`koffi/${triplet}/koffi.node`, resolved.path)
+    } catch (error) {
+      console.warn(`native-integrity: koffi ${triplet} not recorded (${error instanceof Error ? error.message : String(error)})`)
+    } finally {
+      if (resolved?.temp) try { rmSync(resolved.temp, { recursive: true, force: true }) } catch { /* leftover temp */ }
+    }
   }
 } catch (error) {
   console.warn(`native-integrity: koffi not inspected (${error instanceof Error ? error.message : String(error)})`)
