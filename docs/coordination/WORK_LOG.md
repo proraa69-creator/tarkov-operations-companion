@@ -10504,3 +10504,12 @@ Not pushed, not released, nothing uploaded.
   догрузке; у кого выбран вид «Время в Таркове» с торговцами — на месте строк кратко видна тусклая заглушка, потом текст, без скачка.
 - Тесты: npm run typecheck — OK (exit 0); vitest InfoStatCard/PhoneOverviewBlock/DashboardPage(+ownerBlocks,exitFlares)/GoonCard(+Sheet)
   — 56 тестов пройдено. Изменено 3 файла (+29/−3). Co-Authored-By: Claude Opus 4.8. Не запушено.
+
+## 2026-11-25 — Claude: phone-only release 0.6.0.344.1 (owner: «обнови для телефона версию» — jitter)
+
+- claude/phone-344-1 from release/production (0.6.0.344) + claude/phone-jitter (20bae5c0: defensive Overview layout-shift
+  reserve on mobile — trader-reset skeleton rows, goon line min-height, restock min-height; desktop and first paint unchanged).
+- Version 0.6.0-344.1 (owner asked for 344.1, not 345, so 345 stays free for PC). Pushed to mobile/release only; PC (release/
+  production) untouched. ios-ipa.yml / ios-app-store.yml build phone; Android update is by versionCode (run_number), so the
+  «344.1» string is display only. Next PC release must use 0.6.0-345 (skips the phone tag).
+- typecheck clean; androidUpdate + InfoStatCard tests pass. Jitter is a defensive fix (not reproduced in dev); owner to verify on phone.
