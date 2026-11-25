@@ -10180,3 +10180,30 @@ Not pushed, not released, nothing uploaded.
 - Risks: the new rigs of 2026 (LV-119, FCPC V5, Siege-R, 6B45, JPC… 39 ids) are not in SPT and stay out of the vest list
   while tarkov.dev gives no properties; SPT values (08.2026) may differ from today's game for ricochet/blunt; the
   Scourge's SMC-90 handguard and cheek rest are not drawn until the chassis is photographed.
+
+## 2026-11-25 — Claude: заявка 225 — пересъёмка шасси SMC-90 Скоржа (снять не удалось, подстановка остаётся)
+
+- Ветка claude/gun-parts-reshoot от release/production f444b3f3; влита claude/range-225-228 (c80014a2: подстановка 225 +
+  «Полигон» 228, fast-forward). Не запушено, не выпущено.
+- Владелец разрешил снимать. В офлайн-SPT (E:\SPT 0.16.9.40743, плагин RaidOsGuns, профиль 6aff123a, клиент на 2-м
+  мониторе) переснял все 8 модулей стандартной сборки Scourge (пресет 6a799f20). 7 модулей валидны и уже лежат в
+  public/gun-parts: корпус-каркас FN P90 6a78b7f8, цевья 6a687e38/6a688026, щека 6a69d239, дульные 6a68a56b/6a6880680/6a6895ac.
+- Шасси SMC-90 6a6877f5 снять НЕ удалось: рендер пустой (alpha 0) — так же было 20.11 (out/parts-wrong-20261120).
+  Диагностика (временно добавил в плагин режим showAll с логом мешей и RecalculateBounds, затем откатил dll, jobs.json и
+  исходник PartsRender.cs к оригиналу — bin и прод dll 40960 байт совпадают): у модели 4 рендерера (корпус LOD0/LOD1,
+  smc90_mag_release, p90_selector), все активны, но у каждого MeshFilter.sharedMesh = NULL — меши не грузятся в офлайн-
+  движок. Старый совместимый бандл stock_p90_strike_industries_smc_90.bundle → mesh null; живой бандл не грузится целиком
+  (игра обновилась 24.11 до 1.3.5.48914: «can't be loaded because it was not built with the right version or build target»).
+  RecalculateBounds не помог — меша нет. Снять шасси прежним способом (копия бандла из живой игры) теперь нельзя: офлайн-
+  движок 0.16.9 несовместим с текущими бандлами игры.
+- Подстановку PICTURE_STAND_INS (шасси → корпус P90 5cc700b9) НЕ убирал: картинки шасси нет, убрать = дыра в сборке
+  (цевьё и щека повиснут без родителя). Новых картинок в public/gun-parts не добавлял — 7 валидных модулей уже в выпуске.
+- Офлайн-бандлы остались на старых совместимых (restore был сделан ранее этого дня: Windows.json CRC и файлы = .bak-
+  reshoot-20261125). Клиент и сервер SPT закрыты. Серверный мод RaidOsParts/parts.json (временные шаблоны) не трогал.
+- Тесты: vitest src/arsenal src/range — 189 passed; npm run typecheck (tsc -b) — чисто.
+- Не проверено: окно приложения (WebGL-отрисовка сборки).
+- Как картинки попадают к игрокам: public/gun-parts (webp + d.png + index.json, 5055 файлов) закоммичены в репо; при сборке
+  vite-плагин gunPartsPack (vite.config.ts → src/arsenal/partPack.ts) пакует dist/gun-parts в зашифрованный
+  dist/gun-parts.pack. На VPS отдельных команд не нужно — картинки берутся из git. В этот раз добавлять нечего.
+- Дальше (по слову владельца): для шасси SMC-90 нужен офлайн-движок/форк SPT под игру 1.3.x, где его меш читается; либо
+  оставить подстановку. Заявка 225 остаётся с временной подстановкой.
