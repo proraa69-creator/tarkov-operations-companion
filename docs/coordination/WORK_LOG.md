@@ -10369,3 +10369,53 @@ Not pushed, not released, nothing uploaded.
 - Проверки: `npm run build` ок; клиентская упаковка `electron-builder --dir` в папку вне дерева → в asar нет local-server/website, build-info edition=client, buildEditionConstant="client", appUpdate.js минифицирован и содержит startupConsumed/blockedByRaid; нативы koffi/uiohook на путях из манифеста. `tsc -b` и `tsc -p tsconfig.electron.json --noEmit` чисто. vitest: мои тесты (buildEdition, elevation, nativeIntegrity) — 14 проходят; electron/ — 542/546, 4 падения ТОЛЬКО локально на Windows и не связаны с правками (linux/updater — системный `tar` принимает `C:\...` за хост; staleServer — под vitest `process.execPath`=node.exe совпадает с «чужим» процессом; на Linux CI оба проходят). Все изменённые пути проходят `deployPath` — 0 refused.
 - Не проверено: рантайм пакованной сборки (junction node_modules даёт неполные зависимости, память local-build-real-node-modules) — проверялись только состав asar и минификация; реальная оболочка с данными владельца не запускалась; прогон на Linux-Wine VPS и запуск собранного exe.
 - Риски для VPS (главное): всё встроено в существующий поток (`npm run build` один раз + `write-build-info` на редакцию) БЕЗ изменения `auto-release.mjs`. Минификация/манифест неломающие; провенанс-подстроки сохранены; `package.json build.files` цел. Первый минифицированный релиз даст больший дельта-апдейт (поменялся весь electron JS) — функционально ок.
+## 2026-11-25: Claude, reports 228 and 225 («Полигон»: plates and visor; the Scourge picture)
+
+- Branch claude/range-225-228 from release/production f444b3f3, commits 4cbce53c (228), c3da9af1 (225). Not pushed, not
+  released.
+- 228 «Не могу вставить плиты и забрало» (0.6.0.343, Hexgrid + Вулкан-5): json.tarkov.dev `regular/items` now gives
+  `properties: null` for every ItemPropertiesArmorAttachment (all plates, face shields, Killa's mask) and every chest
+  rig; tarkov.dev GraphQL answered «server unavailable». The range catalogue (src/range/rangeArmor.ts) dropped them: the
+  plate lists and the visor list held only «Нет», armoured rigs left the vest list, bosses wore no plates. Fix: the
+  game's own pieces from SPT templates (new scripts/build-range-parts.mjs → src/range/rangeParts.json: 105 pieces +
+  30 armoured rigs in tarkov.dev's form) stand in only for an item without properties; the live file's armorClass and
+  maxDurability win. Cache key raid-os-range-armor-v1 → v2. On the live file: Hexgrid 18/19 plates (one new plate
+  6943c85b… is not in SPT), Vulkan-5 visor back, 30 rigs, Killa/Tagilla/Knight dressed with plates and visors.
+- 225 «Иконка Скоржа отображается неверно» (0.6.0.341): the Scourge's SMC-90 chassis 6a6877f5… has no part picture (in
+  the shot list, never produced), so it and what is on it were not drawn: a bare P90 frame. Fix: PICTURE_STAND_INS in
+  src/arsenal/partPictures.ts (SMC-90 chassis → P90 body 5cc700b9…), children of a stand-in not drawn; frames keep the
+  real id. Of all 164 weapons' default presets on the live file, this was the only part without a picture.
+- Tests: vitest src/range src/arsenal — 189 passed; npm run typecheck clean; eslint on changed files clean. Composed the
+  Scourge picture offline from layBuild (flat order, like drawFlat): a whole P90 with its muzzle set.
+- Not verified: the real app window (WebGL drawing), the PvE and season files (only regular checked), the phone.
+  No updateHistory/playerNews rows: they go with the release commit.
+- Risks: the new rigs of 2026 (LV-119, FCPC V5, Siege-R, 6B45, JPC… 39 ids) are not in SPT and stay out of the vest list
+  while tarkov.dev gives no properties; SPT values (08.2026) may differ from today's game for ricochet/blunt; the
+  Scourge's SMC-90 handguard and cheek rest are not drawn until the chassis is photographed.
+
+## 2026-11-25 — Claude: заявка 225 — пересъёмка шасси SMC-90 Скоржа (снять не удалось, подстановка остаётся)
+
+- Ветка claude/gun-parts-reshoot от release/production f444b3f3; влита claude/range-225-228 (c80014a2: подстановка 225 +
+  «Полигон» 228, fast-forward). Не запушено, не выпущено.
+- Владелец разрешил снимать. В офлайн-SPT (E:\SPT 0.16.9.40743, плагин RaidOsGuns, профиль 6aff123a, клиент на 2-м
+  мониторе) переснял все 8 модулей стандартной сборки Scourge (пресет 6a799f20). 7 модулей валидны и уже лежат в
+  public/gun-parts: корпус-каркас FN P90 6a78b7f8, цевья 6a687e38/6a688026, щека 6a69d239, дульные 6a68a56b/6a6880680/6a6895ac.
+- Шасси SMC-90 6a6877f5 снять НЕ удалось: рендер пустой (alpha 0) — так же было 20.11 (out/parts-wrong-20261120).
+  Диагностика (временно добавил в плагин режим showAll с логом мешей и RecalculateBounds, затем откатил dll, jobs.json и
+  исходник PartsRender.cs к оригиналу — bin и прод dll 40960 байт совпадают): у модели 4 рендерера (корпус LOD0/LOD1,
+  smc90_mag_release, p90_selector), все активны, но у каждого MeshFilter.sharedMesh = NULL — меши не грузятся в офлайн-
+  движок. Старый совместимый бандл stock_p90_strike_industries_smc_90.bundle → mesh null; живой бандл не грузится целиком
+  (игра обновилась 24.11 до 1.3.5.48914: «can't be loaded because it was not built with the right version or build target»).
+  RecalculateBounds не помог — меша нет. Снять шасси прежним способом (копия бандла из живой игры) теперь нельзя: офлайн-
+  движок 0.16.9 несовместим с текущими бандлами игры.
+- Подстановку PICTURE_STAND_INS (шасси → корпус P90 5cc700b9) НЕ убирал: картинки шасси нет, убрать = дыра в сборке
+  (цевьё и щека повиснут без родителя). Новых картинок в public/gun-parts не добавлял — 7 валидных модулей уже в выпуске.
+- Офлайн-бандлы остались на старых совместимых (restore был сделан ранее этого дня: Windows.json CRC и файлы = .bak-
+  reshoot-20261125). Клиент и сервер SPT закрыты. Серверный мод RaidOsParts/parts.json (временные шаблоны) не трогал.
+- Тесты: vitest src/arsenal src/range — 189 passed; npm run typecheck (tsc -b) — чисто.
+- Не проверено: окно приложения (WebGL-отрисовка сборки).
+- Как картинки попадают к игрокам: public/gun-parts (webp + d.png + index.json, 5055 файлов) закоммичены в репо; при сборке
+  vite-плагин gunPartsPack (vite.config.ts → src/arsenal/partPack.ts) пакует dist/gun-parts в зашифрованный
+  dist/gun-parts.pack. На VPS отдельных команд не нужно — картинки берутся из git. В этот раз добавлять нечего.
+- Дальше (по слову владельца): для шасси SMC-90 нужен офлайн-движок/форк SPT под игру 1.3.x, где его меш читается; либо
+  оставить подстановку. Заявка 225 остаётся с временной подстановкой.

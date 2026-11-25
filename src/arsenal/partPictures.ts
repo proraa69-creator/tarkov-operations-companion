@@ -45,6 +45,23 @@ const apply = (a: Mat3, v: [number, number, number]): [number, number, number] =
 /** The turn of most slot bones (-90° about X): it holds a part upright. */
 const STANDARD_BACK = transpose(quat([-0.70711, 0, 0, 0.70711]))
 
+/**
+ * New parts the game was never drawn with, drawn as the part they stand in for (report 225: the Scourge P90's SMC-90 chassis
+ * has no picture, and the gun was drawn as a bare P90 frame). What is on such a part was made for it, not for the stand-in
+ * (the SMC-90 handguard and cheek rest have no place on the P90 body): it is not drawn.
+ */
+export const PICTURE_STAND_INS: Readonly<Record<string, string>> = {
+  // Strike Industries SMC-90 chassis → the FN P90 body
+  '6a6877f566f77e6757083db5': '5cc700b9e4a949000f0f0f25',
+}
+
+/** The picture a part is drawn with: its own, or its stand-in's when it has none. */
+export function pictureOf(tpl: string, index: PartsIndex): string | undefined {
+  if (index.parts[tpl]) return tpl
+  const standIn = PICTURE_STAND_INS[tpl]
+  return standIn && index.parts[standIn] ? standIn : undefined
+}
+
 /** A stock's slot (`mod_stock`, `mod_stock_000`, `mod_stock_akms`…). */
 const isStockSlot = (path: string) => (path.split('/').pop() ?? '').startsWith('mod_stock')
 /** A part on a stock shorter than this (metres along the weapon) is a pad or lock, not a stock: it follows what it is on. */
@@ -85,6 +102,7 @@ function flatten(turn: Mat3): Mat3 {
 
 /** A part where it stands in the picture: its picture's pixels go through `m` (2×3, to the build's pixels); `x` its place along the view. */
 export interface PlacedPart {
+  /** The picture's part: the part itself or its stand-in (PICTURE_STAND_INS). */
   tpl: string
   asset: PartAsset
   /** Picture pixel (u, v) → build pixel: [a, b, c, d, e, f] as u' = a·u + b·v + c, v' = d·u + e·v + f. */
@@ -162,7 +180,7 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
   const partPaths: string[] = []
   const frames: PartFrame[] = []
   const partTurn = (tpl: string, given: Mat3): Mat3 => {
-    const plain = index.parts[tpl]
+    const plain = index.parts[pictureOf(tpl, index) ?? tpl]
     // The game's own turn of the part where it puts it straight on its slot's bone (measured on its assembled presets, `fix`): the
     // MP-18, PKM and RPD barrels drawn hanging, the SPEAR receiver, the T-5000M chassis, the M3 forend… (owner, 20.11.2026: «ствол
     // должен быть цельным… у всех оружие должно смотреть прямо»).
@@ -173,7 +191,8 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     return Math.abs(Math.abs(fixed[0]) - 1) > 1e-3 ? flatten(fixed) : fixed
   }
   const walk = (tpl: string, node: BuildNode | undefined, at: [number, number, number], given: Mat3, path: string, hang = false, onCarrier = false) => {
-    const plain = index.parts[tpl]
+    const picture = pictureOf(tpl, index) ?? tpl
+    const plain = index.parts[picture]
     // a grip on a side rail pointing at the eye (the 6P29M's only foregrip slot) hangs down under its rail, as it is read from the side
     const laidTurn = hang ? aboutView(partTurn(tpl, given), Math.PI) : partTurn(tpl, given)
     // folded: the weapon in its folded look, and the stock in the folding slot in its own when it has one
@@ -202,14 +221,14 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
     const cx = -at[2] * ppm
     const cy = -at[1] * ppm
     const [ux, uy] = asset.o
-    placed.push({ tpl, asset, x: at[0], m: [a, b, cx - a * ux - b * uy, d, e, cy - d * ux - e * uy], ...(foldsHere ? { fold: true } : {}) })
+    placed.push({ tpl: picture, asset, x: at[0], m: [a, b, cx - a * ux - b * uy, d, e, cy - d * ux - e * uy], ...(foldsHere ? { fold: true } : {}) })
     partPaths.push(path)
     for (const [slotId, slot] of Object.entries(asset.s)) {
       const offset = apply(turn, [slot[0]!, slot[1]!, slot[2]!])
       anchors[path ? `${path}/${slotId}` : slotId] = [-(at[2] + offset[2]) * ppm, -(at[1] + offset[1]) * ppm]
     }
     for (const [slotId, child] of Object.entries(node?.children ?? {})) {
-      const slot = asset.s[slotId]
+      const slot = picture === tpl ? asset.s[slotId] : undefined
       if (!slot) { missing.push(child.itemId); continue }
       const offset = apply(turn, [slot[0]!, slot[1]!, slot[2]!])
       const childTurn = mul(mul(turn, quat(slot.slice(3))), STANDARD_BACK)
@@ -225,7 +244,7 @@ export function layBuild(build: Build, index: PartsIndex, options: { folded?: bo
   if (folded && foldSlot) bringFoldedStockNear(placed, partPaths, foldSlot)
   // the fold button only where folding shows: the weapon has a folded look, or the stock in the folding slot has its own
   const foldStock = foldSlot ? build.root.children[foldSlot]?.itemId : undefined
-  const foldable = Boolean(foldSlot && (weapon?.fold || (foldStock && index.parts[foldStock]?.fold)))
+  const foldable = Boolean(foldSlot && (weapon?.fold || (foldStock && index.parts[pictureOf(foldStock, index) ?? foldStock]?.fold)))
   // the picture's box: every part's corners through its placing
   let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity]
   let [near, far] = [Infinity, -Infinity]

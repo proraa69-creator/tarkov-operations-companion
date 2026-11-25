@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { layBuild, type PartAsset, type PartsIndex } from './partPictures'
+import { layBuild, PICTURE_STAND_INS, type PartAsset, type PartsIndex } from './partPictures'
+import realIndex from '../../public/gun-parts/index.json'
 
 // A weapon (its stock slot at the back) and a stock, with a folded look that turns the stock slot 180° about the vertical — as the
 // AK family folds its stock to the left side, behind the receiver in a picture of the right side.
@@ -109,5 +110,39 @@ describe('a foregrip on a side slot', () => {
     const [, mountTop, , mountBottom] = laid.boxes.mod_handguard!
     expect(top).toBeGreaterThan((mountTop + mountBottom) / 2)
     expect(bottom).toBeGreaterThan(mountBottom)
+  })
+})
+
+describe('a new part with no picture of its own', () => {
+  // report 225: the Scourge P90 was drawn as a bare P90 frame (its SMC-90 chassis has no picture)
+  const scourge = {
+    weaponId: '6a78b7f8c2016eb33e0027cd',
+    root: { itemId: '6a78b7f8c2016eb33e0027cd', children: {
+      mod_magazine: { itemId: '5cc70093e4a949033c734312', children: {} },
+      mod_stock: { itemId: '6a6877f566f77e6757083db5', children: {
+        mod_foregrip: { itemId: '6a688026daa5d47171082d6b', children: {} },
+        mod_stock_000: { itemId: '6a69d239d038171e800696b0', children: {} },
+      } },
+      mod_reciever: { itemId: '5cc70102e4a949035e43ba74', children: { mod_mount_000: { itemId: '5cebec38d7f00c00110a652a', children: {} } } },
+      mod_barrel: { itemId: '5cc701aae4a949000e1ea45c', children: {} },
+      mod_charge: { itemId: '5cc6ea78e4a949000e1ea3c1', children: {} },
+    } },
+  }
+
+  it('is drawn as the part it stands in for, and what is on it (made for it) is not drawn', () => {
+    const laid = layBuild(scourge, realIndex as unknown as PartsIndex)
+    const body = PICTURE_STAND_INS['6a6877f566f77e6757083db5']!
+    expect(laid.parts.map((part) => part.tpl)).toContain(body)
+    expect(laid.missing).toEqual(['6a688026daa5d47171082d6b', '6a69d239d038171e800696b0'])
+    // the P90 body sits where it sits on the P90
+    const p90 = layBuild({ ...scourge, weaponId: '5cc82d76e24e8d00134b4b83', root: { itemId: '5cc82d76e24e8d00134b4b83', children: { mod_stock: { itemId: body, children: {} } } } }, realIndex as unknown as PartsIndex)
+    const placed = (from: typeof laid) => from.parts.find((part) => part.tpl === body)!
+    expect(placed(laid).x).toBeCloseTo(placed(p90).x)
+    // its frame keeps the real part's id
+    expect(laid.frames.some((frame) => frame.tpl === '6a6877f566f77e6757083db5' && frame.path === 'mod_stock')).toBe(true)
+  })
+
+  it('every stand-in has a picture', () => {
+    for (const standIn of Object.values(PICTURE_STAND_INS)) expect((realIndex as unknown as PartsIndex).parts[standIn]).toBeDefined()
   })
 })
