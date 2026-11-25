@@ -10156,3 +10156,33 @@ Not pushed, not released, nothing uploaded.
   or «Снимок из игры»; an exit list opened by a rebound key is seen within 1.5 s instead of 0.5 s.
 - Mistake fixed in-session: a PowerShell script with relative [IO.File] paths wrote 5 files into
   raidos-quest-photos-all (only my lines); restored there with git checkout of those 5 files, tree clean again.
+
+## 2026-11-25: Claude, report 232 — quest scan found nothing on «Побочные» (Season, Russian game, 0.6.0.343)
+
+- Branch claude/quest-scan-232 from release/production f444b3f3; commits d4577207 (scanner), a89ff569 (game language =
+  app language), 57b2e08e (app language from the account's country). Not pushed, not released.
+- Cause: a Tasks row on Labs («Лаборатория активно!») matched the story header pattern /тори[яи]/ (storyPaneLayout.ts
+  isStoryTitleText / PANE_HEADER / storyPaneRects, storyScan.ts isStoryMenuText). With the «СЮЖЕТНЫЕ» tab on every Tasks
+  screen, electron/screenOcr.ts readQuestFrame took «Побочные» for a story pane, read its parts (the title crop held
+  «Лаборатория») and remembered the layout (storyLayout): every later frame read only that crop, never the table, and
+  tasksScreenKind returned 'story' for a frame with story parts — not one row applied. The player has 78 Season quests
+  (several on Labs: «Образцы»…). Pattern dates from 08–14.10.2026: not caused by 341's game-language setting; it hits any
+  player (Russian game, any mode) whose visible table holds a Labs row near the top. The default game language «en» reads
+  the Russian table the same as «ru» (OCR model rus+eng; test).
+- Fixed: «ИСТОРИЯ» only as a word of its own (HISTORY_WORD); src/import/tasksTableText.ts tells the table by its column
+  heads or rows with a location and an open status — such a frame is never read as a story pane (screenOcr.ts) and is a
+  table even with story parts (tasksScreenKind).
+- Owner's decisions: «Язык игры» setting and its help gone; the renderer tells the main process the app's language at
+  start and on each change (gameLanguageSync.ts, ExperimentalBridge). App language from the account's country
+  (src/i18n/countryLanguage.ts) once, on a new install only (nothing saved yet), at sign-in (initialCountry.ts) or when the
+  country is first named (CountryGate); the picker's choice is kept; a language saved by older versions is never changed
+  (a Russian-speaking player abroad keeps Russian after the update).
+- Tests: npx vitest run src/import src/components src/i18n src/pages — 1247 passed, 6 failed = MapsPage.* timeouts at 5 s
+  under load (all 47 MapsPage tests pass with --testTimeout=60000); new src/import/report232.test.ts,
+  src/i18n/countryLanguage.test.tsx, StoryScreenScanner.test.tsx «report 232». npm run typecheck and
+  tsc -p tsconfig.electron.json --noEmit clean.
+- Not verified: the real game and Electron shell (not run); real OCR of a Labs row (the test row is built from the real
+  table's rows); the phone. No updateHistory/playerNews rows: they go with the release commit.
+- Risks: a new install of an account in a non-Russian country now opens in that country's language at the first sign-in;
+  a Russian game run with the app in English is read with the rus+eng model as before, but German etc. games need the
+  app in that language now.
