@@ -7,6 +7,7 @@
  */
 import { COLLIDERS, PLATE_ZONES, type ArmorPiece, type Collider, type PlateZone } from './rangeModel'
 import targetsFile from './rangeTargets.json'
+import partsFile from './rangeParts.json'
 
 type Json = Record<string, unknown>
 
@@ -63,6 +64,8 @@ interface TargetsFile { targets: RangeTargetData[]; slotDefaults: Record<string,
 export const RANGE_TARGETS = (targetsFile as unknown as TargetsFile).targets
 const SLOT_DEFAULTS = (targetsFile as unknown as TargetsFile).slotDefaults
 const SOFT_REDUCE = new Set((targetsFile as unknown as TargetsFile).softReduce)
+/** Plates, face shields, armoured masks and glasses from the game's templates (scripts/build-range-parts.mjs). */
+const PARTS = (partsFile as unknown as { parts: Record<string, Json> }).parts
 
 const COLLIDER_SET = new Set<string>(COLLIDERS)
 const PLATE_SET = new Set<string>(PLATE_ZONES)
@@ -90,6 +93,22 @@ export interface CatalogInput {
   /** `<id> Name` / `<id> ShortName` → text. */
   names: Json
   imageBase: string
+  /** The pieces' properties to fall back on (default: rangeParts.json). */
+  parts?: Record<string, Json>
+}
+
+/**
+ * An item's properties; for a piece the file gives none of (json.tarkov.dev on 25.11.2026: `properties: null` for every
+ * plate and face shield, report 228) the game's own, with the file's current class and durability over them.
+ */
+export function propertiesOf(entry: Json, parts: Record<string, Json> = PARTS): Json {
+  const props = record(entry.properties)
+  if (text(props.propertiesType)) return props
+  const part = parts[text(entry.id)]
+  if (!part) return props
+  const armorClass = num(entry.armorClass)
+  const durability = num(entry.maxDurability)
+  return { ...part, ...(armorClass > 0 ? { class: armorClass } : {}), ...(durability > 0 ? { durability } : {}) }
 }
 
 const imageOf = (base: string, id: string) => `${base.replace(/\/$/, '')}/${id}-icon.webp`
@@ -119,7 +138,7 @@ export function buildArmorCatalog(input: CatalogInput): ArmorCatalog {
   const isFacePiece = (props: Json) => readZones(props.zones).colliders.some((collider) => collider === 'Eyes' || collider === 'Jaw')
   for (const entry of all) {
     const id = text(entry.id)
-    const props = record(entry.properties)
+    const props = propertiesOf(entry, input.parts ?? PARTS)
     const type = text(props.propertiesType)
     const types = list(entry.types).map(text)
     if (!id || !type) continue

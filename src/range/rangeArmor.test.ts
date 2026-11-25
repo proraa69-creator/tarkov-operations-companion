@@ -42,6 +42,28 @@ describe('the range armour catalogue (json.tarkov.dev items)', () => {
     expect(randomKit(catalog, killa, seededRandom(1)).body).toBe('5c0e541586f7747fa54205c9')
   })
 
+  it('takes the game’s own plates and visors when the file gives them no properties (report 228)', () => {
+    // json.tarkov.dev, 25.11.2026: `properties: null` for every plate and face shield, the class and durability on the item
+    const stripped = Object.fromEntries(Object.entries(fixture.items).map(([id, item]) => {
+      const type = (item as { properties?: { propertiesType?: string } }).properties?.propertiesType
+      if (type !== 'ItemPropertiesArmorAttachment') return [id, item]
+      const props = (item as { properties: { class: number; durability: number } }).properties
+      return [id, { ...item, properties: null, armorClass: String(props.class), maxDurability: props.durability }]
+    }))
+    const live = buildArmorCatalog({ items: stripped, materials: fixture.armorMaterials, names: fixture.names, imageBase: 'https://assets.tarkov.dev' })
+    const plate = live.items.get('656f611f94b480b8a500c0db')!
+    expect(plate.kind).toBe('plate')
+    expect(plate.pieces[0]).toMatchObject({ armorClass: 5, maxDurability: 50, material: 'Ceramic', plates: ['Plate_Korund_chest'] })
+    expect(live.items.get('5c0e842486f77443a74d2976')?.kind).toBe('face')
+    const choice = likelyKit(live, killa)
+    expect(choice).toMatchObject({ visor: '5c0e842486f77443a74d2976' })
+    expect(choice.plates).toEqual({ Front_plate: '656f611f94b480b8a500c0db', Back_plate: '656efaf54772930db4031ff5' })
+    // the file's own class and durability win over the templates'
+    const changed = { ...stripped, '656f611f94b480b8a500c0db': { ...(stripped['656f611f94b480b8a500c0db'] as object), armorClass: '4', maxDurability: 44 } }
+    const newer = buildArmorCatalog({ items: changed, materials: fixture.armorMaterials, names: fixture.names, imageBase: '' })
+    expect(newer.items.get('656f611f94b480b8a500c0db')?.pieces[0]).toMatchObject({ armorClass: 4, maxDurability: 44 })
+  })
+
   it('a carrier comes with its plates; a plate only covers its slot’s zone', () => {
     const plates = defaultPlates(catalog, '5e4abb5086f77406975c9342')
     expect(plates).toEqual({ Front_plate: '656fa76500d62bcd2e024080', Back_plate: '656fa76500d62bcd2e024080' })
