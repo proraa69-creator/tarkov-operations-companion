@@ -82,9 +82,26 @@ export function createPayoutsRouter(accounts: AccountStore, payouts: PayoutStore
     res.status(201).json(payouts.request(id, code, requestSchema.parse(req.body).amount))
   }))
 
+  // Streamer new-events (owner, 25.11.2026): payments by his link and payouts marked paid; `read` clears the red count.
+  router.get('/me/streamer-notifications', handle((req, res) => {
+    const { id, code } = streamer(req)
+    res.json(payouts.notices(id, code))
+  }))
+  router.post('/me/streamer-notifications/read', handle((req, res) => {
+    const { id, code } = streamer(req)
+    payouts.markNoticesSeen(id)
+    res.json(payouts.notices(id, code))
+  }))
+
   router.get('/me/admin/payouts', handle((req, res) => {
     owner(req)
     res.json({ payouts: payouts.ownerList((accountId) => accounts.emailOf(accountId)), limits: payouts.intervalLimits() })
+  }))
+
+  // «Стримеры» → красный счётчик: сколько заявок ждут владельца сейчас.
+  router.get('/me/admin/payouts/attention', handle((req, res) => {
+    owner(req)
+    res.json({ count: payouts.pendingCount() })
   }))
 
   router.post('/me/admin/payouts/decide', handle((req, res) => {

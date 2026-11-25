@@ -20,7 +20,7 @@ function setup(options: { maxDevices?: number } = {}) {
   let now = Date.parse('2026-10-01T12:00:00Z')
   const paid = new Map<string, number>()
   const accounts = new AccountStore({ now: () => now, ownerEmails: ['owner@example.com'] })
-  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0 }), referralSeries: () => [] }
+  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }), referralSeries: () => [] }
   accounts.attachSubscriptions(source)
   const privateKey = generateKeyPairSync('ed25519').privateKey
   const entitlements = new EntitlementService(accounts, { privateKey, maxDevices: options.maxDevices })

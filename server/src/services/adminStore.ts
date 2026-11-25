@@ -16,6 +16,7 @@ import { AD_SOURCE_LABEL, AD_SOURCES } from '../../../src/shared/adSources'
 import { ADMIN_CIS_COUNTRIES, ADMIN_EXTRA_CIS_COUNTRIES, adminRegionOf, CIS_COUNTRIES, EUROPE_COUNTRIES, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
 import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
+import { netRevenue } from '../../../src/shared/revenue'
 import { AccountError, ACCOUNT_MODES, maskPhone, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
 import { phonePlatformOf, presenceClientOf, type AccountPresence } from './presence.js'
 import { transaction } from './database.js'
@@ -500,9 +501,26 @@ export class AdminStore {
       streamers: count("SELECT COUNT(*) AS n FROM accounts WHERE kind = 'streamer'"),
     }
     // Every succeeded payment by its stored rouble amount: ЮKassa and the archived ones alike; `repeat`: REPEAT_PAYMENT_SQL.
+    // «Грязными» — total; «чистыми» (net) — грязными минус доля стримеров минус комиссии платёжных систем, одной формулой
+    // из src/shared/revenue.ts (PROVIDER_FEE_PERCENT: BZB 5 %, ЮKassa/Boosty пока 0, ждём владельца). `amount` у нас всегда
+    // в рублях (долларовые BZB-оплаты владелец вносит рублями), поэтому грязными берём amount по провайдеру как есть; курс
+    // USD_RATE и toRoubles (src/shared/revenue.ts) заложены на будущее — для случая, если сумма начнёт храниться в валюте.
     const revenueSince = (since: number) => {
       const row = this.db.prepare("SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(since) as Row
-      return { total: rub(row.total), payments: Number(row.n), repeat: count(`SELECT COUNT(*) AS n FROM payments p WHERE p.paid_at >= ? AND ${REPEAT_PAYMENT_SQL}`, since) }
+      const grossByProvider: Record<string, number> = {}
+      for (const g of this.db.prepare("SELECT COALESCE(provider, 'yookassa') AS provider, COALESCE(SUM(amount), 0) AS amount FROM payments WHERE status = 'succeeded' AND paid_at >= ? GROUP BY 1").all(since) as Row[]) {
+        grossByProvider[String(g.provider)] = Number(g.amount)
+      }
+      const earned = Number((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(since) as Row).n)
+      const parts = netRevenue(grossByProvider, earned)
+      return {
+        total: rub(row.total),
+        payments: Number(row.n),
+        repeat: count(`SELECT COUNT(*) AS n FROM payments p WHERE p.paid_at >= ? AND ${REPEAT_PAYMENT_SQL}`, since),
+        net: rub(parts.net),
+        streamerEarnings: rub(parts.streamerEarnings),
+        fees: rub(parts.fees),
+      }
     }
     const payouts = this.tableExists('streamer_payouts')
       ? this.db.prepare("SELECT COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS paid, COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS pending, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS open FROM streamer_payouts").get() as Row

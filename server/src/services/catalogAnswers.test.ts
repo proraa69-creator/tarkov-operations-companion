@@ -113,7 +113,7 @@ test('catalog route: full answers and 304 come from the prepared bytes; the cata
   current = counted(current)
   const paid = new Map<string, number>()
   const accounts = new AccountStore()
-  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0 }), referralSeries: () => [] }
+  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }), referralSeries: () => [] }
   accounts.attachSubscriptions(source)
   const entitlements = new EntitlementService(accounts)
   const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { entitlements, catalogSnapshot: async () => current }).listen(0, '127.0.0.1')

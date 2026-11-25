@@ -20,12 +20,15 @@
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
+import { PAYOUT_MATURITY_DAYS } from '../../../src/shared/revenue'
 
 type Row = Record<string, unknown>
 
 /** Where earnings come from (PaymentStore). Amounts in kopecks. */
 export interface EarningsSource {
   streamerEarned(code: string): number
+  /** Earned share of referred payments paid at or before `maturedBefore` (ms): matured for payout (14-day rule). */
+  streamerMatured(code: string, maturedBefore: number): number
   readonly streamerPercent: number
   /** The streamer's own percent when the owner set one (admin panel), else `streamerPercent`. */
   percentFor?(code: string): number
@@ -52,6 +55,15 @@ export interface PayoutView {
 }
 
 export interface PayoutDetails { phone: string; bank: string; recipient: string }
+
+/** A streamer's new-event: a payment by his link («деньги по ссылке») or a payout the owner marked paid. */
+export interface StreamerNotice {
+  type: 'payment' | 'payout'
+  /** ISO time of the event. */
+  at: string
+  /** Roubles: the streamer's share of a payment, or the amount of a paid payout. */
+  amount: number
+}
 
 export class PayoutError extends Error {
   readonly status: number
@@ -97,6 +109,9 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS payout_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS streamer_notice_seen (
+    account_id TEXT PRIMARY KEY,
+    seen_at INTEGER NOT NULL);
 `
 
 /** +7XXXXXXXXXX from «8 (999) 123-45-67», «+7 999 1234567» and the like; undefined for anything else. */
@@ -159,10 +174,18 @@ export class PayoutStore {
   /** Balance in kopecks. */
   balance(code: string) {
     const earned = this.source.streamerEarned(code)
+    // «К выводу» — только заработок с платежей старше 14 дней (на случай возврата), минус уже выплаченное и то, что в
+    // заявках; «зреет» — заработок последних 14 дней, пока недоступный (src/shared/revenue.ts PAYOUT_MATURITY_DAYS).
+    const matured = this.source.streamerMatured(code, this.now() - PAYOUT_MATURITY_DAYS * DAY_MS)
     const sums = this.db.prepare("SELECT COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS paid, COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS pending FROM streamer_payouts WHERE code = ?").get(code) as Row
     const paid = Number(sums.paid)
     const pending = Number(sums.pending)
-    return { earned, paid, pending, available: Math.max(0, earned - paid - pending) }
+    return { earned, matured, maturing: Math.max(0, earned - matured), paid, pending, available: Math.max(0, matured - paid - pending) }
+  }
+
+  /** How many payout requests wait for the owner now (the red count on «Стримеры»). */
+  pendingCount() {
+    return Number((this.db.prepare("SELECT COUNT(*) AS n FROM streamer_payouts WHERE status = 'pending'").get() as Row).n)
   }
 
   private settingsRow(accountId: string) {
@@ -183,6 +206,9 @@ export class PayoutStore {
       paidOut: rub(balance.paid),
       pending: rub(balance.pending),
       available: rub(balance.available),
+      // «Зреет» и правило 14 дней: заработок последних дней станет доступен к выводу позже (на случай возврата).
+      maturing: rub(balance.maturing),
+      maturityDays: PAYOUT_MATURITY_DAYS,
       minimum: rub(MIN_PAYOUT),
       currency: 'RUB' as const,
       details: hasDetails ? { phone: maskPhone(String(settings!.phone)), bank: String(settings!.bank), recipient: String(settings!.recipient) } : null,
@@ -198,6 +224,34 @@ export class PayoutStore {
 
   history(code: string): PayoutView[] {
     return (this.db.prepare('SELECT * FROM streamer_payouts WHERE code = ? ORDER BY created_at DESC, rowid DESC LIMIT 100').all(code) as Row[]).map(toView)
+  }
+
+  /**
+   * The streamer's new-events (owner, 25.11.2026): payments by his link and payouts the owner marked paid, newest first;
+   * `unread` are those after he last opened the panel («красный кружок»). The owner pressing «Выплачено» becomes a
+   * «выплата проведена» event here; a new succeeded payment by his code becomes a «новая оплата» event.
+   */
+  notices(accountId: string, code: string): { unread: number; seenAt: string | null; items: StreamerNotice[] } {
+    const seen = this.db.prepare('SELECT seen_at FROM streamer_notice_seen WHERE account_id = ?').get(accountId) as Row | undefined
+    const seenAt = seen ? Number(seen.seen_at) : 0
+    const events: Array<StreamerNotice & { ms: number }> = []
+    for (const row of this.db.prepare("SELECT COALESCE(paid_at, created_at) AS at, streamer_earning AS earning FROM payments WHERE referral_code = ? AND status = 'succeeded' AND amount > 0 ORDER BY at DESC LIMIT 30").all(code) as Row[]) {
+      events.push({ type: 'payment', ms: Number(row.at), at: new Date(Number(row.at)).toISOString(), amount: rub(Number(row.earning ?? 0)) })
+    }
+    for (const row of this.db.prepare("SELECT amount, decided_at FROM streamer_payouts WHERE account_id = ? AND status = 'paid' AND decided_at IS NOT NULL ORDER BY decided_at DESC LIMIT 30").all(accountId) as Row[]) {
+      events.push({ type: 'payout', ms: Number(row.decided_at), at: new Date(Number(row.decided_at)).toISOString(), amount: rub(Number(row.amount)) })
+    }
+    const items = events.sort((a, b) => b.ms - a.ms).slice(0, 30)
+    return {
+      unread: items.filter((item) => item.ms > seenAt).length,
+      seenAt: seenAt ? new Date(seenAt).toISOString() : null,
+      items: items.map(({ ms: _ms, ...rest }) => rest),
+    }
+  }
+
+  /** The streamer opened the panel: his new-events are no longer «new». */
+  markNoticesSeen(accountId: string) {
+    this.db.prepare('INSERT INTO streamer_notice_seen (account_id, seen_at) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET seen_at = excluded.seen_at').run(accountId, this.now())
   }
 
   /**

@@ -123,7 +123,7 @@ test('an archived payment and autopayment read in the cabinet without any call o
     assert.deepEqual([autopay.provider, autopay.status, autopay.amount, autopay.currency, autopay.nextChargeAt], ['archive', 'active', 10, 'USD', undefined])
     assert.equal((await t.payments.status(t.player, 'aaaaaaaaaaaaaaaaaaaaaaaa')).provider, 'archive')
     // The streamer's statistics count it by the rouble amount stored when it was paid.
-    assert.deepEqual(t.payments.referralStats('HUNTER'), { activeSubscriptions: 1, revenue: 120000, earnings: 12000 })
+    assert.deepEqual(t.payments.referralStats('HUNTER'), { activeSubscriptions: 1, revenue: 120000, earnings: 12000, payers: 1 })
 
     const player = await t.login('player@example.com')
     const cabinet = await t.call<{ payments: Array<{ provider: string }>; autopay: { provider: string } }>('GET', '/v1/payments', player)
@@ -150,7 +150,7 @@ test('the admin panel counts archived payments by their rouble amount and labels
     const owner = await t.login('owner@example.com')
     const overview = await t.call<{ revenue: { all: Record<string, number> } }>('GET', '/v1/accounts/me/admin/overview', owner)
     // The same player's second payment is a repeat one (owner, 15.11.2026).
-    assert.deepEqual(overview.json.revenue.all, { total: 1200, payments: 2, repeat: 1 })
+    assert.deepEqual(overview.json.revenue.all, { total: 1200, payments: 2, repeat: 1, net: 1080, streamerEarnings: 120, fees: 0 })
     assert.doesNotMatch(overview.text, /lava/i)
     const series = await t.call<{ rows: Array<Record<string, unknown>> }>('GET', '/v1/accounts/me/admin/series?period=day', owner)
     const day = series.json.rows.find((row) => row.period === '2026-10-02')!

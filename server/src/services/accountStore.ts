@@ -107,7 +107,9 @@ export interface ReferralStats {
   /** Of them, accounts made without a code from an address that opened the link shortly before (LINK_ATTRIBUTION_MS). */
   linkRegistrations: number
   activeSubscriptions: number
-  /** Paid by referred users, roubles. Owner only: the streamer's own view leaves it out (he sees only his share). */
+  /** How many referred accounts have paid at least once (owner, 25.11.2026: «сколько оплатили»). */
+  payers?: number
+  /** Paid by referred users, roubles (owner, 25.11.2026: «на какую сумму» — now shown in the streamer's own cabinet too). */
   revenue?: { amount: number; currency: 'RUB' }
   earnings: { amount: number; currency: 'RUB' }
 }
@@ -115,7 +117,7 @@ export interface ReferralStats {
 /** Paid periods and referral revenue (PaymentStore); amounts in kopecks. */
 export interface SubscriptionSource {
   paidUntil(accountId: string): number | undefined
-  referralStats(code: string): { activeSubscriptions: number; revenue: number; earnings: number }
+  referralStats(code: string): { activeSubscriptions: number; revenue: number; earnings: number; payers: number }
   /** Paid subscriptions of referred users grouped by period key (see `periodKeySql`). */
   referralSeries(code: string, keySql: (column: string) => string): Array<{ key: string; payments: number; months: Record<string, number>; revenue: number; earnings: number }>
   /** The streamer's share for new payments, 0–100 (PaymentStore.percentFor). */
@@ -937,10 +939,9 @@ export class AccountStore {
     if (this.invitedBy(account.id)) view.invitedByFriend = true
     if (account.kind === 'streamer' && account.referralCode) {
       view.referralCode = account.referralCode
-      // The streamer sees his share, never the amounts his viewers paid.
-      const { revenue: _revenue, ...own } = this.stats(account.referralCode)
-      void _revenue
-      view.stats = own
+      // Owner, 25.11.2026: the streamer's cabinet now shows how many viewers paid and the total sum, besides his own
+      // share (before, 30.10.2026, the viewers' amounts were hidden from him).
+      view.stats = this.stats(account.referralCode)
       if (this.subscriptions?.percentFor?.(account.referralCode) === 0) view.statsOnly = true
     }
     // Streamers use the service free of charge, for good (the desktop app reads the same view).
@@ -1499,8 +1500,8 @@ export class AccountStore {
     const linkRegistrations = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE ${LINK_ONLY}`).get(code) as Row).n)
     const visits = Number((this.db.prepare('SELECT visits FROM referral_visits WHERE code = ?').get(code) as Row | undefined)?.visits ?? 0)
     // Paid conversions and money come only from verified ЮKassa payments (PaymentStore), by the code alone.
-    const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0 }
-    return { visits, registrations: registrations + linkRegistrations, linkRegistrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
+    const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }
+    return { visits, registrations: registrations + linkRegistrations, linkRegistrations, activeSubscriptions: paid.activeSubscriptions, payers: paid.payers, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
   }
 
   /**
