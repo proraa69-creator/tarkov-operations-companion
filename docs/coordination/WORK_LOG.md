@@ -10186,3 +10186,65 @@ Not pushed, not released, nothing uploaded.
 - Risks: a new install of an account in a non-Russian country now opens in that country's language at the first sign-in;
   a Russian game run with the app in English is read with the rus+eng model as before, but German etc. games need the
   app in that language now.
+## 2026-11-25 — Claude: reports 229 «Выбор карты» and 230 «Выбор карты по квестам» (0.6.0.343; same player as report 165)
+
+- Branch claude/map-priority-229-230 from release/production f444b3f3, commit 47575eef. Not pushed, not released.
+- Reproduced on the player's PvE profile read from the server (read-only: user_quest_mirror, objective_progress,
+  user_deferred_quests) with the served PvE catalog: the strip showed Lighthouse 14 / Woods 12 (he saw 13 / 11). The count
+  was already one per quest; Lighthouse leads because 10 of its 14 current quests are kills, most of them «any of several
+  maps» kills («Тарковский стрелок. Часть 1», «Залётные», «Худшая работа на свете», «Тихий калибр», «Легкотня», «Назвался
+  груздем...») that count on every map they name. Not kills: Woods 5, Interchange 5, Lighthouse 4. «Доктор "Айболит"» and
+  other «Любая карта» quests were never counted on a map (they sit under the list).
+- Wrong in the count: a quest counted on a map it only lists without an objective there («Новые маршруты» on Streets: the
+  transit's destination), and on a map whose remaining work is handed over at a trader. Now progression/mapPriority.ts
+  (questWorkOnMap / mapWorkCounts, mapObjectives.openObjectivesOnMap): a quest counts on a map while it has an open objective
+  there (not ticked, not waiting for a find on another map — report 165), once. Used by the strip, «Текущие задания» of the
+  chosen map, and «Брифинг рейда»'s map counts (that one used to count done maps too).
+- Filter (the player asked twice): «Все / Задания / Устранения» before the tiles, PC only (kept in localStorage
+  raidos-map-priority-filter-v1; the phone row has no room and counts all). «Устранения» = the quest's open work on the map is
+  kills only. Hover on a tile: «Маяк · 14 заданий: 4 + 10 на устранение».
+- 229: clicking a tile cut by the row's edge scrolled the row by the hidden part (measured in the browser: 200 → 264 px), so
+  the row jumped sideways under the pointer. Now a clicked tile never scrolls the row; a map chosen elsewhere («Выбрать
+  карту», squad) is scrolled into sight by bounding boxes. Switching the filter returns the row to its start.
+- Tests: src/progression/mapPriority.test.ts (the player's Lighthouse/Woods shapes), MapPriority.test.tsx (click keeps the
+  scroll, outside pick scrolls, filter order and storage, phone without the switch), uiEnglishOverview.test.ts; full `npm test`:
+  4673 passed, 11 failed, none in touched code — MapsPage.autoFloor/deferred and SupportChat pass alone (timeouts under
+  load); appVersion (space in the path → %20), linux/updater (tar on Windows), AdminPanelPage (CRLF checkout of AppShell.tsx),
+  staleServer, cache-item-images, release-policy are this PC's environment. `npm run typecheck` clean, eslint on changed files clean. Layout checked in a throwaway Vite page with the real
+  CSS (1600×900, the raid-card row): switch fits, clicking the cut tile keeps scrollLeft 200, outside picks come into sight.
+- Not verified: the real Overview with live data (the dev page waits for the gated catalog), the real Electron shell, all
+  themes. No updateHistory/playerNews rows (release commit). Suggested news (owner to approve): RU «Приоритет карт: фильтр
+  «Все / Задания / Устранения» и точный счёт квестов на карте» / EN «Map priority: an «All / Tasks / Eliminations» filter and an
+  exact count of tasks on each map».
+- Note: the BTR driver's quests the app opens by itself (opensByItself: «Назвался груздем...», «Сам себе БТР», «Скорая
+  расплата») count too; the player said on 02.11 he had no BTR quests — if he still has none, that is a separate check.
+
+## 2026-11-25 — Claude: квесты Водителя БТР не считать «текущими» по одному выводу (продолжение заявок 229/230)
+
+- Ветка `claude/map-priority-229-230` поверх 47575eef/2f3e32d4. НЕ запушено, на сервер ничего не писалось (только чтение).
+- Доведена незакоммиченная правка прошлого агента в `src/progression/requirementEngine.ts` и упрощена. Было: приложение само
+  считало квест Водителя БТР (трейдер 656f0f98d80a697f855d34b1) «текущим», если выполнены условия игры (`evaluateTaskAvailability`),
+  а без предыдущего квеста — после «Рука помощи». Стало: `opensByItself` для квеста БТР без записи считает его текущим ТОЛЬКО по
+  подтверждению самого игрока — тик/счёт по цели (`onItByTicks`: отмечена/посчитана цель и ещё осталась открытая обязательная).
+  Условия игры больше не домысливаются: подтверждение (тик) достаточно само по себе, как экранная запись или отметка, и не
+  перепроверяется по цепочке. Без подтверждения квест лишь «Доступен», в «Приоритет карт», «Текущие задания» и «Брифинг рейда»
+  не попадает. `questChain.ts` LOGS_NEVER_NAME не трогал — это обратный, верный механизм (велит доверять чтению экрана).
+- Условия по игре (wiki EFT/wikiwiki, tarkov.dev taskRequirements): квесты Водителя БТР открываются с 20 ур. ПМК и принятой
+  «Рука помощи» (Механик), каждый берётся у водителя в рейде; сдача/провал логируются крайне редко, старт — почти никогда.
+- По базе (read-only, companion.sqlite): игрок заявок 229/230 в PvE — «Рука помощи» completed (eft-log, это и есть триггер),
+  «Задержка отправления Ч2» active через screen-scan (подтверждён экраном → остаётся текущим), «Честный отзыв»/«Шиномонтажка»
+  completed через manual-fix (не текущие), по БТР ни одного quest_events/objective_progress/manual_marks. Агрегат: в
+  user_quest_mirror 1503 профиля, с «Рука помощи» completed — 381, из них 234 без единого подтверждения по БТР (их квесты БТР
+  показывались чисто по выводу), 304 реально ведут БТР. Логи назвали лишь 3 старта «Задержка отправления Ч2», 4 «Честного
+  отзыва», 29 провалов «Шиномонтажки», ни одной сдачи; тики по БТР — только ручные (84 профиля); 130 пар (профиль, режим,
+  квест) держатся лишь ручным тиком без записи задачи — их удерживает путь `onItByTicks` (не сломаны).
+- Файлы: `src/progression/requirementEngine.ts` (opensByItself + onItByTicks, новый комментарий), `src/progression/btrQuests.test.ts`
+  (переписан под новое поведение: без подтверждения — не в счёте; тик/экран/отметка — в счёте; сдан — нет).
+- Тесты: `npm run typecheck` чисто (exit 0); `npx vitest run src/progression src/quests src/overview` — 436 passed, 1 skipped;
+  btrQuests.test.ts — 7/7.
+- Не проверено: реальное приложение/Electron с живыми данными; полный список id квестов БТР сверх 9 известных (агрегат по
+  подтверждениям считался по ним, так что «234 без подтверждения» — верхняя оценка); точные числа прошлого прогона (2158/763/2289)
+  не воспроизводил, мои знаменатели иные (1503 профиля зеркала). Записи updateHistory/playerNews не добавлял (идут с коммитом
+  выпуска; это техническая правка → только updateHistory при выпуске).
+- Риск: по-настоящему взятый в рейде квест БТР без тика и без чтения экрана/отметки не покажется «текущим», пока игрок его не
+  отметит или не прочитает экран «Задачи» — поведение намеренно осторожное (убираем переподсчёт, не ломаем тех, у кого идёт).

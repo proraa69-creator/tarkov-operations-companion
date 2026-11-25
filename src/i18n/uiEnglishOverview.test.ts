@@ -12,6 +12,8 @@ describe('Overview English', () => {
     expect(translateUiText('Закрыть')).toBe('Close')
     expect(translateUiText('Требования рейда')).toBe('Raid requirements')
     expect(translateUiText('Взять и заложить')).toBe('Take and plant')
+    // «Приоритет карт»: what the tiles count (report 230)
+    expect(['Все', 'Задания', 'Устранения', 'Какие квесты считать'].map((text) => translateUiText(text))).toEqual(['All', 'Tasks', 'Eliminations', 'Which tasks to count'])
   })
 
   it('has an English text for every phrase, without leftover Cyrillic', () => {

@@ -1150,6 +1150,14 @@ a.quest-stage:hover { color: var(--text); }
 /* Bars grow in from the left when a page opens (owner, 12.10.2026: the reference video's bars). */
 @keyframes bar-grow { from { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) { .map-priority-bar > span, .priority-meter > span { animation: none; } }
+/* What the tiles count: all quests, «Задания» or «Устранения» (report 230); three small stacked switches before the tiles. */
+.map-priority-filter { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.map-priority-filter > button {
+  padding: 1px 7px; border: 1px solid transparent; border-radius: 5px; background: none;
+  color: var(--text-dim); font-size: 10px; font-weight: 750; line-height: 1.35; text-align: left; white-space: nowrap; cursor: pointer;
+}
+.map-priority-filter > button:hover, .map-priority-filter > button:focus-visible { color: var(--text); outline: none; border-color: var(--line); }
+.map-priority-filter > button.is-active { color: var(--brass-strong); border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); background: color-mix(in srgb, var(--surf-1) 70%, transparent); }
 /* ── end Goons card + map priority ── */
 .profile-live-card { display: flex; flex-direction: column; }
 .profile-live-card > .panel-body { flex: 1; }
