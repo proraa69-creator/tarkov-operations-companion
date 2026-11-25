@@ -12,8 +12,8 @@ import { formatPrice } from '../shared/format'
 import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { questAvailabilityOf } from '../quests/questReadModel'
-import { questAppliesToMap } from '../progression/questLocation'
-import { mapObjectivesClosed, markerObjectiveDone } from '../progression/mapObjectives'
+import { markerObjectiveDone } from '../progression/mapObjectives'
+import { mapWorkCounts, questWorkOnMap } from '../progression/mapPriority'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { exitFlareNeeds, exitsFiredBy, flareCardOf, flareExitsOn, GREEN_FLARE_IDS, SIGNAL_PISTOL_ID } from '../raidprep/exitFlares'
@@ -92,13 +92,10 @@ export function DashboardPage() {
   // «Оружейник» parts go to their own block below «Текущие задания», not into the task lists (owner, 10.10.2026).
   const taskQuests = currentQuests.filter((quest) => !isGunsmithQuest(quest))
   const gunsmith = useMemo(() => gunsmithSteps(data.quests, (id) => availability.get(id)?.status), [availability, data.quests])
-  const onMap = (quest: typeof currentQuests[number], id: string) => {
-    const stageIndex = currentStoryStageIndex(quest, progress)
-    return questAppliesToMap(quest, id, stageIndex) && !quest.anyMap
-  }
-  // A quest whose objectives on this map are all ticked leaves its list here; it stays current for its other maps. One whose
-  // objectives here wait for an earlier one on another map is not here yet (report 165).
-  const planQuests = taskQuests.filter((quest) => onMap(quest, selectedMap.id) && !mapObjectivesClosed(quest, selectedMap.id, progress))
+  // A quest is on a map's list while it has work left there (progression/mapPriority.ts): one whose objectives on this map are all
+  // ticked leaves its list here and stays current for its other maps; one whose objectives here wait for an earlier one on another
+  // map is not here yet (report 165); a map it only lists, with nothing to do on it, has none of it (report 230).
+  const planQuests = taskQuests.filter((quest) => questWorkOnMap(quest, selectedMap.id, progress) !== null)
   const anyMapCurrent = taskQuests.filter((quest) => quest.anyMap)
   // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
@@ -292,7 +289,7 @@ export function DashboardPage() {
   // The keys of «Требования рейда»: «Взял» puts one not in the stash into «Ключи в схроне» (overview/TakenItems.tsx).
   const raidKeyIds = neededRows.flatMap((row) => (row.itemId && row.lines.some((line) => line.purpose === 'key') ? [row.itemId] : [])).join(',')
   const isRaidKey = useCallback((itemId: string) => raidKeyIds.split(',').includes(itemId), [raidKeyIds])
-  const priorityStrip = <MapPriority inline maps={data.maps} selectedId={selectedMap.id} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !deferred.has(quest.id) && !mapObjectivesClosed(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
+  const priorityStrip = <MapPriority inline filterable={!mobile} maps={data.maps} selectedId={selectedMap.id} countFor={(id) => mapWorkCounts(taskQuests.filter((quest) => !deferred.has(quest.id)), id, progress)} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
   const statCards: Blocks = {
     // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
     // «Время в Таркове», «Сброс торговцев», «Таймер рейда» by its square gear; on the phone its «Пресеты экрана» too (owner, 15.11.2026)

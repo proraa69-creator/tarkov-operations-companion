@@ -15,6 +15,8 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Для выхода', 'For the exit'], ['Сигнальный пистолет', 'Signal pistol'], ['Без пистолета', 'No pistol needed'], ['Можно и этим ключом', 'This key works too'], ['Можно и этими ключами', 'These keys work too'],
   // «Требования рейда» without the quests put aside in «Отложенные квесты» (src/components/RaidRequirementsPanel.tsx)
   ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
+  // «Приоритет карт»: what the map tiles count (src/components/MapPriority.tsx)
+  ['Какие квесты считать', 'Which tasks to count'],
   // «Отложить квест» from a right click on an item (src/components/QuestDeferDialog.tsx); the texts with numbers are built
   // in the app's language there
   ['Уведомления', 'Notifications'], ['Уведомлений пока нет.', 'No notifications yet.'],
