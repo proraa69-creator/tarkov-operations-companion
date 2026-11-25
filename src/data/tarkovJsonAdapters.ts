@@ -3,6 +3,7 @@ import { steadyFleaPrice } from '../domain/itemPrices'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import type { Barter, Craft, EconomyItem, EconomySnapshot, ItemCount, PricePoint, TaskRef, VendorPrice } from './economyApi'
 import { traderDisplayName } from './traderNames'
+import { fleaBanned } from '../shared/fleaBan'
 export type { PricePoint } from './economyApi'
 
 type Json = Record<string, unknown>
@@ -243,7 +244,9 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
       id, name: localized(names, id, 'Name', text(row.name, id)), shortName: localized(names, id, 'ShortName', text(row.shortName, text(row.name, id))),
       iconUrl: localImage(imageBase, wholeGunId(row, id), 'icon'), basePrice: number(row.basePrice) ?? 0,
       avg24hPrice, low24hPrice: positive(quote?.low24hPrice) ?? positive(row.low24hPrice), lastLowPrice,
-      noFlea: quote?.noFlea === true || (Array.isArray(row.types) && row.types.includes('noFlea')), buyFor, sellFor,
+      // Banned only when the server's minute price (when it has one) and tarkov.dev's own scan of the flea both say so: the
+      // `noFlea` mark lags the market (src/shared/fleaBan.ts; report 240, M80, M856A1, CBJ… on sale again on 25.11.2026).
+      noFlea: (quote ? quote.noFlea === true : true) && fleaBanned(row, Date.now()), buyFor, sellFor,
       ...(positive(row.minLevelForFlea) ? { fleaLevel: positive(row.minLevelForFlea) } : {}),
     }
   }

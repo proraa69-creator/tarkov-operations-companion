@@ -1,8 +1,11 @@
 import type { MirrorStorage } from './mirrorStorage.js'
 import type { OverlayPrices, PriceOverlay } from './priceOverlay.js'
 import { MIRROR_MODES, type MirrorMode } from './tarkovDataMirror.js'
+import { fleaBanned } from '../../../src/shared/fleaBan.js'
 
 const MINUTE = 60_000
+/** A second-source price this fresh proves an item tarkov.dev still marks `noFlea` is on the flea (applyPriceOverlay). */
+const OVERLAY_PROOF_MS = 6 * 60 * MINUTE
 const RETRY = [MINUTE, 2 * MINUTE, 5 * MINUTE, 15 * MINUTE]
 
 export interface MirroredPrice {
@@ -64,7 +67,8 @@ export function normalizePrices(payload: unknown, mode: MirrorMode, source: Pric
       ...(number(row.lastLowPrice ?? row.price) ? { lastLowPrice: number(row.lastLowPrice ?? row.price) } : {}),
       ...(number(row.avg24hPrice) ? { avg24hPrice: number(row.avg24hPrice) } : {}),
       ...(number(row.low24hPrice) ? { low24hPrice: number(row.low24hPrice) } : {}),
-      ...(types.includes('noFlea') ? { noFlea: true } : {}),
+      // tarkov.dev's `noFlea` lags the market: offers its scanner saw lately lift it (src/shared/fleaBan.ts, report 240).
+      ...(fleaBanned({ types, lastOfferCount: row.lastOfferCount, lastScan: row.lastScan }, Number.isFinite(asked) ? asked : Date.now()) ? { noFlea: true } : {}),
     }
     items[id] = price
     const renewed = price.lastLowPrice ? Date.parse(String(row.updated ?? '')) : Number.NaN
@@ -92,14 +96,22 @@ export function normalizePrices(payload: unknown, mode: MirrorMode, source: Pric
 /**
  * Lays the second source over a snapshot: where it saw an item's price later than the first did, its price stands. Modes stay
  * apart, each overlay is its own mode's. What the market bans stays out, and what the app has no id for is not added. How many it changed.
+ * An item tarkov.dev still marks `noFlea` that the second source (which leaves out what it bans) saw on sale within
+ * OVERLAY_PROOF_MS is on the flea: tarkov.dev renews the mark later than the market moves (report 240, 25.11.2026: M80,
+ * M856A1, CBJ… sold again in PvP and PvE while still marked).
  */
 export function applyPriceOverlay(snapshot: PriceSnapshot, overlay: OverlayPrices, renewedById: ReadonlyMap<string, number>) {
   const known = snapshot.pricesAt ? Date.parse(snapshot.pricesAt) : 0
+  const asked = Date.parse(snapshot.updatedAt)
   let newest = Number.isFinite(known) ? known : 0
   let applied = 0
   for (const [id, entry] of overlay) {
     const price = snapshot.items[id]
-    if (!price || price.noFlea || entry.renewed <= (renewedById.get(id) ?? 0)) continue
+    if (!price || entry.renewed <= (renewedById.get(id) ?? 0)) continue
+    if (price.noFlea) {
+      if (!Number.isFinite(asked) || asked - entry.renewed > OVERLAY_PROOF_MS) continue
+      delete price.noFlea
+    }
     price.lastLowPrice = entry.price
     price.at = Math.floor(entry.renewed / MINUTE)
     if (entry.avg24hPrice) price.avg24hPrice = entry.avg24hPrice
