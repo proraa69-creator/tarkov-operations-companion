@@ -299,7 +299,7 @@ export const BOSS_TACTICS_EN: Record<string, BossTacticsText> = {
       'The squad\'s stormtrooper: once he spots a target, he and Big Pipe close in at once and press.',
       'Works as a team: while Knight and Big Pipe push, Birdeye hangs back and waits for his moment.',
       'He gives you no time to breathe or heal — a fight with the Goons is fast and loud.',
-      'Guides say the squad keeps to big landmarks: the Fortress on Customs, the Scav bunker on Woods, the weather station on Shoreline, the water treatment plant on Lighthouse.',
+      'Guides say the squad keeps to big landmarks: the Fortress on Customs, the Scav bunker on Woods, the weather station on Shoreline, the chalets on Lighthouse (since patch 1.1.5.0, with the Rogues).',
     ],
     weakPoints: [
       'The Crye CPC (Goons Edition) armor is class 5: the body needs M995, M61, BS, Igolnik and the like.',

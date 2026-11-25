@@ -795,8 +795,8 @@ export const BALANCE_SHIFT: CuratedSeries = {
       ],
       rewards: [[ROUBLES, 300_000], [SVDS, 1], [SVD_MAG_10, 3], [PS_GZH_PACK_20, 2]],
       note: {
-        ru: 'Задание Прапора (нужен 2-й уровень лояльности). Все три места на Маяке, в комплексе очистных сооружений, где стоят отступники: позиция с БРДМ на севере, блокпост с дозорной вышкой на юго-западе и крыша любого корпуса. Лучше пройти все три за один рейд. Отступники стреляют без предупреждения — идите подготовленными. Следующее задание — «Абонент временно недоступен».',
-        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, in the water treatment plant held by the Rogues: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. Best done in one raid. The Rogues shoot on sight, so come prepared. The next task is «Number Temporarily Unavailable».',
+        ru: 'Задание Прапора (нужен 2-й уровень лояльности). Все три места на Маяке, в комплексе очистных сооружений, — бывшие позиции отступников: позиция с БРДМ на севере, блокпост с дозорной вышкой на юго-западе и крыша любого корпуса. Самих отступников там больше нет: с патча 1.1.5.0 они в шале на склоне горы. Лучше пройти все три за один рейд. Следующее задание — «Абонент временно недоступен».',
+        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, at the water treatment plant, the Rogues\' former positions: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. The Rogues are gone from there: since patch 1.1.5.0 they hold the chalets on the mountainside. Best done in one raid. The next task is «Number Temporarily Unavailable».',
       },
     },
     {
