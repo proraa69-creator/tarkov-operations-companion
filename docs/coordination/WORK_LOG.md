@@ -10156,3 +10156,12 @@ Not pushed, not released, nothing uploaded.
   or «Снимок из игры»; an exit list opened by a rebound key is seen within 1.5 s instead of 0.5 s.
 - Mistake fixed in-session: a PowerShell script with relative [IO.File] paths wrote 5 files into
   raidos-quest-photos-all (only my lines); restored there with git checkout of those 5 files, tree clean again.
+
+## 2026-11-25 — Claude: promo codes stay once added; Dexerto and Timesaver as sources (claude/promo-keep-new)
+
+- Owner: «Промокоды, которые у нас добавлены, убирать не нужно. Пусть они висят списком. Просто у нас должны добавляться новые».
+  server/src/services/promoCodes.ts: list() shows every stored code (no last-seen day); the studio's announced codes stay from
+  their date on. New sources dexerto + timesaver (insider-gaming answers 403 for days; PCGamesN/GameSpec last updated in October).
+  Live check of every page's parse: dexerto 17 codes, timesaver 16 (with modes); EMBRACEPAIN and PLAYYOURWAY come back by two pages.
+  gamesradar now also yields pieces of a gift code (6NU9-…): one page only, never reaches the list.
+- Tests: promoCodes.test.ts 10/10 (two changed to «stays», one new for the two pages); server typecheck clean. Not released.

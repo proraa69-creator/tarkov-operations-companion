@@ -36,7 +36,7 @@ function setup() {
   return { store, move: (ms: number) => { at += ms } }
 }
 
-test('the store: the first batch is marked, later codes are news with their own date; a code no page lists for a day goes', () => {
+test('the store: the first batch is marked, later codes are news with their own date; a code once added stays (owner, 25.11.2026)', () => {
   const { store, move } = setup()
   assert.deepEqual(store.update([{ code: 'WIPE', mode: 'season' }]), ['WIPE'])
   assert.equal(store.list([])[0]!.first, true)
@@ -49,7 +49,7 @@ test('the store: the first batch is marked, later codes are news with their own 
   assert.equal(older!.mode, 'season')
   move(25 * 60 * 60 * 1000)
   store.update([{ code: 'NEWONE' }])
-  assert.deepEqual(store.list([]).map((row) => row.code), ['NEWONE'])
+  assert.deepEqual(store.list([]).map((row) => row.code), ['NEWONE', 'WIPE'], 'no page lists WIPE any more: it stays')
 })
 
 test('a check: pages that fail do not count, fewer than two answers change nothing, new codes are told', async () => {
@@ -83,7 +83,7 @@ test('report №99: the studio\'s own codes show at once, for their time, in the
   store.update([{ code: 'EMBRACEPAIN', mode: 'pvp' }, { code: 'OTHER' }])
   assert.deepEqual(store.list(announced).map((row) => [row.code, row.mode]), [['OTHER', undefined], ['EMBRACEPAIN', 'pvp-season']])
   move(20 * 24 * 60 * 60 * 1000)
-  assert.deepEqual(store.list(announced), [], 'over, and no page lists it any more')
+  assert.deepEqual(store.list(announced).map((row) => row.code), ['OTHER', 'EMBRACEPAIN'], 'past its time and no page lists it: it stays')
   assert.deepEqual(ANNOUNCED_PROMO_CODES.map((entry) => [entry.code, entry.mode]), [['PLAYYOURWAY', 'pve'], ['EMBRACEPAIN', 'pvp-season']])
 })
 
@@ -114,4 +114,13 @@ test('a check takes the channel code at once, with no second page, and keeps it 
   move(10 * 24 * 60 * 60 * 1000)
   store.update([])
   assert.ok(store.list([]).some((row) => row.code === 'READ80LV'))
+})
+
+test('the fresher pages (25.11.2026): the Dexerto table and the Timesaver list between their headings', () => {
+  const dexerto = PROMO_SOURCES.find((source) => source.id === 'dexerto')!
+  const timesaver = PROMO_SOURCES.find((source) => source.id === 'timesaver')!
+  const dex = `<h2>Active Escape from Tarkov codes</h2><table><tr><th>Code</th><th>Reward</th></tr><tr><td>READ80LV</td><td>Items</td></tr><tr><td>1YEAROFESCAPING</td><td>PvE rifle</td></tr></table><h2>Escape from Tarkov discounts</h2><table><tr><td>ANNIVERSARY</td></tr></table><h2>List of expired codes</h2><ul><li><strong>KANISTRA</strong></li></ul>`
+  assert.deepEqual(parsePromoPage(dex, dexerto).map((entry) => entry.code), ['READ80LV', '1YEAROFESCAPING'])
+  const ts = `<h2>Which Tarkov codes are active right now (November 2026)?</h2><ul><li><strong>9GAG</strong> — PvE</li><li><strong>EMBRACEPAIN</strong> — PvP Zone</li></ul><h2>How do you redeem Escape from Tarkov codes?</h2><ul><li><strong>NOTACODE</strong></li></ul>`
+  assert.deepEqual(parsePromoPage(ts, timesaver).map((entry) => entry.code), ['9GAG', 'EMBRACEPAIN'])
 })
