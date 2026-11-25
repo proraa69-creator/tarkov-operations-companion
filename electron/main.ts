@@ -3,7 +3,7 @@ import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
 import { totalmem } from 'node:os'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { describeSystemBrief } from './systemBrief.js'
-import { displayScale, followDisplayScale, opensMaximized, scaledWindowSize } from './uiScale.js'
+import { displayScale, followDisplayScale, INTERFACE_ZOOM_MODE, opensMaximized, scaledWindowSize } from './uiScale.js'
 import { readSavedWindow, rememberWindow, restoredBounds } from './windowState.js'
 import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
@@ -454,6 +454,8 @@ function createWindow() {
   const restored = saved && restoredBounds(saved, screen.getAllDisplays().map((entry) => entry.workArea), { width: size.minWidth, height: size.minHeight })
   // An upright monitor or a small screen: the first start fills it (electron/uiScale.ts opensMaximized).
   const maximizeAtStart = !restored && opensMaximized(size, display.workArea)
+  // The page starts at the zoom of the monitor it opens on: no first picture at another zoom (electron/uiScale.ts).
+  const startZoom = displayScale(restored ? screen.getDisplayMatching(restored) : display)
   mainWindow = new BrowserWindow({
     ...size,
     ...(restored ?? {}),
@@ -480,6 +482,9 @@ function createWindow() {
       backgroundThrottling: false,
       // The players' exe: no DevTools at all (lockDevTools also covers webviews).
       devTools: !app.isPackaged,
+      // One zoom for the whole window, its monitor's, not one per page address (report 234, electron/uiScale.ts).
+      zoomFactor: startZoom,
+      zoomMode: INTERFACE_ZOOM_MODE,
     },
   })
 
