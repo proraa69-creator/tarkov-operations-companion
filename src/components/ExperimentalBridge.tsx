@@ -23,6 +23,8 @@ import { setFleaCatalog } from '../data/screenFleaPrices'
 import { notificationOn } from '../notifications/notificationKinds'
 import type { GameNames } from '../data/gameNames'
 import { noteGameLanguage, useGameNames } from '../data/gameNamesLoader'
+import { useLocale } from '../i18n/LocaleProvider'
+import { syncGameLanguage } from '../import/gameLanguageSync'
 
 /**
  * The item names of the tooltip matcher: the Russian and English ones, and the game's own when it runs in German, Japanese
@@ -160,12 +162,10 @@ export function ExperimentalBridge() {
   // A German, Japanese or Chinese game shows its own names (src/data/gameNames.ts): matched beside the Russian and English.
   const currentGameNames = useGameNames()
   const alternates = useMemo(() => withGameItemNames(nameVariants, currentGameNames), [nameVariants, currentGameNames])
-  // The game's language as the main process knows it (its settings file or the player's choice): its names load at once.
-  useEffect(() => {
-    const api = window.tarkovDesktop?.experimental
-    if (!api) return
-    void api.getStatus().then((status) => { if (status.gameLanguage) noteGameLanguage(status.gameLanguage.language) }).catch(() => {})
-  }, [])
+  // The game's language is the app's (owner, 25.11.2026): told to the main process's readers at start and on every change,
+  // and its names load at once (src/import/gameLanguageSync.ts).
+  const { language } = useLocale()
+  useEffect(() => { void syncGameLanguage(language) }, [language])
   const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items, alternates), [data.items, alternates])
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   // «Что не продавать» of the selected mode, for the badge on the item card (computed once per progress change).

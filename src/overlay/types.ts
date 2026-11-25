@@ -67,7 +67,7 @@ export interface ExperimentalSettings {
   screenshotsDir: string
   /** «Отключить местоположение»: no position anywhere (electron/experimental/settings.ts). */
   minimapOff: boolean
-  /** «Язык игры»: the game's own (`auto`) or one picked by hand (src/import/gameLanguage.ts). Apps from 24.11.2026. */
+  /** The game's language for the screen readers: the app's own, told by the renderer (src/import/gameLanguageSync.ts). */
   gameLanguage?: GameLanguageSetting
 }
 

@@ -1,7 +1,8 @@
 /**
- * The language the game itself runs in (not the app's): the screen readers read its words and names. The player picks it
- * in the app's settings («Язык игры»); the app never looks into the game or its files for it (owner, 24.11.2026: «нам в
- * игру нельзя внедряться … Пользователь сам выберет язык. Стандартный язык английский»).
+ * The language the game itself runs in: the screen readers read its words and names. It is the app's language (owner,
+ * 25.11.2026: «какой язык приложения, такой язык игры», no setting of its own, src/import/gameLanguageSync.ts); the app
+ * never looks into the game or its files for it (owner, 24.11.2026: «нам в игру нельзя внедряться»). The main process
+ * keeps the last one told (electron/experimental/settings.ts `gameLanguage`), English before the app ever told it.
  *
  * Russian and English are read as before, with one engine for both, so a Russian game keeps working under the default
  * «English»; every other language of the game (German, Japanese, Simplified Chinese, Polish, Spanish, Brazilian
