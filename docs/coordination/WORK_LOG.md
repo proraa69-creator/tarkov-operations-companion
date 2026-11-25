@@ -10431,3 +10431,33 @@ Not pushed, not released, nothing uploaded.
   machine-only (linux/updater ×3, staleServer, appVersion, AdminPanelPage CRLF, two gate-excluded script files). Merge-touched
   tests pass per file (buildEdition, elevation, nativeIntegrity, serviceGateway.dataRoutes, sync, armoredTrain, btrQuests).
 - Server needs RAIDOS_PAID_CONTENT default on (index.ts: on unless =0). Owner exe carries the admin fixes as every release.
+
+## 2026-11-25 — Claude: «Обзор» ПК — дёрганье «Текущих заданий» и толщина вкладок карт (правки владельца 25.11)
+
+- Ветка claude/overview-polish от origin/release/production (a52d596a, 0.6.0.344), рабочее дерево ...\raidos-overview-polish.
+  Не запушено, не выпущено. Файлы: src/styles/pages.css, src/components/CurrentTasksPanel.tsx,
+  src/overview/useSmoothWheelScroll.ts (новый).
+- Пункт 1 — раскрытие/сворачивание «Ещё N заданий»/«Свернуть» без дёрганья. Причина: `.current-tasks-more` менял высоту
+  постепенно (grid-template-rows .9s), а overview-free с абсолютными блоками пересчитывал раскладку на каждое промежуточное
+  измерение (ResizeObserver, throttled по `burst` в useOverviewEditor) и перезапускал FLIP-glide — блоки снизу дёргались,
+  при сворачивании трясло весь «Обзор». Правка: высота меняется одним шагом (убран transition grid-template-rows), остался
+  fade контента (opacity). Теперь overview-free делает один FLIP-glide — блоки ниже уезжают плавно.
+- Пункт 2 — прокрутка списка колесом. Было: один тик = мгновенный скачок ~100 px (замерено в браузере), строки 61–78 px →
+  «поквестовые» рывки. Правка: новый хук useSmoothWheelScroll на `.current-tasks-scroll` (когда scrollable) — колесо плавно
+  доводит scrollTop к цели (ease 0.22/кадр); на краях отдаёт прокрутку странице; трекпад (мелкие px-дельты) и телефон
+  (pointer: coarse) не трогает.
+- Пункты 3–4 — толщина/размер вкладок карт. Коммит 47575eef добавил колонку фильтра «Все/Задания/Устранения» перед плитками;
+  она (3 кнопки в столбик) оказалась выше плиток и тянула ленту с 51 до 57 px (замерено). Правка CSS `.map-priority-filter`:
+  height:0 + min-height:100% (столбец больше не задаёт высоту ленты — её задают плитки) + уплотнение кнопок (padding 0 7px,
+  line-height 1.3, gap 1px). Лента и плитки вернулись к 51 px, как до фильтра; фильтр и логика счёта сохранены.
+- Проверено в браузере (vite dev из worktree, встроенный браузер): профиль засеян 8 квестами Таможни в questInputs.manual
+  (dev-localStorage изолирован; без игрового профиля список «Текущих заданий» пуст). ПК 1024 и 1920: лента карт 51 px (было
+  57), плитки прежней толщины, фильтр читается. Раскрытие/сворачивание: блоки ниже встают с gap 14 px без наложения,
+  контейнер 942↔1093. Колесо: список плавно доходит до конца (317/319). Телефон 375×812: фильтр не рендерится (filterable=
+  false), ThumbScroll-список цел, хук неактивен (scrollable=false) — правки телефон не затрагивают.
+- Тесты: vitest src/overview + CurrentTasksPanel + MapPriority — 98 passed; расширенный прогон (+src/pages) — 136 passed,
+  1 падение DashboardPage «Отложить квест in English» (timeout 5 s) — flaky, падает и на чистом baseline без правок (англ.
+  каталог грузится дольше 5 s под нагрузкой), не связано. npm run typecheck (tsc -b) — чисто.
+- Не проверено: реальный Electron-клиент и реальный игровой профиль (проверено на засеянных dev-данных); покадровая плавность
+  анимаций в dev (rAF тормозится в фоновом пейне — проверены конечные раскладки и доведение прокрутки). playerNews/
+  updateHistory не трогал — это полировка интерфейса, не релиз.

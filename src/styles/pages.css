@@ -1151,10 +1151,13 @@ a.quest-stage:hover { color: var(--text); }
 @keyframes bar-grow { from { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) { .map-priority-bar > span, .priority-meter > span { animation: none; } }
 /* What the tiles count: all quests, «Задания» or «Устранения» (report 230); three small stacked switches before the tiles. */
-.map-priority-filter { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+/* The three stacked switches must not make the strip any taller than the tiles were before the filter (owner,
+ * 25.11.2026: it «увеличила блоки на ширину этих надписей»): height:0 keeps the column out of the row height, and
+ * min-height:100% then fits it to the tiles, which stay the thickness they had. */
+.map-priority-filter { flex: none; height: 0; min-height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
 .map-priority-filter > button {
-  padding: 1px 7px; border: 1px solid transparent; border-radius: 5px; background: none;
-  color: var(--text-dim); font-size: 10px; font-weight: 750; line-height: 1.35; text-align: left; white-space: nowrap; cursor: pointer;
+  padding: 0 7px; border: 1px solid transparent; border-radius: 5px; background: none;
+  color: var(--text-dim); font-size: 10px; font-weight: 750; line-height: 1.3; text-align: left; white-space: nowrap; cursor: pointer;
 }
 .map-priority-filter > button:hover, .map-priority-filter > button:focus-visible { color: var(--text); outline: none; border-color: var(--line); }
 .map-priority-filter > button.is-active { color: var(--brass-strong); border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); background: color-mix(in srgb, var(--surf-1) 70%, transparent); }
@@ -1319,15 +1322,17 @@ a.quest-stage:hover { color: var(--text); }
 :root .panel-header .panel-title.current-tasks-where:hover { color: var(--brass-strong); text-decoration: underline; }
 .current-tasks-where:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; border-radius: 3px; }
 .current-tasks-where-count { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
-/* the rest of the list behind «Ещё N заданий»: grid rows 0fr ↔ 1fr. The owner asked for a slow, calm reveal, so it
- * opens over .9 s with the rows fading in once the space has started to open; folding back is a little quicker. */
+/* The rest of the list behind «Ещё N заданий» changes its height in one step: the free Overview glides the blocks below to their new
+ * place itself (useOverviewEditor FLIP). A slow grid-rows height here fought that — the layout was re-measured and
+ * the blocks re-packed every animation frame, so they lurched instead of gliding and collapsing jolted the whole
+ * Overview (owner, 25.11.2026). The rows still fade in, so the reveal stays calm. */
 .current-tasks-more {
   display: grid; grid-template-rows: 0fr; opacity: 0;
-  transition: grid-template-rows .7s cubic-bezier(.4, 0, .2, 1), opacity .45s ease;
+  transition: opacity .3s ease;
 }
 .current-tasks-more.is-open {
   grid-template-rows: 1fr; opacity: 1;
-  transition: grid-template-rows .9s var(--ease-soft), opacity .6s ease .18s;
+  transition: opacity .45s ease .05s;
 }
 .current-tasks-more-inner { min-height: 0; overflow: hidden; }
 /* Phone: a task's card slides down under it (components/CurrentTasksPanel.tsx `details`, QuestInlineCard.tsx). */
