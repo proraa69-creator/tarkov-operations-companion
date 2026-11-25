@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Item, RaidMode } from '../domain/types'
-import { labelNames, screenEntries } from '../kappa/collector'
-import { countScreenItems } from '../stashScan/screenSync'
+import { labelNames } from '../kappa/collector'
 import { forgetKeysAddedByTaken } from '../progression/takenItems'
+import { createKeyMatcher } from './keyMatch'
 import { addSeenKeys } from './ownedKeys'
 
 /**
@@ -26,13 +26,21 @@ export function isKeyItem(item: Pick<Item, 'category'>) {
 
 export interface KeyScanPass { ok: true; gameWindow: boolean; waiting: boolean; read: number; found: number; added: number }
 
-/** One scan session: `wanted` (the quests' keys) first in the second look; the pieces seen so far go to the list after each pass. */
-export function createKeyScan(input: { items: Item[]; wanted: readonly string[]; profileId: string; mode: RaidMode }) {
-  const keys = input.items.filter(isKeyItem)
-  const entries = screenEntries(new Map(keys.map((item) => [item.id, 1])), input.items)
-  const wanted = new Set(input.wanted)
+/**
+ * What a key scan looks for: every key of the catalog, told apart by the keys' own matching (quests/keyMatch.ts: report 236),
+ * and the labels its second look takes (`wanted`, the quests' keys, first).
+ */
+export function keyScanLists(items: Item[], wantedIds: readonly string[]) {
+  const keys = items.filter(isKeyItem)
+  const wanted = new Set(wantedIds)
   const names = [...keys.filter((item) => wanted.has(item.id)), ...keys.filter((item) => !wanted.has(item.id))]
     .flatMap((item) => labelNames(item)).slice(0, NAMES_LIMIT)
+  return { matcher: createKeyMatcher(keys, items), names }
+}
+
+/** One scan session: `wanted` (the quests' keys) first in the second look; the pieces seen so far go to the list after each pass. */
+export function createKeyScan(input: { items: Item[]; wanted: readonly string[]; profileId: string; mode: RaidMode }) {
+  const { matcher, names } = keyScanLists(input.items, input.wanted)
   const seen = new Map<string, number>()
   let added = 0
 
@@ -41,7 +49,7 @@ export function createKeyScan(input: { items: Item[]; wanted: readonly string[];
     if (!api?.scanScreenText) return { ok: false }
     if (restart) seen.clear()
     const frame = await api.scanScreenText(restart ? { restart: true, names } : {})
-    for (const [id, pieces] of countScreenItems(entries, frame.text)) seen.set(id, (seen.get(id) ?? 0) + pieces)
+    for (const [id, pieces] of matcher.count(frame.text)) seen.set(id, (seen.get(id) ?? 0) + pieces)
     added += seen.size ? addSeenKeys(input.profileId, input.mode, seen) : 0
     // a key «Взял» put in the list and seen now: «Есть в схроне»
     if (seen.size) forgetKeysAddedByTaken(input.profileId, input.mode, seen.keys())

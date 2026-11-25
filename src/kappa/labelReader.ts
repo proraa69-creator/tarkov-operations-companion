@@ -1,4 +1,4 @@
-import { changedArea, cropLabel, labelBoxes, labelScale, stackCrops, stripKey, subRaster, tilePrint, type Raster, type TilePrint } from './labelScan.js'
+import { changedArea, cropLabel, labelBoxes, labelScale, stackCrops, stripKey, subRaster, tilePrint, type Box, type Raster, type TilePrint } from './labelScan.js'
 
 export interface LabelPicture { width: number; height: number; data: Uint8Array }
 /** One line OCR found in a picture: its text and the rows it covers. */
@@ -19,7 +19,10 @@ export const LABELS_PER_PASS = 40
 const MAX_KEYS = 5000
 const MAX_QUEUE = 600
 
-interface Pending { key: string; crop: Raster; height: number; second?: boolean }
+interface Pending { key: string; crop: Raster; box: Box; second?: boolean }
+
+/** One label read: where it was on the frame and what OCR made of it (for the key study, src/quests/keyScanFrames.test.ts). */
+export interface LabelReading { box: Box; text: string; second: boolean }
 
 /**
  * One Collector scan's memory (electron/collectorScan.ts). Owner, 13.10.2026: «не находит предметы опять и тупить
@@ -30,7 +33,7 @@ interface Pending { key: string; crop: Raster; height: number; second?: boolean 
  *     once more, larger and bolder.
  * `read` gets one picture of stacked labels and answers the OCR lines with their rows.
  */
-export function createLabelReader(read: (picture: LabelPicture) => Promise<PictureLine[]>) {
+export function createLabelReader(read: (picture: LabelPicture) => Promise<PictureLine[]>, options: { onLabel?: (label: LabelReading) => void } = {}) {
   let seen = new Set<string>()
   let queue: Pending[] = []
   let names: string[] = []
@@ -62,7 +65,7 @@ export function createLabelReader(read: (picture: LabelPicture) => Promise<Pictu
           const key = stripKey(frame, box, pad)
           if (seen.has(key) || queued.has(key) || queue.length >= MAX_QUEUE) continue
           queued.add(key)
-          queue.push({ key, crop: cropLabel(frame, box, pad), height: box.height })
+          queue.push({ key, crop: cropLabel(frame, box, pad), box })
         }
       }
       if (!queue.length) return { text: '', labels, read: 0, pending: 0 }
@@ -71,9 +74,9 @@ export function createLabelReader(read: (picture: LabelPicture) => Promise<Pictu
       // First readings and second looks are separate pictures: a second look is larger and bolder.
       for (const group of [batch.filter((entry) => !entry.second), batch.filter((entry) => entry.second)]) {
         if (!group.length) continue
-        const scale = labelScale(group.map((entry) => ({ x: 0, y: 0, width: 0, height: entry.height })))
         const second = group[0]!.second === true
-        const stack = stackCrops(group.map((entry) => entry.crop), second ? Math.min(5, scale + 1) : scale, second ? { threshold: 80 } : {})
+        const { scale, threshold } = readingOf(group.map((entry) => entry.box), second)
+        const stack = stackCrops(group.map((entry) => entry.crop), scale, threshold ? { threshold } : {})
         const lines = await read(stack)
         group.forEach((entry, index) => texts.set(entry, linesIn(lines, stack.bands[index]!).join(' ')))
       }
@@ -85,11 +88,26 @@ export function createLabelReader(read: (picture: LabelPicture) => Promise<Pictu
         const text = texts.get(entry) ?? ''
         if (!entry.second && closeButNotIt(text, names)) { queue.unshift({ ...entry, second: true }); continue }
         seen.add(entry.key)
+        options.onLabel?.({ box: entry.box, text: text.trim(), second: entry.second === true })
         if (text.trim()) out.push(text.trim())
       }
       return { text: out.join('\n'), labels, read: batch.length, pending: queue.length }
     },
   }
+}
+
+/**
+ * How labels are enlarged and cut to ink for OCR. Small labels (a 1080p game: letters about 9 px tall) read best larger and
+ * bolder: measured on the offline stash of every key (25.11.2026, src/quests/keyScanFrames.test.ts) — at 1440p and up as before.
+ * A second look is larger and bolder still.
+ */
+export function readingOf(boxes: Box[], second: boolean): { scale: number; threshold?: number } {
+  const scale = labelScale(boxes)
+  const heights = boxes.map((box) => box.height).sort((a, b) => a - b)
+  const small = heights.length > 0 && heights[Math.floor(heights.length / 2)]! <= 10
+  if (!small) return second ? { scale: Math.min(5, scale + 1), threshold: 80 } : { scale }
+  // Measured: 158 of the stash's 660 label readings right as before (×3.75, 110), 235 at ×4.75 and 80, 305 at ×4.75 and 60.
+  return second ? { scale: Math.min(6, scale + 2), threshold: 45 } : { scale: scale + 1, threshold: 60 }
 }
 
 /** The OCR lines whose middle lies within a label's rows (with half the gap around it). */
