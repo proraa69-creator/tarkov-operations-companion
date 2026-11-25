@@ -10431,3 +10431,34 @@ Not pushed, not released, nothing uploaded.
   machine-only (linux/updater ×3, staleServer, appVersion, AdminPanelPage CRLF, two gate-excluded script files). Merge-touched
   tests pass per file (buildEdition, elevation, nativeIntegrity, serviceGateway.dataRoutes, sync, armoredTrain, btrQuests).
 - Server needs RAIDOS_PAID_CONTENT default on (index.ts: on unless =0). Owner exe carries the admin fixes as every release.
+
+## 2026-11-25 — Claude: экран установки — текст «Приложение обновляется» (владелец, 25.11.2026)
+
+- Ветка claude/install-update от origin/release/production a52d596a (0.6.0.344), рабочее дерево raidos-install-flow
+  (node_modules — junction на raidos-stock-level, server/node_modules — на raidos-quest-photos-all). Коммит e575a179.
+  Не запушено, не выпущено.
+- (1) ТЕКСТ. Окно портативного exe, предлагающее установку (src/components/InstallerOffer.tsx): заголовок
+  «Raid OS теперь устанавливается как обычная программа» → «Приложение обновляется»; подписи прогресса
+  «Скачиваем установщик…»/«Открываем установщик…» → «Скачиваем обновление…»/«Устанавливаем обновление…»
+  (и aria-label, и запасной текст ошибки — тоже «обновление» вместо «установщик»). Английский в
+  src/i18n/uiEnglishServer.ts обновлён парами («The app is updating», «Downloading the update…»,
+  «Installing the update…», «Downloading the update», «Could not download the update»). Правлен тест
+  InstallerOffer.test.tsx (RU/EN ожидания). Эти русские строки использовались только в InstallerOffer — конфликтов нет.
+  Поведение окна не менялось: это по-прежнему разовое окно, которым портативная копия переходит на установленную (NSIS).
+- (2) ПОВЕДЕНИЕ — разобрано, НИЧЕГО не менял: желаемое уже реализовано в release/production.
+  Установленная (NSIS) копия запускается из своей папки распакованной — это свойство NSIS-таргета, а не portable-заглушки
+  (portable распаковывает ~630 МБ в %TEMP%\nsXXXX.tmp при каждом запуске; у установленной этого нет). relaunchAsAdmin
+  (electron/experimental/elevation.ts) для установленной берёт process.execPath, для portable — PORTABLE_EXECUTABLE_FILE,
+  т.е. установленная НЕ перезапаковывается в temp. Обновление установленной копии идёт дельтой: probe (electron/appUpdate.ts
+  probeOnce) сперва берёт fetchDeltaInfo; полный установщик (fetchSetupManifest → setup:true) запрашивается ТОЛЬКО когда
+  дельты нет. installUpdate: target.delta → installDelta (electron/deltaUpdate.ts + electron/appDelta.ts stageDelta — тянет
+  только изменившиеся 2-МБ диапазоны asar), иначе target.setup → runSetupWhenClosed (тихий NSIS /S --updated при закрытии).
+  Это ровно «после обновления меняются только файлы, не всё приложение; полный установщик — только когда дельта невозможна».
+- Что НЕ трогал и почему: package.json build (win.target=portable; NSIS RaidOSSetup собирает VPS auto-release),
+  фьюзы asar (enableEmbeddedAsarIntegrityValidation, onlyLoadAppFromAsar), nativeIntegrity, deltaUpdate/appDelta/appUpdate —
+  правки только renderer+i18n, целостности и сборке VPS не угрожают.
+- Тесты: vitest InstallerOffer + appDelta + appInstall + appUpdate.installed + appUpdate.delta — 50 passed;
+  vitest src/i18n — 48 passed; npm run typecheck (tsc -b --force) — чисто; npx tsc -p tsconfig.electron.json --noEmit — чисто.
+- website/node_modules junction не создавал (целевой папки нет в raidos-quest-photos-all); для этих тестов и typecheck не нужен.
+- Строк updateHistory/playerNews не добавлял (идут с релизным коммитом; это правка формулировки, не новая функция).
+- Риск для выпуска: нет. Изменены только видимые строки одного окна и словарь EN; логика установки/обновления не тронута.
