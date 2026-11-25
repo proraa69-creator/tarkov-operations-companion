@@ -1,86 +1,95 @@
-import { screen, type BrowserWindow, type Display } from 'electron'
+import { screen, type BrowserWindow, type WebContents } from 'electron'
 
 /**
- * The interface looks like on a Full HD screen on any screen (owner, 11.10.2026: «на каждом разрешении выглядело как
- * Full HD», «программа сама автоматически должна определять разрешение экрана»). The page is zoomed by the display's
- * size in Windows units (DIP, so the Windows scaling is already in it) over 1920×1080: 4K at 100 % → 2, 4K at 150 % or
- * 1440p at 100 % → 1.33, an ultrawide 3440×1440 → 1.33 (by its height, more room across), Full HD and smaller → 1.
- * The CSS layout therefore always sees about 1920×1080, and text and pictures are drawn at the screen's full sharpness.
- * Moving the window to another monitor re-scales it (and resizes it in proportion, so the layout stays the same).
+ * One interface size, always (report 234, owner 25.11.2026: «Интерфейс не должен вообще никак изменяться по размеру: не прыгать,
+ * не увеличиваться, не уменьшаться»). The page zoom is 1 on every monitor and never changes while the app runs: not by the monitor
+ * the window is on, not by a move to another one, not by a button, a page or a reload. Each monitor's own Windows scaling stays
+ * Chromium's: it draws the window at that monitor's DPI by itself (no device scale factor is forced). The player's «Размер шрифта»
+ * (src/theme/fontSize.ts) is a CSS variable of the page and is not touched here.
  *
- * Owner, 14.11.2026 («адаптацию под все мониторы, все размеры… сама определяла, какое разрешение стоит, и сама автоматически
- * выставляла размер»): a monitor stood upright (9:16) is measured against Full HD upright, 1080×1920, so a 4K one gets 2 as
- * it does lying down; and a screen smaller than Full HD (1366×768, 1600×900, a laptop at 125 %) is zoomed out down to 0.8,
- * so the layout still sees about Full HD instead of a cramped page.
+ * Why it jumped: from 11.10 to 25.11.2026 the zoom followed the monitor (its size over Full HD: 1.35 on a 2K one). Chromium keeps
+ * a zoom set by setZoomFactor per page address, and a file:// page has no host, so the address is the whole of it, #/section?query
+ * included (kept in Chromium's Preferences file across starts too). A menu button took the page to an address with another
+ * remembered zoom (or none: 1), and the next resize, maximize or move to another monitor snapped the page to it: 1.35 of the 2K
+ * monitor on a Full HD one (the report's screenshot), back to 1 on the 2K one. The 'isolated' zoom mode gives the window one zoom
+ * of its own that no address overrides. Checked in Electron 44: a remembered 1.35 is ignored after pushState + resize, a reload
+ * and another page, and no new address is written to Preferences.
  */
-export const FULL_HD = { width: 1920, height: 1080 }
-export const FULL_HD_UPRIGHT = { width: 1080, height: 1920 }
-const MIN_SCALE = 0.8
-const MAX_SCALE = 3
+export const INTERFACE_ZOOM = 1
+/** One zoom for the window's page instead of one per page address (Electron's webPreferences.zoomMode / setZoomMode). */
+export const INTERFACE_ZOOM_MODE = 'isolated'
 
-export function uiScaleFor(size: { width: number; height: number }) {
-  const reference = size.height > size.width ? FULL_HD_UPRIGHT : FULL_HD
-  const ratio = Math.min(size.width / reference.width, size.height / reference.height)
-  if (!Number.isFinite(ratio) || ratio <= 0) return 1
-  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(ratio * 20) / 20))
+/** The zoom to set the page back to, or null when it has the fixed one already. */
+export function zoomToRestore(current: number, fixed: number = INTERFACE_ZOOM): number | null {
+  return Number.isFinite(current) && Math.abs(current - fixed) < 0.001 ? null : fixed
 }
 
-export const displayScale = (display: Pick<Display, 'size'>) => uiScaleFor(display.size)
+/**
+ * Keeps the page at the fixed zoom: the zoom mode and the zoom at once, and again after every page load and page change (should
+ * anything have moved them) and when Ctrl + the mouse wheel asks for a zoom (Electron zooms nothing by itself: 'zoom-changed' is
+ * only the request). The pinch of a touch screen or touchpad is off (Electron's default, made sure of after each load).
+ */
+export function pinInterfaceZoom(page: WebContents, zoom: number = INTERFACE_ZOOM) {
+  const pin = () => {
+    if (page.isDestroyed()) return
+    if (page.getZoomMode() !== INTERFACE_ZOOM_MODE) page.setZoomMode(INTERFACE_ZOOM_MODE)
+    const restore = zoomToRestore(page.getZoomFactor(), zoom)
+    if (restore !== null) page.setZoomFactor(restore)
+  }
+  page.on('did-finish-load', () => {
+    pin()
+    if (!page.isDestroyed()) void page.setVisualZoomLevelLimits(1, 1).catch(() => {})
+  })
+  page.on('did-navigate', pin)
+  page.on('did-navigate-in-page', pin)
+  page.on('zoom-changed', pin)
+  pin()
+  return pin
+}
 
-/** The window's size and minimum size at a scale (designed for Full HD), never larger than the display's work area. */
-export function scaledWindowSize(base: { width: number; height: number; minWidth: number; minHeight: number }, scale: number, area: { width: number; height: number }) {
-  const fit = (value: number, limit: number) => Math.min(Math.round(value * scale), limit)
-  return { width: fit(base.width, area.width), height: fit(base.height, area.height), minWidth: fit(base.minWidth, area.width), minHeight: fit(base.minHeight, area.height) }
+type Size = { width: number; height: number }
+
+/** The main window's size and minimum size: the same on every monitor (Windows units), never larger than the work area. */
+export function windowSizeFor(base: Size & { minWidth: number; minHeight: number }, area: Size) {
+  return { width: Math.min(base.width, area.width), height: Math.min(base.height, area.height), minWidth: Math.min(base.minWidth, area.width), minHeight: Math.min(base.minHeight, area.height) }
 }
 
 /**
  * The first start (no remembered place): a window that would take almost the whole work area anyway — an upright monitor,
  * a small laptop screen — opens maximized instead of a few pixels short of it.
  */
-export function opensMaximized(size: { width: number; height: number }, area: { width: number; height: number }) {
+export function opensMaximized(size: Size, area: Size) {
   return size.width >= area.width * 0.9 || size.height >= area.height * 0.95
 }
 
+/** The window's minimum size on a monitor: its own, or that monitor's work area where it is smaller. */
+export function minimumSizeOn(minimum: Size, area: Size): Size {
+  return { width: Math.min(minimum.width, area.width), height: Math.min(minimum.height, area.height) }
+}
+
 /**
- * Keeps a window's page zoom at its display's scale: after every page load, after the window was moved (to another
- * monitor) and when the displays change (resolution, Windows scaling, a monitor plugged in). `minimum`: the window's
- * minimum size at scale 1, re-applied at the new scale.
+ * A window moved to a smaller monitor can still be made to fit it: its minimum size never exceeds the work area of the monitor it
+ * is on (after a move, and when the monitors change). Only the minimum size: the window keeps its size and the page its zoom.
  */
-export function followDisplayScale(window: BrowserWindow, minimum?: { width: number; height: number }) {
-  let current = 0
-  const apply = () => {
+export function fitMinimumSizeToDisplay(window: BrowserWindow, minimum: Size) {
+  let applied = ''
+  const fit = () => {
     if (window.isDestroyed()) return
-    const display = screen.getDisplayMatching(window.getBounds())
-    const scale = displayScale(display)
-    if (scale !== current) {
-      const previous = current
-      current = scale
-      if (minimum) {
-        window.setMinimumSize(Math.min(Math.round(minimum.width * scale), display.workArea.width), Math.min(Math.round(minimum.height * scale), display.workArea.height))
-      }
-      // A monitor with another scale: the same layout, so the window grows or shrinks with it.
-      if (previous && !window.isMaximized() && !window.isFullScreen()) {
-        const bounds = window.getBounds()
-        const area = display.workArea
-        const width = Math.min(Math.round(bounds.width * scale / previous), area.width)
-        const height = Math.min(Math.round(bounds.height * scale / previous), area.height)
-        window.setBounds({ x: Math.max(area.x, Math.min(bounds.x, area.x + area.width - width)), y: Math.max(area.y, Math.min(bounds.y, area.y + area.height - height)), width, height })
-      }
-    }
-    if (Math.abs(window.webContents.getZoomFactor() - scale) > 0.001) window.webContents.setZoomFactor(scale)
+    const size = minimumSizeOn(minimum, screen.getDisplayMatching(window.getBounds()).workArea)
+    const key = `${size.width}x${size.height}`
+    if (key === applied) return
+    applied = key
+    window.setMinimumSize(size.width, size.height)
   }
-  window.webContents.on('did-finish-load', apply)
-  window.on('moved', apply)
-  window.on('maximize', apply)
-  const onDisplays = () => apply()
-  screen.on('display-metrics-changed', onDisplays)
-  screen.on('display-added', onDisplays)
-  screen.on('display-removed', onDisplays)
+  window.on('moved', fit)
+  screen.on('display-metrics-changed', fit)
+  screen.on('display-added', fit)
+  screen.on('display-removed', fit)
   window.once('closed', () => {
-    screen.off('display-metrics-changed', onDisplays)
-    screen.off('display-added', onDisplays)
-    screen.off('display-removed', onDisplays)
+    screen.off('display-metrics-changed', fit)
+    screen.off('display-added', fit)
+    screen.off('display-removed', fit)
   })
-  apply()
-  return apply
+  fit()
+  return fit
 }
