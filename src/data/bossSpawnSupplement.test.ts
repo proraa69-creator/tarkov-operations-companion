@@ -74,6 +74,27 @@ describe('boss spawn supplement (research list 30.09.2026)', () => {
     expect(live.map((marker) => marker.source)).toEqual(['json.tarkov.dev/maps'])
   })
 
+  it('draws every live Rogue zone by the chalets and none at the old water treatment plant (report 233)', () => {
+    // The live Lighthouse feed of 25.11.2026: four Zone_Chalet listings on the same four points, one Zone_Rocks listing.
+    const chalet = [{ x: -62.1, y: 19.8, z: -134.3 }, { x: -123.6, y: 18.2, z: -132.7 }, { x: -81, y: 16.4, z: 19.3 }, { x: -124.5, y: 18.2, z: -135.5 }]
+    const rocks = [{ x: -69.2, y: 26.8, z: 112.9 }, { x: -113.2, y: 30.7, z: 153.7 }]
+    const listing = (spawnChance: number, name: string, positions: Array<{ x: number; y: number; z: number }>) => ({ mob: 'exUsecFree', spawnChance, spawnLocations: [{ name, chance: 1, positions }] })
+    const root = { mobs: { ...mobs, exUsecFree: { name: 'exUsecFree', normalizedName: 'rogue' } }, maps: { lighthouse: { normalizedName: 'lighthouse', bosses: [
+      listing(1, 'Zone_Chalet', chalet), listing(0.9, 'Zone_Chalet', chalet), listing(0.5, 'Zone_Chalet', chalet), listing(0.5, 'Zone_Chalet', chalet),
+      listing(0.7, 'Zone_Rocks', rocks),
+      // The old base: a zone of its old names (SPT 08.2026), and a zone of any name standing in the plant.
+      listing(0.8, 'Zone_RoofBeach', [{ x: 30, y: 15, z: -600 }]),
+      listing(0.5, 'Zone_Anything', [{ x: -100, y: 15, z: -700 }]),
+    ] } } }
+    for (const mode of ['pvp', 'pve', 'seasonal'] as RaidMode[]) {
+      const rogues = bossMarkers(root, mode).filter((marker) => marker.boss?.key === 'rogue')
+      // The south of the chalets, and their north with the rocks above the tennis court (the chalet-only rule dropped the rocks).
+      expect(rogues.map((marker) => marker.position)).toEqual([[-132.7, -123.6], [19.3, -81]])
+      expect(rogues.map((marker) => marker.boss?.locationName)).toEqual(['Chalet', 'Chalet, Rocks'])
+      expect(new Set(rogues.map((marker) => marker.source))).toEqual(new Set(['json.tarkov.dev/maps']))
+    }
+  })
+
   it('puts Terminal’s missing bosses into the live port zone, one marker per boss', () => {
     const root = { mobs, maps: { terminal: { normalizedName: 'terminal', bosses: [
       { mob: 'bossKilla', spawnChance: 0.2, spawnLocations: [{ name: '2ScavPort29', positions: [{ x: 120, y: 5, z: -300 }] }] },

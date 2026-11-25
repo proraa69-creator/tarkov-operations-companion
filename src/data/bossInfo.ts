@@ -178,15 +178,18 @@ export const BOSS_INFO: Record<string, BossDetails> = {
     loot: { ru: 'СВДС, балаклава Зрячего, пояс Azimut «Хамелеон»', en: 'SVDS, Zryachiy’s balaclava, Azimut Khamelion chest belt' },
     sources: [`${WIKI}Zryachiy`, `${DEV}zryachiy`, 'https://tarkov.dev/item/zryachiys-balaclava'],
   },
+  // Checked again 25.11.2026 (report 233): patch 1.1.5.0 (8.09.2026) moved their Lighthouse base from the water treatment
+  // plant to the chalets in the mountains and left no stationary weapons at the plant (official notes); the patches since
+  // (1.1.5.1, 1.2.0.0, 1.3.0.0, 1.3.5.0) did not move them again. Weapons: the EN wiki's list.
   rogue: {
     role: { ru: 'Фракция, не босс', en: 'A faction, not a boss' },
     about: {
-      ru: 'Бывшие бойцы USEC, которыми командуют Кочевники. Держат укреплённые позиции со стационарными АГС и пулемётами.',
-      en: 'Ex-USEC operators commanded by the Goons. Hold fortified positions with mounted AGS grenade launchers and machine guns.',
+      ru: 'Бывшие бойцы USEC под командованием Кочевников. С патча 1.1.5.0 их база на Маяке — шале на склоне горы, а не очистные; встречаются и на Ледоколе.',
+      en: 'Ex-USEC operators commanded by the Goons. Since patch 1.1.5.0 their Lighthouse base is the chalets on the mountainside, not the water treatment plant; also met on Icebreaker.',
     },
-    weapons: { ru: 'Точные винтовки M4/HK; стационарные АГС и ПКМ/ПКП', en: 'Accurate M4/HK rifles; mounted AGS, PKM/PKP' },
+    weapons: { ru: 'Точные винтовки: M4A1, HK 416A5, SR-25, MCX и другие', en: 'Accurate rifles: M4A1, HK 416A5, SR-25, MCX and others' },
     loot: { ru: 'Винтовки 7.62×51, бронебойные патроны, тактические шлемы, бронежилеты 5–6 класса', en: '7.62×51 rifles, armour-piercing rounds, tactical helmets, class 5–6 armour' },
-    sources: [`${WIKI}Rogues`, 'https://timesaver.gg/blog/tarkov-lighthouse-rogues-guide'],
+    sources: [`${WIKI}Rogues`, 'https://www.escapefromtarkov.com/news/id/408'],
   },
   // the owner's model of 19.10.2026 («добавь жреца в боссы»); checked against tarkovforge (live tarkov.dev numbers),
   // timesaver.gg and v-tarkov.ru, October 2026

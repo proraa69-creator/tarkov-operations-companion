@@ -922,3 +922,27 @@ describe('Лабиринт: the route items always lie at one of a few spots (SP
     expect(translateUiText('Отключает пар в комнате 2. Всегда в одной из 5 точек.')).toBe('Turns off the steam in room 2. Always at one of 5 spots.')
   })
 })
+
+describe('stationary weapons the game no longer has (report 233)', () => {
+  const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const AGS = '5d52cc5ba4b9367408500062'
+  const UTYOS = '5cdeb229d7f00c000e7ce174'
+  const weaponsOn = (normalizedName: string, list: Array<[string, number, number, number]>) => adaptLiveMapMarkers({ maps: { a: { normalizedName,
+    stationaryWeapons: list.map(([stationaryWeapon, x, y, z]) => ({ stationaryWeapon, position: { x, y, z } })) } } }, {}, context).filter((marker) => marker.layerId === 'loot.weapon')
+  // What tarkov.dev still lists on Lighthouse on 25.11.2026: six Utyos and two AGS, all at the water treatment plant.
+  const plant: Array<[string, number, number, number]> = [
+    [UTYOS, -7.489765, 8.242001, -449.60202], [UTYOS, -130.801361, 15.137, -729.788635], [UTYOS, 37.3415871, 15.137, -653.402649],
+    [UTYOS, 28.7119942, 15.15, -590.729431], [UTYOS, -69.69181, 15.137, -754.634949], [UTYOS, -188.292725, 15.148, -642.8455],
+    [AGS, 43.8352966, 10.929, -447.7588], [AGS, -64.45131, 15.158, -728.8995],
+  ]
+
+  it('drops Lighthouse’s plant weapons: patch 1.1.5.0 left none at the water treatment plant', () => {
+    expect(weaponsOn('lighthouse', plant)).toEqual([])
+    // One elsewhere on Lighthouse is still drawn.
+    expect(weaponsOn('lighthouse', [...plant, [AGS, -120.6, 37.6, 79.7]]).map((marker) => marker.itemId)).toEqual([AGS])
+  })
+
+  it('keeps the same places on another map', () => {
+    expect(weaponsOn('woods', plant)).toHaveLength(plant.length)
+  })
+})

@@ -235,12 +235,32 @@ const KNOWN_BOSSES = new Set([
  */
 export const BOSS_MERGE_METRES = 120
 
-/** Zones where a boss must not be drawn although the feed lists them (product owner corrections). */
-function allowedZone(mapId: string, mobId: string, zone: string) {
-  // Rogues (ex-USEC): since patch 1.1.5.0 (8 Sep 2026) their base on Lighthouse is the chalets, not the water treatment
-  // plant (research list 30.09.2026). Old treatment-plant zones are not drawn; without a chalet zone the research
-  // supplement puts them in the chalets.
-  if (mapId === 'lighthouse' && mobId === 'rogue') return /chalet|шале/i.test(zone) || !zone
+/**
+ * Lighthouse's water treatment plant, the Rogues' base until patch 1.1.5.0, in game metres (x / z). Every tarkov.dev label of
+ * the plant (Water Treatment, Plant 1–3, Pipes, Gunner Nest), every old Rogue zone of the game's data (SPT 08.2026:
+ * Zone_Blockpost, Zone_Roof…, Zone_Treatment…, Zone_Hellicopter) and the 8 stationary weapons tarkov.dev still lists there
+ * (25.11.2026) lie inside; the island village (z −356) and the chalets (z −136…+154) lie far outside.
+ */
+const LIGHTHOUSE_TREATMENT_PLANT = { minX: -260, maxX: 120, minZ: -800, maxZ: -420 } as const
+
+function inLighthouseTreatmentPlant(x: number, z: number) {
+  const area = LIGHTHOUSE_TREATMENT_PLANT
+  return x >= area.minX && x <= area.maxX && z >= area.minZ && z <= area.maxZ
+}
+
+/** The Rogues' old zones at the plant, by the game's names (SPT 08.2026 base.json). */
+const OLD_ROGUE_ZONE = /^Zone_?(Treatment|Roof|Blockpost|Hel+icopter)/i
+
+/**
+ * Spawn points where a boss must not be drawn although the feed lists them (product owner corrections).
+ * Rogues (ex-USEC): patch 1.1.5.0 (8 Sep 2026; official notes: «Отступники переместились с очистных сооружений к шале в
+ * горах») moved their Lighthouse base to the chalets on the mountainside. Their old plant zones are not drawn, by name or by
+ * place; every other zone is: the live feed of 25.11.2026 has Zone_Chalet (the Pikes Peak resort chalets) and Zone_Rocks (the
+ * slope with the upper chalet and the tennis court), which the earlier chalet-only rule dropped (report 233). With no point
+ * left the research supplement puts them in the chalets (bossSpawnSupplement.ts).
+ */
+function allowedBossPoint(mapId: string, mobId: string, zone: string, x: number, z: number) {
+  if (mapId === 'lighthouse' && mobId === 'rogue') return !OLD_ROGUE_ZONE.test(zone) && !inLighthouseTreatmentPlant(x, z)
   return true
 }
 
@@ -296,7 +316,6 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
     if (!group.escorts.length) group.escorts = bossEscorts(boss, mobs, isGoons)
     const locations = [...asArray(boss.spawnLocations), ...(bossIndex === firstListingIndex(rawMap, mobs, mobId) ? EXTRA_BOSS_LOCATIONS[text(rawMap.normalizedName)]?.[mobId] ?? [] : [])]
     locations.forEach((location, locationIndex) => {
-      if (!allowedZone(map.id, mobId, text(location.name))) return
       // A zone with an explicit 0 % chance is not used by this boss in this mode.
       if (explicitZero(location.chance)) return
       const zone = prettifyZone(text(location.name))
@@ -305,6 +324,7 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
       const valid = positions.filter((position) => Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z)))
       // A zone without usable coordinates keeps its (unplaceable) first point, like before: baseMarker drops it.
       for (const position of valid.length ? valid : positions.slice(0, 1)) {
+        if (!allowedBossPoint(map.id, mobId, text(location.name), number(position.x), number(position.z))) continue
         group.points.push({ position, x: number(position.x), z: number(position.z), zone, zoneKey, zoneChance: number(location.chance), ...(location.preferred === true ? { preferred: true } : {}) })
       }
     })
@@ -1015,8 +1035,18 @@ function lockKind(lockType: string): MarkerLock['kind'] {
   return lockType === 'trunk' || lockType === 'container' ? lockType : 'door'
 }
 
+/**
+ * Stationary weapons the game no longer has although the feed lists them. Lighthouse: patch 1.1.5.0 took every one off the
+ * water treatment plant (official notes: «На территории очистных сооружений больше нет стационарного вооружения»); tarkov.dev
+ * still lists the old 8 there on 25.11.2026 (6 «Утёс», 2 АГС-30). No source places new ones at the chalets: none are added.
+ */
+function removedStationaryWeapon(mapId: string, position: JsonRecord) {
+  return mapId === 'lighthouse' && inLighthouseTreatmentPlant(number(position.x), number(position.z))
+}
+
 function adaptStationaryWeapons(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
   return asArray(rawMap.stationaryWeapons).flatMap((weapon, index) => {
+    if (removedStationaryWeapon(map.id, asRecord(weapon.position))) return []
     const base = baseMarker(map, `stationary-weapon-${index}`, weapon.position, undefined, asRecord(weapon.position).y, asRecord(weapon.position).y)
     if (!base) return []
     const itemId = text(weapon.stationaryWeapon)
