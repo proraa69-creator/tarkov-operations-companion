@@ -70,3 +70,21 @@ describe('the keys a label reading is', () => {
     expect(keyDigits('ЗБ-014')).toBe('014')
   })
 })
+
+// Owner, 25.11.2026 («проводи тесты и обучение до тех пор пока не научишь определять в точности ключи»), his own frame of the
+// live game: «Времянка» is the label of two keys with the same picture — only the tooltip's full name tells which.
+describe('labels several keys carry', () => {
+  it('«Времянка» from the owner\'s stash: both keys named, no key taken from the label', () => {
+    expect(read('Времянка')).toEqual([])
+    const shared = matcher.shared('Времянка\n‚ Спецтех\nЭП подс\nОхрана')
+    expect(shared.map((entry) => entry.label)).toEqual(['Времянка'])
+    expect(shared[0]!.ids.map((id) => keys.find((key) => key.id === id)!.name).sort()).toEqual(['Ключ от времянки', 'Ключ от времянки трейлерного парка'])
+  })
+
+  it('the tooltip\'s full name tells the key; a label of one key is no shared label', () => {
+    expect(read('Ключ от времянки трейлерного парка')).toEqual(['Времянка'])
+    expect(matcher.shared('Спецтех\nЗаводская\nОхрана')).toEqual([])
+    // two cells read as one line
+    expect(matcher.shared('Времянка Спецтех').map((entry) => entry.label)).toEqual(['Времянка'])
+  })
+})

@@ -1,7 +1,7 @@
 import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { BellOff, BellRing, Check, Hourglass, KeyRound, Package, ScanSearch, Search, Star, Undo2 } from 'lucide-react'
+import { BellOff, BellRing, Check, Hourglass, KeyRound, Package, ScanSearch, Search, Star, Trash2, Undo2 } from 'lucide-react'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { useTarkovData } from '../data/DataProvider'
 import type { Barter } from '../data/economyApi'
@@ -159,6 +159,11 @@ export function QuestKeysPage() {
       </button>}
       {onlyStash && <button type="button" className={`button small ghost${stashOpen ? ' primary' : ''}`} aria-expanded={stashOpen} onClick={() => setStashOpen(!stashOpen)}>{uiText(stashOpen ? 'Свернуть' : 'Изменить ключи в схроне')}</button>}
       {keyScan.message && <span className="quest-keys-scan-message" role="status">{uiText(keyScan.message)}</span>}
+      {/* Owner, 25.11.2026 («слева те что у меня в схроне, справа то что нашел»): the list's keys this scan did not see — an earlier
+       * scan's, or ones gone from the stash — taken off by the player's click only (a scan itself only adds, 16.11.2026). */}
+      {!keyScan.busy && keyScan.unseen.length > 0 && <button type="button" className="button small ghost quest-keys-unseen" title={keyScan.unseen.map((id) => data.items.find((item) => item.id === id)?.shortName ?? id).join(', ')} onClick={keyScan.removeUnseen}>
+        <Trash2 size={14} aria-hidden="true" />{uiText('Убрать ненайденные')} · {keyScan.unseen.length}
+      </button>}
     </div>
     {onlyStash && stashOpen && <section className="panel quest-keys-stash-inline" aria-label={uiText('Ключи в схроне')}>
       <OwnedKeysPanel items={data.items} needed={new Set(rows.filter((row) => row.state === 'needed').map((row) => row.item.id))} profileId={profileId} mode={mode} favoriteIds={state.favoriteItemIds} />

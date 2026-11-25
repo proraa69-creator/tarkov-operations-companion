@@ -24,6 +24,12 @@ export interface KeyMatcher {
   count(text: string): Map<string, number>
   /** The key one line shows, or null (for the study of every key, keyScanFrames.test.ts). */
   line(text: string): string[]
+  /**
+   * The labels these lines show that several keys carry, with those keys («Времянка»: «Ключ от времянки» and «Ключ от
+   * времянки трейлерного парка» — the same label and the same picture in the game): no key until the tooltip's full name
+   * tells which (owner, 25.11.2026: «проводи тесты и обучение до тех пор пока не научишь определять в точности ключи»).
+   */
+  shared(text: string): Array<{ label: string; ids: string[] }>
 }
 
 interface Name { id: string; shape: string; digits: string; letters: number; full: boolean }
@@ -118,6 +124,14 @@ export function createKeyMatcher(keys: Item[], items: Item[]): KeyMatcher {
   // Key labels that prove nothing (shared): a reading of one is no key — nor the start of a longer label («Завод», «Заводская»).
   const shared = new Set<string>()
   const labels = keys.flatMap((key) => labelNames(key).map((label) => ({ key, label, shape: keyShape(label) }))).filter(({ shape }) => shape)
+  // The labels two keys or more carry: the player is asked to hover them (sharedOf).
+  const keysOfLabel = new Map<string, { label: string; ids: Set<string> }>()
+  for (const { key, label, shape } of labels) {
+    const entry = keysOfLabel.get(shape) ?? { label, ids: new Set<string>() }
+    entry.ids.add(key.id)
+    keysOfLabel.set(shape, entry)
+  }
+  for (const [shape, entry] of keysOfLabel) if (entry.ids.size < 2) keysOfLabel.delete(shape)
   for (const { key, label, shape } of labels) {
     // A label of digits alone would be any counter on screen (its letters, not its shape: «ЗБ-014» folds to digits);
     // a label other items carry; one that is the first word of another key's label («Офис», «Офис TerraGroup»: a reading
@@ -174,12 +188,30 @@ export function createKeyMatcher(keys: Item[], items: Item[]): KeyMatcher {
     return []
   }
 
+  /** A label several keys carry in this line (alone, or one of two labels of cells side by side). */
+  function sharedOf(text: string): Array<{ label: string; ids: string[] }> {
+    const raw = withoutPrintedCaps(text, undefined).trim()
+    const words = raw.split(/\s+/)
+    const parts = [raw, ...words.flatMap((_, cut) => (cut ? [words.slice(0, cut).join(' '), words.slice(cut).join(' ')] : []))]
+    const out = new Map<string, { label: string; ids: string[] }>()
+    for (const part of parts) {
+      const entry = keysOfLabel.get(keyShape(part))
+      if (entry) out.set(entry.label, { label: entry.label, ids: [...entry.ids] })
+    }
+    return [...out.values()]
+  }
+
   return {
     line,
     count(text: string) {
       const seen = new Map<string, number>()
       for (const row of text.split(/\r?\n/)) for (const id of line(row)) seen.set(id, (seen.get(id) ?? 0) + 1)
       return seen
+    },
+    shared(text: string) {
+      const out = new Map<string, { label: string; ids: string[] }>()
+      for (const row of text.split(/\r?\n/)) for (const entry of sharedOf(row)) out.set(entry.label, entry)
+      return [...out.values()]
     },
   }
 }

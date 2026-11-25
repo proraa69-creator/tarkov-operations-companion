@@ -170,6 +170,18 @@ describe('«Найти ключи» on the frames of the game', () => {
     expect(missed.map(short), read).toEqual([])
   })
 
+  // Owner, 25.11.2026 («проводи тесты и обучение до тех пор пока не научишь определять в точности ключи»): his own frame of the
+  // live game at 3440×1440 — the search window of his stash with «Времянка», «Спецтех», «Заводская», «ЭП подс.», «Охрана».
+  it('the owner\'s frame of the live game: the four keys a label tells, «Времянка» asked to hover, nothing else', () => {
+    const result = results.get('owner-live-3440.webp')!
+    const { wrong, missed } = verdict(result)
+    const read = result.labels.map((label) => label.text).join(' | ')
+    expect(wrong.map(short), read).toEqual([])
+    expect(missed.map(short), read).toEqual([])
+    const { matcher } = keyScanLists(catalogs.ru, [])
+    expect(matcher.shared(result.labels.map((label) => label.text).join('\n')).map((entry) => entry.label), read).toEqual(['Времянка'])
+  })
+
   it('takes no label of the offline stash for another key', () => {
     for (const result of results.values()) {
       if (result.frame.only) continue
