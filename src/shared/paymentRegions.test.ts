@@ -19,5 +19,7 @@ describeLow('the CIS price for Asia and the low-income countries', () => {
     expectLow(regionOfLow('LV')).toBe('CIS')
     expectLow(regionOfLow('LT')).toBe('CIS')
     expectLow(regionOfLow('EE')).toBe('WORLD')
+    // Poland too (owner, 25.11.2026: «У Польши у всех вот такие цены»: roubles and $3.5 a month)
+    expectLow(regionOfLow('PL')).toBe('CIS')
   })
 })

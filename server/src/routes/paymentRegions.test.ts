@@ -65,7 +65,7 @@ test('region from the saved country: RU, CIS without Russia, WORLD for everythin
   assert.equal(paymentRegionOf('LV'), 'CIS')
   assert.equal(paymentRegionOf('LT'), 'CIS')
   // The rest of Europe, the USA and a country typed by hand: WORLD.
-  for (const code of ['DE', 'PL', 'US', 'BR', 'XX']) assert.equal(paymentRegionOf(code), 'WORLD', code)
+  for (const code of ['DE', 'FR', 'US', 'BR', 'XX']) assert.equal(paymentRegionOf(code), 'WORLD', code)
   for (const value of [undefined, null, '', 'R', 'RUS']) assert.equal(paymentRegionOf(value), undefined)
   for (const code of CIS_COUNTRIES.filter((code) => code !== 'RU')) assert.ok(CIS_PAYMENT_COUNTRIES.includes(code), code)
   assert.ok(!CIS_PAYMENT_COUNTRIES.includes('RU'))
