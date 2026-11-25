@@ -439,7 +439,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   })
   if (options.bezebeeMailEveryMs) bezebeeMailbox.start(options.bezebeeMailEveryMs)
   const bezebee = adminStore ? bezebeePayments : undefined
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, bezebee, bezebeeWebhooks, bezebeeMailbox))
+  // «Новый пароль»: `emails` is made further down; the link is asked for only once the server answers requests.
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, bezebee, bezebeeWebhooks, bezebeeMailbox, (accountId) => emails.passwordLink(accountId)))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.

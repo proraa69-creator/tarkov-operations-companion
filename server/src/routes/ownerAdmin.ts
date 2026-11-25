@@ -53,6 +53,9 @@
  *   POST /me/admin/users/:id/bezebee         { allowed }               -> { user, … } BZB's CIS pages for an account from Russia
  *                                                                         (409 for any other country)
  *   POST /me/admin/users/:id/delete                                    -> { deleted: true } (as «Удалить аккаунт»; 409 owner / active autopay)
+ *   POST /me/admin/users/:id/password-link                             -> { url, expiresAt } «Новый пароль»: a link for 48 hours
+ *                                                                         where the player sets a new password himself
+ *                                                                         (503 without e-mail codes on the server)
  *   POST /me/admin/users/:id/email           { email }                 -> { user, … } «Изменить e-mail» (a typo at registration):
  *                                                                         unconfirmed until a code reaches it; 400 bad
  *                                                                         address, 409 taken / an owner e-mail
@@ -166,7 +169,10 @@ const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' |
   { method: 'POST', path: '/me/admin/payouts/decide', action: 'payout.decide', describe: (body) => ({ target: String(body.id ?? '').slice(0, 24), details: { status: String(body.status ?? '').slice(0, 10), ...(typeof body.comment === 'string' && body.comment ? { comment: body.comment.slice(0, 200) } : {}) } }) },
 ]
 
-export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, bezebee?: BezebeePayments, bezebeeWebhooks?: BezebeeWebhooks, bezebeeMailbox?: BezebeeMailbox) {
+/** «Новый пароль»: a reset code made for a link (EmailAuthService.passwordLink). */
+export type PasswordLinkMaker = (accountId: string) => { email: string; challengeId: string; code: string; expiresAt: number }
+
+export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, bezebee?: BezebeePayments, bezebeeWebhooks?: BezebeeWebhooks, bezebeeMailbox?: BezebeeMailbox, passwordLink?: PasswordLinkMaker) {
   const router = express.Router()
   const readLimiter = new FixedWindowRateLimiter(240, 60 * 1000)
   const writeLimiter = new FixedWindowRateLimiter(30, 60 * 1000)
@@ -394,6 +400,15 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     res.json(admin.setBezebeeAllowed(actor, idSchema.parse(req.params.id), allowed))
   }))
   router.post('/me/admin/users/:id/delete', owner('write', (req, res, actor) => { res.json(admin.deleteUser(actor, idSchema.parse(req.params.id))) }))
+  // «Новый пароль» (owner, 26.11.2026): the link is copied for the owner to send; the player sets the password himself.
+  router.post('/me/admin/users/:id/password-link', owner('write', (req, res, actor) => {
+    const id = idSchema.parse(req.params.id)
+    if (!passwordLink) throw new AccountError(503, 'На сервере не настроена почта для кодов: ссылку сделать нельзя')
+    const link = passwordLink(id)
+    admin.audit(actor, 'account.password-link', link.email, { until: new Date(link.expiresAt).toISOString() })
+    const site = (process.env.TARKOV_PUBLIC_URL || 'https://raidos.app').replace(/\/$/, '')
+    res.json({ url: `${site}/reset#link=${link.challengeId}.${link.code}`, expiresAt: new Date(link.expiresAt).toISOString() })
+  }))
   router.post('/me/admin/users/:id/email', owner('write', (req, res, actor) => {
     const { email } = z.object({ email: z.string().trim().max(254) }).parse(req.body)
     res.json(admin.changeEmail(actor, idSchema.parse(req.params.id), email))

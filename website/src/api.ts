@@ -736,6 +736,8 @@ export const api = {
   adminDeleteUser: (token: string, id: string) => request<{ deleted: true }>(`/me/admin/users/${encodeURIComponent(id)}/delete`, { method: 'POST', token, body: {} }),
   /** «Изменить e-mail» (a typo at registration): the account signs in with the new address and confirms it with a code. */
   adminChangeEmail: (token: string, id: string, email: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/email`, { method: 'POST', token, body: { email } }),
+  /** «Новый пароль»: a link for 48 hours where the player sets a new password himself. */
+  adminPasswordLink: (token: string, id: string) => request<{ url: string; expiresAt: string }>(`/me/admin/users/${encodeURIComponent(id)}/password-link`, { method: 'POST', token, body: {} }),
   adminDevices: (token: string, id: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices`, { token }),
   adminRevokeDevice: (token: string, id: string, deviceId: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices/${encodeURIComponent(deviceId)}/revoke`, { method: 'POST', token, body: {} }),
   adminStreamerSettings: (token: string) => request<AdminStreamerSettings>('/me/admin/streamer-settings', { token }),
