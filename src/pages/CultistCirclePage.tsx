@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Search, X } from 'lucide-react'
@@ -106,12 +107,12 @@ export function CultistCirclePage() {
     const title = (row: CircleRow) => dropsTitle(row, items)
     return circleRows((id) => items.has(id)).sort((a, b) => Number(isNeeded(b)) - Number(isNeeded(a)) || title(a).localeCompare(title(b), locale))
   }, [items, isNeeded, locale])
-  const needle = query.trim().toLowerCase()
+  const terms = searchTerms(query)
   const visible = rows.filter((row) => {
     if (neededOnly && !isNeeded(row)) return false
-    return !needle || row.drops.some(([id]) => {
+    return !terms.length || row.drops.some(([id]) => {
       const item = items.get(id)!
-      return [item.name, item.shortName, uiText(item.name), uiText(item.shortName)].some((text) => text.toLowerCase().includes(needle))
+      return matchesSearchTerms(terms, item.name, item.shortName, uiText(item.name), uiText(item.shortName))
     })
   })
   const selected = rows.find((row) => row.key === selectedKey)

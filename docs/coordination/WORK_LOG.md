@@ -10630,3 +10630,32 @@ Not pushed, not released, nothing uploaded.
 - Строк в updateHistory/playerNews нет — они в коммите выпуска. Предложение для новостей (показать владельцу): «В настройках —
   переключатель «Показывать требования для выхода»: сигнальный патрон для выхода можно скрыть из «Требований рейда»».
 - Риски: малые. Выключатель скрывает только строки «Для выхода»; новый вид требования выхода в будущем надо будет подключить к нему.
+## 2026-11-23 — Claude: item search by words (SJ1 / SJ12 not found)
+
+- Owner, 23.11.2026: a player's item search «не находит SJ1 боевой стимулятор и SJ12 боевой стимулятор». The items are
+  «Боевой стимулятор SJ1 TGLabs» / «…SJ12 TGLabs» (json.tarkov.dev items_ru; on the maps: Lighthouse, Labs, Labyrinth); every
+  search took the query as one piece, so another word order found nothing.
+- Branch claude/item-search-words from release/production 95398f05, worktree raidos-item-search. New src/shared/textSearch.ts
+  (+ test): every word of the query in the text, any order, a Russian word of 5+ letters without its ending, «ё» = «е»;
+  whatever the whole query found is still found. Used in the top search (AppShell), Барахолка, Предметы, «Рейтинг ценности»,
+  keys, trading, quest items, hideout, Cultist circle, keep list, quest-key stash, tier lists, weapon builds, crafts/barters
+  (economy.matchesSearch) and the map's «Найти точку…» (src/maps/mapSearch.ts).
+- Checked in the dev page: the top search «SJ1 боевой стимулятор» → SJ1 and SJ12; Барахолка «SJ12 боевой стимулятор» → SJ12,
+  «боевые стимуляторы» → SJ6, SJ9, SJ12, SJ1. tsc clean, eslint (warnings only, old).
+- Owner, 23.11.2026: «да» — into the next release (not released yet; release/production not pushed). News line proposed to the
+  owner: RU «Поиск: находит предмет при любом порядке слов, например «SJ1 боевой стимулятор»», EN «Search: finds an item
+  whatever the word order, e.g. «SJ1 combat stimulant»» — playerNews.json entry goes in with the release's version.
+- Owner, 23.11.2026: «Новость не пиши» — no playerNews line for the item search fix; it goes into the next release silently.
+
+## 2026-11-23 — Claude: «Оружейник. АК-105» without the stock, the Molot grip
+
+- A player via the owner (game screen + «на ак 105 стоит приклад и стоковая ручка, а нужно убрать приклад и ручка молот»;
+  owner: «Собери по скриншоту»). tarkov.help lists only the parts to buy (6Л31, ПБС-4, Бастион, Пилад 4x32, UTG 25мм), the app
+  put them on the AK-105's own preset, so its stock and grip stayed; the task's weight limit is 4.8 kg.
+- src/data/ownerGunsmithGuides.ts: the AK-105 task gets the Molot bakelite grip (59e6318286f77444dd62c4cc) and
+  `withoutSlots: ['mod_stock']` (new BuildGuide field, src/domain/types.ts); src/gunsmith/guideBuild.ts empties those slots,
+  GuideBuildBench / WeaponBuildDetails pass them. Same branch as the search fix (both for the next release).
+- Checked on the live catalog (a throwaway node test, removed): the guide build = ПБС-4, Бастион, UTG 25мм + Пилад 4x32,
+  6Л31, Молот бак., no stock; 4.51 → 4.17 kg without rounds. New tests: guideBuild.test.ts, ownerGunsmithGuides.test.ts.
+  tsc, eslint clean. Not checked on screen: the browser dev page cannot load tarkov.help (works in the app only).
+- Owner, 23.11.2026: «Да, в выпуск» — the AK-105 build goes into the next release with the search fix (not released yet).

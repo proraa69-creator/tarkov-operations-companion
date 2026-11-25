@@ -33,6 +33,20 @@ describe('the owner\'s additions to Gunsmith builds', () => {
     expect(withOwnerGuides([other])[0]).toBe(other)
   })
 
+  it('«Оружейник. АК-105»: no stock and the Molot grip (the game screen a player sent, 23.11.2026)', () => {
+    const help = ['55d482194bdc2d1d4e8b456b', '57ffb0e42459777d047111c5', '5d2c76ed48f03532f2136169', '5dff772da3651922b360bf91', '5dff77c759400025ea5150cf']
+    const ak105 = { ...akm(help), id: '5ae327c886f7745c7b3f2f3f' } as Quest
+    ak105.objectiveDetails = [{ ...ak105.objectiveDetails![0]!, build: { ...ak105.objectiveDetails![0]!.build!, weaponId: '5ac66d9b5acfc4001633997a' } }]
+    const guide = withOwnerGuides([ak105])[0]!.objectiveDetails![0]!.build!.guide!
+    expect(guide.parts.map((part) => part.itemId)).toEqual([...help, '59e6318286f77444dd62c4cc'])
+    expect(guide.withoutSlots).toEqual(['mod_stock'])
+    // once the site lists the grip, only the stock is taken off
+    const listed = { ...ak105, objectiveDetails: [{ ...ak105.objectiveDetails[0]!, build: { ...ak105.objectiveDetails[0]!.build!, guide: { ...ak105.objectiveDetails[0]!.build!.guide!, parts: [...guide.parts] } } }] } as Quest
+    const again = withOwnerGuides([listed])[0]!.objectiveDetails![0]!.build!.guide!
+    expect(again.parts).toHaveLength(help.length + 1)
+    expect(again.withoutSlots).toEqual(['mod_stock'])
+  })
+
   it('English names in the English catalog', () => {
     const [quest] = withOwnerGuides([akm(HELP_AKM)], true)
     expect(quest!.objectiveDetails![0]!.build!.guide!.parts.at(-2)!.name).toBe('AKM Zenit PT Lock')

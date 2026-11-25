@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ArrowDown, ArrowDownCircle, ArrowUp, ArrowUpCircle, Bell, BellOff, BellRing, Check, ChevronDown, ChevronUp, Info, MousePointerClick, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
@@ -813,10 +814,10 @@ export function TradingPage() {
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
   const ordered = useSteadyOrder(sorted, boardRowId, selected ? `${sort.key}:${sort.dir}:${period}` : null)
   const shown = useMemo(() => {
-    const words = query.trim().toLowerCase()
+    const terms = searchTerms(query)
     return ordered
       .filter((row) => kind === 'all' || row.row.kind === kind)
-      .filter((row) => !words || `${row.item.name} ${row.item.shortName} ${uiText(row.item.name)} ${uiText(row.item.shortName)}`.toLowerCase().includes(words))
+      .filter((row) => matchesSearchTerms(terms, row.item.name, row.item.shortName, uiText(row.item.name), uiText(row.item.shortName)))
   }, [kind, ordered, query])
   // A signal or a message opens its item wherever it stands: past the first rows, or filtered out by the search.
   const opened = useMemo(() => rows.find((row) => row.row.id === selected), [rows, selected])

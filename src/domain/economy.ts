@@ -1,3 +1,4 @@
+import { matchesSearchQuery } from '../shared/textSearch'
 import type { Barter, Craft, EconomyItem, EconomySnapshot, ItemCount, TaskRef } from '../data/economyApi'
 import { fleaMarketFee, type FleaFeeOptions } from './fleaFee'
 
@@ -233,9 +234,7 @@ export function sortByNumber<T>(rows: T[], value: (row: T) => number | null | un
 }
 
 export function matchesSearch(query: string, lines: PricedLine[], ...extra: string[]): boolean {
-  const needle = query.trim().toLowerCase()
-  if (!needle) return true
-  return [...lines.flatMap((line) => [line.name, line.shortName]), ...extra].some((value) => value.toLowerCase().includes(needle))
+  return matchesSearchQuery(query, ...lines.flatMap((line) => [line.name, line.shortName]), ...extra)
 }
 
 export function formatDuration(seconds: number): string {

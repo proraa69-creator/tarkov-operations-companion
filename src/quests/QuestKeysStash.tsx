@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CircleHelp, KeyRound, Minus, Plus, Search, Star, Trash2, X } from 'lucide-react'
@@ -71,9 +72,9 @@ export function OwnedKeysPanel({ items, needed, profileId, mode, favoriteIds = [
   const rows = [...owned].map(([id, pieces]) => ({ id, pieces, item: byId.get(id) }))
     .sort((a, b) => Number(needed.has(b.id)) - Number(needed.has(a.id)) || uiText(a.item?.name ?? a.id).localeCompare(uiText(b.item?.name ?? b.id), 'ru'))
   const favorites = favoriteIds.flatMap((id) => { const item = byId.get(id); return item && isKeyItem(item) && !owned.has(id) ? [item] : [] })
-  const needle = query.trim().toLowerCase()
-  const found = needle.length < 2 ? [] : items.filter((item) => isKeyItem(item) && !owned.has(item.id)
-    && [item.name, item.shortName].some((text) => uiText(text ?? '').toLowerCase().includes(needle))).slice(0, 30)
+  const terms = searchTerms(query)
+  const found = query.trim().length < 2 ? [] : items.filter((item) => isKeyItem(item) && !owned.has(item.id)
+    && matchesSearchTerms(terms, uiText(item.name ?? ''), uiText(item.shortName ?? ''))).slice(0, 30)
   return <div className="quest-keys-stash-panel">
     <div className="quest-keys-stash-bar">
       <span className="dim">{uiText('Найдено ключей')}: <strong>{rows.length}</strong></span>
@@ -101,7 +102,7 @@ export function OwnedKeysPanel({ items, needed, profileId, mode, favoriteIds = [
           <span>{uiText(item.name)}</span>{needed.has(item.id) && <span className="tag brass">{uiText('нужен')}</span>}<Plus size={14} aria-hidden="true" />
         </button>
       </li>)}</ul>}
-      {needle.length >= 2 && !found.length && <p className="dim">{uiText('Ничего не найдено.')}</p>}
+      {query.trim().length >= 2 && !found.length && <p className="dim">{uiText('Ничего не найдено.')}</p>}
     </div>}
     {rows.length === 0
       ? <p className="dim quest-keys-stash-empty">{uiText('Пока пусто. Нажмите «Найти ключи» или добавьте ключи вручную.')}</p>

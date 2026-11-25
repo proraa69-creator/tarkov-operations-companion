@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
@@ -272,8 +273,8 @@ export function TierListPanel() {
     : byStats && group ? gearTierRows(pictured, raidMode, group, gearIndex) : slotTierRows(pictured, raidMode, category),
   [byFood, byStats, category, foodBasis, foodIndex, gearIndex, group, isAmmo, missing, pictured, raidMode, rounds])
   const helmets = useMemo(() => byStats && group === 'headphones' ? gearTierRows(items, raidMode, 'helmet', gearIndex) : [], [byStats, group, items, gearIndex, raidMode])
-  const needle = query.trim().toLowerCase()
-  const shown = needle ? rows.filter(({ item }) => `${uiText(item.name)} ${item.name} ${item.shortName}`.toLowerCase().includes(needle)) : rows
+  const terms = searchTerms(query)
+  const shown = terms.length ? rows.filter(({ item }) => matchesSearchTerms(terms, uiText(item.name), item.name, item.shortName)) : rows
   const loading = ((byStats && !catalogHasGear) || byFood) && !extras && !failed
   const pricesAt = live?.updatedAt ?? updatedAt
 

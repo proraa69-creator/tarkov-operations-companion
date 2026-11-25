@@ -60,7 +60,7 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
   const guideParts = useMemo(() => (build.guide?.parts ?? []).flatMap((part) => part.itemId ? [part.itemId] : []), [build.guide])
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
     {gun && catalog ? <div className="gs-weapon is-bench">
-      <GuideBuildBench weapon={gun} catalog={catalog} partIds={guideParts} access={access} screenshot={buildImage} alt={uiText(weapon?.name ?? gun.name)}
+      <GuideBuildBench weapon={gun} catalog={catalog} partIds={guideParts} withoutSlots={build.guide?.withoutSlots} access={access} screenshot={buildImage} alt={uiText(weapon?.name ?? gun.name)}
         onScreenshotError={buildImage ? () => setFailedImages((failed) => [...failed, buildImage]) : undefined} />
       <p className="gs-weapon-name">
         <strong>{uiText(weapon?.name ?? gun.name)}</strong>

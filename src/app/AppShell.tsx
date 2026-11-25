@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { NewsButton } from '../news/NewsButton'
 import { NotificationsButton } from '../notifications/NotificationsButton'
 import { uiText } from '../i18n/renderText'
@@ -369,9 +370,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [activeProfile.id])
 
   const results = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (normalized.length < 2) return []
-    const matches = (...values: string[]) => values.some((value) => `${value} ${uiText(value)}`.toLowerCase().includes(normalized))
+    if (query.trim().length < 2) return []
+    const terms = searchTerms(query)
+    const matches = (...values: string[]) => matchesSearchTerms(terms, ...values, ...values.map(uiText))
     const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: questCardHref(entry), icon: Target }))
     const items = data.items.filter((entry) => matches(entry.name, entry.shortName)).slice(0, 7).map((entry) => ({ id: entry.id, title: entry.name, detail: entry.category, url: `/flea?selected=${entry.id}`, icon: PackageSearch }))
     const maps = data.maps.filter((entry) => matches(entry.name)).map((entry) => ({ id: entry.id, title: entry.name, detail: 'Карта', url: `/maps/${entry.id}`, icon: Map }))
