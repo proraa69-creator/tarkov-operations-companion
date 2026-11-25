@@ -1,22 +1,24 @@
 import { useSyncExternalStore } from 'react'
 import { canonicalMapId } from '../data/mapIds'
 import { uiText } from '../i18n/renderText'
+import type { RaidState } from '../import/raidState'
+import { raidRunning } from '../app/useRaidState'
 
 /**
  * «Таймер бронепоезда» (player report 231, owner 25.11.2026: «На картах, где есть бронепоезд (Резерв и Маяк), укажи время прибытия
  * бронепоезда. В настройках карты сделай настройку „Таймер бронепоезда“»).
  *
- * The timings are the game's own, read from the offline SPT copy's location files (SPT_Data/database/locations/<map>/base.json,
+ * The arrival is the game's own, read from the offline SPT copy's location files (SPT_Data/database/locations/<map>/base.json,
  * exit `EXFIL_Train`, the same numbers for PvP and PvE):
- *  - Reserve (rezervbase): MinTime 1450, MaxTime 1700, Count 400, ExfiltrationTime 5;
- *  - Lighthouse (lighthouse): MinTime 1300, MaxTime 1420, Count 300, ExfiltrationTime 5.
+ *  - Reserve (rezervbase): MinTime 1450, MaxTime 1700;
+ *  - Lighthouse (lighthouse): MinTime 1300, MaxTime 1420.
  * MinTime…MaxTime is when the exit activates (a random second in that window, counted from the raid's start); the train can be
- * boarded about 90 s later (SPT configs/location.json `trainArrivalDelayObservedSeconds`, measured by the SPT team: 88 s + 2);
- * it leaves Count + ExfiltrationTime after that (SPT RaidTimeAdjustmentService: earliest departure = MinTime + Count +
- * ExfiltrationTime + the delay). A Scav who joins a raid late gets these times moved earlier by the server: not known here.
+ * boarded about 90 s later (SPT configs/location.json `trainArrivalDelayObservedSeconds`, measured by the SPT team: 88 s + 2).
+ * How long it stands is the owner's (25.11.2026): Reserve 6 min 30 s, Lighthouse 5 min.
+ * A Scav who joins a raid late gets these times moved earlier by the server: no countdown for a Scav (owner, 25.11.2026).
  */
 export interface TrainSchedule {
-  /** Seconds after the raid's start: the earliest and the latest the train stands at the platform. */
+  /** Seconds after the raid's start: the earliest and the latest the train comes to the platform. */
   arriveMin: number
   arriveMax: number
   /** Seconds it stands there. */
@@ -24,12 +26,12 @@ export interface TrainSchedule {
 }
 
 const ARRIVAL_DELAY = 90
-const schedule = (minTime: number, maxTime: number, count: number, exfiltrationTime = 5): TrainSchedule =>
-  ({ arriveMin: minTime + ARRIVAL_DELAY, arriveMax: maxTime + ARRIVAL_DELAY, stay: count + exfiltrationTime })
+const schedule = (minTime: number, maxTime: number, stay: number): TrainSchedule =>
+  ({ arriveMin: minTime + ARRIVAL_DELAY, arriveMax: maxTime + ARRIVAL_DELAY, stay })
 
 export const ARMORED_TRAINS: Readonly<Record<string, TrainSchedule>> = {
-  reserve: schedule(1450, 1700, 400),
-  lighthouse: schedule(1300, 1420, 300),
+  reserve: schedule(1450, 1700, 6 * 60 + 30),
+  lighthouse: schedule(1300, 1420, 5 * 60),
 }
 
 /** The train of a map (any of the game's or the app's names for it), or undefined where there is none. */
@@ -38,29 +40,20 @@ export function trainSchedule(mapId: string | undefined): TrainSchedule | undefi
 }
 
 /**
- * Where the train is `elapsed` seconds into the raid. The arrival is random within its window, so before it is sure the state
- * says the range: `from`…`to` are seconds from now.
+ * Where the train is `elapsed` seconds into the raid. The arrival is random within its window, so `from`…`to` are seconds from now:
  *  - coming: not before `from`, not after `to`;
  *  - arriving: it may be there already, at the latest in `to`;
- *  - standing: it is there, leaves in `from`…`to`;
- *  - leaving: it may have left already, at the latest in `to`;
- *  - gone.
+ *  - past: its arrival window is over (owner, 25.11.2026: in a raid only the countdown to the arrival, then nothing).
  */
 export type TrainState =
   | { phase: 'coming'; from: number; to: number }
   | { phase: 'arriving'; to: number }
-  | { phase: 'standing'; from: number; to: number }
-  | { phase: 'leaving'; to: number }
-  | { phase: 'gone' }
+  | { phase: 'past' }
 
 export function trainState(train: TrainSchedule, elapsed: number): TrainState {
-  const leaveMin = train.arriveMin + train.stay
-  const leaveMax = train.arriveMax + train.stay
   if (elapsed < train.arriveMin) return { phase: 'coming', from: train.arriveMin - elapsed, to: train.arriveMax - elapsed }
   if (elapsed < train.arriveMax) return { phase: 'arriving', to: train.arriveMax - elapsed }
-  if (elapsed < leaveMin) return { phase: 'standing', from: leaveMin - elapsed, to: leaveMax - elapsed }
-  if (elapsed < leaveMax) return { phase: 'leaving', to: leaveMax - elapsed }
-  return { phase: 'gone' }
+  return { phase: 'past' }
 }
 
 /** `m:ss`, whole seconds rounded up (a countdown never shows 0:00 while time is left). */
@@ -72,34 +65,81 @@ export function trainClock(seconds: number): string {
 /** Whole minutes, for the line out of a raid. */
 export const trainMinutes = (seconds: number) => Math.round(seconds / 60)
 
-/** The line for a raid `elapsed` seconds old; without one, the train's times from the raid's start. */
-export function trainLine(train: TrainSchedule, elapsed: number | undefined): string {
+/** How long it stands: «6 мин 30 с», «5 мин» (the English by the rule in src/i18n/uiEnglishMap.ts). */
+export function trainStay(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const rest = Math.round(seconds % 60)
+  return rest ? uiText(`${minutes} мин ${rest} с`) : `${minutes} ${uiText('мин')}`
+}
+
+/**
+ * The line for a PMC's raid `elapsed` seconds old; without one, the train's times from the raid's start. Undefined once the
+ * arrival window of the raid is over: the line goes.
+ */
+export function trainLine(train: TrainSchedule, elapsed: number | undefined): string | undefined {
   if (elapsed === undefined) {
-    return `${uiText('Бронепоезд прибывает через')} ${trainMinutes(train.arriveMin)}–${trainMinutes(train.arriveMax)}\u00a0${uiText('мин после начала рейда, стоит')} ${trainMinutes(train.stay)}\u00a0${uiText('мин')}`
+    return `${uiText('Бронепоезд прибывает через')} ${trainMinutes(train.arriveMin)}–${trainMinutes(train.arriveMax)} ${uiText('мин после начала рейда, стоит')} ${trainStay(train.stay)}`
   }
   const state = trainState(train, elapsed)
   switch (state.phase) {
     case 'coming': return `${uiText('Бронепоезд прибудет через')} ${trainClock(state.from)}–${trainClock(state.to)}`
     case 'arriving': return `${uiText('Бронепоезд прибудет в ближайшие')} ${trainClock(state.to)}`
-    case 'standing': return `${uiText('Бронепоезд стоит ещё')} ${trainClock(state.from)}–${trainClock(state.to)}`
-    case 'leaving': return `${uiText('Бронепоезд уезжает в ближайшие')} ${trainClock(state.to)}`
-    case 'gone': return uiText('Бронепоезд уехал')
+    case 'past': return undefined
   }
 }
 
-/** The switch in «Настройки карты»: off until turned on, kept on this device. */
-const KEY = 'raidos-map-armored-train-v1'
-const EVENT = 'raidos-map-armored-train-changed'
+/**
+ * When the PMC raid running now began, for the train's countdown: a raid on `mapId` (any map with a train when none is given)
+ * that the logs say is a PMC's (src/import/raidState.ts `side`). A Scav's raid, or one whose side the logs do not tell, has
+ * none: a Scav comes into a raid already running (owner, 25.11.2026).
+ */
+export function pmcRaidBegun(raid: RaidState | null | undefined, mapId: string | undefined, now: number): number | undefined {
+  if (!raid?.begun || raid.side !== 'pmc' || !raid.location || !raidRunning(raid, now)) return undefined
+  if (mapId ? canonicalMapId(raid.location) !== canonicalMapId(mapId) : !trainSchedule(raid.location)) return undefined
+  return raid.begun
+}
 
-const read = () => { try { return localStorage.getItem(KEY) === 'on' } catch { return false } }
-export function setArmoredTrainOn(on: boolean) {
-  try { if (on) localStorage.setItem(KEY, 'on'); else localStorage.removeItem(KEY) } catch { /* storage unavailable */ }
-  window.dispatchEvent(new Event(EVENT))
+/** A switch kept on this device, off until turned on. */
+function deviceSwitch(key: string) {
+  const event = `${key}-changed`
+  const read = () => { try { return localStorage.getItem(key) === 'on' } catch { return false } }
+  const set = (on: boolean) => {
+    try { if (on) localStorage.setItem(key, 'on'); else localStorage.removeItem(key) } catch { /* storage unavailable */ }
+    window.dispatchEvent(new Event(event))
+  }
+  const subscribe = (listener: () => void) => {
+    const onStorage = (change: StorageEvent) => { if (change.key === null || change.key === key) listener() }
+    window.addEventListener(event, listener)
+    window.addEventListener('storage', onStorage)
+    return () => { window.removeEventListener(event, listener); window.removeEventListener('storage', onStorage) }
+  }
+  return { read, set, use: () => useSyncExternalStore(subscribe, read, () => false) }
 }
-function subscribe(listener: () => void) {
-  const onStorage = (event: StorageEvent) => { if (event.key === null || event.key === KEY) listener() }
-  window.addEventListener(EVENT, listener)
-  window.addEventListener('storage', onStorage)
-  return () => { window.removeEventListener(EVENT, listener); window.removeEventListener('storage', onStorage) }
+
+/** «Таймер бронепоезда» in «Настройки карты»: the line over the map. */
+const timer = deviceSwitch('raidos-map-armored-train-v1')
+export const setArmoredTrainOn = timer.set
+export const useArmoredTrainOn = timer.use
+
+/** «Уведомления о прибытии» beside it (owner, 25.11.2026): the card and the chime when the arrival window opens. */
+const notice = deviceSwitch('raidos-map-armored-train-notice-v1')
+export const armoredTrainNoticeOn = notice.read
+export const setArmoredTrainNoticeOn = notice.set
+export const useArmoredTrainNoticeOn = notice.use
+
+const ANNOUNCED_KEY = 'raidos-armored-train-announced'
+
+/**
+ * Whether the arrival of the raid that began at `begun` is to be announced now: inside its arrival window, once per raid (kept on
+ * the device, so a restart of the app does not say it again), with the switch on. Marks it announced when it says yes.
+ */
+export function takeTrainArrival(begun: number, train: TrainSchedule, now = Date.now()): boolean {
+  if (!armoredTrainNoticeOn()) return false
+  const elapsed = (now - begun) / 1000
+  if (elapsed < train.arriveMin || elapsed >= train.arriveMax) return false
+  try {
+    if (localStorage.getItem(ANNOUNCED_KEY) === String(begun)) return false
+    localStorage.setItem(ANNOUNCED_KEY, String(begun))
+  } catch { /* storage unavailable: once per mount */ }
+  return true
 }
-export const useArmoredTrainOn = () => useSyncExternalStore(subscribe, read, () => false)

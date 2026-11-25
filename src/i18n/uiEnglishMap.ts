@@ -31,7 +31,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Таймер бронепоезда', 'Armored train timer'], ['Когда приедет бронепоезд', 'When the armored train comes'],
   ['Бронепоезд прибывает через', 'The armored train comes'], ['мин после начала рейда, стоит', 'min after the raid starts, stays'],
   ['Бронепоезд прибудет через', 'Armored train in'], ['Бронепоезд прибудет в ближайшие', 'Armored train within'],
-  ['Бронепоезд стоит ещё', 'Armored train leaves in'], ['Бронепоезд уезжает в ближайшие', 'Armored train leaves within'], ['Бронепоезд уехал', 'The armored train has left'],
+  ['Уведомления о прибытии', 'Arrival alerts'], ['Бронепоезд прибывает', 'Armored train arriving'],
   // «Нужные ключи» (reports №112, №113).
   ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],
   // «Сектора обстрела» (report №110).
@@ -226,6 +226,8 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/здесь точек:\s*/g, 'points here: '],
   [/^Мест рядом: (\d+)$/g, 'Places close together: $1'],
+  // «Таймер бронепоезда»: how long the train stands, «6 мин 30 с» (src/maps/armoredTrain.ts trainStay)
+  [/^(\d+)\u00a0мин (\d+)\u00a0с$/u, '$1\u00a0min $2\u00a0s'],
   // «Устранения»: a choice of weapons of one calibre (src/maps/killObjectives.ts weaponTag)
   [/^калибр (\S+)$/g, 'caliber $1'],
   [/Точек квеста на этой карте:\s*/g, 'Task points on this map: '],

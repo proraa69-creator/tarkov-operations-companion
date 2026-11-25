@@ -7,5 +7,5 @@
 }
 .armored-train svg { flex: none; color: #d8c08a; }
 .armored-train.is-live { color: #f1ece0; border-color: #5f553a; font-variant-numeric: tabular-nums; }
-.armored-train.is-gone { color: #8b948d; }
-.armored-train.is-gone svg { color: #8b948d; }
+/* «Бронепоезд прибывает» in the corner dock (ArmoredTrainNotifier): the train's colour on the card of «Рейд начался». */
+.armored-train-toast > svg { color: #d8c08a; }
