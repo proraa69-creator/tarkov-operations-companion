@@ -179,9 +179,11 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     return { id, email: accounts.isOwner(id) ? accounts.emailOf(id) : undefined }
   }
 
-  // Audit of the owner's older actions: logged once they have succeeded (status < 300).
+  // Audit of the owner's older actions: logged once they have succeeded (status < 300). The path as the routes match it
+  // (any letter case, a trailing slash): another spelling must not run the action unlogged.
   router.use((req: Request, res: Response, next: NextFunction) => {
-    const audited = AUDITED.find((entry) => entry.method === req.method && entry.path === req.path)
+    const path = req.path.toLowerCase().replace(/\/+$/, '')
+    const audited = AUDITED.find((entry) => entry.method === req.method && entry.path === path)
     if (!audited) { next(); return }
     const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {}
     const { email } = ownerOf(req)
