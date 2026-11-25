@@ -10156,3 +10156,27 @@ Not pushed, not released, nothing uploaded.
   or «Снимок из игры»; an exit list opened by a rebound key is seen within 1.5 s instead of 0.5 s.
 - Mistake fixed in-session: a PowerShell script with relative [IO.File] paths wrote 5 files into
   raidos-quest-photos-all (only my lines); restored there with git checkout of those 5 files, tree clean again.
+
+## 2026-11-25: Claude, reports 228 and 225 («Полигон»: plates and visor; the Scourge picture)
+
+- Branch claude/range-225-228 from release/production f444b3f3, commits 4cbce53c (228), c3da9af1 (225). Not pushed, not
+  released.
+- 228 «Не могу вставить плиты и забрало» (0.6.0.343, Hexgrid + Вулкан-5): json.tarkov.dev `regular/items` now gives
+  `properties: null` for every ItemPropertiesArmorAttachment (all plates, face shields, Killa's mask) and every chest
+  rig; tarkov.dev GraphQL answered «server unavailable». The range catalogue (src/range/rangeArmor.ts) dropped them: the
+  plate lists and the visor list held only «Нет», armoured rigs left the vest list, bosses wore no plates. Fix: the
+  game's own pieces from SPT templates (new scripts/build-range-parts.mjs → src/range/rangeParts.json: 105 pieces +
+  30 armoured rigs in tarkov.dev's form) stand in only for an item without properties; the live file's armorClass and
+  maxDurability win. Cache key raid-os-range-armor-v1 → v2. On the live file: Hexgrid 18/19 plates (one new plate
+  6943c85b… is not in SPT), Vulkan-5 visor back, 30 rigs, Killa/Tagilla/Knight dressed with plates and visors.
+- 225 «Иконка Скоржа отображается неверно» (0.6.0.341): the Scourge's SMC-90 chassis 6a6877f5… has no part picture (in
+  the shot list, never produced), so it and what is on it were not drawn: a bare P90 frame. Fix: PICTURE_STAND_INS in
+  src/arsenal/partPictures.ts (SMC-90 chassis → P90 body 5cc700b9…), children of a stand-in not drawn; frames keep the
+  real id. Of all 164 weapons' default presets on the live file, this was the only part without a picture.
+- Tests: vitest src/range src/arsenal — 189 passed; npm run typecheck clean; eslint on changed files clean. Composed the
+  Scourge picture offline from layBuild (flat order, like drawFlat): a whole P90 with its muzzle set.
+- Not verified: the real app window (WebGL drawing), the PvE and season files (only regular checked), the phone.
+  No updateHistory/playerNews rows: they go with the release commit.
+- Risks: the new rigs of 2026 (LV-119, FCPC V5, Siege-R, 6B45, JPC… 39 ids) are not in SPT and stay out of the vest list
+  while tarkov.dev gives no properties; SPT values (08.2026) may differ from today's game for ricochet/blunt; the
+  Scourge's SMC-90 handguard and cheek rest are not drawn until the chassis is photographed.
