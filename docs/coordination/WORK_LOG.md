@@ -10156,3 +10156,36 @@ Not pushed, not released, nothing uploaded.
   or «Снимок из игры»; an exit list opened by a rebound key is seen within 1.5 s instead of 0.5 s.
 - Mistake fixed in-session: a PowerShell script with relative [IO.File] paths wrote 5 files into
   raidos-quest-photos-all (only my lines); restored there with git checkout of those 5 files, tree clean again.
+
+## 2026-11-25 — Claude: reports 229 «Выбор карты» and 230 «Выбор карты по квестам» (0.6.0.343; same player as report 165)
+
+- Branch claude/map-priority-229-230 from release/production f444b3f3, commit 47575eef. Not pushed, not released.
+- Reproduced on the player's PvE profile read from the server (read-only: user_quest_mirror, objective_progress,
+  user_deferred_quests) with the served PvE catalog: the strip showed Lighthouse 14 / Woods 12 (he saw 13 / 11). The count
+  was already one per quest; Lighthouse leads because 10 of its 14 current quests are kills, most of them «any of several
+  maps» kills («Тарковский стрелок. Часть 1», «Залётные», «Худшая работа на свете», «Тихий калибр», «Легкотня», «Назвался
+  груздем...») that count on every map they name. Not kills: Woods 5, Interchange 5, Lighthouse 4. «Доктор "Айболит"» and
+  other «Любая карта» quests were never counted on a map (they sit under the list).
+- Wrong in the count: a quest counted on a map it only lists without an objective there («Новые маршруты» on Streets: the
+  transit's destination), and on a map whose remaining work is handed over at a trader. Now progression/mapPriority.ts
+  (questWorkOnMap / mapWorkCounts, mapObjectives.openObjectivesOnMap): a quest counts on a map while it has an open objective
+  there (not ticked, not waiting for a find on another map — report 165), once. Used by the strip, «Текущие задания» of the
+  chosen map, and «Брифинг рейда»'s map counts (that one used to count done maps too).
+- Filter (the player asked twice): «Все / Задания / Устранения» before the tiles, PC only (kept in localStorage
+  raidos-map-priority-filter-v1; the phone row has no room and counts all). «Устранения» = the quest's open work on the map is
+  kills only. Hover on a tile: «Маяк · 14 заданий: 4 + 10 на устранение».
+- 229: clicking a tile cut by the row's edge scrolled the row by the hidden part (measured in the browser: 200 → 264 px), so
+  the row jumped sideways under the pointer. Now a clicked tile never scrolls the row; a map chosen elsewhere («Выбрать
+  карту», squad) is scrolled into sight by bounding boxes. Switching the filter returns the row to its start.
+- Tests: src/progression/mapPriority.test.ts (the player's Lighthouse/Woods shapes), MapPriority.test.tsx (click keeps the
+  scroll, outside pick scrolls, filter order and storage, phone without the switch), uiEnglishOverview.test.ts; full `npm test`:
+  4673 passed, 11 failed, none in touched code — MapsPage.autoFloor/deferred and SupportChat pass alone (timeouts under
+  load); appVersion (space in the path → %20), linux/updater (tar on Windows), AdminPanelPage (CRLF checkout of AppShell.tsx),
+  staleServer, cache-item-images, release-policy are this PC's environment. `npm run typecheck` clean, eslint on changed files clean. Layout checked in a throwaway Vite page with the real
+  CSS (1600×900, the raid-card row): switch fits, clicking the cut tile keeps scrollLeft 200, outside picks come into sight.
+- Not verified: the real Overview with live data (the dev page waits for the gated catalog), the real Electron shell, all
+  themes. No updateHistory/playerNews rows (release commit). Suggested news (owner to approve): RU «Приоритет карт: фильтр
+  «Все / Задания / Устранения» и точный счёт квестов на карте» / EN «Map priority: an «All / Tasks / Eliminations» filter and an
+  exact count of tasks on each map».
+- Note: the BTR driver's quests the app opens by itself (opensByItself: «Назвался груздем...», «Сам себе БТР», «Скорая
+  расплата») count too; the player said on 02.11 he had no BTR quests — if he still has none, that is a separate check.
