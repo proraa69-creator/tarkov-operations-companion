@@ -5,7 +5,7 @@ import { useRaidState } from '../app/useRaidState'
 import { TOAST_MS } from '../notifications/ToastDock'
 import { playTimerChime } from '../shared/uiSound'
 import {
-  pmcRaidBegun, setArmoredTrainNoticeOn, setArmoredTrainOn, takeTrainArrival, trainLine, trainSchedule, useArmoredTrainNoticeOn,
+  pmcRaidBegun, setArmoredTrainNoticeOn, setArmoredTrainOn, takeTrainArrival, trainSchedule, trainView, useArmoredTrainNoticeOn,
   useArmoredTrainOn,
 } from './armoredTrain'
 import './armoredTrain.css'
@@ -34,10 +34,11 @@ export function ArmoredTrainSetting({ mapId }: { mapId: string }) {
 }
 
 /**
- * Over the map, once «Таймер бронепоезда» is on. In a PMC's raid on this map (the game's logs, from «GameStarted», src/import/
- * raidState.ts `side`) the countdown to the arrival, gone once its window is over (owner, 25.11.2026: «только таймер до прибытия»).
- * Otherwise — out of a raid, a Scav's raid, a raid whose side the logs do not tell — when it comes after a raid's start and how
- * long it stands.
+ * Over the map, once «Таймер бронепоезда» is on: a compact train icon in the HUD's row of controls (owner, 25.11.2026: «просто
+ * картинка поезда»), not a wide plate, so a map button's menu opens above it. In a PMC's raid on this map (the game's logs, from
+ * «GameStarted», src/import/raidState.ts `side`) a live countdown runs by the icon; while the arrival window is open the icon
+ * lights up — «возможно, приехал» — and once the window is over it goes (owner: «только таймер до прибытия»). Out of a raid, a
+ * Scav's raid, or a raid whose side the logs do not tell: just the icon, its times on hover.
  */
 export function ArmoredTrainBanner({ mapId }: { mapId: string }) {
   const on = useArmoredTrainOn()
@@ -45,7 +46,7 @@ export function ArmoredTrainBanner({ mapId }: { mapId: string }) {
   const raid = useRaidState()
   const [now, setNow] = useState(() => Date.now())
   const shown = Boolean(train && on)
-  // the clock runs while the line is shown, so a raid that begins finds it current
+  // the clock runs while the icon is shown, so a raid that begins finds it current
   useEffect(() => {
     if (!shown) return
     const id = window.setInterval(() => setNow(Date.now()), 1000)
@@ -54,13 +55,11 @@ export function ArmoredTrainBanner({ mapId }: { mapId: string }) {
   if (!train || !on) return null
   const began = pmcRaidBegun(raid, mapId, now)
   const elapsed = began === undefined ? undefined : Math.max(0, (now - began) / 1000)
-  const line = trainLine(train, elapsed)
-  if (!line) return null
-  return <div className="armored-train-row">
-    <div className={`armored-train${elapsed !== undefined ? ' is-live' : ''}`} role="status" aria-live="off">
-      <TrainFront size={14} aria-hidden="true" />
-      <span>{line}</span>
-    </div>
+  const view = trainView(train, elapsed)
+  if (!view) return null
+  return <div className={`armored-train${view.live ? ' is-live' : ''}${view.arriving ? ' is-arriving' : ''}`} role="status" aria-live="off" title={view.hint}>
+    <TrainFront size={14} aria-hidden="true" />
+    {view.value && <span>{view.value}</span>}
   </div>
 }
 

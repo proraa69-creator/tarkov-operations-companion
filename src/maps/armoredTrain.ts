@@ -73,18 +73,33 @@ export function trainStay(seconds: number): string {
 }
 
 /**
- * The line for a PMC's raid `elapsed` seconds old; without one, the train's times from the raid's start. Undefined once the
- * arrival window of the raid is over: the line goes.
+ * What the small train icon shows (ArmoredTrainTimer.tsx, owner 25.11.2026: «просто картинка поезда», no wide plate):
+ *  - `hint` — the tooltip on hover;
+ *  - `value` — the text beside the icon, empty out of a raid (then only the hint on hover);
+ *  - `live` — a PMC's raid is on, the countdown runs;
+ *  - `arriving` — the arrival window is open, the icon lights up («возможно, приехал», the first marker the train may be there).
+ * Undefined once the arrival window of the raid is over: the icon goes.
  */
-export function trainLine(train: TrainSchedule, elapsed: number | undefined): string | undefined {
+export interface TrainView {
+  value: string
+  hint: string
+  live: boolean
+  arriving: boolean
+}
+
+export function trainView(train: TrainSchedule, elapsed: number | undefined): TrainView | undefined {
   if (elapsed === undefined) {
-    return `${uiText('Бронепоезд прибывает через')} ${trainMinutes(train.arriveMin)}–${trainMinutes(train.arriveMax)} ${uiText('мин после начала рейда, стоит')} ${trainStay(train.stay)}`
+    const hint = `${uiText('Прибывает через')} ${trainMinutes(train.arriveMin)}–${trainMinutes(train.arriveMax)} ${uiText('мин после начала рейда, стоит')} ${trainStay(train.stay)}`
+    return { value: '', hint, live: false, arriving: false }
   }
   const state = trainState(train, elapsed)
   switch (state.phase) {
-    case 'coming': return `${uiText('Бронепоезд прибудет через')} ${trainClock(state.from)}–${trainClock(state.to)}`
-    case 'arriving': return `${uiText('Бронепоезд прибудет в ближайшие')} ${trainClock(state.to)}`
-    case 'past': return undefined
+    case 'coming':
+      return { value: trainClock(state.from), hint: `${uiText('Бронепоезд прибудет через')} ${trainClock(state.from)}–${trainClock(state.to)}`, live: true, arriving: false }
+    case 'arriving':
+      return { value: uiText('возможно, приехал'), hint: `${uiText('Бронепоезд прибудет в ближайшие')} ${trainClock(state.to)}`, live: true, arriving: true }
+    case 'past':
+      return undefined
   }
 }
 

@@ -5,7 +5,7 @@ import { ArmoredTrainBanner, ArmoredTrainNotifier, ArmoredTrainSetting } from '.
 import { ARMORED_TRAINS, setArmoredTrainNoticeOn, setArmoredTrainOn } from './armoredTrain'
 
 type Desktop = NonNullable<Window['tarkovDesktop']>
-const HINT = 'Бронепоезд прибывает через 26–30 мин после начала рейда, стоит 6 мин 30 с'
+const HINT = 'Прибывает через 26–30 мин после начала рейда, стоит 6 мин 30 с'
 
 function mockRaid(raid: RaidState) {
   window.tarkovDesktop = {
@@ -22,14 +22,14 @@ afterEach(() => {
 })
 
 describe('«Таймер бронепоезда»', () => {
-  it('two switches on Reserve and Lighthouse only, and the line shows once the timer is on', () => {
+  it('two switches on Reserve and Lighthouse only, and the icon shows once the timer is on', () => {
     const { rerender } = render(<><ArmoredTrainSetting mapId="customs" /><ArmoredTrainBanner mapId="customs" /></>)
     expect(screen.queryByRole('switch')).toBeNull()
     rerender(<><ArmoredTrainSetting mapId="reserve" /><ArmoredTrainBanner mapId="reserve" /></>)
     expect(screen.getAllByRole('switch')).toHaveLength(2)
     expect(screen.queryByRole('status')).toBeNull()
     fireEvent.click(screen.getByRole('switch', { name: 'Таймер бронепоезда' }))
-    expect(screen.getByRole('status').textContent).toBe(HINT)
+    expect(screen.getByRole('status')).toHaveAttribute('title', HINT)
   })
 
   it('keeps the «Уведомления о прибытии» switch', () => {
@@ -46,7 +46,9 @@ describe('«Таймер бронепоезда»', () => {
     setArmoredTrainOn(true)
     render(<ArmoredTrainBanner mapId="reserve" />)
     await act(async () => { await Promise.resolve() })
-    expect(screen.getByRole('status').textContent).toMatch(/^Бронепоезд прибудет через 15:[34]\d–19:[45]\d$/)
+    const status = screen.getByRole('status')
+    expect(status.textContent).toMatch(/^15:[34]\d$/)
+    expect(status.getAttribute('title')).toMatch(/^Бронепоезд прибудет через 15:[34]\d–19:[45]\d$/)
   })
 
   // Owner, 25.11.2026: a Scav joins a raid already running — no live countdown, only the general hint.
@@ -56,7 +58,7 @@ describe('«Таймер бронепоезда»', () => {
     setArmoredTrainOn(true)
     render(<ArmoredTrainBanner mapId="reserve" />)
     await act(async () => { await Promise.resolve() })
-    expect(screen.getByRole('status').textContent).toBe(HINT)
+    expect(screen.getByRole('status')).toHaveAttribute('title', HINT)
   })
 
   it('shows the hint, not a countdown, when the side is unknown', async () => {
@@ -65,10 +67,10 @@ describe('«Таймер бронепоезда»', () => {
     setArmoredTrainOn(true)
     render(<ArmoredTrainBanner mapId="reserve" />)
     await act(async () => { await Promise.resolve() })
-    expect(screen.getByRole('status').textContent).toBe(HINT)
+    expect(screen.getByRole('status')).toHaveAttribute('title', HINT)
   })
 
-  it('the plate goes once the arrival window is over', async () => {
+  it('the icon goes once the arrival window is over', async () => {
     const begun = Date.now() - 2_000_000
     mockRaid({ inRaid: true, since: begun - 60_000, begun, location: 'RezervBase', side: 'pmc', tracked: true })
     setArmoredTrainOn(true)
