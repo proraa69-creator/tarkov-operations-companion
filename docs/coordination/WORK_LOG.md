@@ -11094,3 +11094,20 @@ Not pushed, not released, nothing uploaded.
   нет, «Времянка» — просьба навести; все кадры SPT и заявки 236 как были. vitest src/quests, src/i18n, QuestKeysPage, screen —
   зелёные; npm run typecheck, eslint чисто.
 - Не проверено: живой поиск в игре с этим кодом.
+
+## 2026-11-26 00:45 — Claude: выпуск 0.6.0.347 — «Найти ключи» и «Стримеры» (ветка claude/release-347)
+
+- По слову владельца («Да, выпускай», 26.11.2026) выпуск 347 собран поверх release/production e7983dd3 (346 живая):
+  d16e4707 «Найти ключи» (подпись нескольких ключей — просьба навести курсор; «Убрать ненайденные»); 89565f60 «Стримеры»:
+  стример с долей 0 % вне общей статистики — ветка claude/admin-hide-zero-share из сессии выпуска 346 одним коммитом.
+  Имена стримеров из комментариев, теста, сообщения коммита и записи журнала убраны (репозиторий публичный); саму ветку
+  claude/admin-hide-zero-share на GitHub не отправлять — в ней они остались. Сессии выпуска 346 сказано не класть ничего
+  в release/production, пока идёт 347.
+- Версия 0.6.0-347 (package.json, package-lock.json, website/src/config.ts); строка updateHistory 347 — 2 строки, без
+  заявок; новости 347 — 2 строки на 11 языках (русские и английские владелец одобрил); переводы трёх новых надписей
+  поиска ключей на 9 языков (src/i18n/locales/*.json, по алфавиту).
+- Проверки: npm run typecheck, tsc -p tsconfig.electron.json, eslint по изменённым — чисто; release-policy 6/6,
+  cache-item-images 2/2; vitest src/quests, src/i18n, src/admin, src/data, src/pages, src/overview, website/src — 1493 passed, 8 упали под нагрузкой: 7 по таймауту 5 с (MapsPage ×4, DashboardPage, ManualMarks) в один поток проходят, AdminPanelPage — известный CRLF рабочей копии Windows;
+  сборка сайта (npm --prefix website run build) — чисто.
+- Electron и Koffi не менялись — обновление частями. Выходит в окно 13:00 по Бангкоку после зелёного шлюза.
+- Не проверено: поиск ключей в живой игре с этим кодом.
