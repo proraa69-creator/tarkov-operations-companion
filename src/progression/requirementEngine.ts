@@ -4,6 +4,7 @@ import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResu
 import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements, TRACKED_SOURCES } from './questBasics'
 import { prestigeMismatch } from './prestigeQuests'
 import { visibleStoryObjectives } from './storyObjectives'
+import { objectiveDone } from '../raidprep/objectives'
 
 export { isLiveGameQuest, questFaction, questRequirements } from './questBasics'
 
@@ -243,37 +244,55 @@ export function isTrackedQuest(quest: { id: string }, progress: ModeProgress) {
   return Boolean(record && TRACKED_SOURCES.has(record.source))
 }
 
-/** Current = accepted in the game (logged «задание принято») and not handed in or failed since. */
 /**
- * A current quest: taken by the logs, the screen or the player — or one of the BTR driver's, open and not over
+ * A current quest: taken by the logs, the screen or the player — or one of the BTR driver's the player is on by his own ticks
  * (opensByItself).
  */
-export function isCurrentTrackedQuest(quest: { id: string } & Partial<Pick<Quest, 'traderId' | 'requirements' | 'previous' | 'level' | 'faction' | 'gameConditions' | 'unlock' | 'prestige'>>, progress: ModeProgress) {
+export function isCurrentTrackedQuest(quest: { id: string } & Partial<Pick<Quest, 'traderId' | 'requirements' | 'previous' | 'level' | 'faction' | 'gameConditions' | 'unlock' | 'prestige' | 'objectiveDetails'>>, progress: ModeProgress) {
   const record = progress.taskProgress[quest.id]
   if (record) return record.status === 'active' && TRACKED_SOURCES.has(record.source)
   return opensByItself(quest, progress)
 }
 
 /**
- * Traders whose quests the game takes without a line in its logs: the BTR driver gives his in a raid, by talking to him
- * (owner, 08.11.2026: a player had no BTR point on the map; of the players' BTR quests on the server two came from the logs,
- * the rest only from reading the screen). Their finish and failure are logged.
+ * Traders whose quests the game takes without a line in its logs: the BTR driver. His quests open at PMC level 20 with
+ * Mechanic's «Рука помощи» taken, and the player takes each from him (wikiwiki.jp BTR Driver, tarkov.dev). On the server,
+ * 25.11.2026, the logs named a start of his «Органолептический анализ. Часть 2» for 143 players, «Похмельное утро» for 23,
+ * «Честный отзыв» for 4, «Задержка отправления. Часть 2» for 3; a hand-in of any of his once in all, a failure of
+ * «Шиномонтажка» 29 times. The rest is the screen and the players' marks.
  */
 export const UNLOGGED_START_TRADERS: ReadonlySet<string> = new Set(['656f0f98d80a697f855d34b1'])
-/** «Рука помощи» (Mechanic): the meeting with the BTR driver. A quest of his that follows no other one opens after it. */
-export const BTR_FIRST_QUEST = '6752f6d83038f7df520c83e8'
 
 /**
- * The app adds a BTR driver's quest by itself once the game would have given it (owner: «Посмотри, после каких квестов
- * открывается этот квест… Если эти условия все выполнены, то он должен сам добавляться в приложение»): every quest it
- * follows in the state it needs, the player's level, loyalty and faction (evaluateTaskAvailability) — and, for one that follows
- * no quest, «Рука помощи» done. Not when the logs or the player already say anything about it (done, failed, taken).
+ * A BTR driver's quest no record speaks of is current only when the player's own ticks show he is on it: an objective of it
+ * ticked or counted (by hand, on another device or by the logs) and a required one still open. The app never ASSUMES he took
+ * it from the game's conditions alone — the game logs almost none of the driver's hand-ins and he takes each quest from him in
+ * a raid, which nothing the app reads shows, so a condition met is not a quest taken. A tick is a confirmation like a screen
+ * reading or a mark, trusted on its own and not re-checked against the chain (the record branch above trusts those the same
+ * way). Without one it is only open, «Доступные», like any trader's quest not taken yet: a Tasks-table reading, a mark or
+ * «В текущие» makes it current.
+ *
+ * Until 25.11.2026 every open one was current by itself (owner, 08.11: «он должен сам добавляться в приложение»). Open is not
+ * taken, and the driver's hand-ins are logged almost never, so a quest done long ago stayed current for good — on the maps, in
+ * «Приоритет карт», «Текущие задания» and the raid briefing. On the server that day 381 profiles had «Рука помощи» done and
+ * 234 of them not one confirmation of any driver's quest (no log, screen, tick or mark), yet saw his quests counted — the
+ * player of reports 229 and 230 (02.11: «у меня нету квеста БТРа») among them. Of the driver's quests the logs that day named
+ * only a handful of starts (3 of «Задержка отправления. Часть 2», 4 of «Честный отзыв») and 29 failures of «Шиномонтажка», no
+ * hand-in; 130 (profile, mode, quest) pairs held one by hand ticks alone, no task record — those are the players really on
+ * one, and the tick keeps them.
  */
-export function opensByItself(quest: { id: string } & Partial<Pick<Quest, 'traderId' | 'requirements' | 'previous' | 'level' | 'faction' | 'gameConditions' | 'unlock' | 'prestige'>>, progress: ModeProgress) {
+export function opensByItself(quest: { id: string } & Partial<Pick<Quest, 'traderId' | 'objectiveDetails'>>, progress: ModeProgress) {
   if (!quest.traderId || !UNLOGGED_START_TRADERS.has(quest.traderId) || progress.taskProgress[quest.id]) return false
-  const requirements = questRequirements({ requirements: quest.requirements, previous: quest.previous })
-  if (!requirements.length && progress.taskProgress[BTR_FIRST_QUEST]?.status !== 'completed') return false
-  return evaluateTaskAvailability({ name: '', trader: '', kappa: false, description: '', objectives: [], rewards: [], level: 1, ...quest } as Quest, progress).status === 'available'
+  return onItByTicks(quest, progress)
+}
+
+/** An objective of the quest ticked or counted (by hand, on another device or by the logs) and a required one still open. */
+function onItByTicks(quest: { id: string; objectiveDetails?: Quest['objectiveDetails'] }, progress: ModeProgress) {
+  const ticked = Object.values(progress.objectiveProgress ?? {}).some((objective) => objective.taskId === quest.id && (objective.current > 0 || Boolean(objective.completedAt)))
+  if (!ticked) return false
+  const objectives = (quest.objectiveDetails ?? []).filter((objective) => objective.id)
+  const required = objectives.filter((objective) => !objective.optional)
+  return (required.length ? required : objectives).some((objective) => !objectiveDone(progress, quest.id, objective.id))
 }
 
 /**
