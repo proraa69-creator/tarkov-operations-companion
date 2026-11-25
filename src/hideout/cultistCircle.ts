@@ -144,3 +144,46 @@ export function circleTime(seconds: number, locale: 'ru' | 'en' = 'ru') {
   const parts: Array<[number, string, string]> = [[Math.floor(seconds / 3600), 'ч', 'h'], [Math.floor(seconds / 60) % 60, 'мин', 'min'], [seconds % 60, 'с', 's']]
   return parts.filter(([value]) => value > 0).map(([value, ru, en]) => `${value} ${locale === 'en' ? en : ru}`).join(' ')
 }
+
+/**
+ * «Калькулятор» (report 241, 26.11.2026: «Добавьте калькулятор круга сектантов»): the circle adds up the base value of what
+ * is put in — the game's own price of the item (`basePrice`), not the flea's or a trader's —, up to five items, +15 % with the
+ * Sacred Amulet, and the sum sets the time. The steps up to 350 000 ₽ are players' measurements (the calculators built on
+ * Wilsman's tests); 350 001 and 400 000 are the game wiki's (read 26.11.2026). An exchange of the list above goes before the sum.
+ */
+export const CIRCLE_MAX_ITEMS = 5
+/** The Sacred Amulet's bonus to the sum, in per cent (whole numbers: 390 000 × 1.15 in floating point is 448 499.99…). */
+export const AMULET_PERCENT = 15
+/** From here a better chance of rare and expensive items, 14 h. */
+export const CIRCLE_RARE_FROM = 350_001
+/** From here a 25 % chance of 6 h with items for the player's quests and hideout instead. */
+export const CIRCLE_QUEST_FROM = 400_000
+const CIRCLE_STEPS: ReadonlyArray<readonly [upTo: number, hours: number]> = [[10_000, 2], [25_000, 3], [50_000, 4], [100_000, 5], [200_000, 8], [350_000, 12]]
+
+export interface CircleSum {
+  /** What the circle counts, the amulet in. */
+  total: number
+  hours: number
+  rare: boolean
+  questChance: boolean
+  /** Base value still to put in for the next mark that matters — 350 001 ₽, then 400 000 ₽ —, the amulet counted. */
+  missing?: { value: number; to: 'rare' | 'quest' }
+}
+
+export function circleSum(baseValues: readonly number[], amulet: boolean): CircleSum {
+  const base = baseValues.reduce((sum, value) => sum + Math.max(0, value), 0)
+  const percent = 100 + (amulet ? AMULET_PERCENT : 0)
+  const total = Math.floor((base * percent) / 100)
+  const hours = CIRCLE_STEPS.find(([upTo]) => total <= upTo)?.[1] ?? 14
+  const rare = total >= CIRCLE_RARE_FROM
+  const questChance = total >= CIRCLE_QUEST_FROM
+  const mark = !rare ? { at: CIRCLE_RARE_FROM, to: 'rare' as const } : !questChance ? { at: CIRCLE_QUEST_FROM, to: 'quest' as const } : null
+  return { total, hours, rare, questChance, ...(mark ? { missing: { value: Math.max(1, Math.ceil((mark.at * 100) / percent - base)), to: mark.to } } : {}) }
+}
+
+/** The exchange of the list these items make exactly (a piece each, any order), if they make one. */
+export function matchingExchange(itemIds: readonly string[], exchanges: readonly CircleExchange[] = CULTIST_EXCHANGES): CircleExchange | undefined {
+  if (!itemIds.length) return undefined
+  const key = [...itemIds].sort().join(',')
+  return exchanges.find((exchange) => exchange.put.flatMap(([id, count = 1]) => Array.from({ length: count }, () => id)).sort().join(',') === key)
+}

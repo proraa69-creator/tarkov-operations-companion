@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { circleRows, circleTime, CULTIST_EXCHANGES, exchangeDrops, exchangeRewards, stackCount, type CircleExchange } from './cultistCircle'
+import { circleRows, circleSum, circleTime, CULTIST_EXCHANGES, exchangeDrops, exchangeRewards, matchingExchange, stackCount, type CircleExchange } from './cultistCircle'
 
 const CULTIST_FIGURINE = '655c669103999d3c810c025b'
 const SKULL_MASK = '635267ab3c89e2112001f826'
@@ -99,5 +99,30 @@ describe('the time of an exchange', () => {
     expect(circleTime(666)).toBe('11 мин 6 с')
     expect(circleTime(3960, 'en')).toBe('1 h 6 min')
     expect(circleTime(666, 'en')).toBe('11 min 6 s')
+  })
+})
+
+describe('«Калькулятор» (report 241)', () => {
+  it('the time by the sum of the base values: the players’ steps up to 350 000 ₽, then 14 h', () => {
+    const hours = (value: number) => circleSum([value], false).hours
+    expect([10_000, 10_001, 25_001, 50_001, 100_001, 200_001, 350_000, 350_001].map(hours)).toEqual([2, 3, 4, 5, 8, 12, 12, 14])
+    expect(circleSum([200_000, 150_001], false)).toMatchObject({ total: 350_001, hours: 14, rare: true, questChance: false, missing: { value: 49_999, to: 'quest' } })
+    expect(circleSum([400_000], false)).toMatchObject({ rare: true, questChance: true })
+    expect(circleSum([400_000], false).missing).toBeUndefined()
+  })
+
+  it('the amulet adds 15 %, and what is missing counts it', () => {
+    const sum = circleSum([300_000], true)
+    expect(sum).toMatchObject({ total: 345_000, hours: 12, rare: false, missing: { value: 4_349, to: 'rare' } })
+    expect(circleSum([300_000 + 4_349], true).rare).toBe(true)
+    expect(circleSum([300_000 + 4_348], true).rare).toBe(false)
+  })
+
+  it('knows an exchange of the list exactly, in any order, a piece each', () => {
+    expect(matchingExchange([LABRYS_NOTES])?.get).toEqual([[LABRYS_KEYCARD]])
+    expect(matchingExchange(Array.from({ length: 5 }, () => CULTIST_FIGURINE))?.get).toEqual([[CULTIST_KNIFE]])
+    expect(matchingExchange([CULTIST_FIGURINE])?.get).toEqual([[SKULL_MASK]])
+    expect(matchingExchange([CULTIST_FIGURINE, CULTIST_FIGURINE])).toBeUndefined()
+    expect(matchingExchange([])).toBeUndefined()
   })
 })

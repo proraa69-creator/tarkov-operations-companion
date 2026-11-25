@@ -258,3 +258,56 @@ describe('«Круг сектантов»', () => {
     expect(within(screen.getByRole('dialog')).getByText('11 h 6 min')).toBeInTheDocument()
   })
 })
+
+describe('«Круг сектантов» → «Калькулятор» (report 241)', () => {
+  const based = (prices: Record<string, number>) => {
+    state.data.items = (state.data.items as Item[]).map((entry) => ({ ...entry, basePrice: prices[entry.id] ?? 1_000 }))
+  }
+  const result = () => document.querySelector('.circle-calc-result') as HTMLElement
+  const put = (search: string, name: RegExp) => {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Найти предмет…' }), { target: { value: search } })
+    fireEvent.click(within(document.querySelector('.circle-calc-found') as HTMLElement).getByRole('button', { name }))
+  }
+
+  it('adds up the base value of what is put in, gives the time and what is missing; the amulet adds 15 %', () => {
+    based({ [MASK]: 120_000, [KEYCARD]: 150_000 })
+    renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /Калькулятор/ }))
+    put('Маска', /Маска "Череп"/)
+    expect(result()).toHaveTextContent('120 000 ₽')
+    expect(result()).toHaveTextContent('8 ч')
+    expect(result()).toHaveTextContent('До 14 ч не хватает 230 001 ₽')
+    put('Ключ-карта', /Ключ-карта лаборатории/)
+    expect(result()).toHaveTextContent('12 ч')
+    put('Маска', /Маска "Череп"/)
+    expect(result()).toHaveTextContent('390 000 ₽')
+    expect(result()).toHaveTextContent('14 ч')
+    expect(result()).toHaveTextContent('выше шанс редких предметов')
+    expect(result()).toHaveTextContent('До шанса 6 ч не хватает 10 000 ₽')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Амулет Посвящённого/ }))
+    expect(result()).toHaveTextContent('448 500 ₽')
+    expect(result()).toHaveTextContent('или 6 ч с шансом 25 %')
+    expect(result()).not.toHaveTextContent('не хватает')
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать: Ключ-карта лаборатории' }))
+    expect(result()).toHaveTextContent('276 000 ₽')
+  })
+
+  it('items that make an exchange of the list say so, with what drops and the exchange’s own time', () => {
+    based({ [LEFT_HALF]: 50_000, [RIGHT_HALF]: 50_000 })
+    renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /Калькулятор/ }))
+    put('Левая', /Левая половинка/)
+    put('Правая', /Правая половинка/)
+    expect(result()).toHaveTextContent('Это обмен 100 %: Монета Биткоина')
+    expect(result()).toHaveTextContent('11 мин 6 с')
+  })
+
+  it('five items at most', () => {
+    based({})
+    renderPage()
+    fireEvent.click(screen.getByRole('tab', { name: /Калькулятор/ }))
+    for (let n = 0; n < 5; n += 1) put('Шар', /Шар красный/)
+    expect(screen.getByRole('textbox', { name: 'Найти предмет…' })).toBeDisabled()
+    expect(document.querySelectorAll('.circle-calc-slots li.is-filled')).toHaveLength(5)
+  })
+})

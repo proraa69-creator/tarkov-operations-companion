@@ -27,6 +27,18 @@ export const ECONOMY_PHRASES: Array<[string, string]> = [
   // «Убежище и квесты» and «Что собрать для квестов» (pages/HideoutHubPage.tsx, pages/QuestItemsPage.tsx; 28.10.2026)
   ['Убежище и квесты', 'Hideout & quests'], ['Что собрать: предметы на улучшения убежища или предметы для квестов.', 'What to collect: items for hideout upgrades or for quests.'],
   ['Предметы на уровни модулей, которые ещё не построены', 'Items for the module levels not built yet'], ['Предметы для текущих, доступных и будущих квестов', 'Items for current, available and future quests'],
+  // «Круг сектантов» → «Калькулятор» (report 241, 26.11.2026)
+  ['Рецепты 100 %', '100 % recipes'],
+  ['Калькулятор', 'Calculator'],
+  ['Положите до 5 предметов', 'Put in up to 5 items'],
+  ['Амулет Посвящённого: +15 %', 'Sacred Amulet: +15 %'],
+  ['Время в круге', 'Time in the circle'],
+  ['Это обмен 100 %:', 'A 100 % exchange:'],
+  ['или 6 ч с шансом 25 %: предметы для ваших квестов и убежища', 'or 6 h at a 25 % chance: items for your quests and hideout'],
+  ['выше шанс редких предметов', 'a better chance of rare items'],
+  ['До 14 ч не хватает', '14 h needs another'],
+  ['До шанса 6 ч не хватает', 'The 6 h chance needs another'],
+  ['Базовая цена предметов из игры. Сборку оружия игра считает иначе.', 'The items\' base value from the game. The game counts an assembled weapon differently.'],
   // «Круг сектантов» (pages/CultistCirclePage.tsx; 04.11.2026)
   ['Круг сектантов', 'Cultist Circle'], ['Что положить в круг, чтобы точно получить нужный предмет', 'What to place in the circle to get the item you need for certain'],
   ['Что выпадает из круга. Нажмите на предмет, чтобы увидеть, что положить в круг.', 'What drops from the circle. Click an item to see what to place in the circle.'], ['Выпадет', 'Drops'], ['возможно, выпадет', 'may drop'], ['Всего выпадет', 'Total drops'],
