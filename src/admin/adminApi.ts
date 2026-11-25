@@ -72,7 +72,12 @@ export type AdminRangeStats = Pick<AdminPeriodStats, 'range' | 'users'> & Partia
 
 /** «Стримеры» (server/src/routes/accounts.ts, ownerAdmin.ts, payouts.ts), as on the site. Money in roubles. */
 export interface StreamerStats { visits: number; registrations: number; activeSubscriptions: number; revenue?: { amount: number; currency: string }; earnings: { amount: number; currency: string } }
-export interface OwnerStreamers { streamers: Array<{ email: string; code: string; createdAt?: string; stats: StreamerStats }>; invites: Array<{ code: string; expiresAt: string }> }
+/** A streamer's payout state for the owner (owner, 25.11.2026): balance, requests waiting and the requisites (full). */
+export interface OwnerStreamerPayout {
+  earned: number; paidOut: number; pending: number; available: number; maturing: number; pendingRequests: number
+  details: { phone: string; bank: string; recipient: string } | null
+}
+export interface OwnerStreamers { streamers: Array<{ email: string; code: string; createdAt?: string; stats: StreamerStats; payout?: OwnerStreamerPayout }>; invites: Array<{ code: string; expiresAt: string }> }
 export interface StreamerSeriesRow { period: string; visits: number; registrations: number; payments: number; months: Record<PlanId, number>; revenue?: number; earnings: number }
 export interface OwnerStreamerStats { code: string; period: StatsPeriod; rows: StreamerSeriesRow[]; campaigns: Array<{ campaign: string; visits: number; visits30d: number; lastVisitDay: string }> }
 export interface AdminStreamerSettings { defaultPercent: number; streamers: Array<{ code: string; email: string; percent: number; custom: boolean; linkEnabled: boolean; linkDisabledAt?: string }> }
@@ -86,7 +91,7 @@ export interface OwnerPayout {
   id: string; amount: number; status: PayoutStatus; auto: boolean; createdAt: string; decidedAt?: string; comment?: string; destination: string
   code: string; email: string; phone: string; bank: string; recipient: string
 }
-export interface OwnerPayouts { payouts: OwnerPayout[]; limits: { min: number; max: number } }
+export interface OwnerPayouts { payouts: OwnerPayout[] }
 
 /**
  * «Пригласи друга» (server/src/services/invites.ts adminReferrals, the session «Привлечение друзей»): every account that
@@ -445,8 +450,6 @@ export const adminApi = {
   /** «Стримеры» → красный счётчик: сколько заявок на вывод ждут владельца сейчас. */
   payoutAttention: () => request<{ count: number }>('GET', '/v1/accounts/me/admin/payouts/attention'),
   decidePayout: (id: string, status: 'paid' | 'rejected', comment?: string) => request<OwnerPayout>('POST', '/v1/accounts/me/admin/payouts/decide', { id, status, ...(comment ? { comment } : {}) }),
-  /** How often (days) streamers may choose their automatic payout. */
-  setPayoutLimits: (min: number, max: number) => request<{ limits: { min: number; max: number } }>('PUT', '/v1/accounts/me/admin/payout-limits', { min, max }),
   referrals: (search: string, sort: ReferralSort) => request<AdminReferrals>('GET', adminPaths.referrals(search, sort), undefined, keep),
   referrer: (id: string) => request<AdminReferrerDetail>('GET', `/v1/accounts/me/admin/referrals/${encodeURIComponent(id)}`),
   /** A reward held for the owner: confirmed (its days to the inviter) or not (owner, 24.11.2026, as «Платежи» → «Награды за друзей» on the site). */

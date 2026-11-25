@@ -1,4 +1,4 @@
-import { Banknote, CalendarClock, Coins, HandCoins, LoaderCircle, Pencil, Percent, Save, Wallet } from 'lucide-react'
+import { Banknote, Coins, HandCoins, LoaderCircle, Pencil, Percent, Save, Wallet } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ApiError, api, errorMessage, type PayoutOverview, type PayoutStatus } from '../api'
 import { useAuth } from '../auth'
@@ -7,8 +7,6 @@ import { Notice } from './Notice'
 import { formatRub } from './ReferralStatsTable'
 import '../extras.css'
 
-const INTERVAL_PRESETS = [3, 7, 14, 30]
-const formatDate = (value: string) => new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'long' }).format(new Date(value))
 const formatShortDate = (value: string) => new Intl.DateTimeFormat(localeTag(), { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(value))
 const english = () => localeTag() === 'en-US'
 /** The labels are Russian source texts (the owner's admin shows them as is); the streamer's cabinet shows them through tr(). */
@@ -17,8 +15,6 @@ export const PAYOUT_STATUS: Record<PayoutStatus, { label: string; tone: string }
   paid: { label: 'Выплачено', tone: 'green' },
   rejected: { label: 'Отклонено', tone: 'danger' },
 }
-const days = (n: number) => english() ? `${n} ${n === 1 ? 'day' : 'days'}` : `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'день' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'дня' : 'дней'}`
-
 type Message = { tone: 'success' | 'error' | 'offline'; text: string } | null
 const failure = (reason: unknown): Message => ({ tone: reason instanceof ApiError && reason.network ? 'offline' : 'error', text: errorMessage(reason) })
 
@@ -150,64 +146,45 @@ function PayoutSettings({ data, onChange }: { data: PayoutOverview; onChange: (n
   const [form, setForm] = useState({ phone: '', bank: data.details?.bank ?? '', recipient: data.details?.recipient ?? '' })
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message>(null)
-  const { limits } = data.autoPayout
-  const options = [...new Set([...INTERVAL_PRESETS, data.autoPayout.intervalDays, limits.min, limits.max])].filter((n) => n >= limits.min && n <= limits.max).sort((a, b) => a - b)
 
-  async function save(patch: Parameters<typeof api.savePayoutSettings>[1], success: string) {
+  async function saveDetails(event: FormEvent) {
+    event.preventDefault()
     if (!auth.token) return
     setBusy(true)
     setMessage(null)
     try {
-      onChange(await api.savePayoutSettings(auth.token, patch))
-      setMessage({ tone: 'success', text: success })
-      return true
+      onChange(await api.savePayoutSettings(auth.token, { phone: form.phone, bank: form.bank, recipient: form.recipient }))
+      setMessage({ tone: 'success', text: tr('Реквизиты сохранены.') })
+      setEditing(false)
+      setForm((f) => ({ ...f, phone: '' }))
     } catch (reason) {
       setMessage(failure(reason))
-      return false
     } finally {
       setBusy(false)
     }
   }
 
-  async function saveDetails(event: FormEvent) {
-    event.preventDefault()
-    if (await save({ phone: form.phone, bank: form.bank, recipient: form.recipient }, tr('Реквизиты сохранены.'))) { setEditing(false); setForm((f) => ({ ...f, phone: '' })) }
-  }
-
   return (
     <div className="payout-box">
-      <div className="field-label"><CalendarClock size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 6 }} />{tr('Реквизиты и автовыплата')}</div>
+      <div className="field-label"><Banknote size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 6 }} />{tr('Реквизиты для выплаты')}</div>
       {data.details && !editing ? (
         <div className="payout-details">
-          <div><span className="dim">{tr('СБП:')}</span> <span className="mono">{data.details.phone}</span> · {data.details.bank}</div>
           <div><span className="dim">{tr('Получатель:')}</span> {data.details.recipient}</div>
+          <div><span className="dim">{tr('СБП:')}</span> <span className="mono">{data.details.phone}</span> · {data.details.bank}</div>
           <button type="button" className="button ghost small" onClick={() => setEditing(true)}><Pencil aria-hidden="true" />{tr('Изменить')}</button>
         </div>
       ) : (
         <form className="payout-form" onSubmit={saveDetails}>
+          <label className="field"><span className="field-hint">{tr('Имя и фамилия, как в банке')}</span><input className="input" autoComplete="name" required maxLength={100} value={form.recipient} placeholder={tr('Иван Петров')} onChange={(e) => setForm({ ...form, recipient: e.target.value })} /></label>
           <label className="field"><span className="field-hint">{tr('Телефон для СБП')}</span><input className="input" type="tel" autoComplete="tel" required value={form.phone} placeholder={data.details ? tr('{phone} — введите заново', { phone: data.details.phone }) : '+7 999 123-45-67'} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
           <label className="field"><span className="field-hint">{tr('Банк получателя')}</span><input className="input" required maxLength={60} value={form.bank} placeholder={tr('Т-Банк, Сбербанк…')} onChange={(e) => setForm({ ...form, bank: e.target.value })} /></label>
-          <label className="field"><span className="field-hint">{tr('Имя и фамилия, как в банке')}</span><input className="input" autoComplete="name" required maxLength={100} value={form.recipient} placeholder={tr('Иван Петров')} onChange={(e) => setForm({ ...form, recipient: e.target.value })} /></label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="submit" className="button primary small" disabled={busy}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Save aria-hidden="true" />}{tr('Сохранить реквизиты')}</button>
             {data.details && <button type="button" className="button ghost small" onClick={() => setEditing(false)}>{tr('Отмена')}</button>}
           </div>
-          <span className="field-hint">{tr('Номер карты не нужен и не хранится. Телефон виден только вам (скрыт) и владельцу — для перевода.')}</span>
+          <span className="field-hint">{tr('Получателя и банк указываете вы. Номер карты не нужен и не хранится. Телефон виден только вам (скрыт) и владельцу — для перевода.')}</span>
         </form>
       )}
-      <label className="auto-toggle">
-        <input type="checkbox" checked={data.autoPayout.enabled} disabled={busy} onChange={(e) => void save({ auto: e.target.checked }, e.target.checked ? tr('Автовыплата включена.') : tr('Автовыплата выключена.'))} />
-        <span>{tr('Автовыплата раз в')}
-          <select className="input select-inline" aria-label={tr('Автовыплата раз в сколько дней')} value={data.autoPayout.intervalDays} disabled={busy} onChange={(e) => void save({ intervalDays: Number(e.target.value) }, tr('Интервал сохранён.'))}>
-            {options.map((n) => <option key={n} value={n}>{days(n)}</option>)}
-          </select>
-        </span>
-      </label>
-      <span className="field-hint">
-        {data.autoPayout.enabled
-          ? data.autoPayout.nextAt ? tr('Следующая — {date}: заявка на весь доступный баланс (от {minimum} ₽).', { date: formatDate(data.autoPayout.nextAt), minimum: formatRub(data.minimum) }) : tr('Начнётся после сохранения реквизитов.')
-          : tr('Выключена: выплату можно запросить вручную в любой момент.')}
-      </span>
       {message && <Notice tone={message.tone}>{tr(message.text)}</Notice>}
     </div>
   )

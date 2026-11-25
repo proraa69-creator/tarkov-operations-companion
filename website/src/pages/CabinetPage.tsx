@@ -123,7 +123,8 @@ export function CabinetPage() {
           <div className="cabinet-col">
             {/* «Поддержать проект» (owner, 13.10.2026). */}
             {SITE_DONATE && paid && <DonateCard />}
-            <AppPanel />
+            {/* Ссылка на скачивание приложения: не для стримера с долей 0 % (owner, 25.11.2026) — у обычных игроков остаётся. */}
+            {!account.statsOnly && <AppPanel />}
             {paid && account.kind === 'user' && <InviteCodePanel account={account} />}
             <PasswordPanel />
             <SignOutEverywherePanel />
@@ -496,7 +497,8 @@ function ReferralProgramPanel({ account }: { account: Account }) {
     { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations),
       meta: tr('{code} по коду · {link} без кода', { code: formatNumber(stats.registrations - stats.linkRegistrations), link: formatNumber(stats.linkRegistrations) }) },
     { icon: BadgeCheck, label: tr('Подписки'), value: formatNumber(stats.activeSubscriptions), meta: tr('активные сейчас') },
-    { icon: Coins, label: tr('Оплатили'), value: formatNumber(stats.payers ?? 0), meta: tr('на сумму {amount} ₽', { amount: formatNumber(paidSum) }) },
+    // «Оплатили» и сумма — только у стримера с долей > 0 (owner, 25.11.2026); у 0 % кабинет как прежде, без сумм зрителей.
+    ...(account.statsOnly ? [] : [{ icon: Coins, label: tr('Оплатили'), value: formatNumber(stats.payers ?? 0), meta: tr('на сумму {amount} ₽', { amount: formatNumber(paidSum) }) }]),
   ]
   const loadSeries = useCallback((period: StatsPeriod) => {
     if (!token) return Promise.reject(new ApiError(401, 'Требуется вход в аккаунт'))

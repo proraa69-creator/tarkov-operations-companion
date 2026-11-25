@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Megaphone, Radio, Receipt, ScrollText, Target, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Megaphone, Radio, Receipt, ScrollText, Target, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
@@ -22,7 +22,7 @@ import { AdminNotices } from '../components/admin/AdminNotices'
 import { AdminSurveys } from '../components/admin/AdminSurveys'
 import { AdminUpdateHistory } from '../components/admin/AdminUpdateHistory'
 import { History as HistoryIcon } from 'lucide-react'
-import { OwnerPayoutsList, PAYOUT_ATTENTION_CHANGED } from '../components/OwnerAdmin'
+import { PAYOUT_ATTENTION_CHANGED } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
 
@@ -110,13 +110,7 @@ export function AdminPage() {
           {tab === 'users' && <AdminUsers />}
           {tab === 'referrals' && <AdminReferrals />}
           {tab === 'ads' && <AdminAds />}
-          {tab === 'streamers' && <>
-            <AdminStreamers />
-            <section className="panel owner-panel admin-streamer-payouts" aria-labelledby="admin-payouts-title">
-              <div className="panel-header"><div className="panel-title" id="admin-payouts-title"><Banknote aria-hidden="true" />Выплаты стримерам</div></div>
-              <div className="panel-body owner-body"><OwnerPayoutsList /></div>
-            </section>
-          </>}
+          {tab === 'streamers' && <AdminStreamers />}
           {tab === 'reports' && <AdminBugReports />}
           {tab === 'quests' && <><AdminQuestPoints /><AdminQuestBase /></>}
           {tab === 'notices' && <AdminNotices />}

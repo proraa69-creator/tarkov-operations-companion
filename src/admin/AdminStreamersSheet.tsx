@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, BadgeCheck, Banknote, ChevronDown, Coins, Copy, Link2, Link2Off, LoaderCircle, MousePointerClick, Radio, RotateCcw, Save, UserPlus, Users, UserX, Wallet, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { apiBaseUrl } from '../sync/webAccount'
-import { adminApi, type AdminStreamerSettings, type CreatedStreamerInvite, type OwnerPayouts, type OwnerStreamers, type OwnerStreamerStats, type StatsPeriod } from './adminApi'
+import { adminApi, type AdminStreamerSettings, type CreatedStreamerInvite, type OwnerPayouts, type OwnerStreamerPayout, type OwnerStreamers, type OwnerStreamerStats, type StatsPeriod } from './adminApi'
 import { count, dateOnly, dateTime, errorText, money, PLAN_IDS, PLAN_SHORT } from './adminFormat'
 import { AdminEmpty, AdminLoading } from './adminShared'
 import { SheetPortal } from './SheetPortal'
@@ -55,6 +55,8 @@ export function StreamersSheet({ onClose }: { onClose: () => void }) {
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
         {!data && !error && <AdminLoading />}
         {data && <>
+          {/* Итог по всем — явно «Все стримеры», чтобы не путать с цифрами одного (owner, 25.11.2026). */}
+          <h2 className="admin-sheet-title">{uiText('Все стримеры')}</h2>
           <div className="admin-overview admin-streamer-cards">
             <article><span><Users size={16} />{uiText('Стримеры')}</span><strong>{count.format(streamers.length)}</strong><small>{uiText(invites.length ? `ещё ${invites.length} приглашений ждут` : 'с кабинетом стримера')}</small></article>
             <article><span><MousePointerClick size={16} />{uiText('Переходы')}</span><strong>{count.format(totals.visits)}</strong><small>{uiText('по всем ссылкам')}</small></article>
@@ -73,6 +75,7 @@ export function StreamersSheet({ onClose }: { onClose: () => void }) {
                 <button type="button" className="admin-streamer-head" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : row.code)}>
                   <span className="admin-payment-icon succeeded"><Radio size={18} /></span>
                   <span className="admin-row-copy"><strong className="admin-streamer-code">{row.code}</strong><small>{row.email}</small></span>
+                  {row.payout && row.payout.pendingRequests > 0 && <span className="admin-unread" aria-label={uiText(`новых заявок: ${row.payout.pendingRequests}`)}>{row.payout.pendingRequests}</span>}
                   <ChevronDown size={17} className="admin-streamer-caret" />
                 </button>
                 <div className="admin-mini-grid admin-streamer-stats">
@@ -84,13 +87,14 @@ export function StreamersSheet({ onClose }: { onClose: () => void }) {
                   <article><span>{uiText('Доля')}</span><strong>{setting ? `${setting.percent} %` : '—'}</strong></article>
                 </div>
                 {expanded && <div className="admin-streamer-detail">
+                  {row.payout && <StreamerPayoutCard payout={row.payout} />}
+                  <PayoutsBlock payouts={data.payouts} onChanged={reload} code={row.code} />
                   <StreamerStatsTable code={row.code} />
                   {setting && <StreamerSettingsCard setting={setting} defaultPercent={data.settings.defaultPercent} onChanged={(settings) => { setData((current) => current && { ...current, settings }); reload() }} />}
                 </div>}
               </article>
             })}
           </div>
-          <PayoutsBlock payouts={data.payouts} onChanged={reload} />
         </>}
       </div>
     </section>
@@ -201,54 +205,53 @@ function StreamerSettingsCard({ setting, defaultPercent, onChanged }: { setting:
   </div>
 }
 
-/** «Выплаты стримерам»: requests with «Выплачено» / «Отклонить», and how often a streamer may choose an automatic payout. */
-function PayoutsBlock({ payouts, onChanged }: { payouts: OwnerPayouts; onChanged: () => void }) {
+/** One streamer's payout picture for the owner: balance (14-day rule) and his requisites. */
+function StreamerPayoutCard({ payout }: { payout: OwnerStreamerPayout }) {
+  return <div className="admin-grant-card">
+    <div className="admin-card-heading"><Banknote size={18} /><div><strong>{uiText('Выплаты')}</strong><small>{uiText('получено / к выводу / в заявке / зреет 14 дней')}</small></div></div>
+    <div className="admin-mini-grid admin-streamer-stats">
+      <article><span>{uiText('Начислено')}</span><strong>{money(payout.earned)}</strong></article>
+      <article><span>{uiText('Получено')}</span><strong>{money(payout.paidOut)}</strong></article>
+      <article><span>{uiText('К выводу')}</span><strong>{money(payout.available)}</strong></article>
+      <article><span>{uiText('В заявке')}</span><strong>{money(payout.pending)}</strong></article>
+      <article><span>{uiText('Зреет')}</span><strong>{money(payout.maturing)}</strong></article>
+    </div>
+    {payout.details
+      ? <small className="admin-streamer-note">{uiText(`Реквизиты: ${payout.details.recipient} · СБП ${payout.details.phone} · ${payout.details.bank}`)}</small>
+      : <small className="admin-streamer-note">{uiText('Реквизиты стример ещё не указал.')}</small>}
+  </div>
+}
+
+/** «Заявки на выплату»: requests with «Выплачено» / «Не оплачено»; with `code` — only that streamer's requests. */
+function PayoutsBlock({ payouts, onChanged, code }: { payouts: OwnerPayouts; onChanged: () => void; code?: string }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
-  const [limits, setLimits] = useState({ min: String(payouts.limits.min), max: String(payouts.limits.max) })
-  const [limitsMessage, setLimitsMessage] = useState('')
-  const pending = payouts.payouts.filter((item) => item.status === 'pending')
+  const list = payouts.payouts.filter((item) => !code || item.code === code)
+  const pending = list.filter((item) => item.status === 'pending')
   const decide = async (id: string, status: 'paid' | 'rejected') => {
     setBusy(id); setError('')
     try { await adminApi.decidePayout(id, status, comments[id]?.trim() || undefined); onChanged() } catch (reason) { setError(errorText(reason)) } finally { setBusy(null) }
   }
-  const saveLimits = async () => {
-    setLimitsMessage('')
-    try {
-      const result = await adminApi.setPayoutLimits(Number(limits.min), Number(limits.max))
-      setLimits({ min: String(result.limits.min), max: String(result.limits.max) })
-      setLimitsMessage('Сохранено')
-    } catch (reason) { setLimitsMessage(errorText(reason)) }
-  }
   return <section className="admin-payouts">
-    <h2 className="admin-sheet-title"><Banknote size={15} />{uiText('Выплаты стримерам')}{pending.length > 0 && <span className="admin-unread">{uiText(`ждут: ${pending.length}`)}</span>}</h2>
+    <h2 className="admin-sheet-title"><Banknote size={15} />{uiText('Заявки на выплату')}{pending.length > 0 && <span className="admin-unread">{uiText(`ждут: ${pending.length}`)}</span>}</h2>
     {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
-    {!payouts.payouts.length && <AdminEmpty text="Заявок на выплату пока нет." />}
-    {payouts.payouts.map((item) => <article className={`admin-payout${item.status === 'pending' ? ' is-pending' : ''}`} key={item.id}>
+    {!list.length && <AdminEmpty text="Заявок на выплату пока нет." />}
+    {list.map((item) => <article className={`admin-payout${item.status === 'pending' ? ' is-pending' : ''}`} key={item.id}>
       <div className="admin-payout-main">
         <strong>{money(item.amount)}</strong>
-        <span><b className="admin-streamer-code">{item.code}</b> · {item.email}</span>
+        {!code && <span><b className="admin-streamer-code">{item.code}</b> · {item.email}</span>}
         <small>{uiText(`СБП ${item.phone} · ${item.bank} · ${item.recipient}`)}</small>
-        <small>{dateTime(item.createdAt)}{uiText(item.auto ? ' · автовыплата' : ' · по запросу')}{item.comment ? ` · ${item.comment}` : ''}</small>
+        <small>{dateTime(item.createdAt)}{item.comment ? ` · ${item.comment}` : ''}</small>
       </div>
       {item.status === 'pending' ? <div className="admin-payout-actions">
         <input className="input" aria-label={uiText('Комментарий к выплате')} placeholder={uiText('Комментарий или № чека (необязательно)')} maxLength={200} value={comments[item.id] ?? ''} onChange={(event) => setComments((current) => ({ ...current, [item.id]: event.target.value }))} />
         <div>
           <button type="button" className="button primary small" disabled={busy === item.id} onClick={() => void decide(item.id, 'paid')}><BadgeCheck size={14} />{uiText('Выплачено')}</button>
-          <button type="button" className="button ghost small" disabled={busy === item.id} onClick={() => void decide(item.id, 'rejected')}><X size={14} />{uiText('Отклонить')}</button>
+          <button type="button" className="button ghost small" disabled={busy === item.id} onClick={() => void decide(item.id, 'rejected')}><X size={14} />{uiText('Не оплачено')}</button>
         </div>
       </div> : <span className={`admin-payout-status is-${item.status}`}>{uiText(PAYOUT_STATUS[item.status] ?? item.status)}</span>}
     </article>)}
-    <div className="admin-payout-limits">
-      <span>{uiText('Стримеры выбирают автовыплату раз в')}</span>
-      <input className="input" inputMode="numeric" aria-label={uiText('Минимум дней')} value={limits.min} onChange={(event) => setLimits({ ...limits, min: event.target.value })} />
-      <span>–</span>
-      <input className="input" inputMode="numeric" aria-label={uiText('Максимум дней')} value={limits.max} onChange={(event) => setLimits({ ...limits, max: event.target.value })} />
-      <span>{uiText('дней')}</span>
-      <button type="button" className="button ghost small" onClick={() => void saveLimits()}><Save size={14} />{uiText('Сохранить')}</button>
-      {limitsMessage && <small>{uiText(limitsMessage)}</small>}
-    </div>
-    <small className="admin-streamer-note">{uiText('Деньги сервер сам не переводит: переведите сумму по СБП и нажмите «Выплачено».')}</small>
+    <small className="admin-streamer-note">{uiText('Деньги переведите по СБП на указанный телефон и нажмите «Выплачено». «Не оплачено» — отклонить.')}</small>
   </section>
 }

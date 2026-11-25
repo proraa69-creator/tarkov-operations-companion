@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState, type MouseEvent } from 'react'
-import { Banknote, HeartHandshake, LayoutDashboard, Radio, Receipt, Users } from 'lucide-react'
+import { HeartHandshake, LayoutDashboard, Radio, Receipt, Users } from 'lucide-react'
 import { setApiTransport } from '../../website/src/api'
 import { EmbeddedOwnerAuth } from '../../website/src/auth'
 import { AdminSummary } from '../../website/src/components/admin/AdminSummary'
@@ -9,7 +9,7 @@ import { AdminInviteRewards } from '../../website/src/components/admin/AdminInvi
 import { AdminUsers } from '../../website/src/components/admin/AdminUsers'
 import { AdminReferrals } from '../../website/src/components/admin/AdminReferrals'
 import { AdminStreamers } from '../../website/src/components/admin/AdminStreamers'
-import { OwnerPayoutsList, PAYOUT_ATTENTION_CHANGED } from '../../website/src/components/OwnerAdmin'
+import { PAYOUT_ATTENTION_CHANGED } from '../../website/src/components/OwnerAdmin'
 import '../../website/src/styles.css'
 import '../../website/src/extras.css'
 import '../../website/src/admin.css'
@@ -77,13 +77,7 @@ export function SiteAdminSummary({ request, email }: { request: AdminRequest; em
           {view.tab === 'payments' && <><AdminBezebee /><AdminPayments /><AdminInviteRewards /></>}
           {view.tab === 'users' && <AdminUsers query={view.query} />}
           {view.tab === 'referrals' && <AdminReferrals />}
-          {view.tab === 'streamers' && <>
-            <AdminStreamers />
-            <section className="panel owner-panel admin-streamer-payouts" aria-labelledby="site-admin-payouts-title">
-              <div className="panel-header"><div className="panel-title" id="site-admin-payouts-title"><Banknote aria-hidden="true" />Выплаты стримерам</div></div>
-              <div className="panel-body owner-body"><OwnerPayoutsList /></div>
-            </section>
-          </>}
+          {view.tab === 'streamers' && <AdminStreamers />}
         </div>
       </div>
     </EmbeddedOwnerAuth>

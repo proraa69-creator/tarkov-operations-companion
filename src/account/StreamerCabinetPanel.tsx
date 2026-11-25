@@ -35,7 +35,6 @@ interface Payouts {
   maturityDays?: number
   minimum: number
   details: { phone: string; bank: string; recipient: string } | null
-  autoPayout: { enabled: boolean; intervalDays: number; limits: { min: number; max: number }; nextAt: string | null }
   payouts: PayoutRow[]
 }
 /** statsOnly: a 0 % share — statistics only, no share, earnings or payouts (owner, 30.10.2026). */
@@ -86,7 +85,8 @@ export function StreamerCabinetPanel() {
     const keep = <T,>(apply: (value: T) => void) => (value: T) => { if (active) apply(value) }
     void Promise.all([
       request<MeView>('GET', '/v1/accounts/me').then(keep(setMe)),
-      request<Payouts>('GET', '/v1/accounts/me/payouts').then(keep(setPayouts)),
+      // A 0 % «statistics only» streamer has no payouts (the server refuses them) — then just no payout block, not an error.
+      request<Payouts>('GET', '/v1/accounts/me/payouts').then(keep(setPayouts)).catch(() => keep(setPayouts)(null)),
       request<{ campaigns: Campaign[] }>('GET', '/v1/accounts/me/referral-campaigns').then((value) => keep(setCampaigns)(value.campaigns ?? [])).catch(() => keep(setCampaigns)([])),
       siteAddress().then(keep(setSite)).catch(() => keep(setSite)('')),
     ]).then(() => keep(setError)(''), (reason: unknown) => keep(setError)(cleanIpcError(reason))).finally(() => keep(setLoading)(false))
@@ -119,9 +119,12 @@ export function StreamerCabinetPanel() {
           <Cell label="Подписка" value={subscriptionText(status?.subscription)} note="Для стримеров сервис бесплатный" good />
           <Cell label="Переходы по ссылкам" value={me?.stats ? String(me.stats.visits) : '—'} />
           <Cell label="Регистрации" value={me?.stats ? String(me.stats.registrations) : '—'} note={me?.stats ? registrationSplit(me.stats) : undefined} />
-          {/* «Оплатили» и «на какую сумму» (owner, 25.11.2026). */}
-          <Cell label="Оплатили" value={me?.stats ? String(me.stats.payers ?? 0) : '—'} note={me?.stats?.revenue ? `${uiText('на сумму')} ${rub(me.stats.revenue.amount)}` : 'по вашему коду'} />
-          {!statsOnly && <>
+          {statsOnly ? (
+            // 0 % «только статистика» (owner, 30.10 и 25.11.2026): кабинет как прежде — без сумм зрителей, доли и выплат.
+            <Cell label="Оплатили" value={me?.stats ? String(me.stats.activeSubscriptions) : '—'} note="Активные подписки сейчас" />
+          ) : <>
+            {/* «Оплатили» и «на какую сумму», доля и выплаты — только у стримера с долей > 0 (owner, 25.11.2026). */}
+            <Cell label="Оплатили" value={me?.stats ? String(me.stats.payers ?? 0) : '—'} note={me?.stats?.revenue ? `${uiText('на сумму')} ${rub(me.stats.revenue.amount)}` : 'по вашему коду'} />
             <Cell label="Ваша доля" value={payouts ? `${payouts.percent}%` : '—'} note="От оплат зрителей по вашим ссылкам" />
             <Cell label="Заработано всего" value={payouts ? rub(payouts.earned) : '—'} note={payouts?.maturing ? `${uiText('зреет')} ${rub(payouts.maturing)}` : 'за всё время'} />
             <Cell label="Доступно к выплате" value={payouts ? rub(payouts.available) : '—'} note={payouts ? `${uiText('Получено')}: ${rub(payouts.paidOut)} · ${uiText('в заявке')}: ${rub(payouts.pending)}` : ''} good={Boolean(payouts && payouts.available > 0)} />
@@ -204,10 +207,8 @@ function PayoutBlock({ payouts, onChange }: { payouts: Payouts; onChange: (value
   const [amount, setAmount] = useState('')
   const [details, setDetails] = useState({ phone: '', bank: payouts.details?.bank ?? '', recipient: payouts.details?.recipient ?? '' })
   const [editing, setEditing] = useState(!payouts.details)
-  const [interval, setIntervalDays] = useState(String(payouts.autoPayout.intervalDays))
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
-  const limits = payouts.autoPayout.limits
   const pending = payouts.payouts.some((row) => row.status === 'pending')
 
   const run = (work: () => Promise<unknown>, ok: string) => {
@@ -226,10 +227,6 @@ function PayoutBlock({ payouts, onChange }: { payouts: Payouts; onChange: (value
   const saveDetails = (event: FormEvent) => {
     event.preventDefault()
     run(() => request('PUT', '/v1/accounts/me/payout-settings', details).then(() => setEditing(false)), 'Реквизиты сохранены')
-  }
-  const saveAuto = (enabled: boolean) => {
-    const days = Math.round(Number(interval))
-    run(() => request('PUT', '/v1/accounts/me/payout-settings', { auto: enabled, intervalDays: days }), enabled ? 'Автовыплата включена' : 'Автовыплата выключена')
   }
 
   return (
@@ -258,19 +255,6 @@ function PayoutBlock({ payouts, onChange }: { payouts: Payouts; onChange: (value
         <small className="dim">{uiText(`Выплаты — в течение ${payouts.maturityDays ?? 14} дней после оплаты (на случай возврата).`)}{payouts.maturing ? ` ${uiText(`Сейчас зреет ${rub(payouts.maturing)}.`)}` : ''}</small>
         <button className="button primary" type="submit" disabled={busy || pending || !payouts.details || !(Number(amount.replace(',', '.')) > 0)}>{busy ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}{uiText('Получить выплату')}</button>
       </form>
-      <div className="setting-row">
-        <span>
-          <strong>{uiText('Автовыплата')}</strong>
-          <small>{uiText(payouts.autoPayout.enabled
-            ? payouts.autoPayout.nextAt ? `Весь доступный баланс раз в ${payouts.autoPayout.intervalDays} дн. Следующая: ${day(payouts.autoPayout.nextAt)}` : `Раз в ${payouts.autoPayout.intervalDays} дн., когда указаны реквизиты`
-            : 'Выключена: выплату нужно запросить вручную')}</small>
-        </span>
-        <span className="streamer-auto">
-          <label className="dim">{uiText('раз в')} <input className="input" type="number" min={limits.min} max={limits.max} value={interval} onChange={(event) => setIntervalDays(event.target.value)} aria-label={uiText('Интервал, дней')} /> {uiText('дн.')}</label>
-          {payouts.autoPayout.enabled && String(payouts.autoPayout.intervalDays) !== interval && <button className="button ghost small" disabled={busy} onClick={() => saveAuto(true)}>{uiText('Сохранить')}</button>}
-          <button className={`toggle ${payouts.autoPayout.enabled ? 'on' : ''}`} disabled={busy} aria-pressed={payouts.autoPayout.enabled} aria-label={uiText('Автовыплата')} onClick={() => saveAuto(!payouts.autoPayout.enabled)}><span /></button>
-        </span>
-      </div>
       {message && <small className={message.ok ? 'dim' : 'account-error'} role="status">{uiText(message.text)}</small>}
       {payouts.payouts.length > 0 && (
         <div className="streamer-table-wrap">
@@ -278,7 +262,7 @@ function PayoutBlock({ payouts, onChange }: { payouts: Payouts; onChange: (value
             <thead><tr><th>{uiText('Дата')}</th><th>{uiText('Сумма')}</th><th>{uiText('Статус')}</th><th>{uiText('Куда')}</th></tr></thead>
             <tbody>{payouts.payouts.map((row) => (
               <tr key={row.id}>
-                <td>{day(row.createdAt)}{row.auto ? ` · ${uiText('авто')}` : ''}</td>
+                <td>{day(row.createdAt)}</td>
                 <td>{rub(row.amount)}</td>
                 <td>{uiText(STATUS[row.status])}{row.comment ? ` · ${row.comment}` : ''}</td>
                 <td>{row.destination}</td>
@@ -296,18 +280,21 @@ function PayoutBlock({ payouts, onChange }: { payouts: Payouts; onChange: (value
  * (новая оплата по ссылке или проведённая владельцем выплата). Нажатие отмечает их прочитанными и прокручивает к панели.
  */
 export function StreamerPanelButton() {
-  const [unread, setUnread] = useState(0)
+  // Shown only once the notices load. A 0 % «statistics only» streamer gets 403 → the button never appears for him.
+  const [state, setState] = useState<{ unread: number } | null>(null)
   useEffect(() => {
     let active = true
-    const load = () => request<StreamerNotices>('GET', '/v1/accounts/me/streamer-notifications').then((value) => { if (active) setUnread(value.unread) }, () => {})
+    const load = () => request<StreamerNotices>('GET', '/v1/accounts/me/streamer-notifications').then((value) => { if (active) setState({ unread: value.unread }) }, () => {})
     load()
     const timer = window.setInterval(load, 3 * 60_000)
-    const onRead = () => setUnread(0)
+    const onRead = () => setState((current) => (current ? { unread: 0 } : current))
     window.addEventListener(STREAMER_NOTICES_READ, onRead)
     return () => { active = false; window.clearInterval(timer); window.removeEventListener(STREAMER_NOTICES_READ, onRead) }
   }, [])
+  if (!state) return null
+  const unread = state.unread
   const open = () => {
-    void request('POST', '/v1/accounts/me/streamer-notifications/read').then(() => setUnread(0), () => setUnread(0))
+    void request('POST', '/v1/accounts/me/streamer-notifications/read').then(() => setState({ unread: 0 }), () => {})
     window.dispatchEvent(new Event(STREAMER_NOTICES_READ))
     document.getElementById('streamer-cabinet')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }

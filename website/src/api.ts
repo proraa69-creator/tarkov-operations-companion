@@ -317,7 +317,12 @@ export const STREAMER_INVITE_PATTERN = /^[A-Za-z0-9_-]{32}$/
 export interface CampaignStats { campaign: string; visits: number; visits30d: number; lastVisitDay: string }
 
 /** Owner section (GET /v1/accounts/me/admin/…; the server answers 404 to non-owners). */
-export interface OwnerStreamer { email: string; code: string; createdAt?: string; stats: ReferralStats }
+/** A streamer's payout state for the owner (owner, 25.11.2026): balance, requests waiting and the requisites (full). */
+export interface OwnerStreamerPayout {
+  earned: number; paidOut: number; pending: number; available: number; maturing: number; pendingRequests: number
+  details: { phone: string; bank: string; recipient: string } | null
+}
+export interface OwnerStreamer { email: string; code: string; createdAt?: string; stats: ReferralStats; payout?: OwnerStreamerPayout }
 export interface OwnerStreamers { streamers: OwnerStreamer[]; invites: Array<{ code: string; expiresAt: string }> }
 export interface OwnerStreamerStats { code: string; period: StatsPeriod; rows: ReferralSeriesRow[]; campaigns: CampaignStats[] }
 export interface CreatedStreamerInvite { token: string; code: string; expiresAt: string }
@@ -338,15 +343,14 @@ export interface PayoutOverview {
   minimum: number
   currency: 'RUB'
   details: { phone: string; bank: string; recipient: string } | null
-  autoPayout: { enabled: boolean; intervalDays: number; limits: { min: number; max: number }; nextAt: string | null }
   payouts: PayoutItem[]
 }
 /** A streamer's new-event (server/src/services/payoutStore.ts): a payment by his link or a payout marked paid. */
 export interface StreamerNotice { type: 'payment' | 'payout'; at: string; amount: number }
 export interface StreamerNotices { unread: number; seenAt: string | null; items: StreamerNotice[] }
-export interface PayoutSettingsInput { phone?: string; bank?: string; recipient?: string; auto?: boolean; intervalDays?: number }
+export interface PayoutSettingsInput { phone: string; bank: string; recipient: string }
 export interface OwnerPayout extends PayoutItem { code: string; email: string; phone: string; bank: string; recipient: string }
-export interface OwnerPayouts { payouts: OwnerPayout[]; limits: { min: number; max: number } }
+export interface OwnerPayouts { payouts: OwnerPayout[] }
 
 export interface AuthResult { token: string; account: Account; referralApplied?: boolean }
 /**
@@ -694,7 +698,6 @@ export const api = {
   ownerDecidePayout: (token: string, id: string, status: 'paid' | 'rejected', comment?: string) => request<PayoutItem>('/me/admin/payouts/decide', { method: 'POST', token, body: { id, status, ...(comment ? { comment } : {}) } }),
   /** «Стримеры» → red count: how many payout requests wait for the owner now. */
   ownerPayoutAttention: (token: string) => request<{ count: number }>('/me/admin/payouts/attention', { token }),
-  ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
   adminOnline: (token: string) => request<AdminOnline>('/me/admin/online', { token }),
   adminPhones: (token: string) => request<AdminPhones>('/me/admin/phones', { token }),

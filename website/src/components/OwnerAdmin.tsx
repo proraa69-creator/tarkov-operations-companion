@@ -1,6 +1,6 @@
-import { BadgeCheck, Banknote, ChevronDown, Coins, Crown, LoaderCircle, MousePointerClick, RefreshCw, Save, UserPlus, Users, Wallet, X } from 'lucide-react'
+import { BadgeCheck, Banknote, ChevronDown, Coins, Crown, LoaderCircle, MousePointerClick, RefreshCw, UserPlus, Users, Wallet, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { ApiError, api, errorMessage, type CampaignStats, type CreatedStreamerInvite, type OwnerPayouts, type OwnerStreamers, type StatsPeriod } from '../api'
+import { ApiError, api, errorMessage, type CampaignStats, type CreatedStreamerInvite, type OwnerPayouts, type OwnerStreamer, type OwnerStreamers, type StatsPeriod } from '../api'
 import { useAuth } from '../auth'
 import { CopyButton } from './CopyButton'
 import { Notice } from './Notice'
@@ -66,6 +66,7 @@ export function OwnerAdmin({ extra, refreshKey = 0 }: { extra?: ReactNode; refre
       </div>
       <div className="panel-body owner-body">
         {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
+        <div className="field-label">Все стримеры — итого по всем</div>
         <div className="stat-grid owner-stats">
           {cards.map(({ icon: Icon, label, value, meta }) => (
             <div key={label} className="stat-card">
@@ -151,7 +152,7 @@ function StreamersTable({ data }: { data: OwnerStreamers | null }) {
                 return (
                   <Fragment key={row.code}>
                     <tr className={expanded ? 'is-open' : undefined}>
-                      <th scope="row"><span className="mono" style={{ color: 'var(--brass-strong)' }}>{row.code}</span><span className="owner-email">{row.email}</span></th>
+                      <th scope="row"><span className="mono" style={{ color: 'var(--brass-strong)' }}>{row.code}{row.payout && row.payout.pendingRequests > 0 && <span className="admin-tab-count" style={{ marginLeft: 6 }} aria-label={`новых заявок: ${row.payout.pendingRequests}`}>{row.payout.pendingRequests}</span>}</span><span className="owner-email">{row.email}</span></th>
                       <td className="num mono">{numberFormat.format(row.stats.visits)}</td>
                       <td className="num mono">{numberFormat.format(row.stats.registrations)}<span className="owner-sub">{registrationSplit(row.stats.registrations, row.stats.linkRegistrations)}</span></td>
                       <td className="num mono">{numberFormat.format(row.stats.activeSubscriptions)}</td>
@@ -159,7 +160,7 @@ function StreamersTable({ data }: { data: OwnerStreamers | null }) {
                       <td className="num mono accent">{formatRub(row.stats.earnings.amount)}</td>
                       <td><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : row.code)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Статистика'}</button></td>
                     </tr>
-                    {expanded && <tr className="owner-detail"><td colSpan={7}><StreamerDetail code={row.code} /></td></tr>}
+                    {expanded && <tr className="owner-detail"><td colSpan={7}><StreamerDetail row={row} /></td></tr>}
                   </Fragment>
                 )
               })}
@@ -178,7 +179,10 @@ function StreamersTable({ data }: { data: OwnerStreamers | null }) {
  */
 const LINK_REGISTRATIONS_HINT = 'Регистрации — все, кого привела ссылка. «Без кода» — из них зарегистрировались без кода с того же интернет-адреса в течение 7 дней после перехода по ссылке (обычно скачали приложение по ссылке и зарегистрировались в нём). Это только статистика: скидки за код и доли стримера с их оплат нет.'
 
-function StreamerDetail({ code }: { code: string }) {
+/** One streamer's own window (owner, 25.11.2026): payouts, requisites, his requests, and the statistics by day/month/year. */
+function StreamerDetail({ row }: { row: OwnerStreamer }) {
+  const code = row.code
+  const payout = row.payout
   const auth = useAuth()
   const token = auth.token
   const [campaigns, setCampaigns] = useState<CampaignStats[] | null>(null)
@@ -194,6 +198,29 @@ function StreamerDetail({ code }: { code: string }) {
   }, [token, code])
   return (
     <div className="owner-detail-body">
+      {payout && (
+        <div className="owner-block">
+          <div className="field-label"><Banknote size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 6 }} />Выплаты</div>
+          <div className="stat-grid owner-stats">
+            {[
+              { label: 'Начислено', value: payout.earned },
+              { label: 'Получено', value: payout.paidOut },
+              { label: 'К выводу', value: payout.available, accent: true },
+              { label: 'В заявке', value: payout.pending },
+              { label: 'Зреет 14 дней', value: payout.maturing },
+            ].map(({ label, value, accent }) => (
+              <div key={label} className={`stat-card${accent ? ' is-accent' : ''}`}>
+                <div className="stat-label">{label}</div>
+                <div className="stat-value mono">{formatRub(value)} ₽</div>
+              </div>
+            ))}
+          </div>
+          {payout.details
+            ? <span className="field-hint">Реквизиты: {payout.details.recipient} · СБП <span className="mono" style={{ userSelect: 'all' }}>{payout.details.phone}</span> · {payout.details.bank}</span>
+            : <span className="field-hint">Реквизиты стример ещё не указал.</span>}
+        </div>
+      )}
+      <OwnerPayoutsList code={code} />
       <ReferralCalendar load={loadMonth} showRevenue />
       <ReferralStatsTable load={load} showRevenue title={`Статистика ${code} — как в его кабинете, плюс выручка`} />
       {campaigns && campaigns.length > 0 && (
@@ -206,20 +233,18 @@ function StreamerDetail({ code }: { code: string }) {
 /** Fired after the owner decides a payout, so the red count on «Стримеры» refreshes at once (like ATTENTION_CHANGED). */
 export const PAYOUT_ATTENTION_CHANGED = 'raidos-admin-payout-attention-changed'
 
-/** «Админ-панель» → «Выплаты»: streamers' payout requests and the auto-payout interval limits. */
-export function OwnerPayoutsList() {
+/** «Заявки на выплату»: payout requests with «Выплачено» / «Не оплачено». With `code` — only that streamer's requests. */
+export function OwnerPayoutsList({ code }: { code?: string } = {}) {
   const auth = useAuth()
   const token = auth.token
   const [data, setData] = useState<OwnerPayouts | null>(null)
   const [error, setError] = useState<Failure | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, string>>({})
-  const [limits, setLimits] = useState<{ min: string; max: string } | null>(null)
-  const [limitsMessage, setLimitsMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
   const load = useCallback(() => {
     if (!token) return
-    api.ownerPayouts(token).then((next) => { setData(next); setError(null); setLimits((current) => current ?? { min: String(next.limits.min), max: String(next.limits.max) }) }, (reason: unknown) => setError(failure(reason)))
+    api.ownerPayouts(token).then((next) => { setData(next); setError(null) }, (reason: unknown) => setError(failure(reason)))
   }, [token])
   useEffect(() => { load() }, [load])
 
@@ -237,42 +262,31 @@ export function OwnerPayoutsList() {
     }
   }
 
-  async function saveLimits(event: FormEvent) {
-    event.preventDefault()
-    if (!token || !limits) return
-    try {
-      const result = await api.ownerSetPayoutLimits(token, Number(limits.min), Number(limits.max))
-      setLimits({ min: String(result.limits.min), max: String(result.limits.max) })
-      setLimitsMessage({ ok: true, text: 'Сохранено' })
-    } catch (reason) {
-      setLimitsMessage({ ok: false, text: errorMessage(reason) })
-    }
-  }
-
-  const pending = data?.payouts.filter((item) => item.status === 'pending') ?? []
+  const payouts = (data?.payouts ?? []).filter((item) => !code || item.code === code)
+  const pending = payouts.filter((item) => item.status === 'pending')
   return (
     <div className="owner-block">
-      <div className="field-label"><Banknote size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 6 }} />Выплаты стримерам {pending.length > 0 && <span className="tag brass" style={{ marginLeft: 6 }}>ждут: {pending.length}</span>}</div>
+      <div className="field-label"><Banknote size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 6 }} />Заявки на выплату {pending.length > 0 && <span className="tag brass" style={{ marginLeft: 6 }}>ждут: {pending.length}</span>}</div>
       {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
-      {data && data.payouts.length === 0 && <div className="muted" style={{ fontSize: 14 }}>Заявок на выплату пока нет.</div>}
-      {data && data.payouts.length > 0 && (
+      {data && payouts.length === 0 && <div className="muted" style={{ fontSize: 14 }}>Заявок на выплату пока нет.</div>}
+      {payouts.length > 0 && (
         <div className="payout-list">
-          {data.payouts.map((item) => {
+          {payouts.map((item) => {
             const status = PAYOUT_STATUS[item.status]
             return (
               <div key={item.id} className={`payout-item${item.status === 'pending' ? ' is-pending' : ''}`}>
                 <div className="payout-item-main">
                   <div className="payout-amount mono">{formatRub(item.amount)} ₽</div>
-                  <div className="payout-who"><span className="mono" style={{ color: 'var(--brass-strong)' }}>{item.code}</span> · {item.email}</div>
+                  {!code && <div className="payout-who"><span className="mono" style={{ color: 'var(--brass-strong)' }}>{item.code}</span> · {item.email}</div>}
                   <div className="payout-to">СБП <span className="mono" style={{ userSelect: 'all' }}>{item.phone}</span> · {item.bank} · {item.recipient}</div>
-                  <div className="dim" style={{ fontSize: 12 }}>{shortDate.format(new Date(item.createdAt))}{item.auto ? ' · автовыплата' : ' · по запросу'}{item.comment ? ` · ${item.comment}` : ''}</div>
+                  <div className="dim" style={{ fontSize: 12 }}>{shortDate.format(new Date(item.createdAt))}{item.comment ? ` · ${item.comment}` : ''}</div>
                 </div>
                 {item.status === 'pending' ? (
                   <div className="payout-item-actions">
                     <input className="input" aria-label="Комментарий к выплате" placeholder="Комментарий или № чека (необязательно)" maxLength={200} value={comments[item.id] ?? ''} onChange={(e) => setComments((c) => ({ ...c, [item.id]: e.target.value }))} />
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" className="button primary small" disabled={busy === item.id} onClick={() => void decide(item.id, 'paid')}><BadgeCheck aria-hidden="true" />Выплачено</button>
-                      <button type="button" className="button ghost small" disabled={busy === item.id} onClick={() => void decide(item.id, 'rejected')}><X aria-hidden="true" />Отклонить</button>
+                      <button type="button" className="button ghost small" disabled={busy === item.id} onClick={() => void decide(item.id, 'rejected')}><X aria-hidden="true" />Не оплачено</button>
                     </div>
                   </div>
                 ) : <span className={`tag ${status.tone}`}>{status.label}</span>}
@@ -281,18 +295,7 @@ export function OwnerPayoutsList() {
           })}
         </div>
       )}
-      {limits && (
-        <form className="limits-form" onSubmit={saveLimits}>
-          <span className="field-hint">Стримеры выбирают автовыплату раз в</span>
-          <input className="input mono" inputMode="numeric" aria-label="Минимум дней" value={limits.min} onChange={(e) => setLimits({ ...limits, min: e.target.value })} />
-          <span className="field-hint">–</span>
-          <input className="input mono" inputMode="numeric" aria-label="Максимум дней" value={limits.max} onChange={(e) => setLimits({ ...limits, max: e.target.value })} />
-          <span className="field-hint">дней</span>
-          <button type="submit" className="button ghost small"><Save aria-hidden="true" />Сохранить</button>
-          {limitsMessage && <span className="field-hint" style={{ color: limitsMessage.ok ? 'var(--success)' : 'var(--danger)' }}>{limitsMessage.text}</span>}
-        </form>
-      )}
-      <span className="field-hint">Деньги сервер сам не переводит: переведите сумму по СБП и нажмите «Выплачено». Автоматический перевод потребует отдельного договора с платёжным сервисом — его можно подключить позже.</span>
+      <span className="field-hint">Деньги переведите по СБП на указанный телефон и нажмите «Выплачено». «Не оплачено» — отклонить заявку.</span>
     </div>
   )
 }
