@@ -1,6 +1,7 @@
 import { dirname } from 'node:path'
 import { app } from 'electron'
 import { isElevated, runElevated } from './win32.js'
+import { nativeFilesTrustworthy } from './nativeIntegrity.js'
 
 /** Marks the copy started by relaunchAsAdmin; carries the process id of the copy that asked. */
 const RELAUNCH_ARG = '--elevated-relaunch'
@@ -25,6 +26,14 @@ export function isElevatedRelaunch() {
  */
 export function relaunchAsAdmin() {
   if (process.platform !== 'win32' || isElevated() !== false) return false
+  // Do not hand administrator rights to a copy whose unpacked native modules (*.node, outside the asar-integrity fuse's
+  // reach) do not match the hashes recorded when the exe was built: a swapped native would otherwise run elevated
+  // (electron/experimental/nativeIntegrity.ts). A legitimate build always matches, so this never blocks a real start;
+  // when it does not match the app simply goes on without the rights.
+  if (!nativeFilesTrustworthy()) {
+    console.error('Raid OS: native modules failed the integrity check; starting without administrator rights')
+    return false
+  }
   const portable = process.env.PORTABLE_EXECUTABLE_FILE
   const file = portable || process.execPath
   // Only the app's own switches and the two drawing ones (security review, 03.11.2026): whoever started this copy must not
