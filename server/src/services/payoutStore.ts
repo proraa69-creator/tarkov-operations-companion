@@ -7,25 +7,26 @@
  *   pending    — requests waiting for the owner («Ожидает выплаты»);
  *   available  — earned − paid out − pending, never negative.
  *
- * The streamer requests any amount from the minimum up to the available balance, one open request at a time, or turns
- * on auto-payout: every N days (he picks N within the owner's limits, default 3) the server itself creates a request for
- * the whole available balance. Money is NOT moved by the server yet: the owner transfers it (SBP by phone) and marks the
- * request paid. A real transfer provider (e.g. ЮKassa «Выплаты», which needs its own contract, agent id and key) can be
- * plugged in through `PayoutProvider` later without changing the ledger.
+ * The streamer requests any amount from the minimum up to the available balance, one open request at a time. Money is
+ * NOT moved by the server: the owner transfers it (SBP by phone) and marks the request paid. Auto-payout was removed
+ * (owner, 25.11.2026): the server never creates a request on its own, and old `auto` values trigger nothing.
  *
- * Payout details: only what a manual SBP transfer needs — phone, bank name and recipient name. Card numbers are never
- * accepted or stored (that would put the server under PCI DSS). The streamer sees his phone masked; the owner sees it
- * in full to make the transfer.
+ * Payout details: only what a manual SBP transfer needs — recipient name, phone (СБП) and bank name, filled by the
+ * streamer and saved. Card numbers are never accepted or stored (that would put the server under PCI DSS). The streamer
+ * sees his phone masked; the owner sees the details in full to make the transfer.
  */
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
+import { PAYOUT_MATURITY_DAYS } from '../../../src/shared/revenue'
 
 type Row = Record<string, unknown>
 
 /** Where earnings come from (PaymentStore). Amounts in kopecks. */
 export interface EarningsSource {
   streamerEarned(code: string): number
+  /** Earned share of referred payments paid at or before `maturedBefore` (ms): matured for payout (14-day rule). */
+  streamerMatured(code: string, maturedBefore: number): number
   readonly streamerPercent: number
   /** The streamer's own percent when the owner set one (admin panel), else `streamerPercent`. */
   percentFor?(code: string): number
@@ -53,6 +54,15 @@ export interface PayoutView {
 
 export interface PayoutDetails { phone: string; bank: string; recipient: string }
 
+/** A streamer's new-event: a payment by his link («деньги по ссылке») or a payout the owner marked paid. */
+export interface StreamerNotice {
+  type: 'payment' | 'payout'
+  /** ISO time of the event. */
+  at: string
+  /** Roubles: the streamer's share of a payment, or the amount of a paid payout. */
+  amount: number
+}
+
 export class PayoutError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
@@ -63,8 +73,8 @@ export class PayoutError extends Error {
 
 /** Smallest payout, kopecks (100 ₽). */
 export const MIN_PAYOUT = 100_00
-export const DEFAULT_AUTO_INTERVAL_DAYS = 3
-export const DEFAULT_INTERVAL_LIMITS = { min: 1, max: 30 }
+/** Only the default for the (now unused) auto column; auto-payout was removed (owner, 25.11.2026). */
+const AUTO_COLUMN_DEFAULT = 3
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const SCHEMA = `
@@ -91,12 +101,15 @@ const SCHEMA = `
     bank TEXT,
     recipient TEXT,
     auto INTEGER NOT NULL DEFAULT 1,
-    interval_days INTEGER NOT NULL DEFAULT ${DEFAULT_AUTO_INTERVAL_DAYS},
+    interval_days INTEGER NOT NULL DEFAULT ${AUTO_COLUMN_DEFAULT},
     cycle_started_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS payout_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS streamer_notice_seen (
+    account_id TEXT PRIMARY KEY,
+    seen_at INTEGER NOT NULL);
 `
 
 /** +7XXXXXXXXXX from «8 (999) 123-45-67», «+7 999 1234567» and the like; undefined for anything else. */
@@ -136,46 +149,31 @@ export class PayoutStore {
     this.db.exec(SCHEMA)
   }
 
-  /** Owner's limits for the auto-payout interval the streamers may choose. */
-  intervalLimits() {
-    const read = (key: string, fallback: number) => {
-      const row = this.db.prepare('SELECT value FROM payout_config WHERE key = ?').get(key) as Row | undefined
-      const value = Number(row?.value)
-      return Number.isInteger(value) && value >= 1 && value <= 365 ? value : fallback
-    }
-    return { min: read('interval_min_days', DEFAULT_INTERVAL_LIMITS.min), max: read('interval_max_days', DEFAULT_INTERVAL_LIMITS.max) }
-  }
-
-  setIntervalLimits(min: number, max: number) {
-    if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max > 365 || min > max) throw new PayoutError(400, 'Интервал автовыплаты: целые дни от 1 до 365, минимум не больше максимума')
-    const put = this.db.prepare('INSERT INTO payout_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-    put.run('interval_min_days', String(min))
-    put.run('interval_max_days', String(max))
-    // Streamers outside the new limits are moved to the nearest allowed value.
-    this.db.prepare('UPDATE streamer_payout_settings SET interval_days = MIN(MAX(interval_days, ?), ?)').run(min, max)
-    return this.intervalLimits()
-  }
-
   /** Balance in kopecks. */
   balance(code: string) {
     const earned = this.source.streamerEarned(code)
+    // «К выводу» — только заработок с платежей старше 14 дней (на случай возврата), минус уже выплаченное и то, что в
+    // заявках; «зреет» — заработок последних 14 дней, пока недоступный (src/shared/revenue.ts PAYOUT_MATURITY_DAYS).
+    const matured = this.source.streamerMatured(code, this.now() - PAYOUT_MATURITY_DAYS * DAY_MS)
     const sums = this.db.prepare("SELECT COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS paid, COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS pending FROM streamer_payouts WHERE code = ?").get(code) as Row
     const paid = Number(sums.paid)
     const pending = Number(sums.pending)
-    return { earned, paid, pending, available: Math.max(0, earned - paid - pending) }
+    return { earned, matured, maturing: Math.max(0, earned - matured), paid, pending, available: Math.max(0, matured - paid - pending) }
+  }
+
+  /** How many payout requests wait for the owner now (the red count on «Стримеры»). */
+  pendingCount() {
+    return Number((this.db.prepare("SELECT COUNT(*) AS n FROM streamer_payouts WHERE status = 'pending'").get() as Row).n)
   }
 
   private settingsRow(accountId: string) {
     return this.db.prepare('SELECT * FROM streamer_payout_settings WHERE account_id = ?').get(accountId) as Row | undefined
   }
 
-  /** The streamer's own view: share, totals, details (masked), auto-payout and history. */
+  /** The streamer's own view: share, totals, details (masked) and history. */
   overview(accountId: string, code: string) {
     const balance = this.balance(code)
     const settings = this.settingsRow(accountId)
-    const limits = this.intervalLimits()
-    const intervalDays = settings ? Number(settings.interval_days) : Math.min(Math.max(DEFAULT_AUTO_INTERVAL_DAYS, limits.min), limits.max)
-    const auto = settings ? Number(settings.auto) === 1 : true
     const hasDetails = Boolean(settings?.phone)
     return {
       percent: this.source.percentFor?.(code) ?? this.source.streamerPercent,
@@ -183,15 +181,12 @@ export class PayoutStore {
       paidOut: rub(balance.paid),
       pending: rub(balance.pending),
       available: rub(balance.available),
+      // «Зреет» и правило 14 дней: заработок последних дней станет доступен к выводу позже (на случай возврата).
+      maturing: rub(balance.maturing),
+      maturityDays: PAYOUT_MATURITY_DAYS,
       minimum: rub(MIN_PAYOUT),
       currency: 'RUB' as const,
       details: hasDetails ? { phone: maskPhone(String(settings!.phone)), bank: String(settings!.bank), recipient: String(settings!.recipient) } : null,
-      autoPayout: {
-        enabled: auto,
-        intervalDays,
-        limits,
-        nextAt: auto && hasDetails ? new Date(Number(settings!.cycle_started_at) + intervalDays * DAY_MS).toISOString() : null,
-      },
       payouts: this.history(code),
     }
   }
@@ -201,27 +196,48 @@ export class PayoutStore {
   }
 
   /**
-   * Payout details and auto-payout choice. Details are optional when only the auto-payout changes; a new phone replaces
-   * the old one. Changing the interval starts a new cycle from now.
+   * The streamer's new-events (owner, 25.11.2026): payments by his link and payouts the owner marked paid, newest first;
+   * `unread` are those after he last opened the panel («красный кружок»). The owner pressing «Выплачено» becomes a
+   * «выплата проведена» event here; a new succeeded payment by his code becomes a «новая оплата» event.
    */
-  saveSettings(accountId: string, input: { phone?: unknown; bank?: unknown; recipient?: unknown; auto?: unknown; intervalDays?: unknown }) {
-    const current = this.settingsRow(accountId)
-    const detailsGiven = input.phone !== undefined || input.bank !== undefined || input.recipient !== undefined
-    const details = detailsGiven ? validateDetails(input) : current?.phone ? { phone: String(current.phone), bank: String(current.bank), recipient: String(current.recipient) } : null
-    const limits = this.intervalLimits()
-    const interval = input.intervalDays === undefined ? (current ? Number(current.interval_days) : Math.min(Math.max(DEFAULT_AUTO_INTERVAL_DAYS, limits.min), limits.max)) : Number(input.intervalDays)
-    if (!Number.isInteger(interval) || interval < limits.min || interval > limits.max) throw new PayoutError(400, `Автовыплата: раз в ${limits.min}–${limits.max} дн.`)
-    const auto = input.auto === undefined ? (current ? Number(current.auto) === 1 : true) : input.auto === true
-    const now = this.now()
-    const restart = !current || interval !== Number(current.interval_days) || (auto && Number(current.auto) !== 1)
-    this.db.prepare(`INSERT INTO streamer_payout_settings (account_id, phone, bank, recipient, auto, interval_days, cycle_started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(account_id) DO UPDATE SET phone = excluded.phone, bank = excluded.bank, recipient = excluded.recipient, auto = excluded.auto, interval_days = excluded.interval_days,
-        cycle_started_at = CASE WHEN ? THEN excluded.cycle_started_at ELSE cycle_started_at END, updated_at = excluded.updated_at`)
-      .run(accountId, details?.phone ?? null, details?.bank ?? null, details?.recipient ?? null, auto ? 1 : 0, interval, now, now, restart ? 1 : 0)
+  notices(accountId: string, code: string): { unread: number; seenAt: string | null; items: StreamerNotice[] } {
+    const seen = this.db.prepare('SELECT seen_at FROM streamer_notice_seen WHERE account_id = ?').get(accountId) as Row | undefined
+    const seenAt = seen ? Number(seen.seen_at) : 0
+    const events: Array<StreamerNotice & { ms: number }> = []
+    for (const row of this.db.prepare("SELECT COALESCE(paid_at, created_at) AS at, streamer_earning AS earning FROM payments WHERE referral_code = ? AND status = 'succeeded' AND amount > 0 ORDER BY at DESC LIMIT 30").all(code) as Row[]) {
+      events.push({ type: 'payment', ms: Number(row.at), at: new Date(Number(row.at)).toISOString(), amount: rub(Number(row.earning ?? 0)) })
+    }
+    for (const row of this.db.prepare("SELECT amount, decided_at FROM streamer_payouts WHERE account_id = ? AND status = 'paid' AND decided_at IS NOT NULL ORDER BY decided_at DESC LIMIT 30").all(accountId) as Row[]) {
+      events.push({ type: 'payout', ms: Number(row.decided_at), at: new Date(Number(row.decided_at)).toISOString(), amount: rub(Number(row.amount)) })
+    }
+    const items = events.sort((a, b) => b.ms - a.ms).slice(0, 30)
+    return {
+      unread: items.filter((item) => item.ms > seenAt).length,
+      seenAt: seenAt ? new Date(seenAt).toISOString() : null,
+      items: items.map(({ ms: _ms, ...rest }) => rest),
+    }
   }
 
-  /** The streamer asks for `amount` roubles (≥ minimum, ≤ available). One open request at a time. */
-  request(accountId: string, code: string, amountRub: number, auto = false) {
+  /** The streamer opened the panel: his new-events are no longer «new». */
+  markNoticesSeen(accountId: string) {
+    this.db.prepare('INSERT INTO streamer_notice_seen (account_id, seen_at) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET seen_at = excluded.seen_at').run(accountId, this.now())
+  }
+
+  /**
+   * The streamer's payout details — recipient, phone (СБП) and bank — which he fills and saves for the owner to transfer
+   * by hand. Validated (validateDetails); a new phone replaces the old one. Auto-payout was removed (owner, 25.11.2026):
+   * `auto` is always 0, so saving the details also clears any old auto flag and nothing is triggered.
+   */
+  saveSettings(accountId: string, input: { phone?: unknown; bank?: unknown; recipient?: unknown }) {
+    const details = validateDetails(input)
+    const now = this.now()
+    this.db.prepare(`INSERT INTO streamer_payout_settings (account_id, phone, bank, recipient, auto, interval_days, cycle_started_at, updated_at) VALUES (?, ?, ?, ?, 0, ${AUTO_COLUMN_DEFAULT}, ?, ?)
+      ON CONFLICT(account_id) DO UPDATE SET phone = excluded.phone, bank = excluded.bank, recipient = excluded.recipient, auto = 0, updated_at = excluded.updated_at`)
+      .run(accountId, details.phone, details.bank, details.recipient, now, now)
+  }
+
+  /** The streamer asks for `amount` roubles (≥ minimum, ≤ available). One open request at a time; details required first. */
+  request(accountId: string, code: string, amountRub: number) {
     const amount = Math.round(amountRub * 100)
     if (!Number.isFinite(amountRub) || amount <= 0 || Math.abs(amountRub * 100 - amount) > 1e-6) throw new PayoutError(400, 'Сумма: рубли, не больше двух знаков после запятой')
     if (amount < MIN_PAYOUT) throw new PayoutError(400, `Минимальная выплата — ${rub(MIN_PAYOUT)} ₽`)
@@ -232,35 +248,10 @@ export class PayoutStore {
       const { available } = this.balance(code)
       if (amount > available) throw new PayoutError(400, `Доступно к выплате только ${rub(available)} ₽`)
       const id = randomBytes(12).toString('hex')
-      this.db.prepare("INSERT INTO streamer_payouts (id, account_id, code, amount, status, auto, phone, bank, recipient, created_at) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)")
-        .run(id, accountId, code, amount, auto ? 1 : 0, String(settings.phone), String(settings.bank), String(settings.recipient), this.now())
+      this.db.prepare("INSERT INTO streamer_payouts (id, account_id, code, amount, status, auto, phone, bank, recipient, created_at) VALUES (?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?)")
+        .run(id, accountId, code, amount, String(settings.phone), String(settings.bank), String(settings.recipient), this.now())
       return toView(this.db.prepare('SELECT * FROM streamer_payouts WHERE id = ?').get(id) as Row)
     })
-  }
-
-  /**
-   * Auto-payout tick (index.ts runs it every hour): for every streamer whose N-day cycle is over, request the whole
-   * available balance (if it reaches the minimum and nothing is pending) and start the next cycle.
-   * `codeOf` maps an account to its current streamer code (undefined when it is no longer a streamer).
-   */
-  runAuto(codeOf: (accountId: string) => string | undefined) {
-    const now = this.now()
-    const due = this.db.prepare('SELECT * FROM streamer_payout_settings WHERE auto = 1 AND phone IS NOT NULL AND cycle_started_at + interval_days * ? <= ?').all(DAY_MS, now) as Row[]
-    const created: PayoutView[] = []
-    for (const row of due) {
-      const accountId = String(row.account_id)
-      const code = codeOf(accountId)
-      this.db.prepare('UPDATE streamer_payout_settings SET cycle_started_at = ? WHERE account_id = ?').run(now, accountId)
-      if (!code) continue
-      const { available } = this.balance(code)
-      if (available < MIN_PAYOUT) continue
-      try {
-        created.push(this.request(accountId, code, available / 100, true))
-      } catch (error) {
-        if (!(error instanceof PayoutError)) throw error // a pending request already exists: next cycle
-      }
-    }
-    return created
   }
 
   /** Owner's list: every request with the full phone for the transfer. */

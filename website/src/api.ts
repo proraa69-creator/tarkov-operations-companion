@@ -14,7 +14,9 @@ export interface ReferralStats {
   /** Of them, made without a code from an address that opened the link in the 7 days before (none from older servers). */
   linkRegistrations?: number
   activeSubscriptions: number
-  /** Sum of confirmed payments by users who came through the streamer's code. Owner view only: never sent to the streamer. */
+  /** How many referred accounts have paid at least once (owner, 25.11.2026: «сколько оплатили»). */
+  payers?: number
+  /** Sum of confirmed payments by users who came through the streamer's code (owner, 25.11.2026: shown in his cabinet too). */
   revenue?: { amount: number; currency: string }
   /** The streamer's share of that revenue. */
   earnings: { amount: number; currency: string }
@@ -315,7 +317,12 @@ export const STREAMER_INVITE_PATTERN = /^[A-Za-z0-9_-]{32}$/
 export interface CampaignStats { campaign: string; visits: number; visits30d: number; lastVisitDay: string }
 
 /** Owner section (GET /v1/accounts/me/admin/…; the server answers 404 to non-owners). */
-export interface OwnerStreamer { email: string; code: string; createdAt?: string; stats: ReferralStats }
+/** A streamer's payout state for the owner (owner, 25.11.2026): balance, requests waiting and the requisites (full). */
+export interface OwnerStreamerPayout {
+  earned: number; paidOut: number; pending: number; available: number; maturing: number; pendingRequests: number
+  details: { phone: string; bank: string; recipient: string } | null
+}
+export interface OwnerStreamer { email: string; code: string; createdAt?: string; stats: ReferralStats; payout?: OwnerStreamerPayout }
 export interface OwnerStreamers { streamers: OwnerStreamer[]; invites: Array<{ code: string; expiresAt: string }> }
 export interface OwnerStreamerStats { code: string; period: StatsPeriod; rows: ReferralSeriesRow[]; campaigns: CampaignStats[] }
 export interface CreatedStreamerInvite { token: string; code: string; expiresAt: string }
@@ -329,15 +336,21 @@ export interface PayoutOverview {
   paidOut: number
   pending: number
   available: number
+  /** Earned in the last 14 days, not yet available to withdraw (servers of 25.11.2026 on). */
+  maturing?: number
+  /** Payouts go out within this many days of a payment, in case of a refund (14; servers of 25.11.2026 on). */
+  maturityDays?: number
   minimum: number
   currency: 'RUB'
   details: { phone: string; bank: string; recipient: string } | null
-  autoPayout: { enabled: boolean; intervalDays: number; limits: { min: number; max: number }; nextAt: string | null }
   payouts: PayoutItem[]
 }
-export interface PayoutSettingsInput { phone?: string; bank?: string; recipient?: string; auto?: boolean; intervalDays?: number }
+/** A streamer's new-event (server/src/services/payoutStore.ts): a payment by his link or a payout marked paid. */
+export interface StreamerNotice { type: 'payment' | 'payout'; at: string; amount: number }
+export interface StreamerNotices { unread: number; seenAt: string | null; items: StreamerNotice[] }
+export interface PayoutSettingsInput { phone: string; bank: string; recipient: string }
 export interface OwnerPayout extends PayoutItem { code: string; email: string; phone: string; bank: string; recipient: string }
-export interface OwnerPayouts { payouts: OwnerPayout[]; limits: { min: number; max: number } }
+export interface OwnerPayouts { payouts: OwnerPayout[] }
 
 export interface AuthResult { token: string; account: Account; referralApplied?: boolean }
 /**
@@ -347,8 +360,12 @@ export interface AuthResult { token: string; account: Account; referralApplied?:
 export interface PendingRegistration { pending: true; message: string; challengeId: string; expiresAt: string; resendSeconds: number }
 
 /** «Админ-панель» (owner only; server/src/routes/ownerAdmin.ts, services/adminStore.ts). Money in roubles. */
-/** `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»). */
-export interface AdminRevenue { total: number; payments: number; repeat?: number }
+/**
+ * `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»).
+ * `net` / `streamerEarnings` / `fees` (servers of 25.11.2026 on): «чистыми» = грязными − доля стримеров − комиссии
+ * платёжных систем (src/shared/revenue.ts PROVIDER_FEE_PERCENT).
+ */
+export interface AdminRevenue { total: number; payments: number; repeat?: number; net?: number; streamerEarnings?: number; fees?: number }
 export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
@@ -679,7 +696,8 @@ export const api = {
   ownerCreateStreamerInvite: (token: string, code: string) => request<CreatedStreamerInvite>('/me/admin/streamer-invites', { method: 'POST', token, body: { code } }),
   ownerPayouts: (token: string) => request<OwnerPayouts>('/me/admin/payouts', { token }),
   ownerDecidePayout: (token: string, id: string, status: 'paid' | 'rejected', comment?: string) => request<PayoutItem>('/me/admin/payouts/decide', { method: 'POST', token, body: { id, status, ...(comment ? { comment } : {}) } }),
-  ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
+  /** «Стримеры» → red count: how many payout requests wait for the owner now. */
+  ownerPayoutAttention: (token: string) => request<{ count: number }>('/me/admin/payouts/attention', { token }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
   adminOnline: (token: string) => request<AdminOnline>('/me/admin/online', { token }),
   adminPhones: (token: string) => request<AdminPhones>('/me/admin/phones', { token }),
@@ -737,6 +755,9 @@ export const api = {
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),
   savePayoutSettings: (token: string, settings: PayoutSettingsInput) => request<PayoutOverview>('/me/payout-settings', { method: 'PUT', token, body: settings }),
   requestPayout: (token: string, amount: number) => request<PayoutItem>('/me/payouts', { method: 'POST', token, body: { amount } }),
+  /** Streamer new-events (новая оплата по ссылке, проведённая выплата) and the red count; `read` clears it. */
+  streamerNotices: (token: string) => request<StreamerNotices>('/me/streamer-notifications', { token }),
+  markStreamerNoticesRead: (token: string) => request<StreamerNotices>('/me/streamer-notifications/read', { method: 'POST', token }),
   summary: (token: string) => request<AccountSummary>('/summary', { token, root: '/v1/me' }),
   referralSeries: (token: string, period: StatsPeriod, month?: string) => request<ReferralSeries>(`/me/referral-stats?period=${period}${month ? `&month=${month}` : ''}`, { token }),
   streamerInvite: (inviteToken: string) => request<StreamerInvite>('/streamer-invite', { method: 'POST', body: { token: inviteToken } }),

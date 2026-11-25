@@ -17,6 +17,7 @@
  * Passwords are never logged or returned; only salted scrypt hashes are kept. Session tokens are stored as SHA-256.
  */
 import { EftLedger } from './eftLedger.js'
+import { PAYOUT_MATURITY_DAYS } from '../../../src/shared/revenue'
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
@@ -107,7 +108,9 @@ export interface ReferralStats {
   /** Of them, accounts made without a code from an address that opened the link shortly before (LINK_ATTRIBUTION_MS). */
   linkRegistrations: number
   activeSubscriptions: number
-  /** Paid by referred users, roubles. Owner only: the streamer's own view leaves it out (he sees only his share). */
+  /** How many referred accounts have paid at least once (owner, 25.11.2026: «сколько оплатили»). */
+  payers?: number
+  /** Paid by referred users, roubles (owner, 25.11.2026: «на какую сумму» — now shown in the streamer's own cabinet too). */
   revenue?: { amount: number; currency: 'RUB' }
   earnings: { amount: number; currency: 'RUB' }
 }
@@ -115,7 +118,7 @@ export interface ReferralStats {
 /** Paid periods and referral revenue (PaymentStore); amounts in kopecks. */
 export interface SubscriptionSource {
   paidUntil(accountId: string): number | undefined
-  referralStats(code: string): { activeSubscriptions: number; revenue: number; earnings: number }
+  referralStats(code: string): { activeSubscriptions: number; revenue: number; earnings: number; payers: number }
   /** Paid subscriptions of referred users grouped by period key (see `periodKeySql`). */
   referralSeries(code: string, keySql: (column: string) => string): Array<{ key: string; payments: number; months: Record<string, number>; revenue: number; earnings: number }>
   /** The streamer's share for new payments, 0–100 (PaymentStore.percentFor). */
@@ -937,11 +940,18 @@ export class AccountStore {
     if (this.invitedBy(account.id)) view.invitedByFriend = true
     if (account.kind === 'streamer' && account.referralCode) {
       view.referralCode = account.referralCode
-      // The streamer sees his share, never the amounts his viewers paid.
-      const { revenue: _revenue, ...own } = this.stats(account.referralCode)
-      void _revenue
-      view.stats = own
-      if (this.subscriptions?.percentFor?.(account.referralCode) === 0) view.statsOnly = true
+      const stats = this.stats(account.referralCode)
+      if (this.subscriptions?.percentFor?.(account.referralCode) === 0) {
+        // A 0 % «statistics only» streamer (owner, 30.10.2026 and 25.11.2026): never the viewers' amounts or his share —
+        // his cabinet stays exactly as before (no «сколько оплатили на какую сумму», no payouts, requisites or notices).
+        const { revenue: _revenue, payers: _payers, ...own } = stats
+        void _revenue; void _payers
+        view.stats = own
+        view.statsOnly = true
+      } else {
+        // A streamer with a share (owner, 25.11.2026): sees how many viewers paid and the total sum, besides his own share.
+        view.stats = stats
+      }
     }
     // Streamers use the service free of charge, for good (the desktop app reads the same view).
     if (account.kind === 'streamer') view.subscription = { status: 'active', lifetime: true }
@@ -1381,12 +1391,45 @@ export class AccountStore {
     this.db.prepare("UPDATE accounts SET kind = 'streamer', referral_code = ? WHERE id = ?").run(invite.code, account.id)
   }
 
-  /** Owner's overview: every streamer with the numbers from their cabinet, plus open invitations. */
+  /**
+   * Owner's overview: every streamer with the numbers from their cabinet, payout balance and details, and the count of
+   * requests waiting — so «Стримеры» can open one streamer's own window (owner, 25.11.2026). The owner sees it all for
+   * every streamer, including a 0 % one (the 0 % limit is only about what the streamer himself sees in his cabinet).
+   */
   streamers() {
-    const rows = this.db.prepare("SELECT email, referral_code, created_at FROM accounts WHERE kind = 'streamer' ORDER BY created_at").all() as Row[]
+    const rows = this.db.prepare("SELECT id, email, referral_code, created_at FROM accounts WHERE kind = 'streamer' ORDER BY created_at").all() as Row[]
     const invites = this.db.prepare('SELECT code, expires_at FROM streamer_invites WHERE used_at IS NULL AND expires_at > ? ORDER BY created_at DESC').all(this.now()) as Row[]
+    const tableExists = (name: string) => this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== undefined
+    const hasPayouts = tableExists('streamer_payouts')
+    const hasPayments = tableExists('payments')
+    const maturedBefore = this.now() - PAYOUT_MATURITY_DAYS * 24 * 60 * 60 * 1000
+    const num = (value: unknown) => Number(value ?? 0)
+    // Per-streamer payout balance, requests waiting and requisites (personal data; owner only). «К выводу» follows the
+    // same 14-day rule as the cabinet (src/shared/revenue.ts); auto-payout is gone (owner, 25.11.2026).
+    const payoutOf = (code: string, accountId: string) => {
+      if (!hasPayouts) return undefined
+      const earned = hasPayments ? num((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS n FROM payments WHERE referral_code = ? AND status = 'succeeded'").get(code) as Row).n) : 0
+      const matured = hasPayments ? num((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS n FROM payments WHERE referral_code = ? AND status = 'succeeded' AND COALESCE(paid_at, created_at) <= ?").get(code, maturedBefore) as Row).n) : 0
+      const sums = this.db.prepare("SELECT COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS paid, COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS pending, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS open FROM streamer_payouts WHERE code = ?").get(code) as Row
+      const paid = num(sums.paid)
+      const pending = num(sums.pending)
+      const settings = this.db.prepare('SELECT phone, bank, recipient FROM streamer_payout_settings WHERE account_id = ?').get(accountId) as Row | undefined
+      return {
+        earned: earned / 100,
+        paidOut: paid / 100,
+        pending: pending / 100,
+        available: Math.max(0, matured - paid - pending) / 100,
+        maturing: Math.max(0, earned - matured) / 100,
+        pendingRequests: Number(sums.open),
+        details: settings?.phone ? { phone: String(settings.phone), bank: String(settings.bank), recipient: String(settings.recipient) } : null,
+      }
+    }
     return {
-      streamers: rows.map((row) => ({ email: String(row.email), code: String(row.referral_code), createdAt: new Date(Number(row.created_at)).toISOString(), stats: this.stats(String(row.referral_code)) })),
+      streamers: rows.map((row) => {
+        const code = String(row.referral_code)
+        const payout = payoutOf(code, String(row.id))
+        return { email: String(row.email), code, createdAt: new Date(Number(row.created_at)).toISOString(), stats: this.stats(code), ...(payout ? { payout } : {}) }
+      }),
       invites: invites.map((row) => ({ code: String(row.code), expiresAt: new Date(Number(row.expires_at)).toISOString() })),
     }
   }
@@ -1406,6 +1449,18 @@ export class AccountStore {
   streamerCode(accountId: string) {
     const row = this.db.prepare("SELECT referral_code FROM accounts WHERE id = ? AND kind = 'streamer'").get(accountId) as Row | undefined
     return row?.referral_code == null ? undefined : String(row.referral_code)
+  }
+
+  /**
+   * The streamer code only when his share is above 0 (owner, 25.11.2026): payouts, requisites and streamer notices exist
+   * only for such a streamer. A 0 % «statistics only» streamer has none — the routes refuse him like an ordinary player;
+   * raising his share brings the full cabinet back on its own, with no separate switch.
+   */
+  payoutStreamerCode(accountId: string) {
+    const code = this.streamerCode(accountId)
+    if (!code) return undefined
+    const percent = this.subscriptions?.percentFor?.(code)
+    return percent !== undefined && percent > 0 ? code : undefined
   }
 
   emailOf(accountId: string) {
@@ -1499,8 +1554,8 @@ export class AccountStore {
     const linkRegistrations = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE ${LINK_ONLY}`).get(code) as Row).n)
     const visits = Number((this.db.prepare('SELECT visits FROM referral_visits WHERE code = ?').get(code) as Row | undefined)?.visits ?? 0)
     // Paid conversions and money come only from verified ЮKassa payments (PaymentStore), by the code alone.
-    const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0 }
-    return { visits, registrations: registrations + linkRegistrations, linkRegistrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
+    const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }
+    return { visits, registrations: registrations + linkRegistrations, linkRegistrations, activeSubscriptions: paid.activeSubscriptions, payers: paid.payers, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
   }
 
   /**

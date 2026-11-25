@@ -144,6 +144,8 @@ export function AdminMobilePage() {
   const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'ads' | 'news' | 'stickers' | null>(null)
   // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
   const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
+  // «Стримеры» → красный счётчик новых заявок на вывод (owner, 25.11.2026).
+  const [payoutPending, setPayoutPending] = useState(0)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search), 300)
@@ -158,6 +160,14 @@ export function AdminMobilePage() {
     adminApi.referrals('', 'invited').then(() => { if (active) setReferrals(true) }, (reason: unknown) => { if (active && (reason as { status?: number }).status === 404) setReferrals(false) })
     return () => { active = false }
   }, [version])
+  // Payout requests waiting for the owner: on open, every 5 minutes, on «Обновить», and when the streamers sheet closes.
+  useEffect(() => {
+    let active = true
+    const load = () => adminApi.payoutAttention().then((answer) => { if (active) setPayoutPending(answer.count) }, () => {})
+    load()
+    const timer = window.setInterval(load, 5 * 60_000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [version, sheet])
 
   const paymentFilter = useMemo<AdminPaymentQuery>(() => ({
     status: paymentStatus, ...(paymentPlan ? { plan: paymentPlan } : {}), ...(paymentQuery.trim() ? { q: paymentQuery.trim() } : {}),
@@ -339,7 +349,7 @@ export function AdminMobilePage() {
         {/* «Стримеры» and «Пригласи друга» as the site's tabs (owner, 03.11.2026), each in its own window. No «История
           обновлений» (owner, 15.11.2026): it is in «Обновление», where it is read and edited. */}
         <div className="admin-quick-links">
-          <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span>{payoutPending > 0 && <span className="admin-quick-badge" aria-label={uiText(`новых заявок на вывод: ${payoutPending}`)}>{payoutPending > 99 ? '99+' : payoutPending}</span>}<ChevronRight size={16} /></button>
           {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
           {/* «Реклама» (owner, 09.11.2026): переходы, регистрации и оплаты по ссылке рекламы Reddit. */}
           <button type="button" onClick={() => setSheet('ads')}><Megaphone size={18} /><span>{uiText('Реклама')}</span><ChevronRight size={16} /></button>
@@ -567,7 +577,8 @@ function RevenueCards({ data }: { data: AdminOverview | null }) {
     { title: 'За всё время', revenue: data?.revenue.all, repeat: data?.repeatPayers },
   ]
   return <section className="admin-revenue-cards" aria-label={uiText('Выручка')}>
-    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${revenue?.repeat === undefined ? '' : ` · повторных: ${count.format(revenue.repeat)}`}`)}</small>{repeat !== undefined && <small>{uiText(`оплатили повторно: ${count.format(repeat)}`)}</small>}</article>)}
+    {/* «Грязными» (большое) и «чистыми» (net). «Повторных» — только в сегодня/месяце; в «За всё время» один показатель «оплатили повторно» (owner, 25.11.2026). */}
+    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong>{revenue?.net !== undefined && <small className="admin-revenue-net">{uiText(`Чистыми: ${money(revenue.net)}`)}</small>}<small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${revenue?.repeat !== undefined && repeat === undefined ? ` · повторных: ${count.format(revenue.repeat)}` : ''}`)}</small>{repeat !== undefined && <small>{uiText(`оплатили повторно: ${count.format(repeat)}`)}</small>}</article>)}
   </section>
 }
 

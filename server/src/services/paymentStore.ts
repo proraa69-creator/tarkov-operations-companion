@@ -487,6 +487,16 @@ export class PaymentStore {
     return Number((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS total FROM payments WHERE referral_code = ? AND status = 'succeeded'").get(code) as Row).total)
   }
 
+  /**
+   * Earnings matured for payout (kopecks): the stored share of referred payments paid at or before `maturedBefore` (ms).
+   * Payouts go out within 14 days of a payment in case it is refunded (src/shared/revenue.ts PAYOUT_MATURITY_DAYS), so
+   * only older earnings count towards the balance a streamer may withdraw. A refund sets streamer_earning to 0, so
+   * returned payments drop out of the sum on their own.
+   */
+  streamerMatured(code: string, maturedBefore: number) {
+    return Number((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS total FROM payments WHERE referral_code = ? AND status = 'succeeded' AND COALESCE(paid_at, created_at) <= ?").get(code, maturedBefore) as Row).total)
+  }
+
   /** Paying is switched on (ЮKassa is configured). */
   get enabled() {
     return this.config !== undefined
@@ -517,11 +527,13 @@ export class PaymentStore {
     return row ? Number(row.paid_until) : undefined
   }
 
-  /** Streamer dashboard: referred users with an active paid period and their paid revenue (kopecks). */
+  /** Streamer dashboard: referred users with an active paid period, their paid revenue (kopecks) and how many paid. */
   referralStats(code: string) {
     const active = Number((this.db.prepare('SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.referred_by = ? AND s.paid_until > ?').get(code, this.now()) as Row).n)
     const revenue = Number((this.db.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE referral_code = ? AND status = 'succeeded'").get(code) as Row).total)
-    return { activeSubscriptions: active, revenue, earnings: this.streamerEarned(code) }
+    // «Оплатили»: how many referred accounts have at least one succeeded payment with money in it (owner, 25.11.2026).
+    const payers = Number((this.db.prepare("SELECT COUNT(DISTINCT account_id) AS n FROM payments WHERE referral_code = ? AND status = 'succeeded' AND amount > 0").get(code) as Row).n)
+    return { activeSubscriptions: active, revenue, earnings: this.streamerEarned(code), payers }
   }
 
   referralSeries(code: string, keySql: (column: string) => string) {

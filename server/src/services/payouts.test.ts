@@ -71,13 +71,17 @@ test('the streamer share is fixed per payment: a later percent change never rewr
   assert.equal(accounts.view(accounts.authenticate((await accounts.login('streamer@example.com', password)).token)!).stats?.earnings.amount, 300)
 })
 
-test('balance = earned − paid − pending; requests are bounded and never make it negative; one open request at a time', async () => {
-  const { payouts, streamerId, pay } = await setup(10)
+test('balance = matured − paid − pending; only earnings older than 14 days are available; requests bounded; one open at a time', async () => {
+  const { payouts, streamerId, pay, advance } = await setup(10)
   await pay('12m') // 12 000 ₽ at the monthly rate; yearly price is 8000 ₽ → 800 ₽
-  assert.equal(payouts.balance('HUNTER').available, 800_00)
+  // Earned at once, but available only 14 days later (in case of a refund) — src/shared/revenue.ts PAYOUT_MATURITY_DAYS.
+  assert.deepEqual(payouts.balance('HUNTER'), { earned: 800_00, matured: 0, maturing: 800_00, paid: 0, pending: 0, available: 0 })
 
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 200), /реквизиты/)
-  payouts.saveSettings(streamerId, { ...details, auto: false })
+  payouts.saveSettings(streamerId, details)
+  assert.throws(() => payouts.request(streamerId, 'HUNTER', 200), /Доступно к выплате только 0/)
+  advance(14 * DAY)
+  assert.equal(payouts.balance('HUNTER').available, 800_00, 'matured after 14 days')
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 99.99), /Минимальная выплата/)
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 800.01), /Доступно к выплате только 800/)
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 100.001), /двух знаков/)
@@ -85,12 +89,12 @@ test('balance = earned − paid − pending; requests are bounded and never make
   const first = payouts.request(streamerId, 'HUNTER', 500)
   assert.equal(first.status, 'pending')
   assert.equal(first.destination, '+7 ••• •••-45-67 · Т-Банк')
-  assert.deepEqual(payouts.balance('HUNTER'), { earned: 800_00, paid: 0, pending: 500_00, available: 300_00 })
+  assert.deepEqual(payouts.balance('HUNTER'), { earned: 800_00, matured: 800_00, maturing: 0, paid: 0, pending: 500_00, available: 300_00 })
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 100), /ещё ждёт выплаты/)
 
   payouts.decide(first.id, 'paid', 'СБП, чек 123')
   assert.throws(() => payouts.decide(first.id, 'rejected'), /уже обработана/)
-  assert.deepEqual(payouts.balance('HUNTER'), { earned: 800_00, paid: 500_00, pending: 0, available: 300_00 })
+  assert.deepEqual(payouts.balance('HUNTER'), { earned: 800_00, matured: 800_00, maturing: 0, paid: 500_00, pending: 0, available: 300_00 })
 
   const second = payouts.request(streamerId, 'HUNTER', 300)
   assert.equal(payouts.balance('HUNTER').available, 0)
@@ -101,59 +105,82 @@ test('balance = earned − paid − pending; requests are bounded and never make
   const overview = payouts.overview(streamerId, 'HUNTER')
   assert.equal(overview.percent, 10)
   assert.deepEqual([overview.earned, overview.paidOut, overview.pending, overview.available, overview.minimum], [800, 500, 0, 300, 100])
+  assert.equal(overview.maturityDays, 14)
   assert.deepEqual(overview.details, { phone: '+7 ••• •••-45-67', bank: 'Т-Банк', recipient: 'Иван Петров' })
   assert.deepEqual(overview.payouts.map((item) => [item.amount, item.status]), [[300, 'rejected'], [500, 'paid']])
 })
 
-test('auto-payout requests the whole balance every N days (3 by default); the streamer picks N within the owner limits', async () => {
+test('14-day rule and streamer notices: matured balance, a new payment and a paid payout become new-events; pendingCount', async () => {
   const { accounts, payouts, streamerId, pay, advance } = await setup(10)
-  const codeOf = (id: string) => accounts.streamerCode(id)
-  payouts.saveSettings(streamerId, details) // auto is on by default, every 3 days
-  let overview = payouts.overview(streamerId, 'HUNTER')
-  assert.equal(overview.autoPayout.enabled, true)
-  assert.equal(overview.autoPayout.intervalDays, 3)
-  assert.equal(overview.autoPayout.nextAt, '2026-10-04T10:00:00.000Z')
+  await pay('1m') // 100 ₽ earned
+  let b = payouts.balance('HUNTER')
+  assert.deepEqual([b.earned, b.matured, b.maturing, b.available], [100_00, 0, 100_00, 0], 'earned but not matured yet')
+  const ov = payouts.overview(streamerId, 'HUNTER')
+  assert.equal(ov.maturityDays, 14)
+  assert.equal(ov.maturing, 100)
+  advance(14 * DAY)
+  b = payouts.balance('HUNTER')
+  assert.deepEqual([b.matured, b.maturing, b.available], [100_00, 0, 100_00], 'available after 14 days')
 
-  await pay('3m') // 2666.67 ₽ (3 months −1/9) → 266.66 ₽
-  advance(2 * DAY)
-  assert.deepEqual(payouts.runAuto(codeOf), [], 'not yet: the cycle is 3 days')
+  // The matured payment is a «new payment» event; opening the panel clears the red count.
+  let notices = payouts.notices(streamerId, 'HUNTER')
+  assert.equal(notices.unread, 1)
+  assert.equal(notices.items[0]!.type, 'payment')
+  payouts.markNoticesSeen(streamerId)
+  assert.equal(payouts.notices(streamerId, 'HUNTER').unread, 0)
+
+  // The owner pays a request → «выплата проведена» becomes a new unread event; pendingCount drops to 0.
+  payouts.saveSettings(streamerId, details)
+  const req = payouts.request(streamerId, 'HUNTER', 100)
+  assert.equal(payouts.pendingCount(), 1)
   advance(DAY)
-  const created = payouts.runAuto(codeOf)
-  assert.equal(created.length, 1)
-  assert.equal(created[0]!.amount, 266.66)
-  assert.equal(created[0]!.auto, true)
-  assert.deepEqual(payouts.runAuto(codeOf), [], 'the next cycle starts now')
+  payouts.decide(req.id, 'paid')
+  assert.equal(payouts.pendingCount(), 0)
+  notices = payouts.notices(streamerId, 'HUNTER')
+  assert.equal(notices.unread, 1)
+  assert.equal(notices.items[0]!.type, 'payout')
+  assert.equal(notices.items[0]!.amount, 100)
+  assert.ok(accounts.streamerCode(streamerId) === 'HUNTER')
+})
 
-  // Nothing pending is duplicated: while the request waits, the next cycle creates nothing.
+test('payout details: the streamer fills and saves recipient / phone / bank; validated; auto-payout removed', async () => {
+  const { accounts, payouts, streamerId } = await setup(10)
+  // Validation: a real phone and a full name are required (no auto-payout settings any more).
+  assert.throws(() => payouts.saveSettings(streamerId, { phone: '123', bank: 'Т-Банк', recipient: 'Иван Петров' }), /Телефон/)
+  assert.throws(() => payouts.saveSettings(streamerId, { phone: '+7 999 123-45-67', bank: 'Т-Банк', recipient: 'Иван' }), /имя и фамилию/)
+  payouts.saveSettings(streamerId, { phone: '+7 999 123-45-67', bank: 'Т-Банк', recipient: 'Иван Петров' })
+  const overview = payouts.overview(streamerId, 'HUNTER') as Record<string, unknown>
+  assert.deepEqual(overview.details, { phone: '+7 ••• •••-45-67', bank: 'Т-Банк', recipient: 'Иван Петров' })
+  assert.equal(overview.autoPayout, undefined, 'auto-payout was removed: nothing to configure')
+  // The owner sees the full details next to the streamer (services/accountStore.ts streamers()).
+  const streamer = accounts.streamers().streamers.find((row) => row.code === 'HUNTER') as { payout?: { details?: { phone: string; bank: string; recipient: string } } }
+  assert.deepEqual(streamer.payout?.details, { phone: '+79991234567', bank: 'Т-Банк', recipient: 'Иван Петров' })
+})
+
+test('a 0 % «statistics only» streamer sees no money: the server hides the sums and refuses payouts, requisites and notices', async () => {
+  const { accounts, payments, streamerId, pay } = await setup(10)
   await pay('1m')
-  advance(3 * DAY)
-  assert.deepEqual(payouts.runAuto(codeOf), [])
-  payouts.decide(created[0]!.id, 'paid')
-  advance(3 * DAY)
-  assert.deepEqual(payouts.runAuto(codeOf).map((item) => item.amount), [100])
-
-  // The streamer chooses 7 days; the owner narrows the limits to 5–14.
-  assert.throws(() => payouts.saveSettings(streamerId, { intervalDays: 31 }), /1–30/)
-  payouts.saveSettings(streamerId, { intervalDays: 7 })
-  overview = payouts.overview(streamerId, 'HUNTER')
-  assert.equal(overview.autoPayout.intervalDays, 7)
-  assert.equal(overview.details?.phone, '+7 ••• •••-45-67', 'details are kept when only the interval changes')
-  assert.deepEqual(payouts.setIntervalLimits(5, 14), { min: 5, max: 14 })
-  assert.throws(() => payouts.saveSettings(streamerId, { intervalDays: 3 }), /5–14/)
-  assert.throws(() => payouts.setIntervalLimits(10, 2), /минимум/)
-  payouts.setIntervalLimits(10, 14)
-  assert.equal(payouts.overview(streamerId, 'HUNTER').autoPayout.intervalDays, 10, 'moved into the new limits')
-
-  // Auto-payout off: nothing is requested.
-  payouts.saveSettings(streamerId, { auto: false })
-  await pay('1m')
-  advance(30 * DAY)
-  assert.deepEqual(payouts.runAuto(codeOf), [])
+  payments.setPercentOverride('HUNTER', 0) // the owner set his share to 0 → «statistics only»
+  // His /me keeps the old view: statistics, never the viewers' amounts or his share.
+  const view = accounts.view(streamerId) as { statsOnly?: boolean; stats?: Record<string, unknown> }
+  assert.equal(view.statsOnly, true)
+  assert.equal(view.stats!.revenue, undefined)
+  assert.equal(view.stats!.payers, undefined)
+  // Payouts, requisites and notices do not exist for him (the routes refuse him like an ordinary player).
+  assert.equal(accounts.payoutStreamerCode(streamerId), undefined)
+  // Raising the share brings the full cabinet back on its own — no separate switch.
+  payments.setPercentOverride('HUNTER', 15)
+  assert.equal(accounts.payoutStreamerCode(streamerId), 'HUNTER')
+  const full = accounts.view(streamerId) as { statsOnly?: boolean; stats?: Record<string, unknown> }
+  assert.equal(full.statsOnly, undefined)
+  assert.notEqual(full.stats!.revenue, undefined)
+  assert.notEqual(full.stats!.payers, undefined)
 })
 
 test('payout routes: streamer only for his own, owner only for the list; streamers never pay for a subscription', async () => {
-  const { accounts, payments, payouts, pay } = await setup(10)
+  const { accounts, payments, payouts, pay, advance } = await setup(10)
   await pay('1m')
+  advance(14 * DAY) // the earning matures so it is available to withdraw
   const db = payments.database
   // Owner e-mail listed after it was registered.
   await accounts.register('owner@example.com', password)
@@ -180,8 +207,17 @@ test('payout routes: streamer only for his own, owner only for the list; streame
     assert.equal(overview.body.percent, 10)
     assert.equal(overview.body.available, 100)
     assert.equal(overview.body.details, null)
+
+    // Streamer new-events: the matured payment is a «new payment»; viewers see it, others get 403.
+    assert.equal((await call('GET', '/v1/accounts/me/streamer-notifications', viewer)).status, 403)
+    const notices = await call('GET', '/v1/accounts/me/streamer-notifications', streamer)
+    assert.equal(notices.status, 200)
+    assert.equal((notices.body as { unread: number }).unread, 1)
+    assert.equal(((await call('POST', '/v1/accounts/me/streamer-notifications/read', streamer)).body as { unread: number }).unread, 0)
+    // Requisites are personal data: a viewer (ordinary player) can neither read the cabinet nor change the details.
+    assert.equal((await call('PUT', '/v1/accounts/me/payout-settings', viewer, details)).status, 403)
     assert.equal((await call('PUT', '/v1/accounts/me/payout-settings', streamer, { phone: '4276123456789012', bank: 'Сбер', recipient: 'Иван Петров' })).status, 400)
-    const saved = await call('PUT', '/v1/accounts/me/payout-settings', streamer, { ...details, auto: true, intervalDays: 7 })
+    const saved = await call('PUT', '/v1/accounts/me/payout-settings', streamer, details)
     assert.equal(saved.status, 200)
     assert.equal(JSON.stringify(saved.body).includes('1234567'), false, 'the streamer sees his phone masked')
     const requested = await call('POST', '/v1/accounts/me/payouts', streamer, { amount: 100 })
@@ -193,10 +229,18 @@ test('payout routes: streamer only for his own, owner only for the list; streame
     assert.equal(list.status, 200)
     const [item] = list.body.payouts as Array<{ id: string; phone: string; email: string; code: string }>
     assert.deepEqual([item!.phone, item!.email, item!.code], ['+79991234567', 'streamer@example.com', 'HUNTER'])
+    // The owner also sees the requisites next to the streamer; a viewer cannot open «Стримеры».
+    const streamers = await call('GET', '/v1/accounts/me/admin/streamers', owner)
+    const hunter = (streamers.body.streamers as Array<{ code: string; payout?: { details?: { phone: string; bank: string; recipient: string }; pendingRequests: number; paidOut: number } }>).find((row) => row.code === 'HUNTER')!
+    assert.deepEqual(hunter.payout?.details, { phone: '+79991234567', bank: 'Т-Банк', recipient: 'Иван Петров' })
+    assert.equal(hunter.payout?.pendingRequests, 1, 'the request waits → one on the red count')
+    assert.equal((await call('GET', '/v1/accounts/me/admin/streamers', viewer)).status, 404)
+    // «Стримеры» red count: one request waits for the owner; others cannot read it.
+    assert.equal((await call('GET', '/v1/accounts/me/admin/payouts/attention', viewer)).status, 404)
+    assert.equal(((await call('GET', '/v1/accounts/me/admin/payouts/attention', owner)).body as { count: number }).count, 1)
     assert.equal((await call('POST', '/v1/accounts/me/admin/payouts/decide', streamer, { id: item!.id, status: 'paid' })).status, 404)
     assert.equal((await call('POST', '/v1/accounts/me/admin/payouts/decide', owner, { id: item!.id, status: 'paid', comment: 'СБП' })).status, 200)
-    assert.equal((await call('PUT', '/v1/accounts/me/admin/payout-limits', owner, { min: 2, max: 20 })).status, 200)
-    assert.equal((await call('PUT', '/v1/accounts/me/admin/payout-limits', viewer, { min: 2, max: 20 })).status, 404)
+    assert.equal(((await call('GET', '/v1/accounts/me/admin/payouts/attention', owner)).body as { count: number }).count, 0)
 
     // Streamers use the service for free: no payment can be started.
     const refused = await call('POST', '/v1/payments', streamer, { plan: '1m', consent: { version: '2026-09-30' } })

@@ -44,7 +44,7 @@ const REAL_PATHS = [
   '/v1/accounts/me/login-codes', '/v1/accounts/login-codes/redeem', '/v1/accounts/qr-login', '/v1/accounts/qr-login/poll',
   '/v1/accounts/me/qr-login/inspect', '/v1/accounts/me/qr-login/approve',
   '/v1/accounts/me/payouts', '/v1/accounts/me/payout-settings', '/v1/accounts/me/admin/payouts', '/v1/accounts/me/admin/payouts/decide',
-  '/v1/accounts/me/admin/payout-limits', '/v1/accounts/me/admin/streamers', '/v1/accounts/me/admin/streamer-stats?code=SHELL&period=day',
+  '/v1/accounts/me/admin/streamers', '/v1/accounts/me/admin/streamer-stats?code=SHELL&period=day',
   '/v1/accounts/me/admin/streamer-invites', '/v1/accounts/me/admin/overview', '/v1/accounts/me/admin/series?period=year',
   '/v1/accounts/me/admin/payments?from=2026-09-01&to=2026-10-01&status=succeeded&plan=12m&q=o%27brien%40example.com&limit=100&offset=0',
   '/v1/accounts/me/admin/payments.csv?from=2026-09-01&q=player%2Btag%40mail.ru',

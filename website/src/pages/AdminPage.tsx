@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Megaphone, Radio, Receipt, ScrollText, Target, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Megaphone, Radio, Receipt, ScrollText, Target, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
@@ -22,7 +22,7 @@ import { AdminNotices } from '../components/admin/AdminNotices'
 import { AdminSurveys } from '../components/admin/AdminSurveys'
 import { AdminUpdateHistory } from '../components/admin/AdminUpdateHistory'
 import { History as HistoryIcon } from 'lucide-react'
-import { OwnerPayoutsList } from '../components/OwnerAdmin'
+import { PAYOUT_ATTENTION_CHANGED } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
 
@@ -62,6 +62,7 @@ export function AdminPage() {
   const requested = params.get('tab') === 'payouts' ? 'streamers' : params.get('tab') === 'bugs' ? 'reports' : params.get('tab')
   const tab: TabId = TABS.some((item) => item.id === requested) ? requested as TabId : 'summary'
   const attention = useAttentionCount(auth.account?.owner ? auth.token : undefined)
+  const payoutAttention = usePayoutAttention(auth.account?.owner ? auth.token : undefined)
 
   if (auth.status === 'signed-out') return <Navigate to="/login" replace state={{ from: '/admin' }} />
   if (auth.status === 'loading' || (auth.status === 'ready' && !auth.account)) {
@@ -98,6 +99,7 @@ export function AdminPage() {
             <button key={id} type="button" role="tab" id={`admin-tab-${id}`} aria-selected={tab === id} aria-controls="admin-tabpanel" className={`admin-tab${tab === id ? ' is-active' : ''}`} onClick={() => setParams(id === 'summary' ? {} : { tab: id }, { replace: true })}>
               <Icon aria-hidden="true" />{label}
               {id === 'referrals' && attention > 0 && <span className="admin-tab-count" aria-label={`Неподтверждённых: ${attention}`}>{attention}</span>}
+              {id === 'streamers' && payoutAttention > 0 && <span className="admin-tab-count" aria-label={`Новых заявок на вывод: ${payoutAttention}`}>{payoutAttention}</span>}
             </button>
           ))}
         </nav>
@@ -108,13 +110,7 @@ export function AdminPage() {
           {tab === 'users' && <AdminUsers />}
           {tab === 'referrals' && <AdminReferrals />}
           {tab === 'ads' && <AdminAds />}
-          {tab === 'streamers' && <>
-            <AdminStreamers />
-            <section className="panel owner-panel admin-streamer-payouts" aria-labelledby="admin-payouts-title">
-              <div className="panel-header"><div className="panel-title" id="admin-payouts-title"><Banknote aria-hidden="true" />Выплаты стримерам</div></div>
-              <div className="panel-body owner-body"><OwnerPayoutsList /></div>
-            </section>
-          </>}
+          {tab === 'streamers' && <AdminStreamers />}
           {tab === 'reports' && <AdminBugReports />}
           {tab === 'quests' && <><AdminQuestPoints /><AdminQuestBase /></>}
           {tab === 'notices' && <AdminNotices />}
@@ -142,6 +138,24 @@ function useAttentionCount(token: string | null | undefined) {
     const timer = window.setInterval(load, 5 * 60_000)
     window.addEventListener(ATTENTION_CHANGED, load)
     return () => { active = false; window.clearInterval(timer); window.removeEventListener(ATTENTION_CHANGED, load) }
+  }, [token])
+  return count
+}
+
+/**
+ * The number of payout requests waiting on «Стримеры» (owner, 25.11.2026: «красный кружок-счётчик непрочитанных/новых
+ * заявок»): asked when the panel opens, every 5 minutes and after each decision.
+ */
+function usePayoutAttention(token: string | null | undefined) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!token) return
+    let active = true
+    const load = () => { api.ownerPayoutAttention(token).then((answer) => { if (active) setCount(answer.count) }, () => {}) }
+    load()
+    const timer = window.setInterval(load, 5 * 60_000)
+    window.addEventListener(PAYOUT_ATTENTION_CHANGED, load)
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener(PAYOUT_ATTENTION_CHANGED, load) }
   }, [token])
   return count
 }

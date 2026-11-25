@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(), supportReact: vi.fn(), supportEdit: vi.fn(),
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
-  setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), setPayoutLimits: vi.fn(), forget: vi.fn(),
+  setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), payoutAttention: vi.fn(async () => ({ count: 0 })), forget: vi.fn(),
   stickerPacks: vi.fn(), profile: vi.fn(),
 }))
 
@@ -478,7 +478,7 @@ describe('mobile admin dashboard', () => {
     const user = userEvent.setup()
     mocks.streamers.mockResolvedValue({ streamers: [{ email: 'tv@example.com', code: 'HUNTER_TV', stats: { visits: 336, registrations: 59, activeSubscriptions: 4, revenue: { amount: 3200, currency: 'RUB' }, earnings: { amount: 320, currency: 'RUB' } } }], invites: [] })
     mocks.streamerSettings.mockResolvedValue({ defaultPercent: 10, streamers: [{ code: 'HUNTER_TV', email: 'tv@example.com', percent: 10, custom: false, linkEnabled: true }] })
-    mocks.payouts.mockResolvedValue({ payouts: [{ id: 'po1', amount: 320, status: 'pending', auto: false, createdAt: '2026-11-01T10:00:00.000Z', destination: 'sbp', code: 'HUNTER_TV', email: 'tv@example.com', phone: '+70000000000', bank: 'Банк', recipient: 'Имя' }], limits: { min: 7, max: 30 } })
+    mocks.payouts.mockResolvedValue({ payouts: [{ id: 'po1', amount: 320, status: 'pending', auto: false, createdAt: '2026-11-01T10:00:00.000Z', destination: 'sbp', code: 'HUNTER_TV', email: 'tv@example.com', phone: '+70000000000', bank: 'Банк', recipient: 'Имя' }] })
     mocks.streamerStats.mockResolvedValue({ code: 'HUNTER_TV', period: 'day', rows: [{ period: '2026-11-03', visits: 12, registrations: 3, payments: 1, months: { '1m': 1, '3m': 0, '6m': 0, '12m': 0 }, revenue: 900, earnings: 90 }], campaigns: [] })
     mocks.setStreamerPercent.mockResolvedValue({ defaultPercent: 10, streamers: [{ code: 'HUNTER_TV', email: 'tv@example.com', percent: 15, custom: true, linkEnabled: true }] })
     mocks.decidePayout.mockResolvedValue({})

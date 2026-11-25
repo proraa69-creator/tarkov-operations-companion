@@ -118,11 +118,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/series\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stats\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/ },
   // «Стримеры» (routes/accounts.ts, ownerAdmin.ts, payouts.ts) and «Пригласи друга» (routes/invites.ts).
-  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/(?:streamers|streamer-settings|payouts)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/(?:streamers|streamer-settings|payouts|payouts\/attention)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/streamer-stats\?code=[A-Za-z0-9_-]{3,24}&period=(?:day|month|year)$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/(?:streamer-invites|payouts\/decide)$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/(?:percent|link)$/ },
-  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/payout-limits$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/revoke$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals\/[a-f0-9]{24}$/ },
@@ -170,6 +169,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
   { methods: ['GET', 'POST'], path: /^\/v1\/accounts\/me\/payouts$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/payout-settings$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/streamer-notifications$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/streamer-notifications\/read$/ },
   // Approving a website QR sign-in from the phone (docs/mobile.md).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
   // Phone number and SMS codes (server/src/routes/phone.ts); sign-in by code is webAccountPhoneSignIn.
