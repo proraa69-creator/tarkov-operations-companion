@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BAKED_EDITION } from './buildEditionConstant.js'
 
 /**
  * Which app this exe is (scripts/write-build-info.mjs → dist-electron/build-info.json):
@@ -42,8 +43,19 @@ export function editionFromInfo(info: { edition?: unknown } | null, env: NodeJS.
   return 'client'
 }
 
+/**
+ * The edition baked into the exe (electron/buildEditionConstant.ts, rewritten per edition at build time and sealed in
+ * app.asar by the asar-integrity fuse) wins. Only when it is absent (a development run, where the TypeScript source with
+ * its `null` default is used as is) does the edition come from build-info.json / OWNER_BUILD. So editing
+ * build-info.json in a packaged copy cannot turn on the owner build.
+ */
+export function resolveEdition(baked: BuildEdition | null | undefined, info: { edition?: unknown } | null, env: NodeJS.ProcessEnv = process.env): BuildEdition {
+  if (baked === 'owner' || baked === 'client') return baked
+  return editionFromInfo(info, env)
+}
+
 export function buildEdition(): BuildEdition {
-  return editionFromInfo(buildInfo())
+  return resolveEdition(BAKED_EDITION, buildInfo())
 }
 
 export const isOwnerBuild = () => buildEdition() === 'owner'

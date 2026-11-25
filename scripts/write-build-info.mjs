@@ -61,4 +61,15 @@ if (entitlementKey && !/^[A-Za-z0-9_-]{43}$/.test(entitlementKey)) throw new Err
 if (entitlementKey && !defaultServerUrl) throw new Error('RAIDOS_ENTITLEMENT_PUBLIC_KEY needs TARKOV_DEFAULT_SERVER_URL (the server the key belongs to)')
 const entitlementKeys = entitlementKey ? { [defaultServerUrl]: entitlementKey } : undefined
 writeFileSync(join(root, 'dist-electron', 'build-info.json'), JSON.stringify({ version, build: Date.now(), commit, edition, ...(defaultServerUrl ? { defaultServerUrl } : {}), ...(ownerEmails.length ? { ownerEmails } : {}), ...(trialLaunches ? { trialLaunches } : {}), ...(entitlementKeys ? { entitlementKeys } : {}), ...(testBuild ? { testBuild: true } : {}), ...(safeStart ? { safeStart: true } : {}) }))
+// Bake the edition into the compiled main process, so a packaged copy decides the owner build from code sealed in
+// app.asar (electron/buildEditionConstant.ts, read by electron/buildEdition.ts), not from the JSON above that anyone can
+// edit. Rewritten for each edition right before electron-builder packs it; dist-electron/electron exists once
+// build:electron has run (a bare write-build-info run before the build simply leaves the source default).
+const editionModule = join(root, 'dist-electron', 'electron', 'buildEditionConstant.js')
+try {
+  mkdirSync(dirname(editionModule), { recursive: true })
+  writeFileSync(editionModule, `export const BAKED_EDITION = ${JSON.stringify(edition)}\n`)
+} catch (error) {
+  console.warn(`write-build-info: could not bake the edition into ${editionModule} (${error instanceof Error ? error.message : String(error)})`)
+}
 console.log(`Build ${version} ${commit} · ${edition}${defaultServerUrl ? ` · server ${defaultServerUrl}` : ''}${entitlementKeys ? ' · entitlement key built in' : ''}${ownerEmails.length ? ` · owner e-mails: ${ownerEmails.length}` : ''}${trialLaunches ? ` (test build: ${trialLaunches} launches)` : ''}${testBuild ? ' · test build: own data folder, no updates' : ''}${safeStart ? ' · safe start: software drawing, asks if the window is seen' : ''} → dist-electron/build-info.json`)
