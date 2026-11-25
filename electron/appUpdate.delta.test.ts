@@ -25,7 +25,7 @@ const child = vi.hoisted(() => ({ spawn: vi.fn(() => ({ unref: vi.fn() })) }))
 vi.mock('node:child_process', () => ({ spawn: child.spawn }))
 // The partial update (electron/deltaUpdate.ts): the published parts are mocked here, appDelta.test.ts covers them.
 const delta = vi.hoisted(() => ({ fetchDeltaInfo: vi.fn(), stageDeltaUpdate: vi.fn(async () => ({ downloaded: 10, total: 100 })), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn(), stagedBuildBad: vi.fn(() => false) }))
-vi.mock('./deltaUpdate.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: delta.stageDeltaUpdate, activateDeltaUpdate: delta.activateDeltaUpdate, relaunchWhenClosed: delta.relaunchWhenClosed, stagedBuildBad: delta.stagedBuildBad, classifyStagedUpdate: vi.fn(() => 'restart'), liveRendererIndex: vi.fn(() => ''), markStagedBuildBad: vi.fn() }))
+vi.mock('./deltaUpdate.js', () => ({ tellUpdateProblem: vi.fn(), failureKind: () => 'other', fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: delta.stageDeltaUpdate, activateDeltaUpdate: delta.activateDeltaUpdate, relaunchWhenClosed: delta.relaunchWhenClosed, stagedBuildBad: delta.stagedBuildBad, classifyStagedUpdate: vi.fn(() => 'restart'), liveRendererIndex: vi.fn(() => ''), markStagedBuildBad: vi.fn() }))
 
 const { canonicalUpdatePayload } = await import('./updateManifest')
 

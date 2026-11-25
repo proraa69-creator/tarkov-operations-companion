@@ -12,7 +12,7 @@ import { apiBaseUrl, loadServerUrl, ownerExeLink, ownerExeManifest } from './ser
 import { verifiedUpdateManifest } from './updateManifest.js'
 import { fetchSetupManifest, installedExe, openSetupForPortable, prepareSetupDownloadFolder, runSetupWhenClosed, SETUP_FILE_PATH, setupDownloadFile, updatableExe } from './appInstall.js'
 import type { DeltaInfo } from './appDelta.js'
-import { activateDeltaUpdate, classifyStagedUpdate, fetchDeltaInfo, liveRendererIndex, markStagedBuildBad, relaunchWhenClosed, stagedBuildBad, stageDeltaUpdate } from './deltaUpdate.js'
+import { activateDeltaUpdate, classifyStagedUpdate, failureKind, fetchDeltaInfo, liveRendererIndex, markStagedBuildBad, relaunchWhenClosed, stagedBuildBad, stageDeltaUpdate, tellUpdateProblem } from './deltaUpdate.js'
 
 /**
  * «Автообновление» (owner, 17.10.2026: «обновление приложения в фоновом режиме… не закрывая приложение… главное, чтобы
@@ -101,8 +101,38 @@ let downloaded: { file: string; build: number; size: number; sha256: string } | 
 let swapStarted = false
 let startupConsumed = false
 let checking: Promise<UpdateCheckOutcome> | null = null
-/** A release whose parts failed once in this session: a player's copy takes its whole exe from then on. */
+/**
+ * A release whose parts failed in this session, and when: a portable player's copy takes its whole exe from then on; an
+ * installed copy tries the parts again DELTA_RETRY_MS later and never takes the whole exe or the installer for it (owner,
+ * 25.11.2026: «нужно что бы приложение установилось один раз после этого не нужно предлагать установить заного, только
+ * частичное обновление внутри приложения»).
+ */
 let deltaFailedBuild: number | null = null
+let deltaFailedAt = 0
+const DELTA_RETRY_MS = 30 * 60_000
+
+/** The releases whose installer this installed copy has run (the last few), so that it runs each one once at most. */
+const INSTALLER_RUNS_FILE = 'installer-runs.json'
+
+function installerRuns(): number[] {
+  try {
+    const saved = JSON.parse(readFileSync(join(app.getPath('userData'), INSTALLER_RUNS_FILE), 'utf8')) as { builds?: unknown }
+    return Array.isArray(saved.builds) ? saved.builds.filter((build): build is number => Number.isSafeInteger(build)) : []
+  } catch {
+    return []
+  }
+}
+
+function noteInstallerRun(build: number) {
+  try {
+    writeFileSync(join(app.getPath('userData'), INSTALLER_RUNS_FILE), JSON.stringify({ builds: [...installerRuns().filter((seen) => seen !== build), build].slice(-5) }))
+  } catch { /* the folder is not writable: the installer may run again for this release, as before */ }
+}
+
+/** Whether a release's parts may be tried now: not after they failed, but for an installed copy again after a while. */
+function partsAllowed(build: number, installed: boolean) {
+  return deltaFailedBuild !== build || (installed && Date.now() - deltaFailedAt >= DELTA_RETRY_MS)
+}
 /** The build whose page the window shows after a live update (the main process still runs its own build-info.json). */
 let live: { build: number; version: string; commit: string } | null = null
 /** A staged page-only release waiting for the window to be unused. */
@@ -212,16 +242,22 @@ async function probeOnce(): Promise<UpdateCheckOutcome> {
     // A player's copy takes the release in parts too (owner, 11.10.2026), but only when the release signed its partial
     // update with the update key; otherwise, and after a failed attempt, the whole exe as before.
     let wholeExe = false
-    const delta = ownerDelta || deltaFailedBuild !== signed.build ? await fetchDeltaInfo(base, signed, { signed: !ownerDelta, onWholeExe: () => { wholeExe = true } }) : null
+    const installed = !ownerDelta && Boolean(installedExe())
+    const delta = ownerDelta || partsAllowed(signed.build, installed) ? await fetchDeltaInfo(base, signed, { signed: !ownerDelta, onWholeExe: () => { wholeExe = true } }) : null
     // The owner's copy: no parts published (yet) — nothing to offer; parts that cannot bring this release — say so.
     if (ownerDelta && !delta && !wholeExe) return 'latest'
     // Parts cannot bring it: the whole owner exe when the server has its signed manifest (installed here like the
     // players' exe), otherwise the admin panel as before.
     const ownerWhole = ownerDelta && !delta ? await signedOwnerExe(localBuild) : null
     const ownerExe = ownerDelta && !delta && !ownerWhole
-    // An installed copy: what parts cannot bring comes as the installer of the same release, or not at all.
-    const setup = !ownerDelta && !delta && installedExe() ? await fetchSetupManifest(base) : null
-    if (!ownerDelta && !delta && installedExe() && setup?.build !== signed.build) return 'latest'
+    // An installed copy (owner, 25.11.2026: «установилось один раз … только частичное обновление внутри приложения»): no
+    // parts yet, parts that failed a moment ago or wait — it waits for them, it never reinstalls for that. The installer
+    // only for a release parts cannot bring at all (another Electron, another native module: wholeExe), the installer of
+    // that very release, and once: a copy still older after running it tells the site and waits, it does not loop.
+    if (installed && !delta && !wholeExe) return 'latest'
+    if (installed && !delta && installerRuns().includes(signed.build)) { tellUpdateProblem(base, signed.build, 'stuck', 'installer ran, still older'); return 'latest' }
+    const setup = installed && !delta ? await fetchSetupManifest(base) : null
+    if (installed && !delta && setup?.build !== signed.build) return 'latest'
     const next: Remote = ownerWhole
       ? { version: ownerWhole.version, build: ownerWhole.build, commit: ownerWhole.commit, size: ownerWhole.size, sha256: ownerWhole.sha256, owner: true }
       : setup
@@ -322,7 +358,10 @@ async function backgroundOnce(byClick = false) {
   // Already downloaded (in the background or by an earlier click): the click only asks «Обновить сейчас?».
   if (byClick && (nextStartBuild === target.build || pendingLive?.target.build === target.build)) { set({ state: 'available', ...base, ready: true, askInstall: true }); return }
   if (!byClick && (backgroundFailedBuild === target.build || nextStartBuild === target.build || pendingLive?.target.build === target.build)) return
-  const parts = target.delta && deltaFailedBuild !== target.build ? target.delta : null
+  const installed = Boolean(installedExe()) && !target.deltaOnly
+  const parts = target.delta && partsAllowed(target.build, installed) ? target.delta : null
+  // An installed copy never takes the players' portable exe: without parts now it waits for them (or for its installer).
+  if (!parts && installed && !target.setup) return
   // A build whose page failed in the window or whose start failed: only «Обновить» by hand puts it in again.
   if (parts && stagedBuildBad(parts.build)) return
   if (!byClick && await raidBlocksInstall()) return
@@ -338,10 +377,13 @@ async function backgroundOnce(byClick = false) {
         await stageInBackground(target, delta)
       } catch (error) {
         if (target.deltaOnly) throw error
-        // A player's copy: the whole exe on the next check, as for «Обновить» (installUpdate).
+        // A portable player's copy: the whole exe on the next check, as for «Обновить» (installUpdate). An installed one:
+        // the parts again later, never the portable exe.
         console.warn(`Raid OS: partial update failed in the background (${failure(error)})`)
         deltaFailedBuild = target.build
-        if (remote?.build === target.build) remote = { ...remote, delta: undefined, deltaOnly: undefined }
+        deltaFailedAt = Date.now()
+        tellUpdateProblem(source, target.build, 'deltafail', failureKind(error))
+        if (remote?.build === target.build && !installed) remote = { ...remote, delta: undefined, deltaOnly: undefined }
         // By the click: the next click takes the whole release.
         set({ state: 'available', ...base, ...(byClick ? { heldByGame: true } : {}) })
         return
@@ -528,10 +570,18 @@ export async function installUpdate(options: { manual?: boolean } = {}) {
         return await installDelta(exe, target, target.delta, raidBlocks)
       } catch (error) {
         if (target.deltaOnly) throw error
-        // A player's copy: a failed part (network, a release replaced meanwhile, a file that does not match) → the whole exe.
-        console.warn(`Raid OS: partial update failed (${failure(error)}), downloading the whole exe`)
         swapStarted = false
         deltaFailedBuild = target.build
+        deltaFailedAt = Date.now()
+        tellUpdateProblem(source, target.build, 'deltafail', failureKind(error))
+        // An installed copy: the parts again later («Обновить» once more, or the next check after a while) — never the
+        // players' portable exe in place of the installed one, never the installer for a download that failed.
+        if (installedExe()) {
+          console.warn(`Raid OS: partial update failed (${failure(error)}), tried again later`)
+          throw new Error('Обновление не скачалось частями. Попробуйте ещё раз чуть позже', { cause: error })
+        }
+        // A portable player's copy: a failed part (network, a release replaced meanwhile, a file that does not match) → the whole exe.
+        console.warn(`Raid OS: partial update failed (${failure(error)}), downloading the whole exe`)
         if (remote?.build === target.build) remote = { ...remote, delta: undefined, deltaOnly: undefined }
       }
     }
@@ -546,7 +596,7 @@ export async function installUpdate(options: { manual?: boolean } = {}) {
     if (await raidBlocks()) { set({ state: 'available', ...base, ready: true, blockedByRaid: true }); return status }
     set({ state: 'installing', ...base, progress: 100 })
     swapStarted = true
-    if (target.setup) runSetupWhenClosed(file, exe)
+    if (target.setup) { noteInstallerRun(target.build); runSetupWhenClosed(file, exe) }
     else startSwapHelper(exe, file, true)
     app.quit()
   } catch (error) {

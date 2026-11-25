@@ -27,7 +27,7 @@ vi.mock('node:child_process', () => ({ spawn: env.spawn }))
 vi.mock('node:os', async (original) => ({ ...await original<typeof import('node:os')>(), tmpdir: () => env.dir }))
 // The release's parts cannot bring it (another Electron): electron/deltaUpdate.ts reports that through onWholeExe.
 const delta = vi.hoisted(() => ({ fetchDeltaInfo: vi.fn(async (_base: string, _release: unknown, options: { onWholeExe?: (reason: string) => void }) => { options.onWholeExe?.('Electron 44.4.5 → 45.0.0'); return null }) }))
-vi.mock('./deltaUpdate.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: vi.fn(), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn(), stagedBuildBad: () => false, classifyStagedUpdate: () => 'restart', liveRendererIndex: () => '', markStagedBuildBad: vi.fn() }))
+vi.mock('./deltaUpdate.js', () => ({ tellUpdateProblem: vi.fn(), failureKind: () => 'other', fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: vi.fn(), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn(), stagedBuildBad: () => false, classifyStagedUpdate: () => 'restart', liveRendererIndex: () => '', markStagedBuildBad: vi.fn() }))
 
 const { canonicalUpdatePayload } = await import('./updateManifest')
 type Fields = Parameters<typeof canonicalUpdatePayload>[0]

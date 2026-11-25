@@ -20,17 +20,33 @@ export { canonicalDeltaPayload, DELTA_FORMAT, DELTA_PAYLOAD_PREFIX, deltaSignatu
  *    and info.json must be signed with the update key (scripts/sign-app-delta.mjs) like the whole exe's version.json.
  *    Anything else and the player takes the whole exe as before.
  *
- * Only when the Electron runtime and everything in resources outside the archive (OCR models, native modules) are the
- * same as in the running exe; otherwise the whole new exe as before. No Electron imports (tests).
+ * Only when the Electron runtime and the native modules in resources outside the archive (Koffi) are the same as in the
+ * running exe (deltaMismatch); otherwise the whole new exe as before. No Electron imports (tests).
  */
 export const BUILD_INFO_PATH = 'dist-electron/build-info.json'
 const HEX64 = /^[a-f0-9]{64}$/
 
-/** Why this copy cannot take the release in parts ('' when it can). */
+/**
+ * Why this copy cannot take the release in parts ('' when it can). Owner, 25.11.2026 («нужно что бы приложение
+ * установилось один раз после этого не нужно предлагать установить заного, только частичное обновление внутри
+ * приложения»): only what the archive cannot bring stops it — another Electron runtime, or a native module in resources
+ * (Koffi) other than the copy's own. Before, any file outside the archive did: when the release of 24.11 added the OCR
+ * models of six game languages, every copy without them took the whole installer (~270 MB) — and a copy whose folder
+ * still differed afterwards took it again at every release.
+ *  - The OCR models (tessdata/) never stop it: an older model still reads, a missing one the app fetches itself from the
+ *    release's own copy on the site (electron/ocrEngine.ts, scripts/publish-app-delta.cjs).
+ *  - A file only this copy has (left by an older version) is none of the release's business.
+ *  - A native module the copy lost (an antivirus took it) is no reason either: the new archive runs as the copy ran.
+ *  - A file of another kind the release has and the copy lacks or has otherwise: the archive may need it — whole exe.
+ */
 export function deltaMismatch(info: DeltaInfo, local: { electron: string; resources: Record<string, string> }) {
   if (info.electron !== local.electron) return `Electron ${local.electron} → ${info.electron}`
-  const names = new Set([...Object.keys(info.resources), ...Object.keys(local.resources)])
-  for (const name of names) if (info.resources[name] !== local.resources[name]) return `resources/${name}`
+  for (const [name, hash] of Object.entries(info.resources)) {
+    if (name.startsWith('tessdata/')) continue
+    const own = local.resources[name]
+    if (own === undefined && name.startsWith('koffi/')) continue
+    if (own !== hash) return `resources/${name}`
+  }
   return ''
 }
 

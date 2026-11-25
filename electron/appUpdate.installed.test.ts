@@ -21,8 +21,8 @@ vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => env.owner, buildDefaul
 vi.mock('./localServer.js', () => ({ runningBuild: async () => ({ version: '0.5.3', build: 100, commit: 'old', trialLaunches: 0, edition: env.owner ? 'owner' : 'client' }) }))
 vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => '', apiBaseUrl: () => '', ownerExeManifest: async () => null, ownerExeLink: async () => { throw new Error('no owner exe') } }))
 vi.mock('node:child_process', () => ({ spawn: vi.fn(() => ({ unref: vi.fn() })) }))
-const delta = vi.hoisted(() => ({ fetchDeltaInfo: vi.fn(), stageDeltaUpdate: vi.fn(async () => ({ downloaded: 10, total: 100 })), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn() }))
-vi.mock('./deltaUpdate.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: delta.stageDeltaUpdate, activateDeltaUpdate: delta.activateDeltaUpdate, relaunchWhenClosed: delta.relaunchWhenClosed, stagedBuildBad: vi.fn(() => false), classifyStagedUpdate: vi.fn(() => 'restart'), liveRendererIndex: vi.fn(() => ''), markStagedBuildBad: vi.fn() }))
+const delta = vi.hoisted(() => ({ fetchDeltaInfo: vi.fn(), stageDeltaUpdate: vi.fn(async () => ({ downloaded: 10, total: 100 })), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn(), tellUpdateProblem: vi.fn() }))
+vi.mock('./deltaUpdate.js', () => ({ tellUpdateProblem: delta.tellUpdateProblem, failureKind: () => 'network TypeError', fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: delta.stageDeltaUpdate, activateDeltaUpdate: delta.activateDeltaUpdate, relaunchWhenClosed: delta.relaunchWhenClosed, stagedBuildBad: vi.fn(() => false), classifyStagedUpdate: vi.fn(() => 'restart'), liveRendererIndex: vi.fn(() => ''), markStagedBuildBad: vi.fn() }))
 // Whether this copy is installed is told by the uninstaller next to its exe (appInstall.test.ts); here it is set.
 const install = vi.hoisted(() => ({ runSetupWhenClosed: vi.fn(), openSetupForPortable: vi.fn() }))
 vi.mock('./appInstall.js', async (original) => ({
@@ -44,6 +44,8 @@ const setupBytes = Buffer.from('MZ RaidOSSetup 0.5.4 installer')
 const fieldsOf = (bytes: Buffer, build = 200) => ({ edition: 'client' as const, version: '0.5.4', build, commit: 'abc1234', size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') })
 const signedWith = (prefix: string, fields: ReturnType<typeof fieldsOf>) => ({ ...fields, signature: sign(null, Buffer.from(canonicalUpdatePayload(fields, prefix), 'utf8'), keys.privateKey).toString('base64') })
 const info = { format: 1, build: 200, version: '0.5.4', commit: 'abc1234', electron: '44.4.5', asar: { size: 10, dataStart: 16, sha256: 'a'.repeat(64), headerSha256: 'b'.repeat(64) }, resources: {} }
+/** Parts cannot bring the release at all (another Electron): fetchDeltaInfo says so before it gives null. */
+const partsImpossible = async (_base: string, _release: unknown, options: { onWholeExe?: (reason: string) => void }) => { options.onWholeExe?.('Electron 44.4.4 → 44.4.5'); return null }
 
 /** What the site serves: setup.json is null until the publisher publishes the installer. */
 const site = { setup: null as unknown, setupBytes }
@@ -70,6 +72,7 @@ beforeEach(() => {
   delta.fetchDeltaInfo.mockReset()
   delta.stageDeltaUpdate.mockReset().mockResolvedValue({ downloaded: 10, total: 100 })
   rmSync(setupFile(), { force: true })
+  rmSync(join(dir, 'installer-runs.json'), { force: true })
   env.owner = false
   env.packaged = false
   site.setup = signedWith(SETUP_PAYLOAD_PREFIX, fieldsOf(setupBytes))
@@ -94,9 +97,9 @@ describe('a copy installed by RaidOSSetup.exe', () => {
     expect(fetched('/download/windows')).toBe(0)
   })
 
-  it('a release parts cannot bring comes as the installer of that release, put in silently once the app has quit', async () => {
+  it('a release parts cannot bring at all (another Electron) comes as the installer of that release, put in silently once the app has quit', async () => {
     const { checkForUpdateNow, installUpdate, updateStatus } = await updater()
-    delta.fetchDeltaInfo.mockResolvedValue(null)
+    delta.fetchDeltaInfo.mockImplementation(partsImpossible)
     expect((await checkForUpdateNow()).outcome).toBe('available')
     await installUpdate({ manual: true })
     // Never the portable exe: an installed copy is never replaced by it.
@@ -108,8 +111,58 @@ describe('a copy installed by RaidOSSetup.exe', () => {
     expect(env.quit).toHaveBeenCalledOnce()
   })
 
-  it('no installer of that very release (not published, another build, or the exe manifest in its place): nothing to install', async () => {
+  it('runs the installer of a release once: still older after it, the copy tells the site and waits — no installer again (owner, 25.11.2026)', async () => {
+    delta.fetchDeltaInfo.mockImplementation(partsImpossible)
+    const first = await updater()
+    expect((await first.checkForUpdateNow()).outcome).toBe('available')
+    await first.installUpdate({ manual: true })
+    expect(install.runSetupWhenClosed).toHaveBeenCalledOnce()
+    // The next start: the installer did not bring it (it failed, or the folder still differs).
+    const again = await updater()
+    expect((await again.checkForUpdateNow()).outcome).toBe('latest')
+    await again.installUpdate({ manual: true })
+    expect(fetched('/downloads/RaidOSSetup.exe')).toBe(1)
+    expect(install.runSetupWhenClosed).toHaveBeenCalledOnce()
+    expect(delta.tellUpdateProblem).toHaveBeenCalledWith('https://raidos.app', 200, 'stuck', expect.any(String))
+  })
+
+  it('parts not published yet, refused or failed: it waits for them — never the installer, never the portable exe (owner, 25.11.2026)', async () => {
+    // Not there yet, signed with another key, or another release's: nothing to install, nothing downloaded.
     delta.fetchDeltaInfo.mockResolvedValue(null)
+    const waiting = await updater()
+    expect((await waiting.checkForUpdateNow()).outcome).toBe('latest')
+    await waiting.installUpdate({ manual: true })
+    expect(fetched('/downloads/setup.json')).toBe(0)
+    // Parts that fail on the way: an error to try again, the site is told the kind of failure, nothing whole comes.
+    delta.fetchDeltaInfo.mockResolvedValue(info)
+    delta.stageDeltaUpdate.mockRejectedValue(new TypeError('fetch failed'))
+    const failing = await updater()
+    expect((await failing.checkForUpdateNow()).outcome).toBe('available')
+    await failing.installUpdate({ manual: true })
+    expect(failing.updateStatus()).toMatchObject({ state: 'error', error: expect.stringContaining('частями') })
+    expect(delta.tellUpdateProblem).toHaveBeenCalledWith('https://raidos.app', 200, 'deltafail', 'network TypeError')
+    // The checks right after: the parts are not asked for again at once — and still no whole exe, no installer.
+    delta.fetchDeltaInfo.mockClear()
+    expect((await failing.checkForUpdateNow()).outcome).toBe('latest')
+    expect(delta.fetchDeltaInfo).not.toHaveBeenCalled()
+    // Half an hour later the parts again, and they come.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(Date.now() + 31 * 60_000)
+      delta.stageDeltaUpdate.mockResolvedValue({ downloaded: 10, total: 100 })
+      expect((await failing.checkForUpdateNow()).outcome).toBe('available')
+      await failing.installUpdate({ manual: true })
+      expect(delta.activateDeltaUpdate).toHaveBeenCalledWith(info)
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(fetched('/download/windows')).toBe(0)
+    expect(fetched('/downloads/RaidOSSetup.exe')).toBe(0)
+    expect(install.runSetupWhenClosed).not.toHaveBeenCalled()
+  })
+
+  it('no installer of that very release (not published, another build, or the exe manifest in its place): nothing to install', async () => {
+    delta.fetchDeltaInfo.mockImplementation(partsImpossible)
     for (const setup of [null, signedWith(SETUP_PAYLOAD_PREFIX, fieldsOf(setupBytes, 150)), signedWith(UPDATE_PAYLOAD_PREFIX, fieldsOf(setupBytes))]) {
       site.setup = setup
       const { checkForUpdateNow, installUpdate } = await updater()
@@ -125,7 +178,7 @@ describe('a copy installed by RaidOSSetup.exe', () => {
   it('an installer that does not match its signed SHA-256 is never run', async () => {
     site.setupBytes = Buffer.from('MZ RaidOSSetup 0.5.4 changed!')
     const { checkForUpdateNow, installUpdate, updateStatus } = await updater()
-    delta.fetchDeltaInfo.mockResolvedValue(null)
+    delta.fetchDeltaInfo.mockImplementation(partsImpossible)
     expect((await checkForUpdateNow()).outcome).toBe('available')
     await installUpdate({ manual: true })
     expect(updateStatus().state).toBe('error')

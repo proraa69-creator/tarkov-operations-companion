@@ -139,12 +139,21 @@ describe('partial update of the owner app (owner, 10.10.2026)', () => {
     await expect(stageDelta({ fs, info, source, localAsar: local, localBuildInfo: { ...OWNER_INFO, edition: 'other' }, outDir })).rejects.toThrow('неизвестная версия')
   })
 
-  it('needs the same Electron and the same files outside the archive', () => {
-    const info = { electron: '44.4.5', resources: { 'tessdata/rus.traineddata': 'a'.repeat(64) } }
+  it('needs the same Electron and the same native module outside the archive, nothing else (owner, 25.11.2026)', () => {
+    const KOFFI = 'koffi/win32_x64/koffi.node'
+    const info = { electron: '44.4.5', resources: { [KOFFI]: 'k'.repeat(64), 'tessdata/rus.traineddata': 'a'.repeat(64), 'tessdata/pol.traineddata': 'p'.repeat(64) } }
+    const own = { [KOFFI]: 'k'.repeat(64), 'tessdata/rus.traineddata': 'a'.repeat(64), 'tessdata/pol.traineddata': 'p'.repeat(64) }
+    expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.5', resources: own })).toBe('')
+    // Another Electron or another native module: only the whole exe brings them.
+    expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.4', resources: own })).toContain('Electron')
+    expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.5', resources: { ...own, [KOFFI]: 'x'.repeat(64) } })).toBe(`resources/${KOFFI}`)
+    // The OCR models: an older one, or none of the language the release added (the copy of before 24.11), never stop it.
+    expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.5', resources: { [KOFFI]: 'k'.repeat(64), 'tessdata/rus.traineddata': 'b'.repeat(64) } })).toBe('')
+    // A file an older version left, and a native module an antivirus took away: none of the release's business.
+    expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.5', resources: { ...own, 'extra.dll': 'c'.repeat(64) } })).toBe('')
     expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.5', resources: { 'tessdata/rus.traineddata': 'a'.repeat(64) } })).toBe('')
-    expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.4', resources: info.resources })).toContain('Electron')
-    expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.5', resources: { 'tessdata/rus.traineddata': 'b'.repeat(64) } })).toBe('resources/tessdata/rus.traineddata')
-    expect(deltaMismatch(info as DeltaInfo, { electron: '44.4.5', resources: { ...info.resources, 'extra.dll': 'c'.repeat(64) } })).toBe('resources/extra.dll')
+    // A file of another kind the release brings and the copy lacks: the archive may need it.
+    expect(deltaMismatch({ ...info, resources: { ...info.resources, 'models/new.bin': 'n'.repeat(64) } } as DeltaInfo, { electron: '44.4.5', resources: own })).toBe('resources/models/new.bin')
   })
 
   it('reads only a well-formed manifest (the site answers unknown paths with its page)', () => {

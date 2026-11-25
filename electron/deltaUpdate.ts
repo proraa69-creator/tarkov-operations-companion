@@ -69,14 +69,50 @@ export async function fetchDeltaInfo(base: string, release: { build: number; ver
     const response = await fetch(`${base}/app-delta/info.json?ts=${Date.now()}`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' }, cache: 'no-store' })
     if (!response.ok) return null
     const info = parseDeltaInfo(await response.json())
+    // The site's release and its parts are published one after the other: a moment later they are the same release.
     if (!info || info.build !== release.build || info.version !== release.version || info.commit !== release.commit) return null
-    if (options.signed && !deltaSignatureValid(info, UPDATE_SIGNING_PUBLIC_KEY)) return null
+    if (options.signed && !deltaSignatureValid(info, UPDATE_SIGNING_PUBLIC_KEY)) { tellUpdateProblem(base, release.build, 'nodelta', 'signature'); return null }
     const mismatch = deltaMismatch(info, { electron: process.versions.electron, resources: localResources() })
-    if (mismatch) { console.warn(`Raid OS: partial update not possible (${mismatch}), the whole exe is needed`); options.onWholeExe?.(mismatch); return null }
+    if (mismatch) {
+      console.warn(`Raid OS: partial update not possible (${mismatch}), the whole exe is needed`)
+      tellUpdateProblem(base, release.build, 'nodelta', mismatch)
+      options.onWholeExe?.(mismatch)
+      return null
+    }
     return info
   } catch {
     return null // no partial update published (the site answers with its page) or offline
   }
+}
+
+/** The problems already told the site in this run: once per release and kind. */
+const told = new Set<string>()
+
+/**
+ * What a copy could not do with a release, told the site once per release and kind (owner, 25.11.2026: players took the
+ * whole installer at every release and nobody could see why): a request of /download/version.json with the reason in
+ * its query, which the site's access log keeps — no server code. Only the reason's own words, never a path or a name:
+ * `nodelta` — why parts cannot bring the release (another Electron, a native module, «signature»); `deltafail` — the
+ * kind of failure of a partial download (network, check, disk); `stuck` — an installed copy that ran the installer of
+ * this release and is still older.
+ */
+export function tellUpdateProblem(base: string, build: number, kind: 'nodelta' | 'deltafail' | 'stuck', reason: string) {
+  const key = `${build}:${kind}`
+  if (told.has(key) || !base.startsWith('https://')) return
+  told.add(key)
+  const words = reason.replace(/[^A-Za-z0-9 ._/:→-]/g, '').slice(0, 100)
+  void fetch(`${base}/download/version.json?ts=${Date.now()}&build=${build}&${kind}=${encodeURIComponent(words)}`, { signal: AbortSignal.timeout(10_000), cache: 'no-store' }).catch(() => {})
+}
+
+/** The kind of a failed partial download, without its message (which may name the player's folders). */
+export function failureKind(error: unknown) {
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code ?? '') : ''
+  if (/^E[A-Z]+$/.test(code)) return `disk ${code}`
+  const name = error instanceof Error ? error.name : ''
+  if (name === 'AbortError' || name === 'TimeoutError' || name === 'TypeError') return `network ${name}`
+  const message = error instanceof Error ? error.message : String(error)
+  if (/SHA-256|не совпадает|изменил|неполный|контрольн/i.test(message)) return 'check'
+  return name ? `other ${name}` : 'other'
 }
 
 /** Downloads the changed files and builds the new archive next to the others (not started yet). */
