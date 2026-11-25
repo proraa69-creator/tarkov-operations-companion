@@ -113,7 +113,7 @@ import { StickerStore } from './services/stickerStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
 import { grantNoticeTexts, reportDoneNoticeTexts, reportTakenNoticeTexts } from './services/grantNotice.js'
-import { checkPromoCodes, PROMO_CHECK_MS, PromoCodeStore } from './services/promoCodes.js'
+import { checkPromoChannels, checkPromoCodes, PROMO_CHANNEL_CHECK_MS, PROMO_CHECK_MS, PROMO_WATCH_MS, PromoCodeStore, PromoListWatch } from './services/promoCodes.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
 import type { ReleaseReportsWiring } from './services/releaseReports.js'
@@ -527,12 +527,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const promoCodes = new PromoCodeStore(accounts.database, accounts.clock)
   app.get('/v1/promo-codes', (_req, res) => { res.set('Cache-Control', 'no-store').json({ codes: promoCodes.list() }) })
   if (options.promoChecks) {
-    const checkPromos = () => void checkPromoCodes(promoCodes, {
-      onNew: (codes) => { console.log(`promo codes: ${codes.length} new`); socialSignals.changedAll() },
-      log: (line) => console.log(line),
-    }).catch((error: unknown) => console.log(`promo codes: ${String(error).slice(0, 120)}`))
+    // Every open app hears the moment the list moves: a check found a code, or one was added by hand (owner, 26.11.2026).
+    const watch = new PromoListWatch(promoCodes, () => socialSignals.changedAll())
+    const found = (codes: string[]) => { console.log(`promo codes: ${codes.length} new`); watch.check() }
+    const failed = (error: unknown) => console.log(`promo codes: ${String(error).slice(0, 120)}`)
+    const log = (line: string) => console.log(line)
+    const checkPromos = () => void checkPromoCodes(promoCodes, { onNew: found, log }).catch(failed)
+    const checkChannels = () => void checkPromoChannels(promoCodes, { onNew: found, log }).catch(failed)
     setTimeout(checkPromos, 60_000).unref()
     setInterval(checkPromos, PROMO_CHECK_MS).unref()
+    setInterval(checkChannels, PROMO_CHANNEL_CHECK_MS).unref()
+    setInterval(() => { if (watch.check()) console.log('promo codes: the list changed') }, PROMO_WATCH_MS).unref()
   }
   // «Поиск квестов по экрану» for one player for a while («Админ панель» → «Функции»): the player's apps hear it at once.
   const trials = new TrialFeatureStore(accounts.database, accounts.clock)
