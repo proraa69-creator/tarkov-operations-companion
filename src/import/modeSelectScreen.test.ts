@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseNameLevel, parseTraderLevel, parseTraderNickname, screenNickname, traderLevelWord, traderScreenParts } from './modeSelectScreen'
+import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, looseNickname, modeSelectHeaders, nameLineBox, ocrLines, parseNameLevel, parseTraderLevel, parseTraderNickname, screenNickname, traderLevelWord, traderScreenParts } from './modeSelectScreen'
 import { readLevelShapes } from './levelDigits'
 import { closeUp, wholeBox } from './__fixtures__/levelDigitLines'
 import type { OcrWordBox } from './storyPaneLayout'
@@ -55,13 +55,13 @@ describe('parseNameLevel', () => {
     expect(findNameLevel('~~ ~\nW Raid_OS | 41\n• Ваш основной персонаж в Таркове')).toEqual({ nickname: 'Raid_OS', level: 41 })
   })
 
-  it('reads the owner\'s «J0hn_Ram60» — a capital, a zero in it and digits at its end (25.11.2026)', () => {
-    expect(parseNameLevel('J0hn_Ram60 | 25')).toEqual({ nickname: 'J0hn_Ram60', level: 25 })
+  it('reads a nickname like the owner\'s example «J0ss_Kat60» — a capital, a zero in it and digits at its end (25.11.2026)', () => {
+    expect(parseNameLevel('J0ss_Kat60 | 25')).toEqual({ nickname: 'J0ss_Kat60', level: 25 })
     // The person icon before the name reads as a stray word and is dropped.
-    expect(parseNameLevel('W J0hn_Ram60 | 25')).toEqual({ nickname: 'J0hn_Ram60', level: 25 })
-    expect(findNameLevel('✴\nJ0hn_Ram60 | 25\n• Ваш основной персонаж в Таркове')).toEqual({ nickname: 'J0hn_Ram60', level: 25 })
+    expect(parseNameLevel('W J0ss_Kat60 | 25')).toEqual({ nickname: 'J0ss_Kat60', level: 25 })
+    expect(findNameLevel('✴\nJ0ss_Kat60 | 25\n• Ваш основной персонаж в Таркове')).toEqual({ nickname: 'J0ss_Kat60', level: 25 })
     // The bar as «l», joined to the level.
-    expect(parseNameLevel('J0hn_Ram60 l25')).toEqual({ nickname: 'J0hn_Ram60', level: 25 })
+    expect(parseNameLevel('J0ss_Kat60 l25')).toEqual({ nickname: 'J0ss_Kat60', level: 25 })
   })
 })
 
@@ -93,17 +93,17 @@ describe('the mode selection screen', () => {
   })
 
   it('widens a card\'s close-up to its band when the whole pass clipped the name\'s start (owner, 25.11.2026)', () => {
-    // «J0hn_Ram60»: the whole pass dropped «J0» over the character art and read «hn_Ram62», starting further right (x 600).
-    // The close-up box must still reach the band's title-anchored left edge, left of where «J0hn…» begins (x ≈ 569), so the
+    // «J0ss_Kat60»: the whole pass dropped «J0» over the character art and read «ss_Kat62», starting further right (x 600).
+    // The close-up box must still reach the band's title-anchored left edge, left of where «J0ss…» begins (x ≈ 569), so the
     // 3× pass sees «J0» again — and stay inside the card.
     const clipped: OcrWordBox[] = [
       word('PvE', 596, 120, 652, 145), word('Zone', 660, 120, 715, 145),
       word('PvP', 916, 120, 972, 145), word('Zone', 980, 120, 1036, 145),
       word('PvP', 1236, 120, 1292, 145), word('Season', 1300, 120, 1385, 145),
-      word('hn_Ram62', 600, 531, 668, 549), word('|', 674, 531, 677, 549), word('25', 683, 531, 703, 549),
+      word('ss_Kat62', 600, 531, 668, 549), word('|', 674, 531, 677, 549), word('25', 683, 531, 703, 549),
     ]
     const pve = modeSelectHeaders(clipped, SIZE).find((header) => header.mode === 'pve')!
-    expect(pve.full?.nickname).toBe('hn_Ram62')
+    expect(pve.full?.nickname).toBe('ss_Kat62')
     expect(pve.full!.box.x).toBe(pve.band.x)
     expect(pve.full!.box.x).toBeLessThan(569)
     expect(pve.full!.box.x + pve.full!.box.width).toBeLessThanOrEqual(pve.band.x + pve.band.width)
@@ -160,15 +160,15 @@ describe('confirmCards', () => {
     expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 3), line: card('Raid_OS', 35), digits: { 1: null, 2: 35 } }])).toEqual([{ mode: 'pvp', level: 35, nickname: 'Raid_OS' }])
   })
 
-  it('recovers a name whose start the whole pass clipped (owner, 25.11.2026: «J0hn_Ram60» → «hn_Ram62»)', () => {
-    // The whole pass dropped «J0» over the character art («hn_Ram62»); the widened 3× close-up reads the whole «J0hn_Ram62».
-    const reading = { mode: 'pve' as const, full: card('hn_Ram62', 25), line: card('J0hn_Ram62', 25), digits: { 2: 25 } }
+  it('recovers a name whose start the whole pass clipped (owner, 25.11.2026: «J0ss_Kat60» → «ss_Kat62»)', () => {
+    // The whole pass dropped «J0» over the character art («ss_Kat62»); the widened 3× close-up reads the whole «J0ss_Kat62».
+    const reading = { mode: 'pve' as const, full: card('ss_Kat62', 25), line: card('J0ss_Kat62', 25), digits: { 2: 25 } }
     // One frame alone does not take the longer name — only the level counts.
     expect(confirmCards([reading])).toEqual([{ mode: 'pve', level: 25 }])
-    // The next frame's close-up read «J0hn_Ram62» too: the whole name is taken, «J0» no longer lost.
-    expect(confirmCards([reading], { pve: 'J0hn_Ram62' })).toEqual([{ mode: 'pve', level: 25, nickname: 'J0hn_Ram62' }])
+    // The next frame's close-up read «J0ss_Kat62» too: the whole name is taken, «J0» no longer lost.
+    expect(confirmCards([reading], { pve: 'J0ss_Kat62' })).toEqual([{ mode: 'pve', level: 25, nickname: 'J0ss_Kat62' }])
     // A whole pass that read a different name (not a clip of the close-up) stays a disagreement: only the level.
-    expect(confirmCards([{ mode: 'pve', full: card('Zampolit', 25), line: card('J0hn_Ram62', 25), digits: { 2: 25 } }], { pve: 'J0hn_Ram62' }))
+    expect(confirmCards([{ mode: 'pve', full: card('Zampolit', 25), line: card('J0ss_Kat62', 25), digits: { 2: 25 } }], { pve: 'J0ss_Kat62' }))
       .toEqual([{ mode: 'pve', level: 25 }])
   })
 })
@@ -259,5 +259,84 @@ describe('the traders\' screen', () => {
     expect(parseTraderNickname('Raid_OS (вы)')).toBe('Raid_OS')
     expect(parseTraderNickname('Rаid_ОS')).toBe('Raid_OS')
     expect(parseTraderNickname('(вы)')).toBeNull()
+  })
+})
+
+/**
+ * Owner, 25.11.2026: «цифры не читает корректно … научись правильно читать, разделять, где цифра, а где буква». A nickname
+ * like «J0ss_Kat60» (the game's slashed «0» after the first letter and at the end) came «JOss_Kat62», «JGss_Kat6a» from the
+ * close-up and «3Qss_Kat6a», «ss_Kat62», «JOss_Kat6d» from the whole pass; the close-up's glyphs are now checked by their
+ * shapes (src/import/nameGlyphs.ts), and its line is cut tight by its pixels.
+ */
+describe('the nickname with the game\'s slashed zero', () => {
+  const card = (nickname: string, level: number) => ({ nickname, level })
+  /** A dark band with the character art (tan) above, the white «ник | уровень» line and a white bullet line under it. */
+  function band(): { width: number; height: number; gray: Uint8Array } {
+    const width = 400, height = 200, gray = new Uint8Array(width * height).fill(35)
+    const fill = (x0: number, y0: number, x1: number, y1: number, value: number) => {
+      for (let y = y0; y <= y1; y += 1) for (let x = x0; x <= x1; x += 1) gray[y * width + x] = value
+    }
+    // Trousers over the whole band's top, and a highlight on a boot far right on the line's rows.
+    fill(0, 0, 399, 60, 125)
+    fill(380, 95, 384, 108, 240)
+    // The line: the person icon, the name's letters (strokes with gaps between them), the bar and the level.
+    fill(40, 95, 52, 110, 235)
+    for (let x = 62; x < 250; x += 14) fill(x, 94, x + 8, 110, 235)
+    fill(260, 92, 262, 114, 235)
+    fill(272, 94, 300, 110, 235)
+    // A bullet line further down.
+    for (let x = 30; x < 330; x += 12) fill(x, 150, x + 7, 162, 225)
+    return { width, height, gray }
+  }
+
+  it('finds the card\'s line by its pixels: tight around it, the art above and the highlight beside it left out', () => {
+    const box = nameLineBox(band(), 1080)!
+    expect(box.y0).toBeGreaterThanOrEqual(80)
+    expect(box.y0).toBeLessThanOrEqual(92)
+    expect(box.y1).toBeGreaterThanOrEqual(114)
+    expect(box.y1).toBeLessThan(140)
+    expect(box.x0).toBeLessThanOrEqual(40)
+    expect(box.x0).toBeGreaterThan(20)
+    expect(box.x1).toBeGreaterThanOrEqual(300)
+    expect(box.x1).toBeLessThan(380)
+  })
+
+  it('no white letters in the band, no line', () => {
+    const dark = { width: 400, height: 200, gray: new Uint8Array(400 * 200).fill(90) }
+    expect(nameLineBox(dark, 1080)).toBeNull()
+  })
+
+  it('a checked close-up is the same name as the whole pass\'s look-alikes of the font, at once', () => {
+    const line = { nickname: 'J0ss_Kat60', level: 25, zeros: '.0.......0' }
+    for (const whole of ['3Qss_Kat6a', 'JOss_Kat6d', 'J0ss_Kat62', 'JGss_Kat6e']) {
+      expect(confirmCards([{ mode: 'pve', full: card(whole, 25), line, digits: { 2: 25 } }])).toEqual([{ mode: 'pve', level: 25, nickname: 'J0ss_Kat60', zeros: '.0.......0' }])
+    }
+    // The whole pass clipped the name's start: the next frame's close-up confirms it, as before.
+    const clipped = { mode: 'pve' as const, full: card('ss_Kat6a', 25), line, digits: { 2: 25 } }
+    expect(confirmCards([clipped])).toEqual([{ mode: 'pve', level: 25 }])
+    expect(confirmCards([clipped], { pve: 'J0ss_Kat60' })).toEqual([{ mode: 'pve', level: 25, nickname: 'J0ss_Kat60', zeros: '.0.......0' }])
+    // Another name in the whole pass is still another name.
+    expect(confirmCards([{ mode: 'pve', full: card('Zampolit', 25), line, digits: { 2: 25 } }], { pve: 'J0ss_Kat60' })).toEqual([{ mode: 'pve', level: 25 }])
+    // An unchecked close-up needs the whole pass to read it alike, as before.
+    expect(confirmCards([{ mode: 'pve', full: card('3Qss_Kat6a', 25), line: card('JOss_Kat62', 25), digits: { 2: 25 } }])).toEqual([{ mode: 'pve', level: 25 }])
+    expect(looseNickname('3Qss_Kat6a')).toBe(looseNickname('J0ss_Kat60'))
+    expect(looseNickname('Bear_Hunter')).not.toBe(looseNickname('Bear_Hunt3r_'))
+  })
+
+  it('the screen\'s proven zero wins over a known spelling with the letter O; the known spelling keeps the rest', () => {
+    const proven = { nickname: 'J0ss_Kat60', zeros: '.0.......0' }
+    expect(screenNickname([proven], 'JOss_Kat60')).toBe('J0ss_Kat60')
+    expect(screenNickname([proven], 'J0ss_Kat60')).toBe('J0ss_Kat60')
+    // A stale misreading the app kept is not the same name folded: the screen's spelling replaces it.
+    expect(screenNickname([proven], 'JOss_Kat62')).toBe('J0ss_Kat60')
+    expect(screenNickname([proven], 'ss_Kat62')).toBe('J0ss_Kat60')
+    // A round letter the screen proved where the known spelling has «0».
+    expect(screenNickname([{ nickname: 'Raid_OS', zeros: '.....o.' }], 'Raid_0S')).toBe('Raid_OS')
+    // Unchecked cards: the known spelling as before.
+    expect(screenNickname([{ nickname: 'JOss_Kat60' }], 'J0ss_Kat60')).toBe('J0ss_Kat60')
+    // Cards of one name: a checked card's spelling, the one with the most proven letters.
+    expect(screenNickname([{ nickname: 'JOss_Kat60' }, { nickname: 'J0ss_Kat62', zeros: '.0........' }, proven])).toBe('J0ss_Kat60')
+    // Two names on the cards: none.
+    expect(screenNickname([proven, { nickname: 'Wolf_Pack', zeros: '.........' }])).toBeNull()
   })
 })

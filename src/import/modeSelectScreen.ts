@@ -16,6 +16,7 @@ import type { OcrWordBox, PaneRect } from './storyPaneLayout.js'
 import { joinCjkWords } from '../shared/cjk.js'
 import type { GameLanguage } from './gameLanguage.js'
 import { languageWords } from './gameWordPatterns.js'
+import type { GrayPicture, PixelBox } from './levelDigits.js'
 
 /** The highest character level in the game (src/profile/playerLevels.ts). */
 export const MAX_PLAYER_LEVEL = 79
@@ -25,7 +26,7 @@ const NICKNAME = /^[A-Za-z0-9_-]{3,15}$/
  * The characters a card's «ник | уровень» close-up may read: Escape from Tarkov nicknames are Latin letters, digits, «_»
  * and «-» (NICKNAME above), and the bar before the level comes out as «|», «!», «/», «\», «l» or «I». A whitelist keeps
  * the engine from turning the name's letters into Cyrillic look-alikes or box shapes and dropping them (owner, 25.11.2026:
- * «J0hn_Ram60» read «hn_Ram62»). It never rewrites a digit as a letter or the other way: the level is still confirmed by
+ * a nickname like «X0rk_Bat60» read «rk_Bat62»). It never rewrites a digit as a letter or the other way here: the level is confirmed by
  * its shapes (levelDigits.ts), and a digit inside the name is left honestly as read (a slashed «0» may still come «2»).
  */
 export const NAME_LEVEL_OCR_WHITELIST =
@@ -33,7 +34,13 @@ export const NAME_LEVEL_OCR_WHITELIST =
 
 export interface NameLevel { nickname: string; level: number }
 /** A card's confirmed level and its confirmed nickname, each when two readings agreed on it; at least one of them. */
-export interface ModeSelectCard { mode: RaidMode; level?: number; nickname?: string }
+export interface ModeSelectCard {
+  mode: RaidMode
+  level?: number
+  nickname?: string
+  /** What the nickname's glyph shapes proved, letter by letter (src/import/nameGlyphs.ts): «0», «o» or «.». */
+  zeros?: string
+}
 
 /** A card found on the screen: its mode, where its «ник | уровень» line is looked for and what the whole pass read. */
 export interface ModeSelectHeader {
@@ -68,6 +75,15 @@ export function interfaceUnit(size: { width: number; height: number }) {
 /** «Raid_OS» and «Raid_0S», «RaidOS», «raid-os» are the same nickname to the eye of the OCR (I/l/1, O/0, S/5, _ and -). */
 export function foldNickname(value: string) {
   return value.toLowerCase().replace(/[_\-\s]/g, '').replace(/0/g, 'o').replace(/[1l|]/g, 'i').replace(/5/g, 's')
+}
+
+/**
+ * A nickname as the OCR's misreadings of the game's font leave it, to tell whether two readings are of one name: the
+ * slashed zero read «O», «o», «Q», «D», «d», «G», «g», «2», «8», «a» or «e», a «J» read «3», «I»/«l»/«1»/«|»/«!», «S»/«5»; «_»,
+ * «-» and spaces dropped. Never a spelling: only for a close-up whose glyphs were checked (src/import/nameGlyphs.ts).
+ */
+export function looseNickname(value: string) {
+  return value.toLowerCase().replace(/[_\-\s]/g, '').replace(/[0oqdg28ae]/g, 'o').replace(/3/g, 'j').replace(/[1l|!i]/g, 'i').replace(/5/g, 's')
 }
 
 /**
@@ -189,7 +205,7 @@ function padBox(box: OcrWordBox['bbox'], unit: number): PaneRect {
 
 /**
  * A close-up box pulled out to the band's own left and right edges. The band is anchored to the card's title, not to the
- * name the whole pass found, so a leading (or trailing) glyph the whole pass clipped — the owner's «J0hn_Ram60» whose «J0»
+ * name the whole pass found, so a leading (or trailing) glyph the whole pass clipped — a nickname like «X0rk_Bat60» whose «X0»
  * the whole pass dropped over the character art (25.11.2026) — is still inside the close-up and read on the 3× pass. The
  * band stays within the card (its width is about a third of a unit), so this never reaches a neighbouring card.
  */
@@ -197,6 +213,68 @@ function widenToBand(box: PaneRect, band: PaneRect): PaneRect {
   const x = Math.min(box.x, band.x)
   const right = Math.max(box.x + box.width, band.x + band.width)
   return { x, y: box.y, width: right - x, height: box.height }
+}
+
+/**
+ * The card's «ник | уровень» line in `picture` — the rows around the line the whole pass found, or the card's band, cut
+ * from the screen at its own resolution — found by its pixels (owner, 25.11.2026): the topmost run of rows with the
+ * game's white letters, a text line high, from its first light column to its last, with room around it. The whole pass's
+ * word box drops a first letter that stands over the character art, and a box pulled out to the card's edges takes the
+ * art in: the close-up of that read «0_ | 25». The game's letters are near white; the art behind them (trousers, boots,
+ * the card's dark panel) stays well below that. `unit`: the interface unit at the picture's resolution. Null when no
+ * such run is there.
+ */
+export function nameLineBox(picture: GrayPicture, unit: number): PixelBox | null {
+  const { width, height, gray } = picture
+  if (width < 8 || height < 8) return null
+  const histogram = new Array<number>(256).fill(0)
+  for (let index = 0; index < width * height; index += 1) histogram[gray[index]!]! += 1
+  // The brightest one percent of the pixels: the letters' white.
+  let brightest = 255
+  for (let seen = histogram[255]!; brightest > 0 && seen < width * height * 0.01; seen += histogram[brightest - 1]!) brightest -= 1
+  if (brightest < 170) return null
+  const threshold = Math.round(brightest * 0.78)
+  const light = (x: number, y: number) => gray[y * width + x]! >= threshold
+  const rowInk = Array.from({ length: height }, (_, y) => {
+    let ink = 0
+    for (let x = 0; x < width; x += 1) if (light(x, y)) ink += 1
+    return ink
+  })
+  const minimum = Math.max(2, Math.round(width * 0.004))
+  const lowest = unit * 0.008, highest = unit * 0.04
+  for (let top = 0; top < height;) {
+    if (rowInk[top]! < minimum) { top += 1; continue }
+    // The run of the line's rows; one row without ink inside it («_» stands apart from the letters above it).
+    let bottom = top
+    while (bottom + 1 < height && (rowInk[bottom + 1]! >= minimum || (bottom + 2 < height && rowInk[bottom + 2]! >= minimum))) bottom += 1
+    const lineHeight = bottom - top + 1
+    if (lineHeight >= lowest && lineHeight <= highest) {
+      // Its columns with ink, in groups a word space or two apart; the group with the most ink is the line (a highlight of
+      // the art beside it stands further off).
+      const columnInk = Array.from({ length: width }, (_, x) => {
+        let ink = 0
+        for (let y = top; y <= bottom; y += 1) if (light(x, y)) ink += 1
+        return ink
+      })
+      let best: { first: number; last: number; ink: number } | null = null
+      let group: { first: number; last: number; ink: number } | null = null
+      for (let x = 0; x <= width; x += 1) {
+        const ink = x < width ? columnInk[x]! : 0
+        if (ink && group && x - group.last - 1 <= lineHeight * 1.5) { group.last = x; group.ink += ink; continue }
+        if (ink) {
+          if (group && (!best || group.ink > best.ink)) best = group
+          group = { first: x, last: x, ink }
+        }
+        if (x === width && group && (!best || group.ink > best.ink)) best = group
+      }
+      if (best && best.last - best.first + 1 >= lineHeight * 3) {
+        const pad = Math.round(lineHeight * 0.45)
+        return { x0: Math.max(0, best.first - pad), y0: Math.max(0, top - pad), x1: Math.min(width - 1, best.last + pad), y1: Math.min(height - 1, bottom + pad) }
+      }
+    }
+    top = bottom + 1
+  }
+  return null
 }
 
 /** The nickname's letters are this high (the players' screenshots: 13–16 px at 1080p). */
@@ -243,7 +321,7 @@ function lineInBand(words: OcrWordBox[], band: PaneRect): { reading: NameLevel; 
  * level's glyphs in the close-up show by their shapes (src/import/levelDigits.ts), for each count of digits the OCR
  * readings have (null: the shapes could not be read).
  */
-export interface CardReadings { mode: RaidMode; full?: NameLevel; line?: NameLevel; digits?: Partial<Record<number, number | null>> }
+export interface CardReadings { mode: RaidMode; full?: NameLevel; line?: NameLevel & { zeros?: string }; digits?: Partial<Record<number, number | null>> }
 
 /** An OCR reading of a level that the digits' shapes confirm. */
 function shapedLevel(level: number | null | undefined, digits: CardReadings['digits']) {
@@ -253,12 +331,13 @@ function shapedLevel(level: number | null | undefined, digits: CardReadings['dig
 /**
  * The close-up is the fuller (or equal) reading and the whole pass is that same name with an end glyph clipped: fold(full)
  * is a prefix or suffix of fold(line) and no longer than it. The whole pass drops the name's first letter where it sits
- * over the character art (owner, 25.11.2026: «J0hn_Ram60» → «hn_Ram62»); the magnified close-up keeps it, because
+ * over the character art (owner, 25.11.2026: a nickname like «X0rk_Bat60» read «rk_Bat62»); the magnified close-up keeps it, because
  * modeSelectHeaders widens the close-up to the card's title-anchored band. A whole pass that read a different name (not an
  * affix) is a real disagreement, never a clip.
  */
-function closeUpHoldsWholePass(full: string, line: string) {
-  const f = foldNickname(full), l = foldNickname(line)
+function closeUpHoldsWholePass(full: string, line: string, checked: boolean) {
+  const fold = checked ? looseNickname : foldNickname
+  const f = fold(full), l = fold(line)
   return f.length >= 2 && f.length <= l.length && (l.startsWith(f) || l.endsWith(f))
 }
 
@@ -270,10 +349,14 @@ function closeUpHoldsWholePass(full: string, line: string) {
  * guards against a transient misread. A digit inside the name is not confirmed by shapes — it stands as the close-up read
  * it (honest residual: a slashed «0» may read «2»).
  */
-function confirmedNickname(full: NameLevel | undefined, line: NameLevel | undefined, before: string | undefined) {
+function confirmedNickname(full: NameLevel | undefined, line: CardReadings['line'], before: string | undefined) {
   if (!line) return undefined
-  if (full && foldNickname(full.nickname) === foldNickname(line.nickname)) return line.nickname
-  if (before && foldNickname(before) === foldNickname(line.nickname) && (!full || closeUpHoldsWholePass(full.nickname, line.nickname))) return line.nickname
+  // A close-up whose glyphs were checked (its zeros proved by their shapes) is the same name as a whole pass that read
+  // those glyphs as the font's look-alikes («XOrk_Bat6d», «3Grk_Bat6a» for «X0rk_Bat60»); an unchecked one only as before.
+  const checked = Boolean(line.zeros)
+  const fold = checked ? looseNickname : foldNickname
+  if (full && fold(full.nickname) === fold(line.nickname)) return line
+  if (before && foldNickname(before) === foldNickname(line.nickname) && (!full || closeUpHoldsWholePass(full.nickname, line.nickname, checked))) return line
   return undefined
 }
 
@@ -289,27 +372,54 @@ export function confirmCards(readings: CardReadings[], earlier: Partial<Record<R
   const confirmed: ModeSelectCard[] = []
   for (const { mode, full, line, digits } of readings) {
     const level = shapedLevel(line?.level, digits) ?? shapedLevel(full?.level, digits)
-    const nickname = confirmedNickname(full, line, earlier[mode])
-    if (level === undefined && !nickname) continue
-    confirmed.push({ mode, ...(level !== undefined ? { level } : {}), ...(nickname ? { nickname } : {}) })
+    const name = confirmedNickname(full, line, earlier[mode])
+    if (level === undefined && !name) continue
+    confirmed.push({ mode, ...(level !== undefined ? { level } : {}), ...(name ? { nickname: name.nickname } : {}), ...(name?.zeros ? { zeros: name.zeros } : {}) })
   }
   return confirmed
 }
 
 /**
  * The nickname the cards show: one name on every card that has one (the same character name in every mode). The
- * spelling the app already knows wins when the screen shows the same name (OCR may read «Raid_0S»); cards that disagree
- * give null.
+ * spelling the app already knows wins when the screen shows the same name (OCR may read «Raid_0S»), but for the letters
+ * whose shapes the screen proved (`zeros`: a slashed zero is the digit, owner 25.11.2026: «это не O, это цифра 0»);
+ * cards that disagree give null. Cards whose glyphs were checked agree when they are alike as the OCR's misreadings leave
+ * them (looseNickname); the spelling is then the card with the most proven letters.
  */
-export function screenNickname(cards: Array<Pick<ModeSelectCard, 'nickname'>>, known?: string | null) {
-  const names = cards.map((card) => card.nickname).filter((name): name is string => Boolean(name))
-  if (!names.length) return null
-  const folded = foldNickname(names[0]!)
-  if (names.some((name) => foldNickname(name) !== folded)) return null
-  if (known && foldNickname(known) === folded) return known
-  const counts = new Map<string, number>()
-  for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1)
-  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0]
+export function screenNickname(cards: Array<Pick<ModeSelectCard, 'nickname' | 'zeros'>>, known?: string | null) {
+  const named = cards.filter((card): card is { nickname: string; zeros?: string } => Boolean(card.nickname))
+  if (!named.length) return null
+  const checked = named.filter((card) => card.zeros)
+  const fold = checked.length ? looseNickname : foldNickname
+  const key = fold(named[0]!.nickname)
+  if (named.some((card) => fold(card.nickname) !== key)) return null
+  const proven = (zeros: string | undefined) => (zeros ?? '').replace(/\./g, '').length
+  let chosen: { nickname: string; zeros?: string }
+  if (checked.length) chosen = [...checked].sort((a, b) => proven(b.zeros) - proven(a.zeros))[0]!
+  else {
+    const counts = new Map<string, number>()
+    for (const card of named) counts.set(card.nickname, (counts.get(card.nickname) ?? 0) + 1)
+    chosen = { nickname: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0] }
+  }
+  if (known && foldNickname(known) === foldNickname(chosen.nickname)) return chosen.zeros ? withProvenLetters(known, chosen.nickname, chosen.zeros) : known
+  return chosen.nickname
+}
+
+/**
+ * `known` with the letters the screen's shapes proved: a slashed zero is «0», a round letter read where `known` has «0»
+ * is that letter. The two names fold alike (foldNickname), so they have as many letters but for «_», «-» and spaces.
+ */
+function withProvenLetters(known: string, screen: string, zeros: string) {
+  const separator = /[_\-\s]/
+  const seen = [...screen].map((char, index) => ({ char, proof: zeros[index] ?? '.' })).filter(({ char }) => !separator.test(char))
+  let letter = 0
+  return [...known].map((char) => {
+    if (separator.test(char)) return char
+    const { char: screenChar, proof } = seen[letter++] ?? { char, proof: '.' }
+    if (proof === '0') return '0'
+    if (proof === 'o' && char === '0') return screenChar === '0' ? 'O' : screenChar
+    return char
+  }).join('')
 }
 
 /** The words of each line of a Tesseract result (its `blocks` output), Japanese and Chinese runs one word each. */
@@ -490,4 +600,10 @@ export function parseTraderNickname(text: string, language?: GameLanguage | null
  * What the traders' screen gives once the whole pass and the close-ups agree; `loyalty`: each trader's loyalty level
  * from the badges two frames agree on (src/import/traderLoyalty.ts), by trader key.
  */
-export interface TraderScreenReading { nickname?: string; level?: number; loyalty?: Record<string, number> }
+export interface TraderScreenReading {
+  nickname?: string
+  /** What the nickname's glyph shapes proved, letter by letter (src/import/nameGlyphs.ts). */
+  zeros?: string
+  level?: number
+  loyalty?: Record<string, number>
+}

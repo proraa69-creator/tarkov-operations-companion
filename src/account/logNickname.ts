@@ -279,7 +279,7 @@ export function applyTraderScreen(reading: TraderScreenReading, mode: RaidMode |
   lastTrader = { at: observedAt, key }
   const at = new Date(observedAt).toISOString()
   if (reading.level && mode) state().applyScreenLevel(mode, reading.level, at, true)
-  const nickname = reading.nickname ? screenNickname([{ nickname: reading.nickname }], knownNickname(state().activeProfile)) : null
+  const nickname = reading.nickname ? screenNickname([{ nickname: reading.nickname, ...(reading.zeros ? { zeros: reading.zeros } : {}) }], knownNickname(state().activeProfile)) : null
   if (nickname) {
     if (!best || at > best.updatedAt) best = { nickname, updatedAt: at }
     spreadNickname(state, best.nickname)

@@ -64,10 +64,10 @@ function side(left: number, right: number): Side | null {
 }
 
 /** An enclosed background area: its centre as fractions of the glyph's width and height. */
-interface Hole { x: number; y: number }
+export interface Hole { x: number; y: number }
 
 /** Enclosed background areas of the glyph (the inside of «0», «4», «6», «8», «9»), small specks left out. */
-function holes(mask: GlyphMask): Hole[] {
+export function holes(mask: GlyphMask): Hole[] {
   const { width, height } = mask
   // One pixel of background around the glyph, so that the outside is one area.
   const w = width + 2, h = height + 2
@@ -104,7 +104,7 @@ function holes(mask: GlyphMask): Hole[] {
 }
 
 /** Share of ink pixels in a part of the glyph (fractions of its width and height). */
-function coverage(mask: GlyphMask, fromRow: number, toRow: number, fromColumn: number, toColumn: number) {
+export function coverage(mask: GlyphMask, fromRow: number, toRow: number, fromColumn: number, toColumn: number) {
   let ink = 0, all = 0
   for (let y = Math.floor(fromRow * mask.height); y < Math.ceil(toRow * mask.height); y += 1) {
     for (let x = Math.floor(fromColumn * mask.width); x < Math.ceil(toColumn * mask.width); x += 1) {
@@ -172,13 +172,17 @@ export function classifyDigit(mask: GlyphMask): number | null {
   }
 }
 
+/** One connected part of the ink of a box: its own label in `InkParts.label`, its bounds, its pixel count. */
+export interface InkGlyph { id: number; x0: number; x1: number; y0: number; y1: number; pixels: number }
+/** The ink of a box (with a little room around it): each pixel's part (0 none, -1 background) and the parts. */
+export interface InkParts { x0: number; y0: number; width: number; height: number; label: Int32Array; glyphs: InkGlyph[] }
+
 /**
- * The number the glyphs at the end of `box` show (the level after «|» or after «LVL»), read from their shapes, when it
- * has `count` digits; null when it cannot be read: too little contrast, another count of digits, glyphs touching or of
- * different heights, a shape that is no clear digit.
+ * The ink of `box` (a little room around it: Tesseract's box hugs the ink) split into its connected parts — light text
+ * on the game's dark panels or the other way, told by the side of the threshold the border is on. Null with too little
+ * contrast or too small a box.
  */
-export function readDigitShapes(picture: GrayPicture, box: PixelBox, count: number): number | null {
-  if (count < 1) return null
+export function inkParts(picture: GrayPicture, box: PixelBox): InkParts | null {
   const boxHeight = box.y1 - box.y0 + 1
   // A little room around the word: Tesseract's box hugs the ink.
   const x0 = Math.max(0, Math.floor(box.x0 - 2 - boxHeight * 0.06)), x1 = Math.min(picture.width - 1, Math.ceil(box.x1 + 2 + boxHeight * 0.06))
@@ -204,7 +208,7 @@ export function readDigitShapes(picture: GrayPicture, box: PixelBox, count: numb
   for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) if ((at(x, y) > threshold) !== lightText) label[y * width + x] = -1
   // Glyphs: the connected parts of the ink (the game's digits are one stroke each and may stand closer than a column
   // apart, «47»); specks of a few pixels are not glyphs.
-  const glyphs: Array<{ id: number; x0: number; x1: number; y0: number; y1: number; pixels: number }> = []
+  const glyphs: InkGlyph[] = []
   for (let start = 0; start < label.length; start += 1) {
     if (label[start] !== 0) continue
     const id = glyphs.length + 1
@@ -227,6 +231,24 @@ export function readDigitShapes(picture: GrayPicture, box: PixelBox, count: numb
     }
     glyphs.push(glyph)
   }
+  return { x0, y0, width, height, label, glyphs }
+}
+
+/** The ink of one part, cut tight around it. */
+export function partMask(parts: InkParts, glyph: InkGlyph): GlyphMask {
+  return { width: glyph.x1 - glyph.x0 + 1, height: glyph.y1 - glyph.y0 + 1, ink: (x, y) => parts.label[(glyph.y0 + y) * parts.width + glyph.x0 + x] === glyph.id }
+}
+
+/**
+ * The number the glyphs at the end of `box` show (the level after «|» or after «LVL»), read from their shapes, when it
+ * has `count` digits; null when it cannot be read: too little contrast, another count of digits, glyphs touching or of
+ * different heights, a shape that is no clear digit.
+ */
+export function readDigitShapes(picture: GrayPicture, box: PixelBox, count: number): number | null {
+  if (count < 1) return null
+  const parts = inkParts(picture, box)
+  if (!parts) return null
+  const { height, glyphs } = parts
   const tall = glyphs.filter((glyph) => glyph.y1 - glyph.y0 + 1 >= height * 0.3 && glyph.pixels >= 6).sort((a, b) => (a.x0 + a.x1) - (b.x0 + b.x1))
   if (!tall.length) return null
   // The number: the last glyph and the ones right before it. The game's digits stand a tenth of their height apart, a
@@ -249,7 +271,7 @@ export function readDigitShapes(picture: GrayPicture, box: PixelBox, count: numb
     const glyphWidth = glyph.x1 - glyph.x0 + 1, glyphHeight = glyph.y1 - glyph.y0 + 1
     // Two digits run together are wider than tall.
     if (glyphWidth > glyphHeight) return null
-    const digit = classifyDigit({ width: glyphWidth, height: glyphHeight, ink: (x, y) => label[(glyph.y0 + y) * width + glyph.x0 + x] === glyph.id })
+    const digit = classifyDigit(partMask(parts, glyph))
     if (digit === null) return null
     value = value * 10 + digit
   }

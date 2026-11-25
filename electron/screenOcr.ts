@@ -14,7 +14,8 @@ import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING, unchangedFrame } from '../src/import/storyScanTiming.js'
 import { gameUiBox, isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
-import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, NAME_LEVEL_OCR_WHITELIST, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
+import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, interfaceUnit, isModeSelectText, looseNickname, isTraderScreenText, modeSelectHeaders, NAME_LEVEL_OCR_WHITELIST, nameLineBox, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
+import { checkNameGlyphs } from '../src/import/nameGlyphs.js'
 import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
 import { isTasksTableText } from '../src/import/tasksTableText.js'
 import { classifyLoyaltyBadge, confirmLoyalty, traderBadgeRects } from '../src/import/traderLoyalty.js'
@@ -80,6 +81,8 @@ interface GameFrame {
   height: number
   bgra: Uint8Array | null
   image(): NativeImage
+  /** The screen at its own resolution when this frame is it brought down (a 1440p screen read at 1080p). */
+  full?: { width: number; height: number; image(): NativeImage }
 }
 
 const bufferOf = (data: Uint8Array) => Buffer.from(data.buffer, data.byteOffset, data.byteLength)
@@ -92,8 +95,10 @@ const bufferOf = (data: Uint8Array) => Buffer.from(data.buffer, data.byteOffset,
 function shotFrame(shot: GameShot): GameFrame {
   const menus = gameUiBox(shot).width
   if (menus > 1920) {
-    const image = nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height }).resize({ width: Math.round(shot.width * 1920 / menus), quality: 'good' })
-    return imageFrame(image)
+    const original = nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height })
+    const image = original.resize({ width: Math.round(shot.width * 1920 / menus), quality: 'good' })
+    // Kept for the few close-ups that need the screen's own pixels (the nickname's slashed «0»: readModeSelect).
+    return { ...imageFrame(image), full: { width: shot.width, height: shot.height, image: () => original } }
   }
   let image: NativeImage | null = null
   return { width: shot.width, height: shot.height, bgra: shot.data, image: () => (image ??= nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height })) }
@@ -427,7 +432,7 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
   const full = await recognizeQuestWords(prepared, model)
   // «Выбор профиля и режима» at the game's start: the nickname and every mode's level (src/import/modeSelectScreen.ts).
   if (isModeSelectText(full.text, language)) {
-    const profiles = await readModeSelect(prepared.image(), full.words, model, language)
+    const profiles = await readModeSelect(prepared.image(), full.words, model, language, closeUpSource(frame, prepared, box, whole))
     return { text: full.text, sourceName, ...(profiles.length ? { profiles } : {}) }
   }
   // The traders' screen: the nickname and the level of the mode the game is in (the player is there often).
@@ -492,6 +497,39 @@ function closeUpPicture(image: NativeImage) {
   return bitmap.length >= width * height * 4 ? grayPicture(bitmap, width, height) : null
 }
 
+/**
+ * The screen at its own resolution for the mode cards' close-ups: a 1440p or 4K screen is read brought down to 1080p, and
+ * at that size the game's «0» loses its slash. `map` takes a box of the read picture to the screen, `scale` is the
+ * screen's pixels to one of the read picture's.
+ */
+interface CloseUpSource { image: () => NativeImage; map: (rect: PaneRect) => PaneRect; scale: number }
+
+/** The close-up source of a frame read as `prepared` (its menu area `box` when not `whole`); none when they are the same. */
+function closeUpSource(frame: GameFrame, prepared: GameFrame, box: PaneRect, whole: boolean): CloseUpSource | undefined {
+  const original = frame.full ?? { width: frame.width, height: frame.height, image: () => frame.image() }
+  const toOriginal = original.width / frame.width
+  const area = whole ? { x: 0, y: 0, width: frame.width, height: frame.height } : box
+  const toFrame = area.width / prepared.width
+  const scale = toFrame * toOriginal
+  if (Math.abs(scale - 1) < 0.01) return undefined
+  return {
+    image: () => original.image(),
+    scale,
+    map: (rect) => {
+      const x = Math.max(0, Math.round((area.x + rect.x * toFrame) * toOriginal)), y = Math.max(0, Math.round((area.y + rect.y * toFrame) * toOriginal))
+      return { x, y, width: Math.max(1, Math.min(original.width - x, Math.round(rect.width * scale))), height: Math.max(1, Math.min(original.height - y, Math.round(rect.height * scale))) }
+    },
+  }
+}
+
+/** The card's «ник | уровень» line in `region` of the screen, found by its pixels (src/import/modeSelectScreen.ts nameLineBox). */
+function nameLineRect(screenImage: NativeImage, region: PaneRect, unit: number): PaneRect | null {
+  if (region.width < 8 || region.height < 8) return null
+  const picture = closeUpPicture(screenImage.crop(region))
+  const box = picture ? nameLineBox(picture, unit) : null
+  return box ? { x: region.x + box.x0, y: region.y + box.y0, width: box.x1 - box.x0 + 1, height: box.y1 - box.y0 + 1 } : null
+}
+
 /** The nickname each card's close-up read in the last frame of the mode selection screen (confirmCards' `earlier`). */
 let lastCloseUps: { at: number; names: Partial<Record<ModeSelectCard['mode'], string>> } | null = null
 
@@ -500,9 +538,13 @@ let lastCloseUps: { at: number; names: Partial<Record<ModeSelectCard['mode'], st
  * and the level's digits read from their shapes in that close-up. Only the levels an OCR reading and the shapes agree on
  * are returned, and the nicknames two readings agree on (confirmCards). A few small reads, and only while this screen is open.
  */
-async function readModeSelect(image: NativeImage, words: OcrWordBox[], model: string, language: GameLanguage): Promise<ModeSelectCard[]> {
-  const headers = modeSelectHeaders(words, image.getSize(), language)
+async function readModeSelect(image: NativeImage, words: OcrWordBox[], model: string, language: GameLanguage, source?: CloseUpSource): Promise<ModeSelectCard[]> {
+  const size = image.getSize()
+  const headers = modeSelectHeaders(words, size, language)
   if (!headers.length) return []
+  const screenImage = source ? source.image() : image
+  const scale = source?.scale ?? 1
+  const unit = interfaceUnit(size) * scale
   const ocr = await questEngine.get(model)
   try {
     const readings = await questOcrJob(async () => {
@@ -512,21 +554,33 @@ async function readModeSelect(image: NativeImage, words: OcrWordBox[], model: st
       try {
         const result: CardReadings[] = []
         for (const header of headers) {
-          // The line the whole pass found, as one line; otherwise the band under the card's title, as a block.
-          const rect = header.full?.box ?? header.band
-          const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
-          if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '7' })
+          // Where the line is: the rows of the line the whole pass found (pulled out to the band's edges), else the band.
+          const around = header.full?.box ?? header.band
+          // The line found by its pixels and cut tight from the screen at its own resolution, 3× of a 1080p screen's
+          // letters (owner, 25.11.2026: a wide box took the character art in and read «0_ | 25»); else the box as before.
+          const tight = nameLineRect(screenImage, source ? source.map(around) : around, unit)
+          const scaled = tight
+            ? screenImage.crop(tight).resize({ width: Math.round(tight.width * 3 / scale), quality: 'best' })
+            : image.crop(around).resize({ width: around.width * 3, quality: 'best' })
+          const oneLine = Boolean(tight || header.full)
+          if (oneLine) await ocr.setParameters({ tessedit_pageseg_mode: '7' })
           let data: Awaited<ReturnType<OcrWorker['recognize']>>['data']
           try {
             data = (await ocr.recognize(ocrInput(scaled), {}, { text: true, blocks: true })).data
             data = { ...data, text: readingText(data, model) }
           } finally {
-            if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '6' })
+            if (oneLine) await ocr.setParameters({ tessedit_pageseg_mode: '6' })
           }
-          const line = findNameLevel(data.text ?? '')
+          const found = findNameLevel(data.text ?? '')
+          const lines = ocrLines(data.blocks)
+          const picture = closeUpPicture(scaled)
+          // The name's glyphs checked by their shapes: the game's slashed «0» is the digit whatever the OCR read
+          // (src/import/nameGlyphs.ts; owner, 25.11.2026: «разделять, где цифра, а где буква»).
+          const nameWord = found ? lines.flat().find((candidate) => candidate.text.includes(found.nickname)) : undefined
+          const checked = found && nameWord && picture ? checkNameGlyphs(picture, nameWord, found.nickname) : null
+          const line = found ? { ...found, ...(checked ? { nickname: checked.nickname, zeros: checked.zeros } : {}) } : undefined
           const full = header.full ? { nickname: header.full.nickname, level: header.full.level } : undefined
-          const word = cardLevelWord(ocrLines(data.blocks), Boolean(header.full))
-          const picture = word ? closeUpPicture(scaled) : null
+          const word = cardLevelWord(lines, oneLine)
           const digits = word && picture ? readLevelShapes(picture, word.bbox, [line?.level, full?.level]) : undefined
           result.push({ mode: header.mode, ...(full ? { full } : {}), ...(line ? { line } : {}), ...(digits ? { digits } : {}) })
         }
@@ -577,8 +631,18 @@ async function readTraderScreen(image: NativeImage, words: OcrWordBox[], model: 
         if (level) reading.level = level
       }
       if (parts.nickname) {
-        const close = parseTraderNickname((await read(parts.nickname.box)).text, language)
-        if (close && foldNickname(close) === foldNickname(parts.nickname.value)) reading.nickname = close
+        const close = await read(parts.nickname.box)
+        const name = parseTraderNickname(close.text, language)
+        // Its glyphs checked by their shapes, as on the mode cards: the game's slashed «0» is the digit (src/import/nameGlyphs.ts).
+        const nameWord = name ? close.lines.flat().find((candidate) => candidate.text.includes(name)) : undefined
+        const picture = nameWord ? closeUpPicture(close.scaled) : null
+        const checked = name && nameWord && picture ? checkNameGlyphs(picture, nameWord, name) : null
+        const spelled = checked?.nickname ?? name
+        const fold = checked ? looseNickname : foldNickname
+        if (spelled && fold(spelled) === fold(parts.nickname.value)) {
+          reading.nickname = spelled
+          if (checked) reading.zeros = checked.zeros
+        }
       }
       if (loyalty) reading.loyalty = loyalty
       return reading.level || reading.nickname || reading.loyalty ? reading : null
