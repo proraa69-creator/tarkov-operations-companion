@@ -82,7 +82,7 @@ function Card({ icon, title, chooser, children, className = '' }: { icon: ReactN
  * человек не в рейде, пиши прошлый рейд, таможня, сколько-то минут… Сделай все в одном стиле»): the two clocks large; under them
  * the resets of the traders picked in Settings («Уведомления о рестоке»); then the raid — what is left of it, or the raid before.
  */
-function TarkovTime({ chooser }: { chooser: ReactNode }) {
+function TarkovTime({ chooser, phone }: { chooser: ReactNode; phone: boolean }) {
   const now = useNow(1000)
   const clocks = tarkovClocks(now)
   const { raidMode } = useAppState()
@@ -90,7 +90,8 @@ function TarkovTime({ chooser }: { chooser: ReactNode }) {
   const { data } = useTarkovData()
   const navigate = useNavigate()
   const picked = useRestockSettings().traderIds
-  const resets = useTraderResets(raidMode, locale, picked.length > 0).data ?? []
+  const resetsQuery = useTraderResets(raidMode, locale, picked.length > 0)
+  const resets = resetsQuery.data ?? []
   const local = useRaidState()
   const last = useLastRaid()
   const lang = locale === 'en' ? 'en' : 'ru'
@@ -104,6 +105,10 @@ function TarkovTime({ chooser }: { chooser: ReactNode }) {
     .filter((entry): entry is { trader: typeof entry.trader; left: number } => entry.left !== undefined && entry.left > -60_000)
     .sort((a, b) => a.left - b.left)
     .slice(0, 3)
+  // The picked traders' resets come from the network after the first frame; on the phone a cold load keeps a row for each
+  // (defensive, phone «Обзор» jitter), so their arrival fills the reserved place instead of pushing the blocks below down.
+  // A cached answer has the rows at once (nothing reserved); an empty pick, or the desktop, reserve nothing.
+  const reservedResetRows = phone && picked.length > 0 && traders.length === 0 && resetsQuery.isLoading ? Math.min(picked.length, 3) : 0
   const raid = local && raidRunning(local, now) && (local.begun ?? local.since) ? { began: (local.begun ?? local.since)!, map: mapOf(local.location), loading: !local.begun } : null
   const timer = raid ? raidTimer(raid.began, raid.map?.raidTime, now) : null
   const lastMap = last ? mapOf(last.location) : undefined
@@ -118,6 +123,11 @@ function TarkovTime({ chooser }: { chooser: ReactNode }) {
         ))}
       </div>
       <div className="info-lines">
+        {Array.from({ length: reservedResetRows }, (_, index) => (
+          <span key={`reset-reserve-${index}`} className="info-line is-skeleton" aria-hidden="true">
+            <RefreshCw size={13} aria-hidden="true" /><span>&nbsp;</span><strong className="mono">&nbsp;</strong>
+          </span>
+        ))}
         {traders.map(({ trader, left }) => (
           <button key={trader.id} type="button" className="info-line" onClick={() => navigate('/traders')} title={uiText('Сброс торговцев')}>
             <RefreshCw size={13} aria-hidden="true" /><span>{uiText(trader.name)}</span><strong className="mono">{left <= 0 ? uiText('сейчас') : formatCountdown(left)}</strong>
@@ -214,7 +224,7 @@ export function InfoStatCard({ phone }: { phone: boolean }) {
   if (view === 'screen') return <ScreenStatCard chooser={chooser} />
   if (view === 'restock') return <Restock chooser={chooser} />
   if (view === 'raid-timer') return phone ? <PhoneRaidClock chooser={chooser} /> : <RaidClock chooser={chooser} />
-  return <TarkovTime chooser={chooser} />
+  return <TarkovTime chooser={chooser} phone={phone} />
 }
 
 /** The phone's raid timer: what the PC said last (its screen relay, src/screen/screenRemote.ts). */
