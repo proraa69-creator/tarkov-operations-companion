@@ -141,6 +141,7 @@ import { isDesktopShell, useMobileLayout } from '../platform'
 import { MapPanelEye, MapPanelsSettings, useMapPanels } from '../maps/MapPanels'
 import { MapSkillTimer, MapSkillTimerSettings } from '../components/MapSkillTimer'
 import { useSkillTimerEnabled } from '../components/skillTimer'
+import { ArmoredTrainBanner, ArmoredTrainSetting } from '../maps/ArmoredTrainTimer'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -1346,7 +1347,7 @@ export function MapsPage() {
         {panelsOn && <div className="map-panel-tools">
           {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
           <span className="map-panel-tools-gap" />
-          <MapPanelsSettings layout={panels.layout}><PlayerFollowSetting /><MapSkillTimerSettings /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
+          <MapPanelsSettings layout={panels.layout}><PlayerFollowSetting /><MapSkillTimerSettings /><ArmoredTrainSetting mapId={activeMap.id} /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
           <MapPanelEye side="left" hidden={leftHidden} />
         </div>}
         <div className="map-side-maps">
@@ -1423,6 +1424,8 @@ export function MapsPage() {
           <BossPlacementControls state={bossPlacement} />
           <QuestEditorButton state={questEditor} onToggle={(on) => { if (on) setBossActive(false) }} />
           {/* The recognised item under «Вид» (owner, 15.10.2026), on a line of its own below the controls. */}
+          {/* «Таймер бронепоезда» (report 231): Reserve and Lighthouse, once turned on in «Настройки карты». */}
+          {!worldOpen && <ArmoredTrainBanner mapId={activeMap.id} />}
           <MapItemCard />
         </div>
         {/* Player report 155: the silent skill-fatigue countdown, left of «Отложенные квесты», once turned on in the gear menu. */}

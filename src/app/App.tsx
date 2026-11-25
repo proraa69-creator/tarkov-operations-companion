@@ -23,6 +23,7 @@ import { RestockNotifier } from '../restock/RestockWidgets'
 import { TradingNotifier } from '../trading/TradingNotifier'
 import { QuestKeysReminder } from '../quests/QuestKeysReminder'
 import { LastRaidRecorder, PhoneRaidStartNotifier, RaidStartNotifier } from '../notifications/RaidStartNotifier'
+import { ArmoredTrainNotifier } from '../maps/ArmoredTrainTimer'
 import { TradingPage } from '../pages/TradingPage'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
@@ -83,7 +84,7 @@ export function App() {
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AppTooltips /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><FirstRaidReport /><RaidExtractsBridge /><GameRestartNotice /></>}<UiSounds /><AppTooltips /><AccountNotices /><div className="toast-dock"><RestockNotifier /><TradingNotifier /><QuestKeysReminder />{desktop ? <><RaidStartNotifier /><LastRaidRecorder /></> : mobile ? <PhoneRaidStartNotifier /> : null}</div><DeviceLimitNotice /><LocationKeysWindow /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><FirstRaidReport /><RaidExtractsBridge /><GameRestartNotice /></>}<UiSounds /><AppTooltips /><AccountNotices /><div className="toast-dock"><RestockNotifier /><TradingNotifier /><QuestKeysReminder />{desktop ? <><RaidStartNotifier /><LastRaidRecorder /><ArmoredTrainNotifier /></> : mobile ? <PhoneRaidStartNotifier /> : null}</div><DeviceLimitNotice /><LocationKeysWindow /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
     {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
     <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}

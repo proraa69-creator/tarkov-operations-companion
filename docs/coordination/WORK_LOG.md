@@ -10248,3 +10248,64 @@ Not pushed, not released, nothing uploaded.
   выпуска; это техническая правка → только updateHistory при выпуске).
 - Риск: по-настоящему взятый в рейде квест БТР без тика и без чтения экрана/отметки не покажется «текущим», пока игрок его не
   отметит или не прочитает экран «Задачи» — поведение намеренно осторожное (убираем переподсчёт, не ломаем тех, у кого идёт).
+## 2026-11-25: Claude, reports 231 (armored train timer) and 226 (how penetration works)
+
+- Branch claude/ideas-226-231 from release/production f444b3f3 (worktree C:\Users\BANGKOK PC\raidos-ideas), commits
+  1947d34e (231) and 971d8e9f (226). Not pushed, not released, server untouched.
+- 231: «Настройки карты» → «Таймер бронепоезда» (Reserve and Lighthouse only, localStorage `raidos-map-armored-train-v1`,
+  off by default). On: a line in the map HUD (its own row, like MapItemCard). In a raid on that map (logs, from
+  «GameStarted»): «прибудет через m:ss–m:ss» → «прибудет в ближайшие m:ss» → «стоит ещё m:ss–m:ss» → «уезжает в
+  ближайшие m:ss» → «уехал»; otherwise «прибывает через X–Y мин после начала рейда, стоит Z мин».
+  Files: src/maps/armoredTrain.ts (+css, test), src/maps/ArmoredTrainTimer.tsx (+test), src/pages/MapsPage.tsx,
+  src/i18n/uiEnglishMap.ts.
+- Timings: SPT locations/<rezervbase|lighthouse>/base.json EXFIL_Train (read only): Reserve MinTime 1450, MaxTime 1700,
+  Count 400; Lighthouse 1300 / 1420 / 300; ExfiltrationTime 5; PvE the same. Boarding ≈ 90 s after activation (SPT
+  configs/location.json trainArrivalDelayObservedSeconds, measured 88 + 2 in SPT RaidTimeAdjustmentService), departure =
+  that + Count + ExfiltrationTime. So Reserve stands 25:40–29:50 → 6:45; Lighthouse 23:10–25:10 → 5:05. The wiki
+  (fandom 402; its text in src/data/extractGuide.json) says 24–28 / 20–25 min and «stays 7 minutes» for both.
+- 226: «Как работает пробитие» on «Баллистика», a folded <details> over every table but «Полигон»; 7 points taken from
+  ballistics.ts and range/rangeModel.ts. Files: src/arsenal/PenetrationGuide.tsx (+test), src/arsenal/penetrationPoints.ts,
+  src/arsenal/arsenal.css, src/pages/ReferencePages.tsx, src/i18n/uiEnglishArsenal.ts.
+- Tests: vitest src/arsenal src/maps src/i18n src/pages/AmmoPage — 318 passed; src/pages/MapsPage* 47 passed one file
+  at a time (5 timed out only when run in parallel under load); npm run typecheck clean; eslint on changed files clean
+  (ReferencePages has an older unused `locale` at the settings page, not mine). Seen in a headless browser on the Vite
+  renderer: the switch, the line on Reserve and Lighthouse, the open block.
+- Not verified: a real raid (countdown seen only in tests), Scav raids (the server moves the train earlier for a late
+  Scav: not known to the app), English on screen (tests only). No playerNews/updateHistory rows: they go with the release.
+
+## 2026-11-25: Claude, report 231 finished (owner's rework of the armored-train timer)
+
+- Same branch claude/ideas-226-231 (worktree C:\Users\BANGKOK PC\raidos-ideas). Finished the uncommitted rework the owner
+  asked for on 25.11.2026 and added the tests and the missing wiring. Not pushed, not released, server untouched.
+- Standing time is the owner's now, not the SPT count: Reserve «стоит 6 мин 30 с», Lighthouse «стоит 5 мин», in the
+  out-of-raid hint and in src/maps/armoredTrain.ts ARMORED_TRAINS (stay 390 / 300). Arrival window unchanged (Reserve
+  25:40–29:50, Lighthouse 23:10–25:10, boarding ≈ 90 s after the exit activates).
+- In a raid only the countdown to the arrival: «Бронепоезд прибудет через mm:ss–mm:ss» → «прибудет в ближайшие m:ss»;
+  once the arrival window is past the plate disappears (trainState phases cut to coming/arriving/past, trainLine returns
+  undefined for past, ArmoredTrainBanner renders null). No more «стоит ещё…», «уезжает…», «уехал».
+- The live countdown runs for a PMC only (owner: a Scav joins a raid already running). src/import/raidState.ts now reads
+  the raid's side from the game's own logs (D:\Battlestate Games\…\Logs, 1.3.x, read only):
+  (1) a group's «Got notification | GroupMatchRaidSettings» body line `"side": "Pmc"` / `"Savage"`;
+  (2) «TRACE-NetworkGameCreate profileStatus: 'Profileid: <id>'» compared with the menu's selected profile
+  («PrepareSelectedProfileLocally / CompleteSelectedProfile ProfileId:<id>»): same id = PMC, another id = Scav (the Scav
+  plays under its own profile). electron/logWatcher.ts pushes a new state when `side` changes too. In the real logs only
+  PMC occurs (`"side":"Pmc"`, network id = selected id); the only «Side:Savage» lines are bots (aiData, `bot creation
+  data … Side:Savage`) and are deliberately not read. Scav is inferred, not seen in a real Scav raid. pmcRaidBegun gives
+  the countdown only when side === 'pmc'; a Scav or an unknown side gets the general out-of-raid hint, no countdown.
+- «Настройки карты» → beside «Таймер бронепоезда» a second switch «Уведомления о прибытии» (Reserve/Lighthouse only,
+  localStorage `raidos-map-armored-train-notice-v1`, off by default). With it on, in a PMC's raid, when the arrival window
+  opens: a corner card «Бронепоезд прибывает» with the chime, once per raid (localStorage `raidos-armored-train-announced`),
+  built like «Рейд начался» (src/notifications/RaidStartNotifier.tsx) — ArmoredTrainNotifier, mounted in the desktop
+  toast-dock of src/app/App.tsx. Not a line in the top bell.
+- Files: src/maps/armoredTrain.ts (+armoredTrain.css, +armoredTrain.test.ts), src/maps/ArmoredTrainTimer.tsx
+  (+ArmoredTrainTimer.test.tsx), src/import/raidState.ts (+raidState.test.ts), electron/logWatcher.ts,
+  src/i18n/uiEnglishMap.ts (RU/EN «Уведомления о прибытии» → «Arrival alerts», «Бронепоезд прибывает» → «Armored train
+  arriving», rule «N мин M с» → «N min M s»; dropped the gone-train phrases), src/app/App.tsx.
+- Tests: npx vitest run src/maps src/import src/i18n src/notifications — 75 files, 629 passed. Covered: the arrival
+  window and the plate disappearing after it, trainStay «6 мин 30 с»/«5 мин» RU+EN, pmcRaidBegun (PMC → countdown, Scav
+  and unknown → none), takeTrainArrival (once in the window, off with the switch off), the notice card by the switch, and
+  the side from the logs (Pmc from settings, PMC from the profile, Scav from another profile, unknown with neither, bot
+  «Side:Savage» ignored). npm run typecheck (tsc -b) and tsc -p tsconfig.electron.json --noEmit clean.
+- Not verified: a real raid (countdown and card seen only in tests), a real Scav raid (none in the logs — Scav detection
+  is inferred from the profile id), the real Electron shell and the chime device, English on screen. Lint not run (not
+  asked). No playerNews/updateHistory rows: they go with the release commit.

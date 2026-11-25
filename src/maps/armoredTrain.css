@@ -1,0 +1,11 @@
+/* «Таймер бронепоезда» over the map (maps/ArmoredTrainTimer.tsx): a row of its own in the HUD, at its left edge, under the controls. */
+.armored-train-row { flex: 0 0 100%; display: flex; pointer-events: none; }
+.armored-train {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 28px; max-width: 100%; box-sizing: border-box; padding: 4px 10px;
+  border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; backdrop-filter: blur(10px);
+  font-size: 11px; font-weight: 700; line-height: 1.3;
+}
+.armored-train svg { flex: none; color: #d8c08a; }
+.armored-train.is-live { color: #f1ece0; border-color: #5f553a; font-variant-numeric: tabular-nums; }
+/* «Бронепоезд прибывает» in the corner dock (ArmoredTrainNotifier): the train's colour on the card of «Рейд начался». */
+.armored-train-toast > svg { color: #d8c08a; }

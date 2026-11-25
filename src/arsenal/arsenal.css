@@ -103,3 +103,9 @@
 .dropoff-table tr.is-zero td { background: color-mix(in srgb, var(--brass) 10%, transparent); }
 .dropoff-table td.drop-low { color: var(--text); }
 .dropoff-table td.drop-high { color: var(--success, #6fbf73); }
+/* «Как работает пробитие» (arsenal/PenetrationGuide.tsx, report 226): folded until opened. */
+.penetration-guide > summary { cursor: pointer; list-style: none; }
+.penetration-guide > summary::-webkit-details-marker { display: none; }
+.penetration-guide .panel-title { display: inline-flex; align-items: center; gap: 7px; }
+.penetration-guide:not([open]) > summary { border-bottom: 0; }
+.penetration-guide-list { margin: 0; padding-left: 34px; display: grid; gap: 6px; color: var(--text-dim); font-size: 13px; line-height: 1.45; }
