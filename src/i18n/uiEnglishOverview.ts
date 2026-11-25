@@ -13,6 +13,8 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'],
   // the flare an exit needs and a flare's hover card in «Требования рейда» (src/raidprep/exitFlares.ts)
   ['Для выхода', 'For the exit'], ['Сигнальный пистолет', 'Signal pistol'], ['Без пистолета', 'No pistol needed'], ['Можно и этим ключом', 'This key works too'], ['Можно и этими ключами', 'These keys work too'],
+  // «Настройки» → «Интерфейс»: the exit's flare on or off (report 235, src/raidprep/exitRequirementsSetting.ts)
+  ['Показывать требования для выхода', 'Show exit requirements'], ['Сигнал для выхода в «Требованиях рейда»', 'The exit flare in «Raid requirements»'],
   // «Требования рейда» without the quests put aside in «Отложенные квесты» (src/components/RaidRequirementsPanel.tsx)
   ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
   // «Приоритет карт»: what the map tiles count (src/components/MapPriority.tsx)
