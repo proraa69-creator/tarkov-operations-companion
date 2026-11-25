@@ -43,8 +43,8 @@ export function StreamerPayouts() {
 
   const cards = [
     { icon: Percent, label: tr('Ваша доля'), value: `${english() ? String(data.percent) : String(data.percent).replace('.', ',')}%`, meta: tr('от оплат приглашённых'), accent: false },
-    { icon: Coins, label: tr('Заработано'), value: `${formatRub(data.earned)} ₽`, meta: tr('за всё время'), accent: false },
-    { icon: Wallet, label: tr('Доступно к выплате'), value: `${formatRub(data.available)} ₽`, meta: data.pending ? tr('ещё {amount} ₽ ожидает выплаты', { amount: formatRub(data.pending) }) : tr('выплачено {amount} ₽', { amount: formatRub(data.paidOut) }), accent: true },
+    { icon: Coins, label: tr('Заработано'), value: `${formatRub(data.earned)} ₽`, meta: data.maturing ? tr('из них {amount} ₽ станут доступны позже', { amount: formatRub(data.maturing) }) : tr('за всё время'), accent: false },
+    { icon: Wallet, label: tr('Доступно к выплате'), value: `${formatRub(data.available)} ₽`, meta: tr('получено {paid} ₽ · в заявке {pending} ₽', { paid: formatRub(data.paidOut), pending: formatRub(data.pending) }), accent: true },
   ]
 
   return (
@@ -134,6 +134,10 @@ function PayoutRequest({ data, onChange, reload }: { data: PayoutOverview; onCha
           : pending ? tr('Предыдущая заявка ещё ждёт выплаты — новую можно создать после неё.')
             : data.available < data.minimum ? tr('Минимальная выплата — {minimum} ₽. На балансе пока {balance} ₽.', { minimum: formatRub(data.minimum), balance: formatRub(data.available) })
               : tr('Любая сумма от {minimum} до {maximum} ₽.', { minimum: formatRub(data.minimum), maximum: formatRub(data.available) })}
+      </span>
+      <span className="field-hint">
+        {tr('Выплаты — в течение {days} дней после оплаты (на случай возврата).', { days: data.maturityDays ?? 14 })}
+        {data.maturing ? ` ${tr('Сейчас зреет {amount} ₽.', { amount: formatRub(data.maturing) })}` : ''}
       </span>
       {message && <Notice tone={message.tone}>{tr(message.text)}</Notice>}
     </form>

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useState, type MouseEvent } from 'react'
 import { Banknote, HeartHandshake, LayoutDashboard, Radio, Receipt, Users } from 'lucide-react'
 import { setApiTransport } from '../../website/src/api'
 import { EmbeddedOwnerAuth } from '../../website/src/auth'
@@ -9,7 +9,7 @@ import { AdminInviteRewards } from '../../website/src/components/admin/AdminInvi
 import { AdminUsers } from '../../website/src/components/admin/AdminUsers'
 import { AdminReferrals } from '../../website/src/components/admin/AdminReferrals'
 import { AdminStreamers } from '../../website/src/components/admin/AdminStreamers'
-import { OwnerPayoutsList } from '../../website/src/components/OwnerAdmin'
+import { OwnerPayoutsList, PAYOUT_ATTENTION_CHANGED } from '../../website/src/components/OwnerAdmin'
 import '../../website/src/styles.css'
 import '../../website/src/extras.css'
 import '../../website/src/admin.css'
@@ -41,6 +41,16 @@ export function SiteAdminSummary({ request, email }: { request: AdminRequest; em
     return () => setApiTransport(null)
   }, [request])
   const [view, setView] = useState<{ tab: SiteAdminTab; query?: string; key: number }>({ tab: 'summary', key: 0 })
+  // «Стримеры» → красный счётчик новых заявок на вывод (owner, 25.11.2026): опрос при открытии, раз в 5 минут и после решения.
+  const [payoutAttention, setPayoutAttention] = useState(0)
+  useEffect(() => {
+    let active = true
+    const load = () => { void request('GET', '/v1/accounts/me/admin/payouts/attention').then((answer) => { if (active) setPayoutAttention(Number((answer as { count?: number }).count ?? 0)) }, () => {}) }
+    load()
+    const timer = window.setInterval(load, 5 * 60_000)
+    window.addEventListener(PAYOUT_ATTENTION_CHANGED, load)
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener(PAYOUT_ATTENTION_CHANGED, load) }
+  }, [request])
 
   const followLink = (event: MouseEvent<HTMLDivElement>) => {
     const link = (event.target as HTMLElement).closest?.('a[href^="/admin"]')
@@ -58,6 +68,7 @@ export function SiteAdminSummary({ request, email }: { request: AdminRequest; em
           {SITE_ADMIN_TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} type="button" role="tab" aria-selected={view.tab === id} className={`admin-tab${view.tab === id ? ' is-active' : ''}`} onClick={() => setView((current) => ({ tab: id, key: current.key + 1 }))}>
               <Icon aria-hidden="true" />{label}
+              {id === 'streamers' && payoutAttention > 0 && <span className="admin-tab-count" aria-label={`Новых заявок на вывод: ${payoutAttention}`}>{payoutAttention}</span>}
             </button>
           ))}
         </nav>

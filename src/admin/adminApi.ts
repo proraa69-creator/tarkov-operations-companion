@@ -17,8 +17,12 @@ export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streame
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export type AdminRegionCounts = Record<AdminUserRegion, number>
 
-/** `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»). */
-export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number; repeat?: number }
+/**
+ * `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»).
+ * `net`/`streamerEarnings`/`fees` (servers of 25.11.2026 on): «чистыми» = грязными − доля стримеров − комиссии платёжных
+ * систем (src/shared/revenue.ts).
+ */
+export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number; repeat?: number; net?: number; streamerEarnings?: number; fees?: number }
 export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
@@ -438,6 +442,8 @@ export const adminApi = {
   setStreamerLink: (code: string, enabled: boolean) => request<AdminStreamerSettings>('PUT', `/v1/accounts/me/admin/streamers/${encodeURIComponent(code)}/link`, { enabled }),
   revokeStreamer: (code: string) => request<AdminStreamerSettings>('POST', `/v1/accounts/me/admin/streamers/${encodeURIComponent(code)}/revoke`),
   payouts: () => request<OwnerPayouts>('GET', '/v1/accounts/me/admin/payouts'),
+  /** «Стримеры» → красный счётчик: сколько заявок на вывод ждут владельца сейчас. */
+  payoutAttention: () => request<{ count: number }>('GET', '/v1/accounts/me/admin/payouts/attention'),
   decidePayout: (id: string, status: 'paid' | 'rejected', comment?: string) => request<OwnerPayout>('POST', '/v1/accounts/me/admin/payouts/decide', { id, status, ...(comment ? { comment } : {}) }),
   /** How often (days) streamers may choose their automatic payout. */
   setPayoutLimits: (min: number, max: number) => request<{ limits: { min: number; max: number } }>('PUT', '/v1/accounts/me/admin/payout-limits', { min, max }),

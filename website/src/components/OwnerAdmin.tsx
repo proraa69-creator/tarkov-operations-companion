@@ -203,6 +203,9 @@ function StreamerDetail({ code }: { code: string }) {
   )
 }
 
+/** Fired after the owner decides a payout, so the red count on «Стримеры» refreshes at once (like ATTENTION_CHANGED). */
+export const PAYOUT_ATTENTION_CHANGED = 'raidos-admin-payout-attention-changed'
+
 /** «Админ-панель» → «Выплаты»: streamers' payout requests and the auto-payout interval limits. */
 export function OwnerPayoutsList() {
   const auth = useAuth()
@@ -226,6 +229,7 @@ export function OwnerPayoutsList() {
     try {
       await api.ownerDecidePayout(token, id, status, comments[id]?.trim() || undefined)
       load()
+      window.dispatchEvent(new Event(PAYOUT_ATTENTION_CHANGED))
     } catch (reason) {
       setError(failure(reason))
     } finally {

@@ -1,4 +1,4 @@
-import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Globe, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
+import { BadgeCheck, CalendarClock, Coins, Crown, LayoutDashboard, CreditCard, Download, Gift, Globe, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ApiError, api, errorMessage, type Account, type Autopay, type BezebeePreview, type FriendDiscount, type Payment, type PaymentsOverview, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
@@ -487,13 +487,16 @@ function ReferralProgramPanel({ account }: { account: Account }) {
   const token = auth.token
   const code = account.referralCode!
   const link = audienceLink(code)
-  const stats = { visits: 0, registrations: 0, linkRegistrations: 0, activeSubscriptions: 0, ...account.stats }
+  const stats = { visits: 0, registrations: 0, linkRegistrations: 0, activeSubscriptions: 0, payers: 0, ...account.stats }
+  // «Оплатили» и «на какую сумму» (owner, 25.11.2026): сколько приглашённых заплатили и на какую сумму всего.
+  const paidSum = account.stats?.revenue?.amount ?? 0
   const counters = [
     { icon: MousePointerClick, label: tr('Переходы'), value: formatNumber(stats.visits), meta: tr('по вашим ссылкам') },
     // Every registration the link brought: with the code, and without it after a visit (server LINK_ATTRIBUTION_MS).
     { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations),
       meta: tr('{code} по коду · {link} без кода', { code: formatNumber(stats.registrations - stats.linkRegistrations), link: formatNumber(stats.linkRegistrations) }) },
     { icon: BadgeCheck, label: tr('Подписки'), value: formatNumber(stats.activeSubscriptions), meta: tr('активные сейчас') },
+    { icon: Coins, label: tr('Оплатили'), value: formatNumber(stats.payers ?? 0), meta: tr('на сумму {amount} ₽', { amount: formatNumber(paidSum) }) },
   ]
   const loadSeries = useCallback((period: StatsPeriod) => {
     if (!token) return Promise.reject(new ApiError(401, 'Требуется вход в аккаунт'))

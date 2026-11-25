@@ -29,13 +29,22 @@ interface Payouts {
   paidOut: number
   pending: number
   available: number
+  /** Earned in the last 14 days, not yet available (owner, 25.11.2026). */
+  maturing?: number
+  /** Payouts go out within this many days of a payment (14). */
+  maturityDays?: number
   minimum: number
   details: { phone: string; bank: string; recipient: string } | null
   autoPayout: { enabled: boolean; intervalDays: number; limits: { min: number; max: number }; nextAt: string | null }
   payouts: PayoutRow[]
 }
 /** statsOnly: a 0 % share — statistics only, no share, earnings or payouts (owner, 30.10.2026). */
-interface MeView { referralCode?: string; statsOnly?: true; stats?: { visits: number; registrations: number; linkRegistrations?: number; activeSubscriptions: number; earnings: { amount: number } } }
+interface MeView { referralCode?: string; statsOnly?: true; stats?: { visits: number; registrations: number; linkRegistrations?: number; activeSubscriptions: number; payers?: number; revenue?: { amount: number }; earnings: { amount: number } } }
+/** A streamer's new-event: a payment by his link or a payout the owner marked paid (server/src/services/payoutStore.ts). */
+export interface StreamerNotice { type: 'payment' | 'payout'; at: string; amount: number }
+export interface StreamerNotices { unread: number; seenAt: string | null; items: StreamerNotice[] }
+/** Dispatched after the streamer opens his panel, so the profile badge clears at once. */
+export const STREAMER_NOTICES_READ = 'raidos-streamer-notices-read'
 
 const rub = (value: number) => `${(Math.round(value * 100) / 100).toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 const day = (value?: string | null) => (value ? new Date(value).toLocaleDateString('ru-RU') : '—')
@@ -99,7 +108,7 @@ export function StreamerCabinetPanel() {
 
   const statsOnly = me?.statsOnly === true || payouts?.percent === 0
   return (
-    <section className="panel account-cabinet" aria-label={uiText('Кабинет стримера')}>
+    <section id="streamer-cabinet" className="panel account-cabinet" aria-label={uiText('Кабинет стримера')}>
       <div className="panel-header">
         <div className="panel-title"><Tv size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Кабинет стримера')}</div>
         <button className="button ghost small" onClick={load} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} />{uiText('Обновить')}</button>
@@ -108,14 +117,14 @@ export function StreamerCabinetPanel() {
         {error && <p className="account-cabinet-note account-error" role="alert">{uiText(error)}</p>}
         <div className="account-cabinet-grid">
           <Cell label="Подписка" value={subscriptionText(status?.subscription)} note="Для стримеров сервис бесплатный" good />
-          {statsOnly ? <>
-            <Cell label="Переходы по ссылкам" value={me?.stats ? String(me.stats.visits) : '—'} />
-            <Cell label="Регистрации" value={me?.stats ? String(me.stats.registrations) : '—'} note={me?.stats ? registrationSplit(me.stats) : undefined} />
-            <Cell label="Оплатили" value={me?.stats ? String(me.stats.activeSubscriptions) : '—'} note="Активные подписки сейчас" />
-          </> : <>
-          <Cell label="Ваша доля" value={payouts ? `${payouts.percent}%` : '—'} note="От оплат зрителей по вашим ссылкам" />
-          <Cell label="Заработано всего" value={payouts ? rub(payouts.earned) : '—'} note={me?.stats ? `${uiText('Переходы по ссылкам')}: ${me.stats.visits} · ${uiText('регистрации')}: ${me.stats.registrations} (${registrationSplit(me.stats)}) · ${uiText('оплатили')}: ${me.stats.activeSubscriptions}` : ''} />
-          <Cell label="Доступно к выплате" value={payouts ? rub(payouts.available) : '—'} note={payouts ? `${uiText('Выплачено')}: ${rub(payouts.paidOut)} · ${uiText('в обработке')}: ${rub(payouts.pending)}` : ''} good={Boolean(payouts && payouts.available > 0)} />
+          <Cell label="Переходы по ссылкам" value={me?.stats ? String(me.stats.visits) : '—'} />
+          <Cell label="Регистрации" value={me?.stats ? String(me.stats.registrations) : '—'} note={me?.stats ? registrationSplit(me.stats) : undefined} />
+          {/* «Оплатили» и «на какую сумму» (owner, 25.11.2026). */}
+          <Cell label="Оплатили" value={me?.stats ? String(me.stats.payers ?? 0) : '—'} note={me?.stats?.revenue ? `${uiText('на сумму')} ${rub(me.stats.revenue.amount)}` : 'по вашему коду'} />
+          {!statsOnly && <>
+            <Cell label="Ваша доля" value={payouts ? `${payouts.percent}%` : '—'} note="От оплат зрителей по вашим ссылкам" />
+            <Cell label="Заработано всего" value={payouts ? rub(payouts.earned) : '—'} note={payouts?.maturing ? `${uiText('зреет')} ${rub(payouts.maturing)}` : 'за всё время'} />
+            <Cell label="Доступно к выплате" value={payouts ? rub(payouts.available) : '—'} note={payouts ? `${uiText('Получено')}: ${rub(payouts.paidOut)} · ${uiText('в заявке')}: ${rub(payouts.pending)}` : ''} good={Boolean(payouts && payouts.available > 0)} />
           </>}
         </div>
 
@@ -246,6 +255,7 @@ function PayoutBlock({ payouts, onChange }: { payouts: Payouts; onChange: (value
       <form className="streamer-payout-form" onSubmit={askPayout}>
         <label>{uiText('Сумма, ₽')}<input className="input" value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder={String(payouts.available || payouts.minimum)} /></label>
         <small className="dim">{uiText(`Доступно ${rub(payouts.available)}, минимум ${rub(payouts.minimum)}.`)}{pending ? ` ${uiText('Предыдущая заявка ещё ждёт выплаты.')}` : ''}</small>
+        <small className="dim">{uiText(`Выплаты — в течение ${payouts.maturityDays ?? 14} дней после оплаты (на случай возврата).`)}{payouts.maturing ? ` ${uiText(`Сейчас зреет ${rub(payouts.maturing)}.`)}` : ''}</small>
         <button className="button primary" type="submit" disabled={busy || pending || !payouts.details || !(Number(amount.replace(',', '.')) > 0)}>{busy ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}{uiText('Получить выплату')}</button>
       </form>
       <div className="setting-row">
@@ -278,5 +288,33 @@ function PayoutBlock({ payouts, onChange }: { payouts: Payouts; onChange: (value
         </div>
       )}
     </>
+  )
+}
+
+/**
+ * «Панель стримера» в профиле (owner, 25.11.2026): кнопка рядом с ником с красным кружком новых уведомлений стримера
+ * (новая оплата по ссылке или проведённая владельцем выплата). Нажатие отмечает их прочитанными и прокручивает к панели.
+ */
+export function StreamerPanelButton() {
+  const [unread, setUnread] = useState(0)
+  useEffect(() => {
+    let active = true
+    const load = () => request<StreamerNotices>('GET', '/v1/accounts/me/streamer-notifications').then((value) => { if (active) setUnread(value.unread) }, () => {})
+    load()
+    const timer = window.setInterval(load, 3 * 60_000)
+    const onRead = () => setUnread(0)
+    window.addEventListener(STREAMER_NOTICES_READ, onRead)
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener(STREAMER_NOTICES_READ, onRead) }
+  }, [])
+  const open = () => {
+    void request('POST', '/v1/accounts/me/streamer-notifications/read').then(() => setUnread(0), () => setUnread(0))
+    window.dispatchEvent(new Event(STREAMER_NOTICES_READ))
+    document.getElementById('streamer-cabinet')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  return (
+    <button type="button" className="button ghost small streamer-panel-button" onClick={open}>
+      <Tv size={14} />{uiText('Панель стримера')}
+      {unread > 0 && <span className="streamer-notice-badge" aria-label={uiText(`новых уведомлений: ${unread}`)}>{unread > 99 ? '99+' : unread}</span>}
+    </button>
   )
 }
