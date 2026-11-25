@@ -31,6 +31,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Таймер бронепоезда', 'Armored train timer'], ['Когда приедет бронепоезд', 'When the armored train comes'],
   ['Бронепоезд прибывает через', 'The armored train comes'], ['мин после начала рейда, стоит', 'min after the raid starts, stays'],
   ['Бронепоезд прибудет через', 'Armored train in'], ['Бронепоезд прибудет в ближайшие', 'Armored train within'],
+  ['Прибывает через', 'Arrives'], ['возможно, приехал', 'may have arrived'],
   ['Уведомления о прибытии', 'Arrival alerts'], ['Бронепоезд прибывает', 'Armored train arriving'],
   // «Нужные ключи» (reports №112, №113).
   ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],

@@ -1415,6 +1415,8 @@ export function MapsPage() {
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           {/* Beside the icons whether or not «Квесты друзей» is there: that button comes after it (owner, 06.11.2026). */}
           <MapSketchToolbar sketch={sketch} onBegin={() => setTools((current) => ({ ...current, tool: 'none' }))} />
+          {/* «Таймер бронепоезда» (report 231, owner 25.11.2026): a compact train icon in the row of controls, Reserve and Lighthouse once turned on in «Настройки карты». */}
+          {!worldOpen && <ArmoredTrainBanner mapId={activeMap.id} />}
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
           {/* The phone has no «Отложенные квесты» over the map: «Устранения» stands in the HUD, after «Слои». */}
           {mobile && killList.length > 0 && <MapKillsButton count={killsOpenCount} open={killsOpen} onToggle={() => setKillsOpen((open) => !open)} buttonRef={killsButtonRef} />}
@@ -1424,8 +1426,6 @@ export function MapsPage() {
           <BossPlacementControls state={bossPlacement} />
           <QuestEditorButton state={questEditor} onToggle={(on) => { if (on) setBossActive(false) }} />
           {/* The recognised item under «Вид» (owner, 15.10.2026), on a line of its own below the controls. */}
-          {/* «Таймер бронепоезда» (report 231): Reserve and Lighthouse, once turned on in «Настройки карты». */}
-          {!worldOpen && <ArmoredTrainBanner mapId={activeMap.id} />}
           <MapItemCard />
         </div>
         {/* Player report 155: the silent skill-fatigue countdown, left of «Отложенные квесты», once turned on in the gear menu. */}

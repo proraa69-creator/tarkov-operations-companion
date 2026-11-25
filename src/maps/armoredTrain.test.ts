@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  ARMORED_TRAINS, pmcRaidBegun, setArmoredTrainNoticeOn, takeTrainArrival, trainClock, trainLine, trainMinutes,
+  ARMORED_TRAINS, pmcRaidBegun, setArmoredTrainNoticeOn, takeTrainArrival, trainClock, trainMinutes, trainView,
   trainSchedule, trainStay, trainState,
 } from './armoredTrain'
 import { setRenderLanguage } from '../i18n/renderText'
@@ -56,25 +56,29 @@ describe('the texts', () => {
     expect(trainStay(300)).toBe('5 min')
   })
 
-  it('out of a raid: when it comes after the start and how long it stands', () => {
-    expect(trainLine(ARMORED_TRAINS.reserve, undefined)).toBe('Бронепоезд прибывает через 26–30 мин после начала рейда, стоит 6 мин 30 с')
-    expect(trainLine(ARMORED_TRAINS.lighthouse, undefined)).toBe('Бронепоезд прибывает через 23–25 мин после начала рейда, стоит 5 мин')
+  it('out of a raid: the icon shows no text, the hint says when it comes and how long it stands', () => {
+    expect(trainView(ARMORED_TRAINS.reserve, undefined)).toEqual({
+      value: '', hint: 'Прибывает через 26–30 мин после начала рейда, стоит 6 мин 30 с', live: false, arriving: false,
+    })
+    expect(trainView(ARMORED_TRAINS.lighthouse, undefined)).toEqual({
+      value: '', hint: 'Прибывает через 23–25 мин после начала рейда, стоит 5 мин', live: false, arriving: false,
+    })
   })
 
-  it('in a raid: only the countdown to the arrival, then the line goes', () => {
-    expect(trainLine(ARMORED_TRAINS.reserve, 600)).toBe('Бронепоезд прибудет через 15:40–19:50')
-    expect(trainLine(ARMORED_TRAINS.reserve, 1600)).toBe('Бронепоезд прибудет в ближайшие 3:10')
-    expect(trainLine(ARMORED_TRAINS.reserve, 1790)).toBeUndefined()
-    expect(trainLine(ARMORED_TRAINS.reserve, 3000)).toBeUndefined()
+  it('in a PMC raid: the live countdown, then «возможно, приехал», then the icon goes', () => {
+    expect(trainView(ARMORED_TRAINS.reserve, 600)).toEqual({ value: '15:40', hint: 'Бронепоезд прибудет через 15:40–19:50', live: true, arriving: false })
+    expect(trainView(ARMORED_TRAINS.reserve, 1600)).toEqual({ value: 'возможно, приехал', hint: 'Бронепоезд прибудет в ближайшие 3:10', live: true, arriving: true })
+    expect(trainView(ARMORED_TRAINS.reserve, 1790)).toBeUndefined()
+    expect(trainView(ARMORED_TRAINS.reserve, 3000)).toBeUndefined()
   })
 
   it('reads in English', () => {
     setRenderLanguage('en')
-    expect(trainLine(ARMORED_TRAINS.reserve, undefined)).toBe('The armored train comes 26–30 min after the raid starts, stays 6 min 30 s')
-    expect(trainLine(ARMORED_TRAINS.lighthouse, undefined)).toBe('The armored train comes 23–25 min after the raid starts, stays 5 min')
-    expect(trainLine(ARMORED_TRAINS.reserve, 600)).toBe('Armored train in 15:40–19:50')
-    expect(trainLine(ARMORED_TRAINS.reserve, 1600)).toBe('Armored train within 3:10')
-    expect(trainLine(ARMORED_TRAINS.reserve, 1790)).toBeUndefined()
+    expect(trainView(ARMORED_TRAINS.reserve, undefined)).toEqual({ value: '', hint: 'Arrives 26–30 min after the raid starts, stays 6 min 30 s', live: false, arriving: false })
+    expect(trainView(ARMORED_TRAINS.lighthouse, undefined)).toEqual({ value: '', hint: 'Arrives 23–25 min after the raid starts, stays 5 min', live: false, arriving: false })
+    expect(trainView(ARMORED_TRAINS.reserve, 600)).toEqual({ value: '15:40', hint: 'Armored train in 15:40–19:50', live: true, arriving: false })
+    expect(trainView(ARMORED_TRAINS.reserve, 1600)).toEqual({ value: 'may have arrived', hint: 'Armored train within 3:10', live: true, arriving: true })
+    expect(trainView(ARMORED_TRAINS.reserve, 1790)).toBeUndefined()
   })
 })
 
