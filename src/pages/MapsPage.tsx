@@ -142,6 +142,8 @@ import { MapPanelEye, MapPanelsSettings, useMapPanels } from '../maps/MapPanels'
 import { MapSkillTimer, MapSkillTimerSettings } from '../components/MapSkillTimer'
 import { useSkillTimerEnabled } from '../components/skillTimer'
 import { ArmoredTrainBanner, ArmoredTrainSetting } from '../maps/ArmoredTrainTimer'
+import { MapExitsButton, MapRaidClock, MapRaidInfoSettings } from '../maps/MapRaidInfo'
+import { raidExitRows, useExitsListOn, useRaidClockOn } from '../maps/raidInfoSettings'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -953,6 +955,10 @@ export function MapsPage() {
   // In a raid by the logs: readings since its start; no logs at all: the last 50 minutes' reading (raidExtracts.ts).
   const exitStates = useMemo(() => exitHighlights(raidExtracts, raidState?.inRaid ? raidState.since : raidState ? Number.MAX_SAFE_INTEGER : undefined,
     mapMarkers.filter((marker) => marker.type === 'extract').map((marker) => ({ id: marker.id, title: marker.title, titles: exitNames(marker.title, gameNames) }))), [raidExtracts, raidState, mapMarkers, gameNames])
+  // «Выходы» under «Ключи» and the raid's time under «Отложенные квесты» (report 239), each switched in «Настройки карты».
+  const exitsListOn = useExitsListOn()
+  const raidClockOn = useRaidClockOn()
+  const exitRows = useMemo(() => raidExitRows(mapMarkers, activeMap.id, raidState?.side === 'savage' ? 'scav' : 'pmc', exitStates), [mapMarkers, activeMap.id, raidState?.side, exitStates])
 
   const bossesVisible = useMemo(() => mapMarkers.some((marker) => markerLayerId(marker) === 'boss'), [mapMarkers])
   const bossProfiles = useBossProfiles(bossesVisible)
@@ -1347,7 +1353,7 @@ export function MapsPage() {
         {panelsOn && <div className="map-panel-tools">
           {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
           <span className="map-panel-tools-gap" />
-          <MapPanelsSettings layout={panels.layout}><PlayerFollowSetting /><MapSkillTimerSettings /><ArmoredTrainSetting mapId={activeMap.id} /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
+          <MapPanelsSettings layout={panels.layout}><PlayerFollowSetting /><MapSkillTimerSettings /><MapRaidInfoSettings /><ArmoredTrainSetting mapId={activeMap.id} /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
           <MapPanelEye side="left" hidden={leftHidden} />
         </div>}
         <div className="map-side-maps">
@@ -1408,6 +1414,8 @@ export function MapsPage() {
             // «Ключи» under the map's name (report 186): the same window as on the Overview and in «Локации»
             : <div className="map-hud-title"><span>{uiText(activeMap.name.toUpperCase())}</span>
               <button type="button" className={`map-hud-keys location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(activeMap.id)}><KeyRound size={13} aria-hidden="true" />{uiText('Ключи')}</button>
+              {/* «Выходы» (report 239): the raid's exits, open until pressed again; «Список выходов» in «Настройки карты». */}
+              {exitsListOn && <MapExitsButton rows={exitRows} scanned={Boolean(exitStates)} />}
             </div>}
           {mobile && !worldOpen && <button type="button" className={`map-layers-toggle location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(activeMap.id)}><KeyRound size={14} />{uiText('Ключи')}</button>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
@@ -1429,7 +1437,11 @@ export function MapsPage() {
           <MapItemCard />
         </div>
         {/* Player report 155: the silent skill-fatigue countdown, left of «Отложенные квесты», once turned on in the gear menu. */}
-        {!mobile && <div className="map-deferred">{skillTimerOn && <MapSkillTimer />}<DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>}
+        {/* Under it the time in Tarkov and what is left of the raid (report 239, «Оставшееся время рейда» in «Настройки карты»). */}
+        {!mobile && <div className="map-deferred">
+          <div className="map-deferred-row">{skillTimerOn && <MapSkillTimer />}<DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>
+          {raidClockOn && !worldOpen && <MapRaidClock maps={data.maps} />}
+        </div>}
         {/* The phone: «Устранения» under its HUD button (the PC has it as a tab of the right panel). */}
         {mobile && killsOpen && killList.length > 0 && (
           <MapKillsWindow

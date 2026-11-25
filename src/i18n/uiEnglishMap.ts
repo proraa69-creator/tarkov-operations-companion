@@ -36,6 +36,8 @@ export const MAP_PHRASES: Array<[string, string]> = [
   // «Нужные ключи» (reports №112, №113).
   ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],
   // «Сектора обстрела» (report №110).
+  // Report 239: the raid's time under «Отложенные квесты» and «Выходы» under «Ключи» (src/maps/MapRaidInfo.tsx).
+  ['Выходы', 'Exits'], ['Оставшееся время рейда', 'Raid time remaining'], ['Список выходов', 'Exit list'], ['Дважды O в игре — выходы рейда', "Double-tap O in the game to read this raid's exits"], ['сигнальный патрон', 'flare'],
   ['Сектора обстрела', 'Fire sectors'], ['На карте', 'On the map'], ['Зона обстрела', 'Fire zone'], ['Пулемёты «Утёс» на вышках стреляют по подходам к переходу на Терминал.', 'Utyos machine guns on the towers fire at the approaches to the Terminal transit.'], ['Мост к острову Смотрителя', 'Bridge to Lightkeeper Island'], ['Зрячий и его свита стреляют, а клейморы срабатывают, если:', 'Zryachiy and his followers shoot and the claymores go off if:'], ['• в спецслоте нет закодированного передатчика DSP;', '• there is no encoded DSP transmitter in your special slot;'], ['• вы попали по Зрячему или его людям — передатчик теряет код.', '• you hit Zryachiy or his men — the transmitter loses its code.'],
   // «Ключи» (report №108): a loose key spot.
   ['Может лежать здесь.', 'May lie here.'],
