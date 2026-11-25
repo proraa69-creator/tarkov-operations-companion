@@ -88,7 +88,7 @@ async function setup(start = '2026-08-01T10:00:00.000Z') {
  *   ru2   RU  registered 24.09 23:30 Bangkok, 3m created then, paid 25.09 with a card, autopay → money
  *   kz1   KZ  BZB 1m 250 ₽ (owner's confirmation), invited by ru1, trial ended                  → money
  *   de1   DE  10 days from the owner                                                           → grant
- *   de2   PL  7 days from a «Пригласи друга» reward                                            → friend
+ *   de2   FR  7 days from a «Пригласи друга» reward                                            → friend
  *   us1   US  free period running                                                              → trial
  *   none1 —   paid 1m, refunded by the owner                                                   → nothing
  *   str1  DE  streamer                                                                         → lifetime
@@ -107,7 +107,7 @@ async function seeded() {
   await t.pay(ru1Token, '1m')
   const kz1 = await t.user('kz1@example.com', 'KZ')
   const de1 = await t.user('de1@example.com', 'DE')
-  const de2 = await t.user('de2@example.com', 'PL')
+  const de2 = await t.user('de2@example.com', 'FR')
   const us1 = await t.user('us1@example.com', 'US')
   const none1 = await t.user('none1@example.com', 'RU')
   const str1 = await t.user('str1@example.com', 'DE')
@@ -165,7 +165,7 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     // The deleted account's payment stays revenue, with no country any more.
     assert.deepEqual(stats.byRegion.none, { users: 2, new: 1, paying: 0, active: 0, revenue: 300 })
     assert.deepEqual(stats.legacyRegion, { cis: 3, europe: 3, other: 1, none: 2 })
-    assert.deepEqual(stats.byCountry.map((row) => [row.country, row.users, row.paying, row.active, row.revenue]), [['RU', 2, 2, 2, 1100], ['DE', 2, 0, 2, 0], ['KZ', 1, 1, 1, 250], ['PL', 1, 0, 1, 0], ['US', 1, 0, 0, 0]])
+    assert.deepEqual(stats.byCountry.map((row) => [row.country, row.users, row.paying, row.active, row.revenue]), [['RU', 2, 2, 2, 1100], ['DE', 2, 0, 2, 0], ['KZ', 1, 1, 1, 250], ['FR', 1, 0, 1, 0], ['US', 1, 0, 0, 0]])
     const { trialsPending, ...subscriptions } = stats.subscriptions as Stats['subscriptions'] & { trialsPending: number }
     assert.equal(typeof trialsPending, 'number')
     // ru1 paid twice: a repeat paid subscription; us1 was in the account an hour ago: a real free period.

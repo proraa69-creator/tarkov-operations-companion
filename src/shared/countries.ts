@@ -93,7 +93,7 @@ export function regionOf(code: string): CountryRegion {
  * соответствующие тарифы»; the price: OWNER_CIS_PRICE_COUNTRIES in src/shared/paymentRegions.ts).
  * Only the owner's tabs, counts and labels: the players' country picker and cabinet keep regionOf.
  */
-export const ADMIN_EXTRA_CIS_COUNTRIES: readonly CountryCode[] = ['UA', 'LV', 'LT']
+export const ADMIN_EXTRA_CIS_COUNTRIES: readonly CountryCode[] = ['UA', 'LV', 'LT', 'PL']
 /** The admin panel's «Россия» + «СНГ». */
 export const ADMIN_CIS_COUNTRIES: readonly CountryCode[] = [...CIS_COUNTRIES, ...ADMIN_EXTRA_CIS_COUNTRIES]
 
