@@ -75,4 +75,6 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Время в Таркове', 'Time in Tarkov'], ['Сброс торговцев', 'Trader resets'], ['Таймер рейда', 'Raid timer'], ['Что показывать', 'What to show'],
   ['Нет данных о сбросе', 'No reset data'], ['загрузка', 'loading'], ['осталось', 'left'],
   ['время вышло', 'time is up'], ['Рейд не идёт', 'Not in a raid'], ['Прошлый рейд', 'Last raid'], ['Таймеры', 'Timers'],
+  ['До конца рейда', 'Raid time left'], ['Загрузка рейда', 'Raid loading'], ['Идёт рейд', 'Raid running'],
+  ['Сколько осталось времени до конца текущего рейда', 'Time left until the end of the current raid'],
 ]

@@ -81,6 +81,8 @@ function Card({ icon, title, chooser, children, className = '' }: { icon: ReactN
  * Таркове. Ниже пиши сброс торговцев, которые выбраны… все торговцы не выбраны, пиши таймер рейда… сколько осталось… когда
  * человек не в рейде, пиши прошлый рейд, таможня, сколько-то минут… Сделай все в одном стиле»): the two clocks large; under them
  * the resets of the traders picked in Settings («Уведомления о рестоке»); then the raid — what is left of it, or the raid before.
+ * Owner, 25.11.2026: in a raid «между временем в Таркове и прошлым рейдом появляется надпись „Сколько осталось времени до конца
+ * текущего рейда“», and the raid before moves a line down.
  */
 function TarkovTime({ chooser, phone }: { chooser: ReactNode; phone: boolean }) {
   const now = useNow(1000)
@@ -111,6 +113,9 @@ function TarkovTime({ chooser, phone }: { chooser: ReactNode; phone: boolean }) 
   const reservedResetRows = phone && picked.length > 0 && traders.length === 0 && resetsQuery.isLoading ? Math.min(picked.length, 3) : 0
   const raid = local && raidRunning(local, now) && (local.begun ?? local.since) ? { began: (local.begun ?? local.since)!, map: mapOf(local.location), loading: !local.begun } : null
   const timer = raid ? raidTimer(raid.began, raid.map?.raidTime, now) : null
+  // What is left of the map's time once the raid has begun (owner, 25.11.2026); while it loads, or on a map whose time is not
+  // known, the time since it began.
+  const countsDown = Boolean(raid && timer && timer.left !== undefined && !raid.loading)
   const lastMap = last ? mapOf(last.location) : undefined
   return (
     <Card icon={<Clock3 size={12} aria-hidden="true" />} title="Время в Таркове" chooser={chooser} className="info-tarkov-time is-combined">
@@ -133,17 +138,21 @@ function TarkovTime({ chooser, phone }: { chooser: ReactNode; phone: boolean }) 
             <RefreshCw size={13} aria-hidden="true" /><span>{uiText(trader.name)}</span><strong className="mono">{left <= 0 ? uiText('сейчас') : formatCountdown(left)}</strong>
           </button>
         ))}
-        {raid && timer
-          ? <div className={`info-line is-raid${timer.left !== undefined && timer.left < 5 * 60_000 ? ' is-late' : ''}`}>
+        {raid && timer && (
+          <div className={`info-line is-raid${countsDown && timer.left! < 5 * 60_000 ? ' is-late' : ''}`}
+            title={`${uiText('Сколько осталось времени до конца текущего рейда')}${raid.map ? ` · ${uiText(raid.map.name)}` : ''}`}>
             <Hourglass size={13} aria-hidden="true" />
-            <span>{raid.map ? uiText(raid.map.name) : uiText('Рейд')}{raid.loading ? ` · ${uiText('загрузка')}` : ''}</span>
-            <strong className="mono">{timer.left !== undefined && !raid.loading ? (timer.left > 0 ? formatCountdown(timer.left) : uiText('время вышло')) : formatCountdown(timer.elapsed)}</strong>
+            <span>{uiText(raid.loading ? 'Загрузка рейда' : countsDown ? 'До конца рейда' : 'Идёт рейд')}</span>
+            <strong className="mono">{countsDown ? (timer.left! > 0 ? formatCountdown(timer.left!) : uiText('время вышло')) : formatCountdown(timer.elapsed)}</strong>
           </div>
-          : last && <div className="info-line is-last">
+        )}
+        {last && (
+          <div className="info-line is-last">
             <History size={13} aria-hidden="true" />
             <span>{uiText('Прошлый рейд')} · {lastMap ? uiText(lastMap.name) : '—'}</span>
             <strong className="mono">{formatSpan(last.ended - last.began, lang)}</strong>
-          </div>}
+          </div>
+        )}
       </div>
     </Card>
   )
