@@ -1,4 +1,4 @@
-import { useMemo, type Ref } from 'react'
+import { useMemo, type ReactNode, type Ref } from 'react'
 import { Heart, ShoppingCart, Star, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
@@ -22,8 +22,10 @@ import { KeyRoomLoot } from './KeyRoomLoot'
  * «Оружейник» opens the same card for a part (owner, 16.11.2026, report 171). `item` is the catalog's; the minute
  * prices are laid over it here.
  */
-export function FleaItemDetail({ item: catalogItem, onClose, panelRef, className = '', noPrices = false }: {
+export function FleaItemDetail({ item: catalogItem, onClose, panelRef, className = '', noPrices = false, extra }: {
   item: Item
+  /** The opening page's own section under the description (ItemDrawer `extra`). */
+  extra?: ReactNode
   onClose: () => void
   /** No «Цены» table (the keys window, owner 18.11.2026: «цены, сезон, барахолка, терапевт… лучше это не пиши вообще. Нам нужно только в бартер»). */
   noPrices?: boolean
@@ -55,6 +57,7 @@ export function FleaItemDetail({ item: catalogItem, onClose, panelRef, className
     <div className="item-detail-visual"><img src={selected.iconUrl} alt={uiText(selected.name)} /></div>
     <div className="detail-hero"><div className="eyebrow">{uiText(selected.category)} · {uiText(selected.shortName)}</div><h2 style={{ margin: '10px 0 7px', fontSize: 'calc(24px * var(--font-scale, 1))' }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}>{uiText(selected.slots && <span className="tag">{uiText(selected.slots)}</span>)}{uiText(selected.weight && <span className="tag">{uiText(selected.weight)}{uiText(" кг")}</span>)}{uiText(selected.caliber && <span className="tag brass">{uiText(selected.caliber)}</span>)}</div></div>
     <div className="detail-section"><h4>{uiText("Описание")}</h4><p>{uiText(selected.description)}</p></div>
+    {extra && <div className="detail-section">{extra}</div>}
     {uiText((selected.damage || selected.penetration) && <div className="detail-section grid-2"><div><div className="stat-label">{uiText("Урон")}</div><div className="stat-value">{uiText(selected.damage)}</div></div><div><div className="stat-label">{uiText("Пробитие")}</div><div className="stat-value">{uiText(selected.penetration)}</div></div></div>)}
     <ItemQuestUnlocks itemId={selected.id} />
     {/* how to get it now: traders, the flea, barters at today's prices (report 187) */}

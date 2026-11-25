@@ -6,12 +6,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { setRenderLanguage } from '../i18n/renderText'
-import type { Item, RaidMode } from '../domain/types'
+import type { Item, Quest, RaidMode } from '../domain/types'
+import type { Barter } from '../data/economyApi'
 
-const state = vi.hoisted(() => ({ mode: 'pvp' as RaidMode, items: [] as Item[] }))
+const state = vi.hoisted(() => ({ mode: 'pvp' as RaidMode, items: [] as Item[], quests: [] as Quest[], barters: [] as Barter[], done: {} as Record<string, { taskId: string; status: 'completed'; source: 'manual'; updatedAt: string }> }))
 const tarkovJson = vi.hoisted(() => vi.fn())
-vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { items: state.items }, refresh: () => {} }), useTarkovDataStatus: () => ({ isFetching: false, updatedAt: Date.now() - 5 * 60_000 }) }))
-vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode }) }))
+vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { items: state.items, quests: state.quests }, refresh: () => {} }), useTarkovDataStatus: () => ({ isFetching: false, updatedAt: Date.now() - 5 * 60_000 }) }))
+vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode, activeProfile: { modes: { [state.mode]: { taskProgress: state.done, faction: 'unknown', prestige: 0, playerLevel: 30 } } } }) }))
+// This mode's barters (economy snapshot), and the item's full card as a plain box (its own tests are elsewhere)
+vi.mock('../data/useEconomy', () => ({ useEconomySnapshot: (mode: RaidMode) => ({ data: { mode, barters: state.barters } }) }))
+vi.mock('../components/ItemDrawer', () => ({ ItemDrawer: ({ item, extra, onClose }: { item: Item; extra?: import('react').ReactNode; onClose: () => void }) => <div data-testid="item-drawer"><h2>{item.name}</h2>{extra}<button type="button" onClick={onClose}>×</button></div> }))
 vi.mock('../data/tarkovApi', async (importOriginal) => ({ ...await importOriginal<typeof import('../data/tarkovApi')>(), tarkovJson }))
 // No server here: the catalog's prices and the catalog's ammo (the minute prices and the «Баллистика» rounds come from it).
 vi.mock('../data/livePrices', async (importOriginal) => ({ ...await importOriginal<typeof import('../data/livePrices')>(), useLivePrices: () => null }))
@@ -39,6 +43,9 @@ afterEach(() => {
   setRenderLanguage('ru')
   tarkovJson.mockReset()
   state.mode = 'pvp'
+  state.quests = []
+  state.barters = []
+  state.done = {}
 })
 
 describe('«Тир листы»', () => {
@@ -249,6 +256,65 @@ describe('«Тир листы»', () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Raise the visor' }))
       fireEvent.contextMenu(tile('Maska Killa'), { clientX: 120, clientY: 140 })
       expect(screen.getByRole('menuitem', { name: 'Lower the visor' })).toBeTruthy()
+    })
+  })
+
+  describe('what an item is needed for, and its full card (owner 26.11.2026, report 243)', () => {
+    const grip = () => item('grip', { name: 'Пистолетная рукоятка Magpul MOE для АК (FDE) с очень длинным названием', shortName: 'MOE AK', types: ['mods'], flea: { pvp: 20_000 } })
+    const quests = (): Quest[] => [
+      { id: 'gs-aks', name: 'Оружейник. АКС-74Н', trader: 'Механик', level: 10, kappa: false, description: '', objectives: [], rewards: [], objectiveDetails: [{ id: 'o', type: 'buildWeapon', description: '', count: 1, build: { weaponId: 'aks74n', partIds: ['grip'], attributes: [] } }] },
+      { id: 'supply', name: 'Поставка', trader: 'Терапевт', level: 5, kappa: false, description: '', objectives: [], rewards: [], raidRequirements: [{ itemId: 'grip', count: 2, purpose: 'handover', mapIds: [], foundInRaid: true, objectiveId: 'h' }] },
+      { id: 'plant', name: 'Закладка', trader: 'Прапор', level: 3, kappa: false, description: '', objectives: [], rewards: [], raidRequirements: [{ itemId: 'grip', count: 1, purpose: 'place', mapIds: [], objectiveId: 'p' }] },
+    ]
+    const barters = (): Barter[] => [{ id: 'b1', traderId: 'prapor', traderName: 'Прапор', level: 2, requiredItems: [{ itemId: 'grip', count: 2 }], rewardItems: [{ itemId: 'reward', count: 1 }] }]
+
+    it('a module’s hover card names its Gunsmith parts, the other quests (hand over, plant) and the barters; a completed quest says so', async () => {
+      state.items = [grip(), item('reward', { name: 'Автомат АКМ', shortName: 'АКМ' })]
+      state.quests = quests()
+      state.barters = barters()
+      state.done = { plant: { taskId: 'plant', status: 'completed', source: 'manual', updatedAt: '' } }
+      open()
+      fireEvent.click(screen.getByRole('tab', { name: 'Модули оружия' }))
+      await userEvent.hover(tile('MOE AK'))
+      const card = await screen.findByRole('tooltip')
+      expect(within(card).getByText('Пистолетная рукоятка Magpul MOE для АК (FDE) с очень длинным названием')).toBeTruthy()
+      expect(within(card).getByText('Нужен для квестов')).toBeTruthy()
+      const rows = [...card.querySelectorAll('.item-needs li')].map((row) => row.textContent)
+      expect(rows).toEqual(['Поставкасдать 2 · FIR', 'Оружейник. АКС-74Нобязательно', 'Закладкавыполнен', 'Прапор 2 · АКМ×2'])
+      expect(within(card).getByText('Нужен для бартеров')).toBeTruthy()
+    })
+
+    it('a click (or Enter) opens the item’s full card with every quest linked; an item needed for nothing has no such rows', async () => {
+      state.items = [grip(), item('Bolts', { name: 'Болты', types: ['mods'], flea: { pvp: 5_000 } })]
+      state.quests = quests()
+      open()
+      fireEvent.click(screen.getByRole('tab', { name: 'Модули оружия' }))
+      await userEvent.hover(tile('Bolts'))
+      expect((await screen.findByRole('tooltip')).querySelector('.item-needs')).toBeNull()
+      fireEvent.click(tile('MOE AK'))
+      const drawer = screen.getByTestId('item-drawer')
+      expect(within(drawer).getByRole('link', { name: 'Оружейник. АКС-74Н' }).getAttribute('href')).toBe('/gunsmith?quest=gs-aks')
+      expect(within(drawer).getByRole('link', { name: 'Поставка' }).getAttribute('href')).toBe('/quests?filter=all&selected=supply')
+      fireEvent.click(within(drawer).getByRole('button', { name: '×' }))
+      expect(screen.queryByTestId('item-drawer')).toBeNull()
+      fireEvent.keyDown(tile('Bolts'), { key: 'Enter' })
+      expect(within(screen.getByTestId('item-drawer')).getByText('Болты')).toBeTruthy()
+    })
+
+    it('in English', async () => {
+      localStorage.setItem('tarkov-operations-locale-v1', 'en')
+      state.items = [grip(), item('reward', { name: 'AKM', shortName: 'AKM' })]
+      state.quests = quests()
+      state.barters = barters()
+      open()
+      fireEvent.click(screen.getByRole('tab', { name: 'Weapon mods' }))
+      await userEvent.hover(tile('MOE AK'))
+      const card = await screen.findByRole('tooltip')
+      expect(within(card).getByText('Needed for quests')).toBeTruthy()
+      expect(within(card).getByText('Needed for barters')).toBeTruthy()
+      expect(within(card).getByText('hand over 2 · FIR')).toBeTruthy()
+      expect(within(card).getByText('required')).toBeTruthy()
+      expect(within(card).getByText('plant')).toBeTruthy()
     })
   })
 
