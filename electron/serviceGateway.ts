@@ -221,6 +221,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
   { methods: ['GET', 'POST'], path: /^\/v1\/accounts\/me\/payouts$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/payout-settings$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/streamer-notifications$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/streamer-notifications\/read$/ },
   // «Отряд» (server/src/routes/squads.ts): the server checks membership on every call.
   { methods: ['GET'], path: new RegExp(`^/v1/squads/mine/${MODE}$`) },
   { methods: ['POST'], path: /^\/v1\/squads(?:\/join)?$/ },

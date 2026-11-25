@@ -59,10 +59,7 @@ setInterval(releaseInvites, 60 * 60 * 1000).unref()
 const runDeletions = () => { try { accounts.runDueDeletions() } catch (error) { console.error('Scheduled account deletion failed', error instanceof Error ? error.message : 'unknown error') } }
 runDeletions()
 setInterval(runDeletions, 60 * 60 * 1000).unref()
-// Streamer auto-payouts: every hour, request the balance of each streamer whose N-day cycle is over.
-const runAutoPayouts = () => { try { payouts.runAuto((id) => accounts.streamerCode(id)) } catch (error) { console.error('Auto-payout failed', error) } }
-runAutoPayouts()
-setInterval(runAutoPayouts, 60 * 60 * 1000).unref()
+// Streamer auto-payouts were removed (owner, 25.11.2026): the server never creates a payout request on its own.
 // ЮKassa autopayments: every hour, charge the saved method of subscriptions whose paid period ends within a day
 // (only with the payer's autopayment consent and while the owner keeps autopayments on; see PaymentStore.runRecurring).
 const runRecurring = () => { payments.runRecurring().catch((error: unknown) => console.error('Autopayment run failed', error instanceof Error ? error.message : 'unknown error')) }

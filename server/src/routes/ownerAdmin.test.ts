@@ -593,19 +593,17 @@ test('the owner can take the streamer status away: the cabinet goes, the code st
   } finally { await t.close() }
 })
 
-test("the owner's older actions (streamer invites, payout limits) are written to the audit log", async () => {
+test("the owner's older actions (streamer invites) are written to the audit log", async () => {
   const t = await setup()
   try {
     const owner = await t.login('owner@example.com')
     const player = await t.register('player@example.com')
     assert.equal((await t.call('POST', '/accounts/me/admin/streamer-invites', owner, { code: 'new_one' })).status, 201)
-    assert.equal((await t.call('PUT', '/accounts/me/admin/payout-limits', owner, { min: 2, max: 14 })).status, 200)
     // Refused calls (and other people's) are not logged.
     assert.equal((await t.call('POST', '/accounts/me/admin/streamer-invites', owner, { code: '<b>' })).status, 400)
     assert.equal((await t.call('POST', '/accounts/me/admin/streamer-invites', player, { code: 'HACKER' })).status, 404)
     const entries = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target?: string; details?: Record<string, unknown> }> }).entries
     assert.deepEqual(entries.map((entry) => [entry.action, entry.target ?? '', entry.details ?? {}]), [
-      ['payout.limits', '', { min: 2, max: 14 }],
       ['streamer.invite', 'NEW_ONE', {}],
     ])
     // The invitation token is never written to the log.

@@ -4,19 +4,18 @@
  * service gateway.
  *
  * Streamer (403 for other accounts):
- *   GET  /me/payouts                 -> 200 { percent, earned, paidOut, pending, available, minimum, currency,
- *                                            details: { phone (masked), bank, recipient } | null,
- *                                            autoPayout: { enabled, intervalDays, limits: { min, max }, nextAt },
+ *   GET  /me/payouts                 -> 200 { percent, earned, paidOut, pending, available, maturing, maturityDays,
+ *                                            minimum, currency, details: { phone (masked), bank, recipient } | null,
  *                                            payouts: [{ id, amount, status, auto, createdAt, decidedAt?, comment?, destination }] }
- *   PUT  /me/payout-settings         { phone?, bank?, recipient?, auto?, intervalDays? } -> 200 same as GET /me/payouts
- *   POST /me/payouts                 { amount } (roubles, ≥ minimum, ≤ available; one open request) -> 201 payout
+ *   PUT  /me/payout-settings         { phone, bank, recipient } -> 200 same as GET /me/payouts (details only; validated)
+ *   POST /me/payouts                 { amount } (roubles, ≥ minimum, ≤ available; one open request; details required) -> 201 payout
  *
  * Owner (TARKOV_OWNER_EMAILS; 404 for everybody else):
- *   GET  /me/admin/payouts           -> 200 { payouts: [... + code, email, phone, bank, recipient], limits: { min, max } }
+ *   GET  /me/admin/payouts           -> 200 { payouts: [... + code, email, phone, bank, recipient] }
  *   POST /me/admin/payouts/decide    { id, status: 'paid' | 'rejected', comment? } -> 200 payout
- *   PUT  /me/admin/payout-limits     { min, max } (days the streamers may choose for auto-payout) -> 200 { limits }
  *
- * Amounts are roubles. Nothing here moves money: the owner transfers it and marks the request paid.
+ * Auto-payout was removed (owner, 25.11.2026): the server never creates a request on its own; the streamer saves his
+ * payout details and asks manually. Amounts are roubles. Nothing here moves money: the owner transfers it and marks paid.
  */
 import express from 'express'
 import type { Request, Response } from 'express'
@@ -25,15 +24,13 @@ import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from 
 import { PayoutError, type PayoutStore } from '../services/payoutStore.js'
 
 const requestSchema = z.object({ amount: z.number().positive().max(10_000_000) })
+// Payout details only (auto-payout removed, owner 25.11.2026); the values are validated again in payoutStore.validateDetails.
 const settingsSchema = z.object({
-  phone: z.string().max(40).optional(),
-  bank: z.string().max(80).optional(),
-  recipient: z.string().max(120).optional(),
-  auto: z.boolean().optional(),
-  intervalDays: z.number().int().optional(),
+  phone: z.string().max(40),
+  bank: z.string().max(80),
+  recipient: z.string().max(120),
 })
 const decideSchema = z.object({ id: z.string().regex(/^[a-f0-9]{24}$/), status: z.enum(['paid', 'rejected']), comment: z.string().max(200).optional() })
-const limitsSchema = z.object({ min: z.number().int(), max: z.number().int() })
 
 export function createPayoutsRouter(accounts: AccountStore, payouts: PayoutStore) {
   const router = express.Router()
@@ -54,9 +51,11 @@ export function createPayoutsRouter(accounts: AccountStore, payouts: PayoutStore
     if (!id) throw new AccountError(401, 'Требуется вход в аккаунт')
     return id
   }
+  // Payouts, requisites and notices exist only for a streamer with a share above 0 (owner, 25.11.2026); a 0 %
+  // «statistics only» streamer is refused like an ordinary player.
   const streamer = (req: Request) => {
     const id = signedIn(req)
-    const code = accounts.streamerCode(id)
+    const code = accounts.payoutStreamerCode(id)
     if (!code) throw new AccountError(403, 'Выплаты доступны только стримерам')
     return { id, code }
   }
@@ -95,7 +94,7 @@ export function createPayoutsRouter(accounts: AccountStore, payouts: PayoutStore
 
   router.get('/me/admin/payouts', handle((req, res) => {
     owner(req)
-    res.json({ payouts: payouts.ownerList((accountId) => accounts.emailOf(accountId)), limits: payouts.intervalLimits() })
+    res.json({ payouts: payouts.ownerList((accountId) => accounts.emailOf(accountId)) })
   }))
 
   // «Стримеры» → красный счётчик: сколько заявок ждут владельца сейчас.
@@ -108,12 +107,6 @@ export function createPayoutsRouter(accounts: AccountStore, payouts: PayoutStore
     owner(req)
     const { id, status, comment } = decideSchema.parse(req.body)
     res.json(payouts.decide(id, status, comment))
-  }))
-
-  router.put('/me/admin/payout-limits', handle((req, res) => {
-    owner(req)
-    const { min, max } = limitsSchema.parse(req.body)
-    res.json({ limits: payouts.setIntervalLimits(min, max) })
   }))
 
   return router
