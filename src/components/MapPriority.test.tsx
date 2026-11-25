@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { GameMap } from '../domain/types'
@@ -16,7 +16,20 @@ function renderRow() {
   return row
 }
 
+/** Frames run by hand: the row glides (owner, 26.11.2026: «должно листаться не рывками, а плыть»). */
+function frames() {
+  const queue = new Map<number, FrameRequestCallback>()
+  let next = 0
+  let time = 0
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { next += 1; queue.set(next, callback); return next })
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => { queue.delete(id) })
+  const step = () => { time += 16; const due = [...queue.values()]; queue.clear(); for (const callback of due) callback(time) }
+  return { step, settle: () => { for (let i = 0; i < 500 && queue.size; i += 1) step() } }
+}
+
 describe('MapPriority', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
   it('shows every map, the busiest first', () => {
     renderRow()
     const tiles = document.querySelectorAll('.map-priority-tile')
@@ -39,15 +52,42 @@ describe('MapPriority', () => {
     expect(document.querySelector('.map-priority-tile.is-top')).toHaveAccessibleName(/factory/)
   })
 
-  it('scrolls the row sideways with the wheel while there is more to see, then lets the page scroll', () => {
+  it('glides the row sideways with the wheel while there is more to see, then lets the page scroll (owner, 26.11.2026)', () => {
+    const run = frames()
     const row = renderRow()
     expect(fireEvent.wheel(row, { deltaY: 120 })).toBe(false)
-    expect(row.scrollLeft).toBe(120)
+    expect(row.scrollLeft).toBe(0)
+    run.step()
+    // a frame is a little of the way, not the whole notch at once
+    expect(row.scrollLeft).toBeGreaterThan(0)
+    expect(row.scrollLeft).toBeLessThan(30)
+    // a notch that comes while it glides adds up
+    expect(fireEvent.wheel(row, { deltaY: 120 })).toBe(false)
+    run.settle()
+    expect(row.scrollLeft).toBe(240)
     row.scrollLeft = 500
     // at the right end the wheel is the page's again
     expect(fireEvent.wheel(row, { deltaY: 120 })).toBe(true)
     expect(fireEvent.wheel(row, { deltaY: -120 })).toBe(false)
+    run.settle()
     expect(row.scrollLeft).toBe(380)
+  })
+
+  it('a row moved by anything else while it glides stays where that put it', () => {
+    const run = frames()
+    const row = renderRow()
+    fireEvent.wheel(row, { deltaY: 300 })
+    run.step()
+    row.scrollLeft = 50
+    run.settle()
+    expect(row.scrollLeft).toBe(50)
+  })
+
+  it('with «reduce motion» in the system the row moves at once', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, addEventListener() {}, removeEventListener() {} }))
+    const row = renderRow()
+    expect(fireEvent.wheel(row, { deltaY: 120 })).toBe(false)
+    expect(row.scrollLeft).toBe(120)
   })
 
   it('leaves the wheel alone when all maps fit', () => {
