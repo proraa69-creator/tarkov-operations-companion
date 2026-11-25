@@ -10431,3 +10431,38 @@ Not pushed, not released, nothing uploaded.
   machine-only (linux/updater ×3, staleServer, appVersion, AdminPanelPage CRLF, two gate-excluded script files). Merge-touched
   tests pass per file (buildEdition, elevation, nativeIntegrity, serviceGateway.dataRoutes, sync, armoredTrain, btrQuests).
 - Server needs RAIDOS_PAID_CONTENT default on (index.ts: on unless =0). Owner exe carries the admin fixes as every release.
+
+## 2026-11-25 — Claude: телефонный джиттер «Обзора» — расследование (причина в dev не воспроизвелась)
+
+- Ветка claude/phone-jitter от origin/release/production (a315c5f8, 0.6.0.344). Рабочее дерево
+  C:\Users\BANGKOK PC\raidos-phone-jitter; junction node_modules → raidos-stock-level, server/website nm → raidos-quest-photos-all
+  (website-источник пуст, взят из tarkov-operations-companion). Не запушено. Изменений кода НЕТ.
+- Задача: на телефоне «Обзор» дёргается при загрузке (прокрутка и вёрстка скачут, «перескакивает между состояниями»).
+  Прогнал vite dev, встроенный браузер на ширине телефона 390×844 (мобильная раскладка при ≤700px, src/platform.ts).
+- Инструментовал: PerformanceObserver('layout-shift'), MutationObserver, сэмплинг scrollY/scrollHeight, DOM-аудит картинок,
+  обход React fiber, перехват fetch.
+- Результат — вёрстка «Обзора» на телефоне В ТЕКУЩЕМ коде СТАБИЛЬНА: CLS=0 в покое, при первой загрузке (splash→Обзор) и при
+  смене карты; 0 мутаций DOM за 3 с в покое; scrollY не прыгает; высота документа/raid-card стабильна (1697/360px).
+- Гипотезы проверены и ОТКЛОНЕНЫ доказательствами:
+  - MapPriority (claude/map-priority-229-230): его эффект меняет только row.scrollLeft полоски. Прямой тест — установка
+    scrollLeft с 0→80→0 НЕ меняет window.scrollY (verticalMoved=false). Коммит 47575eef менял лишь логику подсчёта и ПК-фильтр.
+  - Фигуры боссов / «Кочевник» / qc-goons — position:absolute, высота raid-card не зависит от их загрузки (360px стабильно).
+  - item-thumb («Барахолка»/«Требования») — фиксированные width/height в CSS (42/38/34px, object-fit), загрузка иконок не сдвигает.
+  - ThumbScroll (телефонные «Текущие задания»/«Сбор на рейд»/«Требования», compactRows только при mobile) — цикл thumb↔ширина
+    уже закрыт резервом трека (thumbScroll.css, фикс 21.11 «441↔517»); measure() в useLayoutEffect = синхронно до paint (без видимого скачка).
+  - useAlignedListHeight — на телефоне выключен (scrollable=!mobile).
+  - useOverviewEditor — на телефоне вхолостую безопасен (elements пуст, container=null, нет setState).
+  - useFitBelow — в «Обзоре» не используется. FOUC desktop→mobile CSS исключён (installLayoutAttributes в main.tsx до рендера).
+  - Scroll-anchoring не сломан (нет overflow-anchor:none). Сеть без шторма: 5 запросов за 10с (/health, /v1/goons, /regular/maps).
+- Почему не воспроизвёл: dev-окружение структурно не даёт нужные условия. Гость без принятых квестов → списки пусты (ThumbScroll
+  неактивен); демо-профиль (favoriteItemIds=graphics-card/ledx/salewa) несовместим с живым каталогом (hex-id, 5498 позиций) →
+  «Барахолка» пуста; сервер недоступен (CORS) → trader-resets/announcement/goons не грузятся; картинки из HTTP-кэша → мгновенно;
+  встроенный браузер вместо Capacitor WebView.
+- Наиболее вероятная реальная причина (не воспроизведена, согласуется с симптомом): кумулятивный layout-shift от асинхронных
+  данных блоков, приходящих ПОСЛЕ первого кадра (trader-resets в «ЭКРАН», owner-defaults переупорядочивают блоки телефона в
+  usePhoneOverview, goons, deferred) — в одноколоночной раскладке рост верхнего блока сдвигает всё ниже; плюс возможный
+  perf-jank от canvas «Дым» (RaidSmoke) на первых кадрах. Для точного адреса нужен реальный профиль/медленная сеть/устройство.
+- Правку НЕ вносил: менять стабильный релизный код без воспроизведения = риск регрессии (ограничение «не ломать десктоп»).
+  Тестов/typecheck не запускал (код не тронут).
+- Дальше: видео или Performance-трейс с телефона владельца (какой блок прыгает) ИЛИ подтверждение версии (джиттер мог быть на
+  сборке ДО фиксов reports 208/211/222) ИЛИ наполненный профиль для dev — тогда довожу точечный фикс. Не выпускать (нет изменений).
