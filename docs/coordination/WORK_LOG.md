@@ -10419,3 +10419,15 @@ Not pushed, not released, nothing uploaded.
   dist/gun-parts.pack. На VPS отдельных команд не нужно — картинки берутся из git. В этот раз добавлять нечего.
 - Дальше (по слову владельца): для шасси SMC-90 нужен офлайн-движок/форк SPT под игру 1.3.x, где его меш читается; либо
   оставить подстановку. Заявка 225 остаётся с временной подстановкой.
+
+## 2026-11-25 — Claude: release 0.6.0.344 (owner: «защиту и заявки, всё вместе»)
+
+- claude/release-344 from release/production f444b3f3 + 8 branches: quest-scan-232, map-priority-229-230 (incl BTR), ideas-226-231
+  (train timer + penetration block), poland-cis-price, promo-keep-new, server-paywall, client-hardening, gun-parts-reshoot
+  (incl range-225-228; Scourge stand-in kept — SMC-90 chassis unshootable on offline SPT 0.16.9 vs live 1.3.5).
+- Version 0.6.0-344 (package.json, lock, website/src/config.ts); apiEnv.ts lists RAIDOS_PAID_CONTENT (gate). History 4 lines;
+  player news 4 items in 12 languages (no security line — not advertised).
+- Checks: typecheck, electron tsc, server typecheck clean; server tests 619/619; website build ok; vitest 4734 passed, 8 failed =
+  machine-only (linux/updater ×3, staleServer, appVersion, AdminPanelPage CRLF, two gate-excluded script files). Merge-touched
+  tests pass per file (buildEdition, elevation, nativeIntegrity, serviceGateway.dataRoutes, sync, armoredTrain, btrQuests).
+- Server needs RAIDOS_PAID_CONTENT default on (index.ts: on unless =0). Owner exe carries the admin fixes as every release.
