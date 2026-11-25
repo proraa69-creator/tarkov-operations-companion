@@ -101,8 +101,12 @@
 .quest-key-missing { white-space: nowrap; border-color: color-mix(in srgb, #d78a6e 55%, transparent); color: #e2a28c; }
 button.quest-key-missing { cursor: pointer; }
 button.quest-key-missing:hover { border-color: #d78a6e; color: #f0b9a5; }
-.quest-key-stock-dialog { width: min(420px, 100%); }
-.quest-key-stock-dialog .quest-key-barter-key svg { color: var(--text-muted); }
+/* «Нет в наличии» pressed: a small box right under it, nothing dimmed (owner, 25.11.2026); its card above the next ones. */
+.quest-key-stock { position: relative; display: inline-flex; flex: none; }
+.quest-key:has(.quest-key-stock-pop) { position: relative; z-index: 5; }
+.quest-key-stock-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; display: grid; gap: 8px; min-width: 180px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1, #121815); box-shadow: 0 14px 30px rgb(0 0 0 / 45%); }
+.quest-key-stock-pop > span { color: var(--text); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.quest-key-stock-pop .button { justify-content: center; gap: 5px; }
 
 /* One key in a window over the map (quests/QuestKeyDialog.tsx): small, everything in the middle */
 .quest-key-dialog { width: min(320px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 20px 18px; text-align: center; }
