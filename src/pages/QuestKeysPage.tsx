@@ -181,7 +181,7 @@ export function QuestKeysPage() {
             {stateTag && <span className={`tag ${stateTag.tone}`}>{uiText(stateTag.label)}</span>}
             {/* The Overview's words (owner, 11.11.2026: «чтобы также писалось нет в наличии и в схроне»); nothing before the first scan or key added. */}
             {owned.has(row.item.id)
-              ? <span className="tag green quest-key-owned">{uiText('Есть в схроне')}{row.item.keyUses && uses.has(row.item.id) ? ` · ${uses.get(row.item.id)}/${row.item.keyUses}` : ''}</span>
+              ? <QuestKeyStockButton item={row.item} profileId={profileId} mode={mode} owned usesLeft={row.item.keyUses && uses.has(row.item.id) ? `${uses.get(row.item.id)}/${row.item.keyUses}` : undefined} />
               : owned.size > 0 && row.state !== 'done' ? <QuestKeyStockButton item={row.item} profileId={profileId} mode={mode} /> : null}
             <QuestKeyMarket item={withLivePrice(row.item, mode, live)} mode={mode} barters={bartersByKey.get(row.item.id) ?? []} onBarter={() => setBarterKey(row.item)} />
             <button type="button" className={`icon-button quest-key-star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starLabel} title={starLabel} onClick={() => setQuestKeyFavorite(profileId, mode, row.item.id, !starred)}><Star size={16} aria-hidden="true" /></button>

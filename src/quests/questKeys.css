@@ -72,6 +72,8 @@
 .quest-keys-help { width: 32px; height: 32px; border-radius: 50%; }
 .quest-keys-scan-message { color: var(--text-muted); font-size: 12.5px; }
 .quest-key-owned { white-space: nowrap; }
+button.quest-key-owned { cursor: pointer; }
+button.quest-key-owned:hover { filter: brightness(1.15); }
 .quest-keys-help-dialog { width: min(500px, 100%); }
 .quest-keys-help-steps { display: grid; gap: 8px; margin: 6px 0 12px; padding-left: 20px; line-height: 1.45; }
 .quest-keys-stash-dialog { width: min(620px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }

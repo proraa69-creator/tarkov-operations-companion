@@ -263,6 +263,30 @@ describe('«Ключи для квестов»', () => {
     expect(readOwnedKeys(profile.id, 'pvp').has('k2')).toBe(false)
   })
 
+  // Owner, 25.11.2026: «если ключ в наличии, также нажимает на это окно и нажать „Нет в наличии“»; the right button opens the box too.
+  it('«Есть в схроне» opens the same small box, by the left or the right button; its «Нет в наличии» takes the key off', () => {
+    const profile = open()
+    act(() => { setOwnedKey(profile.id, 'pvp', 'k1', 1); setOwnedKey(profile.id, 'pvp', 'k2', 1) })
+    const owned = () => within(row('Ключ от гаража')).getByRole('button', { name: 'Есть в схроне' })
+    fireEvent.contextMenu(owned())
+    const box = within(row('Ключ от гаража')).getByRole('dialog', { name: 'Нет в наличии' })
+    expect(document.querySelector('.registration-overlay')).toBeNull()
+    expect(within(box).getByRole('button', { name: 'Нет в наличии' })).toHaveFocus()
+    // Closed without a choice: still in the stash.
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
+    fireEvent.click(owned())
+    fireEvent.click(within(within(row('Ключ от гаража')).getByRole('dialog', { name: 'Нет в наличии' })).getByRole('button', { name: 'Нет в наличии' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(readOwnedKeys(profile.id, 'pvp').has('k2')).toBe(false)
+    expect(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' })).toBeInTheDocument()
+    // and back: the right button on «Нет в наличии» opens «Добавить в наличие»
+    fireEvent.contextMenu(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' }))
+    fireEvent.click(within(within(row('Ключ от гаража')).getByRole('dialog', { name: 'Добавить в наличие' })).getByRole('button', { name: 'Добавить' }))
+    expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
+  })
+
   it('the window has its English', () => {
     setRenderLanguage('en')
     try {
