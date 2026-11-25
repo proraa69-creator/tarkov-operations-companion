@@ -10431,3 +10431,18 @@ Not pushed, not released, nothing uploaded.
   machine-only (linux/updater ×3, staleServer, appVersion, AdminPanelPage CRLF, two gate-excluded script files). Merge-touched
   tests pass per file (buildEdition, elevation, nativeIntegrity, serviceGateway.dataRoutes, sync, armoredTrain, btrQuests).
 - Server needs RAIDOS_PAID_CONTENT default on (index.ts: on unless =0). Owner exe carries the admin fixes as every release.
+
+## 2026-11-25: Claude, кабинет стримера и выручка грязными/чистыми (+ заявки на вывод, уведомления)
+
+- Статус: completed локально; ветка `claude/revenue-net` (worktree raidos-revenue, от origin/release/production). НЕ запушено, на сервер только чтение.
+- Коммиты: `71e608f9` (сервер+shared: net, созревание 14 дней, уведомления), `27c5823d` (комиссии ЮKassa по способу оплаты), `812c8732` (клиенты: сайт+приложение), + эта запись.
+- Единое место расчёта — `src/shared/revenue.ts`: `PROVIDER_FEE_PERCENT` (ЮKassa по способу: sbp/tinkoff_bank 3.5, bank_card/sberbank 4.27, default 3.53; bezebee 5; boosty 0 — «архив, неизвестно»), `USD_RATE`=84.43 / `EUR_RATE`=92.59 (на будущее — все платежи сейчас в рублях), `PAYOUT_MATURITY_DAYS`=14, `netRevenue()`. Владельцу вписывать проценты/курс только здесь.
+- Выручка грязными/чистыми за сегодня/месяц/всё время: `adminStore.overview` (сервер) группирует по (провайдер, способ); показ в website `AdminSummary` (сайт и ПК-приложение через SiteAdminSummary) и `src/admin/AdminMobilePage` (телефон). Чистыми = грязными − доля стримеров − комиссия по способу.
+- Дубль «повторно» убран: в блоке «За всё время» оставлен «Оплатили повторно» (люди), «Повторных» (оплаты) — только в карточках сегодня/месяца.
+- Заявки на вывод (расширение существующего `payoutStore`/`routes/payouts`): правило 14 дней — к выводу только заработок с платежей старше 14 дней, возвраты исключены (`streamer_earning=0`); в кабинете «к выводу/получено/в заявке/зреет»; красный счётчик непрочитанных заявок на вкладке «Стримеры» (website `AdminPage` usePayoutAttention, `src/admin/SiteAdminSummary`, `AdminMobilePage`); новый `GET /me/admin/payouts/attention`.
+- Кабинет стримера: «Оплатили» + сумма оплат приглашённых, доля, напоминание о скидке 20% на 1 месяц (текст уже был, проверено: streamer-код реально даёт 20% на первый месяц — `invites.FRIEND_DISCOUNT_PERCENT`) и о 14 днях; «Скопировать код»/ссылку; «Скачать приложение». Панель — серверно-гейтед по `kind='streamer'`, БЕЗ отдельной сборки exe.
+- Уведомления стримера: `GET/POST /me/streamer-notifications` (новая оплата по ссылке, проведённая владельцем выплата) + бейдж у ника в профиле приложения (`StreamerPanelButton`); «Оплачено» владельца становится уведомлением «выплата проведена».
+- ВНИМАНИЕ: стримеру теперь виден агрегат оплат приглашённых («на какую сумму») — это отменяет правило 30.10.2026 «не показывать суммы зрителей». Сделано по слову владельца 25.11.2026 — подтвердить.
+- Тесты: сервер node:test (14 дней, net с примером, счётчик заявок, уведомления) — затронутые 53/53 зелёные; vitest `src/shared/revenue.test.ts` (формула), `src/account/StreamerCabinetPanel.test.tsx` (оплатили/сумма, 14 дней, бейдж), website `adminSummary.test.tsx` (net + без дубля).
+- `npm run typecheck`, `npm --prefix server run typecheck`, `npm --prefix website run build` — чисто. Браузерная проверка (vite dev + локальный сервер на демо-данных, код BULLDOZER): админ-выручка грязными/чистыми за 3 периода, без дубля, счётчик «Стримеры»=1; кабинет стримера с оплатами/суммой/14 днями отображается.
+- Не проверено/риски: ЮKassa % владелец ещё подтверждает (вписаны по его данным), `USD_RATE` уточняется; полные наборы тестов и e2e не гонялись (только затронутое); Electron-приложение вживую не запускал (покрыто типами и vitest). На сервер не писал, ветку не пушил.
