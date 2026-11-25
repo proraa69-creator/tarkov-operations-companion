@@ -14,7 +14,7 @@ import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING, unchangedFrame } from '../src/import/storyScanTiming.js'
 import { gameUiBox, isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
-import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
+import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, NAME_LEVEL_OCR_WHITELIST, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
 import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
 import { isTasksTableText } from '../src/import/tasksTableText.js'
 import { classifyLoyaltyBadge, confirmLoyalty, traderBadgeRects } from '../src/import/traderLoyalty.js'
@@ -506,27 +506,34 @@ async function readModeSelect(image: NativeImage, words: OcrWordBox[], model: st
   const ocr = await questEngine.get(model)
   try {
     const readings = await questOcrJob(async () => {
-      const result: CardReadings[] = []
-      for (const header of headers) {
-        // The line the whole pass found, as one line; otherwise the band under the card's title, as a block.
-        const rect = header.full?.box ?? header.band
-        const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
-        if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '7' })
-        let data: Awaited<ReturnType<OcrWorker['recognize']>>['data']
-        try {
-          data = (await ocr.recognize(ocrInput(scaled), {}, { text: true, blocks: true })).data
-          data = { ...data, text: readingText(data, model) }
-        } finally {
-          if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '6' })
+      // The nickname is Latin letters, digits, «_» and «-», the bar reads as «|», «!», «/», «\»: a whitelist keeps the
+      // engine from turning a letter into a Cyrillic look-alike and dropping it (owner, 25.11.2026). Cleared after.
+      await ocr.setParameters({ tessedit_char_whitelist: NAME_LEVEL_OCR_WHITELIST })
+      try {
+        const result: CardReadings[] = []
+        for (const header of headers) {
+          // The line the whole pass found, as one line; otherwise the band under the card's title, as a block.
+          const rect = header.full?.box ?? header.band
+          const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
+          if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '7' })
+          let data: Awaited<ReturnType<OcrWorker['recognize']>>['data']
+          try {
+            data = (await ocr.recognize(ocrInput(scaled), {}, { text: true, blocks: true })).data
+            data = { ...data, text: readingText(data, model) }
+          } finally {
+            if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '6' })
+          }
+          const line = findNameLevel(data.text ?? '')
+          const full = header.full ? { nickname: header.full.nickname, level: header.full.level } : undefined
+          const word = cardLevelWord(ocrLines(data.blocks), Boolean(header.full))
+          const picture = word ? closeUpPicture(scaled) : null
+          const digits = word && picture ? readLevelShapes(picture, word.bbox, [line?.level, full?.level]) : undefined
+          result.push({ mode: header.mode, ...(full ? { full } : {}), ...(line ? { line } : {}), ...(digits ? { digits } : {}) })
         }
-        const line = findNameLevel(data.text ?? '')
-        const full = header.full ? { nickname: header.full.nickname, level: header.full.level } : undefined
-        const word = cardLevelWord(ocrLines(data.blocks), Boolean(header.full))
-        const picture = word ? closeUpPicture(scaled) : null
-        const digits = word && picture ? readLevelShapes(picture, word.bbox, [line?.level, full?.level]) : undefined
-        result.push({ mode: header.mode, ...(full ? { full } : {}), ...(line ? { line } : {}), ...(digits ? { digits } : {}) })
+        return result
+      } finally {
+        await ocr.setParameters({ tessedit_char_whitelist: '' })
       }
-      return result
     })
     const now = Date.now()
     const earlier = lastCloseUps && now - lastCloseUps.at < 30_000 ? lastCloseUps.names : {}

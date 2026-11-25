@@ -21,6 +21,16 @@ import { languageWords } from './gameWordPatterns.js'
 export const MAX_PLAYER_LEVEL = 79
 const NICKNAME = /^[A-Za-z0-9_-]{3,15}$/
 
+/**
+ * The characters a card's «ник | уровень» close-up may read: Escape from Tarkov nicknames are Latin letters, digits, «_»
+ * and «-» (NICKNAME above), and the bar before the level comes out as «|», «!», «/», «\», «l» or «I». A whitelist keeps
+ * the engine from turning the name's letters into Cyrillic look-alikes or box shapes and dropping them (owner, 25.11.2026:
+ * «J0hn_Ram60» read «hn_Ram62»). It never rewrites a digit as a letter or the other way: the level is still confirmed by
+ * its shapes (levelDigits.ts), and a digit inside the name is left honestly as read (a slashed «0» may still come «2»).
+ */
+export const NAME_LEVEL_OCR_WHITELIST =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-|!/\\ '
+
 export interface NameLevel { nickname: string; level: number }
 /** A card's confirmed level and its confirmed nickname, each when two readings agreed on it; at least one of them. */
 export interface ModeSelectCard { mode: RaidMode; level?: number; nickname?: string }
@@ -169,12 +179,24 @@ export function modeSelectHeaders(words: OcrWordBox[], size: { width: number; he
     const column = { x0: x0 - unit * 0.075, x1: x0 + unit * 0.28 }
     const band = clampRect({ x: column.x0, y: middle + unit * 0.4, width: column.x1 - column.x0, height: unit * 0.18 }, size)
     const full = lineInBand(words, band)
-    return { mode, band, ...(full ? { full: { ...full.reading, box: clampRect(padBox(full.box, unit), size) } } : {}) }
+    return { mode, band, ...(full ? { full: { ...full.reading, box: widenToBand(clampRect(padBox(full.box, unit), size), band) } } : {}) }
   })
 }
 
 function padBox(box: OcrWordBox['bbox'], unit: number): PaneRect {
   return { x: box.x0 - unit * 0.03, y: box.y0 - unit * 0.012, width: box.x1 - box.x0 + unit * 0.06, height: box.y1 - box.y0 + unit * 0.024 }
+}
+
+/**
+ * A close-up box pulled out to the band's own left and right edges. The band is anchored to the card's title, not to the
+ * name the whole pass found, so a leading (or trailing) glyph the whole pass clipped — the owner's «J0hn_Ram60» whose «J0»
+ * the whole pass dropped over the character art (25.11.2026) — is still inside the close-up and read on the 3× pass. The
+ * band stays within the card (its width is about a third of a unit), so this never reaches a neighbouring card.
+ */
+function widenToBand(box: PaneRect, band: PaneRect): PaneRect {
+  const x = Math.min(box.x, band.x)
+  const right = Math.max(box.x + box.width, band.x + band.width)
+  return { x, y: box.y, width: right - x, height: box.height }
 }
 
 /** The nickname's letters are this high (the players' screenshots: 13–16 px at 1080p). */
@@ -229,21 +251,45 @@ function shapedLevel(level: number | null | undefined, digits: CardReadings['dig
 }
 
 /**
+ * The close-up is the fuller (or equal) reading and the whole pass is that same name with an end glyph clipped: fold(full)
+ * is a prefix or suffix of fold(line) and no longer than it. The whole pass drops the name's first letter where it sits
+ * over the character art (owner, 25.11.2026: «J0hn_Ram60» → «hn_Ram62»); the magnified close-up keeps it, because
+ * modeSelectHeaders widens the close-up to the card's title-anchored band. A whole pass that read a different name (not an
+ * affix) is a real disagreement, never a clip.
+ */
+function closeUpHoldsWholePass(full: string, line: string) {
+  const f = foldNickname(full), l = foldNickname(line)
+  return f.length >= 2 && f.length <= l.length && (l.startsWith(f) || l.endsWith(f))
+}
+
+/**
+ * A card's nickname: the close-up's spelling when the whole pass read the same name; and, when the magnified close-up is
+ * the same across two frames (`before`, the previous frame's close-up of this card), also when the whole pass only clipped
+ * an end glyph of that name (closeUpHoldsWholePass) or missed the line entirely — never when the whole pass read a
+ * different name. The close-up is the higher-resolution reading, so it wins the spelling; stability across two frames
+ * guards against a transient misread. A digit inside the name is not confirmed by shapes — it stands as the close-up read
+ * it (honest residual: a slashed «0» may read «2»).
+ */
+function confirmedNickname(full: NameLevel | undefined, line: NameLevel | undefined, before: string | undefined) {
+  if (!line) return undefined
+  if (full && foldNickname(full.nickname) === foldNickname(line.nickname)) return line.nickname
+  if (before && foldNickname(before) === foldNickname(line.nickname) && (!full || closeUpHoldsWholePass(full.nickname, line.nickname))) return line.nickname
+  return undefined
+}
+
+/**
  * Each card's level and nickname, each confirmed on its own (audit P4e: a clear «Raid_OS» next to a «39» whose shapes
  * could not be read gave nothing at all before). The level: an OCR reading (the close-up or the whole pass) the digits'
  * shapes agree on — two OCR readings agreeing are not enough, nor the same close-up in two frames: the screen does not
- * move, so they look at the same pixels and share a misread «3». The nickname: the whole pass and the close-up read it
- * alike; when the whole pass missed the line, the close-up and the previous frame's close-up of that card (`earlier`)
- * did. A name has no look-alike digit to share (foldNickname folds what OCR mixes up), and the newest reading wins later.
+ * move, so they look at the same pixels and share a misread «3». The nickname (confirmedNickname): the whole pass and the
+ * close-up read it alike; or the magnified close-up, the same across two frames, when the whole pass only clipped an end
+ * glyph of it or missed the line. The newest reading wins later (src/account/logNickname.ts).
  */
 export function confirmCards(readings: CardReadings[], earlier: Partial<Record<RaidMode, string>> = {}): ModeSelectCard[] {
   const confirmed: ModeSelectCard[] = []
   for (const { mode, full, line, digits } of readings) {
     const level = shapedLevel(line?.level, digits) ?? shapedLevel(full?.level, digits)
-    const before = earlier[mode]
-    const nickname = !line ? undefined
-      : full ? (foldNickname(full.nickname) === foldNickname(line.nickname) ? line.nickname : undefined)
-        : before && foldNickname(before) === foldNickname(line.nickname) ? line.nickname : undefined
+    const nickname = confirmedNickname(full, line, earlier[mode])
     if (level === undefined && !nickname) continue
     confirmed.push({ mode, ...(level !== undefined ? { level } : {}), ...(nickname ? { nickname } : {}) })
   }

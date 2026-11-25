@@ -54,6 +54,15 @@ describe('parseNameLevel', () => {
   it('finds the line among the others of a close-up', () => {
     expect(findNameLevel('~~ ~\nW Raid_OS | 41\n• Ваш основной персонаж в Таркове')).toEqual({ nickname: 'Raid_OS', level: 41 })
   })
+
+  it('reads the owner\'s «J0hn_Ram60» — a capital, a zero in it and digits at its end (25.11.2026)', () => {
+    expect(parseNameLevel('J0hn_Ram60 | 25')).toEqual({ nickname: 'J0hn_Ram60', level: 25 })
+    // The person icon before the name reads as a stray word and is dropped.
+    expect(parseNameLevel('W J0hn_Ram60 | 25')).toEqual({ nickname: 'J0hn_Ram60', level: 25 })
+    expect(findNameLevel('✴\nJ0hn_Ram60 | 25\n• Ваш основной персонаж в Таркове')).toEqual({ nickname: 'J0hn_Ram60', level: 25 })
+    // The bar as «l», joined to the level.
+    expect(parseNameLevel('J0hn_Ram60 l25')).toEqual({ nickname: 'J0hn_Ram60', level: 25 })
+  })
 })
 
 describe('the mode selection screen', () => {
@@ -81,6 +90,24 @@ describe('the mode selection screen', () => {
     }
     expect(headers[0]!.band.x + headers[0]!.band.width).toBeLessThan(854)
     expect(headers[1]!.band.x).toBeGreaterThan(836)
+  })
+
+  it('widens a card\'s close-up to its band when the whole pass clipped the name\'s start (owner, 25.11.2026)', () => {
+    // «J0hn_Ram60»: the whole pass dropped «J0» over the character art and read «hn_Ram62», starting further right (x 600).
+    // The close-up box must still reach the band's title-anchored left edge, left of where «J0hn…» begins (x ≈ 569), so the
+    // 3× pass sees «J0» again — and stay inside the card.
+    const clipped: OcrWordBox[] = [
+      word('PvE', 596, 120, 652, 145), word('Zone', 660, 120, 715, 145),
+      word('PvP', 916, 120, 972, 145), word('Zone', 980, 120, 1036, 145),
+      word('PvP', 1236, 120, 1292, 145), word('Season', 1300, 120, 1385, 145),
+      word('hn_Ram62', 600, 531, 668, 549), word('|', 674, 531, 677, 549), word('25', 683, 531, 703, 549),
+    ]
+    const pve = modeSelectHeaders(clipped, SIZE).find((header) => header.mode === 'pve')!
+    expect(pve.full?.nickname).toBe('hn_Ram62')
+    expect(pve.full!.box.x).toBe(pve.band.x)
+    expect(pve.full!.box.x).toBeLessThan(569)
+    expect(pve.full!.box.x + pve.full!.box.width).toBeLessThanOrEqual(pve.band.x + pve.band.width)
+    expect(pve.full!.box.x + pve.full!.box.width).toBeLessThan(854)
   })
 
   it('is not this screen when one mode shows twice or the titles are at different heights', () => {
@@ -131,6 +158,18 @@ describe('confirmCards', () => {
     expect(confirmCards([{ mode: 'seasonal', line: card('Raid_OS', 14), digits: { 2: 14 } }], { seasonal: 'Raid_OS' })).toEqual([{ mode: 'seasonal', level: 14, nickname: 'Raid_OS' }])
     // Readings of different lengths («3» and «35») each meet the shapes of their own count.
     expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 3), line: card('Raid_OS', 35), digits: { 1: null, 2: 35 } }])).toEqual([{ mode: 'pvp', level: 35, nickname: 'Raid_OS' }])
+  })
+
+  it('recovers a name whose start the whole pass clipped (owner, 25.11.2026: «J0hn_Ram60» → «hn_Ram62»)', () => {
+    // The whole pass dropped «J0» over the character art («hn_Ram62»); the widened 3× close-up reads the whole «J0hn_Ram62».
+    const reading = { mode: 'pve' as const, full: card('hn_Ram62', 25), line: card('J0hn_Ram62', 25), digits: { 2: 25 } }
+    // One frame alone does not take the longer name — only the level counts.
+    expect(confirmCards([reading])).toEqual([{ mode: 'pve', level: 25 }])
+    // The next frame's close-up read «J0hn_Ram62» too: the whole name is taken, «J0» no longer lost.
+    expect(confirmCards([reading], { pve: 'J0hn_Ram62' })).toEqual([{ mode: 'pve', level: 25, nickname: 'J0hn_Ram62' }])
+    // A whole pass that read a different name (not a clip of the close-up) stays a disagreement: only the level.
+    expect(confirmCards([{ mode: 'pve', full: card('Zampolit', 25), line: card('J0hn_Ram62', 25), digits: { 2: 25 } }], { pve: 'J0hn_Ram62' }))
+      .toEqual([{ mode: 'pve', level: 25 }])
   })
 })
 
