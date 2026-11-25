@@ -2,10 +2,13 @@ import type { ModeProgress, Quest, StoryObjectiveReading } from '../domain/types
 import { latinize } from './modeSelectScreen'
 import { foldOcrGlyphs, matchQuestsFromOcr, ocrKey, titleKeys as questTitleKeys } from './questOcr'
 import { isTasksMenuText, tableRowCount } from './screenScanSync'
+import { isTasksTableText } from './tasksTableText'
 import type { GameLanguage } from './gameLanguage'
 import { completedStoryStageIndexes, hasExactStoryStageEvidence, storyObjectivesBlock, storyStageCopies } from './storyStageOcr'
 import { readStoryObjectives } from './storyObjectives'
-import { storyPaneText, withoutGameStamp, type StoryPaneReading } from './storyPaneLayout'
+import { HISTORY_WORD, storyPaneText, withoutGameStamp, type StoryPaneReading } from './storyPaneLayout'
+
+const HISTORY_TEXT = new RegExp(HISTORY_WORD, 'iu')
 
 export interface StoryScanMatch {
   questId: string
@@ -119,7 +122,8 @@ export function nearestStageCopy(copies: number[], reference: number) {
 /** The story tab / chapter pane of the Tasks menu is on screen. */
 export function isStoryMenuText(text: string) {
   if (!isTasksMenuText(text)) return false
-  return /сюжетн|истори|тори[яи]|главн(?:ые|ая)\s*задач|(?<![а-яё])[а-яё]{0,4}ные\s*задачи|иональн[а-яё]*\s*задачи/i.test(text)
+  // «ИСТОРИЯ» as a word of its own, never «Лаборатория» in a row's location column (report 232, storyPaneLayout.ts).
+  return /сюжетн|главн(?:ые|ая)\s*задач|(?<![а-яё])[а-яё]{0,4}ные\s*задачи|иональн[а-яё]*\s*задачи/i.test(text) || HISTORY_TEXT.test(text)
     || /main\s+objectives|optional\s+objectives|(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i.test(text)
 }
 
@@ -130,10 +134,13 @@ export function isStoryMenuText(text: string) {
  * main process read (`story`), the chapter header, the objective blocks; it shows one status at most («АКТИВНО»).
  */
 export function tasksScreenKind(text: string, story?: StoryPaneReading | null, language?: GameLanguage | null): 'story' | 'table' | null {
-  if (story) return 'story'
   // A German, Japanese or Chinese game's Tasks screen by its own words too (src/import/gameWords.ts). Its story pane's
   // words are not in the game's localisation the app has: such a frame counts as the table.
-  if (!isTasksMenuText(text, language)) return null
+  const menu = isTasksMenuText(text, language)
+  // The table's own marks (its column heads, rows with a location and an open status) win over story parts the main
+  // process read: «Лаборатория» in a row once made every look at «Побочные» a story pane (report 232).
+  if (story) return menu && isTasksTableText(text) ? 'table' : 'story'
+  if (!menu) return null
   if (tableRowCount(text, language) >= 2) return 'table'
   return isStoryMenuText(text) ? 'story' : 'table'
 }

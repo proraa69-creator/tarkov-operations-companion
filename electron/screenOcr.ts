@@ -16,6 +16,7 @@ import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY
 import { gameUiBox, isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
 import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
+import { isTasksTableText } from '../src/import/tasksTableText.js'
 import { classifyLoyaltyBadge, confirmLoyalty, traderBadgeRects } from '../src/import/traderLoyalty.js'
 
 /** The quest scanner's engine, for the game's language (electron/ocrEngine.ts languageEngine). */
@@ -444,7 +445,9 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
   const trader = isTraderScreenText(full.text, language) || portraits() ? await readTraderScreen(prepared.image(), full.words, model, language) : loyaltyOnly()
   const extra = trader ? { trader } : {}
   // The locked app's identity reader reads the mode selection and the traders' screens only (audit P4a).
-  if (identity || !isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }
+  // The Tasks table itself (its column heads, rows with a location and a status) is never read as a story pane, whatever
+  // word of it looked like the pane's «ИСТОРИЯ» (report 232: «Лаборатория» in a row of «Побочные»).
+  if (identity || !isStoryPaneOcr(full.text) || isTasksTableText(full.text)) return { text: full.text, sourceName, ...extra }
   const rects = storyPaneRects(size, full.words, true)
   const story = rects ? await readStoryPane(prepared.image(), rects, model) : null
   if (!story) return { text: full.text, sourceName, ...extra }

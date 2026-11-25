@@ -451,3 +451,25 @@ describe('the flea market on the screen (docs/flea-prices-from-players.md)', () 
     expect(looks).toHaveLength(2)
   })
 })
+
+// Report 232 (25.11.2026, Season, the Russian game): «Перешёл персонаж → задания → побочные, и он не отсканировал ни одного
+// задания». A row on Labs («Лаборатория активно!») looked like the story pane's «ИСТОРИЯ» to the main process, which then
+// sent the pane's parts with the frame: the scanner took the whole table for a story pane and applied no row.
+describe('report 232: «Побочные» with a quest on Labs', () => {
+  const labsRow = 'Лабораторный допуск Лаборатория активно! 0%'
+  const table = RU_TASKS_TABLE.replace('Класс Задание Локация Статус \ Прогресс\n', `Класс Задание Локация Статус \ Прогресс\n${labsRow}\n`)
+  const story = { title: 'Лабораторный допуск Лаборатория', status: 'активно!', body: 'По коням Эпицентр активно!' }
+
+  it('reads the rows of the Season table the main process also read as a story pane', async () => {
+    updateLogStatus({ scan: gameIn('seasonal') })
+    state.raidMode = 'seasonal'
+    desktop({ text: table, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 1, story } as Frame)
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.applyStoryScanForMode).not.toHaveBeenCalled()
+    expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+    expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('seasonal')
+    const ids = (state.applyQuestScanForMode.mock.calls[0]![1] as Array<{ questId: string }>).map((match) => match.questId)
+    expect(ids).toEqual(expect.arrayContaining(RU_TABLE_QUESTS.map(([id]) => id)))
+  })
+})
