@@ -168,8 +168,8 @@ describe('phone transport: «Онлайн сейчас» (server/src/routes/pres
     expect(headers['x-raid-device']).toMatch(/^[A-Za-z0-9_-]{22,64}$/)
     expect(await webServiceRequest('GET', '/v1/accounts/me/admin/online')).toBeNull()
     expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[1]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
-    // Other personal routes still go without the device.
-    await webServiceRequest('GET', '/v1/me/settings').catch(() => null)
+    // A personal route that is not paid content still goes without the device.
+    await webServiceRequest('GET', '/v1/me/summary').catch(() => null)
     expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[2]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
   })
 })
