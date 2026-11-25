@@ -10156,3 +10156,28 @@ Not pushed, not released, nothing uploaded.
   or «Снимок из игры»; an exit list opened by a rebound key is seen within 1.5 s instead of 0.5 s.
 - Mistake fixed in-session: a PowerShell script with relative [IO.File] paths wrote 5 files into
   raidos-quest-photos-all (only my lines); restored there with git checkout of those 5 files, tree clean again.
+
+## 2026-11-25: Claude, reports 231 (armored train timer) and 226 (how penetration works)
+
+- Branch claude/ideas-226-231 from release/production f444b3f3 (worktree C:\Users\BANGKOK PC\raidos-ideas), commits
+  1947d34e (231) and 971d8e9f (226). Not pushed, not released, server untouched.
+- 231: «Настройки карты» → «Таймер бронепоезда» (Reserve and Lighthouse only, localStorage `raidos-map-armored-train-v1`,
+  off by default). On: a line in the map HUD (its own row, like MapItemCard). In a raid on that map (logs, from
+  «GameStarted»): «прибудет через m:ss–m:ss» → «прибудет в ближайшие m:ss» → «стоит ещё m:ss–m:ss» → «уезжает в
+  ближайшие m:ss» → «уехал»; otherwise «прибывает через X–Y мин после начала рейда, стоит Z мин».
+  Files: src/maps/armoredTrain.ts (+css, test), src/maps/ArmoredTrainTimer.tsx (+test), src/pages/MapsPage.tsx,
+  src/i18n/uiEnglishMap.ts.
+- Timings: SPT locations/<rezervbase|lighthouse>/base.json EXFIL_Train (read only): Reserve MinTime 1450, MaxTime 1700,
+  Count 400; Lighthouse 1300 / 1420 / 300; ExfiltrationTime 5; PvE the same. Boarding ≈ 90 s after activation (SPT
+  configs/location.json trainArrivalDelayObservedSeconds, measured 88 + 2 in SPT RaidTimeAdjustmentService), departure =
+  that + Count + ExfiltrationTime. So Reserve stands 25:40–29:50 → 6:45; Lighthouse 23:10–25:10 → 5:05. The wiki
+  (fandom 402; its text in src/data/extractGuide.json) says 24–28 / 20–25 min and «stays 7 minutes» for both.
+- 226: «Как работает пробитие» on «Баллистика», a folded <details> over every table but «Полигон»; 7 points taken from
+  ballistics.ts and range/rangeModel.ts. Files: src/arsenal/PenetrationGuide.tsx (+test), src/arsenal/penetrationPoints.ts,
+  src/arsenal/arsenal.css, src/pages/ReferencePages.tsx, src/i18n/uiEnglishArsenal.ts.
+- Tests: vitest src/arsenal src/maps src/i18n src/pages/AmmoPage — 318 passed; src/pages/MapsPage* 47 passed one file
+  at a time (5 timed out only when run in parallel under load); npm run typecheck clean; eslint on changed files clean
+  (ReferencePages has an older unused `locale` at the settings page, not mine). Seen in a headless browser on the Vite
+  renderer: the switch, the line on Reserve and Lighthouse, the open block.
+- Not verified: a real raid (countdown seen only in tests), Scav raids (the server moves the train earlier for a late
+  Scav: not known to the app), English on screen (tests only). No playerNews/updateHistory rows: they go with the release.
