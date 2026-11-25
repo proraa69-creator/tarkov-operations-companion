@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QuestSheetObjectives } from './QuestSheetObjectives'
 import { MarkerPlacePhoto, photosOfPoint, QuestGuidePhotos } from './QuestGuidePhotos'
@@ -107,7 +107,9 @@ describe("the place's photo in its point's card on the map (report 167)", () => 
     render(<div onClick={mapClick}><MarkerPlacePhoto questId="q1" objectiveId="game-2" onOpen={onOpen} /></div>)
     const photo = await screen.findByTestId('marker-place-photo')
     const own = ['p3', 'p4', 'p5'].map((id) => `https://raidos.app/v1/guide-images/wiki-${id}.png?v=2`)
-    fireEvent.click(within(photo).getByRole('img'))
+    // The card's click opens through a native listener attached in an effect; under load the effect can land a tick
+    // after the element appears, so retry the click until it is wired (the map's own card click, report 167).
+    await waitFor(() => { fireEvent.click(within(photo).getByRole('img')); expect(onOpen).toHaveBeenCalled() })
     expect(onOpen).toHaveBeenLastCalledWith(own, 0)
     fireEvent.click(within(photo).getByText('+2'))
     expect(onOpen).toHaveBeenLastCalledWith(own, 1)
