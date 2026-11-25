@@ -3,10 +3,10 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // 0 % «statistics only» streamer: the old cabinet — no viewers' sums, no share, no payouts (owner, 30.10 and 25.11.2026).
-const statsOnlyMe = { referralCode: 'RAID-58XWZ', statsOnly: true, stats: { visits: 337, registrations: 72, linkRegistrations: 12, activeSubscriptions: 4, earnings: { amount: 0 } } }
+const statsOnlyMe = { referralCode: 'RAID-TEST0', statsOnly: true, stats: { visits: 300, registrations: 70, linkRegistrations: 10, activeSubscriptions: 5, earnings: { amount: 0 } } }
 const statsOnlyPayouts = { percent: 0, earned: 0, paidOut: 0, pending: 0, available: 0, minimum: 500, details: null, payouts: [] }
 // 15 % streamer: the full new cabinet.
-const shareMe = { referralCode: 'BULLDOZER', stats: { visits: 337, registrations: 72, linkRegistrations: 12, activeSubscriptions: 4, payers: 9, revenue: { amount: 12345 }, earnings: { amount: 1500 } } }
+const shareMe = { referralCode: 'BULLDOZER', stats: { visits: 300, registrations: 70, linkRegistrations: 10, activeSubscriptions: 5, payers: 9, revenue: { amount: 12345 }, earnings: { amount: 1500 } } }
 const sharePayouts = { percent: 15, earned: 1500, paidOut: 200, pending: 100, available: 900, maturing: 300, maturityDays: 14, minimum: 500, details: { phone: '+7 ••• •••-45-67', bank: 'Т-Банк', recipient: 'Иван Петров' }, payouts: [] }
 const answers: Record<string, unknown> = {}
 beforeEach(() => {
@@ -30,7 +30,7 @@ afterEach(cleanup)
 describe('the app\'s streamer cabinet', () => {
   it('a 0 % streamer keeps the old cabinet: registration split, no viewers\' sum, no payouts', async () => {
     render(<StreamerCabinetPanel />)
-    expect(await screen.findByText('60 по коду · 12 без кода')).toBeInTheDocument()
+    expect(await screen.findByText('60 по коду · 10 без кода')).toBeInTheDocument()
     expect(screen.queryByText((text) => text.replace(/\s/g, ' ').includes('на сумму'))).not.toBeInTheDocument()
     expect(screen.queryByText('Доступно к выплате')).not.toBeInTheDocument()
     expect(screen.queryByText('Получить выплату')).not.toBeInTheDocument()
