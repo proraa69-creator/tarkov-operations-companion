@@ -79,6 +79,14 @@ async function withWorld(run: (world: World) => Promise<void>, options: { owners
   const now = () => time
   const db = openDatabase(':memory:')
   const accounts = new AccountStore({ db, now, ownerEmails: options.owners ?? [OWNER] })
+  // As the live server attaches its payments (index.ts): both streamers have a share, so their cabinets have payouts and
+  // requisites (owner, 25.11.2026; a 0 % «statistics only» streamer has none — payouts.test.ts).
+  accounts.attachSubscriptions({
+    paidUntil: () => undefined,
+    referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }),
+    referralSeries: () => [],
+    percentFor: () => 15,
+  })
   const session = (token: string): Session => ({ id: accounts.authenticate(token)!, token })
   const { salt, hash } = await newPasswordHash(PASSWORD)
   const owner = session(accounts.createVerifiedAccount(OWNER, salt, hash).token)
