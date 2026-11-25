@@ -136,17 +136,23 @@ export function itemBarterUses(barters: readonly Barter[]): Map<string, ItemBart
 
 const KINDS: Record<QuestUseKind, [string, string]> = {
   handover: ['сдать', 'hand over'], find: ['найти', 'find'], place: ['заложить', 'plant'], mark: ['отметить', 'mark'],
-  bring: ['взять в рейд', 'bring'], signal: ['запустить', 'fire'], use: ['использовать', 'use'], key: ['ключ', 'key'],
+  bring: ['взять в рейд', 'bring'], signal: ['запустить ракету', 'fire a flare'], use: ['использовать', 'use'], key: ['ключ', 'key'],
 }
 const ROLES: Record<GunsmithRole, [string, string]> = {
-  weapon: ['оружие', 'weapon'], required: ['обязательно', 'required'], oneOf: ['один из', 'one of'], build: ['в сборке', 'in the build'],
+  weapon: ['оружие', 'weapon'], required: ['обязательно', 'required'], oneOf: ['один из вариантов', 'one of several'], build: ['в сборке', 'in the build'],
 }
 
-/** What the quest has the player do with the item, as one short word with its count: «сдать 2 · FIR», «заложить», «обязательно». */
-export function needText(use: ItemQuestUse, en: boolean) {
-  if (use.done) return en ? 'done' : 'выполнен'
-  if (use.gunsmith) return ROLES[use.gunsmith][en ? 1 : 0]
+/**
+ * What the quest has the player do with the item: the word, then its count and found-in-raid apart («сдать», « 2 · FIR»),
+ * so the other languages' phrases (src/i18n/locales) find the word whole.
+ */
+export function needParts(use: ItemQuestUse, en: boolean): [word: string, rest: string] {
+  if (use.done) return [en ? 'done' : 'выполнен', '']
+  if (use.gunsmith) return [ROLES[use.gunsmith][en ? 1 : 0], '']
   const kind = use.kinds[0] ?? 'handover'
   const counted = use.count > 1 && kind !== 'key' && kind !== 'mark'
-  return `${KINDS[kind][en ? 1 : 0]}${counted ? ` ${use.count}` : ''}${use.foundInRaid && (kind === 'handover' || kind === 'find') ? ' · FIR' : ''}`
+  return [KINDS[kind][en ? 1 : 0], `${counted ? ` ${use.count}` : ''}${use.foundInRaid && (kind === 'handover' || kind === 'find') ? ' · FIR' : ''}`]
 }
+
+/** needParts as one text: «сдать 2 · FIR», «заложить», «обязательно». */
+export const needText = (use: ItemQuestUse, en: boolean) => needParts(use, en).join('')

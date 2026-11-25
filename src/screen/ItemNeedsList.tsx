@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { gunsmithHref } from '../gunsmith/gunsmith'
 import type { Item } from '../domain/types'
-import { needText, type ItemBarterUse, type ItemQuestUse } from './itemUses'
+import { needParts, type ItemBarterUse, type ItemQuestUse } from './itemUses'
 
 /** Hover card: so many lines of each list, then «ещё N» (the full card has them all). */
 const SHORT_QUESTS = 5
@@ -37,10 +37,14 @@ export function ItemNeedsList({ quests, barters, items, en, short = false }: {
     {quests.length > 0 && <>
       <Title>{say('Нужен для квестов', 'Needed for quests')}</Title>
       <ul>
-        {questRows.map((use) => <li key={use.questId} className={use.done ? 'is-done' : undefined}>
-          <span className="item-needs-name">{use.done && <Check size={12} aria-hidden="true" />}{short ? uiText(use.name) : <Link to={href(use)}>{uiText(use.name)}</Link>}</span>
-          <span className="item-needs-what">{needText(use, en)}</span>
-        </li>)}
+        {questRows.map((use) => {
+          // the word and its count as two texts: the other languages translate the word (itemUses.ts needParts)
+          const [word, rest] = needParts(use, en)
+          return <li key={use.questId} className={use.done ? 'is-done' : undefined}>
+            <span className="item-needs-name">{use.done && <Check size={12} aria-hidden="true" />}{short ? uiText(use.name) : <Link to={href(use)}>{uiText(use.name)}</Link>}</span>
+            <span className="item-needs-what">{word}{rest}</span>
+          </li>
+        })}
         {more(quests.length - questRows.length)}
       </ul>
     </>}
