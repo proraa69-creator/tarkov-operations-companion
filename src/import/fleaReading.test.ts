@@ -90,15 +90,21 @@ describe('the flea followed on the screen copies of the quest scanner', () => {
     expect(lines).toEqual([])
   })
 
-  it('leaves a list alone behind a currency filter: its top row is the cheapest in euros, not of the item', async () => {
-    const { ocr, lines } = fakeOcr({}, ['Валюта EUR', 'Сост. от 100'])
-    const watch = createFleaWatch(ocr)
-    const euros = frames.get('pve-eur')!
-    await watch.look(euros)
-    expect(await watch.look(euros)).toMatchObject({ flea: true, filtered: ['Валюта EUR', 'Сост. от 100'] })
-    expect(lines).toEqual(['chip608', 'chip725'])
-    // Not asked again while it stays.
-    expect((await watch.look(euros)).filtered).toBeUndefined()
-    expect(lines).toHaveLength(2)
+  // Owner, 26.11.2026: «Он должен искать по любой вот этой строке сверху».
+  it('reads a list behind any filter chip, a currency filter too, and keeps the chips with the reading', async () => {
+    for (const chips of [['Валюта EUR', 'Сост. от 100'], ['Поиск по предмету Саморезы', 'Сост. от 100'], ['Цена от 1000', 'Кроме бартера']]) {
+      const { ocr, lines } = fakeOcr({}, chips)
+      const watch = createFleaWatch(ocr)
+      const euros = frames.get('pve-eur')!
+      await watch.look(euros)
+      const reading = (await watch.look(euros)).reading
+      expect(reading, chips[0]).toMatchObject({ filters: chips, labelMode: 'pve' })
+      expect(reading!.rows.length, chips[0]).toBeGreaterThan(0)
+      expect(lines.slice(0, 2)).toEqual(['chip608', 'chip725'])
+      // Not read again while it stays.
+      const count = lines.length
+      expect((await watch.look(euros)).reading).toBeUndefined()
+      expect(lines).toHaveLength(count)
+    }
   })
 })

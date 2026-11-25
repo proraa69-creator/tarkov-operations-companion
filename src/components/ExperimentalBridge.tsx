@@ -1,6 +1,8 @@
 import { addNotification } from '../notifications/notificationCenter'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTarkovData } from '../data/DataProvider'
+import { useQueryClient } from '@tanstack/react-query'
+import { refreshLivePrices, useLivePrices, withLivePrice } from '../data/livePrices'
 import { useAppState } from '../state/AppState'
 import { createItemMatcher, matchNearest } from '../overlay/itemMatch'
 import { createTooltipMatcher, foldTooltipText, type ItemNameVariant, type TooltipCandidate, type TooltipMatcher } from '../overlay/tooltipMatch'
@@ -177,12 +179,17 @@ export function ExperimentalBridge() {
     const rows = computeKeepList({ quests: data.quests, hideout: applyHideoutModules(data.hideout, state.raidMode, modules), items: data.items, progress: progressNow, collectorCollected: loadCollected(state.raidMode) })
     return new Map(rows.map((row) => [row.item.id, row]))
   }, [data.quests, data.hideout, data.items, progressNow, state.raidMode, modules])
-  const latest = useRef({ data, state, matcher, tooltipMatcher, itemsById, keepRows })
+  // The item card's flea price (owner, 26.11.2026: «я по кнопке уже нажимаю в следующий раз, и уже должна быть новая
+  // цена»): this player's own read on his screen at once, and our server's minute prices, asked for again on its looks
+  // when older than half a minute — not every half minute all the time (a page of prices does that while it is open).
+  const queryClient = useQueryClient()
+  const live = useLivePrices(state.raidMode, false)
+  const latest = useRef({ data, state, matcher, tooltipMatcher, itemsById, keepRows, live, queryClient })
   // Friends' / squad mates' needed items for the «MATE» badge (refreshed periodically and on raid start).
   useMateNeedsRefresh(state.raidMode, data.quests)
 
   useEffect(() => {
-    latest.current = { data, state, matcher, tooltipMatcher, itemsById, keepRows }
+    latest.current = { data, state, matcher, tooltipMatcher, itemsById, keepRows, live, queryClient }
   })
 
   // The flea's rows read on the player's screen name their items by the item card's matcher (src/data/screenFleaPrices.ts).
@@ -195,12 +202,14 @@ export function ExperimentalBridge() {
     const api = window.tarkovDesktop?.experimental
     if (!api) return
     return api.onQuery((query) => {
-      const { data, state, matcher, tooltipMatcher, itemsById, keepRows } = latest.current
+      const { data, state, matcher, tooltipMatcher, itemsById, keepRows, live, queryClient } = latest.current
       const progress = state.activeProfile.modes[state.raidMode]
+      // The next look has the server's prices of now.
+      refreshLivePrices(queryClient, state.raidMode)
       // Two independent parts of the card: the keep badge («Что не продавать») and who of the friends / squad needs the item.
       const card = (item: Item, source?: ItemOverlayInfo['source']): ItemOverlayPayload => ({
         // «Значок «Каппа» только на недостающих» (Kappa page): no Kappa badge on items already checked in this mode.
-        ...describeItem(item, data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id)), isKappaBadgeMissingOnly() ? loadCollected(state.raidMode) : undefined),
+        ...describeItem(withLivePrice(item, state.raidMode, live), data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id)), isKappaBadgeMissingOnly() ? loadCollected(state.raidMode) : undefined),
         ...(mateNeedsItem(state.raidMode, item.id) ? { mate: true, mateNames: mateNamesFor(state.raidMode, item.id) ?? [] } : {}),
         ...(source ? { source } : {}),
       })

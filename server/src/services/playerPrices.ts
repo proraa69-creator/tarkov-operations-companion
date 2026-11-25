@@ -4,16 +4,23 @@ import type { MirrorMode } from './tarkovDataMirror.js'
  * Flea prices the players' apps read on their own screens (docs/flea-prices-from-players.md, stage 2; owner, 18.11.2026:
  * «берётся верхняя, то есть самая низкая цена, которая обнаружена на экране, и сразу же обновляется у нас в приложении»;
  * «приоритет цены будет с экрана пользователя»). An app sends what it read — mode, item, price in roubles, when seen —
- * and an accepted price stands over the other sources for HOLD_MS in the minute prices every app asks for
- * (routes/data.ts). Anybody can send a request without the game, so a price is accepted at once only near the item's
+ * and an accepted price stands in the minute prices every app asks for (routes/data.ts, layPlayerPrices): the first
+ * PRIORITY_MS over whatever the other sources renewed meanwhile, then until they renew the item, HOLD_MS at most.
+ * Anybody can send a request without the game, so a price is accepted at once only near the item's
  * price from the other sources (the reference: never a player's own earlier price, so nobody walks a price away step by
  * step); a jump waits for a second account to see about the same price. An account whose prices often fall outside the
  * band loses «at once». Accounts stay here only for the limits and the trust, in memory: a restart forgets them, and
  * the prices, which stand half an hour anyway.
  */
 export const PLAYER_PRICE_RULES = {
-  /** An accepted price stands over the other sources this long from when it was seen. */
+  /** An accepted price stands over the other sources at most this long from when it was seen. */
   holdMs: 30 * 60_000,
+  /**
+   * The first this long it stands whatever the other sources renewed meanwhile; a price they renewed later than that is
+   * fresher and stands instead (owner, 26.11.2026: «Первые 5 минут в приоритете наша цена с барахолки… если приходит цена
+   * свежее, то обновляется»).
+   */
+  priorityMs: 5 * 60_000,
   /** Accepted at once between these shares of the reference price. */
   band: [0.5, 1.5] as const,
   /** A price outside the band, or with no reference, waits this long for another account's. */
@@ -22,7 +29,7 @@ export const PLAYER_PRICE_RULES = {
   confirmShare: 0.1,
   /** Per account and hour. */
   perHour: 120,
-  /** One account's same item and mode again within this: left out. */
+  /** One account's same item, mode and price again within this: left out (a changed price counts at once, owner 26.11.2026). */
   repeatMs: 2 * 60_000,
   /** Seen this long ago at most (an app sends at once), or this far ahead (clocks differ). */
   maxAgeMs: 10 * 60_000,
@@ -50,7 +57,7 @@ export interface LaidPrice { price: number; seen: number }
 export type SightingOutcome = 'accepted' | 'pending' | 'rejected'
 
 interface Pending { account: string; price: number; seen: number }
-interface Account { sent: number[]; last: Map<string, number>; odd: number[]; fair: number[] }
+interface Account { sent: number[]; last: Map<string, { at: number; price: number }>; odd: number[]; fair: number[] }
 interface Counts { received: number; accepted: number; pending: number; rejected: number }
 
 export class PlayerPrices {
@@ -91,9 +98,9 @@ export class PlayerPrices {
     if (who.sent.filter((time) => time > at - 60 * 60_000).length >= PLAYER_PRICE_RULES.perHour) return 'rejected'
     const key = `${mode}:${itemId}`
     const last = who.last.get(key)
-    if (last !== undefined && at - last < PLAYER_PRICE_RULES.repeatMs) return 'rejected'
+    if (last !== undefined && last.price === price && at - last.at < PLAYER_PRICE_RULES.repeatMs) return 'rejected'
     who.sent.push(at)
-    who.last.set(key, at)
+    who.last.set(key, { at, price })
     const ref = reference(itemId)
     if (ref?.noFlea) return 'rejected'
     const inBand = ref?.price !== undefined && price >= ref.price * PLAYER_PRICE_RULES.band[0] && price <= ref.price * PLAYER_PRICE_RULES.band[1]
@@ -156,7 +163,7 @@ export class PlayerPrices {
       who.sent = who.sent.filter((time) => time > at - 60 * 60_000)
       who.odd = who.odd.filter((time) => time > keep)
       who.fair = who.fair.filter((time) => time > keep)
-      for (const [key, time] of who.last) if (at - time >= PLAYER_PRICE_RULES.repeatMs) who.last.delete(key)
+      for (const [key, last] of who.last) if (at - last.at >= PLAYER_PRICE_RULES.repeatMs) who.last.delete(key)
       if (!who.sent.length && !who.odd.length && !who.fair.length) this.accounts.delete(account)
     }
     for (const [key, entries] of this.pending) {
@@ -172,9 +179,10 @@ export class PlayerPrices {
 interface PricesFile { items?: Record<string, { lastLowPrice?: number; avg24hPrice?: number; noFlea?: boolean; at?: number }> }
 
 /**
- * The prices file of a mode with the players' prices over it: an accepted price is the item's lowest offer for HOLD_MS
- * (it was seen on a player's screen), whatever the other sources said since. Items the file has not, or the flea bans,
- * stay as they are. The body as it was when there is nothing to lay.
+ * The prices file of a mode with the players' prices over it: an accepted price is the item's lowest offer (it was seen
+ * on a player's screen) whatever the other sources renewed within PRIORITY_MS after it was seen; a price they renewed
+ * later than that is fresher and stays. HOLD_MS at most (prices()). Items the file has not, or the flea bans, stay as
+ * they are. The body as it was when there is nothing to lay.
  */
 export function layPlayerPrices(body: string, prices: ReadonlyMap<string, LaidPrice>): string {
   if (!prices.size) return body
@@ -183,6 +191,7 @@ export function layPlayerPrices(body: string, prices: ReadonlyMap<string, LaidPr
   for (const [id, entry] of prices) {
     const item = file.items?.[id]
     if (!item || item.noFlea) continue
+    if (item.at !== undefined && item.at * 60_000 >= entry.seen + PLAYER_PRICE_RULES.priorityMs) continue
     item.lastLowPrice = entry.price
     item.at = Math.floor(entry.seen / 60_000)
     changed = true

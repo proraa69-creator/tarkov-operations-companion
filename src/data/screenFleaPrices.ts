@@ -11,12 +11,18 @@ import type { MinutePrice } from './tarkovJsonAdapters'
  * The flea prices the player's own screen showed (docs/flea-prices-from-players.md; owner, 18.11.2026: «приоритет цены
  * будет с экрана пользователя»). The main process reads the list (src/import/fleaReading.ts); here its names become
  * catalog items, its mode is the mode the game is in by its logs (the owner: «у нас приложение это отслеживает»), its
- * prices go to roubles at the game's rate, and each item's lowest player's price stands in this app over the server's
- * for PLAYER_PRICE_MS — until a fresher one comes. Kept while the app runs, and sent to our server
+ * prices go to roubles at the game's rate, and each item's lowest player's price stands in this app over the server's:
+ * the first PLAYER_PRIORITY_MS whatever it says, then until it has a price renewed later, PLAYER_PRICE_MS at most (or
+ * until a fresher one is read). Kept while the app runs, and sent to our server
  * (POST /v1/data/prices/:mode/sightings, server/src/services/playerPrices.ts), which lays the ones it accepts over the
  * minute prices of every app. Only the mode, the item, the price in roubles and when it was seen: no picture, no name.
  */
 export const PLAYER_PRICE_MS = 30 * 60_000
+/**
+ * The first this long the player's own price stands whatever the server says (owner, 26.11.2026: «Первые 5 минут в
+ * приоритете наша цена с барахолки»; the same rule on the server: PLAYER_PRICE_RULES.priorityMs).
+ */
+export const PLAYER_PRIORITY_MS = 5 * 60_000
 const MINUTE_MS = 60_000
 
 export interface ScreenPrice { price: number; at: number; listed?: FleaSighting['listed'] }
@@ -48,7 +54,7 @@ export function copiesDiffer(item: Item) {
 
 const isKey = (item: Item) => item.category === 'Ключ' || Boolean(item.types?.includes('keys'))
 
-/** Left out of the prices: copies that differ, a key offered with some of its uses gone («8/10»). */
+/** Left out of the prices: copies that differ; a key's offer with some of its uses gone («8/10»: its next one with all counts). */
 export function leaveOut(item: Item, info: string) {
   return isKey(item) ? !keyAllUses(info, item.keyUses) : copiesDiffer(item)
 }
@@ -90,6 +96,13 @@ export async function noteFleaReading(reading: FleaReading, mode: RaidMode | nul
 
 export type SightingsSender = (mode: RaidMode, sightings: Array<{ itemId: string; price: number; seenAt: number }>) => Promise<unknown>
 
+/** Told once the server took this app's prices of a mode: the minute prices are asked again at once (livePrices.ts). */
+const sentListeners = new Set<(mode: RaidMode) => void>()
+export function onSightingsSent(listener: (mode: RaidMode) => void) {
+  sentListeners.add(listener)
+  return () => { sentListeners.delete(listener) }
+}
+
 /** The same price of an item is not sent again within this (the server leaves such a repeat out anyway). */
 export const RESEND_MS = 2 * 60_000
 const sent = new Map<string, { price: number; at: number }>()
@@ -109,7 +122,8 @@ async function sendSightings(mode: RaidMode, sightings: FleaSighting[], seenAt: 
   })
   if (!fresh.length) return
   // A server that does not answer loses nothing here: the price already stands in this app.
-  await send(mode, fresh.map((sighting) => ({ itemId: sighting.itemId, price: sighting.price, seenAt }))).catch(() => null)
+  const answer = await send(mode, fresh.map((sighting) => ({ itemId: sighting.itemId, price: sighting.price, seenAt }))).then(() => true, () => false)
+  if (answer) for (const listener of sentListeners) listener(mode)
 }
 
 /** tarkov.dev has no Season of its own: Season trades as PvP there (src/data/economyApi.ts). */
@@ -149,9 +163,10 @@ export function useScreenPricesVersion() {
 }
 
 /**
- * The server's minute prices with the player's own over them: for PLAYER_PRICE_MS a price seen on the screen is the
- * item's lowest offer, whatever the server says meanwhile (owner: «приоритет цены будет с экрана пользователя»). Null
- * stays null when nothing was seen.
+ * The server's minute prices with the player's own over them (owner: «приоритет цены будет с экрана пользователя»): a
+ * price seen on the screen is the item's lowest offer the first PLAYER_PRIORITY_MS whatever the server says, then until
+ * the server has one renewed later than that (tarkov.dev, the second source, another player's screen), PLAYER_PRICE_MS
+ * at most. Null stays null when nothing was seen.
  */
 export function withScreenPrices(live: LivePrices | null, mode: RaidMode, now = Date.now()): LivePrices | null {
   const seen = screenPrices(mode, now)
@@ -162,6 +177,8 @@ export function withScreenPrices(live: LivePrices | null, mode: RaidMode, now = 
     const server = items.get(id)
     const minute = Math.floor(entry.at / MINUTE_MS)
     if (server?.noFlea) continue
+    const fresher = server?.at !== undefined && server.at * MINUTE_MS >= entry.at + PLAYER_PRIORITY_MS
+    if (fresher && now - entry.at >= PLAYER_PRIORITY_MS) continue
     items.set(id, { ...server, lastLowPrice: entry.price, at: minute })
     changed = true
   }
