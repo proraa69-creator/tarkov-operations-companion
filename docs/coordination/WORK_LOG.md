@@ -10431,3 +10431,37 @@ Not pushed, not released, nothing uploaded.
   machine-only (linux/updater ×3, staleServer, appVersion, AdminPanelPage CRLF, two gate-excluded script files). Merge-touched
   tests pass per file (buildEdition, elevation, nativeIntegrity, serviceGateway.dataRoutes, sync, armoredTrain, btrQuests).
 - Server needs RAIDOS_PAID_CONTENT default on (index.ts: on unless =0). Owner exe carries the admin fixes as every release.
+
+## 2026-11-25 — Claude: заявка 235 — «Показывать требования для выхода» (идея игрока, решение владельца)
+
+- Ветка claude/exit-reqs-235 от release/production a52d596a, коммит 1b560ae4. Не запушено, не выпущено.
+- Игрок: сигнальный патрон для выхода «Проход у ЛЭП» в «Требованиях рейда» путают с квестовым. Владелец (25.11.2026): «сделай в
+  настройках кнопку в интерфейсе „Показывать требования для выхода“».
+- «Настройки» → «Интерфейс» → «Показывать требования для выхода» (после «Уведомление о начале рейда»), по умолчанию ВКЛ — у всех
+  всё как было. ВЫКЛ: в «Требованиях рейда» на «Обзоре» (ПК и телефон, один и тот же блок) нет строк «Для выхода · …» — зелёного
+  сигнального патрона (РСП-30, в карточке 26x75) для каждого выхода карты, открываемого сигналом (raidprep/exitFlares.ts
+  exitFlareNeeds: «Проход у ЛЭП» на Лесу, «ЖД проход» на Таможне и т. п.). Остаётся всё, что нужно квестам, в том числе сигнал
+  квеста «Прекратить огонь!» (purpose signal), ключи, закладки, метки. Других требований «только для выхода» в этом блоке нет:
+  ключи/плата/рубильники выходов там никогда не показывались (они в карточках выходов на «Картах»), их выключатель не трогает.
+- Хранение: localStorage raidos-exit-requirements-v1 ('0'/'1'), событие raidos-exit-requirements-changed — обзор меняется сразу.
+  Между устройствами аккаунта — через «prefs» (EXIT_REQUIREMENTS_SYNC в PREFS, sync/playerStateStores.ts): сервер берёт любые
+  ключи prefs, его не меняли; старые версии приложения незнакомый ключ пропускают.
+- Тексты коротко: RU/EN (uiEnglishOverview.ts), подсказка «?» (settingHelpTexts.ts), остальные 9 языков — 3 фразы в
+  src/i18n/locales/*.json.
+- Файлы: src/raidprep/exitRequirementsSetting.ts (+ .test.ts) — новые; src/pages/DashboardPage.tsx, src/pages/ReferencePages.tsx,
+  src/sync/playerStateStores.ts, src/components/settingHelpTexts.ts, src/i18n/uiEnglishOverview.ts, src/i18n/locales/*.json (9);
+  тесты src/pages/DashboardPage.exitFlares.test.tsx, src/pages/SettingsPage.test.tsx, src/components/SettingHelp.test.tsx (строк 8 → 9).
+- Тесты: vitest затронутого (src/i18n, src/overview, src/raidprep, src/sync, SettingHelp, DashboardPage*,
+  SettingsPage, RaidToolsSettings) — 49 файлов, 354 passed; npm run typecheck (tsc -b) — чисто; eslint изменённых — только
+  старая ошибка «locale не используется» в SettingsPage (есть и в a52d596a). Полный vitest: 4737 passed, 13 failed — не от
+  правки: 6 известных машинных (linux/updater ×3, staleServer, appVersion, AdminPanelPage) + 2 скрипта вне гейта; appDelta,
+  AdminMobilePage «Стикеры», MapsPage.raidChecks проходят по одному; MapsPage.autoFloor ×2 и MapsPage.deferred ×2 упираются в
+  таймаут 5 с и на базе a52d596a без правок (проверено во временной копии, удалена).
+- Браузер (vite dev, встроенный браузер, живые данные): ПК 800 px — переключатель в «Интерфейс», вкл: на Таможне «Реактивный
+  сигнальный патрон РСП-30 (Зеленый) +1 · Для выхода · ЖД проход»; выкл: блок пуст («нет предметов…»); с текущим «Проверка на
+  вшивость» выкл — только «Ключ от спецтехники», вкл — ключ и патрон. Выбор пережил перезагрузку. Телефон 375 px: то же. EN —
+  подписи и подсказка по-английски, DE — подписи по-немецки. Хранилище тестового адреса после проверки очищено.
+- Не проверено: окно Electron, переход выбора на второе устройство вживую (проверен только адаптер prefs), приложения Android/iOS.
+- Строк в updateHistory/playerNews нет — они в коммите выпуска. Предложение для новостей (показать владельцу): «В настройках —
+  переключатель «Показывать требования для выхода»: сигнальный патрон для выхода можно скрыть из «Требований рейда»».
+- Риски: малые. Выключатель скрывает только строки «Для выхода»; новый вид требования выхода в будущем надо будет подключить к нему.
