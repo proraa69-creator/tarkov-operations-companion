@@ -139,8 +139,8 @@ describe('every setting has one', () => {
     const text = source('src/pages/ReferencePages.tsx')
     const page = text.slice(text.indexOf('function SupportPanel'))
     const rows = page.split('"setting-row"').slice(1)
-    // «Перемещать карту к точке» (report 143, 11.11.2026) is the fifth, «Уведомление о начале рейда» (15.11.2026) the sixth, «Квест оружейника» (phone, 16.11.2026) the seventh, «Размер шрифта» (21.11.2026) the eighth.
-    expect(rows).toHaveLength(8)
+    // «Перемещать карту к точке» (report 143, 11.11.2026) is the fifth, «Уведомление о начале рейда» (15.11.2026) the sixth, «Квест оружейника» (phone, 16.11.2026) the seventh, «Размер шрифта» (21.11.2026) the eighth, «Показывать требования для выхода» (report 235, 25.11.2026) the ninth.
+    expect(rows).toHaveLength(9)
     for (const row of rows) expect(/<strong>([\s\S]*?)<\/strong>/.exec(row)?.[1]).toMatch(/<SettingHelp /)
   })
 })

@@ -41,6 +41,7 @@ import { BulletDropPanel } from "../arsenal/BulletDrop";
 import { PenetrationGuide } from "../arsenal/PenetrationGuide";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 import { setRaidStartNotice, useRaidStartNotice } from "../notifications/raidStartNotice";
+import { setExitRequirementsShown, useExitRequirementsShown } from "../raidprep/exitRequirementsSetting";
 import { PHONE_GUNSMITH_VIEWS, PHONE_GUNSMITH_VIEW_LABELS, setPhoneGunsmithView, usePhoneGunsmithView } from "../gunsmith/phoneGunsmithView";
 
 export function EconomyPage() {
@@ -843,6 +844,32 @@ function RaidStartSetting() {
   );
 }
 
+/**
+ * «Показывать требования для выхода» (report 235, owner 25.11.2026: «Многие путают»): the flare an exit needs in «Требования рейда»
+ * on the Overview, on the PC and the phone alike (src/raidprep/exitRequirementsSetting.ts). What the quests need always stays.
+ */
+function ExitRequirementsSetting() {
+  const shown = useExitRequirementsShown();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Показывать требования для выхода")}<SettingHelp id="exitRequirements" /></strong>
+        <small>{uiText("Сигнал для выхода в «Требованиях рейда»")}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={shown}
+        aria-label={uiText("Показывать требования для выхода")}
+        className={`toggle ${shown ? "on" : ""}`}
+        onClick={() => setExitRequirementsShown(!shown)}
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { source } = useTarkovData();
   const { updatedAt } = useTarkovDataStatus();
@@ -884,6 +911,7 @@ export function SettingsPage() {
         </div>}
         <MapFollowSetting />
         <RaidStartSetting />
+        <ExitRequirementsSetting />
         <FontSizeSetting />
         <ClickVolumeSetting />
         {!isMobileLayout() && <CurrentTasksViewSetting />}

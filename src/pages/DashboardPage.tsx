@@ -17,6 +17,7 @@ import { mapWorkCounts, questWorkOnMap } from '../progression/mapPriority'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { exitFlareNeeds, exitsFiredBy, flareCardOf, flareExitsOn, GREEN_FLARE_IDS, SIGNAL_PISTOL_ID } from '../raidprep/exitFlares'
+import { useExitRequirementsShown } from '../raidprep/exitRequirementsSetting'
 import { exitShortName } from '../data/exitShortNames'
 import { storyRaidNeedsAhead } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
@@ -239,9 +240,11 @@ export function DashboardPage() {
   })
   // The green flare of each exit of this map opened by one, a row of its own next to a quest's flare (owner, 19.11.2026: «если этот
   // патрон уже есть в требованиях… добавить ещё одну отдельную строку для выхода»); none for the exit a current quest leaves by
-  // («Прекратить огонь!»), whose own row is that flare.
+  // («Прекратить огонь!»), whose own row is that flare. None at all with «Показывать требования для выхода» off (report 235: players
+  // took the exit's flare for a quest's); what the quests need stays.
   const lang = locale === 'en' ? 'en' : 'ru'
-  const exitFlareRows: RaidNeedRow[] = exitFlareNeeds(data.markers, selectedMap.id, requirements).flatMap((exit): RaidNeedRow[] => {
+  const exitNeedsShown = useExitRequirementsShown()
+  const exitFlareRows: RaidNeedRow[] = (exitNeedsShown ? exitFlareNeeds(data.markers, selectedMap.id, requirements) : []).flatMap((exit): RaidNeedRow[] => {
     const options = GREEN_FLARE_IDS.flatMap((id) => raidItem(id) ?? [])
     // the owner's «Реактивный сигнальный патрон (зелёный)»: RSP-30 on the row, 26x75 in its card
     const main = options[0]

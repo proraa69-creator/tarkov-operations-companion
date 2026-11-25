@@ -28,6 +28,7 @@ import { NEWS_SYNC, readNews } from '../news/newsState'
 import { FOUND_DOCUMENTS_SYNC } from '../progression/foundDocuments'
 import { QUEST_CHECKS_EVENT, questChecksKey } from '../progression/questChecks'
 import { DEFERRED_FAVORITES_SYNC } from '../progression/questDeferral'
+import { EXIT_REQUIREMENTS_SYNC } from '../raidprep/exitRequirementsSetting'
 import { PROMO_SYNC } from '../promo/promoCodes'
 import { QUEST_KEY_SYNC, questKeyFavoritesKey } from '../quests/questKeyFavorites'
 import { keyUsesKey, OWNED_KEYS_EVENT, ownedKeysKey } from '../quests/ownedKeys'
@@ -229,6 +230,8 @@ const PREFS: ReadonlyArray<{ key: string; event: string }> = [
   SQUAD_SKETCH_HIDDEN_SYNC,
   NOTIFICATION_KINDS_SYNC,
   STYLE_SYNC,
+  // «Показывать требования для выхода» (report 235): what «Требования рейда» shows, on the PC and the phone alike
+  EXIT_REQUIREMENTS_SYNC,
 ]
 
 const prefs: StateAdapter = {

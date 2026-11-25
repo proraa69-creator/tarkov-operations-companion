@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../i18n/LocaleProvider'
@@ -17,6 +17,7 @@ vi.mock('../onboarding/GuideReplaySetting', () => ({ GuideReplaySetting: () => n
 vi.mock('../announcement/features', () => ({ useRemoteFeatures: () => ({ positionTracking: true }) }))
 
 const { SettingsPage } = await import('./ReferencePages')
+const { exitRequirementsShown } = await import('../raidprep/exitRequirementsSetting')
 
 const renderPage = () => render(<LocaleProvider><MemoryRouter><SettingsPage /></MemoryRouter></LocaleProvider>)
 const titles = (column: Element) => [...column.querySelectorAll('.panel-title')].map((title) => title.textContent)
@@ -43,5 +44,34 @@ describe('«Настройки»: the panels', () => {
     const grid = document.querySelector('.settings-grid')!
     expect(titles(grid)).toEqual(['Интерфейс', 'Поддержка', 'Данные', 'Ресток торговцев'])
     expect(document.querySelector('.raid-tools')).toBeNull()
+  })
+})
+
+// Report 235 (owner, 25.11.2026: «сделай в настройках кнопку в интерфейсе „Показывать требования для выхода“»).
+describe('«Интерфейс» → «Показывать требования для выхода»', () => {
+  afterEach(async () => {
+    localStorage.clear()
+    const { setRenderLanguage } = await import('../i18n/renderText')
+    setRenderLanguage('ru')
+  })
+
+  it('on by default; a press turns it off and it stays off', () => {
+    const page = renderPage()
+    const toggle = screen.getByRole('switch', { name: 'Показывать требования для выхода' })
+    expect(toggle.closest('.panel')?.querySelector('.panel-title')).toHaveTextContent('Интерфейс')
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(exitRequirementsShown()).toBe(false)
+    page.unmount()
+    renderPage()
+    expect(screen.getByRole('switch', { name: 'Показывать требования для выхода' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('in English', () => {
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    renderPage()
+    expect(screen.getByRole('switch', { name: 'Show exit requirements' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText('The exit flare in «Raid requirements»')).toBeInTheDocument()
   })
 })
