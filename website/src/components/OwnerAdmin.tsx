@@ -30,13 +30,24 @@ export function OwnerAdmin({ extra, refreshKey = 0 }: { extra?: ReactNode; refre
   const [error, setError] = useState<Failure | null>(null)
   const [busy, setBusy] = useState(false)
 
+  // Each streamer's share (the settings below): a 0 % streamer is left out of the statistics.
+  const [shares, setShares] = useState<ReadonlyMap<string, number> | null>(null)
+
   const load = useCallback(() => {
     if (!token) return Promise.resolve()
-    return api.ownerStreamers(token).then((next) => { setData(next); setError(null) }, (reason: unknown) => setError(failure(reason)))
+    return Promise.all([api.ownerStreamers(token), api.adminStreamerSettings(token).catch(() => null)]).then(([next, settings]) => {
+      setData(next)
+      setShares(settings ? new Map(settings.streamers.map((item) => [item.code, item.percent])) : null)
+      setError(null)
+    }, (reason: unknown) => setError(failure(reason)))
   }, [token])
   useEffect(() => { void load() }, [load, refreshKey])
 
-  const totals = (data?.streamers ?? []).reduce((sum, row) => ({
+  // Owner, 25.11.2026: a streamer with a
+  // 0 % share («только статистика») is out of «Все стримеры» and of the table. His share stays in the settings below;
+  // raised above 0 %, he is counted again.
+  const counted = (data?.streamers ?? []).filter((row) => (shares?.get(row.code) ?? 1) > 0)
+  const totals = counted.reduce((sum, row) => ({
     visits: sum.visits + row.stats.visits,
     registrations: sum.registrations + row.stats.registrations,
     linkRegistrations: sum.linkRegistrations + (row.stats.linkRegistrations ?? 0),
@@ -45,7 +56,7 @@ export function OwnerAdmin({ extra, refreshKey = 0 }: { extra?: ReactNode; refre
     earnings: sum.earnings + row.stats.earnings.amount,
   }), { visits: 0, registrations: 0, linkRegistrations: 0, active: 0, revenue: 0, earnings: 0 })
   const cards = [
-    { icon: Users, label: 'Стримеры', value: numberFormat.format(data?.streamers.length ?? 0), meta: data?.invites.length ? `ещё ${data.invites.length} приглашений ждут` : 'с кабинетом стримера' },
+    { icon: Users, label: 'Стримеры', value: numberFormat.format(counted.length), meta: data?.invites.length ? `ещё ${data.invites.length} приглашений ждут` : 'с кабинетом стримера' },
     { icon: MousePointerClick, label: 'Переходы', value: numberFormat.format(totals.visits), meta: 'по всем ссылкам' },
     { icon: UserPlus, label: 'Регистрации', value: numberFormat.format(totals.registrations), meta: registrationSplit(totals.registrations, totals.linkRegistrations) },
     { icon: BadgeCheck, label: 'Подписки', value: numberFormat.format(totals.active), meta: 'активные у пришедших по коду' },
@@ -77,7 +88,7 @@ export function OwnerAdmin({ extra, refreshKey = 0 }: { extra?: ReactNode; refre
           ))}
         </div>
         <StreamerInviteForm onCreated={() => void load()} invites={data?.invites ?? []} />
-        <StreamersTable data={data} />
+        <StreamersTable data={data ? { ...data, streamers: counted } : null} />
         {extra}
       </div>
     </section>

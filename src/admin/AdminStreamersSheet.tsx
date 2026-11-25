@@ -39,7 +39,10 @@ export function StreamersSheet({ onClose }: { onClose: () => void }) {
   }, [version])
 
   const streamers = data?.streamers.streamers ?? []
-  const totals = streamers.reduce((sum, row) => ({
+  // «Все стримеры» counts the streamers with a share (owner, 25.11.2026); a 0 %
+  // streamer keeps his card below for his settings.
+  const counted = streamers.filter((row) => (data?.settings.streamers.find((item) => item.code === row.code)?.percent ?? 1) > 0)
+  const totals = counted.reduce((sum, row) => ({
     visits: sum.visits + row.stats.visits,
     registrations: sum.registrations + row.stats.registrations,
     active: sum.active + row.stats.activeSubscriptions,
@@ -58,7 +61,7 @@ export function StreamersSheet({ onClose }: { onClose: () => void }) {
           {/* Итог по всем — явно «Все стримеры», чтобы не путать с цифрами одного (owner, 25.11.2026). */}
           <h2 className="admin-sheet-title">{uiText('Все стримеры')}</h2>
           <div className="admin-overview admin-streamer-cards">
-            <article><span><Users size={16} />{uiText('Стримеры')}</span><strong>{count.format(streamers.length)}</strong><small>{uiText(invites.length ? `ещё ${invites.length} приглашений ждут` : 'с кабинетом стримера')}</small></article>
+            <article><span><Users size={16} />{uiText('Стримеры')}</span><strong>{count.format(counted.length)}</strong><small>{uiText(invites.length ? `ещё ${invites.length} приглашений ждут` : 'с кабинетом стримера')}</small></article>
             <article><span><MousePointerClick size={16} />{uiText('Переходы')}</span><strong>{count.format(totals.visits)}</strong><small>{uiText('по всем ссылкам')}</small></article>
             <article><span><UserPlus size={16} />{uiText('Регистрации')}</span><strong>{count.format(totals.registrations)}</strong><small>{uiText(`активных подписок: ${count.format(totals.active)}`)}</small></article>
             <article><span><Wallet size={16} />{uiText('Выручка')}</span><strong>{money(totals.revenue)}</strong><small>{uiText('оплаты приглашённых')}</small></article>
