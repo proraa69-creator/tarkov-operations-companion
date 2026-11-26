@@ -11484,3 +11484,17 @@ Not pushed, not released, nothing uploaded.
   green; «Raid OS админка iPhone 0.6.0.349.ipa» on the owner's desktop (5 787 446 bytes, sha256 f373188f…). Its e-mail search
   and payment → profile work with the server as it is; «Удалить сообщение» and the right «Чистыми» need this release.
 - Deployment: pushed to release/production; live once download/version.json shows 0.6.0-350.
+
+## 2026-11-26 23:55 — Claude: the server's long waits go once (claude/long-wait-once f5d70d6f, not released)
+
+- Owner, 26.11 («Да, чини» to the long waits' cut-offs): electron/serviceGateway.ts `isLongWait` — the server's long waits
+  with `?since=` (map-updates, announcement, me/social-events, accounts/me/admin/requests/events; the live relay's as
+  before) go without hedgedFetch's copies. Correction to the 18:30 entry: their timeout was already 45 s, not 15 s; the
+  cut-offs were the hedged copies (up to four, 1.5 s apart), which also took the server's few waiting places
+  (MAX_WAITING_PER_ADDRESS 8, MAX_WAITING_PER_ACCOUNT 6): a full room answers at once, so the waits turned every few
+  seconds. The site and the phone (src/sync/webAccount.ts) send them once already.
+- Test: electron/serviceGateway.longWait.test.ts (a real HTTP server answering after HEDGE_MS: a long wait arrives once, an
+  ordinary read still twice; it fails on the old line). typecheck and eslint clean; electron/serviceGateway*, hedgedFetch,
+  entitlement 51/51; the rest of electron/ 14 failed in 3 files (appUpdate.ownerExe, linux updater, staleServer), the same
+  without the change on this PC.
+- Not released: it needs an app version (0.6.0.351); when — the owner's word.
