@@ -11549,3 +11549,22 @@ Not pushed, not released, nothing uploaded.
   scripts vitest finds no suite in (cache-item-images, release-policy); the gate on Linux decides.
 - Deployment: pushed to release/production; the timer publishes it at 13:00 Bangkok; live once download/version.json shows
   0.6.0-351.
+
+## 2026-11-27 05:20 — Claude: «Срок скрыт» (branch claude/term-hidden, into 0.6.0.351)
+
+- Owner, 27.11.2026, about a streamer with the lifetime access added the day before: «Сделай ему на год. Но в личном кабинете…
+  пусть пишется у него подписка активна… не надо писать, сколько у него осталось… Когда срок выйдет, у него уже будет срок
+  подписки вышел». His account already has a year of granted days («стример», 365 days) on top of a month paid before; the
+  streamer status overrode them with «навсегда».
+- accounts.term_hidden_at (services/accountStore.ts): the account's own views (the site's cabinet, the apps) get an active
+  subscription without paidUntil (`termHidden: true`); a streamer with it has his paid days instead of the lifetime access —
+  access, the entitlement token until the paid end (services/entitlement.ts paidUntilOf), payments and «Списать дни» allowed.
+  Once the days are over the cabinet says «Не активна», as for anyone. The owner sees the end in the admin («до … · срок
+  скрыт»: website admin «Пользователи», the apps' AccountProfile and the phone admin), the owner's chat panel too.
+- The switch: the site's admin «Пользователи» → «Действия» → «Срок скрыт от игрока» («Скрыть срок» / «Показать срок»),
+  POST /v1/accounts/me/admin/users/:id/term-hidden (owner only), audited as subscription.term-hidden; the PC owner app reaches
+  it through OWNER_SITE_ADMIN. The site's cabinet said «Не активна» for an active subscription without a date; now «Активна».
+- Tests: server 642/642 (2 new: ownerAdmin, entitlement); website cabinet and admin (5 new); src/admin, src/account, website
+  admin and pages 279/279; typecheck (app, website, server) and eslint clean. Not checked in a browser (the admin needs the
+  owner's sign-in).
+- After the release is live the switch is to be turned on for that streamer (the owner's request); nothing on the server yet.
