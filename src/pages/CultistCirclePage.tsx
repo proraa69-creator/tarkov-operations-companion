@@ -1,7 +1,7 @@
 import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Search, X } from 'lucide-react'
+import { Calculator, Check, Search, X } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -10,7 +10,7 @@ import { useTarkovData } from '../data/DataProvider'
 import type { Item, RaidMode } from '../domain/types'
 import { displayPrice } from '../domain/itemPrices'
 import { formatPrice } from '../shared/format'
-import { circleRows, circleTime, stackCount, type CircleExchange, type CircleRow, type CircleStack } from '../hideout/cultistCircle'
+import { CIRCLE_MAX_ITEMS, circleRows, circleSum, circleTime, exchangeDrops, matchingExchange, stackCount, type CircleExchange, type CircleRow, type CircleStack } from '../hideout/cultistCircle'
 import { hideoutNeeds } from '../hideout/hideoutNeeds'
 import { useHideoutFound } from '../hideout/hideoutFound'
 import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
@@ -83,6 +83,8 @@ export function CultistCirclePage() {
   // `?open=<exchange>`: the exchange a «Где взять» row of «Убежище» points to (hideout/WhereToGet.tsx)
   const [params] = useSearchParams()
   const [selectedKey, setSelectedKey] = useState<string | null>(() => params.get('open'))
+  // «Рецепты 100 %» — the list of exchanges — or «Калькулятор» (report 241)
+  const [view, setView] = useState<'recipes' | 'calculator'>(() => (params.get('view') === 'calculator' ? 'calculator' : 'recipes'))
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const needs = useMemo(() => {
     const byItem = new Map<string, CircleNeed[]>()
@@ -125,6 +127,11 @@ export function CultistCirclePage() {
         <p className="page-subtitle">{uiText('Что выпадает из круга. Нажмите на предмет, чтобы увидеть, что положить в круг.')}</p>
       </div>
     </header>
+    <div className="circle-views" role="tablist" aria-label={uiText('Круг сектантов')}>
+      <button type="button" role="tab" aria-selected={view === 'recipes'} className={view === 'recipes' ? 'is-active' : ''} onClick={() => setView('recipes')}><Check size={13} strokeWidth={3} aria-hidden="true" />{uiText('Рецепты 100 %')}</button>
+      <button type="button" role="tab" aria-selected={view === 'calculator'} className={view === 'calculator' ? 'is-active' : ''} onClick={() => setView('calculator')}><Calculator size={13} aria-hidden="true" />{uiText('Калькулятор')}</button>
+    </div>
+    {view === 'calculator' ? <CircleCalculator items={items} locale={locale} /> : <>
     <div className="hs-toolbar">
       <label className="hs-search"><Search size={14} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти предмет…')} aria-label={uiText('Найти предмет…')} /></label>
       <button type="button" className={`hs-chip${neededOnly ? ' is-active' : ''}`} aria-pressed={neededOnly} onClick={() => setNeededOnly((value) => !value)}><Check size={12} strokeWidth={3} aria-hidden="true" /> {uiText(NEEDED)}</button>
@@ -133,6 +140,7 @@ export function CultistCirclePage() {
       ? <div className="circle-grid">{visible.map((row) => <CircleTile key={row.key} row={row} items={items} needed={isNeeded(row)} locale={locale} onOpen={() => setSelectedKey(row.key)} />)}</div>
       : <p className="muted circle-empty">{uiText('Ничего не найдено')}</p>}
     <p className="muted circle-note">{uiText('Большинство обменов срабатывает один раз. Данные проверены 04.11.2026, после обновления игры они могут измениться.')}</p>
+    </>}
     {selected && <CircleDialog row={selected} items={items} mode={mode} needs={needs} locale={locale} onClose={() => setSelectedKey(null)} />}
   </div>
 }
@@ -236,4 +244,61 @@ function CirclePutRow({ stack, item, price }: { stack: CircleStack; item: Item; 
   </>
   // On the flea market it opens there, to buy it right away.
   return <li>{price === undefined ? <div className="circle-put-row">{copy}</div> : <Link className="circle-put-row is-link" to={`/flea?selected=${item.id}`}>{copy}</Link>}</li>
+}
+
+/**
+ * «Калькулятор» (report 241, 26.11.2026: «Добавьте калькулятор круга сектантов»): up to five items put in, their base value
+ * (hideout/cultistCircle.ts circleSum), the amulet, the time and what the sum promises, and how much is missing to the next
+ * mark that matters. Items that make an exchange of the list say so instead: that one goes first.
+ */
+function CircleCalculator({ items, locale }: { items: Map<string, Item>; locale: Locale }) {
+  const [chosen, setChosen] = useState<string[]>([])
+  const [amulet, setAmulet] = useState(false)
+  const [query, setQuery] = useState('')
+  const found = useMemo(() => {
+    const terms = searchTerms(query)
+    if (!terms.length) return []
+    const start = query.trim().toLowerCase()
+    const named = (item: Item) => uiText(item.name).toLowerCase()
+    return [...items.values()]
+      .filter((item) => (item.basePrice ?? 0) > 0 && matchesSearchTerms(terms, item.name, item.shortName, uiText(item.name), uiText(item.shortName)))
+      .sort((a, b) => Number(named(b).startsWith(start)) - Number(named(a).startsWith(start)) || (b.basePrice ?? 0) - (a.basePrice ?? 0))
+      .slice(0, 8)
+  }, [items, query])
+  const sum = circleSum(chosen.map((id) => items.get(id)?.basePrice ?? 0), amulet)
+  const exchange = matchingExchange(chosen)
+  const full = chosen.length >= CIRCLE_MAX_ITEMS
+  const add = (id: string) => { if (!full) setChosen([...chosen, id]); setQuery('') }
+  const time = exchange?.seconds !== undefined ? circleTime(exchange.seconds, locale) : circleTime(sum.hours * 3600, locale)
+  return <section className="circle-calc" aria-label={uiText('Калькулятор')}>
+    <div className="circle-calc-pick">
+      <label className="hs-search"><Search size={14} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText(full ? 'Положите до 5 предметов' : 'Найти предмет…')} aria-label={uiText('Найти предмет…')} disabled={full} /></label>
+      {found.length > 0 && <ul className="circle-calc-found">{found.map((item) => <li key={item.id}>
+        <button type="button" onClick={() => add(item.id)}><StashPicture id={item.id} item={item} /><span>{uiText(item.name)}</span><small>{formatPrice(item.basePrice ?? 0)}</small></button>
+      </li>)}</ul>}
+      <ol className="circle-calc-slots" aria-label={uiText('Положите до 5 предметов')}>{Array.from({ length: CIRCLE_MAX_ITEMS }, (_, slot) => {
+        const item = chosen[slot] ? items.get(chosen[slot]) : undefined
+        return <li key={slot} className={item ? 'is-filled' : ''}>{item && <>
+          <StashPicture id={item.id} item={item} />
+          <span className="circle-calc-name">{uiText(item.name)}</span>
+          <small>{formatPrice(item.basePrice ?? 0)}</small>
+          <button type="button" className="circle-calc-remove" aria-label={`${uiText('Убрать')}: ${uiText(item.name)}`} onClick={() => setChosen(chosen.filter((_, index) => index !== slot))}><X size={12} aria-hidden="true" /></button>
+        </>}</li>
+      })}</ol>
+      <label className="circle-calc-amulet"><input type="checkbox" checked={amulet} onChange={(event) => setAmulet(event.target.checked)} />{uiText('Амулет Посвящённого: +15 %')}</label>
+    </div>
+    <div className="circle-calc-result" aria-live="polite">
+      <div className="circle-calc-figures">
+        <div><small>{uiText('Сумма')}</small><strong>{formatPrice(sum.total)}</strong></div>
+        <div><small>{uiText('Время в круге')}</small><strong>{chosen.length ? time : '—'}</strong></div>
+      </div>
+      {exchange
+        ? <p className="circle-calc-exchange"><Check size={13} strokeWidth={3} aria-hidden="true" />{uiText('Это обмен 100 %:')} {exchangeDrops(exchange).filter(([id]) => items.has(id)).map((stack) => stackTitle(stack, items)).join(' + ')}</p>
+        : chosen.length > 0 && <>
+          {sum.questChance ? <p>{uiText('или 6 ч с шансом 25 %: предметы для ваших квестов и убежища')}</p> : sum.rare ? <p>{uiText('выше шанс редких предметов')}</p> : null}
+          {sum.missing && <p className="muted">{uiText(sum.missing.to === 'rare' ? 'До 14 ч не хватает' : 'До шанса 6 ч не хватает')} {formatPrice(sum.missing.value)}</p>}
+        </>}
+      <p className="muted circle-calc-note">{uiText('Базовая цена предметов из игры. Сборку оружия игра считает иначе.')}</p>
+    </div>
+  </section>
 }
