@@ -11215,3 +11215,21 @@ Not pushed, not released, nothing uploaded.
   quest-point photos (the API keeps its own limits: 28 MB / 8 MB); backup /etc/nginx/sites-available/raidos.bak-20261126-screenshots,
   nginx -t, reload. A 1.3 MB body now reaches the API (401 without a session instead of 413). The ops-reference nginx file is
   not updated yet. Seen from the owner's PC: uploads to raidos.app at 15–24 KB/s (downloads 1.1 MB/s, uploads elsewhere fast).
+
+## 2026-11-26 18:37 — Claude: report 248, the three missing points of «На свет» (branch claude/na-svet-points, not released)
+
+- Report 248 (PvE, Customs): «Подрезать крылья» shows no point where to plant on Customs, nor on Woods. Owner: «Да, ставь».
+- The chain checked (11 quests): three places had no point since 15.10.2026 (no source then): the sawmill guardhouse and the
+  Customs construction site («Подрезать крылья»), the Labs covered server room («Доверяй, но проверяй»). The others have their
+  points or need none (hideout, hand-ins, kills anywhere on the map).
+- src/data/curatedQuests.ts, three point spots: Woods (-27.5, 46.5) — tarkov.help marker 15806 carried over by an affine fit
+  of 12 exits (1–12 m; their weather station marker lands 6 m from zone q14_8_2), on the lone building by the road; Customs
+  (220, -13) — the wiki's marked map and photos: the unfinished building at Factory Shacks across from the road to the dorms
+  (tarkov.help's own marker 15807 lies far south of its own text, not taken); Labs (-184, -327.5) — the wiki's marked map
+  matched on our copy of tarkov.dev's 1st-level tiles: the ring of racks under a tarp west of the weapon testing room's doors.
+- docs/quests/na-svet-audit.md «Точки на карте: третья проверка»; src/data/curatedQuests.test.ts: points at all six objectives
+  of «Подрезать крылья», the first and third of «Доверяй, но проверяй», the three positions in every mode.
+- Tests: curatedQuests 33/33; quest chain, catalog source, maps 192/192 (28 files); server questBase 11/11; typecheck clean.
+  Seen in the dev renderer (web, PvE): each point at its objective on Woods (by the sawmill), Customs (by «Времянки») and the
+  Lab (main level, «Примерное место»).
+- Not released: with the next app version on the owner's word, "reports":[248] in its history row (248 is taken).
