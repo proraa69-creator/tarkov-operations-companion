@@ -11111,3 +11111,30 @@ Not pushed, not released, nothing uploaded.
   сборка сайта (npm --prefix website run build) — чисто.
 - Electron и Koffi не менялись — обновление частями. Выходит в окно 13:00 по Бангкоку после зелёного шлюза.
 - Не проверено: поиск ключей в живой игре с этим кодом.
+
+## 2026-11-26 12:00 — Claude: reports 241–247 looked at; 244 and the Shoreline part of 247 fixed (branch claude/reports-244-247, not released)
+
+- Owner: «Возьми в работу заявки». On the server (read only): 241, 242, 243, 245, 246, 247 «В процессе» (243/245/246/247 taken
+  09:41–09:42 Bangkok), 244 still «Активные» (review), 236 «Разъяснено».
+- 241/242 (Cultist Circle calculator, the same wish): branch claude/cultist-calculator 5b7b36e2 (local, not pushed); its history
+  row should list both. 243: claude/tier-list-needs, waits for the owner's news line.
+- 245/246 (one player, PvE; the item card shows no «Каппа» on «Антикварный топор» and RatCola): not a fault. Both items are
+  checked in his «Предметы для «Коллекционера»» list since 16.11 (server user_collector), and «Значок «Каппа» в рейде только на
+  недостающих» (on by default, owner 13.10.2026) hides the badge on checked items. Left to the owner: an answer, or a muted badge.
+- 244 «Закрытый клуб»: the reshoot integration (E:/SPT-photo/eval/integrate_all.py) removed every wiki photo of an objective once
+  one of its places had a frame of ours; spawns 2 and 4 had none. Put back, and the same for 9 more objectives found by the
+  numbered captions («Пропавший информатор», «Цена независимости» ×2, «Ближе к народу», «Закрыть небо», «Дверь», «Секрет успеха»,
+  «Supplements»): 15 entries, 13 files, all still stored and cropped on the server (images/guides, guides-cropped.json).
+  integrate_all.py (backup .bak-keepwiki-20261126) skips the ids in eval/manual-keep-wiki.json.
+- 247 (documents' photos «перепутаны» on Shoreline, Interchange, «везде»): the kinds' marker pictures match tarkov.dev's icons;
+  every live point has its own spot (the feed has not moved since 05.11). Shoreline resort by the points' heights against the
+  wings' door locks (2nd floor locks y 0.1, 3rd 3.0): technical 6 (room 212's shelf) and 7 (3rd floor chair) were swapped; 5 (room
+  316) and 11 (room 206) both stood on both points; test-docs 15 («the village near the Tunnel») sat 65 m below the resort — off
+  it. Technical 15 stays off (-627.6, -232.5) (report 203). Interchange: heights agree with the captions, nothing found by data.
+  **Not fixed:** wiki photos put on every point of a room (Lab 21 points with 2–5 photos of one kind, Ground Zero 17, Labyrinth 16,
+  Factory 12, Lighthouse 2): each such point shows the photos of its neighbours too. An exact layout needs the documents shot in
+  SPT as on Customs/Woods/Interchange — owner's word.
+- Commit cc786048: src/data/questGuidePhotos.json, src/data/documentGuidePhotos.json, scripts/document-guide-points.mjs, tests
+  src/data/questGuidePhotos.test.ts, src/data/documentGuide.test.ts. Tests: those two 17/17, ObjectivePhotos + QuestGuidePhotos
+  14/14, server guideImages 8/8. Not checked in the app: the photos come back only once a release lists them (the server serves
+  listed ones only). 244 must be taken into work before the release so that its history row closes it.
