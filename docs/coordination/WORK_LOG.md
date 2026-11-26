@@ -11153,3 +11153,12 @@ Not pushed, not released, nothing uploaded.
   under «Весь квест», none at the map's points. Tied (game ids): street → find the truck (+ the flare), truck → find + mark +
   flare, the marker's spot → mark, caption «Маркер — на стойку решётчатой двери в кузове, подойти вплотную». Test added; 21/21.
   **Open:** 106 of 241 quests have photos tied to no objective (382 photos) — they never show at the map's points.
+- 14:35, owner «Да, привяжи» (the photos of the other quests to their objectives): 340 of 382 untied photos (106 quests) tied
+  — 207 our frames by where they were shot, 133 wiki photos by the caption's number or words, «Место появления», one
+  objective on the map, all objectives at one place, the walkthrough's groups, 5 by eye («Вымогатель», «Спасение крота»).
+  42 photos of 23 quests stay under «Весь квест» (overviews, no caption, «Третий БРДМ / Stryker» no longer in the quest,
+  «Прикормка»'s bed by the safe). Checked: «Знаток Резерва» in the dev renderer — each room's photo under its objective,
+  each barracks' outside with its rooms. Test added (≤ 45 untied, «Знаток Резерва» ties); questGuidePhotos/QuestGuidePhotos/
+  ObjectivePhotos 22/22. Tool: E:/SPT-photo/eval/tie_quest_photos.cjs (json.tarkov.dev tasks + the feed's Russian texts).
+  **Risk:** integrate_all.py builds our frames from its points; a frame whose point names no objective comes back untied on a
+  re-run of that map — run tie_quest_photos.cjs after it.
