@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,5 +85,21 @@ describe('a key ticked «Взял» and the words of each purpose', () => {
   it('a quest item the quest finds first says «Поднять и заложить» (report 162)', () => {
     render(<MemoryRouter><RaidRequirementsPanel rows={[{ ...either, key: 'blood', name: 'Проба крови', alternatives: undefined, lines: [{ purpose: 'pickUp', questNames: ['Врачебная тайна. Часть 6'] }] }]} /></MemoryRouter>)
     expect(screen.getByText('Проба крови').closest('.raid-need')).toHaveTextContent('Поднять и заложить · Врачебная тайна. Часть 6')
+  })
+})
+
+// Owner, 27.11.2026: «Убрать из требований можно только те предметы… которые ты добавил сам… просто убрать из требований рейда кнопку».
+describe('an item added by hand', () => {
+  it('a right click asks for «Убрать из требований рейда»; an item of a quest does not', () => {
+    const onDefer = vi.fn()
+    const byHand: RaidNeedRow = { key: 'ms2000', itemId: 'ms2000', name: 'Маркер MS2000', href: '/flea?selected=ms2000', count: 1, lines: [], fromRaidListOnly: true }
+    const ofQuest: RaidNeedRow = { ...either, key: 'k-quest', alternatives: undefined, lines: [{ purpose: 'key', questNames: ['Нужно больше энергии'], quests: [{ id: 'q-energy', name: 'Нужно больше энергии', count: 1 }] }] }
+    render(<MemoryRouter><RaidRequirementsPanel rows={[byHand, ofQuest]} onDefer={onDefer} /></MemoryRouter>)
+    expect(screen.getByText('Маркер MS2000').closest('.raid-need')).toHaveTextContent('Добавлено с барахолки')
+    fireEvent.contextMenu(screen.getByText('Маркер MS2000'), { clientX: 10, clientY: 20 })
+    expect(onDefer).toHaveBeenLastCalledWith({ x: 10, y: 20, request: { item: { id: 'ms2000', name: 'Маркер MS2000' }, quests: [], addedByHand: true } })
+    fireEvent.contextMenu(screen.getByText('Ключ 219'), { clientX: 10, clientY: 20 })
+    expect(onDefer).toHaveBeenCalledTimes(2)
+    expect(onDefer.mock.lastCall?.[0].request).not.toHaveProperty('addedByHand')
   })
 })

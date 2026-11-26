@@ -23,6 +23,12 @@ export interface DeferRequest {
   quests: Array<{ id: string; name: string; count?: number }>
   /** Ticked when the window opens (the quest whose line was clicked); every quest when none. */
   chosen?: string[]
+  /**
+   * The item is in «Требования рейда» only because the player put it there («В список рейда» of the flea market or a tier list's
+   * card): the menu offers «Убрать из требований рейда» (owner, 27.11.2026: «Я должен удалять правой кнопкой… просто убрать из
+   * требований рейда кнопку»).
+   */
+  addedByHand?: boolean
 }
 
 /** `title`: what the menu names (a task's row: the quest); the item's name, else the quest's, without it. */
@@ -37,19 +43,22 @@ const DAY_MS = 24 * 60 * 60 * 1000
 /**
  * The right click on an item of «Требования рейда» or on the gear of «Сбор на рейд» (owner, 03.11.2026: «мог просто
  * нажать на любой предмет ПКМ и отложить квест»): its name and «Отложить квест». `onClose` must keep its identity.
+ * `onRemoveFromRaid`: an item the player added by hand leaves «Требования рейда» (`DeferRequest.addedByHand`).
  */
-export function DeferItemMenu({ menu, onOpen, onClose }: { menu: DeferMenuState | null; onOpen: (request: DeferRequest) => void; onClose: () => void }) {
+export function DeferItemMenu({ menu, onOpen, onClose, onRemoveFromRaid }: { menu: DeferMenuState | null; onOpen: (request: DeferRequest) => void; onClose: () => void; onRemoveFromRaid?: (itemId: string) => void }) {
   const ref = usePopupMenu(menu, onClose)
   if (!menu) return null
   const left = Math.max(8, Math.min(menu.x, window.innerWidth - 268))
   const top = Math.max(8, Math.min(menu.y, window.innerHeight - 86))
   const { request } = menu
+  const handAdded = request.addedByHand && onRemoveFromRaid ? request.item : undefined
   return createPortal(
     <div ref={ref} className="point-menu quest-defer-menu" role="menu" aria-label={uiText('Меню предмета')} style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
       <div className="point-menu-title">{uiText(menu.title ?? request.item?.name ?? request.quests[0]?.name ?? '')}</div>
       {/* «Взял» (report 157): a green check on the item until the raid is over */}
       <TakenMenuItem itemId={request.item?.id} onDone={onClose} />
       {request.quests.length > 0 && <button type="button" role="menuitem" onClick={() => { onClose(); onOpen(request) }}><Hourglass size={13} aria-hidden="true" />{uiText('Отложить квест')}</button>}
+      {handAdded && <button type="button" role="menuitem" onClick={() => { onClose(); onRemoveFromRaid?.(handAdded.id) }}><X size={13} aria-hidden="true" />{uiText('Убрать из требований рейда')}</button>}
     </div>,
     document.body,
   )

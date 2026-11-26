@@ -163,6 +163,8 @@ export function DashboardPage() {
   // A right click on an item of «Требования рейда» or on the gear of «Сбор на рейд»: «Отложить квест», then its window.
   const [deferMenu, setDeferMenu] = useState<DeferMenuState | null>(null)
   const closeDeferMenu = useCallback(() => setDeferMenu(null), [setDeferMenu])
+  // «Убрать из требований рейда» on an item added by hand (owner, 27.11.2026): it leaves the raid list it was put on.
+  const removeFromRaid = (itemId: string) => { if (state.raidItemIds.includes(itemId)) state.toggleRaidItem(itemId) }
   const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
   const closeDeferRequest = useCallback(() => setDeferRequest(null), [setDeferRequest])
   // «Текущие задания» without the quests put aside; the right click on a row puts its quest aside, «До уровня» telling
@@ -395,7 +397,7 @@ export function DashboardPage() {
       </div>}
     {mobile && phone.choosing && <BlockChooser title={labelOf(phone.choosing, phoneBlocks)} choices={phoneChoices(phone.choosing)} onPick={(id) => phone.replace(phone.choosing!, id)} onClose={() => phone.setChoosing(null)} />}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
-    <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} />
+    <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} onRemoveFromRaid={removeFromRaid} />
     {favoriteActions.menu}
     {deferRequest && <QuestDeferDialog request={deferRequest} onClose={closeDeferRequest} />}
   </div></TakenItemsProvider>

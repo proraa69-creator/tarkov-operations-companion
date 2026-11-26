@@ -44,7 +44,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Начать главу', 'Start chapter'], ['Изменить главу', 'Change chapter'], ['Глава не начата', 'Chapter not started'], ['Глава выполнена', 'Chapter completed'], ['Глава уже выполнена', 'Chapter already completed'],
   ['На каком вы этапе?', 'Which stage are you on?'], ['Вернуться к прошлому этапу', 'Back to the previous stage'], ['Перейти на следующий этап', 'Go to the next stage'], ['Завершить главу', 'Finish the chapter'], ['Сохранено', 'Saved'], ['Меньше', 'Less'], ['Больше', 'More'],
   ['Обновление', 'Update'], ['Использован', 'Used'], ['Текст пункта', 'The point\'s text'], ['Убрать пункт', 'Remove the point'], ['Убрать блок', 'Remove the block'], ['Ваш текст', 'Your text'], ['Сохранено', 'Saved'], ['Редактировать', 'Edit'], ['Тексты для игроков', 'Texts for the players'], ['Прочитано', 'Read'], ['Добавили', 'Added'], ['Изменили', 'Changed'], ['Улучшили', 'Improved'],
-  ['Меню предмета', 'Item menu'], ['Отложить квест', 'Defer quest'], ['Отложить', 'Defer'], ['Убрать из избранного', 'Remove from favorites'],
+  ['Меню предмета', 'Item menu'], ['Отложить квест', 'Defer quest'], ['Убрать из требований рейда', 'Remove from raid requirements'], ['Отложить', 'Defer'], ['Убрать из избранного', 'Remove from favorites'],
   ['Этот предмет нужен квестам — какие отложить:', 'Tasks that need this item — which to defer:'],
   ['На сколько отложить', 'How long to defer'], ['По времени', 'For a time'], ['До уровня', 'Until a level'], ['Сколько дней', 'How many days'],
   ['До какого уровня', 'Until which level'], ['Свой уровень', 'Own level'], ['Уровень персонажа', 'Character level'],

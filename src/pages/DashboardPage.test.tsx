@@ -530,6 +530,24 @@ describe('DashboardPage', () => {
     expect(within(camera()).queryByRole('img', { name: 'Взял' })).toBeNull()
   })
 
+  // Owner, 27.11.2026: «нажимаю в список рейда… а удалить я его могу только там же… Я должен удалять правой кнопкой… просто
+  // убрать из требований рейда кнопку».
+  it('«Убрать из требований рейда»: a right click on an item added by hand takes it off the list; an item of a quest has no such entry', () => {
+    const { container } = renderDashboard(undefined, { raidItemIds: ['ms2000'] })
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    const marker = () => (within(needs).queryByText('Маркер MS2000')?.closest('.raid-need') ?? null) as HTMLElement | null
+    fireEvent.contextMenu(marker()!, { clientX: 200, clientY: 150 })
+    const menu = screen.getByRole('menu', { name: 'Меню предмета' })
+    expect(within(menu).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Взял', 'Убрать из требований рейда'])
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Убрать из требований рейда' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(marker()).toBeNull()
+    expect(probe.app!.raidItemIds).not.toContain('ms2000')
+    // a quest's item: «Взял» and «Отложить квест», nothing to take off
+    fireEvent.contextMenu(within(needs).getByText(/ELCAN/).closest('.raid-need')!, { clientX: 200, clientY: 150 })
+    expect(within(screen.getByRole('menu', { name: 'Меню предмета' })).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Взял', 'Отложить квест'])
+  })
+
   // Owner, 03.11.2026: «нажать на любой предмет ПКМ и отложить квест не открывая и не запоминая каждый квест… отладка по
   // времени, то можно выбрать 1-2-3-4-5-6-7 дней».
   it('«Отложить квест»: a right click on an item puts its quests aside for days, and they come back by themselves', () => {

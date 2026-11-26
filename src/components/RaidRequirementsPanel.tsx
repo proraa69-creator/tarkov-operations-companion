@@ -120,20 +120,22 @@ function RaidNeed({ row, onDefer, compact = false }: { row: RaidNeedRow; onDefer
   const split = !compact && new Set(row.lines.flatMap((line) => line.quests?.map((quest) => quest.id) ?? [])).size > 1
   const quests = rowQuests(row)
   // A right click puts its quests aside (owner, 03.11.2026: «нажать на любой предмет ПКМ и отложить квест не открывая и не
-  // запоминая каждый квест»); on a quest's line, that quest is the one ticked. Not for an item added by hand, nor while a
-  // held finger shows the hover card (its handler cancels the event then).
+  // запоминая каждый квест»); on a quest's line, that quest is the one ticked. Not while a held finger shows the hover card
+  // (its handler cancels the event then).
   const holdMenu = 'onContextMenu' in anchorProps ? anchorProps.onContextMenu : undefined
-  // «Взял» (report 157) is offered on every item, an item added by hand too.
+  // «Взял» (report 157) is offered on every item, an item added by hand too; that one also leaves the list from here
+  // («Убрать из требований рейда», owner, 27.11.2026), not only from the card it was added on.
   const marks = useTakenItemsMarks()
   const taken = useItemTaken(row.itemId)
-  const openMenu = onDefer && (quests.length || (marks && row.itemId)) ? (event: ReactMouseEvent<HTMLDivElement>) => {
+  const handAdded = row.fromRaidListOnly && Boolean(row.itemId)
+  const openMenu = onDefer && (quests.length || handAdded || (marks && row.itemId)) ? (event: ReactMouseEvent<HTMLDivElement>) => {
     holdMenu?.(event)
     if (event.defaultPrevented) return
     event.preventDefault()
     const line = (event.target as Element).closest?.('[data-quest-id]')?.getAttribute('data-quest-id')
     onDefer({
       x: event.clientX, y: event.clientY,
-      request: { item: row.itemId ? { id: row.itemId, name: row.name, iconUrl: row.iconUrl } : undefined, quests, ...(line ? { chosen: [line] } : {}) },
+      request: { item: row.itemId ? { id: row.itemId, name: row.name, iconUrl: row.iconUrl } : undefined, quests, ...(line ? { chosen: [line] } : {}), ...(handAdded ? { addedByHand: true } : {}) },
     })
   } : holdMenu
   // The item's link covers the whole card (.raid-need-link::after); the quests' lines sit above it.
