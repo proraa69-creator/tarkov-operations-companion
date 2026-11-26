@@ -11484,3 +11484,13 @@ Not pushed, not released, nothing uploaded.
   green; «Raid OS админка iPhone 0.6.0.349.ipa» on the owner's desktop (5 787 446 bytes, sha256 f373188f…). Its e-mail search
   and payment → profile work with the server as it is; «Удалить сообщение» and the right «Чистыми» need this release.
 - Deployment: pushed to release/production; live once download/version.json shows 0.6.0-350.
+
+## 2026-11-26 23:55 — Claude: the «На свет» points live (0.6.0.349, then 0.6.0.350); report 248 closed by the release
+
+- Owner, 26.11.2026: «Да, выпускай» — the three points of report 248 with the next update. They were out already:
+  claude/na-svet-points (c08edc08) went into 0.6.0.349 (346aee0a, the 20:00 window) and is in the live 0.6.0.350 (c58b8eae,
+  download/version.json 0.6.0-350).
+- The API's journal (Bangkok time): «Release 0.6.0.349 is live: report №248 closed» and the same for №249 at 20:19; at 22:01
+  0.6.0.350's 241, 242 and 243 were «not in work, left alone» (not «В процессе» at that moment): no release notice to their
+  authors.
+- Nothing pushed: this entry only (claude/na-svet-points fast-forwarded to release/production c58b8eae).
