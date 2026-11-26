@@ -57,4 +57,14 @@ describe('«Фото мест» of the quests (src/components/QuestGuidePhotos.t
     expect(Object.values(files).filter((file) => file.own && !/\.jpg$/.test(file.file))).toEqual([])
     expect(Object.keys(data.files).filter((id) => !used.has(id))).toEqual([])
   })
+
+  // Report 244 (26.11.2026): the reshoot dropped every wiki photo of an objective once one of its places had a frame of ours, so
+  // the places no frame shows lost theirs. The quest drive of «Закрытый клуб» lies at one of four places: a photo of each.
+  it('«Закрытый клуб»: a photo of each of the four places the drive can lie at', () => {
+    const captions = data.quests['675c3582f6ddc329a90f9c6d']!.photos.map((photo) => photo.caption)
+    expect(captions).toEqual(['Южный вход Склада 17', 'Дверь в комнату', 'Место появления 1', 'Второе место на полу под столом', 'Третье место на столе', 'Четвёртое место за телевизором на столе'])
+    // the same for the diary of «Пропавший информатор»: three places
+    const diary = data.quests['63966fbeea19ac7ed845db2e']!.photos.map((photo) => photo.caption)
+    expect(diary.filter((caption) => /место появления/i.test(caption))).toHaveLength(3)
+  })
 })

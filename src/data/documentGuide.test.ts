@@ -77,6 +77,17 @@ describe('the photos of the battle pass documents', () => {
     expect(guide.maps.shoreline!.technical).toContain('fa4c79d9e970f24e')
   })
 
+  it('in the Shoreline resort each point shows the photo of its own floor and room (report 247, 26.11.2026)', () => {
+    // The points' heights against the wings' door locks: the 2nd floor's locks at 0.1, the 3rd's at 3.0.
+    const captions = (z: number, x: number, kind: BattlePassDocumentKind) => pointPhotos(guide, 'shoreline', [z, x], [kind]).map((id) => guide.photos[id]!.en)
+    expect(captions(-77.9, -312, 'technical')).toEqual(['Inside resort east wing room 212 on a shelf.'])
+    expect(captions(-102.7, -270.4, 'technical')).toEqual(['Inside resort east wing on 3rd floor on a chair.'])
+    expect(captions(-80.4, -181, 'technical')).toEqual(['Inside resort west wing room 316 on the flipped shelf.'])
+    expect(captions(-87, -219.1, 'technical')).toEqual(['Inside west wing room 206 on the floor.'])
+    // below the resort, not «the most southwest house in the village near the Tunnel exit»
+    expect(captions(-14.6, -135.7, 'test-docs')).toEqual([])
+  })
+
   it('on Interchange each blueprint spawn point shows its own room (reports 218/219, 24.11.2026)', () => {
     const first = (z: number, x: number, kind: 'blueprints' | 'financial') => {
       const ids = pointPhotos(guide, 'interchange', [z, x], [kind])

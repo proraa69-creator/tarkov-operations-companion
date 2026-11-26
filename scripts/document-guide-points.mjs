@@ -159,9 +159,11 @@ export const PHOTO_SPOTS = {
   'shoreline': {
     'technical': {
       1: [[-241.2, 203.3]], 2: [[-183, 376.3]], 3: [[-319, 483.1]],
-      4: [[93.6, 116.6]], 5: [[-219.1, -87], [-181, -80.4]], 6: [[-270.4, -102.7]],
-      7: [[-312, -77.9]], 8: [[-274.3, -140.3]], 9: [[-536.4, -336.2]],
-      10: [[412.8, 160.9]], 11: [[-219.1, -87], [-181, -80.4]], 12: [[-707.5, 96.7]],
+      // The resort's points by their heights against the wings' door locks (2nd floor locks 0.1, 3rd 3.0; report 247, 26.11.2026):
+      // room 212's shelf is on the 2nd floor, the chair of 7 on the 3rd; room 316 (over 216) and room 206 each at their own point.
+      4: [[93.6, 116.6]], 5: [[-181, -80.4]], 6: [[-312, -77.9]],
+      7: [[-270.4, -102.7]], 8: [[-274.3, -140.3]], 9: [[-536.4, -336.2]],
+      10: [[412.8, 160.9]], 11: [[-219.1, -87]], 12: [[-707.5, 96.7]],
       13: [[-511.2, 264]], 14: [[-212.3, 19.8]],
       // 15 («inside the white house in front of the T-90 in the village») answers to no point of the feed: the one it was given by
       // elimination, [-627.6, -232.5], is a long green-roofed hangar between the village and the car exit (owner, 20.11.2026, report
@@ -172,7 +174,9 @@ export const PHOTO_SPOTS = {
       4: [[-348, -89.7]], 5: [[97.8, 97.2]], 6: [[279.5, 180.7]],
       7: [[-329, -89.2]], 8: [[442, 154]], 9: [[-707.7, 99.1]],
       10: [[-612.6, -180]], 11: [[-239, -146.9]], 12: [[-197, -77]],
-      13: [[-231.3, -102.7]], 14: [[-520.2, -340.1]], 15: [[-135.7, -14.6]],
+      13: [[-231.3, -102.7]], 14: [[-520.2, -340.1]],
+      // 15 («the most southwest house in the village near the Tunnel exit») is not [-135.7, -14.6], 65 m below the resort's west
+      // end and 500 m from the Tunnel (report 247): no point of the feed answers to it, so it stays in the map's «Все места».
     },
   },
   'woods': {
