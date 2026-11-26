@@ -11207,3 +11207,11 @@ Not pushed, not released, nothing uploaded.
   ObjectivePhotos, QuestGuidePhotos, SpotPhotos 45/45 (a history line cut to 110 characters first); server guideImages,
   releaseReports, playerNews 20/20; eslint on the changed files: no errors (one fast-refresh warning, a hook beside components).
 - Deployment: pushed to release/production; live once https://raidos.app/download/version.json shows 0.6.0-348.
+- Gate of c45b8b4a red: src/news/newsEdits.test.tsx took the newest news line as unique, and «Техническое обновление» stands
+  in several versions of the dialog → getAllByText / queryAllByText (src/news 20/20).
+- Server, owner 26.11.2026 («не могу отправить скриншот человеку в чате… сервер недоступен»): nginx location /v1/ kept the
+  1 MB default, so the chat's screenshots (1.1–1.3 MB bodies today, the owner's and a player's) got 413. A regex location
+  with client_max_body_size 30m for /v1/me/support/messages, the owner's …/support/threads/:id/messages, notice pictures and
+  quest-point photos (the API keeps its own limits: 28 MB / 8 MB); backup /etc/nginx/sites-available/raidos.bak-20261126-screenshots,
+  nginx -t, reload. A 1.3 MB body now reaches the API (401 without a session instead of 413). The ops-reference nginx file is
+  not updated yet. Seen from the owner's PC: uploads to raidos.app at 15–24 KB/s (downloads 1.1 MB/s, uploads elsewhere fast).

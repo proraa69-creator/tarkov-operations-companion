@@ -76,7 +76,8 @@ describe('«Обновление» in the player\'s language', () => {
     fireEvent.click(screen.getAllByRole('button')[0]!)
     const dialog = screen.getByRole('dialog')
     const line = NEWS[0]!.items[0]!
-    expect(within(dialog).getByText(line.es!)).toBeInTheDocument()
-    expect(within(dialog).queryByText(line.ru)).toBeNull()
+    // the newest line may stand in several versions (owner, 09.11.2026: «Техническое обновление»)
+    expect(within(dialog).getAllByText(line.es!).length).toBeGreaterThan(0)
+    expect(within(dialog).queryAllByText(line.ru)).toHaveLength(0)
   })
 })
