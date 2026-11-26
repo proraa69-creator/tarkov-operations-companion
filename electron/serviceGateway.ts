@@ -25,6 +25,16 @@ import { isPaidContentPath } from '../src/shared/paidContent.js'
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
 /** The live relay's wait for the phone (GET /v1/live/:mode?since=): answered within ~25 s. */
 const LIVE_WAIT = /^\/v1\/(?:live\/[a-z]+(?:\/pc)?|squad-live\/[a-f0-9]{32}\/[a-z]+)\?since=/
+/**
+ * The server's other long waits (`?since=`, answered when the version moves or after ~25 s: server/src/routes/mapUpdates.ts,
+ * announcement.ts, me.ts the social events, bugReports.ts the owner's requests). Hedged (electron/hedgedFetch.ts), such a
+ * wait went up to four times 1.5 s apart: every copy waited at the server, took one of the few places an address or an
+ * account may wait in, and was cut off when the first one answered (owner, 26.11.2026: «Постоянно какие-то сбои… постоянные
+ * потери»; two of three such requests ended in 499 at the server, ~80 000 an hour at the evening peak).
+ */
+const LONG_WAIT = /^\/v1\/(?:map-updates|announcement|me\/social-events|accounts\/me\/admin\/requests\/events)\?since=/
+/** A long wait of the server's goes once, like the live relay's: no hedged copies (a first ask without `since` answers at once). */
+export const isLongWait = (path: string) => LIVE_WAIT.test(path) || LONG_WAIT.test(path)
 /** «Онлайн сейчас»: the heartbeat goes with this device's id too, which tells the PC from the phone (server/src/routes/presence.ts). */
 const PRESENCE_PATH = '/v1/me/presence'
 
@@ -531,7 +541,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const paidContent = isPaidContentPath(path)
   const catalog = catalogRequest(path)
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
-  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || paidContent || path === PRESENCE_PATH ? { device: await deviceId() } : {}), hedge: LIVE_WAIT.test(path) ? false : gated ? { hedgeMs: 3_000, attempts: 2 } : {} })
+  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || paidContent || path === PRESENCE_PATH ? { device: await deviceId() } : {}), hedge: isLongWait(path) ? false : gated ? { hedgeMs: 3_000, attempts: 2 } : {} })
   const { response, result } = retriesWhileRestarting(method, path)
     ? await retryWhileRestarting(request, (error) => error instanceof ServiceUnavailableError && error.notTaken)
     : await request()
