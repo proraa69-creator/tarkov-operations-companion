@@ -58,6 +58,16 @@ describe('«Фото мест» of the quests (src/components/QuestGuidePhotos.t
     expect(Object.keys(data.files).filter((id) => !used.has(id))).toEqual([])
   })
 
+  // A player in the support chat, 26.11.2026 («По квесту городские разборки тут надо понюхать чтобы пометилось»): the quest's
+  // photos were tied to no objective, so the map's point of «Пометить зону груза» showed none of them.
+  it('«Городские разборки»: the truck under finding it and marking it, the spot for the marker under marking', () => {
+    const quest = data.quests['63967028c4a91c5cb76abd81']!
+    const under = (objective: string) => quest.photos.filter((photo) => [photo.objectiveId, ...((photo as Photo & { alsoFor?: string[] }).alsoFor ?? [])].includes(objective)).map((photo) => photo.id)
+    expect(under('639aea2228d8a21b593a3491')).toEqual(['9d7d4d32e6fe2da7', 'd742e4f456b90b28'])
+    expect(under('63bd64552803ffbfad0e3e48')).toEqual(['055a824fae5383c1', '9d7d4d32e6fe2da7'])
+    expect(quest.photos.find((photo) => photo.id === 'd742e4f456b90b28')!.caption).toMatch(/вплотную/)
+  })
+
   // Report 244 (26.11.2026): the reshoot dropped every wiki photo of an objective once one of its places had a frame of ours, so
   // the places no frame shows lost theirs. The quest drive of «Закрытый клуб» lies at one of four places: a photo of each.
   it('«Закрытый клуб»: a photo of each of the four places the drive can lie at', () => {
