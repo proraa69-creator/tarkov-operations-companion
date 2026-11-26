@@ -11236,3 +11236,21 @@ Not pushed, not released, nothing uploaded.
   long words and `pin: false` refused); typecheck clean; eslint clean. Seen in the dev renderer (plain browser, vite on its own
   port): PC and a 400 px phone, three pins with and without words.
 - Not released: needs an app version; the history row with "reports":[249]; the news line to show the owner first.
+
+## 2026-11-26 18:37 — Claude: report 248, the three missing points of «На свет» (branch claude/na-svet-points, not released)
+
+- Report 248 (PvE, Customs): «Подрезать крылья» shows no point where to plant on Customs, nor on Woods. Owner: «Да, ставь».
+- The chain checked (11 quests): three places had no point since 15.10.2026 (no source then): the sawmill guardhouse and the
+  Customs construction site («Подрезать крылья»), the Labs covered server room («Доверяй, но проверяй»). The others have their
+  points or need none (hideout, hand-ins, kills anywhere on the map).
+- src/data/curatedQuests.ts, three point spots: Woods (-27.5, 46.5) — tarkov.help marker 15806 carried over by an affine fit
+  of 12 exits (1–12 m; their weather station marker lands 6 m from zone q14_8_2), on the lone building by the road; Customs
+  (220, -13) — the wiki's marked map and photos: the unfinished building at Factory Shacks across from the road to the dorms
+  (tarkov.help's own marker 15807 lies far south of its own text, not taken); Labs (-184, -327.5) — the wiki's marked map
+  matched on our copy of tarkov.dev's 1st-level tiles: the ring of racks under a tarp west of the weapon testing room's doors.
+- docs/quests/na-svet-audit.md «Точки на карте: третья проверка»; src/data/curatedQuests.test.ts: points at all six objectives
+  of «Подрезать крылья», the first and third of «Доверяй, но проверяй», the three positions in every mode.
+- Tests: curatedQuests 33/33; quest chain, catalog source, maps 192/192 (28 files); server questBase 11/11; typecheck clean.
+  Seen in the dev renderer (web, PvE): each point at its objective on Woods (by the sawmill), Customs (by «Времянки») and the
+  Lab (main level, «Примерное место»).
+- Not released: with the next app version on the owner's word, "reports":[248] in its history row (248 is taken).

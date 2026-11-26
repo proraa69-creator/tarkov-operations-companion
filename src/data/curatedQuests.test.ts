@@ -138,18 +138,21 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
     expect(last.objectiveDetails?.[0]).toMatchObject({ type: 'findQuestItem', itemIds: ['6331bb0d1aa9f42b804997a6'] })
   })
 
-  it('the map points are the feeds\' own places (extract, transits, doors, other tasks\' zones of the same place, the archived lighthouse zone)', async () => {
+  it('the map points are the feeds\' own places (extract, transits, doors, other tasks\' zones of the same place, the archived lighthouse zone) and three places of the community maps', async () => {
     for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
       const catalog = await build(mode, 'en')
       // floors by tarkov.dev's map config (the catalog keeps the Russian floor names; the UI translates them)
       const points = catalog.markers.filter((marker) => marker.questId && SERIES.has(marker.questId))
         .map((marker) => [marker.questId, marker.mapId, marker.id.replace(/^.*-quest-zone-[0-9a-f]{24}-/, ''), marker.floor])
       expect(points).toEqual([
+        [TO_THE_LIGHT_IDS.trustButVerify, 'the-lab', 'point-wiki-trust-verify-lab', 'Основной'],
         [TO_THE_LIGHT_IDS.trustButVerify, 'the-lab', 'extract-bb32a5dbbe8116e0765ed80a5ec7980e47676dc6', 'Технический уровень'],
         [TO_THE_LIGHT_IDS.falseCall, 'customs', 'zone-place_2A2_unlock_3_customs', 'Основной'],
         [TO_THE_LIGHT_IDS.falseCall, 'customs', 'transit-42', 'Основной'],
         [TO_THE_LIGHT_IDS.clipTheirWings, 'woods', 'zone-q14_8_2', 'Основной'],
+        [TO_THE_LIGHT_IDS.clipTheirWings, 'woods', 'point-th-15806', 'Основной'],
         [TO_THE_LIGHT_IDS.clipTheirWings, 'woods', 'transit-41', 'Основной'],
+        [TO_THE_LIGHT_IDS.clipTheirWings, 'customs', 'point-wiki-clip-wings-customs', 'Основной'],
         [TO_THE_LIGHT_IDS.clipTheirWings, 'customs', 'transit-42', 'Основной'],
         [TO_THE_LIGHT_IDS.clipTheirWings, 'shoreline', 'extract-3475b9df1bf661d3c746ff1a1a8493bae828b939', '2 этаж'],
         [TO_THE_LIGHT_IDS.otherSide, 'reserve', 'lock-5d80c60f86f77440373c4ece', expect.any(String)],
@@ -176,10 +179,15 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
     expect(marker('extract-3475b9df1bf661d3c746ff1a1a8493bae828b939')).toMatchObject({ heightRange: [-1, 2], outline: undefined, objectiveId: `${TO_THE_LIGHT_IDS.clipTheirWings}-objective-6` })
     const admin = catalog.quests.find((quest) => quest.id === TO_THE_LIGHT_IDS.clipTheirWings)!.objectiveDetails![5]
     expect(admin.zones).toEqual([{ id: 'extract-3475b9df1bf661d3c746ff1a1a8493bae828b939', mapId: 'shoreline', position: { x: -256.87, z: -149.78 }, top: 2, bottom: -1 }])
-    // no point for the places no file has: the Labs servers, the sawmill guardhouse, the Customs construction site
+    // the places no file has, from the community maps (owner, 26.11.2026): the sawmill guardhouse (tarkov.help's marker), the
+    // Customs construction site and the Labs covered server room (the wiki's marked maps); positions only, no height
     const wings = catalog.quests.find((quest) => quest.id === TO_THE_LIGHT_IDS.clipTheirWings)!
-    expect(wings.objectiveDetails!.map((objective) => objective.zones?.length ?? 0)).toEqual([1, 0, 1, 0, 1, 1])
-    expect(catalog.quests.find((quest) => quest.id === TO_THE_LIGHT_IDS.trustButVerify)!.objectiveDetails!.map((objective) => objective.zones?.length ?? 0)).toEqual([0, 0, 1])
+    expect(wings.objectiveDetails!.map((objective) => objective.zones?.length ?? 0)).toEqual([1, 1, 1, 1, 1, 1])
+    expect(wings.objectiveDetails![1].zones).toEqual([{ id: 'point-th-15806', mapId: 'woods', position: { x: -27.5, z: 46.5 } }])
+    expect(wings.objectiveDetails![3].zones).toEqual([{ id: 'point-wiki-clip-wings-customs', mapId: 'customs', position: { x: 220, z: -13 } }])
+    const trust = catalog.quests.find((quest) => quest.id === TO_THE_LIGHT_IDS.trustButVerify)!
+    expect(trust.objectiveDetails!.map((objective) => objective.zones?.length ?? 0)).toEqual([1, 0, 1])
+    expect(trust.objectiveDetails![0].zones).toEqual([{ id: 'point-wiki-trust-verify-lab', mapId: 'the-lab', position: { x: -184, z: -327.5 } }])
   })
 
   it('a place another task names is not pointed at when the mode\'s tasks file lacks that task', async () => {
