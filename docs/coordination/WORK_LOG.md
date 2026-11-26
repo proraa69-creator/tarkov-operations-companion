@@ -11177,3 +11177,11 @@ Not pushed, not released, nothing uploaded.
 - Commit ce7d1510. Tests: StreamerCabinetPanel 4/4 (a new one: no panel where the server refuses or for a non-streamer),
   src/account 19/19 when run one file at a time (the parallel run failed to start workers under load); typecheck clean.
 - Not released; needs an app version (20:00 window at the earliest, on the owner's word).
+## 2026-11-26: Claude, the site's trailer v8 in every language (claude/site-trailers-v7)
+
+- Owner, 26.11: the Russian v8 approved — «делай поэтому ролики на всех языках и добавляй на сайт под каждую версию языка».
+- The 22 media files replaced with v8 (ru trailer.mp4 and en, de, ja, zh, pl, es, pt, fr, ko, tr, with their posters); Trailer.tsx
+  unchanged. v8: «Escape from Tarkov» in the kicker, quests on the map (two clicked, one handed in and one taken by the game's log),
+  the build window really scrolled, bosses scrolled to the loot, the range's scope swapped on Killa, the squad's second drawing at once.
+- Source: scripts/trailer5 on claude/trailer-v5 (fbc27c88 RU v8, 372259b1 every language's captions and the range scene).
+- Not pushed, not released: site-only; the release integrator takes it into the next release.
