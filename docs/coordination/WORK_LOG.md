@@ -11138,3 +11138,12 @@ Not pushed, not released, nothing uploaded.
   src/data/questGuidePhotos.test.ts, src/data/documentGuide.test.ts. Tests: those two 17/17, ObjectivePhotos + QuestGuidePhotos
   14/14, server guideImages 8/8. Not checked in the app: the photos come back only once a release lists them (the server serves
   listed ones only). 244 must be taken into work before the release so that its history row closes it.
+- 13:20, owner: «Проверь заявку 244… если не найдешь второе место… убери третье, а первое переименуй». The second place was
+  found (the wiki's «на полу под столом», put back in cc786048). Seen side by side: our frame «Место появления 1» points its
+  arrow at the TV — it is the wiki's fourth place; the photo tool numbers its own frames by the feed's order of the places,
+  not the wiki's. 6c23f6cd: our frame is now «Четвёртое место за телевизором на столе», the wiki's dark fourth shot left, the
+  wiki's first place («на полу под полкой рядом с дверью», stored and cropped on the server) came back: four places, 1–4,
+  each once. E:/SPT-photo/eval: manual-captions.json read by integrate_all.py (backup .bak-captions-20261126), the first
+  place in manual-keep-wiki.json. Tests 20/20 (questGuidePhotos, QuestGuidePhotos, ObjectivePhotos). **Open:** other quests
+  mix our «Место появления N» (the feed's order) with the wiki's «Второе/Третье…» the same way («Цена независимости»,
+  «Пропавший информатор», «Ближе к народу», «Закрыть небо»); each needs its frames matched by eye.
