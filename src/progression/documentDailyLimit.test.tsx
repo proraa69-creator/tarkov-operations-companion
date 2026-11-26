@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { DocumentDayLine } from '../components/BattlePassDocuments'
-import { clearDocumentDays, countDocumentFound, DOCUMENT_DAILY_LIMIT, DOCUMENT_DAY_MS, documentDayText, readDocumentDay } from './documentDailyLimit'
+import { addDocumentsFound, clearDocumentDays, countDocumentFound, DOCUMENT_DAILY_LIMIT, DOCUMENT_DAY_MS, documentDayText, readDocumentDay, takeBackDocument } from './documentDailyLimit'
 
 afterEach(() => { clearDocumentDays() })
 
@@ -31,6 +31,22 @@ describe('the daily limit of battle pass documents', () => {
     expect(documentDayText(10, 'seasonal')).toBe('10/40')
     expect(documentDayText(40, 'seasonal')).toBe('Дневной лимит документов исчерпан')
     expect(documentDayText(15, 'pve')).toBe('Дневной лимит документов исчерпан')
+  })
+
+  // Owner, 27.11.2026: «ставишь плюсик или минус, и добавляешь, сколько собрано»; «Сколько вынес за рейд, столько и добавляешь».
+  it('adds as many as a raid brought out, takes one back, never under none; the last one taken back ends the day', () => {
+    const start = Date.UTC(2026, 10, 27, 10)
+    expect(addDocumentsFound('p1', 3, start)).toEqual({ count: 3, since: start })
+    expect(addDocumentsFound('p1', 0, start + 1)).toEqual({ count: 3, since: start })
+    countDocumentFound('p1', start + 2)
+    expect(takeBackDocument('p1', start + 3)).toEqual({ count: 3, since: start })
+    takeBackDocument('p1', start + 4)
+    takeBackDocument('p1', start + 5)
+    expect(takeBackDocument('p1', start + 6)).toEqual({ count: 0, since: 0 })
+    expect(takeBackDocument('p1', start + 7)).toEqual({ count: 0, since: 0 })
+    expect(readDocumentDay('p1', start + 8)).toEqual({ count: 0, since: 0 })
+    // a first document again starts a new day
+    expect(addDocumentsFound('p1', 1, start + 9)).toEqual({ count: 1, since: start + 9 })
   })
 
   it('shows «Найдено сегодня: 10/40», and at the limit that it is used up', () => {

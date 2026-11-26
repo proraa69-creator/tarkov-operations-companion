@@ -7,6 +7,11 @@ import { useSyncExternalStore } from 'react'
 export type InfoCardView = 'tarkov-time' | 'restock' | 'raid-timer' | 'screen'
 
 const VIEW_KEY = 'raidos-overview-info-card'
+/**
+ * «Боевой пропуск» ticked in the block's gear (owner, 27.11.2026: «это будет добавляться в настройках, что показывать. И можно ставить
+ * несколько предметов»): today's battle pass documents, with «−» and «+», under whatever the block shows; on this device.
+ */
+const DOCUMENTS_KEY = 'raidos-overview-info-documents'
 const VIEW_EVENT = 'raidos-overview-info-card-changed'
 const VIEWS: readonly InfoCardView[] = ['tarkov-time', 'restock', 'raid-timer', 'screen']
 
@@ -26,7 +31,7 @@ export function setInfoCardView(view: InfoCardView) {
 }
 
 function subscribeView(listener: () => void) {
-  const onStorage = (event: StorageEvent) => { if (event.key === null || event.key === VIEW_KEY) listener() }
+  const onStorage = (event: StorageEvent) => { if (event.key === null || event.key === VIEW_KEY || event.key === DOCUMENTS_KEY) listener() }
   window.addEventListener(VIEW_EVENT, listener)
   window.addEventListener('storage', onStorage)
   return () => { window.removeEventListener(VIEW_EVENT, listener); window.removeEventListener('storage', onStorage) }
@@ -34,6 +39,22 @@ function subscribeView(listener: () => void) {
 
 export function useInfoCardView(phone: boolean): InfoCardView {
   return useSyncExternalStore(subscribeView, () => readInfoCardView(phone), () => readInfoCardView(phone))
+}
+
+export function readInfoCardDocuments() {
+  try { return localStorage.getItem(DOCUMENTS_KEY) === 'on' } catch { return false }
+}
+
+export function setInfoCardDocuments(on: boolean) {
+  try {
+    if (on) localStorage.setItem(DOCUMENTS_KEY, 'on')
+    else localStorage.removeItem(DOCUMENTS_KEY)
+  } catch { /* storage unavailable */ }
+  window.dispatchEvent(new Event(VIEW_EVENT))
+}
+
+export function useInfoCardDocuments() {
+  return useSyncExternalStore(subscribeView, readInfoCardDocuments, () => false)
 }
 
 // ── Time in Tarkov ────────────────────────────────────────────────────────────────────────────────────────────────────────

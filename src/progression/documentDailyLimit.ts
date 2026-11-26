@@ -36,13 +36,33 @@ export function readDocumentDay(profileId: string, now = Date.now()): DocumentDa
   return day.count > 0 && now - day.since < DOCUMENT_DAY_MS ? day : EMPTY
 }
 
+function writeDocumentDay(profileId: string, day: DocumentDay) {
+  try { localStorage.setItem(KEY_PREFIX + profileId, JSON.stringify(day)) } catch { /* storage unavailable */ }
+  window.dispatchEvent(new Event(EVENT))
+  return day
+}
+
 /** A press of «Нашёл»: one document more today (the first one starts the day). */
 export function countDocumentFound(profileId: string, now = Date.now()) {
+  return addDocumentsFound(profileId, 1, now)
+}
+
+/**
+ * Documents more today: «+» of «Документы» in «Время в Таркове» adds one, the window after a raid as many as were brought out
+ * (owner, 27.11.2026: «Сколько вынес за рейд, столько и добавляешь»); the first one starts the day.
+ */
+export function addDocumentsFound(profileId: string, count: number, now = Date.now()) {
   const day = readDocumentDay(profileId, now)
-  const next: DocumentDay = day.count > 0 ? { count: day.count + 1, since: day.since } : { count: 1, since: now }
-  try { localStorage.setItem(KEY_PREFIX + profileId, JSON.stringify(next)) } catch { /* storage unavailable */ }
-  window.dispatchEvent(new Event(EVENT))
-  return next
+  const amount = Math.max(0, Math.floor(count))
+  if (!amount) return day
+  return writeDocumentDay(profileId, day.count > 0 ? { count: day.count + amount, since: day.since } : { count: amount, since: now })
+}
+
+/** «−» of «Документы» (owner, 27.11.2026: «ставишь плюсик или минус»): one less today, never under none; the last one ends the day. */
+export function takeBackDocument(profileId: string, now = Date.now()) {
+  const day = readDocumentDay(profileId, now)
+  if (day.count <= 0) return day
+  return writeDocumentDay(profileId, day.count > 1 ? { count: day.count - 1, since: day.since } : EMPTY)
 }
 
 /** «Удалить все данные». */
