@@ -94,8 +94,11 @@ export function RequestsPage() {
   return <Navigate to={target} replace />
 }
 
-/** The table with the owner app's data and its details; also in «Админ панель» → «Отчёты». */
-export function OwnerReportsTable({ onOpenChat, focusId }: { onOpenChat: (accountId: string) => void; focusId?: number | null }) {
+/**
+ * The table with the owner app's data and its details; also in «Админ панель» → «Отчёты». `onAnswer`: «Разъяснить» closed a bug,
+ * its author's chat opens with the answer to it (owner, 25.11.2026).
+ */
+export function OwnerReportsTable({ onOpenChat, onAnswer, focusId }: { onOpenChat: (accountId: string) => void; onAnswer?: (accountId: string, report: { id: number; title: string }) => void; focusId?: number | null }) {
   const [view, setView] = useState<ReportTableView>('active')
   // «Аккаунты Таркова» (owner, 15.11.2026): the tab next to the three lists, its count from the same long polling.
   const [eftSelected, setEftSelected] = useState(false)
@@ -127,6 +130,7 @@ export function OwnerReportsTable({ onOpenChat, focusId }: { onOpenChat: (accoun
       onAct={(id, action) => actions.work([id], action)}
       onReward={(id, days) => actions.reward([id], days)}
       onAcceptPoint={(id) => actions.acceptPoint(id)}
+      onExplain={(row) => { if (row.accountId) (onAnswer ?? ((accountId: string) => onOpenChat(accountId)))(row.accountId, { id: row.id, title: row.topic }) }}
       loadImage={(row, index) => actions.image(row.id, index)}
       footer={page && page.total > page.rows.length ? <small className="dim">{uiText('Показаны последние 200')}</small> : null}
       detail={(row) => {

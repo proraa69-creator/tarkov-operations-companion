@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { LoaderCircle, RotateCcw, Shuffle, Eraser, Crosshair, Lock, Maximize2, Minimize2, Zap } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { SIGHT_HEIGHT } from '../arsenal/ballistics'
@@ -15,8 +16,9 @@ import { figureGeometry, SCHEMATIC, shootOnce, type AimSetup, type Cover, type F
 import { figureLayers } from './rangeFigures'
 import { useFigureIndex, useFigureUrls, useRangeJson } from './rangeFigureSource'
 import { RangeScopeView, type ScopeHandle } from './RangeScopeView'
-import { RangeFireButton, RangeStick } from './RangeTouch'
+import { RangeFireButton, RangeLookArea, RangeTouchSlider } from './RangeTouch'
 import { useRangeFullScreen } from './useRangeFullScreen'
+import { DISTANCE_MAX, DISTANCE_MIN, DISTANCE_STEP, distanceAt, distanceShare, zoomSlider } from './rangeTouchZoom'
 import { cmToMrad, DROP_TABLE_DISTANCES, holdover, markStepAt, mradToMoa, sightOnBuild, type ScopeData, type ScopeMode } from './rangeScope'
 import { RangePicker } from './RangePicker'
 import { drawnVariant, oneOfEachModel } from './rangeLists'
@@ -427,7 +429,77 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
   const hold = flight ? holdover(flight.drop, distance, markStep) : undefined
   const { phone, full, turned, openFull, closeFull } = useRangeFullScreen()
   const scopeHandle = useRef<ScopeHandle>(null)
+  // the full screen shows the scope anew over the page: it starts where the reticle was
+  const [aimStart, setAimStart] = useState<{ x: number; y: number } | undefined>(undefined)
+  const toggleFull = () => {
+    setAimStart(aimRef.current)
+    if (full) closeFull()
+    else void openFull()
+  }
+  const scopeModes = scope?.modes ?? [IRON_SIGHTS]
+  const modeIndexNow = scope ? Math.min(scopeModeIndex, scope.modes.length - 1) : 0
+  // the magnification slider: a scope's own magnifications only, none for the open sights or a red dot (owner, 24.11.2026: «увеличение
+  // кратности прицела если она есть на нем»); a red dot with a magnifier steps between the two
+  const zoomControl = scope && !scope.collimator ? zoomSlider(scopeModes, modeIndexNow, zoom) : undefined
+  const setZoomShare = (share: number) => {
+    const next = zoomControl?.at(share)
+    if (!next) return
+    if ('mode' in next) setScopeModeIndex(next.mode)
+    else setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next.zoom })
+  }
   const scene = { view, body, marks, cover, coverTextures, figure: shownFigure ? { ...shownFigure, urls: figureUrls } : undefined, masks, flash }
+
+  // the phone's full screen is drawn over the whole page, outside the panels (nothing of theirs may hold or clip it)
+  const stage = <div className={`range-target-wrap${full ? ' is-full' : ''}`}>
+    <div className={`range-target-frame${full && turned ? ' is-turned' : ''}`}>
+      <RangeScopeView handle={scopeHandle} touch={full} onEnter={phone ? toggleFull : undefined} startAim={aimStart} scene={scene} distance={distance} mode={scopeMode ?? IRON_SIGHTS} modes={scopeModes} modeIndex={modeIndexNow} onMode={setScopeModeIndex}
+        zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })} irons={!scope}
+        housingUrl={scope?.housing ? reticleUrls[scope.housing] : undefined} collimator={scope?.collimator || scopeMode?.collimator}
+        reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} swayCm={swayCm} lang={lang}
+        tracer={toggles.trace ? tracer : null}
+        onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
+      {/* the scope's corners (owner, 24.11.2026: «Кнопки перезарядки и начать заново перенеси вот в эти края… Справа сверху… кнопку на
+          весь экран. Это версия для телефона… на компьютере не будет»; «Слева сверху… кнопка переключения огня») */}
+      <div className="range-corner is-top-left">
+        <button type="button" className="button range-corner-button" onClick={nextFireMode} disabled={fireModes.length < 2} title={t('Режим огня — B', 'Fire mode — B')}>
+          <Zap size={14} /> <span>{pick(FIRE_MODE_NAMES[mode] ?? [mode, mode], lang)}</span>{!phone && fireModes.length > 1 && <kbd className="range-key">B</kbd>}
+        </button>
+      </div>
+      {(phone || full) && <div className="range-corner is-top-right">
+        <button type="button" className="button range-corner-button" onClick={toggleFull} aria-label={full ? t('Выйти из полного экрана', 'Leave full screen') : t('На весь экран', 'Full screen')}>
+          {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />} <span>{full ? t('Выйти', 'Exit') : t('На весь экран', 'Full screen')}</span>
+        </button>
+      </div>}
+      <div className="range-corner is-bottom-left">
+        <button type="button" className="button range-corner-button" onClick={reload} title={t('Перезарядить — R', 'Reload — R')}>
+          <RotateCcw size={14} /> <span>{t('Перезарядить', 'Reload')}</span>{!phone && <kbd className="range-key">R</kbd>}
+        </button>
+      </div>
+      <div className="range-corner is-bottom-right">
+        <button type="button" className="button range-corner-button" onClick={newTarget} title={t('Новая цель — F', 'New target — F')}>
+          <Crosshair size={14} /> <span>{t('Новая цель', 'New target')}</span>{!phone && <kbd className="range-key">F</kbd>}
+        </button>
+      </div>
+      {full && <>
+        <RangeLookArea turned={turned} hint={t('Ведите пальцем — наведение', 'Drag a finger to aim')} onLook={(dx, dy) => scopeHandle.current?.look(dx, dy)} />
+        <div className="range-touch-side">
+          {zoomControl && <RangeTouchSlider share={zoomControl.share} onShare={setZoomShare} stops={zoomControl.stops} turned={turned}
+            label={t('Кратность', 'Magnification')} caption={t('Кратн.', 'Zoom')} value={`×${number(zoom, lang, zoom % 1 ? 1 : 0)}`} />}
+          <RangeTouchSlider share={distanceShare(distance)} onShare={(share) => setDistance(distanceAt(share))} turned={turned}
+            label={t('Дистанция', 'Distance')} caption={t('Дист.', 'Dist.')} value={`${distance} ${t('м', 'm')}`} />
+          <div className="range-fire-side">
+            <RangeFireButton label={t('Огонь', 'Fire')} onDown={() => scopeHandle.current?.fireStart()} onUp={() => scopeHandle.current?.fireEnd()}>{t('Огонь', 'Fire')}</RangeFireButton>
+            <span className={`range-fire-mag${mag === 0 ? ' is-empty' : ''}`}>{mag} / {capacity}</span>
+          </div>
+        </div>
+      </>}
+      {body.dead && <div className="range-dead">
+        <b>{t('Убит', 'Killed')}</b>
+        <span>{killedAt ? `${killedAt} ${t('выстр.', 'shots')} · ${weapon?.fireRate ? `${((killedAt - 1) * 60 / weapon.fireRate + (flight?.time ?? 0)).toFixed(2)} ${t('с', 's')}` : ''}` : ''}</span>
+        <button type="button" className="button primary" onClick={newTarget}>{t('Новая цель', 'New target')}</button>
+      </div>}
+    </div>
+  </div>
 
   return <div className="range-layout">
     <aside className="range-side">
@@ -512,7 +584,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
         </div>
         <label className="range-distance">
           <span>{t('Дистанция', 'Distance')}</span>
-          <input type="range" min={5} max={1000} step={5} value={distance} onChange={(event) => setDistance(Number(event.target.value))} />
+          <input type="range" min={DISTANCE_MIN} max={DISTANCE_MAX} step={DISTANCE_STEP} value={distance} onChange={(event) => setDistance(Number(event.target.value))} />
           <b className="range-distance-value">{distance} {t('м', 'm')}</b>
         </label>
         <div className="range-distance-chips" role="group" aria-label={t('Дистанция', 'Distance')}>
@@ -548,48 +620,7 @@ function Range({ catalog, armor, lang }: { catalog: GunCatalog; armor: ArmorCata
           </div>
         </div>
         {hold && <HoldLine hold={hold} markStep={markStep} zero={zero} distance={distance} zoom={zoom} sightCm={sightCm} lang={lang} />}
-        <div className={`range-target-wrap${full ? ' is-full' : ''}${full && turned ? ' is-turned' : ''}`}>
-          <RangeScopeView handle={scopeHandle} touch={full} scene={scene} distance={distance} mode={scopeMode ?? IRON_SIGHTS} modes={scope?.modes ?? [IRON_SIGHTS]} modeIndex={scope ? Math.min(scopeModeIndex, scope.modes.length - 1) : 0} onMode={setScopeModeIndex}
-            zoom={zoom} onZoom={(next) => setZoom({ key: `${scopeId}|${scopeModeIndex}`, zoom: next })} irons={!scope}
-            housingUrl={scope?.housing ? reticleUrls[scope.housing] : undefined} collimator={scope?.collimator || scopeMode?.collimator}
-            reticleUrls={reticleUrls} dropCm={flight?.drop ?? 0} boreCm={recoilCm(recoilNow, 'bore')} viewCm={recoilCm(recoilNow, 'view')} swayCm={swayCm} lang={lang}
-            tracer={toggles.trace ? tracer : null}
-            onFireStart={fireStart} onFireEnd={fireEnd} onAim={onScopeAim} />
-          {/* the scope's corners (owner, 24.11.2026: «Кнопки перезарядки и начать заново перенеси вот в эти края… Справа сверху… кнопку на
-              весь экран. Это версия для телефона… на компьютере не будет»; «Слева сверху… кнопка переключения огня») */}
-          <div className="range-corner is-top-left">
-            <button type="button" className="button range-corner-button" onClick={nextFireMode} disabled={fireModes.length < 2} title={t('Режим огня — B', 'Fire mode — B')}>
-              <Zap size={14} /> <span>{pick(FIRE_MODE_NAMES[mode] ?? [mode, mode], lang)}</span>{!phone && fireModes.length > 1 && <kbd className="range-key">B</kbd>}
-            </button>
-          </div>
-          {(phone || full) && <div className="range-corner is-top-right">
-            <button type="button" className="button range-corner-button" onClick={full ? closeFull : openFull} aria-label={full ? t('Выйти из полного экрана', 'Leave full screen') : t('На весь экран', 'Full screen')}>
-              {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />} <span>{full ? t('Выйти', 'Exit') : t('На весь экран', 'Full screen')}</span>
-            </button>
-          </div>}
-          <div className="range-corner is-bottom-left">
-            <button type="button" className="button range-corner-button" onClick={reload} title={t('Перезарядить — R', 'Reload — R')}>
-              <RotateCcw size={14} /> <span>{t('Перезарядить', 'Reload')}</span>{!phone && <kbd className="range-key">R</kbd>}
-            </button>
-          </div>
-          <div className="range-corner is-bottom-right">
-            <button type="button" className="button range-corner-button" onClick={newTarget} title={t('Новая цель — F', 'New target — F')}>
-              <Crosshair size={14} /> <span>{t('Новая цель', 'New target')}</span>{!phone && <kbd className="range-key">F</kbd>}
-            </button>
-          </div>
-          {full && <>
-            <RangeStick turned={turned} label={t('Наведение', 'Aim')} onStick={(x, y) => scopeHandle.current?.stick(x, y)} />
-            <div className="range-fire-side">
-              <RangeFireButton label={t('Огонь', 'Fire')} onDown={() => scopeHandle.current?.fireStart()} onUp={() => scopeHandle.current?.fireEnd()}>{t('Огонь', 'Fire')}</RangeFireButton>
-              <span className={`range-fire-mag${mag === 0 ? ' is-empty' : ''}`}>{mag} / {capacity}</span>
-            </div>
-          </>}
-          {body.dead && <div className="range-dead">
-            <b>{t('Убит', 'Killed')}</b>
-            <span>{killedAt ? `${killedAt} ${t('выстр.', 'shots')} · ${weapon?.fireRate ? `${((killedAt - 1) * 60 / weapon.fireRate + (flight?.time ?? 0)).toFixed(2)} ${t('с', 's')}` : ''}` : ''}</span>
-            <button type="button" className="button primary" onClick={newTarget}>{t('Новая цель', 'New target')}</button>
-          </div>}
-        </div>
+        {full ? createPortal(stage, document.body) : stage}
         {ammo && <DropTable rows={DROP_TABLE_DISTANCES.flatMap((at) => {
           const point = flightAt(ammo, stats?.velocity, zero, at, zeroing)
           return point ? [{ distance: at, time: point.time, speed: point.speed, energy: point.energy, ...holdover(point.drop, at, markStep) }] : []
@@ -767,7 +798,7 @@ function withoutFaceKit(choice: KitChoice): KitChoice {
 /** A figure with a decimal comma in Russian; never «-0,0». */
 const number = (value: number, lang: Locale, digits = 1) => {
   const shown = Math.abs(value) < 0.5 * 10 ** -digits ? 0 : value
-  return shown.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  return shown.toLocaleString(languageTag(lang), { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 /** Centimetres up to a metre, then metres: «43,4 см», «2,29 м». */
 const length = (cm: number, lang: Locale) => cm < 100 ? `${number(cm, lang)} ${lang === 'en' ? 'cm' : 'см'}` : `${number(cm / 100, lang, 2)} ${lang === 'en' ? 'm' : 'м'}`
@@ -857,9 +888,9 @@ function DropTable({ rows, distance, zero, marks, ammoName, sightCm, lang }: {
         <td>{number(Math.abs(cmToMrad(row.dropCm, row.distance)), lang)}</td>
         <td>{number(Math.abs(row.moa), lang)}</td>
         {marks && <td>{row.marks !== undefined ? number(Math.abs(row.marks), lang) : '—'}</td>}
-        <td>{row.time.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {t('с', 's')}</td>
+        <td>{row.time.toLocaleString(languageTag(lang), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {t('с', 's')}</td>
         <td>{Math.round(row.speed)} {t('м/с', 'm/s')}</td>
-        <td>{Math.round(row.energy).toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU')} {t('Дж', 'J')}</td>
+        <td>{Math.round(row.energy).toLocaleString(languageTag(lang))} {t('Дж', 'J')}</td>
       </tr>)}</tbody>
     </table>
     <p>{t('↓ — пуля ниже линии прицела: вынос вверх; ↑ — выше: вынос вниз. Риски — на кратности, что сейчас в прицеле.', '↓ — the bullet below the sight line: hold up; ↑ — above it: hold down. Marks at the magnification in the scope now.')}</p>
@@ -878,3 +909,5 @@ function drawnKit(choice: KitChoice, armor: ArmorCatalog, drawn?: (id: string) =
     ...(body && body.id !== choice.body ? { body: body.id, plates: defaultPlates(armor, body.id) } : {}),
   }
 }
+
+import { languageTag } from '../i18n/renderText'

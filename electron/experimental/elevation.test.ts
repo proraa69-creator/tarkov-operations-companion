@@ -2,7 +2,9 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runElevated = vi.hoisted(() => vi.fn<(file: string, params: string, dir: string) => boolean>(() => true))
+const nativeOk = vi.hoisted(() => vi.fn<() => boolean>(() => true))
 vi.mock('./win32.js', () => ({ isElevated: () => false, runElevated }))
+vi.mock('./nativeIntegrity.js', () => ({ nativeFilesTrustworthy: nativeOk }))
 vi.mock('electron', () => ({ app: { quit: vi.fn() } }))
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
@@ -18,12 +20,22 @@ const { relaunchAsAdmin } = await import('./elevation')
 
 beforeEach(() => {
   runElevated.mockClear()
+  nativeOk.mockReturnValue(true)
   delete process.env.PORTABLE_EXECUTABLE_FILE
 })
 
 // Security review, 03.11.2026: whoever starts the app must not hand the copy with administrator rights anything but the
 // app's own switches (Chromium's --remote-debugging-port would give that window away).
 describe('the start with administrator rights', () => {
+  // Security hardening: unpacked native modules (*.node) are outside the asar-integrity fuse, so a swapped one would run
+  // elevated. relaunchAsAdmin checks them first and goes on without the rights when they do not match.
+  it('does not elevate when a native module fails the integrity check', () => {
+    nativeOk.mockReturnValueOnce(false)
+    process.argv = ['C:\\Program Files\\RaidOS\\Raid OS.exe', '--server-mode', '--updated']
+    expect(relaunchAsAdmin()).toBe(false)
+    expect(runElevated).not.toHaveBeenCalled()
+  })
+
   it('an installed copy passes on only its own switches, and who asked', () => {
     process.argv = ['C:\\Program Files\\RaidOS\\Raid OS.exe', '--server-mode', '--remote-debugging-port=9222', '--inspect', '--updated', '--js-flags=--allow-natives-syntax', 'C:\\x.html']
     expect(relaunchAsAdmin()).toBe(true)
@@ -37,5 +49,18 @@ describe('the start with administrator rights', () => {
     process.argv = ['C:\\Temp\\ns1.tmp\\app\\Raid OS.exe', '--remote-debugging-port=9222']
     expect(relaunchAsAdmin()).toBe(true)
     expect(runElevated.mock.calls[0].slice(0, 2)).toEqual(['C:\\Users\\p\\Downloads\\RaidOSClient.exe', `--elevated-relaunch=${process.pid}`])
+  })
+
+  // Owner, 23.11.2026: a player's shortcut with --disable-gpu, then --no-sandbox, changed nothing — the copy with the rights
+  // draws the window and never got them.
+  it('the drawing switches of a dark window reach the copy with the rights, the portable exe too; nothing with a value', () => {
+    process.env.PORTABLE_EXECUTABLE_FILE = 'C:\\Users\\p\\Downloads\\RaidOSClient.exe'
+    process.argv = ['C:\\Temp\\ns1.tmp\\app\\Raid OS.exe', '--disable-gpu', '--no-sandbox', '--disable-gpu', '--disable-gpu=1', '--no-sandbox-x', '--remote-debugging-port=9222']
+    expect(relaunchAsAdmin()).toBe(true)
+    expect(runElevated.mock.calls[0][1]).toBe(`--disable-gpu --no-sandbox --elevated-relaunch=${process.pid}`)
+    delete process.env.PORTABLE_EXECUTABLE_FILE
+    process.argv = ['C:\\Program Files\\RaidOS\\Raid OS.exe', '--updated', '--disable-gpu', '--inspect']
+    expect(relaunchAsAdmin()).toBe(true)
+    expect(runElevated.mock.calls[1][1]).toBe(`--updated --disable-gpu --elevated-relaunch=${process.pid}`)
   })
 })

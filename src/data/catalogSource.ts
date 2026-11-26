@@ -27,6 +27,7 @@ import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
 import { gearStatsOf, presetIndex } from './gearStats'
 import { questOfferUnlocks, withOfferUnlocks } from './questOfferUnlocks'
+import { fleaBanned } from '../shared/fleaBan'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -424,10 +425,11 @@ export function traderQuoteRub(quote: JsonRecord): number {
  * a lone listing at more than twice the 24-hour average (itemPrices.ts steadyFleaPrice), the average (`avg24hPrice`),
  * flagged so the pages can say so. The average lags the market and is pulled up by
  * expensive listings, so it sits above the cheapest offer for most items — it is not what the item costs right now.
- * Flea-banned items (`types: noFlea`) and a closed flea (`fleaMarket.enabled: false`) have no flea price.
+ * Flea-banned items (`types: noFlea`, unless tarkov.dev's scanner saw them on sale lately: src/shared/fleaBan.ts) and a
+ * closed flea (`fleaMarket.enabled: false`) have no flea price.
  */
 export function fleaPriceOf(entry: JsonRecord, fleaEnabled = true): { price: number; basis: 'last-low' | 'avg-24h' } | undefined {
-  if (!fleaEnabled || strings(entry.types).includes('noFlea')) return undefined
+  if (!fleaEnabled || fleaBanned(entry, Date.now())) return undefined
   return steadyFleaPrice(number(entry.lastLowPrice), number(entry.avg24hPrice))
 }
 

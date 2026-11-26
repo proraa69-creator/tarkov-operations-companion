@@ -471,6 +471,21 @@ export class SupportChatStore {
     return row?.n == null ? null : Number(row.n)
   }
 
+  /**
+   * «Удалить сообщение» (owner, 26.11.2026: «добавь в чате у меня, у админа, функцию удалить сообщение»): one message of the
+   * account's conversation, the player's or the owner's, gone for both sides with its screenshots and reactions (the triggers);
+   * a later message that quoted it stays, without the quote. 404 for a message of another conversation.
+   */
+  deleteMessage(accountId: string, id: number) {
+    transaction(this.db, () => {
+      const deleted = Number.isSafeInteger(id) && id > 0
+        ? Number(this.db.prepare('DELETE FROM support_messages WHERE id = ? AND account_id = ?').run(id, accountId).changes)
+        : 0
+      if (!deleted) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      this.db.prepare('UPDATE support_messages SET reply_to = NULL, reply_text = NULL WHERE account_id = ? AND reply_to = ?').run(accountId, id)
+    })
+  }
+
   /** «Проблема решена»: the whole conversation goes, for both sides; returns how many messages it deleted. */
   deleteThread(accountId: string) {
     return Number(this.db.prepare('DELETE FROM support_messages WHERE account_id = ?').run(accountId).changes)

@@ -16,7 +16,7 @@ const LAYERS = ['log', 'server', 'manual', 'table', 'story', 'legacy'] as const
 /** Every layer a profile may hold: the required ones and the account's copy (questEngine.ts `mirror`). */
 const ALL_LAYERS = [...LAYERS, 'mirror'] as const
 
-/** The mode's reset floor: «Престиж +» / «Вайп» / a nickname change, or the game's trusted reset, whichever is later. */
+/** The mode's reset floor: «Престиж +» / «Вайп» / an old version's nickname change, or the game's trusted reset, whichever is later. */
 export function questFloor(progress: Pick<ModeProgress, 'modeResetAt' | 'logResetAt'>) {
   return latestTime(progress.modeResetAt, progress.logResetAt)
 }

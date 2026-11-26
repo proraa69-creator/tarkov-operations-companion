@@ -99,6 +99,9 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   // «Батя»: the two outposts of one stage (11.11.2026)
   ['Пост «Рябина»', 'The Ryabina outpost'],
   ['Пост «Гнездо»', 'The Gnezdo outpost'],
+  // «Синий огонь»: the two places of the device fragment (24.11.2026)
+  ['Закрытая секция автосалона LexOs, 2-й этаж: в контейнере с едой. Ключ от закрытой секции автосалона', 'LexOs dealership closed section, 2nd floor: in a food container. Car dealership closed section key'],
+  ['Комната сектантов на Чеканной, 13: в цветочном горшке в углу. Ключ от странной комнаты (Меченый)', 'The cultists\' room at Chekannaya 13: in the flower pot in the corner. Mysterious room marked key'],
   // Settings, report 143 (11.11.2026)
   ['Перемещать карту к точке', 'Move the map to the point'],
   ['При нажатии на метку и после галочки в квесте', 'On a tap on a marker and after a tick in a quest'],

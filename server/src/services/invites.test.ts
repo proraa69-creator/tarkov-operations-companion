@@ -195,6 +195,12 @@ test('a friend code: not one\'s own, not after a payment, once; codes share one 
   t.accounts.applyReferral(fresh, code.toLowerCase())
   assert.equal(t.accounts.invitedBy(fresh), inviter)
   assert.throws(() => t.accounts.applyReferral(fresh, code), /уже указан/)
+  // Two accounts cannot invite each other (owner, 25.11.2026): the inviter cannot take the code of the friend it brought.
+  const solo = await t.register('solo@example.com')
+  const soloFriend = await t.register('solo-friend@example.com', t.invites.code(solo))
+  assert.equal(t.accounts.invitedBy(soloFriend), solo)
+  assert.throws(() => t.accounts.applyReferral(solo, t.invites.code(soloFriend)), /пригласить друг друга нельзя/)
+  assert.equal(t.accounts.invitedBy(solo), undefined)
 
   // Streamer codes keep the trial and, since 30.10.2026, give the same 20 % off the first month as a friend's code (owner:
   // «по этой ссылке у них скидка 20%… на первый месяц»); namespaces remain shared.
@@ -553,4 +559,25 @@ test('«Привлечение друзей» routes: the owner only, the list a
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
+})
+
+test('«Неподтверждённые» (owner, 25.11.2026): a paid friend who never opened the PC app waits for the owner\'s «Подтвердить»', async () => {
+  const t = await setup()
+  const inviter = await t.register('host@example.com')
+  const code = t.invites.code(inviter)
+  const lazy = await t.register('lazy-friend@example.com', code, undefined, false)
+  await t.pay(lazy)
+  const before = t.paidUntil(inviter)
+  assert.equal(t.invites.adminAttention().count, 0, 'on hold: nothing to decide yet')
+  t.advance(HOLD_MS + 60_000)
+  t.invites.release()
+  assert.equal(t.paidUntil(inviter), before, 'never granted by itself without a game account')
+  const attention = t.invites.adminAttention()
+  assert.equal(attention.count, 1)
+  assert.equal(attention.rewards[0]!.friend, 'lazy-friend@example.com')
+  assert.equal(attention.rewards[0]!.waitingEft, true)
+  const decided = t.invites.decide('owner@example.com', attention.rewards[0]!.id, 'approve')
+  assert.equal(decided.status, 'granted')
+  assert.equal(t.paidUntil(inviter), Math.max(before, t.now()) + 7 * DAY)
+  assert.equal(t.invites.adminAttention().count, 0)
 })

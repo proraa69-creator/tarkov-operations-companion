@@ -8,7 +8,8 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { uiLabel, uiText } from '../i18n/renderText'
 import { LIVE_UPDATE_EVENT } from '../data/mapUpdates'
 import { refreshNewsEdits, useNewsList } from './newsEdits'
-import { markAllNewsRead, NEWS_GROUPS, readNews, rememberFirstLook, unreadNews, useReadNews, type NewsEntry } from './newsState'
+import { markAllNewsRead, NEWS_GROUPS, newsText, readNews, rememberFirstLook, unreadNews, useReadNews, type NewsEntry } from './newsState'
+import { languageOption } from '../i18n/languages'
 import './news.css'
 import '../styles/iphoneUpdate.css'
 
@@ -19,9 +20,9 @@ function useAppUpdate() {
 }
 
 function NewsEntryCard({ entry, isNew }: { entry: NewsEntry; isNew: boolean }) {
-  const { locale } = useLocale()
-  const language = locale === 'en' ? 'en' : 'ru'
-  const date = new Date(`${entry.date}T12:00:00`).toLocaleDateString(language, { day: 'numeric', month: 'long' })
+  // the player's own language: the lines and the date (owner, 25.11.2026: «под каждый язык должны быть новости»)
+  const { language } = useLocale()
+  const date = new Date(`${entry.date}T12:00:00`).toLocaleDateString(languageOption(language).tag, { day: 'numeric', month: 'long' })
   return (
     <article className={`news-entry${isNew ? ' is-new' : ''}`}>
       <header>
@@ -33,7 +34,7 @@ function NewsEntryCard({ entry, isNew }: { entry: NewsEntry; isNew: boolean }) {
         return items.length > 0 && (
           <section key={kind}>
             <h3>{uiText(title)}</h3>
-            <ul>{items.map((item, index) => <li key={index}>{item[language] || item.ru}</li>)}</ul>
+            <ul>{items.map((item, index) => <li key={index} translate="no">{newsText(item, language)}</li>)}</ul>
           </section>
         )
       })}

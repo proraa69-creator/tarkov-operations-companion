@@ -58,6 +58,17 @@ export function mapObjectivesWaiting(quest: Quest, mapId: string, progress: Mode
   })
 }
 
+/**
+ * What the quest still has to do on this map now: its objectives here (the in-raid ones that name no map when none names one),
+ * not ticked done, not optional unless all are, none while they wait for one on another map. Empty when there is nothing.
+ */
+export function openObjectivesOnMap(quest: Quest, mapId: string, progress: ModeProgress): QuestObjective[] {
+  if (quest.kind === 'story' || quest.stages?.length || mapObjectivesWaiting(quest, mapId, progress)) return []
+  const objectives = objectivesOnMap(quest, mapId)
+  const required = objectives.filter((objective) => !objective.optional)
+  return (required.length ? required : objectives).filter((objective) => !objective.id || !objectiveDone(progress, quest.id, objective.id))
+}
+
 /** The quest has nothing to do on this map now: its objectives here are done, or wait for one on another map first. */
 export function mapObjectivesClosed(quest: Quest, mapId: string, progress: ModeProgress): boolean {
   return mapObjectivesDone(quest, mapId, progress) || mapObjectivesWaiting(quest, mapId, progress)

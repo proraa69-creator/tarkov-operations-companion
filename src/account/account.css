@@ -177,3 +177,13 @@
 .account-cabinet-levels { display: flex; flex-wrap: wrap; gap: 6px; }
 .account-cabinet-levels > em { padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-muted); font-size: 11px; font-style: normal; white-space: nowrap; }
 .profile-operator-layout .account-cabinet-grid { grid-template-columns: minmax(0, 1fr); }
+
+/* The phone's own QR scanner (src/mobile/QrScanner.tsx): the back camera in a square frame. */
+.account-qr-scanner { position: relative; display: grid; justify-items: center; gap: 8px; }
+.account-qr-scanner video { width: min(280px, 100%); aspect-ratio: 1; object-fit: cover; border-radius: 14px; background: #000; border: 1px solid var(--line-strong, var(--line)); }
+.account-qr-scanner i { position: absolute; top: 18%; left: 50%; width: min(180px, 64%); aspect-ratio: 1; transform: translateX(-50%); border: 2px solid var(--brass, #c4a665); border-radius: 10px; box-shadow: 0 0 0 999px rgb(0 0 0 / 18%); pointer-events: none; }
+.account-qr-scanner small { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); }
+
+/* Streamer panel button + notification badge in the profile (owner, 25.11.2026). */
+.streamer-panel-button { position: relative; margin-top: 6px; }
+.streamer-notice-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; margin-left: 6px; border-radius: 8px; background: var(--danger, #d9433f); color: #fff; font-size: 10px; font-weight: 700; }

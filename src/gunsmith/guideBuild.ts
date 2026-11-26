@@ -12,7 +12,7 @@ import type { Build, BuildNode, GunCatalog, GunPart, GunSlot, Weapon } from '../
  * src/gunsmith/gunsmithSolver.ts). `unplaced`: listed parts with no place — mostly a second choice for a slot already taken
  * (the guide lists two magazines that both pass).
  */
-export function assembleGuideBuild(weapon: Weapon, partIds: readonly string[], catalog: Pick<GunCatalog, 'mods'> | GunCatalog): { build: Build; unplaced: string[] } {
+export function assembleGuideBuild(weapon: Weapon, partIds: readonly string[], catalog: Pick<GunCatalog, 'mods'> | GunCatalog, withoutSlots: readonly string[] = []): { build: Build; unplaced: string[] } {
   let build = presetBuild(weapon, catalog).build
   const placed = new Map<string, string>()
   const key = (path: string[]) => path.join('/')
@@ -54,7 +54,17 @@ export function assembleGuideBuild(weapon: Weapon, partIds: readonly string[], c
     return false
   }
   for (let round = 0; round < 12 && pending.length; round++) if (!direct() && !through()) break
-  return { build, unplaced: pending }
+  return { build: withoutSlotsOf(build, withoutSlots), unplaced: pending }
+}
+
+/** The build with the given slots empty wherever they are (a stock taken off for the task's weight: BuildGuide.withoutSlots). */
+function withoutSlotsOf(build: Build, slots: readonly string[]): Build {
+  if (!slots.length) return build
+  const strip = (node: BuildNode): BuildNode => ({
+    ...node,
+    children: Object.fromEntries(Object.entries(node.children).filter(([slot]) => !slots.includes(slot)).map(([slot, child]) => [slot, strip(child)])),
+  })
+  return { ...build, root: strip(build.root) }
 }
 
 interface Spot { path: string[]; slot: GunSlot; holder?: string }

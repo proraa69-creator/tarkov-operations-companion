@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { prestigeMismatch } from '../progression/prestigeQuests'
 import type { HideoutStation, Item, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
 import { findCollectorQuest } from '../kappa/collector'
@@ -183,12 +184,12 @@ export interface KeepFilter {
 /** Filters rows; with a source filter, need / remaining are recounted for the chosen sources only. */
 export function filterKeepRows(rows: KeepRow[], filter: KeepFilter): KeepRow[] {
   const kinds = filter.kinds?.length ? new Set(filter.kinds) : null
-  const query = filter.search?.trim().toLowerCase() ?? ''
+  const terms = searchTerms(filter.search ?? '')
   return rows.flatMap((row) => {
     let reasons = kinds ? row.reasons.filter((reason) => kinds.has(reason.kind)) : row.reasons
     if (filter.foundInRaidOnly) reasons = reasons.filter((reason) => reason.foundInRaid)
     if (!reasons.length) return []
-    if (query && !`${row.item.name} ${row.item.shortName}`.toLowerCase().includes(query)) return []
+    if (!matchesSearchTerms(terms, row.item.name, row.item.shortName)) return []
     const need = reasons.reduce((sum, reason) => sum + reason.count, 0)
     const needFoundInRaid = reasons.filter((reason) => reason.foundInRaid).reduce((sum, reason) => sum + reason.count, 0)
     const have = Math.min(row.have, need)

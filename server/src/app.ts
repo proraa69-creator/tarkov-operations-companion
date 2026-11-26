@@ -16,6 +16,7 @@ import { createEftCasesRouter } from './routes/eftCases.js'
 import { createLoginCodesRouter, proxiedCountry } from './routes/loginCodes.js'
 import { createGoogleRouter } from './routes/google.js'
 import { GOOGLE_CLIENT_ID, type GoogleVerifier } from './services/googleSignIn.js'
+import type { RussianAddressCheck } from './services/russianNetworks.js'
 import { createPhoneRouter } from './routes/phone.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
 import { createEmailRouter } from './routes/email.js'
@@ -92,7 +93,8 @@ import { UserDataStore } from './services/userDataStore.js'
 import { openDatabase } from './services/database.js'
 import { EntitlementService } from './services/entitlement.js'
 import { DataGateway } from './services/dataGateway.js'
-import { createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/data.js'
+import { CONTENT_RATE_LIMITS, createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/data.js'
+import { PAID_CONTENT_PATH } from '../../src/shared/paidContent.js'
 import { PlayerPrices } from './services/playerPrices.js'
 import { createEntitlementRouter } from './routes/entitlement.js'
 import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
@@ -206,6 +208,11 @@ export interface ApiOptions {
   emails?: EmailAuthService
   /** «Войти через Google»: the ID-token check (tests give their own; default: Google's keys). */
   googleVerifier?: GoogleVerifier
+  /**
+   * Russia's addresses (services/russianNetworks.ts): «Войти через Google» is refused and not offered to them, and
+   * /v1/geo answers RU for them. None (tests, the owner's PC): nobody is refused by address.
+   */
+  russianNetworks?: RussianAddressCheck
   /** Registration asks for the e-mail code (default REGISTRATION_EMAIL_CODE). */
   registrationEmailCode?: boolean
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
@@ -218,6 +225,14 @@ export interface ApiOptions {
   playerPrices?: PlayerPrices
   /** Per-minute limits of the paid data routes (defaults: DATA_RATE_LIMITS). */
   dataRateLimits?: Partial<typeof DATA_RATE_LIMITS>
+  /**
+   * Raid OS's own content and the account's synced data behind the game data's access check (src/shared/paidContent.ts,
+   * owner 25.11.2026). Off unless set: the routes' own tests call them without a subscription. The real server
+   * (index.ts) turns it on unless RAIDOS_PAID_CONTENT=0.
+   */
+  paidContent?: boolean
+  /** Per-minute limits of that check (defaults: CONTENT_RATE_LIMITS). */
+  contentRateLimits?: Partial<typeof CONTENT_RATE_LIMITS>
   /** The PC's live position and recognised item for the phone (services/liveRelay.ts); tests pass one with their clock. */
   live?: LiveRelay
   /** Publishes per account and minute on /v1/live (defaults: LIVE_PUBLISH_LIMITS). */
@@ -325,7 +340,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
     taken: (accountId, id, kind, topic) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind, topic)) },
-    done: (accountId, id, kind, topic) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind, topic)) },
+    done: (accountId, id, kind, topic, live) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind, topic, live)) },
   }
   // «Отчёты» → «Аккаунты Таркова» (routes/eftCases.ts).
   app.use(createEftCasesRouter(accounts, { audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) }, changed: () => reportSignals.changed() }))
@@ -397,6 +412,16 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Signed entitlements, the device limit and the owner's device list (docs/subscription-protection.md).
   const entitlements = options.entitlements ?? new EntitlementService(accounts)
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
+  // Our own content (the owner's points, texts, requirements, bosses, event quests, builds, the points' photos) and the
+  // account's synced data (/v1/me progress, hideout, items, settings…): the same check as the game data — a session, a
+  // subscription / free period / streamer / owner, and this session's active device (402 «Нужна подписка», 403 device_*).
+  // Before every router of those paths; sign-in, payments, support, notices and the cabinet's counts stay open.
+  if (options.paidContent) {
+    const content = requireDataAccess(accounts, entitlements, { ...CONTENT_RATE_LIMITS, ...options.contentRateLimits })
+    // Express matches its routes in any letter case (/v1/ME/progress is /v1/me/progress), so the check does too: otherwise
+    // another spelling of the path reached the routes past it (tests: routes/authzBypass.test.ts).
+    app.use((req, res, next) => { if (PAID_CONTENT_PATH.test(req.path.toLowerCase())) content(req, res, next); else next() })
+  }
   // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
   const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
   // «Подтвердить оплату BZB» (services/bezebee.ts): the owner's confirmation until BZB's API reaches this server.
@@ -484,10 +509,16 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails, registrationEmailCode: options.registrationEmailCode ?? REGISTRATION_EMAIL_CODE }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
-  // «Войти через Google» (routes/google.ts): every country but Russia.
-  app.use('/v1/accounts', createGoogleRouter(accounts, options.googleVerifier ? { verify: options.googleVerifier } : {}))
+  // «Войти через Google» (routes/google.ts): every country but Russia. A Russian address (req.ip: the visitor behind the
+  // loopback proxy, see `trust proxy` above) is refused before the token is checked and gets no Google client in
+  // /auth-config, so the site shows no button (`googleBlocked: true`), signed in before or not (owner, 25.11.2026).
+  const russia = options.russianNetworks
+  const russianVisitor = (ip: string | undefined) => russia?.isRussianAddress(ip) === true
+  app.use('/v1/accounts', createGoogleRouter(accounts, { ...(options.googleVerifier ? { verify: options.googleVerifier } : {}), ...(russia ? { russia } : {}) }))
   const phones = options.phones ?? new PhoneAuthService(accounts)
-  app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => ({ ...emails.publicConfig(), googleClientId: GOOGLE_CLIENT_ID }) }))
+  app.use('/v1/accounts', createPhoneRouter(accounts, phones, {
+    extraConfig: (req) => ({ ...emails.publicConfig(), ...(russianVisitor(req.ip) ? { googleBlocked: true } : { googleClientId: GOOGLE_CLIENT_ID }) }),
+  }))
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
@@ -574,10 +605,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/live', createLiveRouter(live, requireDataAccess(accounts, entitlements, { perIp: 600, perAccount: 300 }), { now: accounts.clock, limits: options.livePublishLimits, screen: new ScreenRelay(accounts.clock) }))
   app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory, playerPrices))
   // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
-  // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.
+  // CF-IPCountry as two letters; without Cloudflare (raidos.app today) RU for an address on RIPE NCC's Russian list
+  // (services/russianNetworks.ts); otherwise null (unknown, Tor). Nothing is stored or logged.
   app.get('/v1/geo', perIp('geo'), (req, res) => {
     res.set('Cache-Control', 'no-store')
-    res.json({ country: countryCode(proxiedCountry(req)) ?? null })
+    res.json({ country: countryCode(proxiedCountry(req)) ?? (russianVisitor(req.ip) ? 'RU' : null) })
   })
   const catalogAnswer = options.catalogSnapshot ? createCatalogAnswers({ snapshot: options.catalogSnapshot }).get : getCatalogAnswer
   app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => {

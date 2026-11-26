@@ -13,7 +13,7 @@ const password = 'correct horse battery'
 const VERSION = PLAYER_NEWS[0]!.version
 const KEPT = PLAYER_NEWS[0]!.items[0]!
 
-async function setup(translate: (text: string) => Promise<string> = async (text) => `EN ${text.length}`) {
+async function setup(translate: (text: string, target?: string) => Promise<string> = async (text, target = 'en') => `${target.toUpperCase()} ${text.length}`) {
   const db = openDatabase(':memory:')
   const first = new AccountStore({ db, ownerEmails: [] })
   await first.register('owner@example.com', password)
@@ -36,7 +36,7 @@ async function setup(translate: (text: string) => Promise<string> = async (text)
 const ADMIN = '/accounts/me/admin/player-news'
 type View = { entries: Array<{ version: string; items: Array<{ kind: string; ru: string; en: string }> }>; edited: string[] }
 
-test('the owner edits a release: every app reads it at once, a line left as it was keeps its English, a new one is translated', async () => {
+test('the owner edits a release: every app reads it at once, a line left as it was keeps its translations, a new one is translated into every language', async () => {
   const { call, login, audit, close } = await setup()
   try {
     const owner = await login('owner@example.com')
@@ -47,7 +47,8 @@ test('the owner edits a release: every app reads it at once, a line left as it w
     const saved = await call<View>('PUT', ADMIN, owner, { version: VERSION, items: [{ kind: KEPT.kind, ru: KEPT.ru }, { kind: 'changed', ru: '  Новый \u0007пункт ' }] })
     assert.equal(saved.status, 200)
     assert.deepEqual(saved.json.edited, [VERSION])
-    assert.deepEqual(saved.json.entries[0]!.items, [{ kind: KEPT.kind, ru: KEPT.ru, en: KEPT.en }, { kind: 'changed', ru: 'Новый пункт', en: 'EN 11' }])
+    const LANGUAGES = ['de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr']
+    assert.deepEqual(saved.json.entries[0]!.items, [KEPT, { kind: 'changed', ru: 'Новый пункт', en: 'EN 11', ...Object.fromEntries(LANGUAGES.map((language) => [language, `${language.toUpperCase()} 11`])) }])
     const open = await call<{ edits: Record<string, unknown[]> }>('GET', '/player-news')
     assert.equal(open.json.edits[VERSION]!.length, 2)
     assert.equal(audit().length, 1)

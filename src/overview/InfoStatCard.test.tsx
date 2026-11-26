@@ -86,6 +86,34 @@ describe('the Overview\'s first block', () => {
     expect(document.querySelector('.info-raid-elapsed')?.textContent).toMatch(/^(1:5\d|2:0\d)$/)
   })
 
+  // Owner, 25.11.2026: «если рейд начался, прошлый рейд, надпись с картой и временем перемещается ниже, а между временем в Таркове
+  // и прошлым рейдом появляется надпись „Сколько осталось времени до конца текущего рейда“».
+  it('time in Tarkov in a raid: what is left of it, and the raid before a line below', async () => {
+    setInfoCardView('tarkov-time')
+    rememberLastRaid({ location: 'bigmap', began: Date.now() - 2 * HOUR, ended: Date.now() - 2 * HOUR + 34 * 60_000 })
+    window.tarkovDesktop = {
+      getRaidState: async () => ({ inRaid: false, tracked: true }),
+      onRaidStateChanged: (callback: (state: RaidState) => void) => { listeners.add(callback); return () => { listeners.delete(callback) } },
+    } as unknown as NonNullable<Window['tarkovDesktop']>
+    renderCard()
+    const lines = () => [...document.querySelectorAll('.info-tarkov-time .info-line')]
+    expect(await screen.findByText(/Прошлый рейд/)).toHaveTextContent('Прошлый рейд · Таможня')
+    expect(lines().map((line) => line.className)).toEqual(['info-line is-last'])
+    await waitFor(() => expect(listeners.size).toBeGreaterThan(0))
+    await act(async () => { for (const listener of listeners) listener({ inRaid: true, since: Date.now() - 3 * 60_000, begun: Date.now() - 2 * 60_000, location: 'bigmap', tracked: true }) })
+    expect(lines().map((line) => line.className)).toEqual(['info-line is-raid', 'info-line is-last'])
+    const [raid, before] = lines()
+    expect(raid).toHaveTextContent('До конца рейда')
+    expect(raid).toHaveAttribute('title', 'Сколько осталось времени до конца текущего рейда · Таможня')
+    // Customs is 35 minutes: about 33 left (the card's clock ticks once a second)
+    expect(raid!.querySelector('strong')?.textContent).toMatch(/^(32:5\d|33:0\d)$/)
+    expect(before).toHaveTextContent('Прошлый рейд · Таможня')
+    expect(before).toHaveTextContent('34 мин')
+    // Still loading: the time since it began, not a countdown
+    await act(async () => { for (const listener of listeners) listener({ inRaid: true, since: Date.now() - 60_000, location: 'bigmap', tracked: true }) })
+    expect(lines()[0]).toHaveTextContent('Загрузка рейда')
+  })
+
   it('the phone offers its presets too', () => {
     setInfoCardView('tarkov-time')
     renderCard(true)

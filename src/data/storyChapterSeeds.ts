@@ -32,7 +32,11 @@ export interface StoryStageSeed extends StoryText {
   /** Ending branch the stage belongs to (EN text of the branch header). */
   branch?: string
   /** `aliases`: the game's own wording of the step where the wiki's differs (Russian client locale). */
-  steps?: Array<StoryText & { optional?: boolean; aliases?: string[] }>
+  /**
+   * `shown`: a goal shown under this stage that names another stage on the game's pane (owner, 24.11.2026: «Батя»'s Gnezdo
+   * stage shows the Ryabina goal too); it does not identify this stage.
+   */
+  steps?: Array<StoryText & { optional?: boolean; aliases?: string[]; shown?: boolean }>
   needs?: string
   points?: StoryStagePointSeed[]
   synthetic?: boolean
@@ -66,6 +70,9 @@ export const STORY_BRANCHES: Record<string, string> = {
 /** Keys / items a stage needs (RU). */
 export const STORY_NEEDS: Record<string, string> = {
   'TerraGroup science office key': 'ключ от научного офиса TerraGroup',
+  'TerraGroup storage room keycard': 'ключ-карта от склада TerraGroup',
+  'TerraGroup corporate apartment key': 'ключ от корпоративной квартиры TerraGroup',
+  'Reprogrammed keycard for A.P.\'s apartment lock (Green)': 'перезаписанная ключ-карта для замка в квартире А.П. (Зелёная)',
   'Local network hacking device': 'устройство взлома локальной сети',
   'Cult victim\'s apartment key': 'ключ от квартиры жертвы культа',
   'Cultist priest\'s note, Dorm room 314 marked key / Abandoned factory marked key / RB-BK marked key / RB-PKPM marked key / RB-VO marked key': 'записка Жреца культа; меченый ключ от комнаты 314 общежития / от заброшенной фабрики / РБ-БК / РБ-ПКПМ / РБ-ВО',
@@ -87,6 +94,32 @@ export const TOUR_STAGE_POINTS: Record<number, StoryStagePointSeed[]> = {
   // A player's report, 06.11.2026: «все точки гласят одно и то же, но они на правильных местах… описание нужно у каждой своё».
   21: [{ mapId: 'factory', x: -26.51, z: -30.02, note: 'Найти вход в секретный объект на локации Завод' }, { mapId: 'streets-of-tarkov', x: 212.02, z: 83.49, note: 'Найти вход в секретный объект на локации Улицы Таркова' }, { mapId: 'the-lab', x: -173.33, z: -363.16, y: 5.2, note: 'Осмотреть офисы топ-менеджеров (O21, 2-й уровень)', outline: [[-181.17, -368.2], [-180.58, -355.16], [-161.96, -355.16], [-161.96, -368.91], [-180.97, -368.38]] }, { mapId: 'the-lab', x: -129.3, z: -313.32, y: 5.2, note: 'Осмотреть серверную (2-й уровень, у ангара)', outline: [[-139.63, -329.71], [-113.9, -329.5], [-114.36, -289.16], [-139.18, -288.95], [-139.41, -329.3]] }, { mapId: 'the-lab', x: -131.08, z: -273.23, y: -3.7, note: 'Найти путь отхода через водосток (подвал, у выхода «Накопительный коллектор»)' }],
 }
+
+/**
+ * The Unheard: «Узнать больше о деятельности А.П.» and «…о роли А.П.» are done in The Lab, at the same places as «Найти в
+ * Лаборатории любые упоминания А.П.» (one of two whiteboards, two audio tapes in the lecture room — the EFT wiki, tarkov-market and
+ * tarkov101 agree; a player, 24.11.2026: «почему нельзя посмотреть точки на карте по квесту неизвестные. найти больше информации по
+ * АП»; owner: «Да, добавь»). They had no map at all, so the map stayed empty on them.
+ */
+const AP_LAB_POINTS: StoryStagePointSeed[] = [
+  { mapId: 'the-lab', x: -212.46, z: -305.96, y: 5.2, outline: [[-220.56, -311.24], [-220.29, -297.82], [-200.57, -298.29], [-200.3, -311], [-220.56, -311.47]] },
+  { mapId: 'the-lab', x: -152.5, z: -403.4, y: 5.2, outline: [[-160.43, -411.25], [-160.05, -391.5], [-140.79, -391.97], [-140.78, -411.02], [-160.44, -411.25]] },
+  { mapId: 'the-lab', x: -263.16, z: -366.4, y: 5.2, outline: [[-272.52, -371.35], [-272.43, -358.93], [-249.12, -359.02], [-249.03, -371.18], [-272.71, -371.51]] },
+]
+
+/**
+ * The Unheard on Shoreline and Streets (a player, 25.11.2026, on «Найти номер А.П. в Санатории»: «маркер показывает не те ключи, не от
+ * санатория а от улиц таркова»). The EFT wiki (English and Russian pages) and tarkovforge agree: A.P.'s room is room 305 of the Health
+ * Resort's east wing (the flash drive in the laptop, the TerraGroup corporate apartment key on the right nightstand); the optional guard
+ * post note is on the west wing's first floor; no source names a key for room 305 and the game has none (the catalog's east wing keys:
+ * 306, 308, 310, 313, 314, 316, 322, 328). The east wing is the area of the east wing's room locks (x −286…−357), the west wing that of
+ * the west wing's (x −142…−230). The apartment is apartment 1 of the Cardinal complex on Streets (the corporate apartment key's door,
+ * the catalog's lock at x 132.02, z −24.66); its hidden room opens with the green reprogrammed keycard and holds the four documents.
+ */
+const AP_ROOM_305: StoryStagePointSeed = { mapId: 'shoreline', x: -303.89, z: -90.99, outline: [[-268.75, -105.83], [-299.8, -105.49], [-299.97, -92.2], [-306.87, -93.24], [-363.62, -93.41], [-363.62, -72.36], [-299.8, -72.36], [-299.8, -84.27], [-268.41, -84.96], [-268.23, -105.83]] }
+const AP_APARTMENT: StoryStagePointSeed = { mapId: 'streets-of-tarkov', x: 132.02, z: -24.66 }
+/** The TerraGroup storage room on Factory, in the tunnels by the Camera Bunker Door exit (y: the tunnels' level). */
+const TG_STORAGE_ROOM: StoryStagePointSeed = { mapId: 'factory', x: -20.57, z: 47.24, y: -2, outline: [[-17.54, 49.61], [-17.54, 43.77], [-25.14, 43.77], [-25.14, 49.41], [-17.49, 49.66]] }
 
 export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
   {
@@ -127,7 +160,7 @@ export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
       { en: 'Learn more about the Bogatyr squad from the traders', ru: 'Узнать у торговцев больше об отряде «Богатыри»', aliases: ['Узнать у торговцев больше о Богатырях'], mapIds: [] },
       // Owner, 11.11.2026 (the game's own screen): two main goals here — «Найти позицию «Рябина»» and «Найти форпост «Гнездо»»,
       // two places (Woods and Interchange); the guides list Gnezdo only later (stage «Найти пост «Гнездо»» below).
-      { en: 'Locate the Ryabina outpost', ru: 'Найти пост «Рябина»', aliases: ['Найти позицию «Рябина»'], mapIds: ['woods', 'interchange'], steps: [{ en: 'Locate the Gnezdo outpost', ru: 'Найти пост «Гнездо»' }], points: [{ mapId: 'woods', x: 37.96, z: -323.49, note: 'Пост «Рябина»' }, { mapId: 'interchange', x: -332.01, z: -53.98, outline: [[-327.09, -71.96], [-320.32, -67.72], [-314.86, -61.06], [-313.12, -53.09], [-315.35, -46.36], [-318.77, -39.95], [-327.16, -31.92], [-335.73, -29.99], [-347.09, -32.1], [-355.42, -43.19], [-356.04, -54.4], [-351.07, -63.37], [-340.57, -70.4], [-330.82, -71.9], [-326.72, -72.33]], note: 'Пост «Гнездо»' }] },
+      { en: 'Locate the Ryabina outpost', ru: 'Найти позицию «Рябина»', aliases: ['Найти пост «Рябина»'], mapIds: ['woods', 'interchange'], steps: [{ en: 'Locate the Gnezdo outpost', ru: 'Найти форпост «Гнездо»', shown: true }], points: [{ mapId: 'woods', x: 37.96, z: -323.49, note: 'Пост «Рябина»' }, { mapId: 'interchange', x: -332.01, z: -53.98, outline: [[-327.09, -71.96], [-320.32, -67.72], [-314.86, -61.06], [-313.12, -53.09], [-315.35, -46.36], [-318.77, -39.95], [-327.16, -31.92], [-335.73, -29.99], [-347.09, -32.1], [-355.42, -43.19], [-356.04, -54.4], [-351.07, -63.37], [-340.57, -70.4], [-330.82, -71.9], [-326.72, -72.33]], note: 'Пост «Гнездо»' }] },
       { en: 'Find more information about the Bogatyr squad', ru: 'Найти больше информации об отряде «Богатыри»', aliases: ['Найти памятный предмет одного из Богатырей', 'Найти информацию о Богатырях'], mapIds: ['woods'], steps: [{ en: 'Locate and obtain a keepsake of one of the Bogatyrs', ru: 'Найти и забрать памятную вещь одного из богатырей', optional: true, aliases: ['Найти памятный предмет одного из Богатырей'] }], points: [{ mapId: 'woods', x: 40.38, z: -319.52 }] },
       { en: 'Locate the Carousel outpost', ru: 'Найти пост «Карусель»', aliases: ['Найти форпост «Карусель»'], mapIds: ['interchange'], points: [{ mapId: 'interchange', x: 74.1, z: -296.34, outline: [[91.53, -304.92], [47.51, -305.22], [48.1, -283.9], [91.82, -283.01], [91.53, -304.63]] }] },
       { en: 'Find the Bogatyr squad\'s personal notes', ru: 'Найти личные записи отряда «Богатыри»', aliases: ['Найти личные записи Богатырей'], mapIds: ['interchange'] },
@@ -135,7 +168,9 @@ export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
       { en: 'Learn more about Taran', ru: 'Узнать больше о Таране', aliases: ['Найти личный предмет Богатырей'], mapIds: ['interchange'], steps: [{ en: 'Locate and obtain a personal item of one of the Bogatyrs', ru: 'Найти и забрать личную вещь одного из богатырей', optional: true, aliases: ['Найти личный предмет Богатырей'] }], points: [{ mapId: 'interchange', x: 74.18, z: -292.1, outline: [[92.13, -283.42], [91.81, -304.82], [47.13, -304.82], [47.72, -284.13], [92.1, -283.33]] }, { mapId: 'interchange', x: 74.22, z: -296.4, note: 'Найти и забрать личную вещь одного из богатырей', outline: [[92.15, -304.77], [47.01, -304.9], [47.55, -284.09], [92.27, -283.29], [92.1, -304.94]] }] },
       { en: 'Learn more about Voevoda', ru: 'Узнать больше о Воеводе', mapIds: ['interchange'], points: [{ mapId: 'interchange', x: 74.41, z: -296.64, outline: [[92.31, -305.15], [47.09, -305.24], [47.64, -284.04], [92.61, -283.45], [92.4, -305.32]] }] },
       { en: 'Find Voevoda\'s personal belongings', ru: 'Найти личные вещи Воеводы', aliases: ['Найти личные вещи командира отряда'], mapIds: ['interchange'], steps: [{ en: 'Locate and obtain the squad commander\'s recorder', ru: 'Найти и забрать диктофон командира отряда', optional: true, aliases: ['Найти личные вещи командира отряда'] }], points: [{ mapId: 'interchange', x: 74.42, z: -296.47, outline: [[92.52, -305.14], [46.95, -304.69], [47.64, -284.01], [92.41, -283.36], [92.58, -305.13]] }, { mapId: 'interchange', x: 74.33, z: -296.49, outline: [[92.67, -305.15], [91.94, -283.22], [47.5, -284.1], [46.88, -304.8], [92.68, -305.18]] }] },
-      { en: 'Locate the Gnezdo outpost', ru: 'Найти пост «Гнездо»', aliases: ['Найти форпост «Гнездо»'], mapIds: ['interchange'], points: [{ mapId: 'interchange', x: -332.01, z: -53.98, outline: [[-327.09, -71.96], [-320.32, -67.72], [-314.86, -61.06], [-313.12, -53.09], [-315.35, -46.36], [-318.77, -39.95], [-327.16, -31.92], [-335.73, -29.99], [-347.09, -32.1], [-355.42, -43.19], [-356.04, -54.4], [-351.07, -63.37], [-340.57, -70.4], [-330.82, -71.9], [-326.72, -72.33]] }] },
+      // Owner, 24.11.2026 (the game's screen): this stage's main goals in the game are two, «Найти позицию «Рябина»» and
+      // «Найти форпост «Гнездо»»; it listed only Gnezdo.
+      { en: 'Locate the Gnezdo outpost', ru: 'Найти форпост «Гнездо»', aliases: ['Найти пост «Гнездо»'], mapIds: ['interchange', 'woods'], steps: [{ en: 'Locate the Ryabina outpost', ru: 'Найти позицию «Рябина»', shown: true }], points: [{ mapId: 'woods', x: 37.96, z: -323.49, note: 'Пост «Рябина»' }, { mapId: 'interchange', x: -332.01, z: -53.98, outline: [[-327.09, -71.96], [-320.32, -67.72], [-314.86, -61.06], [-313.12, -53.09], [-315.35, -46.36], [-318.77, -39.95], [-327.16, -31.92], [-335.73, -29.99], [-347.09, -32.1], [-355.42, -43.19], [-356.04, -54.4], [-351.07, -63.37], [-340.57, -70.4], [-330.82, -71.9], [-326.72, -72.33]], note: 'Пост «Гнездо»' }] },
       { en: 'Search the Gnezdo outpost', ru: 'Обыскать пост «Гнездо»', aliases: ['Обыскать форпост «Гнездо»'], mapIds: ['interchange'] },
       { en: 'Figure out what happened to the Bogatyr squad', ru: 'Выяснить, что случилось с отрядом «Богатыри»', aliases: ['Узнать, что случилось с Богатырями'], mapIds: ['interchange'], points: [{ mapId: 'interchange', x: -331.86, z: -51.39, outline: [[-312.35, -53.15], [-317.11, -65.08], [-323.03, -70.37], [-334, -72.17], [-345.76, -67.98], [-353.85, -59.51], [-356.23, -48.73], [-351.32, -36.51], [-340.86, -30.57], [-330.25, -30.5], [-322.24, -35.42], [-315.09, -45.19], [-312.13, -52.86]] }] },
       { en: 'Figure out where the Bogatyr squad got ambushed', ru: 'Выяснить, где отряд «Богатыри» попал в засаду', aliases: ['Узнать, где Богатыри попали в засаду'], mapIds: [] },
@@ -168,44 +203,53 @@ export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
   {
     id: 'the-unheard', order: 4, en: 'The Unheard', ru: 'Неизвестные', aliases: ['Неизвестные', 'Неуслышанные', 'The Unheard'], requires: [],
     stages: [
-      { en: 'Learn more about The Unheard', ru: 'Узнать больше о Неизвестных', mapIds: ['streets-of-tarkov'], points: [{ mapId: 'streets-of-tarkov', x: 57.47, z: -64.8, outline: [[69.68, -77.98], [39.92, -78.74], [39.54, -44.46], [68.15, -44.85], [70.06, -77.98]] }, { mapId: 'streets-of-tarkov', x: -34.63, z: -115.54, outline: [[-25.7, -121.02], [-48.21, -120.26], [-48.59, -108.83], [-25.32, -107.31], [-25.32, -120.26]] }] },
-      { en: 'Learn more about TerraGroup\'s activities', ru: 'Узнать больше о деятельности TerraGroup', mapIds: ['ground-zero'], needs: 'TerraGroup science office key', points: [{ mapId: 'ground-zero', x: -14.77, z: 50.49, outline: [[-20.1, 57.77], [-19.19, 38.96], [-9.8, 38.65], [-4.04, 59.28], [-20.7, 57.77]] }] },
-      { en: 'Learn more about the "fuel" mentioned in the note', ru: 'Узнать больше о «топливе», упомянутом в записке', mapIds: ['the-lab'], points: [{ mapId: 'the-lab', x: -161.37, z: -374.86, outline: [[-165.91, -377.17], [-166.11, -371.84], [-154.66, -371.31], [-154.26, -376.63], [-165.91, -377.34]] }, { mapId: 'the-lab', x: -152.49, z: -403.37, y: 5.2, outline: [[-160.19, -411.43], [-159.99, -391.9], [-140.84, -392.08], [-140.84, -410.54], [-160.58, -410.9]] }] },
-      { en: 'Find more information about the special catalyst shipment', ru: 'Найти больше информации о специальной партии катализатора', mapIds: ['factory'], points: [{ mapId: 'factory', x: -12.71, z: -5.86 }] },
+      // The note is in one of three places (the wiki): the TerraGroup security post and office on Streets, or office 4 of the TerraGroup
+      // building on Ground Zero (level 21+, the science office key) — that point stood on the next stage, which is in The Lab.
+      { en: 'Learn more about The Unheard', ru: 'Узнать больше о Неизвестных', mapIds: ['streets-of-tarkov', 'ground-zero'], points: [{ mapId: 'streets-of-tarkov', x: 57.47, z: -64.8, outline: [[69.68, -77.98], [39.92, -78.74], [39.54, -44.46], [68.15, -44.85], [70.06, -77.98]] }, { mapId: 'streets-of-tarkov', x: -34.63, z: -115.54, outline: [[-25.7, -121.02], [-48.21, -120.26], [-48.59, -108.83], [-25.32, -107.31], [-25.32, -120.26]] }, { mapId: 'ground-zero', x: -14.77, z: 50.49, y: 30.7, note: 'Записка (с 21 уровня): офис № 4 на 2-м этаже главного здания TerraGroup, нужен ключ от научного офиса TerraGroup', outline: [[-20.1, 57.77], [-19.19, 38.96], [-9.8, 38.65], [-4.04, 59.28], [-20.7, 57.77]] }] },
+      // The document is in The Lab, in the laboratory by the dome (the wiki, tarkovforge); this point stood on the next stage.
+      { en: 'Learn more about TerraGroup\'s activities', ru: 'Узнать больше о деятельности TerraGroup', mapIds: ['the-lab'], points: [{ mapId: 'the-lab', x: -161.37, z: -374.86, note: 'Документ — в лаборатории у купола (1-й уровень), рядом с экраном', outline: [[-165.91, -377.17], [-166.11, -371.84], [-154.66, -371.31], [-154.26, -376.63], [-165.91, -377.34]] }] },
+      { en: 'Learn more about the "fuel" mentioned in the note', ru: 'Узнать больше о «топливе», упомянутом в записке', mapIds: ['the-lab'], points: [{ mapId: 'the-lab', x: -152.49, z: -403.37, y: 5.2, note: 'Факс — в офисе O23 (2-й уровень), на тумбе рядом с сейфом', outline: [[-160.19, -411.43], [-159.99, -391.9], [-140.84, -392.08], [-140.84, -410.54], [-160.58, -410.9]] }] },
+      { en: 'Find more information about the special catalyst shipment', ru: 'Найти больше информации о специальной партии катализатора', mapIds: ['factory'], points: [{ mapId: 'factory', x: -12.71, z: -5.86, note: 'Маршрутный лист — на жёлтой бочке у пролома в полу' }] },
       { en: 'Locate Rzhevsky\'s service vehicle', ru: 'Найти служебную машину Ржевского', mapIds: ['streets-of-tarkov'], steps: [{ en: 'Obtain Rzhevsky\'s personal belongings', ru: 'Забрать личные вещи Ржевского' }], points: [{ mapId: 'streets-of-tarkov', x: 21.33, z: 356.24 }] },
       { en: 'Retrieve the data from the hard drive in Rzhevsky\'s car', ru: 'Извлечь данные с жёсткого диска из машины Ржевского', mapIds: [], steps: [{ en: 'Take the hard drive from Rzhevsky\'s car', ru: 'Забрать жёсткий диск из машины Ржевского' }] },
       { en: 'Read the transcript of Rzhevsky\'s conversation', ru: 'Прочитать расшифровку разговора Ржевского', mapIds: [] },
-      { en: 'Locate and obtain the documents on the Blue Ice fuel catalyst research', ru: 'Найти и забрать документы об исследовании катализатора топлива «Голубой лёд»', mapIds: ['factory'], points: [{ mapId: 'factory', x: -20.57, z: 47.24, outline: [[-17.54, 49.61], [-17.54, 43.77], [-25.14, 43.77], [-25.14, 49.41], [-17.49, 49.66]] }] },
-      { en: 'Find as much information as possible about the plans of The Unheard', ru: 'Найти как можно больше информации о планах Неизвестных', mapIds: [] },
+      { en: 'Locate and obtain the documents on the Blue Ice fuel catalyst research', ru: 'Найти и забрать документы об исследовании катализатора топлива «Голубой лёд»', mapIds: ['factory'], needs: 'TerraGroup storage room keycard', points: [{ ...TG_STORAGE_ROOM, note: 'Склад TerraGroup в тоннелях у выхода «Бункерная дверь с камерой»: отчёт — на книжной полке у двери или на сейфе у стола' }] },
+      { en: 'Find as much information as possible about the plans of The Unheard', ru: 'Найти как можно больше информации о планах Неизвестных', mapIds: ['factory'], needs: 'TerraGroup storage room keycard', points: [{ ...TG_STORAGE_ROOM, note: 'Сожжённый документ — на столе или на правой металлической полке склада TerraGroup' }] },
       { en: 'Learn more about The Unheard', ru: 'Узнать больше о Неизвестных', mapIds: [] },
-      { en: 'Learn more about A.P.\'s activities', ru: 'Узнать больше о деятельности А.П.', mapIds: [] },
-      { en: 'Learn more about A.P.\'s role', ru: 'Узнать больше о роли А.П.', mapIds: [] },
-      { en: 'Search for any mention of A.P. in The Lab', ru: 'Найти в Лаборатории любые упоминания А.П.', mapIds: ['the-lab'], points: [{ mapId: 'the-lab', x: -212.46, z: -305.96, y: 5.2, outline: [[-220.56, -311.24], [-220.29, -297.82], [-200.57, -298.29], [-200.3, -311], [-220.56, -311.47]] }, { mapId: 'the-lab', x: -152.5, z: -403.4, y: 5.2, outline: [[-160.43, -411.25], [-160.05, -391.5], [-140.79, -391.97], [-140.78, -411.02], [-160.44, -411.25]] }, { mapId: 'the-lab', x: -263.16, z: -366.4, y: 5.2, outline: [[-272.52, -371.35], [-272.43, -358.93], [-249.12, -359.02], [-249.03, -371.18], [-272.71, -371.51]] }] },
-      { en: 'Locate A.P.\'s room in the Health Resort', ru: 'Найти номер А.П. в Санатории', mapIds: ['shoreline'], steps: [{ en: 'Find out which room A.P. was assigned to', ru: 'Выяснить, в каком номере жил А.П.', optional: true }], points: [{ mapId: 'shoreline', x: -303.89, z: -90.99, outline: [[-268.75, -105.83], [-299.8, -105.49], [-299.97, -92.2], [-306.87, -93.24], [-363.62, -93.41], [-363.62, -72.36], [-299.8, -72.36], [-299.8, -84.27], [-268.41, -84.96], [-268.23, -105.83]] }, { mapId: 'shoreline', x: -194.53, z: -84.99, outline: [[-188.29, -92.91], [-204.9, -93.17], [-204.52, -72.85], [-187.01, -72.72], [-187.91, -93.29]] }] },
-      { en: 'Obtain A.P.\'s personal belongings', ru: 'Забрать личные вещи А.П.', mapIds: [] },
-      { en: 'Obtain A.P.\'s data storage device', ru: 'Забрать накопитель данных А.П.', mapIds: [], steps: [{ en: 'Take the flash drive from A.P.\'s room', ru: 'Забрать флешку из номера А.П.' }] },
+      { en: 'Learn more about A.P.\'s activities', ru: 'Узнать больше о деятельности А.П.', mapIds: ['the-lab'], points: AP_LAB_POINTS },
+      { en: 'Learn more about A.P.\'s role', ru: 'Узнать больше о роли А.П.', mapIds: ['the-lab'], points: AP_LAB_POINTS },
+      { en: 'Search for any mention of A.P. in The Lab', ru: 'Найти в Лаборатории любые упоминания А.П.', mapIds: ['the-lab'], points: AP_LAB_POINTS },
+      { en: 'Locate A.P.\'s room in the Health Resort', ru: 'Найти номер А.П. в Санатории', mapIds: ['shoreline'], steps: [{ en: 'Find out which room A.P. was assigned to', ru: 'Выяснить, в каком номере жил А.П.', optional: true }], points: [{ ...AP_ROOM_305, note: 'Номер А.П. — 305 восточного крыла Санатория (3-й этаж)' }, { mapId: 'shoreline', x: -194.53, z: -84.99, note: 'Записка на посту охраны (опционально): 1-й этаж западного крыла, стол у комнаты охраны у южного входа', outline: [[-188.29, -92.91], [-204.9, -93.17], [-204.52, -72.85], [-187.01, -72.72], [-187.91, -93.29]] }] },
+      { en: 'Obtain A.P.\'s personal belongings', ru: 'Забрать личные вещи А.П.', mapIds: ['shoreline'], points: [{ ...AP_ROOM_305, note: 'Ключ от корпоративной квартиры TerraGroup — на правой тумбочке в номере 305 восточного крыла' }] },
+      { en: 'Obtain A.P.\'s data storage device', ru: 'Забрать накопитель данных А.П.', mapIds: ['shoreline'], points: [{ ...AP_ROOM_305, note: 'Флешка — в ноутбуке на столе в номере 305 восточного крыла' }], steps: [{ en: 'Take the flash drive from A.P.\'s room', ru: 'Забрать флешку из номера А.П.' }] },
       { en: 'Decrypt the flash drive from A.P.\'s room', ru: 'Расшифровать флешку из номера А.П.', mapIds: [] },
       { en: 'Ask Mechanic for help', ru: 'Попросить помощи у Механика', mapIds: [] },
       { en: 'Hand over the cash to Mechanic', ru: 'Передать деньги Механику', mapIds: [], steps: [{ en: 'Collect the required amount in RUB', ru: 'Собрать нужную сумму в рублях' }] },
       { en: 'Hand over the A.P. flash drive to Mechanic', ru: 'Передать Механику флешку А.П.', mapIds: [] },
       { en: 'Wait for the news from Elektronik', ru: 'Дождаться новостей от Электроника', mapIds: [] },
       { en: 'Integrate the tech files from A.P.\'s flash drive into a TerraGroup keycard', ru: 'Записать технические файлы с флешки А.П. на ключ-карту TerraGroup', mapIds: [] },
-      { en: 'Access A.P.\'s corporate apartment', ru: 'Попасть в корпоративную квартиру А.П.', mapIds: ['streets-of-tarkov'], points: [{ mapId: 'streets-of-tarkov', x: 128.66, z: -43.09, outline: [[133.79, -15.36], [139.92, -41.86], [147.41, -50.69], [147.07, -60.2], [142.64, -69.37], [138.56, -71.07], [123.93, -63.94], [106.57, -45.25], [100.45, -28.27], [101.13, -14], [133.79, -14]] }] },
-      { en: 'Investigate A.P.\'s apartment', ru: 'Осмотреть квартиру А.П.', mapIds: [] },
-      { en: 'Access the hidden room in A.P.\'s apartment', ru: 'Попасть в потайную комнату в квартире А.П.', mapIds: [] },
-      { en: 'Study the TerraGroup documentation in A.P.\'s office', ru: 'Изучить документацию TerraGroup в кабинете А.П.', mapIds: [] },
-      { en: 'Study the role of the Blue Ice catalyst in The Unheard\'s protocol', ru: 'Изучить роль катализатора «Голубой лёд» в протоколе Неизвестных', mapIds: [] },
-      { en: 'Learn more about The Unheard\'s protocol', ru: 'Узнать больше о протоколе Неизвестных', mapIds: [] },
+      { en: 'Access A.P.\'s corporate apartment', ru: 'Попасть в корпоративную квартиру А.П.', mapIds: ['streets-of-tarkov'], needs: 'TerraGroup corporate apartment key', points: [{ mapId: 'streets-of-tarkov', x: 128.66, z: -43.09, outline: [[133.79, -15.36], [139.92, -41.86], [147.41, -50.69], [147.07, -60.2], [142.64, -69.37], [138.56, -71.07], [123.93, -63.94], [106.57, -45.25], [100.45, -28.27], [101.13, -14], [133.79, -14]] }] },
+      { en: 'Investigate A.P.\'s apartment', ru: 'Осмотреть квартиру А.П.', mapIds: ['streets-of-tarkov'], needs: 'TerraGroup corporate apartment key', points: [{ ...AP_APARTMENT, note: 'Квартира 1 на 2-м этаже ЖК «Кардинал»' }] },
+      { en: 'Access the hidden room in A.P.\'s apartment', ru: 'Попасть в потайную комнату в квартире А.П.', mapIds: ['streets-of-tarkov'], needs: 'Reprogrammed keycard for A.P.\'s apartment lock (Green)', points: [{ ...AP_APARTMENT, note: 'Потайная комната — в конце коридора квартиры А.П., открывается зелёной ключ-картой' }] },
+      { en: 'Study the TerraGroup documentation in A.P.\'s office', ru: 'Изучить документацию TerraGroup в кабинете А.П.', mapIds: ['streets-of-tarkov'], points: [{ ...AP_APARTMENT, note: 'Приказ — на полу рядом с коробками в потайной комнате' }] },
+      { en: 'Study the role of the Blue Ice catalyst in The Unheard\'s protocol', ru: 'Изучить роль катализатора «Голубой лёд» в протоколе Неизвестных', mapIds: ['streets-of-tarkov'], points: [{ ...AP_APARTMENT, note: 'Копия отчёта — на левом краю стола в потайной комнате' }] },
+      { en: 'Learn more about The Unheard\'s protocol', ru: 'Узнать больше о протоколе Неизвестных', mapIds: ['streets-of-tarkov'], points: [{ ...AP_APARTMENT, note: 'Документ — на стопке документов в потайной комнате' }] },
       { en: 'Learn more about The Unheard', ru: 'Узнать больше о Неизвестных', mapIds: [] },
-      { en: 'Figure out how The Unheard are connected to Tarkov', ru: 'Выяснить, как Неизвестные связаны с Тарковом', mapIds: [] },
+      { en: 'Figure out how The Unheard are connected to Tarkov', ru: 'Выяснить, как Неизвестные связаны с Тарковом', mapIds: ['streets-of-tarkov'], points: [{ ...AP_APARTMENT, note: 'Документ — на правом краю стола в потайной комнате' }] },
     ],
   },
   {
     id: 'blue-fire', order: 5, en: 'Blue Fire', ru: 'Синий огонь', aliases: ['Синий огонь', 'Синее пламя', 'Blue Fire'], requires: [],
     stages: [
       { en: 'Talk to Mechanic about the EMP blast', ru: 'Поговорить с Механиком об электромагнитном импульсе', mapIds: ['streets-of-tarkov'], steps: [{ en: 'Gain access to Mechanic', ru: 'Получить доступ к Механику', optional: true }], points: [{ mapId: 'streets-of-tarkov', x: 66.49, z: 311.26, outline: [[70.51, 301.77], [60.71, 301.61], [60.55, 325.52], [70.19, 325.52], [70.49, 301.89]] }, { mapId: 'streets-of-tarkov', x: 188.48, z: 226.6, outline: [[190.3, 224.13], [185.59, 224.23], [185.69, 230.27], [190.3, 230.06], [190.51, 224.33]] }] },
-      { en: 'Locate and obtain the device fragment', ru: 'Найти и забрать фрагмент устройства', mapIds: [], aliases: ['Найти обломок устройства', 'Find the device debris'] },
-      { en: 'Hand over the device fragment to Mechanic', ru: 'Передать Механику фрагмент устройства', mapIds: [] },
+      // Owner, 24.11.2026 (the game's screen: «Найти обломок устройства… стоит осмотреть их точки на Улицах Таркова и Эпицентре»):
+      // the game's words, and the two places the guides give (tarkovforge, tarkov-market: one of them is enough), both on Streets
+      // behind a key — the middle of each room (keyRoomBoxes.json of its door's lock, the door's height for the floor).
+      { en: 'Locate and obtain the device fragment', ru: 'Найти обломок устройства', mapIds: ['streets-of-tarkov'], aliases: ['Найти и забрать фрагмент устройства', 'Find the device debris'], points: [
+        { mapId: 'streets-of-tarkov', x: 62.7, z: 306.8, y: 7.88, note: 'Закрытая секция автосалона LexOs, 2-й этаж: в контейнере с едой. Ключ от закрытой секции автосалона' },
+        { mapId: 'streets-of-tarkov', x: 188.1, z: 227.3, y: 0.85, note: 'Комната сектантов на Чеканной, 13: в цветочном горшке в углу. Ключ от странной комнаты (Меченый)' },
+      ] },
+      { en: 'Hand over the device fragment to Mechanic', ru: 'Передать Механику обломок устройства', aliases: ['Передать Механику фрагмент устройства'], mapIds: [] },
       { en: 'Plant the hacking device in the server room in The Lab', ru: 'Установить устройство взлома в серверной Лаборатории', mapIds: ['the-lab'], needs: 'Local network hacking device', points: [{ mapId: 'the-lab', x: -121.9, z: -328.97, y: 5.2 }] },
       { en: 'Hand over the fragment of Item 1156 to Mechanic', ru: 'Передать Механику фрагмент Изделия 1156', mapIds: [] },
       { en: 'Keep the fragment of Item 1156 for yourself', ru: 'Оставить фрагмент Изделия 1156 себе', mapIds: [] },

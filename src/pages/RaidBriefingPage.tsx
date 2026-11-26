@@ -7,9 +7,8 @@ import { useAppState } from '../state/AppState'
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
 import { useRaidMapId } from '../raidprep/useRaidPrep'
 import { planRoute } from '../raidprep/route'
-import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
-import { questAppliesToMap } from '../progression/questLocation'
-import { mapObjectivesWaiting } from '../progression/mapObjectives'
+import { isCurrentTrackedQuest } from '../progression/requirementEngine'
+import { mapWorkCounts } from '../progression/mapPriority'
 import '../styles/raidPrep.css'
 
 /**
@@ -34,8 +33,9 @@ export function RaidBriefingPage() {
   const map = data.maps.find((entry) => entry.id === mapId) ?? data.maps[0]
   const route = useMemo(() => map ? planRoute(data.markers, data.quests, progress, map.id, null) : null, [data.markers, data.quests, progress, map])
   const counts = useMemo(() => {
+    // The same count as the Overview's «Приоритет карт»: each quest once, while it has work left on the map (report 230).
     const current = data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress) && !quest.anyMap)
-    return new Map(data.maps.map((entry) => [entry.id, current.filter((quest) => questAppliesToMap(quest, entry.id, currentStoryStageIndex(quest, progress)) && !mapObjectivesWaiting(quest, entry.id, progress)).length]))
+    return new Map(data.maps.map((entry) => { const counts = mapWorkCounts(current, entry.id, progress); return [entry.id, counts.tasks + counts.kills] }))
   }, [data.maps, data.quests, progress])
 
   if (!map) return null

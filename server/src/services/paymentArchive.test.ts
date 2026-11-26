@@ -123,7 +123,7 @@ test('an archived payment and autopayment read in the cabinet without any call o
     assert.deepEqual([autopay.provider, autopay.status, autopay.amount, autopay.currency, autopay.nextChargeAt], ['archive', 'active', 10, 'USD', undefined])
     assert.equal((await t.payments.status(t.player, 'aaaaaaaaaaaaaaaaaaaaaaaa')).provider, 'archive')
     // The streamer's statistics count it by the rouble amount stored when it was paid.
-    assert.deepEqual(t.payments.referralStats('HUNTER'), { activeSubscriptions: 1, revenue: 120000, earnings: 12000 })
+    assert.deepEqual(t.payments.referralStats('HUNTER'), { activeSubscriptions: 1, revenue: 120000, earnings: 12000, payers: 1 })
 
     const player = await t.login('player@example.com')
     const cabinet = await t.call<{ payments: Array<{ provider: string }>; autopay: { provider: string } }>('GET', '/v1/payments', player)
@@ -150,7 +150,8 @@ test('the admin panel counts archived payments by their rouble amount and labels
     const owner = await t.login('owner@example.com')
     const overview = await t.call<{ revenue: { all: Record<string, number> } }>('GET', '/v1/accounts/me/admin/overview', owner)
     // The same player's second payment is a repeat one (owner, 15.11.2026).
-    assert.deepEqual(overview.json.revenue.all, { total: 1200, payments: 2, repeat: 1 })
+    // Чистыми: грязными 1200 − доля стримеров 120 − комиссия (ЮKassa 300 × 3.53 % = 10.59; у архивного провайдера ставка 0).
+    assert.deepEqual(overview.json.revenue.all, { total: 1200, payments: 2, repeat: 1, net: 1069.41, streamerEarnings: 120, fees: 10.59 })
     assert.doesNotMatch(overview.text, /lava/i)
     const series = await t.call<{ rows: Array<Record<string, unknown>> }>('GET', '/v1/accounts/me/admin/series?period=day', owner)
     const day = series.json.rows.find((row) => row.period === '2026-10-02')!
@@ -163,7 +164,10 @@ test('the admin panel counts archived payments by their rouble amount and labels
 
     const list = await t.call<{ payments: Array<{ provider: string }>; totals: Record<string, number> }>('GET', '/v1/accounts/me/admin/payments', owner)
     const plans = { '1m': { count: 1, revenue: 300 }, '3m': { count: 1, revenue: 900 }, '6m': { count: 0, revenue: 0 }, '12m': { count: 0, revenue: 0 } }
-    assert.deepEqual(list.json.totals, { succeeded: 2, revenue: 1200, net: 1200, streamerEarnings: 120, plans })
+    // «Платежи» count «Чистыми» as the summary does (owner, 26.11.2026: «сколько суммы чистыми»).
+    assert.deepEqual(list.json.totals, { succeeded: 2, revenue: 1200, net: 1069.41, fees: 10.59, streamerEarnings: 120, plans })
+    // each paid one «чистыми» too: its sum minus the streamer's share minus the fee
+    assert.ok(list.json.payments.every((item) => typeof (item as { netAmount?: unknown }).netAmount === 'number'))
     assert.deepEqual(list.json.payments.map((item) => item.provider), ['yookassa', 'archive'])
     const csv = await t.call('GET', '/v1/accounts/me/admin/payments.csv', owner)
     assert.ok(csv.text.includes(';player@example.com;3m;Архив;Оплачен;900,00;10,00;USD;;HUNTER;90,00;aaaaaaaaaaaaaaaaaaaaaaaa'), csv.text)

@@ -10,6 +10,9 @@ import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, nativeImage, screen, type NativeImage } from 'electron'
 import { recognizeRegion } from './screenOcr.js'
+import { gameLanguageNow } from './ocrEngine.js'
+import type { GameLanguage } from '../src/import/gameLanguage.js'
+import { anyGameWord, languageWords } from '../src/import/gameWordPatterns.js'
 import { captureScreenRegion, foregroundDisplayMode, visibleGameRect } from './experimental/win32.js'
 
 export interface ScreenRect { x: number; y: number; width: number; height: number }
@@ -110,27 +113,52 @@ export function listForOcr(data: Uint8Array, width: number, height: number) {
   return out
 }
 
-async function readCorner() {
+async function readCorner(model: string) {
   const corner = cornerRect(gameArea())
   const shot = captureScreenRegion(corner.x, corner.y, corner.width, corner.height)
   if (!shot) return { text: '', corner, image: null }
   const image = nativeImage.createFromBitmap(listForOcr(shot.data, shot.width, shot.height), { width: shot.width, height: shot.height })
-  return { text: await recognizeRegion(image).catch(() => ''), corner, image }
+  return { text: await recognizeRegion(image, model).catch(() => ''), corner, image }
 }
 
 /** How often the header strip is looked at, and how long after a reading the same open list is not read again. */
 const HEADER_POLL_MS = 500
 const HEADER_REREAD_MS = 20_000
+/** The strip's look while the game's keys reach the app: the O key starts the reading itself (experimental/index.ts). */
+export const HEADER_POLL_KEYS_SEEN_MS = 1500
+
+/**
+ * How often the header strip is copied now (0: not at all). Each copy is small, but it is a copy of the screen: the call
+ * waits for Windows' compositor (7 ms on the owner's PC, almost no processor time) — twice a second, through every
+ * minute in the game (report 227, 25.11.2026: «игра фризит», a laptop). The exit list exists only in a raid, so:
+ * - no raid (by the logs or the raid signs; with no Logs folder watched it cannot be told, and the strip is looked at):
+ *   not at all — the menus, the stash, the hideout;
+ * - in a raid with the game's keys reaching the app (the Steam build, a game not run as administrator): every 1.5 s —
+ *   the O key starts the reading anyway, the strip only catches a list opened with another key;
+ * - in a raid with the keys hidden (the BSG launcher's elevated game, the reason the strip is watched): twice a second.
+ */
+export function headerPollMs(state: { raid: boolean; keysSeen: boolean }) {
+  if (!state.raid) return 0
+  return state.keysSeen ? HEADER_POLL_KEYS_SEEN_MS : HEADER_POLL_MS
+}
 
 /**
  * While the game is in front: the list's header appearing (or still open after a while) starts a reading, as a double O
- * does. A few kilobytes copied twice a second; nothing while the game is not in front or runs exclusive full screen.
+ * does. A few kilobytes copied at the pace of `pace` (headerPollMs); nothing while the game is not in front or runs
+ * exclusive full screen. Without `pace`: twice a second, as before.
  */
-export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: { text: string; at: number }) => void) {
+export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: ExtractsPayload) => void, pace: () => number = () => HEADER_POLL_MS) {
   let open = false
   let lastRead = 0
+  let lastLook = 0
   const timer = setInterval(() => {
-    if (process.platform !== 'win32' || !gameInFront() || foregroundDisplayMode() === 'exclusive') { open = false; return }
+    const every = process.platform === 'win32' ? pace() : 0
+    if (!every) { open = false; return }
+    const nowMs = Date.now()
+    // the timer's own beat is HEADER_POLL_MS; a slower pace skips beats (a little early is fine: the timer drifts)
+    if (nowMs - lastLook < every - 50) return
+    if (!gameInFront() || foregroundDisplayMode() === 'exclusive') { open = false; return }
+    lastLook = nowMs
     const at = headerStripRect(gameArea())
     const strip = captureScreenRegion(at.x, at.y, at.width, at.height)
     const now = strip ? headerShare(strip.data, strip.width, strip.height) >= HEADER_MIN_SHARE : false
@@ -144,12 +172,17 @@ export function watchExtractsHeader(gameInFront: () => boolean, send: (payload: 
   return () => clearInterval(timer)
 }
 
+/** What goes to the page: the list's text, when it was read, and the game's language it was read in. */
+export interface ExtractsPayload { text: string; at: number; language: GameLanguage }
+
 /** An O while the game is in front (or the list seen): reads the list after `delays` and hands the text over (`send`). */
-export async function readExtractsPanel(send: (payload: { text: string; at: number }) => void, delays: readonly number[] = AFTER_PRESS_MS, trigger: 'key' | 'header' = 'key') {
+export async function readExtractsPanel(send: (payload: ExtractsPayload) => void, delays: readonly number[] = AFTER_PRESS_MS, trigger: 'key' | 'header' = 'key') {
   if (busy) return
   // An exclusive full-screen game hides from screen copies.
   if (foregroundDisplayMode() === 'exclusive') { void logReading({ trigger, outcome: 'exclusive-full-screen' }); return }
   busy = true
+  // The game's language: its model reads the list, its words count the list's lines (listWords).
+  const { language, model } = await gameLanguageNow().catch(() => ({ language: 'ru' as GameLanguage, model: 'rus+eng' }))
   const started = Date.now()
   const reads: Array<{ after: number; ms: number; chars: number; words: number }> = []
   let best = ''
@@ -161,21 +194,26 @@ export async function readExtractsPanel(send: (payload: { text: string; at: numb
       await new Promise((resolve) => setTimeout(resolve, delay - waited))
       waited = delay
       const at = Date.now()
-      const read = await readCorner()
+      const read = await readCorner(model)
       corner = read.corner
       const text = read.text
-      reads.push({ after: at - started, ms: Date.now() - at, chars: text.trim().length, words: listWords(text) })
+      reads.push({ after: at - started, ms: Date.now() - at, chars: text.trim().length, words: listWords(text, language) })
       // the better reading: more of the list's words, else more text (the names are matched without them, raidExtracts.ts)
-      if (listWords(text) > listWords(best) || (listWords(text) === listWords(best) && text.trim().length > best.trim().length)) { best = text; bestImage = read.image }
+      if (listWords(text, language) > listWords(best, language) || (listWords(text, language) === listWords(best, language) && text.trim().length > best.trim().length)) { best = text; bestImage = read.image }
     }
-    if (best) send({ text: best, at: Date.now() })
+    if (best) send({ text: best, at: Date.now(), language })
   } finally {
     busy = false
-    void logReading({ trigger, outcome: best ? 'sent' : 'nothing-read', corner, reads, text: best }, bestImage)
+    void logReading({ trigger, outcome: best ? 'sent' : 'nothing-read', corner, reads, text: best, language }, bestImage)
   }
 }
 
-const listWords = (value: string) => (value.match(/ВЫХ|EXF|BЫX/gi) ?? []).length
+/** The list's own words in a reading: «ВЫХОД» / «EXFIL», and the game's own («脱出地点», «撤离点»: src/import/gameWords.ts). */
+export function listWords(value: string, language?: GameLanguage | null) {
+  const own = (languageWords(language)?.words.exits.exfil ?? []).filter((word) => !/^exfil$/i.test(word))
+  const extra = own.length ? (value.match(new RegExp(anyGameWord(own), 'giu')) ?? []).length : 0
+  return (value.match(/ВЫХ|EXF|BЫX/gi) ?? []).length + extra
+}
 
 /** The last readings kept for a look into a report (owner, 19.11.2026: nothing happened after O), like the item lookups'. */
 const READINGS_KEPT = 20

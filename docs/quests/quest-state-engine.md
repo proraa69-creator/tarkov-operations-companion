@@ -88,16 +88,16 @@ read the mode again from the logs (the latest scan, through the engine); the ser
   the prestige must not hide them. This replaces the decision of 15.10.2026 for these two buttons.
 - **«Сброс»**: every log counts, the quests are found again. A floor an earlier press set (`appResetTimes`) goes, so it
   undoes a press by mistake; the game's own proven reset stays.
-- **A new nickname** comes by itself: no floor, a pending marker `resetMarker {kind, at}`; when the logs show the game's own
-  reset after it, that point becomes the floor and the marker resolves. Markers of «Престиж +» / «Вайп» from older versions
-  work the same until then.
+- **A new nickname resets nothing** (owner, 25.11.2026: «При смене ника не нужно сбрасывать прогресс»). Up to 0.6.0.345 it
+  reset the mode it was seen in and left a pending marker `resetMarker {kind, at}`; such markers, and those of «Престиж +» /
+  «Вайп» from older versions, still resolve when the logs show the game's own reset after them (that point becomes the floor).
 
 Profiles of 0.6.0.40/41 with a floor at a press (`modeResetAt`) get a pending marker at load and the floors the press wrote
 go; a 0.6.0.41 server answering the press as the character's reset is ignored (`appResetTimes`).
 
 A press also clears what the player gathered (owner, 04.11.2026: «должно сбрасываться все, что в избранном все квесты
 актуальные итд»): the mode's tracked quests, raid list and «Отложенные квесты», the items found for the hideout and the
-quests, the last stash scan, and «Избранное», one list for every mode, so for all of them. A new nickname keeps the lists.
+quests, the last stash scan, and «Избранное», one list for every mode, so for all of them.
 
 ## «Ручная отметка»
 
@@ -205,7 +205,7 @@ Owner, 04.11.2026: «оставить только при первом запу�
   (it fits on a page); or from the second visit on, when a visit adds no quest and the readings so far name 75% of the trader
   quests the logs hold open, which says the list was scrolled and not only its first page read (players hold 39 current quests
   on average, about nine rows a page); or after 6 visits whatever they showed, since logs may hold quests the game no longer lists.
-- **What empties a mode opens it again**, that mode only: «Сброс», «Вайп / Престиж» and a new nickname (`wipeModeProgress` builds
+- **What empties a mode opens it again**, that mode only: «Сброс» and «Вайп / Престиж» (`wipeModeProgress` builds
   the mode without it), a new character or the game's own reset in the logs (`applyLogState`).
 - **Every player already here gets one**, as a profile of an older version has none. It is the one exception to the owner's
   word, made on purpose: only that read with the mended reader brings back a real quest of the 18 titles above. It costs nothing

@@ -17,7 +17,6 @@ import { canResolvePlayerProfiles, desktopPlayerProfileGateway } from '../profil
 import { saveScreenTraderLevels } from '../gunsmith/traderLevels'
 import { currentServerStatus } from '../sync/serverSync'
 import { accountNickname, cleanNickname, NICKNAME_PATTERN, profileNickname, RAID_MODE_ORDER, renameBoundModes, saveNicknameOnServer } from './nicknameBinding'
-import { noteConfirmedNickname, type NicknameSource } from './nicknameChange'
 
 /** The app state (read when needed, so a fresh one). */
 export interface LogNicknameTarget {
@@ -25,24 +24,6 @@ export interface LogNicknameTarget {
   registerModeProfile: (mode: RaidMode, registration: { accountId: number; enteredNickname: string; nickname: string; verifiedAt: string }) => void
   updatePlayerSnapshot: (mode: RaidMode, snapshot: PlayerProfileSnapshot) => void
   applyScreenLevel: (mode: RaidMode, level: number, observedAt: string, raiseOnly?: boolean) => void
-  /** The mode the app shows (the mode a nickname change resets when the game's own is not known). */
-  raidMode?: RaidMode
-  /** A confirmed new nickname resets the mode it was seen in (src/account/nicknameChange.ts, src/state/modeReset.ts). */
-  resetModeProgress?: (mode: RaidMode, at?: string, reason?: 'prestige' | 'nickname') => void
-}
-
-/**
- * A confirmed nickname: when it is a new one by the rules of src/account/nicknameChange.ts, the mode the game is in
- * (`gameMode`, from the logs; else the app's) starts again. Other modes keep their progress; the nickname itself goes to
- * every mode and the account as before. True when the mode was reset.
- */
-function checkNicknameChange(nickname: string, source: NicknameSource, observedAt: number, gameMode: RaidMode | undefined, state: () => LogNicknameTarget) {
-  const target = state()
-  const mode = gameMode ?? target.raidMode ?? target.activeProfile.selectedMode
-  const change = noteConfirmedNickname(nickname, source, observedAt, mode, target.activeProfile)
-  if (!change || !target.resetModeProgress) return false
-  target.resetModeProgress(change.mode, change.at, 'nickname')
-  return true
 }
 
 /** Minutes between the background lookups of a profile Tarkov.dev does not have yet (the last one repeats). */
@@ -227,15 +208,14 @@ export function bindNicknameFromLogs(result: Pick<ModeLogScanResult, 'latestAcco
  * The game's «Выбор профиля и режима» cards (an OCR reading and the digits' shapes agreed on each level,
  * electron/screenOcr.ts): every mode's level at once, and the nickname when all the cards that read one show the same.
  * The spelling the app knows stays when the screen shows the same name; another name replaces it (the player renamed
- * the character, or typed it wrong).
+ * the character, or typed it wrong). Another nickname resets nothing: every mode keeps its progress (owner, 25.11.2026:
+ * «При смене ника не нужно сбрасывать прогресс»).
  */
-export function applyModeSelectScreen(cards: ModeSelectCard[], observedAt: number, state: () => LogNicknameTarget, gameMode?: RaidMode) {
+export function applyModeSelectScreen(cards: ModeSelectCard[], observedAt: number, state: () => LogNicknameTarget) {
   if (!cards.length) return
   const at = new Date(observedAt).toISOString()
   const nickname = screenNickname(cards, knownNickname(state().activeProfile))
-  // A new nickname (seen again on a later reading) resets the game's mode first: the levels of this reading then count.
-  const reset = nickname ? checkNicknameChange(nickname, 'screen', observedAt, gameMode, state) : false
-  const same = !reset && screen && observedAt - screen.at < 10 * 60_000 && screen.nickname === nickname
+  const same = screen && observedAt - screen.at < 10 * 60_000 && screen.nickname === nickname
     && screen.cards.length === cards.length && cards.every((card) => screen!.cards.some((seen) => seen.mode === card.mode && seen.level === card.level))
   // The same screen read again a second later: nothing new.
   if (same) return
@@ -272,10 +252,10 @@ export function keepTraderScreen(reading: TraderScreenReading, mode: RaidMode | 
  * The app is unlocked: what was read before is applied now, as if just read — at its own time, so newer data still wins
  * (src/domain/progress.ts). A traders' reading whose mode was not known then gives its nickname only.
  */
-export function applyKeptIdentity(state: () => LogNicknameTarget, gameMode?: RaidMode) {
+export function applyKeptIdentity(state: () => LogNicknameTarget) {
   const { modeSelect, trader } = kept
   kept = {}
-  if (modeSelect) applyModeSelectScreen(modeSelect.cards, modeSelect.observedAt, state, gameMode)
+  if (modeSelect) applyModeSelectScreen(modeSelect.cards, modeSelect.observedAt, state)
   if (trader) applyTraderScreen(trader.reading, trader.mode, trader.observedAt, state)
 }
 
@@ -299,7 +279,7 @@ export function applyTraderScreen(reading: TraderScreenReading, mode: RaidMode |
   lastTrader = { at: observedAt, key }
   const at = new Date(observedAt).toISOString()
   if (reading.level && mode) state().applyScreenLevel(mode, reading.level, at, true)
-  const nickname = reading.nickname ? screenNickname([{ nickname: reading.nickname }], knownNickname(state().activeProfile)) : null
+  const nickname = reading.nickname ? screenNickname([{ nickname: reading.nickname, ...(reading.zeros ? { zeros: reading.zeros } : {}) }], knownNickname(state().activeProfile)) : null
   if (nickname) {
     if (!best || at > best.updatedAt) best = { nickname, updatedAt: at }
     spreadNickname(state, best.nickname)
@@ -310,15 +290,13 @@ export function applyTraderScreen(reading: TraderScreenReading, mode: RaidMode |
 /**
  * «Указать вручную» / «Сменить ник»: checked like the game's (3–15 Latin letters, digits, «_» or «-»), saved at once —
  * bound to the logs' game accounts, given to every other bound mode, saved on the signed-in account — and the background
- * lookups are asked to try once more now. Tarkov.dev's or the game screen's nickname, found later, replaces it.
+ * lookups are asked to try once more now. Tarkov.dev's or the game screen's nickname, found later, replaces it. No mode's
+ * progress is reset by it (owner, 25.11.2026).
  */
 export async function setTypedNickname(raw: string, state: () => LogNicknameTarget) {
   const nickname = cleanNickname(raw)
   if (!NICKNAME_PATTERN.test(nickname)) throw new Error('Ник в игре: 3–15 символов, латиница, цифры, «_» или «-».')
-  const now = Date.now()
-  const verifiedAt = new Date(now).toISOString()
-  // Another nickname than the confirmed one: the mode the app shows starts again (src/account/nicknameChange.ts).
-  checkNicknameChange(nickname, 'typed', now, undefined, state)
+  const verifiedAt = new Date().toISOString()
   typed = nickname
   best = undefined
   bindModes(state, nickname, verifiedAt)

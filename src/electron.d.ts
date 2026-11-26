@@ -7,6 +7,7 @@ import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
 import type { ModeSelectCard, TraderScreenReading } from './import/modeSelectScreen'
 import type { FleaReading } from './import/fleaReading'
+import type { GameLanguage } from './import/gameLanguage'
 import type { LogSearchReport } from './import/logSearchReport'
 import type { ScreenTuningApi } from './screen/screenApi'
 
@@ -257,10 +258,13 @@ interface TarkovDesktopApi {
   /**
    * One look at the game for the quest scanner (electron/screenOcr.ts). `raid`: a raid is likely (electron/experimental/raidSignals.ts),
    * nothing was copied. `busy`: an item lookup or a Kappa scan runs (electron/ocrQueue.ts), nothing was copied. `freshGame`: the
-   * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
+   * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts). `language`: the game's
+   * language the look read in (src/import/gameLanguage.ts; apps from 24.11.2026).
    */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number; flea?: { reading?: FleaReading } }>
-  captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number; flea?: { reading?: FleaReading }; language?: GameLanguage }>
+  /** Video cards, memory, battery for a «Скорость и зависания» report (electron/systemBrief.ts); apps from 25.11.2026. */
+  systemBrief?: () => Promise<string>
+  captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading; language?: GameLanguage } | null>
   /**
    * The locked app's identity reader (electron/screenOcr.ts captureIdentityFrame): only right after a new game window
    * (`freshGame`) is the screen copied, and only the mode selection (`profiles`) and the traders' screen (`trader`) read.
@@ -269,7 +273,7 @@ interface TarkovDesktopApi {
   captureIdentityFrame?: () => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
-  scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number }>
+  scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number; language?: GameLanguage }>
   /** Alt + the wheel from the game steps the map's floors (electron/mapFloorWheel.ts), for the accounts given it. */
   mapFloorWheel?: { enable: (on: boolean) => void; onStep: (callback: (step: 1 | -1) => void) => () => void }
   /** «Настройка экрана» and «Оптимизировать компьютер» (the PC app). */

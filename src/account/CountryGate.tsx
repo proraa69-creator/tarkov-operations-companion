@@ -4,7 +4,7 @@ import { uiLabel } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { cleanIpcError, logoutFromServer } from '../sync/serverSync'
 import { CountryPicker, type CountryChoice } from '../components/CountryPicker'
-import { saveInitialCountry, useCountryGate } from './initialCountry'
+import { accountCountry, saveInitialCountry, useCountryGate } from './initialCountry'
 import './countryGate.css'
 
 /**
@@ -21,7 +21,7 @@ export function CountryGate() {
 }
 
 export function CountryGateDialog({ onSaved, onSignOut }: { onSaved: () => void; onSignOut: () => void }) {
-  const { locale } = useLocale()
+  const { locale, applyAccountCountry } = useLocale()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const dialog = useRef<HTMLElement>(null)
@@ -30,7 +30,9 @@ export function CountryGateDialog({ onSaved, onSignOut }: { onSaved: () => void;
     setBusy(true)
     setError('')
     try {
-      await saveInitialCountry(choice)
+      const view = await saveInitialCountry(choice)
+      // The country just named: its language on a new install, unless the player picked one himself (src/i18n/LocaleProvider.tsx).
+      applyAccountCountry(accountCountry(view) ?? ('country' in choice ? choice.country : undefined))
       onSaved()
     } catch (reason) {
       const message = cleanIpcError(reason)

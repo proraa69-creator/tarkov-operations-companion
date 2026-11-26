@@ -1,3 +1,4 @@
+import { matchesSearchQuery } from '../shared/textSearch'
 import { uiText } from '../i18n/renderText'
 import { useMemo, useState } from 'react'
 import { Heart, PackageSearch, Search, ShoppingCart, Star } from 'lucide-react'
@@ -17,8 +18,7 @@ export function ItemsPage() {
   const selected = data.items.find((item) => item.id === selectedId) ?? data.items[0]
   const categories = ['Все категории', ...new Set(data.items.map((item) => item.category))]
   const filtered = useMemo(() => data.items.filter((item) => {
-    const text = `${item.name} ${item.shortName}`.toLowerCase()
-    return text.includes(query.toLowerCase()) && (category === 'Все категории' || item.category === category)
+    return matchesSearchQuery(query, item.name, item.shortName) && (category === 'Все категории' || item.category === category)
   }).slice(0, 120), [data.items, query, category])
 
   if (!selected) return null

@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useMemo, useState } from 'react'
 import { BookOpen, Check, KeyRound, Minus, PackageX, Plus, ScanSearch, Search, Target } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -58,11 +59,11 @@ export function QuestItemsPage() {
     return storyOnly ? rows : rows.sort((a, b) => (data.traders.findIndex((entry) => entry.name === a.name) + 1 || 99) - (data.traders.findIndex((entry) => entry.name === b.name) + 1 || 99))
   }, [everything.items, data.traders, neededBy, storyOnly])
 
-  const needle = query.trim().toLowerCase()
+  const terms = searchTerms(query)
   const visible = needs.items.filter((need) => {
     const item = items.get(need.itemId)
     if (firOnly && !need.foundInRaid) return false
-    return !needle || Boolean(item && (item.name.toLowerCase().includes(needle) || item.shortName.toLowerCase().includes(needle)))
+    return !terms.length || Boolean(item && matchesSearchTerms(terms, item.name, item.shortName))
   })
   const size = (need: QuestNeed) => span(items.get(need.itemId)?.width, 3) * stashRows(items.get(need.itemId), 3)
   // A place that never changes while the player counts (owner, 19.11.2026: «Перемещаться предметы не должны вообще… если собраны все,
@@ -125,7 +126,7 @@ export function QuestItemsPage() {
             {done.map((need) => <QuestStashItem key={need.itemId} need={need} item={items.get(need.itemId)} selected={need.itemId === selectedId} onSelect={() => setSelectedId(need.itemId)} profileId={profileId} />)}
           </div>
         </>}
-        {!open.length && !done.length && <p className="dim hs-empty">{uiText(needle ? 'Ничего не нашлось' : storyOnly ? 'Сюжету больше ничего не нужно' : firOnly ? 'Оставшимся квестам не нужны предметы «найдено в рейде»' : 'Квестам больше ничего не нужно')}</p>}
+        {!open.length && !done.length && <p className="dim hs-empty">{uiText(terms.length ? 'Ничего не нашлось' : storyOnly ? 'Сюжету больше ничего не нужно' : firOnly ? 'Оставшимся квестам не нужны предметы «найдено в рейде»' : 'Квестам больше ничего не нужно')}</p>}
       </section>
 
       <aside className="panel hs-detail" aria-live="polite">

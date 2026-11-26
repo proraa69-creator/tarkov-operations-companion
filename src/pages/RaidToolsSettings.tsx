@@ -154,6 +154,7 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
               />
               {/* «Настройка экрана»: on/off and the next preset (owner, 28.10.2026: «клавиши сюда добавь»). */}
               <PresetKeyRows />
+              {/* «Язык игры» is the app's language (owner, 25.11.2026): no row of its own (src/import/gameLanguageSync.ts). */}
             </div>
           </section>
 

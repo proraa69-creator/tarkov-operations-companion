@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createLocalProfile, createModeProgress } from '../domain/progress'
@@ -95,7 +95,7 @@ afterEach(() => {
   for (const notice of probe.notices ?? []) dismissModeResetNotice(notice.id)
 })
 
-describe('resetModeProgress: one mode starts again («Престиж +», «Вайп», «Сброс», a nickname change)', () => {
+describe('resetModeProgress: one mode starts again («Престиж +», «Вайп», «Сброс»; a new nickname resets nothing)', () => {
   it('wipes every progress record of PvE and keeps PvP and Season byte for byte', async () => {
     // «Избранное» aside: one list for every mode of a profile, it goes with the press (below).
     const others = (modes: Record<RaidMode, ModeProgress>) => JSON.stringify({ pvp: { ...modes.pvp, favoriteItemIds: [] }, seasonal: { ...modes.seasonal, favoriteItemIds: [] } })
@@ -197,19 +197,6 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
     expect(localStorage.getItem('raid-os-gun-flea-v3:pvp')).not.toBeNull()
   })
 
-  it('a new nickname comes by itself: the mode\'s progress goes, the player\'s lists stay', () => {
-    deferQuest('local-test', 'pve', QUEST, 1_000)
-    act(() => state.resetModeProgress('pve', '2026-10-10T12:00:00.000Z', 'nickname'))
-    const pve = mode('pve')
-    expect(pve.taskProgress).toEqual({})
-    expect(pve.trackedTaskIds).toEqual([OTHER])
-    expect(pve.favoriteItemIds).toEqual(['ledx'])
-    expect(pve.raidItemIds).toEqual(['salewa'])
-    expect(mode('pvp').favoriteItemIds).toEqual(['ledx'])
-    // A new character has no quests put aside.
-    expect(readDeferredQuests('local-test', 'pve').size).toBe(0)
-  })
-
   it('says what it clears before it is pressed, in both languages', () => {
     for (const text of [wipePrestigeText('pve', 'ru'), rebuildResetText('pve', 'ru')]) {
       expect(text.question).toContain('избранное (оно общее для всех режимов), отслеживаемые квесты, список на рейд и отложенные квесты')
@@ -274,9 +261,13 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
     expect(Object.keys(mode('pve').taskProgress).sort()).toEqual([QUEST, OTHER].sort())
   })
 
-  it('a new nickname: no floor, a pending marker the game\'s own reset resolves', () => {
+  it('a pending marker a nickname change left up to 0.6.0.345: no floor, the game\'s own reset resolves it', () => {
     const at = '2026-10-10T12:00:00.000Z'
-    act(() => state.resetModeProgress('pve', at, 'nickname'))
+    const profile = savedProfile()
+    profile.modes.pve = { ...profile.modes.pve, taskProgress: {}, resetMarker: { kind: 'nickname', at } }
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({ activeProfileId: 'local-test', profiles: [profile] }))
+    cleanup()
+    render(<AppStateProvider><Probe /></AppStateProvider>)
     act(() => state.applyLogScanForMode('pve', OLD_LOGS, { characterId: CHARACTER }))
     expect(Object.keys(mode('pve').taskProgress).sort()).toEqual([QUEST, OTHER].sort())
     expect(mode('pve').resetMarker).toEqual({ kind: 'nickname', at })
@@ -296,8 +287,6 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
   })
 
   it('tells the reset in Russian and English', () => {
-    expect(modeResetMessage('nickname', 'pve', 'ru')).toBe('Ник изменился — прогресс режима PvE сброшен')
-    expect(modeResetMessage('nickname', 'pve', 'en')).toBe('Nickname changed — PvE progress was reset')
     expect(modeResetMessage('prestige', 'seasonal', 'ru')).toBe('Престиж — прогресс режима Сезон сброшен, квесты начнутся заново')
     expect(modeResetMessage('prestige', 'seasonal', 'en')).toBe('Prestige — Season progress was reset, quests start over')
     expect(modeResetMessage('wipe', 'pvp', 'ru')).toBe('Вайп — прогресс режима PvP сброшен, квесты начнутся заново')

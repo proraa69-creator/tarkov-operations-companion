@@ -1,4 +1,5 @@
 import type { Item } from '../domain/types'
+import { foldTurkishI, squeezeCjkSpaces } from '../shared/cjk'
 
 interface Entry {
   item: Item
@@ -15,12 +16,12 @@ const HOMOGLYPHS: Record<string, string> = {
 }
 
 export function normalizeOcr(value: string) {
-  return value
+  return squeezeCjkSpaces(foldTurkishI(value)
     .toLowerCase()
     .replace(/[авекмнорстухё0]/g, (char) => HOMOGLYPHS[char] ?? char)
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .replace(/\s+/g, ' ')
-    .trim()
+    .trim())
 }
 
 function trigrams(value: string) {

@@ -39,6 +39,10 @@ export const SETTING_HELP = {
     ru: 'Когда загрузка закончилась и рейд начался, появляется карточка с картой рейда. На телефоне — уведомление.',
     en: 'When the loading is over and the raid begins, a card with the map of the raid shows. On the phone, a notification.',
   },
+  exitRequirements: {
+    ru: 'Сигнальный патрон, нужный только для выхода с карты, в «Требованиях рейда» на «Обзоре». Выключите, если путаете его с квестовым: всё для квестов останется.',
+    en: 'The flare needed only to leave the map by an exit, in «Raid requirements» on the Overview. Turn it off if you take it for a quest\'s: all quest items stay.',
+  },
   raidSmoke: {
     ru: 'Украшение: зелёный дым за фигурами боссов в карточке рейда на «Обзоре». Выключите, чтобы снизить нагрузку.',
     en: 'A decoration: green smoke behind the boss figures on the Overview raid card. Turn it off to reduce the load.',

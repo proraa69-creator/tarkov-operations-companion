@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarClock, Hourglass, Infinity as Forever, Package, TrendingUp, X } from 'lucide-react'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -62,7 +62,7 @@ const dayWord = (count: number, en: boolean) => {
   return ones === 1 && tens !== 11 ? 'день' : ones >= 2 && ones <= 4 && (tens < 12 || tens > 14) ? 'дня' : 'дней'
 }
 
-const when = (time: number, locale: AppLocale) => new Date(time).toLocaleString(locale, { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
+const when = (time: number, locale: AppLocale) => new Date(time).toLocaleString(languageTag(locale), { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
 
 /** «Барахолка» / «Механик · лояльность 2». */
 function sourceTitle(source: UnlockSource, en: boolean) {

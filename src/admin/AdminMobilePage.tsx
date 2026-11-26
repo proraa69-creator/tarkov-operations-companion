@@ -10,13 +10,13 @@ import { uiLabel, uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
 import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
-import { SupportComposer, SupportMessageList, SupportReportCard } from '../support/SupportChat'
+import { SupportComposer, SupportMessageList, SupportReportAnswerPlate, SupportReportCard } from '../support/SupportChat'
 import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
-import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from '../support/supportChatTools'
+import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply, useSupportReportAnswer, type SupportReportAnswer } from '../support/supportChatTools'
 import { useLocale } from '../i18n/LocaleProvider'
 import {
   adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPhones, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
-  type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
+  type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportSearchUser, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
   type AdminUserFilter, type AdminUserRegion, type BugReportDetail,
   type PaymentStatus, type PlanId,
 } from './adminApi'
@@ -37,6 +37,7 @@ import { usePersonMenu } from './personMenu'
 import { AccountProfile } from './AccountProfile'
 import './adminMobile.css'
 import { ruDays } from '../i18n/ruPlural'
+import { SheetPortal } from './SheetPortal'
 
 /**
  * «Стикеры» (owner, 07.11.2026: «в админ приложении на телефоне сделай мне функцию добавлять стикеры»): the packs and the
@@ -128,6 +129,8 @@ export function AdminMobilePage() {
   const [focusReport, setFocusReport] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
+  // «Разъяснить» on a bug (owner, 25.11.2026): the chat with its author opens with the answer to that report ready.
+  const [threadAnswer, setThreadAnswer] = useState<SupportReportAnswer | null>(null)
   // «Посмотреть профиль» (owner, 24.11.2026): a long press on a person in «Чаты», or the open chat's head.
   const [profileOf, setProfileOf] = useState<{ accountId: string; name?: string } | null>(null)
   const [error, setError] = useState('')
@@ -141,6 +144,8 @@ export function AdminMobilePage() {
   const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'ads' | 'news' | 'stickers' | null>(null)
   // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
   const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
+  // «Стримеры» → красный счётчик новых заявок на вывод (owner, 25.11.2026).
+  const [payoutPending, setPayoutPending] = useState(0)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search), 300)
@@ -155,6 +160,14 @@ export function AdminMobilePage() {
     adminApi.referrals('', 'invited').then(() => { if (active) setReferrals(true) }, (reason: unknown) => { if (active && (reason as { status?: number }).status === 404) setReferrals(false) })
     return () => { active = false }
   }, [version])
+  // Payout requests waiting for the owner: on open, every 5 minutes, on «Обновить», and when the streamers sheet closes.
+  useEffect(() => {
+    let active = true
+    const load = () => adminApi.payoutAttention().then((answer) => { if (active) setPayoutPending(answer.count) }, () => {})
+    load()
+    const timer = window.setInterval(load, 5 * 60_000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [version, sheet])
 
   const paymentFilter = useMemo<AdminPaymentQuery>(() => ({
     status: paymentStatus, ...(paymentPlan ? { plan: paymentPlan } : {}), ...(paymentQuery.trim() ? { q: paymentQuery.trim() } : {}),
@@ -291,11 +304,12 @@ export function AdminMobilePage() {
     catch (reason) { setError(errorText(reason)) }
   }
 
-  const openChat = (accountId: string) => {
+  const openChat = (accountId: string, answer: SupportReportAnswer | null = null) => {
     setSection('chats')
     setSelected(null)
     setSelectedReport(null)
     setProfileOf(null)
+    setThreadAnswer(answer)
     setSelectedThread(accountId)
   }
   const openProfile = (accountId: string, name?: string) => setProfileOf({ accountId, ...(name ? { name } : {}) })
@@ -335,7 +349,7 @@ export function AdminMobilePage() {
         {/* «Стримеры» and «Пригласи друга» as the site's tabs (owner, 03.11.2026), each in its own window. No «История
           обновлений» (owner, 15.11.2026): it is in «Обновление», where it is read and edited. */}
         <div className="admin-quick-links">
-          <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span>{payoutPending > 0 && <span className="admin-quick-badge" aria-label={uiText(`новых заявок на вывод: ${payoutPending}`)}>{payoutPending > 99 ? '99+' : payoutPending}</span>}<ChevronRight size={16} /></button>
           {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
           {/* «Реклама» (owner, 09.11.2026): переходы, регистрации и оплаты по ссылке рекламы Reddit. */}
           <button type="button" onClick={() => setSheet('ads')}><Megaphone size={18} /><span>{uiText('Реклама')}</span><ChevronRight size={16} /></button>
@@ -357,7 +371,7 @@ export function AdminMobilePage() {
         ) : section === 'payments' && payments.data ? (
           <PaymentsSection
             data={payments.data} period={period} status={paymentStatus} plan={paymentPlan} search={paymentSearch} custom={customDates}
-            onPeriod={setPeriod} onStatus={setPaymentStatus} onPlan={setPaymentPlan} onSearch={setPaymentSearch} onCustom={setCustomDates} onChanged={reload}
+            onPeriod={setPeriod} onStatus={setPaymentStatus} onPlan={setPaymentPlan} onSearch={setPaymentSearch} onCustom={setCustomDates} onChanged={reload} onOpenProfile={openProfile}
           />
         ) : section === 'chats' && threads.data ? (
           <ChatsSection threads={threads.data} onOpenChat={openChat} onOpenProfile={openProfile} />
@@ -378,6 +392,7 @@ export function AdminMobilePage() {
               onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}
               onReward={async (id, days) => { await adminApi.rewardReport(id, days); reportsChanged() }}
               onAcceptPoint={async (id) => { await adminApi.acceptPoint(id); reportsChanged() }}
+              onExplain={(row) => { if (row.accountId) openChat(row.accountId, { id: row.id, title: row.topic }) }}
               loadImage={(row, index) => adminApi.bugReportImage(row.id, index)}
               onOpen={(row) => void openReport(row.id)}
             />
@@ -393,7 +408,7 @@ export function AdminMobilePage() {
 
       {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} onOpenChat={openChat} />}
       {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); reportsChanged() }} />}
-      {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} onOpenProfile={openProfile} />}
+      {selectedThread && <ChatSheet key={`${selectedThread}:${threadAnswer?.id ?? ''}`} accountId={selectedThread} answer={threadAnswer} onClose={() => { setSelectedThread(null); setThreadAnswer(null) }} onChanged={chatChanged} onOpenProfile={openProfile} />}
       {profileOf && <ProfileSheet accountId={profileOf.accountId} name={profileOf.name} onClose={() => setProfileOf(null)} onOpenChat={openChat} />}
       {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
       {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
@@ -417,8 +432,22 @@ function ChatsSection({ threads, onOpenChat, onOpenProfile }: { threads: AdminSu
   const { locale } = useLocale()
   const people = usePersonMenu()
   const nameOf = (thread: AdminSupportThreads['threads'][number]) => thread.nickname || thread.email || uiText('Пользователь')
+  const search = useAccountSearch()
   return <section className="admin-block">
-    <div className="admin-list admin-chat-list">
+    {/* «Найти по почте» (owner, 26.11.2026: «в чате нету функции найти пользователя по логину, ну по почте»): anyone with an
+        account, with a conversation or not; a tap opens the chat, a long press the profile */}
+    <label className="admin-search admin-chat-search"><Search size={17} /><input value={search.query} onChange={(event) => search.setQuery(event.target.value)} placeholder={uiText('Найти по почте')} aria-label={uiText('Найти по почте')} inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} />{search.query && <button type="button" onClick={() => search.setQuery('')} aria-label={uiText('Очистить')}><X size={16} /></button>}</label>
+    {search.active ? <div className="admin-list admin-chat-list admin-chat-found">
+      {!search.result ? <div className="admin-chat-searching" role="status" aria-label={uiText('Ищем…')}><LoaderCircle size={18} className="spin" /></div>
+        : search.result.error ? <div className="admin-inline-error" role="alert">{uiText(search.result.error)}</div>
+        : search.result.users.length ? search.result.users.map((user) => <button type="button" className="admin-user-row admin-chat-row" key={user.id} onClick={() => onOpenChat(user.id)}
+          {...people.bind({ accountId: user.id, name: user.nickname || user.email })}>
+          <span className="admin-payment-icon pending"><UserRound size={18} /></span>
+          <span className="admin-row-copy"><strong>{user.nickname || user.email}</strong><small>{[user.nickname ? user.email : '', user.hasThread ? '' : uiText('переписки нет')].filter(Boolean).join(' · ')}</small></span>
+          <ChevronRight size={17} />
+        </button>)
+        : <AdminEmpty text="Никого не нашли" />}
+    </div> : <div className="admin-list admin-chat-list">
       {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}
         {...people.bind({ accountId: thread.accountId, name: nameOf(thread) })}>
         <span className="admin-payment-icon pending"><MessagesSquare size={18} /></span>
@@ -427,18 +456,38 @@ function ChatsSection({ threads, onOpenChat, onOpenProfile }: { threads: AdminSu
         <ChevronRight size={17} />
       </button>)}
       {!threads?.threads.length && <AdminEmpty text="Переписок пока нет" />}
-    </div>
+    </div>}
     <ChatPersonMenu menu={people.menu} onClose={people.close} onProfile={(accountId) => onOpenProfile(accountId, people.menu?.name)} onChat={onOpenChat} />
   </section>
 }
 
+/** «Найти по почте» of «Чаты»: the accounts whose e-mail has the words (2 letters at least), asked a moment after typing stops. */
+function useAccountSearch() {
+  const [query, setQuery] = useState('')
+  const [found, setFound] = useState<{ query: string; users: AdminSupportSearchUser[]; error?: string } | null>(null)
+  const text = query.trim()
+  useEffect(() => {
+    if (text.length < 2) return
+    let live = true
+    const timer = window.setTimeout(() => {
+      adminApi.supportSearch(text).then(
+        (answer) => { if (live) setFound({ query: text, users: answer.users }) },
+        (reason: unknown) => { if (live) setFound({ query: text, users: [], error: errorText(reason) }) },
+      )
+    }, 300)
+    return () => { live = false; window.clearTimeout(timer) }
+  }, [text])
+  const active = text.length >= 2
+  return { query, setQuery, active, result: active && found?.query === text ? found : null }
+}
+
 /** «Посмотреть профиль»: the player's whole account on a full screen sheet (admin/AccountProfile.tsx). */
 function ProfileSheet({ accountId, name, onClose, onOpenChat }: { accountId: string; name?: string; onClose: () => void; onOpenChat: (accountId: string) => void }) {
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet account-profile-sheet" role="dialog" aria-modal="true" aria-label={uiText(name ? `Профиль ${name}` : 'Профиль')}>
       <AccountProfile accountId={accountId} name={name} load={adminApi.profile} onBack={onClose} onOpenChat={onOpenChat} variant="sheet" />
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugReportDetail; onClose: () => void; onUpdated: (report: BugReportDetail) => void; onOpenChat: (accountId: string) => void }) {
@@ -479,7 +528,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
   }
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet" role="dialog" aria-modal="true" aria-label={uiText(detail.topic)}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{detail.topic}</strong><small>{detail.email ?? uiText('Без почты')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
@@ -515,7 +564,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
       </div>
       {expanded && <div className="admin-report-lightbox" role="dialog" aria-modal="true" aria-label={uiText('Просмотр скриншота')} onClick={() => setExpanded('')}><button type="button" className="icon-button" aria-label={uiText('Закрыть')} onClick={() => setExpanded('')}><X size={22} /></button><img src={expanded} alt={uiText('Скриншот отчёта')} onClick={(event) => event.stopPropagation()} /></div>}
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 /**
@@ -562,7 +611,8 @@ function RevenueCards({ data }: { data: AdminOverview | null }) {
     { title: 'За всё время', revenue: data?.revenue.all, repeat: data?.repeatPayers },
   ]
   return <section className="admin-revenue-cards" aria-label={uiText('Выручка')}>
-    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${revenue?.repeat === undefined ? '' : ` · повторных: ${count.format(revenue.repeat)}`}`)}</small>{repeat !== undefined && <small>{uiText(`оплатили повторно: ${count.format(repeat)}`)}</small>}</article>)}
+    {/* «Грязными» (большое) и «чистыми» (net). «Повторных» — только в сегодня/месяце; в «За всё время» один показатель «оплатили повторно» (owner, 25.11.2026). */}
+    {cards.map(({ title, revenue, repeat }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong>{revenue?.net !== undefined && <small className="admin-revenue-net">{uiText(`Чистыми: ${money(revenue.net)}`)}</small>}<small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}${revenue?.repeat !== undefined && repeat === undefined ? ` · повторных: ${count.format(revenue.repeat)}` : ''}`)}</small>{repeat !== undefined && <small>{uiText(`оплатили повторно: ${count.format(repeat)}`)}</small>}</article>)}
   </section>
 }
 
@@ -671,12 +721,14 @@ function UsersSection({ users, total, region, regions, filter, search, onRegion,
 }
 
 /** «Платежи», as on the site: the period (or «Даты»), the status, the plan, a search by e-mail, totals, every payment. */
-function PaymentsSection({ data, period, status, plan, search, custom, onPeriod, onStatus, onPlan, onSearch, onCustom, onChanged }: {
+function PaymentsSection({ data, period, status, plan, search, custom, onPeriod, onStatus, onPlan, onSearch, onCustom, onChanged, onOpenProfile }: {
   data: AdminPayments | null; period: AdminPaymentPeriod; status: PaymentStatus | 'all'; plan: PlanId | ''; search: string; custom: { from: string; to: string }
   onPeriod: (value: AdminPaymentPeriod) => void; onStatus: (value: PaymentStatus | 'all') => void; onPlan: (value: PlanId | '') => void
   onSearch: (value: string) => void; onCustom: (value: { from: string; to: string }) => void
   /** A payment amount was changed or a refund marked: the list and the totals are read again. */
   onChanged?: () => Promise<unknown> | void
+  /** A payment opens its payer's profile, and from it the chat (owner, 26.11.2026). */
+  onOpenProfile?: (accountId: string, name: string) => void
 }) {
   const serverPlans = data?.totals.plans
   const breakdown = useMemo(() => {
@@ -709,12 +761,14 @@ function PaymentsSection({ data, period, status, plan, search, custom, onPeriod,
       <div className="admin-payment-total">
         <span><Check size={18} />{uiText('Оплачено')}</span><strong>{money(data?.totals.revenue ?? 0)}</strong><small>{uiText(`${data?.totals.succeeded ?? 0} успешных платежей`)}</small>
         {data?.totals.net !== undefined && <small className="admin-payment-net">{uiText(`Чистыми: ${money(data.totals.net)}`)}</small>}
+        {/* what «Чистыми» took off (owner, 26.11.2026: «сколько суммы чистыми») */}
+        {data?.totals.fees !== undefined && <small className="admin-payment-net-parts">{uiText(`комиссия −${money(data.totals.fees)} · стримерам −${money(data.totals.streamerEarnings)}`)}</small>}
       </div>
       <div className="admin-plan-grid">
         {(Object.keys(breakdown) as PlanId[]).map((plan) => <article key={plan}><span>{PLAN_LABEL[plan]}</span><strong>{breakdown[plan].count}</strong><small>{money(breakdown[plan].total)}</small></article>)}
       </div>
       <div className="admin-list admin-payment-list">
-        {(data?.payments ?? []).map((payment) => <PaymentRow key={payment.id} payment={payment} onChanged={onChanged} />)}
+        {(data?.payments ?? []).map((payment) => <PaymentRow key={payment.id} payment={payment} onChanged={onChanged} onOpenProfile={onOpenProfile} />)}
         {!data?.payments.length && <AdminEmpty text="За выбранный период платежей нет" />}
       </div>
     </section>
@@ -747,7 +801,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
     finally { setSaving(false) }
   }
 
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet" role="dialog" aria-modal="true" aria-label={uiText(`Пользователь ${user.email}`)}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{user.email}</strong><small>{subscriptionText(user)}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
@@ -786,10 +840,10 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
         </div>
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
-function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId: string; onClose: () => void; onChanged: () => void; onOpenProfile: (accountId: string, name?: string) => void }) {
+function ChatSheet({ accountId, answer, onClose, onChanged, onOpenProfile }: { accountId: string; answer?: SupportReportAnswer | null; onClose: () => void; onChanged: () => void; onOpenProfile: (accountId: string, name?: string) => void }) {
   const [detail, setDetail] = useState<AdminSupportDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -804,6 +858,11 @@ function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId
     } catch (reason) { setError(errorText(reason)) }
     finally { setLoading(false) }
   }, [accountId, onChanged])
+  // «Удалить сообщение» (owner, 26.11.2026): gone for both sides; the conversation is read again.
+  const removeMessage = useCallback(async (message: { id: number }) => {
+    await adminApi.supportDeleteMessage(accountId, message.id)
+    await load()
+  }, [accountId, load])
 
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0)
@@ -817,11 +876,13 @@ function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId
   // Sent at once, the box and the keyboard ready for the next one (owner, 15.11.2026: «после отправки сообщения нельзя
   // сразу отправить второе… Отправка долго думает»): the server's message joins the conversation as it comes, nothing is
   // read again for it.
+  const report = useSupportReportAnswer(answer)
+  const { take } = report
   const sendReply = useCallback(async (text: string, images: SupportImageUpload[], extra: SupportSendExtra) => {
-    const { message } = await adminApi.supportReply(accountId, text, images, undefined, extra)
+    const { message } = await adminApi.supportReply(accountId, text, images, extra.sticker ? undefined : take(), extra)
     setDetail((current) => (current && !current.messages.some((known) => known.id === message.id) ? { ...current, messages: [...current.messages, message] } : current))
     onChanged()
-  }, [accountId, onChanged])
+  }, [accountId, onChanged, take])
   const [sending, send] = useSupportOutbox(detail?.messages ?? [], 'owner', sendReply)
   // «Редактировать» (owner, 15.11.2026): the owner's own messages; the player sees only the new words.
   const editor = useSupportEdit(sending, async (message, text) => {
@@ -845,21 +906,22 @@ function ChatSheet({ accountId, onClose, onChanged, onOpenProfile }: { accountId
     } catch (reason) { setError(errorText(reason)); setDeleting(false) }
   }
   const name = detail?.account.nickname || detail?.account.email || uiText('Чат с пользователем')
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet admin-chat-sheet" role="dialog" aria-modal="true" aria-label={name}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div>
         <div className="admin-sheet-actions"><button type="button" className="icon-button" onClick={() => onOpenProfile(accountId, detail ? name : undefined)} aria-label={uiText('Профиль')}><UserRound size={18} /></button><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></div></header>
       <div className="admin-chat-body">
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
         <SupportMessageList messages={messages} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет."
-          onReact={react} onReply={setReplying} onEdit={editor.start} />
+          onReact={react} onReply={setReplying} onEdit={editor.start} onDelete={removeMessage} />
+        {report.about && <SupportReportAnswerPlate report={report.about} onCancel={report.cancel} />}
         <SupportComposer onSend={send} placeholder="Ответ пользователю…" allowImages allowEmoji allowStickers replyTo={replying} onCancelReply={() => setReplying(null)}
           editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
         <button type="button" className="button danger admin-delete-chat" disabled={deleting} onClick={() => void remove()}>{deleting ? <LoaderCircle size={16} className="spin" /> : <Trash2 size={16} />}{uiText(deleting ? 'Удаляем…' : 'Удалить чат с сервера')}</button>
         <small className="admin-delete-note">{uiText('После удаления переписка не хранится в рабочей базе и не попадает в управляемые резервные копии.')}</small>
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 function subscriptionText(user: AdminUser) {

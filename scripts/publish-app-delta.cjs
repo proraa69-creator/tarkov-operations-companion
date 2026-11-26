@@ -1,6 +1,6 @@
 // Partial update of the app (electron/appDelta.ts): puts the players' app.asar of this build, unchanged, next to the
 // site, so a copy downloads only the files that changed (HTTP Range):
-//   website/dist/app-delta/app.asar, app.asar.unpacked/…, info.json
+//   website/dist/app-delta/app.asar, app.asar.unpacked/…, info.json, resources/tessdata/… (the OCR models)
 // Called from the afterPack hook (scripts/pack-windows-native.cjs) for the client edition, and only when the website of
 // this checkout is already built (the VPS release builds the site first, then both Windows editions). The players' exe
 // is public anyway; the owner build's files (e-mails, edition) never go here. info.json carries the archive's size and
@@ -116,6 +116,9 @@ function publishAppDelta({ root, appOutDir }) {
   mkdirSync(out, { recursive: true })
   cpSync(archive, join(out, 'app.asar'))
   if (existsSync(`${archive}.unpacked`)) cpSync(`${archive}.unpacked`, join(out, 'app.asar.unpacked'), { recursive: true })
+  // The release's OCR models, for a copy updated in parts whose folder lacks one (electron/ocrEngine.ts; owner, 25.11.2026:
+  // «установилось один раз … только частичное обновление»): /app-delta/resources/tessdata/<lang>.traineddata.
+  if (existsSync(join(resources, 'tessdata'))) cpSync(join(resources, 'tessdata'), join(out, 'resources', 'tessdata'), { recursive: true })
   const published = join(out, 'app.asar')
   const dataStart = 8 + headerSize
   const manifest = {

@@ -209,11 +209,17 @@ function RevenueCard({ title, revenue, repeatPayers }: { title: string; revenue:
   return (
     <div className="stat-card admin-revenue-card">
       <div className="stat-label"><LineChart aria-hidden="true" />{title}</div>
-      <div className="stat-value mono">{rub(revenue.total)}</div>
+      <div className="stat-value mono">{rub(revenue.total)}<span className="admin-revenue-gross-tag">грязными</span></div>
+      {revenue.net !== undefined && (
+        <div className="admin-revenue-net mono" title="Чистыми = грязными − доля стримеров − комиссия платёжных систем">Чистыми: {rub(revenue.net)}</div>
+      )}
       <dl className="admin-split">
         <div><dt>Оплат</dt><dd className="mono">{numberFormat.format(revenue.payments)}</dd></div>
-        {revenue.repeat !== undefined && <div><dt>Повторных</dt><dd className="mono">{numberFormat.format(revenue.repeat)}</dd></div>}
+        {/* «Повторных» — только в «сегодня»/«за месяц»; в «За всё время» один показатель «Оплатили повторно» (owner, 25.11.2026). */}
+        {revenue.repeat !== undefined && repeatPayers === undefined && <div><dt>Повторных</dt><dd className="mono">{numberFormat.format(revenue.repeat)}</dd></div>}
         {repeatPayers !== undefined && <div><dt>Оплатили повторно</dt><dd className="mono">{numberFormat.format(repeatPayers)}</dd></div>}
+        {!!revenue.streamerEarnings && <div><dt>Стримерам</dt><dd className="mono">−{rub(revenue.streamerEarnings)}</dd></div>}
+        {!!revenue.fees && <div><dt>Комиссия</dt><dd className="mono">−{rub(revenue.fees)}</dd></div>}
       </dl>
     </div>
   )

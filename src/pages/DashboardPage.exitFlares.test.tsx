@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -11,6 +11,7 @@ import { LocaleProvider } from '../i18n/LocaleProvider'
 import { setRenderLanguage } from '../i18n/renderText'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { deferQuest } from '../progression/deferredQuests'
+import { setExitRequirementsShown } from '../raidprep/exitRequirementsSetting'
 import { DashboardPage } from './DashboardPage'
 
 // Owner, 19.11.2026: the flare an exit needs in «Требования рейда», a line of its own; none while «Прекратить огонь!» is current; the
@@ -128,5 +129,48 @@ describe('«Требования рейда»: the flare of an exit', () => {
     const card = await screen.findByRole('tooltip')
     expect(card).toHaveTextContent('Signal pistol · 26x75')
     expect(card).toHaveTextContent('No pistol needed')
+  })
+})
+
+// Report 235 (owner, 25.11.2026: «Нужно добавить функцию включения и выключения в требованиях рейда реактивного сигнала для выхода.
+// Многие путают»): «Настройки» → «Показывать требования для выхода», on by default.
+describe('«Требования рейда» with «Показывать требования для выхода» off', () => {
+  it('no line for the exit, a quest\'s flare stays; turned on again in the open page, the exit\'s line is back', () => {
+    setExitRequirementsShown(false)
+    const { flareRows } = renderOverview(['green-signal'])
+    expect(flareRows()).toHaveLength(1)
+    expect(flareRows()[0]).toHaveTextContent('Подать сигнал · Зелёный сигнал')
+    expect(flareRows()[0]).not.toHaveTextContent('Для выхода')
+    act(() => setExitRequirementsShown(true))
+    expect(flareRows().map((row) => row.textContent)).toEqual([expect.stringContaining('Подать сигнал · Зелёный сигнал'), expect.stringContaining('Для выхода')])
+  })
+
+  it('«Прекратить огонь!», which leaves by that exit, keeps its flare', () => {
+    setExitRequirementsShown(false)
+    const { flareRows } = renderOverview(['ceasefire'])
+    expect(flareRows()).toHaveLength(1)
+    expect(flareRows()[0]).toHaveTextContent('Подать сигнал · Прекратить огонь!')
+  })
+
+  it('nothing for the quests: the block says there is nothing to take', () => {
+    setExitRequirementsShown(false)
+    const { needs, rows } = renderOverview([])
+    expect(rows()).toHaveLength(0)
+    expect(needs).toHaveTextContent('Для текущих заданий на этой карте нет предметов')
+  })
+
+  it('the phone\'s Overview likewise', () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 390 })
+    try {
+      const shown = renderOverview(['green-signal'])
+      expect(shown.needs).toHaveClass('is-compact')
+      expect(shown.flareRows()).toHaveLength(2)
+      act(() => setExitRequirementsShown(false))
+      expect(shown.flareRows()).toHaveLength(1)
+      expect(shown.flareRows()[0]).not.toHaveTextContent('Для выхода')
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: width })
+    }
   })
 })

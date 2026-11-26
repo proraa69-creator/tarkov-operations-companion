@@ -4,6 +4,12 @@
 /* One table at a time, chosen here (owner, 06.11.2026); on a phone the four buttons wrap rather than leave the screen. */
 .ballistics-bar { align-items: center; }
 .ballistics-tabs { flex-wrap: wrap; }
+/*
+ * On a phone the tabs take two rows or more (owner, 24.11.2026: «кнопки выходят из рамок»): the row's pill becomes a rounded box,
+ * so the rows' ends stay inside its frame, the buttons share each row.
+ */
+:root[data-layout="mobile"][data-layout] .mode-switch.ballistics-tabs { width: 100%; gap: 2px; border-radius: 14px; }
+:root[data-layout="mobile"][data-layout] .mode-switch.ballistics-tabs button { flex: 1 1 auto; border-radius: 10px; }
 .ballistics-round { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .armor-table, .dropoff-table-wrap { overflow-x: auto; }
 @media (max-width: 760px) { .ballistics-scroll .ballistics-scatter { min-width: 680px; } }
@@ -97,3 +103,9 @@
 .dropoff-table tr.is-zero td { background: color-mix(in srgb, var(--brass) 10%, transparent); }
 .dropoff-table td.drop-low { color: var(--text); }
 .dropoff-table td.drop-high { color: var(--success, #6fbf73); }
+/* «Как работает пробитие» (arsenal/PenetrationGuide.tsx, report 226): folded until opened. */
+.penetration-guide > summary { cursor: pointer; list-style: none; }
+.penetration-guide > summary::-webkit-details-marker { display: none; }
+.penetration-guide .panel-title { display: inline-flex; align-items: center; gap: 7px; }
+.penetration-guide:not([open]) > summary { border-bottom: 0; }
+.penetration-guide-list { margin: 0; padding-left: 34px; display: grid; gap: 6px; color: var(--text-dim); font-size: 13px; line-height: 1.45; }

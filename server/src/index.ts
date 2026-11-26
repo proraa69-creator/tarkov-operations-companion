@@ -15,6 +15,7 @@ import { bugReportEmailFromEnv } from './services/bugReportMail.js'
 import { dirname, join } from 'node:path'
 import { mkdirSync, rmSync } from 'node:fs'
 import { MobileDownloads } from './services/mobileDownloads.js'
+import { RussianNetworks } from './services/russianNetworks.js'
 import { iphoneStoreReader } from './services/iphoneStore.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
 import { DataGateway } from './services/dataGateway.js'
@@ -58,10 +59,7 @@ setInterval(releaseInvites, 60 * 60 * 1000).unref()
 const runDeletions = () => { try { accounts.runDueDeletions() } catch (error) { console.error('Scheduled account deletion failed', error instanceof Error ? error.message : 'unknown error') } }
 runDeletions()
 setInterval(runDeletions, 60 * 60 * 1000).unref()
-// Streamer auto-payouts: every hour, request the balance of each streamer whose N-day cycle is over.
-const runAutoPayouts = () => { try { payouts.runAuto((id) => accounts.streamerCode(id)) } catch (error) { console.error('Auto-payout failed', error) } }
-runAutoPayouts()
-setInterval(runAutoPayouts, 60 * 60 * 1000).unref()
+// Streamer auto-payouts were removed (owner, 25.11.2026): the server never creates a payout request on its own.
 // ЮKassa autopayments: every hour, charge the saved method of subscriptions whose paid period ends within a day
 // (only with the payer's autopayment consent and while the owner keeps autopayments on; see PaymentStore.runRecurring).
 const runRecurring = () => { payments.runRecurring().catch((error: unknown) => console.error('Autopayment run failed', error instanceof Error ? error.message : 'unknown error')) }
@@ -165,7 +163,17 @@ const releaseReports = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION =
 const iphoneStore = dbPath === ':memory:' ? undefined : iphoneStoreReader(process.env.RAIDOS_IPHONE_STORE_FILE ?? join(dirname(dbPath), 'iphone-store.json'))
 // «Кочевники» from other trackers beside ours (services/goonFeeds.ts): only on the players' server, never the owner's PC.
 const goonFeeds = dbPath !== ':memory:' && process.env.TARKOV_APP_EDITION !== 'owner' && process.env.RAIDOS_GOON_FEEDS !== '0'
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), goonFeeds, userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, ...(backgroundStatus ? { backgroundStatus: backgroundStatus.sources() } : {}), itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase: backgroundStatus ? { report: () => backgroundStatus.questBase() ?? questBase.report() } : questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+// «Войти через Google» is not for Russia (owner, 25.11.2026): RIPE NCC's Russian address blocks, downloaded at start and
+// once a day, kept in russian-networks.txt beside the database (services/russianNetworks.ts). Only on the players'
+// server, never the owner's PC; RAIDOS_RUSSIAN_NETWORKS=0 turns it off. Until a list is known nobody is refused.
+const russianNetworks = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION === 'owner' || process.env.RAIDOS_RUSSIAN_NETWORKS === '0'
+  ? undefined
+  : new RussianNetworks({ file: join(dirname(dbPath), 'russian-networks.txt'), log: (message) => console.log(message) })
+if (russianNetworks) void russianNetworks.start()
+// Our own content and the account's synced data behind the game data's check (src/shared/paidContent.ts, owner 25.11.2026);
+// RAIDOS_PAID_CONTENT=0 opens them again (e.g. while older phone apps that do not send the device id are still about).
+const paidContent = process.env.RAIDOS_PAID_CONTENT !== '0'
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { paidContent, russianNetworks, iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), goonFeeds, userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, ...(backgroundStatus ? { backgroundStatus: backgroundStatus.sources() } : {}), itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase: backgroundStatus ? { report: () => backgroundStatus.questBase() ?? questBase.report() } : questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

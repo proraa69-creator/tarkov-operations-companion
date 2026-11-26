@@ -18,7 +18,7 @@ async function withLive(run: (ctx: { call: Call; accounts: AccountStore; paid: M
   const now = () => clock
   const paid = new Map<string, number>()
   const accounts = new AccountStore({ ownerEmails: ['owner@example.com'], now })
-  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0 }), referralSeries: () => [] }
+  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }), referralSeries: () => [] }
   accounts.attachSubscriptions(source)
   const entitlements = new EntitlementService(accounts)
   const relay = new LiveRelay(now, options.waitMs ?? 25_000)

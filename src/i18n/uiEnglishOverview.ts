@@ -13,8 +13,12 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'],
   // the flare an exit needs and a flare's hover card in «Требования рейда» (src/raidprep/exitFlares.ts)
   ['Для выхода', 'For the exit'], ['Сигнальный пистолет', 'Signal pistol'], ['Без пистолета', 'No pistol needed'], ['Можно и этим ключом', 'This key works too'], ['Можно и этими ключами', 'These keys work too'],
+  // «Настройки» → «Интерфейс»: the exit's flare on or off (report 235, src/raidprep/exitRequirementsSetting.ts)
+  ['Показывать требования для выхода', 'Show exit requirements'], ['Сигнал для выхода в «Требованиях рейда»', 'The exit flare in «Raid requirements»'],
   // «Требования рейда» without the quests put aside in «Отложенные квесты» (src/components/RaidRequirementsPanel.tsx)
   ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
+  // «Приоритет карт»: what the map tiles count (src/components/MapPriority.tsx)
+  ['Какие квесты считать', 'Which tasks to count'],
   // «Отложить квест» from a right click on an item (src/components/QuestDeferDialog.tsx); the texts with numbers are built
   // in the app's language there
   ['Уведомления', 'Notifications'], ['Уведомлений пока нет.', 'No notifications yet.'],
@@ -73,4 +77,6 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Время в Таркове', 'Time in Tarkov'], ['Сброс торговцев', 'Trader resets'], ['Таймер рейда', 'Raid timer'], ['Что показывать', 'What to show'],
   ['Нет данных о сбросе', 'No reset data'], ['загрузка', 'loading'], ['осталось', 'left'],
   ['время вышло', 'time is up'], ['Рейд не идёт', 'Not in a raid'], ['Прошлый рейд', 'Last raid'], ['Таймеры', 'Timers'],
+  ['До конца рейда', 'Raid time left'], ['Загрузка рейда', 'Raid loading'], ['Идёт рейд', 'Raid running'],
+  ['Сколько осталось времени до конца текущего рейда', 'Time left until the end of the current raid'],
 ]

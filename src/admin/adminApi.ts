@@ -17,8 +17,12 @@ export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streame
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export type AdminRegionCounts = Record<AdminUserRegion, number>
 
-/** `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»). */
-export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number; repeat?: number }
+/**
+ * `repeat` (servers of 15.11.2026 on): of `payments`, those of an account that had paid before («повторные оплаты»).
+ * `net`/`streamerEarnings`/`fees` (servers of 25.11.2026 on): «чистыми» = грязными − доля стримеров − комиссии платёжных
+ * систем (src/shared/revenue.ts).
+ */
+export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number; repeat?: number; net?: number; streamerEarnings?: number; fees?: number }
 export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
@@ -68,7 +72,12 @@ export type AdminRangeStats = Pick<AdminPeriodStats, 'range' | 'users'> & Partia
 
 /** «Стримеры» (server/src/routes/accounts.ts, ownerAdmin.ts, payouts.ts), as on the site. Money in roubles. */
 export interface StreamerStats { visits: number; registrations: number; activeSubscriptions: number; revenue?: { amount: number; currency: string }; earnings: { amount: number; currency: string } }
-export interface OwnerStreamers { streamers: Array<{ email: string; code: string; createdAt?: string; stats: StreamerStats }>; invites: Array<{ code: string; expiresAt: string }> }
+/** A streamer's payout state for the owner (owner, 25.11.2026): balance, requests waiting and the requisites (full). */
+export interface OwnerStreamerPayout {
+  earned: number; paidOut: number; pending: number; available: number; maturing: number; pendingRequests: number
+  details: { phone: string; bank: string; recipient: string } | null
+}
+export interface OwnerStreamers { streamers: Array<{ email: string; code: string; createdAt?: string; stats: StreamerStats; payout?: OwnerStreamerPayout }>; invites: Array<{ code: string; expiresAt: string }> }
 export interface StreamerSeriesRow { period: string; visits: number; registrations: number; payments: number; months: Record<PlanId, number>; revenue?: number; earnings: number }
 export interface OwnerStreamerStats { code: string; period: StatsPeriod; rows: StreamerSeriesRow[]; campaigns: Array<{ campaign: string; visits: number; visits30d: number; lastVisitDay: string }> }
 export interface AdminStreamerSettings { defaultPercent: number; streamers: Array<{ code: string; email: string; percent: number; custom: boolean; linkEnabled: boolean; linkDisabledAt?: string }> }
@@ -82,7 +91,7 @@ export interface OwnerPayout {
   id: string; amount: number; status: PayoutStatus; auto: boolean; createdAt: string; decidedAt?: string; comment?: string; destination: string
   code: string; email: string; phone: string; bank: string; recipient: string
 }
-export interface OwnerPayouts { payouts: OwnerPayout[]; limits: { min: number; max: number } }
+export interface OwnerPayouts { payouts: OwnerPayout[] }
 
 /**
  * «Пригласи друга» (server/src/services/invites.ts adminReferrals, the session «Привлечение друзей»): every account that
@@ -121,6 +130,8 @@ export interface AdminReferrerDetail { referrer: AdminReferrer; friends: AdminRe
 
 export interface AdminPayment {
   id: string
+  /** The payer's account (owner, 26.11.2026: a payment opens the payer's profile). */
+  accountId?: string
   email: string
   plan: PlanId
   provider: PaymentProvider
@@ -140,7 +151,7 @@ export interface AdminPayment {
   invitedBy?: { id: string; email?: string; nickname?: string; deleted?: true }
   /** The owner changed the amount by hand: the amount before the first change and when. */
   amountEdited?: { before: number; at: string }
-  /** Roubles left after the commission, when it was given with a confirmation by hand. */
+  /** A paid one «чистыми»: its sum minus the streamer's share minus the payment system's fee (src/shared/revenue.ts). */
   netAmount?: number
   /** How it was paid (sbp, bank_card, …, bezebee; 'unknown', 'archive'), as the server stores it. */
   method?: string
@@ -149,7 +160,8 @@ export interface AdminPayment {
 export interface AdminPayments {
   payments: AdminPayment[]
   total: number
-  totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number; net?: number; plans?: Record<PlanId, { count: number; revenue: number }> }
+  /** `net`: «Чистыми» — paid minus the streamers' share (`streamerEarnings`) minus the payment systems' `fees`. */
+  totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number; net?: number; fees?: number; plans?: Record<PlanId, { count: number; revenue: number }> }
 }
 
 export interface AdminUser {
@@ -268,6 +280,8 @@ export interface AdminSupportThread {
   accountId: string; email: string; nickname?: string; lastMessage: AdminSupportMessage; lastAt: string; unread: number
 }
 export interface AdminSupportThreads { threads: AdminSupportThread[]; total: number; unread: number }
+/** «Найти по почте» of «Чаты» (server/src/routes/supportChat.ts `support/search`): accounts whose e-mail has the words. */
+export interface AdminSupportSearchUser { id: string; email: string; nickname?: string; hasThread: boolean }
 export interface AdminSupportDetail { account: { id: string; email: string; nickname?: string }; messages: AdminSupportMessage[] }
 
 /**
@@ -438,9 +452,9 @@ export const adminApi = {
   setStreamerLink: (code: string, enabled: boolean) => request<AdminStreamerSettings>('PUT', `/v1/accounts/me/admin/streamers/${encodeURIComponent(code)}/link`, { enabled }),
   revokeStreamer: (code: string) => request<AdminStreamerSettings>('POST', `/v1/accounts/me/admin/streamers/${encodeURIComponent(code)}/revoke`),
   payouts: () => request<OwnerPayouts>('GET', '/v1/accounts/me/admin/payouts'),
+  /** «Стримеры» → красный счётчик: сколько заявок на вывод ждут владельца сейчас. */
+  payoutAttention: () => request<{ count: number }>('GET', '/v1/accounts/me/admin/payouts/attention'),
   decidePayout: (id: string, status: 'paid' | 'rejected', comment?: string) => request<OwnerPayout>('POST', '/v1/accounts/me/admin/payouts/decide', { id, status, ...(comment ? { comment } : {}) }),
-  /** How often (days) streamers may choose their automatic payout. */
-  setPayoutLimits: (min: number, max: number) => request<{ limits: { min: number; max: number } }>('PUT', '/v1/accounts/me/admin/payout-limits', { min, max }),
   referrals: (search: string, sort: ReferralSort) => request<AdminReferrals>('GET', adminPaths.referrals(search, sort), undefined, keep),
   referrer: (id: string) => request<AdminReferrerDetail>('GET', `/v1/accounts/me/admin/referrals/${encodeURIComponent(id)}`),
   /** A reward held for the owner: confirmed (its days to the inviter) or not (owner, 24.11.2026, as «Платежи» → «Награды за друзей» on the site). */
@@ -492,6 +506,10 @@ export const adminApi = {
   orderStickers: (packId: string, ids: string[]) => request<AdminStickerPacks>('POST', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(packId)}/order`, { ids }),
   deleteSticker: (id: string) => request<AdminStickerPacks>('DELETE', `/v1/accounts/me/admin/stickers/${encodeURIComponent(id)}`),
   supportRead: (accountId: string) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/read`),
+  /** «Найти по почте» (owner, 26.11.2026: «в чате нету функции найти пользователя по логину, ну по почте»): 2 letters at least. */
+  supportSearch: (query: string) => request<{ users: AdminSupportSearchUser[] }>('GET', `/v1/accounts/me/admin/support/search?q=${encodeURIComponent(query.trim())}`),
+  /** «Удалить сообщение» (owner, 26.11.2026): any one message of the conversation, gone for both sides. */
+  supportDeleteMessage: (accountId: string, id: number) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/${id}/delete`, {}),
   supportDelete: (accountId: string) => request<void>('DELETE', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
 }
 

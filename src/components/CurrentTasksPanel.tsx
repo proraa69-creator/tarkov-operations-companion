@@ -7,6 +7,7 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { mapLocativePhrase } from '../shared/mapLocative'
 import { useAlignedListHeight } from '../overview/useAlignedListHeight'
+import { useSmoothWheelScroll } from '../overview/useSmoothWheelScroll'
 import { ThumbScroll } from './ThumbScroll'
 
 interface CurrentTasksPanelProps {
@@ -62,6 +63,8 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
   const [openId, setOpenId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const listHeight = useAlignedListHeight(listRef, scrollable, `${layoutKey}|${quests.length}|${anyMapQuests.length}`)
+  // The wheel glides the list instead of jumping a task at a time (owner, 25.11.2026).
+  useSmoothWheelScroll(listRef, scrollable)
   /** Cards once opened stay mounted, so closing slides them up instead of cutting them off. */
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
   const toggle = (id: string) => {

@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Check, ChevronDown, Heart, Layers, LoaderCircle, Lock, Pencil, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
@@ -329,8 +330,8 @@ function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: W
   const { colorOf } = useMemo(() => caliberColors(catalog.ammo), [catalog.ammo])
   const starred = useMemo(() => new Set(saved.filter((entry) => entry.favorite).map((entry) => entry.weaponId)), [saved])
   const groups = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    const rows = weapons.filter((weapon) => !needle || `${weapon.name} ${weapon.shortName} ${prettyCaliber(weapon.caliber)}`.toLowerCase().includes(needle))
+    const terms = searchTerms(query)
+    const rows = weapons.filter((weapon) => matchesSearchTerms(terms, weapon.name, weapon.shortName, prettyCaliber(weapon.caliber)))
     if (grouping === 'favorites') {
       const favorites = rows.filter((weapon) => starred.has(weapon.id))
       return favorites.length ? [['favorites', favorites] as [string, Weapon[]]] : []

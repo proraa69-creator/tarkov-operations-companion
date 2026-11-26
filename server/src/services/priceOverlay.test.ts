@@ -130,16 +130,22 @@ test('price mirror: the fresher price of the two wins, item by item', () => {
     { id: id(2), lastLowPrice: 2000, avg24hPrice: 2100, updated: ago(2) },
     { id: id(3), lastLowPrice: 3000, updated: ago(40), types: ['noFlea'] },
     { id: id(4), avg24hPrice: 4100 },
+    { id: id(6), lastLowPrice: 6000, updated: ago(40), types: ['noFlea'] },
   ] } }, 'pve', 'json', new Date(NOW).toISOString(), renewed)
-  const overlay = parseOverlay([row(1, 1500, ago(5)), row(2, 2500, ago(9)), row(3, 3500, ago(1)), row(4, 4500, ago(4)), row(5, 5500, ago(1))], NOW)
-  assert.equal(applyPriceOverlay(snapshot, overlay, renewed), 2)
+  const overlay = parseOverlay([row(1, 1500, ago(5)), row(2, 2500, ago(9)), row(3, 3500, ago(1)), row(4, 4500, ago(4)), row(5, 5500, ago(1)), row(6, 6500, ago(7 * 60)), row(7, 7500, ago(1), { bannedOnFlea: true })], NOW)
+  assert.equal(applyPriceOverlay(snapshot, overlay, renewed), 3)
   assert.deepEqual(snapshot.items[id(1)], { lastLowPrice: 1500, avg24hPrice: 1501, low24hPrice: 900, at: Math.floor(Date.parse(ago(5)) / MINUTE) })
   assert.equal(snapshot.items[id(2)]!.at, Math.floor(Date.parse(ago(2)) / MINUTE), 'ours stood, with its own time')
   assert.equal(snapshot.items[id(2)]!.lastLowPrice, 2000, 'ours was fresher')
-  assert.equal(snapshot.items[id(3)]!.lastLowPrice, 3000, 'not on the market')
+  // tarkov.dev still marks it noFlea, but the other source saw it on sale a minute ago (report 240): on the flea, its price.
+  assert.equal(snapshot.items[id(3)]!.lastLowPrice, 3500, 'on sale now, whatever the old mark says')
+  assert.equal(snapshot.items[id(3)]!.noFlea, undefined)
+  // Its last offer there is 7 hours old: the mark stands.
+  assert.equal(snapshot.items[id(6)]!.noFlea, true, 'no fresh offer: still banned')
+  assert.equal(snapshot.items[id(6)]!.lastLowPrice, 6000)
   assert.equal(snapshot.items[id(4)]!.lastLowPrice, 4500, 'had no offer at the other source')
   assert.equal(snapshot.items[id(5)], undefined, 'an item the app does not know')
-  assert.equal(snapshot.pricesAt, ago(2), 'the newest price of all')
+  assert.equal(snapshot.pricesAt, ago(1), 'the newest price of all')
   assert.equal(applyPriceOverlay(normalizePrices({ data: { items: [{ id: id(1), lastLowPrice: 1, updated: ago(1) }] } }, 'pve', 'json', new Date(NOW).toISOString(), new Map([[id(1), NOW - MINUTE]])), overlay, new Map([[id(1), NOW - MINUTE]])), 0)
 })
 
@@ -188,4 +194,15 @@ test('price mirror: each mode gets its own list, the app reads it from the same 
     assert.ok(!/market\.(app|com)|tarkov-market/i.test(text), text)
     assert.ok(!text.includes(KEY))
   }
+})
+
+test('price mirror: an item tarkov.dev still marks noFlea that its scanner saw on sale lately is on the flea (report 240)', () => {
+  const snapshot = normalizePrices({ data: { items: [
+    // 7.62x51mm M80 on 25.11.2026: marked, but offers seen an hour ago.
+    { id: id(8), types: ['ammo', 'noFlea'], lastOfferCount: 57, lastScan: ago(60) },
+    // M62 Tracer: its last offers are from before the ban.
+    { id: id(9), types: ['ammo', 'noFlea'], lastOfferCount: 34, lastScan: '2025-11-14T10:28:00.000Z' },
+  ] } }, 'pve', 'json', new Date(NOW).toISOString())
+  assert.equal(snapshot.items[id(8)]!.noFlea, undefined)
+  assert.equal(snapshot.items[id(9)]!.noFlea, true)
 })

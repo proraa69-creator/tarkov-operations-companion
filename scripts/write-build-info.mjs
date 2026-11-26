@@ -26,6 +26,9 @@ const trialLaunches = Math.max(0, Math.floor(Number(process.env.TRIAL_LAUNCHES) 
 // the server and the account as usual, but no updates, never the update staged for the real app, its own data folder
 // (electron/buildEdition.ts isTestBuild).
 const testBuild = process.env.TEST_BUILD === '1'
+// SAFE_START=1: for a player whose window stays black (electron/buildEdition.ts isSafeStartBuild): software drawing from the first
+// start and a question by a window of Windows whether the window can be seen.
+const safeStart = process.env.SAFE_START === '1'
 const edition = process.env.OWNER_BUILD === '1' ? 'owner' : 'client'
 // Both editions connect to the owner's permanent address (site + API under /v1) unless told otherwise;
 // TARKOV_DEFAULT_SERVER_URL= (empty) builds one without it (this PC only). The owner's app still uses its own local
@@ -57,5 +60,16 @@ if (!entitlementKey && process.env.RAIDOS_ENTITLEMENT_PUBLIC_KEY_FILE) {
 if (entitlementKey && !/^[A-Za-z0-9_-]{43}$/.test(entitlementKey)) throw new Error('RAIDOS_ENTITLEMENT_PUBLIC_KEY: expected the 43-character Ed25519 key from /v1/entitlement/public-key')
 if (entitlementKey && !defaultServerUrl) throw new Error('RAIDOS_ENTITLEMENT_PUBLIC_KEY needs TARKOV_DEFAULT_SERVER_URL (the server the key belongs to)')
 const entitlementKeys = entitlementKey ? { [defaultServerUrl]: entitlementKey } : undefined
-writeFileSync(join(root, 'dist-electron', 'build-info.json'), JSON.stringify({ version, build: Date.now(), commit, edition, ...(defaultServerUrl ? { defaultServerUrl } : {}), ...(ownerEmails.length ? { ownerEmails } : {}), ...(trialLaunches ? { trialLaunches } : {}), ...(entitlementKeys ? { entitlementKeys } : {}), ...(testBuild ? { testBuild: true } : {}) }))
-console.log(`Build ${version} ${commit} · ${edition}${defaultServerUrl ? ` · server ${defaultServerUrl}` : ''}${entitlementKeys ? ' · entitlement key built in' : ''}${ownerEmails.length ? ` · owner e-mails: ${ownerEmails.length}` : ''}${trialLaunches ? ` (test build: ${trialLaunches} launches)` : ''}${testBuild ? ' · test build: own data folder, no updates' : ''} → dist-electron/build-info.json`)
+writeFileSync(join(root, 'dist-electron', 'build-info.json'), JSON.stringify({ version, build: Date.now(), commit, edition, ...(defaultServerUrl ? { defaultServerUrl } : {}), ...(ownerEmails.length ? { ownerEmails } : {}), ...(trialLaunches ? { trialLaunches } : {}), ...(entitlementKeys ? { entitlementKeys } : {}), ...(testBuild ? { testBuild: true } : {}), ...(safeStart ? { safeStart: true } : {}) }))
+// Bake the edition into the compiled main process, so a packaged copy decides the owner build from code sealed in
+// app.asar (electron/buildEditionConstant.ts, read by electron/buildEdition.ts), not from the JSON above that anyone can
+// edit. Rewritten for each edition right before electron-builder packs it; dist-electron/electron exists once
+// build:electron has run (a bare write-build-info run before the build simply leaves the source default).
+const editionModule = join(root, 'dist-electron', 'electron', 'buildEditionConstant.js')
+try {
+  mkdirSync(dirname(editionModule), { recursive: true })
+  writeFileSync(editionModule, `export const BAKED_EDITION = ${JSON.stringify(edition)}\n`)
+} catch (error) {
+  console.warn(`write-build-info: could not bake the edition into ${editionModule} (${error instanceof Error ? error.message : String(error)})`)
+}
+console.log(`Build ${version} ${commit} · ${edition}${defaultServerUrl ? ` · server ${defaultServerUrl}` : ''}${entitlementKeys ? ' · entitlement key built in' : ''}${ownerEmails.length ? ` · owner e-mails: ${ownerEmails.length}` : ''}${trialLaunches ? ` (test build: ${trialLaunches} launches)` : ''}${testBuild ? ' · test build: own data folder, no updates' : ''}${safeStart ? ' · safe start: software drawing, asks if the window is seen' : ''} → dist-electron/build-info.json`)

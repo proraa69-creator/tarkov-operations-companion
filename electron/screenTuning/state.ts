@@ -244,6 +244,18 @@ export function writeStrongest(tables: ScreenTables, original: Uint16Array | nul
   return 0
 }
 
+/**
+ * How the chosen preset went the last time it was put on the game's screen: its name, the strength Windows let through
+ * (0: Windows refused every ramp — HDR on, a driver's own colour filter) and when (report 223: a player with one monitor
+ * sees the page only with the app in front, when the preset is off, so the page shows what happened in the raid).
+ */
+export interface RaidResult { name: string; strength: number; at: number }
+
+/** The result kept after this tick: the preset just written (never the curve being tuned) replaces the one before. */
+export function noteRaidResult(last: RaidResult | null, shown: { name: string; strength: number } | null, now: number): RaidResult | null {
+  return shown ? { name: shown.name, strength: shown.strength, at: now } : last
+}
+
 /** A preset turned on by hand stays on the screen this long while the game's logs have not shown the raid yet. */
 export const MANUAL_ON_MS = 10 * 60_000
 
@@ -253,4 +265,38 @@ export const MANUAL_ON_MS = 10 * 60_000
  */
 export function presetShown(state: { enabled: boolean; raid: boolean; manualOnAt: number; now: number }) {
   return state.enabled && (state.raid || (state.manualOnAt > 0 && state.now - state.manualOnAt < MANUAL_ON_MS))
+}
+
+/**
+ * The game's picture kept for the page's before / after preview is a copy of the whole game screen: on a 3440×1440 screen
+ * 71 ms, 47 of them the main process's processor time, and Windows' compositor hands the frame back from the graphics card
+ * for it (report 227, 25.11.2026: «игра фризит», a laptop). It was taken every 30 s while the game was shown, raids
+ * included, for every player. Now:
+ * - the player uses «Настройка экрана» (a preset on, a curve being tuned, the page opened since the start): every
+ *   FRAME_IN_USE_MS, raids included — the preview shows a raid;
+ * - otherwise: outside a raid only, every FRAME_IDLE_MS — the page still has a picture of the game when first opened.
+ * «Снимок из игры» on the page copies the game at once, as before.
+ */
+export const FRAME_IN_USE_MS = 2 * 60_000
+export const FRAME_IDLE_MS = 10 * 60_000
+
+export function backgroundFrameDue(state: { inUse: boolean; raid: boolean; lastAt: number | null; now: number }) {
+  const age = state.lastAt === null ? Infinity : state.now - state.lastAt
+  if (state.inUse) return age >= FRAME_IN_USE_MS
+  return !state.raid && age >= FRAME_IDLE_MS
+}
+
+/**
+ * Games in exclusive full screen set their own ramp, so the preset's is written again every REWRITE_MS while it is on. A
+ * gamma write makes some drivers reload the monitor's colour table, a hitch of its own (report 227): the ramp is read
+ * first (GetDeviceGammaRamp, no change to anything) and written only when it is no longer the one the app wrote. A ramp
+ * Windows refused at every strength (HDR, a driver's colour filter) is tried again every REFUSED_RETRY_MS, not every 4 s.
+ */
+export const REFUSED_RETRY_MS = 30_000
+
+/** The same ramp: every value within one step (a driver may hand back what it was given rounded by one). */
+export function sameRamp(a: Uint16Array | null | undefined, b: Uint16Array | null | undefined) {
+  if (!a || !b || a.length !== b.length || !a.length) return false
+  for (let index = 0; index < a.length; index += 1) if (Math.abs(a[index]! - b[index]!) > 1) return false
+  return true
 }

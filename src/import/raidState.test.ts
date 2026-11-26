@@ -83,3 +83,60 @@ describe('raid state from the game logs', () => {
     for (const token of ['hideout_preset', 'main_menu', '', undefined]) expect(raidMapToken(token), String(token)).toBeUndefined()
   })
 })
+
+// Owner, 25.11.2026 (report 231): the train's live countdown runs from the raid's start for a PMC only; a Scav joins a raid
+// already running. The side is read from the game's own logs.
+describe('whose raid it is (PMC or Scav) from the logs', () => {
+  const pmcId = '66979f1d05d30f2f7e0506cf'
+  const scavId = '5e2c5cd36a064702946fec5b'
+  const line = (time: string, channel: string, text: string) => `2026-11-01 ${time}|1.3.0.0.48484|Info|${channel}|${text}`
+  const selected = (time: string, id: string) => line(time, 'application', `CompleteSelectedProfile ProfileId:${id} AccountId:7690289`)
+  const loaded = (time: string) => line(time, 'application', 'LocationLoaded:22.0 real:30.0 diff:8')
+  const network = (time: string, id: string, location = 'TarkovStreets') =>
+    line(time, 'application', `TRACE-NetworkGameCreate profileStatus: 'Profileid: ${id}, Status: Busy, RaidMode: Online, Location: ${location}, Sid: X'`)
+  const started = (time: string) => line(time, 'application', 'GameStarted:218.0(218.0) real:244.0(244.0) diff:26')
+  const now = Date.parse('2026-11-01T20:35:00')
+
+  it('reads «Pmc» from a group\'s «GroupMatchRaidSettings» body', () => {
+    const log = [
+      selected('20:17:06.231', pmcId),
+      line('20:19:01.979', 'push-notifications', 'Got notification | GroupMatchRaidSettings'),
+      '{',
+      '  "raidSettings": {',
+      '    "location": "TarkovStreets",',
+      '    "side": "Pmc",',
+      '    "transitionType": 1',
+      '  }',
+      '}',
+      loaded('20:24:02.313'),
+      started('20:30:35.771'),
+    ].join('\n')
+    expect(raidStateFromLogs([log], now)).toMatchObject({ inRaid: true, side: 'pmc' })
+  })
+
+  it('reads a PMC when the raid\'s network profile is the one the menu selected', () => {
+    const log = [selected('20:17:06.231', pmcId), loaded('20:24:02.313'), network('20:25:00.000', pmcId), started('20:30:35.771')].join('\n')
+    expect(raidStateFromLogs([log], now)).toMatchObject({ inRaid: true, side: 'pmc' })
+  })
+
+  it('reads a Scav when the raid\'s network profile differs from the menu\'s (the Scav plays under its own)', () => {
+    const log = [selected('20:17:06.231', pmcId), loaded('20:24:02.313'), network('20:25:00.000', scavId), started('20:30:35.771')].join('\n')
+    expect(raidStateFromLogs([log], now)).toMatchObject({ inRaid: true, side: 'savage' })
+  })
+
+  it('leaves the side unknown when neither the settings nor a profile tell it', () => {
+    const log = [loaded('20:24:02.313'), started('20:30:35.771')].join('\n')
+    expect(raidStateFromLogs([log], now).side).toBeUndefined()
+  })
+
+  it('does not take a bot\'s «Side:Savage» (aiData) for the raid\'s side', () => {
+    const log = [
+      selected('20:17:06.231', pmcId),
+      loaded('20:24:02.313'),
+      network('20:25:00.000', pmcId),
+      started('20:30:35.771'),
+      line('20:31:00.000', 'aiData', 'bot creation data with zero profiles: Side:Savage Type:assault BotDifficulty:normal id:4 countToSpawn:1'),
+    ].join('\n')
+    expect(raidStateFromLogs([log], now)).toMatchObject({ inRaid: true, side: 'pmc' })
+  })
+})

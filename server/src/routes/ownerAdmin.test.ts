@@ -463,7 +463,8 @@ test('statistics: users, revenue by plan per day / month, payouts, filters and C
     assert.equal(overview.subscriptions.active, 2)
     assert.equal(overview.subscriptions.streamers, 1)
     // 12 months: 2400 ₽ today + 900 ₽ (the 3 months inserted by SQL).
-    assert.deepEqual(overview.revenue.today, { total: 3300, payments: 2, repeat: 1 })
+    // Чистыми: грязными 3300 − доля стримеров 240 − комиссия ЮKassa (2400 СБП 3.5 % + 900 по умолчанию 3.53 % = 115.77).
+    assert.deepEqual(overview.revenue.today, { total: 3300, payments: 2, repeat: 1, net: 2944.23, streamerEarnings: 240, fees: 115.77 })
     // a's first month with the 20 % a streamer's link gives (owner, 30.10.2026): 240 ₽.
     assert.equal(overview.revenue.all.total, 3540)
     assert.equal(overview.revenue.all.payments, 3)
@@ -592,19 +593,17 @@ test('the owner can take the streamer status away: the cabinet goes, the code st
   } finally { await t.close() }
 })
 
-test("the owner's older actions (streamer invites, payout limits) are written to the audit log", async () => {
+test("the owner's older actions (streamer invites) are written to the audit log", async () => {
   const t = await setup()
   try {
     const owner = await t.login('owner@example.com')
     const player = await t.register('player@example.com')
     assert.equal((await t.call('POST', '/accounts/me/admin/streamer-invites', owner, { code: 'new_one' })).status, 201)
-    assert.equal((await t.call('PUT', '/accounts/me/admin/payout-limits', owner, { min: 2, max: 14 })).status, 200)
     // Refused calls (and other people's) are not logged.
     assert.equal((await t.call('POST', '/accounts/me/admin/streamer-invites', owner, { code: '<b>' })).status, 400)
     assert.equal((await t.call('POST', '/accounts/me/admin/streamer-invites', player, { code: 'HACKER' })).status, 404)
     const entries = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target?: string; details?: Record<string, unknown> }> }).entries
     assert.deepEqual(entries.map((entry) => [entry.action, entry.target ?? '', entry.details ?? {}]), [
-      ['payout.limits', '', { min: 2, max: 14 }],
       ['streamer.invite', 'NEW_ONE', {}],
     ])
     // The invitation token is never written to the log.

@@ -330,6 +330,9 @@ export const TO_THE_LIGHT: CuratedSeries = {
           type: 'plantQuestItem',
           maps: ['the-lab'],
           questItem: FALSE_DATA_DRIVE,
+          // the covered server room: the ring of racks under a tarp beside the weapon testing room (its two keyed doors are
+          // tarkov.dev's locks), where the wiki's marked map puts the stash (docs/quests/na-svet-audit.md, 26.11.2026)
+          spots: [{ map: 'the-lab', point: { id: 'wiki-trust-verify-lab', x: -184, z: -327.5 } }],
           text: {
             ru: 'Заложить жесткий диск с дезой на Лабе в крытой серверной рядом с зоной испытаний оружия на локации Лаборатория (В одном рейде)',
             en: 'Stash the Hard drive with false data in the server room near the weapon testing area in The Lab (In one raid)',
@@ -407,9 +410,13 @@ export const TO_THE_LIGHT: CuratedSeries = {
           spots: [{ map: 'woods', taskZone: { task: PLACE_SOURCE_TASKS.steadySignal, zone: 'q14_8_2' } }],
           text: { ru: 'Установить подавитель сигналов в метеовышку в горах на локации Лес (В одном рейде)', en: 'Plant a Signal jammer at the weather station on the mountain on Woods (In one raid)' },
         },
-        { type: 'plantItem', maps: ['woods'], items: [SIGNAL_JAMMER], text: { ru: 'Установить подавитель сигналов в сторожевой будке на лесопилке на локации Лес (В одном рейде)', en: 'Plant a Signal jammer at the sawmill guardhouse on Woods (In one raid)' } },
+        // the sawmill guardhouse: tarkov.help's marker 15806 carried over by the exits both maps have, on the lone building by
+        // the road there; the wiki's map marks the same house (docs/quests/na-svet-audit.md, 26.11.2026)
+        { type: 'plantItem', maps: ['woods'], items: [SIGNAL_JAMMER], spots: [{ map: 'woods', point: { id: 'th-15806', x: -27.5, z: 46.5 } }], text: { ru: 'Установить подавитель сигналов в сторожевой будке на лесопилке на локации Лес (В одном рейде)', en: 'Plant a Signal jammer at the sawmill guardhouse on Woods (In one raid)' } },
         { type: 'transit', maps: ['woods'], spots: [{ map: 'woods', transit: '41' }], text: { ru: 'Совершить переход с локации Лес на локацию Таможня (В одном рейде)', en: 'Use the transit from Woods to Customs (In one raid)' } },
-        { type: 'plantItem', maps: ['customs'], items: [SIGNAL_JAMMER], text: { ru: 'Установить подавитель сигналов на втором этаже стройки у дороги на локации Таможня (В одном рейде)', en: 'Plant a Signal jammer on the second floor of the roadside construction site on Customs (In one raid)' } },
+        // the unfinished building by the main road at Factory Shacks, across from the road to the dorms: the wiki's marked map
+        // and photos (tarkov.help's own marker lies far south of its text) (docs/quests/na-svet-audit.md, 26.11.2026)
+        { type: 'plantItem', maps: ['customs'], items: [SIGNAL_JAMMER], spots: [{ map: 'customs', point: { id: 'wiki-clip-wings-customs', x: 220, z: -13 } }], text: { ru: 'Установить подавитель сигналов на втором этаже стройки у дороги на локации Таможня (В одном рейде)', en: 'Plant a Signal jammer on the second floor of the roadside construction site on Customs (In one raid)' } },
         { type: 'transit', maps: ['customs'], spots: [{ map: 'customs', transit: '42' }], text: { ru: 'Совершить переход с локации Таможня на локацию Берег (В одном рейде)', en: 'Use the transit from Customs to Shoreline (In one raid)' } },
         {
           type: 'plantItem', maps: ['shoreline'], items: [SIGNAL_JAMMER],
@@ -795,8 +802,8 @@ export const BALANCE_SHIFT: CuratedSeries = {
       ],
       rewards: [[ROUBLES, 300_000], [SVDS, 1], [SVD_MAG_10, 3], [PS_GZH_PACK_20, 2]],
       note: {
-        ru: 'Задание Прапора (нужен 2-й уровень лояльности). Все три места на Маяке, в комплексе очистных сооружений, где стоят отступники: позиция с БРДМ на севере, блокпост с дозорной вышкой на юго-западе и крыша любого корпуса. Лучше пройти все три за один рейд. Отступники стреляют без предупреждения — идите подготовленными. Следующее задание — «Абонент временно недоступен».',
-        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, in the water treatment plant held by the Rogues: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. Best done in one raid. The Rogues shoot on sight, so come prepared. The next task is «Number Temporarily Unavailable».',
+        ru: 'Задание Прапора (нужен 2-й уровень лояльности). Все три места на Маяке, в комплексе очистных сооружений, — бывшие позиции отступников: позиция с БРДМ на севере, блокпост с дозорной вышкой на юго-западе и крыша любого корпуса. Самих отступников там больше нет: с патча 1.1.5.0 они в шале на склоне горы. Лучше пройти все три за один рейд. Следующее задание — «Абонент временно недоступен».',
+        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, at the water treatment plant, the Rogues\' former positions: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. The Rogues are gone from there: since patch 1.1.5.0 they hold the chalets on the mountainside. Best done in one raid. The next task is «Number Temporarily Unavailable».',
       },
     },
     {

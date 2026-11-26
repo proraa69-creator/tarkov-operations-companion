@@ -41,17 +41,17 @@ export function InstallerOffer() {
     <div className="update-overlay" role="dialog" aria-modal="true" aria-labelledby="installer-offer-title">
       <div className={`update-overlay-card${failed ? ' is-error' : ''}`}>
         <div className="update-overlay-eyebrow">Raid OS</div>
-        <h2 id="installer-offer-title" className="update-overlay-title">{uiText('Raid OS теперь устанавливается как обычная программа')}</h2>
+        <h2 id="installer-offer-title" className="update-overlay-title">{uiText('Приложение обновляется')}</h2>
         {busy && <>
-          <div className="update-overlay-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={uiText('Скачиваем установщик')}>
+          <div className="update-overlay-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={uiText('Скачиваем обновление')}>
             <i className="is-running" style={{ width: `${Math.max(progress, 4)}%` }} />
           </div>
           <div className="update-overlay-status">
-            <span><LoaderCircle size={14} className="spin" />{uiText(status?.state === 'installing' ? 'Открываем установщик…' : 'Скачиваем установщик…')}</span>
+            <span><LoaderCircle size={14} className="spin" />{uiText(status?.state === 'installing' ? 'Устанавливаем обновление…' : 'Скачиваем обновление…')}</span>
             <b>{progress}%</b>
           </div>
         </>}
-        {failed && <p className="update-overlay-error">{uiText(status?.error ?? 'Не удалось скачать установщик')}</p>}
+        {failed && <p className="update-overlay-error">{uiText(status?.error ?? 'Не удалось скачать обновление')}</p>}
         {!busy && <div className="update-overlay-actions">
           <button type="button" className="button primary" onClick={() => void install()}><Download size={15} />{uiText(failed ? 'Повторить' : 'Установить')}</button>
           <button type="button" className="button ghost" onClick={later}>{uiText('Позже')}</button>

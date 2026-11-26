@@ -4,6 +4,7 @@ import { uiText } from '../i18n/renderText'
 import { adminApi, type AdminReferralFriend, type AdminReferralReward, type AdminReferrals, type AdminReferrer, type AdminReferrerDetail, type ReferralSort } from './adminApi'
 import { accountText, count, dateOnly, errorText, money } from './adminFormat'
 import { AdminEmpty, AdminLoading } from './adminShared'
+import { SheetPortal } from './SheetPortal'
 
 const SORTS: Array<{ id: ReferralSort; label: string }> = [
   { id: 'invited', label: 'Больше друзей' },
@@ -60,7 +61,7 @@ export function ReferralsSheet({ onClose }: { onClose: () => void }) {
   const data = result?.data ?? null
   const error = result?.key === key ? result.error ?? '' : ''
   const summary = data?.summary
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet admin-wide-sheet" role="dialog" aria-modal="true" aria-label={uiText('Пригласи друга')}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{uiText('Пригласи друга')}</strong><small>{uiText('Кто привёл друзей и сколько из них оплатили')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
@@ -98,7 +99,7 @@ export function ReferralsSheet({ onClose }: { onClose: () => void }) {
       </div>
       {open && <ReferrerSheet id={open} onClose={() => setOpen(null)} onChanged={() => setVersion((value) => value + 1)} />}
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 function ReferrerSheet({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
@@ -118,7 +119,7 @@ function ReferrerSheet({ id, onClose, onChanged }: { id: string; onClose: () => 
   const referrer = data?.referrer
   const friendRewards = new Set(data?.friends.map((friend) => friend.reward?.id).filter((value): value is number => value !== undefined))
   const otherRewards = data?.rewards.filter((reward) => !friendRewards.has(reward.id)) ?? []
-  return <div className="admin-sheet-backdrop admin-sheet-nested" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop admin-sheet-nested" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet" role="dialog" aria-modal="true" aria-label={uiText(referrer ? referrerName(referrer) : 'Пригласивший')}>
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{referrer ? referrerName(referrer) : uiText('Загружаем…')}</strong><small>{uiText(referrer ? [referrer.code ? `код ${referrer.code}` : '', referrer.rank?.title ?? ''].filter(Boolean).join(' · ') || 'пригласивший' : 'пригласивший')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
@@ -146,7 +147,7 @@ function ReferrerSheet({ id, onClose, onChanged }: { id: string; onClose: () => 
         </>}
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 /**

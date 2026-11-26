@@ -1,6 +1,7 @@
 import type { Item, Quest } from '../domain/types'
 import { ITEM_TEXT_MIN_SCORE, itemTextScore, normalizeOcr } from '../overlay/itemMatch'
 import { labelFold, labelScore } from './collectorMatch'
+import { gameItemNames } from '../data/gameNames'
 
 const COLLECTOR_NAME = /^\s*(коллекционер|collector)\s*$/i
 
@@ -58,12 +59,26 @@ export function findVisibleItems(entries: CollectorEntry[], ocrText: string) {
   return entries.filter((entry) => screenScore(entry, ocrText) >= ITEM_TEXT_MIN_SCORE).map(({ item }) => item.id)
 }
 
-/** How surely one wanted item shows in the OCR text (0–1): ITEM_TEXT_MIN_SCORE or more is seen. */
+/**
+ * How surely one wanted item shows in the OCR text (0–1): ITEM_TEXT_MIN_SCORE or more is seen. A German, Japanese or Chinese
+ * game labels its items in its language: their names there count as well (src/data/gameNames.ts, once loaded).
+ */
 export function screenScore({ item, ambiguous }: CollectorEntry, ocrText: string) {
-  const text = withoutPrintedCaps(ocrText, item.shortName)
-  return ambiguous
-    ? itemTextScore({ ...item, shortName: '' }, text)
-    : Math.max(itemTextScore(item, text), labelScore(item, text))
+  const scoreOf = (named: Item) => {
+    const text = withoutPrintedCaps(ocrText, named.shortName)
+    return ambiguous
+      ? itemTextScore({ ...named, shortName: '' }, text)
+      : Math.max(itemTextScore(named, text), labelScore(named, text))
+  }
+  const own = gameItemNames(item.id)
+  const base = scoreOf(item)
+  return own ? Math.max(base, scoreOf({ ...item, name: own.name ?? item.name, shortName: own.shortName ?? '' })) : base
+}
+
+/** The labels an item may carry on screen: its short name, and in a German, Japanese or Chinese game that one's too. */
+export function labelNames(item: Pick<Item, 'id' | 'shortName'>): string[] {
+  const own = gameItemNames(item.id)?.shortName
+  return [...new Set([item.shortName ?? '', own ?? ''].filter(Boolean))]
 }
 
 /**
@@ -154,7 +169,7 @@ export function clearCollectorDirty(mode: string) {
 export async function scanForCollectorItems(mode: string, entries: CollectorEntry[], options: { restart?: boolean; drain?: boolean } = {}) {
   const api = window.tarkovDesktop
   if (!api) return { ok: false as const, reason: 'desktop' as const }
-  const names = entries.map(({ item }) => item.shortName ?? '').filter(Boolean)
+  const names = entries.flatMap(({ item }) => labelNames(item))
   const found = new Set<string>()
   const added: string[] = []
   let gameWindow = false, waiting = false, read = 0
@@ -162,6 +177,9 @@ export async function scanForCollectorItems(mode: string, entries: CollectorEntr
     const frame = api.scanScreenText
       ? await api.scanScreenText(call === 0 && options.restart ? { restart: true, names } : {})
       : await api.captureQuestFrame(false, true)
+    // The game's language (its item names count too, src/data/gameNamesLoader.ts).
+    // Loaded lazily: the server imports this module (routes/me.ts) and must not pull in the app's network code.
+    if ('language' in frame && frame.language) { const language = frame.language; void import('../data/gameNamesLoader').then((loader) => loader.noteGameLanguage(language)).catch(() => {}) }
     for (const id of findVisibleItems(entries, frame.text)) found.add(id)
     const current = loadCollected(mode)
     const fresh = [...found].filter((id) => !current.includes(id))

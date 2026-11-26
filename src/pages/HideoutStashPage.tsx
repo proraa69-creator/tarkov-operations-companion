@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Check, Minus, PackageX, Plus, ScanSearch, Search, Warehouse, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -90,11 +91,11 @@ export function HideoutStashPage() {
     setPicked((current) => (current.size === 1 && current.has(id) ? new Set() : new Set([id])))
   }
 
-  const needle = query.trim().toLowerCase()
+  const terms = searchTerms(query)
   const visible = needs.items.filter((need) => {
     const item = items.get(need.itemId)
     if (firOnly && !need.foundInRaid) return false
-    return !needle || Boolean(item && (item.name.toLowerCase().includes(needle) || item.shortName.toLowerCase().includes(needle)))
+    return !terms.length || Boolean(item && matchesSearchTerms(terms, item.name, item.shortName))
   })
   // Still to find first, the biggest first (they pack the grid like a real stash); the collected ones after.
   const size = (need: HideoutNeed) => span(items.get(need.itemId)?.width, 3) * stashRows(items.get(need.itemId), 3)
@@ -173,7 +174,7 @@ export function HideoutStashPage() {
           </div>
         </>}
         {/* «Только найдено в рейде» with nothing left: say why instead of a bare «Ничего не нашлось» (owner, 28.10.2026). */}
-        {!open.length && !done.length && <p className="dim hs-empty">{uiText(needle ? 'Ничего не нашлось' : firOnly ? (station ? 'Этому модулю больше не нужны предметы «найдено в рейде»' : 'Оставшимся улучшениям не нужны предметы «найдено в рейде»') : 'Всё построено — убежищу больше ничего не нужно')}</p>}
+        {!open.length && !done.length && <p className="dim hs-empty">{uiText(terms.length ? 'Ничего не нашлось' : firOnly ? (station ? 'Этому модулю больше не нужны предметы «найдено в рейде»' : 'Оставшимся улучшениям не нужны предметы «найдено в рейде»') : 'Всё построено — убежищу больше ничего не нужно')}</p>}
       </section>
 
       <aside className="panel hs-detail" aria-live="polite">

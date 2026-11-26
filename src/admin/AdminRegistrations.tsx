@@ -7,6 +7,7 @@ import { adminApi, adminPaths, type AdminCalendar, type AdminCalendarDay, type A
 import { accountText, count, errorText, money, PLAN_IDS, PLAN_SHORT, timeOnly } from './adminFormat'
 import { AdminEmpty, AdminLoading, PaymentRow } from './adminShared'
 import { useAdminAnswer } from './useAdminAnswer'
+import { SheetPortal } from './SheetPortal'
 
 /**
  * «Регистрации и оплаты» of «Сводка», as on the site (owner, 03.11.2026: «календарь регистраций и оплат, месяц за
@@ -186,7 +187,7 @@ function DaySheet({ date, today, onChange, onClose }: { date: string; today: str
   const day = result?.date === date ? result.day ?? null : null
   const error = result?.date === date ? result.error ?? '' : ''
   const title = capitalize(dayTitle.format(new Date(`${date}T00:00:00Z`)))
-  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet" role="dialog" aria-modal="true" aria-label={uiText(title)}>
       <header className="admin-sheet-head">
         <button type="button" className="icon-button" onClick={() => onChange(shiftDay(date, -1))} aria-label={uiText('Предыдущий день')}><ChevronLeft size={18} /></button>
@@ -202,7 +203,7 @@ function DaySheet({ date, today, onChange, onClose }: { date: string; today: str
         {day && <DayDetails day={day} />}
       </div>
     </section>
-  </div>
+  </div></SheetPortal>
 }
 
 const REWARD_KIND: Record<string, string> = { friend: 'за друга', scout: 'ранг Scout', operator: 'ранг Operator', 'squad-leader': 'ранг Squad Leader', 'raid-commander': 'ранг Raid Commander', legend: 'ранг Legend' }

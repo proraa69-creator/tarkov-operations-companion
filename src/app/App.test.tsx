@@ -31,12 +31,15 @@ describe('App', () => {
     renderApp('/quests')
     const saved = localStorage.getItem('tarkov-operations-profiles-v2')
     for (let pass = 0; pass < 2; pass++) {
-      await user.click(screen.getByRole('button', { name: 'EN' }))
+      // The language window of the top bar (src/components/LanguagePicker.tsx).
+      await user.click(screen.getByRole('button', { name: /^Язык интерфейса/ }))
+      await user.click(screen.getByRole('option', { name: /English/ }))
       expect(screen.getByRole('heading', { name: 'Current tasks' })).toBeInTheDocument()
       expect(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('link', { name: 'Maps' })).toBeInTheDocument()
       expect(screen.getAllByText('Test quest').length).toBeGreaterThan(0)
       expect(localStorage.getItem('tarkov-operations-profiles-v2')).toBe(saved)
-      await user.click(screen.getByRole('button', { name: 'RU' }))
+      await user.click(screen.getByRole('button', { name: /^Interface language/ }))
+      await user.click(screen.getByRole('option', { name: /Русский/ }))
       expect(within(screen.getByRole('navigation', { name: 'Основная навигация' })).getByRole('link', { name: 'Карты' })).toBeInTheDocument()
       expect(screen.getAllByText(demoDataset.quests[0].name).length).toBeGreaterThan(0)
       expect(localStorage.getItem('tarkov-operations-profiles-v2')).toBe(saved)

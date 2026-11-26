@@ -114,7 +114,13 @@ const PLAIN = { bg: '#141a1c', fg: '#f1e7c9' }
 
 /** A door's marker is `<map>-lock-<lock id>` (mapMarkerAdapter.ts). */
 export const lockOf = (marker: Pick<MapMarker, 'id'>) => marker.id.replace(/^.*lock-/, '')
-const boxes = generatedBoxes as unknown as Readonly<Record<string, RoomBox>>
+/**
+ * Rooms the schemes put behind a door that is not theirs. Customs, the three-storey dorm's second floor: the box found for the
+ * locked door at (176.04, 3.84, 150.27) is room 205, whose door is always open (owner, 24.11.2026: «стопроцентный спаун ключа
+ * от спецтехники… в 205 комнате. И дверь туда всегда открыта… значок у нас должен быть не под замком»).
+ */
+const NOT_THE_DOORS_ROOM = new Set(['9ef40db141234055ce637e5031aee1d536044ae1'])
+const boxes = Object.fromEntries(Object.entries(generatedBoxes as unknown as Readonly<Record<string, RoomBox>>).filter(([lock]) => !NOT_THE_DOORS_ROOM.has(lock))) as Readonly<Record<string, RoomBox>>
 const traced = tracedBoxes as unknown as Readonly<Record<string, RoomBox>>
 
 /** The signs of a floor: one per room and key; keys that share a room stand one above the other. */

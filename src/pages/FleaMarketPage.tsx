@@ -1,4 +1,5 @@
-import { uiText } from '../i18n/renderText'
+import { matchesSearchQuery } from '../shared/textSearch'
+import { uiText, languageTag } from '../i18n/renderText'
 import { useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Crosshair, Database, KeyRound, PackageSearch, Search, Star } from 'lucide-react'
@@ -32,7 +33,7 @@ export function FleaMarketPage() {
   const live = useLivePrices(state.raidMode)
   const clock = useMinuteClock()
   const items = useMemo(() => withLivePrices(data.items, state.raidMode, live), [data.items, live, state.raidMode])
-  const pricesClock = live?.pricesAt ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }).format(live.pricesAt) : null
+  const pricesClock = live?.pricesAt ? new Intl.DateTimeFormat(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' }).format(live.pricesAt) : null
   const priceAge = (at: number | undefined) => at === undefined ? null : ageText(clock - at, locale)
   /** When this lowest offer came — nothing for a price the minute file gives no time of its own (never «только что» by default). */
   const renewedAtOf = (item: Item) => {
@@ -78,7 +79,7 @@ export function FleaMarketPage() {
     if (tab === 'ammo' && item.category !== 'Боеприпас') return false
     if (tab === 'favorites' && !state.favoriteItemIds.includes(item.id)) return false
     if (tab === 'ammo' && caliber !== 'Все калибры' && item.caliber !== caliber) return false
-    return `${item.name} ${item.shortName} ${uiText(item.name)} ${uiText(item.shortName)}`.toLowerCase().includes(query.toLowerCase())
+    return matchesSearchQuery(query, item.name, item.shortName, uiText(item.name), uiText(item.shortName))
   }).map((item) => ({ item, best: displayPrice(item, state.raidMode), renewedAt: renewedAtOf(item) }))
     .sort((a, b) => tab === 'ammo' ? (b.item.penetration ?? 0) - (a.item.penetration ?? 0) : (b.best?.price ?? 0) - (a.best?.price ?? 0)), // eslint-disable-next-line react-hooks/exhaustive-deps -- renewedAtOf reads `live`, which `items` already follows
     [caliber, items, query, state.favoriteItemIds, state.raidMode, tab])

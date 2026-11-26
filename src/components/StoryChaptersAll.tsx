@@ -4,7 +4,7 @@ import { ArrowLeft, Check, CircleDot, KeyRound, MapPin, Package, Search, Split, 
 import type { Item, ModeProgress, Quest } from '../domain/types'
 import { useTarkovData } from '../data/DataProvider'
 import { useLocale } from '../i18n/LocaleProvider'
-import { uiLabel, uiText } from '../i18n/renderText'
+import { uiLabel, uiText, languageTag } from '../i18n/renderText'
 import { currentStoryStageIndex, isStoryQuest, type TaskAvailability } from '../progression/requirementEngine'
 import { belongsInQuestSection } from '../progression/questSections'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
@@ -191,7 +191,7 @@ function ObjectiveRow({ number, objective, quest, lang, showBranch, isCurrent, i
         <span className="story-all-stage-no">{number}</span>
         <span className="story-all-objective-text">{isDone && <Check size={14} aria-label={uiText('Выполнено')} />}{isCurrent && <CircleDot size={14} aria-hidden="true" />} {objective.text[lang]}</span>
         <span className="story-all-tags">
-          {objective.count != null && objective.count > 1 && <span className="tag">×{objective.count.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU')}</span>}
+          {objective.count != null && objective.count > 1 && <span className="tag">×{objective.count.toLocaleString(languageTag(lang))}</span>}
           {objective.optional && <span className="tag">{uiText('необязательно')}</span>}
           {isCurrent && <span className="tag brass">{uiText('Текущий этап')}</span>}
           {objective.untracked && <span className="tag" title={uiText('Этой задачи нет среди этапов, которые приложение читает из игры')}>{uiText('не отслеживается')}</span>}
@@ -224,7 +224,7 @@ function ItemChip({ item, lang, itemsById, iconBase, reward }: ItemChipProps) {
   const body = <>
     {icon && !broken ? <img src={icon} alt="" loading="lazy" onError={() => setBroken(true)} /> : <span className="story-all-item-icon"><Package size={16} /></span>}
     <span>
-      <strong>{item[lang] || item.en}{item.count != null && item.count > 1 ? ` ×${item.count.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU')}` : ''}</strong>
+      <strong>{item[lang] || item.en}{item.count != null && item.count > 1 ? ` ×${item.count.toLocaleString(languageTag(lang))}` : ''}</strong>
       {label && <small>{label}</small>}
     </span>
   </>

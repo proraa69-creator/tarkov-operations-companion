@@ -3,7 +3,7 @@ import { AlertTriangle, Check, History, Minus, PencilLine, Plus, RotateCcw } fro
 import type { ObjectiveSource, ProgressEvent, Quest } from '../domain/types'
 import { useTarkovData } from '../data/DataProvider'
 import { useLocale } from '../i18n/LocaleProvider'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { canUndo, objectiveViews, questHistory, type ObjectiveView } from '../progression/objectiveProgress'
 import { pairedFindDef } from '../progression/objectivePairs'
 import { catalogStamp, isOverrideStale, objectiveNote, upsertObjectiveNote, useQuestOverrides } from '../progression/questOverrides'
@@ -163,7 +163,7 @@ function ObjectiveRow({ quest, view }: { quest: Quest; view: ObjectiveView }) {
 function HistoryRow({ event, description }: { event: ProgressEvent; description?: string }) {
   const state = useAppState()
   const { locale } = useLocale()
-  const when = new Date(event.observedAt).toLocaleString(locale === 'en' ? 'en-GB' : 'ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const when = new Date(event.observedAt).toLocaleString(languageTag(locale, 'en-GB'), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   const value = (raw: number | string | null) => raw === null ? '—' : typeof raw === 'string' ? uiText(STATUS_LABELS[raw] ?? raw) : String(raw)
   const what = event.eventType === 'task-status'
     ? uiText('Статус задания')

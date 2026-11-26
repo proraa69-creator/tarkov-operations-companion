@@ -23,6 +23,11 @@ export interface ScreenTuningStatus {
   exclusive: boolean
   /** On the screen now: how many monitors, and the share of the preset Windows let through (1 = all of it). */
   applied: { displays: number; strength: number } | null
+  /**
+   * The chosen preset the last time it was on the game's screen: its name, the share Windows let through (0: Windows
+   * refused it) and when. Shown once the app is in front again (report 223: one monitor). Older windows send none.
+   */
+  lastRaid?: { name: string; strength: number; at: number } | null
   /** The curve being edited is what the game shows now. */
   editing: boolean
   /** A raid now (the game's logs or its signs). */

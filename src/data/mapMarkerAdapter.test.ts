@@ -6,6 +6,7 @@ import { translateUiText } from '../i18n/uiEnglish'
 import gameLootContainers from './gameLootContainers.json'
 import { maps } from './demo'
 import type { Item, Quest } from '../domain/types'
+import { keysOfPoint } from '../maps/neededKeys'
 
 describe('PMC and Scav spawns (owner, 07.11.2026)', () => {
   const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
@@ -730,12 +731,12 @@ describe('«Спавн 100 %» layer and the containers of the game files (09.11
     // (owner, 23.11.2026: «Он лежит в куртке. Это нужно пометить, записать»).
     const machinery = markersOf('customs').filter((marker) => marker.layerId === 'loot.guaranteed')
     expect(machinery.map((marker) => marker.itemId)).toEqual(['5937ee6486f77408994ba448'])
-    expect(machinery[0]!.description).toBe('Лежит в куртке в каждом рейде.')
+    expect(machinery[0]!.description).toBe('Лежит в куртке в 205 комнате, в каждом рейде. Дверь всегда открыта.')
   })
 
   it('has English for the new texts', () => {
     expect(translateUiText('Лежит здесь в каждом рейде.')).toBe('Here every raid.')
-    expect(translateUiText('Лежит в куртке в каждом рейде.')).toBe('In the jacket every raid.')
+    expect(translateUiText('Лежит в куртке в 205 комнате, в каждом рейде. Дверь всегда открыта.')).toBe('In the jacket in room 205, every raid. The door is always open.')
     expect(translateUiText('Одна из 12 возможных точек спавна.')).toBe('One of 12 possible spawn spots.')
     expect(translateUiText('Возможная точка спавна')).toBe('Possible spawn spot')
   })
@@ -796,6 +797,23 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
     const own = keys([{ items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } }]).filter((marker) => marker.spotPhotos?.length)
     expect(own).toHaveLength(1)
     expect(own[0]).toMatchObject({ title: 'Ключ от комнаты заведующего общежития', itemId: '664d4b0103ef2c61246afb56', source: 'raidos' })
+  })
+
+  it('report 221: «Ключ от комнаты 110 общежития» in the locker on Customs — a key point with the player\'s photo, fed or not', () => {
+    const dorm110 = '59136e1e86f774432f15d133'
+    const ctx = { ...context, maps: [...maps, { ...maps[0]!, id: 'customs' }], items: new Map<string, unknown>([key(dorm110, 'Ключ от комнаты 110 общежития', 'Общ 110')]) } as typeof context
+    const points = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose } } }, {}, ctx)
+      .filter((marker) => marker.layerId === 'loot.key' && keysOfPoint(marker).includes(dorm110) && marker.spotPhotos?.length)
+    // the feed's spot (json.tarkov.dev, x 64.83 / z -64.23): that point carries the photo, nothing is added
+    const fed = points([{ items: [dorm110], position: { x: 64.8284, y: 1.702, z: -64.2319 } }])
+    expect(fed).toHaveLength(1)
+    expect(fed[0]).toMatchObject({ itemId: dorm110, source: 'json.tarkov.dev/maps' })
+    expect(fed[0]!.spotPhotos![0]!.file).toBe('customs-locker-dorm-room-110.webp')
+    // a feed without it: the point of its own, at the locker
+    const own = points([])
+    expect(own).toHaveLength(1)
+    expect(own[0]).toMatchObject({ title: 'Ключ от комнаты 110 общежития', itemId: dorm110, keyIds: [dorm110], source: 'raidos' })
+    expect(own[0]!.position).toEqual([-64.23, 64.83])
   })
 
   it('adds the key spots of live raids the feed lacks (SPT statistics), once the feed has none of them there', () => {
@@ -902,5 +920,29 @@ describe('Лабиринт: the route items always lie at one of a few spots (SP
 
   it('has English for the count', () => {
     expect(translateUiText('Отключает пар в комнате 2. Всегда в одной из 5 точек.')).toBe('Turns off the steam in room 2. Always at one of 5 spots.')
+  })
+})
+
+describe('stationary weapons the game no longer has (report 233)', () => {
+  const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const AGS = '5d52cc5ba4b9367408500062'
+  const UTYOS = '5cdeb229d7f00c000e7ce174'
+  const weaponsOn = (normalizedName: string, list: Array<[string, number, number, number]>) => adaptLiveMapMarkers({ maps: { a: { normalizedName,
+    stationaryWeapons: list.map(([stationaryWeapon, x, y, z]) => ({ stationaryWeapon, position: { x, y, z } })) } } }, {}, context).filter((marker) => marker.layerId === 'loot.weapon')
+  // What tarkov.dev still lists on Lighthouse on 25.11.2026: six Utyos and two AGS, all at the water treatment plant.
+  const plant: Array<[string, number, number, number]> = [
+    [UTYOS, -7.489765, 8.242001, -449.60202], [UTYOS, -130.801361, 15.137, -729.788635], [UTYOS, 37.3415871, 15.137, -653.402649],
+    [UTYOS, 28.7119942, 15.15, -590.729431], [UTYOS, -69.69181, 15.137, -754.634949], [UTYOS, -188.292725, 15.148, -642.8455],
+    [AGS, 43.8352966, 10.929, -447.7588], [AGS, -64.45131, 15.158, -728.8995],
+  ]
+
+  it('drops Lighthouse’s plant weapons: patch 1.1.5.0 left none at the water treatment plant', () => {
+    expect(weaponsOn('lighthouse', plant)).toEqual([])
+    // One elsewhere on Lighthouse is still drawn.
+    expect(weaponsOn('lighthouse', [...plant, [AGS, -120.6, 37.6, 79.7]]).map((marker) => marker.itemId)).toEqual([AGS])
+  })
+
+  it('keeps the same places on another map', () => {
+    expect(weaponsOn('woods', plant)).toHaveLength(plant.length)
   })
 })

@@ -144,6 +144,10 @@
    он маленький» — he was 34 px tall over the meta line, half cut by the edge) */
 .phone-block.is-narrow .goon-lying-frame { container-type: normal; }
 .phone-block.is-narrow .stat-card.goon-card .goon-lying { display: block; height: 50px; right: 8px; bottom: 6px; }
+/* The who/when line is one line before the server answers and often two after it (the nickname with the time): a floor of
+   two lines on the phone keeps the card's height steady, so the blocks below do not jump when the sighting arrives
+   (defensive, phone «Обзор» jitter). */
+:root[data-layout="mobile"] .phone-block.is-narrow .stat-card.goon-card .goon-meta { min-height: 2.6em; }
 
 .goon-sheet-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: end center; background: rgb(0 0 0 / 55%); animation: goon-sheet-fade .14s ease-out; }
 .goon-sheet {

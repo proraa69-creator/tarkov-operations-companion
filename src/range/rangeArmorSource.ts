@@ -11,7 +11,7 @@ const record = (value: unknown): Json => value && typeof value === 'object' && !
 
 /** The mode's catalogue, loaded with the gun catalogue's items file and kept for three days offline. */
 export async function fetchArmorCatalog(mode: RaidMode, locale: AppLocale): Promise<ArmorCatalog> {
-  const key = `raid-os-range-armor-v1-${mode}-${locale}`
+  const key = `raid-os-range-armor-v2-${mode}-${locale}`
   const cached = await readGameCache<{ savedAt: number; list: RangeItem[]; deviation?: Record<string, number> }>(key)
   if (cached && Date.now() - cached.savedAt < 30 * 60_000) return fromList(cached.list, cached.deviation)
   try {

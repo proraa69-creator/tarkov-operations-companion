@@ -79,16 +79,31 @@ function traderQuestKeys(quest: Quest, items: ReadonlyMap<string, Item>): QuestK
   return [...needs.values()]
 }
 
-/** The keys of a story chapter, from its guide: only real keys, not the tools and items it also lists. */
+/**
+ * The objective id a story stage's keys are tied to. A story point names no objective, only its stage (src/data/storyQuestMarkers.ts,
+ * src/maps/neededKeys.ts `pointObjectiveId`), so the stage's index stands for it.
+ */
+export const storyStageKeyId = (questId: string, stageIndex: number) => `${questId}#stage-${stageIndex}`
+
+/**
+ * The keys of a story chapter, from its guide: only real keys, not the tools and items it also lists. Each key is tied to its own
+ * stages, on their maps (the guide's, else the stage's): a player, 25.11.2026, «Неизвестные», «Найти номер А.П. в Санатории»:
+ * «маркер показывает не те ключи, не от санатория а от улиц таркова» — the Streets apartment key and keycard of stages 23–25 had no
+ * map in the guide and no stage, so every point of the chapter on every map named them.
+ */
 function storyQuestKeys(quest: Quest, items: ReadonlyMap<string, Item>): QuestKeyNeed[] {
   const chapter = storyGuideChapterId(quest)
   const data = STORY_GUIDE_DATA.find((entry) => entry.id === chapter)
   const needs = new Map<string, QuestKeyNeed>()
   for (const objective of data?.objectives ?? []) {
+    const stage = objective.stage === undefined ? undefined : quest.stages?.[objective.stage]
+    const maps = objective.maps?.length ? objective.maps : stage?.mapIds ?? []
     for (const item of objective.items ?? []) {
       if (!item.id || item.role !== 'key' || items.get(item.id)?.category !== 'Ключ') continue
       const own = needs.get(item.id) ?? { itemId: item.id, mapIds: [], alternatives: [] }
-      own.mapIds = [...new Set([...own.mapIds, ...(objective.maps ?? [])])]
+      own.mapIds = [...new Set([...own.mapIds, ...maps])]
+      if (objective.stage === undefined) own.wholeQuest = true
+      else own.objectiveIds = [...new Set([...(own.objectiveIds ?? []), storyStageKeyId(quest.id, objective.stage)])]
       needs.set(item.id, own)
     }
   }

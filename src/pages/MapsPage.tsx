@@ -46,6 +46,7 @@ import { countDocumentFound, DOCUMENT_DAILY_LIMIT, useDocumentDay } from '../pro
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { exitNames, exitShortName } from '../data/exitShortNames'
 import { exitHighlights, useRaidExtracts } from '../maps/raidExtracts'
+import { useGameNames } from '../data/gameNamesLoader'
 import { MarkerCanvasLayer, type CanvasPoint } from '../maps/MarkerCanvasLayer'
 import { wasCanvasPick } from '../maps/canvasPick'
 import { canvasMarkers, type SpriteSpec } from '../maps/markerSprites'
@@ -125,7 +126,7 @@ import { setQuestKeyFavorite, useQuestKeyFavorites } from '../quests/questKeyFav
 import { SpotPhotos } from '../maps/SpotPhotos'
 import { LockedNote } from '../maps/LockedNote'
 import { behindLockedDoor, lockedRooms, lockedRoomsAt } from '../data/mapRoomSigns'
-import { keysOfPoint, neededKeysOf, questKeysOfPoint, questKeysOnMap, setNeededKeysOnly, useNeededKeysOnly } from '../maps/neededKeys'
+import { keysOfPoint, neededKeysOf, pointObjectiveId, questKeysOfPoint, questKeysOnMap, setNeededKeysOnly, useNeededKeysOnly } from '../maps/neededKeys'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
@@ -140,6 +141,9 @@ import { isDesktopShell, useMobileLayout } from '../platform'
 import { MapPanelEye, MapPanelsSettings, useMapPanels } from '../maps/MapPanels'
 import { MapSkillTimer, MapSkillTimerSettings } from '../components/MapSkillTimer'
 import { useSkillTimerEnabled } from '../components/skillTimer'
+import { ArmoredTrainBanner, ArmoredTrainSetting } from '../maps/ArmoredTrainTimer'
+import { MapExitsButton, MapRaidClock, MapRaidInfoSettings } from '../maps/MapRaidInfo'
+import { raidExitRows, useExitsListOn, useRaidClockOn } from '../maps/raidInfoSettings'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -735,6 +739,16 @@ export function MapsPage() {
     () => data.markers.filter((marker) => marker.mapId === activeMap.id && isPlottedMarker(marker) && markerLayerId(marker) in markerMeta),
     [activeMap.id, data.markers],
   )
+  // Every point of a quest objective on this map: a point shows only the photos shot at it (report 220, photosOfPoint).
+  const objectivePlaces = useMemo(() => {
+    const points = new Map<string, Array<[number, number]>>()
+    for (const marker of mapPoints) {
+      if (!marker.questId || !marker.objectiveId) continue
+      const key = `${marker.questId}|${marker.objectiveId}`
+      points.set(key, [...(points.get(key) ?? []), marker.position])
+    }
+    return points
+  }, [mapPoints])
   // Report №114: the items behind a locked door (in a door's room box on its storey) carry a very small padlock.
   const roomsBehindDoors = useMemo(() => lockedRooms(activeMap, mapPoints), [activeMap, mapPoints])
   // The key spots of one locked room: one point that says how many spots the room has (owner, 11.11.2026).
@@ -936,9 +950,15 @@ export function MapsPage() {
   // Report №105: the exits the game listed after a double O, lit until the raid ends; the others dimmed.
   const raidState = useRaidState()
   const raidExtracts = useRaidExtracts()
+  // A German, Japanese or Chinese game lists its exits in its language: their names come with the game's names.
+  const gameNames = useGameNames()
   // In a raid by the logs: readings since its start; no logs at all: the last 50 minutes' reading (raidExtracts.ts).
   const exitStates = useMemo(() => exitHighlights(raidExtracts, raidState?.inRaid ? raidState.since : raidState ? Number.MAX_SAFE_INTEGER : undefined,
-    mapMarkers.filter((marker) => marker.type === 'extract').map((marker) => ({ id: marker.id, title: marker.title, titles: exitNames(marker.title) }))), [raidExtracts, raidState, mapMarkers])
+    mapMarkers.filter((marker) => marker.type === 'extract').map((marker) => ({ id: marker.id, title: marker.title, titles: exitNames(marker.title, gameNames) }))), [raidExtracts, raidState, mapMarkers, gameNames])
+  // «Выходы» under «Ключи» and the raid's time under «Отложенные квесты» (report 239), each switched in «Настройки карты».
+  const exitsListOn = useExitsListOn()
+  const raidClockOn = useRaidClockOn()
+  const exitRows = useMemo(() => raidExitRows(mapMarkers, activeMap.id, raidState?.side === 'savage' ? 'scav' : 'pmc', exitStates), [mapMarkers, activeMap.id, raidState?.side, exitStates])
 
   const bossesVisible = useMemo(() => mapMarkers.some((marker) => markerLayerId(marker) === 'boss'), [mapMarkers])
   const bossProfiles = useBossProfiles(bossesVisible)
@@ -1333,7 +1353,7 @@ export function MapsPage() {
         {panelsOn && <div className="map-panel-tools">
           {expanded && <button type="button" className="button map-fullscreen-back" aria-label={uiText('Назад')} onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" /><span>{uiText('Назад')}</span></button>}
           <span className="map-panel-tools-gap" />
-          <MapPanelsSettings layout={panels.layout}><PlayerFollowSetting /><MapSkillTimerSettings /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
+          <MapPanelsSettings layout={panels.layout}><PlayerFollowSetting /><MapSkillTimerSettings /><MapRaidInfoSettings /><ArmoredTrainSetting mapId={activeMap.id} /><NearbyKeysSetting /><NeededSpawnsSetting /></MapPanelsSettings>
           <MapPanelEye side="left" hidden={leftHidden} />
         </div>}
         <div className="map-side-maps">
@@ -1394,6 +1414,8 @@ export function MapsPage() {
             // «Ключи» under the map's name (report 186): the same window as on the Overview and in «Локации»
             : <div className="map-hud-title"><span>{uiText(activeMap.name.toUpperCase())}</span>
               <button type="button" className={`map-hud-keys location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(activeMap.id)}><KeyRound size={13} aria-hidden="true" />{uiText('Ключи')}</button>
+              {/* «Выходы» (report 239): the raid's exits, open until pressed again; «Список выходов» in «Настройки карты». */}
+              {exitsListOn && <MapExitsButton rows={exitRows} scanned={Boolean(exitStates)} />}
             </div>}
           {mobile && !worldOpen && <button type="button" className={`map-layers-toggle location-keys-button${keysWindow.open ? ' is-open' : ''}`} aria-pressed={keysWindow.open} onClick={() => locationKeys.toggle(activeMap.id)}><KeyRound size={14} />{uiText('Ключи')}</button>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
@@ -1401,6 +1423,8 @@ export function MapsPage() {
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           {/* Beside the icons whether or not «Квесты друзей» is there: that button comes after it (owner, 06.11.2026). */}
           <MapSketchToolbar sketch={sketch} onBegin={() => setTools((current) => ({ ...current, tool: 'none' }))} />
+          {/* «Таймер бронепоезда» (report 231, owner 25.11.2026): a compact train icon in the row of controls, Reserve and Lighthouse once turned on in «Настройки карты». */}
+          {!worldOpen && <ArmoredTrainBanner mapId={activeMap.id} />}
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
           {/* The phone has no «Отложенные квесты» over the map: «Устранения» stands in the HUD, after «Слои». */}
           {mobile && killList.length > 0 && <MapKillsButton count={killsOpenCount} open={killsOpen} onToggle={() => setKillsOpen((open) => !open)} buttonRef={killsButtonRef} />}
@@ -1413,7 +1437,11 @@ export function MapsPage() {
           <MapItemCard />
         </div>
         {/* Player report 155: the silent skill-fatigue countdown, left of «Отложенные квесты», once turned on in the gear menu. */}
-        {!mobile && <div className="map-deferred">{skillTimerOn && <MapSkillTimer />}<DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>}
+        {/* Under it the time in Tarkov and what is left of the raid (report 239, «Оставшееся время рейда» in «Настройки карты»). */}
+        {!mobile && <div className="map-deferred">
+          <div className="map-deferred-row">{skillTimerOn && <MapSkillTimer />}<DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>
+          {raidClockOn && !worldOpen && <MapRaidClock maps={data.maps} />}
+        </div>}
         {/* The phone: «Устранения» under its HUD button (the PC has it as a tab of the right panel). */}
         {mobile && killsOpen && killList.length > 0 && (
           <MapKillsWindow
@@ -1591,9 +1619,9 @@ export function MapsPage() {
                       entry={lockedPoint(marker) ? <LockedNote rooms={roomsOf(marker)} items={itemsById} entry /> : undefined}
                       item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
                       boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
-                      keys={marker.questId ? questKeysOfPoint(keysByQuest.get(marker.questId), marker.objectiveId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
+                      keys={marker.questId ? questKeysOfPoint(keysByQuest.get(marker.questId), pointObjectiveId(marker))?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
                       spotKeys={layerId === 'loot.key' && (marker.keyCount ?? 1) > 1 ? <KeySpotKeys keyIds={keysShown(marker)} items={itemsById} owned={ownedKeys} compact tiers={keyTierMap} /> : undefined}
-                      photo={marker.questId && marker.objectiveId ? <MarkerPlacePhoto questId={marker.questId} objectiveId={marker.objectiveId} onOpen={placePhotos.open} /> : undefined}
+                      photo={marker.questId && marker.objectiveId ? <MarkerPlacePhoto questId={marker.questId} objectiveId={marker.objectiveId} position={marker.position} points={objectivePlaces.get(`${marker.questId}|${marker.objectiveId}`)} onOpen={placePhotos.open} /> : undefined}
                     />
                   </Tooltip>
                 )}

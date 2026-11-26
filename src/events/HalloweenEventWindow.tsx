@@ -130,7 +130,7 @@ interface ShownQuest {
 function shownQuest(own: CuratedQuest, number: number, catalog: Pick<AppDataset, 'quests' | 'items'> | undefined, lang: Lang): ShownQuest {
   const items = new Map((catalog?.items ?? []).map((item) => [item.id, item.name]))
   const rewards = [
-    `${own.experience.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU')} ${lang === 'en' ? 'XP' : 'опыта'}`,
+    `${own.experience.toLocaleString(languageTag(lang))} ${lang === 'en' ? 'XP' : 'опыта'}`,
     ...(own.rewards ?? []).map(([id, count]) => CURRENCY[id]?.(count, lang) ?? (items.has(id) ? `${items.get(id)} × ${count}` : '')),
     ...(own.rewardNotes ?? []).map((line) => line[lang]),
   ].filter(Boolean)
@@ -242,3 +242,5 @@ function HalloweenStory({ onClose }: { onClose: () => void }) {
     document.body,
   )
 }
+
+import { languageTag } from '../i18n/renderText'

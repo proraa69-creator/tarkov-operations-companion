@@ -24,3 +24,18 @@
 .map-stage.is-sketching .map-hud > .map-tools:not(.map-sketch) { opacity: .45; pointer-events: none; }
 /* The right button held while drawing moves the map. */
 .map-stage.is-sketching .leaflet-container.is-sketch-panning, .map-stage.is-sketching .leaflet-container.is-sketch-panning .leaflet-grab { cursor: grabbing; }
+
+/* «Метка» under the drawing's row (owner, 26.11.2026: «ниже зарисовки появляется кнопка с геопозицией»), under the pencil. */
+.map-sketch.is-editing { position: relative; }
+.map-sketch-pins { position: absolute; left: 0; top: calc(100% + 4px); z-index: 20; }
+/* A pin: the map's teardrop of the pencil's colour, its words beside it (components/MapPins.tsx). */
+.leaflet-marker-icon.map-pin { background: none; border: 0; }
+.map-pin svg { display: block; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 55%)); }
+.leaflet-tooltip.map-pin-label { padding: 1px 6px; border: 1px solid rgb(255 255 255 / 22%); border-radius: 5px; background: rgb(10 16 12 / 86%); color: #f1ece0; font-size: 11px; font-weight: 600; box-shadow: none; white-space: nowrap; }
+.leaflet-tooltip.map-pin-label::before { display: none; }
+/* A pin just put: a line for its words, ✓ and ✕, beside it (its place: components/MapPins.tsx editorPlace). */
+.map-pin-editor { position: absolute; z-index: 1000; display: flex; align-items: center; gap: 5px; padding: 5px; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 94%); transform: translateY(-50%); cursor: default; }
+.map-pin-editor-dot { flex: 0 0 auto; width: 10px; height: 10px; border: 1px solid rgb(255 255 255 / 55%); border-radius: 50%; }
+.map-pin-editor input { width: 170px; height: 26px; padding: 0 8px; border: 1px solid rgb(255 255 255 / 18%); border-radius: 5px; background: rgb(0 0 0 / 35%); color: #f1ece0; font: inherit; font-size: 12px; }
+.map-pin-editor input:focus { outline: none; border-color: #5d8466; }
+:root[data-layout="mobile"] .map-pin-editor input { width: 128px; }

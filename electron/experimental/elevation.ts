@@ -1,11 +1,18 @@
 import { dirname } from 'node:path'
 import { app } from 'electron'
 import { isElevated, runElevated } from './win32.js'
+import { nativeFilesTrustworthy } from './nativeIntegrity.js'
 
 /** Marks the copy started by relaunchAsAdmin; carries the process id of the copy that asked. */
 const RELAUNCH_ARG = '--elevated-relaunch'
 /** What the copy with the rights is started with again: the server laptop's switches and the installer's «--updated». */
 const APP_SWITCHES = ['--server-mode', '--enable-local-server', '--enable-tunnel', '--updated']
+/**
+ * Chromium's switches support gives a player whose window stays dark (owner, 23.11.2026: a player wrote them into the
+ * shortcut and nothing changed — the copy with the rights draws the window and never got them). The portable exe passes
+ * them on too. Exactly these two, nothing with a value.
+ */
+const DRAWING_SWITCHES = ['--disable-gpu', '--no-sandbox']
 
 /** This copy was started by relaunchAsAdmin: it never asks again, even when Windows still ran it without the rights. */
 export function isElevatedRelaunch() {
@@ -19,11 +26,20 @@ export function isElevatedRelaunch() {
  */
 export function relaunchAsAdmin() {
   if (process.platform !== 'win32' || isElevated() !== false) return false
+  // Do not hand administrator rights to a copy whose unpacked native modules (*.node, outside the asar-integrity fuse's
+  // reach) do not match the hashes recorded when the exe was built: a swapped native would otherwise run elevated
+  // (electron/experimental/nativeIntegrity.ts). A legitimate build always matches, so this never blocks a real start;
+  // when it does not match the app simply goes on without the rights.
+  if (!nativeFilesTrustworthy()) {
+    console.error('Raid OS: native modules failed the integrity check; starting without administrator rights')
+    return false
+  }
   const portable = process.env.PORTABLE_EXECUTABLE_FILE
   const file = portable || process.execPath
-  // Only the app's own switches (security review, 03.11.2026): whoever started this copy must not hand the copy with
-  // administrator rights anything else, e.g. Chromium's --remote-debugging-port.
-  const args = portable ? [] : process.argv.slice(1).filter((arg) => APP_SWITCHES.includes(arg))
+  // Only the app's own switches and the two drawing ones (security review, 03.11.2026): whoever started this copy must not
+  // hand the copy with administrator rights anything else, e.g. Chromium's --remote-debugging-port.
+  const passed = portable ? DRAWING_SWITCHES : [...APP_SWITCHES, ...DRAWING_SWITCHES]
+  const args = [...new Set(process.argv.slice(1).filter((arg) => passed.includes(arg)))]
   const params = [...args, `${RELAUNCH_ARG}=${process.pid}`].map(quoteArg).join(' ')
   if (!runElevated(file, params, dirname(file))) return false
   setImmediate(() => app.quit())

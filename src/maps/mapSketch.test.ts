@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addStroke, changeStrokes, clearAllMapSketches, eraseStrokes, ERASER_RADIUS_PX, mapSketchKey, readMapSketch, redoStroke, SKETCH_COLORS, SKETCH_DEFAULT_COLOR, sketchLineWidth, SKETCH_LINE_PX, startEdit, undoStroke, useMapSketch, type SketchPoint, type SketchStroke } from './mapSketch'
+import { addStroke, changeStrokes, clearAllMapSketches, eraseStrokes, ERASER_RADIUS_PX, isPin, makePin, mapSketchKey, PIN_HEAD_PX, PIN_TEXT_MAX, pinEditorPlace, pinText, readMapSketch, redoStroke, SKETCH_COLORS, SKETCH_DEFAULT_COLOR, sketchLineWidth, SKETCH_LINE_PX, startEdit, undoStroke, useMapSketch, type SketchPoint, type SketchStroke } from './mapSketch'
 
 const stroke = (x: number): SketchStroke => ({ zoom: 2, points: [[x, x], [x + 1, x + 1]] })
 
@@ -195,5 +195,69 @@ describe('«Зарисовка» on a map', () => {
     expect(readMapSketch(key)).toEqual([{ zoom: 1, points: [[1, 2]] }])
     clearAllMapSketches()
     expect(localStorage.getItem(key)).toBeNull()
+  })
+})
+
+describe('pins (a player\'s proposal №249; owner, 26.11.2026)', () => {
+  // Here a metre is a pixel: [y, x].
+  const flat = ([y, x]: SketchPoint) => ({ x, y })
+
+  it('a pin is a stroke of one point of the pencil\'s colour; its words are one short line, none when blank', () => {
+    expect(makePin([10, 20], 2, SKETCH_DEFAULT_COLOR)).toEqual({ zoom: 2, points: [[10, 20]], color: SKETCH_DEFAULT_COLOR, pin: true })
+    expect(makePin([10, 20], 2, SKETCH_DEFAULT_COLOR, '   ').text).toBeUndefined()
+    expect(makePin([1, 1], 1, SKETCH_DEFAULT_COLOR, '  Схрон  у  моста ').text).toBe('Схрон у моста')
+    expect(pinText('я'.repeat(PIN_TEXT_MAX + 10))).toHaveLength(PIN_TEXT_MAX)
+    expect(pinText('две' + String.fromCharCode(10) + 'строки')).toBe('две строки')
+    expect(pinText(7)).toBeUndefined()
+    expect(isPin(makePin([0, 0], 1, SKETCH_DEFAULT_COLOR))).toBe(true)
+    expect(isPin(stroke(1))).toBe(false)
+  })
+
+  it('kept and read back with its words, one point only; words that are not a line are dropped, not the pin', () => {
+    const key = mapSketchKey('p1', 'pvp', 'customs')
+    localStorage.setItem(key, JSON.stringify([
+      { zoom: 2, points: [[5, 6]], color: SKETCH_COLORS[1].color, pin: true, text: 'Ящик' },
+      { zoom: 2, points: [[7, 8], [9, 9]], pin: true, text: 42 },
+      { zoom: 2, points: [[1, 1]], pin: 'yes' },
+      stroke(3),
+    ]))
+    expect(readMapSketch(key)).toEqual([
+      { zoom: 2, points: [[5, 6]], color: SKETCH_COLORS[1].color, pin: true, text: 'Ящик' },
+      { zoom: 2, points: [[7, 8]], pin: true },
+      { zoom: 2, points: [[1, 1]] },
+      stroke(3),
+    ])
+    localStorage.clear()
+  })
+
+  it('the eraser takes a pin it touches, at its tip or at its head above it, and leaves one it misses', () => {
+    const near = makePin([0, 0], 1, SKETCH_DEFAULT_COLOR)
+    const far = makePin([100, 100], 1, SKETCH_DEFAULT_COLOR)
+    expect(eraseStrokes([near, far], flat, { x: 0, y: 0 }, { x: 0, y: 0 })).toEqual([far])
+    expect(eraseStrokes([near], flat, { x: 0, y: -PIN_HEAD_PX }, { x: 0, y: -PIN_HEAD_PX })).toEqual([])
+    expect(eraseStrokes([near], flat, { x: 60, y: 0 }, { x: 60, y: 0 })).toEqual([near])
+  })
+
+  it('a colour keeps the pin a pin of that colour; after the eraser it is the pencil again', () => {
+    const { result } = renderHook(() => useMapSketch('p1', 'pvp', 'customs'))
+    act(() => result.current.begin())
+    act(() => result.current.chooseTool('pin'))
+    act(() => result.current.chooseColor(SKETCH_COLORS[2].color))
+    expect([result.current.tool, result.current.color]).toEqual(['pin', SKETCH_COLORS[2].color])
+    act(() => result.current.chooseTool('eraser'))
+    act(() => result.current.chooseColor(SKETCH_COLORS[0].color))
+    expect(result.current.tool).toBe('pencil')
+    localStorage.clear()
+  })
+})
+
+describe('the words\' box of a new pin', () => {
+  it('stands to the pin\'s right, else to its left, else under it, always whole on the map', () => {
+    expect(pinEditorPlace(100, 200, 230, 1000)).toEqual({ left: 116, top: 200 - PIN_HEAD_PX })
+    expect(pinEditorPlace(900, 200, 230, 1000)).toEqual({ left: 654, top: 200 - PIN_HEAD_PX })
+    // a phone's map of 360 px: under the pin, inside the edges
+    expect(pinEditorPlace(180, 200, 220, 360)).toEqual({ left: 70, top: 230 })
+    expect(pinEditorPlace(20, 200, 340, 360)).toEqual({ left: 4, top: 230 })
+    expect(pinEditorPlace(350, 200, 340, 360)).toEqual({ left: 16, top: 230 })
   })
 })

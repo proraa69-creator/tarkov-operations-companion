@@ -15,7 +15,8 @@
  *    (`api/maps.json` additions, CC0-1.0, 2026-08-16).
  * Areas come from the research list (Reshala, Sanitar, Glukhar zones; Rogues → chalets, Black Division on Terminal → port)
  * and, where it gives none, from guides found on 30.09.2026 (timesaver.gg Goons guide: Customs Stronghold, Woods Scav
- * bunker, Lighthouse water treatment, Shoreline weather station; cultist guides: Customs Stronghold, Woods abandoned
+ * bunker, Shoreline weather station; Lighthouse: the chalets since 1.1.5.0, Knight's only zone in the live feed of 25.11.2026,
+ * no longer the water treatment plant of that guide; cultist guides: Customs Stronghold, Woods abandoned
  * village, Shoreline resort and the road by the swamp village; Black Division: Shoreline resort, Streets near Concordia,
  * Ground Zero in front of the TerraGroup building; Partisan roams — one marker at a place guides name).
  * Bosses with no known area (Ground Zero cultists, Labyrinth, Icebreaker, Lab raiders) are left to the live feed.
@@ -126,7 +127,7 @@ export const BOSS_SPAWN_SUPPLEMENT: Record<string, SupplementBoss[]> = {
       modes: { pvp: UNKNOWN, pve: pct(0.4, '40% / 25% / 10%'), seasonal: pct(0.8) },
       areas: [{ zone: 'Шале', label: 'Grand Chalet', x: -133, z: 100 }, { zone: 'Курорт Pikes Peak (шале)', label: 'Pikes Peak Resort', x: -107, z: -53 }],
       note: 'С патча 1.1.5.0 база Отступников — шале, очистные без турелей.' },
-    { ...GOONS, modes: { pvp: GOONS_ROTATION, pve: pct(0.3), seasonal: GOONS_ROTATION }, areas: [{ zone: 'Очистные', label: 'Water Treatment', x: -65, z: -600 }] },
+    { ...GOONS, modes: { pvp: GOONS_ROTATION, pve: pct(0.3), seasonal: GOONS_ROTATION }, areas: [{ zone: 'Курорт Pikes Peak (шале)', label: 'Pikes Peak Resort', x: -107, z: -53 }] },
     { ...PARTISAN, modes: PARTISAN_CHANCE, areas: [{ zone: 'Очистные', label: 'Water Treatment', x: -65, z: -600 }] },
   ],
   'streets-of-tarkov': [

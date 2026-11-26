@@ -280,10 +280,92 @@ export function stackCrops(crops: Raster[], scale = 3, options: { gapRows?: numb
         out[(top + y) * width + gapRows + x] = value >= threshold ? 0 : 255
       }
     }
+    unslashZeros(out, width, gapRows, top, w, h)
     bands.push({ top, bottom: top + h })
     top += h + gapRows
   }
   return { width, height, data: out, bands }
+}
+
+/**
+ * The game's labels write zero with a slash («Ø»): OCR reads it as 8, 6, 2 or @ («Общ 118» for «Общ 110», «Общ 323» for
+ * «Общ 303»: report 236, 25.11.2026, and the offline stash of every key). In a label cut to black ink on white, such a zero
+ * is one glyph with two holes, the upper one left of the lower one (the slash runs between them); an 8 or a В has its holes
+ * one above the other, a Ф side by side. The slash is taken out of such a glyph — what stays is a plain 0.
+ */
+export function unslashZeros(out: Uint8Array, width: number, x0: number, y0: number, w: number, h: number) {
+  if (w < 4 || h < 4) return
+  // The label's region with a margin of paper: ink 1, paper 0.
+  const W = w + 2, H = h + 2
+  const ink = new Uint8Array(W * H)
+  for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) ink[(y + 1) * W + x + 1] = out[(y0 + y) * width + x0 + x] === 0 ? 1 : 0
+  // Glyphs: ink pieces (8 neighbours); paper pieces (4 neighbours): the one around everything, and the holes.
+  const glyph = new Int32Array(W * H).fill(-1), paper = new Int32Array(W * H).fill(-1)
+  const glyphBoxes: Array<{ x0: number; y0: number; x1: number; y1: number }> = []
+  const holes: Array<{ glyph: number; x: number; y: number; n: number }> = []
+  const stack: number[] = []
+  for (let start = 0; start < W * H; start += 1) {
+    if (ink[start] && glyph[start] < 0) {
+      const id = glyphBoxes.length, box = { x0: W, y0: H, x1: -1, y1: -1 }
+      glyph[start] = id; stack.push(start)
+      while (stack.length) {
+        const p = stack.pop()!, x = p % W, y = (p - x) / W
+        if (x < box.x0) box.x0 = x
+        if (x > box.x1) box.x1 = x
+        if (y < box.y0) box.y0 = y
+        if (y > box.y1) box.y1 = y
+        for (let dy = -1; dy <= 1; dy += 1) for (let dx = -1; dx <= 1; dx += 1) {
+          const nx = x + dx, ny = y + dy
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue
+          const q = ny * W + nx
+          if (ink[q] && glyph[q] < 0) { glyph[q] = id; stack.push(q) }
+        }
+      }
+      glyphBoxes.push(box)
+    } else if (!ink[start] && paper[start] < 0) {
+      const id = holes.length
+      let sx = 0, sy = 0, n = 0, owner = -2
+      paper[start] = id; stack.push(start)
+      while (stack.length) {
+        const p = stack.pop()!, x = p % W, y = (p - x) / W
+        sx += x; sy += y; n += 1
+        for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]] as const) {
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) { owner = -1; continue }
+          const q = ny * W + nx
+          if (!ink[q]) { if (paper[q] < 0) { paper[q] = id; stack.push(q) } } else if (owner !== -1) owner = owner === -2 || owner === glyph[q] ? glyph[q] : -1
+        }
+      }
+      // The paper around the label (it touches the margin) or between two glyphs is no hole.
+      holes.push({ glyph: owner, x: sx / n, y: sy / n, n })
+    }
+  }
+  // Raster order: a glyph is labelled before its holes are reached (its top row is above them).
+  const byGlyph = new Map<number, typeof holes>()
+  for (const hole of holes) {
+    if (hole.glyph < 0 || hole.n < 2) continue
+    const list = byGlyph.get(hole.glyph) ?? []
+    list.push(hole)
+    byGlyph.set(hole.glyph, list)
+  }
+  for (const [id, list] of byGlyph) {
+    if (list.length !== 2) continue
+    const box = glyphBoxes[id]!
+    const bw = box.x1 - box.x0 + 1, bh = box.y1 - box.y0 + 1
+    // A digit: taller than wide, most of the label's height.
+    if (bh < bw * 1.15 || bh < h * 0.45) continue
+    const [upper, lower] = list[0]!.y <= list[1]!.y ? [list[0]!, list[1]!] : [list[1]!, list[0]!]
+    if (lower.y - upper.y < bh * 0.12 || lower.x - upper.x < bw * 0.12) continue
+    // Each row keeps its first and last run of this glyph (the ring's sides); a run between them is the slash.
+    for (let y = box.y0; y <= box.y1; y += 1) {
+      const runs: Array<[number, number]> = []
+      for (let x = box.x0; x <= box.x1; x += 1) {
+        if (glyph[y * W + x] !== id) continue
+        if (runs.length && runs[runs.length - 1]![1] === x - 1) runs[runs.length - 1]![1] = x
+        else runs.push([x, x])
+      }
+      for (const [a, b] of runs.slice(1, -1)) for (let x = a; x <= b; x += 1) out[(y0 + y - 1) * width + x0 + x - 1] = 255
+    }
+  }
 }
 
 /** The labels of one frame cut out and stacked (stackCrops): the picture OCR reads. */

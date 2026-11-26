@@ -1,4 +1,4 @@
-import { uiText, uiLabel } from '../i18n/renderText'
+import { uiText, uiLabel, languageTag } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -12,11 +12,12 @@ import { formatPrice } from '../shared/format'
 import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { questAvailabilityOf } from '../quests/questReadModel'
-import { questAppliesToMap } from '../progression/questLocation'
-import { mapObjectivesClosed, markerObjectiveDone } from '../progression/mapObjectives'
+import { markerObjectiveDone } from '../progression/mapObjectives'
+import { mapWorkCounts, questWorkOnMap } from '../progression/mapPriority'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { exitFlareNeeds, exitsFiredBy, flareCardOf, flareExitsOn, GREEN_FLARE_IDS, SIGNAL_PISTOL_ID } from '../raidprep/exitFlares'
+import { useExitRequirementsShown } from '../raidprep/exitRequirementsSetting'
 import { exitShortName } from '../data/exitShortNames'
 import { storyRaidNeedsAhead } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
@@ -92,13 +93,10 @@ export function DashboardPage() {
   // «Оружейник» parts go to their own block below «Текущие задания», not into the task lists (owner, 10.10.2026).
   const taskQuests = currentQuests.filter((quest) => !isGunsmithQuest(quest))
   const gunsmith = useMemo(() => gunsmithSteps(data.quests, (id) => availability.get(id)?.status), [availability, data.quests])
-  const onMap = (quest: typeof currentQuests[number], id: string) => {
-    const stageIndex = currentStoryStageIndex(quest, progress)
-    return questAppliesToMap(quest, id, stageIndex) && !quest.anyMap
-  }
-  // A quest whose objectives on this map are all ticked leaves its list here; it stays current for its other maps. One whose
-  // objectives here wait for an earlier one on another map is not here yet (report 165).
-  const planQuests = taskQuests.filter((quest) => onMap(quest, selectedMap.id) && !mapObjectivesClosed(quest, selectedMap.id, progress))
+  // A quest is on a map's list while it has work left there (progression/mapPriority.ts): one whose objectives on this map are all
+  // ticked leaves its list here and stays current for its other maps; one whose objectives here wait for an earlier one on another
+  // map is not here yet (report 165); a map it only lists, with nothing to do on it, has none of it (report 230).
+  const planQuests = taskQuests.filter((quest) => questWorkOnMap(quest, selectedMap.id, progress) !== null)
   const anyMapCurrent = taskQuests.filter((quest) => quest.anyMap)
   // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
@@ -242,9 +240,11 @@ export function DashboardPage() {
   })
   // The green flare of each exit of this map opened by one, a row of its own next to a quest's flare (owner, 19.11.2026: «если этот
   // патрон уже есть в требованиях… добавить ещё одну отдельную строку для выхода»); none for the exit a current quest leaves by
-  // («Прекратить огонь!»), whose own row is that flare.
+  // («Прекратить огонь!»), whose own row is that flare. None at all with «Показывать требования для выхода» off (report 235: players
+  // took the exit's flare for a quest's); what the quests need stays.
   const lang = locale === 'en' ? 'en' : 'ru'
-  const exitFlareRows: RaidNeedRow[] = exitFlareNeeds(data.markers, selectedMap.id, requirements).flatMap((exit): RaidNeedRow[] => {
+  const exitNeedsShown = useExitRequirementsShown()
+  const exitFlareRows: RaidNeedRow[] = (exitNeedsShown ? exitFlareNeeds(data.markers, selectedMap.id, requirements) : []).flatMap((exit): RaidNeedRow[] => {
     const options = GREEN_FLARE_IDS.flatMap((id) => raidItem(id) ?? [])
     // the owner's «Реактивный сигнальный патрон (зелёный)»: RSP-30 on the row, 26x75 in its card
     const main = options[0]
@@ -292,7 +292,7 @@ export function DashboardPage() {
   // The keys of «Требования рейда»: «Взял» puts one not in the stash into «Ключи в схроне» (overview/TakenItems.tsx).
   const raidKeyIds = neededRows.flatMap((row) => (row.itemId && row.lines.some((line) => line.purpose === 'key') ? [row.itemId] : [])).join(',')
   const isRaidKey = useCallback((itemId: string) => raidKeyIds.split(',').includes(itemId), [raidKeyIds])
-  const priorityStrip = <MapPriority inline maps={data.maps} selectedId={selectedMap.id} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !deferred.has(quest.id) && !mapObjectivesClosed(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
+  const priorityStrip = <MapPriority inline filterable={!mobile} maps={data.maps} selectedId={selectedMap.id} countFor={(id) => mapWorkCounts(taskQuests.filter((quest) => !deferred.has(quest.id)), id, progress)} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
   const statCards: Blocks = {
     // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
     // «Время в Таркове», «Сброс торговцев», «Таймер рейда» by its square gear; on the phone its «Пресеты экрана» too (owner, 15.11.2026)
@@ -370,7 +370,7 @@ export function DashboardPage() {
   const blocksButton = <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
   return <TakenItemsProvider profileId={state.activeProfile.id} mode={state.raidMode} isKey={isRaidKey}><div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
-      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
+      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(languageTag(locale), { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
       {mobile && blocksButton}
       <div className="overview-header-actions">
         {(!mobile || layoutEditor.editing) && <div className="overview-layout-actions">

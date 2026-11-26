@@ -7,7 +7,7 @@ import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../..
 import { captureScreenRegion, foregroundDisplayMode, foregroundGame, isVirtualKeyDown, visibleGameRect, wasVirtualKeyPressed } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
-import { activePreset, allPresets, presetShown, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
+import { activePreset, allPresets, backgroundFrameDue, presetShown, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, noteRaidResult, REFUSED_RETRY_MS, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, sameRamp, savePreset, writeStrongest, type RaidResult, type ScreenTuningSettings } from './state.js'
 import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeStatus, parseOptimizeBackup, POWERSHELL, revert, type OptimizeBackup, type OptimizeItemId, type OptimizeOpenTarget } from './optimizer.js'
 import { readPcInfo, type PcInfo } from './pcInfo.js'
 import { followGameFront } from '../gamePriority.js'
@@ -33,6 +33,8 @@ let timer: NodeJS.Timeout | null = null
 let keyTimer: NodeJS.Timeout | null = null
 /** Each monitor's own ramp from before the app changed it. */
 const originals = new Map<string, Uint16Array | null>()
+/** The ramp the app last wrote to each monitor: a rewrite is skipped while the monitor still has it (report 227). */
+const written = new Map<string, Uint16Array>()
 let originalVibrance: number | null | undefined
 /** What is on the screen now. */
 let applied: { key: string; displays: string[]; strength: number; at: number } | null = null
@@ -44,11 +46,13 @@ let editing: { profile: ScreenProfile; until: number } | null = null
 const EDITING_MS = 5 * 60_000
 /**
  * The last picture of the game, at full size and lossless (owner, 27.10.2026: «не ухудшай качество скриншота»): the
- * pixels as copied; turned into a PNG only when the page asks, so the copy every half a minute in a raid costs no encoding.
+ * pixels as copied; turned into a PNG only when the page asks, so a copy taken in the background costs no encoding. How
+ * often it is taken: state.ts backgroundFrameDue (report 227).
  */
 type Frame = { pixels: { data: Uint8Array; width: number; height: number }; at: number; source: 'game' }
 let lastFrame: Frame | null = null
-const FRAME_EVERY_MS = 30_000
+/** The page «Настройка экрана» was opened since the start: the player uses it, so its preview is kept fresh. */
+let pageOpened = false
 const TICK_MS = 500
 /** Games in exclusive full screen set their own ramp: ours is written again this often while the game is shown. */
 const REWRITE_MS = 4000
@@ -59,6 +63,8 @@ let gameInFront = false
 let inRaid: () => boolean = () => false
 /** In a raid at the last look (for the page). */
 let lastRaid = false
+/** The chosen preset the last time it was on the game's screen, and whether Windows took it (noteRaidResult). */
+let raidResult: RaidResult | null = null
 /**
  * Turned on by hand (the key, the switch or the phone): on at once, not after the raid shows in the game's logs (owner,
  * 11.11.2026: «нажимаю, и только секунд через 10 оно включается… Я нажал на телефоне включить, и тут же оно включается на
@@ -108,6 +114,7 @@ function restoreDisplay(name: string) {
   const original = originals.get(name)
   if (original) writeRamp(name, original)
   originals.delete(name)
+  written.delete(name)
 }
 
 function restoreAll() {
@@ -179,13 +186,25 @@ function wanted(now: number): { profile: ScreenProfile; displays: string[] } | n
 
 function apply(profile: ScreenProfile, displays: string[], now: number) {
   const key = JSON.stringify([profile, displays])
-  if (applied?.key === key && now - applied.at < REWRITE_MS) return
+  if (applied?.key === key) {
+    // The same preset on the same monitors: written again only when the game (exclusive full screen) put its own ramp
+    // back, and a refused one only now and then (state.ts REFUSED_RETRY_MS).
+    if (now - applied.at < (applied.strength > 0 ? REWRITE_MS : REFUSED_RETRY_MS)) return
+    if (applied.strength > 0 && displays.every((name) => sameRamp(written.get(name), readRamp(name)))) {
+      applied.at = now
+      return
+    }
+  }
   for (const name of [...originals.keys()]) if (!displays.includes(name)) restoreDisplay(name)
   const tables = screenTables(profile)
   let strength = 1
   for (const name of displays) {
     if (!originals.has(name)) originals.set(name, readRamp(name))
-    strength = Math.min(strength, writeStrongest(tables, originals.get(name) ?? null, (ramp) => writeRamp(name, ramp)))
+    strength = Math.min(strength, writeStrongest(tables, originals.get(name) ?? null, (ramp) => {
+      const done = writeRamp(name, ramp)
+      if (done) written.set(name, ramp)
+      return done
+    }))
   }
   const changed = !applied || applied.key !== key
   if (changed && profile.vibrance !== undefined) {
@@ -202,31 +221,43 @@ function apply(profile: ScreenProfile, displays: string[], now: number) {
 function tick() {
   const now = Date.now()
   gameInFront = foregroundGame() !== null
-  // The app runs below normal priority while the game is in front (electron/gamePriority.ts).
-  followGameFront(gameInFront)
+  // The app runs below normal priority while the game is in front (electron/gamePriority.ts): all of its processes.
+  followGameFront(gameInFront, undefined, appProcessIds)
   gameRect = visibleGameRect()
   const target = wanted(now)
   if (target) apply(target.profile, target.displays, now)
   else if (applied || originals.size) restoreAll()
-  if (gameRect && (!lastFrame || now - lastFrame.at > FRAME_EVERY_MS)) {
+  // what the raid had, kept for the page once the app is in front (the curve being tuned does not count)
+  raidResult = noteRaidResult(raidResult, target && !editing && applied ? { name: target.profile.name, strength: applied.strength } : null, now)
+  // report 227: the whole game screen copied only for a player who uses this page, and for anyone else outside raids, rarely
+  const inUse = settings.enabled || Boolean(editing) || pageOpened
+  if (gameRect && backgroundFrameDue({ inUse, raid: lastRaid, lastAt: lastFrame?.at ?? null, now })) {
     const frame = captureGame()
     if (frame) lastFrame = frame
   }
 }
 
-/** The game's picture as it is drawn (a ramp changes what the monitor shows, not this copy), every pixel of it. */
+/** The app's processes (main, page, graphics, utilities): each gives way to the game (electron/gamePriority.ts). */
+function appProcessIds() {
+  return app.getAppMetrics().map((metric) => metric.pid)
+}
+
+/**
+ * The game's picture as it is drawn (a ramp changes what the monitor shows, not this copy), every pixel of it. The copy's
+ * alpha is set opaque only when the page asks for it (frameView): a copy taken in the background costs no loop over it.
+ */
 function captureGame(): Frame | null {
   const rect = visibleGameRect()
   if (!rect) return null
   const shot = captureScreenRegion(rect.x, rect.y, rect.width, rect.height)
   if (!shot) return null
-  for (let index = 3; index < shot.data.length; index += 4) shot.data[index] = 255
   return { pixels: shot, at: Date.now(), source: 'game' }
 }
 
-/** A frame for the page: PNG, full size, nothing lost. */
+/** A frame for the page: PNG, full size, nothing lost; every pixel opaque (GDI leaves the alpha byte unset). */
 function frameView(frame: Frame) {
   const { data, width, height } = frame.pixels
+  for (let index = 3; index < data.length; index += 4) data[index] = 255
   const image = nativeImage.createFromBitmap(Buffer.from(data.buffer, data.byteOffset, data.byteLength), { width, height })
   return image.isEmpty() ? null : { dataUrl: `data:image/png;base64,${image.toPNG().toString('base64')}`, at: frame.at, source: frame.source }
 }
@@ -257,6 +288,7 @@ function status() {
     displays: displayNames(),
     exclusive: gameInFront && foregroundDisplayMode() === 'exclusive',
     applied: applied ? { displays: applied.displays.length, strength: applied.strength } : null,
+    lastRaid: raidResult ? { ...raidResult } : null,
     editing: Boolean(editing),
     inRaid: lastRaid,
     on: presetOn(),
@@ -346,6 +378,8 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
     return status()
   })
   ipcMain.handle('screen:frame', async (_event, kind: unknown) => {
+    // Only the page «Настройка экрана» asks for frames (the cards and the phone read screen:state): the player uses it.
+    pageOpened = true
     if (kind === 'screenshot') return latestScreenshot()
     if (kind === 'game') {
       const frame = captureGame()

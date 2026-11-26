@@ -230,29 +230,67 @@ describe('«Ключи для квестов»', () => {
     expect(document.querySelectorAll('.quest-key')).toHaveLength(2)
   })
 
-  // Owner, 18.11.2026: «Если у нас горит кнопка «Нет в наличии», на нее можно нажать, появится окно, и можно нажать «Добавить в наличие»».
-  it('«Нет в наличии» opens a window whose «Добавить в наличие» puts the key in the stash', () => {
+  // Owner, 18.11.2026: «Если у нас горит кнопка «Нет в наличии», на нее можно нажать… и можно нажать «Добавить в наличие»»;
+  // 25.11.2026: «не открывается окно на весь экран и не притемняет, а прям там же открывается окошечко „Добавить в наличие“. И ты
+  // нажимаешь „Добавить“. Все.»
+  it('«Нет в наличии» opens a small box right there, nothing dimmed; its «Добавить» puts the key in the stash', () => {
     const profile = open()
     act(() => setOwnedKey(profile.id, 'pvp', 'k1', 1))
-    fireEvent.click(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' }))
-    const dialog = screen.getByRole('dialog', { name: 'Нет в наличии' })
-    expect(dialog).toHaveTextContent('Ключ от гаража')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить в наличие' }))
+    const missing = within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' })
+    fireEvent.click(missing)
+    const box = within(row('Ключ от гаража')).getByRole('dialog', { name: 'Добавить в наличие' })
+    expect(missing).toHaveAttribute('aria-expanded', 'true')
+    // In the key's own card, not a window over the page: no dimmed overlay.
+    expect(document.querySelector('.registration-overlay')).toBeNull()
+    expect(box).not.toHaveAttribute('aria-modal')
+    expect(within(box).getByRole('button', { name: 'Добавить' })).toHaveFocus()
+    fireEvent.click(within(box).getByRole('button', { name: 'Добавить' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
     expect(row('Ключ от гаража')).toHaveTextContent('Есть в схроне')
-    // Closed without adding: nothing changes.
+    // Closed without adding — Escape, a click elsewhere, the tag again: nothing changes.
     act(() => setOwnedKey(profile.id, 'pvp', 'k2', 0))
-    fireEvent.click(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' }))
+    const again = () => within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' })
+    fireEvent.click(again())
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(again())
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(again())
+    fireEvent.click(again())
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(readOwnedKeys(profile.id, 'pvp').has('k2')).toBe(false)
+  })
+
+  // Owner, 25.11.2026: «если ключ в наличии, также нажимает на это окно и нажать „Нет в наличии“»; the right button opens the box too.
+  it('«Есть в схроне» opens the same small box, by the left or the right button; its «Нет в наличии» takes the key off', () => {
+    const profile = open()
+    act(() => { setOwnedKey(profile.id, 'pvp', 'k1', 1); setOwnedKey(profile.id, 'pvp', 'k2', 1) })
+    const owned = () => within(row('Ключ от гаража')).getByRole('button', { name: 'Есть в схроне' })
+    fireEvent.contextMenu(owned())
+    const box = within(row('Ключ от гаража')).getByRole('dialog', { name: 'Нет в наличии' })
+    expect(document.querySelector('.registration-overlay')).toBeNull()
+    expect(within(box).getByRole('button', { name: 'Нет в наличии' })).toHaveFocus()
+    // Closed without a choice: still in the stash.
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
+    fireEvent.click(owned())
+    fireEvent.click(within(within(row('Ключ от гаража')).getByRole('dialog', { name: 'Нет в наличии' })).getByRole('button', { name: 'Нет в наличии' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(readOwnedKeys(profile.id, 'pvp').has('k2')).toBe(false)
+    expect(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' })).toBeInTheDocument()
+    // and back: the right button on «Нет в наличии» opens «Добавить в наличие»
+    fireEvent.contextMenu(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' }))
+    fireEvent.click(within(within(row('Ключ от гаража')).getByRole('dialog', { name: 'Добавить в наличие' })).getByRole('button', { name: 'Добавить' }))
+    expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
   })
 
   it('the window has its English', () => {
     setRenderLanguage('en')
     try {
-      expect(['Нет в наличии', 'Добавить в наличие'].map((text) => uiText(text))).toEqual(['Not in stash', 'Mark as owned'])
+      expect(['Нет в наличии', 'Добавить в наличие', 'Добавить'].map((text) => uiText(text))).toEqual(['Not in stash', 'Mark as owned', 'Add'])
     } finally { setRenderLanguage('ru') }
   })
 

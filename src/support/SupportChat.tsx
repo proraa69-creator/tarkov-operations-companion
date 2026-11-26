@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type TouchEvent as ReactTouchEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Check, CheckCheck, Clock3, Copy, ImageOff, LoaderCircle, LogIn, MessagesSquare, Paperclip, Pencil, RefreshCw, Reply, Send, Smile, Sticker, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckCheck, Clock3, Copy, ImageOff, LoaderCircle, LogIn, MessagesSquare, Paperclip, Pencil, RefreshCw, Reply, Send, Smile, Sticker, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
@@ -14,6 +14,7 @@ import { cleanIpcError } from '../sync/serverSync'
 import { ImageViewer, imageViewerOpen } from '../components/ImageViewer'
 import { ToastDock, useToastTimer } from '../notifications/ToastDock'
 import { openSupportChat, supportAttachmentImage, supportTime, useSupportChat, useSupportNotice, type SupportImageUpload, type SupportMessage, type SupportSendExtra } from './supportChatClient'
+import type { SupportReportAnswer } from './supportChatTools'
 import { emojiOnly, quoteBody, replyQuoteOf, stickerCaption, SUPPORT_EMOJI, supportChatLayerOpen, supportEditable, supportOwnWords, toggledReactions, useEscapeLayer, useSupportOutbox, useSupportReply, type SupportEditTarget, type SupportReplyTarget } from './supportChatTools'
 import { stickerPictureSrc, useStickerCatalog } from './stickerCatalog'
 import './supportChat.css'
@@ -120,6 +121,18 @@ export function SupportReportCard({ report }: { report: Pick<SupportReportRef, '
   </div>
 }
 
+/** The plate above the answer box while it answers a report. The title is the player's own words: never passed through uiText. */
+export function SupportReportAnswerPlate({ report, onCancel }: { report: SupportReportAnswer; onCancel: () => void }) {
+  return <div className="support-chat-replying support-chat-answering" role="group" aria-label={uiText('Ответ на заявку')}>
+    <Reply size={15} aria-hidden="true" />
+    <div className="support-chat-quote">
+      <strong>{uiText('Ответ на заявку')} №{report.id}</strong>
+      <span>{report.title}</span>
+    </div>
+    <button type="button" className="icon-button" onClick={onCancel} aria-label={uiText('Не отвечать на заявку')} title={uiText('Не отвечать на заявку')}><X size={14} /></button>
+  </div>
+}
+
 /** Held this long on the phone, a message offers «Копировать». */
 const LONG_PRESS_MS = 450
 /** A finger moved this far: it scrolls or swipes, no menu. */
@@ -161,7 +174,7 @@ interface MenuAt { id: number; x: number; y: number; touch: boolean; kind: 'all'
  * shows as its picture, a built-in one with the caption in the reader's language; one the owner deleted since reads
  * «[стикер]». `peerName`: who the other side is in quotes and in the chips' titles (default `otherName`).
  */
-export function SupportMessageList({ messages, viewer, otherName, peerName, loading, error, onRetry, emptyText, onReact, onReply, onEdit }: {
+export function SupportMessageList({ messages, viewer, otherName, peerName, loading, error, onRetry, emptyText, onReact, onReply, onEdit, onDelete }: {
   messages: SupportMessage[]
   viewer: SupportMessage['author']
   otherName?: string
@@ -174,6 +187,8 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
   onReply?: (target: SupportReplyTarget) => void
   /** «Редактировать» on the owner's own messages (owner, 15.11.2026): the composer takes the message's words. */
   onEdit?: (message: SupportMessage) => void
+  /** «Удалить» on any message of the owner's conversation (owner, 26.11.2026), after «Точно удалить?». */
+  onDelete?: (message: SupportMessage) => Promise<unknown>
 }) {
   const { locale } = useLocale()
   const log = useRef<HTMLDivElement>(null)
@@ -187,7 +202,7 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
   // A finger on a message: where it went down and whether it scrolls or swipes; the bubble's pull while it swipes.
   const gesture = useRef<{ id: number; x: number; y: number; mode: 'wait' | 'swipe' | 'scroll'; dx: number } | null>(null)
   const [swipe, setSwipe] = useState<{ id: number; dx: number; back: boolean } | null>(null)
-  const interactive = Boolean(onReact || onReply || onEdit)
+  const interactive = Boolean(onReact || onReply || onEdit || onDelete)
   const editable = (message: SupportMessage) => Boolean(onEdit) && supportEditable(message, viewer)
   // The newest message in view: on opening and whenever one arrives or is sent.
   useEffect(() => {
@@ -230,7 +245,7 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
   const copyable = (message: SupportMessage) => !message.sticker && words(message) !== SUPPORT_IMAGE_PLACEHOLDER && words(message) !== SUPPORT_STICKER_PLACEHOLDER && Boolean(navigator.clipboard)
   const openMenu = (message: SupportMessage, x: number, y: number, touch: boolean, kind: MenuAt['kind']) => {
     // A message still on its way has no menu yet.
-    if (!interactive || message.sending || (kind === 'copy' && !copyable(message) && !editable(message))) return
+    if (!interactive || message.sending || (kind === 'copy' && !copyable(message) && !editable(message) && !onDelete)) return
     // A long press may have started selecting the words: the menu takes their place.
     if (touch) window.getSelection?.()?.removeAllRanges()
     setMenu((current) => (current?.id === message.id && current.kind === kind ? current : { id: message.id, x, y, touch, kind }))
@@ -353,7 +368,11 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
         onReact={onReact && menu.kind !== 'copy' ? (emoji) => toggle(open, emoji) : undefined}
         onReply={onReply && menu.kind !== 'copy' ? () => onReply({ message: open, name: nameOf(open.author) }) : undefined}
         onCopy={menu.kind !== 'actions' && copyable(open) ? () => void navigator.clipboard.writeText(words(open)).catch(() => {}) : undefined}
-        onEdit={onEdit && editable(open) ? () => onEdit(open) : undefined} />}
+        onEdit={onEdit && editable(open) ? () => onEdit(open) : undefined}
+        onDelete={onDelete ? () => {
+          setActionError('')
+          void onDelete(open).catch((reason: unknown) => setActionError(cleanIpcError(reason) || 'Не удалось удалить сообщение'))
+        } : undefined} />}
     </div>
   )
 }
@@ -432,16 +451,19 @@ const TOUCH_SETTLE_MS = 400
  * «Копировать». A click outside, Escape, scrolling or the window losing focus closes it. Rendered into <body>: the
  * conversation scrolls and clips.
  */
-function MessageMenu({ at, mine, onReact, onReply, onCopy, onEdit, onClose }: {
+function MessageMenu({ at, mine, onReact, onReply, onCopy, onEdit, onDelete, onClose }: {
   at: MenuAt
   mine: Set<string>
   onReact?: (emoji: string) => void
   onReply?: () => void
   onCopy?: () => void
   onEdit?: () => void
+  onDelete?: () => void
   onClose: () => void
 }) {
   const box = useRef<HTMLDivElement>(null)
+  /** «Удалить» was pressed once: the second press deletes. */
+  const [sure, setSure] = useState(false)
   const settled = useRef(!at.touch)
   useEscapeLayer(true, onClose)
   useEffect(() => {
@@ -487,6 +509,8 @@ function MessageMenu({ at, mine, onReact, onReply, onCopy, onEdit, onClose }: {
     {onReply && <button type="button" role="menuitem" className="support-chat-menu-item" onClick={() => choose(onReply)}><Reply size={15} aria-hidden="true" />{uiText('Ответить')}</button>}
     {onCopy && <button type="button" role="menuitem" className="support-chat-menu-item" onClick={() => choose(onCopy)}><Copy size={15} aria-hidden="true" />{uiText('Копировать')}</button>}
     {onEdit && <button type="button" role="menuitem" className="support-chat-menu-item" onClick={() => choose(onEdit)}><Pencil size={15} aria-hidden="true" />{uiText('Редактировать')}</button>}
+    {onDelete && <button type="button" role="menuitem" className={`support-chat-menu-item is-danger${sure ? ' is-sure' : ''}`}
+      onClick={() => { if (!settled.current) return; if (sure) choose(onDelete); else setSure(true) }}><Trash2 size={15} aria-hidden="true" />{uiText(sure ? 'Точно удалить?' : 'Удалить')}</button>}
   </div>, document.body)
 }
 

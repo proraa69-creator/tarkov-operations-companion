@@ -103,7 +103,9 @@ test('a paid payment activates the subscription once and credits the streamer', 
 
   const streamer = accounts.view(accounts.authenticate((await accounts.login('streamer@example.com', 'correct horse battery')).token)!)
   assert.equal(streamer.stats?.activeSubscriptions, 1)
-  assert.equal(streamer.stats?.revenue, undefined, 'the streamer never sees what his viewers paid')
+  // A streamer with a share sees what his viewers paid (owner, 25.11.2026: «сколько оплатили, какая сумма»); one at 0 % does not
+  // (the rule of 30.10.2026 stays for him: accountStore's view, payouts.test.ts).
+  assert.deepEqual(streamer.stats?.revenue, { amount: 800, currency: 'RUB' }, 'a streamer with a share sees what his viewers paid')
   assert.deepEqual(streamer.stats?.earnings, { amount: 160, currency: 'RUB' })
   assert.deepEqual(accounts.streamers().streamers[0]!.stats.revenue, { amount: 800, currency: 'RUB' }, 'the owner does')
 

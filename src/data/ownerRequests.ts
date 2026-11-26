@@ -283,6 +283,14 @@ export function useOwnerChatActions() {
       void refresh()
       return message
     }, [client, refresh]),
+    /** «Удалить сообщение» (owner, 26.11.2026): gone for both sides, out of the open conversation at once. */
+    remove: useCallback(async (accountId: string, id: number) => {
+      await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages/${id}/delete`, {})
+      client.setQueryData<OwnerChatDetail>([...OWNER_CHATS_KEY, 'thread', accountId], (current) => (current
+        ? { ...current, messages: current.messages.filter((known) => known.id !== id) }
+        : current))
+      void refresh()
+    }, [client, refresh]),
     react: useCallback(async (accountId: string, id: number, emoji: string, on: boolean) => {
       const answer = await ownerCall('POST', supportReactionPath(id, accountId), { emoji, on }) as { message?: unknown } | null
       const message = cleanSupportMessage(answer?.message)

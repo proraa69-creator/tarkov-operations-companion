@@ -28,6 +28,8 @@ const delta = vi.hoisted(() => ({
   liveRendererIndex: vi.fn(),
   markStagedBuildBad: vi.fn(),
   stagedBuildBad: vi.fn(),
+  tellUpdateProblem: vi.fn(),
+  failureKind: vi.fn(() => 'other'),
 }))
 vi.mock('./deltaUpdate.js', () => delta)
 

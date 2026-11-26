@@ -204,3 +204,24 @@ export function useEscapeLayer(open: boolean, close: () => void) {
     }
   }, [open])
 }
+
+/** A report the next message of the owner answers, as «Разъяснить» opens the chat (owner, 25.11.2026). */
+export interface SupportReportAnswer { id: number; title: string }
+
+/**
+ * «Разъяснить» on a bug (owner, 25.11.2026: «у меня открывается окно в чате с ним и ответ на его сообщение»): the owner's next message
+ * answers the report — «Ответ на заявку №N» above it, for the player too (`reportId`). `take` hands its number to that one message;
+ * «×» drops it and the message goes as a plain one.
+ */
+export function useSupportReportAnswer(answer?: SupportReportAnswer | null) {
+  const [about, setAbout] = useState(answer ?? null)
+  const pending = useRef(answer ?? null)
+  const take = useCallback(() => {
+    const report = pending.current
+    pending.current = null
+    setAbout(null)
+    return report?.id
+  }, [])
+  const cancel = useCallback(() => { pending.current = null; setAbout(null) }, [])
+  return { about, take, cancel }
+}

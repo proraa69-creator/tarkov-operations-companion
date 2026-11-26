@@ -86,8 +86,8 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Не удалось подготовить обновление', 'Could not prepare the update'],
   // Full-screen update window (UpdateButton → UpdateOverlay)
   // The portable exe offers the installer (src/components/InstallerOffer.tsx, electron/appInstall.ts).
-  ['Raid OS теперь устанавливается как обычная программа', 'Raid OS now installs like a regular program'], ['Скачиваем установщик', 'Downloading the installer'], ['Скачиваем установщик…', 'Downloading the installer…'], ['Открываем установщик…', 'Opening the installer…'],
-  ['Не удалось скачать установщик', 'Could not download the installer'], ['Установщик пока недоступен, попробуйте позже', 'The installer is not available yet, try again later'], ['Файл установщика изменился после проверки, попробуйте ещё раз', 'The installer file changed after the check, try again'],
+  ['Приложение обновляется', 'The app is updating'], ['Скачиваем обновление', 'Downloading the update'], ['Скачиваем обновление…', 'Downloading the update…'], ['Устанавливаем обновление…', 'Installing the update…'],
+  ['Не удалось скачать обновление', 'Could not download the update'], ['Установщик пока недоступен, попробуйте позже', 'The installer is not available yet, try again later'], ['Файл установщика изменился после проверки, попробуйте ещё раз', 'The installer file changed after the check, try again'],
   ['Обновление доступно только в собранном приложении', 'Updates work only in the built app'],
   // While the game runs (src/components/UpdateButton.tsx): download by hand, then «Обновить сейчас?».
   ['Загрузить обновление', 'Download update'], ['Обновление скачано. Обновить сейчас?', 'Update downloaded. Update now?'],

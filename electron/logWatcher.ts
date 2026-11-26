@@ -199,7 +199,9 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
     if (!deps.watchFolder) { setWatchMode('poll'); schedulePolls(); return }
     try {
       closeWatch = deps.watchFolder(root, () => {
-        if (root !== folder || debounceTimer) return
+        // In a raid the game writes its logs all the time and only the raid state is read: the safety poll (every
+        // LOG_SAFETY_POLL_MS) tells the raid's end, no extra poll on every write (report 227, 25.11.2026: «игра фризит»).
+        if (root !== folder || debounceTimer || raid.inRaid) return
         debounceTimer = setTimeout(() => { debounceTimer = null; void poll() }, WATCH_DEBOUNCE_MS)
       }, () => { if (root === folder) watchBroke(root) })
       watchFailures = 0
@@ -269,7 +271,8 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
     // The raid's map is named only by a later line (TRACE-NetworkGameCreate … Location:) than the one the raid starts
     // with: the window hears of it too, or it draws the screenshot's dot on whatever map is open (owner, 20.10.2026: the
     // Factory position showed on Customs).
-    const moved = next.location !== raid.location || next.since !== raid.since || next.begun !== raid.begun
+    // Whose raid it is (a PMC's or a Scav's, src/import/raidState.ts) is named by a line after the raid's start too.
+    const moved = next.location !== raid.location || next.since !== raid.since || next.begun !== raid.begun || next.side !== raid.side
     raid = next
     // The raid is over: the minimap and the other raid signs no longer hold the quest scanner back.
     if (changed && !next.inRaid) deps.onRaidOver?.()

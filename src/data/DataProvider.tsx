@@ -9,7 +9,8 @@ import { cleanDatasetText } from '../shared/questText'
 import { withQuestGrid } from './questGrid'
 import { withMapsGeometry } from './mapGeometry'
 import { useLocale } from '../i18n/LocaleProvider'
-import { loadEnglishCatalog } from '../i18n/catalogTranslations'
+import { loadEnglishCatalog, loadTargetCatalog } from '../i18n/catalogTranslations'
+import { isTargetLanguage } from '../i18n/languages'
 import { useEnglishOverlay } from '../i18n/englishDataset'
 import { CATALOG_REFRESH_MS, isInitialCatalogLoad, useCatalogAutoRefresh } from './catalogRefresh'
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
@@ -50,10 +51,12 @@ const DataStatusContext = createContext<DataStatusValue>({ isFetching: false })
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { raidMode } = useAppState()
-  const { locale } = useLocale()
+  const { locale, language } = useLocale()
   // Players' app: nothing is requested before the server has granted access (the paywall is shown instead).
   const allowed = canLoadGameData(useDataAccess())
   useEffect(() => { if (allowed && locale === 'en') void loadEnglishCatalog(raidMode) }, [allowed, locale, raidMode])
+  // German, Japanese, Chinese: the game's own names in that language (src/i18n/catalogTranslations.ts).
+  useEffect(() => { if (allowed && isTargetLanguage(language)) void loadTargetCatalog(raidMode, language) }, [allowed, language, raidMode])
   // The server laptop (--server-mode) fetches once and never polls.
   const serverMode = typeof window !== 'undefined' && window.tarkovDesktop?.serverMode === true
   const client = useQueryClient()

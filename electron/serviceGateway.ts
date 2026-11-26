@@ -19,6 +19,7 @@ import { localServerEnabled } from './localServer.js'
 import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, mayPinServerKeys, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EftConflict, type EntitlementStatus } from './entitlement.js'
 import { clearGameCache, type CacheAccess } from './gameDataCache.js'
 import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '../src/shared/sendRetry.js'
+import { isPaidContentPath } from '../src/shared/paidContent.js'
 
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
@@ -135,6 +136,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
   // «Редактировать»: new words for the owner's own message (owner, 15.11.2026).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/edit$/ },
+  // «Удалить сообщение»: any one message of a conversation, gone for both sides (owner, 26.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/delete$/ },
   // The owner's published sticker packs for the chat's picker (server/src/routes/stickers.ts; owner, 07.11.2026: «паки
   // стикеров… по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон»). Public; the pictures are
   // <img> addresses of the server (src/support/stickerCatalog.ts), never through here.
@@ -220,6 +223,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
   { methods: ['GET', 'POST'], path: /^\/v1\/accounts\/me\/payouts$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/payout-settings$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/streamer-notifications$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/streamer-notifications\/read$/ },
   // «Отряд» (server/src/routes/squads.ts): the server checks membership on every call.
   { methods: ['GET'], path: new RegExp(`^/v1/squads/mine/${MODE}$`) },
   { methods: ['POST'], path: /^\/v1\/squads(?:\/join)?$/ },
@@ -522,9 +527,11 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
   const token = path === '/v1/sync/events' ? developmentEnv('TARKOV_API_TOKEN') ?? null : sessionToken
   const gated = GATED.test(path)
+  // Our own content and the account's synced data: the same server check, with this device's id (src/shared/paidContent.ts).
+  const paidContent = isPaidContentPath(path)
   const catalog = catalogRequest(path)
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
-  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}), hedge: LIVE_WAIT.test(path) ? false : gated ? { hedgeMs: 3_000, attempts: 2 } : {} })
+  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || paidContent || path === PRESENCE_PATH ? { device: await deviceId() } : {}), hedge: LIVE_WAIT.test(path) ? false : gated ? { hedgeMs: 3_000, attempts: 2 } : {} })
   const { response, result } = retriesWhileRestarting(method, path)
     ? await retryWhileRestarting(request, (error) => error instanceof ServiceUnavailableError && error.notTaken)
     : await request()
@@ -533,6 +540,9 @@ export async function serviceRequest(method: string, path: string, body?: unknow
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
   }
   if (gated && (response.status === 402 || response.status === 403)) await refusedByServer(response.status, result)
+  // Refused there: nothing is cleared here (the lists, the cache and the entitlement stay) — the request just fails like an
+  // offline one, and the next status asks for the entitlement at once, which shows the paywall or registers this device.
+  if (paidContent && (response.status === 402 || response.status === 403)) entitlementDue = true
   // The game account of this PC was reported (src/account/EftAccountBinding.tsx): the server may now refuse or allow this
   // device (one game account — one Raid OS account), so the next status asks for the entitlement at once.
   if (path === EFT_ACCOUNT_PATH && method === 'POST') entitlementDue = true

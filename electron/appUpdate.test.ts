@@ -23,7 +23,7 @@ vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => 'https://type
 vi.mock('node:child_process', () => ({ spawn: vi.fn(() => ({ unref: vi.fn() })) }))
 // The owner's partial update (electron/deltaUpdate.ts): the published parts are mocked here, appDelta.test.ts covers them.
 const delta = vi.hoisted(() => ({ info: null as unknown, fetchDeltaInfo: vi.fn(), stageDeltaUpdate: vi.fn(async () => ({ downloaded: 10, total: 100 })), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn() }))
-vi.mock('./deltaUpdate.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: delta.stageDeltaUpdate, activateDeltaUpdate: delta.activateDeltaUpdate, relaunchWhenClosed: delta.relaunchWhenClosed }))
+vi.mock('./deltaUpdate.js', () => ({ tellUpdateProblem: vi.fn(), failureKind: () => 'other', fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: delta.stageDeltaUpdate, activateDeltaUpdate: delta.activateDeltaUpdate, relaunchWhenClosed: delta.relaunchWhenClosed }))
 
 const { canonicalUpdatePayload } = await import('./updateManifest')
 const { checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateStatus } = await import('./appUpdate')

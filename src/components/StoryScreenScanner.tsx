@@ -16,6 +16,7 @@ import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
 import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
 import { onQuestTableScanChange, playerQuestScanStartedAt, questTableScanUntil } from '../account/trialFeatures'
 import { startTableVisit, tableSyncOpen, withTableReading, type TableVisit } from '../import/tableSync'
+import { noteGameLanguage } from '../data/gameNamesLoader'
 
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
@@ -77,7 +78,7 @@ export function StoryScreenScanner() {
     const desktop = window.tarkovDesktop
     if (!desktop) return
     // Unlocked now: what the locked app's identity reader kept (src/components/IdentityScreenReader.tsx) is applied.
-    applyKeptIdentity(() => stateRef.current, logsGameMode(logStatusRef.current))
+    applyKeptIdentity(() => stateRef.current)
     let cancelled = false
     let inRaid = false
     // Back from a raid: look at once. While the window sits minimized behind the game its timers are throttled,
@@ -133,6 +134,8 @@ export function StoryScreenScanner() {
         if (frame?.busy) return STORY_SCAN_TIMING.busyMs
         // A new game window is a game start; the first-launch notice counts them (src/onboarding/gameStarts.ts).
         noteGameSighting(frame)
+        // The game's language (German, Japanese, Chinese: its quest names are loaded for the table, src/data/gameNamesLoader.ts).
+        if (frame?.language) noteGameLanguage(frame.language)
         // The flea market: the main process read its list from this copy (src/import/fleaReading.ts) and no quest text.
         // Its prices belong to the mode the game is in by its logs (owner, 18.11.2026: «определяй в каком сейчас режиме
         // игрок… если он на барахолке смотрит предмет, учитывай что это этот режим»); looked at again at the menus' pace.
@@ -144,7 +147,7 @@ export function StoryScreenScanner() {
         // Shown on every game start, for all modes at once: applied right away, whatever mode the app shows.
         if (frame?.gameWindow && frame.profiles?.length) {
           noteModeSelectRead()
-          applyModeSelectScreen(frame.profiles, frame.observedAt ?? Date.now(), () => stateRef.current, logsGameMode(logStatusRef.current))
+          applyModeSelectScreen(frame.profiles, frame.observedAt ?? Date.now(), () => stateRef.current)
         }
         // The traders' screen: the level of the mode the game is in (from the logs) and the nickname marked «(вы)».
         if (frame?.gameWindow && frame.trader) applyTraderScreen(frame.trader, logsGameMode(logStatusRef.current), frame.observedAt ?? Date.now(), () => stateRef.current)
@@ -182,7 +185,7 @@ export function StoryScreenScanner() {
         // chapters (the game never logs them), «Выбор профиля и режима» and the traders' screen are read as before; once
         // the logs show a gap (a quest handed in without its acceptance), the table is read again.
         // Told by structure (audit P1): rows with status cells are the table even when the dimmed «СЮЖЕТНЫЕ» tab is read.
-        const screenKind = frame?.gameWindow ? tasksScreenKind(frame.text, frame.story) : null
+        const screenKind = frame?.gameWindow ? tasksScreenKind(frame.text, frame.story, frame.language) : null
         const storyScreen = screenKind === 'story'
         const tasksTable = screenKind === 'table'
         // Owner, 15.10.2026: «сканирование экрана только для пве режима» — and 31.10.2026: «прими меры что бы точно
@@ -232,9 +235,9 @@ export function StoryScreenScanner() {
           // A title two factions share is told by the row's location, else by the faction the profile knows (report 209).
           const modeProgress = mode ? stateRef.current.activeProfile.modes?.[mode] : undefined
           const faction = modeProgress ? playerFaction(modeProgress, questsRef.current) : undefined
-          const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current, { faction })).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
+          const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current, { faction, language: frame.language })).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)
-          session = recordTableView(session, tableView(frame.text, matches, questsRef.current, frame.observedAt ?? 0))
+          session = recordTableView(session, tableView(frame.text, matches, questsRef.current, frame.observedAt ?? 0, frame.language))
           if (mode && matches.length) applyQuestsRef.current(mode, matches, questsRef.current, [...previous])
           previous = new Set(currentIds)
           if (mode && tableSyncOpen(stateRef.current.activeProfile.modes?.[mode])) {

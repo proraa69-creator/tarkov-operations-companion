@@ -5,9 +5,9 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { OWNER_CHATS_KEY, useOwnerChat, useOwnerChatActions, useOwnerChats, type OwnerChatDetail, type OwnerChatThread } from '../data/ownerRequests'
 import { cleanIpcError } from '../sync/serverSync'
-import { SupportComposer, SupportMessageList } from './SupportChat'
+import { SupportComposer, SupportMessageList, SupportReportAnswerPlate } from './SupportChat'
 import { supportTime, type SupportImageUpload, type SupportSendExtra } from './supportChatClient'
-import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply } from './supportChatTools'
+import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply, useSupportReportAnswer, type SupportReportAnswer } from './supportChatTools'
 import { FindUserToWrite } from './FindUserToWrite'
 import { ChatPersonMenu } from '../admin/ChatPersonMenu'
 import { usePersonMenu } from '../admin/personMenu'
@@ -35,8 +35,10 @@ const playerName = (player: { nickname?: string; email: string } | undefined) =>
  * «Посмотреть профиль» (owner, 24.11.2026: «нажимаю правой кнопкой, на телефоне зажимаю пальцем… посмотреть профиль»): a
  * right click or a long press on a person in the list opens the menu (admin/ChatPersonMenu.tsx); `onProfile` opens the
  * account's card. The open conversation has the same under its name («Профиль»).
+ *
+ * «Разъяснить» on a bug (owner, 25.11.2026): `answer` — the conversation opens with the answer to that report ready.
  */
-export function OwnerChats({ selected, onSelect, onProfile }: { selected: string | null; onSelect: (accountId: string | null) => void; onProfile?: (accountId: string) => void }) {
+export function OwnerChats({ selected, onSelect, onProfile, answer }: { selected: string | null; onSelect: (accountId: string | null) => void; onProfile?: (accountId: string) => void; answer?: SupportReportAnswer | null }) {
   const { locale } = useLocale()
   const chats = useOwnerChats()
   const people = usePersonMenu()
@@ -61,7 +63,7 @@ export function OwnerChats({ selected, onSelect, onProfile }: { selected: string
         ))}
       </section>
       {selected
-        ? <OwnerChatView key={selected} accountId={selected} thread={threads.find((thread) => thread.accountId === selected)} onBack={() => onSelect(null)} onProfile={onProfile} />
+        ? <OwnerChatView key={`${selected}:${answer?.id ?? ''}`} accountId={selected} thread={threads.find((thread) => thread.accountId === selected)} onBack={() => onSelect(null)} onProfile={onProfile} answer={answer} />
         : <section className="panel owner-chat-pick"><span><MessagesSquare size={16} /> {uiText('Выберите переписку слева.')}</span></section>}
       {onProfile && <ChatPersonMenu menu={people.menu} onClose={people.close} onProfile={onProfile} onChat={onSelect} />}
     </div>
@@ -85,9 +87,9 @@ function useResolveOwnerChat() {
 }
 
 /** One conversation: the player's messages on the left, the owner's answers on the right, the answer box under them. */
-function OwnerChatView({ accountId, thread, onBack, onProfile }: { accountId: string; thread?: OwnerChatThread; onBack: () => void; onProfile?: (accountId: string) => void }) {
+function OwnerChatView({ accountId, thread, onBack, onProfile, answer }: { accountId: string; thread?: OwnerChatThread; onBack: () => void; onProfile?: (accountId: string) => void; answer?: SupportReportAnswer | null }) {
   const chat = useOwnerChat(accountId)
-  const { reply, markRead, react, edit } = useOwnerChatActions()
+  const { reply, markRead, react, edit, remove } = useOwnerChatActions()
   const resolve = useResolveOwnerChat()
   const [confirming, setConfirming] = useState(false)
   const [resolving, setResolving] = useState(false)
@@ -120,7 +122,9 @@ function OwnerChatView({ accountId, thread, onBack, onProfile }: { accountId: st
   // Opened from a report, the conversation may not be in the list: no name until its account is read.
   const name = player || !chat.isLoading ? playerName(player) : '…'
   // Sent at once (owner, 15.11.2026), and «Редактировать» on the owner's own messages.
-  const sendReply = useCallback((text: string, images: SupportImageUpload[], extra: SupportSendExtra) => reply(accountId, text, images, undefined, extra), [accountId, reply])
+  const report = useSupportReportAnswer(answer)
+  const { take } = report
+  const sendReply = useCallback((text: string, images: SupportImageUpload[], extra: SupportSendExtra) => reply(accountId, text, images, extra.sticker ? undefined : take(), extra), [accountId, reply, take])
   const [sending, send] = useSupportOutbox(chat.data?.messages ?? [], 'owner', sendReply)
   const editor = useSupportEdit(sending, (message, text) => edit(accountId, message.id, text))
   const messages = editor.messages
@@ -156,7 +160,9 @@ function OwnerChatView({ accountId, thread, onBack, onProfile }: { accountId: st
       </header>
       {resolveError && <div className="support-chat-error" role="alert"><AlertTriangle size={15} /><span>{uiText(resolveError)}</span></div>}
       <SupportMessageList messages={messages} viewer="owner" peerName={player ? name : undefined} loading={chat.isLoading} error={chat.error instanceof Error ? cleanIpcError(chat.error) : ''} onRetry={() => void chat.refetch()} emptyText="Сообщений пока нет."
-        onReact={(message, emoji, on) => react(accountId, message.id, emoji, on)} onReply={setReplying} onEdit={editor.start} />
+        onReact={(message, emoji, on) => react(accountId, message.id, emoji, on)} onReply={setReplying} onEdit={editor.start}
+        onDelete={(message) => remove(accountId, message.id)} />
+      {report.about && <SupportReportAnswerPlate report={report.about} onCancel={report.cancel} />}
       <SupportComposer onSend={send} placeholder="Ответ игроку…" autoFocus allowImages allowEmoji allowStickers dropZone={view}
         replyTo={replying} onCancelReply={() => setReplying(null)} editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />
     </section>

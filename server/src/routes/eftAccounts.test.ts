@@ -30,7 +30,7 @@ async function withApi(run: (ctx: {
 }) => Promise<void>) {
   let clock = Date.parse('2026-10-13T12:00:00Z')
   const accounts = new AccountStore({ now: () => clock, ownerEmails: ['owner@example.com'], streamerTrial: false })
-  const source: SubscriptionSource = { paidUntil: () => undefined, referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0 }), referralSeries: () => [] }
+  const source: SubscriptionSource = { paidUntil: () => undefined, referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }), referralSeries: () => [] }
   accounts.attachSubscriptions(source)
   const entitlements = new EntitlementService(accounts)
   const fetcher = (async () => new Response('{"data":{"items":[]}}', { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch

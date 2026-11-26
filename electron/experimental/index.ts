@@ -7,6 +7,7 @@ import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '..
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 import { readScreenshotBindingAt } from '../logScanner.js'
 import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
+import { gameLanguageNow } from '../ocrEngine.js'
 import { TOOLTIP_CAPTURE, type Bitmap, type Rect } from '../../src/overlay/tooltipDetect.js'
 import { readGameTooltip, retryOcrReadings, TOOLTIP_SCALE_MEMORY, type TooltipReading } from '../../src/overlay/tooltipLookup.js'
 import { findItemFrames, type ItemCell } from '../../src/overlay/itemCell.js'
@@ -22,9 +23,9 @@ export { setGameLogFolders } from './positionTracker.js'
 import { HOTKEYS, hotkeyPressed, parseHotkey } from '../../src/overlay/hotkeys.js'
 import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type ExperimentalSettings } from './settings.js'
 import { createTrackingControl } from './trackingControl.js'
-import { noteRaidSignal } from './raidSignals.js'
+import { noteRaidSignal, raidLikely } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
-import { readExtractsPanel, watchExtractsHeader } from '../extractsReader.js'
+import { headerPollMs, readExtractsPanel, watchExtractsHeader } from '../extractsReader.js'
 import { foregroundWindowKey } from './win32.js'
 import {
   captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
@@ -53,6 +54,8 @@ interface Options {
   raidState: () => { inRaid: boolean; since?: number; location?: string }
   /** The EFT Logs folder (the game logs its control bindings there at start); '' when unknown. */
   logsRoot: () => Promise<string>
+  /** Whether a Logs folder is followed now: only then can the logs tell that there is no raid (report 227). */
+  logsWatched?: () => boolean
 }
 
 const QUERY_TIMEOUT_MS = 5000
@@ -199,6 +202,8 @@ function registerIpc() {
     lastPosition: freshPosition(),
     raid: options.raidState(),
     displayMode,
+    // The game's language for the screen readers: the player's choice in «Язык игры».
+    gameLanguage: await gameLanguageNow().then(({ setting, language }) => ({ setting, language })).catch(() => undefined),
   }))
   ipcMain.handle('experimental:answer', (_event, id: unknown, payload: unknown) => {
     const resolve = pending.get(Number(id))
@@ -253,8 +258,12 @@ function startHook() {
   let previousCollector = false
   // O in the raid shows the game's exit list (report №105): read 3 s after one press (owner, 18.11.2026), electron/extractsReader.ts.
   let previousO = false
-  // The list seen on screen, with no key at all (an elevated game hides its keys from the app).
-  watchExtractsHeader(isTarkovForeground, (payload) => options.mainWindow()?.webContents.send('game:raid-extracts', payload))
+  // The list seen on screen, with no key at all (an elevated game hides its keys from the app). Only in a raid, and
+  // slower while the game's keys reach the app (report 227: electron/extractsReader.ts headerPollMs). A raid: the logs
+  // say so, or a raid sign (raidSignals.ts) holds, or no Logs folder is followed (then nothing can tell there is none).
+  const raidPossible = () => options.raidState().inRaid || raidLikely() || !(options.logsWatched?.() ?? false)
+  watchExtractsHeader(isTarkovForeground, (payload) => options.mainWindow()?.webContents.send('game:raid-extracts', payload),
+    () => headerPollMs({ raid: raidPossible(), keysSeen: gameKeysState() === 'visible' }))
   keyTimer = setInterval(() => {
     const settings = readSettings()
     // A single key or a combination («Ctrl + ЛКМ»): src/overlay/hotkeys.ts hotkeyPressed.
@@ -412,7 +421,7 @@ async function lookupItem(test: boolean) {
       grab: () => grabAroundCursor(point, display, fallback),
       recognize: (bitmap) => steps.time('ocrMs', recognizeTooltip(bitmap)),
       match: async (text) => {
-        const reply = await steps.time('matchMs', askRenderer('item', { text, tooltip: true }))
+        const reply = await steps.time('matchMs', askRenderer('item', { text, tooltip: true, language: (await gameLanguageNow()).language }))
         return found(reply) ? reply : null
       },
       onTooltip: () => { if (!state.shown) sendItem({ state: 'loading' }) },
@@ -561,7 +570,7 @@ async function secondAttempt(reading: TooltipReading<unknown, Grab> & { shot: Gr
     const text = parts.join(' ').replace(/\s+/g, ' ').trim()
     result.retry.push(text)
     if (!text || readings.includes(text)) continue
-    const reply = await askRenderer('item', { text, tooltip: true, remember: readings })
+    const reply = await askRenderer('item', { text, tooltip: true, remember: readings, language: (await gameLanguageNow()).language })
     if (found(reply)) { result.answer = reply; result.via = 'retry'; return done() }
   }
   const retried = result.retry.filter((text) => text && !readings.includes(text))

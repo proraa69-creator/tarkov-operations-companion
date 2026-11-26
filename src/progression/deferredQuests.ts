@@ -13,7 +13,7 @@
  *
  * Kept per profile and mode (PvP, PvE and Season apart) as `{ questId: deferredAt (ms) }`, or
  * `{ questId: { at, until?, level?, loyalty? } }` with a term. No raid clears them: only «Вернуть», the term, a reset of the
- * mode («Престиж +», «Вайп», «Сброс», a new nickname: clearDeferredQuests) or «Удалить все данные».
+ * mode («Престиж +», «Вайп», «Сброс»: clearDeferredQuests) or «Удалить все данные».
  *
  * One list on every device of the account (owner, 04.11.2026; a player's report: «все равно показывается даже с учетом того
  * что на ПК они закрыты»): the device's copy goes through the server (sync/serverSync.ts syncDeferredQuests, POST
@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { GameMap, Item, Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { clearAllAutoFavorites, releaseAbandonedAutoFavorites, releaseAutoFavorites } from './autoFavorites'
 import { questMapsLabel } from './questLocation'
 import { usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
@@ -192,7 +192,7 @@ export function deferralTermText(entry: DeferredQuest | undefined, locale: AppLo
     return locale === 'en' ? `until ${uiText(trader)} loyalty ${level}` : `до лояльности ${level} · ${trader}`
   }
   if (entry?.until !== undefined) {
-    const when = new Date(entry.until).toLocaleString(locale, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    const when = new Date(entry.until).toLocaleString(languageTag(locale), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
     return locale === 'en' ? `until ${when}` : `до ${when}`
   }
   return ''
@@ -229,7 +229,7 @@ export function settleDeferredQuests(profileId: string, isDone: (mode: RaidMode,
 }
 
 /**
- * A reset of the mode («Престиж +», «Вайп», «Сброс», a new nickname; state/modeReset.ts): nothing is put aside any more, and
+ * A reset of the mode («Престиж +», «Вайп», «Сброс»; state/modeReset.ts): nothing is put aside any more, and
  * what another device still holds from before `at` does not come back. The server's list goes with its reset route.
  */
 export function clearDeferredQuests(profileId: string, mode: RaidMode, at = Date.now()) {

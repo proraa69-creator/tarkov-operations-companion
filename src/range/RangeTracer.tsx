@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FIGURE_HEIGHT } from './rangeHitboxes'
+import { languageTag } from '../i18n/renderText'
 
 /**
  * One point of a shot's flight: as the shooter sees it on the target's plane (figure cm, y up), its height against the line of sight
@@ -53,7 +54,7 @@ export function RangeTracer({ tracer, viewBox, lang }: { tracer: Tracer; viewBox
   const seconds = lang === 'en' ? 's' : 'с'
   const perSecond = lang === 'en' ? 'm/s' : 'м/с'
   const metres = lang === 'en' ? 'm' : 'м'
-  const number = (value: number, digits: number) => value.toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  const number = (value: number, digits: number) => value.toLocaleString(languageTag(lang), { minimumFractionDigits: digits, maximumFractionDigits: digits })
   return <>
     <svg className="range-scope-world range-scope-tracer" viewBox={viewBox} preserveAspectRatio="xMidYMid slice" style={{ opacity: fading }}>
       <polyline points={trail} className="is-trail" />

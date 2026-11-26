@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BAKED_EDITION } from './buildEditionConstant.js'
 
 /**
  * Which app this exe is (scripts/write-build-info.mjs → dist-electron/build-info.json):
@@ -17,7 +18,7 @@ import { fileURLToPath } from 'node:url'
  */
 export type BuildEdition = 'owner' | 'client'
 
-interface BuildInfo { edition?: unknown; defaultServerUrl?: unknown; ownerEmails?: unknown; entitlementKeys?: unknown; testBuild?: unknown }
+interface BuildInfo { edition?: unknown; defaultServerUrl?: unknown; ownerEmails?: unknown; entitlementKeys?: unknown; testBuild?: unknown; safeStart?: unknown }
 let cached: BuildInfo | null | undefined
 
 function buildInfo(): BuildInfo | null {
@@ -42,8 +43,19 @@ export function editionFromInfo(info: { edition?: unknown } | null, env: NodeJS.
   return 'client'
 }
 
+/**
+ * The edition baked into the exe (electron/buildEditionConstant.ts, rewritten per edition at build time and sealed in
+ * app.asar by the asar-integrity fuse) wins. Only when it is absent (a development run, where the TypeScript source with
+ * its `null` default is used as is) does the edition come from build-info.json / OWNER_BUILD. So editing
+ * build-info.json in a packaged copy cannot turn on the owner build.
+ */
+export function resolveEdition(baked: BuildEdition | null | undefined, info: { edition?: unknown } | null, env: NodeJS.ProcessEnv = process.env): BuildEdition {
+  if (baked === 'owner' || baked === 'client') return baked
+  return editionFromInfo(info, env)
+}
+
 export function buildEdition(): BuildEdition {
-  return editionFromInfo(buildInfo())
+  return resolveEdition(BAKED_EDITION, buildInfo())
 }
 
 export const isOwnerBuild = () => buildEdition() === 'owner'
@@ -55,6 +67,13 @@ export const isOwnerBuild = () => buildEdition() === 'owner'
 export const isTestBuild = () => buildInfo()?.testBuild === true
 export const TEST_BUILD_APP_NAME = 'Raid OS Test'
 export const TEST_BUILD_DATA_FOLDER = 'Raid OS Test Build'
+
+/**
+ * A build for a player whose window stays black (SAFE_START=1, scripts/write-build-info.mjs; owner, 23.11.2026: «можешь сделать
+ * отдельную версию для него, тестовую попробовать»): it draws in software from the first start and asks by a window of
+ * Windows whether the window can be seen (electron/main.ts), until the player says it can.
+ */
+export const isSafeStartBuild = () => buildInfo()?.safeStart === true
 
 /** The server address baked into this build ('' = none: this PC, http://127.0.0.1:8787). */
 export function buildDefaultServerUrl() {

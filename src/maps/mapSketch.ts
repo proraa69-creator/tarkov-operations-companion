@@ -12,10 +12,31 @@ import type { RaidMode } from '../domain/types'
  *
  * A player's proposal №85, which the owner took up (07.11.2026, «прими её в работу»; №80 had been «без резинки»): an eraser that rubs out
  * what it passes over, kept drawings too, and colours for the pencil; red stays the first, and a stroke with no colour is red.
+ *
+ * Pins (a player's proposal №249; owner, 26.11.2026: «поставил метку, и вылезает окно подписи… галочка и крестик… эта точка
+ * сохраняется»): while drawing, «Метка» under the pencil puts a pin of the pencil's colour where the map is pressed, with a line of
+ * words if wanted. A pin is a stroke of one point marked `pin` (its words in `text`), so it goes back and forward, is rubbed out,
+ * kept, closed, synced and shared with the squad as the drawing is; an older version sees it as a dot it does not draw.
  */
 export type SketchPoint = [number, number]
-export interface SketchStroke { zoom: number; points: SketchPoint[]; color?: string }
-export type SketchTool = 'pencil' | 'eraser'
+export interface SketchStroke { zoom: number; points: SketchPoint[]; color?: string; pin?: true; text?: string }
+export type SketchTool = 'pencil' | 'eraser' | 'pin'
+
+/** A pin's words: one short line. */
+export const PIN_TEXT_MAX = 40
+/** One line, no control characters, at most PIN_TEXT_MAX letters; nothing when blank. */
+export function pinText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  // eslint-disable-next-line no-control-regex
+  const line = Array.from(value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, PIN_TEXT_MAX).join('').trim()
+  return line || undefined
+}
+export const isPin = (stroke: SketchStroke) => stroke.pin === true
+/** A new pin at a point of the map, at the zoom it was put at; its words only when there are some. */
+export function makePin(point: SketchPoint, zoom: number, color: string, text?: string): SketchStroke {
+  const words = pinText(text)
+  return { zoom, points: [point], color, pin: true, ...(words ? { text: words } : {}) }
+}
 
 /** The owner's red first. Bright, so that each shows on both the scheme and the satellite picture. */
 export const SKETCH_COLORS = [
@@ -68,8 +89,28 @@ function insideCircle(a: ScreenPoint, b: ScreenPoint, center: ScreenPoint, radiu
 
 const between = (a: SketchPoint, b: SketchPoint, at: number): SketchPoint => [roundMetres(a[0] + (b[0] - a[0]) * at), roundMetres(a[1] + (b[1] - a[1]) * at)]
 
+/** A pin's picture on screen: its tip is the point, its head this many pixels above it (components/MapSketch.tsx). */
+export const PIN_HEAD_PX = 18
+/**
+ * Where a new pin's words stand (components/MapPins.tsx): their box's left edge and the middle of its height, in the map's pixels — to
+ * the pin's right, else to its left, else (a phone's narrow map) under it, always whole on the map.
+ */
+export function pinEditorPlace(x: number, y: number, width: number, mapWidth: number, gap = 16, edge = 4) {
+  if (x + gap + width <= mapWidth - edge) return { left: x + gap, top: y - PIN_HEAD_PX }
+  if (x - gap - width >= edge) return { left: x - gap - width, top: y - PIN_HEAD_PX }
+  return { left: Math.max(edge, Math.min(x - width / 2, mapWidth - width - edge)), top: y + 30 }
+}
+
+/** The eraser takes a pin when it touches the pin's head or its tip. */
+function rubsPin(stroke: SketchStroke, screen: SketchProjection, center: ScreenPoint, radius: number) {
+  const tip = screen(stroke.points[0]!)
+  const reach = radius + PIN_HEAD_PX / 2
+  return Math.hypot(tip.x - center.x, tip.y - center.y) <= reach || Math.hypot(tip.x - center.x, tip.y - PIN_HEAD_PX - center.y) <= reach
+}
+
 /** What is left of a stroke outside the circle, in pieces of the same colour and zoom; null when the circle does not touch it. */
 function outsideCircle(stroke: SketchStroke, screen: SketchProjection, center: ScreenPoint, radius: number): SketchStroke[] | null {
+  if (isPin(stroke)) return rubsPin(stroke, screen, center, radius) ? [] : null
   const pieces: SketchPoint[][] = []
   let piece: SketchPoint[] = []
   let touched = false
@@ -146,10 +187,16 @@ export function readMapSketch(key: string): SketchStroke[] {
     const stored: unknown = JSON.parse(localStorage.getItem(key) ?? '[]')
     if (!Array.isArray(stored)) return []
     return stored.flatMap((entry): SketchStroke[] => {
-      const { zoom, points, color } = (entry ?? {}) as Partial<SketchStroke>
+      const { zoom, points, color, pin, text } = (entry ?? {}) as Partial<SketchStroke>
       if (typeof zoom !== 'number' || !Number.isFinite(zoom) || !Array.isArray(points)) return []
       const kept = points.filter(isPoint)
-      return kept.length ? [{ zoom, points: kept, ...(isSketchColor(color) ? { color } : {}) }] : []
+      if (!kept.length) return []
+      const colour = isSketchColor(color) ? { color } : {}
+      if (pin === true) {
+        const words = pinText(text)
+        return [{ zoom, points: [kept[0]!], ...colour, pin: true, ...(words ? { text: words } : {}) }]
+      }
+      return [{ zoom, points: kept, ...colour }]
     })
   } catch { return [] }
 }
@@ -205,7 +252,7 @@ export interface MapSketch {
   tool: SketchTool
   color: string
   chooseTool: (tool: SketchTool) => void
-  /** A colour is for drawing: it takes the pencil back from the eraser. */
+  /** A colour is for drawing: it takes the pencil back from the eraser; a pin stays a pin of that colour. */
   chooseColor: (color: string) => void
   begin: () => void
   draw: (stroke: SketchStroke) => void
@@ -266,7 +313,7 @@ export function useMapSketch(profileId: string, mode: RaidMode, mapId: string, o
     chooseTool: setTool,
     chooseColor: useCallback((next: string) => {
       setColor(next)
-      setTool('pencil')
+      setTool((value) => (value === 'pin' ? 'pin' : 'pencil'))
       try { localStorage.setItem(COLOR_KEY, next) } catch { /* storage unavailable: the colour lasts until the map is left */ }
     }, []),
     begin: useCallback(() => {

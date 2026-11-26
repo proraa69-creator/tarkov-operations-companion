@@ -25,3 +25,29 @@ export function parseAccountDeepLink(raw: string): AccountDeepLink | null {
   if (action === 'approve' && /^[A-Za-z2-9]{4}-?[A-Za-z2-9]{4}$/.test(code)) return { kind: 'approve', code: code.toUpperCase(), server }
   return null
 }
+
+/**
+ * A QR code read by the app's own camera (mobile/QrScanner.tsx; owner, 25.11.2026: «вход QR-кодом во все стороны»): the
+ * app link itself, or the website page it leads to (`https://<site>/app-login#login=…` from «Войти в мобильную версию» on
+ * the PC, `#approve=XXXX-XXXX` from «Войти по QR-коду» on the PC or the website). The site's address is its server.
+ */
+export function parseScannedQr(raw: string): AccountDeepLink | null {
+  const text = raw.trim()
+  const direct = parseAccountDeepLink(text)
+  if (direct) return direct
+  let url: URL
+  try { url = new URL(text) } catch { return null }
+  if (url.protocol !== 'https:' || !/^\/app-login\/?$/.test(url.pathname)) return null
+  const params = new URLSearchParams(url.hash.replace(/^#/, ''))
+  const login = params.get('login') ?? ''
+  if (/^[A-Za-z0-9_-]{43}$/.test(login)) return { kind: 'login', code: login, server: url.origin }
+  const approve = (params.get('approve') ?? '').toUpperCase()
+  if (/^[A-Z2-9]{4}-?[A-Z2-9]{4}$/.test(approve)) return { kind: 'approve', code: approve, server: url.origin }
+  return null
+}
+
+/** Hands a link to the phone's sign-in windows (mobile/DeepLinkLogin.tsx), as if the camera of the phone had opened it. */
+export const ACCOUNT_LINK_EVENT = 'raidos-account-link'
+export function openAccountLink(link: AccountDeepLink) {
+  window.dispatchEvent(new CustomEvent<AccountDeepLink>(ACCOUNT_LINK_EVENT, { detail: link }))
+}

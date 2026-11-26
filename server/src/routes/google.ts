@@ -5,17 +5,20 @@
  *     -> 409 { needCountry: true, error }                      a new address: ask the country and send again with it
  *     -> 401 { error }                                         the token is not a valid Google sign-in for Raid OS
  *     -> 403 { error }                                         Russia, a blocked account, the owner's address
+ * A visitor from a Russian address (services/russianNetworks.ts, RIPE NCC's list) gets 403 before the token is checked,
+ * signed in before or not (owner, 25.11.2026).
  * Responses are personal (`Cache-Control: no-store`); the token and the body are never logged.
  */
 import express from 'express'
 import type { Request, Response } from 'express'
-import { AccountError, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
+import { AccountError, FixedWindowRateLimiter, GOOGLE_RUSSIA_MESSAGE, type AccountStore } from '../services/accountStore.js'
 import { createGoogleVerifier, GoogleTokenError, type GoogleVerifier } from '../services/googleSignIn.js'
+import type { RussianAddressCheck } from '../services/russianNetworks.js'
 
 const NEED_COUNTRY_MESSAGE = 'Укажите страну, чтобы создать аккаунт.'
 const FAILED_MESSAGE = 'Не удалось войти через Google. Попробуйте ещё раз.'
 
-export function createGoogleRouter(accounts: AccountStore, options: { verify?: GoogleVerifier; limiter?: FixedWindowRateLimiter } = {}) {
+export function createGoogleRouter(accounts: AccountStore, options: { verify?: GoogleVerifier; limiter?: FixedWindowRateLimiter; russia?: RussianAddressCheck } = {}) {
   const verifyToken = options.verify ?? createGoogleVerifier()
   const limiter = options.limiter ?? new FixedWindowRateLimiter(20, 10 * 60 * 1000)
   const router = express.Router()
@@ -24,6 +27,7 @@ export function createGoogleRouter(accounts: AccountStore, options: { verify?: G
     res.set('Cache-Control', 'no-store')
     const wait = limiter.hit(`google:${req.ip ?? 'unknown'}`)
     if (wait) { res.set('Retry-After', String(wait)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }
+    if (options.russia?.isRussianAddress(req.ip) === true) { res.status(403).json({ error: GOOGLE_RUSSIA_MESSAGE }); return }
     const body = (req.body ?? {}) as { credential?: unknown; country?: unknown; referralCode?: unknown }
     try {
       const identity = await verifyToken(body.credential)

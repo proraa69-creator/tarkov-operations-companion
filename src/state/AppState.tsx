@@ -84,7 +84,7 @@ interface AppStateValue extends UiState {
   /** The server's records of a mode's character (all PCs' log events): the engine's `server` layer. */
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
   /**
-   * «Престиж +» or a nickname change (src/state/modeReset.ts): every progress record of one mode of the active profile
+   * «Престиж +», «Вайп» or «Сброс» (src/state/modeReset.ts): every progress record of one mode of the active profile
    * goes (src/domain/progress.ts wipeModeProgress), with the per-mode stores outside the profile, and the server is told
    * (queued while offline). `at` (now by default) becomes the mode's epoch. Other modes, settings, the account and the
    * nickname stay.
@@ -397,25 +397,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     resetModeProgress: (selectedMode, at = new Date().toISOString(), reason = 'prestige', options = {}) => {
       const profileId = activeProfile.id
-      // «Престиж +»: the level the player chose; «Вайп» / «Сброс»: the prestige stays (a game wipe keeps it); a nickname:
-      // read again.
-      const prestige = reason === 'prestige' && options.prestige != null ? { level: options.prestige } : reason === 'nickname' ? undefined : { keep: true }
-      // «Престиж +», «Вайп»: nothing older than the press counts; «Сброс» finds the logs' quests again (floorAfterReset). A new
-      // nickname comes by itself and only says the game's profile may be another (a pending marker).
-      const marker = reason === 'nickname' ? reason : undefined
+      // «Престиж +»: the level the player chose; «Вайп» / «Сброс»: the prestige stays (a game wipe keeps it).
+      const prestige = reason === 'prestige' && options.prestige != null ? { level: options.prestige } : { keep: true }
+      // «Престиж +», «Вайп»: nothing older than the press counts; «Сброс» finds the logs' quests again (floorAfterReset).
       const floor = floorAfterReset(activeProfile.modes[selectedMode], at, reason, currentLogStatus().scan?.summaryByMode?.[selectedMode]?.resetAt)
       setProfileState((state) => ({
         ...state,
         profiles: state.profiles.map((profile) => {
           if (profile.id !== profileId) return profile
-          const wiped = wipeModeProgress(profile, selectedMode, at, undefined, prestige, marker, { at: floor })
-          return rebuildFromLogs(reason === 'nickname' ? wiped : clearPlayerLists(wiped, selectedMode), selectedMode)
+          const wiped = wipeModeProgress(profile, selectedMode, at, undefined, prestige, { at: floor })
+          return rebuildFromLogs(clearPlayerLists(wiped, selectedMode), selectedMode)
         }),
       }))
       // The stores outside the profile (src/state/logEpoch.ts listeners, src/state/modeReset.ts), the server and the notice.
       announceLogEpochChange({ kind: 'reset', at, profileId, mode: selectedMode })
       afterModeReset({ profileId, mode: selectedMode, at, reason, floor })
-      if (reason !== 'nickname') clearAutoFavorites(profileId)
+      clearAutoFavorites(profileId)
     },
     applyRemoteStoryForMode: (selectedMode, records, characterId) => updateActive((profile) => {
       const current = profile.modes[selectedMode]

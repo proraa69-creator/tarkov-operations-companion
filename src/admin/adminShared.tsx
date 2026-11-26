@@ -16,7 +16,7 @@ function originText(payment: AdminPayment) {
  * A payment in plain words: who paid, where he came from, plan, ЮKassa / BZB, discount; with `onChanged` «Изменить сумму»
  * and «Отметить возврат», as on the site.
  */
-export function PaymentRow({ payment, onChanged }: { payment: AdminPayment; onChanged?: () => Promise<unknown> | void }) {
+export function PaymentRow({ payment, onChanged, onOpenProfile }: { payment: AdminPayment; onChanged?: () => Promise<unknown> | void; onOpenProfile?: (accountId: string, name: string) => void }) {
   const [editing, setEditing] = useState(false)
   const [refunding, setRefunding] = useState(false)
   const [error, setError] = useState('')
@@ -26,13 +26,18 @@ export function PaymentRow({ payment, onChanged }: { payment: AdminPayment; onCh
     setRefunding(true); setError('')
     try { await adminApi.markRefunded(payment.id); await onChanged() } catch (reason) { setError(errorText(reason)) } finally { setRefunding(false) }
   }
+  const copy = <>
+    <strong title={payment.email}>{uiText('Оплатил:')} {accountText(payment.email, payment.nickname)}</strong>
+    <small className="admin-payment-origin">{uiText(originText(payment))}</small>
+    <small>{uiText(details)}</small>
+  </>
+  const payer = payment.accountId
+  const open = onOpenProfile && payer ? () => onOpenProfile(payer, payment.nickname || payment.email) : null
   return <article className={`admin-payment-row${editing ? ' is-editing' : ''}`}>
     <span className={`admin-payment-icon ${payment.status}`}><CreditCard size={18} /></span>
-    <span className="admin-row-copy">
-      <strong title={payment.email}>{uiText('Оплатил:')} {accountText(payment.email, payment.nickname)}</strong>
-      <small className="admin-payment-origin">{uiText(originText(payment))}</small>
-      <small>{uiText(details)}</small>
-    </span>
+    {/* the payer's profile on a tap (owner, 26.11.2026: «чтобы я нажал на него, и у меня открылся его профиль») */}
+    {open ? <button type="button" className="admin-row-copy admin-payment-who" onClick={open} aria-label={uiText(`Профиль: ${accountText(payment.email, payment.nickname)}`)}>{copy}</button>
+      : <span className="admin-row-copy">{copy}</span>}
     <span className="admin-row-side">
       <strong>{money(payment.amount)}</strong>
       {payment.netAmount !== undefined && payment.netAmount !== payment.amount && <small className="admin-payment-net">{uiText(`чистыми ${money(payment.netAmount)}`)}</small>}

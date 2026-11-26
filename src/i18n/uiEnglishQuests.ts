@@ -74,6 +74,7 @@ export const QUEST_PHRASES: Array<[string, string]> = [
   ['История из логов', 'History from the logs'], ['последнее событие каждого задания', 'the latest event of each task'],
   ['взято', 'taken'], ['сдано', 'handed in'], ['лояльность', 'loyalty'], ['после', 'after'],
   ['Сетка квестов', 'Quest grid'],
+  ['Убрать ненайденные', 'Remove not found'],
 ]
 
 /** Templates of the quest chronology (names inside «» stay as they are). */
@@ -81,6 +82,9 @@ export const QUEST_RULES: Array<[RegExp, string]> = [
   // «Найти ключи» (quests/keyScan.ts)
   [/^Прочитано подписей: (\d+) · Найдено ключей: (\d+)\. Листайте контейнер — поиск идёт\.$/g, 'Labels read: $1 · Keys found: $2. Scroll the container — the search goes on.'],
   [/^Готово\. Найдено ключей: (\d+), новых: (\d+)\.$/g, 'Done. Keys found: $1, new: $2.'],
+  // a label several keys carry («Времянка»): the player is asked to hover it (owner, 25.11.2026)
+  [/^Прочитано подписей: (\d+) · Найдено ключей: (\d+)\. Наведите курсор на (.+): такая подпись у нескольких ключей\.$/g, 'Labels read: $1 · Keys found: $2. Hover $3: several keys carry this label.'],
+  [/^Готово\. Найдено ключей: (\d+), новых: (\d+)\. Наведите курсор на (.+): такая подпись у нескольких ключей\. Затем нажмите «Найти ключи» ещё раз\.$/g, 'Done. Keys found: $1, new: $2. Hover $3: several keys carry this label. Then press «Find keys» again.'],
   [/^Ветка (\d+) · LL(\d)$/g, 'Line $1 · LL$2'],
   [/^Ветка (\d+)$/g, 'Line $1'],
   [/^Лояльность (\d)$/g, 'Loyalty $1'],

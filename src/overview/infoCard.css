@@ -35,6 +35,9 @@
 /* «Время в Таркове», one block (owner, 19.11.2026): the clocks large, then the picked traders' resets and the raid in one style. */
 .info-tarkov-time.is-combined .info-clock strong { font-size: 28px; line-height: 1; letter-spacing: .01em; }
 .info-tarkov-time.is-combined .info-clock svg { width: 18px; height: 18px; }
+/* The whole width in every theme: «Снаряжение» lines a card's content up at its left (align-items: flex-start), which left the
+   two clocks' grid no width and laid one over the other (report 222, 25.11.2026). */
+.info-tarkov-time .info-clocks, .info-tarkov-time .info-lines { align-self: stretch; }
 .info-lines { display: grid; gap: 4px; padding-top: 6px; border-top: 1px solid var(--line); }
 .info-lines:empty { display: none; }
 .info-line { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 12.5px; text-align: left; }
@@ -54,3 +57,15 @@ button.info-line:hover span { color: var(--text); }
 .info-tarkov-time.is-combined .info-clock { column-gap: clamp(3px, 2cqi, 6px); }
 .info-tarkov-time.is-combined .info-clock svg { width: clamp(13px, 8cqi, 18px); height: clamp(13px, 8cqi, 18px); flex: none; }
 .info-tarkov-time.is-combined .info-clock strong { font-size: 18px; font-size: clamp(13px, calc((100cqi - 52px) / 6.3), 32px); }
+
+/* The picked traders' reset rows reserved on the phone while they load (InfoStatCard.tsx reservedResetRows): each skeleton
+   keeps a real line's box (the &nbsp; in the name and the time give the same font metrics), so the resets arriving over the
+   network fill the reserved place instead of pushing the blocks below down. A plain dim bar, no motion. */
+.info-line.is-skeleton { pointer-events: none; }
+.info-line.is-skeleton > svg { color: color-mix(in srgb, var(--text-dim) 45%, transparent); }
+.info-line.is-skeleton > span, .info-line.is-skeleton > strong { color: transparent; border-radius: 4px; background: color-mix(in srgb, var(--text-dim) 20%, transparent); }
+.info-line.is-skeleton > strong { justify-self: end; min-width: 46px; }
+
+/* «Сброс торговцев» as its own block on the phone: while the three rows load, «Загрузка…» holds their height, so the list
+   arriving does not push the blocks below down (defensive, phone «Обзор» jitter). */
+:root[data-layout="mobile"] .info-restock .info-empty { min-height: 54px; }

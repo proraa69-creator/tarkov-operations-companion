@@ -7,7 +7,7 @@ import { isOwnerApp } from '../app/buildEdition'
 import { useLogStatus } from '../import/logStatus'
 import { useAppState } from '../state/AppState'
 import { diagnosticsLine, withInferred, type QuestConflictKind, type QuestSourceKind } from './questEngine'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { checkQuestRules, QUEST_CHECK_TITLES, questCheckSummary } from './questChecks'
 import { questAvailabilityOf, questResolutionOf } from './questReadModel'
 import { inputsOf, questFloor, resolveMode } from './questInputs'
@@ -34,7 +34,7 @@ const CONFLICT_NAMES: Record<QuestConflictKind, { ru: string; en: string }> = {
 }
 const VIA = { quest: { ru: 'квест взят снова после сдачи', en: 'a quest taken again after its hand-in' }, prestige: { ru: 'запрос престижа', en: 'the prestige request' }, 'profile-create': { ru: 'новый профиль', en: 'a new profile' } } as const
 const MARKER = { prestige: { ru: 'Престиж +', en: 'Prestige +' }, wipe: { ru: 'Вайп', en: 'Wipe' }, nickname: { ru: 'новый ник', en: 'new nickname' } } as const
-const when = (iso: string, locale: 'ru' | 'en') => new Date(iso).toLocaleString(locale === 'en' ? 'en-GB' : 'ru-RU')
+const when = (iso: string, locale: 'ru' | 'en') => new Date(iso).toLocaleString(languageTag(locale, 'en-GB'))
 const modeName = (mode: RaidMode, locale: 'ru' | 'en') => mode === 'pvp' ? 'PvP' : mode === 'pve' ? 'PvE' : locale === 'en' ? 'Season' : 'Сезон'
 
 /**

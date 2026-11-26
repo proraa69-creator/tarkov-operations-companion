@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { GPU_FALLBACK_FILE, nextStartStep, readGpuFallback, writeGpuFallback } from './gpuFallback'
+import { asksAtNextStart, DARK_WINDOW_FILE, DARK_WINDOW_MS, describeGpus, GPU_FALLBACK_FILE, nextStartStep, readDarkWindowCheck, readGpuFallback, soonAfterShown, writeDarkWindowCheck, writeGpuFallback } from './gpuFallback'
 import { appendStartLog, START_LOG_FILE, START_LOG_MAX_BYTES, startLogTail } from './startLog'
 
 const folders: string[] = []
@@ -36,6 +36,57 @@ describe('a start that draws nothing (owner, 23.11.2026)', () => {
     expect(readGpuFallback(data)).toEqual({ softwareDrawing: true, noSandbox: true, reason: 'page-gone: launch-failed', at: '2026-11-23T01:01:00.000Z' })
     writeFileSync(join(data, GPU_FALLBACK_FILE), '{broken')
     expect(readGpuFallback(data)).toEqual({ softwareDrawing: false })
+  })
+
+  // Owner, 23.11.2026: a player's window stayed black with 0.6.0.336 and no message — Chromium had drawn its first picture.
+  it('the player saying the window is black counts after the first picture too: software, then no sandbox, then the report', () => {
+    const painted = { ...fresh, painted: true }
+    expect(nextStartStep({ kind: 'seen-black' }, painted)).toBe('software')
+    expect(nextStartStep({ kind: 'seen-black' }, { ...painted, softwareDrawing: true })).toBe('no-sandbox')
+    expect(nextStartStep({ kind: 'seen-black' }, { ...painted, disabledByArgument: true })).toBe('no-sandbox')
+    expect(nextStartStep({ kind: 'seen-black' }, { ...painted, softwareDrawing: true, noSandbox: true })).toBe('report')
+    expect(nextStartStep({ kind: 'no-picture' }, painted)).toBeUndefined()
+  })
+
+  it('asks only soon after the window appeared, on a PC where the app never worked, unless the player said it was fine', () => {
+    const shownAt = 1_000_000
+    expect(soonAfterShown(null, shownAt)).toBe(false)
+    expect(soonAfterShown(shownAt, shownAt + 5_000)).toBe(true)
+    expect(soonAfterShown(shownAt, shownAt + DARK_WINDOW_MS)).toBe(true)
+    expect(soonAfterShown(shownAt, shownAt + DARK_WINDOW_MS + 1)).toBe(false)
+    expect(soonAfterShown(shownAt, shownAt - 1)).toBe(false)
+    const close = { shownAt, now: shownAt + 30_000, everWorked: false, check: undefined, restarting: false }
+    expect(asksAtNextStart(close)).toBe(true)
+    expect(asksAtNextStart({ ...close, everWorked: true })).toBe(false)
+    expect(asksAtNextStart({ ...close, check: 'never' })).toBe(false)
+    expect(asksAtNextStart({ ...close, restarting: true })).toBe(false)
+    expect(asksAtNextStart({ ...close, now: shownAt + DARK_WINDOW_MS + 1 })).toBe(false)
+    expect(asksAtNextStart({ ...close, shownAt: null })).toBe(false)
+  })
+
+  it('keeps the question for the next start in the data folder; asked, it goes; a broken note is none', () => {
+    const data = folder()
+    expect(readDarkWindowCheck(data)).toBeUndefined()
+    writeDarkWindowCheck(data, 'ask', new Date('2026-11-23T01:00:00Z'))
+    expect(readDarkWindowCheck(data)).toBe('ask')
+    writeDarkWindowCheck(data, undefined)
+    expect(readDarkWindowCheck(data)).toBeUndefined()
+    writeDarkWindowCheck(data, undefined)
+    writeDarkWindowCheck(data, 'never')
+    expect(readDarkWindowCheck(data)).toBe('never')
+    writeFileSync(join(data, DARK_WINDOW_FILE), '{"state":"maybe"}')
+    expect(readDarkWindowCheck(data)).toBeUndefined()
+  })
+
+  it('names the graphics cards for the start log, the one in use first marked; nothing else', () => {
+    expect(describeGpus({ gpuDevice: [
+      { vendorId: 0x10de, deviceId: 0x2484, active: true, driverVersion: '32.0.15.6094' },
+      { vendorId: 0x8086, deviceId: 0x4680, active: false, driverVersion: 'C:\\path\\leak' },
+      { vendorId: 0x1414, deviceId: 0x8c },
+      { vendorId: 0, deviceId: 0 },
+    ] })).toBe('*NVIDIA 10de:2484 driver 32.0.15.6094, Intel 8086:4680, Microsoft 1414:008c')
+    expect(describeGpus(null)).toBe('')
+    expect(describeGpus({ gpuDevice: 'x' })).toBe('')
   })
 
   it('logs each start in one line, keeps the log small and gives its last lines for support', () => {

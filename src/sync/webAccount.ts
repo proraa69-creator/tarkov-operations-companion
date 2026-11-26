@@ -12,6 +12,7 @@
 import type { EntitlementView, ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 import { webAcceptIssued, webClearEntitlement, webDeviceId, webDeviceName, webEntitlementDue, webEntitlementFor, webForgetKey, webPinKey, webRefuseEntitlement } from './webEntitlement'
 import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '../shared/sendRetry'
+import { isPaidContentPath } from '../shared/paidContent'
 
 /** The owner's permanent address (site + API under /v1), unless the build sets VITE_TARKOV_API_URL. */
 export const DEFAULT_API_URL = (import.meta.env.VITE_TARKOV_API_URL as string | undefined)?.trim() || 'https://raidos.app'
@@ -117,11 +118,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/series\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stats\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/ },
   // «Стримеры» (routes/accounts.ts, ownerAdmin.ts, payouts.ts) and «Пригласи друга» (routes/invites.ts).
-  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/(?:streamers|streamer-settings|payouts)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/(?:streamers|streamer-settings|payouts|payouts\/attention)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/streamer-stats\?code=[A-Za-z0-9_-]{3,24}&period=(?:day|month|year)$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/(?:streamer-invites|payouts\/decide)$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/(?:percent|link)$/ },
-  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/payout-limits$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/revoke$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals\/[a-f0-9]{24}$/ },
@@ -146,6 +146,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
   // «Редактировать»: new words for the owner's own message (owner, 15.11.2026).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/edit$/ },
+  // «Удалить сообщение»: any one message of a conversation, gone for both sides (owner, 26.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/delete$/ },
+  // «Найти по почте» of «Чаты» (owner, 26.11.2026: «в чате нету функции найти пользователя по логину, ну по почте»): accounts by
+  // part of the e-mail (server/src/routes/supportChat.ts, owner only, 20 at most).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/search\?q=[A-Za-z0-9%._~!*'()-]{2,800}$/ },
   // «Стикеры» of the iPhone admin (server/src/routes/stickers.ts; owner, 07.11.2026: «И там я буду делать паки стикеров»):
   // the packs, a new one, their order, a rename / «Добавить» / «Убрать», deleting one; a sticker's upload and order; deleting one.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stickers$/ },
@@ -169,6 +174,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
   { methods: ['GET', 'POST'], path: /^\/v1\/accounts\/me\/payouts$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/payout-settings$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/streamer-notifications$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/streamer-notifications\/read$/ },
   // Approving a website QR sign-in from the phone (docs/mobile.md).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
   // Phone number and SMS codes (server/src/routes/phone.ts); sign-in by code is webAccountPhoneSignIn.
@@ -345,28 +352,34 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|squad-live|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
     || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
+  // Our own content and the account's synced data: the same server check as `gated`, with the session and this phone's id
+  // (src/shared/paidContent.ts).
+  const paidContent = isPaidContentPath(path)
   // The owner's notice is in the language of the account's country (owner, 14.10.2026, server/src/routes/announcement.ts):
   // it goes with the session too. Public all the same: an expired session gets the notice as without one.
   const notice = /^\/v1\/announcement(?:\?|$)/.test(path)
   if (personal && !session) return null
-  if (gated && !session) throw new Error('Требуется вход в аккаунт')
+  if ((gated || paidContent) && !session) throw new Error('Требуется вход в аккаунт')
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
   const retried = retriesWhileRestarting(method, path)
   const request = async () => {
-    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: requestTimeout(method, path, gated), ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
+    const answer = await send(method, path, { body, token: personal || gated || paidContent || notice ? session?.token : null, timeoutMs: requestTimeout(method, path, gated), ...(gated || paidContent || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
     if (retried && restartingStatus(answer.response.status) && !answer.result) throw new UnavailableError(true)
     return answer
   }
   const { response, result } = retried
     ? await retryWhileRestarting(request, (error) => error instanceof UnavailableError && error.notTaken)
     : await request()
-  if (response.status === 401 && (personal || gated)) {
+  if (response.status === 401 && (personal || gated || paidContent)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
   }
   const code = (result as { code?: unknown } | null)?.code
   if (gated && response.status === 402) webRefuseEntitlement('subscription', result?.error)
   if (gated && response.status === 403 && (code === 'device_revoked' || code === 'device_inactive')) webRefuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
+  // Refused there: nothing on this phone is cleared — the request fails like an offline one, and the next status asks for
+  // the entitlement at once (the paywall, or this phone's device registered for the session again).
+  if (paidContent && (response.status === 402 || response.status === 403)) entitlementDue = true
   // The server's code and the status go with the message (the admin app tells region_mismatch apart, and hides
   // «Пригласи друга» while an older server answers 404, src/admin/AdminMobilePage.tsx).
   if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), { status: response.status }, typeof code === 'string' ? { code } : {})
@@ -499,6 +512,47 @@ export async function webAccountRedeemLoginCode(code: string): Promise<ServerAcc
   if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
   saveSession({ token: answer.token, email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
   return webAccountStatus()
+}
+
+/**
+ * «Войти через Google» on the phone (owner, 25.11.2026: «при регистрации с телефона добавь вход через Google»): the same
+ * one-time request as the PC's (electron/serviceGateway.ts accountQrStart). The phone opens its page in the browser, where the
+ * player signs in with Google and confirms the code shown on the phone; the phone polls until the server gives it a session.
+ * The poll secret stays in this module: the screen sees only the code and the page's address.
+ */
+let qrRequest: { requestId: string; pollSecret: string; code: string; expiresAt: string } | null = null
+
+export async function webAccountQrStart(): Promise<{ code: string; expiresAt: string; url: string }> {
+  const { response, result } = await send('POST', '/v1/accounts/qr-login', { body: {} })
+  const answer = result as { requestId?: unknown; pollSecret?: unknown; code?: unknown; expiresAt?: unknown; url?: unknown; error?: unknown } | null
+  if (!response.ok) throw new Error(typeof answer?.error === 'string' ? answer.error : `Не удалось создать код: ${response.status}`)
+  if (typeof answer?.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(answer.requestId)
+    || typeof answer.pollSecret !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(answer.pollSecret)
+    || typeof answer.code !== 'string' || !/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(answer.code)
+    || typeof answer.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  qrRequest = { requestId: answer.requestId, pollSecret: answer.pollSecret, code: answer.code, expiresAt: answer.expiresAt }
+  return { code: answer.code, expiresAt: answer.expiresAt, url: qrPageUrl(answer.code) }
+}
+
+/** The website page that approves the request (website pages/AppLoginPage.tsx); the code stays in the fragment. */
+export function qrPageUrl(code: string) {
+  return `${websiteOrigin()}/app-login#approve=${encodeURIComponent(code)}`
+}
+function websiteOrigin() {
+  try { return new URL(apiBaseUrl()).origin.replace(/\/api$/, '') } catch { return 'https://raidos.app' }
+}
+
+/** One look at the request: `pending`, `expired`, or signed in (the session is saved like a password sign-in's). */
+export async function webAccountQrPoll(): Promise<{ state: 'pending' | 'expired' } | { state: 'done'; status: ServerAccountStatus }> {
+  const request = qrRequest
+  if (!request) return { state: 'expired' }
+  const { response, result } = await send('POST', '/v1/accounts/qr-login/poll', { body: { requestId: request.requestId, pollSecret: request.pollSecret } })
+  if (response.status === 202) return { state: 'pending' }
+  if (response.status === 410 || response.status === 404) { qrRequest = null; return { state: 'expired' } }
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  qrRequest = null
+  const { status } = await adoptSession(result)
+  return { state: 'done', status }
 }
 
 /** Sign-in or password reset by phone after the SMS code (POST /v1/accounts/phone/login | /phone/reset). */

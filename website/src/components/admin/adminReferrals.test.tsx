@@ -1,19 +1,19 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdminReferrals, AdminReferrerDetail } from '../../api'
+import type { AdminInviteReward, AdminReferrals, AdminReferrerDetail } from '../../api'
 
 /**
  * Owner, 03.11.2026: «кнопку привлечения друзей… список тех, кто привел друзей… сколько оплатили, сколько
  * зарегистрировались но не оплатили… максимальное количество… сколько дней им положено, через сколько будет выдано, и
  * выдано ли им».
  */
-const mocks = vi.hoisted(() => ({ referrals: vi.fn(), referrer: vi.fn(), decide: vi.fn() }))
+const mocks = vi.hoisted(() => ({ referrals: vi.fn(), referrer: vi.fn(), decide: vi.fn(), attention: vi.fn(async (): Promise<{ rewards: AdminInviteReward[]; count: number }> => ({ rewards: [], count: 0 })) }))
 
 vi.mock('../../auth', () => ({ useAuth: () => ({ status: 'ready', token: 'owner-token', account: null }) }))
 vi.mock('../../api', async (original) => {
   const actual = await original<typeof import('../../api')>()
-  return { ...actual, api: { ...actual.api, adminReferrals: mocks.referrals, adminReferrer: mocks.referrer, adminDecideInviteReward: mocks.decide } }
+  return { ...actual, api: { ...actual.api, adminReferrals: mocks.referrals, adminReferrer: mocks.referrer, adminDecideInviteReward: mocks.decide, adminInviteAttention: mocks.attention } }
 })
 
 const { AdminReferrals: ReferralsTab } = await import('./AdminReferrals')
@@ -21,6 +21,7 @@ const { AdminReferrals: ReferralsTab } = await import('./AdminReferrals')
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.attention.mockImplementation(async (): Promise<{ rewards: AdminInviteReward[]; count: number }> => ({ rewards: [], count: 0 }))
 })
 
 const DAY = 86_400_000
@@ -140,5 +141,22 @@ describe('«Привлечение друзей»: the program in numbers and ev
     await waitFor(() => expect(mocks.referrals).toHaveBeenLastCalledWith('owner-token', 'raid-alpha', 'invited'))
     fireEvent.click(screen.getByRole('button', { name: 'Больше оплативших' }))
     await waitFor(() => expect(mocks.referrals).toHaveBeenLastCalledWith('owner-token', 'raid-alpha', 'paid'))
+  })
+
+  it('«Неподтверждённые» (owner, 25.11.2026): a paid friend who never signed in on a PC is confirmed from the block on top', async () => {
+    const reward = {
+      id: 77, kind: 'friend' as const, days: 7, status: 'pending' as const, createdAt: new Date(Date.now() - 5 * DAY).toISOString(),
+      releaseAt: new Date(Date.now() - 2 * DAY).toISOString(), friend: 'lazy@mail.ru', waitingEft: true as const,
+      inviter: 'host@yandex.ru', flags: [], payment: { amount: 240, status: 'succeeded' },
+    }
+    mocks.attention.mockImplementation(async () => ({ rewards: [reward], count: 1 }))
+    mocks.referrals.mockResolvedValue(list)
+    mocks.decide.mockResolvedValue({ ...reward, status: 'granted' })
+    render(<ReferralsTab />)
+    const block = await screen.findByRole('region', { name: 'Неподтверждённые' })
+    expect(within(block).getByText('lazy@mail.ru')).toBeInTheDocument()
+    expect(within(block).getByText('оплатил, но не входил в приложение для ПК')).toBeInTheDocument()
+    fireEvent.click(within(block).getByRole('button', { name: 'Подтвердить 7 дней' }))
+    await waitFor(() => expect(mocks.decide).toHaveBeenCalledWith('owner-token', 77, 'approve', undefined))
   })
 })

@@ -608,6 +608,9 @@ test('«Принять точку»: the point goes on the map, the report close
     assert.equal(done.json.report.rewardDays, 1)
     assert.equal(done.json.report.work.status, 'implemented')
     assert.ok(done.json.report.suggest?.pointId)
+    // The point is on the map already: «готова», not «в следующем обновлении».
+    const told = (await t.call<{ notices: Array<{ title: string }> }>('GET', '/me/notices', player)).json.notices.map((notice) => notice.title)
+    assert.ok(told.includes(`Ваша заявка №${first} готова`), JSON.stringify(told))
     const map = (await t.call<{ overrides: Array<Record<string, unknown>> }>('GET', '/quest-points')).json
     const placed = map.overrides.find((entry) => entry.id === done.json.report.suggest!.pointId)
     assert.deepEqual({ kind: placed?.kind, mapId: placed?.mapId, x: placed?.x, z: placed?.z, icon: placed?.icon, title: placed?.title }, { kind: 'add', mapId: 'customs', x: -181.42, z: -77.07, icon: 'extract.pmc', title: 'Старая заправка' })

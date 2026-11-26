@@ -26,15 +26,38 @@ function photoOfObjective(photo: GuidePhoto, objective: ObjectiveKeys) {
   const ids = [photo.objectiveId, ...(photo.alsoFor ?? [])]
   return ids.includes(objective.id) || Boolean(objective.gameId && ids.includes(objective.gameId))
 }
-/** `wiki`: the quest's EFT Wiki page; the event quests' own list (src/data/eventGuidePhotos.json, Halloween 2026) has none. */
-interface GuideData { quests: Record<string, { wiki?: string; photos: GuidePhoto[] }>; files: Record<string, { file: string; url: string }> }
+/**
+ * `wiki`: the quest's EFT Wiki page; the event quests' own list (src/data/eventGuidePhotos.json, Halloween 2026) has none.
+ * `at`: where our own photo was shot in the offline game ([x, z], game space): the point of the objective it shows.
+ */
+interface GuideData { quests: Record<string, { wiki?: string; photos: GuidePhoto[] }>; files: Record<string, { file: string; url?: string; at?: [number, number] }> }
+
+/**
+ * The photos of one point of an objective with several points on the map (report 220, owner, 24.11.2026: «проверь все фото на
+ * всех картах… где-то какие-то могут не совпадать»): a photo shot in the game belongs to the objective's point nearest to where
+ * it was shot, and shows at that point only, not at the others; a photo with no known place (the wiki's) shows at every point.
+ * `position` and `points`: [z, x], as the markers keep them.
+ */
+export function photosOfPoint<T extends { id: string }>(photos: readonly T[], files: GuideData['files'], position: readonly [number, number], points: ReadonlyArray<readonly [number, number]>): T[] {
+  if (points.length < 2) return [...photos]
+  const distance = (point: readonly [number, number], at: readonly [number, number]) => Math.hypot(point[0] - at[1], point[1] - at[0])
+  return photos.filter((photo) => {
+    const at = files[photo.id]?.at
+    if (!at) return true
+    const own = distance(position, at)
+    return points.every((point) => distance(point, at) >= own)
+  })
+}
 
 let loading: Promise<GuideData> | null = null
 /** The list is half a megabyte: loaded once, the first time a quest card asks; the event quests' photos with it. */
-const loadGuides = () => (loading ??= Promise.all([import('../data/questGuidePhotos.json'), import('../data/eventGuidePhotos.json')]).then(([wiki, event]) => {
+const loadGuides = () => (loading ??= Promise.all([import('../data/questGuidePhotos.json'), import('../data/eventGuidePhotos.json'), import('../data/questPhotoPlaces.json')]).then(([wiki, event, shot]) => {
   const own = wiki.default as unknown as GuideData
   const extra = event.default as unknown as GuideData
-  return { quests: { ...own.quests, ...extra.quests }, files: { ...own.files, ...extra.files } }
+  // Where our own photos were shot (scripts/quest-photo-places.py): the point each one shows.
+  const places = shot.default as unknown as Record<string, [number, number]>
+  const files = Object.fromEntries(Object.entries({ ...own.files, ...extra.files }).map(([id, file]) => [id, places[id] ? { ...file, at: places[id] } : file]))
+  return { quests: { ...own.quests, ...extra.quests }, files }
 }))
 
 function pictureUrl(data: GuideData, id: string, thumb: boolean) {
@@ -160,11 +183,19 @@ export function usePlacePhotoViewer() {
  * quest's («если у конкретной точки своё место, свои фотографии, значит, должны быть только они»); «+N» opens the next one.
  * The card sits inside Leaflet's map: the clicks are taken here, before the map would start a drag or close the quest.
  */
-export function MarkerPlacePhoto({ questId, objectiveId, onOpen }: { questId: string; objectiveId: string; onOpen: (urls: string[], index: number) => void }) {
+export function MarkerPlacePhoto({ questId, objectiveId, position, points = [], onOpen }: {
+  questId: string
+  objectiveId: string
+  /** This point and all the objective's points on the map ([z, x]): each shows the photos shot at it (photosOfPoint). */
+  position?: readonly [number, number]
+  points?: ReadonlyArray<readonly [number, number]>
+  onOpen: (urls: string[], index: number) => void
+}) {
   const found = useQuestGuide(questId)
   const { locale } = useLocale()
   const box = useRef<HTMLDivElement>(null)
-  const photos = found ? found.guide.photos.filter((photo) => photoOfObjective(photo, { id: objectiveId })) : []
+  const objectivePhotos = found ? found.guide.photos.filter((photo) => photoOfObjective(photo, { id: objectiveId })) : []
+  const photos = found && position ? photosOfPoint(objectivePhotos, found.data.files, position, points) : objectivePhotos
   // One key for the effect: the list of this place's full-size pictures.
   const urls = found ? photos.map((photo) => pictureUrl(found.data, photo.id, false)).join(' ') : ''
   useEffect(() => {

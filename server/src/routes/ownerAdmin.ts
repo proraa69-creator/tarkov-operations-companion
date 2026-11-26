@@ -161,10 +161,9 @@ const bezebeePaymentSchema = z.object({
 }).strict()
 
 /** Existing owner routes whose successful calls go to the audit log too. Only validated, non-secret fields are kept. */
-const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' | 'payout.decide' | 'payout.limits'; describe: (body: Record<string, unknown>) => { target?: string; details?: Record<string, unknown> } }> = [
+const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' | 'payout.decide'; describe: (body: Record<string, unknown>) => { target?: string; details?: Record<string, unknown> } }> = [
   { method: 'POST', path: '/me/admin/streamer-invites', action: 'streamer.invite', describe: (body) => ({ target: String(body.code ?? '').trim().toUpperCase().slice(0, 24) }) },
   { method: 'POST', path: '/me/admin/payouts/decide', action: 'payout.decide', describe: (body) => ({ target: String(body.id ?? '').slice(0, 24), details: { status: String(body.status ?? '').slice(0, 10), ...(typeof body.comment === 'string' && body.comment ? { comment: body.comment.slice(0, 200) } : {}) } }) },
-  { method: 'PUT', path: '/me/admin/payout-limits', action: 'payout.limits', describe: (body) => ({ details: { min: Number(body.min), max: Number(body.max) } }) },
 ]
 
 export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, bezebee?: BezebeePayments, bezebeeWebhooks?: BezebeeWebhooks, bezebeeMailbox?: BezebeeMailbox) {
@@ -180,9 +179,11 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     return { id, email: accounts.isOwner(id) ? accounts.emailOf(id) : undefined }
   }
 
-  // Audit of the owner's older actions: logged once they have succeeded (status < 300).
+  // Audit of the owner's older actions: logged once they have succeeded (status < 300). The path as the routes match it
+  // (any letter case, a trailing slash): another spelling must not run the action unlogged.
   router.use((req: Request, res: Response, next: NextFunction) => {
-    const audited = AUDITED.find((entry) => entry.method === req.method && entry.path === req.path)
+    const path = req.path.toLowerCase().replace(/\/+$/, '')
+    const audited = AUDITED.find((entry) => entry.method === req.method && entry.path === path)
     if (!audited) { next(); return }
     const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {}
     const { email } = ownerOf(req)

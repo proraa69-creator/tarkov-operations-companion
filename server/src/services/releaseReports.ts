@@ -108,7 +108,7 @@ export class ReleaseReports {
       const inWork = transaction(db, () => {
         const taken = store.get(report)?.work.status === 'taken'
         db.prepare('INSERT OR IGNORE INTO report_release_closes (version, report_id, closed, at) VALUES (?, ?, ?, ?)').run(version, report, taken ? 1 : 0, (now ?? Date.now)())
-        if (taken) workReport(store, effects, `Выпуск ${version}`, report, 'implemented')
+        if (taken) workReport(store, effects, `Выпуск ${version}`, report, 'implemented', undefined, true)
         return taken
       })
       this.log(inWork ? `Release ${version} is live: report №${report} closed` : `Release ${version} is live: report №${report} is not in work, left alone`)

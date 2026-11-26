@@ -7,7 +7,7 @@
  *                                              sketches: [{ memberId, mapId, strokes, at }] } of the other members, at once when
  *                                              the version differs from `since`, else when a mate publishes or after ~25 s
  *   POST /:squadId/:mode/position          { x, y, z, yaw, at, map? } -> 201 { version }
- *   PUT  /:squadId/:mode/sketch/:mapId     { strokes: [{ zoom, points: [[lat, lng]…], color? }] } -> { version }  (no strokes: off)
+ *   PUT  /:squadId/:mode/sketch/:mapId     { strokes: [{ zoom, points: [[lat, lng]…], color?, pin?, text? }] } -> { version }  (no strokes: off)
  *
  * Own limits (not the squads router's): a position every screenshot and a wait every ~25 s would use up those in minutes.
  */
@@ -25,13 +25,16 @@ const squadIdSchema = z.string().regex(/^[a-f0-9]{32}$/)
 const mapIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/)
 const sinceSchema = z.string().regex(/^\d{1,16}$/)
 const metres = z.number().finite().min(-100_000).max(100_000)
-/** A drawing of one map (src/maps/mapSketch.ts SketchStroke); the colours are the pencil's own. */
+/** A drawing of one map (src/maps/mapSketch.ts SketchStroke); the colours are the pencil's own. A pin is a stroke of one point with its words. */
+export const MAX_PIN_TEXT = 80
 export const MAX_SKETCH_POINTS = 20_000
 const sketchSchema = z.object({
   strokes: z.array(z.object({
     zoom: z.number().finite().min(-20).max(30),
     points: z.array(z.tuple([metres, metres])).min(1).max(4_000),
     color: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+    pin: z.literal(true).optional(),
+    text: z.string().max(MAX_PIN_TEXT).optional(),
   }).strict()).max(500),
 }).strict().refine((sketch) => sketch.strokes.reduce((sum, stroke) => sum + stroke.points.length, 0) <= MAX_SKETCH_POINTS)
 

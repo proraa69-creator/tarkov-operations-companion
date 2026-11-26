@@ -235,7 +235,7 @@ export interface ModeProgress {
    */
   modeResetAt?: string
   /**
-   * A new nickname (and «Престиж +» / «Вайп» of versions before 0.6.0.233): the game's profile may be another since `at`. While pending, the
+   * A new nickname of versions up to 0.6.0.345 (and «Престиж +» / «Вайп» of versions before 0.6.0.233): the game's profile may be another since `at`. While pending, the
    * logs before it still count (it may be an app-only reset); the game's own reset after it in the logs (a new profile id,
    * a quest taken again after its hand-in, the prestige / new-profile request) becomes the floor and resolves it
    * (`resolvedAt`). src/state/AppState.tsx applyLogState.
@@ -606,6 +606,11 @@ export interface BuildGuide {
   /** The game's «Сборки оружия» screen with this build finished (tarkov.help). */
   image?: string
   parts: BuildGuidePart[]
+  /**
+   * Slots (their nameId: mod_stock, …) the build leaves empty though the weapon comes with a part in them — a stock taken off
+   * for the weight limit, which a list of parts to buy cannot say (src/data/ownerGunsmithGuides.ts).
+   */
+  withoutSlots?: string[]
 }
 
 /** One part of a build guide: the item, whether it must be installed, who sells it. */

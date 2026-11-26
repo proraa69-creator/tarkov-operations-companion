@@ -469,13 +469,17 @@ export class BugReportStore {
   }
 
   /**
-   * The owner's buttons: «Взял в работу», «Реализовано», «Отменить», «Уже реализовано», «Вернуть в активные». Also the ONLY way to
+   * The owner's buttons: «Взял в работу», «Готово», «Отклонить», «Уже реализовано», «Разъяснить» (a bug only), «Вернуть в активные». Also the ONLY way to
    * `queued` (`approve`, with the plan Claude works by; no button sends it now). The server's route lets the owner alone here.
    */
   ownerWork(id: number, action: ReportWorkAction, plan?: string): BugReportView | undefined {
     const at = this.now()
     const { from, to } = REPORT_WORK_ACTIONS[action]
     const allowed = `id = ? AND work_status IN (${quoted(from)})`
+    // «Разъяснить» answers a bug that was not one; an idea has «Уже реализовано» instead.
+    if (action === 'explain' && (this.db.prepare('SELECT kind FROM bug_reports WHERE id = ?').get(id) as Row | undefined)?.kind === 'idea') {
+      throw new BugReportError(409, 'Разъяснить можно только отчёт об ошибке')
+    }
     if (action === 'approve') {
       const current = this.db.prepare('SELECT triage_plan FROM bug_reports WHERE id = ?').get(id) as Row | undefined
       if (!current) return undefined

@@ -25,11 +25,19 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'],
   // «Спавн 100 %» layer: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts).
-  ['Лежит здесь в каждом рейде.', 'Here every raid.'], ['Лежит в куртке в каждом рейде.', 'In the jacket every raid.'],
+  ['Лежит здесь в каждом рейде.', 'Here every raid.'], ['Лежит в куртке в 205 комнате, в каждом рейде. Дверь всегда открыта.', 'In the jacket in room 205, every raid. The door is always open.'],
   ['Возможная точка спавна', 'Possible spawn spot'],
+  // «Таймер бронепоезда» (src/maps/ArmoredTrainTimer.tsx, report 231)
+  ['Таймер бронепоезда', 'Armored train timer'], ['Когда приедет бронепоезд', 'When the armored train comes'],
+  ['Бронепоезд прибывает через', 'The armored train comes'], ['мин после начала рейда, стоит', 'min after the raid starts, stays'],
+  ['Бронепоезд прибудет через', 'Armored train in'], ['Бронепоезд прибудет в ближайшие', 'Armored train within'],
+  ['Прибывает через', 'Arrives'], ['возможно, приехал', 'may have arrived'],
+  ['Уведомления о прибытии', 'Arrival alerts'], ['Бронепоезд прибывает', 'Armored train arriving'],
   // «Нужные ключи» (reports №112, №113).
   ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],
   // «Сектора обстрела» (report №110).
+  // Report 239: the raid's time under «Отложенные квесты» and «Выходы» under «Ключи» (src/maps/MapRaidInfo.tsx).
+  ['Выходы', 'Exits'], ['Оставшееся время рейда', 'Raid time remaining'], ['Список выходов', 'Exit list'], ['Дважды O в игре — выходы рейда', "Double-tap O in the game to read this raid's exits"], ['сигнальный патрон', 'flare'],
   ['Сектора обстрела', 'Fire sectors'], ['На карте', 'On the map'], ['Зона обстрела', 'Fire zone'], ['Пулемёты «Утёс» на вышках стреляют по подходам к переходу на Терминал.', 'Utyos machine guns on the towers fire at the approaches to the Terminal transit.'], ['Мост к острову Смотрителя', 'Bridge to Lightkeeper Island'], ['Зрячий и его свита стреляют, а клейморы срабатывают, если:', 'Zryachiy and his followers shoot and the claymores go off if:'], ['• в спецслоте нет закодированного передатчика DSP;', '• there is no encoded DSP transmitter in your special slot;'], ['• вы попали по Зрячему или его людям — передатчик теряет код.', '• you hit Zryachiy or his men — the transmitter loses its code.'],
   // «Ключи» (report №108): a loose key spot.
   ['Может лежать здесь.', 'May lie here.'],
@@ -83,6 +91,23 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Найти вход в секретный объект на локации Улицы Таркова', 'Locate the entrance to the facility on Streets of Tarkov'],
   ['Осмотреть офисы топ-менеджеров (O21, 2-й уровень)', 'Search the top management offices (O21, level 2)'],
   ['Осмотреть серверную (2-й уровень, у ангара)', 'Search the server room (level 2, by the hangar)'],
+  // The Unheard (src/data/storyChapterSeeds.ts)
+  ['Записка (с 21 уровня): офис № 4 на 2-м этаже главного здания TerraGroup, нужен ключ от научного офиса TerraGroup', 'The note (level 21+): office no. 4 on the 2nd floor of the TerraGroup main building, needs the TerraGroup science office key'],
+  ['Документ — в лаборатории у купола (1-й уровень), рядом с экраном', 'The document: in the laboratory by the dome (level 1), next to the screen'],
+  ['Факс — в офисе O23 (2-й уровень), на тумбе рядом с сейфом', 'The fax: in office O23 (level 2), on the lowboard next to the safe'],
+  ['Маршрутный лист — на жёлтой бочке у пролома в полу', 'The transport log: on the yellow barrel by the hole in the floor'],
+  ['Склад TerraGroup в тоннелях у выхода «Бункерная дверь с камерой»: отчёт — на книжной полке у двери или на сейфе у стола', 'The TerraGroup storage room in the tunnels by the Camera Bunker Door exit: the report is on the bookshelf by the door or on the safe by the table'],
+  ['Сожжённый документ — на столе или на правой металлической полке склада TerraGroup', 'The burnt document: on the table or on the right metal shelf of the TerraGroup storage room'],
+  ['Номер А.П. — 305 восточного крыла Санатория (3-й этаж)', 'A.P.\'s room: east wing room 305 of the Health Resort (3rd floor)'],
+  ['Записка на посту охраны (опционально): 1-й этаж западного крыла, стол у комнаты охраны у южного входа', 'The guard post note (optional): west wing, 1st floor, the desk by the security room at the southern entrance'],
+  ['Ключ от корпоративной квартиры TerraGroup — на правой тумбочке в номере 305 восточного крыла', 'The TerraGroup corporate apartment key: on the right nightstand in east wing room 305'],
+  ['Флешка — в ноутбуке на столе в номере 305 восточного крыла', 'The flash drive: in the laptop on the table in east wing room 305'],
+  ['Квартира 1 на 2-м этаже ЖК «Кардинал»', 'Apartment 1 on the 2nd floor of the Cardinal apartment complex'],
+  ['Потайная комната — в конце коридора квартиры А.П., открывается зелёной ключ-картой', 'The hidden room: down the hallway of A.P.\'s apartment, opened with the green keycard'],
+  ['Приказ — на полу рядом с коробками в потайной комнате', 'The order: on the floor next to the packages in the hidden room'],
+  ['Копия отчёта — на левом краю стола в потайной комнате', 'The report copy: on the left end of the desk in the hidden room'],
+  ['Документ — на стопке документов в потайной комнате', 'The document: on the pile of documents in the hidden room'],
+  ['Документ — на правом краю стола в потайной комнате', 'The document: on the right end of the desk in the hidden room'],
   ['Найти путь отхода через водосток (подвал, у выхода «Накопительный коллектор»)', 'Locate the escape path through the drainage system (basement, at the Sewage Conduit exit)'],
   ['Найти и забрать личную вещь одного из богатырей', 'Locate and obtain a personal item of one of the Bogatyrs'],
   ['Осмотреть командный бункер на Резерве', 'Investigate the command bunker on Reserve'],
@@ -204,6 +229,8 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/здесь точек:\s*/g, 'points here: '],
   [/^Мест рядом: (\d+)$/g, 'Places close together: $1'],
+  // «Таймер бронепоезда»: how long the train stands, «6 мин 30 с» (src/maps/armoredTrain.ts trainStay)
+  [/^(\d+)\u00a0мин (\d+)\u00a0с$/u, '$1\u00a0min $2\u00a0s'],
   // «Устранения»: a choice of weapons of one calibre (src/maps/killObjectives.ts weaponTag)
   [/^калибр (\S+)$/g, 'caliber $1'],
   [/Точек квеста на этой карте:\s*/g, 'Task points on this map: '],

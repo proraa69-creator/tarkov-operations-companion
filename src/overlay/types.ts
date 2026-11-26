@@ -1,6 +1,7 @@
 import type { PlayerPosition } from './screenshotPosition'
 import type { ScreenshotKeyInfo } from './screenshotCheck'
 import type { PictureQuery } from './iconMatch'
+import type { GameLanguage, GameLanguageSetting } from '../import/gameLanguage'
 
 export type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from './screenshotCheck'
 
@@ -66,6 +67,8 @@ export interface ExperimentalSettings {
   screenshotsDir: string
   /** «Отключить местоположение»: no position anywhere (electron/experimental/settings.ts). */
   minimapOff: boolean
+  /** The game's language for the screen readers: the app's own, told by the renderer (src/import/gameLanguageSync.ts). */
+  gameLanguage?: GameLanguageSetting
 }
 
 export interface ExperimentalStatus {
@@ -104,6 +107,11 @@ export interface ExperimentalStatus {
   raid: { inRaid: boolean; location?: string }
   /** Display mode of the game the last time it was in front. */
   displayMode: 'exclusive' | 'fullscreen' | 'normal' | 'unknown'
+  /**
+   * The game's language for the screen readers (electron/gameLanguage.ts): the player's choice, what the game's settings
+   * file says (null: not found), the one used. Apps from 24.11.2026.
+   */
+  gameLanguage?: { setting: GameLanguageSetting; detected: GameLanguage | null; language: GameLanguage }
 }
 
 export type ExperimentalQuery =
@@ -115,6 +123,8 @@ export type ExperimentalQuery =
     tooltip?: boolean
     /** Second attempt: when this text names an item, remember these first readings as that item (see lookupMemory). */
     remember?: string[]
+    /** The game's language the tooltip was read in (its names count too: src/data/gameNames.ts). Apps from 24.11.2026. */
+    language?: GameLanguage
   } }
   /** Second attempt, picture check: the items the readings could name (src/overlay/iconMatch.ts). */
   | { id: number; kind: 'item-candidates'; input: { texts: string[] } }

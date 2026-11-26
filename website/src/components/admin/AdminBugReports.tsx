@@ -6,6 +6,7 @@ import { Loading } from './adminShared'
 import { Pager } from './AdminPayments'
 import { dateTime, failure, useAdminData, type Failure } from './adminData'
 import { bugReportsApi, type BugReportQuest, type BugReportRow } from './bugReportsApi'
+import { WriteDialog } from './WriteToUser'
 import { QUEST_ISSUE_LABELS, type QuestIssue } from '../../../../src/shared/reportCategories'
 import { ReportsTable } from '../../../../src/reports/ReportsTable'
 import { EftCasesTable } from '../../../../src/reports/EftCasesTable'
@@ -48,6 +49,8 @@ export function AdminBugReports() {
   const [eftSelected, setEftSelected] = useState(false)
   const [eftCount, setEftCount] = useState(0)
   const [eftReload, setEftReload] = useState(0)
+  // «Разъяснить» (owner, 25.11.2026): the bug is closed, the answer to its author opens in the support chat.
+  const [answering, setAnswering] = useState<BugReportRow | null>(null)
   const list = useAdminData(useCallback((owner: string) => bugReportsApi.table(owner, view, PAGE, page * PAGE), [view, page]))
   const { reload } = list
 
@@ -87,6 +90,7 @@ export function AdminBugReports() {
         onAct={act}
         onReward={async (id, days) => { if (!token) return; await bugReportsApi.reward(token, id, days); await reload() }}
         onAcceptPoint={async (id) => { if (!token) return; await bugReportsApi.point(token, id); await reload() }}
+        onExplain={setAnswering}
         loadImage={loadImage}
         error={list.error?.message}
         loading={list.loading}
@@ -94,6 +98,7 @@ export function AdminBugReports() {
         detail={(row) => <ReportDetails row={row} onUpdate={() => void reload()} />}
         footer={list.data ? <Pager page={page} total={list.data.total} size={PAGE} onPage={setPage} /> : null}
       />
+      {answering?.accountId && <WriteDialog accountId={answering.accountId} email={answering.email ?? ''} report={{ id: answering.id, title: answering.topic }} onClose={() => setAnswering(null)} />}
     </div>
   )
 }

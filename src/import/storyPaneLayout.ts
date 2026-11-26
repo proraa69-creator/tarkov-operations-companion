@@ -10,6 +10,8 @@
  * задачи» 407, bottom menu bar 1053. Any other screen is cut the same way inside the game's own
  * 16:9 menu area (gameUiBox).
  */
+import { joinCjkWords } from '../shared/cjk.js'
+
 export interface PaneRect { x: number; y: number; width: number; height: number }
 export interface OcrWordBox { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }
 export interface StoryPaneRects { title: PaneRect; status: PaneRect; body: PaneRect }
@@ -48,9 +50,19 @@ export function gameUiBox(size: { width: number; height: number }): PaneRect {
   return { x: 0, y: 0, width: W, height: H }
 }
 
+/**
+ * The header word «ИСТОРИЯ», as a word of its own: OCR sometimes keeps only «СТОРИЯ» / «ТОРИЯ». Never inside a longer
+ * word: «Лаборатория» (the Labs in a Tasks-table row's location column) made the side table a story pane, and the whole
+ * table was passed over (report 232: not one quest found on «Побочные»); «территория», «траектория» too.
+ */
+export const HISTORY_WORD = String.raw`(?<!\p{L})(?:истори\p{L}*|[а-яё]{0,2}тори[яи](?!\p{L}))`
+const HISTORY = new RegExp(HISTORY_WORD, 'iu')
+/** The English game's banner «CHAPTER», maybe in Cyrillic look-alikes («СНАРТЕВ»). */
+const CHAPTER = /(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i
+
 /** The header word «ИСТОРИЯ» (OCR sometimes keeps only «ТОРИЯ»); the English game's «CHAPTER», maybe in Cyrillic look-alikes. */
 export function isStoryTitleText(text: string) {
-  return /истори|тори[яи]|(?:^|\s)story(?:\s|$)|(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i.test(text)
+  return HISTORY.test(text) || /(?:^|\s)story(?:\s|$)/i.test(text) || CHAPTER.test(text)
 }
 
 /** The objective block headings of the story pane («Главные задачи», «Опциональные задачи»; the left edge may be cut). */
@@ -62,7 +74,7 @@ export function isStoryObjectivesText(text: string) {
  * The pane's own header on a whole-screen pass: «ИСТОРИЯ» (or the clipped «ТОРИЯ»), the English «CHAPTER». Never the
  * «СЮЖЕТНЫЕ» / «STORY» tab: that tab sits above every Tasks screen, the side table included.
  */
-const PANE_HEADER = /истори|тори[яи]|(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i
+const isPaneHeader = (text: string) => HISTORY.test(text) || CHAPTER.test(text)
 const STORY_TAB = /сюжетн|(?:^|\s)story(?:\s|$)/i
 
 /**
@@ -72,7 +84,7 @@ const STORY_TAB = /сюжетн|(?:^|\s)story(?:\s|$)/i
  */
 export function isStoryPaneOcr(text: string) {
   const objectives = isStoryObjectivesText(text)
-  const header = PANE_HEADER.test(text)
+  const header = isPaneHeader(text)
   return (header && objectives) || ((header || objectives) && STORY_TAB.test(text))
 }
 
@@ -112,7 +124,7 @@ export function storyPaneRects(size: { width: number; height: number }, words: O
     words.find((word) => pattern.test(word.text.trim()) && where(word.bbox))?.bbox
   // The English game (owner's screenshots, 14.10.2026): «CHAPTER», «Main / Optional objectives», «Task items on
   // character» over the right panel, «MAIN MENU» in the bottom bar.
-  const history = find(/истори|тори[яи]|^[cс][hн][aа][pр][tт]/i, (box) => box.y0 - Y < H * 0.35)
+  const history = find(new RegExp(`${HISTORY_WORD}|^[cс][hн][aа][pр][tт]`, 'iu'), (box) => box.y0 - Y < H * 0.35)
   const main = find(/^главн(?:ые|ая)$|^main$/i, (box) => box.y0 - Y > H * 0.15 && box.y0 - Y < H * 0.9)
     ?? find(/^[а-яё]{0,4}иональн|^optional$/i, (box) => box.y0 - Y > H * 0.15 && box.y0 - Y < H * 0.9)
   // The right panel: its top header, or either of its headers «Предметы для заданий …» / «Task items …» anywhere down
@@ -145,7 +157,10 @@ export function storyPaneRects(size: { width: number; height: number }, words: O
   return title && status && body ? { title, status, body } : undefined
 }
 
-/** OCR word boxes of a tesseract.js result (`blocks` output). */
+/**
+ * OCR word boxes of a tesseract.js result (`blocks` output). A Japanese or Chinese line's characters, each a word of its own
+ * to the OCR, are one word again (src/shared/cjk.ts): «現在の状態» is looked for as the game writes it.
+ */
 export function ocrWordBoxes(blocks: Array<{ paragraphs: Array<{ lines: Array<{ words: OcrWordBox[] }> }> }> | null | undefined): OcrWordBox[] {
-  return (blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.flatMap((line) => line.words)))
+  return (blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.flatMap((line) => joinCjkWords(line.words))))
 }

@@ -234,7 +234,7 @@ async function withApi(run: (ctx: { call: (method: string, path: string, options
   const paid = new Map<string, number>()
   let clock = Date.now()
   const accounts = new AccountStore({ ownerEmails: ['owner@example.com'], now: () => clock })
-  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0 }), referralSeries: () => [] }
+  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }), referralSeries: () => [] }
   accounts.attachSubscriptions(source)
   const entitlements = new EntitlementService(accounts)
   const upstream = fakeUpstream()

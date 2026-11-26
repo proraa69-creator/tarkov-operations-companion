@@ -171,6 +171,7 @@ button.support-chat-reaction { cursor: pointer; }
 .support-chat-replying > .icon-button { flex: none; width: 28px; height: 28px; }
 /* «Редактирование»: the owner's own message whose words are in the box. */
 .support-chat-replying.is-editing { color: var(--text); }
+.support-chat-answering { padding: 6px 10px 0; }
 /* The emoji and the stickers, between the conversation and the box. */
 .support-chat-picker {
   display: grid; gap: 2px; max-height: 196px; overflow-y: auto; overscroll-behavior: contain; padding: 6px;
@@ -281,3 +282,7 @@ button.support-chat-reaction { cursor: pointer; }
   background: color-mix(in srgb, var(--brass) 22%, transparent); color: var(--brass-strong, var(--brass)); pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) { .support-chat-message.is-springing { transition-duration: .01s; } }
+
+/* «Удалить» on a message (owner, 26.11.2026): red, and redder once asked «Точно удалить?». */
+.support-chat-menu-item.is-danger { color: #e3958b; }
+.support-chat-menu-item.is-danger.is-sure { background: rgb(150 46 40 / 38%); color: #ffd2cc; }

@@ -248,20 +248,57 @@
 .range-corner-button .range-key { margin-left: 2px; }
 @media (max-width: 520px) { .range-target-wrap:not(.is-full) .range-corner-button > span { display: none; } }
 
-/* the phone's full screen: the scope in the middle, the stick on the left, the fire button on the right */
-.range-target-wrap.is-full { position: fixed; inset: 0; z-index: 2000; min-height: 0; padding: 0; border: 0; border-radius: 0; background: #050505;
-  container-type: size; touch-action: none; overscroll-behavior: contain; -webkit-user-select: none; user-select: none; }
-.range-target-wrap.is-full.is-turned { inset: auto; left: 50%; top: 50%; width: 100dvh; height: 100dvw; transform: translate(-50%, -50%) rotate(90deg); }
-.range-target-wrap.is-full .range-scope { width: min(100cqh - 12px, 100cqw - 300px); }
-.range-target-wrap.is-full .range-corner { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-.range-stick { position: absolute; z-index: 3; left: max(18px, calc((100cqw - min(100cqh - 12px, 100cqw - 300px)) / 2 - 140px)); top: 50%; width: 120px; height: 120px;
-  margin-top: -60px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 22%); background: radial-gradient(circle, rgb(255 255 255 / 10%), rgb(255 255 255 / 3%) 70%); touch-action: none; }
-.range-stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgb(255 255 255 / 30%);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 60%), inset 0 1px 0 rgb(255 255 255 / 30%); pointer-events: none; }
-.range-fire-side { position: absolute; z-index: 3; right: max(18px, calc((100cqw - min(100cqh - 12px, 100cqw - 300px)) / 2 - 140px)); top: 50%; display: grid;
-  justify-items: center; gap: 8px; transform: translateY(-50%); }
-.range-fire { width: 104px; height: 104px; border-radius: 50%; border: 2px solid rgb(255 120 100 / 70%); background: radial-gradient(circle at 50% 40%, #b0342a, #6e1a14);
-  color: #fff; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 15px; box-shadow: 0 4px 14px rgb(0 0 0 / 70%); touch-action: none; }
+/* the scope's frame: no box of its own on the page, the turned picture on the phone's full screen */
+.range-target-frame { display: contents; }
+
+/*
+ * The phone's full screen (src/range/useRangeFullScreen.ts), drawn over the whole page from <body>: the screen-sized host clips
+ * everything, so nothing of it can widen the page; the frame in it is turned a quarter where the phone stays upright. The finger
+ * aims over the left half, the sliders and the fire button stand on the right (owner, 24.11.2026).
+ */
+html.range-full-open, html.range-full-open body { overflow: hidden; overscroll-behavior: none; }
+.range-target-wrap.is-full { position: fixed; inset: 0; z-index: 2000; display: block; min-height: 0; padding: 0; border: 0; border-radius: 0; background: #050505;
+  overflow: hidden; container-type: size; touch-action: none; overscroll-behavior: contain; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.range-target-wrap.is-full > .range-target-frame { position: absolute; inset: 0; display: grid; place-items: center; container-type: size;
+  --fs-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)); --fs-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --fs-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)); --fs-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  /* the right side's width: the sliders and the fire button */
+  --fs-side: calc(212px + var(--fs-right)); padding-right: var(--fs-side); }
+/* turned a quarter clockwise: its top is the glass' right, its right the glass' bottom, and so on round */
+.range-target-wrap.is-full > .range-target-frame.is-turned { inset: auto; left: 50%; top: 50%; width: 100cqh; height: 100cqw; transform: translate(-50%, -50%) rotate(90deg);
+  --fs-top: var(--safe-area-inset-right, env(safe-area-inset-right, 0px)); --fs-right: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --fs-bottom: var(--safe-area-inset-left, env(safe-area-inset-left, 0px)); --fs-left: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)); }
+.range-target-wrap.is-full .range-scope { width: max(160px, min(100cqh - 12px, 100cqw - var(--fs-side) - 24px)); }
+.range-target-wrap.is-full .range-corner.is-top-left { left: calc(10px + var(--fs-left)); top: calc(10px + var(--fs-top)); }
+.range-target-wrap.is-full .range-corner.is-top-right { right: calc(10px + var(--fs-right)); top: calc(10px + var(--fs-top)); }
+.range-target-wrap.is-full .range-corner.is-bottom-left { left: calc(10px + var(--fs-left)); bottom: calc(10px + var(--fs-bottom)); }
+.range-target-wrap.is-full .range-corner.is-bottom-right { right: calc(10px + var(--fs-right)); bottom: calc(10px + var(--fs-bottom)); }
+/* the left half: a finger drawn over it turns the view */
+.range-look { position: absolute; z-index: 2; left: 0; top: 0; bottom: 0; width: 50%; touch-action: none; }
+.range-look-hint { position: absolute; left: calc(50% + var(--fs-left) / 2); top: 50%; transform: translate(-50%, -50%); padding: 6px 10px; border-radius: 8px;
+  background: rgb(0 0 0 / 55%); color: #e8e4d8; font-size: 12px; white-space: nowrap; pointer-events: none; animation: range-scope-hint-out .5s ease 4s forwards; }
+.range-touch-side { position: absolute; z-index: 3; right: calc(12px + var(--fs-right)); top: 50%; display: flex; align-items: center; gap: 10px; transform: translateY(-50%); }
+.range-fire-side { display: grid; justify-items: center; gap: 8px; }
+.range-fire { width: 92px; height: 92px; border-radius: 50%; border: 2px solid rgb(255 120 100 / 70%); background: radial-gradient(circle at 50% 40%, #b0342a, #6e1a14);
+  color: #fff; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 14px; box-shadow: 0 4px 14px rgb(0 0 0 / 70%); touch-action: none;
+  transition: transform .1s cubic-bezier(0.23, 1, 0.32, 1); }
 .range-fire.is-down { transform: scale(.94); background: radial-gradient(circle at 50% 40%, #e0493a, #8c2219); }
 .range-fire-mag { padding: 2px 8px; border-radius: 6px; background: rgb(0 0 0 / 60%); color: #e8e4d8; font-size: 13px; font-variant-numeric: tabular-nums; }
 .range-fire-mag.is-empty { color: var(--amber); }
+/* the sliders: the distance and the scope's magnification, upright, the least at the bottom */
+.range-slider { display: grid; justify-items: center; gap: 6px; width: 46px; padding: 2px 0; touch-action: none; outline: none; cursor: pointer; }
+.range-slider:focus-visible .range-slider-track { box-shadow: 0 0 0 2px var(--brass, #d8c27a); }
+.range-slider-value { min-width: 46px; padding: 2px 4px; border-radius: 6px; background: rgb(0 0 0 / 60%); color: #f1ecdf; font-size: 12px; font-weight: 750; text-align: center;
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.range-slider-track { position: relative; width: 8px; height: min(190px, 100cqh - 150px); border-radius: 999px; background: rgb(255 255 255 / 16%); }
+/* a wider place to put the finger than the track itself */
+.range-slider-track::before { content: ''; position: absolute; inset: -6px -19px; }
+.range-slider-fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: inherit; background: rgb(216 194 122 / 70%); pointer-events: none; }
+.range-slider-thumb { position: absolute; left: 50%; width: 26px; height: 26px; margin: 0 0 -13px -13px; border-radius: 50%; background: #f1ecdf;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 70%); pointer-events: none; }
+.range-slider-stop { position: absolute; left: 50%; width: 14px; height: 2px; margin: 0 0 -1px -7px; background: rgb(255 255 255 / 45%); pointer-events: none; }
+.range-slider-caption { color: #cfc9b8; font-size: 11px; font-weight: 700; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+/* a small phone on its side: a smaller fire button */
+@container (max-height: 340px) {
+  .range-fire { width: 78px; height: 78px; font-size: 13px; }
+}

@@ -1,3 +1,4 @@
+import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ArrowDown, ArrowDownCircle, ArrowUp, ArrowUpCircle, Bell, BellOff, BellRing, Check, ChevronDown, ChevronUp, Info, MousePointerClick, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
@@ -11,7 +12,7 @@ import type { Item, RaidMode } from '../domain/types'
 import { useTraderLevels } from '../gunsmith/traderLevels'
 import { traderOfferOpen } from '../trading/moduleAccess'
 import { useLocale } from '../i18n/LocaleProvider'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { ageText, formatPrice } from '../shared/format'
 import { useAppState } from '../state/AppState'
@@ -229,7 +230,7 @@ function useVisibleWidth() {
 function ForecastText({ history, target, current, now, locale }: { history: History; target: number; current?: number; now: number; locale: Locale }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
   const forecast = useMemo(() => sellForecast(rowScans(history), target, current, now), [current, history, now, target])
-  const stamp = useMemo(() => new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), [locale])
+  const stamp = useMemo(() => new Intl.DateTimeFormat(languageTag(locale, 'en-GB'), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), [locale])
   return <>
     <h4>{t('Прогноз, когда можно будет продавать', 'Forecast: when you can sell')}</h4>
     <p className="trading-forecast-text">
@@ -265,7 +266,7 @@ function ItemDetail({ entry, period, position, fee, mode, now, onBought, locale 
   const { ref, width } = useVisibleWidth()
   const { row, current, traderPrice, traderName } = entry
   const [target, setTarget] = useState<number | undefined>(undefined)
-  const hourFormat = useMemo(() => new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }), [locale])
+  const hourFormat = useMemo(() => new Intl.DateTimeFormat(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' }), [locale])
   const clock = (utcHour: number) => {
     const at = new Date(now)
     at.setUTCHours(utcHour, 0, 0, 0)
@@ -295,7 +296,7 @@ function ItemDetail({ entry, period, position, fee, mode, now, onBought, locale 
 
 /** The player's own clock: Intl takes the time zone of this computer. */
 function useStamp(locale: Locale) {
-  return useMemo(() => new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), [locale])
+  return useMemo(() => new Intl.DateTimeFormat(languageTag(locale, 'en-GB'), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), [locale])
 }
 
 const inHours = (hours: number, locale: Locale) => {
@@ -813,10 +814,10 @@ export function TradingPage() {
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
   const ordered = useSteadyOrder(sorted, boardRowId, selected ? `${sort.key}:${sort.dir}:${period}` : null)
   const shown = useMemo(() => {
-    const words = query.trim().toLowerCase()
+    const terms = searchTerms(query)
     return ordered
       .filter((row) => kind === 'all' || row.row.kind === kind)
-      .filter((row) => !words || `${row.item.name} ${row.item.shortName} ${uiText(row.item.name)} ${uiText(row.item.shortName)}`.toLowerCase().includes(words))
+      .filter((row) => matchesSearchTerms(terms, row.item.name, row.item.shortName, uiText(row.item.name), uiText(row.item.shortName)))
   }, [kind, ordered, query])
   // A signal or a message opens its item wherever it stands: past the first rows, or filtered out by the search.
   const opened = useMemo(() => rows.find((row) => row.row.id === selected), [rows, selected])
@@ -833,7 +834,7 @@ export function TradingPage() {
   const stale = snapshot ? tradingStale(snapshot, now) : false
   const hoursAgo = snapshot ? Math.max(0, Math.round((now - Date.parse(snapshot.builtAt)) / 3_600_000)) : 0
   // When tarkov.dev last renewed a price, on the player's clock; we ask every minute while this page is open (useLivePrices), so it shows at once.
-  const lastPrices = live?.pricesAt ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }).format(live.pricesAt) : null
+  const lastPrices = live?.pricesAt ? new Intl.DateTimeFormat(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' }).format(live.pricesAt) : null
 
   return <div className="page trading-page">
     <header className="page-header">

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { App as CapacitorApp } from '@capacitor/app'
 import { AlertTriangle, Check, Globe, LoaderCircle, LogIn, ShieldAlert, Smartphone, X } from 'lucide-react'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import { isNative } from '../platform'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
 import { apiBaseUrl, DEFAULT_API_URL, isHomeNetworkServer, normalizeApiUrl, setApiBaseUrl, webAccountRedeemLoginCode, webServiceRequest } from '../sync/webAccount'
-import { parseAccountDeepLink, type AccountDeepLink } from './deepLink'
+import { ACCOUNT_LINK_EVENT, parseAccountDeepLink, type AccountDeepLink } from './deepLink'
 import { describeAgent, describePlace, normalizeLoginCode, type Inspected } from '../account/qrInspect'
 import { useLocale } from '../i18n/LocaleProvider'
 import '../account/account.css'
@@ -23,6 +23,13 @@ function isKnownServer(server: string) {
  */
 export function DeepLinkLogin() {
   const [link, setLink] = useState<AccountDeepLink | null>(null)
+
+  // A QR code read by the app's own scanner (mobile/QrScanner.tsx) comes the same way as one the camera opened.
+  useEffect(() => {
+    const take = (event: Event) => { const detail = (event as CustomEvent<AccountDeepLink>).detail; if (detail) setLink(detail) }
+    window.addEventListener(ACCOUNT_LINK_EVENT, take)
+    return () => window.removeEventListener(ACCOUNT_LINK_EVENT, take)
+  }, [])
 
   useEffect(() => {
     if (!isNative()) return
@@ -155,7 +162,7 @@ function PhoneApprove({ link, onClose }: { link: Extract<AccountDeepLink, { kind
         <div className="account-approve-info">
           <strong>{describeAgent(info.agent)}</strong>
           <small>{uiText('Откуда:')} {place || uiText('неизвестно')}</small>
-          <small>{uiText('Код создан в')} {new Date(info.createdAt).toLocaleTimeString(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' })}</small>
+          <small>{uiText('Код создан в')} {new Date(info.createdAt).toLocaleTimeString(languageTag(locale, 'en-GB'), { hour: '2-digit', minute: '2-digit' })}</small>
         </div>
       )}
       {signedIn && !done && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Подтверждайте, только если вы сами сейчас входите на другом устройстве. Никогда не подтверждайте вход по ссылке, которую вам прислали.')}</span></div>}

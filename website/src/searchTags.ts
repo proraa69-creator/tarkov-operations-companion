@@ -28,6 +28,9 @@ function headTag(selector: string, create: () => HTMLElement, attributes: Record
   for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value)
 }
 
+/** Every site language has its own address for search engines (`?lang=de` …, src/i18n/index.ts addressLocale). */
+const HREFLANGS = ['ru', 'en', 'de', 'ja', 'zh', 'pl', 'es', 'pt', 'fr', 'ko', 'tr']
+
 export function updateSearchTags(pathname: string, search = window.location.search) {
   const indexed = INDEXED.has(pathname)
   const bilingual = indexed && BILINGUAL.has(pathname)
@@ -36,8 +39,8 @@ export function updateSearchTags(pathname: string, search = window.location.sear
   const link = () => document.createElement('link')
   headTag('meta[name="description"]', meta, { name: 'description', content: tr(DESCRIPTIONS[pathname] ?? DESCRIPTIONS['/']) })
   headTag('meta[name="robots"]', meta, { name: 'robots', content: indexed ? 'index, follow' : 'noindex, follow' })
-  headTag('link[rel="canonical"]', link, indexed ? { rel: 'canonical', href: `${SITE}${pathname}${bilingual && (lang === 'ru' || lang === 'en') ? `?lang=${lang}` : ''}` } : null)
-  for (const hreflang of ['ru', 'en', 'x-default']) {
+  headTag('link[rel="canonical"]', link, indexed ? { rel: 'canonical', href: `${SITE}${pathname}${bilingual && lang && HREFLANGS.includes(lang) ? `?lang=${lang}` : ''}` } : null)
+  for (const hreflang of [...HREFLANGS, 'x-default']) {
     headTag(`link[rel="alternate"][hreflang="${hreflang}"]`, link, bilingual
       ? { rel: 'alternate', hreflang, href: `${SITE}${pathname}${hreflang === 'x-default' ? '' : `?lang=${hreflang}`}` } : null)
   }

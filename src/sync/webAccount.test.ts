@@ -65,6 +65,22 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('«Удалить сообщение» and «Найти по почте» (owner, 26.11.2026) go with the session, only in their shape', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ users: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const remove = `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/5/delete`
+    await webServiceRequest('POST', remove, {})
+    expect(await webServiceRequest('GET', `/v1/accounts/me/admin/support/search?q=${encodeURIComponent('newbie@ex')}`)).toEqual({ users: [] })
+    for (const [method, path] of [
+      ['GET', remove], ['DELETE', remove], ['POST', `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/x/delete`],
+      ['GET', '/v1/accounts/me/admin/support/search?q=a b'], ['GET', '/v1/accounts/me/admin/support/search'],
+    ] as const) {
+      await expect(webServiceRequest(method, path, {})).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   // Owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон».
   it('sticker packs: the picker reads the published ones without a session; the owner\'s routes go with it; others stay blocked', async () => {
     const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ packs: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
@@ -168,8 +184,8 @@ describe('phone transport: «Онлайн сейчас» (server/src/routes/pres
     expect(headers['x-raid-device']).toMatch(/^[A-Za-z0-9_-]{22,64}$/)
     expect(await webServiceRequest('GET', '/v1/accounts/me/admin/online')).toBeNull()
     expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[1]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
-    // Other personal routes still go without the device.
-    await webServiceRequest('GET', '/v1/me/settings').catch(() => null)
+    // A personal route that is not paid content still goes without the device.
+    await webServiceRequest('GET', '/v1/me/summary').catch(() => null)
     expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[2]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
   })
 })

@@ -316,8 +316,11 @@ export interface PhoneHandlerOptions {
   now?: () => number
   /** Per IP in 15 minutes: code requests (start) and code checks (verify). Per account per hour: binding. */
   limits?: Partial<Record<'start' | 'startDaily' | 'verify' | 'bind', number>>
-  /** More public settings for GET /auth-config (the e-mail codes' `emailEnabled`, services/emailAuth.ts). */
-  extraConfig?: () => Record<string, unknown>
+  /**
+   * More public settings for GET /auth-config (the e-mail codes' `emailEnabled`, services/emailAuth.ts; the Google client,
+   * which depends on the visitor's address).
+   */
+  extraConfig?: (req: AccountsRequest) => Record<string, unknown>
 }
 
 const challengeId = z.string().regex(/^[A-Za-z0-9_-]{32}$/)
@@ -364,7 +367,7 @@ export function createPhoneHandlers(accounts: AccountStore, phones: PhoneAuthSer
   })
 
   return {
-    config: () => guard(() => ({ status: 200, body: { ...phones.publicConfig(), ...options.extraConfig?.() } })),
+    config: (req: AccountsRequest = {}) => guard(() => ({ status: 200, body: { ...phones.publicConfig(), ...options.extraConfig?.(req) } })),
 
     loginStart: start('login'),
     resetStart: start('reset'),

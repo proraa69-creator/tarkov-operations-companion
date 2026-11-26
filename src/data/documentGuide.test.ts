@@ -51,14 +51,22 @@ describe('the photos of the battle pass documents', () => {
   it('a point gets the photos of the nearest spot of its kind, and nothing from a spot further off', () => {
     // The old gas station on Customs: financial documents on the desk, project documentation by the door, 7 metres apart.
     const financial = pointPhotos(guide, 'customs', [-186.2, 317.6], ['financial'])
-    // Since 23.11.2026 the place is followed by the document laid there by the photo worker, up close.
-    expect(financial.map((id) => guide.photos[id]!.en)).toEqual(['On the desk inside old gas station building.', 'The document in place.'])
+    // owner, 24.11.2026: one photo per document place, the document itself seen in it (the close-up of the document laid exactly
+    // where the guide's picture shows it), with the place's words; no approach
+    expect(financial.map((id) => guide.photos[id]!.en)).toEqual(['On the desk inside old gas station building.'])
+    expect(guide.files[financial[0]!]).toMatchObject({ own: true })
     const project = pointPhotos(guide, 'customs', [-179.9, 316], ['project'])
-    // owner, 23.11.2026: each document laid exactly where the guide's picture shows it, then seen up close
-    expect(project.map((id) => guide.photos[id]!.en)).toEqual(['Inside the old gas station building next to the entrance door.', 'The document in place.'])
-    // A point with both kinds shows both, and the same photo once: the library's two financial places and its project shelf, each
-    // with its close-up (23.11.2026).
-    expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(6)
+    expect(project.map((id) => guide.photos[id]!.en)).toEqual(['Inside the old gas station building next to the entrance door.'])
+    // A point with both kinds shows both, one photo each: the library's financial place and its project shelf.
+    expect(pointPhotos(guide, 'customs', [-159.2, 78.6], ['financial', 'project']).length).toBe(2)
+    // no map has a document place with more than one photo of a kind
+    for (const [mapId, spots] of Object.entries(guide.spots)) {
+      if (!['customs', 'woods', 'interchange', 'streets-of-tarkov', 'reserve'].includes(mapId)) continue
+      for (const spot of spots) {
+        const kinds = spot.photos.map((id) => guide.photos[id]!.kind)
+        expect(new Set(kinds).size).toBe(kinds.length)
+      }
+    }
     // Too far from anything of this kind.
     expect(pointPhotos(guide, 'customs', [-186.2, 317.6], ['medical'])).toEqual([])
     expect(pointPhotos(guide, 'customs', [0, 0], ['financial'])).toEqual([])
@@ -67,6 +75,37 @@ describe('the photos of the battle pass documents', () => {
     // owner, 20.11.2026: the Shoreline hangar between the village and the car exit is not «the white house in front of the T-90»
     expect(pointPhotos(guide, 'shoreline', [-232.5, -627.6], ['technical'])).toEqual([])
     expect(guide.maps.shoreline!.technical).toContain('fa4c79d9e970f24e')
+  })
+
+  it('in the Shoreline resort each point shows the photo of its own floor and room (report 247, 26.11.2026)', () => {
+    // The points' heights against the wings' door locks: the 2nd floor's locks at 0.1, the 3rd's at 3.0.
+    const captions = (z: number, x: number, kind: BattlePassDocumentKind) => pointPhotos(guide, 'shoreline', [z, x], [kind]).map((id) => guide.photos[id]!.en)
+    expect(captions(-77.9, -312, 'technical')).toEqual(['Inside resort east wing room 212 on a shelf.'])
+    expect(captions(-102.7, -270.4, 'technical')).toEqual(['Inside resort east wing on 3rd floor on a chair.'])
+    expect(captions(-80.4, -181, 'technical')).toEqual(['Inside resort west wing room 316 on the flipped shelf.'])
+    expect(captions(-87, -219.1, 'technical')).toEqual(['Inside west wing room 206 on the floor.'])
+    // below the resort, not «the most southwest house in the village near the Tunnel exit»
+    expect(captions(-14.6, -135.7, 'test-docs')).toEqual([])
+  })
+
+  it('on Interchange each blueprint spawn point shows its own room (reports 218/219, 24.11.2026)', () => {
+    const first = (z: number, x: number, kind: 'blueprints' | 'financial') => {
+      const ids = pointPhotos(guide, 'interchange', [z, x], [kind])
+      return ids.length ? guide.photos[ids[0]!]!.en : null
+    }
+    // the offices between Goshan and OLI: two spawn points, two rooms, no photo shared
+    const a = pointPhotos(guide, 'interchange', [53.1, -68.4], ['blueprints'])
+    const b = pointPhotos(guide, 'interchange', [46.0, -79.1], ['blueprints'])
+    expect(a.length).toBeGreaterThan(0)
+    expect(b.length).toBeGreaterThan(0)
+    expect(a.filter((id) => b.includes(id))).toEqual([])
+    // the back of OLI: the PC island, the back office, and a spawn point the offline copy has no desk for — no neighbour's photo there
+    expect(first(126.4, -46.7, 'blueprints')).toBe('In the PC cubicle in the back of OLI.')
+    expect(first(110.6, -91.3, 'blueprints')).toMatch(/back offices of OLI/i)
+    expect(pointPhotos(guide, 'interchange', [112.9, -84.9], ['blueprints'])).toEqual([])
+    // the guide had the Burger Spot sofa and the shelf by the red sofa swapped
+    expect(first(-99.0, -11.6, 'financial')).toMatch(/burger/i)
+    expect(first(-134.0, 27.9, 'financial')).toMatch(/shelf/i)
   })
 
   it('the picture comes from our server', () => {

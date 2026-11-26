@@ -4,7 +4,9 @@ import type { DatabaseSync } from 'node:sqlite'
  * «Промокоды» (owner, 06.11.2026: «проверяй из открытых источников все активные промокоды… Выбери несколько источников, чтобы
  * сервер проверял»; «каждые 2 часа, и как только он нашел новый, он добавляет их в приложение»). Every two hours the server
  * reads the pages below and takes each one's list of active codes. A code counts once two pages list it, so one page's typo
- * or stale line does not reach the players. A code no page lists for a day goes. The apps never see where a code came from.
+ * or stale line does not reach the players. A code once added stays on the list (owner, 25.11.2026: «Промокоды, которые у нас
+ * добавлены, убирать не нужно. Пусть они висят списком. Просто у нас должны добавляться новые»). The apps never see where a
+ * code came from.
  */
 export interface PromoSource {
   id: string
@@ -22,13 +24,17 @@ export const PROMO_SOURCES: readonly PromoSource[] = [
   { id: 'gamespec', url: 'https://gamespec.co.uk/escape-from-tarkov-promo-codes/', from: /^active eft promo codes/i, to: /^(free roubles|how to|why a)/i },
   { id: 'esports', url: 'https://esports.ru/igrovaya-industriya/articles/promokody-escape-from-tarkov-2026/', from: /^рабочие промокоды/i, to: /^(как активировать|часто задаваемые)/i },
   { id: 'metaratings', url: 'https://cybersport.metaratings.ru/wiki/promokody-escape-from-tarkov/', from: /^действующие промокоды/i, to: /^(куда вводить|истекшие|почему)/i },
+  // Fresher pages (25.11.2026: insider-gaming answers 403, PCGamesN and GameSpec were last updated in October)
+  { id: 'dexerto', url: 'https://www.dexerto.com/escape-from-tarkov/all-escape-from-tarkov-promo-codes-and-discounts-1752105/', from: /^active escape from tarkov codes/i, to: /^(escape from tarkov discounts|how to redeem|list of expired)/i },
+  { id: 'timesaver', url: 'https://timesaver.gg/blog/tarkov-promo-codes-october-2026', from: /^which tarkov codes are active/i, to: /^(how do you redeem|why isn)/i },
   // report №99 (08.11.2026): the first page to list the studio's codes of 07.11
   { id: 'insider-gaming', url: 'https://insider-gaming.com/all-escape-from-tarkov-codes-rewards/', from: /^all active escape from tarkov codes/i, to: /^(how to|expired)/i, until: /might have expired/i },
 ]
 
 /**
  * Codes the studio posted itself (report №99, 08.11.2026: «PLAYYOURWAY EMBRACEPAIN»; Nikita Buyanov, 07.11.2026: one for PvE,
- * one for PvP and the PvP season). Shown from `from` until `until` even while fewer than two pages list them; once the pages
+ * one for PvP and the PvP season). Shown from `from` on, even while fewer than two pages list them (`until` no longer takes them
+ * off: owner, 25.11.2026, codes stay); once the pages
  * list them they are the pages' like any other.
  */
 export interface AnnouncedPromoCode { code: string; mode: PromoMode; from: string; until: string }
@@ -169,13 +175,13 @@ export class PromoCodeStore {
     return added
   }
 
-  /** The codes the pages still list, and the studio's own codes of now (ANNOUNCED_PROMO_CODES): the newest first. */
+  /** Every code ever added, and the studio's own codes (ANNOUNCED_PROMO_CODES): the newest first. Nothing is taken off. */
   list(announced: readonly AnnouncedPromoCode[] = ANNOUNCED_PROMO_CODES): PromoCodeView[] {
     const now = this.now()
-    const rows = this.db.prepare('SELECT code, mode, first_seen_at, first_batch FROM promo_codes WHERE last_seen_at >= ? ORDER BY first_seen_at DESC, code').all(now - DAY) as Array<{ code: string; mode: PromoMode | null; first_seen_at: number; first_batch: number }>
+    const rows = this.db.prepare('SELECT code, mode, first_seen_at, first_batch FROM promo_codes ORDER BY first_seen_at DESC, code').all() as Array<{ code: string; mode: PromoMode | null; first_seen_at: number; first_batch: number }>
     const listed: PromoCodeView[] = rows.map((row) => ({ code: row.code, ...(row.mode ? { mode: row.mode } : {}), addedAt: new Date(row.first_seen_at).toISOString(), ...(row.first_batch ? { first: true } : {}) }))
     const known = new Set(listed.map((row) => row.code))
-    const own = announced.filter((entry) => !known.has(entry.code) && Date.parse(entry.from) <= now && now < Date.parse(entry.until))
+    const own = announced.filter((entry) => !known.has(entry.code) && Date.parse(entry.from) <= now)
       .map((entry): PromoCodeView => ({ code: entry.code, mode: entry.mode, addedAt: new Date(entry.from).toISOString() }))
     // the studio's own code keeps its mode («PvP и Сезон») when a page lists it under one mode only
     const studio = new Map(announced.map((entry) => [entry.code, entry]))

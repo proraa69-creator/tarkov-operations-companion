@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, Download, LoaderCircle, RotateCcw, Sparkles, X } from 'lucide-react'
 import { displayVersion, useAppVersion } from '../app/appVersion'
 import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
-import { uiText } from '../i18n/renderText'
+import { uiText, languageTag } from '../i18n/renderText'
 import type { UpdateStatus } from '../electron'
 import '../styles/updateOverlay.css'
 import { useNotificationKinds } from '../notifications/notificationKinds'
@@ -37,7 +37,7 @@ function stepOf(status: UpdateStatus): Step {
 /** «0,36», «3,1», «224»: megabytes in the update window. */
 function megabytes(bytes: number, locale: AppLocale) {
   const value = bytes / 1048576
-  return value.toLocaleString(locale === 'en' ? 'en-US' : 'ru-RU', { maximumFractionDigits: value < 1 ? 2 : value < 10 ? 1 : 0 })
+  return value.toLocaleString(languageTag(locale), { maximumFractionDigits: value < 1 ? 2 : value < 10 ? 1 : 0 })
 }
 
 /**

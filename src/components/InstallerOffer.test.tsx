@@ -23,18 +23,18 @@ async function offer(language: 'ru' | 'en' = 'ru') {
   return render(<InstallerOffer />)
 }
 
-// Owner, 03.11.2026: the window says only that Raid OS now installs like a regular program («это не нужно писать»).
+// Owner, 03.11.2026: the window shows no explanation («это не нужно писать»); 25.11.2026: the heading is «Приложение обновляется».
 describe('the portable exe\'s installer window (src/components/InstallerOffer.tsx)', () => {
   it('appears once the site publishes the installer, with «Установить» and «Позже» and no explanations', async () => {
     await offer()
     const dialog = await screen.findByRole('dialog')
-    expect(dialog.textContent).toBe('Raid OSRaid OS теперь устанавливается как обычная программаУстановитьПозже')
+    expect(dialog.textContent).toBe('Raid OSПриложение обновляетсяУстановитьПозже')
   })
 
   it('in English too', async () => {
     await offer('en')
     const dialog = await screen.findByRole('dialog')
-    expect(dialog.textContent).toBe('Raid OSRaid OS now installs like a regular programInstallLater')
+    expect(dialog.textContent).toBe('Raid OSThe app is updatingInstallLater')
   })
 
   it('nothing while the installer is not published, in the installed app or in an older build', async () => {

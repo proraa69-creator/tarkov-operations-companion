@@ -289,6 +289,32 @@ describe('constant log tracking (owner, 15.10.2026: «сделай постоя�
     expect(watches[0]!.closed).toBe(true)
   })
 
+  it('report 227: in a raid the writes to the logs poll nothing extra; the safety poll still tells the raid\'s end', async () => {
+    vi.useFakeTimers()
+    let raid = { inRaid: true, since: 1 }
+    const raidState = vi.fn(async () => raid)
+    const { watcher, watches } = fakeWatcher({ raidState, gameRunning: async () => true })
+    watcher.watch('L')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(watcher.raidState().inRaid).toBe(true)
+    const after = raidState.mock.calls.length
+    for (let index = 0; index < 20; index += 1) {
+      watches[0]!.change()
+      await vi.advanceTimersByTimeAsync(WATCH_DEBOUNCE_MS)
+    }
+    // 8 s of writes: only the safety polls (every 2 s), none of the writes' own
+    expect(raidState.mock.calls.length - after).toBe(Math.floor((20 * WATCH_DEBOUNCE_MS) / LOG_SAFETY_POLL_MS))
+    raid = { inRaid: false } as typeof raid
+    await vi.advanceTimersByTimeAsync(LOG_SAFETY_POLL_MS)
+    expect(watcher.raidState().inRaid).toBe(false)
+    // out of the raid a write polls within a second again
+    const out = raidState.mock.calls.length
+    watches[0]!.change()
+    await vi.advanceTimersByTimeAsync(WATCH_DEBOUNCE_MS)
+    expect(raidState.mock.calls.length).toBe(out + 1)
+    watcher.stop()
+  })
+
   it('a broken watch (EBUSY, EPERM, a rotated folder): the fast poll stands in, the watch restarts with backoff', async () => {
     vi.useFakeTimers()
     let broken = false

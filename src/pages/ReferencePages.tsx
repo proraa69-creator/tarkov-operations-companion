@@ -1,3 +1,4 @@
+import { matchesSearchQuery } from '../shared/textSearch'
 import { setMapFollowEnabled, useMapFollowEnabled } from "../maps/mapFollowSetting";
 import { uiLabel, uiText } from '../i18n/renderText'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -38,8 +39,10 @@ import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
 import { BulletDropPanel } from "../arsenal/BulletDrop";
+import { PenetrationGuide } from "../arsenal/PenetrationGuide";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 import { setRaidStartNotice, useRaidStartNotice } from "../notifications/raidStartNotice";
+import { setExitRequirementsShown, useExitRequirementsShown } from "../raidprep/exitRequirementsSetting";
 import { PHONE_GUNSMITH_VIEWS, PHONE_GUNSMITH_VIEW_LABELS, setPhoneGunsmithView, usePhoneGunsmithView } from "../gunsmith/phoneGunsmithView";
 
 export function EconomyPage() {
@@ -61,11 +64,7 @@ export function EconomyPage() {
           ];
           return [{ item, best, spread: best.net - Math.min(...nets) }];
         })
-        .filter(({ item }) =>
-          `${item.name} ${item.shortName}`
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-        )
+        .filter(({ item }) => matchesSearchQuery(query, item.name, item.shortName))
         .sort((a, b) => b.best.net - a.best.net),
     [data.items, query, state.raidMode],
   );
@@ -176,7 +175,7 @@ export function KeysPage() {
   const keys = data.items.filter(
     (item) =>
       item.category === "Ключ" &&
-      item.name.toLowerCase().includes(query.toLowerCase()),
+      matchesSearchQuery(query, item.name, item.shortName),
   );
   return (
     <div className="page">
@@ -361,6 +360,8 @@ export function AmmoPage() {
       </div>
       {tab === "range" && <Suspense fallback={<div className="panel range-loading"><LoaderCircle className="spin" size={18} /></div>}><RangeShooting /></Suspense>}
       <div className="ballistics-layout">
+        {/* «Как работает пробитие» (report 226): folded, over every table */}
+        {tab !== "range" && <PenetrationGuide />}
         {tab === "scatter" && <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText("Пробитие и урон")}</div>
@@ -724,6 +725,7 @@ import { SettingHelp } from "../components/SettingHelp";
 import { ClickVolumeSetting } from "../components/ClickVolumeSetting";
 import { FONT_SIZES, FONT_SIZE_LABELS, setFontSize, useFontSize } from "../theme/fontSize";
 import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
+import { LanguageButtons } from "../components/LanguagePicker";
 
 /** «Поддержка»: the chat, a bug report with its reward, an idea, and the donation card. */
 function SupportPanel() {
@@ -839,10 +841,36 @@ function RaidStartSetting() {
   );
 }
 
+/**
+ * «Показывать требования для выхода» (report 235, owner 25.11.2026: «Многие путают»): the flare an exit needs in «Требования рейда»
+ * on the Overview, on the PC and the phone alike (src/raidprep/exitRequirementsSetting.ts). What the quests need always stays.
+ */
+function ExitRequirementsSetting() {
+  const shown = useExitRequirementsShown();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Показывать требования для выхода")}<SettingHelp id="exitRequirements" /></strong>
+        <small>{uiText("Сигнал для выхода в «Требованиях рейда»")}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={shown}
+        aria-label={uiText("Показывать требования для выхода")}
+        className={`toggle ${shown ? "on" : ""}`}
+        onClick={() => setExitRequirementsShown(!shown)}
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { source } = useTarkovData();
   const { updatedAt } = useTarkovDataStatus();
-  const { locale, setLocale } = useLocale();
+  const { locale } = useLocale();
   const raidSmoke = useRaidSmokeEnabled();
   const raidTools = hasRaidTools();
   const support = <SupportPanel />;
@@ -876,10 +904,11 @@ export function SettingsPage() {
             <strong>{uiText("Язык интерфейса")}<SettingHelp id="language" /></strong>
             <small>{uiText("Первая версия")}</small>
           </span>
-          <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
+          <LanguageButtons />
         </div>}
         <MapFollowSetting />
         <RaidStartSetting />
+        <ExitRequirementsSetting />
         <FontSizeSetting />
         <ClickVolumeSetting />
         {!isMobileLayout() && <CurrentTasksViewSetting />}

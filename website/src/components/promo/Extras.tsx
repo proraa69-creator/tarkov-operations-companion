@@ -1,7 +1,7 @@
 import { Globe, Monitor, MonitorSmartphone, Palette, RefreshCw, Smartphone } from 'lucide-react'
 import { useState } from 'react'
 import { QrCode } from '../../../../src/components/QrCode'
-import { siteLocale, tr } from '../../i18n'
+import { tr, siteBaseLocale } from '../../i18n'
 import { Reveal } from '../Reveal'
 import updateShot from '../../assets/promo/update-window.webp'
 import updateShotEn from '../../assets/promo/update-window-en.webp'
@@ -23,7 +23,7 @@ import syncPhone from '../../assets/promo/item-phone.webp'
 import syncPhoneEn from '../../assets/promo/item-phone-en.webp'
 import './extras.css'
 
-const shot = (ru: string, en: string) => (siteLocale() === 'en' ? en : ru)
+const shot = (ru: string, en: string) => (siteBaseLocale() === 'en' ? en : ru)
 
 const THEMES = [
   { id: 'tarkov', name: 'Олива', src: [themeTarkov, themeTarkovEn] as const },

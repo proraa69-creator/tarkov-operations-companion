@@ -9546,3 +9546,1751 @@ Not pushed, not released, nothing uploaded.
   «Кольца» only; picking one still opens its seat's window, which lists the scopes of that ring (one list, no tabs). Тир 12.
 - 24.11.2026 ~03:20, the range's recoil a little under the game's (owner: «чтобы она чуть-чуть отличалась от оригинальной. Чуть-чуть
   меньше отдачу сделай»): rangeRecoil `RANGE_RECOIL_SCALE = 0.92` on every kick (the camera's follows it). Тир 13.
+
+## 2026-11-24 — Claude: «Неизвестные» — the steps about A.P. on the Lab map (claude/unheard-ap-points, not released)
+- A player in the support chat (24.11 00:31): «почему нельзя посмотреть точки на карте по квесту неизвестные. найти больше информации
+  по АП»; owner: «Да, добавь». The Unheard's «Узнать больше о деятельности А.П.» and «…о роли А.П.» had `mapIds: []` and no points,
+  so the map stayed empty on them. The EFT wiki, tarkov-market and tarkov101 put both in The Lab, at the places of «Найти в
+  Лаборатории любые упоминания А.П.» (one of two whiteboards, two audio tapes in the lecture room). The game's scenes have no
+  «unheard» zone and SPT has no story chapters, so no game zone to check against.
+- src/data/storyChapterSeeds.ts: `AP_LAB_POINTS` (the three Lab areas the Lab step already had, y 5.2) on all three steps.
+  storyChapters.test.ts: a test. vitest (story data, routes, guide, floors, progression, endings) 198/198, tsc, eslint clean. Not
+  checked on the dev map (needs a profile at that stage); the Lab step's same points already show there.
+
+## 2026-11-24 04:45 — Claude: Interchange battle pass documents — each spawn point its own photo (reports 218/219)
+
+- Owner 24.11 (through the parent session): «В первую очередь исправь развязку… переснимай квесты и документы опять на развязке…
+  отснял развязку, отправил». Reports 218/219 (Dantes): the blueprint spawn points in the offices between Goshan and OLI and at the
+  back of OLI showed the same photos of different rooms; one spawn point had none.
+- Cause: the guide (from the wiki) lists a group of photos on every spawn point of a group (spots 16–18, 22–23, …), and two
+  photos were on each other's spot (the Burger Spot sofa and the shelf by the red sofa).
+- Shooting resumed (Interchange first, its documents before its quests). The 31 Interchange pictures marked by eye; 29 laid exactly
+  as on them (21 through our matched frame, 8 at the live spawn point), 2 had no frame of ours. Every frame looked at by eye:
+  frames refused where the offline copy differs (the smugglers' base, the hut by the flare exit, KORD station, desks and shelves
+  missing in the OLI offices, the shopping cart) — those spawn points keep the wiki photo.
+- E:\SPT-photo\bpdocs\docs_assign.py: each picture goes to the spot of the spawn point within 1.5 m of where its document was laid;
+  bpdocs\interchange-assign.json swaps the two misplaced ones; a picture not laid stays only on the spots no laid picture took, or
+  leaves the guide when it shows a place with no spawn point in the live data (dbcedbe0: the third office between Goshan and OLI —
+  the live data has two spawn points there, the reason for «на карте отсутствует указание на 3 документацию»).
+- src/data/documentGuide.ts: a spot may carry `none` (a spawn point no photo could show: the back of OLI has no desk in the offline
+  copy) — a point there takes no photo of the room next to it (8 m reach). documentGuide.test.ts: the reports' points.
+- documentGuidePhotos.json Interchange: 18 pictures replaced by our frame with the document, 17 close-ups, 12 approaches; every
+  spawn point shows only its own room. Data tests 569/569, typecheck ok. Pictures: E:\SPT-photo\server-upload\interchange-docs6.
+- Dispatcher (E:\SPT-photo\photo2\drive_maps.py) now lays the documents of every map in the same raid after its quests (marks for
+  all maps done) and shoots the spawn points no picture shows; then by hand: eye check → bpdocs\integrate_docs.py → tests → commit →
+  eval\upload_guides.py (the server's guide images, no release). Interchange quests resume after its documents, then Streets onwards.
+
+## 2026-11-24 — Claude: 0.6.0.338 live 04:33 Bangkok (urgent, the owner's word); iPhone builds on the desktop
+- Owner: «по готовности всех веток… выпускаем обновление»; «Полигон» — «Да, всем»; «по готовности выпускай обновление»; then
+  «Публикуй сейчас со стеклянной темы пасмурно». Branch claude/release-338 from release/production 95398f05 (0.6.0.336); 0.6.0.337
+  (pushed and rolled back 24.11 02:25) never went out, its updateHistory row is replaced by 338's.
+- Merged: claude/referral-decide-bug-2days (with claude/screenshot-key-windows), claude/steam-screenshots, claude/glass-cloth-hover,
+  claude/daynight-violet (the night 44b69135, then the overcast day 5267bae1), claude/quest-photos-all (b9fd40dd), claude/admin-user-profile,
+  claude/range (c50dca4d; conflicts: electron/main.ts imports — both kept; src/arsenal/partPictures.ts — the range's `frames`, the
+  stock-level code the same on both sides). WORK_LOG conflicts kept both sides.
+- «Полигон» for all: src/app/rangeFeature.ts `rangeEnabled = () => true`; vite.config.ts packs public/range-figures in every build;
+  .gitignore no longer hides it; the 882 RANGE_PACK_FILE files (14.8 MB) from raidos-kord-breach tracked; dist has
+  range-figures.pack (14.9 MB) and no plain folder. 1005 changed paths, deployPath refused 0.
+- Gate: f7eb8812 red — electron/experimental/positionTracker.test.ts on Linux: steamScreenshotFolders read every path as a Windows one
+  (POSIX /tmp paths became backslashed). Fixed in 4e7931fd (a drive or a backslash: win32, else posix; a test of a POSIX path); gate
+  green on 4e7931fd and on 2f24a9d2 (45263566756).
+- Publish: `systemctl start --no-block raidos-release.service` at 21:19 UTC (inactive before, the timer's window was 06:00 UTC), then
+  the mirror's 1124 missing blobs fetched in one batch (`rev-list --objects --missing=print 95398f05..2f24a9d2`); version.json
+  0.6.0-338 2f24a9d2 at 21:33 UTC. Phones: mobile-v0.6.0-338 (target 2f24a9d2, APK 150 MB, iPhone zip 148 MB).
+- Local checks: full vitest 4450 passed, the known local failures only (appVersion «electron-builder builds», AdminPanelPage,
+  linux updater, staleServer, 2 node:test files; the gateway files failed only before server/node_modules was linked, 83/83 after);
+  server ownerProfile/ownerAdmin/presence/invites/bugReports/playerNews 73/73; tsc (app and website), eslint of the changed files, build.
+- iPhone (owner: «положи мне админ приложения для iPhone на рабочий стол. И новую версию для iPhone для пользователей»):
+  claude/admin-ipa ← merge of 2f24a9d2 (bca48f77; first 9b6d3150 from f7eb8812), workflow «Admin Panel iOS IPA» 45264250587 green;
+  Desktop «Raid OS админка iPhone 0.6.0.338.ipa» (sha256 01ff3ac6…) and «Raid OS iPhone для игроков 0.6.0.338.ipa» (the IPA from
+  Raid-OS-iPhone-0.6.0.338.zip of mobile-v0.6.0-338). Nothing sent to TestFlight or the App Store.
+- Not checked on real devices: the admin chats' long press on an iPhone, the Steam screenshots folder with a real Steam install,
+  «Полигон» on a real phone (the stick, the fire button, landscape).
+## 2026-11-24 05:00 — Claude: «Секреты заводских стен» photos removed by the owner's word
+
+- Owner 24.11 (through the parent session): «Секреты заводских стен», «Совершить переход с таможни на завод»: «второе фото там трава в
+  воздухе. Удали»; «Найти кейс с точными инструментами»: «Первую, вторую удали, третью удали, четвертую оставь и пятую оставь, шестую
+  удали, седьмую удали и восьмую удали» (the order of the objective's window = the list's order). src/data/questGuidePhotos.json:
+  quest 66aa74571e5e199ecd094f18 keeps 5ad121d2 and 184b78f7 for the case and b35fe07c for the transit; 7 own photos removed.
+  Data and photo component tests 581/581. A later Customs integration must not bring them back (they are our own Customs frames).
+- Next (owner: «В квесте таможни отследить направление до сих пор часть снимков не наша… Тебе нужно снимать все снимки, которые
+  есть»): «Отследить отправление» (675c047fa46173572a0bd878) has 6 wiki photos left — the worker found no place to stand there;
+  they are to be shot by probes (given poses scored against each picture) in a Customs raid after the Interchange quests.
+## 24.11.2026 — Claude: «Тельняшка» in glass — clear glass, the knit only under the cursor, no teal glow
+
+- Owner, 24.11.2026, over the overview in 0.6.0.338 (the knit under the whole menu, «Обзор» with a teal glow): «Почему в стекле
+  расцветка у нас везде расцветка тельняшки? Расцветка тельняшки должна появляться только когда наводишь курсор мыши на кнопку. И
+  синего свечения не должно быть. Должно быть прозрачное стекло. Стекло просто стекольное свечение. Светлое обычно. Небольшое
+  свечение. Меньше, чем сейчас.»
+- src/styles/style-glass-cloth.css, «Тельняшка» only («Чёрный мультикам» and «Снаряжение» unchanged): the menu, the top bar, the
+  windows, the cards and the switches' tracks are the glass style's own clear glass (style-glass.css), no knit and no blue-white band
+  along the windows' tops; the phone's bar the same frosted glass. Buttons and menu rows at rest are the glass style's clear button;
+  under the cursor they still lift their patch of telnyashka (as in 0.6.0.338). The picked one (menu page, PvP/RU, tabs, primary
+  buttons, toggles) is lighter white glass with a white rim and a small white glow (8 px, 9 %) in place of the teal tint and its
+  18 px 22 % glow; its label and icon white. Left as they were: the three white stripes along the menu's edge, the photos and the table
+  under the menu, the numbers cut out of the knit in the cards («0», «ТАМОЖНЯ»), the teal text accents (eyebrows, the time).
+- Checked in the dev page (Playwright, 1600×900 and the phone at 390×844): before / after sheet sent to the owner. Theme tests 33/33,
+  typecheck 0, vite build clean. Exe not built.
+- Branch claude/glass-telnyashka-hover from release/production 2f24a9d2 (0.6.0.338). NOT pushed, not released: only at the owner's word.
+- News line draft (show the owner first, kind improved): RU «Стиль «Стекло» в «Тельняшке»: прозрачное стекло, тельняшка — только под
+  курсором, выбранное светится мягким светлым светом». EN ««Glass» style in «Telnyashka»: clear glass, the telnyashka only under the
+  cursor, the picked item with a soft light glow».
+- 0.6.0.339 (owner: «В новостях не пиши ничего, что мы берем скриншоты из игры… Просто напиши, обновили данные по квестам и улучшили
+  цветовые схемы… публикуй все сделанные скриншоты актуальные… Добавляй тему, тельняшку»): over 0.6.0.338 (2f24a9d2) —
+  claude/unheard-ap-points 0c7e32e2 (the A.P. steps of «Неизвестные» show the Lab places), claude/quest-photos-all aa6ed1cb (Interchange's
+  battle pass documents by room, reports 218 and 219; documentGuide `none`) and b63c798c («Секреты заводских стен» keeps the owner's
+  photos), claude/glass-telnyashka-hover 7525dd67 (telnyashka glass: clear at rest, the knit under the cursor, no blue glow). News:
+  339 only «Обновили данные по квестам» / «Улучшили цветовые схемы»; 338's photo, glass and Steam lines and the older «из игры»,
+  «снято в игре», «переснята» lines (334, 333, 286) made neutral — never write that pictures or data come from the game.
+
+## 2026-11-24 05:40 — Claude: one photo per battle pass document place; laid things whole in view
+
+- Owner 24.11 (through the parent session): «Везде, где у нас есть документы боевого пропуска. Сделаю только одно фото. На котором
+  видно сам документ. Очень подхода не надо… Только одну фотографию»; «если ты кладешь предметы сам… делай так, чтобы этот предмет не
+  застревал в текстурах… чтобы у него все края были видны и он лежал свободно».
+- E:\SPT-photo\bpdocs\docs_one.py (in integrate_docs.py after integrate_all): per guide picture only our close-up of the laid document
+  (with the place's words), else our frame of the place, else the picture; approaches out. Customs, Woods and Interchange rebuilt
+  (Customs and Woods also through docs_assign now: each picture at its own spawn point; the Customs library picture 9ac6be90 stays out,
+  its spot marked `none`). Customs 29 close-ups, Woods 19, Interchange 17 + 1 place frame (its close-up was not approved).
+  Every close-up of a document that the worker counted 5 of 6 parts seen was looked at by eye: the document lies free and whole.
+- Photo worker (Worker.cs CloseDoc, backup .bak-edges-20261124, build out-edges, installed): a close-up counts only when the four
+  corners of the document's top face (its own box as it lies), its top and its centre are all seen; else the nearest view, logged
+  «PART HIDDEN» for the eye check.
+- documentGuide.test.ts: one photo per place (the gas station, the library), no place with two photos of a kind. Data tests 569/569.
+- Quest items laid by the photo worker (Customs, Woods, Shoreline): their 19 close-ups in the app looked at against the owner's rule
+  (the thing whole in view, lying free): 8 kept, 11 removed from questGuidePhotos.json (the item too small or dark to make out, inside
+  a bin, a box into a table's rail or against another box) and refused in eval\manual-reject.json. Those places keep their other
+  photos; a re-shoot of their close-ups with the every-edge check is still to do (the worker's quest-item close-up has no such
+  check yet; the documents' has, since this entry).
+
+## 2026-11-24 06:00 — Claude: Interchange quests shot again in the offline game
+
+- Run interchange-all2 (42 quest points; its documents went first, see above). Every preview sheet looked at by eye: 21 frames refused
+  in eval\manual-reject.json (three own frames of the wrong spot — stores without their sign, a field by IDEA —, 16 close-ups that show
+  neither the thing nor the place: inside the minibus, bare asphalt, desks with no manifest to make out; a dark approach).
+  Integrated: 34 matched, 1 own place, 14 approaches, 2 close-ups; 10 wiki photos of shot places removed. Tests 581/581, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\interchange (102 files), on the server with this entry.
+- The worker lays a quest item free now (Worker.cs Free: raised out of anything solid in its box, then onto what is under its whole
+  footprint, logged «STILL IN SOMETHING» when it cannot be) and its close-up uses the documents' every-edge check (build out-free).
+- 0.6.0.339 live 06:20 Bangkok (13bd9519). Also in it on the photo session's word: 7a7bc066 (one photo per battle pass document, the
+  document itself in it), 022b2ccb (close-ups that do not show the item whole removed), e47cf533 (Interchange quests shot again); each
+  push restarted the gate (5c033257, 7b21f4bf, f55ae595 cancelled). Gate 45283199725 green; publisher started by hand 23:13 UTC, the
+  mirror's 30 missing blobs prefetched; version.json 0.6.0-339 13bd9519 at 23:20 UTC. mobile-v0.6.0-339: the players' iPhone IPA on
+  the desktop («Raid OS iPhone для игроков 0.6.0.339.ipa», zip sha256 9d0a9584… as in mobile-release.json). This log entry is on
+  claude/release-338 only (not pushed to release/production, so nothing republishes); it goes out with the next release.
+- 0.6.0.340 (owner, 24.11.2026, phone screenshot of «Полигон»: «При выходе из полноэкранного режима стрельбы, ломается страница
+  полигона… При нажатии войти в прицел, в вертикальном положении прицел не включается. В прицеле нужно сделать не джойстик а левую
+  часть экрана для наведения… ползунок для увеличения дистанции… и увеличение кратности прицела»): over 0.6.0.339 (13bd9519) —
+  87e81032 (on the working branch dc63f50d) and the release commit a1596328. Cause of the broken page: Capacitor iOS turns on the web
+  view's element full screen (isElementFullscreenEnabled), requestFullscreen showed the range in WebKit's own window and the page
+  came back with that window's landscape safe-area insets (no room under the clock, ~50 pt margins). Now: no requestFullscreen on
+  iOS (src/range/useRangeFullScreen.ts), the full screen is portalled to <body> in a clipping screen-sized host with the turned
+  frame inside (no fixed box wider than the page), html.range-full-open holds the page, NO_ZOOM_VIEWPORT adds minimum-scale=1.
+  «Войти в прицел» on a phone opens the full screen (RangeScopeView `onEnter`, the aim kept via `startAim`). The stick is gone:
+  RangeLookArea (left half, finger deltas × 0.85 of a scope pixel, eased with a 45 ms time constant in ScopeHandle.look);
+  RangeTouchSlider for the distance (5–1000 m) and the magnification (src/range/rangeTouchZoom.ts: a variable mode smoothly, fixed
+  magnifications step; none for the open sights or a red dot; HHS-1 steps ×1/×3). Ballistics tabs on a phone: a 14 px rounded box
+  (src/arsenal/arsenal.css). Also electron/experimental/positionTracker.test.ts: the Steam shot's time was fixed at 24.11 02:00 UTC
+  and lost to the other tests' «now» after that hour (failed for every release); now Date.now() + 1 min.
+  Tests: full vitest 4513 passed; typecheck, website and server tsc, eslint on the changed files clean; Chromium 393×852 touch:
+  portrait (iOS UA, lock refused) turned full screen, page scrollWidth 393 before/during/after, finger down → view right when
+  turned, the distance slider; landscape 852×393. Server npm test: 603 pass, 3 cancelled in services/background.test.ts
+  («Promise resolution is still pending…», server untouched, same on release/production in this container).
+  Pushed to release/production for the next 13:00/20:00 Bangkok window. Risks: not tried on a real iPhone/Android; the iPhone app
+  keeps its status bar over the full screen (no browser full screen there); the sliders' feel and the 0.85 sensitivity to be
+  judged by the owner.
+
+## 2026-11-24 06:20 — Claude: Customs «Отследить отправление» shot by probes
+
+- Owner 24.11: «В квесте таможни отследить направление до сих пор часть снимков не наша… Тебе нужно снимать все снимки, которые есть».
+  The tour had found no place to stand at «Отследить отправление» (675c047fa46173572a0bd878), so 6 of its 7 photos were the wiki's.
+  New: the worker's probes (given camera poses scored against one picture, the best taken; points\make_probes.py builds them around the
+  quest item's spawn points and over the office floor/the walkway; dispatcher queue item `<map>:fix`: the items laid, coarse probes,
+  finer ones around the 3 best). Looked at by eye: the office door, the bookshelf, the floor by the boxes and the shelf by the desk match
+  their pictures (scores 97–324) and replace them; the stairs (a different room) and «under the desk» (the desk from above) were refused
+  and keep the wiki photo for now — a second probe pass for them is queued. Tests 581/581. Pictures: server-upload\customs-fix (8).
+
+## 2026-11-24 11:10 — Claude: Streets of Tarkov quests and battle pass documents shot again in the offline game
+
+- Runs streets-of-tarkov-all2 (131 quest points), -bpdocs6 (28 document pictures laid where they show them) and -bpspawn (3 live spawn
+  points no picture shows). Every sheet looked at by eye; refused in eval\manual-reject.json: 14 quest frames (own frames of a truck
+  filling the view or a dark room corner, ATM places that show only an advert, the camera inside the LAV, under a roof edge with half the
+  frame sky, a diary under a blanket or lost in a pile) and 14 document frames of 9 pictures (the document dropped to the floor or
+  standing in the air, the offline copy's furniture not the guide's — a living room where the guide shows the bank's board room —, the
+  document out of sight). bpdocs\streets-of-tarkov-one.json drops two wiki pictures whose spawn point already has our close-up (the
+  «rest room floor» picture on an office desk spawn, a picture with no document at a spawn point we laid one at).
+- Integrated: quests 96 matched, 15 own places, 40 approaches, 42 close-ups, 110 wiki photos of shot places removed; documents one
+  photo per place (17 close-ups of the laid document, 5 place frames, no spot with two photos). Tests: the «Что-то мне это
+  напоминает…» test now expects our own frames at its places; documentGuide.test.ts checks Streets for one photo per place. Data tests with
+  the photo components 574/574, map and objective-photo components 62/62, typecheck ok. Pictures: E:\SPT-photo\server-upload\streets-of-tarkov (386) and -docs6 (94), on the
+  server with this entry (eval\upload_guides.py). Not in a release yet (after 0.6.0.339).
+
+## 2026-11-24 12:10 — Claude: Streets of Tarkov places added to 0.6.0.340 (not yet published)
+
+- On the photo session's word (a705d7f3 ready after 0.6.0.339) and the owner's «публикуй все сделанные скриншоты актуальные»:
+  claude/quest-photos-all 1eccf629 + a705d7f3 merged over 580b10cf (the cloud session's 0.6.0.340, «Полигон» on a phone), plus the
+  0.6.0.339 live note (5857a1bf). Same version 0.6.0.340 (not published yet); its updateHistory row gets a 4th line, its player
+  news «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
+  src/data/questGuidePhotos.json, documentGuidePhotos.json, their two tests and these two data files change. For the 13:00 Bangkok
+  window, not started by hand. The photo session says its 1384 pictures are all on the server (0 missing).
+- 0.6.0.340 live 13:10 Bangkok (972bafe6): the cloud session's «Полигон» on a phone (a1596328, 580b10cf) with the Streets of Tarkov
+  places and Customs «Отследить отправление» on top. Gate 45331079410 green 12:22; published by the 13:00 window (not by hand; no
+  blob prefetch, ~25 changed files). This note is on claude/release-340 only; it goes out with the next release.
+## 2026-11-24 14:06 — Claude: Reserve quests and battle pass documents shot again in the offline game
+
+- Runs reserve-all2 (62 quest points), -bpdocs6 (29 document pictures laid where they show them) and -bpspawn (5 live spawn points no
+  picture shows). Every sheet looked at by eye; refused in eval\manual-reject.json: 12 quest frames (a roof where Glukhar's workshop is
+  under it, the sun filling the view at the fuel tanks, a bush over the camera, dark frames with no letter or item in sight, a case cut by
+  the frame edge, an empty wall) and 16 document frames of 8 pictures (the document dropped to the floor, nothing in the offline copy to
+  lay it on, own frames of a corridor, a toilet, stairs or the yard instead of the room). bpdocs\reserve-one.json drops four pictures of
+  places that already have one photo of the same kind (two pairs of our own frames with the same words, a wiki duplicate, and the RB-OB
+  shelf frame that went to the neighbouring spot: its own spot has our close-up of the document by the shelf).
+- Integrated: quests 33 matched, 6 own places, 14 approaches, 14 close-ups, 15 wiki photos of shot places removed; documents one photo
+  per place (21 close-ups of the laid document; the one spot with two photos holds two kinds). documentGuide.test.ts checks Reserve for
+  one photo per place. Data tests with the photo components 574/574, map and objective-photo components 60/60, typecheck ok.
+  Pictures: E:\SPT-photo\server-upload\reserve (134) and -docs6 (96), on the server with this entry (eval\upload_guides.py).
+- Lighthouse was started by the dispatcher and paused at 13:51 at the coordinator's request (the game handed over for the language
+  screenshots); its frames so far stay in its manifest, the run resumes from there (photo2\tour-lighthouse-paused.json). Not in a release
+  yet (after 0.6.0.340).
+
+## 2026-11-24 14:25 — Claude: 0.6.0.341 to release/production (Reserve places)
+
+- On the photo session's word (d5bf0dcd, Reserve quests and battle pass documents, ready after 0.6.0.340; its 182 new pictures on
+  the server, 1566 of 1566): merged over 0.6.0.340 (972bafe6) with the 340 live note. Version 0.6.0-341; updateHistory row; player
+  news only «Обновили данные по квестам» / «Updated the quest data» (owner 24.11: nothing about where pictures come from). Only
+  src/data/questGuidePhotos.json, documentGuidePhotos.json, documentGuide.test.ts and these data files change. For the 20:00 Bangkok
+  window, not started by hand. The photo session says no more maps for now (the game is taken for screens in other languages).
+- Also in 0.6.0.341 on the Raid OS session's word (owner 24.11: «на сайте, как все будет готово, можешь добавлять языки сразу»):
+  claude/site-languages 1bb63e68 — the website in German, Japanese and Chinese (website/**, src/shared/countries.ts, scripts/i18n,
+  server/src/services/tarkovDataMirror.ts keeps tarkov.dev dictionaries de/ja/zh; no app code). updateHistory 341 gets three lines,
+  player news «Сайт raidos.app теперь на немецком, японском и китайском» / «The raidos.app website is now in German, Japanese and
+  Chinese». After the 20:00 window: check raidos.app/?lang=zh opens in Chinese.
+- Also in 0.6.0.341 on the Raid OS session's word (owner 24.11: «подумай, какие еще языки нам стоит добавить, и добавь их на сайт и
+  в приложение»): claude/site-languages-2 14417171 — the website in Polish, Ukrainian, Spanish, Brazilian Portuguese, French, Korean
+  and Turkish (website/**, src/shared/countries.ts, tarkovDataMirror keeps pl/es/pt/fr/ko/tr; no app code). The 341 updateHistory
+  row folded to 4 lines; player news gets «Сайт raidos.app теперь на польском, украинском, испанском, португальском, французском,
+  корейском и турецком». After the 20:00 window: check raidos.app/?lang=ko and ?lang=uk.
+## 23.11.2026 — Claude: a black window the start fallbacks miss; a safe-start test exe for the player (claude/black-window-fix)
+
+- Support chat (the player of 0.6.0.334–336's start fallbacks; account 21.11, never got in on a PC): «никаких окон нет, просто
+  висит черный экран», --disable-gpu and --no-sandbox in the shortcut changed nothing, Defender exclusion did not help. The
+  owner's «Вышло обновление» (22.11 20:24 UTC) was 0.6.0.335; nobody told the player about 336 (built 23.11 03:43 UTC).
+- Found in the code: (1) every start relaunches itself with administrator rights (main.ts relaunchAsAdmin) and the portable
+  exe passed the new copy only --elevated-relaunch: the shortcut's switches never reached the copy that draws the window;
+  (2) 334–336 act only when nothing is drawn for 25 s; a page Chromium has drawn (its dark background is enough) counts as the
+  first picture even when nothing reaches the screen (driver, hybrid graphics, an overlay such as RTSS) — no restart, no
+  message, which is what the player describes.
+- c5108e63 (from release/production 95398f05): elevation.ts passes --disable-gpu and --no-sandbox on (portable too, nothing
+  else); «Окно Raid OS чёрное?» by a window of Windows on a PC that never had a working subscription — started again within
+  3 min of the window appearing, or at the next start after a window closed that soon («Нет» there remembered in
+  dark-window-check.json); «Да» takes the next step even after the first picture (software → no sandbox → report). Start
+  log: a «ready» line (administrator rights, monitors, graphics cards by vendor/device id and driver, GPU compositing).
+  SAFE_START=1 (write-build-info.mjs, buildEdition.ts isSafeStartBuild): software drawing from the first start and «Видно
+  окно Raid OS?» 20 s after the window appears until the player says yes; «Нет» copies the support text and takes the next step.
+- Note: a new player who closes the sign-in screen within 3 minutes (to register on the site) is asked once at the next start.
+- Checked: vitest gpuFallback + elevation 11/11, start tests (buildEdition, deltaBoot, singleInstance, startDiagnostics) pass;
+  serviceGateway.trialFeatures does not load here (no server node_modules in the vitest run, unrelated); npm run typecheck,
+  tsc -p tsconfig.electron.json, eslint on the changed files clean. Not checked at runtime: SPT was running on this PC
+  (E:\SPT photo tour), so no window was opened here.
+- Test exe for the player: TEST_BUILD=1 SAFE_START=1 + the entitlement key from /v1/entitlement/public-key, client edition,
+  build c5108e63 («safe start: software drawing, asks if the window is seen»); the packed app.asar has every production
+  dependency and the change. Desktop: «Raid OS тест чёрный экран.exe», 227 MB, sha256 3125f5b8…f230. Its own data folder
+  %APPDATA%\Raid OS Test Build, no updates. Worktree E:\FromC\raidos-black-window (npm 11 skipped install scripts: electron's
+  binary was fetched with node node_modules/electron/install.js). Not pushed, not released, nothing sent to the player.
+- 23.11 16:44 UTC, owner: «Залей на raidos.app»: the test exe at https://raidos.app/downloads/RaidOS-test-start.exe
+  (/opt/tarkov-operations-companion/website/dist/downloads/, root 644, uploaded as .part then renamed; sha256 on the server
+  3125f5b8…f230 = the local one; HEAD 200, 238451351 bytes). The publisher copies dist/downloads into each new dist, so it
+  stays across releases: remove it by hand when the player no longer needs it.
+## 2026-11-24 22:00 — Claude: report 220 and every place photo checked; «Ключ от спецтехники» under no padlock
+
+- Branch `claude/quest-photos-all`: 6439db8b, d297589d, 7dcb2d68. Not pushed, not released (the owner holds releases since
+  20:00: `release/production` stays on b03662d9).
+- Report 220 (0.6.0.333, Streets, «Пользовательская документация» showing two places' photos at one point): fixed in the live
+  0.6.0.340 already (one photo per spot, a705d7f3/7a7bc066). Not closed, no answer sent (status «taken»).
+- The same fault for quest objectives with several points (12: Нефтянка, Сафари на тигра, Брошенный груз, Легкие деньги ч.1,
+  Устойчивый сигнал, Убойный аргумент, Фельдшер, Тайный рецепт, Секреты идеального вкуса, Наводчик, Серьёзные обвинения,
+  Непыльная подработка, Клуб по интересам): `scripts/quest-photo-places.py` → `src/data/questPhotoPlaces.json` (where each of our
+  665 photos was shot, from E:/SPT-photo server-upload reports + approved frames); `photosOfPoint` in QuestGuidePhotos.tsx: a
+  point shows the photos nearest to it, wiki photos (no place) at every point. Rerun the script after a new shooting batch:
+  `integrate_all.py` rewrites questGuidePhotos.json and keeps no place.
+- Hand fixes, each frame looked at: Малое предпринимательство ч.3 river/sawmill photos swapped back; Наводчик loses two frames
+  of Меломан / Любитель балета; six spoiled frames removed (Военный хабар/Контр-компромат black, Прикормка blurred, Садоводство
+  and Убойный аргумент arrows at walls, Убойный аргумент repeat, Анестезия arrow at a car). Documents: Streets red-car frame
+  (no document) removed, the spot shows none; Streets financial text «на полу у стены»; Woods technical text «контейнер у
+  железнодорожного депо»; Reserve unseen duplicate RB-KPRL frame removed.
+- «Ключ от спецтехники» (owner): room 205 of the three-storey dorm, door always open — the room box of lock 9ef40db1… (2nd
+  floor) covered it and drew a padlock; dropped (`NOT_THE_DOORS_ROOM`, mapRoomSigns.ts). Card: «Лежит в куртке в 205 комнате,
+  в каждом рейде. Дверь всегда открыта.» Rooms 105/305 share that box's footprint (locks 295dfe7e…, 315b55cd…): not changed.
+- Left (audit lists in the session scratchpad audit-quests / audit-docs): documents on Factory, Ground Zero, Labs, Labyrinth
+  (12–21 spots each), Lighthouse and Shoreline (2 each) still show wiki photos of several rooms per spot: the reshoot queue
+  (E:\SPT-photo\RESUME.md). ~35 medium/low remarks (arrows beside the item), 7 feed points with no document photo (Woods 4,
+  Reserve 2, Lighthouse 1), 4 unplaced wiki photos on Woods, Домашний арест ч.2 / Должник frames of «Слава КПСС» (low).
+- Tests: typecheck clean; src/data, src/components, src/maps green; MapsPage page tests pass per file (time out only under the
+  full load); AdminPanelPage CRLF source check fails as before.
+
+## 2026-11-24 23:00 — Claude: «Синий огонь» device fragment points, «Батя» Gnezdo stage with both goals
+
+- Branch `claude/quest-photos-all`, commit below. Not pushed, not released (releases held by the owner).
+- «Синий огонь» stage 1: «Найти обломок устройства» (game words; the old text kept as an alias), two points on Streets from
+  tarkovforge / tarkov-market (one place is enough): LexOs closed section 2nd floor, food container (Car dealership closed section
+  key, lock 5edf8233…, room box 62.7/306.8, y 7.88) and the marked room at Chekannaya 13, flower pot (Mysterious room marked key,
+  lock e9cb1e20…, room box 188.1/227.3, y 0.85). Exact spots inside the rooms not checked in the game.
+- «Батя» stages 2 and 10 both show «Найти позицию «Рябина»» and «Найти форпост «Гнездо»» with both points (owner: the game's
+  Gnezdo stage has the two main goals). New step flag `shown` (storyChapterSeeds.ts): shown, not used to identify the stage, so
+  the pane scan is unchanged (Рябина or both → 2, Gnezdo alone → 10; English Gnezdo alone now 10 instead of 2).
+
+## 2026-11-24 23:30 — Claude: release 0.6.0.341 with the black-window start fix (owner: «выпускай обновление, все»)
+
+- Owner: the safe-start test exe worked for mitya.tagintsev@mail.ru (the sign-in window appeared); «Сделай новую версию, общую…
+  Выпускай обновление, все, и вот это туда тоже добавь». Branch claude/release-341-start from release/production b03662d9:
+  revert of the 20:00 hold (back to 177c01e8, 0.6.0.341: website in 12 languages, Reserve places), merged claude/black-window-fix
+  (c5108e63: the shortcut's --disable-gpu / --no-sandbox reach the elevated copy; «Окно Raid OS чёрное?» only on a PC that never
+  had a working subscription — entitlement-seen.bin, already kept by released versions — and only after a window closed within
+  3 min; SAFE_START stays the test build's), merged claude/quest-photos-all (photos per point, machinery key room 205, «Синий
+  огонь» / «Батя» stages). Version stays 0.6.0-341 (never published); updateHistory row rewritten to 4 lines, two player news.
+- Checks: typecheck + electron tsc clean; full vitest 4513 passed, 16 failed = machine-only (staleServer, linux/updater ×3,
+  appVersion, AdminPanelPage, two script files) + page tests that pass per file (App, Dashboard, MapsPage ×3, ManualMarks).
+- The app languages branch (claude/languages-zh-ja-de) is NOT in this release.
+
+## 2026-11-24 15:10 — Claude: screen readers for a game in German, Japanese and Simplified Chinese (branch claude/ocr-languages)
+
+- Branch `claude/ocr-languages` from `claude/languages-zh-ja-de` 4e689c13; not pushed, not released. Commits b0847fd8 (game language,
+  the game's words, CJK helpers), 0b7b69fa (the readers), c1eef15c (engines, models, «Язык игры»). Their branch's f6d881c2 touches none of
+  these files.
+- Game language: %APPDATA%\Battlestate Games\Escape from Tarkov\Settings\Game.ini (only read; ge→de, jp→ja, ch→zh, any other →
+  English), or «Язык игры» in «Карта и предметы в рейде» (auto / ru / en / de / ja / zh). ru/en read exactly as before (rus+eng);
+  de/ja/zh with deu+eng / jpn+eng / chi_sim+eng (tessdata_fast in electron/tessdata, shipped with rus/eng, vite ocr/ for the phone).
+- Words from SPT's locales (EFT 0.16.9: SPT_Data/database/locales/global/{ge,jp,ch}.json) via scripts/ocr/game-words.mjs →
+  src/import/gameWords.ts; names (quests, items, exits/transits) from tarkov.dev's {tasks,items,maps}_{de,ja,zh} through the data
+  gateway at run time (src/data/gameNamesLoader.ts, cached 3 days).
+- Readers: Tasks table, traders' screen (level, nickname, loyalty strip), mode cards, flea chips/trader rows, exit list, item card,
+  Kappa/key/stash labels, stash photo. NOT the story pane: its words (CHAPTER, Main/Optional objectives) and the chapters' names in
+  de/ja/zh are in no source we have (SPT 0.16.9 predates story chapters; tarkov.dev has no story dictionaries): a de/ja/zh story frame
+  is read as nothing (no false chapters).
+- Tests: src/import/gameLanguageReaders.test.ts (real tesseract.js output of pictures drawn from the game's words, fixtures by
+  scripts/ocr/language-fixtures.mjs — Bahnschrift / Yu Gothic UI / Microsoft YaHei UI stand in for the game's font),
+  gameLanguageWords, cjk, gameNames, electron gameLanguage / ocrEngine / settings. Touched areas 1912/1919 pass; the 1 failing
+  (AdminPanelPage sidebar source test) fails the same on 4e689c13 (AppShell of the languages branch); MapsPage tests time out only
+  under the full parallel run and pass alone. Both typechecks, eslint on touched files clean (one old warning).
+- Risks: chi_sim+eng reads short Chinese titles in small type as Latin junk now and then (2 of 4 rows in one picture; such a row
+  names nothing rather than a guess); «(你)» / «(あなた)» read with a character wrong (allowed for ja/zh). To check on real
+  screenshots of each language: Tasks table (side tasks, scrolled; active / ready / locked rows; a «Teil 2» / «- 2» title), traders'
+  screen (portraits with loyalty badges, «(Du)», the standing row with LVL), mode selection (PvE/PvP/Season cards, nick | level),
+  item tooltip (long and short names), stash with labels (Kappa scan), flea (sorted by price, a trader row, filter chips), the O exit
+  list (header, EXFIL/TRANSIT lines), and a story chapter pane (to get its words).
+
+## 2026-11-24 — Claude: the app and the website in German, Japanese and Chinese (branch `claude/languages-zh-ja-de`)
+
+- Owner, 24.11.2026: «Китай, Япония и Германия … по нажатии на язык сверху у нас будет выдвигаться окно со списком всех языков …
+  в стиле приложения … переключатели … угловатые, во всех стилях … сайт переводи … языки должны включаться согласно стране …
+  должен быть язык браузера … отправь тестовую версию на рабочий стол».
+- How: Russian stays the source and English the dictionary; German, Japanese and Chinese are drawn over the English
+  (`src/i18n/languages.ts`, `targetText.ts`, `domTranslator.ts`): `locale` stays 'ru' | 'en' (the base text the code compares),
+  `language` is the choice. Phrases: `src/i18n/locales/{de,ja,zh}.json` (8166 each, keyed by the English;
+  `scripts/i18n/extract-english.ts`, `merge-chunks.py`); the game's names from tarkov.dev's `_de/_ja/_zh` dictionaries
+  (`catalogTranslations.ts loadTargetCatalog`; the server mirror keeps them, `tarkovDataMirror.ts MIRROR_LANGUAGES`). A text is
+  translated whole or left English, never half; in development `window.__raidosMissing` lists what a screen showed without one.
+  Dates and numbers: `languageTag()` (24-hour English kept where it was en-GB).
+- UI: `LanguagePicker` (top bar window; phones: one button per language); glass style keeps the plain corners of the PvP/PvE
+  and language switches; `src/styles/languages.css` (long German labels, CJK fonts); the brand never translated.
+- Screen readers for German/Japanese/Chinese games: merged `claude/ocr-languages` (entry above).
+- Website (`claude/site-languages` → release 0.6.0.341, window 20:00): five languages, first visit by the browser's language,
+  else the country's; a card offers the other; language window; hreflang/sitemap.
+- Tests: the touched areas 760/760; the full run's remaining failures also fail on release/production (Linux updater,
+  appVersion path with a space, AdminPanelPage, staleServer) or are load timeouts that pass alone.
+- Test build: `Raid OS тест Языки 1.exe` on the desktop (owner build, TEST_BUILD). Not released.
+- Open: the readers on real game screenshots in de/ja/zh (being taken from SPT); the story pane in de/ja/zh needs the live game
+  1.x words (SPT 0.16.9 has no story); the site's trailers in ZH/JA (new trailer in the works, owner reviews first).
+- Correction (owner, 24.11.2026: «нам не нужно, чтобы приложение само брало из игры. Нам в игру нельзя внедряться …
+  Пользователь сам выберет язык. Стандартный язык английский»): the game's Game.ini is no longer read at all
+  (electron/gameLanguage.ts removed). «Язык игры» is the player's choice: English (default) / Русский / Deutsch / 日本語 /
+  简体中文; English and Russian are read alike (rus+eng, as before), so Russian players need not change it; an «auto» saved by
+  the test build counts as English.
+
+## 2026-11-24 17:40 — Claude: screen readers for Polish, Spanish, Brazilian Portuguese, French, Korean and Turkish games
+
+- Branch `claude/ocr-languages` fast-forwarded to `claude/languages-zh-ja-de` b8e4f001 (the owner's decision: «Язык игры» is the
+  player's choice only, English by default, nothing read from the game), then 6dc9702b. Not pushed, not released.
+- Every reader of the de/ja/zh work now also reads pl, es, pt, fr, ko, tr: models pol/spa/por/fra/kor/tur (tessdata_fast) shipped with
+  the others; words from SPT's pl, es + es-mx (both Spanish wordings kept where they differ), po, fr, kr, tu locales; names from
+  tarkov.dev's _{pl,es,pt,fr,ko,tr} dictionaries through the data gateway. Accents optional in the game's words, the Turkish İ/ı folded,
+  Korean syllables weighed and joined by their gaps, Polish «ukończone!» (ready) apart from «ukończone» (handed in).
+- Tests: gameLanguageReadersMore.test.ts (real tesseract.js output of every language's table, traders, modes, exits, tooltips,
+  labels, flea lines), gameLanguageWords.test.ts; touched areas 772/772 and the wider set green but the old AdminPanelPage sidebar
+  test; both typechecks, eslint clean (one old warning).
+- To check on real screenshots in each of these languages (as for de/ja/zh): Tasks table (active / ready / locked rows, a part 2
+  title), traders' screen, mode cards, item tooltip, stash labels, flea, O exit list; Spanish both in «Español» and «Español
+  Latinoamérica». Story pane words are still in no source (SPT 0.16.9).
+- 24.11.2026, later: owner «подумай, какие еще языки нам стоит добавить, и добавь их на сайт и в приложение» → Polish, Ukrainian,
+  Spanish, Brazilian Portuguese, French, Korean, Turkish (players beyond the CIS: UA 47, US/DE 21, PL 13, FR, PT, KR …; the
+  game's own languages). App 8190 phrases and website 1112 per language; the game's names from tarkov.dev (none for Ukrainian:
+  English names); the exits as the game writes them (scripts/i18n/exit-names.mjs, after every chunk merge); screen readers
+  for the six game languages (merged `claude/ocr-languages`). Website for all seven: release 0.6.0.341 (177c01e8).
+  Checked in the Chinese game's text (SPT ch.json + tarkov.dev): «枪匠 - AKM», «枪匠大师 - 1», «卢布», «森林» — shown by the app.
+  Test build `Raid OS тест Языки 3.exe` on the desktop. Open: the readers on real screenshots of every language (SPT shots in
+  progress, E:\SPT-photo\lang-shots); the story pane in the nine extra languages (no source of its words).
+
+
+## 2026-11-24 20:30 — Claude: the readers on real screenshots of the game in de, ja, zh, pl, es, pt, fr, ko, tr
+
+- Branch `claude/ocr-languages` (commit below). Not pushed, not released. Nothing read from the game, Game.ini untouched, SPT not
+  started: only the screenshots in `E:\SPT-photo\lang-shots\<lang>` (SPT 4.1.6, 1920×1080) were read, as the app reads them.
+- Fixed from those screenshots (all beyond Russian and English only; ru/en unchanged):
+  - Flea: a Japanese and a Korean game's rows are 78.7 px, not 72 (`fleaLayout(size, language)`, `rowHeight`); the sort chevron is
+    found after a longer price word (Spanish «Precio ^» read as dearest-first before).
+  - Tasks: a part's number read with a digit more («Yayın- Bölüm53») names no part (was «Bölüm 5»); a Portuguese row's location
+    word alone is no title; Japanese/Chinese/Korean titles after the icons' Latin junk; three bits of icon junk allowed.
+  - Traders' screen: the nickname close-up drops the «(you)» mark read wrong («SHAUUURMA (vot»), the Japanese «〕» closes it, a box
+    as tall as the emblem is cut to the name's row (French); the bracket fallback only in the top right; no level from «02» of
+    the standing (Turkish «6.02»), «ıı69» is «LVL 69».
+  - Names: maps and traders by every wording (tarkov.dev's and SPT's: Turkish «Terapist»/«Therapist», «Simsar»); an exit word
+    with one letter misread («NYJŚCIE01»).
+- Tests: `src/import/gameLanguageScreens.test.ts` on `__fixtures__/gameLanguageScreens.ts` (real Tesseract output of the
+  screenshots; nickname replaced by TESTPILOT, no money, no other players' names; no screenshots kept), `fleaScreen.test.ts` on
+  three small crops (`__fixtures__/flea/{ja,ko}-tall-rows.webp`: price column only; `languages-heads.webp`: tabs, chevron,
+  scrollbar top of the nine languages).
+- Still not read (any language, ru/en alike): «LVL 69» close-up in SPT's font (the level stays unconfirmed), loyalty crowns but
+  Jaeger/Ref, Customs' exit list on a bright sky (only some lines), ZB-numbers («28-213»). Chinese: the item card 1 of 3, Customs'
+  list. Short English titles with a misread location («Debtor Tena») in pt/tr/ko. No story pane in SPT 4.1.6.
+- Commit `123523e4`, merged into `claude/languages-zh-ja-de` as `b2503ed2` (only conflict: this log, both entries kept).
+
+## 2026-11-24 21:00 — Claude: the 20:00 release held, SPT shots stopped, readers merged, test build 4
+
+- Owner, 24.11.2026 19:5x: «пока ничего не публикуй в 20:00». At 19:56 `b03662d9` was pushed to `release/production` on top of
+  `177c01e8` (a normal push): its tree is the live release `972bafe6` (0.6.0-340). Its gate run 45398400337 was cancelled at
+  19:57, since `buildOnDocumentationChange` would otherwise have rebuilt 0.6.0-340 once green. The server skips a head without
+  a green gate: nothing goes out until the next push there. Checked 20:04 and (release session) to 20:50: live stays 0.6.0-340.
+  0.6.0.341 (website in 12 languages, Reserve places) comes back by `git revert b03662d9`, only on the owner's word.
+- Owner: SPT shooting stopped, SPT closed; resume point `E:\SPT-photo\RESUME.md` (Lighthouse: quests 49/49, documents 27/30).
+- Tests after the merge: typecheck clean; full run 4612 passed, 14 failed, all known or load-only: the page tests pass alone
+  (87/89; the two left are the space-in-path `appVersion` and the CRLF source check of `AdminPanelPage`), plus Linux updater,
+  staleServer, two script files that do not load on Windows.
+- Test build `Raid OS тест Языки 4.exe` on the desktop. Not pushed, not released.
+- 25.11 ~00:10, owner: «языки… добавляй»: claude/languages-zh-ja-de (bda2488c: the app in 12 languages, the language window, the
+  game language picked by hand for the readers, default en; readers checked on SPT screenshots in nine languages) merged into
+  this release (conflicts: this log, scripts/i18n/merge-chunks.py → the languages branch's). News (owner's words): added «На
+  сайт и в приложение добавлены новые языки»; improved «Обновили фото, снимки квестов и данные по квестам»; nothing about the
+  start. Checks after the merge: typecheck clean; vitest 4624 passed, 12 failed = machine-only + ObjectivePhotos / MapsPage ×3
+  that pass per file; website/src 193/193.
+
+## 2026-11-25 — Claude: release 0.6.0.342 (reports 221 and 222; owner: «Да, выпускай»)
+
+- claude/release-342 from release/production a1d97c0d + claude/report-222 (641c6306: «Время в Таркове» clocks take the card's width
+  in «Снаряжение») + claude/key-110-spawn (bd72d2f7: Customs dorm room 110 key spot with the player's photo, report 221).
+  Version 0.6.0-342 (package.json, lock, website/src/config.ts); updateHistory row; news «Тема «Снаряжение»: время в Таркове снова
+  отображается ровно» + «Обновили данные по квестам».
+- Checks: typecheck, electron tsc, server typecheck clean; vitest src/data src/overview src/maps website/src 979/979;
+  appVersion's electron-builder check needs a file this PC lacks (passes in the gate).
+- Not in this release: claude/unheard-keys, claude/no-mutual-invites, claude/phone-auth (native files), claude/news-languages.
+## 2026-11-25 — Claude: «Неизвестные» — keys of Streets on A.P.'s room on Shoreline, the chapter checked (claude/unheard-keys, not released)
+- Support chat 25.11 00:17 (a player, screenshot): stage 14/30 «Найти номер А.П. в Санатории» on Shoreline named «Нужен ключ:
+  Корп.кв.TG» and «АП Зеленая». Cause: src/quests/questKeys.ts took a story chapter's keys from its guide
+  (src/data/storyChapterGuideData.ts) for the whole chapter, on the guide objective's maps only; the corporate apartment key and the
+  green keycard (stages 23–25) have no map there, so every point of the chapter on every map named them.
+- Fix: each story key is tied to its own stages (`storyStageKeyId`), on the guide's maps else the stage's; a story point's card
+  (src/maps/neededKeys.ts `pointObjectiveId`, MapsPage) shows its own stage's keys only.
+- Chapter checked against the EFT wiki (en/ru API wikitext) and tarkovforge; catalog of the server quest base for items/locks:
+  stage 1 had Ground Zero + the science office key — that is the first stage's third note spot (office 4, 21+), now on stage 1
+  with a note; stage 2 «деятельность TerraGroup» is The Lab, the laboratory by the dome (the point stage 3 had); stage 3 (fax)
+  only O23; stages 8–9 the Factory TerraGroup storage room (tunnels, y −2) with the storage room keycard (guide items too);
+  stages 14–16: east wing room 305 (no key: none in the sources, none in the catalog), the guard post note point in the west
+  wing; stages 23–30 the Cardinal apartment (the corporate key door of the catalog, 132.02/−24.66), needs on 23–25. Notes RU+EN.
+- Tests: storyChapters.test (chapter vs sources), questKeys.test (keys per stage on the map); vitest src/data src/quests
+  src/import src/maps src/progression 1466 passed; typecheck, eslint clean; server questBase/questPoints tests 17/17.
+- Without an app update: the stage data (points, notes, «Нужно:») is built by the server into the quest base, so it reaches every
+  app after the server runs this code (a release). The key chips are the app's own code: they need the app update. At once, before
+  any release: three `describe` point overrides (stage 14's two points, the Ground Zero point to stage 1) prepared for
+  QuestPointStore.save, not written (scratchpad unheard-server/); ids stay valid after the release (the Ground Zero one just
+  stops matching).
+- Not done: release rows (updateHistory/playerNews), not pushed; not checked on the dev map in the app.
+
+## 2026-11-25 — Claude: «Настройка экрана» says when Windows refuses the colours, and what the last raid had (report 223)
+
+- Report 223 (0.6.0.340, one monitor, PvE, BSG launcher): «пресет включён, а в игре не работает». Server data and the player's
+  screenshots show it switched on, «Пресет 2», the game window found (a game frame in the preview), the logs read (PvE mode,
+  level, quests); raid detection checked on real 1.3.5 and PvE game logs. Exact cause not provable from the server: with one
+  monitor the player sees the page only with the app in front, when the preset is off; a refusal by Windows (HDR, NVIDIA
+  filters) read «Windows разрешил 0% силы». Owner approved the change («да»).
+- 162c3c07 on claude/alpin-preset (from release/production c62a3881, 0.6.0.342): writeStrongest 0 → «Windows не дал изменить
+  цвета монитора» + «Выключите HDR в Windows и фильтры NVIDIA для Таркова»; `noteRaidResult` (electron/screenTuning/state.ts)
+  keeps the preset's last result on the game's screen (name, strength, time; not the curve being tuned) → `status.lastRaid`;
+  with the app in front after a raid the page says «В рейде (21:40) работал «Пресет 2»», the allowed strength, or the refusal.
+  Files: electron/screenTuning/index.ts, state.ts, state.test.ts, src/screen/ScreenTuningPage.tsx, ScreenTuningPage.test.tsx,
+  screenApi.ts, screenTuning.css, src/i18n/uiEnglishScreen.ts.
+- Checks: vitest electron/screenTuning + src/screen 122/122, src/i18n 42/42; npm run typecheck, tsc -p tsconfig.electron.json,
+  eslint on the changed files clean. Not pushed, not released; main-process change (full update, not interface-only).
+- Risks: the result lives in memory (gone after an app restart); not seen on a real PC with HDR on; the player still has to
+  answer (key «Вкл/выкл пресет» in a raid, HDR / NVIDIA filters off).
+
+## 2026-11-25 — Claude: «Отчёты»: кнопки ошибок и предложений, только два уведомления игроку; «Рейд начался» без колокольчика
+
+- Ветка `claude/reports-buttons` от `origin/release/production` c62a3881 (0.6.0.342). Не запушено, не выпущено, на сервер ничего не писалось.
+- Кнопки (src/shared/reportWork.ts `reportWorkButtons`, одна таблица для сайта, приложения владельца и телефона): ошибка — «Взял в работу»,
+  «Разъяснить», «Отклонить»; предложение — «Взял в работу», «Уже реализовано», «Отклонить»; в работе — «Готово», «Вернуть в активные»
+  (+ «Разъяснить» у ошибки). «Отменить» переименовано в «Отклонить», статус «Отменено» → «Отклонено». Новый статус `explained`
+  («Разъяснено», закрытый), действие `explain` — только для ошибки (409 у предложения).
+- «Разъяснить»: сервер закрывает заявку без уведомления, затем открывается чат с автором и ответом на заявку (`reportId`, «Ответ на
+  заявку №N»): сайт — окно WriteDialog, приложение — вкладка «Чат» (заявка в state истории), телефон — ChatSheet. Ответ на заявку только
+  у первого сообщения; «×» снимает его.
+- Уведомления игроку: только «Взял в работу» (текст прежний) и «Готово»: «Ваша заявка №N будет готова в следующем обновлении»;
+  закрытие выпуском и «Принять точку» — «Ваша заявка №N готова». «Отклонить», «Разъяснить», «Уже реализовано», «Вернуть» — молча
+  (так было и раньше). Окно «Вам зачислено N дней за отчёт» (награда) не трогал.
+- «Рейд начался»: карточка снизу справа, звук и уведомление Windows остались; строка в «Уведомления» (колокольчик) убрана.
+- Колонка «Статус» (жалоба владельца со скриншотом 0.6.0.341): поле дней 46 px, «Выдать» в одну строку, кнопки не рвут слова, без
+  широкой разрядки тем. Проверено в браузере на 172 px (без переносов и вылезаний) и 150 px (только «Вернуть в активные» в две строки по пробелу).
+- Проверки: server test 607/607; server typecheck; npm run typecheck; website build; vitest src/admin src/pages src/reports src/support
+  src/i18n src/notifications src/shared website/src/components/admin — всё зелёное, кроме известного CRLF-теста AppShell в
+  AdminPanelPage и тестов страниц карт/обзора, падающих только под нагрузкой (по файлу проходят).
+- Не проверено: живой сервер и реальные приложения (ПК, телефон); playerNews/updateHistory не добавлялись (это делает выпуск).
+## 2026-11-25 — Claude: no mutual friend codes; «Неподтверждённые» in «Привлечение друзей» (claude/no-mutual-invites)
+
+- Owner (two accounts from one address 15 min apart invited each other to get the friend's price): AccountStore.applyReferral
+  refuses the code of a player who came by this account's own code (MUTUAL_INVITE_MESSAGE); invites.fraudFlags adds `mutual`
+  for a pair from before (label «пригласили друг друга»).
+- Owner: «если человек не входил, но оплатил… оставь кнопку мне, чтобы я мог нажать «Подтвердить»» + «отдельный блок с
+  неподтверждёнными… циферкой»: GET /me/admin/invite-rewards/attention (rewards in review + friend rewards past the hold whose
+  friend never bound a game account); release() grants an owner-approved friend reward without a game account (none counted).
+  Website: block «Неподтверждённые» on top of «Привлечение друзей» with «Подтвердить N дней» / «Не подтверждать»; a red number
+  on the tab (every 5 min and after each decision).
+- Not released (owner: next release later). Live data: senpai1baku/bulatzlubko reward is in review (same-address).
+## 2026-11-25 — Claude: «Войти через Google» closed to Russian addresses on the server
+
+- Owner, 25.11.2026: «все страны, кроме России… как сделать, чтобы человек из России не мог зайти через Google?». Branch
+  `claude/phone-auth`; owned files: `server/src/services/russianNetworks.ts` (+ test), `server/src/routes/google.ts`,
+  `server/src/app.ts`, `server/src/index.ts`, `server/src/services/phoneAuth.ts` (`extraConfig(req)`), `server/package.json`
+  (test list), `website/src/api.ts` (type only).
+- Russia's IPv4/IPv6 blocks from RIPE NCC's `delegated-ripencc-extended-latest` (RU, allocated/assigned): downloaded at start
+  and every 24 h (60 s limit, < 1000 IPv4 ranges or an error keeps the previous list), the RU lines kept in
+  `russian-networks.txt` beside the database, merged sorted ranges, binary search; `::ffff:` counts as IPv4. No list yet →
+  nobody refused. Players' server only (not the owner edition); `RAIDOS_RUSSIAN_NETWORKS=0` turns it off.
+- The visitor's address is `req.ip` (`trust proxy` loopback; nginx on the VPS sets X-Forwarded-For). Russian address: POST
+  /v1/accounts/google → 403 `GOOGLE_RUSSIA_MESSAGE` before the token check; GET /v1/accounts/auth-config gives no
+  `googleClientId` but `googleBlocked: true` (the site already hides the button without a client); GET /v1/geo → `RU` when
+  there is no CF-IPCountry (other countries stay null). The account-country check in `googleSignIn` stays.
+- Tests: `russianNetworks.test.ts` 5/5 (RIPE sample parse, IPv4/IPv6/mapped lookup, download/disk/failed download, 403 on
+  /google before the verifier, auth-config and /v1/geo); full `npm --prefix server test` 611/611; typecheck (root `tsc -b`
+  and server) clean.
+- Known, not from this change: the server tests do not load on this branch under plain `node --import tsx` since `0b7b69fa`
+  (server/src/routes/me.ts → src/kappa/collector.ts → gameNamesLoader → tarkovApi → sync/serverSync → src/platform.ts reads
+  `import.meta.env.*`, undefined outside Vite). The run above used a loader outside the repo that sets `import.meta.env ??= {}`.
+  Needs a fix in src/ (the owner of those files) before the release gate runs server tests.
+- Deploy: not pushed, VPS not touched. Takes effect after the server restarts with this code (first download ~10 MB from
+  ftp.ripe.net; the VPS must reach it). The QR sign-in's `proxiedCountry` (CF-IPCountry only) is unchanged.
+
+## 2026-11-25 — Claude: release 0.6.0.343 (owner: «Людям только отправь свежую сборку… Залей одну новую версию»; «Да, собирай»)
+
+- claude/release-343 from release/production c62a3881 + claude/unheard-keys, claude/alpin-preset, claude/reports-buttons,
+  claude/no-mutual-invites, claude/admin-pc-fixes, claude/phone-auth (android/ and ios/ reverted: camera permissions go with the next
+  phone build). NOT in: claude/news-languages (changes playerNews.json's format; conflicts with the 341/342 rows).
+- The owner's admin fixes reach him by the owner exe every release builds (/opt/raidos-private/RaidOSServer.exe, «Серверная версия»).
+- Fixes for the gate: electron/apiEnv.ts lists RAIDOS_RUSSIAN_NETWORKS; adminReferrals.test.tsx typed attention mock (website build).
+- Checks: typecheck, electron tsc, server typecheck clean; server tests 613/613; website build ok; vitest 4633 passed, the rest
+  machine-only or pass per file (App, Dashboard, Gunsmith, MapsPage ×3, ManualMarks, SupportButtons, appDelta, updateHistory).
+- Server needs ftp.ripe.net once at start (Russian networks list for Google sign-in).
+## 2026-11-25 02:10 — Claude: release news in every app language
+
+- Owner, 25.11.2026: «все новости, которые выходят, должны переводиться на все языки… если у меня включен испанский язык…
+  новости… должны выходить на этом языке». Every line of `src/data/playerNews.json` (360 lines, 348 different) now has
+  `de ja zh pl uk es pt fr ko tr` beside `ru`/`en`. 346 of them were already in the app's dictionaries (`src/i18n/locales/*.json`,
+  English keys), taken from there so the words match the screens; «Полигон» everywhere as the dictionaries' «Proving ground».
+- «Обновление» shows the player's chosen language (`newsText`: that language, else English, else Russian) and the date in it;
+  the lines are `translate="no"` so the page translator does not touch them.
+- The owner's edits (admin «Обновление», `server/src/routes/playerNews.ts`): a line he kept keeps its translations (his earlier
+  ones, else the app's own line with the same Russian); a new line is translated on saving into English and the ten languages
+  (MyMemory `langpair=ru|<lang>`; a failed one reads English). Edits saved before today get the app's translations of the
+  same Russian in the client (`applyNewsEdits`).
+- Rule for every next release (CLAUDE.md, COORDINATION.md): a news line needs all twelve languages; `src/news/NewsButton.test.tsx`
+  fails without them.
+- Files: `src/news/newsState.ts`, `NewsButton.tsx`, `newsEdits.ts`, their tests, `src/data/playerNews.json`,
+  `server/src/routes/playerNews.ts` and its test, `server/src/services/announcementLanguage.ts`, `playerNewsStore.ts`,
+  `CLAUDE.md`, `docs/coordination/COORDINATION.md`.
+- Tests: typecheck (root and server) clean; vitest src/news, src/admin, noSiteNames 98/98; server playerNews, announcement,
+  notices 22/22; eslint clean.
+- Deployment: branch `claude/news-languages` from `origin/release/production` (a1d97c0d). Owner, 25.11.2026 ~02:20: «Да, в
+  выпуск» → release 0.6.0.342 on top (version files, `updateHistory.json` two lines, `playerNews.json` one line in all twelve
+  languages: «Новости об обновлениях теперь на вашем языке»), for the 13:00 Bangkok window.
+- 25.11 ~02:40, owner: «украинский язык удали. Это тот же русский. Пусть будет русский, а остальные все оставь… обновление
+  не выпускаем, выпустим со следующими правками, когда я скажу». Ukrainian is out of the app (`AppLanguage`, `TARGET_LANGUAGES`,
+  `src/i18n/locales/uk.json`, `CountryLocale`) and the site (`SiteLocale`, `locales/uk.json`, the language offer, hreflang,
+  sitemap: 52 alternates and 4 pages). A saved «uk» reads as Russian in the app; the site sends Ukraine (country, Kyiv time
+  zones, a uk browser) to Russian. The news lines lost their `uk`. The trailer session was told: no Ukrainian trailer.
+  Checks: typecheck (app, site, server) clean; vitest website/src, src/i18n, src/news, src/shared, src/account and the game
+  language tests 410/410; server playerNews, initialCountry, accounts 28/28. Release 0.6.0.342 stays local, not pushed.
+## 2026-11-25: Claude, the site's trailer in every language (claude/site-trailers-v7)
+
+- Owner, 25.11: the v7 trailer approved («отличный»), «Делай версии для всех языков и добавляй на сайт… при выборе языка на сайте
+  … соответствующее видео»; then «украинский язык удали. Это тот же русский».
+- Branch `claude/site-trailers-v7` from release/production a1d97c0d (0.6.0.341): website/src/components/Trailer.tsx plays
+  `trailer-<lang>.mp4` with `trailer-poster-<lang>.jpg` for ru (trailer.mp4), en, de, ja, zh, pl, es, pt, fr, ko, tr; the Ukrainian
+  site the Russian one; Trailer.test.tsx checks every language and every file. 22 media files, 720p, 88.8 s, 45 MB together
+  (they ship inside the server exe). Checks: website tsc clean, website vitest 48 files / 195 tests passed.
+- The videos come from scripts/trailer5 on branch claude/trailer-v5 (489e921b: every language's captures and captions;
+  ee80d2eb: the vertical cut for social networks, English only so far, waiting for the owner's word).
+- Not pushed, not released: a site-only change; the release integrator takes it into the next release (no app change; the
+  release still needs its own updateHistory row).
+
+## 2026-11-25 — Claude: report 227 «игра фризит» (0.6.0.342, laptop, Steam; owner: «возьми в работу»)
+
+- Branch claude/game-freezes from release/production e5ca9d54, commit 4c7c5c5f. Not pushed, not released.
+- Measured on the owner's PC (3440×1440, koffi from node): whole-screen GDI copy 71 ms wall / 47 ms CPU on the main
+  thread; the exit header strip 7 ms wall waiting for the compositor (almost no CPU), twice a second; key polling,
+  SHQueryUserNotificationState and the game-window check: microseconds.
+- What ran beside the game before: the exit header strip copy every 500 ms whenever the game was in front (menus too);
+  a whole-screen copy of the game every 30 s for every player, raids included («Настройка экрана» preview); a gamma
+  rewrite every 4 s while a preset is on; `tasklist` every 30 s in a raid (log watcher); a log poll on every log write
+  in a raid; only the main process below normal (page and GPU processes at normal).
+- Changed: header strip only in a raid (logs, raid signs, or no Logs folder watched), 1.5 s when the game's keys reach
+  the app (extractsReader.ts headerPollMs); background game frame only for players using «Настройка экрана» (2 min) or
+  outside raids every 10 min (state.ts backgroundFrameDue), alpha loop on request; gamma written only when the monitor
+  lost our ramp, refused ramps retried every 30 s (sameRamp, REFUSED_RETRY_MS); all app processes below normal with
+  the game in front (gamePriority.ts, app.getAppMetrics); no extra log polls in a raid (2 s safety poll stays); no
+  tasklist while the game's window is in front (main.ts).
+- Owner's addendum: «Скорость и зависания» reports carry `GPU …; RAM … GB; battery|AC` in the «Система» line, before
+  « · EFT: …», ≤160 chars (electron/systemBrief.ts, `system:brief`, src/app/support.ts withSystemBrief). No names/serials.
+- Tests: vitest electron/{extractsReader,gamePriority,logWatcher,systemBrief,preload.sync}, electron/screenTuning,
+  electron/experimental, src/components, src/app/supportPlatform — 546 passed; npm run typecheck and
+  tsc -p tsconfig.electron.json clean; eslint on changed files clean.
+- Not verified: the real game (not run), the real Electron shell (owner's data), the effect on a laptop. No
+  updateHistory/playerNews rows: they go with the release commit (technical fix → updateHistory only).
+- Risks: a player who never opened «Настройка экрана» gets no game picture in its preview until outside a raid (≤10 min)
+  or «Снимок из игры»; an exit list opened by a rebound key is seen within 1.5 s instead of 0.5 s.
+- Mistake fixed in-session: a PowerShell script with relative [IO.File] paths wrote 5 files into
+  raidos-quest-photos-all (only my lines); restored there with git checkout of those 5 files, tree clean again.
+
+## 2026-11-25: Claude, report 232 — quest scan found nothing on «Побочные» (Season, Russian game, 0.6.0.343)
+
+- Branch claude/quest-scan-232 from release/production f444b3f3; commits d4577207 (scanner), a89ff569 (game language =
+  app language), 57b2e08e (app language from the account's country). Not pushed, not released.
+- Cause: a Tasks row on Labs («Лаборатория активно!») matched the story header pattern /тори[яи]/ (storyPaneLayout.ts
+  isStoryTitleText / PANE_HEADER / storyPaneRects, storyScan.ts isStoryMenuText). With the «СЮЖЕТНЫЕ» tab on every Tasks
+  screen, electron/screenOcr.ts readQuestFrame took «Побочные» for a story pane, read its parts (the title crop held
+  «Лаборатория») and remembered the layout (storyLayout): every later frame read only that crop, never the table, and
+  tasksScreenKind returned 'story' for a frame with story parts — not one row applied. The player has 78 Season quests
+  (several on Labs: «Образцы»…). Pattern dates from 08–14.10.2026: not caused by 341's game-language setting; it hits any
+  player (Russian game, any mode) whose visible table holds a Labs row near the top. The default game language «en» reads
+  the Russian table the same as «ru» (OCR model rus+eng; test).
+- Fixed: «ИСТОРИЯ» only as a word of its own (HISTORY_WORD); src/import/tasksTableText.ts tells the table by its column
+  heads or rows with a location and an open status — such a frame is never read as a story pane (screenOcr.ts) and is a
+  table even with story parts (tasksScreenKind).
+- Owner's decisions: «Язык игры» setting and its help gone; the renderer tells the main process the app's language at
+  start and on each change (gameLanguageSync.ts, ExperimentalBridge). App language from the account's country
+  (src/i18n/countryLanguage.ts) once, on a new install only (nothing saved yet), at sign-in (initialCountry.ts) or when the
+  country is first named (CountryGate); the picker's choice is kept; a language saved by older versions is never changed
+  (a Russian-speaking player abroad keeps Russian after the update).
+- Tests: npx vitest run src/import src/components src/i18n src/pages — 1247 passed, 6 failed = MapsPage.* timeouts at 5 s
+  under load (all 47 MapsPage tests pass with --testTimeout=60000); new src/import/report232.test.ts,
+  src/i18n/countryLanguage.test.tsx, StoryScreenScanner.test.tsx «report 232». npm run typecheck and
+  tsc -p tsconfig.electron.json --noEmit clean.
+- Not verified: the real game and Electron shell (not run); real OCR of a Labs row (the test row is built from the real
+  table's rows); the phone. No updateHistory/playerNews rows: they go with the release commit.
+- Risks: a new install of an account in a non-Russian country now opens in that country's language at the first sign-in;
+  a Russian game run with the app in English is read with the rus+eng model as before, but German etc. games need the
+  app in that language now.
+## 2026-11-25 — Claude: reports 229 «Выбор карты» and 230 «Выбор карты по квестам» (0.6.0.343; same player as report 165)
+
+- Branch claude/map-priority-229-230 from release/production f444b3f3, commit 47575eef. Not pushed, not released.
+- Reproduced on the player's PvE profile read from the server (read-only: user_quest_mirror, objective_progress,
+  user_deferred_quests) with the served PvE catalog: the strip showed Lighthouse 14 / Woods 12 (he saw 13 / 11). The count
+  was already one per quest; Lighthouse leads because 10 of its 14 current quests are kills, most of them «any of several
+  maps» kills («Тарковский стрелок. Часть 1», «Залётные», «Худшая работа на свете», «Тихий калибр», «Легкотня», «Назвался
+  груздем...») that count on every map they name. Not kills: Woods 5, Interchange 5, Lighthouse 4. «Доктор "Айболит"» and
+  other «Любая карта» quests were never counted on a map (they sit under the list).
+- Wrong in the count: a quest counted on a map it only lists without an objective there («Новые маршруты» on Streets: the
+  transit's destination), and on a map whose remaining work is handed over at a trader. Now progression/mapPriority.ts
+  (questWorkOnMap / mapWorkCounts, mapObjectives.openObjectivesOnMap): a quest counts on a map while it has an open objective
+  there (not ticked, not waiting for a find on another map — report 165), once. Used by the strip, «Текущие задания» of the
+  chosen map, and «Брифинг рейда»'s map counts (that one used to count done maps too).
+- Filter (the player asked twice): «Все / Задания / Устранения» before the tiles, PC only (kept in localStorage
+  raidos-map-priority-filter-v1; the phone row has no room and counts all). «Устранения» = the quest's open work on the map is
+  kills only. Hover on a tile: «Маяк · 14 заданий: 4 + 10 на устранение».
+- 229: clicking a tile cut by the row's edge scrolled the row by the hidden part (measured in the browser: 200 → 264 px), so
+  the row jumped sideways under the pointer. Now a clicked tile never scrolls the row; a map chosen elsewhere («Выбрать
+  карту», squad) is scrolled into sight by bounding boxes. Switching the filter returns the row to its start.
+- Tests: src/progression/mapPriority.test.ts (the player's Lighthouse/Woods shapes), MapPriority.test.tsx (click keeps the
+  scroll, outside pick scrolls, filter order and storage, phone without the switch), uiEnglishOverview.test.ts; full `npm test`:
+  4673 passed, 11 failed, none in touched code — MapsPage.autoFloor/deferred and SupportChat pass alone (timeouts under
+  load); appVersion (space in the path → %20), linux/updater (tar on Windows), AdminPanelPage (CRLF checkout of AppShell.tsx),
+  staleServer, cache-item-images, release-policy are this PC's environment. `npm run typecheck` clean, eslint on changed files clean. Layout checked in a throwaway Vite page with the real
+  CSS (1600×900, the raid-card row): switch fits, clicking the cut tile keeps scrollLeft 200, outside picks come into sight.
+- Not verified: the real Overview with live data (the dev page waits for the gated catalog), the real Electron shell, all
+  themes. No updateHistory/playerNews rows (release commit). Suggested news (owner to approve): RU «Приоритет карт: фильтр
+  «Все / Задания / Устранения» и точный счёт квестов на карте» / EN «Map priority: an «All / Tasks / Eliminations» filter and an
+  exact count of tasks on each map».
+- Note: the BTR driver's quests the app opens by itself (opensByItself: «Назвался груздем...», «Сам себе БТР», «Скорая
+  расплата») count too; the player said on 02.11 he had no BTR quests — if he still has none, that is a separate check.
+
+## 2026-11-25 — Claude: квесты Водителя БТР не считать «текущими» по одному выводу (продолжение заявок 229/230)
+
+- Ветка `claude/map-priority-229-230` поверх 47575eef/2f3e32d4. НЕ запушено, на сервер ничего не писалось (только чтение).
+- Доведена незакоммиченная правка прошлого агента в `src/progression/requirementEngine.ts` и упрощена. Было: приложение само
+  считало квест Водителя БТР (трейдер 656f0f98d80a697f855d34b1) «текущим», если выполнены условия игры (`evaluateTaskAvailability`),
+  а без предыдущего квеста — после «Рука помощи». Стало: `opensByItself` для квеста БТР без записи считает его текущим ТОЛЬКО по
+  подтверждению самого игрока — тик/счёт по цели (`onItByTicks`: отмечена/посчитана цель и ещё осталась открытая обязательная).
+  Условия игры больше не домысливаются: подтверждение (тик) достаточно само по себе, как экранная запись или отметка, и не
+  перепроверяется по цепочке. Без подтверждения квест лишь «Доступен», в «Приоритет карт», «Текущие задания» и «Брифинг рейда»
+  не попадает. `questChain.ts` LOGS_NEVER_NAME не трогал — это обратный, верный механизм (велит доверять чтению экрана).
+- Условия по игре (wiki EFT/wikiwiki, tarkov.dev taskRequirements): квесты Водителя БТР открываются с 20 ур. ПМК и принятой
+  «Рука помощи» (Механик), каждый берётся у водителя в рейде; сдача/провал логируются крайне редко, старт — почти никогда.
+- По базе (read-only, companion.sqlite): игрок заявок 229/230 в PvE — «Рука помощи» completed (eft-log, это и есть триггер),
+  «Задержка отправления Ч2» active через screen-scan (подтверждён экраном → остаётся текущим), «Честный отзыв»/«Шиномонтажка»
+  completed через manual-fix (не текущие), по БТР ни одного quest_events/objective_progress/manual_marks. Агрегат: в
+  user_quest_mirror 1503 профиля, с «Рука помощи» completed — 381, из них 234 без единого подтверждения по БТР (их квесты БТР
+  показывались чисто по выводу), 304 реально ведут БТР. Логи назвали лишь 3 старта «Задержка отправления Ч2», 4 «Честного
+  отзыва», 29 провалов «Шиномонтажки», ни одной сдачи; тики по БТР — только ручные (84 профиля); 130 пар (профиль, режим,
+  квест) держатся лишь ручным тиком без записи задачи — их удерживает путь `onItByTicks` (не сломаны).
+- Файлы: `src/progression/requirementEngine.ts` (opensByItself + onItByTicks, новый комментарий), `src/progression/btrQuests.test.ts`
+  (переписан под новое поведение: без подтверждения — не в счёте; тик/экран/отметка — в счёте; сдан — нет).
+- Тесты: `npm run typecheck` чисто (exit 0); `npx vitest run src/progression src/quests src/overview` — 436 passed, 1 skipped;
+  btrQuests.test.ts — 7/7.
+- Не проверено: реальное приложение/Electron с живыми данными; полный список id квестов БТР сверх 9 известных (агрегат по
+  подтверждениям считался по ним, так что «234 без подтверждения» — верхняя оценка); точные числа прошлого прогона (2158/763/2289)
+  не воспроизводил, мои знаменатели иные (1503 профиля зеркала). Записи updateHistory/playerNews не добавлял (идут с коммитом
+  выпуска; это техническая правка → только updateHistory при выпуске).
+- Риск: по-настоящему взятый в рейде квест БТР без тика и без чтения экрана/отметки не покажется «текущим», пока игрок его не
+  отметит или не прочитает экран «Задачи» — поведение намеренно осторожное (убираем переподсчёт, не ломаем тех, у кого идёт).
+## 2026-11-25: Claude, reports 231 (armored train timer) and 226 (how penetration works)
+
+- Branch claude/ideas-226-231 from release/production f444b3f3 (worktree C:\Users\BANGKOK PC\raidos-ideas), commits
+  1947d34e (231) and 971d8e9f (226). Not pushed, not released, server untouched.
+- 231: «Настройки карты» → «Таймер бронепоезда» (Reserve and Lighthouse only, localStorage `raidos-map-armored-train-v1`,
+  off by default). On: a line in the map HUD (its own row, like MapItemCard). In a raid on that map (logs, from
+  «GameStarted»): «прибудет через m:ss–m:ss» → «прибудет в ближайшие m:ss» → «стоит ещё m:ss–m:ss» → «уезжает в
+  ближайшие m:ss» → «уехал»; otherwise «прибывает через X–Y мин после начала рейда, стоит Z мин».
+  Files: src/maps/armoredTrain.ts (+css, test), src/maps/ArmoredTrainTimer.tsx (+test), src/pages/MapsPage.tsx,
+  src/i18n/uiEnglishMap.ts.
+- Timings: SPT locations/<rezervbase|lighthouse>/base.json EXFIL_Train (read only): Reserve MinTime 1450, MaxTime 1700,
+  Count 400; Lighthouse 1300 / 1420 / 300; ExfiltrationTime 5; PvE the same. Boarding ≈ 90 s after activation (SPT
+  configs/location.json trainArrivalDelayObservedSeconds, measured 88 + 2 in SPT RaidTimeAdjustmentService), departure =
+  that + Count + ExfiltrationTime. So Reserve stands 25:40–29:50 → 6:45; Lighthouse 23:10–25:10 → 5:05. The wiki
+  (fandom 402; its text in src/data/extractGuide.json) says 24–28 / 20–25 min and «stays 7 minutes» for both.
+- 226: «Как работает пробитие» on «Баллистика», a folded <details> over every table but «Полигон»; 7 points taken from
+  ballistics.ts and range/rangeModel.ts. Files: src/arsenal/PenetrationGuide.tsx (+test), src/arsenal/penetrationPoints.ts,
+  src/arsenal/arsenal.css, src/pages/ReferencePages.tsx, src/i18n/uiEnglishArsenal.ts.
+- Tests: vitest src/arsenal src/maps src/i18n src/pages/AmmoPage — 318 passed; src/pages/MapsPage* 47 passed one file
+  at a time (5 timed out only when run in parallel under load); npm run typecheck clean; eslint on changed files clean
+  (ReferencePages has an older unused `locale` at the settings page, not mine). Seen in a headless browser on the Vite
+  renderer: the switch, the line on Reserve and Lighthouse, the open block.
+- Not verified: a real raid (countdown seen only in tests), Scav raids (the server moves the train earlier for a late
+  Scav: not known to the app), English on screen (tests only). No playerNews/updateHistory rows: they go with the release.
+
+## 2026-11-25: Claude, report 231 finished (owner's rework of the armored-train timer)
+
+- Same branch claude/ideas-226-231 (worktree C:\Users\BANGKOK PC\raidos-ideas). Finished the uncommitted rework the owner
+  asked for on 25.11.2026 and added the tests and the missing wiring. Not pushed, not released, server untouched.
+- Standing time is the owner's now, not the SPT count: Reserve «стоит 6 мин 30 с», Lighthouse «стоит 5 мин», in the
+  out-of-raid hint and in src/maps/armoredTrain.ts ARMORED_TRAINS (stay 390 / 300). Arrival window unchanged (Reserve
+  25:40–29:50, Lighthouse 23:10–25:10, boarding ≈ 90 s after the exit activates).
+- In a raid only the countdown to the arrival: «Бронепоезд прибудет через mm:ss–mm:ss» → «прибудет в ближайшие m:ss»;
+  once the arrival window is past the plate disappears (trainState phases cut to coming/arriving/past, trainLine returns
+  undefined for past, ArmoredTrainBanner renders null). No more «стоит ещё…», «уезжает…», «уехал».
+- The live countdown runs for a PMC only (owner: a Scav joins a raid already running). src/import/raidState.ts now reads
+  the raid's side from the game's own logs (D:\Battlestate Games\…\Logs, 1.3.x, read only):
+  (1) a group's «Got notification | GroupMatchRaidSettings» body line `"side": "Pmc"` / `"Savage"`;
+  (2) «TRACE-NetworkGameCreate profileStatus: 'Profileid: <id>'» compared with the menu's selected profile
+  («PrepareSelectedProfileLocally / CompleteSelectedProfile ProfileId:<id>»): same id = PMC, another id = Scav (the Scav
+  plays under its own profile). electron/logWatcher.ts pushes a new state when `side` changes too. In the real logs only
+  PMC occurs (`"side":"Pmc"`, network id = selected id); the only «Side:Savage» lines are bots (aiData, `bot creation
+  data … Side:Savage`) and are deliberately not read. Scav is inferred, not seen in a real Scav raid. pmcRaidBegun gives
+  the countdown only when side === 'pmc'; a Scav or an unknown side gets the general out-of-raid hint, no countdown.
+- «Настройки карты» → beside «Таймер бронепоезда» a second switch «Уведомления о прибытии» (Reserve/Lighthouse only,
+  localStorage `raidos-map-armored-train-notice-v1`, off by default). With it on, in a PMC's raid, when the arrival window
+  opens: a corner card «Бронепоезд прибывает» with the chime, once per raid (localStorage `raidos-armored-train-announced`),
+  built like «Рейд начался» (src/notifications/RaidStartNotifier.tsx) — ArmoredTrainNotifier, mounted in the desktop
+  toast-dock of src/app/App.tsx. Not a line in the top bell.
+- Files: src/maps/armoredTrain.ts (+armoredTrain.css, +armoredTrain.test.ts), src/maps/ArmoredTrainTimer.tsx
+  (+ArmoredTrainTimer.test.tsx), src/import/raidState.ts (+raidState.test.ts), electron/logWatcher.ts,
+  src/i18n/uiEnglishMap.ts (RU/EN «Уведомления о прибытии» → «Arrival alerts», «Бронепоезд прибывает» → «Armored train
+  arriving», rule «N мин M с» → «N min M s»; dropped the gone-train phrases), src/app/App.tsx.
+- Tests: npx vitest run src/maps src/import src/i18n src/notifications — 75 files, 629 passed. Covered: the arrival
+  window and the plate disappearing after it, trainStay «6 мин 30 с»/«5 мин» RU+EN, pmcRaidBegun (PMC → countdown, Scav
+  and unknown → none), takeTrainArrival (once in the window, off with the switch off), the notice card by the switch, and
+  the side from the logs (Pmc from settings, PMC from the profile, Scav from another profile, unknown with neither, bot
+  «Side:Savage» ignored). npm run typecheck (tsc -b) and tsc -p tsconfig.electron.json --noEmit clean.
+- Not verified: a real raid (countdown and card seen only in tests), a real Scav raid (none in the logs — Scav detection
+  is inferred from the profile id), the real Electron shell and the chime device, English on screen. Lint not run (not
+  asked). No playerNews/updateHistory rows: they go with the release commit.
+## 2026-11-25 — Claude: promo codes stay once added; Dexerto and Timesaver as sources (claude/promo-keep-new)
+
+- Owner: «Промокоды, которые у нас добавлены, убирать не нужно. Пусть они висят списком. Просто у нас должны добавляться новые».
+  server/src/services/promoCodes.ts: list() shows every stored code (no last-seen day); the studio's announced codes stay from
+  their date on. New sources dexerto + timesaver (insider-gaming answers 403 for days; PCGamesN/GameSpec last updated in October).
+  Live check of every page's parse: dexerto 17 codes, timesaver 16 (with modes); EMBRACEPAIN and PLAYYOURWAY come back by two pages.
+  gamesradar now also yields pieces of a gift code (6NU9-…): one page only, never reaches the list.
+- Tests: promoCodes.test.ts 10/10 (two changed to «stays», one new for the two pages); server typecheck clean. Not released.
+## 2026-11-25 — Claude: платный контент за проверкой подписки (claude/server-paywall)
+
+- Владелец: взломанный клиент не должен получать наше содержимое бесплатно. Закрыто тем же шлюзом, что и игровые данные
+  (`requireDataAccess`, server/src/routes/data.ts: вход → доступ владельца/стримера/оплаты/пробного → активное устройство
+  этой сессии; 401 / 402 «Нужна подписка» / 403 device_*). Ветка от release/production f444b3f3.
+- Общий модуль `src/shared/paidContent.ts` (`PAID_CONTENT_PATH`, `isPaidContentPath`): сервер проверяет `req.path`,
+  приложения отрезают query и шлют путь с сессией и `X-Raid-Device`.
+- Закрыто (было без входа): `/v1/quest-points`, `/v1/quest-texts`, `/v1/quest-requirements`, `/v1/map-bosses`,
+  `/v1/event-quests`. Закрыто (было с любым бесплатным аккаунтом): `/v1/me/quest-point-photos/:id`, синхронизация
+  `/v1/me/*` (progress, story, deferred-quests, collector, hideout, items, quest-mirror, position, settings, levels,
+  objectives, state, game-mode) и каталог сборок `/v1/builds` (+ owner-builds, like/remove).
+- Оставлено открытым намеренно: `/v1/map-tiles` (тайлы tarkov.dev рисуются `<img>`, который не шлёт ни токен, ни
+  устройство — этой проверкой их не закрыть, не сломав карту у подписчиков) и `/v1/map-updates` (только номер версии).
+  Служебное под `/v1/me` открыто: `summary` (кабинет сайта), `features`, `social-events`, `notices`, `support`,
+  `surveys`, `presence`. Не затронуты вход/регистрация/оплата/entitlement/geo/accounts/* (привязка игры, удаление,
+  QR, Google), объявления/опросы, «Пригласи друга».
+- Сервер: middleware включается `options.paidContent` и стоит до роутеров контента (server/src/app.ts); реальный сервер
+  включает её, если `RAIDOS_PAID_CONTENT` ≠ 0 (server/src/index.ts) — рубильник на случай старых телефонов без device.
+  Свои лимиты `CONTENT_RATE_LIMITS` (1200/600 в минуту: синк каждые 30 с, фото точек по одному). Владельцу устройство
+  не нужно, стример — lifetime.
+- Приложение без подписки не падает и не стирает данные: при 402/403 на контент serviceGateway только помечает
+  `entitlementDue` (кэш и списки целы, без `clearGameCache`), запрос падает как оффлайн. В serverSync `accessRefused`
+  (reason subscription / device-revoked / device-inactive / eft-conflict) гасит `connected()` и `playerStateRequest` —
+  синхронизация ждёт и целиком отрабатывает после продления. Телефон (src/sync/webAccount.ts) закрыт симметрично
+  (сессия + `webDeviceId()`), 402/403 только помечает entitlementDue.
+- Сайт (website/src) наш контент без входа не берёт: игровые точки только в админке владельца
+  (`/v1/accounts/me/admin/*`, вне регэкспа), публичной карты с нашими данными нет — закрытие сайт не задевает.
+- Доделано в этой сессии: тест `server/src/routes/paidContent.test.ts` зарегистрирован в `server/package.json` (его там
+  не было, набор его не запускал); в нём исправлена проверка «Нужна подписка» (welcome-триал стартует при первом
+  устройстве через claimTrialDevice, а не при регистрации — сначала старт, затем истечение, затем 402); в
+  `src/sync/webAccount.test.ts` пример personal-пути без device заменён с `/v1/me/settings` (теперь платный) на `/v1/me/summary`.
+- Файлы: electron/serviceGateway.ts, server/src/{app,index}.ts, server/src/routes/data.ts, server/package.json,
+  src/sync/{serverSync,webAccount}.ts, src/sync/webAccount.test.ts; новые src/shared/paidContent.ts,
+  server/src/routes/paidContent.test.ts.
+- Проверки: `npm --prefix server test` 618/618 (нестабильный support-chat прошёл в общем прогоне);
+  `npm --prefix server run typecheck` чисто; `npm run typecheck` (tsc -b) чисто; vitest src/sync + electron/serviceGateway
+  124/124 после правки; `npm --prefix website run build` ок. Не пушено, на сервер не писано.
+- Риски: старый телефон без `X-Raid-Device`, но с подпиской, получит 403 на /v1/me/* и builds — страхует
+  `RAIDOS_PAID_CONTENT=0`. `/v1/map-tiles` и `/v1/map-updates` остаются бесплатными (публичные тайлы и сигнал версии).
+  Выпуск — только с версией приложения, умеющей слать device на эти пути (пути уже в ROUTES обоих клиентов).
+## 2026-11-25 — Claude: защита клиентской сборки от разбора/обхода (ветка claude/client-hardening)
+
+- Ветка `claude/client-hardening` от `release/production` (база 0.6.0.343, f444b3f3), дерево `raidos-hardening`. Не пушил, не выпускал.
+- Задача: защитить Windows-сборку Raid OS от декомпиляции/обхода (dnSpy/REA). Четыре пункта проверки безопасности, без изменения скрипта на VPS.
+- П.1 (сервер и сайт вне клиента): на VPS уже исключаются (`auto-release.mjs`, коммит bc75532c). Добавлен `scripts/pack-windows.mjs` — локальный `npm run dist:win` теперь тоже убирает `dist-electron/local-server` и `dist-electron/website` из клиента; сборка владельца (OWNER_BUILD=1) их оставляет. `package.json build.files` и `build-local-server.mjs` не менялись (гейт VPS проверяет files; владельцу сервер нужен). Клиент при старте их не требует (startIfEnabled только при ownerBuild).
+- П.2 (минификация главного процесса): `build:electron` = `tsc` + `scripts/minify-electron.mjs` (esbuild transform: minifyWhitespace+minifySyntax, БЕЗ переименования идентификаторов, без комментариев, без .map). Имена сохранены намеренно — чтобы не сломать динамический require/import, import.meta.url, нативы и подстроки гейта VPS (`startupConsumed`, `blockedByRaid` в appUpdate.js). 127 файлов, 1274→806 КБ. Скрипт неломающий (нет esbuild/ошибка файла → файл едет неминифицированным, сборка не падает).
+- П.3 (редакция фиксируется на сборке): новый `electron/buildEditionConstant.ts` (`BAKED_EDITION`); `write-build-info.mjs` переписывает скомпилированный `dist-electron/electron/buildEditionConstant.js` на каждую редакцию; `buildEdition()` берёт константу, build-info.json — только dev-fallback. Правка build-info.json в упакованной копии больше не включает владельца (константа в asar, запечатанном фьюзом integrity). Реальный DCE owner-кода НЕ делается: общая однократная сборка на VPS, вырезание сломало бы редакцию владельца; все owner-режимы и так под `isOwnerBuild()` ← константа.
+- П.4 (целостность нативов перед повышением прав): `scripts/native-integrity.mjs` пишет `dist-electron/native-integrity.json` (SHA-256 нативов, внутри asar) при сборке; `electron/experimental/nativeIntegrity.ts` сверяет распакованные `*.node` в `relaunchAsAdmin()` — при несовпадении байт права не повышаются. Fail-open (нет манифеста/файла → не блокирует; легальная сборка всегда совпадает). Покрыты koffi (resources/koffi/win32_x64/koffi.node) и uiohook-napi. На Linux-хосте VPS @koromix при сборке не установлен (os-ограничение), поэтому `native-integrity.mjs` докачивает ту же закреплённую версию koffi (как `pack-windows-native.cjs`) и хеширует те же байты — koffi попадает в манифест и в релизах. Фолбэк неломающий: сбой скачивания → koffi просто не записан, сборка идёт дальше.
+- Файлы: new `electron/buildEditionConstant.ts`, `electron/experimental/nativeIntegrity.ts`(+test), `scripts/{minify-electron,native-integrity,pack-windows}.mjs`; изм. `electron/buildEdition.ts`(+test), `electron/experimental/elevation.ts`(+test), `scripts/write-build-info.mjs`, `package.json`.
+- Проверки: `npm run build` ок; клиентская упаковка `electron-builder --dir` в папку вне дерева → в asar нет local-server/website, build-info edition=client, buildEditionConstant="client", appUpdate.js минифицирован и содержит startupConsumed/blockedByRaid; нативы koffi/uiohook на путях из манифеста. `tsc -b` и `tsc -p tsconfig.electron.json --noEmit` чисто. vitest: мои тесты (buildEdition, elevation, nativeIntegrity) — 14 проходят; electron/ — 542/546, 4 падения ТОЛЬКО локально на Windows и не связаны с правками (linux/updater — системный `tar` принимает `C:\...` за хост; staleServer — под vitest `process.execPath`=node.exe совпадает с «чужим» процессом; на Linux CI оба проходят). Все изменённые пути проходят `deployPath` — 0 refused.
+- Не проверено: рантайм пакованной сборки (junction node_modules даёт неполные зависимости, память local-build-real-node-modules) — проверялись только состав asar и минификация; реальная оболочка с данными владельца не запускалась; прогон на Linux-Wine VPS и запуск собранного exe.
+- Риски для VPS (главное): всё встроено в существующий поток (`npm run build` один раз + `write-build-info` на редакцию) БЕЗ изменения `auto-release.mjs`. Минификация/манифест неломающие; провенанс-подстроки сохранены; `package.json build.files` цел. Первый минифицированный релиз даст больший дельта-апдейт (поменялся весь electron JS) — функционально ок.
+## 2026-11-25: Claude, reports 228 and 225 («Полигон»: plates and visor; the Scourge picture)
+
+- Branch claude/range-225-228 from release/production f444b3f3, commits 4cbce53c (228), c3da9af1 (225). Not pushed, not
+  released.
+- 228 «Не могу вставить плиты и забрало» (0.6.0.343, Hexgrid + Вулкан-5): json.tarkov.dev `regular/items` now gives
+  `properties: null` for every ItemPropertiesArmorAttachment (all plates, face shields, Killa's mask) and every chest
+  rig; tarkov.dev GraphQL answered «server unavailable». The range catalogue (src/range/rangeArmor.ts) dropped them: the
+  plate lists and the visor list held only «Нет», armoured rigs left the vest list, bosses wore no plates. Fix: the
+  game's own pieces from SPT templates (new scripts/build-range-parts.mjs → src/range/rangeParts.json: 105 pieces +
+  30 armoured rigs in tarkov.dev's form) stand in only for an item without properties; the live file's armorClass and
+  maxDurability win. Cache key raid-os-range-armor-v1 → v2. On the live file: Hexgrid 18/19 plates (one new plate
+  6943c85b… is not in SPT), Vulkan-5 visor back, 30 rigs, Killa/Tagilla/Knight dressed with plates and visors.
+- 225 «Иконка Скоржа отображается неверно» (0.6.0.341): the Scourge's SMC-90 chassis 6a6877f5… has no part picture (in
+  the shot list, never produced), so it and what is on it were not drawn: a bare P90 frame. Fix: PICTURE_STAND_INS in
+  src/arsenal/partPictures.ts (SMC-90 chassis → P90 body 5cc700b9…), children of a stand-in not drawn; frames keep the
+  real id. Of all 164 weapons' default presets on the live file, this was the only part without a picture.
+- Tests: vitest src/range src/arsenal — 189 passed; npm run typecheck clean; eslint on changed files clean. Composed the
+  Scourge picture offline from layBuild (flat order, like drawFlat): a whole P90 with its muzzle set.
+- Not verified: the real app window (WebGL drawing), the PvE and season files (only regular checked), the phone.
+  No updateHistory/playerNews rows: they go with the release commit.
+- Risks: the new rigs of 2026 (LV-119, FCPC V5, Siege-R, 6B45, JPC… 39 ids) are not in SPT and stay out of the vest list
+  while tarkov.dev gives no properties; SPT values (08.2026) may differ from today's game for ricochet/blunt; the
+  Scourge's SMC-90 handguard and cheek rest are not drawn until the chassis is photographed.
+
+## 2026-11-25 — Claude: заявка 225 — пересъёмка шасси SMC-90 Скоржа (снять не удалось, подстановка остаётся)
+
+- Ветка claude/gun-parts-reshoot от release/production f444b3f3; влита claude/range-225-228 (c80014a2: подстановка 225 +
+  «Полигон» 228, fast-forward). Не запушено, не выпущено.
+- Владелец разрешил снимать. В офлайн-SPT (E:\SPT 0.16.9.40743, плагин RaidOsGuns, профиль 6aff123a, клиент на 2-м
+  мониторе) переснял все 8 модулей стандартной сборки Scourge (пресет 6a799f20). 7 модулей валидны и уже лежат в
+  public/gun-parts: корпус-каркас FN P90 6a78b7f8, цевья 6a687e38/6a688026, щека 6a69d239, дульные 6a68a56b/6a6880680/6a6895ac.
+- Шасси SMC-90 6a6877f5 снять НЕ удалось: рендер пустой (alpha 0) — так же было 20.11 (out/parts-wrong-20261120).
+  Диагностика (временно добавил в плагин режим showAll с логом мешей и RecalculateBounds, затем откатил dll, jobs.json и
+  исходник PartsRender.cs к оригиналу — bin и прод dll 40960 байт совпадают): у модели 4 рендерера (корпус LOD0/LOD1,
+  smc90_mag_release, p90_selector), все активны, но у каждого MeshFilter.sharedMesh = NULL — меши не грузятся в офлайн-
+  движок. Старый совместимый бандл stock_p90_strike_industries_smc_90.bundle → mesh null; живой бандл не грузится целиком
+  (игра обновилась 24.11 до 1.3.5.48914: «can't be loaded because it was not built with the right version or build target»).
+  RecalculateBounds не помог — меша нет. Снять шасси прежним способом (копия бандла из живой игры) теперь нельзя: офлайн-
+  движок 0.16.9 несовместим с текущими бандлами игры.
+- Подстановку PICTURE_STAND_INS (шасси → корпус P90 5cc700b9) НЕ убирал: картинки шасси нет, убрать = дыра в сборке
+  (цевьё и щека повиснут без родителя). Новых картинок в public/gun-parts не добавлял — 7 валидных модулей уже в выпуске.
+- Офлайн-бандлы остались на старых совместимых (restore был сделан ранее этого дня: Windows.json CRC и файлы = .bak-
+  reshoot-20261125). Клиент и сервер SPT закрыты. Серверный мод RaidOsParts/parts.json (временные шаблоны) не трогал.
+- Тесты: vitest src/arsenal src/range — 189 passed; npm run typecheck (tsc -b) — чисто.
+- Не проверено: окно приложения (WebGL-отрисовка сборки).
+- Как картинки попадают к игрокам: public/gun-parts (webp + d.png + index.json, 5055 файлов) закоммичены в репо; при сборке
+  vite-плагин gunPartsPack (vite.config.ts → src/arsenal/partPack.ts) пакует dist/gun-parts в зашифрованный
+  dist/gun-parts.pack. На VPS отдельных команд не нужно — картинки берутся из git. В этот раз добавлять нечего.
+- Дальше (по слову владельца): для шасси SMC-90 нужен офлайн-движок/форк SPT под игру 1.3.x, где его меш читается; либо
+  оставить подстановку. Заявка 225 остаётся с временной подстановкой.
+
+## 2026-11-25 — Claude: release 0.6.0.344 (owner: «защиту и заявки, всё вместе»)
+
+- claude/release-344 from release/production f444b3f3 + 8 branches: quest-scan-232, map-priority-229-230 (incl BTR), ideas-226-231
+  (train timer + penetration block), poland-cis-price, promo-keep-new, server-paywall, client-hardening, gun-parts-reshoot
+  (incl range-225-228; Scourge stand-in kept — SMC-90 chassis unshootable on offline SPT 0.16.9 vs live 1.3.5).
+- Version 0.6.0-344 (package.json, lock, website/src/config.ts); apiEnv.ts lists RAIDOS_PAID_CONTENT (gate). History 4 lines;
+  player news 4 items in 12 languages (no security line — not advertised).
+- Checks: typecheck, electron tsc, server typecheck clean; server tests 619/619; website build ok; vitest 4734 passed, 8 failed =
+  machine-only (linux/updater ×3, staleServer, appVersion, AdminPanelPage CRLF, two gate-excluded script files). Merge-touched
+  tests pass per file (buildEdition, elevation, nativeIntegrity, serviceGateway.dataRoutes, sync, armoredTrain, btrQuests).
+- Server needs RAIDOS_PAID_CONTENT default on (index.ts: on unless =0). Owner exe carries the admin fixes as every release.
+
+## 2026-11-25 — Claude: экран установки — текст «Приложение обновляется» (владелец, 25.11.2026)
+
+- Ветка claude/install-update от origin/release/production a52d596a (0.6.0.344), рабочее дерево raidos-install-flow
+  (node_modules — junction на raidos-stock-level, server/node_modules — на raidos-quest-photos-all). Коммит e575a179.
+  Не запушено, не выпущено.
+- (1) ТЕКСТ. Окно портативного exe, предлагающее установку (src/components/InstallerOffer.tsx): заголовок
+  «Raid OS теперь устанавливается как обычная программа» → «Приложение обновляется»; подписи прогресса
+  «Скачиваем установщик…»/«Открываем установщик…» → «Скачиваем обновление…»/«Устанавливаем обновление…»
+  (и aria-label, и запасной текст ошибки — тоже «обновление» вместо «установщик»). Английский в
+  src/i18n/uiEnglishServer.ts обновлён парами («The app is updating», «Downloading the update…»,
+  «Installing the update…», «Downloading the update», «Could not download the update»). Правлен тест
+  InstallerOffer.test.tsx (RU/EN ожидания). Эти русские строки использовались только в InstallerOffer — конфликтов нет.
+  Поведение окна не менялось: это по-прежнему разовое окно, которым портативная копия переходит на установленную (NSIS).
+- (2) ПОВЕДЕНИЕ — разобрано, НИЧЕГО не менял: желаемое уже реализовано в release/production.
+  Установленная (NSIS) копия запускается из своей папки распакованной — это свойство NSIS-таргета, а не portable-заглушки
+  (portable распаковывает ~630 МБ в %TEMP%\nsXXXX.tmp при каждом запуске; у установленной этого нет). relaunchAsAdmin
+  (electron/experimental/elevation.ts) для установленной берёт process.execPath, для portable — PORTABLE_EXECUTABLE_FILE,
+  т.е. установленная НЕ перезапаковывается в temp. Обновление установленной копии идёт дельтой: probe (electron/appUpdate.ts
+  probeOnce) сперва берёт fetchDeltaInfo; полный установщик (fetchSetupManifest → setup:true) запрашивается ТОЛЬКО когда
+  дельты нет. installUpdate: target.delta → installDelta (electron/deltaUpdate.ts + electron/appDelta.ts stageDelta — тянет
+  только изменившиеся 2-МБ диапазоны asar), иначе target.setup → runSetupWhenClosed (тихий NSIS /S --updated при закрытии).
+  Это ровно «после обновления меняются только файлы, не всё приложение; полный установщик — только когда дельта невозможна».
+- Что НЕ трогал и почему: package.json build (win.target=portable; NSIS RaidOSSetup собирает VPS auto-release),
+  фьюзы asar (enableEmbeddedAsarIntegrityValidation, onlyLoadAppFromAsar), nativeIntegrity, deltaUpdate/appDelta/appUpdate —
+  правки только renderer+i18n, целостности и сборке VPS не угрожают.
+- Тесты: vitest InstallerOffer + appDelta + appInstall + appUpdate.installed + appUpdate.delta — 50 passed;
+  vitest src/i18n — 48 passed; npm run typecheck (tsc -b --force) — чисто; npx tsc -p tsconfig.electron.json --noEmit — чисто.
+- website/node_modules junction не создавал (целевой папки нет в raidos-quest-photos-all); для этих тестов и typecheck не нужен.
+- Строк updateHistory/playerNews не добавлял (идут с релизным коммитом; это правка формулировки, не новая функция).
+- Риск для выпуска: нет. Изменены только видимые строки одного окна и словарь EN; логика установки/обновления не тронута.
+## 2026-11-25 — Claude: таймер бронепоезда — компактная иконка и меню поверх (правки владельца)
+
+- Ветка claude/train-ui от origin/release/production a52d596a (0.6.0.344). Не запушено, не выпущено.
+- По скриншоту Резерва (ПК, 25.11): широкую плашку «Бронепоезд прибывает через…» над картой заменил на компактную иконку-поезд
+  (lucide TrainFront) в ряду инструментов карты — подняв её из отдельной нижней строки (flex 0 0 100%) в строку кнопок, перед
+  «Слои» (MapsPage.tsx). Иконка static/z-index auto, backdrop-filter, pointer-events: auto; выпадающие меню кнопок карты («Вид»
+  z-25, «метка» z-30) теперь рисуются ПОВЕРХ неё — проверено в браузере (elementFromPoint на наложении → сверху меню).
+- Состояния (armoredTrain.ts trainView вместо trainLine): вне рейда / за Дикого / неизвестная сторона — только иконка, времена
+  в подсказке при наведении (title): «Прибывает через 26–30 мин после начала рейда, стоит 6 мин 30 с» (Резерв) / «23–25 мин,
+  стоит 5 мин» (Маяк). В рейде за ЧВК: у иконки живой отсчёт до раннего прибытия (is-live, напр. 15:40), диапазон — в подсказке;
+  на первом рубеже окна (arriveMin…arriveMax) иконка подсвечивается (is-arriving, латунь) и пишет «возможно, приехал»; после
+  окна исчезает. Переключатели «Таймер бронепоезда» / «Уведомления о прибытии» и уведомление ArmoredTrainNotifier — без изменений.
+- Тексты RU/EN: добавлены «Прибывает через» → «Arrives», «возможно, приехал» → «may have arrived» (uiEnglishMap.ts).
+- Файлы: src/maps/armoredTrain.ts, ArmoredTrainTimer.tsx, armoredTrain.css, src/pages/MapsPage.tsx, src/i18n/uiEnglishMap.ts;
+  тесты armoredTrain.test.ts и ArmoredTrainTimer.test.tsx обновлены (видимый отсчёт в textContent, подсказка в title).
+- Проверка в браузере (vite dev, встроенный): Резерв на 1280 — иконка в ряду инструментов, меню «метка» открывается поверх (да);
+  мок рейда ЧВК показал отсчёт 15:30, затем «возможно, приехал» с подсветкой, после окна иконка пропала; телефон 390×844 —
+  иконка компактная (34×30), без горизонтального переполнения.
+- Тесты: vitest src/maps src/i18n — 199 passed; npm run typecheck (tsc -b) — чисто. eslint no-irregular-whitespace на NBSP в
+  шаблонных строках armoredTrain.ts — то же, что в выпущенном коде (конвенция файла, lint не в гейте), число ошибок не выросло.
+- Не проверено: окно приложения Electron (проверял рендерер в браузере); живой рейд в игре; английский в браузере (покрыт юнит-тестами).
+## 2026-11-25 — Claude: чтение ника с экрана выбора профиля («J0ss_Kat60» → «ss_Kat62»; ветка claude/nickname-ocr)
+
+- Ветка `claude/nickname-ocr` от `origin/release/production` (`a52d596a`, Release 0.6.0.344), рабочее дерево `C:\Users\BANGKOK PC\raidos-nickname-ocr` (junction node_modules → raidos-stock-level, server/node_modules → raidos-quest-photos-all). Не запушено, не выпущено.
+- Заявка владельца (25.11.2026): приложение читает ник неверно — эталон «J0ss_Kat60», уровень 25; прочитало «ss_Kat62» (потеряло «J0», «60»→«62»). «Научись правильно читать и разделять, где цифра, где буква; выпусти в ближайшем обновлении».
+- Причина (`src/import/modeSelectScreen.ts`, `electron/screenOcr.ts` readModeSelect): полный проход OCR роняет первую букву имени там, где она лежит поверх арта персонажа, и читает «ss_Kat62» (`lineInBand` в modeSelectHeaders). Close-up строился по этому же обрезанному боксу слова (`header.full.box`), а `confirmCards` подтверждал ник, когда полный проход и close-up совпадают, — оба обрезаны одинаково, оттого «ss_Kat62» и сохранялся. «60»→«62» — шрифт игры Bender: Tesseract читает перечёркнутый «0» как «2»/«8» (как и для уровня, levelDigits.ts), одинаково в обоих проходах.
+- Исправлено (коммит `fa4eb584`):
+  1. `modeSelectHeaders` расширяет бокс close-up до собственной полосы карточки, привязанной к заголовку (`widenToBand`): левый (и правый) символ, обрезанный полным проходом, снова попадает в 3× close-up; полоса не выходит за карточку.
+  2. `readModeSelect` ставит вайтлист символов (латиница верх/низ, цифры, `_ - | ! / \`, пробел) на OCR close-up и снимает его после: буквы имени больше не подменяются кириллическими двойниками и не теряются. Уровень по-прежнему подтверждается формой цифр; цифры в буквы эвристикой не «чинятся».
+  3. `confirmCards`/`confirmedNickname` берёт написание из увеличенного close-up, когда он одинаков в двух кадрах, а полный проход лишь обрезал край того же имени (`closeUpHoldsWholePass`); другое имя в полном проходе — по-прежнему расхождение, ник не ставится.
+- Файлы: `src/import/modeSelectScreen.ts`, `electron/screenOcr.ts`, тесты `src/import/modeSelectScreen.test.ts` (парсинг «J0ss_Kat60», расширение бокса, восстановление обрезанного имени).
+- Тесты: `vitest src/import` — 433 passed (33 файла); `npm run typecheck` (tsc -b) — чисто; `npx tsc -p tsconfig.electron.json --noEmit` — чисто.
+- Остаточная неточность (честно): перечёркнутый «0» ВНУТРИ ника ещё может читаться как «2»/«8» — форма проверяется только для хвостового уровня, не для цифр имени. Зато символы больше не теряются, а при расхождении цифры с полным проходом ник не сохраняется (безопасно): прежнего неверного «ss_Kat62» больше нет. 0/O различить на 100% нельзя (foldNickname их сводит при сравнении).
+- Не проверено: настоящий экран игры/оболочка (не запускались). Правка только клиентская (OCR); VPS, база, секреты не трогались. Строки «Новости обновлений»/«История обновлений» — на шаг выпуска (фикс чтения ника — техническое улучшение; список новостей, если нужен, владельцу показать первым).
+## 2026-11-25 — Claude: телефонный джиттер «Обзора» — расследование (причина в dev не воспроизвелась)
+
+- Ветка claude/phone-jitter от origin/release/production (a315c5f8, 0.6.0.344). Рабочее дерево
+  C:\Users\BANGKOK PC\raidos-phone-jitter; junction node_modules → raidos-stock-level, server/website nm → raidos-quest-photos-all
+  (website-источник пуст, взят из tarkov-operations-companion). Не запушено. Изменений кода НЕТ.
+- Задача: на телефоне «Обзор» дёргается при загрузке (прокрутка и вёрстка скачут, «перескакивает между состояниями»).
+  Прогнал vite dev, встроенный браузер на ширине телефона 390×844 (мобильная раскладка при ≤700px, src/platform.ts).
+- Инструментовал: PerformanceObserver('layout-shift'), MutationObserver, сэмплинг scrollY/scrollHeight, DOM-аудит картинок,
+  обход React fiber, перехват fetch.
+- Результат — вёрстка «Обзора» на телефоне В ТЕКУЩЕМ коде СТАБИЛЬНА: CLS=0 в покое, при первой загрузке (splash→Обзор) и при
+  смене карты; 0 мутаций DOM за 3 с в покое; scrollY не прыгает; высота документа/raid-card стабильна (1697/360px).
+- Гипотезы проверены и ОТКЛОНЕНЫ доказательствами:
+  - MapPriority (claude/map-priority-229-230): его эффект меняет только row.scrollLeft полоски. Прямой тест — установка
+    scrollLeft с 0→80→0 НЕ меняет window.scrollY (verticalMoved=false). Коммит 47575eef менял лишь логику подсчёта и ПК-фильтр.
+  - Фигуры боссов / «Кочевник» / qc-goons — position:absolute, высота raid-card не зависит от их загрузки (360px стабильно).
+  - item-thumb («Барахолка»/«Требования») — фиксированные width/height в CSS (42/38/34px, object-fit), загрузка иконок не сдвигает.
+  - ThumbScroll (телефонные «Текущие задания»/«Сбор на рейд»/«Требования», compactRows только при mobile) — цикл thumb↔ширина
+    уже закрыт резервом трека (thumbScroll.css, фикс 21.11 «441↔517»); measure() в useLayoutEffect = синхронно до paint (без видимого скачка).
+  - useAlignedListHeight — на телефоне выключен (scrollable=!mobile).
+  - useOverviewEditor — на телефоне вхолостую безопасен (elements пуст, container=null, нет setState).
+  - useFitBelow — в «Обзоре» не используется. FOUC desktop→mobile CSS исключён (installLayoutAttributes в main.tsx до рендера).
+  - Scroll-anchoring не сломан (нет overflow-anchor:none). Сеть без шторма: 5 запросов за 10с (/health, /v1/goons, /regular/maps).
+- Почему не воспроизвёл: dev-окружение структурно не даёт нужные условия. Гость без принятых квестов → списки пусты (ThumbScroll
+  неактивен); демо-профиль (favoriteItemIds=graphics-card/ledx/salewa) несовместим с живым каталогом (hex-id, 5498 позиций) →
+  «Барахолка» пуста; сервер недоступен (CORS) → trader-resets/announcement/goons не грузятся; картинки из HTTP-кэша → мгновенно;
+  встроенный браузер вместо Capacitor WebView.
+- Наиболее вероятная реальная причина (не воспроизведена, согласуется с симптомом): кумулятивный layout-shift от асинхронных
+  данных блоков, приходящих ПОСЛЕ первого кадра (trader-resets в «ЭКРАН», owner-defaults переупорядочивают блоки телефона в
+  usePhoneOverview, goons, deferred) — в одноколоночной раскладке рост верхнего блока сдвигает всё ниже; плюс возможный
+  perf-jank от canvas «Дым» (RaidSmoke) на первых кадрах. Для точного адреса нужен реальный профиль/медленная сеть/устройство.
+- Правку НЕ вносил: менять стабильный релизный код без воспроизведения = риск регрессии (ограничение «не ломать десктоп»).
+  Тестов/typecheck не запускал (код не тронут).
+- Дальше: видео или Performance-трейс с телефона владельца (какой блок прыгает) ИЛИ подтверждение версии (джиттер мог быть на
+  сборке ДО фиксов reports 208/211/222) ИЛИ наполненный профиль для dev — тогда довожу точечный фикс. Не выпускать (нет изменений).
+
+## 2026-11-25 — Claude: телефонный джиттер «Обзора» — защитная правка раскладки (резерв места под async-данные)
+
+- Ветка claude/phone-jitter (та же, что и расследование 82285cb6). Рабочее дерево C:\Users\BANGKOK PC\raidos-phone-jitter.
+  Правка ТОЛЬКО раскладка/CSS/плейсхолдеры, без логики, без Electron, без изменения текстов. Не запушено, не выпущено.
+- Причина (из расследования): кумулятивный layout-shift — серверные данные блоков приходят ПОСЛЕ первого кадра, в
+  одноколоночной телефонной раскладке рост верхнего блока сдвигает всё ниже. Подтверждено в коде: splash «Загружаем базу»
+  (AppShell) держит страницу до каталога, поэтому квест-блоки готовы к первому кадру и НЕ прыгают; async после кадра —
+  именно серверное: сброс торговцев (react-query useTraderResets), кочевники (useGoonTracker), сброс-вид Restock.
+- Что стабилизировал (ТОЛЬКО телефон):
+  1. src/overview/InfoStatCard.tsx (TarkovTime, +проброс phone): пока строки «сброса торговцев» грузятся по сети
+     (reservedResetRows = phone && выбраны торговцы && данных ещё нет && isLoading), рисуются скелетон-строки .info-line.is-skeleton
+     (иконка + полоса имени + моношир. полоса времени через &nbsp; — та же высота, что у реальной строки). Когда данные
+     приходят — заполняют зарезервированное место, страница не прыгает. У дефолтного пользователя торговцы не выбраны —
+     резерва нет; из кэша строки появляются сразу — резерва нет; на десктопе phone=false — резерва нет (поведение не изменено).
+  2. src/overview/infoCard.css: стили скелетона (тусклая полоса, без анимации); резерв :root[data-layout="mobile"]
+     .info-restock .info-empty { min-height: 54px } — «Загрузка…» держит высоту трёх строк в блоке «Сброс торговцев».
+  3. src/components/goonCard.css: :root[data-layout="mobile"] .phone-block.is-narrow .goon-card .goon-meta { min-height: 2.6em }
+     — строка «кто/когда» держит две строки (один ник→две строки после ответа сервера не растит карточку).
+- Hero «Следующий рейд» (.raid-card): на телефоне уже фикс. высота 360px (mobile.css) + фон background-image (не reflow при
+  загрузке) — СТАБИЛЕН, правка не нужна. Фигуры боссов/кочевника, иконки предметов — absolute/фикс. размеры (из расследования).
+- Замеры (vite dev, встроенный браузер 390×844, PerformanceObserver layout-shift + геометрия getBoundingClientRect; серверные
+  данные смоделированы впрыском в кэш react-query, т.к. офлайн по-настоящему не грузятся):
+  - Сценарий «приходят 3 строки сброса торговцев» (вид «Время в Таркове», 3 торговца):
+    - ДО фикса: при появлении строк raid-карта и всё ниже сдвигались ВНИЗ на +17px (в полноширинном блоке было бы ~68px).
+    - ПОСЛЕ фикса: сдвиг 0px, CLS 0 — скелетон занимает ровно ту же высоту (info-lines 68px и в загрузке, и после).
+  - «Первая загрузка Обзора» (дефолт, телефон): CLS 0, 0 сдвигов и до, и после — регрессии нет.
+  - Десктоп (overview-free): CLS 0; скелетон НЕ появляется даже с выбранными торговцами (phone=false), строки как раньше —
+    раскладка и вид не изменились.
+- Честно: это ЗАЩИТНАЯ правка. Реальный джиттер на устройстве в dev не воспроизводится (сервер офлайн/CORS, данные из кэша —
+  как и в расследовании). Доказан механизм и что конкретный сценивший сдвиг (строки сброса) устранён; что исправление НЕ
+  ухудшает первую загрузку и НЕ трогает десктоп. Другие возможные источники вне этой правки (не раскладка/риск): баннер
+  объявления меняет --announcement-height; owner-defaults переупорядочивают блоки телефона при ПЕРВОЙ установке (потом из
+  localStorage синхронно); они не трогались (запрет на логику/верх. бар).
+- Проверить на телефоне владельца: открыть «Обзор» на медленной сети/холодно; блоки ниже верхней пары не должны прыгать при
+  догрузке; у кого выбран вид «Время в Таркове» с торговцами — на месте строк кратко видна тусклая заглушка, потом текст, без скачка.
+- Тесты: npm run typecheck — OK (exit 0); vitest InfoStatCard/PhoneOverviewBlock/DashboardPage(+ownerBlocks,exitFlares)/GoonCard(+Sheet)
+  — 56 тестов пройдено. Изменено 3 файла (+29/−3). Co-Authored-By: Claude Opus 4.8. Не запушено.
+## 2026-11-25 — Claude: «Обзор» ПК — дёрганье «Текущих заданий» и толщина вкладок карт (правки владельца 25.11)
+
+- Ветка claude/overview-polish от origin/release/production (a52d596a, 0.6.0.344), рабочее дерево ...\raidos-overview-polish.
+  Не запушено, не выпущено. Файлы: src/styles/pages.css, src/components/CurrentTasksPanel.tsx,
+  src/overview/useSmoothWheelScroll.ts (новый).
+- Пункт 1 — раскрытие/сворачивание «Ещё N заданий»/«Свернуть» без дёрганья. Причина: `.current-tasks-more` менял высоту
+  постепенно (grid-template-rows .9s), а overview-free с абсолютными блоками пересчитывал раскладку на каждое промежуточное
+  измерение (ResizeObserver, throttled по `burst` в useOverviewEditor) и перезапускал FLIP-glide — блоки снизу дёргались,
+  при сворачивании трясло весь «Обзор». Правка: высота меняется одним шагом (убран transition grid-template-rows), остался
+  fade контента (opacity). Теперь overview-free делает один FLIP-glide — блоки ниже уезжают плавно.
+- Пункт 2 — прокрутка списка колесом. Было: один тик = мгновенный скачок ~100 px (замерено в браузере), строки 61–78 px →
+  «поквестовые» рывки. Правка: новый хук useSmoothWheelScroll на `.current-tasks-scroll` (когда scrollable) — колесо плавно
+  доводит scrollTop к цели (ease 0.22/кадр); на краях отдаёт прокрутку странице; трекпад (мелкие px-дельты) и телефон
+  (pointer: coarse) не трогает.
+- Пункты 3–4 — толщина/размер вкладок карт. Коммит 47575eef добавил колонку фильтра «Все/Задания/Устранения» перед плитками;
+  она (3 кнопки в столбик) оказалась выше плиток и тянула ленту с 51 до 57 px (замерено). Правка CSS `.map-priority-filter`:
+  height:0 + min-height:100% (столбец больше не задаёт высоту ленты — её задают плитки) + уплотнение кнопок (padding 0 7px,
+  line-height 1.3, gap 1px). Лента и плитки вернулись к 51 px, как до фильтра; фильтр и логика счёта сохранены.
+- Проверено в браузере (vite dev из worktree, встроенный браузер): профиль засеян 8 квестами Таможни в questInputs.manual
+  (dev-localStorage изолирован; без игрового профиля список «Текущих заданий» пуст). ПК 1024 и 1920: лента карт 51 px (было
+  57), плитки прежней толщины, фильтр читается. Раскрытие/сворачивание: блоки ниже встают с gap 14 px без наложения,
+  контейнер 942↔1093. Колесо: список плавно доходит до конца (317/319). Телефон 375×812: фильтр не рендерится (filterable=
+  false), ThumbScroll-список цел, хук неактивен (scrollable=false) — правки телефон не затрагивают.
+- Тесты: vitest src/overview + CurrentTasksPanel + MapPriority — 98 passed; расширенный прогон (+src/pages) — 136 passed,
+  1 падение DashboardPage «Отложить квест in English» (timeout 5 s) — flaky, падает и на чистом baseline без правок (англ.
+  каталог грузится дольше 5 s под нагрузкой), не связано. npm run typecheck (tsc -b) — чисто.
+- Не проверено: реальный Electron-клиент и реальный игровой профиль (проверено на засеянных dev-данных); покадровая плавность
+  анимаций в dev (rAF тормозится в фоновом пейне — проверены конечные раскладки и доведение прокрутки). playerNews/
+  updateHistory не трогал — это полировка интерфейса, не релиз.
+## 2026-11-25 — Claude: заявка 235 — «Показывать требования для выхода» (идея игрока, решение владельца)
+
+- Ветка claude/exit-reqs-235 от release/production a52d596a, коммит 1b560ae4. Не запушено, не выпущено.
+- Игрок: сигнальный патрон для выхода «Проход у ЛЭП» в «Требованиях рейда» путают с квестовым. Владелец (25.11.2026): «сделай в
+  настройках кнопку в интерфейсе „Показывать требования для выхода“».
+- «Настройки» → «Интерфейс» → «Показывать требования для выхода» (после «Уведомление о начале рейда»), по умолчанию ВКЛ — у всех
+  всё как было. ВЫКЛ: в «Требованиях рейда» на «Обзоре» (ПК и телефон, один и тот же блок) нет строк «Для выхода · …» — зелёного
+  сигнального патрона (РСП-30, в карточке 26x75) для каждого выхода карты, открываемого сигналом (raidprep/exitFlares.ts
+  exitFlareNeeds: «Проход у ЛЭП» на Лесу, «ЖД проход» на Таможне и т. п.). Остаётся всё, что нужно квестам, в том числе сигнал
+  квеста «Прекратить огонь!» (purpose signal), ключи, закладки, метки. Других требований «только для выхода» в этом блоке нет:
+  ключи/плата/рубильники выходов там никогда не показывались (они в карточках выходов на «Картах»), их выключатель не трогает.
+- Хранение: localStorage raidos-exit-requirements-v1 ('0'/'1'), событие raidos-exit-requirements-changed — обзор меняется сразу.
+  Между устройствами аккаунта — через «prefs» (EXIT_REQUIREMENTS_SYNC в PREFS, sync/playerStateStores.ts): сервер берёт любые
+  ключи prefs, его не меняли; старые версии приложения незнакомый ключ пропускают.
+- Тексты коротко: RU/EN (uiEnglishOverview.ts), подсказка «?» (settingHelpTexts.ts), остальные 9 языков — 3 фразы в
+  src/i18n/locales/*.json.
+- Файлы: src/raidprep/exitRequirementsSetting.ts (+ .test.ts) — новые; src/pages/DashboardPage.tsx, src/pages/ReferencePages.tsx,
+  src/sync/playerStateStores.ts, src/components/settingHelpTexts.ts, src/i18n/uiEnglishOverview.ts, src/i18n/locales/*.json (9);
+  тесты src/pages/DashboardPage.exitFlares.test.tsx, src/pages/SettingsPage.test.tsx, src/components/SettingHelp.test.tsx (строк 8 → 9).
+- Тесты: vitest затронутого (src/i18n, src/overview, src/raidprep, src/sync, SettingHelp, DashboardPage*,
+  SettingsPage, RaidToolsSettings) — 49 файлов, 354 passed; npm run typecheck (tsc -b) — чисто; eslint изменённых — только
+  старая ошибка «locale не используется» в SettingsPage (есть и в a52d596a). Полный vitest: 4737 passed, 13 failed — не от
+  правки: 6 известных машинных (linux/updater ×3, staleServer, appVersion, AdminPanelPage) + 2 скрипта вне гейта; appDelta,
+  AdminMobilePage «Стикеры», MapsPage.raidChecks проходят по одному; MapsPage.autoFloor ×2 и MapsPage.deferred ×2 упираются в
+  таймаут 5 с и на базе a52d596a без правок (проверено во временной копии, удалена).
+- Браузер (vite dev, встроенный браузер, живые данные): ПК 800 px — переключатель в «Интерфейс», вкл: на Таможне «Реактивный
+  сигнальный патрон РСП-30 (Зеленый) +1 · Для выхода · ЖД проход»; выкл: блок пуст («нет предметов…»); с текущим «Проверка на
+  вшивость» выкл — только «Ключ от спецтехники», вкл — ключ и патрон. Выбор пережил перезагрузку. Телефон 375 px: то же. EN —
+  подписи и подсказка по-английски, DE — подписи по-немецки. Хранилище тестового адреса после проверки очищено.
+- Не проверено: окно Electron, переход выбора на второе устройство вживую (проверен только адаптер prefs), приложения Android/iOS.
+- Строк в updateHistory/playerNews нет — они в коммите выпуска. Предложение для новостей (показать владельцу): «В настройках —
+  переключатель «Показывать требования для выхода»: сигнальный патрон для выхода можно скрыть из «Требований рейда»».
+- Риски: малые. Выключатель скрывает только строки «Для выхода»; новый вид требования выхода в будущем надо будет подключить к нему.
+## 2026-11-23 — Claude: item search by words (SJ1 / SJ12 not found)
+
+- Owner, 23.11.2026: a player's item search «не находит SJ1 боевой стимулятор и SJ12 боевой стимулятор». The items are
+  «Боевой стимулятор SJ1 TGLabs» / «…SJ12 TGLabs» (json.tarkov.dev items_ru; on the maps: Lighthouse, Labs, Labyrinth); every
+  search took the query as one piece, so another word order found nothing.
+- Branch claude/item-search-words from release/production 95398f05, worktree raidos-item-search. New src/shared/textSearch.ts
+  (+ test): every word of the query in the text, any order, a Russian word of 5+ letters without its ending, «ё» = «е»;
+  whatever the whole query found is still found. Used in the top search (AppShell), Барахолка, Предметы, «Рейтинг ценности»,
+  keys, trading, quest items, hideout, Cultist circle, keep list, quest-key stash, tier lists, weapon builds, crafts/barters
+  (economy.matchesSearch) and the map's «Найти точку…» (src/maps/mapSearch.ts).
+- Checked in the dev page: the top search «SJ1 боевой стимулятор» → SJ1 and SJ12; Барахолка «SJ12 боевой стимулятор» → SJ12,
+  «боевые стимуляторы» → SJ6, SJ9, SJ12, SJ1. tsc clean, eslint (warnings only, old).
+- Owner, 23.11.2026: «да» — into the next release (not released yet; release/production not pushed). News line proposed to the
+  owner: RU «Поиск: находит предмет при любом порядке слов, например «SJ1 боевой стимулятор»», EN «Search: finds an item
+  whatever the word order, e.g. «SJ1 combat stimulant»» — playerNews.json entry goes in with the release's version.
+- Owner, 23.11.2026: «Новость не пиши» — no playerNews line for the item search fix; it goes into the next release silently.
+
+## 2026-11-23 — Claude: «Оружейник. АК-105» without the stock, the Molot grip
+
+- A player via the owner (game screen + «на ак 105 стоит приклад и стоковая ручка, а нужно убрать приклад и ручка молот»;
+  owner: «Собери по скриншоту»). tarkov.help lists only the parts to buy (6Л31, ПБС-4, Бастион, Пилад 4x32, UTG 25мм), the app
+  put them on the AK-105's own preset, so its stock and grip stayed; the task's weight limit is 4.8 kg.
+- src/data/ownerGunsmithGuides.ts: the AK-105 task gets the Molot bakelite grip (59e6318286f77444dd62c4cc) and
+  `withoutSlots: ['mod_stock']` (new BuildGuide field, src/domain/types.ts); src/gunsmith/guideBuild.ts empties those slots,
+  GuideBuildBench / WeaponBuildDetails pass them. Same branch as the search fix (both for the next release).
+- Checked on the live catalog (a throwaway node test, removed): the guide build = ПБС-4, Бастион, UTG 25мм + Пилад 4x32,
+  6Л31, Молот бак., no stock; 4.51 → 4.17 kg without rounds. New tests: guideBuild.test.ts, ownerGunsmithGuides.test.ts.
+  tsc, eslint clean. Not checked on screen: the browser dev page cannot load tarkov.help (works in the app only).
+- Owner, 23.11.2026: «Да, в выпуск» — the AK-105 build goes into the next release with the search fix (not released yet).
+## 2026-11-25 — Claude: заявка 234, масштаб интерфейса не прыгает (ветка claude/display-scale-234, не выпущено)
+
+- Ветка `claude/display-scale-234` от `origin/release/production` a52d596a (0.6.0.344), рабочее дерево
+  `C:\Users\BANGKOK PC\raidos-display-scale`. Итоговый коммит `2266e999` (первый вариант `5edef2ab` «масштаб 1 везде»
+  отменён: он отменял решения владельца 11.10 и 14.11). Не запушено, не выпущено.
+- Заявка 234 (0.6.0.343, два монитора Full HD + один 2K): «иногда рендерится как бы в обычном HD». Скриншот: Full HD-экран,
+  интерфейс увеличен примерно в 1,35 раза. Уточнение владельца: масштаб меняется и при переносе окна, и от нажатия кнопок;
+  интерфейс не должен прыгать, увеличиваться или уменьшаться.
+- Причина (проверено опытом в Electron 44.4.5, скрытое одноразовое окно со своей папкой данных): Chromium хранит zoom из
+  `setZoomFactor` по адресу страницы, а у `file://` нет хоста — ключ = весь адрес с `#/раздел?параметры`; хранится и между
+  запусками в `Preferences` → `partition.per_host_zoom_levels` (в данных владельца — десятки адресов с уровнем 1,646 = ×1,35).
+  Кнопка меню (pushState) уводит на адрес с другим запомненным zoom (или без него — 1); первое же изменение размера
+  (развернуть, «На весь экран» в «Сборке оружия» и «Тире», перенос окна, смена DPI) прищёлкивает страницу к значению адреса:
+  на Full HD — 1,35 (скриншот), на 2K — 1. `followDisplayScale` сравнивал с этим значением адреса и часто не исправлял.
+- Исправление (`electron/uiScale.ts`, `electron/main.ts`): масштаб по монитору остаётся (формула `uiScaleFor` не менялась).
+  - Режим масштаба окна `isolated` (`webPreferences.zoomMode`): один zoom на окно, значения по адресам не действуют.
+    Окно открывается сразу в масштабе своего монитора (`zoomFactor: startZoom`).
+  - `pinInterfaceZoom` держит значение монитора после загрузок, переходов и Ctrl+колеса; щипок ограничен 1.
+  - Масштаб меняется только при переезде окна на монитор другого размера и при смене самих мониторов или их масштаба в Windows.
+    Монитор определяется по большей части окна с запасом 10 % (`monitorOfWindow`, без переключений на стыке). При перетаскивании
+    масштаб меняется только когда окно отпущено (`moved`). Переезд без перетаскивания (Win+Shift+стрелка, смена мониторов)
+    применяется, когда окно постоит 0,4 с. Пропорциональная подгонка размера окна — как была (`rescaledBounds`).
+- Тесты: `electron/uiScale.test.ts` — 16:
+  - формула;
+  - на одном мониторе переходы с изменением размера, развёртывание, «На весь экран», перезагрузка, Ctrl+колесо масштаб не меняют;
+  - мониторы игрока: Full HD → 1, 2K → 1,35;
+  - перетаскивание туда-обратно через стык с остановками — ни одного переключения, одно при отпускании (без защиты тест падает);
+  - три монитора 100/125/150 %, переезд клавишами, смена масштаба Windows и отключение монитора — по одному разу;
+  - старые 1,646 не действуют; `main.ts` открывает окно в `isolated`.
+
+  Вместе с windowState, noOverlay, ownerConfirm, ipcGuard, appUpdate.live — 49 passed. `npm run typecheck`,
+  `npx tsc -p tsconfig.electron.json --noEmit`, eslint по трём файлам — чисто.
+- Скомпилированный модуль в скрытом окне Electron (мониторы этого ПК 3440×1440 → 1,35 и 1920×1080 → 1, старые 1,35 в Preferences):
+  на Full HD 1,00 при переходах с изменением размера, Ctrl+колесе, перезагрузке, другой странице; перетащено на 3440×1440 и
+  держится 1 с — 1,00; отпущено — 1,35, окно 1502×930 → 2028×1256; там переходы и перезагрузка — 1,35; обратно без
+  перетаскивания — 1,00. Масштабы по порядку [1, 1,35, 1]; новых адресов в Preferences нет.
+- Не проверено: мониторы с разным масштабом Windows (здесь оба 100 %), окно собранного exe, настоящее перетаскивание мышью
+  (`will-move`/`moved` подставлены). Старые записи zoom в Preferences остаются (не действуют).
+- При выпуске: строка в `src/data/updateHistory.json`; новость игрокам — по решению владельца.
+## 2026-11-25 — Claude: заявка 233 — Отступники на Маяке: шале вместо очистных, старые турели очистных убраны с карты
+
+- Ветка `claude/rogues-233` от release/production a52d596a (0.6.0.344), рабочее дерево `C:\Users\BANGKOK PC\raidos-rogues`. Коммит
+  c5966fc3. Не запушено, не выпущено.
+- Что в игре (проверено 25.11.2026). Официальные патч-ноуты 1.1.5.0 от 8.09.2026 (escapefromtarkov.com/news/id/408): «Отступники
+  переместились с очистных сооружений к шале в горах», «На территории очистных сооружений больше нет стационарного вооружения», мины
+  с очистных удалены, по карте добавлены схроны Отступников, отношение Отступников к USEC изменено. Патчи после него — 1.1.5.1, 1.2.0.0,
+  1.3.0.0, 1.3.5.0 (news 409, 411, 416, 421) — Отступников не переносили и турели не возвращали. Вики EN «Rogues»: на Маяке «at the
+  chalets» (карта страницы обновлена 08.09.2026); вики RU ещё пишет «на водоочистной» (устарела). Диалог «Тумана войны» (вики EN):
+  Отступников выбили с очистных, они «holed up in the chalets». json.tarkov.dev (Last-Modified 25.11.2026 07:54 UTC, PvP/PvE/Сезон):
+  exUsecFree только Zone_Chalet (4 точки, группы 100/90/50/50 %) и Zone_Rocks (2 точки, 70 %), Knight — Zone_Chalet; но
+  stationaryWeapons Маяка — прежние 8 на очистных (6 «Утёс», 2 АГС-30), их там не обновляли. SPT `E:\SPT` (08.2026, до патча, только
+  чтение): exUsec — Zone_Blockpost/Roof*/Treatment*/Hellicopter, 8 staticWeapons — старая картина; BotZone Zone_Chalet x −145…−62,
+  z −136…+20 (курорт Pikes Peak), Zone_Rocks — склон с верхним шале и теннисным кортом. Надёжного источника о турелях в шале нет
+  (гайд timesaver пишет о «mounted positions» без мест) — в шале турели не ставил.
+- Что было у игроков (0.6.0.343/344): на сервере `map_boss_placements` три ручные точки Отступников на очистных от 04.10.2026, режим —
+  все: `c0a6ec0faa17c27a2709238d` (x −188.8, z −618.5, цех 3), `52373c8e36913e81b3f35769` (x 20.8, z −444.5, пулемётное гнездо),
+  `a485f9d84bdaa67f2719bccd` (x −73.1, z −725.8, цех 2). Ручная точка заменяет автоматические маркеры Отступников на всей карте — все
+  игроки видели их на очистных. Плюс 8 маркеров «Станковое оружие» tarkov.dev на очистных. Фильтр зон Отступников «только chalet»
+  выбрасывал Zone_Rocks. Тексты: «держат укреплённые позиции со стационарными АГС», у Кочевников «очистные на Маяке», в заметке
+  «Тумана войны» «где стоят отступники… стреляют без предупреждения».
+- Код: `src/data/mapMarkerAdapter.ts` — область очистных Маяка (x −260…120, z −800…−420: внутри все метки станции, все старые зоны
+  Отступников и все 8 турелей, шале и деревня далеко снаружи): точки Отступников там и старые зоны по имени не рисуются, остальные
+  рисуются (вернулся Zone_Rocks); стационарное оружие Маяка на очистных не рисуется. `bossSpawnSupplement.ts` — запасная точка Кочевников
+  на Маяке: курорт Pikes Peak (шале) вместо очистных. `bossInfo.ts` — Отступники: база — шале с 1.1.5.0, есть и на Ледоколе, оружие по
+  вики, источник — патч-ноуты. `bossTactics.ts`/`bossTacticsEn.ts` — Кочевники: «шале на Маяке». `curatedQuests.ts` — «Туман войны»:
+  очистные — бывшие позиции Отступников. Три изменённые английские фразы переведены в `src/i18n/locales/*.json` (9 языков). Тесты:
+  `bossSpawnSupplement.test.ts` (живые зоны 25.11 → 2 маркера в шале, ничего на очистных, во всех режимах), `mapMarkerAdapter.test.ts`
+  (8 турелей очистных не рисуются, на другой карте те же места остаются).
+- Результат на живом файле tarkov.dev (все три режима): Отступники — 2 маркера: x −123.6 z −132.7 (юг шале, «Chalet») и x −81 z 19.3
+  (север шале и скалы над теннисным кортом, «Chalet, Rocks»), 100 %; стационарного оружия на Маяке 0 (было 8). На карте tarkov.dev те же
+  точки стоят у меток «Pikes Peak Resort», «Grand Chalet», «Tennis Court».
+- Сервер (НЕ писал, только чтение). Владельцу: удалить три ручные точки Отступников на Маяке (id выше) — приложение владельца →
+  «Карты» → Маяк → «Расставить боссов» → у каждой «Удалить» (`POST /v1/accounts/me/admin/map-bosses/<id>/remove`, пишется в журнал
+  владельца). Тогда у всех игроков (опрос раз в 10 мин) появятся автоматические маркеры в шале — и в выпущенной версии. Если нужны именно
+  ручные точки: после удаления поставить две «Отступники» без режима, x −123.6 z −132.7 и x −81 z 19.3 (пакетом
+  `POST /v1/accounts/me/admin/map-bosses/batch`), но тогда пропадут названия зон и шанс по режимам. Остальное на Маяке (Зрячий,
+  Кочевники x −53.5 z −147.2 у шале, скрытый Партизан, BEAR в PvE) не трогать.
+- Как дойдёт до игроков: маркеры карт и тексты квестов собирает сервер (`server/src/services/catalogService.ts` → `fetchLiveCatalog`),
+  поэтому турели и заметка «Тумана войны» — с деплоем API в окне выпуска; описание в галерее и тактика Кочевников — с новой версией клиента.
+- Тесты: vitest src/data src/i18n src/maps src/gallery — 802 passed; полный vitest — 4746 тестов, упали 10, и все
+  машинные: linux/updater ×3 (tar), staleServer, appVersion, AdminPanelPage (CRLF), два файла скриптов без набора тестов,
+  и 4 теста MapsPage по таймауту 5 с (на базе a52d596a тоже падают по таймауту; с --testTimeout=30000 все 13 проходят); npm run typecheck —
+  чисто; eslint изменённых файлов — чисто; npm run server:test — 618 из 619, упал background.test.ts «quest base follow» (таймер
+  под нагрузкой; отдельно 8 из 8).
+- Не проверено: окно приложения (не запускал), телефон; турели в шале (если они там есть — ни один источник не даёт мест); снаряжение
+  Отступников в `bossLoadout.ts` (G28, ПКП «Печенег») с вики не сверял — патч его не менял.
+- updateHistory/playerNews не трогал — строки идут с релизным коммитом. Для истории: «Маяк: Отступники — у шале на склоне горы (патч
+  1.1.5.0), старые турели очистных убраны с карты, описания обновлены».
+## 2026-11-25: Claude, кабинет стримера и выручка грязными/чистыми (+ заявки на вывод, уведомления)
+
+- Статус: completed локально; ветка `claude/revenue-net` (worktree raidos-revenue, от origin/release/production). НЕ запушено, на сервер только чтение.
+- Коммиты: `71e608f9` (сервер+shared: net, созревание 14 дней, уведомления), `27c5823d` (комиссии ЮKassa по способу оплаты), `812c8732` (клиенты: сайт+приложение), + эта запись.
+- Единое место расчёта — `src/shared/revenue.ts`: `PROVIDER_FEE_PERCENT` (ЮKassa по способу: sbp/tinkoff_bank 3.5, bank_card/sberbank 4.27, default 3.53; bezebee 5; boosty 0 — «архив, неизвестно»), `USD_RATE`=84.43 / `EUR_RATE`=92.59 (на будущее — все платежи сейчас в рублях), `PAYOUT_MATURITY_DAYS`=14, `netRevenue()`. Владельцу вписывать проценты/курс только здесь.
+- Выручка грязными/чистыми за сегодня/месяц/всё время: `adminStore.overview` (сервер) группирует по (провайдер, способ); показ в website `AdminSummary` (сайт и ПК-приложение через SiteAdminSummary) и `src/admin/AdminMobilePage` (телефон). Чистыми = грязными − доля стримеров − комиссия по способу.
+- Дубль «повторно» убран: в блоке «За всё время» оставлен «Оплатили повторно» (люди), «Повторных» (оплаты) — только в карточках сегодня/месяца.
+- Заявки на вывод (расширение существующего `payoutStore`/`routes/payouts`): правило 14 дней — к выводу только заработок с платежей старше 14 дней, возвраты исключены (`streamer_earning=0`); в кабинете «к выводу/получено/в заявке/зреет»; красный счётчик непрочитанных заявок на вкладке «Стримеры» (website `AdminPage` usePayoutAttention, `src/admin/SiteAdminSummary`, `AdminMobilePage`); новый `GET /me/admin/payouts/attention`.
+- Кабинет стримера: «Оплатили» + сумма оплат приглашённых, доля, напоминание о скидке 20% на 1 месяц (текст уже был, проверено: streamer-код реально даёт 20% на первый месяц — `invites.FRIEND_DISCOUNT_PERCENT`) и о 14 днях; «Скопировать код»/ссылку; «Скачать приложение». Панель — серверно-гейтед по `kind='streamer'`, БЕЗ отдельной сборки exe.
+- Уведомления стримера: `GET/POST /me/streamer-notifications` (новая оплата по ссылке, проведённая владельцем выплата) + бейдж у ника в профиле приложения (`StreamerPanelButton`); «Оплачено» владельца становится уведомлением «выплата проведена».
+- ВНИМАНИЕ: стримеру теперь виден агрегат оплат приглашённых («на какую сумму») — это отменяет правило 30.10.2026 «не показывать суммы зрителей». Сделано по слову владельца 25.11.2026 — подтвердить.
+- Тесты: сервер node:test (14 дней, net с примером, счётчик заявок, уведомления) — затронутые 53/53 зелёные; vitest `src/shared/revenue.test.ts` (формула), `src/account/StreamerCabinetPanel.test.tsx` (оплатили/сумма, 14 дней, бейдж), website `adminSummary.test.tsx` (net + без дубля).
+- `npm run typecheck`, `npm --prefix server run typecheck`, `npm --prefix website run build` — чисто. Браузерная проверка (vite dev + локальный сервер на демо-данных, код BULLDOZER): админ-выручка грязными/чистыми за 3 периода, без дубля, счётчик «Стримеры»=1; кабинет стримера с оплатами/суммой/14 днями отображается.
+- Не проверено/риски: ЮKassa % владелец ещё подтверждает (вписаны по его данным), `USD_RATE` уточняется; полные наборы тестов и e2e не гонялись (только затронутое); Electron-приложение вживую не запускал (покрыто типами и vitest). На сервер не писал, ветку не пушил.
+
+## 2026-11-25 (вечер): Claude, реквизиты вместо автовыплаты, кабинет 0%-стримера, окно по стримеру
+
+- Статус: completed локально; ветка `claude/revenue-net`; коммиты `07d30106` (сервер), `827f35f8` (клиенты). НЕ запушено, на сервер только чтение.
+- Автовыплата убрана полностью. Сервер: `payoutStore` без `runAuto`/лимитов интервала; `index.ts` её не тикает; `saveSettings` сохраняет только реквизиты и сбрасывает старый `auto`=0 — сервер сам заявок не создаёт. Маршруты: нет `PUT /me/admin/payout-limits` и поля `limits`; `PUT /me/payout-settings` принимает `{ phone, bank, recipient }` (валидируется). Кабинет (сайт `StreamerPayouts`, приложение `StreamerCabinetPanel`): только реквизиты — Получатель / Телефон / Банк, их заполняет стример. Кнопка заявки по-прежнему просит сперва заполнить реквизиты.
+- Стример 0 % («только статистика») закрыт НА СЕРВЕРЕ: его `me` без `revenue`/`payers` (старый вид), ручки `/me/payouts`, `/me/payout-settings`, `/me/streamer-notifications` отдают 403 (`accountStore.payoutStreamerCode` — код только при доле > 0). Клиент показывает прежний кабинет: без сумм зрителей, доли, выплат, реквизитов, уведомлений и бейджа «Панель стримера», и без кнопки «Скачать приложение». Стример с долей > 0 (BULLDOZER) видит всё новое. Поднимут Шилину долю — новый кабинет появится сам, без отдельного переключателя.
+- Владелец видит всё по каждому стримеру, включая суммы стримера с долей 0 % (ограничение 0 % — только в кабинете самого стримера, не в админке). Вкладка «Стримеры» (сайт `OwnerAdmin`, ПК через `SiteAdminSummary`, телефон `AdminStreamersSheet`): итог подписан «Все стримеры»; у каждого в строке красный счётчик его заявок; при раскрытии — окно по стримеру: выплаты (получено / к выводу / в заявке / зреет 14 дней), реквизиты (получатель / телефон / банк), его заявки с «Выплачено» / «Не оплачено», плюс статистика и настройки (доля / ссылка / снять). Общий список заявок убран — заявки живут в окне стримера. `accountStore.streamers()` отдаёт на стримера баланс + реквизиты + счётчик; шлюзы пропускают `/me/streamer-notifications` и `/me/admin/payouts/attention`.
+- Браузер (локальный сервер, 2 стримера: с долей 15 % и с долей 0 %): у владельца окно BULLDOZER с выплатами / реквизитами / заявкой и «Все стримеры» (итог 51 000,01 ₽), у Шилина владелец видит выручку 17 666,67 и начисления 0; кабинет Шилина — старый вид без сумм, выплат и «Скачать приложение»; сервер отдаёт Шилину 403 на выплаты/уведомления и `me` без revenue/payers.
+- Тесты: сервер node:test (реквизиты валидируются и видны владельцу; 0 % ничего не получает, его `me` как прежде; 15 % — всё; автовыплата и лимиты убраны) — затронутые зелёные; клиент vitest (кабинет 0 % / 15 %, телефон «Стримеры» решает заявку). typecheck сервера/приложения и `npm --prefix website run build` — чисто.
+- Не проверено/риски: полные наборы тестов и e2e не гонял; Electron вживую не запускал (покрыто типами/vitest); на сервер не писал, ветку не пушил.
+## 2026-11-25 — Claude: заявка 236, «Найти ключи» находит чужие ключи («Ключ РБ-СТ»)
+
+- Ветка `claude/key-scan-236` от release/production a52d596a, рабочая копия `C:\Users\BANGKOK PC\raidos-key-scan`.
+  Коммит 477e9ddc. Не запушено, не выпущено, сервер не трогал (каталог ключей с VPS взят только чтением).
+- Владелец 25.11: «запусти SPT… все ключи в схрон… научись правильно находить ключи», «Все ключи в СПТ должны быть
+  изучены, и только потом начинай поиск».
+- SPT (E:\SPT, 4.1.6, клиент 0.16.9): схрон профиля RaidOSPhoto очищен (149 предметов), в него положены все 241 ключ и
+  ключ-карта базы SPT без выборки, все отмечены изученными (без этого игра пишет «???»). Снят на трёх положениях прокрутки
+  (верх, середина, низ) и с подсказкой ключа, русский и английский клиент; каждый из 241 ключа виден хотя бы на одном
+  кадре, раскладка — из окон самой игры. В воркер RaidOsPhoto добавлены шаги ui: wheel, scroll, items, hoverat, tipat
+  (Worker.cs.bak-keyscan-20261125, worker.dll.bak-keyscan-20261125 рядом). Скрипты и замеры: E:\SPT-photo\keyscan.
+- Причины «РБ-СТ» и подобного: (1) ноль в шрифте игры перечёркнут (Ø), чтение пишет 8, 6, 2, @ — «Общ 110» становился
+  настоящим ключом «Общ 118», «Общ 103» — «Общ 105» (на кадре заявки до исправления: 2 ложных из 4); (2) сопоставление
+  поиска схрона брало слово или «почти совпавший» кусок строки, и короткие коды с дефисом находились внутри чужих
+  прочтений: «Hoc 33.» → «С-3», «РБ-ПЕП2» → «РБ-ПП», «АЗС офис» → «Офис». «РБ-СТ» у игрока — этот же механизм.
+- Исправлено: labelScan — из нуля убирается черта перед чтением; labelReader — мелкие подписи (1080p) читаются крупнее
+  и жирнее (1440p как было); quests/keyMatch.ts — своё сопоставление для ключей: строка целиком (или две подписи соседних
+  ячеек), цифры должны совпасть, буквы — с одной ошибкой; подпись, которую носят несколько ключей или другие предметы
+  («Сейф», «Авто», «Завод»), начало чужой подписи («Офис»), и цифры, которые чтение путает (8/0, 5/3: «Общ 118»/«Общ 110»),
+  по одной подписи ключ не дают — только полное имя в подсказке.
+- Замеры на кадрах (src/quests/__fixtures__, таблица всех ключей key-scan-table.md), русский, 229 ключей каталога:
+  верно 104 → 149, ложно 16 → 0, пропуск 109 → 80 (из них 35 по замыслу: общая подпись, другая подпись в SPT,
+  спутываемые цифры). По кадрам ложных до: 5, 7, 4, 3, 4 и 2 на кадре заявки; после — 0 везде. Английский (только после):
+  ложных 0, найдено 128 из 229. Кадр заявки 236: найдены 110, 103, 203, 303, «РБ-СТ» нет.
+- Нет в SPT 0.16.9, но есть в каталоге приложения: 30 ключей (RFID Круглова, ключи А.П., «Борей», Пирс, Почта Руси и др. —
+  список в key-scan-table.md). В SPT есть, а в каталоге нет: 12 старых/отключённых («Спецтех» старый, «ЧернаяКК», «Ключ 2/3/5»,
+  «Санаторий», «Сувенир», «ПКейс», «Quest test key», 3 без подписи) — все положены и сняты; на русских кадрах ни один не принят
+  за чужой ключ («Спецтех» найден как ключ приложения с той же подписью), на английских отключённая «Black KC» прочитана как
+  «Black» (настоящая ключ-карта; такой подписи в живой игре нет).
+- Тесты: vitest src/kappa src/stashScan src/quests src/import — 62 файла, 659 passed (1 skipped как было); новые
+  keyScanFrames.test.ts (настоящее чтение на 8 кадрах) и keyMatch.test.ts; stashLabels (Каппа, 1440p) проходит;
+  npm run typecheck, tsc -p tsconfig.electron.json --noEmit, eslint изменённых файлов — чисто.
+- SPT оставлен: клиент и сервер закрыты, язык клиента снова «ru», tour.json воркера возвращён (тур Маяка на паузе),
+  go.flag нет, моя отметка GAME-BUSY убрана. В схроне профиля остались 241 ключ (по слову владельца). Копия профиля до
+  изменений: E:\SPT-photo\backup\profile-before-keyscan-20261125.json; Game.ini до английского —
+  E:\SPT-photo\backup\Game.ini.before-keyscan-en-20261125. Чужая отметка GAME-BUSY-gun-parts-reshoot.txt (10:47) лежит
+  до сих пор, хотя та съёмка закончена — не трогал.
+- Риски: подписи 1080p читаются ещё плохо (45 ключей с различимой подписью не нашлись ни на одном русском кадре: буквы
+  рвутся, картинка ключа под подписью); мелкие подписи теперь крупнее — чтение кадра 1080p дольше примерно в 1,6 раза;
+  черта нуля убирается во всех поисках по экрану (Каппа, синхронизация) — тест Каппы проходит, но живой схрон 1080p
+  не проверен. В окне приложения не проверено. К выпуску: строка в updateHistory.json (поиск ключей).
+## 2026-11-25 — Claude: доступ к админ-панели и кабинету стримера решает только сервер (ветка claude/authz-audit, не выпущено)
+
+- Ветка `claude/authz-audit` от `claude/release-345` 3da4897a, рабочая копия `C:\Users\BANGKOK PC\raidos-authz`.
+  Коммит `6410c258`. Не запушено, не выпущено; на VPS ничего не менялось, секреты окружения не читались.
+- Поручение владельца (25.11.2026): «при подмене ссылок в браузере, либо подмене кода в браузере, никто не смог зайти в
+  админ-панель и в личный кабинет стримера… проверь все способы обхода».
+- Как решает сервер:
+  - Владелец — только `AccountStore.isOwner` по аккаунту сессии: почта в `TARKOV_OWNER_EMAILS` и подтверждённая почта
+    (или `email_grandfathered`).
+  - Стример — `accounts.kind = 'streamer'` и `referral_code` из базы. Статус дают только CLI `promote` и одноразовая
+    ссылка владельца (24 случайных байта).
+  - Сессия — случайный токен (32 байта) только из `Authorization: Bearer`; в базе SHA-256, срок, блокировка, выход.
+  - Заголовки (X-Owner/X-Admin/X-Role, X-Forwarded-*, Origin/Referer, User-Agent), query, тело, cookie на права не
+    влияют: поиск по коду и тесты.
+- Пройдено:
+  - Все ручки `/v1/accounts/me/admin/*` в 27 файлах маршрутов: проверка владельца стоит до данных (401 без входа,
+    404 остальным).
+  - `/v1/admin`: только прямой запрос на этом ПК и токен ≥32 символов.
+  - Кабинет стримера (`/me/referral-stats`, `/me/referral-campaigns`, `/me/payouts`, `/me/payout-settings`): код и id
+    берутся только из сессии. Решение «Выплачено» — только владелец.
+  - Админки сайта, ПК и телефона вызывают те же ручки; шлюз приложения добавляет только Bearer сессии.
+  - Вход: пароль (10 попыток с адреса за 15 мин, 10 неудач на почту в час, бан «Стража» за перебор по многим почтам);
+    коды из письма (5 попыток на код, 10 неверных на адрес в сутки); SMS (владельцу запрещены); Google (подпись,
+    получатель, срок, `email_verified`, почты владельца отклоняются); QR-вход (только подтверждение из своей сессии).
+  - Загрузки игроков — только PNG/JPEG/WebP по байтам, с `nosniff`; вставок HTML с данными игроков в интерфейсе нет.
+  - Cookie нет, CORS без учётных данных.
+- Найдено и закрыто (`6410c258`). Express сопоставляет маршруты без учёта регистра и с «/» в конце, а три проверки
+  сравнивали путь как есть. Тест до правки проходил обход:
+  1. Проверка платного содержимого (`PAID_CONTENT_PATH`, `app.ts`): `/v1/ME/progress/pvp`, `/v1/QUEST-POINTS`,
+     `/api/V1/…` отдавали данные без подписки и без проверки устройства. Теперь путь сверяется в нижнем регистре.
+  2. Аудит старых действий владельца (`ownerAdmin.ts`: приглашение стримера, решение по выплате): при другом написании
+     адреса действие выполнялось без записи. С украденной сессией владельца это шло бы без следа. Теперь путь сверяется
+     так же, как его сопоставляют маршруты.
+  3. «Страж» (`securityGuard.ts` `LOGIN_PATHS`) не считал неудачные входы по `/v1/accounts/LOGIN`: бан за перебор
+     паролей не наступал (ограничения в самом входе действовали). Теперь регистр не важен.
+- Тесты: `server/src/routes/authzBypass.test.ts` (12, внесён в `server/package.json`):
+  - все ручки владельца — без входа / игрок / стример с поддельными заголовками, полями в query и разными написаниями пути;
+  - 28 действий владельца от чужих — 404, ничего не изменилось, журнал аудита пуст;
+  - стример ALPHA с кодом и id BRAVO в пути, query и теле видит и меняет только своё, свою заявку «Оплачено» не ставит;
+  - массовое присвоение при регистрации и в профиле;
+  - почта владельца в другом написании (регистр, пробелы, +метки, точки Gmail, googlemail, знак Кельвина, похожие
+    буквы) — при регистрации, «Изменить e-mail» и Google;
+  - поддельные, изменённые, просроченные, отозванные токены и токены вне `Authorization`;
+  - чужой Origin и cookie;
+  - коды из писем открывают только свой аккаунт;
+  - три закрытые дыры.
+- Боевой сервер (только анонимные GET, около 30 запросов с паузой 1 с):
+  - ручки админки и кабинета — 401 и только текст ошибки, с поддельными заголовками и в другом регистре тоже;
+  - `/v1/admin/*` — 404, с `X-Forwarded-For: 127.0.0.1` тоже;
+  - `/health/detail` — 404;
+  - `/health` отдаёт версию API 0.3.0 и флаги (сведений о сборке нет).
+- Сайт собран (`VITE_API_URL=/api`): в бандле нет ключей, токенов, почты владельца, адреса VPS и путей сервера, карт
+  исходников нет. Есть публичная почта поддержки и Google client ID (публичный). Гость на `/admin` видит вход или пустую
+  оболочку — данных сервер не отдаёт.
+- Приложение: клиентская сборка без почт владельца, редакция зашита в asar. Локальный сервер — своя база, случайный
+  `ADMIN_TOKEN` на процесс, без ключей владельца; прав на raidos.app не даёт.
+- Проверки: server `npm test` 630/631 — упал только известный Windows-only `supportChat.test.ts` «screenshots…»
+  (ECONNRESET, отдельно 2 из 3 прогонов зелёные). Server tsc, `npm run typecheck`, eslint по изменённым файлам — чисто.
+- Осталось, нужно решение владельца:
+  - **Заранее занятая почта.** Пока регистрация не подтверждает почту (`REGISTRATION_EMAIL_CODE = false`), можно
+    зарегистрировать чужую почту со своим паролем. Если хозяин почты потом войдёт через Google или по коду из письма, он
+    попадёт в этот аккаунт, а у зарегистрировавшего останутся пароль и сессии (проверено). Опасно для будущего стримера:
+    реквизиты выплат. Почты владельца не касается.
+    Варианты: вернуть код при регистрации; или при первом подтверждении почты (Google, код) завершать прочие сессии и
+    сбрасывать пароль — игроку, который сам регистрировался с паролем, придётся один раз восстановить пароль.
+  - **nginx на VPS.** В `location = /health` нет `X-Forwarded-For`, и API считает такой запрос местным. Сейчас это даёт
+    только версию; добавить заголовок, как в `/v1/` (образец `ops-reference/nginx-raidos-reference.conf`).
+  - **Вход владельца.** Второй фактор (TOTP). Сейчас подбор ограничен 10 неудачами в час; ими же можно на час закрыть
+    владельцу вход по паролю (код из письма и открытые сессии работают).
+  - **Сессии владельца** живут 90 дней от последнего использования (до 50). Потерянное устройство закрывать «Выйти на
+    всех устройствах».
+  - **QR-вход:** владельцу не подтверждать коды, которые он не открывал сам (показываются сеть и страна).
+  - **`TARKOV_OWNER_EMAILS`:** держать только свои действующие адреса.
+  - `local-server:set-enabled` зарегистрирован и в клиентской сборке (`electron/main.ts`). Прав на сервере это не даёт,
+    но можно закрыть по редакции.
+- Ветка `claude/revenue-net` (07d30106, 827f35f8, c9e0a826) прочитана, не изменялась. Дыр в правах нет:
+  - уведомления стримера и «прочитано» — код из сессии и `payoutStreamerCode` (доля > 0, решает сервер);
+  - `/me/admin/payouts/attention` и данные выплат каждого стримера в `/me/admin/streamers` — только владелец;
+  - `PUT /me/payout-settings` пишет только свой аккаунт.
+  Замечания:
+  - при слиянии с этой веткой оба меняют `ownerAdmin.ts` рядом с `AUDITED` (разные участки);
+  - в тесты добавить отказ стримеру (не только игроку) на `/me/admin/payouts/attention` и `/me/admin/streamers`;
+  - строки `/me/referral-stats` стримеру с долей по-прежнему без выручки, а `/me` её показывает (не утечка, разнобой);
+  - в сообщении коммита 827f35f8 названы стримеры поимённо.
+
+## 2026-11-25 — Claude: выпуск 0.6.0.345 (одним обновлением, по слову владельца)
+
+- Ветка `claude/release-345` от `release/production` a52d596a (0.6.0.344). Влиты: claude/install-update («Приложение обновляется»),
+  claude/train-ui (значок бронепоезда, отсчёт, «возможно, приехал»), claude/nickname-ocr (ник J0ss_Kat60), claude/raid-countdown
+  (+ claude/phone-jitter: «До конца рейда» во «Время в Таркове», «Обзор» на телефоне не дёргается), claude/overview-polish,
+  claude/exit-reqs-235, claude/display-scale-234 (масштаб по монитору без скачков, режим isolated), claude/rogues-233,
+  claude/item-search-words (одобрено владельцем 23.11, не выходило: поиск по словам без новости, «Оружейник. АК-105» без приклада,
+  рукоять «Молот»), claude/revenue-net (кабинет стримера, реквизиты вместо автовыплаты, доля > 0 — новый кабинет, окно каждого
+  стримера в админке, выручка грязными/чистыми), claude/key-scan-236 (все 241 ключ SPT изучены, затем поиск: 0 ложных),
+  claude/authz-audit (три обхода по регистру адреса закрыты, 12 тестов обхода). Свои правки: окошко «Добавить в наличие» /
+  «Нет в наличии» прямо у ключа (левая и правая кнопка), «АК-105» в manualQuests.json, тест оплат под правило доли, тестовые
+  стримеры с долей в authzBypass, обезличены код и цифры стримера в тестах и журнале (репозиторий публичный).
+- Версия 0.6.0-345; строка updateHistory с `"reports":[233,234,235]` (закроются сами, когда версия станет живой); новость на 11
+  языках (6 строк, без номеров заявок; поиск по словам без новости).
+- Телефон: 0.6.0-344.1 не вышел (проверка не приняла пятую цифру, versionCode Android её не вмещает) — исправление «Обзора» на
+  телефоне едет с 345 (ios-ipa.yml собирает телефон и на release/production).
+- После выпуска: удалить на сервере три ручные точки Отступников на очистных (map_boss_placements c0a6ec0f…, 52373c8e…,
+  a485f9d8…), с копией строк; заявка 236 уже закрыта «Разъяснено».
+- Проверки до пуша: npm run typecheck, tsc electron, server typecheck, server test (известный сбой чата на Windows), сборка сайта,
+  полный vitest (известные машинные сбои и таймауты под нагрузкой, перепроверены по отдельности).
+
+## 2026-11-25 17:30 — Claude: 0.6.0.345 живая
+
+- Шлюз «RaidOS Production Gate» 45588590533 зелёный (17:02); выпуск запущен вручную по слову владельца
+  (`systemctl start --no-block raidos-release.service`): `{"release":"success","commit":"aa551548…","build":1795601407921,
+  "databaseReplaced":false}`; /download/version.json — 0.6.0-345, /api/health ok, сайт показывает 0.6.0.345.
+- Телефон: «RaidOS iOS IPA» успешно, релиз mobile-v0.6.0-345, сервер забрал (Android version.json 600345).
+- Заявки 233, 234, 235 закрыты сервером сами в 17:27 (report_release_closes, «Выпуск 0.6.0.345»), авторам ушли уведомления.
+- Маяк: три ручные точки Отступников на очистных (от 04.10) удалены через MapBossStore.remove; копия строк —
+  /var/lib/raidos/backups/rogue-points-lighthouse-1795601791275.json. Автоматические маркеры — шале.
+- Решения владельца (не сделано): почта, занятая до подтверждения (код при регистрации или сброс сессий/пароля при первом
+  подтверждении); X-Forwarded-For в nginx для /health; второй фактор входа владельца; почта стримера в старой записи журнала
+  (30.10) в публичном репозитории — убрать совсем можно только переписав историю; строгость поиска ключей по подписи.
+
+## 2026-11-25 19:10 — Claude: смена ника не сбрасывает прогресс; ник читается по форме знаков (ветка claude/nickname-346)
+
+- Ветка `claude/nickname-346` от `claude/release-345` (498c8504: 0.6.0.345 и запись журнала), рабочее дерево
+  `C:\Users\BANGKOK PC\raidos-nickname-ocr`. Не запушено, не выпущено.
+- Владелец (25.11.2026): «При смене ника не нужно сбрасывать прогресс». Коммит 4c7338b4: сброс режима при новом нике (экран
+  «Выбор профиля и режима» и «Сменить ник») убран целиком: nicknameChange.ts удалён, причина 'nickname' убрана из
+  resetModeProgress / wipeModeProgress / floorAfterReset и уведомлений, подпись «Новый ник сбросит весь прогресс режима»
+  убрана. Старые метки 'nickname' в профилях по-прежнему закрываются сбросом игры в логах. До 345 включительно неверно
+  прочитанный ник (ноль с чертой как «2», обрезанная первая буква) после двух чтений за 10 минут сбрасывал прогресс режима
+  (проверено пробой на noteConfirmedNickname).
+- Чтение ника — доделка заявки владельца от 25.11 («научись правильно читать, разделять, где цифра, а где буква»); в 345 не
+  доделано: на скриншоте владельца 345 давала ник с «O» и «2» вместо нулей или не брала ник. Коммит этой записи:
+  1. `src/import/nameGlyphs.ts` checkNameGlyphs: каждый знак ника проверяется по форме (inkParts / classifyDigit из
+     levelDigits.ts): перечёркнутый ноль — цифра «0», что бы ни прочитал Tesseract («O», «2», «a», «G», «d», «8»); цифра —
+     цифра по форме; «0» на круглой букве без черты — «O» / «o». Буквы по форме не угадываются. `zeros` — что доказано.
+  2. `nameLineBox` (modeSelectScreen.ts): строка «ник | уровень» находится по пикселям (белые буквы ярче фона) и вырезается
+     плотно; крупный план — из кадра в родном разрешении (GameFrame.full: экран 1440p / 4K для этой вырезки больше не
+     уменьшается до 1080p; electron/screenOcr.ts closeUpSource, nameLineRect). Широкая вырезка 345 брала арт и читала мусор.
+  3. Подтверждение: проверенный крупный план совпадает с полным проходом с учётом путаниц шрифта (looseNickname);
+     screenNickname: доказанный ноль побеждает известное написание с буквой O, остальное — известное написание.
+  4. Экран торговцев: та же проверка знаков для ника «(вы)».
+- Проверка на скриншоте владельца (в репозиторий не кладётся): экран 1080p, 1440p, 4K, карточка в трёх местах, два способа
+  уменьшения кадра — 18 из 18: ник верный (со вторым кадром), уровень 25. Версия 345 на тех же кадрах: 0 из 6.
+- Публичный репозиторий: настоящий ник игрока, попавший в 345 (тест, журнал), заменён выдуманным «J0ss_Kat60»; в описаниях
+  коммитов 1eff46b5 и fa4eb584 он остаётся (убрать — только переписав историю, по слову владельца).
+- Тесты: nameGlyphs.test.ts (шрифт игры из levelDigits.json и нарисованные O / o / 0), modeSelectScreen.test.ts (строка по
+  пикселям, подтверждение, написание), nicknameNoReset.test.ts; vitest src/import, src/account, src/state, src/quests,
+  src/kappa, src/domain и сканеры — 918 passed; electron ocrEngine / ocrPicture / ocrQueue — 16 passed; npm run typecheck и
+  tsc electron чисто; eslint по изменённым файлам чисто.
+- Не проверено: живой экран игры и собранное приложение (не запускались). Выпуск 0.6.0.346 — только по слову владельца,
+  строки «Новостей обновлений» сначала показать ему.
+- Выпуск подготовлен локально (ветка `claude/release-346`, не запушена): версия 0.6.0-346 (package.json, package-lock.json,
+  website/src/config.ts), строка «Истории обновлений» без номеров заявок, «Новости обновлений» — две строки на 11 языках
+  (смена ника не сбрасывает прогресс; ник читается точнее, 0 не путается с O). Ждёт слова владельца на новости и выпуск.
+  appVersion.test на этом ПК падает из-за %20 в пути (известный машинный сбой).
+
+## 2026-11-25 22:30 — Claude: обновления только частями, установщик не по кругу (ветка claude/updates-in-parts)
+
+- Владелец (25.11.2026): «почему у нас каждый раз скачивается установочный файл», «нужно что бы приложение установилось
+  один раз после этого не нужно предлагать установить заного, только частичное обновление внутри приложения»,
+  «следующее обновление выпускай частичным обновлением».
+- Журнал nginx (только счётчики): до 24.11 приложения качали RaidOSSetup.exe 2–9 раз в день, частями обновлялось
+  ~170–240 адресов в день; 24.11 — 179 скачиваний установщика приложением (135 адресов), 25.11 — 162 (120 адресов), частями
+  56. Из 120: 96 запросили /app-delta/info.json и сразу пошли за установщиком (частей не брали), 30 скачали его 2+ раз за
+  день; из вчерашних 135 сегодня снова качали 28. Установленная копия проверяет каждые 5 минут: version.json → info.json →
+  setup.json → установщик.
+- Причина в коде: deltaMismatch требовал точного совпадения ВСЕХ файлов рядом с архивом; 24.11 в выпуск добавлены языки
+  распознавания (tessdata 9 файлов) — все копии без них пошли за установщиком; установленная копия при любом «нет частей»
+  (не опубликованы, подпись, сбой загрузки) качала установщик, а копия, у которой после установки снова что-то не
+  совпало или установка не прошла (установщик удаляется и при неудаче), — качала его при каждом выпуске. Плюс: установленная
+  копия после сбоя частей могла взять портативный exe и подменить им установленный.
+- Исправлено (коммит этой записи): deltaMismatch — только Electron и нативный модуль (Koffi); tessdata никогда не мешают,
+  чужие старые файлы — тоже, пропавший Koffi (антивирус) — тоже. Установленная копия: установщик только когда частями
+  нельзя совсем (другой Electron / Koffi), и один раз на выпуск (userData/installer-runs.json); без частей ждёт; сбой
+  частей — повтор через 30 минут или по кнопке, никогда портативный exe и никогда установщик. Причины отказа от частей
+  уходят на сайт строкой запроса version.json?build=…&nodelta=…|deltafail=…|stuck=… (журнал nginx, без путей и имён).
+  Недостающий язык распознавания: из папки установки, иначе с сайта (/app-delta/resources/tessdata/, публикует
+  scripts/publish-app-delta.cjs), иначе GitHub; в папку установки больше ничего не пишется (раньше rus+eng дописывал eng туда).
+- Старые копии (код до 346) решают по-старому: для 346 те, у кого файлы совпадают (343+), берут части; остальные ещё раз
+  возьмут установщик. С кодом 346 — только части (кроме смены Electron/Koffi, которых не планируем).
+- Тесты: appDelta (новое правило), appUpdate.installed (установщик один раз, без частей ждёт, сбой частей — повтор через
+  30 минут, ни exe, ни установщика), ocrEngine.models (язык с сайта, ничего в папку установки); electron appUpdate/delta/ocr/
+  appInstall/selfUpdate/updateManifest — 178 passed; tsc electron чисто; eslint по изменённым — чисто (кроме старого _fresh).
+- Не проверено: живое обновление установленной копии с этим кодом (появится только на 346 → 347).
+
+## 2026-11-25 23:00 — Claude: «Оружейник» в «Обзоре» больше не дёргает страницу (ветка claude/updates-in-parts)
+
+- Владелец (25.11.2026, видео с ПК): «Блок оружейника при раскладывании опять дергается реши уже наконец эту проблему,
+  я так понимаю дергается потому что край экрана и потом раскладывается».
+- По кадрам видео (30 к/с): при раскрытии вся страница уезжает вверх на ~треть экрана за ~200 мс, при сворачивании внизу
+  страницы — сначала пустое место, потом вся страница сползает вниз за ~0,5 с; блок под «Оружейником» прыгает поверх
+  открывающейся картинки.
+- Причины (useOverviewEditor, свободный «Обзор»): (1) FLIP-доезд блоков брал «было/стало» в координатах экрана — любая
+  прокрутка страницы между ними (браузер подтягивает страницу, когда «Обзор» стал короче под окном; держит её, когда
+  вырос) превращалась в доезд всех блоков, даже неподвижных: вся страница плыла полсекунды; (2) «Оружейник» раскрывался
+  высотой за 0,45 с (gunsmith.css grid-template-rows) — «Обзор» пересобирался каждый кадр, и блок ниже прыгал (то же, что
+  чинили у «Текущих заданий» в c43ccb61).
+- Исправлено: FLIP в координатах страницы (pagePlace); «Обзор» не становится короче части себя в окне (floor берётся там,
+  где блок поменял высоту, пока страница ещё старой длины; уходит при прокрутке вверх); «Оружейник» раскрывается в один
+  шаг с плавным появлением (как «Текущие задания»). Тест overviewSteady.test.ts: у раскрытий внутри блоков «Обзора» не
+  анимируется высота.
+- Проверено на стенде с настоящим useOverviewEditor/OverviewBlock/CSS в браузере (Chromium, 1600×700, блок у нижнего
+  края, картинка подгружается через 350 мс; стенд удалён): до — при раскрытии блок ниже прыгал на 537 px за кадр, при
+  сворачивании внизу страница подтягивалась на 552 px и верхний блок «доезжал» их 13 кадров; после — верхний блок 0 px,
+  прокрутка 0 px в обоих случаях, блоки ниже плавно доезжают. vitest src/overview, src/gunsmith, DashboardPage,
+  GunsmithPage — 187 + 2 passed; npm run typecheck и eslint чисто.
+- Не проверено: в собранном приложении на данных владельца (браузерный интерфейс без входа базу не грузит).
+## 2026-11-25 22:40 — Claude: заявки 239 и 240 (ветка claude/reports-239-240)
+
+- Ветка `claude/reports-239-240` от `claude/release-346` (7e672346), рабочее дерево `E:\FromC\raidos-owner-346` (настоящие
+  node_modules и server/node_modules — npm ci; из него же собрана админ-версия 0.6.0.346 на рабочем столе владельца).
+  Не запушено, не выпущено.
+- Заявка 240 («После обновления патроны продаются на барахолке. M80, M856A1, CBJ»): после обновления игры 24–25.11 (1.3.5.0,
+  в заметках патча о барахолке ничего) сканер tarkov.dev 25.11 видел предложения по 166 видам патронов, одинаково в PvP и
+  PvE. Не видел 27 видов с пробитием примерно от 47 (BS, M993, M61, Игольник, SSA AP, M995, M80A1, 9x39 BP, .300 AP,
+  SIG Hybrid, .338 AP и FMJ, M903 SLAP, M33, BT, DVC12, DVX12, 7N33, .50 AE Bull и др.), а также M62 Tracer и 5.45 BP,
+  40-мм гранаты и сигнальные патроны. Самые пробивные из продающихся: PS12B 46, ПС 45, M21 45, 9.3x64 FMJ 44, M855A1 44,
+  ПАБ-9, M80, CBJ 43, ЛПС, 7Н40, АП-М, .308 ME 42. Отметка noFlea у tarkov.dev осталась на всех, поэтому приложение
+  писало «Недоступно на барахолке», а сервер не брал цены второго источника. Коммит a8aff510: src/shared/fleaBan.ts
+  (запрет только если tarkov.dev отмечает и его сканер не видел предложений 48 ч), сервер (normalizePrices;
+  applyPriceOverlay — свежая, до 6 ч, цена второго источника снимает устаревший запрет), приложение (каталог, экономика,
+  GraphQL), карточка предмета («Цены на барахолке пока нет», если не запрещён, но цены ещё нет). На живом сервере ключ
+  второго источника задан (RAIDOS_MARKET_API_KEY_FILE): после выпуска цены пойдут.
+- Заявка 239 (идея: таймер рейда и выходы на карте), раскладка владельца 25.11, коммит d64fe3c1: под «Отложенными
+  квестами» время в Таркове и до конца рейда (красным меньше 10 минут), «Оставшееся время рейда» в «Настройках карты»;
+  кнопки масштаба — к середине правого края, чуть ниже; «Выходы» под «Ключи» (список не закрывается сам; после двойного O
+  — выходы из списка игры, все сигнальные с пометкой «сигнальный патрон», машина «есть» или «нет»; до сканирования —
+  подсказка и все выходы своей стороны, машина «?»), «Список выходов» в «Настройках карты»; оба переключателя включены по
+  умолчанию. Подсветка и приглушение выходов на карте — как с 11.11, без изменений.
+- Выпуск 346 дополнен (этот коммит): строка «Истории обновлений» с "reports":[239,240], три новости на 11 языках,
+  переводы новых надписей на 9 языков.
+- Тесты: fleaBan, priceOverlay (сервер), MapRaidInfo; vitest src/data, trading, domain, maps, overview, raidprep, i18n —
+  зелёные (4 теста MapsPage падают по таймауту под нагрузкой, по отдельности проходят); typecheck приложения и сервера,
+  eslint по изменённым — чисто. Проверено в браузере (vite, Таможня; рейд и прочитанный список выходов подставлены вручную).
+- Не проверено: собранное приложение и живой экран игры; цены второго источника для патронов — только после выпуска сервера.
+
+## 2026-11-25 23:20 — Claude: 0.6.0.346 живая с заявками 239 и 240; сайт: стример с долей 0 % убран из статистики
+
+- По слову владельца («да, выпускай») release/production → e7983dd3: слияние claude/reports-239-240 поверх 184154ce
+  (7e672346 ник, a71ff34a обновления частями, 184154ce «Обзор»); строка updateHistory 346 сведена в 4 строки с
+  "reports":[239,240]; новости 346 — 5 строк на 11 языках (владельцу показаны, ждём его правок).
+- Шлюз «RaidOS Production Gate» 45642148428 зелёный (22:45); выпуск запущен вручную (systemctl start --no-block
+  raidos-release.service): {"release":"success","commit":"e7983dd3…","build":1795621840505,"databaseReplaced":false};
+  /download/version.json 0.6.0-346 в 22:56, /api/health ok, сайт 0.6.0.346, /download/windows 200.
+- Телефон: «RaidOS iOS IPA» 45642148721 и TestFlight успешно; Android version.json versionCode 600346.
+- Заявки 239, 240 закрыты сервером сами в 23:07 (closed / implemented), авторам ушли уведомления.
+- Цены после выпуска (зеркало цен): M80 2330 / 2888 ₽ (PvP / PvE), M856A1 1048 / 1300, CBJ 2098 / 2811, M855A1 2100 / 3000;
+  M61, M62 — noFlea.
+- Локально перед пушем: полный vitest на e7983dd3 — 4179 passed, 6 failed (appVersion %20, AdminPanelPage CRLF, 4 MapsPage по
+  таймауту под нагрузкой — по отдельности 8/8); electron обновления 49/49 с TMPDIR (без него ENOENT /tmp на Windows);
+  сервер 42/42.
+- Админ-exe 0.6.0-346 из e7983dd3 собран (E:\FromC\raidos-owner-346\release), на рабочий стол не положен: старый exe
+  (21:27, 7e672346) открыт у владельца, владелец сказал «не собирай новую, положи готовую». Админка iPhone: последняя готовая
+  сборка — «Admin Panel iOS IPA» 45264250587 (0.6.0.338, sha256 01ff3ac6…) — положена на рабочий стол заново (её там не было).
+- Владелец: убрать с сайта статистику стримера с долей 0 %, в общей статистике — только стримеры с долей. Ветка
+  `claude/admin-hide-zero-share` (1959056e, от e7983dd3): «Стримеры» на сайте (и в админке ПК) не считают стримера с долей 0 %
+  в «Все стримеры» и не показывают его строку; его доля остаётся в настройках ниже (поднимут — вернётся). На телефоне итог
+  считается так же, карточка остаётся ради настроек. Только сайт выложен вручную (website/dist по памяти
+  release-only-with-app-version, MSYS_NO_PATHCONV=1, VITE_API_URL=/api): бандл index-DjRnbVpP, старая папка
+  dist-old-1795625983050. ВАЖНО: ветку claude/admin-hide-zero-share влить в следующий выпуск (347), иначе выпуск соберёт сайт
+  без неё и вернёт строку стримера.
+
+## 2026-11-25 23:55 — Claude: «Найти ключи» — подписи нескольких ключей и ключи прошлых поисков (ветка claude/keys-exact)
+
+- Ветка `claude/keys-exact` от origin/release/production e7983dd3 (346 с заявками 239–240). Не запушена в release/production:
+  выпуском 346 занимается сессия «Админ-версия Raid OS на рабочий стол».
+- Владелец (25.11.2026, свой кадр живой игры 1.3.5, 3440×1440): «КОРРЕКТНО НЕ НАХОДИТ КЛЮЧИ, СЛЕВА ТЕ ЧТО У МЕНЯ В СХРОНЕ,
+  СПРАВА ТО ЧТО НАШЕЛ», «учись искать ключи по коротким названиям ключей в квадрате», «проводи тесты и обучение до тех пор
+  пока не научишь определять в точности ключи». В схроне: «Времянка», «Спецтех», «Заводская», «ЭП подс.», «Охрана».
+- Разбор: поиск приложения (labelReader + keyMatch, как в 345) на его кадре нашёл ровно 4 ключа с однозначной подписью, ни
+  одного лишнего. В его списке «Ключи в схроне» (режим «Сезон», localStorage, только чтение) были ещё «Неизв.» и «Пирс» —
+  остатки прошлых поисков: поиск только добавляет (правило владельца 16.11.2026). «Времянка» — подпись двух ключей («Ключ от
+  времянки» и «Ключ от времянки трейлерного парка»); картинка и число использований у них одинаковые (сравнено на кадрах SPT),
+  различает их только полное название во всплывающей подсказке.
+- Сделано: keyMatch.shared() — подписи, которые носят несколько ключей; поиск держит их, пока подсказка не назовёт ключ, и
+  пишет «Наведите курсор на «Времянка»: такая подпись у нескольких ключей.» (в конце — «Затем нажмите «Найти ключи» ещё раз»);
+  после поиска, увидевшего контейнер, кнопка «Убрать ненайденные · N» (подсказка — их подписи) убирает ключи списка, которых
+  поиск не видел (кроме ключей увиденной общей подписи). Сам поиск по-прежнему только добавляет. Английские шаблоны строк.
+- Тесты: keyMatch («Времянка» — два ключа, полное имя называет ключ), keyScan (подсказка, полное имя снимает её, ненайденные),
+  keyScanFrames + кадр владельца owner-live-3440.webp (вырезка окна поиска, без денег и снаряжения): 4 ключа найдены, лишних
+  нет, «Времянка» — просьба навести; все кадры SPT и заявки 236 как были. vitest src/quests, src/i18n, QuestKeysPage, screen —
+  зелёные; npm run typecheck, eslint чисто.
+- Не проверено: живой поиск в игре с этим кодом.
+
+## 2026-11-26 00:45 — Claude: выпуск 0.6.0.347 — «Найти ключи» и «Стримеры» (ветка claude/release-347)
+
+- По слову владельца («Да, выпускай», 26.11.2026) выпуск 347 собран поверх release/production e7983dd3 (346 живая):
+  d16e4707 «Найти ключи» (подпись нескольких ключей — просьба навести курсор; «Убрать ненайденные»); 89565f60 «Стримеры»:
+  стример с долей 0 % вне общей статистики — ветка claude/admin-hide-zero-share из сессии выпуска 346 одним коммитом.
+  Имена стримеров из комментариев, теста, сообщения коммита и записи журнала убраны (репозиторий публичный); саму ветку
+  claude/admin-hide-zero-share на GitHub не отправлять — в ней они остались. Сессии выпуска 346 сказано не класть ничего
+  в release/production, пока идёт 347.
+- Версия 0.6.0-347 (package.json, package-lock.json, website/src/config.ts); строка updateHistory 347 — 2 строки, без
+  заявок; новости 347 — 2 строки на 11 языках (русские и английские владелец одобрил); переводы трёх новых надписей
+  поиска ключей на 9 языков (src/i18n/locales/*.json, по алфавиту).
+- Проверки: npm run typecheck, tsc -p tsconfig.electron.json, eslint по изменённым — чисто; release-policy 6/6,
+  cache-item-images 2/2; vitest src/quests, src/i18n, src/admin, src/data, src/pages, src/overview, website/src — 1493 passed, 8 упали под нагрузкой: 7 по таймауту 5 с (MapsPage ×4, DashboardPage, ManualMarks) в один поток проходят, AdminPanelPage — известный CRLF рабочей копии Windows;
+  сборка сайта (npm --prefix website run build) — чисто.
+- Electron и Koffi не менялись — обновление частями. Выходит в окно 13:00 по Бангкоку после зелёного шлюза.
+- Не проверено: поиск ключей в живой игре с этим кодом.
+
+## 2026-11-26 12:00 — Claude: reports 241–247 looked at; 244 and the Shoreline part of 247 fixed (branch claude/reports-244-247, not released)
+
+- Owner: «Возьми в работу заявки». On the server (read only): 241, 242, 243, 245, 246, 247 «В процессе» (243/245/246/247 taken
+  09:41–09:42 Bangkok), 244 still «Активные» (review), 236 «Разъяснено».
+- 241/242 (Cultist Circle calculator, the same wish): branch claude/cultist-calculator 5b7b36e2 (local, not pushed); its history
+  row should list both. 243: claude/tier-list-needs, waits for the owner's news line.
+- 245/246 (one player, PvE; the item card shows no «Каппа» on «Антикварный топор» and RatCola): not a fault. Both items are
+  checked in his «Предметы для «Коллекционера»» list since 16.11 (server user_collector), and «Значок «Каппа» в рейде только на
+  недостающих» (on by default, owner 13.10.2026) hides the badge on checked items. Left to the owner: an answer, or a muted badge.
+- 244 «Закрытый клуб»: the reshoot integration (E:/SPT-photo/eval/integrate_all.py) removed every wiki photo of an objective once
+  one of its places had a frame of ours; spawns 2 and 4 had none. Put back, and the same for 9 more objectives found by the
+  numbered captions («Пропавший информатор», «Цена независимости» ×2, «Ближе к народу», «Закрыть небо», «Дверь», «Секрет успеха»,
+  «Supplements»): 15 entries, 13 files, all still stored and cropped on the server (images/guides, guides-cropped.json).
+  integrate_all.py (backup .bak-keepwiki-20261126) skips the ids in eval/manual-keep-wiki.json.
+- 247 (documents' photos «перепутаны» on Shoreline, Interchange, «везде»): the kinds' marker pictures match tarkov.dev's icons;
+  every live point has its own spot (the feed has not moved since 05.11). Shoreline resort by the points' heights against the
+  wings' door locks (2nd floor locks y 0.1, 3rd 3.0): technical 6 (room 212's shelf) and 7 (3rd floor chair) were swapped; 5 (room
+  316) and 11 (room 206) both stood on both points; test-docs 15 («the village near the Tunnel») sat 65 m below the resort — off
+  it. Technical 15 stays off (-627.6, -232.5) (report 203). Interchange: heights agree with the captions, nothing found by data.
+  **Not fixed:** wiki photos put on every point of a room (Lab 21 points with 2–5 photos of one kind, Ground Zero 17, Labyrinth 16,
+  Factory 12, Lighthouse 2): each such point shows the photos of its neighbours too. An exact layout needs the documents shot in
+  SPT as on Customs/Woods/Interchange — owner's word.
+- Commit cc786048: src/data/questGuidePhotos.json, src/data/documentGuidePhotos.json, scripts/document-guide-points.mjs, tests
+  src/data/questGuidePhotos.test.ts, src/data/documentGuide.test.ts. Tests: those two 17/17, ObjectivePhotos + QuestGuidePhotos
+  14/14, server guideImages 8/8. Not checked in the app: the photos come back only once a release lists them (the server serves
+  listed ones only). 244 must be taken into work before the release so that its history row closes it.
+- 13:20, owner: «Проверь заявку 244… если не найдешь второе место… убери третье, а первое переименуй». The second place was
+  found (the wiki's «на полу под столом», put back in cc786048). Seen side by side: our frame «Место появления 1» points its
+  arrow at the TV — it is the wiki's fourth place; the photo tool numbers its own frames by the feed's order of the places,
+  not the wiki's. 6c23f6cd: our frame is now «Четвёртое место за телевизором на столе», the wiki's dark fourth shot left, the
+  wiki's first place («на полу под полкой рядом с дверью», stored and cropped on the server) came back: four places, 1–4,
+  each once. E:/SPT-photo/eval: manual-captions.json read by integrate_all.py (backup .bak-captions-20261126), the first
+  place in manual-keep-wiki.json. Tests 20/20 (questGuidePhotos, QuestGuidePhotos, ObjectivePhotos). **Open:** other quests
+  mix our «Место появления N» (the feed's order) with the wiki's «Второе/Третье…» the same way («Цена независимости»,
+  «Пропавший информатор», «Ближе к народу», «Закрыть небо»); each needs its frames matched by eye.
+- 13:25, owner forwarded a player's support-chat message (05:24): «По квесту городские разборки тут надо понюхать чтобы
+  пометилось», two screenshots: the MS2000 ghost on the post of the mesh door inside the Streets convoy trailer. The quest's
+  three photos (our street and truck frames, the wiki's «Место для маркера» — the same spot) had no objectiveId: shown only
+  under «Весь квест», none at the map's points. Tied (game ids): street → find the truck (+ the flare), truck → find + mark +
+  flare, the marker's spot → mark, caption «Маркер — на стойку решётчатой двери в кузове, подойти вплотную». Test added; 21/21.
+  **Open:** 106 of 241 quests have photos tied to no objective (382 photos) — they never show at the map's points.
+- 14:35, owner «Да, привяжи» (the photos of the other quests to their objectives): 340 of 382 untied photos (106 quests) tied
+  — 207 our frames by where they were shot, 133 wiki photos by the caption's number or words, «Место появления», one
+  objective on the map, all objectives at one place, the walkthrough's groups, 5 by eye («Вымогатель», «Спасение крота»).
+  42 photos of 23 quests stay under «Весь квест» (overviews, no caption, «Третий БРДМ / Stryker» no longer in the quest,
+  «Прикормка»'s bed by the safe). Checked: «Знаток Резерва» in the dev renderer — each room's photo under its objective,
+  each barracks' outside with its rooms. Test added (≤ 45 untied, «Знаток Резерва» ties); questGuidePhotos/QuestGuidePhotos/
+  ObjectivePhotos 22/22. Tool: E:/SPT-photo/eval/tie_quest_photos.cjs (json.tarkov.dev tasks + the feed's Russian texts).
+  **Risk:** integrate_all.py builds our frames from its points; a frame whose point names no objective comes back untied on a
+  re-run of that map — run tie_quest_photos.cjs after it.
+
+## 2026-11-26 13:10 — Claude: «Панель стримера» only for a streamer with a share (branch claude/streamer-panel-share-only, not released)
+
+- Owner: a streamer updated the app and did not find the streamer block; «добавь на страницу профиль панель стримера. Эта
+  кнопка появляется только если входит в аккаунт… У других людей она вообще не должна быть никак. И никакую информацию она не
+  должна давать».
+- Found (server, read only): his account is a streamer with a share, his PC has 0.6.0-346 (online today). The button and the
+  cabinet are on «Профиль» since 0.6.0.345: the nickname chip in the top bar → «Панель стримера» under the nickname → the
+  cabinet below. Annotated screenshot sent to the owner (dev renderer, the desktop bridge stubbed with an example account).
+- Changed: src/account/StreamerCabinetPanel.tsx `useStreamerPanel` — one request to the streamer notices gates the button and
+  the cabinet (src/pages/ProfilePage.tsx); a 0 % «statistics only» streamer no longer sees a cabinet in the app. Server
+  unchanged: payouts and notices answer only a streamer with a share (403 otherwise), statistics only streamer accounts and
+  only their own code.
+- Commit ce7d1510. Tests: StreamerCabinetPanel 4/4 (a new one: no panel where the server refuses or for a non-streamer),
+  src/account 19/19 when run one file at a time (the parallel run failed to start workers under load); typecheck clean.
+- Not released; needs an app version (20:00 window at the earliest, on the owner's word).
+
+## 2026-11-26: Claude, the site's trailer v8 in every language (claude/site-trailers-v7)
+
+- Owner, 26.11: the Russian v8 approved — «делай поэтому ролики на всех языках и добавляй на сайт под каждую версию языка».
+- The 22 media files replaced with v8 (ru trailer.mp4 and en, de, ja, zh, pl, es, pt, fr, ko, tr, with their posters); Trailer.tsx
+  unchanged. v8: «Escape from Tarkov» in the kicker, quests on the map (two clicked, one handed in and one taken by the game's log),
+  the build window really scrolled, bosses scrolled to the loot, the range's scope swapped on Killa, the squad's second drawing at once.
+- Source: scripts/trailer5 on claude/trailer-v5 (fbc27c88 RU v8, 372259b1 every language's captions and the range scene).
+- Not pushed, not released: site-only; the release integrator takes it into the next release.
+
+## 2026-11-26 17:34 — Claude: release 0.6.0.348 (branch claude/release-348 → release/production)
+
+- Owner, 26.11.2026: «Выпускай обнову щас» — an urgent release: started by hand on the VPS once the gate is green, not in the
+  20:00 window.
+- Merged onto 0.6.0.347 (f1ce31e5): claude/reports-244-247 (places' photos: the spawn places the reshoot dropped come back,
+  «Закрытый клуб» by the wiki's numbers, «Городские разборки» under their objectives, 340 more photos tied to their objectives;
+  the Shoreline resort documents on their own floor and room), claude/streamer-panel-share-only («Панель стримера» and the
+  cabinet only for a streamer with a share), claude/site-trailers-v7 (the site's v8 trailer in every language). WORK_LOG.md
+  merged as the union of both sides.
+- Not in it: the winter / New Year schemes (test builds only), report 243 (its news text waits for the owner), the cultist
+  circle calculator (241/242), the rest of 247 (the other maps' documents need a shoot; 247 stays taken, not in "reports").
+- Release commit: version 0.6.0-348 (package.json, package-lock.json, website/src/config.ts); the history row with
+  "reports":[244] (closes 244 once live); the news row «Техническое обновление» in 11 languages (nothing about photos there).
+- Checked: the 665 own photos the lists name, with their thumbnails, are in the server's guides folder (the wiki ones the
+  server fetches itself); no android/, ios/, workflow or publisher path changed.
+- Tests: typecheck clean; vitest updateHistory, questGuidePhotos, documentGuide, questPointPhotos, StreamerCabinetPanel,
+  ObjectivePhotos, QuestGuidePhotos, SpotPhotos 45/45 (a history line cut to 110 characters first); server guideImages,
+  releaseReports, playerNews 20/20; eslint on the changed files: no errors (one fast-refresh warning, a hook beside components).
+- Deployment: pushed to release/production; live once https://raidos.app/download/version.json shows 0.6.0-348.
+- Gate of c45b8b4a red: src/news/newsEdits.test.tsx took the newest news line as unique, and «Техническое обновление» stands
+  in several versions of the dialog → getAllByText / queryAllByText (src/news 20/20).
+- Server, owner 26.11.2026 («не могу отправить скриншот человеку в чате… сервер недоступен»): nginx location /v1/ kept the
+  1 MB default, so the chat's screenshots (1.1–1.3 MB bodies today, the owner's and a player's) got 413. A regex location
+  with client_max_body_size 30m for /v1/me/support/messages, the owner's …/support/threads/:id/messages, notice pictures and
+  quest-point photos (the API keeps its own limits: 28 MB / 8 MB); backup /etc/nginx/sites-available/raidos.bak-20261126-screenshots,
+  nginx -t, reload. A 1.3 MB body now reaches the API (401 without a session instead of 413). The ops-reference nginx file is
+  not updated yet. Seen from the owner's PC: uploads to raidos.app at 15–24 KB/s (downloads 1.1 MB/s, uploads elsewhere fast).
+
+## 2026-11-26 19:00 — Claude: report 249, pins on the map (branch claude/map-pins-249, not released)
+
+- Report 249 (a player): red pins on the map «если надо что то отметить». The owner, 26.11.2026: in «Зарисовка» a button
+  under the drawing's row, pins of the colours, put one and a line for its words comes at once with ✓ and ✕, kept like the
+  drawing, the drawing's cross takes them all off.
+- What: «Метка» under the pencil while drawing; a press without a move puts a pin of the pencil's colour; its words come at once
+  (one line up to 40 letters; ✓ or Enter keeps the pin, with no words too; ✕ or Escape takes it off); while it waits the map takes
+  no other pin. Pins go back and forward, the eraser takes them, ✓ of the drawing keeps them, «Закрыть зарисовку» takes them with
+  the strokes; a colour keeps the pin tool. On a phone's narrow map the words' box stands under the pin, whole on the map.
+- How: a pin is a stroke of one point with `pin: true` and `text` (src/maps/mapSketch.ts: makePin, pinText, isPin, the eraser's
+  rubsPin, pinEditorPlace); src/components/MapPins.tsx (the teardrop icon of the colour, SketchPins, PinEditor);
+  src/components/MapSketch.tsx (the row, the press that puts a pin); src/components/mapSketch.css. The account's other devices get
+  them as strokes (sync/playerStateStores.ts passes the fields through); the squad too: server/src/routes/squadLive.ts takes `pin`
+  and `text` (≤ 80), src/squad/squadLive.ts reads them, SquadSketchLines draws the mates' pins. An older version reads a pin as a
+  one-point stroke and draws nothing.
+- Words: «Метка» (Pin), «Подпись» (Label) in English and the nine other languages.
+- Tests: src/maps/mapSketch, src/components/MapSketch, src/squad, src/i18n 122/122 (28 files); server squads 8/8 (pins taken,
+  long words and `pin: false` refused); typecheck clean; eslint clean. Seen in the dev renderer (plain browser, vite on its own
+  port): PC and a 400 px phone, three pins with and without words.
+- Not released: needs an app version; the history row with "reports":[249]; the news line to show the owner first.
+
+## 2026-11-26 18:37 — Claude: report 248, the three missing points of «На свет» (branch claude/na-svet-points, not released)
+
+- Report 248 (PvE, Customs): «Подрезать крылья» shows no point where to plant on Customs, nor on Woods. Owner: «Да, ставь».
+- The chain checked (11 quests): three places had no point since 15.10.2026 (no source then): the sawmill guardhouse and the
+  Customs construction site («Подрезать крылья»), the Labs covered server room («Доверяй, но проверяй»). The others have their
+  points or need none (hideout, hand-ins, kills anywhere on the map).
+- src/data/curatedQuests.ts, three point spots: Woods (-27.5, 46.5) — tarkov.help marker 15806 carried over by an affine fit
+  of 12 exits (1–12 m; their weather station marker lands 6 m from zone q14_8_2), on the lone building by the road; Customs
+  (220, -13) — the wiki's marked map and photos: the unfinished building at Factory Shacks across from the road to the dorms
+  (tarkov.help's own marker 15807 lies far south of its own text, not taken); Labs (-184, -327.5) — the wiki's marked map
+  matched on our copy of tarkov.dev's 1st-level tiles: the ring of racks under a tarp west of the weapon testing room's doors.
+- docs/quests/na-svet-audit.md «Точки на карте: третья проверка»; src/data/curatedQuests.test.ts: points at all six objectives
+  of «Подрезать крылья», the first and third of «Доверяй, но проверяй», the three positions in every mode.
+- Tests: curatedQuests 33/33; quest chain, catalog source, maps 192/192 (28 files); server questBase 11/11; typecheck clean.
+  Seen in the dev renderer (web, PvE): each point at its objective on Woods (by the sawmill), Customs (by «Времянки») and the
+  Lab (main level, «Примерное место»).
+- Not released: with the next app version on the owner's word, "reports":[248] in its history row (248 is taken).
+
+## 2026-11-26 19:27 — Claude: release 0.6.0.349 (branch claude/release-349 → release/production)
+
+- Owner, 26.11.2026: «Да» — the map's pins (report 249) and the «На свет» points (report 248) in one update, with the news line
+  shown to him first («Карта: в зарисовке можно ставить свои метки разных цветов и подписывать их» / «Map: put your own pins in
+  different colours with a label while drawing»).
+- Merged onto 0.6.0.348 (f53f72a4): claude/map-pins-249 (5072594d) and claude/na-svet-points (c08edc08); WORK_LOG.md as the union.
+- Release commit: version 0.6.0-349 (package.json, package-lock.json, website/src/config.ts); the history row with
+  "reports":[248,249]; the news row (kind added) in 11 languages.
+- Tests: typecheck clean; vitest updateHistory, news, curatedQuests, mapSketch, MapSketch, squad, i18n, quests 378 passed
+  (56 files, 1 skipped); server squads, playerNews, releaseReports 20/20.
+- Deployment: pushed for the 20:00 Bangkok window (no start by hand); live once download/version.json shows 0.6.0-349.
+
+## 2026-11-26 21:30 — Claude: the admin's «Чистыми», a payment → the payer's profile, «Найти по почте», «Удалить сообщение» (branch claude/admin-iphone-features)
+
+- Owner, 26.11.2026 (the iPhone admin app): «там нет у меня чистыми деньги, сколько суммы чистыми»; «в чате нету функции найти
+  пользователя по логину, ну по почте»; «в разделе платежи … чтобы я нажал на него, и у меня открылся его профиль. Там же будет
+  открыть чат с ним»; «добавь в чате у меня, у админа, функцию удалить сообщение».
+- «Чистыми» of «Платежи» was in fact the gross: SUM(COALESCE(net_amount, amount)) with net_amount never set (0 rows in production).
+  Now server/src/services/adminStore.ts paymentList uses the summary's own formula (src/shared/revenue.ts netRevenue: paid minus
+  the streamers' share minus the payment systems' fees by provider and method) and answers `fees` too; every paid payment has its
+  own `netAmount` (paymentNet). The phone shows «Чистыми: …» and under it «комиссия −… · стримерам −…»; each row «чистыми …».
+- A payment opens its payer's profile (AccountProfile, «Открыть чат» in it): the server already sent `accountId`, the app type
+  now has it; adminShared.tsx PaymentRow `onOpenProfile` (the payer's words are a button), AdminMobilePage passes openProfile.
+- «Найти по почте» on top of «Чаты»: the owner's existing GET …/admin/support/search?q= (e-mail part, 20 at most), now allowed on
+  the phone (src/sync/webAccount.ts) with adminApi.supportSearch; 2 letters at least, asked 300 ms after typing stops; a tap
+  opens the chat (with or without a conversation), a long press the profile.
+- «Удалить сообщение»: POST …/admin/support/threads/:accountId/messages/:id/delete (owner only; supportChatStore.deleteMessage —
+  the row goes with its screenshots and reactions by the triggers, a reply to it keeps its place without the quote; the
+  player's open chat and the owner's devices are signalled; audit 'support.delete-message'). In the message's menu (PC right
+  click, phone long press) «Удалить», then «Точно удалить?» (src/support/SupportChat.tsx); the phone admin and the PC owner app
+  (src/data/ownerRequests.ts remove, OwnerChats). Allowed in webAccount.ts and electron/serviceGateway.ts. A player whose chat
+  is closed keeps a deleted message on the device until the chat window is opened again (full read).
+- Words: «Точно удалить?», «Не удалось удалить сообщение» in English and the nine other languages; the admin's own words stay
+  Russian, as the rest of it.
+- Tests: server supportChat (a new delete test), ownerAdmin, paymentArchive (net 1069.41 / fees 10.59 like the summary), authz
+  60/60 + 4/4; vitest src/admin, src/support, src/i18n, webAccount, the PC gateway, website admin, revenue: 190 + 78 passed;
+  tsc (app, server) clean; eslint clean.
+- Not released: the server's parts (the right «Чистыми», each payment's net, «Удалить сообщение») need an app release; the
+  e-mail search and a payment → profile work with the server as it is.
