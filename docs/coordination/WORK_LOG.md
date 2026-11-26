@@ -11215,3 +11215,22 @@ Not pushed, not released, nothing uploaded.
   quest-point photos (the API keeps its own limits: 28 MB / 8 MB); backup /etc/nginx/sites-available/raidos.bak-20261126-screenshots,
   nginx -t, reload. A 1.3 MB body now reaches the API (401 without a session instead of 413). The ops-reference nginx file is
   not updated yet. Seen from the owner's PC: uploads to raidos.app at 15–24 KB/s (downloads 1.1 MB/s, uploads elsewhere fast).
+
+## 2026-11-26 18:30 — Claude: 0.6.0.348 published; «Сервер недоступен» looked at (not pushed to release/production)
+
+- 0.6.0.348: the second gate (f53f72a4) green at 18:22; the publisher started by hand on the VPS at 18:22 (owner: «Выпускай
+  обнову щас»), building at 18:26; live at 18:34 (download/version.json 0.6.0-348, f53f72a4; the site serves the v8 trailer).
+- Not in 348, ready on their branches (the group's note ready-for-348.md, 26.11 ~04:20): claude/promo-codes-fast,
+  claude/password-link (its reset#link page is not on the live site since 347), claude/map-priority-smooth,
+  claude/cultist-calculator (241), claude/flea-instant-prices: the next release, the news lines shown to the owner first.
+- «Сервер недоступен» (owner, 26.11): the chat's screenshots got nginx's 413, an HTML page the app reads as «Сервер
+  недоступен» (electron/serviceGateway.ts: a non-JSON answer → ServiceUnavailableError); the limit is raised (entry above).
+  The statistics: every stats request from the owner's PC today answered 200; from another device one load was given up
+  (4 requests 499). The owner's PC uploads to raidos.app at 15–24 KB/s (Thailand → the VPS; downloads 1.1 MB/s, ping
+  286 ms with no loss, uploads to the US 270 KB/s): a 1 MB screenshot takes about a minute (the app waits 180 s for it).
+- Found: the app's three long waits (GET /v1/me/social-events, /v1/map-updates, /v1/accounts/me/admin/requests/events) go
+  through send() with the default 15 s timeout and hedgedFetch (up to 4 tries 1.5 s apart), while the server holds them
+  25 s (MAP_UPDATE_WAIT_MS, SOCIAL_WAIT_MS): two of three long-wait requests of all players end in 499 (about 80 thousand an
+  hour at the evening peak, every day), and after each timeout the app waits 30 s (RETRY_MS), so support answers and
+  friends' news come late. Proposed, not made: `hedge: false` and a timeout above the server's wait (45 s, as LIVE_WAIT) for
+  these paths, or the server's waits under 15 s; both need an app release.
