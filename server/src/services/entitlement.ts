@@ -134,6 +134,9 @@ export class EntitlementService {
     const { subscription } = this.accounts.view(accountId)
     if (subscription.lifetime) return { plan: 'streamer' }
     if (subscription.status === 'active' && subscription.paidUntil) return { plan: 'paid', until: Date.parse(subscription.paidUntil) }
+    // «Срок скрыт» (AccountStore.view): the player's view has no end; the token still ends with the paid days.
+    const hiddenUntil = subscription.status === 'active' && subscription.termHidden ? this.accounts.paidUntilOf(accountId) : undefined
+    if (hiddenUntil !== undefined) return { plan: 'paid', until: hiddenUntil }
     if (subscription.status === 'trial' && subscription.trialEndsAt) return { plan: 'trial', until: Date.parse(subscription.trialEndsAt) }
     return undefined
   }

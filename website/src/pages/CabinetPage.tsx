@@ -343,7 +343,8 @@ function SubscriptionPanel({ account }: { account: Account }) {
   }
   const active = status === 'active'
   const trial = status === 'trial'
-  const title = active && paidUntil ? tr('Активна до {date}', { date: formatDate(paidUntil) })
+  // «Срок скрыт» (owner, 27.11.2026: «пусть пишется у него подписка активна… не надо писать, сколько у него осталось»): no date
+  const title = active ? (paidUntil ? tr('Активна до {date}', { date: formatDate(paidUntil) }) : tr('Активна'))
     : trial && trialEndsAt ? tr('Пробный период до {date}', { date: formatDate(trialEndsAt) })
       : trialPendingDays ? tr(trialPendingDays === 1 ? 'Сутки бесплатно — ждут первого входа в приложение' : '{days} дн. бесплатно — ждут первого входа в приложение', { days: trialPendingDays })
         : tr('Не активна')

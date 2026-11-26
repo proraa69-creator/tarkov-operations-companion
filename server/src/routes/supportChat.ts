@@ -498,7 +498,8 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
           ...(view.nickname ? { nickname: view.nickname } : {}),
           ...(view.country ? { country: view.country, region: regionOf(view.country) } : { region: 'none' }),
           ...(view.countryOther ? { countryOther: view.countryOther } : {}),
-          subscription: { status: view.kind === 'streamer' ? 'lifetime' : view.subscription.status, ...(view.subscription.paidUntil ? { paidUntil: view.subscription.paidUntil } : {}), ...(view.subscription.trialEndsAt ? { trialEndsAt: view.subscription.trialEndsAt } : {}) },
+          // the owner sees the end of a term hidden from the player («Срок скрыт»)
+          subscription: { status: view.subscription.lifetime ? 'lifetime' : view.subscription.status, ...(view.subscription.paidUntil ? { paidUntil: view.subscription.paidUntil } : view.subscription.termHidden && accounts.paidUntilOf(id) !== undefined ? { paidUntil: new Date(accounts.paidUntilOf(id)!).toISOString() } : {}), ...(view.subscription.trialEndsAt ? { trialEndsAt: view.subscription.trialEndsAt } : {}) },
           hasThread: store.oldestId(id) !== null,
         }]
       } catch {

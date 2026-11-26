@@ -63,7 +63,7 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
-  | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'subscription.term-hidden' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'account.email' | 'account.password-link' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'hideout.modules' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke' | 'bug.work' | 'bug.point'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start' | 'support.delete-message'
@@ -145,7 +145,7 @@ export interface AdminUser {
   referredBy?: string
   referralCode?: string
   /** trialPendingDays: the free period waits for the first sign-in in an app (AccountStore.claimTrialDevice). */
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number }
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number; termHidden?: true }
   autopay: { provider: string; status: string; plan: string } | null
   /** The last authenticated request from anywhere (the site, the phone or the PC app). */
   lastSeenAt?: string
@@ -392,7 +392,8 @@ const payRegionOf = (country: unknown): PayRegion => paymentRegionOf(country == 
  * SubscriptionSource of an account row (kind, paid_until, trial_ends_at, trial_denied, paid_count, friend_reward) at `now`.
  */
 function sourceOf(row: Row, now: number): SubscriptionSource | undefined {
-  if (row.kind === 'streamer') return 'lifetime'
+  // a streamer with «Срок скрыт» has his paid days, not the lifetime access
+  if (row.kind === 'streamer' && row.term_hidden_at == null) return 'lifetime'
   const paidUntil = row.paid_until == null ? undefined : Number(row.paid_until)
   if (paidUntil !== undefined && paidUntil > now) {
     if (paidUntil >= LIFETIME_UNTIL) return 'lifetime'
@@ -795,7 +796,7 @@ export class AdminStore {
     const end = ownerDayRange(toDay).end
     const inRange = (time: unknown) => time != null && Number(time) >= start && Number(time) < end
     const hasInvites = this.tableExists('invite_rewards')
-    const accounts = this.db.prepare(`SELECT a.id, a.kind, a.country, a.created_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.trial_raid_ms, a.last_seen_at, a.invited_by, a.referred_by, s.paid_until,
+    const accounts = this.db.prepare(`SELECT a.id, a.kind, a.term_hidden_at, a.country, a.created_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.trial_raid_ms, a.last_seen_at, a.invited_by, a.referred_by, s.paid_until,
         (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
         (SELECT MIN(${PAID_SQL}) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS first_paid_at,
         EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND ${PAID_SQL} >= ? AND ${PAID_SQL} < ?) AS paid_in_range,
@@ -1021,7 +1022,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_raid_ms, a.trial_raid_wait_until, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.nicknames, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_raid_ms, a.trial_raid_wait_until, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.term_hidden_at, a.nicknames, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -1345,7 +1346,9 @@ export class AdminStore {
       if (row.trial_raid_ms != null && Number(row.trial_raid_wait_until ?? 0) > now) subscription.trialRaidDays = Math.max(1, Math.round(Number(row.trial_raid_ms) / DAY_MS))
     } else if (row.trial_pending_ms != null && !Number(row.trial_denied ?? 0)) subscription = { ...subscription, trialPendingDays: Math.max(1, Math.round(Number(row.trial_pending_ms) / DAY_MS)) }
     if (paidUntil !== undefined && paidUntil > now) subscription = { status: 'active', paidUntil: iso(paidUntil) }
-    if (kind === 'streamer') subscription = { status: 'active', lifetime: true }
+    if (kind === 'streamer' && row.term_hidden_at == null) subscription = { status: 'active', lifetime: true }
+    // «Срок скрыт»: the owner sees the end the player does not
+    if (row.term_hidden_at != null) subscription = { ...subscription, termHidden: true }
     const [provider, status, plan] = row.autopay == null ? [] : String(row.autopay).split('|')
     const email = String(row.email)
     const nickname = storedNickname(row.nicknames)
@@ -1497,8 +1500,8 @@ export class AdminStore {
    */
   revoke(actor: string, id: string, days: number, reason: string) {
     const target = this.mustUser(id)
-    const kind = (this.db.prepare('SELECT kind FROM accounts WHERE id = ?').get(id) as Row | undefined)?.kind
-    if (kind === 'streamer') throw new AccountError(409, 'У стримера бессрочный доступ: списывать нечего')
+    const own = this.db.prepare('SELECT kind, term_hidden_at FROM accounts WHERE id = ?').get(id) as Row | undefined
+    if (own?.kind === 'streamer' && own.term_hidden_at == null) throw new AccountError(409, 'У стримера бессрочный доступ: списывать нечего')
     transaction(this.db, () => {
       const before = this.payments.paidUntil(id)
       const now = this.now()
@@ -1548,6 +1551,19 @@ export class AdminStore {
     if (allowed && paymentRegionOf(this.accounts.countryOf(id)) !== 'RU') throw new AccountError(409, 'Это только для аккаунтов из России: остальным BZB доступен по стране')
     this.db.prepare(`UPDATE accounts SET bezebee_ru_at = ${allowed ? 'COALESCE(bezebee_ru_at, ?)' : 'NULL'} WHERE id = ?`).run(...(allowed ? [this.now(), id] : [id]))
     this.audit(actor, 'payment.bezebee-ru', target.email, { allowed })
+    return this.user(id)
+  }
+
+  /**
+   * «Срок скрыт» (owner, 27.11.2026, about a streamer: «Сделай ему на год. Но в личном кабинете… пусть пишется у него подписка
+   * активна… не надо писать, сколько у него осталось… Когда срок выйдет, у него уже будет срок подписки вышел»): the account's
+   * own views show «Подписка активна» without the end (AccountStore.view); a streamer has his paid days instead of the lifetime
+   * access. The owner still sees the date here. Audited as `subscription.term-hidden`.
+   */
+  setTermHidden(actor: string, id: string, hidden: boolean) {
+    const target = this.mustUser(id)
+    this.accounts.setTermHidden(id, hidden)
+    this.audit(actor, 'subscription.term-hidden', target.email, { hidden })
     return this.user(id)
   }
 

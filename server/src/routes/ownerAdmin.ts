@@ -399,6 +399,11 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     const { allowed } = z.object({ allowed: z.boolean() }).parse(req.body)
     res.json(admin.setBezebeeAllowed(actor, idSchema.parse(req.params.id), allowed))
   }))
+  // «Срок скрыт» (owner, 27.11.2026): the player's views say «Подписка активна» without the end; a streamer gets a term.
+  router.post('/me/admin/users/:id/term-hidden', owner('write', (req, res, actor) => {
+    const { hidden } = z.object({ hidden: z.boolean() }).parse(req.body)
+    res.json(admin.setTermHidden(actor, idSchema.parse(req.params.id), hidden))
+  }))
   router.post('/me/admin/users/:id/delete', owner('write', (req, res, actor) => { res.json(admin.deleteUser(actor, idSchema.parse(req.params.id))) }))
   // «Новый пароль» (owner, 26.11.2026): the link is copied for the owner to send; the player sets the password himself.
   router.post('/me/admin/users/:id/password-link', owner('write', (req, res, actor) => {

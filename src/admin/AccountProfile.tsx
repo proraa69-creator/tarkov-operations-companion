@@ -212,7 +212,8 @@ function ProfileTags({ data, tr, f }: { data: Profile; tr: Tr; f: Formats }) {
 
 function subscriptionText(sub: Profile['subscription'], tr: Tr, f: Formats) {
   if (sub.lifetime) return tr('Подписка навсегда', 'Lifetime subscription')
-  if (sub.status === 'active') return tr(`Подписка до ${f.date(sub.paidUntil)}`, `Subscribed until ${f.date(sub.paidUntil)}`)
+  // «Срок скрыт» (owner, 27.11.2026): the owner sees the end the player does not
+  if (sub.status === 'active') return tr(`Подписка до ${f.date(sub.paidUntil)}${sub.termHidden ? ' · срок скрыт' : ''}`, `Subscribed until ${f.date(sub.paidUntil)}${sub.termHidden ? ' · term hidden' : ''}`)
   if (sub.status === 'trial' && sub.trialRaidDays) return tr(`Пробная ждёт первого рейда (${sub.trialRaidDays} дн.)`, `Trial waits for the first raid (${sub.trialRaidDays} d)`)
   if (sub.status === 'trial') return tr(`Пробная до ${f.date(sub.trialEndsAt)}`, `Trial until ${f.date(sub.trialEndsAt)}`)
   if (sub.trialPendingDays) return tr(`Пробная ждёт первого входа (${sub.trialPendingDays} дн.)`, `Trial waits for the first sign-in (${sub.trialPendingDays} d)`)

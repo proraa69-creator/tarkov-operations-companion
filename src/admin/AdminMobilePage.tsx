@@ -927,7 +927,7 @@ function ChatSheet({ accountId, answer, onClose, onChanged, onOpenProfile }: { a
 function subscriptionText(user: AdminUser) {
   if (user.blockedAt) return uiText('Заблокирован')
   if (user.subscription.lifetime) return uiText('Пожизненная подписка')
-  if (user.subscription.status === 'active') return uiText(`активна до ${dateOnly(user.subscription.paidUntil)}`)
+  if (user.subscription.status === 'active') return uiText(`активна до ${dateOnly(user.subscription.paidUntil)}${user.subscription.termHidden ? ' · срок скрыт' : ''}`)
   // owner, 12.11.2026: «ждёт первого рейда (2 дня)» instead of the latest end
   if (user.subscription.status === 'trial' && user.subscription.trialRaidDays) return uiText(`ждёт первого рейда (${user.subscription.trialRaidDays} ${user.subscription.trialRaidDays === 1 ? 'день' : 'дня'})`)
   if (user.subscription.status === 'trial') return uiText(`пробная до ${dateOnly(user.subscription.trialEndsAt)}`)

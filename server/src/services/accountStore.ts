@@ -99,6 +99,8 @@ interface Account {
   trialRaidMs?: number
   /** Until when it waits for that raid (TRIAL_RAID_WAIT_MS from the first sign-in); after this it runs by itself. */
   trialRaidWaitUntil?: number
+  /** «Срок скрыт» (term_hidden_at): no end date in the player's views; a streamer's free access ends with his paid days. */
+  termHidden: boolean
 }
 
 export interface ReferralStats {
@@ -188,6 +190,11 @@ export interface AccountView {
      * their length, days. Absent once the raid came or the wait is over (AccountStore.firstRaid).
      */
     trialRaidDays?: number
+    /**
+     * «Срок скрыт» (owner, 27.11.2026): the subscription is active and its end is not shown to the player (no paidUntil):
+     * the cabinet says «Подписка активна»; once it is over, «Не активна» as for anyone.
+     */
+    termHidden?: true
   }
   /** «Удалить аккаунт» was requested: the account is deleted at this time unless the player cancels (scheduleDeletion). */
   deletionAt?: string
@@ -415,6 +422,7 @@ function toAccount(row: Row | undefined): Account | undefined {
     trialDenied: row.trial_denied != null,
     trialRaidMs: row.trial_raid_ms == null ? undefined : Number(row.trial_raid_ms),
     trialRaidWaitUntil: row.trial_raid_wait_until == null ? undefined : Number(row.trial_raid_wait_until),
+    termHidden: row.term_hidden_at != null,
   }
 }
 
@@ -582,6 +590,11 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   // ad link this network opened within AD_ATTRIBUTION_MS. Statistics only.
   ['ad_source', 'TEXT'],
   ['ad_campaign', 'TEXT'],
+  // «Срок скрыт» (owner, 27.11.2026, about a streamer: «Сделай ему на год. Но в личном кабинете… пусть пишется у него подписка
+  // активна… не надо писать, сколько у него осталось… Когда срок выйдет, у него уже будет срок подписки вышел»): when the owner
+  // hid the term. The account's own views say «активна» without the end (AccountStore.view); a streamer then has his paid days
+  // instead of the lifetime access. The owner still sees the date (services/adminStore.ts).
+  ['term_hidden_at', 'INTEGER'],
 ]
 /** «Удалить аккаунт» by the player: the account is deleted this long after the request, unless the player cancels. */
 export const ACCOUNT_DELETION_DELAY_MS = 10 * 24 * 60 * 60 * 1000
@@ -935,7 +948,7 @@ export class AccountStore {
     if (view.subscription.status === 'trial' && account.trialRaidMs !== undefined && account.trialRaidWaitUntil !== undefined && this.now() < account.trialRaidWaitUntil) {
       view.subscription = { ...view.subscription, trialRaidDays: Math.max(1, Math.round(account.trialRaidMs / (24 * 60 * 60 * 1000))) }
     }
-    if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
+    if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = account.termHidden ? { status: 'active', termHidden: true } : { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
     if (account.referredBy) view.referredBy = account.referredBy
     if (this.invitedBy(account.id)) view.invitedByFriend = true
     if (account.kind === 'streamer' && account.referralCode) {
@@ -953,8 +966,9 @@ export class AccountStore {
         view.stats = stats
       }
     }
-    // Streamers use the service free of charge, for good (the desktop app reads the same view).
-    if (account.kind === 'streamer') view.subscription = { status: 'active', lifetime: true }
+    // Streamers use the service free of charge, for good (the desktop app reads the same view) — unless the owner gave one a
+    // term instead («Срок скрыт»): then his paid days decide, as anyone's.
+    if (account.kind === 'streamer' && !account.termHidden) view.subscription = { status: 'active', lifetime: true }
     const extra = this.db.prepare('SELECT phone, phone_verified_at, email_verified_at, email_grandfathered FROM accounts WHERE id = ?').get(account.id) as Row | undefined
     if (this.ownerRights(account.email, extra)) view.owner = true
     if (this.storeReviewEmails.has(account.email.trim().toLowerCase())) view.storeReview = true
@@ -968,6 +982,16 @@ export class AccountStore {
     const deletionAt = this.deletionAt(account.id)
     if (deletionAt !== undefined) view.deletionAt = new Date(deletionAt).toISOString()
     return view
+  }
+
+  /** «Срок скрыт» on or off (the owner's admin, services/adminStore.ts setTermHidden). */
+  setTermHidden(accountId: string, hidden: boolean) {
+    this.db.prepare(`UPDATE accounts SET term_hidden_at = ${hidden ? 'COALESCE(term_hidden_at, ?)' : 'NULL'} WHERE id = ?`).run(...(hidden ? [this.now(), accountId] : [accountId]))
+  }
+
+  /** The end of the paid days, also of an account whose term is hidden from its own views («Срок скрыт»). */
+  paidUntilOf(accountId: string): number | undefined {
+    return this.subscriptions?.paidUntil(accountId) ?? undefined
   }
 
   /**

@@ -297,3 +297,24 @@ test('HTTP data gate: a session that did not register the device gets 403 device
     store.close()
   }
 })
+
+// Owner, 27.11.2026 («Срок скрыт»): the player's view has no end, the token still ends with the paid days.
+test('a streamer with «Срок скрыт» gets a paid token ending with his days, not the lifetime one', async () => {
+  const { accounts, entitlements, paid, clock } = setup()
+  const streamer = await accounts.register('streamer@example.com', 'correct horse battery')
+  const id = accounts.authenticate(streamer.token)!
+  accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
+  assert.deepEqual(entitlements.access(id), { plan: 'streamer' })
+  const until = clock.now + 365 * DAY
+  paid.set(id, until)
+  accounts.setTermHidden(id, true)
+  assert.deepEqual(accounts.view(id).subscription, { status: 'active', termHidden: true })
+  assert.equal(accounts.paidUntilOf(id), until)
+  assert.deepEqual(entitlements.access(id), { plan: 'paid', until })
+  clock.now = until + DAY
+  assert.equal(entitlements.access(id), undefined)
+  assert.equal(accounts.view(id).subscription.status, 'inactive')
+  assert.equal(accounts.view(id).subscription.lifetime, undefined)
+  accounts.setTermHidden(id, false)
+  assert.deepEqual(entitlements.access(id), { plan: 'streamer' })
+})

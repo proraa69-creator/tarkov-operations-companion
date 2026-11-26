@@ -886,3 +886,47 @@ test('«Новый пароль» without e-mail codes on the server: refused, n
     await t.close()
   }
 })
+
+// Owner, 27.11.2026, about a streamer: «Сделай ему на год. Но в личном кабинете… пусть пишется у него подписка активна… не надо
+// писать, сколько у него осталось… Когда срок выйдет, у него уже будет срок подписки вышел».
+test('«Срок скрыт»: a streamer has his paid days instead of lifetime access; he sees «active» without the end, the owner sees it', async () => {
+  const t = await setup()
+  try {
+    const streamer = await t.register('streamer@example.com')
+    t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
+    let owner = await t.login('owner@example.com')
+    const id = ((await t.call('GET', '/accounts/me/admin/users?q=streamer', owner)).json as unknown as { users: Array<{ id: string }> }).users[0]!.id
+    let session = streamer
+    const me = async () => ((await t.call('GET', '/accounts/me', session)).json as unknown as { subscription: Record<string, unknown> }).subscription
+    assert.deepEqual(await me(), { status: 'active', lifetime: true })
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/grant`, owner, { days: 365, reason: 'стример' })).status, 200)
+    assert.deepEqual(await me(), { status: 'active', lifetime: true })
+    // only the owner, only a yes or a no
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/term-hidden`, streamer, { hidden: true })).status, 404)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/term-hidden`, owner, { hidden: 'yes' })).status, 400)
+    const hidden = await t.call('POST', `/accounts/me/admin/users/${id}/term-hidden`, owner, { hidden: true })
+    assert.equal(hidden.status, 200)
+    // the owner sees the end
+    assert.deepEqual((hidden.json as unknown as { user: { subscription: unknown } }).user.subscription, { status: 'active', paidUntil: '2027-10-01T10:00:00.000Z', termHidden: true })
+    // the streamer: «active», no end, no lifetime
+    assert.deepEqual(await me(), { status: 'active', termHidden: true })
+    // the cabinet of a streamer with a term may pay (a lifetime one is refused with 409)
+    assert.notEqual((await t.call('POST', '/payments', streamer, { plan: '1m', consent: { version: '2026-09-01' } })).status, 409)
+    // the year over: no access, as anyone whose days ended
+    t.advance(366 * DAY)
+    session = await t.login('streamer@example.com')
+    owner = await t.login('owner@example.com')
+    const over = await me()
+    assert.equal(over.status, 'inactive')
+    assert.equal(over.lifetime, undefined)
+    assert.equal(over.paidUntil, undefined)
+    // turned off: the lifetime access is back
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/term-hidden`, owner, { hidden: false })).status, 200)
+    assert.deepEqual(await me(), { status: 'active', lifetime: true })
+    const audit = (await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string; details: { hidden?: boolean } }> }
+    assert.deepEqual(audit.entries.filter((entry) => entry.action === 'subscription.term-hidden').map((entry) => [entry.target, entry.details.hidden]), [
+      ['streamer@example.com', false],
+      ['streamer@example.com', true],
+    ])
+  } finally { await t.close() }
+})

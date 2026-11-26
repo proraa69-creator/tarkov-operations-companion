@@ -172,7 +172,8 @@ export interface AdminUser {
   createdAt: string
   referredBy?: string
   referralCode?: string
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialRaidDays?: number }
+  /** termHidden: «Срок скрыт» (owner, 27.11.2026), the player does not see the end. */
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialRaidDays?: number; termHidden?: true }
   autopay: { provider: string; status: string; plan: string } | null
   lastSeenAt?: string
   blockedAt?: string

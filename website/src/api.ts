@@ -50,7 +50,8 @@ export interface Account {
    * `lifetime`: streamers use the service free of charge, for good. `trialPendingDays`: the free period starts with the
    * first sign-in in the app (status stays 'inactive' until then; owner, 12.10.2026).
    */
-  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
+  /** termHidden («Срок скрыт», owner 27.11.2026): active, its end not shown to the player (no paidUntil). */
+  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; termHidden?: true }
   stats?: ReferralStats
   /** A streamer with a 0 % share: the cabinet shows the statistics only — no earnings, no payouts (owner, 30.10.2026). */
   statsOnly?: true
@@ -438,7 +439,7 @@ export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
   /** `trialRaidDays`: the free days still wait for the first raid (trialEndsAt is only their latest end). */
-  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number }
+  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number; termHidden?: true }
   autopay: { provider: string; status: string; plan: string } | null
   /** lastSeenAt: the last request from anywhere; pcSeenAt: the last use of the PC app. */
   lastSeenAt?: string; pcSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
@@ -733,6 +734,8 @@ export const api = {
   adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),
   adminUnbindEft: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/eft-account/unbind`, { method: 'POST', token, body: {} }),
   adminBezebee: (token: string, id: string, allowed: boolean) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/bezebee`, { method: 'POST', token, body: { allowed } }),
+  /** «Срок скрыт» (owner, 27.11.2026): the player sees «Активна» without the end; a streamer gets his paid days. */
+  adminTermHidden: (token: string, id: string, hidden: boolean) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/term-hidden`, { method: 'POST', token, body: { hidden } }),
   adminDeleteUser: (token: string, id: string) => request<{ deleted: true }>(`/me/admin/users/${encodeURIComponent(id)}/delete`, { method: 'POST', token, body: {} }),
   /** «Изменить e-mail» (a typo at registration): the account signs in with the new address and confirms it with a code. */
   adminChangeEmail: (token: string, id: string, email: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/email`, { method: 'POST', token, body: { email } }),

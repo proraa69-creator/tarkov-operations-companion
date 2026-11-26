@@ -1,4 +1,4 @@
-import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, KeyRound, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, Wallet, XCircle } from 'lucide-react'
+import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, EyeOff, Gamepad2, Globe, KeyRound, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, Wallet, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { ADMIN_CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
@@ -34,7 +34,7 @@ const countryText = (code: string, other?: string) => `${shownCountry(code, othe
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription
   if (sub.lifetime) return { label: 'Стример, бесплатно', tone: 'brass' }
-  if (sub.status === 'active') return { label: `до ${dateOnly.format(new Date(sub.paidUntil!))}`, tone: 'green' }
+  if (sub.status === 'active') return { label: `до ${dateOnly.format(new Date(sub.paidUntil!))}${sub.termHidden ? ' · срок скрыт' : ''}`, tone: 'green' }
   // The free days wait for the first raid (owner, 12.11.2026: «вместо даты писалось «ждёт первого рейда (2 дня)»»): the date
   // would be only their latest end (7 days of waiting and the days themselves).
   if (sub.status === 'trial' && sub.trialRaidDays) return { label: `ждёт первого рейда (${sub.trialRaidDays} ${sub.trialRaidDays === 1 ? 'день' : 'дня'})`, tone: 'brass' }
@@ -354,6 +354,19 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
               : 'Аккаунт из России платит через ЮKassa. Если она у него не открывается — включите: в кабинете появятся тарифы BZB в рублях по тем же ценам.'}</span>
             <div className="admin-chips">
               <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('bezebee', (t) => api.adminBezebee(t, id, !user.bezebeeAllowed), (result) => result.user.bezebeeAllowed ? 'Оплата через BZB включена' : 'Оплата через BZB выключена')}>{busy === 'bezebee' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Wallet aria-hidden="true" />}{user.bezebeeAllowed ? 'Выключить' : 'Включить'}</button>
+            </div>
+          </div>
+        )}
+        {/* «Срок скрыт» (owner, 27.11.2026, about a streamer: «Сделай ему на год… пусть пишется у него подписка активна»): the
+            player's cabinet and apps say «Активна» without the end; a streamer has his paid days instead of «навсегда». */}
+        {!user.owner && (
+          <div className="admin-action">
+            <div className="field-label"><EyeOff size={13} aria-hidden="true" />Срок скрыт от игрока</div>
+            <span className="field-hint">{user.subscription.termHidden
+              ? 'Включено: у игрока только «Активна», без даты. Кончатся дни — «Не активна».'
+              : user.kind === 'streamer' ? 'Стример сейчас бесплатно навсегда. Включите — доступ по выданным дням, срок он не увидит.' : 'Включите — игрок увидит «Активна» без даты.'}</span>
+            <div className="admin-chips">
+              <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('termHidden', (t) => api.adminTermHidden(t, id, !user.subscription.termHidden), (result) => result.user.subscription.termHidden ? 'Срок теперь скрыт' : 'Срок снова виден игроку')}>{busy === 'termHidden' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <EyeOff aria-hidden="true" />}{user.subscription.termHidden ? 'Показать срок' : 'Скрыть срок'}</button>
             </div>
           </div>
         )}
