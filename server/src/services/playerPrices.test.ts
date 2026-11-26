@@ -90,3 +90,32 @@ test('player prices: laid over the prices file, the references taken from it bef
   assert.equal(laid.items[id(4)], undefined)
   assert.equal(layPlayerPrices(file, new Map()), file)
 })
+
+test('player prices: the same account\'s changed price of an item counts at once, the same price again not within 2 minutes', () => {
+  const { players, send, advance } = setup()
+  assert.deepEqual(send('a', [{ itemId: id(1), price: 9_000 }]), { accepted: 1, pending: 0, rejected: 0 })
+  advance(30_000)
+  assert.deepEqual(send('a', [{ itemId: id(1), price: 9_000 }]), { accepted: 0, pending: 0, rejected: 1 })
+  assert.deepEqual(send('a', [{ itemId: id(1), price: 9_500 }]), { accepted: 1, pending: 0, rejected: 0 })
+  assert.equal(players.prices('pve').get(id(1))?.price, 9_500)
+  advance(PLAYER_PRICE_RULES.repeatMs)
+  assert.deepEqual(send('a', [{ itemId: id(1), price: 9_500 }]), { accepted: 1, pending: 0, rejected: 0 })
+})
+
+// Owner, 26.11.2026: «Первые 5 минут в приоритете наша цена с барахолки… если приходит цена свежее, то обновляется».
+test('player prices: the first 5 minutes over whatever the other sources renewed, then their fresher price', () => {
+  const seen = Date.parse('2026-11-18T15:00:00Z')
+  const minute = (ms: number) => Math.floor(ms / 60_000)
+  const lay = (renewed: number) => {
+    const file = JSON.stringify({ items: { [id(1)]: { lastLowPrice: 42_000, at: minute(renewed) } } })
+    return JSON.parse(layPlayerPrices(file, new Map([[id(1), { price: 45_000, seen }]]))).items[id(1)]
+  }
+  // Renewed before the player saw it, or within 5 minutes after: the player's price.
+  for (const renewed of [seen - 10 * 60_000, seen + 60_000, seen + PLAYER_PRICE_RULES.priorityMs - 60_000]) {
+    assert.deepEqual(lay(renewed), { lastLowPrice: 45_000, at: minute(seen) }, new Date(renewed).toISOString())
+  }
+  // Renewed 5 minutes after it or later: fresher, it stays.
+  for (const renewed of [seen + PLAYER_PRICE_RULES.priorityMs, seen + 20 * 60_000]) {
+    assert.deepEqual(lay(renewed), { lastLowPrice: 42_000, at: minute(renewed) }, new Date(renewed).toISOString())
+  }
+})

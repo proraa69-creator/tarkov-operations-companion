@@ -190,7 +190,7 @@ export function fleaRect(layout: FleaLayout, part: { x: number; y: number; width
 /**
  * The filter chips above the list («Валюта EUR ×», «Сост. от 100 ×», «Кроме бартера ×»): each ends in a light «×» box
  * (13 px at 1080p, its top at y 60, the chip's words below it, y 74–86). Found by those boxes; the rects of the chips'
- * words, left to right, for the caller's OCR (fleaFilterAllows).
+ * words, left to right, for the caller's OCR: kept with the reading, none of them stops it (fleaReading.ts).
  */
 export function fleaFilterChips(pixels: FleaPixels, layout: FleaLayout) {
   const [left, edgeTop] = screenPoint(layout, 600, 61)
@@ -217,12 +217,16 @@ export function fleaFilterChips(pixels: FleaPixels, layout: FleaLayout) {
 
 /**
  * A chip that leaves the cheapest offer of an item on top: a condition from N (hides worn copies only — the whole ones
- * are what is priced), and «Кроме бартера» (barters have no price). Any other — «Валюта EUR» (offers in other
- * currencies hidden), a price or a count range — may hide a cheaper offer: the list then gives no price at all. By its
- * first word, as the OCR reads it on the owner's frames («Kpome» on Season's green).
+ * are what is priced), «Кроме бартера» (barters have no price), «Поиск по предмету». Any other — «Валюта EUR» (offers in
+ * other currencies hidden), a price or a count range — may hide a cheaper offer. No gate: the list is read behind any
+ * chip (owner, 26.11.2026: «Он должен искать по любой вот этой строке сверху», fleaReading.ts). By its first word, as
+ * the OCR reads it on the owner's frames («Kpome» on Season's green).
  */
 export function fleaFilterAllows(chip: string, language?: GameLanguage | null) {
   if (/^\W*(сост|cond|кром|kpom|kpoм|крom|excl|without|no barter)/i.test(chip.trim())) return true
+  // «Поиск по предмету …» (owner, 26.11.2026: an item found by the search box): the list holds that one item's offers, so its
+  // first row is still the item's lowest price; never a filter that hides cheaper offers of it.
+  if (/^\W*(п[оo]иск\s+п[оo]\s+предмет|search\s+by\s+item|filter\s+by\s+item)/i.test(chip.trim())) return true
   // A German, Japanese or Chinese game: its own «Zustand von:» / «状態:» and «Tauschangebote ignorieren» / «物々交換を除外».
   const words = languageWords(language)
   if (!words) return false
@@ -366,12 +370,14 @@ export interface FleaSightingResult {
 /**
  * The lowest player's price in roubles of each item on a list sorted cheapest first, from its top (the caller has checked
  * fleaScreenState: open, ascending, atTop, not locked). Reading down: a trader's row is passed over (the traders sell on
- * the flea too, often cheaper); an item's first player's offer is its lowest price — as long as every row above it was
- * read for sure. So the reading stops at the first row it cannot read: a dim one, a price not sure, a name that names no
- * item. The flea sorts every currency by its value in roubles, so an item first offered in dollars or euros is priced at
- * the game's rate (`rates`, fleaRates); with no rate for its currency (GP coins), or worn («⚒ 30/40»), it gives no price:
- * its cheapest offer in roubles is unknown. `exclude`: items whose copies differ (weapons, armour…: docs/trading.md), by the
- * offer's info line (a key counts only with all its uses: screenFleaPrices.ts).
+ * the flea too, often cheaper); an item's first whole player's offer is its lowest price — as long as every row above it
+ * was read for sure. So the reading stops at the first row it cannot read: a dim one, a price not sure, a name that names
+ * no item. Only whole copies are priced (owner, 26.11.2026: «цены только на целые предметы… если ключ… 7 из 10… эти цены
+ * не учитывай»): a worn offer («⚒ 30/40»), or one `exclude` leaves out by its info line (a key with some of its uses
+ * gone: screenFleaPrices.ts; every offer of the items whose copies differ, weapons, armour…: docs/trading.md), is passed
+ * over — the item's next whole offer is its lowest whole price. The flea sorts every currency by its value in roubles,
+ * so an item first offered in dollars or euros is priced at the game's rate (`rates`, fleaRates); with no rate for its
+ * currency (GP coins) it gives no price: its cheapest offer in roubles is unknown.
  */
 export function fleaSightings(rows: FleaRow[], exclude: (itemId: string, info: string) => boolean = () => false, rates: FleaRates = {}, language?: GameLanguage | null): FleaSightingResult {
   const sightings: FleaSighting[] = []
@@ -385,9 +391,8 @@ export function fleaSightings(rows: FleaRow[], exclude: (itemId: string, info: s
     if (!price.sure) return { sightings, stoppedAt: { row, reason: 'unsure' } }
     if (!entry.itemId) return { sightings, stoppedAt: { row, reason: 'unknown-item' } }
     const itemId = entry.itemId
-    if (seen.has(itemId)) continue
+    if (seen.has(itemId) || exclude(itemId, entry.info) || !wholeCondition(entry.info)) continue
     seen.add(itemId)
-    if (exclude(itemId, entry.info) || !wholeCondition(entry.info)) continue
     const roubles = inRoubles(price.value, price.currency, rates)
     if (roubles === null) continue
     sightings.push({ itemId, price: roubles, row, ...(price.currency === '₽' ? {} : { listed: { value: price.value, currency: price.currency } }) })

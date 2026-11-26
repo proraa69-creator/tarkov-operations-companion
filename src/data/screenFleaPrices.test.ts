@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Item } from '../domain/types'
 import type { FleaReading, FleaReadRow } from '../import/fleaReading'
 import { EUROS_ID } from '../import/fleaScreen'
-import { clearScreenPrices, fleaRatesOf, noteFleaReading as note, PLAYER_PRICE_MS, screenPrices, setFleaCatalog, withScreenPrices } from './screenFleaPrices'
+import { clearScreenPrices, fleaRatesOf, noteFleaReading as note, onSightingsSent, PLAYER_PRICE_MS, screenPrices, setFleaCatalog, withScreenPrices } from './screenFleaPrices'
 import type { LivePrices } from './livePrices'
 
 const item = (id: string, name: string, extra: Partial<Item> = {}): Item => ({ id, name, shortName: name, category: 'Бартер', description: '', prices: [], ...extra })
@@ -79,15 +79,16 @@ describe('flea prices from the player\'s screen', () => {
     expect(await fleaRatesOf('pvp', 1, ask)).toEqual({ '€': 188 })
   })
 
-  // Owner, 18.11.2026: «если у него 40 использований, должно быть 40… Если у него там 8 из 10 использований… не рассматриваем».
+  // Owner, 18.11.2026: «если у него 40 использований, должно быть 40… Если у него там 8 из 10 использований… не рассматриваем»;
+  // 26.11.2026: «цены только на целые предметы» — such an offer is passed over, the key's next one with all its uses counts.
   it('take a key only offered with all its uses, as many as the catalog says it has', async () => {
     useCatalog()
     const result = await noteFleaReading(reading([
       row('Ключ от автомобиля Yotota', 1000, '₽', 'Player', 'Всего1 Ж 8/10'), row('Ключ от автомобиля Yotota', 2900, '₽', 'Player', 'Всего1 Ж 10/10'),
       row('Ключ от комнаты 203', 3000, '₽', 'Player', 'Всего1 Ж 40/48'),
     ]), 'pve')
-    // The first offer of the car key is worn: its whole price is unknown (not the 2 900 ₽ below it).
-    expect(result).toMatchObject({ applied: [{ itemId: 'key', price: 3000 }] })
+    // The car key's first offer has 8 uses of 10: passed over, the 2 900 ₽ below it with all 10 is its price.
+    expect(result).toMatchObject({ applied: [{ itemId: 'car', price: 2900 }, { itemId: 'key', price: 3000 }] })
     const short = await noteFleaReading(reading([row('Ключ от комнаты 203', 3500, '₽', 'Player', 'Всего1 Ж 10/10')], 2_000_000), 'pve')
     expect(short).toMatchObject({ applied: [] })
     const unread = await noteFleaReading(reading([row('Ключ от комнаты 203', 3500, '₽', 'Player', 'Всего 1')], 2_000_000), 'pve')
@@ -106,5 +107,35 @@ describe('flea prices from the player\'s screen', () => {
     // Nothing read for sure, or another mode named on the screen: nothing sent.
     await noteFleaReading(reading([row('Изолента', 6000)], 2_000_000), 'pvp')
     expect(sentToServer).toHaveLength(3)
+  })
+
+  // Owner, 26.11.2026: «Первые 5 минут в приоритете наша цена с барахолки… если приходит цена свежее, то обновляется».
+  it('stand the first 5 minutes whatever the server says, then give way to a price it renewed later than that', async () => {
+    useCatalog()
+    const seen = 100 * 60_000
+    await noteFleaReading(reading([row('Изолента', 6000)], seen), 'pve')
+    const server = (minutes: number): LivePrices => ({ items: new Map([['tape', { lastLowPrice: 9000, at: 100 + minutes }]]) })
+    // Renewed 3 minutes after the player's: the player's stands, now and later.
+    for (const now of [seen + 60_000, seen + 20 * 60_000]) expect(withScreenPrices(server(3), 'pve', now)!.items.get('tape')).toEqual({ lastLowPrice: 6000, at: 100 })
+    // Renewed 6 minutes after: the player's within the first 5 minutes, the server's after them.
+    expect(withScreenPrices(server(6), 'pve', seen + 4 * 60_000)!.items.get('tape')).toEqual({ lastLowPrice: 6000, at: 100 })
+    expect(withScreenPrices(server(6), 'pve', seen + 7 * 60_000)!.items.get('tape')).toEqual({ lastLowPrice: 9000, at: 106 })
+  })
+
+  it('tell once our server took them, for their mode; not when it failed', async () => {
+    useCatalog()
+    const told: string[] = []
+    const stop = onSightingsSent((mode) => { told.push(mode) })
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+    await noteFleaReading(reading([row('Изолента', 6000)]), 'pve')
+    await settle()
+    expect(told).toEqual(['pve'])
+    await note(reading([row('Изолента', 5000)], 1_100_000), 'pve', async () => ({}), async () => { throw new Error('down') })
+    await settle()
+    expect(told).toEqual(['pve'])
+    stop()
+    await noteFleaReading(reading([row('Изолента', 4000)], 1_200_000), 'pve')
+    await settle()
+    expect(told).toEqual(['pve'])
   })
 })

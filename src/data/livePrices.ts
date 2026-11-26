@@ -1,10 +1,10 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo } from 'react'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { Item, PriceQuote, RaidMode } from '../domain/types'
 import { FLEA_SOURCE, quoteKind, steadyFleaPrice } from '../domain/itemPrices'
 import { dataRoute, gatewayRequest } from './tarkovApi'
 import type { MinutePrice, MinutePriceSnapshot } from './tarkovJsonAdapters'
-import { useScreenPricesVersion, withScreenPrices } from './screenFleaPrices'
+import { onSightingsSent, useScreenPricesVersion, withScreenPrices } from './screenFleaPrices'
 
 /**
  * The flea prices of one mode, fresh every minute (owner, 02.11.2026: «в тир листах цены на предметы не соответствуют
@@ -13,7 +13,10 @@ import { useScreenPricesVersion, withScreenPrices } from './screenFleaPrices'
  * minute (server/src/services/priceMirror.ts, ~90 KB compressed; 60 requests at once cost ~0.3 s measured on the owner's PC), while the whole catalog comes every 10 minutes
  * (catalogRefresh.ts). Only through our server: a development build keeps the catalog's prices.
  */
-export const LIVE_PRICES_MS = 60_000
+// Every 30 s while a page with prices is open (owner, 26.11.2026: «все это должно происходить моментально»): another
+// player's price read on his screen reaches it within half a minute; this app's own at once (screenFleaPrices.ts), and
+// the server's are asked again as soon as it took them. The item card asks on its looks instead (refreshLivePrices).
+export const LIVE_PRICES_MS = 30_000
 const MINUTE_MS = 60_000
 
 export interface LivePrices {
@@ -39,23 +42,35 @@ export function parseLivePrices(body: unknown, mode: RaidMode): LivePrices | nul
   return { items, ...(Number.isFinite(at) ? { updatedAt: at } : {}), ...(Number.isFinite(renewed) ? { pricesAt: renewed } : {}) }
 }
 
+/** One query of a mode's minute prices for the pages and the item card. */
+const livePricesQuery = (mode: RaidMode) => ({
+  queryKey: ['live-prices', mode],
+  queryFn: async () => parseLivePrices(await gatewayRequest('GET', `/v1/data/prices/${mode}`), mode),
+  staleTime: LIVE_PRICES_MS / 2,
+  retry: 1,
+})
+
 /**
  * This mode's minute prices while a page that shows them is open (null until the first answer, or off the server), with
- * the prices the player's own screen showed over them (src/data/screenFleaPrices.ts).
+ * the prices the player's own screen showed over them (src/data/screenFleaPrices.ts). Not `enabled`: never asked for by
+ * itself, only what a page or refreshLivePrices asked for.
  */
 export function useLivePrices(mode: RaidMode, enabled = true): LivePrices | null {
   const screen = useScreenPricesVersion()
-  const { data } = useQuery({
-    queryKey: ['live-prices', mode],
-    queryFn: async () => parseLivePrices(await gatewayRequest('GET', `/v1/data/prices/${mode}`), mode),
-    enabled: enabled && dataRoute() === 'gateway',
-    refetchInterval: LIVE_PRICES_MS,
-    staleTime: LIVE_PRICES_MS / 2,
-    retry: 1,
-  })
+  const client = useQueryClient()
+  useEffect(() => onSightingsSent((sent) => { if (sent === mode) void client.invalidateQueries({ queryKey: ['live-prices', mode] }) }), [client, mode])
+  const { data } = useQuery({ ...livePricesQuery(mode), enabled: enabled && dataRoute() === 'gateway', refetchInterval: LIVE_PRICES_MS })
   const server = data ?? null
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `screen` changes with every price from the screen
   return useMemo(() => withScreenPrices(server, mode), [server, mode, screen])
+}
+
+/**
+ * A mode's minute prices asked for again when older than a period (or once the app's own were sent), not waited for:
+ * the item card does this on its looks instead of asking every half minute all the time — its next look has them.
+ */
+export function refreshLivePrices(client: QueryClient, mode: RaidMode) {
+  if (dataRoute() === 'gateway') void client.prefetchQuery({ ...livePricesQuery(mode), staleTime: LIVE_PRICES_MS })
 }
 
 /** The item with this mode's flea quote at the minute's price: the lowest offer now, else the 24-hour average (steadyFleaPrice). */

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { FleaPixels } from './fleaDigits'
-import { DOLLARS_ID, EUROS_ID, wholeCondition, fleaFilterAllows, fleaFilterChips, fleaLayout, fleaModeFromLabel, fleaRates, fleaRowCount, fleaScreenState, fleaSightings, inRoubles, isTraderRow, readFleaPrice, readFleaPrices, type FleaPrice, type FleaRow } from './fleaScreen'
+import { DOLLARS_ID, EUROS_ID, wholeCondition, fleaFilterAllows, fleaFilterChips, fleaLayout, fleaModeFromLabel, fleaRates, fleaRowCount, fleaScreenState, fleaSightings, inRoubles, isTraderRow, keyAllUses, readFleaPrice, readFleaPrices, type FleaPrice, type FleaRow } from './fleaScreen'
 
 /**
  * The owner's flea screenshots of 18.11.2026 (1920×1080; only the parts the reader looks at kept, the rest black — see
@@ -117,13 +117,13 @@ describe('the flea screen itself', () => {
     expect(fleaScreenState(pixels)).toMatchObject({ open: true, ascending: false, atTop: false })
   })
 
-  it('finds the filter chips by their «×» boxes, and lets through only those that keep the cheapest offer on top', () => {
+  it('finds the filter chips by their «×» boxes, and knows those that keep the cheapest offer on top', () => {
     const at = (name: string) => fleaFilterChips(frames.get(name)!, fleaLayout(frames.get(name)!)).map((chip) => [chip.x, chip.width])
     expect(at('pve-keys')).toEqual([[608, 102], [726, 129]])
     expect(at('season-weapons')).toEqual([[608, 102], [726, 129]])
     expect(at('pve-eur')).toEqual([[608, 102], [725, 108]])
     // As the app's engine read each chip on the owner's 34 frames.
-    for (const chip of ['Сост. от 100', 'Сост. от 108', 'Кроме бартера', 'Кроме бартера.']) expect(fleaFilterAllows(chip), chip).toBe(true)
+    for (const chip of ['Сост. от 100', 'Сост. от 108', 'Кроме бартера', 'Кроме бартера.', 'Поиск по предмету Саморезы', 'Пoиск пo предмету']) expect(fleaFilterAllows(chip), chip).toBe(true)
     for (const chip of ['Валюта EUR', 'Валюта USD', 'Валюта GP', 'Цена от 1000', '']) expect(fleaFilterAllows(chip), chip).toBe(false)
   })
 
@@ -217,13 +217,22 @@ describe('the lowest price of each item on the list', () => {
     expect(fleaSightings([dimTrader, player('a', 100)]).sightings).toEqual([{ itemId: 'a', price: 100, row: 1 }])
   })
 
-  it('gives no price for an item first offered worn, or of the kinds whose copies differ', () => {
+  // Owner, 26.11.2026: «цены только на целые предметы… если ключ использованный несколько раз… 7 из 10… эти цены не учитывай».
+  it('prices whole copies only: a worn offer is passed over for the item\'s next whole one, the kinds whose copies differ get none', () => {
     const rows = [
       player('juice', 14444, 'Всего 1 Ж 30/40'), player('juice', 16666, 'Всего 9 Ж 40/40'),
       player('m4', 50000, 'Всего 1 ⚒ 100/100'),
       player('tape', 6000),
+      player('juice', 17000, 'Всего 2 Ж 40/40'),
     ]
-    expect(fleaSightings(rows, (id) => id === 'm4').sightings).toEqual([{ itemId: 'tape', price: 6000, row: 3 }])
+    expect(fleaSightings(rows, (id) => id === 'm4').sightings).toEqual([{ itemId: 'juice', price: 16666, row: 1 }, { itemId: 'tape', price: 6000, row: 3 }])
+  })
+
+  it('passes over a key offered with some of its uses gone and takes its first offer with all of them', () => {
+    const rows = [
+      player('car', 1000, 'Всего 1 Ж 7/10'), player('tape', 6000), player('car', 2000, 'Всего 1 Ж 9/10'), player('car', 2900, 'Всего 1 Ж 10/10'), player('car', 3100, 'Всего 1 Ж 10/10'),
+    ]
+    expect(fleaSightings(rows, (id, info) => id === 'car' && !keyAllUses(info, 10)).sightings).toEqual([{ itemId: 'tape', price: 6000, row: 1 }, { itemId: 'car', price: 2900, row: 3 }])
   })
 
   it('gives every price in roubles: dollars and euros at the rate of the game, nothing without one', () => {
