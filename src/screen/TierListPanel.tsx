@@ -1,5 +1,5 @@
 import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
-import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -22,7 +22,12 @@ import { canToggleVisor, visorPhoto } from './helmetVisors'
 import './tierLists.css'
 import { mirrorMode } from '../data/tarkovDataset'
 import { useAppState } from '../state/AppState'
-import type { GearStats, RaidMode } from '../domain/types'
+import type { GearStats, Item, RaidMode } from '../domain/types'
+import { useEconomySnapshot } from '../data/useEconomy'
+import { questAvailabilityOf } from '../quests/questReadModel'
+import { ItemDrawer } from '../components/ItemDrawer'
+import { itemBarterUses, itemQuestUses } from './itemUses'
+import { ItemNeedsList } from './ItemNeedsList'
 import { formatPrice, timeAgo } from '../shared/format'
 import {
   ammoTierRows, BACKPACK_STEPS, BY_WHOLE_PRICE, LEVEL_GROUPS, gearTierRows, HEADSET_STEPS, helmetsBlocking, helmetWorn, isFigurine,
@@ -108,10 +113,16 @@ function useCatalogExtras(mode: RaidMode, needed: boolean) {
  * One tile and its hover card (owner, 02.11.2026: «всплывающее окно при наведении на предмет … в стиле приложения, все
  * надписи одинаковые, не плавают размеры»): the app's card (components/useHoverCard.tsx) of a fixed width, the tier, the
  * name, the picture and the facts as label — value rows. The picture tries the next address when one does not load
- * (tierLists.ts tilePictures); `onMissing` once none does.
+ * (tierLists.ts tilePictures); `onMissing` once none does. Under the facts what the item is needed for (ItemNeedsList); a
+ * click or Enter opens the item's full card (report 243: «по клику… раскрыть полную карточку или хотя бы посмотреть полное
+ * название»), whose name is never cut in the hover card either.
  */
-function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon, photo, toggle, onMenu }: {
+function TierTile({ row, metric, facts, needs, onOpen, missing, onMissing, visor, presetIcon, photo, toggle, onMenu }: {
   row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void; visor?: string; presetIcon?: string
+  /** «Нужен для квестов» / «Нужен для бартеров» under the facts. */
+  needs?: ReactNode
+  /** The item's full card. */
+  onOpen: () => void
   /** A helmet's picture with its visor down or raised (helmetVisors.ts), before its other pictures. */
   photo?: string
   /** The one button of its menu: «Опустить забрало» or «Поднять забрало». */
@@ -144,6 +155,7 @@ function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon, p
         {visor && <><span className="tier-card-plus" aria-hidden="true">+</span><img src={visor} alt="" /></>}
       </div>
       <dl className="tier-card-facts">{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      {needs}
     </div>,
     toggle ? { onHoldEnd: below } : {},
   )
@@ -156,10 +168,11 @@ function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon, p
     if (!event.clientX && !event.clientY) below(event.currentTarget)
     else setMenuAt({ x: event.clientX, y: event.clientY })
   } : (onMenu ?? holdMenu)
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => { if (event.key === 'Enter') { event.preventDefault(); onOpen() } }
   // The menu outside the tile: its events do not reach the tile's hover card.
   return (
     <>
-      <div className={`tier-tile${weapon ? ' is-weapon' : ''}`} tabIndex={0} {...anchorProps} onContextMenu={onContextMenu}>
+      <div className={`tier-tile${weapon ? ' is-weapon' : ''}`} tabIndex={0} {...anchorProps} onContextMenu={onContextMenu} onClick={onOpen} onKeyDown={onKeyDown}>
         {url ? <img key={url} src={url} alt="" loading="lazy" onError={fail} /> : <span className="tier-no-icon" />}
         {visor && <img className="tier-tile-visor" src={visor} alt="" loading="lazy" />}
         <span className="tier-name">{uiText(row.item.shortName)}</span>
@@ -228,7 +241,8 @@ function RefreshButton({ busy, onClick }: { busy: boolean; onClick: () => void }
 export function TierListPanel() {
   const { data, refresh } = useTarkovData()
   const { updatedAt, isFetching } = useTarkovDataStatus()
-  const { raidMode } = useAppState()
+  const appState = useAppState()
+  const { raidMode } = appState
   const { locale } = useLocale()
   const en = locale === 'en'
   const say = (ru: string, english: string) => en ? english : ru
@@ -256,6 +270,19 @@ export function TierListPanel() {
   const live = useLivePrices(raidMode)
   const items = useMemo(() => withLivePrices(data.items, raidMode, live), [data.items, raidMode, live])
   const byId = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
+  // What each item is needed for (screen/itemUses.ts): this mode's quests by this mode's progress, its traders' barters.
+  const progress = appState.activeProfile?.modes[raidMode]
+  const availability = useMemo(() => progress && data.quests?.length ? questAvailabilityOf(data.quests, progress) : undefined, [data.quests, progress])
+  const questUses = useMemo(() => itemQuestUses(data.quests ?? [], progress, (id) => availability?.get(id)?.status ?? progress?.taskProgress[id]?.status), [data.quests, progress, availability])
+  const economy = useEconomySnapshot(raidMode)
+  const barterUses = useMemo(() => itemBarterUses(economy.data?.mode === raidMode ? economy.data.barters : []), [economy.data, raidMode])
+  const [opened, setOpened] = useState<Item | null>(null)
+  const closeCard = useCallback(() => setOpened(null), [])
+  const needsOf = (itemId: string, short: boolean) => {
+    const quests = questUses.get(itemId) ?? []
+    const barters = barterUses.get(itemId) ?? []
+    return quests.length || barters.length ? <ItemNeedsList quests={quests} barters={barters} items={byId} en={en} short={short} /> : undefined
+  }
   // The catalog's own stats when it has them for this list (helmets: with their visors and ricochet), else the items file's.
   const catalogHasGear = useMemo(() => !group || data.items.some((item) => item.gear?.kind === group && (group !== 'helmet' || item.gear.ricochet !== undefined)), [data.items, group])
   const byFood = category === 'food'
@@ -405,6 +432,7 @@ export function TierListPanel() {
     }
   }
   const tile = (row: TierRow) => <TierTile key={row.item.id} row={row} onMenu={menuOf(row)} metric={metric(row)} facts={facts(row)} missing={missing.has(row.item.id)}
+    needs={needsOf(row.item.id, true)} onOpen={() => setOpened(byId.get(row.item.id) ?? row.item)}
     onMissing={() => setMissing((set) => new Set(set).add(row.item.id))} visor={visorOf(row)} presetIcon={row.gear?.presetId ? byId.get(row.gear.presetId)?.iconUrl : undefined}
     photo={byStats ? visorPhoto(row.item.id, row.gear, positionOf(row)) : undefined} toggle={toggleOf(row)} />
 
@@ -459,6 +487,7 @@ export function TierListPanel() {
       </div>
     </section>
     <WeaponMenu menu={weaponMenu} onClose={closeWeaponMenu} />
+    {opened && <ItemDrawer item={opened} onClose={closeCard} extra={needsOf(opened.id, false)} />}
     </>
   )
 }
