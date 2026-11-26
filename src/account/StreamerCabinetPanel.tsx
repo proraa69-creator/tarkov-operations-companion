@@ -276,13 +276,16 @@ function PayoutBlock({ payouts, onChange }: { payouts: Payouts; onChange: (value
 }
 
 /**
- * «Панель стримера» в профиле (owner, 25.11.2026): кнопка рядом с ником с красным кружком новых уведомлений стримера
- * (новая оплата по ссылке или проведённая владельцем выплата). Нажатие отмечает их прочитанными и прокручивает к панели.
+ * Whether this account has «Панель стримера», and its red count (owner, 26.11.2026: «Эта кнопка появляется только если входит в
+ * аккаунт… У других людей она вообще не должна быть никак. И никакую информацию она не должна давать»). The server answers
+ * the notices only to a streamer with a share above 0 (server/src/routes/payouts.ts, 403 to anyone else, the 0 % «statistics
+ * only» streamer too), so the button and the panel appear only once it has answered; until then, and for everybody else,
+ * nothing of them is on the page. Every number in the panel comes from the server for this account alone.
  */
-export function StreamerPanelButton() {
-  // Shown only once the notices load. A 0 % «statistics only» streamer gets 403 → the button never appears for him.
+export function useStreamerPanel(enabled: boolean) {
   const [state, setState] = useState<{ unread: number } | null>(null)
   useEffect(() => {
+    if (!enabled) return
     let active = true
     const load = () => request<StreamerNotices>('GET', '/v1/accounts/me/streamer-notifications').then((value) => { if (active) setState({ unread: value.unread }) }, () => {})
     load()
@@ -290,11 +293,19 @@ export function StreamerPanelButton() {
     const onRead = () => setState((current) => (current ? { unread: 0 } : current))
     window.addEventListener(STREAMER_NOTICES_READ, onRead)
     return () => { active = false; window.clearInterval(timer); window.removeEventListener(STREAMER_NOTICES_READ, onRead) }
-  }, [])
-  if (!state) return null
-  const unread = state.unread
+  }, [enabled])
+  return enabled ? state : null
+}
+
+/**
+ * «Панель стримера» в профиле (owner, 25.11.2026): кнопка рядом с ником с красным кружком новых уведомлений стримера
+ * (новая оплата по ссылке или проведённая владельцем выплата). Нажатие отмечает их прочитанными и прокручивает к панели.
+ * Only where useStreamerPanel said yes.
+ */
+export function StreamerPanelButton({ unread }: { unread: number }) {
   const open = () => {
-    void request('POST', '/v1/accounts/me/streamer-notifications/read').then(() => setState({ unread: 0 }), () => {})
+    // the count goes at once (useStreamerPanel hears the event); the server marks them read
+    void request('POST', '/v1/accounts/me/streamer-notifications/read').catch(() => {})
     window.dispatchEvent(new Event(STREAMER_NOTICES_READ))
     document.getElementById('streamer-cabinet')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }

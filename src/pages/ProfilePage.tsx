@@ -7,7 +7,7 @@ import { useAppState } from '../state/AppState'
 import { ServerAccountPanel } from '../components/ServerAccountPanel'
 import { isOwnerApp } from '../app/buildEdition'
 import { ClientCabinetPanel } from '../account/ClientCabinetPanel'
-import { StreamerCabinetPanel, StreamerPanelButton } from '../account/StreamerCabinetPanel'
+import { StreamerCabinetPanel, StreamerPanelButton, useStreamerPanel } from '../account/StreamerCabinetPanel'
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { outdatedProfile } from '../account/logNickname'
@@ -42,6 +42,8 @@ export function ProfilePage() {
   const online = status?.online ?? false
   // «Панель стримера» + бейдж уведомлений у ника (owner, 25.11.2026): только для стримеров (не на iPhone-сборке).
   const streamer = status?.kind === 'streamer' && !ios
+  // Only a streamer with a share (owner, 26.11.2026): the server says so by answering its notices (useStreamerPanel).
+  const panel = useStreamerPanel(streamer)
   const shownLevel = snapshot || progress.levelAnchor ? progress.playerLevel ?? snapshot?.level : undefined
   const blockButtons = <><ModeResetButtons /><NicknameEditor /></>
   // The players' «Личный кабинет» stands beside «Текущий профиль», not under it (owner, 15.11.2026: «Перенеси вот этот
@@ -62,7 +64,7 @@ export function ProfilePage() {
           <div>
             <div className="eyebrow">{uiText(modeName)}{shownLevel ? <> · {uiText('Уровень ')}{shownLevel}</> : null}</div>
             <div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div>
-            {streamer && <StreamerPanelButton />}
+            {panel && <StreamerPanelButton unread={panel.unread} />}
           </div>
           <span className={`tag ${online ? 'green' : 'danger'}`}>{uiText(online ? 'Сервер доступен' : 'Сервер недоступен')}</span>
         </div>
@@ -73,7 +75,7 @@ export function ProfilePage() {
         </div>
       </section> : <section className="panel profile-live-card">
         {/* The current nickname, never the name of a Tarkov.dev profile from before a rename (owner, 13.10.2026). */}
-        <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div>{streamer && <StreamerPanelButton />}</div>{uiText(snapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(snapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
+        <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div>{panel && <StreamerPanelButton unread={panel.unread} />}</div>{uiText(snapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(snapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
         {/* «Вайп / Престиж» and «Сброс» below it, next to the level (owner, 15.10 and 04.11.2026). */}
         <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /><div className="profile-level-actions"><ModeResetButtons /><NicknameEditor /></div></div><PrestigeLine level={progress.prestige} locale={locale} mode={state.raidMode} /></div>
         {owner && <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>}
@@ -85,7 +87,7 @@ export function ProfilePage() {
     {/* «Диагностика квестов»: what each quest source gave per mode (src/quests/questEngine.ts); players never see it. */}
     {owner && <QuestDiagnosticsPanel />}
     {accountBlock}
-    {streamer && <StreamerCabinetPanel />}
+    {panel && <StreamerCabinetPanel />}
     {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026); not in the App Store build. */}
     {!hidesPayments() && <div className="profile-donate"><DonateCard /></div>}
   </div>
