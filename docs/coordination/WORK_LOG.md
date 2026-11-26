@@ -11568,3 +11568,31 @@ Not pushed, not released, nothing uploaded.
   admin and pages 279/279; typecheck (app, website, server) and eslint clean. Not checked in a browser (the admin needs the
   owner's sign-in).
 - After the release is live the switch is to be turned on for that streamer (the owner's request); nothing on the server yet.
+## 2026-11-27 03:25 — Claude: one «Raid OS» in the Start menu, report 252 (branch claude/start-menu-shortcut)
+
+- Report 252 (0.6.0.350, Windows): «После обновления в пуске появился еще один ярлык, оба запускают одну и ту же копию
+  приложения». Owner, 27.11.2026: «Проверь, и чтобы исключить проблему в нашем приложении»; then «Да, исправь».
+- Cause, seen on the owner's PC as well: Electron 44's notifications (shell/browser/notifications/win/
+  windows_toast_activator.cc EnsureShortcut, once the notification presenter is first used: Notification.isSupported() or a
+  new Notification) write %APPDATA%\Microsoft\Windows\Start Menu\Programs\<app name>.lnk with the app's AppUserModelID and a
+  toast activator (HKCU\Software\Classes\CLSID «Electron Notification Activator»), and write it again when its exe, folder, ID
+  or activator differ; only that path is checked. The app set no ID, so it was Electron's default «electron.app.Raid OS»,
+  while the installer's shortcut (ProgramData) carries package.json build.appId «local.tarkov.operations.companion».
+  shell:AppsFolder (the Start menu's «All apps») lists apps by that ID: two «Raid OS». A portable copy's link points into
+  %TEMP%\nsXXXX.tmp\app and is broken once the copy closes.
+- Fix: electron/startMenuIdentity.ts, wired in electron/main.ts. The packaged real app on Windows takes the installer's ID
+  before anything shows a notification (applyInstallerIdentity; test and trial builds and a run from the sources keep their
+  own). At the start, after the single-instance lock, the per-user «Raid OS.lnk» goes when its ID is Electron's old one, or
+  ours with its exe gone (removeStaleStartMenuShortcut); the installer's shortcut, a player's own one (no such ID) and other
+  names stay. Electron writes its link again with the installer's ID at the next notification: one entry in the Start menu.
+- Side effects: a taskbar pin made from the running window under the old ID no longer groups with the window (pin again);
+  Windows keeps per-app notification settings by ID, so they start fresh. Old «Electron Notification Activator» keys of
+  portable runs stay in HKCU (harmless, not touched).
+- Tests: electron/startMenuIdentity.test.ts, 6 (the ID is build.appId; test, trial, source runs and other systems keep
+  theirs; the old-ID link goes; ours with a lost exe goes, with its exe stays; a player's link, an unreadable file and
+  another app's ID stay; only this app name's link, nothing outside Windows); typecheck clean; eslint clean.
+- Checked on this PC, read only: a throwaway Electron script read the real per-user link with shell.readShortcutLink — ID
+  «electron.app.Raid OS», target in a gone %TEMP%\nsw564F.tmp, decision «remove». Not checked end to end: a notification
+  writes HKCU and the Start menu, only with the owner's word. The owner's own PC shows it after the update.
+- Not released: for 0.6.0.351 if the release session takes it before 13:00, else the next release; a history row only
+  (a fix, no news). The reply to the player is the owner's.

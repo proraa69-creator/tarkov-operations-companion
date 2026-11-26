@@ -55,6 +55,7 @@ import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
 import { confirmDialogOptions } from './confirmDialog.js'
 import { LogFolderGrants, mayWatchLogFolder } from './logFolders.js'
 import { ownerChangePrompt, type OwnerChange } from './ownerConfirm.js'
+import { removeStaleStartMenuShortcut, applyInstallerIdentity } from './startMenuIdentity.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
 
@@ -68,6 +69,9 @@ if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData
 // A test build (electron/buildEdition.ts isTestBuild) too: it runs beside the real app and never touches its data.
 else if (isTestBuild()) { app.setName(TEST_BUILD_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TEST_BUILD_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
+// One «Raid OS» in the Start menu (report 252, electron/startMenuIdentity.ts): the installer's AppUserModelID, set before anything
+// shows a notification; test and trial builds keep their own.
+const installerIdentity = applyInstallerIdentity(!trialLaunchesAtStart() && !isTestBuild())
 // A start that drew nothing turned the graphics card off for this copy (electron/gpuFallback.ts); it must be before the app is ready.
 const gpuFallback = readGpuFallback(app.getPath('userData'))
 const gpuOffByArgument = app.commandLine.hasSwitch('disable-gpu')
@@ -568,6 +572,8 @@ app.whenReady().then(async () => {
   }
   // The usual second start has no rights and this copy has them (the start below), and Windows would not let it reach here.
   if (isElevated() === true) allowSecondStartMessages(app.getPath('userData'))
+  // The second «Raid OS» Electron wrote in the Start menu under its old ID goes (report 252, electron/startMenuIdentity.ts).
+  if (installerIdentity) removeStaleStartMenuShortcut()
   // Server, tunnel and owner controls exist only in the owner build (electron/buildEdition.ts): a player's copy
   // ignores --enable-local-server / --server-mode / --enable-tunnel.
   const ownerBuild = isOwnerBuild()
