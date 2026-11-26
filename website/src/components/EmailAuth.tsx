@@ -215,6 +215,66 @@ export function EmailSignIn({ purpose, onDone, onBack, backLabel = tr('Войт�
   )
 }
 
+/** `#link=<challengeId>.<code>`: a reset code the server holds for one account (PasswordLinkReset); anything else is no link. */
+export function parsePasswordLink(hash: string) {
+  const match = /^#link=([A-Za-z0-9_-]{32})\.(\d{6})$/.exec(hash.trim())
+  return match ? { challengeId: match[1]!, code: match[2]! } : null
+}
+
+/**
+ * A link from support (owner, 26.11.2026: a player got no e-mail code — «Я ему скидываю ссылку, он её открывает… ввести
+ * новый пароль 2 раза. Он подтверждает, пароль сохраняется»): raidos.app/reset#link=… carries a reset code made for his
+ * account on the server, so the page asks only for the new password, twice, and saves it with the same request as
+ * «Забыли пароль?». The part after # never reaches a server or its logs. One use; then, or once it is old, the server
+ * answers 401 and the page says the link is spent.
+ */
+export function PasswordLinkReset({ link, onDone }: { link: { challengeId: string; code: string }; onDone: () => void }) {
+  const auth = useAuth()
+  const [password, setPassword] = useState('')
+  const [repeat, setRepeat] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const [localError, setLocalError] = useState('')
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    if (password.length < 8) { setLocalError(tr('Пароль должен быть не короче 8 символов.')); return }
+    if (password !== repeat) { setLocalError(tr('Пароли не совпадают.')); return }
+    setBusy(true); setError(null); setLocalError('')
+    try {
+      const result = await api.emailReset(link.challengeId, link.code, password)
+      auth.adopt(result.token, result.account)
+      onDone()
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 401) setLocalError(tr('Ссылка устарела или уже использована. Напишите в поддержку — пришлём новую.'))
+      else setError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="form" onSubmit={save}>
+      <p className="lead" style={{ margin: 0 }}>{tr('Придумайте новый пароль для аккаунта и введите его два раза.')}</p>
+      {localError && <Notice tone="error">{localError}</Notice>}
+      {failure(error)}
+      <label className="field">
+        <span className="field-label">{tr('Новый пароль')}</span>
+        <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+        <span className="field-hint">{tr('Не короче 8 символов. Все входы на других устройствах будут завершены.')}</span>
+      </label>
+      <label className="field">
+        <span className="field-label">{tr('Повторите пароль')}</span>
+        <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={repeat} onChange={(e) => setRepeat(e.target.value)} />
+      </label>
+      <button type="submit" className="button primary large block" disabled={busy}>
+        {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <KeyRound aria-hidden="true" />}
+        {tr('Сохранить новый пароль')}
+      </button>
+    </form>
+  )
+}
+
 /**
  * Cabinet: «Подтвердите e-mail» while the account's address is not confirmed (only when the server sends e-mail
  * codes). Nothing is blocked for unconfirmed accounts yet.

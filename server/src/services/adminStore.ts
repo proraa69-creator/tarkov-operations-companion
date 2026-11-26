@@ -64,7 +64,7 @@ export type AuditAction =
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
   | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
-  | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'hideout.modules' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
+  | 'eft.unbind' | 'account.delete' | 'account.email' | 'account.password-link' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'hideout.modules' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke' | 'bug.work' | 'bug.point'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start' | 'support.delete-message'
   | 'users.export' | 'subscription.bulk-grant'

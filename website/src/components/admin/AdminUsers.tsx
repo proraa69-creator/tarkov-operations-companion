@@ -1,4 +1,4 @@
-import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, Wallet, XCircle } from 'lucide-react'
+import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, KeyRound, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, Wallet, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { ADMIN_CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
@@ -180,10 +180,11 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<Failure | null>(null)
   const [done, setDone] = useState('')
+  const [link, setLink] = useState('')
 
   const run = async (name: string, action: (t: string) => Promise<AdminUserDetail>, message: (result: AdminUserDetail) => string) => {
     if (!token) return
-    setBusy(name); setError(null); setDone('')
+    setBusy(name); setError(null); setDone(''); setLink('')
     try {
       const result = await action(token)
       detail.setData(result)
@@ -225,6 +226,27 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
     const next = typed.trim().toLowerCase()
     if (!next || next === email.toLowerCase()) return
     void run('email', (t) => api.adminChangeEmail(t, id, next), (result) => `E-mail изменён: ${result.user.email}`)
+  }
+
+  /**
+   * «Новый пароль» (owner, 26.11.2026: a player got no e-mail code — «при нажатии копируется ссылка для человека»): a link
+   * for 48 hours where the player sets a new password himself (raidos.app/reset#link=…). Copied at once and shown below
+   * in case the clipboard is closed; every press makes a new link.
+   */
+  const passwordLink = async () => {
+    if (!token) return
+    setBusy('password'); setError(null); setDone(''); setLink('')
+    try {
+      const result = await api.adminPasswordLink(token, id)
+      setLink(result.url)
+      // no clipboard (a page that is not https, a phone that refuses): shown to copy by hand
+      const copied = await Promise.resolve().then(() => navigator.clipboard.writeText(result.url)).then(() => true, () => false)
+      setDone(`${copied ? 'Ссылка скопирована' : 'Скопируйте ссылку ниже'}: действует до ${dateTime.format(new Date(result.expiresAt))}`)
+    } catch (reason) {
+      setError(failure(reason))
+    } finally {
+      setBusy(null)
+    }
   }
 
   const grant = (event: FormEvent) => {
@@ -290,6 +312,7 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
               : <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => { if (window.confirm(`Заблокировать вход для ${user.email}? Все его сессии будут сброшены.`)) void run('block', (t) => api.adminBlock(t, id, true, blockReason.trim() || undefined), () => 'Вход заблокирован, сессии сброшены') }}><Ban aria-hidden="true" />Заблокировать вход</button>}
             <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('sessions', (t) => api.adminRevokeSessions(t, id), (result) => `Сброшено сессий: ${result.revoked ?? 0}`)}><LogOut aria-hidden="true" />Сбросить сессии</button>
             <button type="button" className="button small ghost" disabled={busy !== null || Boolean(user.owner)} onClick={() => changeEmail(user.email)}>{busy === 'email' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <AtSign aria-hidden="true" />}Изменить e-mail</button>
+            <button type="button" className="button small ghost" disabled={busy !== null || Boolean(user.owner) || Boolean(user.blockedAt)} onClick={() => void passwordLink()}>{busy === 'password' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <KeyRound aria-hidden="true" />}Новый пароль</button>
             <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => void remove(user.email)}>{busy === 'delete' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}Удалить аккаунт</button>
             {user.autopay?.status === 'active' && (
               <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отменить автопродление (${PROVIDER_LABEL[user.autopay!.provider as keyof typeof PROVIDER_LABEL] ?? user.autopay!.provider}) для ${user.email}? Оплаченный период сохранится.${user.autopay!.provider === 'yookassa' ? '' : ' Сервер с прежним платёжным сервисом больше не связан: остановите подписку и там, вручную.'}`)) void run('autopay', (t) => api.adminCancelAutopay(t, id), () => 'Автопродление отменено') }}><XCircle aria-hidden="true" />Отменить автопродление</button>
@@ -337,6 +360,7 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
       </div>
       {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
       {done && <Notice tone="success">{done}</Notice>}
+      {link && <input className="input mono" readOnly aria-label="Ссылка на новый пароль" value={link} onFocus={(event) => event.currentTarget.select()} />}
       <div className="admin-user-lists">
         <div>
           <div className="field-label">Последние платежи</div>

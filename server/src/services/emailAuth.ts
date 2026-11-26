@@ -43,6 +43,8 @@ import { WRONG_CODE_MESSAGE } from './phoneAuth.js'
 
 export type EmailPurpose = 'register' | 'verify' | 'login' | 'reset'
 export const EMAIL_CODE_TTL_MS = 10 * 60 * 1000
+/** «Новый пароль» from the owner's «Пользователи»: how long the link lives (EmailAuthService.passwordLink). */
+export const PASSWORD_LINK_TTL_MS = 48 * 60 * 60 * 1000
 /** How long a registration waits for its code (resends included). */
 export const REGISTRATION_TTL_MS = 30 * 60 * 1000
 export const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000
@@ -113,6 +115,11 @@ const IP_LIMIT_MESSAGE = 'Слишком много запросов кода с
  * `ad`: the ad label the site kept from an ad's link (src/shared/adSources.ts).
  */
 interface Payload { salt: string; hash: string; referral?: string; ip?: string; net?: string; country?: string; ad?: { source: string; campaign?: string } }
+/** A reset code the owner made for a link (passwordLink): it never went to the address. */
+interface LinkPayload { link: true }
+const madeForLink = (row: Row) => {
+  try { return row.payload != null && (JSON.parse(String(row.payload)) as Partial<LinkPayload>).link === true } catch { return false }
+}
 
 export interface EmailAuthOptions {
   sender?: EmailSender
@@ -235,14 +242,14 @@ export class EmailAuthService implements PendingRegistrations {
    * stands alone, so a stranger asking for codes for this address cannot cancel the owner's one. Only the account's own
    * earlier confirmation code (purpose 'verify', signed in) is replaced.
    */
-  private createChallenge(purpose: EmailPurpose, email: string, accountId: string | undefined, payload?: Payload | null) {
+  private createChallenge(purpose: EmailPurpose, email: string, accountId: string | undefined, payload?: Payload | LinkPayload | null, ttlMs = EMAIL_CODE_TTL_MS) {
     const now = this.now()
     this.sweep(now)
     if (purpose === 'verify') this.db.prepare('DELETE FROM email_challenges WHERE purpose = ? AND account_id = ?').run(purpose, accountId ?? '')
     const code = newCode()
     const challengeId = newChallengeId()
     const salt = newSalt()
-    const expiresAt = now + EMAIL_CODE_TTL_MS
+    const expiresAt = now + ttlMs
     const pendingUntil = purpose === 'register' ? now + REGISTRATION_TTL_MS : null
     this.db.prepare('INSERT INTO email_challenges (digest, purpose, email, account_id, salt, code_hash, attempts, created_at, expires_at, pending_until, payload) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)')
       .run(sha256(challengeId), purpose, email, accountId ?? null, salt, codeHash(salt, purpose, email, code), now, expiresAt, pendingUntil, payload ? JSON.stringify(payload) : null)
@@ -436,14 +443,27 @@ export class EmailAuthService implements PendingRegistrations {
     const account = this.accounts.accountByEmail(String(row.email))
     if (!account || account.id !== String(row.account_id)) throw new EmailAuthError(400, WRONG_CODE_MESSAGE)
     if (account.blocked) throw new EmailAuthError(403, BLOCKED_MESSAGE)
-    // The code reached the inbox: the address is proven.
-    this.accounts.markEmailVerified(account.id)
+    // The code reached the inbox: the address is proven. A link from the owner never went to it: the address stays as it was.
+    if (!madeForLink(row)) this.accounts.markEmailVerified(account.id)
     return account.id
   }
 
   login(challengeId: string, code: string) {
     const accountId = this.signInTarget('login', challengeId, code)
     return { accountId, token: this.accounts.startSession(accountId) }
+  }
+
+  /**
+   * «Новый пароль» in the owner's «Пользователи» (owner, 26.11.2026: a player got no e-mail code — «кнопка новый пароль, я
+   * отправляю ее и человек может перейти и создать новый пароль; при нажатии копируется ссылка для человека»): a reset code
+   * for the account that goes into a link instead of a letter, for PASSWORD_LINK_TTL_MS. The owner sends the link himself;
+   * the page (website ResetPasswordPage, #link=…) asks for the new password twice and saves it through POST /email/reset as
+   * any reset code, once. Nothing here proves the address, so using the link leaves the e-mail as it was.
+   */
+  passwordLink(accountId: string) {
+    this.requireEnabled()
+    const email = normalize(this.accounts.view(accountId).email)
+    return { email, ...this.createChallenge('reset', email, accountId, { link: true }, PASSWORD_LINK_TTL_MS) }
   }
 
   /** New password after a confirmed code: every session of the account is revoked, this device gets a new one. */

@@ -1,9 +1,9 @@
 import { LoaderCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { useAuthConfig } from '../components/authConfig'
-import { EmailSignIn } from '../components/EmailAuth'
+import { EmailSignIn, parsePasswordLink, PasswordLinkReset } from '../components/EmailAuth'
 import { Notice } from '../components/Notice'
 import { tr } from '../i18n'
 
@@ -16,13 +16,15 @@ function withLink(text: string, link: ReactNode) {
 /**
  * «Забыли пароль?»: a code to the account's e-mail (server/src/routes/email.ts) → new password. Every session of the
  * account ends; this browser is signed in with the new password. Without e-mail codes on the server: support only.
+ * A link from support (#link=…, PasswordLinkReset) asks only for the new password, twice — signed in or not.
  */
 export function ResetPasswordPage() {
   const auth = useAuth()
   const navigate = useNavigate()
   const config = useAuthConfig()
+  const link = parsePasswordLink(useLocation().hash)
 
-  if (auth.status === 'ready') return <Navigate to="/cabinet" replace />
+  if (auth.status === 'ready' && !link) return <Navigate to="/cabinet" replace />
 
   const done = () => navigate('/cabinet', { replace: true, state: { passwordReset: true } })
   const email = config?.emailEnabled === true
@@ -32,12 +34,13 @@ export function ResetPasswordPage() {
       <div className="panel auth-card">
         <div className="eyebrow">{tr('Аккаунт')}</div>
         <h1>{tr('Восстановление пароля')}</h1>
-        {!config && <LoaderCircle className="spinner" aria-hidden="true" />}
-        {config && !email && <>
+        {link && <PasswordLinkReset link={link} onDone={done} />}
+        {!link && !config && <LoaderCircle className="spinner" aria-hidden="true" />}
+        {!link && config && !email && <>
           <Notice tone="info">{tr('Восстановление пароля по коду из письма на этом сервере сейчас недоступно.')}</Notice>
           <p className="lead">{withLink(tr('Напишите в поддержку с e-mail, на который зарегистрирован аккаунт: контакты — на странице {link}.'), <Link to="/legal">{tr('«Реквизиты и документы»')}</Link>)}</p>
         </>}
-        {email && <>
+        {!link && email && <>
           <EmailSignIn purpose="reset" onDone={done} />
           <p className="auth-switch">{withLink(tr('Нет доступа к почте? Напишите в поддержку: контакты — на странице {link}.'), <Link to="/legal">{tr('«Реквизиты и документы»')}</Link>)}</p>
         </>}

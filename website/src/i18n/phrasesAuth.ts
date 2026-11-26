@@ -66,6 +66,8 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
     'If {email} has an account, an e-mail with a code is on its way. Never share the code with anyone, not even “support”.'],
   ['Новый пароль', 'New password'], ['Не короче 8 символов. Все входы на других устройствах будут завершены.', 'At least 8 characters. You will be signed out on all other devices.'],
   ['Сохранить новый пароль', 'Save the new password'], ['Другой e-mail', 'Another e-mail'],
+  ['Придумайте новый пароль для аккаунта и введите его два раза.', 'Choose a new password for your account and enter it twice.'],
+  ['Ссылка устарела или уже использована. Напишите в поддержку — пришлём новую.', 'This link has expired or has already been used. Write to support and we will send you a new one.'],
   ['E-mail подтверждён', 'E-mail confirmed'], ['Спасибо! Теперь по этому адресу можно восстановить доступ к аккаунту.', 'Thank you! You can now recover access to your account with this address.'],
   ['Подтвердите e-mail', 'Confirm your e-mail'], ['Не подтверждён', 'Not confirmed'], ['Отправить код', 'Send a code'], ['Подтвердить', 'Confirm'],
   ['Мы пришлём на {slot} код из 6 цифр. Подтверждённый e-mail нужен, чтобы восстановить доступ к аккаунту, если вы забудете пароль.',

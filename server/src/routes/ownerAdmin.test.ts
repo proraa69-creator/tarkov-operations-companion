@@ -4,6 +4,8 @@ import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
 import { AdminStore } from '../services/adminStore.js'
+import { EmailAuthService } from '../services/emailAuth.js'
+import { FakeEmailSender } from '../services/email/index.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { PayoutStore } from '../services/payoutStore.js'
@@ -828,4 +830,59 @@ test('a streamer with a 0 % share sees statistics only (owner, 30.10.2026: «п�
     assert.equal((await t.call('GET', '/accounts/me/referral-stats?period=day&month=2026-13', streamer)).status, 400)
     assert.equal((await t.call<Series>('GET', '/accounts/me/admin/streamer-stats?code=HUNTER&period=day&month=2026-09', owner)).json.rows.length, 30)
   } finally { await t.close() }
+})
+
+test('«Новый пароль» (owner, 26.11.2026): a link for 48 hours, the player sets the password himself, once; his e-mail stays as it was', async () => {
+  let clock = Date.parse('2026-11-26T10:00:00.000Z')
+  const now = () => clock
+  const db = openDatabase(':memory:')
+  const first = new AccountStore({ db, now, ownerEmails: [] })
+  await first.register('owner@example.com', password)
+  first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
+  await first.register('player@example.com', password)
+  const accounts = new AccountStore({ db, now, ownerEmails: ['owner@example.com'] })
+  const emails = new EmailAuthService(accounts, { sender: new FakeEmailSender(), now })
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails }).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/accounts`
+  const post = async (path: string, body: unknown, token?: string) => {
+    const response = await fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
+    return { status: response.status, json: (await response.json()) as Record<string, unknown> }
+  }
+  try {
+    const owner = String((await post('/login', { email: 'owner@example.com', password })).json.token)
+    const playerToken = String((await post('/login', { email: 'player@example.com', password })).json.token)
+    const playerId = accounts.accountByEmail('player@example.com')!.id
+    assert.equal((await post(`/me/admin/users/${playerId}/password-link`, {}, playerToken)).status, 404, 'nobody but the owner')
+    const made = await post(`/me/admin/users/${playerId}/password-link`, {}, owner)
+    assert.equal(made.status, 200, JSON.stringify(made.json))
+    assert.equal(made.json.expiresAt, '2026-11-28T10:00:00.000Z')
+    const link = /^https:\/\/raidos\.app\/reset#link=([A-Za-z0-9_-]{32})\.(\d{6})$/.exec(String(made.json.url))
+    assert.ok(link, String(made.json.url))
+    const [, challengeId, code] = link
+    const reset = await post('/email/reset', { challengeId, code, password: 'brand new password' })
+    assert.equal(reset.status, 200, JSON.stringify(reset.json))
+    assert.equal((await post('/login', { email: 'player@example.com', password: 'brand new password' })).status, 200)
+    assert.equal(accounts.authenticate(playerToken), undefined, 'his other sessions end')
+    assert.equal(accounts.isEmailVerified(playerId), false, 'the link never went to the address: it proves nothing about it')
+    assert.equal((await post('/email/reset', { challengeId, code, password: 'another password 1' })).status, 401, 'one use')
+    const late = await post(`/me/admin/users/${playerId}/password-link`, {}, owner)
+    const [, lateId, lateCode] = /#link=([A-Za-z0-9_-]{32})\.(\d{6})$/.exec(String(late.json.url))!
+    clock += 48 * 60 * 60 * 1000
+    assert.equal((await post('/email/reset', { challengeId: lateId, code: lateCode, password: 'another password 1' })).status, 401, 'gone after 48 hours')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
+test('«Новый пароль» without e-mail codes on the server: refused, nothing made', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = t.accounts.authenticate(await t.register('player@example.com'))!
+    const made = await t.call('POST', `/accounts/me/admin/users/${player}/password-link`, owner, {})
+    assert.equal(made.status, 503, JSON.stringify(made.json))
+  } finally {
+    await t.close()
+  }
 })
