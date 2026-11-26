@@ -157,6 +157,16 @@ export class PromoCodeStore {
     )`)
   }
 
+  /** On the list already: found by a check or added by hand. */
+  has(code: string) {
+    return this.db.prepare('SELECT 1 AS found FROM promo_codes WHERE code = ?').get(code) !== undefined
+  }
+
+  /** The list as the apps get it, in one string: it moves whenever what they show does (PromoListWatch). */
+  mark(announced: readonly AnnouncedPromoCode[] = ANNOUNCED_PROMO_CODES) {
+    return JSON.stringify(this.list(announced))
+  }
+
   /** What one check found; the codes new to the list. The very first check's codes are marked: no player is told of them as news. */
   update(codes: readonly FoundPromoCode[]): string[] {
     const at = this.now()
@@ -194,25 +204,49 @@ export class PromoCodeStore {
 }
 
 export const PROMO_CHECK_MS = 2 * 60 * 60 * 1000
+/**
+ * The channels between those checks (owner, 26.11.2026: a code the channel posted at 20:57 MSK reached the apps only by hand —
+ * the two-hourly check could not open the channel; «да, сделай»: the channel every 15 minutes, and a new code to every open app
+ * at once, one added by hand too). One request a channel: checkPromoChannels.
+ */
+export const PROMO_CHANNEL_CHECK_MS = 15 * 60 * 1000
+/** How often the list itself is looked at (PromoListWatch): a code added by hand straight into promo_codes reaches the open apps within this. */
+export const PROMO_WATCH_MS = 60 * 1000
+
+/** What a check may be given: the tests give their own fetch, pages, channels and clock. */
+export interface PromoCheckOptions {
+  fetch?: typeof fetch
+  sources?: readonly PromoSource[]
+  channels?: readonly PromoChannel[]
+  onNew?: (codes: string[]) => void
+  log?: (line: string) => void
+  /** The clock the channel posts are measured by (two weeks from a post). */
+  now?: () => number
+}
+
+/** Every channel's codes; a channel that fails gives none, and a line in the log. */
+async function readChannels(channels: readonly PromoChannel[], ask: typeof fetch, now: () => number, log?: (line: string) => void) {
+  return (await Promise.all(channels.map(async (channel) => {
+    try {
+      const response = await ask(channel.url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; RaidOS/1.0)', accept: 'application/rss+xml, text/xml' }, signal: AbortSignal.timeout(30_000) })
+      if (!response.ok) { log?.(`promo codes: ${channel.id} ${response.status}`); return [] }
+      return parseChannelFeed(await response.text(), now())
+    } catch (error) {
+      log?.(`promo codes: ${channel.id} ${String(error).slice(0, 80)}`)
+      return []
+    }
+  }))).flat()
+}
 
 /**
  * One check: every page and every channel; one that fails counts as no answer. The pages' codes need two pages, fewer
  * than two answers take none of theirs; a channel's codes count on their own. New codes are told at once.
  */
-export async function checkPromoCodes(store: PromoCodeStore, options: { fetch?: typeof fetch; sources?: readonly PromoSource[]; channels?: readonly PromoChannel[]; onNew?: (codes: string[]) => void; log?: (line: string) => void } = {}) {
+export async function checkPromoCodes(store: PromoCodeStore, options: PromoCheckOptions = {}) {
   const sources = options.sources ?? PROMO_SOURCES
   const channels = options.channels ?? PROMO_CHANNELS
   const ask = options.fetch ?? fetch
-  const posted = (await Promise.all(channels.map(async (channel) => {
-    try {
-      const response = await ask(channel.url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; RaidOS/1.0)', accept: 'application/rss+xml, text/xml' }, signal: AbortSignal.timeout(30_000) })
-      if (!response.ok) { options.log?.(`promo codes: ${channel.id} ${response.status}`); return [] }
-      return parseChannelFeed(await response.text(), Date.now())
-    } catch (error) {
-      options.log?.(`promo codes: ${channel.id} ${String(error).slice(0, 80)}`)
-      return []
-    }
-  }))).flat()
+  const posted = await readChannels(channels, ask, options.now ?? Date.now, options.log)
   const pages = await Promise.all(sources.map(async (source) => {
     try {
       const response = await ask(source.url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; RaidOS/1.0)', accept: 'text/html' }, signal: AbortSignal.timeout(30_000) })
@@ -237,4 +271,36 @@ export async function checkPromoCodes(store: PromoCodeStore, options: { fetch?: 
   const added = store.update([...codes.values()])
   if (added.length) options.onNew?.(added)
   return { answered: answered.length, added }
+}
+
+/**
+ * The channels alone, every PROMO_CHANNEL_CHECK_MS: a code new to the list is added (to its post's date, as by a full check)
+ * and told at once. A code already on the list is left as the full check keeps it: its mode stays the pages'.
+ */
+export async function checkPromoChannels(store: PromoCodeStore, options: Pick<PromoCheckOptions, 'fetch' | 'channels' | 'onNew' | 'log' | 'now'> = {}) {
+  const posted = await readChannels(options.channels ?? PROMO_CHANNELS, options.fetch ?? fetch, options.now ?? Date.now, options.log)
+  const fresh = posted.filter((entry) => !store.has(entry.code))
+  const added = fresh.length ? store.update(fresh) : []
+  if (added.length) options.onNew?.(added)
+  return { added }
+}
+
+/**
+ * The list as the apps get it, watched: `check()` tells every open app once the list moved since they were last told — a check
+ * found a code, a code was added by hand straight into promo_codes, a studio code's hour came. Once a move.
+ */
+export class PromoListWatch {
+  private shown: string
+
+  constructor(private readonly store: PromoCodeStore, private readonly tell: () => void, private readonly announced: readonly AnnouncedPromoCode[] = ANNOUNCED_PROMO_CODES) {
+    this.shown = store.mark(announced)
+  }
+
+  check() {
+    const now = this.store.mark(this.announced)
+    if (now === this.shown) return false
+    this.shown = now
+    this.tell()
+    return true
+  }
 }

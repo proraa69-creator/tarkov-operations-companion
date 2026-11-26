@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
-import { agreedPromoCodes, ANNOUNCED_PROMO_CODES, checkPromoCodes, parseChannelFeed, parsePromoPage, PROMO_SOURCES, PromoCodeStore } from './promoCodes.js'
+import { agreedPromoCodes, ANNOUNCED_PROMO_CODES, checkPromoChannels, checkPromoCodes, parseChannelFeed, parsePromoPage, PROMO_SOURCES, PromoCodeStore, PromoListWatch } from './promoCodes.js'
 
 const SOURCE = { from: /^all codes/i, to: /^(how to|expired)/i }
 
@@ -32,8 +32,9 @@ test('a code counts once two pages list it', () => {
 
 function setup() {
   let at = Date.parse('2026-11-06T10:00:00Z')
-  const store = new PromoCodeStore(new DatabaseSync(':memory:'), () => at)
-  return { store, move: (ms: number) => { at += ms } }
+  const db = new DatabaseSync(':memory:')
+  const store = new PromoCodeStore(db, () => at)
+  return { store, db, now: () => at, move: (ms: number) => { at += ms } }
 }
 
 test('the store: the first batch is marked, later codes are news with their own date; a code once added stays (owner, 25.11.2026)', () => {
@@ -94,6 +95,7 @@ const FEED = `<rss><channel><title>Тарковское Метадвижение
 <item><title>Ледокол</title><description>Новая локация &lt;b&gt;ICEBREAKER&lt;/b&gt; 🎁 подарки на месте</description><pubDate>Sat, 14 Nov 2026 10:00:00 +0300</pubDate></item>
 <item><title>Старый</title><description>Промокод 🎁 &lt;code&gt;OLDCODE&lt;/code&gt;</description><pubDate>Mon, 19 Oct 2026 10:00:00 +0300</pubDate></item>
 </channel></rss>`
+const FEED_DAY = Date.parse('2026-11-18T06:00:00Z')
 
 test('the channel posts about codes: the code after 🎁 or in <code>, the mode the post says, two weeks from the post; other and old posts stay out', () => {
   const now = Date.parse('2026-11-18T06:00:00Z')
@@ -107,7 +109,8 @@ test('a check takes the channel code at once, with no second page, and keeps it 
   const { store, move } = setup()
   const feedOnly = (async (url: string | URL | Request) => String(url).includes('rss') ? new Response(FEED) : new Response('', { status: 503 })) as typeof fetch
   const channels = [{ id: 'metadvij', url: 'https://feed.test/rss/metadvij' }]
-  const result = await checkPromoCodes(store, { fetch: feedOnly, sources: [], channels })
+  // the posts measured by the feed's own day, not today's: the real clock dropped 9GAG from 28.11.2026 on
+  const result = await checkPromoCodes(store, { fetch: feedOnly, sources: [], channels, now: () => FEED_DAY })
   assert.equal(result.answered, 0)
   assert.deepEqual(result.added.sort(), ['9GAG', 'READ80LV'])
   // not in the feed any more and no page lists it: still shown to its post's date and a day after
@@ -123,4 +126,40 @@ test('the fresher pages (25.11.2026): the Dexerto table and the Timesaver list b
   assert.deepEqual(parsePromoPage(dex, dexerto).map((entry) => entry.code), ['READ80LV', '1YEAROFESCAPING'])
   const ts = `<h2>Which Tarkov codes are active right now (November 2026)?</h2><ul><li><strong>9GAG</strong> — PvE</li><li><strong>EMBRACEPAIN</strong> — PvP Zone</li></ul><h2>How do you redeem Escape from Tarkov codes?</h2><ul><li><strong>NOTACODE</strong></li></ul>`
   assert.deepEqual(parsePromoPage(ts, timesaver).map((entry) => entry.code), ['9GAG', 'EMBRACEPAIN'])
+})
+
+test('the channel alone every 15 minutes (owner, 26.11.2026): a code new to the list is added and told at once; a known one keeps its mode', async () => {
+  const { store } = setup()
+  store.update([{ code: 'WIPE', mode: 'season' }])
+  store.update([{ code: '9GAG', mode: 'pvp' }])
+  const channels = [{ id: 'metadvij', url: 'https://feed.test/rss/metadvij' }]
+  const feed = (async () => new Response(FEED)) as typeof fetch
+  const now = () => FEED_DAY
+  const told: string[][] = []
+  assert.deepEqual(await checkPromoChannels(store, { fetch: feed, channels, now, onNew: (codes) => told.push(codes) }), { added: ['READ80LV'] })
+  assert.deepEqual(told, [['READ80LV']])
+  assert.equal(store.list([]).find((row) => row.code === '9GAG')!.mode, 'pvp', 'the post says PvE: the mode it has stays')
+  assert.deepEqual(await checkPromoChannels(store, { fetch: feed, channels, now, onNew: (codes) => told.push(codes) }), { added: [] })
+  assert.equal(told.length, 1, 'told once')
+  const lines: string[] = []
+  const down = (async () => { throw new TypeError('fetch failed') }) as typeof fetch
+  assert.deepEqual(await checkPromoChannels(store, { fetch: down, channels, now, log: (line) => lines.push(line) }), { added: [] })
+  assert.deepEqual(lines, ['promo codes: metadvij TypeError: fetch failed'])
+})
+
+test('the list watched (owner, 26.11.2026): a code put straight into the table by hand, or a studio code\'s hour, is told to the open apps once', () => {
+  const { store, db, now, move } = setup()
+  store.update([{ code: 'WIPE' }])
+  const studio = [{ code: 'STUDIO', mode: 'pve' as const, from: '2026-11-06T11:00:00Z', until: '2026-11-20T00:00:00Z' }]
+  let told = 0
+  const watch = new PromoListWatch(store, () => { told += 1 }, studio)
+  assert.equal(watch.check(), false, 'nothing moved')
+  db.prepare('INSERT INTO promo_codes (code, mode, first_seen_at, last_seen_at, first_batch) VALUES (?, NULL, ?, ?, 0)').run('BYHAND', now(), now())
+  assert.equal(watch.check(), true, 'the code added by hand')
+  assert.equal(watch.check(), false, 'told once')
+  move(2 * 60 * 60 * 1000)
+  assert.equal(watch.check(), true, 'the studio code\'s hour')
+  store.update([{ code: 'WIPE' }])
+  assert.equal(watch.check(), false, 'a code seen again changes nothing the apps show')
+  assert.equal(told, 2)
 })
