@@ -28,25 +28,57 @@ interface MapPriorityProps {
 }
 
 /**
+ * How the row glides to where the wheel sent it: each frame covers 1 − e^(−frame/GLIDE_MS) of the way left, so it starts
+ * quick and settles softly (about 95 % of the way in 3 × GLIDE_MS).
+ */
+export const GLIDE_MS = 150
+
+/**
  * The wheel scrolls the tile row sideways while the pointer is over it and there is more to see in that direction;
  * at either end the page scrolls as usual. React's onWheel is passive, so the listener is attached by hand.
+ * The row glides (owner, 26.11.2026: «пролистывание роликом сделать безумно плавное… должно листаться не рывками, а плыть»):
+ * a notch moves where the row is going, and the row floats there frame by frame (GLIDE_MS); notches that come while it
+ * floats add up. Moved by anything else meanwhile (the scrollbar, a touchpad, a chosen map brought into sight), the row
+ * is theirs: the glide stops. With «reduce motion» in the system the row moves at once, as before.
  */
 function useWheelScrollsSideways<T extends HTMLElement>() {
   const ref = useRef<T>(null)
   useEffect(() => {
     const row = ref.current
     if (!row) return
+    const still = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null
+    let position = row.scrollLeft
+    let target = position
+    let written = position
+    let frame = 0
+    let last = 0
+    const stop = () => { if (frame) cancelAnimationFrame(frame); frame = 0; last = 0 }
+    const glide = (time: number) => {
+      frame = 0
+      if (Math.abs(row.scrollLeft - written) > 2) { last = 0; position = target = written = row.scrollLeft; return }
+      const elapsed = last ? Math.min(64, time - last) : 16
+      last = time
+      position += (target - position) * (1 - Math.exp(-elapsed / GLIDE_MS))
+      if (Math.abs(target - position) < 0.5) position = target
+      row.scrollLeft = position
+      written = row.scrollLeft
+      if (position !== target) frame = requestAnimationFrame(glide)
+      else last = 0
+    }
     const onWheel = (event: WheelEvent) => {
       if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
       const max = row.scrollWidth - row.clientWidth
       if (max <= 1) return
       const step = event.deltaY * (event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? row.clientWidth : 1)
-      if ((step < 0 && row.scrollLeft <= 0) || (step > 0 && row.scrollLeft >= max - 1)) return
+      if (!frame) position = target = written = row.scrollLeft
+      if ((step < 0 && target <= 0) || (step > 0 && target >= max - 1)) return
       event.preventDefault()
-      row.scrollLeft += step
+      target = Math.max(0, Math.min(max, target + step))
+      if (still?.matches) { row.scrollLeft = position = written = target; return }
+      if (!frame) frame = requestAnimationFrame(glide)
     }
     row.addEventListener('wheel', onWheel, { passive: false })
-    return () => row.removeEventListener('wheel', onWheel)
+    return () => { row.removeEventListener('wheel', onWheel); stop() }
   }, [])
   return ref
 }

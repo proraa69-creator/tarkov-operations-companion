@@ -220,6 +220,9 @@
 .raid-tasks > strong { font-size: 22px; font-weight: 850; line-height: 1.05; letter-spacing: -.03em; }
 .map-priority.is-inline { flex: 1; min-width: 0; margin: 0; padding: 0; }
 .map-priority.is-inline .map-priority-grid { grid-auto-columns: minmax(132px, 150px); padding: 2px 0 6px; }
+/* Smaller tiles on the PC (owner, 26.11.2026: «окна с названиями карт… меньше»): a tile is as wide as its name, never under 112 px */
+:root:not([data-layout="mobile"]) .map-priority.is-inline .map-priority-grid { display: flex; gap: 5px; }
+:root:not([data-layout="mobile"]) .map-priority.is-inline .map-priority-tile { flex: none; min-width: 112px; }
 .raid-card .map-priority.is-inline .map-priority-tile { background: color-mix(in srgb, var(--surf-1) 78%, transparent); }
 :root[data-layout="mobile"] .raid-top { gap: 8px; }
 :root[data-layout="mobile"] .raid-tasks { padding: 5px 9px 6px; }
