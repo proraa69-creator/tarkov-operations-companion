@@ -11596,3 +11596,14 @@ Not pushed, not released, nothing uploaded.
   writes HKCU and the Start menu, only with the owner's word. The owner's own PC shows it after the update.
 - Not released: for 0.6.0.351 if the release session takes it before 13:00, else the next release; a history row only
   (a fix, no news). The reply to the player is the owner's.
+
+## 2026-11-27 05:50 — Claude: 0.6.0.351 also takes the Start menu fix (claude/start-menu-shortcut)
+
+- Owner, 27.11.2026: «Да, исправь» about the second «Raid OS» in the Start menu (report 252, closed; the owner answers the player).
+  The fix came from its own session (f6c41f88, 99185ceb), read here before the merge: the installer's AppUserModelID for the
+  real packaged app before any notification; at the start only %APPDATA%\…\Programs\Raid OS.lnk goes, and only with
+  Electron's old ID or ours with its exe gone. The installer's shortcut and the player's own ones stay.
+- History row of 0.6.0.351, still 4 lines: «…; один ярлык «Raid OS» в «Пуске»» joined to the raid requirements line. No news
+  row (a fix), no report close (252 is closed already).
+- Tests: electron/startMenuIdentity 6/6, src/data and src/news 615 with them; typecheck clean. Not run with a notification
+  on this PC (it writes HKCU and the Start menu: the owner's word first).
