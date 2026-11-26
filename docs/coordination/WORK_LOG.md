@@ -11294,6 +11294,7 @@ Not pushed, not released, nothing uploaded.
   tsc (app, server) clean; eslint clean.
 - Not released: the server's parts (the right «Чистыми», each payment's net, «Удалить сообщение») need an app release; the
   e-mail search and a payment → profile work with the server as it is.
+
 ## 2026-11-26 04:10 — Заявка 241: калькулятор круга сектантов (ветка claude/cultist-calculator, не выпущено)
 
 - Заявка 241: «Добавьте калькулятор круга сектантов, и так же 100% рецепты в кругу сектантов». Рецепты 100 % на странице уже
@@ -11310,6 +11311,7 @@ Not pushed, not released, nothing uploaded.
 - Тесты: круг 30/30 (ступени, амулет, «не хватает», обмен), страница + переводы 78/78; typecheck чистый. Проверено в браузере:
   LEDX + видеокарта = 1 168 000 ₽, 14 ч, строка про 6 ч.
 - В выпуск: строка истории с "reports":[241] (сервер сам закроет заявку), новость игрокам — по слову владельца.
+
 ## 2026-11-26 05:20 — Claude: тир-листы — для каких квестов, «Оружейника» и бартеров нужен предмет; заявка 243 (ветка claude/tier-list-needs)
 
 - Заявка 243 (предложение, 0.6.0.346, «Нечитаемое описание»): во всплывающем окне тир-листа название обрезано («…6мм дл…»),
@@ -11339,6 +11341,7 @@ Not pushed, not released, nothing uploaded.
   - playerNews (added): RU «Тир-листы: при наведении видно, для каких квестов, «Оружейника» и бартеров нужен предмет; по
     клику — полная карточка»; EN «Tier lists: hover an item to see which quests, «Gunsmith» parts and barters need it; click
     it for the full card»; остальные 9 языков — в заметке сессии (side-session-notes, tier-list-needs.md).
+
 ## 2026-11-26 01:30 — Claude: цены с экрана барахолки — сразу, при любой плашке, только целые предметы, 5 минут главнее (ветка claude/flea-instant-prices)
 
 - Владелец 26.11.2026: цена с барахолки должна сразу доходить до сервера и до приложения («я по кнопке уже нажимаю в
@@ -11369,6 +11372,7 @@ Not pushed, not released, nothing uploaded.
   обновляются быстрее»).
 - Риск: за плашками «Валюта …», «Цена от …» верхняя строка может быть дороже самой низкой цены — берётся по слову
   владельца; сервер принимает её сразу только в полосе 0,5–1,5× цены других источников, иначе ждёт второй аккаунт.
+
 ## 2026-11-26 03:40 — «Приоритет карт»: плавная прокрутка колесом, плитки меньше (ветка claude/map-priority-smooth, не выпущено)
 
 - Владелец 26.11: «пролистывание роликом сделать безумно плавное… не рывками, а плыть», «окна с названиями карт… меньше».
@@ -11378,6 +11382,7 @@ Not pushed, not released, nothing uploaded.
 - Плитки: шрифт и отступы меньше; на ПК плитка в блоке карты шириной по названию, не уже 112 px (было 132–150), длинные
   «Улицы Таркова» и «Лаборатория» не обрезаются; телефон без изменений.
 - Тесты: MapPriority 10/10 (плавный ход по кадрам, чужая прокрутка, «меньше движения»). Проверено в браузере: ширины плиток.
+
 ## 2026-11-26 03:30 — Ссылка на новый пароль: страница сайта, кнопка «Новый пароль» в «Пользователях» (ветка claude/password-link, не выпущено)
 
 - Владелец 26.11: игроку не приходит код на почту — «Сделай страницу, добавь мне ссылку на восстановление пароля… ввести
@@ -11399,6 +11404,7 @@ Not pushed, not released, nothing uploaded.
 - Тесты: сайт 16/16 и 11/11 (passwordLink, emailOnlyAuth, phrases, autoLocale, adminUsersPasswordLink, adminUsersDelete);
   сервер ownerAdmin + email 46/46 (новый тест: ссылка 48 ч, один раз, почта не подтверждается; без почты — 503);
   typecheck сервера чистый; сборка сайта чистая.
+
 ## 2026-11-26 01:08 — Промокод TARKOVFPSPATCH добавлен на живом сервере (только база)
 
 - Владелец 26.11: «TARKOVFPSPATCH Добавь прямо сейчас новый промокод.» Канал «Тарковское Метадвижение» выложил его 25.11
@@ -11435,6 +11441,7 @@ Not pushed, not released, nothing uploaded.
   reach the app within minutes of being posted».
 - Риск: changedAll будит все ждущие приложения — они перечитывают друзей, отряд и промокоды. Так бывает, только когда список,
   который видят приложения, действительно сдвинулся.
+
 ## 2026-11-26 18:30 — Claude: 0.6.0.348 published; «Сервер недоступен» looked at (not pushed to release/production)
 
 - 0.6.0.348: the second gate (f53f72a4) green at 18:22; the publisher started by hand on the VPS at 18:22 (owner: «Выпускай
@@ -11453,3 +11460,27 @@ Not pushed, not released, nothing uploaded.
   hour at the evening peak, every day), and after each timeout the app waits 30 s (RETRY_MS), so support answers and
   friends' news come late. Proposed, not made: `hedge: false` and a timeout above the server's wait (45 s, as LIVE_WAIT) for
   these paths, or the server's waits under 15 s; both need an app release.
+
+## 2026-11-26 21:50 — Claude: release 0.6.0.350 (branch claude/release-350 → release/production)
+
+- Owner, 26.11.2026: «Выпускай все, что возможно, одним обновлением. По 247 на развязке мы доснимем позже снимки».
+- Merged onto 0.6.0.349 (346aee0a): claude/admin-iphone-features (18ea1199: «Чистыми» by the summary's formula, a payment opens its
+  payer's profile, «Найти по почте» in «Чаты», «Удалить сообщение»), claude/cultist-calculator (5b7b36e2, reports 241 and 242),
+  claude/tier-list-needs (report 243), claude/flea-instant-prices (flea prices from the screen at once), claude/map-priority-smooth
+  («Приоритет карт»), claude/password-link (the site's page of the support link and «Новый пароль» in «Пользователи»; the page
+  had been put on the site by hand for 0.6.0.346, the releases since rebuilt the site without it), claude/promo-codes-fast (a
+  new promo code to every open app at once), claude/release-348 (log). WORK_LOG.md and the locale files as the union of both
+  sides; no locale key twice.
+- Not in it: the winter / New Year schemes (test builds only); claude/admin-hide-zero-share (its change went out in 0.6.0.347);
+  claude/phone-344-1 (its fix 20bae5c0 is in production already, the branch only bumps the phone's version); 245/246 (the
+  owner's decision); 247 (Interchange to be shot later, it stays taken).
+- Release commit: version 0.6.0-350; the history row with "reports":[241,242,243] (no «пароль» in it: the history's own test);
+  the news (kind added) in 11 languages: the cultist calculator and the tier lists, the two lines shown to the owner. Flea
+  prices, «Приоритет карт», promo codes, the support link and the admin are in the history only.
+- Tests: typecheck (app, server) clean; server 640/640; vitest 4843 passed, 17 failed in 6 files: updateHistory (the word,
+  fixed, 26/26 with the news after) and 16 in 5 files that fail the same on 0.6.0.349 on this PC (appUpdate.ownerExe, the
+  linux updater, staleServer, appVersion «electron-builder builds», AdminPanelPage sidebar); the gate on Linux decides.
+- iPhone admin app: claude/admin-ipa ← merge of claude/admin-iphone-features (ed1a0994), «Admin Panel iOS IPA» run 45834047601
+  green; «Raid OS админка iPhone 0.6.0.349.ipa» on the owner's desktop (5 787 446 bytes, sha256 f373188f…). Its e-mail search
+  and payment → profile work with the server as it is; «Удалить сообщение» and the right «Чистыми» need this release.
+- Deployment: pushed to release/production; live once download/version.json shows 0.6.0-350.
