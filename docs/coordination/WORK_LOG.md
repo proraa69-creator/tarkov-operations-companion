@@ -11147,3 +11147,9 @@ Not pushed, not released, nothing uploaded.
   place in manual-keep-wiki.json. Tests 20/20 (questGuidePhotos, QuestGuidePhotos, ObjectivePhotos). **Open:** other quests
   mix our «Место появления N» (the feed's order) with the wiki's «Второе/Третье…» the same way («Цена независимости»,
   «Пропавший информатор», «Ближе к народу», «Закрыть небо»); each needs its frames matched by eye.
+- 13:25, owner forwarded a player's support-chat message (05:24): «По квесту городские разборки тут надо понюхать чтобы
+  пометилось», two screenshots: the MS2000 ghost on the post of the mesh door inside the Streets convoy trailer. The quest's
+  three photos (our street and truck frames, the wiki's «Место для маркера» — the same spot) had no objectiveId: shown only
+  under «Весь квест», none at the map's points. Tied (game ids): street → find the truck (+ the flare), truck → find + mark +
+  flare, the marker's spot → mark, caption «Маркер — на стойку решётчатой двери в кузове, подойти вплотную». Test added; 21/21.
+  **Open:** 106 of 241 quests have photos tied to no objective (382 photos) — they never show at the map's points.
