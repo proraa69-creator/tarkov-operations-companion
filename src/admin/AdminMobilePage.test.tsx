@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
   setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), payoutAttention: vi.fn(async () => ({ count: 0 })), forget: vi.fn(),
-  stickerPacks: vi.fn(), profile: vi.fn(),
+  stickerPacks: vi.fn(), profile: vi.fn(), supportSearch: vi.fn(), supportDeleteMessage: vi.fn(),
 }))
 
 vi.mock('./adminApi', async (load) => ({ ...(await load<typeof import('./adminApi')>()), adminApi: mocks }))
@@ -581,6 +581,84 @@ describe('mobile admin dashboard', () => {
     await user.click(tab('Сводка'))
     expect(mocks.overview).toHaveBeenCalledTimes(1)
     expect(mocks.online).toHaveBeenCalledTimes(1)
+  })
+
+  // Owner, 26.11.2026: «там нет у меня чистыми деньги, сколько суммы чистыми»; «в разделе платежи … чтобы я нажал на него, и у
+  // меня открылся его профиль. Там же будет открыть чат с ним».
+  it('«Платежи»: «Чистыми» with what it took off; a payment opens its payer\'s profile, and the profile the chat', async () => {
+    const user = userEvent.setup()
+    const accountId = 'f'.repeat(24)
+    mocks.payments.mockResolvedValue({
+      payments: [{ id: '1'.repeat(24), accountId, email: 'payer@example.com', nickname: 'Payer_1', plan: '1m', provider: 'yookassa', status: 'succeeded', amount: 300, netAmount: 259.41, streamerEarning: 30, createdAt: '2026-11-26T09:00:00.000Z', paidAt: '2026-11-26T09:00:00.000Z', method: 'bank_card' }],
+      total: 1, totals: { succeeded: 1, revenue: 300, yookassa: 0, lava: 0, streamerEarnings: 30, net: 259.41, fees: 10.59, plans: plans(1, 300) },
+    })
+    mocks.profile.mockResolvedValue({
+      generatedAt: '2026-11-26T10:00:00.000Z',
+      account: { id: accountId, email: 'payer@example.com', kind: 'user', createdAt: '2026-07-01T09:00:00.000Z', nickname: 'Payer_1' },
+      subscription: { status: 'active', paidUntil: '2026-12-26T00:00:00.000Z', source: 'money' }, autopay: null, origin: {},
+      payments: { count: 1, total: 300, refunded: { count: 0, total: 0 }, first: { at: '2026-11-26T09:00:00.000Z', plan: '1m', amount: 300 }, months: [{ month: '2026-11', count: 1, revenue: 300, plans: { '1m': 1 } }], plans: { '1m': 1 } },
+      grants: [], activity: { phone: { used: false, android: false, ios: false }, devices: [] },
+      referrals: { invited: 0, deleted: 0, paid: 0, revenue: 0, friends: [], more: false, rewards: { granted: 0, pending: 0, review: 0, canceled: 0, days: { granted: 0, pending: 0, review: 0 } } },
+    })
+    mocks.supportThread.mockResolvedValue({ account: { id: accountId, email: 'payer@example.com', nickname: 'Payer_1' }, messages: [] })
+
+    render(<AdminMobilePage />)
+    await user.click(tab('Платежи'))
+    expect(await screen.findByText(/Чистыми: 259 ₽/)).toBeInTheDocument()
+    expect(screen.getByText(/комиссия −11 ₽.*стримерам −30 ₽/)).toBeInTheDocument()
+    expect(screen.getByText(/чистыми 259 ₽/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^Профиль: / }))
+    const profile = await screen.findByRole('dialog', { name: 'Профиль Payer_1' })
+    expect(mocks.profile.mock.calls[0]?.[0]).toBe(accountId)
+    await user.click(await within(profile).findByRole('button', { name: 'Открыть чат' }))
+    await waitFor(() => expect(mocks.supportThread).toHaveBeenCalledWith(accountId))
+  })
+
+  // Owner, 26.11.2026: «в чате нету функции найти пользователя по логину, ну по почте».
+  it('«Чаты»: «Найти по почте» lists accounts with a conversation or not; a tap opens the chat', async () => {
+    const user = userEvent.setup()
+    const accountId = 'c'.repeat(24)
+    mocks.supportSearch.mockResolvedValue({ users: [{ id: accountId, email: 'newbie@example.com', nickname: 'Newbie', hasThread: false }] })
+    mocks.supportThread.mockResolvedValue({ account: { id: accountId, email: 'newbie@example.com', nickname: 'Newbie' }, messages: [] })
+
+    render(<AdminMobilePage />)
+    await user.click(tab('Чаты'))
+    expect(await screen.findByText('Переписок пока нет')).toBeInTheDocument()
+    await user.type(screen.getByRole('textbox', { name: 'Найти по почте' }), 'newb')
+    const found = await screen.findByText('Newbie', {}, { timeout: 2000 })
+    expect(mocks.supportSearch).toHaveBeenCalledWith('newb')
+    expect(screen.getByText(/переписки нет/)).toBeInTheDocument()
+    expect(screen.queryByText('Переписок пока нет')).not.toBeInTheDocument()
+    await user.click(found.closest('button')!)
+    await waitFor(() => expect(mocks.supportThread).toHaveBeenCalledWith(accountId))
+    // one letter is no search
+    await user.click(screen.getByRole('button', { name: 'Назад' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Найти по почте' }))
+    await user.type(screen.getByRole('textbox', { name: 'Найти по почте' }), 'n')
+    expect(await screen.findByText('Переписок пока нет')).toBeInTheDocument()
+  })
+
+  // Owner, 26.11.2026: «добавь в чате у меня, у админа, функцию удалить сообщение».
+  it('«Чаты»: «Удалить» on any message asks «Точно удалить?» and then deletes it; the conversation is read again', async () => {
+    const user = userEvent.setup()
+    const accountId = 'e'.repeat(24)
+    const asked = { id: 9, author: 'user' as const, text: 'Реклама казино', createdAt: '2026-11-24T09:00:00.000Z', read: true }
+    const account = { id: accountId, email: 'kotik@example.com', nickname: 'Kotik_Pro' }
+    mocks.supportThreads.mockResolvedValue({ threads: [{ accountId, email: 'kotik@example.com', nickname: 'Kotik_Pro', lastMessage: asked, lastAt: asked.createdAt, unread: 0 }], total: 1, unread: 0 })
+    mocks.supportThread.mockResolvedValue({ account, messages: [asked] })
+    mocks.supportDeleteMessage.mockImplementation(async () => { mocks.supportThread.mockResolvedValue({ account, messages: [] }) })
+
+    render(<AdminMobilePage />)
+    await user.click(tab('Чаты'))
+    await user.click((await screen.findByText('Kotik_Pro')).closest('button')!)
+    const sheet = await screen.findByRole('dialog', { name: 'Kotik_Pro' })
+    fireEvent.contextMenu(await within(sheet).findByText('Реклама казино'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Удалить' }))
+    expect(mocks.supportDeleteMessage).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('menuitem', { name: 'Точно удалить?' }))
+    await waitFor(() => expect(mocks.supportDeleteMessage).toHaveBeenCalledWith(accountId, 9))
+    await waitFor(() => expect(within(sheet).queryByText('Реклама казино')).not.toBeInTheDocument())
   })
 
 })

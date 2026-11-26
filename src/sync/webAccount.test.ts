@@ -65,6 +65,22 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('«Удалить сообщение» and «Найти по почте» (owner, 26.11.2026) go with the session, only in their shape', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ users: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const remove = `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/5/delete`
+    await webServiceRequest('POST', remove, {})
+    expect(await webServiceRequest('GET', `/v1/accounts/me/admin/support/search?q=${encodeURIComponent('newbie@ex')}`)).toEqual({ users: [] })
+    for (const [method, path] of [
+      ['GET', remove], ['DELETE', remove], ['POST', `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/x/delete`],
+      ['GET', '/v1/accounts/me/admin/support/search?q=a b'], ['GET', '/v1/accounts/me/admin/support/search'],
+    ] as const) {
+      await expect(webServiceRequest(method, path, {})).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   // Owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон».
   it('sticker packs: the picker reads the published ones without a session; the owner\'s routes go with it; others stay blocked', async () => {
     const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ packs: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))

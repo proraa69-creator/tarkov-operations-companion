@@ -787,6 +787,46 @@ test('support chat edit: the owner changes the own words, the player reads only 
   }
 })
 
+// Owner, 26.11.2026: «добавь в чате у меня, у админа, функцию удалить сообщение».
+test('support chat delete: the owner deletes any one message for both sides; a reply to it stays without the quote; another conversation and a player are refused', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const playerId = t.idOf('player@example.com')
+    const otherId = t.idOf('owner@example.com')
+    const asked = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Карта не грузится' })).json.message
+    const answered = (await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: 'Обновите приложение' })).json.message
+    const quoted = (await t.call<{ message: Rich }>('POST', '/me/support/messages', player, { text: 'Обновил', replyTo: answered.id })).json.message
+    const remove = (id: number | string, token = owner, accountId = playerId) => t.call<{ error?: string }>('POST', `/accounts/me/admin/support/threads/${accountId}/messages/${id}/delete`, token, {})
+
+    // The owner's own answer goes; the player's reply to it stays, without the quote.
+    assert.equal((await remove(answered.id)).status, 204)
+    let mine = (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages
+    assert.deepEqual(mine.map((message) => message.id), [asked.id, quoted.id])
+    assert.equal(mine[1]!.replyTo, undefined)
+    // A player's message goes too.
+    assert.equal((await remove(asked.id)).status, 204)
+    mine = (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages
+    assert.deepEqual(mine.map((message) => message.text), ['Обновил'])
+    const thread = (await t.call<{ messages: Rich[] }>('GET', `/accounts/me/admin/support/threads/${playerId}`, owner)).json.messages
+    assert.deepEqual(thread.map((message) => message.id), [quoted.id])
+
+    for (const [answer, status] of [
+      [await remove(answered.id), 404],
+      [await remove(999_999), 404],
+      [await remove('abc'), 404],
+      [await remove(quoted.id, owner, otherId), 404],
+    ] as const) assert.equal(answer.status, status, JSON.stringify(answer.json))
+    // The owner's route is the owner's; a session is required.
+    assert.equal((await remove(quoted.id, player)).status, 404)
+    assert.equal((await t.call('POST', `/accounts/me/admin/support/threads/${playerId}/messages/${quoted.id}/delete`, undefined, {})).status, 401)
+    assert.deepEqual((await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages.map((message) => message.id), [quoted.id])
+  } finally {
+    await t.close()
+  }
+})
+
 test('support chat reactions: each side toggles its own on any message; both read them; a wrong emoji or another conversation is refused', async () => {
   const t = await setup()
   try {

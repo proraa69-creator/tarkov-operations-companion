@@ -11266,3 +11266,31 @@ Not pushed, not released, nothing uploaded.
 - Tests: typecheck clean; vitest updateHistory, news, curatedQuests, mapSketch, MapSketch, squad, i18n, quests 378 passed
   (56 files, 1 skipped); server squads, playerNews, releaseReports 20/20.
 - Deployment: pushed for the 20:00 Bangkok window (no start by hand); live once download/version.json shows 0.6.0-349.
+
+## 2026-11-26 21:30 — Claude: the admin's «Чистыми», a payment → the payer's profile, «Найти по почте», «Удалить сообщение» (branch claude/admin-iphone-features)
+
+- Owner, 26.11.2026 (the iPhone admin app): «там нет у меня чистыми деньги, сколько суммы чистыми»; «в чате нету функции найти
+  пользователя по логину, ну по почте»; «в разделе платежи … чтобы я нажал на него, и у меня открылся его профиль. Там же будет
+  открыть чат с ним»; «добавь в чате у меня, у админа, функцию удалить сообщение».
+- «Чистыми» of «Платежи» was in fact the gross: SUM(COALESCE(net_amount, amount)) with net_amount never set (0 rows in production).
+  Now server/src/services/adminStore.ts paymentList uses the summary's own formula (src/shared/revenue.ts netRevenue: paid minus
+  the streamers' share minus the payment systems' fees by provider and method) and answers `fees` too; every paid payment has its
+  own `netAmount` (paymentNet). The phone shows «Чистыми: …» and under it «комиссия −… · стримерам −…»; each row «чистыми …».
+- A payment opens its payer's profile (AccountProfile, «Открыть чат» in it): the server already sent `accountId`, the app type
+  now has it; adminShared.tsx PaymentRow `onOpenProfile` (the payer's words are a button), AdminMobilePage passes openProfile.
+- «Найти по почте» on top of «Чаты»: the owner's existing GET …/admin/support/search?q= (e-mail part, 20 at most), now allowed on
+  the phone (src/sync/webAccount.ts) with adminApi.supportSearch; 2 letters at least, asked 300 ms after typing stops; a tap
+  opens the chat (with or without a conversation), a long press the profile.
+- «Удалить сообщение»: POST …/admin/support/threads/:accountId/messages/:id/delete (owner only; supportChatStore.deleteMessage —
+  the row goes with its screenshots and reactions by the triggers, a reply to it keeps its place without the quote; the
+  player's open chat and the owner's devices are signalled; audit 'support.delete-message'). In the message's menu (PC right
+  click, phone long press) «Удалить», then «Точно удалить?» (src/support/SupportChat.tsx); the phone admin and the PC owner app
+  (src/data/ownerRequests.ts remove, OwnerChats). Allowed in webAccount.ts and electron/serviceGateway.ts. A player whose chat
+  is closed keeps a deleted message on the device until the chat window is opened again (full read).
+- Words: «Точно удалить?», «Не удалось удалить сообщение» in English and the nine other languages; the admin's own words stay
+  Russian, as the rest of it.
+- Tests: server supportChat (a new delete test), ownerAdmin, paymentArchive (net 1069.41 / fees 10.59 like the summary), authz
+  60/60 + 4/4; vitest src/admin, src/support, src/i18n, webAccount, the PC gateway, website admin, revenue: 190 + 78 passed;
+  tsc (app, server) clean; eslint clean.
+- Not released: the server's parts (the right «Чистыми», each payment's net, «Удалить сообщение») need an app release; the
+  e-mail search and a payment → profile work with the server as it is.

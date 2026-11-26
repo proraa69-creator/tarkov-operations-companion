@@ -7,6 +7,8 @@
 import { SUPPORT_IMAGE_PLACEHOLDER } from '../shared/supportChat'
 
 export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
+  // «Удалить» on a message of the owner's conversation (owner, 26.11.2026); «Удалить» has its own elsewhere.
+  ['Точно удалить?', 'Delete for good?'], ['Не удалось удалить сообщение', 'Could not delete the message'],
   ['Чат с поддержкой', 'Support chat'],
   ['Напишите нам — ответим здесь же', 'Write to us and we will answer right here'],
   ['Войдите в аккаунт, чтобы написать нам', 'Sign in to message us'],

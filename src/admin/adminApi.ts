@@ -130,6 +130,8 @@ export interface AdminReferrerDetail { referrer: AdminReferrer; friends: AdminRe
 
 export interface AdminPayment {
   id: string
+  /** The payer's account (owner, 26.11.2026: a payment opens the payer's profile). */
+  accountId?: string
   email: string
   plan: PlanId
   provider: PaymentProvider
@@ -149,7 +151,7 @@ export interface AdminPayment {
   invitedBy?: { id: string; email?: string; nickname?: string; deleted?: true }
   /** The owner changed the amount by hand: the amount before the first change and when. */
   amountEdited?: { before: number; at: string }
-  /** Roubles left after the commission, when it was given with a confirmation by hand. */
+  /** A paid one «чистыми»: its sum minus the streamer's share minus the payment system's fee (src/shared/revenue.ts). */
   netAmount?: number
   /** How it was paid (sbp, bank_card, …, bezebee; 'unknown', 'archive'), as the server stores it. */
   method?: string
@@ -158,7 +160,8 @@ export interface AdminPayment {
 export interface AdminPayments {
   payments: AdminPayment[]
   total: number
-  totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number; net?: number; plans?: Record<PlanId, { count: number; revenue: number }> }
+  /** `net`: «Чистыми» — paid minus the streamers' share (`streamerEarnings`) minus the payment systems' `fees`. */
+  totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number; net?: number; fees?: number; plans?: Record<PlanId, { count: number; revenue: number }> }
 }
 
 export interface AdminUser {
@@ -277,6 +280,8 @@ export interface AdminSupportThread {
   accountId: string; email: string; nickname?: string; lastMessage: AdminSupportMessage; lastAt: string; unread: number
 }
 export interface AdminSupportThreads { threads: AdminSupportThread[]; total: number; unread: number }
+/** «Найти по почте» of «Чаты» (server/src/routes/supportChat.ts `support/search`): accounts whose e-mail has the words. */
+export interface AdminSupportSearchUser { id: string; email: string; nickname?: string; hasThread: boolean }
 export interface AdminSupportDetail { account: { id: string; email: string; nickname?: string }; messages: AdminSupportMessage[] }
 
 /**
@@ -501,6 +506,10 @@ export const adminApi = {
   orderStickers: (packId: string, ids: string[]) => request<AdminStickerPacks>('POST', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(packId)}/order`, { ids }),
   deleteSticker: (id: string) => request<AdminStickerPacks>('DELETE', `/v1/accounts/me/admin/stickers/${encodeURIComponent(id)}`),
   supportRead: (accountId: string) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/read`),
+  /** «Найти по почте» (owner, 26.11.2026: «в чате нету функции найти пользователя по логину, ну по почте»): 2 letters at least. */
+  supportSearch: (query: string) => request<{ users: AdminSupportSearchUser[] }>('GET', `/v1/accounts/me/admin/support/search?q=${encodeURIComponent(query.trim())}`),
+  /** «Удалить сообщение» (owner, 26.11.2026): any one message of the conversation, gone for both sides. */
+  supportDeleteMessage: (accountId: string, id: number) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/${id}/delete`, {}),
   supportDelete: (accountId: string) => request<void>('DELETE', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
 }
 

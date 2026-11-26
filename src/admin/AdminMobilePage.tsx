@@ -16,7 +16,7 @@ import { supportPreviewText, useSupportEdit, useSupportOutbox, useSupportReply, 
 import { useLocale } from '../i18n/LocaleProvider'
 import {
   adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPhones, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
-  type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
+  type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportSearchUser, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
   type AdminUserFilter, type AdminUserRegion, type BugReportDetail,
   type PaymentStatus, type PlanId,
 } from './adminApi'
@@ -371,7 +371,7 @@ export function AdminMobilePage() {
         ) : section === 'payments' && payments.data ? (
           <PaymentsSection
             data={payments.data} period={period} status={paymentStatus} plan={paymentPlan} search={paymentSearch} custom={customDates}
-            onPeriod={setPeriod} onStatus={setPaymentStatus} onPlan={setPaymentPlan} onSearch={setPaymentSearch} onCustom={setCustomDates} onChanged={reload}
+            onPeriod={setPeriod} onStatus={setPaymentStatus} onPlan={setPaymentPlan} onSearch={setPaymentSearch} onCustom={setCustomDates} onChanged={reload} onOpenProfile={openProfile}
           />
         ) : section === 'chats' && threads.data ? (
           <ChatsSection threads={threads.data} onOpenChat={openChat} onOpenProfile={openProfile} />
@@ -432,8 +432,22 @@ function ChatsSection({ threads, onOpenChat, onOpenProfile }: { threads: AdminSu
   const { locale } = useLocale()
   const people = usePersonMenu()
   const nameOf = (thread: AdminSupportThreads['threads'][number]) => thread.nickname || thread.email || uiText('Пользователь')
+  const search = useAccountSearch()
   return <section className="admin-block">
-    <div className="admin-list admin-chat-list">
+    {/* «Найти по почте» (owner, 26.11.2026: «в чате нету функции найти пользователя по логину, ну по почте»): anyone with an
+        account, with a conversation or not; a tap opens the chat, a long press the profile */}
+    <label className="admin-search admin-chat-search"><Search size={17} /><input value={search.query} onChange={(event) => search.setQuery(event.target.value)} placeholder={uiText('Найти по почте')} aria-label={uiText('Найти по почте')} inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} />{search.query && <button type="button" onClick={() => search.setQuery('')} aria-label={uiText('Очистить')}><X size={16} /></button>}</label>
+    {search.active ? <div className="admin-list admin-chat-list admin-chat-found">
+      {!search.result ? <div className="admin-chat-searching" role="status" aria-label={uiText('Ищем…')}><LoaderCircle size={18} className="spin" /></div>
+        : search.result.error ? <div className="admin-inline-error" role="alert">{uiText(search.result.error)}</div>
+        : search.result.users.length ? search.result.users.map((user) => <button type="button" className="admin-user-row admin-chat-row" key={user.id} onClick={() => onOpenChat(user.id)}
+          {...people.bind({ accountId: user.id, name: user.nickname || user.email })}>
+          <span className="admin-payment-icon pending"><UserRound size={18} /></span>
+          <span className="admin-row-copy"><strong>{user.nickname || user.email}</strong><small>{[user.nickname ? user.email : '', user.hasThread ? '' : uiText('переписки нет')].filter(Boolean).join(' · ')}</small></span>
+          <ChevronRight size={17} />
+        </button>)
+        : <AdminEmpty text="Никого не нашли" />}
+    </div> : <div className="admin-list admin-chat-list">
       {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}
         {...people.bind({ accountId: thread.accountId, name: nameOf(thread) })}>
         <span className="admin-payment-icon pending"><MessagesSquare size={18} /></span>
@@ -442,9 +456,29 @@ function ChatsSection({ threads, onOpenChat, onOpenProfile }: { threads: AdminSu
         <ChevronRight size={17} />
       </button>)}
       {!threads?.threads.length && <AdminEmpty text="Переписок пока нет" />}
-    </div>
+    </div>}
     <ChatPersonMenu menu={people.menu} onClose={people.close} onProfile={(accountId) => onOpenProfile(accountId, people.menu?.name)} onChat={onOpenChat} />
   </section>
+}
+
+/** «Найти по почте» of «Чаты»: the accounts whose e-mail has the words (2 letters at least), asked a moment after typing stops. */
+function useAccountSearch() {
+  const [query, setQuery] = useState('')
+  const [found, setFound] = useState<{ query: string; users: AdminSupportSearchUser[]; error?: string } | null>(null)
+  const text = query.trim()
+  useEffect(() => {
+    if (text.length < 2) return
+    let live = true
+    const timer = window.setTimeout(() => {
+      adminApi.supportSearch(text).then(
+        (answer) => { if (live) setFound({ query: text, users: answer.users }) },
+        (reason: unknown) => { if (live) setFound({ query: text, users: [], error: errorText(reason) }) },
+      )
+    }, 300)
+    return () => { live = false; window.clearTimeout(timer) }
+  }, [text])
+  const active = text.length >= 2
+  return { query, setQuery, active, result: active && found?.query === text ? found : null }
 }
 
 /** «Посмотреть профиль»: the player's whole account on a full screen sheet (admin/AccountProfile.tsx). */
@@ -687,12 +721,14 @@ function UsersSection({ users, total, region, regions, filter, search, onRegion,
 }
 
 /** «Платежи», as on the site: the period (or «Даты»), the status, the plan, a search by e-mail, totals, every payment. */
-function PaymentsSection({ data, period, status, plan, search, custom, onPeriod, onStatus, onPlan, onSearch, onCustom, onChanged }: {
+function PaymentsSection({ data, period, status, plan, search, custom, onPeriod, onStatus, onPlan, onSearch, onCustom, onChanged, onOpenProfile }: {
   data: AdminPayments | null; period: AdminPaymentPeriod; status: PaymentStatus | 'all'; plan: PlanId | ''; search: string; custom: { from: string; to: string }
   onPeriod: (value: AdminPaymentPeriod) => void; onStatus: (value: PaymentStatus | 'all') => void; onPlan: (value: PlanId | '') => void
   onSearch: (value: string) => void; onCustom: (value: { from: string; to: string }) => void
   /** A payment amount was changed or a refund marked: the list and the totals are read again. */
   onChanged?: () => Promise<unknown> | void
+  /** A payment opens its payer's profile, and from it the chat (owner, 26.11.2026). */
+  onOpenProfile?: (accountId: string, name: string) => void
 }) {
   const serverPlans = data?.totals.plans
   const breakdown = useMemo(() => {
@@ -725,12 +761,14 @@ function PaymentsSection({ data, period, status, plan, search, custom, onPeriod,
       <div className="admin-payment-total">
         <span><Check size={18} />{uiText('Оплачено')}</span><strong>{money(data?.totals.revenue ?? 0)}</strong><small>{uiText(`${data?.totals.succeeded ?? 0} успешных платежей`)}</small>
         {data?.totals.net !== undefined && <small className="admin-payment-net">{uiText(`Чистыми: ${money(data.totals.net)}`)}</small>}
+        {/* what «Чистыми» took off (owner, 26.11.2026: «сколько суммы чистыми») */}
+        {data?.totals.fees !== undefined && <small className="admin-payment-net-parts">{uiText(`комиссия −${money(data.totals.fees)} · стримерам −${money(data.totals.streamerEarnings)}`)}</small>}
       </div>
       <div className="admin-plan-grid">
         {(Object.keys(breakdown) as PlanId[]).map((plan) => <article key={plan}><span>{PLAN_LABEL[plan]}</span><strong>{breakdown[plan].count}</strong><small>{money(breakdown[plan].total)}</small></article>)}
       </div>
       <div className="admin-list admin-payment-list">
-        {(data?.payments ?? []).map((payment) => <PaymentRow key={payment.id} payment={payment} onChanged={onChanged} />)}
+        {(data?.payments ?? []).map((payment) => <PaymentRow key={payment.id} payment={payment} onChanged={onChanged} onOpenProfile={onOpenProfile} />)}
         {!data?.payments.length && <AdminEmpty text="За выбранный период платежей нет" />}
       </div>
     </section>
@@ -820,6 +858,11 @@ function ChatSheet({ accountId, answer, onClose, onChanged, onOpenProfile }: { a
     } catch (reason) { setError(errorText(reason)) }
     finally { setLoading(false) }
   }, [accountId, onChanged])
+  // «Удалить сообщение» (owner, 26.11.2026): gone for both sides; the conversation is read again.
+  const removeMessage = useCallback(async (message: { id: number }) => {
+    await adminApi.supportDeleteMessage(accountId, message.id)
+    await load()
+  }, [accountId, load])
 
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0)
@@ -870,7 +913,7 @@ function ChatSheet({ accountId, answer, onClose, onChanged, onOpenProfile }: { a
       <div className="admin-chat-body">
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
         <SupportMessageList messages={messages} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет."
-          onReact={react} onReply={setReplying} onEdit={editor.start} />
+          onReact={react} onReply={setReplying} onEdit={editor.start} onDelete={removeMessage} />
         {report.about && <SupportReportAnswerPlate report={report.about} onCancel={report.cancel} />}
         <SupportComposer onSend={send} placeholder="Ответ пользователю…" allowImages allowEmoji allowStickers replyTo={replying} onCancelReply={() => setReplying(null)}
           editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />

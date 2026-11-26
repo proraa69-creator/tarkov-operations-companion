@@ -427,3 +427,11 @@ button.admin-user-row { font: inherit; cursor: pointer; }
 /* Revenue net line and streamer payout badge (owner, 25.11.2026). */
 .admin-revenue-cards .admin-revenue-net { color: var(--success, #3fae6a); font-weight: 600; }
 .admin-quick-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger, #d9433f); color: #fff; font-size: 11px; font-weight: 700; margin-left: 6px; }
+
+/* A payment opens its payer's profile (owner, 26.11.2026); what «Чистыми» took off under it. */
+.admin-payment-who { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.admin-payment-who strong { text-decoration: underline; text-decoration-color: rgb(255 255 255 / 25%); text-underline-offset: 3px; }
+.admin-payment-net-parts { color: var(--muted, #9aa39c); }
+/* «Найти по почте» of «Чаты». */
+.admin-chat-search { margin-top: 0; }
+.admin-chat-searching { display: flex; justify-content: center; padding: 14px; color: var(--muted, #9aa39c); }

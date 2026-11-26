@@ -16,7 +16,7 @@ import { AD_SOURCE_LABEL, AD_SOURCES } from '../../../src/shared/adSources'
 import { ADMIN_CIS_COUNTRIES, ADMIN_EXTRA_CIS_COUNTRIES, adminRegionOf, CIS_COUNTRIES, EUROPE_COUNTRIES, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
 import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
-import { netRevenue } from '../../../src/shared/revenue'
+import { netRevenue, providerFee } from '../../../src/shared/revenue'
 import { AccountError, ACCOUNT_MODES, maskPhone, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
 import { phonePlatformOf, presenceClientOf, type AccountPresence } from './presence.js'
 import { transaction } from './database.js'
@@ -66,7 +66,7 @@ export type AuditAction =
   | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'hideout.modules' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke' | 'bug.work' | 'bug.point'
-  | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
+  | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start' | 'support.delete-message'
   | 'users.export' | 'subscription.bulk-grant'
   | 'stickers.pack' | 'stickers.publish' | 'stickers.sticker'
 
@@ -968,9 +968,13 @@ export class AdminStore {
     const { sql, args } = this.paymentWhere(filter)
     const totals = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN 1 ELSE 0 END), 0) AS ok, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN p.amount ELSE 0 END), 0) AS revenue, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN COALESCE(p.streamer_earning, 0) ELSE 0 END), 0) AS earned FROM payments p JOIN accounts a ON a.id = p.account_id ${sql}`).get(...args) as Row
     const rows = this.db.prepare(`${PAYMENT_SELECT} ${sql} ${this.paymentOrder(filter)} LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
-    // «Чистыми» (the commission taken off where the owner told it, else the whole sum) and the paid ones by plan
-    // (owner, 20.10.2026: «сколько штук на 1, 3, 6 и 12 месяцев»).
-    const net = Number((this.db.prepare(`SELECT COALESCE(SUM(COALESCE(p.net_amount, p.amount)), 0) AS n FROM payments p JOIN accounts a ON a.id = p.account_id ${sql ? `${sql} AND` : 'WHERE'} p.status = 'succeeded'`).get(...args) as Row).n)
+    // «Чистыми» (owner, 26.11.2026: «нет у меня чистыми деньги, сколько суммы чистыми»): the summary's own formula
+    // (src/shared/revenue.ts netRevenue) over the paid payments the filter takes — their sum minus the streamers' share minus
+    // the payment systems' fees by provider and method; and the paid ones by plan (owner, 20.10.2026: «сколько штук на 1, 3,
+    // 6 и 12 месяцев»).
+    const groups = (this.db.prepare(`SELECT COALESCE(p.provider, 'yookassa') AS provider, p.method AS method, COALESCE(SUM(p.amount), 0) AS amount FROM payments p JOIN accounts a ON a.id = p.account_id ${sql ? `${sql} AND` : 'WHERE'} p.status = 'succeeded' GROUP BY 1, 2`).all(...args) as Row[])
+      .map((group) => ({ provider: String(group.provider), method: group.method == null ? null : String(group.method), gross: Number(group.amount) }))
+    const parts = netRevenue(groups, Number(totals.earned))
     const plans = Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as Record<PlanId, { count: number; revenue: number }>
     for (const item of this.db.prepare(`SELECT p.plan, COUNT(*) AS n, COALESCE(SUM(p.amount), 0) AS total FROM payments p JOIN accounts a ON a.id = p.account_id ${sql ? `${sql} AND` : 'WHERE'} p.status = 'succeeded' GROUP BY p.plan`).all(...args) as Row[]) {
       const plan = String(item.plan) as PlanId
@@ -979,7 +983,7 @@ export class AdminStore {
     return {
       payments: rows.map(toPayment),
       total: Number(totals.n),
-      totals: { succeeded: Number(totals.ok), revenue: rub(totals.revenue), net: rub(net), streamerEarnings: rub(totals.earned), plans },
+      totals: { succeeded: Number(totals.ok), revenue: rub(totals.revenue), net: rub(parts.net), fees: rub(parts.fees), streamerEarnings: rub(totals.earned), plans },
     }
   }
 
@@ -1663,6 +1667,12 @@ export class AdminStore {
   }
 }
 
+/** A paid payment «чистыми», in kopecks: its sum minus the streamer's share minus the payment system's fee (src/shared/revenue.ts). */
+function paymentNet(row: Row) {
+  const gross = Number(row.amount)
+  return gross - Number(row.streamer_earning ?? 0) - providerFee(row.provider == null ? 'yookassa' : String(row.provider), row.method == null ? null : String(row.method), gross)
+}
+
 function toPayment(row: Row): AdminPayment {
   const other = paidInOtherCurrency(row)
   const nickname = storedNickname(row.payer_nicknames)
@@ -1689,7 +1699,8 @@ function toPayment(row: Row): AdminPayment {
     }),
     ...(row.invited_by == null ? {} : { invitedBy: inviterOf(row) }),
     ...(row.amount_edited_at == null ? {} : { amountEdited: { before: rub(row.amount_before_edit), at: iso(row.amount_edited_at)! } }),
-    ...(row.net_amount == null ? {} : { netAmount: rub(row.net_amount) }),
+    // a paid one «чистыми»: its sum minus the streamer's share minus the payment system's fee (the summary's formula)
+    ...(row.status === 'succeeded' ? { netAmount: rub(paymentNet(row)) } : row.net_amount == null ? {} : { netAmount: rub(row.net_amount) }),
     method: row.method_view == null ? 'unknown' : String(row.method_view),
   }
 }

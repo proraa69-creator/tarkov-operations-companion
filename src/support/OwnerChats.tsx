@@ -89,7 +89,7 @@ function useResolveOwnerChat() {
 /** One conversation: the player's messages on the left, the owner's answers on the right, the answer box under them. */
 function OwnerChatView({ accountId, thread, onBack, onProfile, answer }: { accountId: string; thread?: OwnerChatThread; onBack: () => void; onProfile?: (accountId: string) => void; answer?: SupportReportAnswer | null }) {
   const chat = useOwnerChat(accountId)
-  const { reply, markRead, react, edit } = useOwnerChatActions()
+  const { reply, markRead, react, edit, remove } = useOwnerChatActions()
   const resolve = useResolveOwnerChat()
   const [confirming, setConfirming] = useState(false)
   const [resolving, setResolving] = useState(false)
@@ -160,7 +160,8 @@ function OwnerChatView({ accountId, thread, onBack, onProfile, answer }: { accou
       </header>
       {resolveError && <div className="support-chat-error" role="alert"><AlertTriangle size={15} /><span>{uiText(resolveError)}</span></div>}
       <SupportMessageList messages={messages} viewer="owner" peerName={player ? name : undefined} loading={chat.isLoading} error={chat.error instanceof Error ? cleanIpcError(chat.error) : ''} onRetry={() => void chat.refetch()} emptyText="Сообщений пока нет."
-        onReact={(message, emoji, on) => react(accountId, message.id, emoji, on)} onReply={setReplying} onEdit={editor.start} />
+        onReact={(message, emoji, on) => react(accountId, message.id, emoji, on)} onReply={setReplying} onEdit={editor.start}
+        onDelete={(message) => remove(accountId, message.id)} />
       {report.about && <SupportReportAnswerPlate report={report.about} onCancel={report.cancel} />}
       <SupportComposer onSend={send} placeholder="Ответ игроку…" autoFocus allowImages allowEmoji allowStickers dropZone={view}
         replyTo={replying} onCancelReply={() => setReplying(null)} editing={editor.editing} onEdit={editor.submit} onCancelEdit={editor.cancel} />

@@ -146,6 +146,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
   // «Редактировать»: new words for the owner's own message (owner, 15.11.2026).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/edit$/ },
+  // «Удалить сообщение»: any one message of a conversation, gone for both sides (owner, 26.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/delete$/ },
+  // «Найти по почте» of «Чаты» (owner, 26.11.2026: «в чате нету функции найти пользователя по логину, ну по почте»): accounts by
+  // part of the e-mail (server/src/routes/supportChat.ts, owner only, 20 at most).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/search\?q=[A-Za-z0-9%._~!*'()-]{2,800}$/ },
   // «Стикеры» of the iPhone admin (server/src/routes/stickers.ts; owner, 07.11.2026: «И там я буду делать паки стикеров»):
   // the packs, a new one, their order, a rename / «Добавить» / «Убрать», deleting one; a sticker's upload and order; deleting one.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stickers$/ },

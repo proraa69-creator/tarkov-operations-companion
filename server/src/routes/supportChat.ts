@@ -126,7 +126,7 @@ const pageSchema = z.object({
 })
 const accountIdSchema = z.string().regex(/^[a-f0-9]{24}$/)
 
-export type SupportChatAudit = (actor: string, action: 'support.reply' | 'support.resolve' | 'support.start', target: string, details: Record<string, unknown>) => void
+export type SupportChatAudit = (actor: string, action: 'support.reply' | 'support.resolve' | 'support.start' | 'support.delete-message', target: string, details: Record<string, unknown>) => void
 /** «Написать пользователю»: the search text (part of an e-mail) and the most it answers. */
 const searchSchema = z.object({ q: z.string().trim().min(2).max(254) })
 export const SUPPORT_SEARCH_LIMIT = 20
@@ -570,6 +570,26 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
       const message = store.edit(accountId, id.data, body.data.text)
       res.json({ message })
       signal(() => options.social?.changed([accountId]))
+    } catch (error) {
+      if (!(error instanceof SupportChatError)) throw error
+      res.status(error.status).json({ error: error.message })
+    }
+  })
+
+  // «Удалить сообщение» (owner, 26.11.2026): gone for both sides; the player's open chat and the owner's other devices follow.
+  router.post('/v1/accounts/me/admin/support/threads/:accountId/messages/:id/delete', (req, res) => {
+    const actor = owner('write', req, res)
+    if (!actor) return
+    const accountId = thread(req, res)
+    if (!accountId) return
+    const id = messageIdSchema.safeParse(req.params.id)
+    try {
+      if (!id.success) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      store.deleteMessage(accountId, id.data)
+      res.status(204).end()
+      signal(() => options.social?.changed([accountId]))
+      signal(() => options.ownerSignals?.changed())
+      signal(() => options.audit?.(actor, 'support.delete-message', who(accountId).email || accountId, { message: id.data }))
     } catch (error) {
       if (!(error instanceof SupportChatError)) throw error
       res.status(error.status).json({ error: error.message })
