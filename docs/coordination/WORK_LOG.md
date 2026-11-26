@@ -11111,3 +11111,19 @@ Not pushed, not released, nothing uploaded.
   сборка сайта (npm --prefix website run build) — чисто.
 - Electron и Koffi не менялись — обновление частями. Выходит в окно 13:00 по Бангкоку после зелёного шлюза.
 - Не проверено: поиск ключей в живой игре с этим кодом.
+
+## 2026-11-26 13:10 — Claude: «Панель стримера» only for a streamer with a share (branch claude/streamer-panel-share-only, not released)
+
+- Owner: a streamer updated the app and did not find the streamer block; «добавь на страницу профиль панель стримера. Эта
+  кнопка появляется только если входит в аккаунт… У других людей она вообще не должна быть никак. И никакую информацию она не
+  должна давать».
+- Found (server, read only): his account is a streamer with a share, his PC has 0.6.0-346 (online today). The button and the
+  cabinet are on «Профиль» since 0.6.0.345: the nickname chip in the top bar → «Панель стримера» under the nickname → the
+  cabinet below. Annotated screenshot sent to the owner (dev renderer, the desktop bridge stubbed with an example account).
+- Changed: src/account/StreamerCabinetPanel.tsx `useStreamerPanel` — one request to the streamer notices gates the button and
+  the cabinet (src/pages/ProfilePage.tsx); a 0 % «statistics only» streamer no longer sees a cabinet in the app. Server
+  unchanged: payouts and notices answer only a streamer with a share (403 otherwise), statistics only streamer accounts and
+  only their own code.
+- Commit ce7d1510. Tests: StreamerCabinetPanel 4/4 (a new one: no panel where the server refuses or for a non-streamer),
+  src/account 19/19 when run one file at a time (the parallel run failed to start workers under load); typecheck clean.
+- Not released; needs an app version (20:00 window at the earliest, on the owner's word).
