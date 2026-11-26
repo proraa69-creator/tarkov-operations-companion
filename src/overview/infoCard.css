@@ -69,3 +69,13 @@ button.info-line:hover span { color: var(--text); }
 /* «Сброс торговцев» as its own block on the phone: while the three rows load, «Загрузка…» holds their height, so the list
    arriving does not push the blocks below down (defensive, phone «Обзор» jitter). */
 :root[data-layout="mobile"] .info-restock .info-empty { min-height: 54px; }
+
+/* «Боевой пропуск» (InfoStatCard.tsx DocumentsLine): today's documents, «−  10 из 40  +»; in a narrow card only the icon names it. */
+.info-card-menu-sep { height: 1px; margin: 3px 4px; background: var(--line); }
+.info-line.is-documents { container-type: inline-size; }
+.info-line .info-documents { display: inline-flex; align-items: center; gap: 6px; overflow: visible; }
+.info-documents-step { width: 22px; height: 22px; min-height: 22px; padding: 0; border-radius: 6px; }
+.info-documents-step:disabled { opacity: .4; cursor: default; }
+.info-line.is-documents.is-full strong { color: #e0806a; }
+@container (max-width: 170px) { .info-documents-name { visibility: hidden; } }
+:root[data-layout="mobile"] .info-documents-step { width: 26px; height: 26px; min-height: 26px; }

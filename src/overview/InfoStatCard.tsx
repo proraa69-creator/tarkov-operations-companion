@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Clock3, History, Hourglass, Moon, RefreshCw, Settings2, Sun, Timer } from 'lucide-react'
+import { Check, Clock3, FileText, History, Hourglass, Minus, Moon, Plus, RefreshCw, Settings2, Sun, Timer } from 'lucide-react'
 import { startActivePolling } from '../app/activePolling'
 import { raidRunning, useRaidState } from '../app/useRaidState'
 import { useTarkovData } from '../data/DataProvider'
@@ -13,7 +13,8 @@ import { useRestockSettings } from '../restock/restockSettings'
 import { ScreenStatCard } from '../screen/ScreenStatCard'
 import { useRemoteScreen } from '../screen/screenRemote'
 import { useAppState } from '../state/AppState'
-import { formatClock, formatSpan, raidTimer, setInfoCardView, tarkovClocks, useInfoCardView, useLastRaid, type InfoCardView } from './infoCardClock'
+import { addDocumentsFound, DOCUMENT_DAILY_LIMIT, DOCUMENT_DAY_MS, takeBackDocument, useDocumentDay } from '../progression/documentDailyLimit'
+import { formatClock, formatSpan, raidTimer, setInfoCardDocuments, setInfoCardView, tarkovClocks, useInfoCardDocuments, useInfoCardView, useLastRaid, type InfoCardView } from './infoCardClock'
 import './infoCard.css'
 
 /** Re-renders every `interval` ms while the window is in use (src/app/activePolling.ts). */
@@ -43,6 +44,7 @@ function ViewChooser({ phone, view }: { phone: boolean; view: InfoCardView }) {
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', key) }
   }, [open])
   const views: InfoCardView[] = phone ? ['tarkov-time', 'restock', 'raid-timer', 'screen'] : ['tarkov-time', 'restock', 'raid-timer']
+  const documents = useInfoCardDocuments()
   const label = uiText('Что показывать')
   return (
     <div className="info-card-chooser" ref={root}>
@@ -58,13 +60,20 @@ function ViewChooser({ phone, view }: { phone: boolean; view: InfoCardView }) {
               {entry === view && <Check size={13} aria-hidden="true" />}
             </button>
           ))}
+          {/* «Боевой пропуск» besides any of them (owner, 27.11.2026: «можно ставить несколько предметов»): today's documents */}
+          <div className="info-card-menu-sep" role="separator" />
+          <button type="button" role="menuitemcheckbox" aria-checked={documents} className={documents ? 'is-active' : ''}
+            onClick={() => { setInfoCardDocuments(!documents); setOpen(false) }}>
+            <span>{uiText('Боевой пропуск')}</span>
+            {documents && <Check size={13} aria-hidden="true" />}
+          </button>
         </div>
       )}
     </div>
   )
 }
 
-function Card({ icon, title, chooser, children, className = '' }: { icon: ReactNode; title: string; chooser: ReactNode; children: ReactNode; className?: string }) {
+function Card({ icon, title, chooser, children, className = '', extra }: { icon: ReactNode; title: string; chooser: ReactNode; children: ReactNode; className?: string; extra?: ReactNode }) {
   return (
     <div className={`stat-card info-stat-card ${className}`}>
       <div className="info-card-head">
@@ -72,6 +81,36 @@ function Card({ icon, title, chooser, children, className = '' }: { icon: ReactN
         {chooser}
       </div>
       {children}
+      {extra}
+    </div>
+  )
+}
+
+/**
+ * «Боевой пропуск» (owner, 27.11.2026: «Нажимаешь боевой пропуск, и вылезает собранные документы, и ставишь плюсик или минус, и
+ * добавляешь, сколько собрано. Там 1 из 40, 10 из 40»): today's battle pass documents against the daily limit of the mode played
+ * (progression/documentDailyLimit.ts: Season 40, PvP 25, PvE 15, all modes together — the game's wiki, 27.11.2026), the same count
+ * «Нашёл» on the map and the window after a raid add to. No reset time is published: the day ends 24 hours after its first
+ * document (players' reports), which the tooltip tells.
+ */
+function DocumentsLine() {
+  const { activeProfile, raidMode } = useAppState()
+  const { locale } = useLocale()
+  const now = useNow(60_000)
+  const day = useDocumentDay(activeProfile.id)
+  const limit = DOCUMENT_DAILY_LIMIT[raidMode]
+  const full = day.count >= limit
+  const left = day.count > 0 ? day.since + DOCUMENT_DAY_MS - now : 0
+  const title = [uiText(full ? 'Дневной лимит документов исчерпан' : 'Документы боевого пропуска'), left > 0 ? `${uiText('Лимит обновится через')} ${formatSpan(left, locale === 'en' ? 'en' : 'ru')}` : ''].filter(Boolean).join(' · ')
+  return (
+    <div className={`info-line is-documents${full ? ' is-full' : ''}`} title={title}>
+      <FileText size={13} aria-hidden="true" />
+      <span className="info-documents-name">{uiText('Документы')}</span>
+      <span className="info-documents">
+        <button type="button" className="icon-button info-documents-step" aria-label={uiText('Документом меньше')} disabled={day.count <= 0} onClick={() => takeBackDocument(activeProfile.id)}><Minus size={12} aria-hidden="true" /></button>
+        <strong className="mono">{Math.min(day.count, limit)} {uiText('из')} {limit}</strong>
+        <button type="button" className="icon-button info-documents-step" aria-label={uiText('Документом больше')} disabled={full} onClick={() => addDocumentsFound(activeProfile.id, 1)}><Plus size={12} aria-hidden="true" /></button>
+      </span>
     </div>
   )
 }
@@ -84,7 +123,7 @@ function Card({ icon, title, chooser, children, className = '' }: { icon: ReactN
  * Owner, 25.11.2026: in a raid «между временем в Таркове и прошлым рейдом появляется надпись „Сколько осталось времени до конца
  * текущего рейда“», and the raid before moves a line down.
  */
-function TarkovTime({ chooser, phone }: { chooser: ReactNode; phone: boolean }) {
+function TarkovTime({ chooser, phone, documents }: { chooser: ReactNode; phone: boolean; documents: boolean }) {
   const now = useNow(1000)
   const clocks = tarkovClocks(now)
   const { raidMode } = useAppState()
@@ -128,6 +167,8 @@ function TarkovTime({ chooser, phone }: { chooser: ReactNode; phone: boolean }) 
         ))}
       </div>
       <div className="info-lines">
+        {/* «Боевой пропуск» right under the time (owner, 27.11.2026: «У нас будет время в Таркове, потом счетчик») */}
+        {documents && <DocumentsLine />}
         {Array.from({ length: reservedResetRows }, (_, index) => (
           <span key={`reset-reserve-${index}`} className="info-line is-skeleton" aria-hidden="true">
             <RefreshCw size={13} aria-hidden="true" /><span>&nbsp;</span><strong className="mono">&nbsp;</strong>
@@ -159,7 +200,7 @@ function TarkovTime({ chooser, phone }: { chooser: ReactNode; phone: boolean }) 
 }
 
 /** «Сброс торговцев»: the next restocks, the nearest first. */
-function Restock({ chooser }: { chooser: ReactNode }) {
+function Restock({ chooser, extra }: { chooser: ReactNode; extra?: ReactNode }) {
   const { raidMode } = useAppState()
   const { locale } = useLocale()
   const navigate = useNavigate()
@@ -171,7 +212,7 @@ function Restock({ chooser }: { chooser: ReactNode }) {
     .sort((a, b) => a.left - b.left)
     .slice(0, 3)
   return (
-    <Card icon={<Timer size={12} aria-hidden="true" />} title="Сброс торговцев" chooser={chooser} className="info-restock">
+    <Card icon={<Timer size={12} aria-hidden="true" />} title="Сброс торговцев" chooser={chooser} className="info-restock" extra={extra}>
       {next.length ? (
         <button type="button" className="info-restock-list" onClick={() => navigate('/traders')} aria-label={uiText('Торговцы')}>
           {next.map(({ trader, left }, index) => (
@@ -187,7 +228,7 @@ function Restock({ chooser }: { chooser: ReactNode }) {
 }
 
 /** «Таймер рейда»: in a raid, since it began and what is left of the map's time; between raids, the raid before. */
-function RaidClock({ chooser }: { chooser: ReactNode }) {
+function RaidClock({ chooser, extra }: { chooser: ReactNode; extra?: ReactNode }) {
   const { data } = useTarkovData()
   const { locale } = useLocale()
   const now = useNow(1000)
@@ -203,7 +244,7 @@ function RaidClock({ chooser }: { chooser: ReactNode }) {
     const map = mapOf(raid.location)
     const timer = raidTimer(raid.began, map?.raidTime, now)
     return (
-      <Card icon={<Hourglass size={12} aria-hidden="true" />} title="Таймер рейда" chooser={chooser} className="info-raid is-live">
+      <Card icon={<Hourglass size={12} aria-hidden="true" />} title="Таймер рейда" chooser={chooser} className="info-raid is-live" extra={extra}>
         <div className="info-raid-map">{map ? uiText(map.name) : uiText('Рейд')}{raid.loading && <small> · {uiText('загрузка')}</small>}</div>
         <strong className="info-raid-elapsed mono">{formatCountdown(timer.elapsed)}</strong>
         {timer.left !== undefined && !raid.loading && (
@@ -214,7 +255,7 @@ function RaidClock({ chooser }: { chooser: ReactNode }) {
   }
   const lastMap = last ? mapOf(last.location) : undefined
   return (
-    <Card icon={<Hourglass size={12} aria-hidden="true" />} title="Таймер рейда" chooser={chooser} className="info-raid">
+    <Card icon={<Hourglass size={12} aria-hidden="true" />} title="Таймер рейда" chooser={chooser} className="info-raid" extra={extra}>
       <div className="info-empty">{uiText('Рейд не идёт')}</div>
       {last && (
         <small className="info-raid-last">{uiText('Прошлый рейд')}: {lastMap ? uiText(lastMap.name) : '—'} · {formatSpan(last.ended - last.began, lang)}</small>
@@ -225,19 +266,22 @@ function RaidClock({ chooser }: { chooser: ReactNode }) {
 
 /**
  * The Overview's first small block: «Время в Таркове», «Сброс торговцев», «Таймер рейда», and on the phone its «Пресеты экрана» too
- * (owner, 15.11.2026). The square gear picks; the choice stays on this device.
+ * (owner, 15.11.2026). The square gear picks; the choice stays on this device. «Боевой пропуск» ticked there adds today's documents
+ * (DocumentsLine) to whichever it shows.
  */
 export function InfoStatCard({ phone }: { phone: boolean }) {
   const view = useInfoCardView(phone)
+  const documents = useInfoCardDocuments()
   const chooser = <ViewChooser phone={phone} view={view} />
-  if (view === 'screen') return <ScreenStatCard chooser={chooser} />
-  if (view === 'restock') return <Restock chooser={chooser} />
-  if (view === 'raid-timer') return phone ? <PhoneRaidClock chooser={chooser} /> : <RaidClock chooser={chooser} />
-  return <TarkovTime chooser={chooser} phone={phone} />
+  const extra = documents ? <div className="info-lines"><DocumentsLine /></div> : undefined
+  if (view === 'screen') return <ScreenStatCard chooser={chooser} footer={extra} />
+  if (view === 'restock') return <Restock chooser={chooser} extra={extra} />
+  if (view === 'raid-timer') return phone ? <PhoneRaidClock chooser={chooser} extra={extra} /> : <RaidClock chooser={chooser} extra={extra} />
+  return <TarkovTime chooser={chooser} phone={phone} documents={documents} />
 }
 
 /** The phone's raid timer: what the PC said last (its screen relay, src/screen/screenRemote.ts). */
-function PhoneRaidClock({ chooser }: { chooser: ReactNode }) {
+function PhoneRaidClock({ chooser, extra }: { chooser: ReactNode; extra?: ReactNode }) {
   const { pc } = useRemoteScreen()
   const { data } = useTarkovData()
   const { locale } = useLocale()
@@ -247,7 +291,7 @@ function PhoneRaidClock({ chooser }: { chooser: ReactNode }) {
   if (began && pc?.state.inRaid) {
     const timer = raidTimer(began, map?.raidTime, now)
     return (
-      <Card icon={<Hourglass size={12} aria-hidden="true" />} title="Таймер рейда" chooser={chooser} className="info-raid is-live">
+      <Card icon={<Hourglass size={12} aria-hidden="true" />} title="Таймер рейда" chooser={chooser} className="info-raid is-live" extra={extra}>
         <div className="info-raid-map">{map ? uiText(map.name) : uiText('Рейд')}</div>
         <strong className="info-raid-elapsed mono">{formatCountdown(timer.elapsed)}</strong>
         {timer.left !== undefined && <small className={`info-raid-left${timer.left < 5 * 60_000 ? ' is-late' : ''}`}>{uiText(timer.left > 0 ? 'осталось' : 'время вышло')} {timer.left > 0 ? formatSpan(timer.left, locale === 'en' ? 'en' : 'ru') : ''}</small>}
@@ -255,7 +299,7 @@ function PhoneRaidClock({ chooser }: { chooser: ReactNode }) {
     )
   }
   return (
-    <Card icon={<Hourglass size={12} aria-hidden="true" />} title="Таймер рейда" chooser={chooser} className="info-raid">
+    <Card icon={<Hourglass size={12} aria-hidden="true" />} title="Таймер рейда" chooser={chooser} className="info-raid" extra={extra}>
       <div className="info-empty">{uiText(pc ? 'Рейд не идёт' : 'Нет связи с ПК')}</div>
     </Card>
   )

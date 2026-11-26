@@ -74,7 +74,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Ивент: Вторжение Scourge', 'Event: Scourge Invasion'],
   ['Хеллоуин', 'Halloween'],
   // The first small block's views (src/overview/InfoStatCard.tsx)
-  ['Время в Таркове', 'Time in Tarkov'], ['Сброс торговцев', 'Trader resets'], ['Таймер рейда', 'Raid timer'], ['Что показывать', 'What to show'],
+  ['Время в Таркове', 'Time in Tarkov'], ['Сброс торговцев', 'Trader resets'], ['Таймер рейда', 'Raid timer'], ['Что показывать', 'What to show'], ['Документом меньше', 'One document less'], ['Документом больше', 'One document more'], ['Лимит обновится через', 'The limit resets in'], ['Документы за рейд', 'Documents from the raid'], ['Сколько документов вынесли?', 'How many documents did you bring out?'], ['Пропустить', 'Skip'],
   ['Нет данных о сбросе', 'No reset data'], ['загрузка', 'loading'], ['осталось', 'left'],
   ['время вышло', 'time is up'], ['Рейд не идёт', 'Not in a raid'], ['Прошлый рейд', 'Last raid'], ['Таймеры', 'Timers'],
   ['До конца рейда', 'Raid time left'], ['Загрузка рейда', 'Raid loading'], ['Идёт рейд', 'Raid running'],

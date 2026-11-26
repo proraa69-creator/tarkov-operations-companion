@@ -8,7 +8,7 @@ import { LocaleProvider } from '../i18n/LocaleProvider'
 import type { RaidState } from '../import/raidState'
 import { AppStateProvider } from '../state/AppState'
 import { InfoStatCard } from './InfoStatCard'
-import { formatClock, raidTimer, readInfoCardView, rememberLastRaid, setInfoCardView, tarkovClocks } from './infoCardClock'
+import { formatClock, raidTimer, readInfoCardDocuments, readInfoCardView, rememberLastRaid, setInfoCardDocuments, setInfoCardView, tarkovClocks } from './infoCardClock'
 
 const HOUR = 60 * 60 * 1000
 const listeners = new Set<(state: RaidState) => void>()
@@ -119,5 +119,54 @@ describe('the Overview\'s first block', () => {
     renderCard(true)
     fireEvent.click(gear())
     expect(screen.getAllByRole('menuitemradio').map((item) => item.textContent)).toContain('Пресеты экрана')
+  })
+})
+
+// Owner, 27.11.2026: «сделай нам такой счетчик в блоке «Время в Таркове». У нас будет время в Таркове, потом счетчик. Вернее, это будет
+// добавляться в настройках, что показывать. И можно ставить несколько предметов… Нажимаешь боевой пропуск, и вылезает собранные
+// документы, и ставишь плюсик или минус, и добавляешь, сколько собрано. Там 1 из 40, 10 из 40».
+describe('«Боевой пропуск» in the first block of the Overview', () => {
+  const line = () => document.querySelector('.info-line.is-documents') as HTMLElement | null
+  const shown = () => line()?.querySelector('strong')?.textContent
+  const less = () => screen.getByRole('button', { name: 'Документом меньше' })
+  const more = () => screen.getByRole('button', { name: 'Документом больше' })
+
+  it('ticked in the gear, the documents of today come right under the time, «+» and «−» counting them', () => {
+    renderCard()
+    expect(line()).toBeNull()
+    fireEvent.click(gear())
+    const item = screen.getByRole('menuitemcheckbox', { name: 'Боевой пропуск' })
+    expect(item).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(item)
+    expect(readInfoCardDocuments()).toBe(true)
+    expect(document.querySelector('.info-tarkov-time .info-lines')?.firstElementChild).toBe(line())
+    expect(line()).toHaveTextContent('Документы')
+    // PvP: 25 a day (Season 40, PvE 15)
+    expect(shown()).toBe('0 из 25')
+    expect(less()).toBeDisabled()
+    fireEvent.click(more())
+    fireEvent.click(more())
+    expect(shown()).toBe('2 из 25')
+    expect(line()?.getAttribute('title')).toMatch(/^Документы боевого пропуска · Лимит обновится через (23|24) ч/)
+    fireEvent.click(less())
+    expect(shown()).toBe('1 из 25')
+    // the raid timer shown instead: the documents stay, under it
+    fireEvent.click(gear())
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Таймер рейда' }))
+    expect(document.querySelector('.info-raid .info-line.is-documents strong')?.textContent).toBe('1 из 25')
+    fireEvent.click(gear())
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Боевой пропуск' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Боевой пропуск' }))
+    expect(line()).toBeNull()
+  })
+
+  it('at the limit of the mode «+» stops and the count turns red', () => {
+    setInfoCardDocuments(true)
+    renderCard()
+    for (let index = 0; index < 25; index++) fireEvent.click(more())
+    expect(shown()).toBe('25 из 25')
+    expect(more()).toBeDisabled()
+    expect(line()).toHaveClass('is-full')
+    expect(line()?.getAttribute('title')).toMatch(/^Дневной лимит документов исчерпан · /)
   })
 })

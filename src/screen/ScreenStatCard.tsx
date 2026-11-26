@@ -112,7 +112,7 @@ function useRemoteScreen(on: boolean): ScreenControl {
  * пресетов. И при нажатии настройки тебя переносит прямо в окно пресеты экрана»): the chosen preset, on / off, the next one,
  * and the square gear that opens «Пресеты экрана» (the phone) or «Настройка экрана» (the PC) as a page.
  */
-export function ScreenStatCard({ chooser }: { chooser?: ReactNode } = {}) {
+export function ScreenStatCard({ chooser, footer }: { chooser?: ReactNode; footer?: ReactNode } = {}) {
   const navigate = useNavigate()
   // the owner's heading of the block (Админ панель → «Блоки»), else «Экран»
   const title = useBlockTitle('Экран')
@@ -139,6 +139,7 @@ export function ScreenStatCard({ chooser }: { chooser?: ReactNode } = {}) {
         <button type="button" className="button small screen-stat-next" disabled={!known} onClick={control.next}><Repeat size={13} aria-hidden="true" />{uiText('Переключить')}</button>
         <button type="button" className="icon-button screen-stat-settings" onClick={() => navigate('/screen')} aria-label={uiText('Настройка экрана')} title={uiText('Настройка экрана')}><Settings size={15} aria-hidden="true" /></button>
       </div>
+      {footer}
     </div>
   )
 }
