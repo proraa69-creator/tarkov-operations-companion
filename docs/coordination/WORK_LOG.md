@@ -11507,3 +11507,45 @@ Not pushed, not released, nothing uploaded.
   0.6.0.350's 241, 242 and 243 were «not in work, left alone» (not «В процессе» at that moment): no release notice to their
   authors.
 - Nothing pushed: this entry only (claude/na-svet-points fast-forwarded to release/production c58b8eae).
+
+## 2026-11-27 02:45 — Claude: release 0.6.0.351 (branch claude/release-351 → release/production)
+
+- Owner, 27.11.2026: «Приготовь и выпусти совсем, что сейчас в работе или что уже готово. Подготовь к выпуску».
+- 0.6.0.350 went out by hand at 21:38 on the owner's «Сейчас»; reports 241, 242 and 243 closed by themselves at 21:40–21:41.
+- «Убрать из требований рейда» (claude/raid-list-remove, 63b5da76). Owner: «нажимаю в список рейда… удалить я его могу только там
+  же… Я должен удалять правой кнопкой… просто убрать из требований рейда кнопку». A row of «Требования рейда» added by hand
+  (fromRaidListOnly: «В список рейда» of the flea market's or a tier list's card) offers «Убрать из требований рейда» in its
+  right-click menu next to «Взял» (QuestDeferDialog.tsx DeferItemMenu `onRemoveFromRaid`; DashboardPage takes it off the raid
+  list); an item a quest needs has no such entry. Tests: RaidRequirementsPanel, DashboardPage.
+- Battle pass documents (claude/documents-counter, 501c7d6a). Owner: «сделай нам такой счетчик в блоке «Время в Таркове»… это
+  будет добавляться в настройках, что показывать… 1 из 40, 10 из 40»; «по окончанию рейда вылезает окно и предлагает добавить
+  документы… Сколько вынес за рейд, столько и добавляешь… можно включить… и чтобы она не появлялась в настройках карты».
+  - Limits checked on the game's wiki (escapefromtarkov.fandom.com/wiki/BattlePass, 27.11.2026): Season 40, PvP 25, PvE 15 a
+    day, one count for all modes (15 in PvE leave 25 for Season); documents of operational tasks do not count; no reset time is
+    published (players: 24 hours after the day's first document, as the app counted already). Season 1's pass ends 07.12.2026.
+    An older guide (senseos.gg, 29.10.2026) gives 30/20/15; the wiki is newer.
+  - The gear of the Overview's first block: «Боевой пропуск», a checkbox under the views, adds «Документы  −  N из L  +» right
+    under the clocks (under «Сброс торговцев», «Таймер рейда» and the phone's presets too): the count «Нашёл» on the map adds to
+    (progression/documentDailyLimit.ts addDocumentsFound, takeBackDocument); the tooltip says when the limit comes back; red and
+    «+» off at the limit. Off until ticked, on this device.
+  - The window after a raid (the PC; components/RaidDocumentsPrompt.tsx, on the raid end LastRaidRecorder keeps): «Документы за
+    рейд», «Сколько документов вынесли?», «− N +» up to what is left of today's limit, «Пропустить» / «Добавить». Once per raid
+    (progression/documentsAfterRaid.ts takeRaidToAsk), not for a raid over more than 30 minutes before, not at the limit.
+    «Настройки карты» → «Документы боевого пропуска» → «Спрашивать после рейда», on until turned off (PC only).
+  - The count stays per device, as «Нашёл» before: the phone has its own.
+  - Checked in the browser (the renderer on port 5202, RU and EN): the block, the gear's menu, the window (shown by a stand-in raid
+    end, mounted on the web for the check only), «Настройки карты». Not checked in the PC app itself.
+- claude/long-wait-once (f5d70d6f, b92afb09), from the session of 0.6.0.348: the PC app's long waits go to the server once,
+  without hedged copies; its draft release claude/long-wait-release-draft (e2e1f646) is not used. claude/na-svet-points
+  (020db81d): its work log.
+- Not in it: the winter / New Year schemes (test builds only); claude/trailer-v5 (the v8 trailer went out in 0.6.0.348 with
+  claude/site-trailers-v7); claude/password-link-site-346 and claude/admin-hide-zero-share (already in production).
+- Release commit: version 0.6.0-351; the history row (4 lines, no reports); the news (2 added, 1 improved) in 11 languages, each
+  line within the news test's 120 characters (the English window line was 121 and was cut), shown to the owner.
+- Tests: typecheck clean; the gateway's 17 files (with server/node_modules linked into the release folder), news, data, i18n,
+  overview, documents and the Overview's 40 tests pass; the full vitest run: 4849 passed, 24 failed — 16 in 5 files as on
+  0.6.0.349/350 on this PC (appUpdate.ownerExe, the linux updater, staleServer, appVersion, the AdminPanelPage sidebar), 8 under
+  load that pass alone (App, ManualMarks, MapsPage raidChecks/deferred/autoFloor, DashboardPage: 70/70), and the two node:test
+  scripts vitest finds no suite in (cache-item-images, release-policy); the gate on Linux decides.
+- Deployment: pushed to release/production; the timer publishes it at 13:00 Bangkok; live once download/version.json shows
+  0.6.0-351.
