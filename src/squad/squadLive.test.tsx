@@ -49,3 +49,21 @@ describe('a mate\'s drawing taken off this map (owner, 14.11.2026)', () => {
     expect(render(<SquadSketchChips sketches={[sketch(5)]} mapId="woods" />).container.textContent).toBe('')
   })
 })
+
+describe('a mate\'s pins (a player\'s proposal №249)', () => {
+  it('a pin keeps one point and one short line of words; words that are not a line are dropped, not the pin', () => {
+    const live = cleanSquadLive({
+      version: 3,
+      positions: [],
+      sketches: [{ memberId: A, mapId: 'woods', at: 1, strokes: [
+        { zoom: 2, points: [[1, 2], [3, 4]], color: '#ff2b2b', pin: true, text: '  Схрон   ' + 'я'.repeat(60) },
+        { zoom: 2, points: [[5, 6]], pin: true, text: 7 },
+        { zoom: 2, points: [[7, 8], [9, 9]] },
+      ] }],
+    })
+    const strokes = live!.sketches[0]!.strokes
+    expect(strokes[0]).toEqual({ zoom: 2, points: [[1, 2]], color: '#ff2b2b', pin: true, text: ('Схрон ' + 'я'.repeat(60)).slice(0, 40) })
+    expect(strokes[1]).toEqual({ zoom: 2, points: [[5, 6]], pin: true })
+    expect(strokes[2]).toEqual({ zoom: 2, points: [[7, 8], [9, 9]] })
+  })
+})

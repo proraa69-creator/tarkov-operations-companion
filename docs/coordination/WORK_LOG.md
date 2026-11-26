@@ -11215,3 +11215,24 @@ Not pushed, not released, nothing uploaded.
   quest-point photos (the API keeps its own limits: 28 MB / 8 MB); backup /etc/nginx/sites-available/raidos.bak-20261126-screenshots,
   nginx -t, reload. A 1.3 MB body now reaches the API (401 without a session instead of 413). The ops-reference nginx file is
   not updated yet. Seen from the owner's PC: uploads to raidos.app at 15–24 KB/s (downloads 1.1 MB/s, uploads elsewhere fast).
+
+## 2026-11-26 19:00 — Claude: report 249, pins on the map (branch claude/map-pins-249, not released)
+
+- Report 249 (a player): red pins on the map «если надо что то отметить». The owner, 26.11.2026: in «Зарисовка» a button
+  under the drawing's row, pins of the colours, put one and a line for its words comes at once with ✓ and ✕, kept like the
+  drawing, the drawing's cross takes them all off.
+- What: «Метка» under the pencil while drawing; a press without a move puts a pin of the pencil's colour; its words come at once
+  (one line up to 40 letters; ✓ or Enter keeps the pin, with no words too; ✕ or Escape takes it off); while it waits the map takes
+  no other pin. Pins go back and forward, the eraser takes them, ✓ of the drawing keeps them, «Закрыть зарисовку» takes them with
+  the strokes; a colour keeps the pin tool. On a phone's narrow map the words' box stands under the pin, whole on the map.
+- How: a pin is a stroke of one point with `pin: true` and `text` (src/maps/mapSketch.ts: makePin, pinText, isPin, the eraser's
+  rubsPin, pinEditorPlace); src/components/MapPins.tsx (the teardrop icon of the colour, SketchPins, PinEditor);
+  src/components/MapSketch.tsx (the row, the press that puts a pin); src/components/mapSketch.css. The account's other devices get
+  them as strokes (sync/playerStateStores.ts passes the fields through); the squad too: server/src/routes/squadLive.ts takes `pin`
+  and `text` (≤ 80), src/squad/squadLive.ts reads them, SquadSketchLines draws the mates' pins. An older version reads a pin as a
+  one-point stroke and draws nothing.
+- Words: «Метка» (Pin), «Подпись» (Label) in English and the nine other languages.
+- Tests: src/maps/mapSketch, src/components/MapSketch, src/squad, src/i18n 122/122 (28 files); server squads 8/8 (pins taken,
+  long words and `pin: false` refused); typecheck clean; eslint clean. Seen in the dev renderer (plain browser, vite on its own
+  port): PC and a 400 px phone, three pins with and without words.
+- Not released: needs an app version; the history row with "reports":[249]; the news line to show the owner first.

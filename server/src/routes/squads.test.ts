@@ -296,6 +296,13 @@ test('squad live: positions and drawings reach the other members at once, nobody
     assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes: [] }, a)).status, 200)
     assert.deepEqual((await read(b)).sketches, [])
     assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes: [{ zoom: 2, points: [[1, 2]], color: 'red' }] }, a)).status, 400)
+    // A pin (src/maps/mapSketch.ts): a stroke of one point and its words; words past MAX_PIN_TEXT, or a pin that is not `true`, are refused.
+    const pins = [{ zoom: 2, points: [[1, 2]], color: '#ffd60a', pin: true, text: 'Схрон' }]
+    assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes: pins }, a)).status, 200)
+    assert.deepEqual((await read(b)).sketches.map((entry) => entry.strokes), [pins])
+    assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes: [{ ...pins[0], text: 'я'.repeat(81) }] }, a)).status, 400)
+    assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes: [{ ...pins[0], pin: false }] }, a)).status, 400)
+    assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/customs`, { strokes: [] }, a)).status, 200)
     assert.equal((await call('PUT', `/v1/squad-live/${squad.id}/pvp/sketch/../x`, { strokes }, a)).status, 404)
 
     // Left the squad: what a sent is no longer shown, and a cannot read any more.

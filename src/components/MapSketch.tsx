@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pane, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import { polyline as leafletPolyline, type Polyline as LeafletPolyline } from 'leaflet'
-import { Check, Eraser, Pencil, Redo2, Undo2, X } from 'lucide-react'
+import { Check, Eraser, MapPin, Pencil, Redo2, Undo2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { eraseStrokes, roundMetres, SKETCH_COLORS, SKETCH_DEFAULT_COLOR, SKETCH_LINE_PX, sketchLineWidth, type MapSketch, type ScreenPoint, type SketchPoint, type SketchStroke } from '../maps/mapSketch'
+import { eraseStrokes, isPin, makePin, roundMetres, SKETCH_COLORS, SKETCH_DEFAULT_COLOR, SKETCH_LINE_PX, sketchLineWidth, type MapSketch, type ScreenPoint, type SketchPoint, type SketchStroke } from '../maps/mapSketch'
+import { PinEditor, SketchPins } from './MapPins'
 import './mapSketch.css'
 
 const PANE = 'map-sketch'
+const PIN_PANE = 'map-sketch-pins'
+const NEW_PIN_PANE = 'map-sketch-pin-new'
+/** A press that moves no further than this, in screen pixels, puts a pin; a longer one was meant for the map. */
+const PIN_SLOP_PX = 6
 /** Closer than this to the last point, in screen pixels, a move adds nothing. */
 const MIN_STEP_PX = 2
 
@@ -42,7 +47,10 @@ function SketchColors({ sketch }: { sketch: MapSketch }) {
   </div>
 }
 
-/** The pencil beside the choice of icons, and while drawing, the eraser, the colour, back, forward, ✓ and ✕; with a drawing kept, the cross that closes it. */
+/**
+ * The pencil beside the choice of icons, and while drawing, the eraser, the colour, back, forward, ✓ and ✕, and under them «Метка»
+ * (owner, 26.11.2026: «ниже зарисовки появляется кнопка с геопозицией»); with a drawing kept, the cross that closes it, pins too.
+ */
 export function MapSketchToolbar({ sketch, onBegin }: { sketch: MapSketch; onBegin: () => void }) {
   return <div className={`map-tools map-sketch${sketch.editing ? ' is-editing' : ''}`} role="toolbar" aria-label={uiText('Зарисовка')}>
     {sketch.editing
@@ -54,6 +62,9 @@ export function MapSketchToolbar({ sketch, onBegin }: { sketch: MapSketch; onBeg
         <ToolButton label="Вперёд" disabled={!sketch.canRedo} onClick={sketch.redo}><Redo2 size={14} aria-hidden="true" /></ToolButton>
         <ToolButton label="Ок" className="map-sketch-accept" onClick={sketch.accept}><Check size={14} aria-hidden="true" /></ToolButton>
         <ToolButton label="Отмена" className="map-sketch-cancel" onClick={sketch.cancel}><X size={14} aria-hidden="true" /></ToolButton>
+        <div className="map-tools map-sketch-pins">
+          <ToolButton label="Метка" pressed={sketch.tool === 'pin'} onClick={() => sketch.chooseTool('pin')}><MapPin size={14} style={sketch.tool === 'pin' ? { color: sketch.color } : undefined} aria-hidden="true" /></ToolButton>
+        </div>
       </>
       : <>
         <ToolButton label="Зарисовка" onClick={() => { onBegin(); sketch.begin() }}><Pencil size={14} aria-hidden="true" /></ToolButton>
@@ -78,6 +89,15 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
   const [erased, setErased] = useState<SketchStroke[] | null>(null)
   const current = useRef(sketch.strokes)
   useEffect(() => { current.current = sketch.strokes })
+  /** A pin just put, waiting for its words (components/MapPins.tsx); a drawing begun again starts without one. */
+  const [pending, setPending] = useState<{ point: SketchPoint; zoom: number; color: string } | null>(null)
+  const [session, setSession] = useState(editing)
+  if (session !== editing) {
+    setSession(editing)
+    setPending(null)
+  }
+  const waiting = useRef(false)
+  useEffect(() => { waiting.current = Boolean(pending) })
 
   useEffect(() => {
     if (!editing) return
@@ -89,6 +109,11 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
     container.classList.add('is-sketching')
     const erasing = tool === 'eraser'
     container.classList.toggle('is-erasing', erasing)
+    const pinning = tool === 'pin'
+    container.classList.toggle('is-pinning', pinning)
+    /** Where a press of the pin began. */
+    let pinAt: { pointer: number; x: number; y: number } | null = null
+    const putPin = (point: SketchPoint) => setPending({ point, zoom: map.getZoom(), color })
 
     let line: LeafletPolyline | null = null
     let points: SketchPoint[] = []
@@ -135,7 +160,13 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
         if (fingers.size > 1) { pinching = true; drop(); return }
       }
       if (pinching || pointer !== null || event.button !== 0) return
-      if ((event.target as HTMLElement).closest('.leaflet-control')) return
+      if ((event.target as HTMLElement).closest('.leaflet-control, .map-pin-editor')) return
+      if (pinning) {
+        // A press without a move puts a pin; while one waits for its words, the map takes none.
+        event.preventDefault()
+        if (!waiting.current) pinAt = { pointer: event.pointerId, x: event.clientX, y: event.clientY }
+        return
+      }
       event.preventDefault()
       container.setPointerCapture?.(event.pointerId)
       pointer = event.pointerId
@@ -176,6 +207,15 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
       }
       fingers.delete(event.pointerId)
       if (!fingers.size) pinching = false
+      if (pinAt && event.pointerId === pinAt.pointer) {
+        const start = pinAt
+        pinAt = null
+        if (event.type === 'pointerup' && !pinching && Math.hypot(event.clientX - start.x, event.clientY - start.y) <= PIN_SLOP_PX) {
+          const at = map.mouseEventToLatLng(event)
+          putPin([roundMetres(at.lat), roundMetres(at.lng)])
+        }
+        return
+      }
       if (event.pointerId !== pointer) return
       if (event.type === 'pointerup') {
         if (left) replace(left)
@@ -198,20 +238,33 @@ export function MapSketchLayer({ sketch }: { sketch: MapSketch }) {
       container.removeEventListener('pointermove', onMove)
       container.removeEventListener('pointerup', onUp)
       container.removeEventListener('pointercancel', onUp)
-      container.classList.remove('is-sketching', 'is-erasing')
+      container.classList.remove('is-sketching', 'is-erasing', 'is-pinning')
       drop()
       if (dragging) map.dragging.enable()
       if (doubleClick) map.doubleClickZoom.enable()
     }
   }, [color, draw, editing, map, replace, tool])
 
-  return <Pane name={PANE} style={{ zIndex: 450, pointerEvents: 'none' }}>
-    {(erased ?? sketch.strokes).map((stroke, index) => <Polyline
+  const shown = erased ?? sketch.strokes
+  return <>
+    <Pane name={PANE} style={{ zIndex: 450, pointerEvents: 'none' }}>
+    {shown.map((stroke, index) => (isPin(stroke) ? null : <Polyline
       // The eraser can shorten a list and split a stroke: the line at a place in it takes whatever stands there now.
       key={index}
       positions={stroke.points}
       interactive={false}
       pathOptions={{ color: stroke.color ?? SKETCH_DEFAULT_COLOR, weight: sketchLineWidth(map.getZoomScale(zoom, stroke.zoom)), lineCap: 'round', lineJoin: 'round' }}
-    />)}
-  </Pane>
+    />))}
+    </Pane>
+    <SketchPins strokes={shown} pane={PIN_PANE} />
+    {pending && <>
+      <SketchPins strokes={[makePin(pending.point, pending.zoom, pending.color)]} pane={NEW_PIN_PANE} />
+      <PinEditor
+        point={pending.point}
+        color={pending.color}
+        onAccept={(text) => { draw(makePin(pending.point, pending.zoom, pending.color, text)); setPending(null) }}
+        onCancel={() => setPending(null)}
+      />
+    </>}
+  </>
 }

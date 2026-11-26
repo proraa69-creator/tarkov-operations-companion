@@ -21,7 +21,7 @@ const MAX_SKETCH_MAPS = 30
 const SWEEP_EVERY_MS = 60_000
 
 export interface SquadMatePosition { x: number; y: number; z: number; yaw: number; at: number; map?: string }
-export type SquadSketchStroke = { zoom: number; points: Array<[number, number]>; color?: string }
+export type SquadSketchStroke = { zoom: number; points: Array<[number, number]>; color?: string; pin?: true; text?: string }
 export interface SquadSketch { mapId: string; strokes: SquadSketchStroke[]; at: number }
 
 interface Held<T> { value: T; expires: number }

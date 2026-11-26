@@ -4,7 +4,8 @@ import { Marker, Pane, Polyline, Tooltip, useMap, useMapEvents } from 'react-lea
 import { startActivePolling } from '../app/activePolling'
 import { useOwnMarkerStyle, useScreenAngle } from '../components/LivePlayerMarker'
 import { uiText } from '../i18n/renderText'
-import { SKETCH_DEFAULT_COLOR, sketchLineWidth } from '../maps/mapSketch'
+import { isPin, SKETCH_DEFAULT_COLOR, sketchLineWidth } from '../maps/mapSketch'
+import { SketchPins } from '../components/MapPins'
 import { playerMarkerSvg, type PlayerMarkerStyle } from '../overlay/playerMarker'
 import { Pencil, X } from 'lucide-react'
 import { hideSquadSketch, type SquadMate, type SquadMateSketch } from './squadLive'
@@ -41,21 +42,24 @@ function MateMarker({ mate, style, now }: { mate: SquadMate; style: PlayerMarker
   </Marker>
 }
 
-/** The mates' drawings of this map, under the player's own, in the colours they drew with. Never takes a click. */
+/** The mates' drawings of this map, under the player's own, in the colours they drew with, their pins too. Never takes a click. */
 export function SquadSketchLines({ sketches, mapId }: { sketches: SquadMateSketch[]; mapId: string }) {
   const map = useMap()
   const [zoom, setZoom] = useState(() => map.getZoom())
   useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
   const here = sketches.filter((sketch) => sketch.mapId === mapId)
   if (!here.length) return null
-  return <Pane name="map-sketch-squad" style={{ zIndex: 449, pointerEvents: 'none' }}>
-    {here.flatMap((sketch) => sketch.strokes.map((stroke, index) => <Polyline
+  return <>
+    <Pane name="map-sketch-squad" style={{ zIndex: 449, pointerEvents: 'none' }}>
+    {here.flatMap((sketch) => sketch.strokes.map((stroke, index) => (isPin(stroke) ? null : <Polyline
       key={`${sketch.memberId}:${index}`}
       positions={stroke.points}
       interactive={false}
       pathOptions={{ color: stroke.color ?? SKETCH_DEFAULT_COLOR, weight: sketchLineWidth(map.getZoomScale(zoom, stroke.zoom)), lineCap: 'round', lineJoin: 'round', opacity: 0.9 }}
-    />))}
-  </Pane>
+    />)))}
+    </Pane>
+    <SketchPins strokes={here.flatMap((sketch) => sketch.strokes)} pane="map-sketch-squad-pins" opacity={0.9} />
+  </>
 }
 
 /**

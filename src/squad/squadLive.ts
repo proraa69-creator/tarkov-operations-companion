@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
 import type { RaidMode } from '../domain/types'
-import type { SketchStroke } from '../maps/mapSketch'
+import { pinText, type SketchStroke } from '../maps/mapSketch'
 import { friendColors } from './friendColors'
 import { memberLabel } from './squadLabels'
 import { SQUAD_SKETCH_HIDDEN_SYNC, useSquadSettings } from './squadSettings'
@@ -46,7 +46,14 @@ export function cleanSquadLive(raw: unknown): LiveAnswer | null {
       const stroke = raw as Record<string, unknown>
       if (!finite(stroke?.zoom) || !Array.isArray(stroke.points)) return []
       const points = stroke.points.filter((point): point is [number, number] => Array.isArray(point) && point.length === 2 && finite(point[0]) && finite(point[1]))
-      return points.length ? [{ zoom: stroke.zoom, points, ...(typeof stroke.color === 'string' && COLOR.test(stroke.color) ? { color: stroke.color } : {}) }] : []
+      if (!points.length) return []
+      const colour = typeof stroke.color === 'string' && COLOR.test(stroke.color) ? { color: stroke.color } : {}
+      // a pin (maps/mapSketch.ts): one point and its words, if any
+      if (stroke.pin === true) {
+        const words = pinText(stroke.text)
+        return [{ zoom: stroke.zoom, points: [points[0]!], ...colour, pin: true, ...(words ? { text: words } : {}) }]
+      }
+      return [{ zoom: stroke.zoom, points, ...colour }]
     })
     return strokes.length ? [{ memberId: item.memberId, mapId: item.mapId, strokes, at: finite(item.at) ? item.at : 0 }] : []
   })
