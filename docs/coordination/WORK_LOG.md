@@ -11162,6 +11162,7 @@ Not pushed, not released, nothing uploaded.
   ObjectivePhotos 22/22. Tool: E:/SPT-photo/eval/tie_quest_photos.cjs (json.tarkov.dev tasks + the feed's Russian texts).
   **Risk:** integrate_all.py builds our frames from its points; a frame whose point names no objective comes back untied on a
   re-run of that map — run tie_quest_photos.cjs after it.
+
 ## 2026-11-26 13:10 — Claude: «Панель стримера» only for a streamer with a share (branch claude/streamer-panel-share-only, not released)
 
 - Owner: a streamer updated the app and did not find the streamer block; «добавь на страницу профиль панель стримера. Эта
@@ -11177,6 +11178,7 @@ Not pushed, not released, nothing uploaded.
 - Commit ce7d1510. Tests: StreamerCabinetPanel 4/4 (a new one: no panel where the server refuses or for a non-streamer),
   src/account 19/19 when run one file at a time (the parallel run failed to start workers under load); typecheck clean.
 - Not released; needs an app version (20:00 window at the earliest, on the owner's word).
+
 ## 2026-11-26: Claude, the site's trailer v8 in every language (claude/site-trailers-v7)
 
 - Owner, 26.11: the Russian v8 approved — «делай поэтому ролики на всех языках и добавляй на сайт под каждую версию языка».
@@ -11185,3 +11187,23 @@ Not pushed, not released, nothing uploaded.
   the build window really scrolled, bosses scrolled to the loot, the range's scope swapped on Killa, the squad's second drawing at once.
 - Source: scripts/trailer5 on claude/trailer-v5 (fbc27c88 RU v8, 372259b1 every language's captions and the range scene).
 - Not pushed, not released: site-only; the release integrator takes it into the next release.
+
+## 2026-11-26 17:34 — Claude: release 0.6.0.348 (branch claude/release-348 → release/production)
+
+- Owner, 26.11.2026: «Выпускай обнову щас» — an urgent release: started by hand on the VPS once the gate is green, not in the
+  20:00 window.
+- Merged onto 0.6.0.347 (f1ce31e5): claude/reports-244-247 (places' photos: the spawn places the reshoot dropped come back,
+  «Закрытый клуб» by the wiki's numbers, «Городские разборки» under their objectives, 340 more photos tied to their objectives;
+  the Shoreline resort documents on their own floor and room), claude/streamer-panel-share-only («Панель стримера» and the
+  cabinet only for a streamer with a share), claude/site-trailers-v7 (the site's v8 trailer in every language). WORK_LOG.md
+  merged as the union of both sides.
+- Not in it: the winter / New Year schemes (test builds only), report 243 (its news text waits for the owner), the cultist
+  circle calculator (241/242), the rest of 247 (the other maps' documents need a shoot; 247 stays taken, not in "reports").
+- Release commit: version 0.6.0-348 (package.json, package-lock.json, website/src/config.ts); the history row with
+  "reports":[244] (closes 244 once live); the news row «Техническое обновление» in 11 languages (nothing about photos there).
+- Checked: the 665 own photos the lists name, with their thumbnails, are in the server's guides folder (the wiki ones the
+  server fetches itself); no android/, ios/, workflow or publisher path changed.
+- Tests: typecheck clean; vitest updateHistory, questGuidePhotos, documentGuide, questPointPhotos, StreamerCabinetPanel,
+  ObjectivePhotos, QuestGuidePhotos, SpotPhotos 45/45 (a history line cut to 110 characters first); server guideImages,
+  releaseReports, playerNews 20/20; eslint on the changed files: no errors (one fast-refresh warning, a hook beside components).
+- Deployment: pushed to release/production; live once https://raidos.app/download/version.json shows 0.6.0-348.
