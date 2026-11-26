@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.349","date":"2026-11-26","items":[
+    {"kind":"added","ru":"Карта: в зарисовке можно ставить свои метки разных цветов и подписывать их","en":"Map: put your own pins in different colours with a label while drawing","de":"Karte: Beim Zeichnen kannst du eigene Markierungen in verschiedenen Farben setzen und beschriften","ja":"マップ：描画中に色の違う自分のピンを置いて、ラベルを付けられます","zh":"地图：绘图时可以放置不同颜色的自定义标记并添加标签","pl":"Mapa: podczas rysowania możesz stawiać własne znaczniki w różnych kolorach i je podpisywać","es":"Mapa: al dibujar puedes poner tus propios marcadores de distintos colores y ponerles una etiqueta","pt":"Mapa: ao desenhar, você pode colocar seus próprios marcadores de várias cores e adicionar um rótulo","fr":"Carte : en dessinant, vous pouvez placer vos propres repères de différentes couleurs et leur ajouter une étiquette","ko":"지도: 그리기 중에 여러 색의 내 핀을 놓고 라벨을 달 수 있습니다","tr":"Harita: Çizim yaparken farklı renklerde kendi işaretlerini koyup etiketleyebilirsin"}
+  ]},
   {"version":"0.6.0.348","date":"2026-11-26","items":[
     {"kind":"improved","ru":"Техническое обновление","en":"Technical update","de":"Technisches Update","ja":"技術的なアップデート","zh":"技术更新","pl":"Aktualizacja techniczna","es":"Actualización técnica","pt":"Atualização técnica","fr":"Mise à jour technique","ko":"기술 업데이트","tr":"Teknik güncelleme"}
   ]},

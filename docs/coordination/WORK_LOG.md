@@ -11254,3 +11254,15 @@ Not pushed, not released, nothing uploaded.
   Seen in the dev renderer (web, PvE): each point at its objective on Woods (by the sawmill), Customs (by «Времянки») and the
   Lab (main level, «Примерное место»).
 - Not released: with the next app version on the owner's word, "reports":[248] in its history row (248 is taken).
+
+## 2026-11-26 19:27 — Claude: release 0.6.0.349 (branch claude/release-349 → release/production)
+
+- Owner, 26.11.2026: «Да» — the map's pins (report 249) and the «На свет» points (report 248) in one update, with the news line
+  shown to him first («Карта: в зарисовке можно ставить свои метки разных цветов и подписывать их» / «Map: put your own pins in
+  different colours with a label while drawing»).
+- Merged onto 0.6.0.348 (f53f72a4): claude/map-pins-249 (5072594d) and claude/na-svet-points (c08edc08); WORK_LOG.md as the union.
+- Release commit: version 0.6.0-349 (package.json, package-lock.json, website/src/config.ts); the history row with
+  "reports":[248,249]; the news row (kind added) in 11 languages.
+- Tests: typecheck clean; vitest updateHistory, news, curatedQuests, mapSketch, MapSketch, squad, i18n, quests 378 passed
+  (56 files, 1 skipped); server squads, playerNews, releaseReports 20/20.
+- Deployment: pushed for the 20:00 Bangkok window (no start by hand); live once download/version.json shows 0.6.0-349.
