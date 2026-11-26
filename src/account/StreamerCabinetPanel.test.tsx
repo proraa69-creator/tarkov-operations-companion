@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const statsOnlyMe = { referralCode: 'RAID-TEST0', statsOnly: true, stats: { visits: 300, registrations: 70, linkRegistrations: 10, activeSubscriptions: 5, earnings: { amount: 0 } } }
 const statsOnlyPayouts = { percent: 0, earned: 0, paidOut: 0, pending: 0, available: 0, minimum: 500, details: null, payouts: [] }
 // 15 % streamer: the full new cabinet.
-const shareMe = { referralCode: 'BULLDOZER', stats: { visits: 300, registrations: 70, linkRegistrations: 10, activeSubscriptions: 5, payers: 9, revenue: { amount: 12345 }, earnings: { amount: 1500 } } }
+const shareMe = { referralCode: 'RAID-TEST1', stats: { visits: 300, registrations: 70, linkRegistrations: 10, activeSubscriptions: 5, payers: 9, revenue: { amount: 12345 }, earnings: { amount: 1500 } } }
 const sharePayouts = { percent: 15, earned: 1500, paidOut: 200, pending: 100, available: 900, maturing: 300, maturityDays: 14, minimum: 500, details: { phone: '+7 ••• •••-45-67', bank: 'Т-Банк', recipient: 'Иван Петров' }, payouts: [] }
 const answers: Record<string, unknown> = {}
 beforeEach(() => {
@@ -23,7 +23,13 @@ vi.mock('../sync/serverSync', () => ({
 }))
 vi.mock('./nicknameBinding', () => ({ serviceClient: () => async (_method: string, path: string) => answers[path] }))
 
-const { StreamerCabinetPanel, StreamerPanelButton } = await import('./StreamerCabinetPanel')
+const { StreamerCabinetPanel, StreamerPanelButton, useStreamerPanel } = await import('./StreamerCabinetPanel')
+
+/** The profile's way: the button only where the server has answered the notices. */
+function ProfileButton({ enabled = true }: { enabled?: boolean }) {
+  const panel = useStreamerPanel(enabled)
+  return panel ? <StreamerPanelButton unread={panel.unread} /> : <span>нет панели</span>
+}
 
 afterEach(cleanup)
 
@@ -46,8 +52,22 @@ describe('the app\'s streamer cabinet', () => {
   })
 
   it('the profile button shows the unread streamer-notice count', async () => {
-    render(<StreamerPanelButton />)
+    render(<ProfileButton />)
     expect(await screen.findByText('2')).toBeInTheDocument()
     expect(screen.getByText('Панель стримера')).toBeInTheDocument()
+  })
+
+  // Owner, 26.11.2026: only the streamer with a share sees it; nobody else, in any way.
+  it('no panel where the server refuses the notices (a player, a 0 % streamer) or for an account that is no streamer', async () => {
+    delete answers['/v1/accounts/me/streamer-notifications']
+    render(<ProfileButton />)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.getByText('нет панели')).toBeInTheDocument()
+    expect(screen.queryByText('Панель стримера')).not.toBeInTheDocument()
+    cleanup()
+    answers['/v1/accounts/me/streamer-notifications'] = { unread: 1, seenAt: null, items: [] }
+    render(<ProfileButton enabled={false} />)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.queryByText('Панель стримера')).not.toBeInTheDocument()
   })
 })
