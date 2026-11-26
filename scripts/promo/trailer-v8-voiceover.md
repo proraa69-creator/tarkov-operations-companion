@@ -55,3 +55,54 @@ every quest — with found-in-raid marks. / Collector items: see how many are le
 in on your phone with a QR code. / Raid OS. Download it at raidos.app.
 
 «/» — граница сцены: там пауза, а следующая фраза начинается по таблице выше.
+
+## Голос по записи владельца (27.11.2026) и переводы для озвучки
+
+Русский текст — как он звучит в записи (голос «Mark» в редакторе), 28 фраз; русский ролик собран по ним
+(фразы на своих секундах, как в таблице выше). Переводы — фраза в фразу, той же длины, термины как в надписах
+роликов на этих языках.
+
+**RU.** Raid OS. Помощник в Escape from Tarkov. Всё перед рейдом на одном экране. Приоритет карт, задания и что взять с
+собой. Квесты из игры появляются на карте сами. Взяли новый? Он уже на карте. Сдали старый? Его точки исчезли. Ваша
+точка — на ПК и на телефоне сразу. Оружейник. Сборка для задания и её скриншот. Аналоги модулей — дешевле и дороже. Нет
+замены? Приложение подскажет. Боссы в 3D. Здоровье, оружие, ценный лут и тактика боя. Пресеты экрана. Видно даже в
+темноте. Своя сборка в пару кликов. Только совместимые модули, цена и характеристики сразу. Полигон. Любой босс как
+цель. Узнайте, куда стрелять и каким патроном он падает быстрее. Другой прицел — другая сетка. Отряд. Рисуйте на карте.
+Напарник сразу видит ваши пометки. Что собрать для убежища и всех квестов, с отметками, что нужно найти в рейде.
+Коллекционер. Видно, сколько осталось. Полная синхронизация. Сервер, ПК и телефон. Вход на телефоне по QR-коду.
+Скачайте на raidos.app.
+
+**EN.** Raid OS. Your Escape from Tarkov assistant. Everything before the raid on one screen. Map priority, tasks and what
+to bring. Quests from the game appear on the map by themselves. Took a new one? It's already on the map. Handed one in?
+Its points are gone. Your position — on your PC and phone at once. Gunsmith. The build for the task and its screenshot.
+Alternative parts — cheaper and pricier. No substitute? The app will tell you. Bosses in 3D. Health, weapons, valuable
+loot and battle tactics. Screen presets. See even in the dark. Your own build in a few clicks. Only compatible parts, with
+price and stats right away. The range. Any boss as a target. Find out where to shoot and which round brings him down
+faster. A different scope — a different reticle. Squad. Draw on the map. Your teammate sees your marks instantly. What to
+collect for the hideout and every quest, with marks for what must be found in raid. The Collector. See how many are left.
+Full sync. Server, PC and phone. Sign in on your phone with a QR code. Download it at raidos.app.
+
+**ZH.** Raid OS，逃离塔科夫战局助手。战局所需，一屏尽览。地图优先级、当前任务，以及要带什么。游戏里的任务会自动显示在地图上。
+接了新任务？它已经在地图上了。交了旧任务？它的点位就消失了。你的位置，电脑和手机同时显示。枪匠。任务所需的配装和它的截图。
+替代配件，更便宜的和更贵的。没有替代品？应用会告诉你。3D Boss。生命值、武器、贵重战利品和战斗战术。画面预设。再暗的角落也看得清。
+点几下，配出你的枪。只显示兼容配件，价格和属性即时可见。靶场。任何 Boss 都能当靶子。看看该打哪里，用什么子弹能更快击倒他。
+换一个瞄具，就换一种分划。小队。在地图上画标记，队友马上就能看到。藏身处和所有任务需要收集什么，都带有“战局中找到”的标记。
+收藏家。还差多少，一目了然。全面同步。服务器、电脑和手机。手机扫二维码登录。前往 raidos.app 下载。
+
+**JA.** Raid OS。タルコフのレイドアシスタント。レイド前の情報を、ひと目で。マップの優先度、タスク、そして持っていくもの。
+ゲームのタスクが、自動でマップに表示されます。新しいタスクを受けたら？もうマップに。完了したら？そのポイントは消えます。
+あなたの位置を、PCとスマホに同時表示。ガンスミス。タスク用のビルドと、そのスクリーンショット。代替パーツ。安いものも、高いものも。
+代わりがなければ？アプリが教えてくれます。3Dで見るボス。体力、武器、貴重なルート、そして戦い方。画面プリセット。暗い場所もはっきり。
+数クリックで、自分のビルド。付けられるパーツだけを表示。価格と性能もすぐにわかります。射撃場。どのボスも標的に。
+どこを撃てばいいか、どの弾で早く倒せるか確かめよう。スコープが変われば、レティクルも変わる。スクワッド。マップに描くと、
+仲間の画面にもすぐ表示。ハイドアウトと全タスクに必要なもの。レイド内発見が必要なものにはマーク付き。コレクター。残りがすぐにわかります。
+完全同期。サーバー、PC、スマホ。スマホはQRコードでログイン。raidos.appからダウンロード。
+
+**KO.** Raid OS. 타르코프 레이드 도우미. 레이드 준비를 한 화면에. 지도 우선순위, 현재 임무, 그리고 챙겨갈 것까지. 게임 속
+퀘스트가 지도에 자동으로 표시됩니다. 새 퀘스트를 받으면? 바로 지도에. 완료하면? 그 지점은 사라집니다. 내 위치를 PC와
+휴대폰에 동시에. 건스미스. 임무용 빌드와 그 스크린샷. 대체 부품, 더 싼 것도 더 비싼 것도. 대체품이 없으면? 앱이 알려
+줍니다. 3D로 보는 보스. 체력, 무기, 귀중한 전리품, 그리고 전투 전술. 화면 프리셋. 어두운 곳도 선명하게. 클릭 몇 번으로
+나만의 빌드. 호환되는 부품만, 가격과 성능은 바로 확인. 사격장. 어떤 보스든 표적으로. 어디를 쏘고 어떤 탄으로 더 빨리
+쓰러뜨릴지 확인하세요. 스코프가 바뀌면 레티클도 바뀝니다. 분대. 지도에 그리면, 동료에게 바로 보입니다. 은신처와 모든
+퀘스트에 모아야 할 것, 레이드 중 발견 아이템은 표시까지. 수집가. 남은 개수를 한눈에. 완전한 동기화. 서버, PC, 휴대폰.
+휴대폰은 QR 코드로 로그인. raidos.app에서 다운로드하세요.
