@@ -75,4 +75,14 @@ export const MOBILE_PHRASES: Array<[string, string]> = [
   // the phone map's floors button (mobile/PhoneMapPanels.tsx PhoneMapFloors)
   ['Этажи', 'Floors'],
   ['Вы здесь', 'You are here'],
+  // Settings → the floating «Назад»'s corner (mobile/backNavigation.tsx, mobile/backHistory.ts): it had no English, so every
+  // language showed Russian and a word-by-word mix (owner, 28.11.2026: «кнопки не переведены ни в каком языке»)
+  ['Кнопка «Назад»', '«Back» button'],
+  ['Где кнопка «Назад»', 'Where the «Back» button is'],
+  ['Есть на каждом экране после перехода по меню и возвращает туда же, где вы были. Нажмите кнопку на картинке — удобно ли до неё дотянуться.', 'Shown on every screen opened from the menu; it takes you back to where you were. Tap the button in the picture to check it is easy to reach.'],
+  ['Вверху слева', 'Top left'], ['Вверху справа', 'Top right'], ['Внизу слева', 'Bottom left'], ['Внизу справа', 'Bottom right'],
+  // the quest list of the phone's map (mobile/PhoneMapPanels.tsx)
+  ['любая карта', 'any map'],
+  ['На этой карте нет текущих квестов.', 'No current quests on this map.'],
+  ['Удерживайте квест — коротко цели и требования.', 'Hold a quest for its goals and requirements in brief.'],
 ]
