@@ -85,7 +85,12 @@ export function AdminBugReports() {
           count: eftCount,
           selected: eftSelected,
           onSelect: () => setEftSelected(true),
-          content: token ? <EftCasesTable load={(status) => bugReportsApi.eftCases(token, status)} setStatus={(id, status) => bugReportsApi.eftStatus(token, id, status)} reloadKey={eftReload} /> : null,
+          content: token ? <EftCasesTable
+            load={(status) => bugReportsApi.eftCases(token, status)}
+            setStatus={(id, status) => bugReportsApi.eftStatus(token, id, status)}
+            disputes={{ setStatus: (id, status) => bugReportsApi.eftDisputeStatus(token, id, status), decide: (id, decision) => bugReportsApi.eftDecide(token, id, decision) }}
+            reloadKey={eftReload}
+          /> : null,
         }}
         onAct={act}
         onReward={async (id, days) => { if (!token) return; await bugReportsApi.reward(token, id, days); await reload() }}

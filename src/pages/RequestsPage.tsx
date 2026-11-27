@@ -120,7 +120,7 @@ export function OwnerReportsTable({ onOpenChat, onAnswer, focusId }: { onOpenCha
         count: counts?.eftCases ?? 0,
         selected: eftSelected,
         onSelect: () => setEftSelected(true),
-        content: <EftCasesTable load={ownerEftCases.list} setStatus={ownerEftCases.setStatus} t={uiText} reloadKey={(counts?.open ?? 0) * 1000 + (counts?.eftCases ?? 0)} />,
+        content: <EftCasesTable load={ownerEftCases.list} setStatus={ownerEftCases.setStatus} disputes={ownerEftCases.disputes} t={uiText} reloadKey={(counts?.open ?? 0) * 1000 + (counts?.eftCases ?? 0)} />,
       }}
       t={uiText}
       focusId={focusId}

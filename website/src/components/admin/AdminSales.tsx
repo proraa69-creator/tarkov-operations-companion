@@ -24,6 +24,9 @@ const ACTION_LABEL: Record<string, string> = {
   'account.unblock': 'Разблокирован вход',
   'sessions.revoke': 'Сброшены сессии',
   'eft.unbind': 'Отвязан аккаунт Escape from Tarkov',
+  'eft.rebind-case': 'Аккаунты Таркова: новый случай',
+  'eft.case-status': 'Аккаунты Таркова: статус случая',
+  'eft.dispute': 'Спор за аккаунт Таркова: решение',
   'account.delete': 'Удалён аккаунт',
   'streamer.percent': 'Доля стримера',
   'streamer.link': 'Ссылка стримера',
@@ -56,9 +59,9 @@ const ACTION_LABEL: Record<string, string> = {
   'server.update-install': 'Установка обновления сервера',
   'server.rollback': 'Откат сервера на предыдущую версию',
 }
-const DETAIL_LABEL: Record<string, string> = { decision: 'решение', before: 'было, ₽', after: 'стало, ₽', paymentId: 'платёж', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск', regions: 'регионы', payment: 'оплата', targeted: 'получателей', images: 'фото', questions: 'вопросов', kind: 'вид', seen: 'увидели', closed: 'закрыли' }
+const DETAIL_LABEL: Record<string, string> = { decision: 'решение', before: 'было, ₽', after: 'стало, ₽', paymentId: 'платёж', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск', regions: 'регионы', payment: 'оплата', targeted: 'получателей', images: 'фото', questions: 'вопросов', kind: 'вид', seen: 'увидели', closed: 'закрыли', case: 'дело', eft: 'Тарков', holder: 'держал' }
 
-const VALUE_LABEL: Record<string, string> = { open: 'открыт', closed: 'закрыт', approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён', all: 'все', unpaid: 'без оплаты', cis: 'СНГ', europe: 'Европа', other: 'другие', none: 'не указана', announcement: 'объявление', survey: 'опрос' }
+const VALUE_LABEL: Record<string, string> = { open: 'открыт', closed: 'закрыт', approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён', all: 'все', unpaid: 'без оплаты', cis: 'СНГ', europe: 'Европа', other: 'другие', none: 'не указана', announcement: 'объявление', survey: 'опрос', active: 'активный', working: 'в процессе', keep: 'оставить привязку', transfer: 'отдать спорящему', unbind: 'снять обе', dispute: 'спор' }
 
 function detailText(details: Record<string, unknown> | undefined) {
   if (!details) return ''

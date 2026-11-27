@@ -128,8 +128,12 @@ export class EntitlementService {
     return this.maxDevices
   }
 
-  /** The account's access right now, or undefined (no subscription: 402). */
-  access(accountId: string): Access | undefined {
+  /**
+   * The account's access right now, or undefined (no subscription: 402). `deviceId`: the app device asking — the free days
+   * wait while its game account is another Raid OS account's and the account is let in as a paying one
+   * (AccountStore.eftTrialWithheld, «спор за игровой аккаунт»).
+   */
+  access(accountId: string, deviceId?: string): Access | undefined {
     if (this.accounts.isOwner(accountId)) return { plan: 'owner' }
     const { subscription } = this.accounts.view(accountId)
     if (subscription.lifetime) return { plan: 'streamer' }
@@ -137,12 +141,15 @@ export class EntitlementService {
     // «Срок скрыт» (AccountStore.view): the player's view has no end; the token still ends with the paid days.
     const hiddenUntil = subscription.status === 'active' && subscription.termHidden ? this.accounts.paidUntilOf(accountId) : undefined
     if (hiddenUntil !== undefined) return { plan: 'paid', until: hiddenUntil }
-    if (subscription.status === 'trial' && subscription.trialEndsAt) return { plan: 'trial', until: Date.parse(subscription.trialEndsAt) }
+    if (subscription.status === 'trial' && subscription.trialEndsAt) {
+      if (deviceId !== undefined && this.accounts.eftTrialWithheld(accountId, deviceId)) return undefined
+      return { plan: 'trial', until: Date.parse(subscription.trialEndsAt) }
+    }
     return undefined
   }
 
   /** A signed token for this device, or undefined when the account has no access. */
-  issue(accountId: string, deviceId: string, access = this.access(accountId)) {
+  issue(accountId: string, deviceId: string, access = this.access(accountId, deviceId)) {
     if (!access) return undefined
     const now = this.now()
     let exp = now + this.ttlMs

@@ -16,7 +16,7 @@
  * without Express. `server/src/routes/accounts.ts` adapts them to an Express router.
  * Passwords are never logged or returned; only salted scrypt hashes are kept. Session tokens are stored as SHA-256.
  */
-import { EftLedger } from './eftLedger.js'
+import { EftLedger, type EftDisputeChoice, type EftStanding } from './eftLedger.js'
 import { PAYOUT_MATURITY_DAYS } from '../../../src/shared/revenue'
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
@@ -24,7 +24,7 @@ import { z } from 'zod'
 import { AD_ATTRIBUTION_MS, normalizeAdMark, type AdMark } from '../../../src/shared/adSources'
 import { cleanManualCountry, countryByName, MANUAL_COUNTRY_CODE, normalizeCountry } from '../../../src/shared/countries'
 import { ownerDay } from '../../../src/shared/ownerTime'
-import { openDatabase } from './database.js'
+import { openDatabase, transaction } from './database.js'
 import { ipRateKey, isLoopbackIp, normalizeIp } from './securityGuard.js'
 
 export type AccountKind = 'user' | 'streamer'
@@ -320,6 +320,8 @@ function storedCountry(raw: string | undefined) {
 export const EFT_IN_USE_MESSAGE = 'Этот аккаунт Escape from Tarkov уже используется: он привязан к другому аккаунту Raid OS.'
 /** The answer when this Raid OS account is bound to another game account than the one the logs show. */
 export const EFT_OTHER_MESSAGE = 'К этому аккаунту Raid OS привязан другой аккаунт Escape from Tarkov.'
+/** «Спор за игровой аккаунт» (routes/eftCases.ts): no such case. */
+export const EFT_DISPUTE_MISSING = 'Дело не найдено'
 
 /**
  * Why a device may not use an account (owner, 13.10.2026: one game account — one Raid OS account, both ways):
@@ -637,6 +639,8 @@ export class AccountStore {
   readonly eftLedger: EftLedger
   /** Told of a new case (app.ts: the owner's «Отчёты» badge and table). */
   onEftRebind?: (caseId: number) => void
+  /** «Спор за игровой аккаунт» changed by itself: a case opened (its id), or cases were taken back or closed (app.ts: the badge). */
+  onEftDispute?: (caseId?: number) => void
 
   constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; storeReviewEmails?: readonly string[]; streamerTrial?: boolean; trialFromFirstRaid?: boolean } = {}) {
     this.now = options.now ?? Date.now
@@ -685,7 +689,7 @@ export class AccountStore {
       SELECT e.eft_digest, e.account_id, e.bound_at FROM eft_accounts e JOIN accounts a ON a.id = e.account_id
       WHERE a.trial_ends_at IS NOT NULL AND a.trial_denied IS NULL`)
     // «Аккаунты Таркова» (services/eftLedger.ts): after the columns above, so the backfill sees deleted_at.
-    this.eftLedger = new EftLedger(this.db, this.now)
+    this.eftLedger = new EftLedger(this.db, this.now, (accountId) => this.eftStanding(accountId))
   }
 
   /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
@@ -1001,7 +1005,9 @@ export class AccountStore {
    * account). A free game account binds to an account that has none; a game account another Raid OS account holds
    * (EFT_IN_USE_MESSAGE) and, for a bound account, any other game account (EFT_OTHER_MESSAGE) are refused with 409.
    * Allowed or not, the report is kept for the device of this session (`sessionDigest`): eftBlock then refuses that
-   * device the entitlement and the paid data until it reports a game account that fits. Only the owner's own accounts are
+   * device the entitlement and the paid data until it reports a game account that fits — a paying account excepted when
+   * the game account is another account's (owner, 27.11.2026). Such a report is the owner's case «спор за игровой
+   * аккаунт» (noteEftDispute): the binding moves only by his decision. Only the owner's own accounts are
    * never refused; a game account an owner account holds refuses every other Raid OS account like any other (owner,
    * 13.10.2026: a test account he made on his own PC still got in — «привязка не работает»).
    * A free period goes to one Raid OS account per game account (eft_trial_claims, kept after «Удалить аккаунт»).
@@ -1017,6 +1023,7 @@ export class AccountStore {
       this.db.prepare('INSERT INTO eft_reports (account_id, device_id, eft_digest, eft_hint, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(account_id, device_id) DO UPDATE SET eft_digest = excluded.eft_digest, eft_hint = excluded.eft_hint, at = excluded.at')
         .run(account.id, device, digest, hint, this.now())
     }
+    this.noteEftDispute(account.id, device, digest, hint)
     const block = this.eftRule(account.id, digest, hint)
     if (block) throw new EftConflictError(block)
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
@@ -1027,25 +1034,50 @@ export class AccountStore {
       // «Аккаунты Таркова»: a game account back on a new account after its earlier one was deleted (owner, 15.11.2026).
       const caseId = this.eftLedger.bound(account.id, digest, hint, account.email)
       if (caseId !== undefined) { try { this.onEftRebind?.(caseId) } catch { /* the case is saved; the badge catches up */ } }
+      // «Спор за игровой аккаунт»: this account claimed the game account before, and it was free again.
+      if (this.eftLedger.boundBy(account.id, digest) > 0) this.tellEftDispute()
     }
     if (this.eftDigestOf(account.id) === digest) this.claimTrialByEft(account.id, digest)
     return this.eftAccountOf(account.id)
   }
 
   /**
+   * «Спор за игровой аккаунт» (owner, 27.11.2026): the report of an app device names a game account another Raid OS
+   * account holds — a case for the owner (services/eftLedger.ts); a report that fits takes back the untouched cases this
+   * device opened a moment ago (the app offers every game account of its logs in turn, src/account/eftAccountLink.ts).
+   * Never for the owner's and the Apple reviewer's accounts, nor for a session without a device.
+   */
+  private noteEftDispute(accountId: string, device: string | undefined, digest: string, hint: string) {
+    if (!device || this.isOwner(accountId) || this.isStoreReview(accountId)) return
+    const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
+    const holderId = holder === undefined ? undefined : String(holder.account_id)
+    const result = holderId !== undefined && holderId !== accountId
+      ? this.eftLedger.disputed(digest, hint, holderId, accountId, device)
+      : { withdrawn: this.eftLedger.withdraw(accountId, device, digest) }
+    if (result.opened !== undefined) this.tellEftDispute(result.opened)
+    else if (result.withdrawn > 0) this.tellEftDispute()
+  }
+
+  private tellEftDispute(caseId?: number) {
+    try { this.onEftDispute?.(caseId) } catch { /* the case is saved; the badge catches up */ }
+  }
+
+  /**
    * The one-to-one rule for `accountId` and a game account seen in its logs (bindEftAccount), or undefined when it
    * fits. The owner's own accounts and the Apple reviewer's (TARKOV_STORE_REVIEW_EMAILS) are exempt (owner, 13.11.2026:
-   * «сними блокировку по аккаунту таркова для админа и apple test аккаунта»).
+   * «сними блокировку по аккаунту таркова для админа и apple test аккаунта»). `access` (eftBlock): the rule for the
+   * device's access, not for the binding — a game account another Raid OS account holds does not lock a paying account
+   * out (owner, 27.11.2026: he decides that dispute himself); its own other game account still does.
    */
-  private eftRule(accountId: string, digest: string, hint: string): EftBlock | undefined {
+  private eftRule(accountId: string, digest: string, hint: string, access = false): EftBlock | undefined {
     if (this.isOwner(accountId) || this.isStoreReview(accountId)) return undefined
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const holderId = holder ? String(holder.account_id) : undefined
     const seen = `••••${hint}`
-    if (holderId !== undefined && holderId !== accountId) return { kind: 'in-use', seen }
     const own = this.db.prepare('SELECT eft_digest, eft_hint FROM eft_accounts WHERE account_id = ?').get(accountId) as Row | undefined
-    if (own && String(own.eft_digest) !== digest) return { kind: 'other-account', seen, bound: `••••${String(own.eft_hint)}` }
-    return undefined
+    const other: EftBlock | undefined = own && String(own.eft_digest) !== digest ? { kind: 'other-account', seen, bound: `••••${String(own.eft_hint)}` } : undefined
+    if (holderId !== undefined && holderId !== accountId) return access && this.eftStanding(accountId).paid ? other : { kind: 'in-use', seen }
+    return other
   }
 
   /**
@@ -1054,22 +1086,114 @@ export class AccountStore {
    * game account (unbindEftAccount) or the player starting the game under the right one opens it again.
    */
   eftBlock(accountId: string, deviceId: string | undefined): EftBlock | undefined {
+    const report = this.eftReportOf(accountId, deviceId)
+    return report ? this.eftRule(accountId, report.digest, report.hint, true) : undefined
+  }
+
+  /**
+   * A paying account let in although its device's game account is another Raid OS account's (eftBlock): its free days wait
+   * for the owner's decision (owner, 27.11.2026: free days and «Пригласи друга» need a binding of its own). Read by
+   * EntitlementService.access for the device.
+   */
+  eftTrialWithheld(accountId: string, deviceId: string | undefined) {
+    const report = this.eftReportOf(accountId, deviceId)
+    if (!report) return false
+    return this.eftRule(accountId, report.digest, report.hint)?.kind === 'in-use' && this.eftRule(accountId, report.digest, report.hint, true) === undefined
+  }
+
+  /**
+   * The game account this device reported last for the account; before it has one (a new account's first sign-in), the
+   * one it reported last for any account — the same PC's logs — so a second account is refused from the start, not a few
+   * seconds later when its own report arrives.
+   */
+  private eftReportOf(accountId: string, deviceId: string | undefined) {
     if (!deviceId) return undefined
-    // This account's own report from this device; before it has one (a new account's first sign-in), the game account
-    // this device reported last for any account — the same PC's logs — so a second account is refused from the start,
-    // not a few seconds later when its own report arrives.
     const report = (this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE account_id = ? AND device_id = ?').get(accountId, deviceId)
       ?? this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE device_id = ? ORDER BY at DESC LIMIT 1').get(deviceId)) as Row | undefined
-    return report ? this.eftRule(accountId, String(report.eft_digest), String(report.eft_hint)) : undefined
+    return report ? { digest: String(report.eft_digest), hint: String(report.eft_hint) } : undefined
+  }
+
+  /**
+   * Paid, for «спор за игровой аккаунт» (owner, 27.11.2026: «активная оплаченная подписка или успешные платежи»):
+   * Premium running now — paid days, the owner's or a friend's days, a streamer's access — or a succeeded payment with
+   * money in it, ever. The free days are not.
+   */
+  eftStanding(accountId: string): EftStanding {
+    const row = this.db.prepare('SELECT kind, term_hidden_at, deleted_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    if (!row || row.deleted_at != null) return { paid: false, payments: 0 }
+    const until = this.paidUntilOf(accountId)
+    const paidUntil = until !== undefined && until > this.now() ? until : undefined
+    const streamer = row.kind === 'streamer' && row.term_hidden_at == null
+    const payments = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'payments'").get()
+      ? Number((this.db.prepare("SELECT COUNT(*) AS n FROM payments WHERE account_id = ? AND status = 'succeeded' AND amount > 0").get(accountId) as Row).n)
+      : 0
+    return {
+      paid: paidUntil !== undefined || streamer || payments > 0,
+      ...(paidUntil !== undefined ? { paidUntil: new Date(paidUntil).toISOString() } : {}),
+      payments,
+      ...(streamer ? { streamer: true as const } : {}),
+    }
   }
 
   /** The owner's «Отвязать аккаунт Escape from Tarkov» (a player's new game account): binding and device reports go. */
   unbindEftAccount(accountId: string) {
     const account = this.mustGet(accountId)
-    const removed = Number(this.db.prepare('DELETE FROM eft_accounts WHERE account_id = ?').run(account.id).changes)
-    if (removed > 0) this.eftLedger.gone(account.id, 'unbound')
-    this.db.prepare('DELETE FROM eft_reports WHERE account_id = ?').run(account.id)
-    return removed > 0
+    return this.dropEftBinding(account.id, true)
+  }
+
+  /** The account's binding goes, «отвязан» in «Аккаунты Таркова»; `reports`: its devices' reports too. */
+  private dropEftBinding(accountId: string, reports: boolean) {
+    const removed = Number(this.db.prepare('DELETE FROM eft_accounts WHERE account_id = ?').run(accountId).changes) > 0
+    if (removed) this.eftLedger.gone(accountId, 'unbound')
+    if (reports) this.db.prepare('DELETE FROM eft_reports WHERE account_id = ?').run(accountId)
+    return removed
+  }
+
+  /** «Взять» / «Вернуть» on «спор за игровой аккаунт» (routes/eftCases.ts); a closed case opens again only if left as it is. */
+  setEftDisputeStatus(id: number, status: 'active' | 'working') {
+    const row = this.eftLedger.disputeRow(id)
+    if (!row) throw new AccountError(404, EFT_DISPUTE_MISSING)
+    if (row.status === 'closed') {
+      if (status !== 'active' || row.decision !== 'keep') throw new AccountError(409, 'Это дело уже решено')
+      if (!this.eftLedger.reopenDispute(id)) throw new AccountError(409, 'По этой паре уже есть открытое дело')
+    } else this.eftLedger.moveDispute(id, status)
+    return this.eftLedger.getDispute(id)!
+  }
+
+  /**
+   * The owner's decision on «спор за игровой аккаунт» (owner, 27.11.2026). `keep` — «Оставить привязку». `transfer` —
+   * «Отдать спорящему»: the game account is bound to the disputing account (its own other one goes), and the free period
+   * of the game account goes along when the account that loses it had it. `unbind` — «Снять обе»: both accounts lose their
+   * binding and device reports, as unbindEftAccount, and the next reports bind the game account again. The case closes.
+   */
+  decideEftDispute(id: number, decision: EftDisputeChoice) {
+    const row = this.eftLedger.disputeRow(id)
+    if (!row) throw new AccountError(404, EFT_DISPUTE_MISSING)
+    if (row.status === 'closed') throw new AccountError(409, 'Дело уже закрыто')
+    transaction(this.db, () => {
+      const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(row.eftDigest) as Row | undefined
+      const live = holder === undefined ? undefined : String(holder.account_id)
+      if (decision === 'transfer' && live !== row.disputerId) {
+        const disputer = this.db.prepare('SELECT email FROM accounts WHERE id = ? AND deleted_at IS NULL').get(row.disputerId) as Row | undefined
+        if (!disputer) throw new AccountError(409, 'Аккаунт спорящего удалён')
+        if (live !== undefined && live !== row.holderId) throw new AccountError(409, 'Аккаунт Таркова уже у другого аккаунта. Обновите список.')
+        if (live !== undefined) this.dropEftBinding(live, false)
+        this.dropEftBinding(row.disputerId, false)
+        const now = this.now()
+        this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?)').run(row.disputerId, row.eftDigest, row.eftHint, now)
+        this.eftLedger.bound(row.disputerId, row.eftDigest, row.eftHint, String(disputer.email), { quiet: true })
+        for (const loser of new Set([live, row.holderId])) {
+          if (loser !== undefined && loser !== row.disputerId) this.db.prepare('UPDATE eft_trial_claims SET account_id = ?, at = ? WHERE eft_digest = ? AND account_id = ?').run(row.disputerId, now, row.eftDigest, loser)
+        }
+        this.eftLedger.retarget(row.eftDigest, row.disputerId, id)
+      }
+      if (decision === 'unbind') {
+        if (live !== undefined) this.dropEftBinding(live, true)
+        this.dropEftBinding(row.disputerId, true)
+      }
+      this.eftLedger.closeDispute(id, decision)
+    })
+    return this.eftLedger.getDispute(id)!
   }
 
   /** The app device this session registered (POST /v1/entitlement), if any. */

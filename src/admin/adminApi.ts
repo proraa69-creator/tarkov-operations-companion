@@ -1,4 +1,4 @@
-import type { EftCasesPage, EftCaseStatus } from '../reports/EftCasesTable'
+import type { EftCasesPage, EftCaseStatus, EftDisputeChoice } from '../reports/EftCasesTable'
 import { watchReportEvents } from '../reports/reportEvents'
 import type { ReportPage, ReportRow } from '../reports/ReportsTable'
 import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
@@ -409,6 +409,11 @@ export const adminApi = {
   /** «Отчёты» → «Аккаунты Таркова» (server/src/routes/eftCases.ts). */
   eftCases: (view: EftCaseStatus) => request<EftCasesPage>('GET', `/v1/accounts/me/admin/eft-cases?view=${view}&limit=100`),
   eftStatus: (id: number, status: EftCaseStatus) => request<unknown>('POST', `/v1/accounts/me/admin/eft-cases/${id}/status`, { status }),
+  /** «Спор за аккаунт Таркова»: «Взять» / «Вернуть», and the owner's decision. */
+  eftDisputes: {
+    setStatus: (id: number, status: 'active' | 'working') => request<unknown>('POST', `/v1/accounts/me/admin/eft-disputes/${id}/status`, { status }),
+    decide: (id: number, decision: EftDisputeChoice) => request<unknown>('POST', `/v1/accounts/me/admin/eft-disputes/${id}/decision`, { decision }),
+  },
   overview: () => request<AdminOverview>('GET', adminPaths.overview(), undefined, keep),
   phones: () => request<AdminPhones>('GET', adminPaths.phones(), undefined, keep),
   online: async (days = 30) => {

@@ -332,12 +332,14 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock, stickers })
   // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
   // the support chat (routes/bugReports.ts).
-  // `open` counts the new «Аккаунты Таркова» cases too: the owner's red badge lights up for them (owner, 15.11.2026: «присылай мне уведомление»).
-  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount() + accounts.eftLedger.counts().active, eftCases: accounts.eftLedger.counts().active, unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
+  // `open` counts the new «Аккаунты Таркова» cases too: the owner's red badge lights up for them (owner, 15.11.2026: «присылай мне уведомление»),
+  // and the new disputes over a game account (owner, 27.11.2026).
+  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount() + accounts.eftLedger.activeCount(), eftCases: accounts.eftLedger.activeCount(), unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
   accounts.onEftRebind = (caseId) => {
     adminStore?.audit('server', 'eft.rebind-case', String(caseId), {})
     reportSignals.changed()
   }
+  accounts.onEftDispute = () => { reportSignals.changed() }
   // Who hears of a button on a report: the owner's route and the release that presses «Готово» (services/releaseReports.ts).
   const reportWork: ReportWorkEffects = {
     signals: reportSignals,

@@ -6,7 +6,8 @@
  *      device_revoked); the owner's own account is exempt (website, scripts). Website sessions register no device, so
  *      for everybody but the owner they get 403 device_inactive here, as before,
  *   4. a device whose game account fits «one game account — one Raid OS account» (403, code eft_conflict;
- *      AccountStore.eftBlock, owner 13.10.2026),
+ *      AccountStore.eftBlock, owner 13.10.2026) — a paying account whose game account another account holds is let in,
+ *      without its free days, while the owner decides (owner 27.11.2026),
  * plus per-IP (counted first, before anything else) and per-account rate limits.
  *
  *   POST /v1/data/graphql            {query, variables?} -> tarkov.dev GraphQL answer (services/dataGateway.ts)
@@ -48,7 +49,7 @@ export function requireDataAccess(accounts: AccountStore, entitlements: Entitlem
     const token = bearer(req.get('authorization'))
     const accountId = accounts.authenticate(token)
     if (!accountId || !token) { res.status(401).json({ error: 'Требуется вход в аккаунт', code: 'auth_required' }); return }
-    const access = entitlements.access(accountId)
+    const access = entitlements.access(accountId, req.get(DEVICE_HEADER))
     if (!access) { res.status(402).json({ error: SUBSCRIPTION_REQUIRED, code: 'subscription_required' }); return }
     if (access.plan !== 'owner') {
       const device = req.get(DEVICE_HEADER)

@@ -8,6 +8,8 @@
 .rt-error { margin: 0; color: var(--danger, #d4513b); font-size: 13px; }
 .rt-empty { margin: 0; padding: 18px; color: var(--text-dim); font-size: 13px; border: 1px solid var(--line); border-radius: 10px; }
 .rt-dim { color: var(--text-dim); }
+/* «Аккаунты Таркова»: the disputes over a game account above the other cases (EftCasesTable.tsx). */
+.rt-eft-title { margin: 4px 0 0; color: var(--text-dim); font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
 
 .rt-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; line-height: 1.4; }
 .rt-col-number { width: 72px; }

@@ -14,7 +14,27 @@ const page: EftCasesPage = {
   }],
 }
 
-afterEach(cleanup)
+// Owner, 27.11.2026: a dispute over a game account goes to him — who holds it, who claims it, whether each paid and when.
+const holder = { accountId: 'h', email: 'holder@example.com', deleted: false, createdAt: '2026-11-01T10:00:00.000Z', paid: false, payments: 0, bound: { eft: '••••321', at: '2026-11-02T10:00:00.000Z', disputed: true } }
+const claimer = { accountId: 'd', email: 'payer@example.com', deleted: false, createdAt: '2026-11-20T10:00:00.000Z', paid: true, paidUntil: '2026-12-27T10:00:00.000Z', payments: 2 }
+const disputed: EftCasesPage = {
+  counts: { active: 0, working: 0, closed: 0 },
+  rows: [],
+  disputes: {
+    counts: { active: 1, working: 0, closed: 1 },
+    rows: [{ id: 3, kind: 'dispute', createdAt: '2026-11-27T10:00:00.000Z', seenAt: '2026-11-27T12:00:00.000Z', status: 'active', eft: '••••321', eftKey: 'c0ffee12', holder, disputer: claimer }],
+  },
+}
+const decided: EftCasesPage = {
+  counts: { active: 0, working: 0, closed: 0 },
+  rows: [],
+  disputes: {
+    counts: { active: 1, working: 0, closed: 1 },
+    rows: [{ id: 2, kind: 'dispute', createdAt: '2026-11-26T10:00:00.000Z', seenAt: '2026-11-26T10:00:00.000Z', status: 'closed', decision: 'keep', decidedAt: '2026-11-26T11:00:00.000Z', eft: '••••777', eftKey: 'feed1234', holder, disputer: { accountId: 'f', email: 'free@example.com', deleted: false, createdAt: '2026-11-25T10:00:00.000Z', paid: false, payments: 0 } }],
+  },
+}
+
+afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('«Аккаунты Таркова»', () => {
   it('shows the game account, the account now and the deleted one before it; the owner moves the case', async () => {
@@ -49,5 +69,53 @@ describe('«Аккаунты Таркова»', () => {
     expect(screen.getByText('cases')).toBeInTheDocument()
     expect(screen.queryByText('Активных отчётов и предложений нет.')).toBeNull()
     expect(screen.getByRole('button', { name: /^Активные/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('«Спор за аккаунт Таркова»: who holds it, who claims it, whether each paid; the owner keeps it, gives it or unbinds both', async () => {
+    const load = vi.fn((view: string) => Promise.resolve(view === 'closed' ? decided : disputed))
+    const disputes = { setStatus: vi.fn().mockResolvedValue({}), decide: vi.fn().mockResolvedValue({}) }
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<EftCasesTable load={load} setStatus={vi.fn()} disputes={disputes} />)
+    const row = await screen.findByTestId('eft-dispute')
+    expect(screen.getByText('Спор за аккаунт Таркова')).toBeInTheDocument()
+    expect(within(row).getByText('••••321')).toBeInTheDocument()
+    expect(within(row).getByText('holder@example.com')).toBeInTheDocument()
+    expect(within(row).getByText('payer@example.com')).toBeInTheDocument()
+    expect(within(row).getByText(/^Не оплачен/)).toBeInTheDocument()
+    expect(within(row).getByText(/^Оплачен · Premium до .* · платежей: 2$/)).toBeInTheDocument()
+    expect(within(row).getByText(/^Таркова привязан/)).toBeInTheDocument()
+    expect(within(row).getByText(/последний раз/)).toBeInTheDocument()
+    // The tabs count both kinds of cases.
+    expect(screen.getByRole('button', { name: /Активные.*1/ })).toBeInTheDocument()
+
+    fireEvent.click(within(row).getByRole('button', { name: 'Отдать спорящему' }))
+    expect(confirm).toHaveBeenCalledWith('Отдать привязку спорящему?')
+    await waitFor(() => expect(disputes.decide).toHaveBeenCalledWith(3, 'transfer'))
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2))
+    // A «no» to the question changes nothing.
+    confirm.mockReturnValue(false)
+    await waitFor(() => expect(within(row).getByRole('button', { name: 'Снять обе' })).toBeEnabled())
+    fireEvent.click(within(row).getByRole('button', { name: 'Снять обе' }))
+    expect(disputes.decide).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(row).getByRole('button', { name: 'Оставить привязку' }))
+    await waitFor(() => expect(disputes.decide).toHaveBeenLastCalledWith(3, 'keep'))
+    await waitFor(() => expect(within(row).getByRole('button', { name: 'Взять' })).toBeEnabled())
+    fireEvent.click(within(row).getByRole('button', { name: 'Взять' }))
+    await waitFor(() => expect(disputes.setStatus).toHaveBeenCalledWith(3, 'working'))
+
+    // Closed: the decision, and «Вернуть» for a case left as it was.
+    fireEvent.click(screen.getByRole('button', { name: /Закрытые/ }))
+    const closed = await screen.findByText('Привязка оставлена', { exact: false })
+    const closedRow = closed.closest('tr')!
+    expect(within(closedRow).queryByRole('button', { name: 'Отдать спорящему' })).toBeNull()
+    fireEvent.click(within(closedRow).getByRole('button', { name: 'Вернуть' }))
+    await waitFor(() => expect(disputes.setStatus).toHaveBeenLastCalledWith(2, 'active'))
+  })
+
+  it('a host without the decision buttons shows the disputes only', async () => {
+    render(<EftCasesTable load={vi.fn().mockResolvedValue(disputed)} setStatus={vi.fn()} />)
+    const row = await screen.findByTestId('eft-dispute')
+    expect(within(row).getByText('payer@example.com')).toBeInTheDocument()
+    expect(within(row).queryAllByRole('button')).toHaveLength(0)
   })
 })
