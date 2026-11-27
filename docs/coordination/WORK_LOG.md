@@ -11747,7 +11747,7 @@ Not pushed, not released, nothing uploaded.
 - 2701f8c7 (п.20): profile:resolve убран; страж: у каждого канала preload есть ipcMain.handle/on (101 из 101).
 - Проверки: npm run typecheck и tsc -p tsconfig.electron.json --noEmit чисто; eslint на изменённых файлах чисто;
   vitest electron 607/611 — 4 падения только на Windows и были до правок (linux/updater ×3 из-за tar, staleServer из-за
-  node.exe); сервер: serverGuard 25/25, authzBypass и api 18/18, server typecheck чисто.
+  node.exe); vitest src/account и src/profile 100/100; сервер (npm --prefix server test) 650/650, server typecheck чисто.
 - Не сделано, ждёт решения владельца (трогает механизм обновлений): п.1–3 (staged-сборки и установщик в закрытую папку,
   проверка перед каждой загрузкой), п.4 (подпись exe), п.7 (рекурсивные удаления), п.18 (откат на старую staged-сборку).
 - Не проверено: упакованная сборка и её запуск, повышение прав, туннель вживую, Windows не на диске C:.
