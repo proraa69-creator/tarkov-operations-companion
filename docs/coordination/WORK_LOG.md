@@ -11881,3 +11881,20 @@ Not pushed, not released, nothing uploaded.
   checkouts' runs keep leaving folders, and a run with the plugin removes them after a day.
 - Owner, 27.11.2026, on «Добавить уборку в следующий выпуск?»: «Да, добавь». Handed to the release session (Raid OS) for
   the next release with an app version; not a release of its own.
+
+## 2026-11-27 22:25 — Claude: 0.6.0.353 pushed (gate green); Resend Pro; the off-server database copy runs
+
+- release/production 092104b4 (0.6.0.353), gate run 46020327002 green; it goes out in the 13:00 window. The first gate run
+  (46017821630) failed on electron/screenTuning/optimizerPaths.test.ts: optimizeStatus reads nothing off Windows, so on the
+  gate's Linux the test saw no program; it now stands in for Windows (process.platform) for that test only.
+- The owner moved Resend to Pro ($20 a month, no daily cap). A test e-mail through the API's own sender reached the support
+  Gmail inbox, not spam. DMARC (_dmarc TXT) is still to be added by the owner. After 353 is live the switch
+  TARKOV_REGISTRATION_EMAIL_CODE=1 goes into the API environment (a script with a backup and a health check).
+- Off-server copy: the owner made a private 10 GB Timeweb S3 bucket (autoscaling on) and wrote the keys with his PowerShell
+  helper (they never passed through Claude). The helper had to be fixed twice: saved as UTF-8 with a BOM (Windows PowerShell
+  5.1 read the Russian text in the ANSI code page and broke the quotes), and the keys read from the clipboard (Ctrl+V in a
+  hidden Read-Host gives one control character: the secret first reached the server as 1 character and S3 answered 403).
+  First copy: companion-20261127.sqlite.gz.enc, 131 MB, in raidos-db/; then nightly at 03:00 UTC, 14 days kept. The owner
+  keeps /etc/raidos/backup-pass in KeePassXC.
+- Next: the owner's second factor for the admin panel (a code to the owner's e-mail after the password, a notice after each
+  sign-in) is being built on claude/owner-second-factor for the release after 353.
