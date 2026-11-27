@@ -103,9 +103,13 @@
 .dropoff-table tr.is-zero td { background: color-mix(in srgb, var(--brass) 10%, transparent); }
 .dropoff-table td.drop-low { color: var(--text); }
 .dropoff-table td.drop-high { color: var(--success, #6fbf73); }
-/* «Как работает пробитие» (arsenal/PenetrationGuide.tsx, report 226): folded until opened. */
-.penetration-guide > summary { cursor: pointer; list-style: none; }
-.penetration-guide > summary::-webkit-details-marker { display: none; }
-.penetration-guide .panel-title { display: inline-flex; align-items: center; gap: 7px; }
-.penetration-guide:not([open]) > summary { border-bottom: 0; }
-.penetration-guide-list { margin: 0; padding-left: 34px; display: grid; gap: 6px; color: var(--text-dim); font-size: 13px; line-height: 1.45; }
+/* «Как работает баллистика» (arsenal/BallisticsGuide.tsx): the button right of the tabs and its window, which scrolls when it does not fit. */
+.button.small.ballistics-guide-button { min-height: 37px; white-space: nowrap; }
+.ballistics-guide-button svg { flex: none; color: var(--brass); }
+.ballistics-guide-dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column; outline: none; }
+.ballistics-guide-dialog .ballistics-guide-title { display: flex; align-items: center; gap: 9px; margin: 0 0 14px; padding-right: 40px; font-size: 20px; }
+.ballistics-guide-title svg { flex: none; color: var(--brass); }
+.ballistics-guide-list { margin: 0; padding: 0 4px 0 20px; display: grid; gap: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; color: var(--text-dim); font-size: 14px; line-height: 1.5; }
+.ballistics-guide-list strong { color: var(--text); font-weight: 800; }
+.ballistics-guide-sublist { margin: 6px 0; padding-left: 18px; display: grid; gap: 3px; list-style: "– "; }
+.ballistics-guide-after { display: block; }

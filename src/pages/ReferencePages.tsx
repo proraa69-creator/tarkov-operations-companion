@@ -39,7 +39,7 @@ import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
 import { BulletDropPanel } from "../arsenal/BulletDrop";
-import { PenetrationGuide } from "../arsenal/PenetrationGuide";
+import { BallisticsGuideButton } from "../arsenal/BallisticsGuide";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 import { setRaidStartNotice, useRaidStartNotice } from "../notifications/raidStartNotice";
 import { setExitRequirementsShown, useExitRequirementsShown } from "../raidprep/exitRequirementsSetting";
@@ -341,6 +341,8 @@ export function AmmoPage() {
             <button key={entry.key} type="button" role="tab" aria-selected={tab === entry.key} className={tab === entry.key ? "active" : ""} onClick={() => openTab(entry.key)}>{uiLabel(entry.label)}</button>
           ))}
         </div>
+        {/* «Как работает баллистика» right of the tabs, on every tab (owner, 28.11.2026) */}
+        <BallisticsGuideButton />
         {tab !== "range" && <select
           className="select"
           aria-label={uiText("Калибр")}
@@ -360,8 +362,6 @@ export function AmmoPage() {
       </div>
       {tab === "range" && <Suspense fallback={<div className="panel range-loading"><LoaderCircle className="spin" size={18} /></div>}><RangeShooting /></Suspense>}
       <div className="ballistics-layout">
-        {/* «Как работает пробитие» (report 226): folded, over every table */}
-        {tab !== "range" && <PenetrationGuide />}
         {tab === "scatter" && <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText("Пробитие и урон")}</div>
@@ -870,7 +870,8 @@ function ExitRequirementsSetting() {
 export function SettingsPage() {
   const { source } = useTarkovData();
   const { updatedAt } = useTarkovDataStatus();
-  const { locale } = useLocale();
+  // drawn again in the language chosen (its own words come through uiText)
+  useLocale();
   const raidSmoke = useRaidSmokeEnabled();
   const raidTools = hasRaidTools();
   const support = <SupportPanel />;
