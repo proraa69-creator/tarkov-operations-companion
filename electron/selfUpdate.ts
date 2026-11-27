@@ -6,6 +6,7 @@ import { app, safeStorage } from 'electron'
 import { isOwnerBuild } from './buildEdition.js'
 import { apiHealth, clientPublishDir, isServerMode, LOCAL_PORTS, runningBuild, serverDataDir } from './localServer.js'
 import { sanitize, type ErrorEvent } from './errorReport.js'
+import { childEnvironment, powershellExe, systemEnvironment, systemProgram } from './windowsSystem.js'
 import {
   CHECK_EVERY_MS, DEFAULT_RELEASES_REPO, encodedCommand, fileDigest, GitHubReleaseSource, HEALTH_REASON_TEXT, HEALTH_RULES, healthVerdict, helperEnvironment, helperLogTail,
   helperScript, installWindowOf, launcherScript, READY_FOR_INSTALL_TEXT, REPO_PATTERN, ServerSelfUpdater, type BuildRef, type HealthReason, type HealthState,
@@ -395,6 +396,19 @@ const HELPER_ENV_KEYS = ['SystemRoot', 'windir', 'SystemDrive', 'PATH', 'Path', 
   'HOMEDRIVE', 'HOMEPATH', 'LOCALAPPDATA', 'APPDATA', 'ComSpec', 'PSModulePath', 'ProgramFiles', 'ProgramData', 'ProgramFiles(x86)',
   'CommonProgramFiles', 'ALLUSERSPROFILE', 'PUBLIC', 'COMPUTERNAME', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'OS']
 
+/**
+ * The helper's environment from `source` (process.env): HELPER_ENV_KEYS, with %SystemRoot%, %windir%, %ComSpec% and
+ * PSModulePath of Windows itself (electron/windowsSystem.ts) — the helper runs with the app's administrator rights.
+ */
+export function helperBaseEnvironment(source: NodeJS.ProcessEnv = process.env) {
+  const env: Record<string, string> = {}
+  for (const key of HELPER_ENV_KEYS) if (source[key]) env[key] = source[key]!
+  return Object.assign(env, systemEnvironment())
+}
+
+/** The programs that start the helper: System32's PowerShell and cmd by their full path, never %SystemRoot% or %ComSpec%. */
+export const helperPrograms = () => ({ powershell: powershellExe(), cmd: systemProgram('cmd.exe') })
+
 function fullEnvironment() {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) if (typeof value === 'string' && !/^(ELECTRON_|NODE_OPTIONS$)/i.test(key)) env[key] = value
@@ -469,9 +483,8 @@ async function handOver(plan: { kind: 'update' | 'rollback'; from: BuildRef; to:
   await writeJson(pendingFile(), pending)
   await writeFile(helperFile(), `\uFEFF${helperScript()}`, 'utf8')
   // The same short environment the first, working version gave PowerShell, plus the paths the helper needs.
-  const env: Record<string, string> = {}
-  for (const key of HELPER_ENV_KEYS) if (process.env[key]) env[key] = process.env[key]!
-  const powershell = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  const env = helperBaseEnvironment()
+  const { powershell, cmd: comspec } = helperPrograms()
   Object.assign(env, helperEnvironment({
     id: pending.id, exe: plan.exe, next: plan.next, previous: previousExe, clientDir: plan.withClient ? clientDir : '', clientPrevious: plan.withClient ? previousClient : '',
     resultFile: resultFile(), confirmFile: confirmFile(), pendingFile: pendingFile(), logFile: helperLogFile(), helperPidFile: helperPidFile(), appPidFile: appPidFile(),
@@ -482,13 +495,12 @@ async function handOver(plan: { kind: 'update' | 'rollback'; from: BuildRef; to:
   // a line of the helper.) The answer goes into the log either way; the attempts follow regardless.
   await appendHelperLog(`probe: ${await probe(powershell, env)}`)
   const helperArgs = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helperFile()]
-  const comspec = process.env.ComSpec || join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe')
   // 1: through cmd «start» (a new console, the way Explorer starts programs) — on the server laptop this is the only
   // way that works: powershell.exe spawned straight from the app ends at once with code 0 without running a line
   // (update-helper.log of 04.10.2026: probe and both direct attempts «code 0 after 0.1 s», cmd-start ran the helper);
   // 2: the helper directly, as the first version; 3: through the launcher.
   const attempts: Array<{ name: string; file: string; args: string[]; env: Record<string, string>; verbatim?: boolean }> = [
-    { name: 'cmd-start', file: comspec, args: ['/d', '/c', 'start', '""', '/min', quoteArg(powershell), ...helperArgs.map(quoteArg)], env: { ...fullEnvironment(), ...env }, verbatim: true },
+    { name: 'cmd-start', file: comspec, args: ['/d', '/c', 'start', '""', '/min', quoteArg(powershell), ...helperArgs.map(quoteArg)], env: childEnvironment(fullEnvironment(), env), verbatim: true },
     { name: 'direct', file: powershell, args: helperArgs, env },
     { name: 'launcher', file: powershell, args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(launcherScript())], env },
   ]

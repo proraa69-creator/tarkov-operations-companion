@@ -3,7 +3,7 @@ import { closeSync, createWriteStream, existsSync, mkdirSync, openSync, readFile
 import { rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
-import { PAUSE_1S, runHiddenScript } from './hiddenScript.js'
+import { pauseOneSecond, runHiddenScript } from './hiddenScript.js'
 import { pipeline } from 'node:stream/promises'
 import { app, shell } from 'electron'
 import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
@@ -769,14 +769,14 @@ export function fileMatches(file: string, size: number, sha256: string) {
 function startSwapHelper(exe: string, partial: string, relaunch: boolean) {
   // No window at all (electron/hiddenScript.ts).
   const script = runHiddenScript(`tarkov-operator-update-${process.pid}.cmd`, [
-    PAUSE_1S,
-    PAUSE_1S,
+    pauseOneSecond(),
+    pauseOneSecond(),
     'set n=0',
     ':move',
     'move /y "%TO_NEW%" "%TO_EXE%" >nul 2>&1 && goto run',
     'set /a n+=1',
     'if %n% geq 60 goto run',
-    PAUSE_1S,
+    pauseOneSecond(),
     'goto move',
     ':run',
     'if "%TO_RUN%"=="1" start "" "%TO_EXE%"',

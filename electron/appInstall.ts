@@ -3,7 +3,7 @@ import { open, readdir, rename, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { app, shell } from 'electron'
-import { PAUSE_1S, runHiddenScript, SYSTEM32 } from './hiddenScript.js'
+import { pauseOneSecond, runHiddenScript, systemCommand } from './hiddenScript.js'
 import { verifiedSetupManifest, type UpdateManifest } from './updateManifest.js'
 
 /**
@@ -68,13 +68,13 @@ export function runSetupWhenClosed(setup: string, exe: string) {
   return runHiddenScript(`raidos-setup-${process.pid}.cmd`, [
     'set n=0',
     ':wait',
-    `${SYSTEM32}\\tasklist.exe /FI "PID eq %RO_PID%" /NH 2>nul | ${SYSTEM32}\\find.exe " %RO_PID% " >nul || goto run`,
+    `${systemCommand('tasklist.exe')} /FI "PID eq %RO_PID%" /NH 2>nul | ${systemCommand('find.exe')} " %RO_PID% " >nul || goto run`,
     'set /a n+=1',
     'if %n% geq 90 goto run',
-    PAUSE_1S,
+    pauseOneSecond(),
     'goto wait',
     ':run',
-    PAUSE_1S,
+    pauseOneSecond(),
     '"%RO_SETUP%" /S --updated --force-run /D=%RO_DIR%',
     'del "%RO_SETUP%" >nul 2>&1',
   ], { RO_PID: String(process.pid), RO_SETUP: setup, RO_DIR: dirname(exe) })

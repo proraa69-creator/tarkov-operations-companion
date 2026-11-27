@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 
 import { bindGameWindowApi, createGameSightings, createGameWindowCheck, GAME_CLASS, GAME_TITLE, type GameWindowInfo, type KoffiLibrary } from './gameWindow.js'
+import { processElevated } from '../windowsSystem.js'
 
 const require = createRequire(import.meta.url)
 
@@ -16,7 +17,6 @@ let api: {
   foreground: () => unknown
   windowText: (hwnd: unknown, buffer: Uint16Array, size: number) => number
   keyState: (key: number) => number
-  isAdmin: (() => number) | null
   shellExecute: ((hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint) | null
   /** Lets the single-instance message through (allowSecondStartMessages). */
   secondStart: ((dataFolder: string) => boolean) | null
@@ -65,7 +65,6 @@ function win32() {
       foreground: user32.func('void* __stdcall GetForegroundWindow()') as () => unknown,
       keyState: user32.func('short __stdcall GetAsyncKeyState(int vKey)') as (key: number) => number,
       windowText: user32.func('int __stdcall GetWindowTextW(void* hWnd, _Out_ uint16_t* lpString, int nMaxCount)') as (hwnd: unknown, buffer: Uint16Array, size: number) => number,
-      isAdmin: optional(() => shell32.func('int __stdcall IsUserAnAdmin()') as () => number),
       shellExecute: optional(() => shell32.func('intptr_t __stdcall ShellExecuteW(void* hwnd, const char16_t* lpOperation, const char16_t* lpFile, const char16_t* lpParameters, const char16_t* lpDirectory, int nShowCmd)') as (hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint),
       secondStart: optional(() => {
         const find = user32.func('void* __stdcall FindWindowExW(void* hWndParent, void* hWndChildAfter, const char16_t* lpszClass, const char16_t* lpszWindow)')
@@ -214,20 +213,13 @@ export function isVirtualKeyDown(key: number) { return Boolean((win32()?.keyStat
 export function wasVirtualKeyPressed(key: number) { return Boolean((win32()?.keyState(key) ?? 0) & 0x8001) }
 export function nativeKeysAvailable() { return Boolean(win32()) }
 
-let elevated: boolean | null | undefined
 /**
  * Whether this app runs with administrator rights; null when unknown. The BSG launcher starts the game
  * elevated, and Windows then hides the game's key state from, and drops key presses sent by, apps that are not.
+ * By this process's token (IsUserAnAdmin), asked once in electron/windowsSystem.ts — boot.ts asks the same.
  */
 export function isElevated(): boolean | null {
-  if (elevated !== undefined) return elevated
-  try {
-    const check = win32()?.isAdmin
-    elevated = check ? check() !== 0 : null
-  } catch {
-    elevated = null
-  }
-  return elevated
+  return processElevated()
 }
 
 const WM_COPYDATA = 0x4a

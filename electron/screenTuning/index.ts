@@ -8,9 +8,10 @@ import { captureScreenRegion, foregroundDisplayMode, foregroundGame, isVirtualKe
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
 import { activePreset, allPresets, backgroundFrameDue, presetShown, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, noteRaidResult, REFUSED_RETRY_MS, renamePreset, reorderPresets, restoreBuiltIns, revertBuiltIn, sameRamp, savePreset, writeStrongest, type RaidResult, type ScreenTuningSettings } from './state.js'
-import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeStatus, parseOptimizeBackup, POWERSHELL, revert, type OptimizeBackup, type OptimizeItemId, type OptimizeOpenTarget } from './optimizer.js'
+import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeOpenTarget, optimizeStatus, parseOptimizeBackup, revert, type OptimizeBackup, type OptimizeItemId } from './optimizer.js'
 import { readPcInfo, type PcInfo } from './pcInfo.js'
 import { followGameFront } from '../gamePriority.js'
+import { powershellExe, programFilesDirectory } from '../windowsSystem.js'
 
 /**
  * «Настройка экрана» in the main process (owner, 27.10.2026). The chosen preset goes only into the game (owner: «рабочий
@@ -307,18 +308,9 @@ let pcInfo: { at: number; value: PcInfo | null } | null = null
 const PC_INFO_MS = 5 * 60_000
 async function pcNow(fresh = false) {
   if (!fresh && pcInfo && Date.now() - pcInfo.at < PC_INFO_MS) return pcInfo.value
-  const value = process.platform === 'win32' ? await readPcInfo(defaultRun, POWERSHELL) : null
+  const value = process.platform === 'win32' ? await readPcInfo(defaultRun, powershellExe()) : null
   pcInfo = { at: Date.now(), value }
   return value
-}
-
-/** The tips' buttons: the video card's app when it is installed, else the maker's page. Nothing else can be opened. */
-const OPEN_TARGETS: Record<OptimizeOpenTarget, { exe?: string; url: string }> = {
-  'nvidia-app': { exe: join(process.env.ProgramFiles || 'C:\\Program Files', 'NVIDIA Corporation', 'NVIDIA App', 'CEF', 'NVIDIA App.exe'), url: 'https://www.nvidia.com/ru-ru/software/nvidia-app/' },
-  'amd-software': { exe: join(process.env.ProgramFiles || 'C:\\Program Files', 'AMD', 'CNext', 'CNext', 'RadeonSoftware.exe'), url: 'https://www.amd.com/ru/support/download/drivers.html' },
-  'nvidia-driver': { url: 'https://www.nvidia.com/ru-ru/geforce/drivers/' },
-  'amd-driver': { url: 'https://www.amd.com/ru/support/download/drivers.html' },
-  'intel-driver': { url: 'https://www.intel.ru/content/www/ru/ru/support/detect.html' },
 }
 
 async function saveOptimizeBackup() {
@@ -404,7 +396,7 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
     return { done: result.done, restart: result.restart, status: await optimizeStatus(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup, await pcNow(true)) }
   })
   ipcMain.handle('screen:optimize-open', async (_event, target: unknown) => {
-    const entry = typeof target === 'string' && target in OPEN_TARGETS ? OPEN_TARGETS[target as OptimizeOpenTarget] : undefined
+    const entry = optimizeOpenTarget(target, programFilesDirectory())
     if (!entry) return false
     if (entry.exe && existsSync(entry.exe)) return (await shell.openPath(entry.exe)) === ''
     await shell.openExternal(entry.url)
