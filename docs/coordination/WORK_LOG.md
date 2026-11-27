@@ -11916,3 +11916,46 @@ Not pushed, not released, nothing uploaded.
 - Making the repository private was weighed and left: about 4,200 macOS minutes of iOS builds a month would be billed ×10.
 - The owner's e-mail is out of the files: the build skill says <почта владельца> (sessions know it), deploy/linux/install.sh
   requires RAIDOS_OWNER_EMAILS, the ops-reference scripts read it from the environment or /etc/raidos/release-config.json.
+
+## 2026-11-27 23:15 — Claude: the owner's second factor — a code from the e-mail after his password, a notice after every sign-in (claude/owner-second-factor, not pushed)
+
+- Owner, 27.11.2026 («Да, делай»): while the server sends e-mails, the right password of the owner's account answers 202
+  { secondFactor, challengeId, expiresAt, resendSeconds, message } with no session and e-mails «Код для входа в
+  админ-панель Raid OS» («если это не вы — смените пароль»); POST /v1/accounts/login/confirm with that code signs him in,
+  POST /login/resend sends a new code for the same challenge (the password stays good 30 minutes, each code 10). Players
+  and the Apple reviewer sign in as before; without an e-mail provider (the laptop's server, tests) the owner signs in
+  with the password as before; TARKOV_OWNER_LOGIN_CODE=0 in the API's environment turns the code off (the way back in
+  over SSH should the mail stop; electron/apiEnv.ts lists it). His open sessions stay.
+- A code never signs him in without the password: the owner-login challenge (hash only, 5 attempts) exists only after the
+  right password and only /login/confirm takes it. /email/login/start answered his address with a sign-in code until now
+  (e-mail was his «primary factor»): it answers as for anybody and sends nothing, and /email/login refuses his account.
+  «Забыли пароль?» by e-mail stays for him (code + new password) and notifies him.
+- His codes count their own cooldown (EMAIL_RESEND_COOLDOWN_MS), daily caps and wrong codes (MAX_WRONG_CODES_PER_DAY;
+  email_code_failures.purpose, added at the start), outside the service's daily budget: other people's requests, decoy
+  codes or a spent budget do not lock him out. A send the provider refuses is 502 with no session (fail closed).
+  /login/confirm counts as a sign-in path for the guard (wrong codes are 401 like a wrong password).
+- After every sign-in of his — password and code, the password while codes are off, a new password by an e-mail code, a
+  QR code from another device — «Raid OS: вход в аккаунт владельца»: Bangkok time, IP, country (Cloudflare, else RU by
+  the Russian networks), the device in short (server/src/services/ownerSignIn.ts; the PC app names itself
+  RaidOS-Desktop/<version>), the way; never a code. owner_audit_log gets owner.sign-in with the same (the User-Agent cut
+  to 200), labelled in the site's «Журнал».
+- d7bc02c3 (server): app.ts, index.ts, routes/{accounts,email}.ts, services/{accountStore,emailAuth,loginCodes,adminStore,
+  securityGuard,ownerSignIn}.ts, services/email/templates.ts, electron/apiEnv.ts, docs/email-codes.md; tests
+  routes/ownerLogin.test.ts (new, in the test script), email.test.ts (the owner gets no sign-in code now), ownerAdmin and
+  mapBosses (their audit checks look past owner.sign-in), serverGuard REAL_PATHS.
+- 32fed1d9 (clients): the site (LoginPage → SignInCodeStep in components/EmailAuth.tsx, auth.confirmLogin, api.loginConfirm
+  / loginResend, StreamerInvitePage sends the owner to «Вход», AdminSales labels), the PC app (serviceGateway accountLogin →
+  secondFactor, accountLoginConfirm over its own IPC account:login-confirm, /login/resend on ROUTES, preload.cjs/ts,
+  src/account/SecondFactorStep.tsx in the account window and «Аккаунт сервера»), the phone (src/sync/webAccount.ts for
+  both apps, /login/resend on its ROUTES, the standalone admin app's own code step); 4 phrases in uiEnglishAccountGate
+  and its 9 languages, 4 on the site and its 9.
+- Checks: server 673 (ownerLogin 13 new; the supportChat screenshots test hit ECONNRESET under load once, 25/25 alone);
+  vitest src/account, src/sync, src/i18n, src/admin, src/components, src/mobile, electron, website 1552/1556 — the 4 are
+  the old electron/linux/updater (tar) and staleServer failures of this PC; typecheck of the app, Electron
+  (tsconfig.electron.json), the server and the site; eslint on the changed files (3 old warnings in EmailAuth.tsx).
+- Not pushed, not released; no updateHistory / playerNews row (the integrator's). Risks: the PC and phone apps from
+  before this release do not know the 202 and tell the owner «Сервер вернул неожиданный ответ» — his open sessions stay
+  (90 days from the last use), and until the new phone build he signs in on the phone through the site or by the QR code
+  of a signed-in PC; a refused send (Resend's daily cap of the Free plan) stops his new sign-ins until the mail works or
+  TARKOV_OWNER_LOGIN_CODE=0; whoever holds his mailbox can still reset the password by e-mail and then sign in with the
+  new password and a code — the second factor stops a leaked password, not a lost mailbox.
