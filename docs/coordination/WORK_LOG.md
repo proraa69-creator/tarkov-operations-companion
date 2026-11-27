@@ -12014,3 +12014,10 @@ Not pushed, not released, nothing uploaded.
   panel the removed button opened — now unreachable from the page (quest keys keep «Нет в наличии» / «Есть в схроне»);
   OwnedKeysPanel stays in the code. The reader takes a label once by its pixels, so two alike cells may count as one: ×N is
   shown only for N > 1, the first tick takes N pieces. Not tried with the game.
+- 00:45, owner via the coordinator («Все, так пойдет, огонь»): «− ×N +» on every key of «Ключи в схроне» in place of the
+  editor — commit 5bcb1041 (QuestKeysPage.tsx, QuestKeysStash.tsx KeyCount, questKeys.css, QuestKeysPage.test.tsx). The
+  quest cards («Все ключи», «Для квестов») and the rows of «Не нужны для квестов»; the stash's own count (id → pieces), «+» one
+  more, «−» one less, on 0 setOwnedKey takes the key off (its uses too): gone from the stash view, the quest card «Нет в
+  наличии». 30×30 buttons, the frame in the theme's brass; the dialog's −/+ is the same component (stops at 1 there). Not on
+  the list outside «Ключи в схроне». «Добавить вручную» not back (as asked). Tests: QuestKeysPage, src/quests,
+  uiEnglishQuestKeys 231 passed, 1 skipped; typecheck and eslint clean; a throwaway stand checked 30×30 and the look.
