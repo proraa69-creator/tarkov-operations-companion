@@ -3,6 +3,8 @@ import { cp, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const root = '/opt/raidos-repair-20261008'
+// The owner's e-mail lives in the server's release config, not in this public repository.
+const ownerEmail = JSON.parse(await readFile('/etc/raidos/release-config.json', 'utf8')).ownerEmail
 const suffix = process.env.REPAIR_RELEASE_SUFFIX || 'recognition-repair'
 if (!/^[a-z0-9-]+$/.test(suffix)) throw new Error('Invalid release suffix')
 function run(command, args, env = {}, cwd = root) {
@@ -24,7 +26,7 @@ const version = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).v
 const commit = process.env.REPAIR_SOURCE_COMMIT || execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: '/opt/tarkov-operations-companion' }).toString().trim()
 if (!/^[a-f0-9]{7,40}$/.test(commit)) throw new Error('Invalid source commit')
 async function edition(name) {
-  run('node', ['scripts/write-build-info.mjs'], { ...env, OWNER_BUILD: name === 'owner' ? '1' : '0', ...(name === 'owner' ? { OWNER_EMAILS: 'proraa69@gmail.com' } : {}) })
+  run('node', ['scripts/write-build-info.mjs'], { ...env, OWNER_BUILD: name === 'owner' ? '1' : '0', ...(name === 'owner' ? { OWNER_EMAILS: ownerEmail } : {}) })
   const infoFile = join(root, 'dist-electron', 'build-info.json')
   const info = JSON.parse(await readFile(infoFile, 'utf8'))
   await writeFile(infoFile, JSON.stringify({ ...info, commit: `${commit}-${suffix}` }))

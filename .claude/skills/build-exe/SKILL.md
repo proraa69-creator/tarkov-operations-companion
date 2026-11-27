@@ -12,8 +12,9 @@ description: Собрать Windows exe приложения (portable) и до�
 
 С появлением входа в аккаунт есть два exe (`electron/buildEdition.ts`, флаг ставит `scripts/write-build-info.mjs`):
 
-- **Версия владельца** — всегда собирается командой `OWNER_BUILD=1 OWNER_EMAILS=proraa69@gmail.com npm run build`
-  (указание владельца). «Аккаунт сервера», кнопка «Сервер», сервер/туннель/оплата/стримеры, «Открыть админ-панель».
+- **Версия владельца** — всегда собирается командой `OWNER_BUILD=1 OWNER_EMAILS=<почта владельца> npm run build`
+  (указание владельца; `<почта владельца>` — адрес пользователя из контекста сессии, в репозиторий его не писать:
+  репозиторий публичный). «Аккаунт сервера», кнопка «Сервер», сервер/туннель/оплата/стримеры, «Открыть админ-панель».
   Для игрового ПК владельца и для ноутбука-сервера (`Server-Laptop-Setup.cmd`).
   - `OWNER_EMAILS` вшивается в `build-info.json` (`ownerEmails`, только при `OWNER_BUILD=1`): этот аккаунт сайта —
     владелец по умолчанию, видит «Админ-панель» на сайте (`/admin`) без ручной настройки. Если в панели владельца
@@ -40,7 +41,7 @@ description: Собрать Windows exe приложения (portable) и до�
 3. Запусти из корня репозитория (сборка идёт несколько минут, таймаут ставь с запасом, до 10 минут):
 
    ```powershell
-   $env:OWNER_EMAILS = 'proraa69@gmail.com'   # для версии владельца (см. выше)
+   $env:OWNER_EMAILS = '<почта владельца>'   # для версии владельца (см. выше); адрес — из контекста сессии
    powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1           # версия владельца
    powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1 -Client   # версия для игроков
    ```
@@ -69,7 +70,7 @@ description: Собрать Windows exe приложения (portable) и до�
    cp dist-electron/build-info.json "$SP/client-build-info.json"
    npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false
    # → release/Raid OS <версия>.exe  (игроки)
-   OWNER_BUILD=1 OWNER_EMAILS=proraa69@gmail.com npm run build
+   OWNER_BUILD=1 OWNER_EMAILS=<почта владельца> npm run build
    npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false -c.win.artifactName='Raid OS Owner ${version}.exe'
    # → release/Raid OS Owner <версия>.exe  (владелец)
    ```

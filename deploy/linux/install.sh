@@ -4,13 +4,13 @@
 #   bash install.sh                install / repair: Node 22, Caddy (HTTPS), the raidos-api / raidos-site services,
 #                                  the auto-update timer and the newest signed server bundle from raidos-releases
 # Settings (environment): RAIDOS_GITHUB_TOKEN (read-only token for raidos-releases; asked for when missing),
-#   RAIDOS_DOMAIN (raidos.app), RAIDOS_OWNER_EMAILS (proraa69@gmail.com), RAIDOS_IMPORT_DB (a companion.sqlite to take
+#   RAIDOS_DOMAIN (raidos.app), RAIDOS_OWNER_EMAILS (required: the owner's e-mail), RAIDOS_IMPORT_DB (a companion.sqlite to take
 #   over on the first install), RAIDOS_IMPORT_KEY (its entitlement-ed25519.pem), RAIDOS_RELEASES_REPO.
 # Never deletes data: an existing /var/lib/raidos database and /etc/raidos settings are kept as they are.
 set -euo pipefail
 
 DOMAIN="${RAIDOS_DOMAIN:-raidos.app}"
-OWNERS="${RAIDOS_OWNER_EMAILS:-proraa69@gmail.com}"
+OWNERS="${RAIDOS_OWNER_EMAILS:?set RAIDOS_OWNER_EMAILS to the owner e-mail}"
 REPO="${RAIDOS_RELEASES_REPO:-proraa69-creator/raidos-releases}"
 HOME_DIR=/opt/raidos
 DATA_DIR=/var/lib/raidos
