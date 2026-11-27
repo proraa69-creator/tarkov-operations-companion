@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { request } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -97,6 +98,16 @@ test('map mirror: downloads existing tiles and schemes, skips empty ones, a comp
       assert.equal(negative.status, 200)
       assert.ok(Buffer.from(await negative.arrayBuffer()).equals(PNG))
       assert.equal((await fetch(`${base}/v1/map-tiles/maps/factory/main/1/--1/0.png`)).status, 404)
+      // A «..» never leaves the mirror (security review, 27.11.2026); fetch and a URL string would straighten the path, so the raw path.
+      const raw = (path: string) => new Promise<number>((done, fail) => { const asked = request({ host: '127.0.0.1', port: (server.address() as AddressInfo).port, path }, (answer) => { answer.resume(); done(answer.statusCode ?? 0) }); asked.on('error', fail); asked.end() })
+      const outside = join(dir, '..', `raidos-outside-${process.pid}`)
+      mkdirSync(join(outside, '1/0'), { recursive: true })
+      writeFileSync(join(outside, '1/0/0.png'), PNG)
+      try {
+        assert.equal(await raw('/v1/map-tiles/maps/factory/main/1/0/0.png'), 200)
+        assert.equal(await raw(`/v1/map-tiles/maps/%2E%2E/%2E%2E/raidos-outside-${process.pid}/1/0/0.png`), 404)
+        assert.equal(await raw(`/v1/map-tiles/maps/../../raidos-outside-${process.pid}/1/0/0.png`), 404)
+      } finally { rmSync(outside, { recursive: true, force: true }) }
       assert.equal((await fetch(`${base}/v1/map-tiles/maps/svg/Factory.svg`)).headers.get('content-type'), 'image/svg+xml')
       assert.equal((await fetch(`${base}/v1/map-tiles/maps.json`)).status, 200)
       // Our own sets laid over tarkov.dev's maps.json (raidos-tiles.json): complete sets only, a tarkov.dev path kept.

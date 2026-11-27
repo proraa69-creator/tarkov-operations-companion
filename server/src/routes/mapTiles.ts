@@ -33,7 +33,8 @@ export function createMapTilesRouter(mirror: MapMirror | undefined) {
     })
     res.type(kind === 'json' ? 'application/json' : kind === 'svg' ? 'image/svg+xml' : 'image/png')
     if (kind === 'tile') {
-      res.sendFile(join(mirror.dir, path), { dotfiles: 'deny' }, (error) => { if (error && !res.headersSent) res.status(404).end() })
+      // `root`: a «..» in the path is refused instead of leaving the mirror (security review, 27.11.2026).
+      res.sendFile(path, { root: mirror.dir, dotfiles: 'deny' }, (error) => { if (error && !res.headersSent) res.status(404).end() })
       return
     }
     try {
