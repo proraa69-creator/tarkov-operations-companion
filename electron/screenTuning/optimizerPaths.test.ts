@@ -20,10 +20,17 @@ afterEach(() => { for (const [name, value] of Object.entries(saved)) { if (value
 
 describe('the optimizer\'s programs (electron/screenTuning/optimizer.ts)', () => {
   it('reads Windows\' settings with System32\'s reg.exe, powercfg.exe and tasklist.exe by their full path', async () => {
-    const files: string[] = []
-    await optimizeStatus(async (file) => { files.push(file); throw new Error('not here') }, false, null, null).catch(() => undefined)
-    expect(files.length).toBeGreaterThan(0)
-    for (const file of files) expect([systemProgram('reg.exe'), systemProgram('powercfg.exe'), systemProgram('tasklist.exe')]).toContain(file)
+    // optimizeStatus reads nothing off Windows, and the release gate runs on Linux: the test stands in for Windows
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+    try {
+      const files: string[] = []
+      await optimizeStatus(async (file) => { files.push(file); throw new Error('not here') }, false, null, null).catch(() => undefined)
+      expect(files.length).toBeGreaterThan(0)
+      for (const file of files) expect([systemProgram('reg.exe'), systemProgram('powercfg.exe'), systemProgram('tasklist.exe')]).toContain(file)
+    } finally {
+      Object.defineProperty(process, 'platform', platform)
+    }
   })
 
   it('every program it starts gets Windows\' own %SystemRoot% and a PSModulePath without the player\'s Documents', async () => {
