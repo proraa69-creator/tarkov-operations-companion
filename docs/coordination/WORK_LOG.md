@@ -11717,3 +11717,40 @@ Not pushed, not released, nothing uploaded.
   changed site and admin tests; typecheck of the app, the site and the server.
 - After 20:00: the package updates and the reboot at a quiet hour, the API unit's hardening, the publisher's fix on
   the VPS. The rest waits for the owner's decisions.
+
+## 2026-11-27 18:00 — Claude: аудит клиента — пути программ, песочница, cloudflared, модели OCR, окружение, Host, мёртвый канал (ветка claude/electron-hardening, не запушено, не выпущено)
+
+- Владелец 27.11.2026: «устраняй все эти проблемы и делай все, что нужно» — пункты 5, 8, 9, 15, 16, 17, 20 отчёта по
+  настольному приложению. Ветка claude/electron-hardening от claude/referral-steps 018ba8a3 (0.6.0.352). Не пушил.
+- ownedFiles: electron/windowsSystem.ts и ocrModels.ts (новые); hiddenScript, deltaUpdate, appInstall, appUpdate,
+  trial, gameProcess, logDiscovery, staleServer, screenTuning/{optimizer,index}, selfUpdate, boot, deltaBoot,
+  experimental/{win32,elevation}, gpuFallback, main, publicTunnel, ocrEngine, serviceGateway, accountLinks, siteProxy,
+  localServer, preload.{cjs,ts}; src/electron.d.ts, src/profile/playerProfileGateway.ts; server/src/routes/serverGuard.ts;
+  docs/local-server.md; тесты рядом.
+- f5393477 (п.8): System32 (GetSystemDirectoryW), Program Files (SHGetFolderPathW) и права (IsUserAnAdmin, токен
+  процесса) из Windows через Koffi, без Koffi — обычные папки на C:. Все системные программы по полному пути: tasklist,
+  netstat, reg, powercfg, PowerShell, cmd, wscript, ping, find (в том числе в скриптах обновления и перезапуска и в
+  повышенном скрипте оптимизатора); дочерним процессам — SystemRoot, windir, ComSpec, PSModulePath самой Windows.
+  boot.ts: права по токену; не удалось узнать — проверяются все файлы staged-сборки. Страж-тест по всем файлам electron/.
+- a909c6da (п.5): noSandbox в gpu-fallback.json снимается после 3 запусков, окно которых показалось (первая картинка,
+  страница загружена, окно живо 3 минуты); программная отрисовка остаётся. --no-sandbox из ярлыка идёт копии с правами
+  тоже только 3 таких запуска; --disable-gpu всегда. Снова чёрное окно — сразу шаг «без песочницы» ещё на 3 запуска.
+- 0983a4dc (п.9): cloudflared.exe сверяется с закреплённым SHA-256 перед каждым запуском; не тот файл — скачивается
+  заново, не скачался — туннель не запускается с понятной ошибкой.
+- 5070c34c (п.16): SHA-256 всех 11 моделей из electron/tessdata; модель используется и докачивается только с этими
+  байтами (иначе следующий источник, потом ошибка).
+- 9652670b (п.15): TARKOV_API_URL, TARKOV_API_TOKEN и TARKOV_WEBSITE_URL — только при запуске из исходников, упакованная
+  сборка владельца их тоже не читает.
+- fb4dc01a (п.17): сайт на 127.0.0.1:5202 отвечает только Host 127.0.0.1:5202 / localhost:5202 и именам публичной ссылки
+  (постоянный адрес из настроек ± «www.», trycloudflare — пока туннель приложения работает), иначе 403. Сервер:
+  /health/detail и /health/backup — только 127.0.0.1 / localhost / [::1] с портом запроса.
+- 2701f8c7 (п.20): profile:resolve убран; страж: у каждого канала preload есть ipcMain.handle/on (101 из 101).
+- Проверки: npm run typecheck и tsc -p tsconfig.electron.json --noEmit чисто; eslint на изменённых файлах чисто;
+  vitest electron 607/611 — 4 падения только на Windows и были до правок (linux/updater ×3 из-за tar, staleServer из-за
+  node.exe); сервер: serverGuard 25/25, authzBypass и api 18/18, server typecheck чисто.
+- Не сделано, ждёт решения владельца (трогает механизм обновлений): п.1–3 (staged-сборки и установщик в закрытую папку,
+  проверка перед каждой загрузкой), п.4 (подпись exe), п.7 (рекурсивные удаления), п.18 (откат на старую staged-сборку).
+- Не проверено: упакованная сборка и её запуск, повышение прав, туннель вживую, Windows не на диске C:.
+- Риски: без Koffi на ПК, где Windows не на C:, системные программы не найдутся (проверка игры, перезапуск после
+  обновления); у постоянного адреса туннеля с другими именами, кроме сохранённого и www-варианта, сайт ответит 403;
+  у игрока, у которого песочница не работает, раз в 4 запуска один автоматический перезапуск без неё.
