@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
@@ -9,7 +9,9 @@ import { app, safeStorage } from 'electron'
  * «Открыть сайт друзьям»: a Cloudflare quick tunnel (cloudflared, free, no account) gives the site on this
  * PC a public https link — the site and, through it, the API (/v1, see localServer.ts). The owner turns it
  * on explicitly; cloudflared.exe is downloaded once from Cloudflare's GitHub releases into the app data folder: a pinned
- * release, checked against its SHA-256 before it is ever started (a copy downloaded earlier is kept as it is).
+ * release, checked against its SHA-256 when it is downloaded and again right before every start (security review,
+ * 27.11.2026: the app starts it with administrator rights). A file that is not the pinned release — a copy an earlier
+ * version downloaded, or one changed since — is downloaded again; when that fails, the tunnel does not start.
  * The link changes every time the tunnel starts.
  *
  * Permanent address: the owner creates a named tunnel in their own Cloudflare account (their domain, public hostname
@@ -22,9 +24,8 @@ import { app, safeStorage } from 'electron'
  * by «Cloudflare, Inc.», DigiCert chain, signature checked when the hash was taken). To move to a newer release, change
  * both together.
  */
-const CLOUDFLARED_VERSION = '2026.9.3'
-const CLOUDFLARED_URL = `https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-windows-amd64.exe`
-const CLOUDFLARED_SHA256 = 'f096265ec2fcbe9bb6e2d64268db167ced3fcbb83d894bdb9e2fcdb26f2ea7e2'
+export const CLOUDFLARED = { version: '2026.9.3', sha256: 'f096265ec2fcbe9bb6e2d64268db167ced3fcbb83d894bdb9e2fcdb26f2ea7e2' }
+const cloudflaredUrl = () => `https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED.version}/cloudflared-windows-amd64.exe`
 const SITE = 'http://127.0.0.1:5202'
 const LINK = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i
 
@@ -126,17 +127,30 @@ export async function startTunnelIfWanted() {
   if (await autoStart()) await startTunnel()
 }
 
+const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
+
+/** Whether cloudflared.exe is there and is the pinned release (read and hashed now, synchronously). */
+export function cloudflaredVerified(file = exePath()) {
+  try {
+    return sha256(readFileSync(file)) === CLOUDFLARED.sha256
+  } catch {
+    return false
+  }
+}
+
+/** cloudflared.exe of the pinned release: the one there when it is that, else downloaded (again) and checked. */
 async function ensureCloudflared() {
-  // Already there (also a copy an earlier version of the app downloaded): used as it is.
-  if (existsSync(exePath())) return exePath()
+  if (cloudflaredVerified()) return exePath()
+  // Missing, or not the pinned release (another version an earlier app downloaded, or a changed file): never started.
+  await rm(exePath(), { force: true })
   state = 'downloading'
   await mkdir(toolsDir(), { recursive: true })
-  const response = await fetch(CLOUDFLARED_URL, { redirect: 'follow', signal: AbortSignal.timeout(180_000) })
+  const response = await fetch(cloudflaredUrl(), { redirect: 'follow', signal: AbortSignal.timeout(180_000) })
   if (!response.ok) throw new Error(`Не удалось скачать cloudflared: HTTP ${response.status}`)
   const partial = `${exePath()}.part`
   const body = Buffer.from(await response.arrayBuffer())
   await writeFile(partial, body)
-  if (createHash('sha256').update(body).digest('hex') !== CLOUDFLARED_SHA256) {
+  if (sha256(body) !== CLOUDFLARED.sha256) {
     await rm(partial, { force: true }).catch(() => {})
     throw new Error('Скачанный cloudflared не прошёл проверку SHA-256 и удалён. Попробуйте позже.')
   }
@@ -152,8 +166,13 @@ async function startTunnel() {
   error = ''
   url = ''
   try {
-    const exe = await ensureCloudflared()
     const named = await namedTunnel()
+    const exe = await ensureCloudflared()
+    // Checked again right before it starts, with nothing awaited in between.
+    if (!cloudflaredVerified(exe)) {
+      await rm(exe, { force: true }).catch(() => {})
+      throw new Error('cloudflared.exe изменился после проверки и не запущен. Включите ссылку ещё раз: он скачается заново.')
+    }
     state = 'starting'
     const next = named
       ? spawn(exe, ['tunnel', '--no-autoupdate', 'run'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, TUNNEL_TOKEN: named.token } })
