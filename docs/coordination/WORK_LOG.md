@@ -12056,3 +12056,27 @@ Not pushed, not released, nothing uploaded.
   модули и снаряжение слотами, условия значками». Players' news (RU/EN, to the owner first): «Сбор на рейд: новые карточки
   квестов — оружие на фоне, модули и снаряжение в слотах, условия значками» / «Raid loadout: new quest cards — the weapon on a
   backdrop, parts and gear in slots, conditions as icons».
+
+## 2026-11-28 01:55 — Claude: «Как работает баллистика» — a button right of the tabs and a window (claude/ballistics-guide 82f755aa, not pushed)
+
+- Owner, 28.11: «Вот этот текст нужно поправить… частично он написан неправильно… более понятным языком… перенести на страницу
+  полигон и справа от вот этих переключателей… Сделай кнопку отдельно информация о баллистике». Then on «Пробьёт ли»:
+  «"Ориентир класс × 10" — что это значит, никто ничего не поймет… перефразируй» — replaced by his own text with a three-line list.
+- The folded «Как работает пробитие» over the tables (report 226) is gone. «Баллистика» (src/pages/ReferencePages.tsx): the button
+  «Как работает баллистика» (lucide Info) right after the tabs, on every tab, «Полигон» too; on a phone it wraps under the tabs
+  like the caliber list. src/arsenal/BallisticsGuide.tsx: the window on .registration-overlay / .registration-dialog (title, cross,
+  Escape or a click beside it closes it; the list scrolls inside when it does not fit). src/arsenal/ballisticsGuidePoints.ts: eight
+  points, the bold start is the text before the first « — » in every language; «Пробьёт ли» has its list and a line after it.
+  Styles in src/arsenal/arsenal.css. SettingsPage: `useLocale();` without the unused `locale` (the file's one eslint error).
+- Texts: English in src/i18n/uiEnglishArsenal.ts (the old block's 8 phrases out, 13 in); the nine languages in src/i18n/locales
+  (13 each, sorted, one per line; the old block was never in them). In «Пробьёт ли» the tab and the number are named as each
+  language's app names them; in English «List of rounds» (the tab's English name) instead of «Ammo list» of the owner's draft.
+- Checks: vitest src/arsenal/BallisticsGuide.test.tsx (button, window, close by cross/Escape/outside, the text, English, nine
+  languages, the app's own formulas behind «9 из 10», «26–39», «25 и меньше», «0–40 %») and src/pages/AmmoPage.test.tsx (the button
+  right of the tabs on all five tabs, the window over «Полигон»); vitest src/pages src/arsenal src/i18n: everything else passes,
+  except AdminPanelPage «stands right above «Обзор»» (reads AppShell.tsx expecting LF line ends; this PC checks out CRLF — not this change)
+  and Maps/Dashboard tests that time out only under load and pass alone; npm run typecheck; eslint on the changed files clean.
+- Stand: a throwaway page with made-up data and the real button/window, pictured in an offscreen Electron window (desktop
+  1400×860 and 1280×600, phone 390×844; ru, en, de, ja); stand files not committed.
+- No updateHistory / playerNews row (the integrator's). News line proposed to the release session. Risk: the range model
+  (src/range/rangeModel.ts) takes a ricochet's durability as half penetration × half armour damage (at least 1), the text says 1.

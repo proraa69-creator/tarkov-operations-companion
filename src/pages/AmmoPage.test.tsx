@@ -72,6 +72,44 @@ describe('«Баллистика» by tabs (owner, 06.11.2026: «переклю�
     expect(firstRounds()).toEqual(['M995', 'M855', 'RRLP'])
   })
 
+  it('«Как работает баллистика» stands right of the tabs on every tab, «Полигон» too, and the folded block is gone (owner, 28.11.2026)', async () => {
+    polygon.on = true
+    try {
+      renderPage()
+      expect(await screen.findByTestId('polygon')).toBeInTheDocument()
+      for (const name of ['Полигон', 'Пробитие и урон', 'Падение пули', 'Пробитие брони', 'Список патронов']) {
+        fireEvent.click(tab(name))
+        const button = screen.getByRole('button', { name: 'Как работает баллистика' })
+        expect(document.querySelector('.ballistics-tabs')?.nextElementSibling, name).toBe(button)
+        expect(document.querySelector('details'), name).toBeNull()
+        expect(screen.queryByText('Как работает пробитие'), name).toBeNull()
+      }
+    } finally {
+      polygon.on = false
+    }
+  })
+
+  it('the button opens the window over «Полигон», and its cross and Escape close it', async () => {
+    polygon.on = true
+    try {
+      renderPage()
+      expect(await screen.findByTestId('polygon')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Как работает баллистика' }))
+      const dialog = screen.getByRole('dialog', { name: 'Как работает баллистика' })
+      expect(dialog.querySelectorAll('.ballistics-guide-list > li')).toHaveLength(8)
+      expect(screen.getByTestId('polygon')).toBeInTheDocument()
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      fireEvent.click(tab('Список патронов'))
+      fireEvent.click(screen.getByRole('button', { name: 'Как работает баллистика' }))
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      fireEvent.keyDown(window, { key: 'Escape' })
+      expect(screen.queryByRole('dialog')).toBeNull()
+    } finally {
+      polygon.on = false
+    }
+  })
+
   it('«Пробитие брони» picks its round right there, and the round chosen in the list stands in it, whatever the order', () => {
     renderPage('/ballistics?tab=armor')
     expect(screen.getByTestId('armor').textContent).toBe('M995')
