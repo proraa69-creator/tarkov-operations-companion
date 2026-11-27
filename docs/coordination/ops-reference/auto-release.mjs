@@ -112,11 +112,18 @@ try {
     setup = null
     console.warn(`Installer not built, the release goes on without it: ${error.message}`)
   }
-  // Stop any build descendants before sealing artifacts; this user owns no other services.
-  try { command('pkill', ['-u', 'raidos-build']) } catch (error) { if (error.status !== 1) throw error }
-  await assertLocalTree(build)
+  // Stop any build descendants before sealing artifacts; this user owns no other services. SIGKILL and a check that none
+  // is left, then seal, then check the links (security review, 27.11.2026): a build that outlived a SIGTERM could swap a
+  // file for a link between the check and the seal, and root's copyFile follows links.
+  try { command('pkill', ['-KILL', '-u', 'raidos-build']) } catch (error) { if (error.status !== 1) throw error }
+  for (let attempt = 0; ; attempt++) {
+    try { command('pgrep', ['-u', 'raidos-build']) } catch (error) { if (error.status === 1) break; throw error }
+    if (attempt >= 20) throw new Error('raidos-build processes survived SIGKILL')
+    await new Promise((done) => setTimeout(done, 500))
+  }
   command('chown', ['-h', '-R', 'root:root', build])
   command('chmod', ['-R', 'go-w', build])
+  await assertLocalTree(build)
   const asar = createRequire(`${root}/package.json`)('@electron/asar')
   for (const edition of ['client', 'owner']) {
     const resources = join(build, `release-${edition}/win-unpacked/resources`)
