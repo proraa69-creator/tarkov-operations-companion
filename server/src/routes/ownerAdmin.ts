@@ -409,6 +409,8 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.post('/me/admin/users/:id/password-link', owner('write', (req, res, actor) => {
     const id = idSchema.parse(req.params.id)
     if (!passwordLink) throw new AccountError(503, 'На сервере не настроена почта для кодов: ссылку сделать нельзя')
+    // Never for the owner's own account (security review, 27.11.2026): his password changes only by his own hand.
+    if (accounts.isOwner(id)) throw new AccountError(403, 'Для аккаунта владельца ссылку не делаем: свой пароль владелец меняет сам')
     const link = passwordLink(id)
     admin.audit(actor, 'account.password-link', link.email, { until: new Date(link.expiresAt).toISOString() })
     const site = (process.env.TARKOV_PUBLIC_URL || 'https://raidos.app').replace(/\/$/, '')

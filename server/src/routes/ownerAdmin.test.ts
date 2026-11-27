@@ -875,6 +875,48 @@ test('«Новый пароль» (owner, 26.11.2026): a link for 48 hours, the 
   }
 })
 
+test('«Новый пароль» (security review, 27.11.2026): a used link, a new password or «Выйти на всех устройствах» end the other open links; none for the owner', async () => {
+  const db = openDatabase(':memory:')
+  const first = new AccountStore({ db, ownerEmails: [] })
+  await first.register('owner@example.com', password)
+  first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
+  await first.register('player@example.com', password)
+  const accounts = new AccountStore({ db, ownerEmails: ['owner@example.com'] })
+  const emails = new EmailAuthService(accounts, { sender: new FakeEmailSender() })
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails }).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/accounts`
+  const post = async (path: string, body: unknown, token?: string) => {
+    const response = await fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
+    return { status: response.status, json: (await response.json()) as Record<string, unknown> }
+  }
+  try {
+    const owner = String((await post('/login', { email: 'owner@example.com', password })).json.token)
+    const playerId = accounts.accountByEmail('player@example.com')!.id
+    const link = async () => {
+      const made = await post(`/me/admin/users/${playerId}/password-link`, {}, owner)
+      const [, challengeId, code] = /#link=([A-Za-z0-9_-]{32})\.(\d{6})$/.exec(String(made.json.url))!
+      return { challengeId, code }
+    }
+    const older = await link()
+    const used = await link()
+    assert.equal((await post('/email/reset', { ...used, password: 'brand new password' })).status, 200)
+    assert.equal((await post('/email/reset', { ...older, password: 'another password 1' })).status, 401, 'the older link ends with the reset')
+    const beforeChange = await link()
+    const token = String((await post('/login', { email: 'player@example.com', password: 'brand new password' })).json.token)
+    assert.equal((await post('/me/password', { currentPassword: 'brand new password', newPassword: 'second new password' }, token)).status, 200)
+    assert.equal((await post('/email/reset', { ...beforeChange, password: 'another password 2' })).status, 401, 'and with a new password')
+    const beforeSignOut = await link()
+    const again = String((await post('/login', { email: 'player@example.com', password: 'second new password' })).json.token)
+    assert.equal((await post('/me/sessions/revoke-all', {}, again)).status, 200)
+    assert.equal((await post('/email/reset', { ...beforeSignOut, password: 'another password 3' })).status, 401, 'and with «Выйти на всех устройствах»')
+    const ownerId = accounts.accountByEmail('owner@example.com')!.id
+    assert.equal((await post(`/me/admin/users/${ownerId}/password-link`, {}, owner)).status, 403, 'never for the owner\'s own account')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('«Новый пароль» without e-mail codes on the server: refused, nothing made', async () => {
   const t = await setup()
   try {

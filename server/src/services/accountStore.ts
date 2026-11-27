@@ -1706,8 +1706,14 @@ export class AccountStore {
     return this.createSession(accountId)
   }
 
-  /** Signs every session of the account out; returns how many there were. */
+  /**
+   * Signs every session of the account out; returns how many there were. Its open «Новый пароль» codes and links go too
+   * (security review, 27.11.2026): a new password, «Выйти на всех устройствах» or a block leaves none of them behind.
+   */
   revokeSessions(accountId: string) {
+    if (this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'email_challenges'").get()) {
+      this.db.prepare("DELETE FROM email_challenges WHERE purpose = 'reset' AND account_id = ?").run(accountId)
+    }
     return Number(this.db.prepare('DELETE FROM sessions WHERE account_id = ?').run(accountId).changes)
   }
 
