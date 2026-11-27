@@ -31,7 +31,7 @@ import { bringToFront, startedByTheApp, waitForInstanceLock } from './singleInst
 import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountEmailSignIn, accountLogin, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
+import { accountEmailSignIn, accountLogin, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, developmentSyncEnabled, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild, isSafeStartBuild, isTestBuild, TEST_BUILD_APP_NAME, TEST_BUILD_DATA_FOLDER } from './buildEdition.js'
 import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
 import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
@@ -1077,11 +1077,12 @@ function registerIpc() {
 }
 
 /**
- * The single-owner development integration (server/README.md): with TARKOV_API_URL and TARKOV_API_TOKEN set, every
- * published full scan also goes to /v1/sync/events, per mode, game account and character.
+ * The single-owner development integration (server/README.md): with TARKOV_API_URL and TARKOV_API_TOKEN set in a
+ * development run (never a packaged app: serviceGateway.ts developmentSyncEnabled), every published full scan also goes
+ * to /v1/sync/events, per mode, game account and character.
  */
 async function pushToDevelopmentServer(result: ModeLogScanResult) {
-  if (!process.env.TARKOV_API_URL || !process.env.TARKOV_API_TOKEN || result.identityOnly) return
+  if (!developmentSyncEnabled() || result.identityOnly) return
   const groups = new Map<string, typeof result.events>()
   for (const event of result.events) {
     if (!event.mode || !event.accountId || !event.profileId) continue

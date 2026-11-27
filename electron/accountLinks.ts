@@ -1,17 +1,17 @@
 import { isOwnerBuild } from './buildEdition.js'
 import { LOCAL_SITE_URL } from './localServer.js'
 import { publicSiteUrl, tunnelStatus } from './publicTunnel.js'
-import { apiBaseUrl, createMobileLoginCode, isLocalAddress, loadServerUrl } from './serviceGateway.js'
+import { apiBaseUrl, createMobileLoginCode, developmentEnv, isLocalAddress, loadServerUrl } from './serviceGateway.js'
 
 /**
  * Where the account website is for this app:
- * - TARKOV_WEBSITE_URL, when set;
+ * - TARKOV_WEBSITE_URL, when set in a development run (never in a packaged app: serviceGateway.ts developmentEnv);
  * - the server's own address when it is not this PC: the owner's public address serves the site and forwards /v1 to
  *   the API (electron/localServer.ts), so a player's app opens the right site without any setting;
  * - on the owner's PC: the local site; for a phone (`forPhone`) the public link of the server on this PC if it is on.
  */
 export async function websiteBase(options: { forPhone?: boolean } = {}) {
-  const configured = process.env.TARKOV_WEBSITE_URL?.trim()
+  const configured = developmentEnv('TARKOV_WEBSITE_URL')?.trim()
   if (configured) return configured.replace(/\/+$/, '')
   await loadServerUrl()
   let api = ''
