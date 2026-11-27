@@ -101,7 +101,7 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
           <p>{uiText(RAID_TOOLS_INTRO)}</p>
         </div>
       </header>
-      {actionError && <p className="notice error" role="alert">{actionError}</p>}
+      {actionError && <p className="notice error" role="alert">{uiText(actionError)}</p>}
       {status?.nativeError && <p className="notice error" role="alert">{uiText('Не удалось загрузить модуль клавиатуры и захвата экрана:')} {status.nativeError}</p>}
       {!tracking && features.known && (
         <p className="exp-overlay-off muted" role="note">

@@ -1,4 +1,5 @@
 import { addNotification } from '../notifications/notificationCenter'
+import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { useQueryClient } from '@tanstack/react-query'
@@ -271,11 +272,14 @@ export function ExperimentalBridge() {
       if (scanning) return
       const { data, state } = latest.current
       // Pressed in the game, so the system message does not come: what the scan found waits in «Уведомления».
-      const notify = (message: string, keep = true) => {
+      const notify = (russian: string, keep = true) => {
         // switched off in «Уведомления» → «Настроить»
         if (!notificationOn('collector')) return
-        if (keep) addNotification({ title: 'Коллекционер', text: message, open: '/kappa-items' })
-        void window.tarkovDesktop?.notify?.('Коллекционер', message).catch(() => {})
+        // in the app's language: the list of «Уведомления» and the system's message show the text as it is
+        const title = uiText('Коллекционер')
+        const message = uiText(russian)
+        if (keep) addNotification({ title, text: message, open: '/kappa-items' })
+        void window.tarkovDesktop?.notify?.(title, message).catch(() => {})
       }
       const entries = collectorEntries(data.quests, data.items)
       if (!entries.length) { notify('Список предметов не загружен. Обновите каталог в приложении.'); return }

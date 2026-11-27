@@ -227,7 +227,7 @@ function PcCard({ pc }: { pc: PcInfo | null }) {
   for (const gpu of pc?.gpus ?? []) {
     rows.push(gpu.noDriver
       ? { label: 'Видеокарта', value: gpu.name, note: uiText('драйвер не установлен'), bad: true }
-      : { label: 'Видеокарта', value: gpu.name, note: `${uiText('драйвер')} ${gpu.driver}${gpu.driverDate ? ` ${uiText('от')} ${day(gpu.driverDate)}` : ''}` })
+      : { label: 'Видеокарта', value: gpu.name, note: gpu.driverDate ? uiText(`драйвер ${gpu.driver} от ${day(gpu.driverDate)}`) : `${uiText('драйвер')} ${gpu.driver}` })
   }
   if (pc?.ramGb) {
     const speed = pc.ramMhz

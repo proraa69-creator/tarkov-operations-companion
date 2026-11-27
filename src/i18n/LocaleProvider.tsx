@@ -29,7 +29,8 @@ interface LocaleValue {
 }
 const LocaleContext = createContext<LocaleValue>({ locale: 'ru', language: 'ru', revision: 0, setLocale: () => {}, applyAccountCountry: () => {} })
 
-function savedLanguage(): AppLanguage {
+/** The language saved on this device, Russian when none (also for the screen of a start that failed, src/main.tsx). */
+export function savedLanguage(): AppLanguage {
   try {
     const saved = localStorage.getItem(KEY)
     return isAppLanguage(saved) ? saved : 'ru'

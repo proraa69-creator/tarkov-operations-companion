@@ -18,7 +18,10 @@ import { App } from './app/App'
 import { createPageTransitionHistory, markViewTransitions } from './app/pageTransitionHistory'
 import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
-import { LocaleProvider } from './i18n/LocaleProvider'
+import { LocaleProvider, savedLanguage } from './i18n/LocaleProvider'
+import { setRenderLanguage, uiText } from './i18n/renderText'
+import { isTargetLanguage } from './i18n/languages'
+import { loadTargetTable } from './i18n/targetText'
 import { STYLE_CHANGED_EVENT, applyAppearance, clearRemovedAppearanceSettings, currentStyle } from './theme/theme'
 import { installLayoutAttributes, isNative } from './platform'
 import { installSoftMotion } from './app/softMotion'
@@ -35,24 +38,45 @@ import './styles/windowActions.css'
 // The app's code runs: from here on its own errors show its own screen (below), not the one of public/startup-intro.js.
 ;(window as Window & { __raidosAppStarted?: boolean }).__raidosAppStarted = true
 
+/**
+ * The texts of the screen below, in the language saved on this device: English at once for every language but Russian, then
+ * the language's own once its phrase file is there (src/i18n/targetText.ts).
+ */
+const STARTUP_ERROR_TEXT = {
+  title: 'Приложение не смогло запуститься',
+  body: 'Мы поймали ошибку вместо пустого экрана. Нажмите восстановление запуска: приложение очистит повреждённый интерфейсный кэш и перезагрузится.',
+  recover: 'Восстановить запуск',
+  reload: 'Перезагрузить',
+}
+
 function showStartupError(error: unknown) {
   removeStartupIntro()
   const root = document.getElementById('root')
   if (!root) return
-  const message = error instanceof Error ? error.message : String(error ?? 'Неизвестная ошибка')
+  const language = savedLanguage()
+  setRenderLanguage(language)
+  const message = error instanceof Error ? error.message : String(error ?? uiText('Неизвестная ошибка'))
   root.innerHTML = `
     <div class="startup-recovery">
       <section class="startup-recovery-card">
         <div class="eyebrow">RAID OS</div>
-        <h1>Приложение не смогло запуститься</h1>
-        <p>Мы поймали ошибку вместо пустого экрана. Нажмите восстановление запуска: приложение очистит повреждённый интерфейсный кэш и перезагрузится.</p>
+        <h1></h1>
+        <p></p>
         <pre></pre>
         <div class="startup-recovery-actions">
-          <button type="button" data-action="recover">Восстановить запуск</button>
-          <button type="button" data-action="reload">Перезагрузить</button>
+          <button type="button" data-action="recover"></button>
+          <button type="button" data-action="reload"></button>
         </div>
       </section>
     </div>`
+  const fill = () => {
+    root.querySelector('h1')!.textContent = uiText(STARTUP_ERROR_TEXT.title)
+    root.querySelector('p')!.textContent = uiText(STARTUP_ERROR_TEXT.body)
+    root.querySelector('[data-action="recover"]')!.textContent = uiText(STARTUP_ERROR_TEXT.recover)
+    root.querySelector('[data-action="reload"]')!.textContent = uiText(STARTUP_ERROR_TEXT.reload)
+  }
+  fill()
+  if (isTargetLanguage(language)) void loadTargetTable(language).then(fill).catch(() => { /* stays English */ })
   root.querySelector('pre')!.textContent = message
   root.querySelector('[data-action="recover"]')?.addEventListener('click', () => {
     try {

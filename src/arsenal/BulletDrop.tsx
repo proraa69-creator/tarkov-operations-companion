@@ -88,7 +88,7 @@ export function BulletDropPanel({ ammo, selected, colorOf }: { ammo: AmmoStats[]
       <table className="price-table dropoff-table">
         <caption className="bullet-drop-caption">{active.round.shortName} · {uiText('пристрелка')} {zero} {uiText('м')} · {Math.round(active.round.initialSpeed ?? 0)} {uiText('м/с')}</caption>
         <thead><tr>
-          <th>{uiText('Дистанция')}</th><th>{uiText('Падение')}, {uiText(unit === 'cm' ? 'см' : 'дюймы')}</th><th>{uiText('Время')}, {uiText('с')}</th><th>{uiText('Скорость')}, {uiText('м/с')}</th><th>{uiText('Урон')}</th><th>{uiText('Пробитие')}</th>
+          <th>{uiText('Дистанция')}</th><th>{uiText('Падение')}, {uiText(unit === 'cm' ? 'см' : 'дюймы')}</th><th>{uiText('Время, с')}</th><th>{uiText('Скорость')}, {uiText('м/с')}</th><th>{uiText('Урон')}</th><th>{uiText('Пробитие')}</th>
         </tr></thead>
         <tbody>
           {TABLE_DISTANCES.map((distance) => {
