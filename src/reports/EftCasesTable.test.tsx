@@ -14,7 +14,7 @@ const page: EftCasesPage = {
   }],
 }
 
-// Owner, 27.11.2026: a dispute over a game account goes to him — who holds it, who claims it, whether each paid and when.
+// Owner, 27.11.2026: a dispute over a game account goes to the owner — who holds it, who claims it, whether each paid and when.
 const holder = { accountId: 'h', email: 'holder@example.com', deleted: false, createdAt: '2026-11-01T10:00:00.000Z', paid: false, payments: 0, bound: { eft: '••••321', at: '2026-11-02T10:00:00.000Z', disputed: true } }
 const claimer = { accountId: 'd', email: 'payer@example.com', deleted: false, createdAt: '2026-11-20T10:00:00.000Z', paid: true, paidUntil: '2026-12-27T10:00:00.000Z', payments: 2 }
 const disputed: EftCasesPage = {

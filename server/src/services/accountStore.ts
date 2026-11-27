@@ -1007,7 +1007,7 @@ export class AccountStore {
    * Allowed or not, the report is kept for the device of this session (`sessionDigest`): eftBlock then refuses that
    * device the entitlement and the paid data until it reports a game account that fits — a paying account excepted when
    * the game account is another account's (owner, 27.11.2026). Such a report is the owner's case «спор за игровой
-   * аккаунт» (noteEftDispute): the binding moves only by his decision. Only the owner's own accounts are
+   * аккаунт» (noteEftDispute): the binding moves only by the owner's decision. Only the owner's own accounts are
    * never refused; a game account an owner account holds refuses every other Raid OS account like any other (owner,
    * 13.10.2026: a test account he made on his own PC still got in — «привязка не работает»).
    * A free period goes to one Raid OS account per game account (eft_trial_claims, kept after «Удалить аккаунт»).
@@ -1067,7 +1067,7 @@ export class AccountStore {
    * fits. The owner's own accounts and the Apple reviewer's (TARKOV_STORE_REVIEW_EMAILS) are exempt (owner, 13.11.2026:
    * «сними блокировку по аккаунту таркова для админа и apple test аккаунта»). `access` (eftBlock): the rule for the
    * device's access, not for the binding — a game account another Raid OS account holds does not lock a paying account
-   * out (owner, 27.11.2026: he decides that dispute himself); its own other game account still does.
+   * out (owner, 27.11.2026: the owner decides that dispute); its own other game account still does.
    */
   private eftRule(accountId: string, digest: string, hint: string, access = false): EftBlock | undefined {
     if (this.isOwner(accountId) || this.isStoreReview(accountId)) return undefined

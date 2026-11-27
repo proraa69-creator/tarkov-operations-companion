@@ -278,7 +278,7 @@ test('a second account without a free day sees «already in use», not «Нуж�
 })
 
 // Owner, 27.11.2026: a paying account is not locked out by whoever bound its game account first; the owner decides who it is
-// («спор за игровой аккаунт», routes/eftCases.ts), and the binding moves only by his decision.
+// («спор за игровой аккаунт», routes/eftCases.ts), and the binding moves only by the owner's decision.
 test('a paying account whose game account another Raid OS account holds keeps its access; the binding stays where it is', async () => {
   await withApi(async ({ accounts, register, entitle, report, data, pay }) => {
     const first = await register('first@example.com')
