@@ -11959,3 +11959,26 @@ Not pushed, not released, nothing uploaded.
   of a signed-in PC; a refused send (Resend's daily cap of the Free plan) stops the owner's new sign-ins until the mail works or
   TARKOV_OWNER_LOGIN_CODE=0; whoever holds the owner's mailbox can still reset the password by e-mail and then sign in with the
   new password and a code — the second factor stops a leaked password, not a lost mailbox.
+
+## 2026-11-27 23:25 — Claude: report 253 — Customs' project documentation stands under the desk (claude/report-253-photo dd367f8e, not pushed)
+
+- Report 253 (PvE, app 0.6.0.350): «фото проектной документации не совпадает с тем что в игре», a screenshot named with its
+  position. Customs, the computer room behind the Tarcone Director's office key door («Ключ от офиса таможни» in the Russian
+  game): our spot 2 m from the player. Our offline frame 90d1b1636cb2a7df showed the tube and the roll lying on the floor in
+  front of the cabinet's drawers; in the player's game they stand upright under the next desk, by its leg, and the floor the
+  arrow showed is empty. The tarkov.dev point has no rotation; the pose («lying», E:\SPT-photo\bpdocs\customs-marks.json)
+  had been guessed from a dark wiki screenshot.
+- Owner, relayed by the release session: «делай как правильно». No SPT reshoot (the place photos are stopped until the
+  owner's word): the frame bd51e33a627824b4 is cut from the player's screenshot of the live game (no HUD, no weapon),
+  shadows lifted, the owner's arrow (pointer_final.py) on the tubes, named and sized like integrate_all.py
+  (E:\SPT-photo\server-upload\customs-report253\make253.py). `src/data/documentGuidePhotos.json`: the new id in place of the old one (files, photos, the
+  Customs list, the spot); the Russian caption now «…за дверью, открываемой Ключом от офиса таможни.» like its neighbour.
+  The English text is unchanged, so the other languages keep their translations.
+- Tests: src/data and BattlePassDocuments 591/591, server guideImages and questPointPhotos 14/14.
+- The picture is on the server: E:\SPT-photo\server-upload\customs-report253 (wiki-bd51e33a627824b4.jpg and its -t) put in
+  /var/lib/raidos/map-mirror/images/guides (raidos-api, 600) by the release session on 27.11, sha256 checked against the
+  local files; it is served once a release names it. The deploy key has asked for a passphrase since 27.11 19:27 and sits
+  in the Windows ssh-agent: Windows' own ssh.exe (System32\OpenSSH) gets in, Git Bash's /usr/bin/ssh does not, nor does
+  eval\upload_guides.py run from it.
+- History line for the release (no news, a fix): «Документы боевого пропуска: на Таможне фото «Проектной документации»
+  в компьютерной комнате — как в игре», "reports":[253].
