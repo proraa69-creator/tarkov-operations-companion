@@ -11735,3 +11735,24 @@ Not pushed, not released, nothing uploaded.
   under the game's ids 61952308… and 61952325…, the text says «любую из трёх». src/data/manualQuests.json lists it.
 - Checked on the real json.tarkov.dev catalogs (fetchLiveCatalog, PvP and PvE): two objectives, six points at their places in both.
   src/data/taskObjectiveMerges.test.ts (new); vitest src/data 591/591; typecheck clean. Not pushed: for the 13:00 window.
+
+## 2026-11-27 20:40 — Claude: 0.6.0.352 live; the VPS rebooted, its API sandboxed; the publisher fix and the off-server copy installed
+
+- 0.6.0.352 (42490dbc) went out in the 20:00 window (download/version.json at 20:11); the BZB mailbox reads with the new check, no errors.
+- VPS: packages upgraded with nodejs held for the run; reboot at 20:17, back in 35 s on kernel 6.8.0-151; nothing failed; the API, the
+  site, ufw, fail2ban and the raidos timers up. RaidOSSetup.exe goes out 10–20 times an hour all day (mostly new players): no wave to wait out.
+- raidos-api: raidos-api.service.d/sandbox-strict.conf (copy: ops-reference/raidos-api-sandbox-strict.conf). ProtectSystem=strict with only
+  /var/lib/raidos and its map-mirror disk writable, ProtectHome=tmpfs, PrivateDevices, no capabilities, no namespaces, realtime or SUID,
+  native syscalls only; systemd-analyze security 7.8 EXPOSED → 2.9 OK. Applied by a script that probes the writes in the unit's own
+  namespace and rolls back on any failure: health 200, the database and the quest bases written after it. The item-images 502s
+  («Request aborted») are clients dropping image requests; they rose with the 352 update at 13:11 UTC, before the sandbox.
+- Publisher: /usr/local/lib/raidos-release/auto-release.mjs is d2cedf17's (SIGKILL, wait until no raidos-build process is left, seal,
+  then the link check), installed under the release lock; the old one is auto-release.mjs.bak-20261127. The next timer run was clean.
+- Off-server database copy: rclone 1.60.1, /usr/local/lib/raidos-backup/offsite-copy.sh, raidos-db-offsite.timer (03:00 UTC; copy:
+  ops-reference/install-offsite-backup.sh). The newest daily copy, encrypted with /etc/raidos/backup-pass (AES-256-CBC, PBKDF2 200000),
+  goes to the owner's S3 storage, 30 days kept there. Nothing is sent until the owner writes /etc/raidos/backup-s3.env with their own
+  helper (the keys go over ssh and never pass through Claude). The encrypt and decrypt round trip was checked on the server. The owner
+  keeps backup-pass off the server: without it the copies cannot be read.
+- Root disk at 86% (7 GB free), steady: the publisher keeps 3 builds (13 GB), the backup prune 5 deploy backups (3.1 GB).
+- 7adab8ee (local, not pushed): release 0.6.0.353 with «Ревизия. Маяк». The owner tried the Electron hardening test exe (sign-in, «Обзор»
+  with the game log, recognition, start) and holds both for one release together with the other updates.
