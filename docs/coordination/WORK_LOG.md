@@ -11735,3 +11735,22 @@ Not pushed, not released, nothing uploaded.
   under the game's ids 61952308… and 61952325…, the text says «любую из трёх». src/data/manualQuests.json lists it.
 - Checked on the real json.tarkov.dev catalogs (fetchLiveCatalog, PvP and PvE): two objectives, six points at their places in both.
   src/data/taskObjectiveMerges.test.ts (new); vitest src/data 591/591; typecheck clean. Not pushed: for the 13:00 window.
+
+## 2026-11-27 20:30 — Claude: the level without a reading — a lower bound from the quests and «Указать уровень» (owner's word)
+
+- A PvP player without a public profile whose «Выбор профиля и режима» was not read kept «Уровень появится…» and level 1. Owner,
+  27.11.2026: «нижняя граница уровня по квестам и ручной ввод уровня». Branch claude/level-fallback (from claude/referral-steps),
+  commit 24a4e881, not pushed.
+- No anchor: levelProvenByQuests (src/profile/questExperience.ts) — the highest level a completed quest of the mode asks for, or the
+  level their experience reaches (prestige quests left out); the hook writes it to playerLevel (applyLevelEstimate, src/domain/
+  progress.ts), the filters follow it, the card shows «Уровень не ниже N». A reading replaces it; the traders' screen never lowers it.
+- «Указать уровень» (1–79, components/ManualLevelField.tsx) on «Текущий профиль» while no reading has the level and under an entry:
+  LevelAnchor source 'manual' (setManualLevel). Never over a reading or a newer entry; a newer mode-selection screen replaces it
+  whatever it shows, the traders' screen only within reach, Tarkov.dev when newer or when the entry is beyond reach. «Сброс»,
+  «Вайп», «Престиж +» clear it. useShareLevels sends an entry, never the estimate (the phone would count the quests twice).
+- English (CHARACTER_RULES template) and 9 languages; the roadmap's level line follows the owner's word.
+- Checks: typecheck (app and Electron); eslint on the changed files; vitest src/domain, src/profile, src/account, src/i18n,
+  src/state, src/squad 346/346; src/components, src/pages, src/trading, src/sync, src/progression 1156/1162 — AdminPanelPage
+  (AppShell read with CRLF on Windows) and five MapsPage tests that time out under the full run and pass alone.
+- Not checked in the running app (it opens the owner's data). Risks: an estimate from wrongly attributed or mismarked quests filters
+  too high until a reading; legacy profiles with playerLevel > 1 and no anchor now show «не ниже» and follow the quests.
