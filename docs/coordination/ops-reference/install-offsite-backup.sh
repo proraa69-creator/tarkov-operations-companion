@@ -6,7 +6,7 @@ mkdir -p /usr/local/lib/raidos-backup
 cat > /usr/local/lib/raidos-backup/offsite-copy.sh <<'EOF'
 #!/bin/bash
 # Raid OS (27.11.2026): the newest daily database copy, encrypted here (AES-256, the server's own /etc/raidos/backup-pass),
-# to the owner's S3 storage; 30 days kept there. Waits quietly until /etc/raidos/backup-s3.env exists (the owner writes it).
+# to the owner's S3 storage; 14 days kept there (a 10 GB storage). Waits quietly until /etc/raidos/backup-s3.env exists (the owner writes it).
 set -euo pipefail
 ENV=/etc/raidos/backup-s3.env
 [ -f "$ENV" ] || { echo "no $ENV yet: nothing sent"; exit 0; }
@@ -26,7 +26,7 @@ openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass file:"$PASS" -in "$lat
 export RCLONE_CONFIG_RAIDOS_TYPE=s3 RCLONE_CONFIG_RAIDOS_PROVIDER=Other RCLONE_CONFIG_RAIDOS_ENDPOINT="$S3_ENDPOINT" \
   RCLONE_CONFIG_RAIDOS_REGION="$S3_REGION" RCLONE_CONFIG_RAIDOS_ACCESS_KEY_ID="$S3_KEY_ID" RCLONE_CONFIG_RAIDOS_SECRET_ACCESS_KEY="$S3_SECRET"
 rclone copy "$tmp/$name" "raidos:$S3_BUCKET/raidos-db/" --s3-no-check-bucket
-rclone delete "raidos:$S3_BUCKET/raidos-db/" --min-age 30d --s3-no-check-bucket || true
+rclone delete "raidos:$S3_BUCKET/raidos-db/" --min-age 14d --s3-no-check-bucket || true
 echo "offsite copy $name, $(stat -c %s "$tmp/$name") bytes"
 EOF
 chmod 755 /usr/local/lib/raidos-backup/offsite-copy.sh
