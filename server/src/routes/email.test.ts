@@ -233,8 +233,8 @@ test('sign-in by e-mail code: the same answer for unknown addresses, the owner g
   const signedIn = await email.login({ ip: '1', body: { challengeId: challenge(known.body), code: sender.lastCode('player@example.com') } })
   assert.equal(signedIn.status, 200)
   assert.equal((signedIn.body as { account: AccountView }).account.email, 'player@example.com')
-  // The owner's address (owner, 27.11.2026: a code without the password never signs him in): the same answer as
-  // anybody's, but no e-mail, and his challenge takes no code — not even the one of his registration e-mail.
+  // The owner's address (owner, 27.11.2026: a code without the password never signs the owner in): the same answer as
+  // anybody's, but no e-mail, and the owner's challenge takes no code — not even the one of the owner's registration e-mail.
   const toBoss = sender.to('boss@example.com').length
   const boss = await email.loginStart({ ip: '1', body: { email: 'boss@example.com' } })
   assert.equal(boss.status, 200)

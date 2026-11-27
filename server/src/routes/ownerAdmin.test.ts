@@ -34,8 +34,8 @@ function fakeYooKassa() {
 }
 
 /**
- * The owner's own actions in the audit log: each test signs the owner in first, and every sign-in of his is logged too
- * (owner.sign-in, owner 27.11.2026 — checked in ownerLogin.test.ts); these tests look at what he did after it.
+ * The owner's own actions in the audit log: each test signs the owner in first, and every sign-in of the owner is logged too
+ * (owner.sign-in, owner 27.11.2026 — checked in ownerLogin.test.ts); these tests look at what the owner did after it.
  */
 const ownerActions = <T extends { action: string }>(entries: T[]) => entries.filter((entry) => entry.action !== 'owner.sign-in')
 
@@ -857,7 +857,7 @@ test('«Новый пароль» (owner, 26.11.2026): a link for 48 hours, the 
     return { status: response.status, json: (await response.json()) as Record<string, unknown> }
   }
   try {
-    // The owner signs in with his password and then the code from the e-mail (owner, 27.11.2026).
+    // The owner signs in with the password and then the code from the e-mail (owner, 27.11.2026).
     const started = await post('/login', { email: 'owner@example.com', password })
     assert.equal(started.status, 202, JSON.stringify(started.json))
     const owner = String((await post('/login/confirm', { challengeId: started.json.challengeId, code: sender.lastCode('owner@example.com') })).json.token)
@@ -902,7 +902,7 @@ test('«Новый пароль» (security review, 27.11.2026): a used link, a 
     return { status: response.status, json: (await response.json()) as Record<string, unknown> }
   }
   try {
-    // The owner signs in with his password and then the code from the e-mail (owner, 27.11.2026).
+    // The owner signs in with the password and then the code from the e-mail (owner, 27.11.2026).
     const started = await post('/login', { email: 'owner@example.com', password })
     assert.equal(started.status, 202, JSON.stringify(started.json))
     const owner = String((await post('/login/confirm', { challengeId: started.json.challengeId, code: sender.lastCode('owner@example.com') })).json.token)

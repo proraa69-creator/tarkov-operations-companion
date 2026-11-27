@@ -237,8 +237,8 @@ export interface ApiOptions {
   /** Registration asks for the e-mail code (default REGISTRATION_EMAIL_CODE). */
   registrationEmailCode?: boolean
   /**
-   * The owner's code from the e-mail after his password (default on; it works only while `emails` can send): false signs
-   * him in with the password alone (ownerLoginCodeFrom: TARKOV_OWNER_LOGIN_CODE=0).
+   * The owner's code from the e-mail after the password (default on; it works only while `emails` can send): false signs
+   * the owner in with the password alone (ownerLoginCodeFrom: TARKOV_OWNER_LOGIN_CODE=0).
    */
   ownerLoginCode?: boolean
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
@@ -541,7 +541,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // /auth-config, so the site shows no button (`googleBlocked: true`), signed in before or not (owner, 25.11.2026).
   const russia = options.russianNetworks
   const russianVisitor = (ip: string | undefined) => russia?.isRussianAddress(ip) === true
-  // The owner's sign-ins (owner, 27.11.2026): each one goes into his audit log and a notice to his address — when, the
+  // The owner's sign-ins (owner, 27.11.2026): each one goes into the owner's audit log and a notice to the owner's address — when, the
   // address, the country, the device and the way (services/ownerSignIn.ts). Players' sign-ins are not looked at.
   const signIns: SignInListener = (accountId, method, origin) => {
     if (!accounts.isOwner(accountId)) return
@@ -549,8 +549,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     try { adminStore?.audit(accounts.emailOf(accountId) ?? accountId, 'owner.sign-in', undefined, signInAudit(method, place)) } catch { /* the sign-in itself succeeded */ }
     emails.notifyOwnerSignIn(accountId, method, place)
   }
-  // The owner's second factor: with e-mail codes on, his password is followed by a code from the e-mail
-  // (services/emailAuth.ts). `ownerLoginCode: false` (TARKOV_OWNER_LOGIN_CODE=0, index.ts) signs him in with the password
+  // The owner's second factor: with e-mail codes on, the owner's password is followed by a code from the e-mail
+  // (services/emailAuth.ts). `ownerLoginCode: false` (TARKOV_OWNER_LOGIN_CODE=0, index.ts) signs the owner in with the password
   // alone again — the way back in should the mail stop.
   const ownerLogin = options.ownerLoginCode === false ? undefined : emails
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails, registrationEmailCode: options.registrationEmailCode ?? REGISTRATION_EMAIL_CODE, ownerLogin, onSignIn: signIns }))

@@ -11917,24 +11917,24 @@ Not pushed, not released, nothing uploaded.
 - The owner's e-mail is out of the files: the build skill says <почта владельца> (sessions know it), deploy/linux/install.sh
   requires RAIDOS_OWNER_EMAILS, the ops-reference scripts read it from the environment or /etc/raidos/release-config.json.
 
-## 2026-11-27 23:15 — Claude: the owner's second factor — a code from the e-mail after his password, a notice after every sign-in (claude/owner-second-factor, not pushed)
+## 2026-11-27 23:15 — Claude: the owner's second factor — a code from the e-mail after the password, a notice after every sign-in (claude/owner-second-factor, not pushed)
 
 - Owner, 27.11.2026 («Да, делай»): while the server sends e-mails, the right password of the owner's account answers 202
   { secondFactor, challengeId, expiresAt, resendSeconds, message } with no session and e-mails «Код для входа в
-  админ-панель Raid OS» («если это не вы — смените пароль»); POST /v1/accounts/login/confirm with that code signs him in,
+  админ-панель Raid OS» («если это не вы — смените пароль»); POST /v1/accounts/login/confirm with that code signs the owner in,
   POST /login/resend sends a new code for the same challenge (the password stays good 30 minutes, each code 10). Players
   and the Apple reviewer sign in as before; without an e-mail provider (the laptop's server, tests) the owner signs in
   with the password as before; TARKOV_OWNER_LOGIN_CODE=0 in the API's environment turns the code off (the way back in
   over SSH should the mail stop; electron/apiEnv.ts lists it). His open sessions stay.
-- A code never signs him in without the password: the owner-login challenge (hash only, 5 attempts) exists only after the
-  right password and only /login/confirm takes it. /email/login/start answered his address with a sign-in code until now
-  (e-mail was his «primary factor»): it answers as for anybody and sends nothing, and /email/login refuses his account.
-  «Забыли пароль?» by e-mail stays for him (code + new password) and notifies him.
+- A code never signs the owner in without the password: the owner-login challenge (hash only, 5 attempts) exists only after the
+  right password and only /login/confirm takes it. /email/login/start answered the owner's address with a sign-in code until now
+  (e-mail was the owner's «primary factor»): it answers as for anybody and sends nothing, and /email/login refuses the owner's account.
+  «Забыли пароль?» by e-mail stays for the owner (code + new password) and notifies the owner.
 - His codes count their own cooldown (EMAIL_RESEND_COOLDOWN_MS), daily caps and wrong codes (MAX_WRONG_CODES_PER_DAY;
   email_code_failures.purpose, added at the start), outside the service's daily budget: other people's requests, decoy
-  codes or a spent budget do not lock him out. A send the provider refuses is 502 with no session (fail closed).
+  codes or a spent budget do not lock the owner out. A send the provider refuses is 502 with no session (fail closed).
   /login/confirm counts as a sign-in path for the guard (wrong codes are 401 like a wrong password).
-- After every sign-in of his — password and code, the password while codes are off, a new password by an e-mail code, a
+- After every sign-in of the owner — password and code, the password while codes are off, a new password by an e-mail code, a
   QR code from another device — «Raid OS: вход в аккаунт владельца»: Bangkok time, IP, country (Cloudflare, else RU by
   the Russian networks), the device in short (server/src/services/ownerSignIn.ts; the PC app names itself
   RaidOS-Desktop/<version>), the way; never a code. owner_audit_log gets owner.sign-in with the same (the User-Agent cut
@@ -11954,8 +11954,8 @@ Not pushed, not released, nothing uploaded.
   the old electron/linux/updater (tar) and staleServer failures of this PC; typecheck of the app, Electron
   (tsconfig.electron.json), the server and the site; eslint on the changed files (3 old warnings in EmailAuth.tsx).
 - Not pushed, not released; no updateHistory / playerNews row (the integrator's). Risks: the PC and phone apps from
-  before this release do not know the 202 and tell the owner «Сервер вернул неожиданный ответ» — his open sessions stay
-  (90 days from the last use), and until the new phone build he signs in on the phone through the site or by the QR code
-  of a signed-in PC; a refused send (Resend's daily cap of the Free plan) stops his new sign-ins until the mail works or
-  TARKOV_OWNER_LOGIN_CODE=0; whoever holds his mailbox can still reset the password by e-mail and then sign in with the
+  before this release do not know the 202 and tell the owner «Сервер вернул неожиданный ответ» — the owner's open sessions stay
+  (90 days from the last use), and until the new phone build the owner signs in on the phone through the site or by the QR code
+  of a signed-in PC; a refused send (Resend's daily cap of the Free plan) stops the owner's new sign-ins until the mail works or
+  TARKOV_OWNER_LOGIN_CODE=0; whoever holds the owner's mailbox can still reset the password by e-mail and then sign in with the
   new password and a code — the second factor stops a leaked password, not a lost mailbox.

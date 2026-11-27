@@ -9,7 +9,7 @@ import './account.css'
 
 /**
  * The owner's sign-in, step 2 (owner, 27.11.2026: «После верного пароля на почту владельца приходит код, без кода входа
- * нет»): the server took his password and e-mailed a code; only that code signs the app in (POST /v1/accounts/login/confirm,
+ * нет»): the server took the owner's password and e-mailed a code; only that code signs the app in (POST /v1/accounts/login/confirm,
  * through the main process on the PC — the session never reaches this page — or sync/webAccount.ts on the phone). The
  * same step in the account window (AccountSignIn.tsx) and in «Аккаунт сервера» (components/ServerAccountPanel.tsx).
  */

@@ -672,7 +672,7 @@ export const api = {
   emailVerifyConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/email/confirm', { method: 'POST', token, body: { challengeId, code } }),
   /** 200 AuthResult, or 202 PendingSecondFactor for the owner's account while the server sends e-mail codes. */
   login: (email: string, password: string) => request<AuthResult | PendingSecondFactor>('/login', { method: 'POST', body: { email, password } }),
-  /** The code from the e-mail after the owner's password: his session. */
+  /** The code from the e-mail after the owner's password: the owner's session. */
   loginConfirm: (challengeId: string, code: string) => request<AuthResult>('/login/confirm', { method: 'POST', body: { challengeId, code } }),
   /** «Отправить код ещё раз» on the owner's code step: the same challenge, a new code. */
   loginResend: (challengeId: string) => request<CodeChallenge>('/login/resend', { method: 'POST', body: { challengeId } }),

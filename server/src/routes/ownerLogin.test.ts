@@ -15,16 +15,16 @@ import { isLoginPath } from '../services/securityGuard.js'
 /**
  * The owner's second factor (owner, 27.11.2026: «После верного пароля на почту владельца приходит код, без кода входа нет.
  * После каждого входа владельцу приходит уведомление»), through the real API (server/src/app.ts): the right password of
- * the owner's account answers 202 and e-mails a code; POST /login/confirm with it signs him in. A code never signs him in
+ * the owner's account answers 202 and e-mails a code; POST /login/confirm with it signs the owner in. A code never signs the owner in
  * without the password. Players and the Apple reviewer's account are untouched; without an e-mail provider the owner
- * signs in with the password as before. Every sign-in of his e-mails him a notice and goes into his audit log.
+ * signs in with the password as before. Every sign-in of the owner e-mails the owner a notice and goes into the owner's audit log.
  */
 const OWNER = 'owner@example.com'
 const PLAYER = 'player@example.com'
 const REVIEWER = 'reviewer@example.com'
 const password = 'correct horse battery'
 const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-/** A visitor behind the site's proxy (trust proxy = loopback): his address, Cloudflare's country and his browser. */
+/** A visitor behind the site's proxy (trust proxy = loopback): their address, Cloudflare's country and their browser. */
 const VISITOR = { 'x-forwarded-for': '203.0.113.7', 'cf-ipcountry': 'TH', 'user-agent': CHROME }
 const from = (ip: string) => ({ ...VISITOR, 'x-forwarded-for': ip })
 
@@ -76,7 +76,7 @@ async function world(options: { email?: boolean; ownerLoginCode?: boolean; daily
   return { db, accounts, emails, sender, logs, send, sessions, audit, signIn, close, ownerSession, ownerId, now, advance: (ms: number) => { clock += ms } }
 }
 
-test('the owner\'s right password: 202 and a code by e-mail, no session; the right code signs him in, his old sessions stay', async () => {
+test('the owner\'s right password: 202 and a code by e-mail, no session; the right code signs the owner in, old sessions of the owner stay', async () => {
   const t = await world()
   try {
     const before = t.sessions()
@@ -117,7 +117,7 @@ test('the owner\'s right password: 202 and a code by e-mail, no session; the rig
   } finally { await t.close() }
 })
 
-test('after every sign-in of the owner: a notice by e-mail (Bangkok time, IP, country, device; no code) and his audit log', async () => {
+test('after every sign-in of the owner: a notice by e-mail (Bangkok time, IP, country, device; no code) and the audit log of the owner', async () => {
   const t = await world()
   try {
     await t.signIn()
@@ -180,7 +180,7 @@ test('a wrong code is refused; five end it; «Отправить код ещё �
   } finally { await t.close() }
 })
 
-test('a code never signs the owner in without his password', async () => {
+test('a code never signs the owner in without the password of the owner', async () => {
   const t = await world()
   try {
     const before = t.sessions()
@@ -208,13 +208,13 @@ test('a code never signs the owner in without his password', async () => {
     const reset = await t.send('POST', '/email/reset/start', { email: OWNER }, from('198.51.100.2'))
     await t.emails.settled()
     assert.equal((await t.send('POST', '/login/confirm', { challengeId: reset.body.challengeId, code: t.sender.lastCode(OWNER) })).status, 401)
-    // An e-mail sign-in code made for his account before the second factor existed: refused at the moment of use.
+    // An e-mail sign-in code made for the owner's account before the second factor existed: refused at the moment of use.
     const salt = newSalt()
     const oldId = 'B'.repeat(32)
     t.db.prepare("INSERT INTO email_challenges (digest, purpose, email, account_id, salt, code_hash, attempts, created_at, expires_at) VALUES (?, 'login', ?, ?, ?, ?, 0, ?, ?)")
       .run(sha256(oldId), OWNER, t.ownerId, salt, codeHash(salt, 'login', OWNER, '424242'), t.now(), t.now() + EMAIL_CODE_TTL_MS)
     assert.equal((await t.send('POST', '/email/login', { challengeId: oldId, code: '424242' })).status, 401)
-    assert.equal(t.sessions(), before, 'nothing signed him in')
+    assert.equal(t.sessions(), before, 'nothing signed the owner in')
     // His own code still does, after the password.
     assert.equal((await t.send('POST', '/login/confirm', { challengeId: started.body.challengeId, code })).status, 200)
   } finally { await t.close() }
@@ -242,7 +242,7 @@ test('players and the Apple reviewer sign in as before: no code, no notice, noth
   } finally { await t.close() }
 })
 
-test('without an e-mail provider the owner signs in with the password, as before; the sign-in is in his log', async () => {
+test('without an e-mail provider the owner signs in with the password, as before; the sign-in is in the log of the owner', async () => {
   const t = await world({ email: false })
   try {
     const answer = await t.send('POST', '/login', { email: OWNER, password })
@@ -292,7 +292,7 @@ test('a code the provider refuses: 502, no session, no challenge; the password w
 test('nobody else\'s requests lock the owner out: wrong codes on decoys, the address cap, the spent daily budget', async () => {
   const t = await world({ dailyLimit: 40 })
   try {
-    // Wrong codes typed into decoys of his address (sign-in by e-mail code) up to the daily cap…
+    // Wrong codes typed into decoys of the owner's address (sign-in by e-mail code) up to the daily cap…
     for (let round = 0; round * MAX_EMAIL_CODE_ATTEMPTS < MAX_WRONG_CODES_PER_DAY; round++) {
       const decoy = await t.send('POST', '/email/login/start', { email: OWNER }, from(`198.51.100.${10 + round}`))
       for (let attempt = 0; attempt < MAX_EMAIL_CODE_ATTEMPTS; attempt++) await t.send('POST', '/email/login', { challengeId: decoy.body.challengeId, code: '000000' }, from(`198.51.100.${10 + round}`))
@@ -310,7 +310,7 @@ test('nobody else\'s requests lock the owner out: wrong codes on decoys, the add
     await t.emails.settled()
     while (t.emails.sentToday() < 40) await t.emails.sendTest('someone@example.com')
     assert.equal((await t.send('POST', '/email/login/start', { email: PLAYER }, from('192.0.2.201'))).status, 503)
-    // The owner still gets his code and signs in.
+    // The owner still gets the owner's code and signs in.
     const session = await t.signIn()
     assert.equal(session.account.owner, true)
   } finally { await t.close() }
@@ -337,7 +337,7 @@ test('the password again within a minute waits for the cooldown; each challenge 
   } finally { await t.close() }
 })
 
-test('a new password by an e-mail code and a QR sign-in notify the owner and go into his log as well', async () => {
+test('a new password by an e-mail code and a QR sign-in notify the owner and go into the log of the owner as well', async () => {
   const t = await world()
   try {
     const reset = await t.send('POST', '/email/reset/start', { email: OWNER })

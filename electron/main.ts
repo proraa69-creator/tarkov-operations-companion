@@ -836,7 +836,7 @@ function registerIpc() {
   // The public website address (streamer links, QR codes): the server's site, or this PC's public link.
   ipcMain.handle('account:website-url', () => websiteBase({ forPhone: true }))
   ipcMain.handle('account:login', (_event, email: unknown, password: unknown) => accountLogin(email, password))
-  // The owner's account: the code from the e-mail after his password; the session stays in the main process too.
+  // The owner's account: the code from the e-mail after the password; the session stays in the main process too.
   ipcMain.handle('account:login-confirm', (_event, challengeId: unknown, code: unknown) => accountLoginConfirm(challengeId, code))
   // «Войти по QR-коду» on this PC: the phone signed in to the account approves it (serviceGateway.ts accountQrStart).
   ipcMain.handle('account:qr-start', async () => {

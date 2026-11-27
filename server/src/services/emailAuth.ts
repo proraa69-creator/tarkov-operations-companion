@@ -27,13 +27,13 @@
  *   limits (req.ip, trust proxy = loopback) and a global daily budget (TARKOV_EMAIL_DAILY_LIMIT) of which registration
  *   may use at most REGISTRATION_BUDGET_SHARE, keeping the rest for sign-in, reset and confirmation codes.
  *   Sign-in / reset requests answer the same for unknown addresses.
- * - Owners (owner, 27.11.2026: «второй фактор для входа владельца»): the code from the e-mail is his second factor, after
- *   the password. POST /login with his right password answers 202 and sends a code (startOwnerLogin, purpose
- *   'owner-login': a challenge exists only after the password); POST /login/confirm with that code signs him in. A code
- *   alone never does: /email/login/start answers him as anybody but sends nothing (a decoy, as SMS does for him,
- *   services/phoneAuth.ts), and /email/login refuses his account. «Забыли пароль?» by e-mail stays (code + new password).
- *   His codes count their own cooldown, daily cap and wrong codes (only his 'owner-login' rows), outside the service's
- *   daily budget: somebody else's requests cannot lock him out. After every sign-in of his a notice goes to his address
+ * - Owners (owner, 27.11.2026: «второй фактор для входа владельца»): the code from the e-mail is the owner's second factor, after
+ *   the password. POST /login with the owner's right password answers 202 and sends a code (startOwnerLogin, purpose
+ *   'owner-login': a challenge exists only after the password); POST /login/confirm with that code signs the owner in. A code
+ *   alone never does: /email/login/start answers the owner as anybody but sends nothing (a decoy, as SMS does for the owner,
+ *   services/phoneAuth.ts), and /email/login refuses the owner's account. «Забыли пароль?» by e-mail stays (code + new password).
+ *   The owner's codes count their own cooldown, daily cap and wrong codes (only the 'owner-login' rows), outside the service's
+ *   daily budget: somebody else's requests cannot lock the owner out. After every sign-in of the owner a notice goes to the owner's address
  *   (notifyOwnerSignIn: when, the address, the country, the device; no code). Owner rights themselves need a confirmed
  *   e-mail (AccountStore.isOwner).
  * - Nothing here logs an address, a code or a key; provider failures are logged as provider + status only.
@@ -234,8 +234,8 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
    * and test e-mails are not code requests: they never trigger the cooldown or count towards the per-address cap.
    * Cooldown and cap count per address AND requesting IP (somebody else's requests do not lock the owner out), with
    * an overall per-address cap on top against e-mail bombing from many addresses. The owner's sign-in codes (asked
-   * only with his right password) count their own rows only and stay outside the service's daily budget: nobody else's
-   * requests can use up or hold back the code he needs to sign in.
+   * only with the owner's right password) count their own rows only and stay outside the service's daily budget: nobody else's
+   * requests can use up or hold back the code the owner needs to sign in.
    */
   private checkQuota(email: string, ip: string | undefined, purpose: EmailPurpose) {
     const now = this.now()
@@ -423,7 +423,7 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
 
   /**
    * The same answer for every address; the code goes only to an existing account that is not blocked. The owner gets a
-   * reset code, never a sign-in code: he signs in with his password and then the code (startOwnerLogin).
+   * reset code, never a sign-in code: the owner signs in with the password and then the code (startOwnerLogin).
    */
   start(purpose: 'login' | 'reset', rawEmail: string, ip?: string) {
     const sender = this.requireEnabled()
@@ -454,7 +454,7 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
       throw new EmailAuthError(400, WRONG_CODE_MESSAGE)
     }
     // Wrong codes per address per day, across all its challenges (new challenges do not reset the count). The owner's
-    // sign-in codes count apart: wrong codes typed into somebody's decoy for his address cannot lock him out.
+    // sign-in codes count apart: wrong codes typed into somebody's decoy for the owner's address cannot lock the owner out.
     const failures = this.db.prepare(`SELECT COUNT(*) AS n, MIN(at) AS first FROM email_code_failures WHERE email_digest = ? AND at > ? AND ${owner ? "purpose = 'owner-login'" : "(purpose IS NULL OR purpose <> 'owner-login')"}`).get(emailDigest(String(row.email)), now - DAY_MS) as Row
     if (Number(failures.n) >= MAX_WRONG_CODES_PER_DAY) {
       const wait = Math.max(60, Math.ceil((Number(failures.first) + DAY_MS - now) / 1000))
@@ -486,7 +486,7 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
 
   login(challengeId: string, code: string) {
     const accountId = this.signInTarget('login', challengeId, code)
-    // A code alone never signs the owner in (a sign-in code of his from before 27.11.2026, or an address listed since).
+    // A code alone never signs the owner in (a sign-in code of the owner's from before 27.11.2026, or an address listed since).
     if (this.accounts.isOwner(accountId)) throw new EmailAuthError(400, WRONG_CODE_MESSAGE)
     return { accountId, token: this.accounts.startSession(accountId) }
   }
@@ -516,8 +516,8 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
   // -------------------------------------------------------------------------------------------------------------
 
   /**
-   * Called only after the owner's right password: a code to his address, sent before the answer. A refused send takes
-   * the challenge back and refuses the sign-in (502): while the server sends e-mails, the password alone never signs him
+   * Called only after the owner's right password: a code to the owner's address, sent before the answer. A refused send takes
+   * the challenge back and refuses the sign-in (502): while the server sends e-mails, the password alone never signs the owner
    * in. No per-IP cap here (the password guards it, with the sign-in limits of the route).
    */
   async startOwnerLogin(accountId: string, ip?: string) {
@@ -539,7 +539,7 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
     return this.answer(challenge)
   }
 
-  /** The owner's account the challenge was made for, while it still is his at the same address. */
+  /** The owner's account the challenge was made for, while it still is the owner's at the same address. */
   private ownerOf(row: Row) {
     const account = this.accounts.accountByEmail(String(row.email))
     return account && account.id === String(row.account_id) && this.accounts.isOwner(account.id) ? account : undefined
@@ -547,7 +547,7 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
 
   /**
    * «Отправить код ещё раз» on the code step: a new code for the same challenge while the password is fresh
-   * (OWNER_LOGIN_TTL_MS), with the cooldown and caps of his codes; the old code stays good if the send fails.
+   * (OWNER_LOGIN_TTL_MS), with the cooldown and caps of the owner's codes; the old code stays good if the send fails.
    */
   async resendOwnerLogin(challengeId: string, ip?: string) {
     const sender = this.requireEnabled()
@@ -575,7 +575,7 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
     return this.answer({ challengeId, expiresAt })
   }
 
-  /** The code after the owner's password: his account, to sign in (the route makes the session). */
+  /** The code after the owner's password: the owner's account, to sign in (the route makes the session). */
   confirmOwnerLogin(challengeId: string, code: string) {
     const row = this.consume('owner-login', challengeId, code)
     const account = this.ownerOf(row)
@@ -585,7 +585,7 @@ export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor
   }
 
   /**
-   * After every sign-in of the owner's account (app.ts): a notice to his address — when (Bangkok time), the address, the
+   * After every sign-in of the owner's account (app.ts): a notice to the owner's address — when (Bangkok time), the address, the
    * country when known, the device and the way — sent in the background, never holding the sign-in up. Not a code
    * request: no cooldown, no cap, outside the daily budget (it still counts as sent). Nothing without a sender.
    */
@@ -723,8 +723,8 @@ export function createEmailHandlers(accounts: AccountStore, emails: EmailAuthSer
     }),
 
     /**
-     * The code after the owner's password (POST /login answered 202 { secondFactor }): his session. Only a challenge made
-     * after his right password exists to check; a wrong or old code is a failed sign-in (401), as /email/login.
+     * The code after the owner's password (POST /login answered 202 { secondFactor }): the owner's session. Only a challenge made
+     * after the owner's right password exists to check; a wrong or old code is a failed sign-in (401), as /email/login.
      */
     loginConfirm: (req: AccountsRequest) => guard(() => {
       const stop = off() ?? hit(verifyLimiter, ip(req))

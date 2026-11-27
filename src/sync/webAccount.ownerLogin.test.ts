@@ -29,7 +29,7 @@ function server(options: { wrongCode?: boolean } = {}) {
   return { fetchMock, calls }
 }
 
-describe('phone transport: the owner\'s code from the e-mail after his password', () => {
+describe('phone transport: the owner\'s code from the e-mail after the password', () => {
   beforeEach(() => { localStorage.clear() })
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
 

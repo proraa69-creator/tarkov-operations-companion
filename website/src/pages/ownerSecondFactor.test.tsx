@@ -49,7 +49,7 @@ async function passwordStep() {
   return screen.findByText('Мы отправили код на e-mail')
 }
 
-describe('website: the owner\'s code from the e-mail after his password', () => {
+describe('website: the owner\'s code from the e-mail after the password', () => {
   afterEach(() => { cleanup(); localStorage.clear(); for (const mock of Object.values(mocks)) mock.mockReset() })
 
   it('asks the code, then signs this browser in with it', async () => {

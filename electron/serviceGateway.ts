@@ -226,7 +226,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Registration in the app: only «Отправить код ещё раз» (answers a new challenge, never a session) goes through here.
   // POST /register and /register/confirm return a session, so they have their own IPC (accountRegister below).
   { methods: ['POST'], path: /^\/v1\/accounts\/register\/resend$/ },
-  // The owner's code step after his password (owner, 27.11.2026): the same — «Отправить код ещё раз» here, the code itself
+  // The owner's code step after the password (owner, 27.11.2026): the same — «Отправить код ещё раз» here, the code itself
   // (POST /login/confirm returns a session) has its own IPC (accountLoginConfirm below).
   { methods: ['POST'], path: /^\/v1\/accounts\/login\/resend$/ },
   // The accepted version of the legal documents after registration (152-ФЗ: the consent must be provable).

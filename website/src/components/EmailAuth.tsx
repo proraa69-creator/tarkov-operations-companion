@@ -113,7 +113,7 @@ export function RegistrationCodeStep({ email, pending, onDone, onBack }: { email
 
 /**
  * The owner's sign-in, step 2 (owner, 27.11.2026: «После верного пароля на почту владельца приходит код, без кода входа
- * нет»): the server took his password and e-mailed a code; only that code gives this browser a session.
+ * нет»): the server took the owner's password and e-mailed a code; only that code gives this browser a session.
  */
 export function SignInCodeStep({ email, pending, onDone, onBack }: { email: string; pending: PendingSecondFactor; onDone: () => void; onBack: () => void }) {
   const auth = useAuth()

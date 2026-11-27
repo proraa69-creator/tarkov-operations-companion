@@ -2025,7 +2025,7 @@ export interface PendingRegistrations {
 /** What the owner's sign-in needs from services/emailAuth.ts (the same: no import cycle). */
 export interface OwnerSecondFactor {
   readonly enabled: boolean
-  /** Only after his right password: a code to his address (502 when the provider refuses it). */
+  /** Only after the owner's right password: a code to the owner's address (502 when the provider refuses it). */
   startOwnerLogin(accountId: string, ip?: string): Promise<{ challengeId: string; expiresAt: string; resendSeconds: number }>
 }
 
@@ -2163,7 +2163,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       }
       // The owner's account while the server sends e-mails (owner, 27.11.2026: «После верного пароля на почту владельца
       // приходит код, без кода входа нет»): no session for the password alone. His code goes out now; POST /login/confirm
-      // with it signs him in. Players and the Apple reviewer's account sign in as before.
+      // with it signs the owner in. Players and the Apple reviewer's account sign in as before.
       const second = options.ownerLogin
       if (second?.enabled && store.isOwner(accountId)) {
         const challenge = await second.startOwnerLogin(accountId, req.ip)

@@ -1,7 +1,7 @@
 /**
  * The owner's sign-ins (owner, 27.11.2026: «второй фактор для входа владельца… После каждого входа владельцу приходит
  * уведомление»): how a session came (SignInMethod), where from (SignInOrigin: the request's address, Cloudflare's country,
- * the browser or the app), and the lines the owner's notice and his audit log show of it. Never a code, a token or a
+ * the browser or the app), and the lines the owner's notice and the owner's audit log show of it. Never a code, a token or a
  * password; the whole User-Agent stays out of the e-mail.
  */
 import { countryName } from '../../../src/shared/countries'
@@ -23,7 +23,7 @@ export interface SignInOrigin {
   country?: string
 }
 
-/** Told of every sign-in that made a session (app.ts: for the owner's account, his notice and the audit log). */
+/** Told of every sign-in that made a session (app.ts: for the owner's account, the owner's notice and the audit log). */
 export type SignInListener = (accountId: string, method: SignInMethod, origin: SignInOrigin) => void
 
 /** The origin of a framework-free request (routes put `agent` and `country` next to `ip`). */

@@ -1,6 +1,6 @@
 /**
  * Raid OS e-mails: one-time codes, the «someone tried to register with your address» notice, the owner's test e-mail,
- * and the owner's sign-in: the code after his password (owner-login) and the notice after every sign-in (owner-signin).
+ * and the owner's sign-in: the code after the password (owner-login) and the notice after every sign-in (owner-signin).
  * Russian first, one English line. Plain inline-styled HTML plus a text part: no images, no remote resources, no
  * tracking pixels, no tracked links.
  */

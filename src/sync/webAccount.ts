@@ -213,7 +213,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Registration in the app: «Отправить код ещё раз» and the consent record. /register and /register/confirm return a
   // session: webAccountRegister / webAccountRegisterConfirm keep it, like the sign-in.
   { methods: ['POST'], path: /^\/v1\/accounts\/register\/resend$/ },
-  // The owner's code step after his password (owner, 27.11.2026): «Отправить код ещё раз»; the code itself
+  // The owner's code step after the password (owner, 27.11.2026): «Отправить код ещё раз»; the code itself
   // (/login/confirm returns a session) is webAccountLoginConfirm / webAdminAccountLoginConfirm.
   { methods: ['POST'], path: /^\/v1\/accounts\/login\/resend$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },

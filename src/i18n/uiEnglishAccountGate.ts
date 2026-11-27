@@ -29,7 +29,7 @@ export const ACCOUNT_GATE_PHRASES: Array<[string, string]> = [
   ['Неизвестная страна. Выберите страну из списка.', 'Unknown country. Choose one from the list.'],
   ['Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.', 'Choose your country. If the sign-up form has no «Country» field, update the app or sign up at raidos.app.'],
   ['Укажите корректный e-mail и пароль от 8 до 128 символов', 'Enter a valid e-mail and a password of 8 to 128 characters'],
-  // The owner's sign-in: the code from the e-mail after his password (owner, 27.11.2026; server/src/services/emailAuth.ts)
+  // The owner's sign-in: the code from the e-mail after the password (owner, 27.11.2026; server/src/services/emailAuth.ts)
   ['Мы отправили код на почту. Введите его, чтобы войти.', 'We sent a code to your e-mail. Enter it to sign in.'],
   ['Срок входа истёк. Введите пароль ещё раз.', 'The sign-in has expired. Enter your password again.'],
   ['Слишком много неверных кодов. Попробуйте завтра.', 'Too many wrong codes. Try again tomorrow.'],
