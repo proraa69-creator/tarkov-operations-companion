@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import { scopeSiteCss } from './src/shared/scopeSiteCss.ts'
 import { fontScaleCss } from './src/theme/fontScaleCss.ts'
 import { PART_PACK_FILE, PART_PACK_NAME, writePartPack } from './src/arsenal/partPack.ts'
+import { vitestTempCleanup } from './src/test/vitestTempDir.ts'
 import { RANGE_PACK_FILE, RANGE_PACK_NAME } from './src/range/rangePack.ts'
 
 /**
@@ -171,7 +172,9 @@ export default defineConfig({
   plugins: [appStoreStubs(), scopedSiteCss(), react(), ocrAssets(), startupIntro(),
     picturePack('gun-parts', PART_PACK_NAME, PART_PACK_FILE),
     // «Полигон» (src/range/rangeFigures.ts): its pictures ship in every build since 0.6.0.338 (src/app/rangeFeature.ts)
-    picturePack('range-figures', RANGE_PACK_NAME, RANGE_PACK_FILE)],
+    picturePack('range-figures', RANGE_PACK_NAME, RANGE_PACK_FILE),
+    // only Vitest calls it: takes away the folder each test run leaves in Temp (src/test/vitestTempDir.ts)
+    vitestTempCleanup()],
   // «Размер шрифта» (src/theme/fontSize.ts): every font size in px times var(--font-scale, 1)
   css: { postcss: { plugins: [fontScaleCss()] } },
   build: {

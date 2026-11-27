@@ -11725,3 +11725,26 @@ Not pushed, not released, nothing uploaded.
   default) and «Для квестов · M»; under «Все ключи» the stash keys no quest needs follow the cards, «Не нужны для квестов».
 - src/pages/QuestKeysPage.tsx, src/quests/questKeys.css, English and 9 languages; a test in QuestKeysPage.test.tsx. The 352 news
   row has its item (11 languages), the history row its words. typecheck; vitest src/pages/QuestKeysPage, src/i18n, src/quests 264/264.
+
+## 2026-11-27 21:05 — Claude: a test run takes its folder in Temp away (claude/vitest-temp-cleanup, not pushed)
+
+- Owner, 27.11.2026, on «Сделать, чтобы тесты сами убирали этот мусор?»: «Да, сделай». In the morning disk C: was full: 995
+  Vitest folders (~11 GB) in Temp, removed with his word; by the evening there were 277 more (3 GB).
+- Why: Vitest 5.0.2 (package.json takes `latest`) writes the modules it hands the workers into os.tmpdir()/<21 characters>/
+  client|ssr (`Vitest._tmpDir`) and never removes it; only a project's own folder is cleared on close, and a config without
+  `projects` uses the root one.
+- src/test/vitestTempDir.ts, a plugin in vite.config.ts (`configureVitest` → `vitest.onClose`): when Vitest closes, the run's
+  own folder goes, and so do the run folders unchanged for a day (killed runs, checkouts without the plugin): a 21-character
+  name holding only `client`/`ssr` folders of plain files; a link or junction is never followed. On Windows Vitest spells
+  `_tmpDir` with forward slashes (pathe), so the paths are compared after resolve().
+- Branch claude/vitest-temp-cleanup from release/production 42490dbc (E:/FromC/raidos-vitest-temp-cleanup); owned files:
+  src/test/vitestTempDir.ts, src/test/vitestTempDir.test.ts, vite.config.ts, this log.
+- Checks: vitestTempDir.test.ts 3/3, typecheck, eslint. With TEMP set to an empty folder a run leaves nothing there, the same
+  run on the old config leaves its folder; folders aged two days are removed. The whole suite on the real Temp: 277 Vitest
+  folders (3.04 GB, the oldest 33 h) → 196 (2.53 GB, the oldest 23.8 h). Its failures are the old config's too (the 29
+  failed files run again on both): appUpdate.ownerExe (`/tmp`), linux/updater (tar), staleServer, appVersion (Windows path),
+  AdminPanelPage, release-policy.test.mjs and cache-item-images.test.mjs (node:test files); the serviceGateway ones only
+  wanted server/node_modules in the new checkout; three MapsPage tests time out under load either way.
+- Not pushed. Tests only, nothing for the players' news. A checkout cleans up once it has this commit, so it goes with the
+  next release (owner's word); until then the other checkouts' runs keep leaving folders, and a run with the plugin removes
+  them after a day.
