@@ -27,26 +27,36 @@
  *   limits (req.ip, trust proxy = loopback) and a global daily budget (TARKOV_EMAIL_DAILY_LIMIT) of which registration
  *   may use at most REGISTRATION_BUDGET_SHARE, keeping the rest for sign-in, reset and confirmation codes.
  *   Sign-in / reset requests answer the same for unknown addresses.
- * - Owners: e-mail is the owner's primary factor, so owner accounts MAY sign in and reset the password by e-mail code
- *   (unlike SMS, services/phoneAuth.ts). Owner rights themselves need a confirmed e-mail (AccountStore.isOwner).
+ * - Owners (owner, 27.11.2026: «второй фактор для входа владельца»): the code from the e-mail is his second factor, after
+ *   the password. POST /login with his right password answers 202 and sends a code (startOwnerLogin, purpose
+ *   'owner-login': a challenge exists only after the password); POST /login/confirm with that code signs him in. A code
+ *   alone never does: /email/login/start answers him as anybody but sends nothing (a decoy, as SMS does for him,
+ *   services/phoneAuth.ts), and /email/login refuses his account. «Забыли пароль?» by e-mail stays (code + new password).
+ *   His codes count their own cooldown, daily cap and wrong codes (only his 'owner-login' rows), outside the service's
+ *   daily budget: somebody else's requests cannot lock him out. After every sign-in of his a notice goes to his address
+ *   (notifyOwnerSignIn: when, the address, the country, the device; no code). Owner rights themselves need a confirmed
+ *   e-mail (AccountStore.isOwner).
  * - Nothing here logs an address, a code or a key; provider failures are logged as provider + status only.
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import { normalizeAdMark, type AdMark } from '../../../src/shared/adSources'
 import { normalizeCountry } from '../../../src/shared/countries'
-import { AccountError, bearer, BLOCKED_MESSAGE, COUNTRY_INVALID_MESSAGE, FixedWindowRateLimiter, linkNetDigest, newPasswordHash, signupDigest, type AccountsRequest, type AccountsResponse, type AccountStore, type PendingRegistrations } from './accountStore.js'
+import { AccountError, bearer, BLOCKED_MESSAGE, COUNTRY_INVALID_MESSAGE, FixedWindowRateLimiter, linkNetDigest, newPasswordHash, signupDigest, type AccountsRequest, type AccountsResponse, type AccountStore, type OwnerSecondFactor, type PendingRegistrations } from './accountStore.js'
 import { DEFAULT_EMAIL_LIMITS, EmailSendError, type EmailLimits, type EmailSender } from './email/index.js'
 import { renderEmail, type EmailTemplate } from './email/templates.js'
 import { CODE_LENGTH, codeHash, codeMatches, DAY_MS, newChallengeId, newCode, newSalt, sha256 } from './oneTimeCode.js'
+import { originOf, signInFacts, type SignInListener, type SignInMethod, type SignInOrigin } from './ownerSignIn.js'
 import { WRONG_CODE_MESSAGE } from './phoneAuth.js'
 
-export type EmailPurpose = 'register' | 'verify' | 'login' | 'reset'
+export type EmailPurpose = 'register' | 'verify' | 'login' | 'reset' | 'owner-login'
 export const EMAIL_CODE_TTL_MS = 10 * 60 * 1000
 /** «Новый пароль» from the owner's «Пользователи»: how long the link lives (EmailAuthService.passwordLink). */
 export const PASSWORD_LINK_TTL_MS = 48 * 60 * 60 * 1000
 /** How long a registration waits for its code (resends included). */
 export const REGISTRATION_TTL_MS = 30 * 60 * 1000
+/** How long the owner's right password stays good for «Отправить код ещё раз» (each code itself: EMAIL_CODE_TTL_MS). */
+export const OWNER_LOGIN_TTL_MS = 30 * 60 * 1000
 export const EMAIL_RESEND_COOLDOWN_MS = 60 * 1000
 export const MAX_EMAIL_CODE_ATTEMPTS = 5
 /** «Кто-то пытался зарегистрироваться с вашим адресом»: at most one notice per address in this period. */
@@ -110,6 +120,9 @@ export const REGISTRATION_UNSENT_MESSAGE = 'Не удалось отправит
 const REGISTRATION_EXPIRED_MESSAGE = 'Срок подтверждения истёк. Зарегистрируйтесь ещё раз.'
 const TOO_MANY_ATTEMPTS_MESSAGE = 'Слишком много неверных попыток. Запросите новый код.'
 const IP_LIMIT_MESSAGE = 'Слишком много запросов кода с этого адреса. Попробуйте завтра.'
+/** «Отправить код ещё раз» after OWNER_LOGIN_TTL_MS, or a challenge that is gone: the password again. */
+export const OWNER_LOGIN_EXPIRED_MESSAGE = 'Срок входа истёк. Введите пароль ещё раз.'
+const OWNER_WRONG_CODES_MESSAGE = 'Слишком много неверных кодов. Попробуйте завтра.'
 
 /**
  * `ip`: digest of the address the registration was started from (accountStore signupDigest), never the address.
@@ -131,7 +144,7 @@ export interface EmailAuthOptions {
   log?: (message: string) => void
 }
 
-export class EmailAuthService implements PendingRegistrations {
+export class EmailAuthService implements PendingRegistrations, OwnerSecondFactor {
   private readonly accounts: AccountStore
   private readonly db: DatabaseSync
   private readonly sender?: EmailSender
@@ -154,6 +167,9 @@ export class EmailAuthService implements PendingRegistrations {
     this.db.exec(SCHEMA)
     const columns = new Set((this.db.prepare('PRAGMA table_info(email_requests)').all() as Row[]).map((row) => String(row.name)))
     if (!columns.has('ip_digest')) this.db.exec('ALTER TABLE email_requests ADD COLUMN ip_digest TEXT')
+    // The owner's wrong sign-in codes count apart from everybody's (MAX_WRONG_CODES_PER_DAY): older rows have none.
+    const failureColumns = new Set((this.db.prepare('PRAGMA table_info(email_code_failures)').all() as Row[]).map((row) => String(row.name)))
+    if (!failureColumns.has('purpose')) this.db.exec('ALTER TABLE email_code_failures ADD COLUMN purpose TEXT')
   }
 
   get enabled() {
@@ -217,13 +233,17 @@ export class EmailAuthService implements PendingRegistrations {
    * Budget, cooldown and per-address cap — checked the same way whether or not the address has an account. Notices
    * and test e-mails are not code requests: they never trigger the cooldown or count towards the per-address cap.
    * Cooldown and cap count per address AND requesting IP (somebody else's requests do not lock the owner out), with
-   * an overall per-address cap on top against e-mail bombing from many addresses.
+   * an overall per-address cap on top against e-mail bombing from many addresses. The owner's sign-in codes (asked
+   * only with his right password) count their own rows only and stay outside the service's daily budget: nobody else's
+   * requests can use up or hold back the code he needs to sign in.
    */
   private checkQuota(email: string, ip: string | undefined, purpose: EmailPurpose) {
     const now = this.now()
-    if (this.sentToday() >= this.limits.dailyLimit) throw new EmailAuthError(503, BUDGET_MESSAGE)
+    const owner = purpose === 'owner-login'
+    if (!owner && this.sentToday() >= this.limits.dailyLimit) throw new EmailAuthError(503, BUDGET_MESSAGE)
     if (purpose === 'register' && this.registrationSentToday() >= this.registrationBudget) throw new EmailAuthError(503, BUDGET_MESSAGE)
-    const recent = this.db.prepare("SELECT COUNT(*) AS n, MAX(at) AS last FROM email_requests WHERE email_digest = ? AND ip_digest = ? AND at > ? AND purpose NOT IN ('notice', 'test')").get(emailDigest(email), ipDigest(ip), now - DAY_MS) as Row
+    const counted = owner ? "purpose = 'owner-login'" : "purpose NOT IN ('notice', 'test', 'owner-notice')"
+    const recent = this.db.prepare(`SELECT COUNT(*) AS n, MAX(at) AS last FROM email_requests WHERE email_digest = ? AND ip_digest = ? AND at > ? AND ${counted}`).get(emailDigest(email), ipDigest(ip), now - DAY_MS) as Row
     const last = recent.last == null ? 0 : Number(recent.last)
     if (last && now - last < EMAIL_RESEND_COOLDOWN_MS) {
       const wait = Math.ceil((EMAIL_RESEND_COOLDOWN_MS - (now - last)) / 1000)
@@ -231,11 +251,11 @@ export class EmailAuthService implements PendingRegistrations {
     }
     const capped = 'Для этого адреса исчерпан лимит кодов на сутки. Попробуйте завтра.'
     if (Number(recent.n) >= this.limits.addressDailyLimit) throw new EmailAuthError(429, capped, 3600)
-    const overall = this.db.prepare("SELECT COUNT(*) AS n FROM email_requests WHERE email_digest = ? AND at > ? AND purpose NOT IN ('notice', 'test')").get(emailDigest(email), now - DAY_MS) as Row
+    const overall = this.db.prepare(`SELECT COUNT(*) AS n FROM email_requests WHERE email_digest = ? AND at > ? AND ${counted}`).get(emailDigest(email), now - DAY_MS) as Row
     if (Number(overall.n) >= this.limits.addressDailyLimit * ADDRESS_CAP_FACTOR) throw new EmailAuthError(429, capped, 3600)
   }
 
-  private record(email: string, purpose: EmailPurpose | 'notice' | 'test', sent: boolean, ip?: string) {
+  private record(email: string, purpose: EmailPurpose | 'notice' | 'test' | 'owner-notice', sent: boolean, ip?: string) {
     this.db.prepare('INSERT INTO email_requests (email_digest, purpose, at, sent, ip_digest) VALUES (?, ?, ?, ?, ?)').run(emailDigest(email), purpose, this.now(), sent ? 1 : 0, ipDigest(ip))
   }
 
@@ -252,7 +272,7 @@ export class EmailAuthService implements PendingRegistrations {
     const challengeId = newChallengeId()
     const salt = newSalt()
     const expiresAt = now + ttlMs
-    const pendingUntil = purpose === 'register' ? now + REGISTRATION_TTL_MS : null
+    const pendingUntil = purpose === 'register' ? now + REGISTRATION_TTL_MS : purpose === 'owner-login' ? now + OWNER_LOGIN_TTL_MS : null
     this.db.prepare('INSERT INTO email_challenges (digest, purpose, email, account_id, salt, code_hash, attempts, created_at, expires_at, pending_until, payload) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)')
       .run(sha256(challengeId), purpose, email, accountId ?? null, salt, codeHash(salt, purpose, email, code), now, expiresAt, pendingUntil, payload ? JSON.stringify(payload) : null)
     return { challengeId, code, expiresAt }
@@ -401,14 +421,17 @@ export class EmailAuthService implements PendingRegistrations {
   // Sign-in and password reset by e-mail code
   // -------------------------------------------------------------------------------------------------------------
 
-  /** The same answer for every address; the code goes only to an existing account that is not blocked (owners too). */
+  /**
+   * The same answer for every address; the code goes only to an existing account that is not blocked. The owner gets a
+   * reset code, never a sign-in code: he signs in with his password and then the code (startOwnerLogin).
+   */
   start(purpose: 'login' | 'reset', rawEmail: string, ip?: string) {
     const sender = this.requireEnabled()
     const email = normalize(rawEmail)
     if (ip !== undefined) this.hitIp(ip)
     this.checkQuota(email, ip, purpose)
     const account = this.accounts.accountByEmail(email)
-    const eligible = account !== undefined && !account.blocked
+    const eligible = account !== undefined && !account.blocked && !(purpose === 'login' && this.accounts.isOwner(account.id))
     const challenge = this.createChallenge(purpose, email, eligible ? account.id : undefined)
     this.record(email, purpose, eligible, ip)
     if (eligible) this.sendInBackground(sender, purpose, email, challenge.code)
@@ -416,29 +439,31 @@ export class EmailAuthService implements PendingRegistrations {
   }
 
   /**
-   * Checks a code. Every wrong try counts; after MAX_EMAIL_CODE_ATTEMPTS the code is gone (a registration keeps its
-   * pending data for «Отправить код ещё раз»). A correct code is used up. Decoys never match.
+   * Checks a code. Every wrong try counts; after MAX_EMAIL_CODE_ATTEMPTS the code is gone (a registration and the owner's
+   * sign-in keep their challenge for «Отправить код ещё раз»). A correct code is used up. Decoys never match.
    */
   private consume(purpose: EmailPurpose, challengeId: string, rawCode: string) {
     this.requireEnabled()
     const digest = sha256(challengeId)
     const row = this.db.prepare('SELECT * FROM email_challenges WHERE digest = ? AND purpose = ?').get(digest, purpose) as Row | undefined
     const now = this.now()
-    const keepPending = (candidate: Row) => purpose === 'register' && Number(candidate.pending_until ?? 0) > now
+    const owner = purpose === 'owner-login'
+    const keepPending = (candidate: Row) => (purpose === 'register' || owner) && Number(candidate.pending_until ?? 0) > now
     if (!row || Number(row.expires_at) <= now) {
       if (row && !keepPending(row)) this.db.prepare('DELETE FROM email_challenges WHERE digest = ?').run(digest)
       throw new EmailAuthError(400, WRONG_CODE_MESSAGE)
     }
-    // Wrong codes per address per day, across all its challenges (new challenges do not reset the count).
-    const failures = this.db.prepare('SELECT COUNT(*) AS n, MIN(at) AS first FROM email_code_failures WHERE email_digest = ? AND at > ?').get(emailDigest(String(row.email)), now - DAY_MS) as Row
+    // Wrong codes per address per day, across all its challenges (new challenges do not reset the count). The owner's
+    // sign-in codes count apart: wrong codes typed into somebody's decoy for his address cannot lock him out.
+    const failures = this.db.prepare(`SELECT COUNT(*) AS n, MIN(at) AS first FROM email_code_failures WHERE email_digest = ? AND at > ? AND ${owner ? "purpose = 'owner-login'" : "(purpose IS NULL OR purpose <> 'owner-login')"}`).get(emailDigest(String(row.email)), now - DAY_MS) as Row
     if (Number(failures.n) >= MAX_WRONG_CODES_PER_DAY) {
       const wait = Math.max(60, Math.ceil((Number(failures.first) + DAY_MS - now) / 1000))
-      throw new EmailAuthError(429, 'Слишком много неверных кодов для этого адреса. Попробуйте завтра или войдите по паролю.', wait)
+      throw new EmailAuthError(429, owner ? OWNER_WRONG_CODES_MESSAGE : 'Слишком много неверных кодов для этого адреса. Попробуйте завтра или войдите по паролю.', wait)
     }
     const attempts = Number(row.attempts) + 1
     const target = purpose === 'register' ? row.payload != null : row.account_id != null
     const match = codeMatches(row.code_hash as Uint8Array, row.salt as Uint8Array, purpose, String(row.email), rawCode) && target
-    if (!match) this.db.prepare('INSERT INTO email_code_failures (email_digest, at) VALUES (?, ?)').run(emailDigest(String(row.email)), now)
+    if (!match) this.db.prepare('INSERT INTO email_code_failures (email_digest, at, purpose) VALUES (?, ?, ?)').run(emailDigest(String(row.email)), now, purpose)
     if (match) this.db.prepare('DELETE FROM email_challenges WHERE digest = ?').run(digest)
     else if (attempts >= MAX_EMAIL_CODE_ATTEMPTS) {
       if (keepPending(row)) this.db.prepare('UPDATE email_challenges SET attempts = ?, expires_at = 0 WHERE digest = ?').run(attempts, digest)
@@ -461,6 +486,8 @@ export class EmailAuthService implements PendingRegistrations {
 
   login(challengeId: string, code: string) {
     const accountId = this.signInTarget('login', challengeId, code)
+    // A code alone never signs the owner in (a sign-in code of his from before 27.11.2026, or an address listed since).
+    if (this.accounts.isOwner(accountId)) throw new EmailAuthError(400, WRONG_CODE_MESSAGE)
     return { accountId, token: this.accounts.startSession(accountId) }
   }
 
@@ -482,6 +509,95 @@ export class EmailAuthService implements PendingRegistrations {
     const accountId = this.signInTarget('reset', challengeId, code)
     const token = await this.accounts.setPassword(accountId, password)
     return { accountId, token }
+  }
+
+  // -------------------------------------------------------------------------------------------------------------
+  // The owner's second factor: POST /login → 202, /login/confirm, /login/resend (accountStore createAccountsHandlers)
+  // -------------------------------------------------------------------------------------------------------------
+
+  /**
+   * Called only after the owner's right password: a code to his address, sent before the answer. A refused send takes
+   * the challenge back and refuses the sign-in (502): while the server sends e-mails, the password alone never signs him
+   * in. No per-IP cap here (the password guards it, with the sign-in limits of the route).
+   */
+  async startOwnerLogin(accountId: string, ip?: string) {
+    const sender = this.requireEnabled()
+    const raw = this.accounts.emailOf(accountId)
+    if (!raw) throw new EmailAuthError(401, 'Неверный e-mail или пароль')
+    const email = normalize(raw)
+    this.checkQuota(email, ip, 'owner-login')
+    const challenge = this.createChallenge('owner-login', email, accountId)
+    try {
+      await sender.send(renderEmail('owner-login', email, { code: challenge.code, ttlMinutes: EMAIL_CODE_TTL_MS / 60_000 }))
+    } catch (error) {
+      this.db.prepare('DELETE FROM email_challenges WHERE digest = ?').run(sha256(challenge.challengeId))
+      this.record(email, 'owner-login', false, ip)
+      this.log(this.failure(sender, error))
+      throw new EmailAuthError(502, REGISTRATION_UNSENT_MESSAGE)
+    }
+    this.record(email, 'owner-login', true, ip)
+    return this.answer(challenge)
+  }
+
+  /** The owner's account the challenge was made for, while it still is his at the same address. */
+  private ownerOf(row: Row) {
+    const account = this.accounts.accountByEmail(String(row.email))
+    return account && account.id === String(row.account_id) && this.accounts.isOwner(account.id) ? account : undefined
+  }
+
+  /**
+   * «Отправить код ещё раз» on the code step: a new code for the same challenge while the password is fresh
+   * (OWNER_LOGIN_TTL_MS), with the cooldown and caps of his codes; the old code stays good if the send fails.
+   */
+  async resendOwnerLogin(challengeId: string, ip?: string) {
+    const sender = this.requireEnabled()
+    const digest = sha256(challengeId)
+    const row = this.db.prepare("SELECT * FROM email_challenges WHERE digest = ? AND purpose = 'owner-login'").get(digest) as Row | undefined
+    const now = this.now()
+    if (!row || Number(row.pending_until ?? 0) <= now || !this.ownerOf(row)) {
+      if (row) this.db.prepare('DELETE FROM email_challenges WHERE digest = ?').run(digest)
+      throw new EmailAuthError(400, OWNER_LOGIN_EXPIRED_MESSAGE)
+    }
+    const email = String(row.email)
+    this.checkQuota(email, ip, 'owner-login')
+    const code = newCode()
+    const salt = newSalt()
+    const expiresAt = Math.min(now + EMAIL_CODE_TTL_MS, Number(row.pending_until))
+    try {
+      await sender.send(renderEmail('owner-login', email, { code, ttlMinutes: EMAIL_CODE_TTL_MS / 60_000 }))
+    } catch (error) {
+      this.record(email, 'owner-login', false, ip)
+      this.log(this.failure(sender, error))
+      throw new EmailAuthError(502, REGISTRATION_UNSENT_MESSAGE)
+    }
+    this.db.prepare('UPDATE email_challenges SET salt = ?, code_hash = ?, attempts = 0, expires_at = ? WHERE digest = ?').run(salt, codeHash(salt, 'owner-login', email, code), expiresAt, digest)
+    this.record(email, 'owner-login', true, ip)
+    return this.answer({ challengeId, expiresAt })
+  }
+
+  /** The code after the owner's password: his account, to sign in (the route makes the session). */
+  confirmOwnerLogin(challengeId: string, code: string) {
+    const row = this.consume('owner-login', challengeId, code)
+    const account = this.ownerOf(row)
+    if (!account) throw new EmailAuthError(400, WRONG_CODE_MESSAGE)
+    if (account.blocked) throw new EmailAuthError(403, BLOCKED_MESSAGE)
+    return account.id
+  }
+
+  /**
+   * After every sign-in of the owner's account (app.ts): a notice to his address — when (Bangkok time), the address, the
+   * country when known, the device and the way — sent in the background, never holding the sign-in up. Not a code
+   * request: no cooldown, no cap, outside the daily budget (it still counts as sent). Nothing without a sender.
+   */
+  notifyOwnerSignIn(accountId: string, method: SignInMethod, origin: SignInOrigin) {
+    const sender = this.sender
+    const raw = sender ? this.accounts.emailOf(accountId) : undefined
+    if (!sender || !raw) return
+    const email = normalize(raw)
+    this.record(email, 'owner-notice', true)
+    const job = sender.send(renderEmail('owner-signin', email, { facts: signInFacts(method, origin, this.now()) })).catch((error: unknown) => this.log(this.failure(sender, error)))
+    this.pending.add(job)
+    void job.finally(() => this.pending.delete(job))
   }
 
   /** «Отправить тестовое письмо» in the owner's laptop app (admin API only). Counts towards the daily budget. */
@@ -509,6 +625,8 @@ export interface EmailHandlerOptions {
   now?: () => number
   /** Per IP in 15 minutes: code requests (start) and code checks (verify). Per account per hour: confirmation codes. */
   limits?: Partial<Record<'start' | 'verify' | 'account', number>>
+  /** A sign-in by code or a new password made a session (app.ts: the owner's notice and audit log). */
+  onSignIn?: SignInListener
 }
 
 const emailSchema = z.string().trim().toLowerCase().max(254).email()
@@ -568,6 +686,7 @@ export function createEmailHandlers(accounts: AccountStore, emails: EmailAuthSer
       const parsed = verifySchema.safeParse(req.body)
       if (!parsed.success) return { status: 401, body: { error: WRONG_CODE_MESSAGE } }
       const { accountId, token } = emails.login(parsed.data.challengeId, parsed.data.code)
+      options.onSignIn?.(accountId, 'email-code', originOf(req))
       return { status: 200, body: { token, account: accounts.view(accountId) } }
     }).then(asLoginFailure),
 
@@ -578,6 +697,7 @@ export function createEmailHandlers(accounts: AccountStore, emails: EmailAuthSer
       if (!parsed.success) return verifySchema.safeParse(req.body).success ? { status: 400, body: { error: 'Новый пароль: от 8 до 128 символов' } } : { status: 401, body: { error: WRONG_CODE_MESSAGE } }
       try {
         const { accountId, token } = await emails.reset(parsed.data.challengeId, parsed.data.code, parsed.data.password)
+        options.onSignIn?.(accountId, 'email-reset', originOf(req))
         return { status: 200, body: { token, account: accounts.view(accountId) } }
       } catch (error) {
         if (error instanceof EmailAuthError && error.status === 400) return { status: 401, body: { error: error.message } }
@@ -600,6 +720,30 @@ export function createEmailHandlers(accounts: AccountStore, emails: EmailAuthSer
       const parsed = resendSchema.safeParse(req.body)
       if (!parsed.success) return { status: 400, body: { error: REGISTRATION_EXPIRED_MESSAGE } }
       return { status: 200, body: emails.resendRegistration(parsed.data.challengeId, req.ip) }
+    }),
+
+    /**
+     * The code after the owner's password (POST /login answered 202 { secondFactor }): his session. Only a challenge made
+     * after his right password exists to check; a wrong or old code is a failed sign-in (401), as /email/login.
+     */
+    loginConfirm: (req: AccountsRequest) => guard(() => {
+      const stop = off() ?? hit(verifyLimiter, ip(req))
+      if (stop) return stop
+      const parsed = verifySchema.safeParse(req.body)
+      if (!parsed.success) return { status: 401, body: { error: WRONG_CODE_MESSAGE } }
+      const accountId = emails.confirmOwnerLogin(parsed.data.challengeId, parsed.data.code)
+      const token = accounts.startSession(accountId)
+      options.onSignIn?.(accountId, 'password-code', originOf(req))
+      return { status: 200, body: { token, account: accounts.view(accounts.authenticate(token)!) } }
+    }).then(asLoginFailure),
+
+    /** «Отправить код ещё раз» on the owner's code step: the same challenge, a new code. */
+    loginResend: (req: AccountsRequest) => guard(async () => {
+      const stop = off() ?? hit(startLimiter, ip(req))
+      if (stop) return stop
+      const parsed = resendSchema.safeParse(req.body)
+      if (!parsed.success) return { status: 400, body: { error: OWNER_LOGIN_EXPIRED_MESSAGE } }
+      return { status: 200, body: await emails.resendOwnerLogin(parsed.data.challengeId, req.ip) }
     }),
 
     /** Signed in: send a confirmation code to the account's own address. */

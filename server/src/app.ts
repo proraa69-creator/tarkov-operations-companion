@@ -120,6 +120,7 @@ import type { ReleaseReportsWiring } from './services/releaseReports.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
 import type { EmailSender } from './services/email/types.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
+import { signInAudit, type SignInListener } from './services/ownerSignIn.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
 const syncSchema = z.object({
@@ -142,6 +143,14 @@ export const REGISTRATION_EMAIL_CODE = false
 export function registrationEmailCodeFrom(env: Record<string, string | undefined>) {
   const value = env.TARKOV_REGISTRATION_EMAIL_CODE?.trim()
   return value === '1' ? true : value === '0' ? false : REGISTRATION_EMAIL_CODE
+}
+
+/**
+ * The owner's second factor (owner, 27.11.2026): on wherever the server sends e-mails. `TARKOV_OWNER_LOGIN_CODE=0` in the
+ * API's environment turns it off without a release — the way back in over SSH should the mail stop; anything else keeps it.
+ */
+export function ownerLoginCodeFrom(env: Record<string, string | undefined>) {
+  return env.TARKOV_OWNER_LOGIN_CODE?.trim() !== '0'
 }
 
 export interface ApiOptions {
@@ -227,6 +236,11 @@ export interface ApiOptions {
   russianNetworks?: RussianAddressCheck
   /** Registration asks for the e-mail code (default REGISTRATION_EMAIL_CODE). */
   registrationEmailCode?: boolean
+  /**
+   * The owner's code from the e-mail after his password (default on; it works only while `emails` can send): false signs
+   * him in with the password alone (ownerLoginCodeFrom: TARKOV_OWNER_LOGIN_CODE=0).
+   */
+  ownerLoginCode?: boolean
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
   rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
   /** Signed entitlements and devices; defaults to a key for this process only (index.ts passes the persistent one). */
@@ -522,20 +536,32 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))
   const emails = options.emails ?? new EmailAuthService(accounts)
-  app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails, registrationEmailCode: options.registrationEmailCode ?? REGISTRATION_EMAIL_CODE }))
-  app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
-  app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
   // «Войти через Google» (routes/google.ts): every country but Russia. A Russian address (req.ip: the visitor behind the
   // loopback proxy, see `trust proxy` above) is refused before the token is checked and gets no Google client in
   // /auth-config, so the site shows no button (`googleBlocked: true`), signed in before or not (owner, 25.11.2026).
   const russia = options.russianNetworks
   const russianVisitor = (ip: string | undefined) => russia?.isRussianAddress(ip) === true
+  // The owner's sign-ins (owner, 27.11.2026): each one goes into his audit log and a notice to his address — when, the
+  // address, the country, the device and the way (services/ownerSignIn.ts). Players' sign-ins are not looked at.
+  const signIns: SignInListener = (accountId, method, origin) => {
+    if (!accounts.isOwner(accountId)) return
+    const place = { ...origin, country: countryCode(origin.country) ?? (russianVisitor(origin.ip) ? 'RU' : undefined) }
+    try { adminStore?.audit(accounts.emailOf(accountId) ?? accountId, 'owner.sign-in', undefined, signInAudit(method, place)) } catch { /* the sign-in itself succeeded */ }
+    emails.notifyOwnerSignIn(accountId, method, place)
+  }
+  // The owner's second factor: with e-mail codes on, his password is followed by a code from the e-mail
+  // (services/emailAuth.ts). `ownerLoginCode: false` (TARKOV_OWNER_LOGIN_CODE=0, index.ts) signs him in with the password
+  // alone again — the way back in should the mail stop.
+  const ownerLogin = options.ownerLoginCode === false ? undefined : emails
+  app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails, registrationEmailCode: options.registrationEmailCode ?? REGISTRATION_EMAIL_CODE, ownerLogin, onSignIn: signIns }))
+  app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
+  app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore(), { onSignIn: signIns }))
   app.use('/v1/accounts', createGoogleRouter(accounts, { ...(options.googleVerifier ? { verify: options.googleVerifier } : {}), ...(russia ? { russia } : {}) }))
   const phones = options.phones ?? new PhoneAuthService(accounts)
   app.use('/v1/accounts', createPhoneRouter(accounts, phones, {
     extraConfig: (req) => ({ ...emails.publicConfig(), ...(russianVisitor(req.ip) ? { googleBlocked: true } : { googleClientId: GOOGLE_CLIENT_ID }) }),
   }))
-  app.use('/v1/accounts', createEmailRouter(accounts, emails))
+  app.use('/v1/accounts', createEmailRouter(accounts, emails, { onSignIn: signIns }))
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()

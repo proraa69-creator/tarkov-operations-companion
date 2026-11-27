@@ -7,7 +7,9 @@
  *
  * Routes:
  *   POST /register          { email, password, country, referralCode? } -> 201 { token, referralApplied, account } (country: ISO 3166-1 alpha-2, 400 when missing or unassigned)
- *   POST /login             { email, password }                  -> 200 { token, account }
+ *   POST /login             { email, password }                  -> 200 { token, account } | 202 { secondFactor, message,
+ *                           challengeId, expiresAt, resendSeconds } for the owner's account while e-mail codes are on: no
+ *                           session yet, the code from the e-mail signs in (POST /login/confirm, routes/email.ts)
  *   POST /logout            Bearer                               -> 204
  *   GET  /me                Bearer                               -> 200 account view
  *   POST /me/password       Bearer { currentPassword, newPassword } -> 200 { token, account } (all other sessions end)
@@ -41,6 +43,7 @@
 import express from 'express'
 import type { Request, Response } from 'express'
 import { createAccountsHandlers, type AccountsHandlerOptions, type AccountsRequest, type AccountsResponse, type AccountStore } from '../services/accountStore.js'
+import { proxiedCountry } from './loginCodes.js'
 
 export function createAccountsRouter(store: AccountStore, options: AccountsHandlerOptions = {}) {
   const handlers = createAccountsHandlers(store, options)
@@ -52,8 +55,9 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
     next()
   })
 
+  // The browser or app and the country go along for the owner's sign-in notice (services/ownerSignIn.ts).
   const adapt = (handler: (req: AccountsRequest) => Promise<AccountsResponse>) => async (req: Request, res: Response) => {
-    const result = await handler({ body: req.body, ip: req.ip, authorization: req.get('authorization'), query: req.query })
+    const result = await handler({ body: req.body, ip: req.ip, authorization: req.get('authorization'), query: req.query, agent: req.get('user-agent') ?? '', country: proxiedCountry(req) })
     if (result.headers) res.set(result.headers)
     if (result.body === undefined) res.status(result.status).end()
     else res.status(result.status).json(result.body)

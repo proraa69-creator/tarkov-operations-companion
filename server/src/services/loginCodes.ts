@@ -22,6 +22,7 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { z } from 'zod'
 import { AccountError, bearer, FixedWindowRateLimiter, type AccountsRequest, type AccountsResponse, type AccountStore } from './accountStore.js'
+import { originOf, type SignInListener } from './ownerSignIn.js'
 
 export const LOGIN_CODE_TTL_MS = 2 * 60 * 1000
 /** Unambiguous letters and digits (no 0/O, 1/I/L): 31 symbols, 8 of them ≈ 39.6 bits. */
@@ -191,6 +192,8 @@ export interface LoginCodeHandlerOptions {
   now?: () => number
   /** Per IP (and per account for signed-in calls) in a 10-minute window. */
   limits?: Partial<Record<'create' | 'redeem' | 'request' | 'poll' | 'approve', number>>
+  /** A code made a session (app.ts: the owner's notice and audit log). */
+  onSignIn?: SignInListener
 }
 
 const handOffSchema = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{43}$/) })
@@ -224,8 +227,9 @@ export function createLoginCodeHandlers(accounts: AccountStore, codes: LoginCode
     if (!accountId) return { status: 401, body: { error: 'Требуется вход в аккаунт' } }
     return run(accountId)
   })
-  const signIn = (accountId: string): AccountsResponse => {
+  const signIn = (accountId: string, req: AccountsRequest): AccountsResponse => {
     const token = accounts.startSession(accountId)
+    options.onSignIn?.(accountId, 'qr', originOf(req))
     return { status: 200, body: { token, account: accounts.view(accountId) } }
   }
 
@@ -238,7 +242,7 @@ export function createLoginCodeHandlers(accounts: AccountStore, codes: LoginCode
       if (stop) return stop
       const parsed = handOffSchema.safeParse(req.body)
       const accountId = parsed.success ? codes.redeemHandOff(parsed.data.code) : undefined
-      return accountId ? signIn(accountId) : { status: 404, body: { error: NOT_FOUND } }
+      return accountId ? signIn(accountId, req) : { status: 404, body: { error: NOT_FOUND } }
     }),
 
     createBrowserRequest: (req: AccountsRequest & { agent?: string; country?: string }) => guard(() =>
@@ -266,7 +270,7 @@ export function createLoginCodeHandlers(accounts: AccountStore, codes: LoginCode
       const state = parsed.success ? codes.poll(parsed.data.requestId, parsed.data.pollSecret) : 'expired'
       if (state === 'pending') return { status: 202, body: { status: 'pending' } }
       if (state === 'expired') return { status: 410, body: { error: 'Код истёк. Обновите QR-код.' } }
-      return signIn(state.accountId)
+      return signIn(state.accountId, req)
     }),
   }
 }

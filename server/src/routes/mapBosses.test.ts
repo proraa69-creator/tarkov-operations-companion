@@ -76,7 +76,8 @@ test('map bosses: the owner places and removes, everybody reads, players cannot 
     assert.equal((await call('POST', `/accounts/me/admin/map-bosses/${id}/remove`, owner)).status, 404)
 
     const audit = await call<{ entries: Array<{ action: string }> }>('GET', '/accounts/me/admin/audit', owner)
-    assert.deepEqual(audit.json.entries.map((entry) => entry.action).sort(), ['map.boss-place', 'map.boss-place', 'map.boss-place', 'map.boss-remove', 'map.boss-remove', 'map.boss-remove', 'map.boss-remove'])
+    // The owner's sign-in at the start is logged too (owner.sign-in, ownerLogin.test.ts); this test looks at the bosses.
+    assert.deepEqual(audit.json.entries.map((entry) => entry.action).filter((action) => action !== 'owner.sign-in').sort(), ['map.boss-place', 'map.boss-place', 'map.boss-place', 'map.boss-remove', 'map.boss-remove', 'map.boss-remove', 'map.boss-remove'])
   } finally {
     await close()
   }

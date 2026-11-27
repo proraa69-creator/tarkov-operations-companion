@@ -216,7 +216,7 @@ test('confirming the e-mail of an existing account: own code only, 5 attempts, 4
   assert.equal((await t.email.verifyConfirm({ ip: '1', authorization: auth(fourth), body: { challengeId: challenge(thirdStart.body), code: t.sender.lastCode('third@example.com') } })).status, 400)
 })
 
-test('sign-in by e-mail code: the same answer for unknown addresses, owners allowed, blocked accounts get nothing', async () => {
+test('sign-in by e-mail code: the same answer for unknown addresses, the owner gets no code, blocked accounts get nothing', async () => {
   const { email, sender, emails, signUp, accounts, advance } = setup({ owners: ['boss@example.com'] })
   await signUp('player@example.com')
   await signUp('boss@example.com')
@@ -233,12 +233,17 @@ test('sign-in by e-mail code: the same answer for unknown addresses, owners allo
   const signedIn = await email.login({ ip: '1', body: { challengeId: challenge(known.body), code: sender.lastCode('player@example.com') } })
   assert.equal(signedIn.status, 200)
   assert.equal((signedIn.body as { account: AccountView }).account.email, 'player@example.com')
-  // Owners may sign in by e-mail code (e-mail is their primary factor).
+  // The owner's address (owner, 27.11.2026: a code without the password never signs him in): the same answer as
+  // anybody's, but no e-mail, and his challenge takes no code — not even the one of his registration e-mail.
+  const toBoss = sender.to('boss@example.com').length
   const boss = await email.loginStart({ ip: '1', body: { email: 'boss@example.com' } })
+  assert.equal(boss.status, 200)
+  assert.deepEqual(Object.keys(boss.body as object).sort(), Object.keys(known.body as object).sort())
   await emails.settled()
-  const bossIn = await email.login({ ip: '1', body: { challengeId: challenge(boss.body), code: sender.lastCode('boss@example.com') } })
-  assert.equal(bossIn.status, 200)
-  assert.equal((bossIn.body as { account: AccountView }).account.owner, true)
+  assert.equal(sender.to('boss@example.com').length, toBoss)
+  for (const code of [sender.lastCode('boss@example.com')!, '123456']) {
+    assert.equal((await email.login({ ip: '1', body: { challengeId: challenge(boss.body), code } })).status, 401)
+  }
   // Blocked: no e-mail, and a code requested before the block stops working.
   advance(EMAIL_RESEND_COOLDOWN_MS)
   const pending = await email.loginStart({ ip: '1', body: { email: 'player@example.com' } })

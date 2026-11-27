@@ -142,7 +142,7 @@ export function bodyInjection(body: unknown, budget = 16_384) {
 
 /** Paths whose 401 means «wrong password / code» (counted as failed sign-ins, not as an expired session). */
 // Any letter case: Express matches the routes so (/v1/accounts/LOGIN signs in too), and such failures must count as well.
-const LOGIN_PATHS = /^\/v1\/accounts\/(?:login|email\/login|phone\/login|login-codes\/redeem|register\/confirm|email\/reset|phone\/reset)\/?$/i
+const LOGIN_PATHS = /^\/v1\/accounts\/(?:login|login\/confirm|email\/login|phone\/login|login-codes\/redeem|register\/confirm|email\/reset|phone\/reset)\/?$/i
 export const isLoginPath = (path: string) => LOGIN_PATHS.test(path)
 /**
  * Personal documents (settings, Collector, notes, the player's support chat), bug reports (a description may quote code

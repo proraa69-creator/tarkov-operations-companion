@@ -25,6 +25,7 @@ import { AD_ATTRIBUTION_MS, normalizeAdMark, type AdMark } from '../../../src/sh
 import { cleanManualCountry, countryByName, MANUAL_COUNTRY_CODE, normalizeCountry } from '../../../src/shared/countries'
 import { ownerDay } from '../../../src/shared/ownerTime'
 import { openDatabase, transaction } from './database.js'
+import { originOf, type SignInListener } from './ownerSignIn.js'
 import { ipRateKey, isLoopbackIp, normalizeIp } from './securityGuard.js'
 
 export type AccountKind = 'user' | 'streamer'
@@ -899,12 +900,20 @@ export class AccountStore {
   }
 
   async login(email: string, password: string) {
+    return { token: this.createSession(await this.passwordAccount(email, password)) }
+  }
+
+  /**
+   * The account of a right e-mail and password, without a session yet (POST /login: the owner's account then needs the
+   * code from the e-mail first, createAccountsHandlers). 401 for a wrong pair, 403 for a blocked account.
+   */
+  async passwordAccount(email: string, password: string) {
     const account = this.findByEmail(email)
     const hash = await hashPassword(password, account?.salt ?? this.dummySalt)
     if (!account || !timingSafeEqual(hash, account.passwordHash)) throw new AccountError(401, 'Неверный e-mail или пароль')
     // Checked only after the password, so the block is not revealed to somebody who does not know it.
     if (this.isBlocked(account.id)) throw new AccountError(403, BLOCKED_MESSAGE)
-    return { token: this.createSession(account.id) }
+    return account.id
   }
 
   logout(token: string) {
@@ -1975,7 +1984,11 @@ export class FixedWindowRateLimiter {
 // Framework-free handlers
 // ---------------------------------------------------------------------------------------------------------------
 
-export interface AccountsRequest { body?: unknown; ip?: string; authorization?: string; query?: unknown }
+/**
+ * `agent` (User-Agent) and `country` (Cloudflare's, routes/loginCodes.ts proxiedCountry): where a sign-in comes from, for
+ * the owner's notice and audit log (services/ownerSignIn.ts); the routes that sign in put them here.
+ */
+export interface AccountsRequest { body?: unknown; ip?: string; authorization?: string; query?: unknown; agent?: string; country?: string }
 export interface AccountsResponse { status: number; body: unknown; headers?: Record<string, string> }
 export interface AccountsHandlerOptions {
   /**
@@ -1993,6 +2006,14 @@ export interface AccountsHandlerOptions {
    * challenge and the account appears after POST /register/confirm with the code from the e-mail.
    */
   registrations?: PendingRegistrations
+  /**
+   * The owner's second factor (services/emailAuth.ts; owner, 27.11.2026). While `enabled`, the right password of the
+   * owner's account answers 202 { secondFactor } with no session: the code from the e-mail signs in (POST /login/confirm,
+   * routes/email.ts). Without it (no e-mail provider) the owner signs in with the password, as before.
+   */
+  ownerLogin?: OwnerSecondFactor
+  /** A sign-in made a session (app.ts: the owner's notice and audit log). */
+  onSignIn?: SignInListener
 }
 
 /** What registration needs from services/emailAuth.ts (kept as an interface to avoid an import cycle). */
@@ -2001,8 +2022,17 @@ export interface PendingRegistrations {
   startRegistration(email: string, password: string, referralCode?: string, ip?: string, country?: string, ad?: AdMark): Promise<{ challengeId: string; expiresAt: string; resendSeconds: number }>
 }
 
+/** What the owner's sign-in needs from services/emailAuth.ts (the same: no import cycle). */
+export interface OwnerSecondFactor {
+  readonly enabled: boolean
+  /** Only after his right password: a code to his address (502 when the provider refuses it). */
+  startOwnerLogin(accountId: string, ip?: string): Promise<{ challengeId: string; expiresAt: string; resendSeconds: number }>
+}
+
 /** The single answer to every registration while e-mail codes are on, whatever the address (anti-enumeration). */
 export const REGISTRATION_PENDING_MESSAGE = 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.'
+/** The owner's right password while e-mail codes are on (202 { secondFactor }): the code from the e-mail follows. */
+export const OWNER_CODE_SENT_MESSAGE = 'Мы отправили код на почту. Введите его, чтобы войти.'
 
 const emailSchema = z.string().trim().toLowerCase().max(254).email()
 const passwordSchema = z.string().min(8).max(128)
@@ -2124,13 +2154,23 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const key = loginKey(parsed.data.email)
       const retry = loginFailures.peek(key)
       if (retry) return { status: 429, body: { error: 'Слишком много неудачных попыток входа. Попробуйте позже или войдите по коду из письма.' }, headers: { 'Retry-After': String(retry) } }
-      let token: string
+      let accountId: string
       try {
-        token = (await store.login(parsed.data.email, parsed.data.password)).token
+        accountId = await store.passwordAccount(parsed.data.email, parsed.data.password)
       } catch (error) {
         if (error instanceof AccountError && error.status === 401) loginFailures.hit(key)
         throw error
       }
+      // The owner's account while the server sends e-mails (owner, 27.11.2026: «После верного пароля на почту владельца
+      // приходит код, без кода входа нет»): no session for the password alone. His code goes out now; POST /login/confirm
+      // with it signs him in. Players and the Apple reviewer's account sign in as before.
+      const second = options.ownerLogin
+      if (second?.enabled && store.isOwner(accountId)) {
+        const challenge = await second.startOwnerLogin(accountId, req.ip)
+        return { status: 202, body: { secondFactor: true, message: OWNER_CODE_SENT_MESSAGE, ...challenge } }
+      }
+      const token = store.startSession(accountId)
+      options.onSignIn?.(accountId, 'password', originOf(req))
       return { status: 200, body: { token, account: store.view(store.authenticate(token)!) } }
     }),
 

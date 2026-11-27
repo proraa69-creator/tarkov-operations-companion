@@ -57,6 +57,7 @@ const SCHEMA = `
 `
 
 export type AuditAction =
+  | 'owner.sign-in'
   | 'news.edit'
   | 'eft.rebind-case' | 'eft.case-status' | 'eft.dispute'
   | 'subscription.grant' | 'subscription.revoke' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'

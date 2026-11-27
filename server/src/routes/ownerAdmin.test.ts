@@ -33,6 +33,12 @@ function fakeYooKassa() {
   return { fetch, pay: (id: string) => Object.assign(remote.get(id)!, { status: 'succeeded', paid: true }) }
 }
 
+/**
+ * The owner's own actions in the audit log: each test signs the owner in first, and every sign-in of his is logged too
+ * (owner.sign-in, owner 27.11.2026 — checked in ownerLogin.test.ts); these tests look at what he did after it.
+ */
+const ownerActions = <T extends { action: string }>(entries: T[]) => entries.filter((entry) => entry.action !== 'owner.sign-in')
+
 /** The owner registers before the e-mail is listed (as the desktop app / build default requires). */
 async function setup() {
   let clock = Date.parse('2026-10-01T10:00:00.000Z')
@@ -217,7 +223,7 @@ test('manual grant extends the paid period from its end, validates input and is 
     assert.equal(overview.revenue.all.total, 0)
 
     const audit = (await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; actor: string; target: string; details: { reason: string } }> }
-    assert.deepEqual(audit.entries.map((entry) => [entry.action, entry.actor, entry.target, entry.details.reason]), [
+    assert.deepEqual(ownerActions(audit.entries).map((entry) => [entry.action, entry.actor, entry.target, entry.details.reason]), [
       ['subscription.grant', 'owner@example.com', 'player@example.com', 'конкурс'],
       ['subscription.grant', 'owner@example.com', 'player@example.com', 'компенсация за сбой'],
     ])
@@ -260,7 +266,7 @@ test('blocking revokes sessions, refuses login with 403 and cannot target the ow
     assert.equal((reset.json as unknown as { revoked: number }).revoked, 2)
     assert.equal((await t.call('GET', '/accounts/me', fresh)).status, 401)
 
-    const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string }> }).entries.map((entry) => entry.action)
+    const actions = ownerActions(((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string }> }).entries).map((entry) => entry.action)
     assert.deepEqual(actions, ['sessions.revoke', 'account.unblock', 'account.block'])
   } finally { await t.close() }
 })
@@ -283,7 +289,7 @@ test('«Отвязать аккаунт Escape from Tarkov»: shown masked in th
     // The game account is free: another account can take it.
     const other = await t.register('other@example.com')
     assert.equal((await t.call('POST', '/accounts/me/eft-account', other, { accountId: '7654321' })).status, 200)
-    const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target?: string }> }).entries
+    const actions = ownerActions(((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target?: string }> }).entries)
     assert.deepEqual(actions.map((entry) => [entry.action, entry.target]), [['eft.unbind', 'player@example.com']])
   } finally { await t.close() }
 })
@@ -435,7 +441,7 @@ test('«Удалить аккаунт» from the admin panel: owner only, erased
     assert.equal((await users()).json.users.some((user) => user.email === 'player@example.com'), false)
     // The e-mail is free again, and the journal names the deleted account.
     assert.equal((await t.call('POST', '/accounts/register', undefined, { email: 'player@example.com', password: 'correct horse battery staple', country: 'RU' })).status, 201)
-    const entries = (await t.call<{ entries: Array<{ action: string; target?: string }> }>('GET', '/accounts/me/admin/audit', owner)).json.entries
+    const entries = ownerActions((await t.call<{ entries: Array<{ action: string; target?: string }> }>('GET', '/accounts/me/admin/audit', owner)).json.entries)
     assert.deepEqual(entries.map((entry) => [entry.action, entry.target]), [['account.delete', 'player@example.com']])
   } finally { await t.close() }
 })
@@ -564,7 +570,7 @@ test('streamer percent per streamer applies to new payments only; a disabled lin
     const fourth = await t.call('POST', '/accounts/register', undefined, { email: 'fourth@example.com', password, country: 'RU', referralCode: 'HUNTER' })
     assert.equal((fourth.json as unknown as { referralApplied: boolean }).referralApplied, true)
 
-    const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string }> }).entries.map((entry) => `${entry.action}:${entry.target}`)
+    const actions = ownerActions(((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string }> }).entries).map((entry) => `${entry.action}:${entry.target}`)
     assert.deepEqual(actions, ['streamer.link:HUNTER', 'streamer.link:HUNTER', 'streamer.percent:HUNTER', 'streamer.percent:HUNTER'])
   } finally { await t.close() }
 })
@@ -590,7 +596,7 @@ test('the owner can take the streamer status away: the cabinet goes, the code st
     assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 2 })
     assert.equal((await t.call('POST', '/accounts/referral-visits', undefined, { code: 'HUNTER' })).status, 404)
     assert.throws(() => t.accounts.promoteToStreamer('owner@example.com', 'HUNTER'), /already taken/)
-    const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string }> }).entries.map((entry) => `${entry.action}:${entry.target}`)
+    const actions = ownerActions(((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string }> }).entries).map((entry) => `${entry.action}:${entry.target}`)
     assert.deepEqual(actions, ['streamer.revoke:HUNTER'])
   } finally { await t.close() }
 })
@@ -604,7 +610,7 @@ test("the owner's older actions (streamer invites) are written to the audit log"
     // Refused calls (and other people's) are not logged.
     assert.equal((await t.call('POST', '/accounts/me/admin/streamer-invites', owner, { code: '<b>' })).status, 400)
     assert.equal((await t.call('POST', '/accounts/me/admin/streamer-invites', player, { code: 'HACKER' })).status, 404)
-    const entries = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target?: string; details?: Record<string, unknown> }> }).entries
+    const entries = ownerActions(((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target?: string; details?: Record<string, unknown> }> }).entries)
     assert.deepEqual(entries.map((entry) => [entry.action, entry.target ?? '', entry.details ?? {}]), [
       ['streamer.invite', 'NEW_ONE', {}],
     ])
@@ -841,7 +847,8 @@ test('«Новый пароль» (owner, 26.11.2026): a link for 48 hours, the 
   first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
   await first.register('player@example.com', password)
   const accounts = new AccountStore({ db, now, ownerEmails: ['owner@example.com'] })
-  const emails = new EmailAuthService(accounts, { sender: new FakeEmailSender(), now })
+  const sender = new FakeEmailSender()
+  const emails = new EmailAuthService(accounts, { sender, now })
   const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/accounts`
@@ -850,7 +857,10 @@ test('«Новый пароль» (owner, 26.11.2026): a link for 48 hours, the 
     return { status: response.status, json: (await response.json()) as Record<string, unknown> }
   }
   try {
-    const owner = String((await post('/login', { email: 'owner@example.com', password })).json.token)
+    // The owner signs in with his password and then the code from the e-mail (owner, 27.11.2026).
+    const started = await post('/login', { email: 'owner@example.com', password })
+    assert.equal(started.status, 202, JSON.stringify(started.json))
+    const owner = String((await post('/login/confirm', { challengeId: started.json.challengeId, code: sender.lastCode('owner@example.com') })).json.token)
     const playerToken = String((await post('/login', { email: 'player@example.com', password })).json.token)
     const playerId = accounts.accountByEmail('player@example.com')!.id
     assert.equal((await post(`/me/admin/users/${playerId}/password-link`, {}, playerToken)).status, 404, 'nobody but the owner')
@@ -882,7 +892,8 @@ test('«Новый пароль» (security review, 27.11.2026): a used link, a 
   first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
   await first.register('player@example.com', password)
   const accounts = new AccountStore({ db, ownerEmails: ['owner@example.com'] })
-  const emails = new EmailAuthService(accounts, { sender: new FakeEmailSender() })
+  const sender = new FakeEmailSender()
+  const emails = new EmailAuthService(accounts, { sender })
   const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/accounts`
@@ -891,7 +902,10 @@ test('«Новый пароль» (security review, 27.11.2026): a used link, a 
     return { status: response.status, json: (await response.json()) as Record<string, unknown> }
   }
   try {
-    const owner = String((await post('/login', { email: 'owner@example.com', password })).json.token)
+    // The owner signs in with his password and then the code from the e-mail (owner, 27.11.2026).
+    const started = await post('/login', { email: 'owner@example.com', password })
+    assert.equal(started.status, 202, JSON.stringify(started.json))
+    const owner = String((await post('/login/confirm', { challengeId: started.json.challengeId, code: sender.lastCode('owner@example.com') })).json.token)
     const playerId = accounts.accountByEmail('player@example.com')!.id
     const link = async () => {
       const made = await post(`/me/admin/users/${playerId}/password-link`, {}, owner)

@@ -34,7 +34,7 @@ const REAL_PATHS = [
   '/v1/goons/pvp', '/v1/goons/pve/sightings',
   '/v1/payments/plans', '/v1/payments', '/v1/payments/autopay/cancel', '/v1/payments/2d0000000001-000f-5000-9000-1b68e7b15f3f',
   '/v1/payments/yookassa/webhook',
-  '/v1/accounts/register', '/v1/accounts/login', '/v1/accounts/logout', '/v1/accounts/me', '/v1/accounts/me/password',
+  '/v1/accounts/register', '/v1/accounts/login', '/v1/accounts/login/confirm', '/v1/accounts/login/resend', '/v1/accounts/logout', '/v1/accounts/me', '/v1/accounts/me/password',
   '/v1/accounts/me/referral', '/v1/accounts/me/nicknames', '/v1/accounts/referral-visits', '/v1/accounts/streamer-invite',
   '/v1/accounts/me/referral-stats?period=day', '/v1/accounts/me/referral-stats?period=month', '/v1/accounts/me/streamer-invite',
   '/v1/accounts/me/referral-campaigns', '/v1/accounts/me/consents',
