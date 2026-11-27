@@ -6,7 +6,7 @@ import { createEmailHandlers, EmailAuthService, EMAIL_CODE_TTL_MS, EMAIL_RESEND_
 import { createEmailSender, DEFAULT_EMAIL_FROM, emailConfigFromEnv, FakeEmailSender, validFrom, type FetchLike } from '../services/email/index.js'
 import { renderEmail } from '../services/email/templates.js'
 import { openDatabase } from '../services/database.js'
-import { createApi } from '../app.js'
+import { createApi, REGISTRATION_EMAIL_CODE, registrationEmailCodeFrom } from '../app.js'
 import { ProgressStore } from '../services/progressStore.js'
 
 const password = 'correct horse battery'
@@ -547,4 +547,13 @@ test('registration with an e-mail code keeps the country until the code (owner, 
   const finished = await t.email.registerConfirm({ ip: 'reg', body: { challengeId: before.challengeId, code: t.sender.lastCode('pending@example.com') } })
   assert.equal(finished.status, 201)
   assert.equal((finished.body as { account: AccountView }).account.country, undefined)
+})
+
+test('TARKOV_REGISTRATION_EMAIL_CODE turns the code at registration on or off on the server, without a release', () => {
+  assert.equal(registrationEmailCodeFrom({}), REGISTRATION_EMAIL_CODE)
+  assert.equal(registrationEmailCodeFrom({ TARKOV_REGISTRATION_EMAIL_CODE: '1' }), true)
+  assert.equal(registrationEmailCodeFrom({ TARKOV_REGISTRATION_EMAIL_CODE: ' 1 ' }), true)
+  assert.equal(registrationEmailCodeFrom({ TARKOV_REGISTRATION_EMAIL_CODE: '0' }), false)
+  // anything else keeps the built-in default
+  assert.equal(registrationEmailCodeFrom({ TARKOV_REGISTRATION_EMAIL_CODE: 'yes' }), REGISTRATION_EMAIL_CODE)
 })

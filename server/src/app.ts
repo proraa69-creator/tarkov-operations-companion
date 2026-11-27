@@ -135,6 +135,15 @@ const syncSchema = z.object({
  */
 export const REGISTRATION_EMAIL_CODE = false
 
+/**
+ * The real server's switch (owner, 27.11.2026: the codes come back once Resend's plan has no daily cap): `TARKOV_REGISTRATION_EMAIL_CODE=1`
+ * in the API's environment asks for the code at registration without a release, `0` or nothing keeps REGISTRATION_EMAIL_CODE.
+ */
+export function registrationEmailCodeFrom(env: Record<string, string | undefined>) {
+  const value = env.TARKOV_REGISTRATION_EMAIL_CODE?.trim()
+  return value === '1' ? true : value === '0' ? false : REGISTRATION_EMAIL_CODE
+}
+
 export interface ApiOptions {
   /** Look for promo codes every two hours (the real server, not the tests). */
   promoChecks?: boolean
