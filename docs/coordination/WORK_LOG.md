@@ -11987,3 +11987,16 @@ Not pushed, not released, nothing uploaded.
   release's new name reaches everyone at once.
 - History line for the release (no news, a fix): «Документы боевого пропуска: на Таможне фото «Проектной документации»
   в компьютерной комнате — как в игре», "reports":[253].
+
+## 2026-11-28 00:30 — Claude: 0.6.0.354 out by hand (the owner's word), the e-mail code at registration on
+
+- Owner (27.11 23:45): «Начинай собирать сборку и публикуй её… Публикуй приложение, новую версию» — an urgent release outside
+  the windows. 353 never went out alone: release/production 062b6257 (0.6.0.354, all of 353 and the owner's second factor,
+  report 253's photo, the owner's e-mail out of the files). Gate 46036606919 green; raidos-release.service started by hand.
+- The first run stopped at once: «Unsupported deployment path: .claude/skills/build-exe/SKILL.md». The installed
+  release-policy.mjs now counts .claude/ as never deployed, like CLAUDE.md (backup release-policy.mjs.bak-20261128; the
+  repo copy and its test: 922c0eb0). The second run published 0.6.0-354 (download/version.json, build 1795799715520).
+- TARKOV_REGISTRATION_EMAIL_CODE=1 in /etc/raidos/raidos-api.env (a dated copy beside it), API restarted: health 200, the
+  variable in the process, POST /register with Resend's test address answers 202 «Мы отправили код…», no send failure.
+- The owner's second factor is live: new owner sign-ins need the code from the e-mail; an app from before 0.6.0.354 shows
+  «Сервер вернул неожиданный ответ» at that step (open sessions stay).
