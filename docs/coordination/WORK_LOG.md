@@ -11735,3 +11735,30 @@ Not pushed, not released, nothing uploaded.
   under the game's ids 61952308… and 61952325…, the text says «любую из трёх». src/data/manualQuests.json lists it.
 - Checked on the real json.tarkov.dev catalogs (fetchLiveCatalog, PvP and PvE): two objectives, six points at their places in both.
   src/data/taskObjectiveMerges.test.ts (new); vitest src/data 591/591; typecheck clean. Not pushed: for the 13:00 window.
+
+## 2026-11-27 20:50 — Claude: «Спор за аккаунт Таркова» — a paying account is not locked out, the owner decides (security review, owner's word)
+
+- Owner, 27.11.2026 (a finding of the security review): a game account another Raid OS account holds no longer locks a paying
+  account (Premium now — paid, the owner's, a friend's or a streamer's — or a succeeded payment with money in it) out of its data
+  and access. The binding moves only by the owner's decision; meanwhile the account's free days wait (402, not the free day) and
+  «Пригласи друга» waits for its own binding, as before. Unpaid accounts stay locked; the owner's and the Apple reviewer's
+  accounts stay exempt.
+- An app device's report of such a game account opens a case in «Отчёты» → «Аккаунты Таркова» (eft_dispute_cases,
+  server/src/services/eftLedger.ts): who holds it, who claims it, whether each paid, when. One open case per game account and
+  claiming account; «Оставить привязку» stands while the same account holds it; a fitting report of the same device within
+  2 minutes takes the case back (two players on one PC); at most 3 open per account; it closes by itself when the claimant binds
+  the game account once it is free. The owner's buttons: «Взять» / «Вернуть», «Оставить привязку», «Отдать спорящему» (the
+  binding, and the game account's free period when the losing account had it; owner_audit_log eft.dispute), «Снять обе» (both
+  bindings and device reports). The owner's badge counts the open disputes.
+- 7f874958 (claude/eft-binding-cases from claude/referral-steps): server/src/services/{eftLedger,accountStore,entitlement,
+  adminStore}.ts, server/src/routes/{eftCases,data,entitlement}.ts, server/src/app.ts, src/reports/EftCasesTable.tsx and its css,
+  the site (AdminBugReports, bugReportsApi, the journal's labels in AdminSales), the owner app (ownerRequests, RequestsPage,
+  electron/serviceGateway.ts ROUTES), the phone (adminApi, AdminMobilePage, src/sync/webAccount.ts ROUTES — the phone's
+  «Аккаунты Таркова» tab had no address there), uiEnglishReports and 9 languages, docs/subscription-protection.md.
+- Checks: server 657/657 (eftAccounts +3, eftCases +5); vitest src/reports, src/sync, src/i18n, src/admin, RequestsPage,
+  ownerRequests, the site's admin and i18n, electron/serviceGateway 375/375; typecheck of the app, the site and the server;
+  eslint on the changed files.
+- Not pushed, not released. The owner app's and the phone's new addresses ship with their builds; until then their badge counts
+  the disputes while their list shows the old cases only (the site shows both with the server). A paying claimant still sees the
+  app's own notice «уже используется… напишите в поддержку», without the lock. The release row in updateHistory.json is the
+  integrator's.
