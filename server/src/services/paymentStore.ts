@@ -382,8 +382,11 @@ export class PaymentStore {
    * of one of our succeeded payments marks it refunded. A partial refund leaves the payment and the paid days to the owner
    * (logged), but listeners are told: a friend reward is cancelled by any refund (services/invites.ts).
    */
-  async syncRefund(refundId: string) {
+  async syncRefund(refundId: string, paymentHint?: unknown) {
     if (!this.config || !/^[A-Za-z0-9-]{10,64}$/.test(refundId)) return
+    // Only a refund of one of our succeeded payments is read from the API (security review, 27.11.2026): a made-up notice
+    // must not spend the shop key's requests. ЮKassa's refund notice always names its payment.
+    if (typeof paymentHint !== 'string' || !this.db.prepare("SELECT 1 FROM payments WHERE provider_id = ? AND (provider IS NULL OR provider = 'yookassa') AND status = 'succeeded'").get(paymentHint)) return
     const refund = await this.call('GET', `/refunds/${encodeURIComponent(refundId)}`)
     if (refund.status !== 'succeeded' || typeof refund.payment_id !== 'string') return
     const row = this.db.prepare("SELECT * FROM payments WHERE provider_id = ? AND (provider IS NULL OR provider = 'yookassa') AND status = 'succeeded'").get(refund.payment_id) as Row | undefined

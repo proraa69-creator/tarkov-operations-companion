@@ -182,7 +182,7 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     res.status(200).json({ ok: true })
     if (parsed.success && parsed.data.event.startsWith('payment.')) void payments.sync(parsed.data.object.id).catch(() => {})
     // A refund takes the paid days, the streamer's share and friend rewards back (re-read from the ЮKassa API).
-    if (parsed.success && parsed.data.event === 'refund.succeeded') void payments.syncRefund(parsed.data.object.id).catch(() => {})
+    if (parsed.success && parsed.data.event === 'refund.succeeded') void payments.syncRefund(parsed.data.object.id, (parsed.data.object as Record<string, unknown>).payment_id).catch(() => {})
   })
 
   return router

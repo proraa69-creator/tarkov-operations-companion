@@ -77,6 +77,20 @@ test('config comes only from a complete environment', () => {
   assert.equal(publicUrl('https://raidos.app@evil.example'), undefined)
 })
 
+test('a refund notice reaches the ЮKassa API only for one of our succeeded payments (security review, 27.11.2026)', async () => {
+  const { accounts, payments, yoo, accountId } = await setup()
+  const created = await payments.create(accounts.billingInfo(accountId), '1m', 'https://tarkov.example.com')
+  const id = providerId(created.confirmationUrl)
+  yoo.pay(id)
+  await payments.sync(id)
+  const before = yoo.requests.length
+  await payments.syncRefund('rf-0000000001-made-up', '2d9999999999-000f-5000-9000-1b68e7b15f3f').catch(() => {})
+  await payments.syncRefund('rf-0000000002-made-up', undefined).catch(() => {})
+  assert.equal(yoo.requests.length, before, 'a made-up payment or none: no request to ЮKassa')
+  await payments.syncRefund('rf-0000000003-made-up', id).catch(() => {})
+  assert.equal(yoo.requests.length, before + 1, 'our succeeded payment: the refund is read from the API')
+})
+
 test('a paid payment activates the subscription once and credits the streamer', async () => {
   const { accounts, payments, yoo, accountId, advance } = await setup()
   const created = await payments.create(accounts.billingInfo(accountId), '3m', 'https://tarkov.example.com')
