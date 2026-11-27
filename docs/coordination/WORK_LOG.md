@@ -11607,3 +11607,26 @@ Not pushed, not released, nothing uploaded.
   row (a fix), no report close (252 is closed already).
 - Tests: electron/startMenuIdentity 6/6, src/data and src/news 615 with them; typecheck clean. Not run with a notification
   on this PC (it writes HKCU and the Start menu: the owner's word first).
+
+## 2026-11-27 11:20 — Claude: «Пригласи друга» by the ranks, release 0.6.0.352 prepared (branch claude/referral-steps, not pushed yet)
+
+- Owner, 27.11.2026: «Переделать систему выдачи бонусных дней за приведенных друзей… За второго мы вообще не выдаем
+  дни… Мы только даем за конкретное число, за одного человека, за 3 человек, за 5 человек и за 10» (a month for 3,
+  three months for 5, a year for 10).
+- 78092f11: server/src/services/invites.ts — a friend's reward row carries 0 days; RANKS 1 — 7 days, 3 — 30, 5 — 90,
+  10 — 365 (after the owner's review, as the year was at 25); Legend (50, for life) gone, nobody had it. A row made
+  before keeps its 7 days, and Scout does not repeat the first friend's (refunding such a row lets Scout give them).
+  The site's cabinet, register page and offer (section 7, ред. 25, LEGAL_VERSION 2026-11-27.1 with
+  src/account/authFeatures.ts), the PC sign-in window, the owner's rules texts; 11 languages; the roadmap.
+- The server before the release (read-only): 29 inviters with one confirmed friend each, 3 friends on hold, all rows of
+  7 days (they keep them). The owner asked to give one player his second friend's 7 days now («Ему уже выдай 7 дней
+  за второго»): that reward's hold was ended by hand (release_at = now, decided_by the owner, audit «invite.decide»);
+  the server's hourly release() grants it with its usual checks.
+- Release commit: version 0.6.0-352; the history row (3 lines, no reports); the news row (1 item, «changed», 11 languages).
+- Checks: server 644/644; vitest of the site's cabinet, admin, legal and payment pages, src/account, src/i18n, src/admin
+  257/257; src/data and src/news 609/609; typecheck (app, site, server) clean; eslint on the changed files: one old
+  error in website AdminReferrals.tsx:123 (Date.now in render), not of this change. Not seen in a browser (the cabinet
+  needs a signed-in player).
+- Not pushed: the news line and the offer go to the owner first; for 20:00 it is pushed after 14:00 (the 13:00 window
+  publishes 0.6.0.351). The held draft claude/release-352 (the Overview editor, for 1 December) stays local; the
+  number 352 is this release's now.
