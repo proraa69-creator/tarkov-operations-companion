@@ -346,6 +346,39 @@ describe('«Ключи для квестов»', () => {
     } finally { data.items.pop() }
   })
 
+  // Owner, 28.11.2026 (in place of «Изменить ключи в схроне»): «− ×N +» right on each key of «Ключи в схроне».
+  it('«Ключи в схроне»: «−» and «+» on every key, «Все ключи» and «Для квестов»; on 0 the key leaves the stash', () => {
+    data.items.push({ id: 'k9', name: 'Ключ от времянки', shortName: 'Времянка', category: 'Ключ' } as unknown as Item)
+    try {
+      const profile = open()
+      act(() => { setOwnedKey(profile.id, 'pvp', 'k1', 1); setOwnedKey(profile.id, 'pvp', 'k2', 1); setOwnedKey(profile.id, 'pvp', 'k9', 2) })
+      // not on the list of every key, only in the stash
+      expect(screen.queryByRole('button', { name: /^Плюс один/ })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /^Ключи в схроне/ }))
+      const plus = (name: string) => screen.getByRole('button', { name: `Плюс один: ${name}` })
+      const minus = (name: string) => screen.getByRole('button', { name: `Минус один: ${name}` })
+      fireEvent.click(plus('Ключ от склада'))
+      expect(readOwnedKeys(profile.id, 'pvp').get('k1')).toBe(2)
+      expect(row('Ключ от склада')).toHaveTextContent('×2')
+      // a key no quest needs: two, one, gone from «Все ключи»
+      fireEvent.click(minus('Ключ от времянки'))
+      expect(screen.getByRole('region', { name: 'Не нужны для квестов' })).toHaveTextContent('×1')
+      fireEvent.click(minus('Ключ от времянки'))
+      expect(readOwnedKeys(profile.id, 'pvp').has('k9')).toBe(false)
+      expect(screen.queryByRole('region', { name: 'Не нужны для квестов' })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Все ключи · 2' })).toBeInTheDocument()
+      // «Для квестов» has them too
+      fireEvent.click(screen.getByRole('button', { name: 'Для квестов · 2' }))
+      fireEvent.click(minus('Ключ от гаража'))
+      expect(readOwnedKeys(profile.id, 'pvp').has('k2')).toBe(false)
+      expect(screen.queryByText('Ключ от гаража')).toBeNull()
+      // out of the stash: its quest card says «Нет в наличии»
+      fireEvent.click(screen.getByRole('button', { name: /^Ключи в схроне/ }))
+      expect(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' })).toBeInTheDocument()
+      expect(within(row('Ключ от склада')).getByRole('button', { name: 'Есть в схроне' })).toBeInTheDocument()
+    } finally { data.items.pop() }
+  })
+
   // Owner, 18.11.2026: «Если у нас горит кнопка «Нет в наличии», на нее можно нажать… и можно нажать «Добавить в наличие»»;
   // 25.11.2026: «не открывается окно на весь экран и не притемняет, а прям там же открывается окошечко „Добавить в наличие“. И ты
   // нажимаешь „Добавить“. Все.»

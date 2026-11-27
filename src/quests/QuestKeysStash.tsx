@@ -52,6 +52,18 @@ export function KeyScanHelp() {
   </>
 }
 
+/**
+ * «− ×N +» of one key: the pieces of «Ключи под вопросом» and of a key in «Ключи в схроне» (owner, 28.11.2026, in place of the
+ * stash editor: «−» one less, «+» one more of the same). `least`: «−» stops there (0: the key leaves).
+ */
+export function KeyCount({ name, pieces, least = 0, onChange }: { name: string; pieces: number; least?: number; onChange: (pieces: number) => void }) {
+  return <span className="quest-key-count">
+    <button type="button" className="icon-button" aria-label={`${uiText('Минус один')}: ${name}`} disabled={pieces <= least} onClick={() => onChange(pieces - 1)}><Minus size={14} aria-hidden="true" /></button>
+    <b>×{pieces}</b>
+    <button type="button" className="icon-button" aria-label={`${uiText('Плюс один')}: ${name}`} onClick={() => onChange(pieces + 1)}><Plus size={14} aria-hidden="true" /></button>
+  </span>
+}
+
 type Picked = ReadonlyMap<string, ReadonlyMap<string, number>>
 
 /**
@@ -111,11 +123,7 @@ export function UnsureKeysDialog({ items, profileId, mode, onClose, onDone }: { 
               {have !== undefined && <small className="quest-keys-unsure-owned">{uiText('Есть в схроне')} · ×{have}</small>}
             </span>
           </label>
-          {pieces !== undefined && <span className="quest-keys-stash-count">
-            <button type="button" className="icon-button" aria-label={`${uiText('Минус один')}: ${name}`} disabled={pieces <= 1} onClick={() => pick(label, id, pieces - 1)}><Minus size={13} /></button>
-            <b>×{pieces}</b>
-            <button type="button" className="icon-button" aria-label={`${uiText('Плюс один')}: ${name}`} onClick={() => pick(label, id, pieces + 1)}><Plus size={13} /></button>
-          </span>}
+          {pieces !== undefined && <KeyCount name={name} pieces={pieces} least={1} onChange={(next) => pick(label, id, next)} />}
         </li>
       })}</ul>
     </li>)}</ul>}

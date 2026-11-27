@@ -18,8 +18,8 @@ import { questKeyRows, type QuestKeyRow, type QuestKeyState, type QuestKeyUse } 
 import { QuestKeyBarterDialog, QuestKeyMarket } from '../quests/QuestKeyMarket'
 import { QuestKeyStockButton } from '../quests/QuestKeyStock'
 import { useKeyScan } from '../quests/keyScan'
-import { useKeyUses, useOwnedKeys } from '../quests/ownedKeys'
-import { KeyScanHelp, UnsureKeysDialog } from '../quests/QuestKeysStash'
+import { setOwnedKey, useKeyUses, useOwnedKeys } from '../quests/ownedKeys'
+import { KeyCount, KeyScanHelp, UnsureKeysDialog } from '../quests/QuestKeysStash'
 import { useUnsureKeys } from '../quests/unsureKeys'
 import { useAppState } from '../state/AppState'
 import '../quests/questKeys.css'
@@ -140,6 +140,11 @@ export function QuestKeysPage() {
     setStashAll(true)
     setToStash((count) => count + 1)
   }
+  // «− ×N +» on each key of «Ключи в схроне» (owner, 28.11.2026, in place of the stash editor): on 0 the key leaves the stash.
+  const pieces = (id: string, name: string) => {
+    const count = owned.get(id)
+    return count === undefined ? null : <KeyCount name={name} pieces={count} onChange={(next) => setOwnedKey(profileId, mode, id, next)} />
+  }
   const ownedNeeded = inTab('needed').filter((row) => owned.has(row.item.id)).length
   const maps =[...new Set(rows.flatMap((row) => row.mapIds))]
   const empty = TABS.find(({ id }) => id === tab)!.empty
@@ -221,6 +226,7 @@ export function QuestKeysPage() {
               : owned.size > 0 && row.state !== 'done' ? <QuestKeyStockButton item={row.item} profileId={profileId} mode={mode} /> : null}
             <QuestKeyMarket item={withLivePrice(row.item, mode, live)} mode={mode} barters={bartersByKey.get(row.item.id) ?? []} onBarter={() => setBarterKey(row.item)} />
             <button type="button" className={`icon-button quest-key-star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starLabel} title={starLabel} onClick={() => setQuestKeyFavorite(profileId, mode, row.item.id, !starred)}><Star size={16} aria-hidden="true" /></button>
+            {onlyStash && pieces(row.item.id, uiText(row.item.name))}
           </div>
           {row.needed.length > 0 && <ul className="quest-key-quests">{row.needed.map((use) => <li key={use.quest.id}>
             <span className="quest-key-quest">{questLink(use)}<small>{questFacts(use)}</small>{use.alternatives.length > 0 && <small>{uiText('или')}: {altNames(use)}</small>}</span>
@@ -239,14 +245,14 @@ export function QuestKeysPage() {
       </ul>}
     {showOther && <section className="panel quest-keys-other" aria-label={uiText('Не нужны для квестов')}>
       <h2 className="quest-keys-other-title">{uiText('Не нужны для квестов')} · {otherOwned.length}</h2>
-      <ul className="quest-keys-stash-list">{otherOwned.map(({ id, pieces, item }) => {
+      <ul className="quest-keys-stash-list">{otherOwned.map(({ id, item }) => {
         const max = item?.keyUses && item.keyUses > 0 ? item.keyUses : undefined
         const left = uses.get(id)
         return <li key={id}>
           <span className="quest-key-picture">{item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={20} aria-hidden="true" />}</span>
           <span className="quest-keys-stash-name"><strong>{uiText(item?.name ?? id)}</strong></span>
           {max !== undefined && left !== undefined && <small className="quest-keys-other-uses">{left} / {max}</small>}
-          <b className="quest-keys-other-pieces">×{pieces}</b>
+          {pieces(id, uiText(item?.name ?? id))}
         </li>
       })}</ul>
     </section>}

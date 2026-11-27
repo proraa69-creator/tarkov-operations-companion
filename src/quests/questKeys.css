@@ -141,6 +141,12 @@ button.quest-key-missing:hover { border-color: #d78a6e; color: #f0b9a5; }
 .quest-keys-unsure-pick input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--brass); cursor: pointer; }
 .quest-keys-unsure-pick .quest-key-picture { width: 40px; height: 40px; }
 .quest-keys-unsure-owned { color: var(--green); font-size: 11px; }
+/* «− ×N +» (QuestKeysStash.tsx KeyCount): a key's pieces in «Ключи под вопросом» and on the keys of «Ключи в схроне» (28.11.2026). */
+.quest-key-count { display: inline-flex; flex: none; align-items: center; gap: 5px; }
+.quest-key-count .icon-button { width: 30px; height: 30px; border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); color: var(--text); }
+.quest-key-count .icon-button:hover:not(:disabled) { border-color: var(--brass); color: var(--brass-strong, var(--brass)); }
+.quest-key-count .icon-button:disabled { opacity: .45; cursor: default; }
+.quest-key-count b { min-width: 26px; font-variant-numeric: tabular-nums; text-align: center; }
 .quest-keys-unsure-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
 .quest-keys-unsure-actions .button { min-width: 110px; gap: 6px; }
 
