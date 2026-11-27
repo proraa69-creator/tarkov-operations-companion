@@ -11987,3 +11987,30 @@ Not pushed, not released, nothing uploaded.
   release's new name reaches everyone at once.
 - History line for the release (no news, a fix): «Документы боевого пропуска: на Таможне фото «Проектной документации»
   в компьютерной комнате — как в игре», "reports":[253].
+
+## 2026-11-28 00:20 — Claude: «Ключи под вопросом» in place of «Изменить ключи в схроне» (claude/keys-in-question 0911af54, not pushed)
+
+- Owner, 27.11 (voice): no «Изменить ключи в схроне»; the keys a scan finds go to the stash at once, except the ones «под
+  вопросом» — that button renamed «Ключи под вопросом», blinking orange; after the scan its window opens by itself: «Найдены
+  ключи с одинаковыми названиями — выберите правильный ключ»; tick the key and how many, «Убрать» the ones not needed, «Ок»
+  carries to «Ключи в схроне». The false «Ключ от двери к пирсу» ×7 he named is for later: not touched.
+- Branch claude/keys-in-question from release/production 062b6257 (0.6.0.354); commit 0911af54.
+- src/quests/unsureKeys.ts (new): label → { ids, seen } per profile and mode (raidos-unsure-keys-v1:<profile>:<mode>), synced
+  as 'unsure-keys' (sync/playerStateStores.ts; the server takes any kind: no server change). resolveUnsureKeys adds like a
+  scan (addSeenKeys: at least the pieces ticked; forgetKeysAddedByTaken); dropUnsureKeys for «Убрать».
+- keyScan.ts: counts the cells of each label several keys carry; a pass that sees keys or such labels replaces the stored
+  labels (one that sees nothing of the container — the game closed — leaves the last scan's); runKeyScan's onUnsure at the
+  end, run out or stopped, once the game was seen. The «Наведите курсор» hint stays in the scan line as the fallback.
+- QuestKeysStash.tsx UnsureKeysDialog. QuestKeysPage: the old button, «Свернуть» and the in-page OwnedKeysPanel gone; «Ключи
+  под вопросом · N» while labels wait and no scan runs; «Ок» → stash=1, «Все ключи», scroll to the stash row. questKeys.css:
+  a soft orange swell (1.8 s), none under prefers-reduced-motion.
+- Texts: English (uiEnglishSuggestPoint.ts) and the nine languages — «Keys to confirm», the lead line, the empty stash line
+  without «Изменить ключи в схроне»; the two old phrases taken out of the dictionary and the locale files.
+- Tests: QuestKeysPage, src/quests, src/i18n, src/sync, src/screen — 469 passed, 1 skipped (keyScanFrames: SPT data);
+  npm run typecheck clean; eslint on the changed files clean. The window shot on a throwaway vite stand with made-up keys
+  (not committed), not in the app.
+- Not added: playerNews.json, updateHistory.json (the release adds them).
+- Risks: «Добавить вручную», «Добавить из избранного», the uses-left fields and ± for keys no quest needs lived only in the
+  panel the removed button opened — now unreachable from the page (quest keys keep «Нет в наличии» / «Есть в схроне»);
+  OwnedKeysPanel stays in the code. The reader takes a label once by its pixels, so two alike cells may count as one: ×N is
+  shown only for N > 1, the first tick takes N pieces. Not tried with the game.
