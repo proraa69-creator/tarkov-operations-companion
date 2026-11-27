@@ -73,7 +73,8 @@ describe('the photos of the battle pass documents', () => {
     expect(pointPhotos(null, 'customs', [-186.2, 317.6], ['financial'])).toEqual([])
     expect(pointPhotos(guide, 'icebreaker', [0, 0], ['pmc-files'])).toEqual([])
     // owner, 20.11.2026: the Shoreline hangar between the village and the car exit is not «the white house in front of the T-90»
-    expect(pointPhotos(guide, 'shoreline', [-232.5, -627.6], ['technical'])).toEqual([])
+    // the 28.11.2026 check of every photo: that hangar is the smugglers' northern warehouse, and its photo is spawn 2
+    expect(pointPhotos(guide, 'shoreline', [-232.5, -627.6], ['technical']).map((id) => guide.files[id]!.file)).toEqual(['Technical_documentation_shoreline_spawn_2.png'])
     expect(guide.maps.shoreline!.technical).toContain('fa4c79d9e970f24e')
   })
 
@@ -84,8 +85,9 @@ describe('the photos of the battle pass documents', () => {
     expect(captions(-102.7, -270.4, 'technical')).toEqual(['Inside resort east wing on 3rd floor on a chair.'])
     expect(captions(-80.4, -181, 'technical')).toEqual(['Inside resort west wing room 316 on the flipped shelf.'])
     expect(captions(-87, -219.1, 'technical')).toEqual(['Inside west wing room 206 on the floor.'])
-    // below the resort, not «the most southwest house in the village near the Tunnel exit»
-    expect(captions(-14.6, -135.7, 'test-docs')).toEqual([])
+    // below the resort, not «the most southwest house in the village near the Tunnel exit» but behind the store by the bus stop
+    // (the 28.11.2026 check of every photo)
+    expect(captions(-14.6, -135.7, 'test-docs')).toEqual(['Behind the bus depot store on a box.'])
   })
 
   it('the Shoreline village\'s houses show no SORDI tower station photo (reports 254/255, 28.11.2026)', () => {
@@ -95,11 +97,14 @@ describe('the photos of the battle pass documents', () => {
     expect(guide.files[testDocs[0]!]).toMatchObject({ own: true })
     // 255: no photo of that house yet, so none rather than the trailer's floor
     expect(pointPhotos(guide, 'shoreline', [160.9, 412.8], ['technical'])).toEqual([])
-    // the wiki's SORDI photos stay in the map's «Все места»
+    // the wiki's SORDI photos stand at the SORDI tower's own points (the 28.11.2026 check of every photo), never in the village
     expect(guide.maps.shoreline!['test-docs']).toContain('e5def8c9123abd69')
     expect(guide.maps.shoreline!.technical).toContain('f7bafe8b561ae0c6')
-    expect(Object.values(guide.spots.shoreline!).flatMap((spot) => spot.photos)).not.toContain('e5def8c9123abd69')
-    expect(Object.values(guide.spots.shoreline!).flatMap((spot) => spot.photos)).not.toContain('f7bafe8b561ae0c6')
+    expect(pointPhotos(guide, 'shoreline', [99.1, -707.7], ['test-docs'])).toEqual(['e5def8c9123abd69'])
+    expect(pointPhotos(guide, 'shoreline', [96.7, -707.5], ['technical'])).toEqual(['f7bafe8b561ae0c6'])
+    const village = guide.spots.shoreline!.filter((spot) => spot.x > 250)
+    expect(village.flatMap((spot) => spot.photos)).not.toContain('e5def8c9123abd69')
+    expect(village.flatMap((spot) => spot.photos)).not.toContain('f7bafe8b561ae0c6')
   })
 
   it('on Interchange each blueprint spawn point shows its own room (reports 218/219, 24.11.2026)', () => {

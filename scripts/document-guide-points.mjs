@@ -5,6 +5,11 @@
  * Where the caption names a room or building but not which of its points, the photo goes on each of them. A photo no point answers
  * to with confidence stays only in the map's «Все места» (scripts/document-guide-photos.mjs lists them all); so does Icebreaker,
  * which has no points in the feed yet.
+ *
+ * Out of date since 28.11.2026: every wiki photo was checked against its point (the wiki's document maps for Factory, Ground Zero
+ * and Woods, re3mr's Labyrinth map, map renders, door locks and heights), and src/data/documentGuidePhotos.json's `spots` were
+ * corrected there — 89 photos to their own points, the SORDI photos at the tower, 17 group placements left where the right
+ * point is unknown (docs/coordination/WORK_LOG.md, 28.11.2026). Do not rebuild the spots from this table without them.
  */
 export const PHOTO_SPOTS = {
   'customs': {
