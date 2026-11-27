@@ -12006,3 +12006,22 @@ Not pushed, not released, nothing uploaded.
   old one keeps it from its cache for up to a week; the release's new name reaches everyone at once.
 - History line for the release (no news, a fix): «Документы боевого пропуска: на Берегу фото «Тестовой документации» у вышки
   связи — как в игре», "reports":[254].
+
+## 2026-11-28 02:35 — Claude: report 255 — the village's technical documentation shows no trailer photo; 254 settled (claude/report-254-photo 5895b107, not pushed)
+
+- Report 255 (PvE, app 0.6.0.354): «неправильный скрин документации / правильного у меня нет»; the screenshot is our map, the
+  technical documentation point at a house in «Деревня» with the wiki's «spawn 10» (f7bafe8b561ae0c6, «Внутри времянки у вышки
+  связи, на полу»). Owner, relayed by the release session: «фото нету поэтому убери от туда имеющееся». The spot
+  [412.8, 160.9] now has `none: ["technical"]` (like Customs, Streets, Interchange); the photo stays in Shoreline's «Все места».
+- Report 254 is the same mistake (the wiki's «spawn 8», the trailer's shelf, on a village house): the point keeps our frame
+  fb47dafe8c001044, its caption now by the map's label «В доме в Деревне, на столе.» / «In a house in the village, on the
+  table.» (nine languages); the wiki's photo e5def8c9123abd69 back in «Все места» with its own caption and translations.
+  scripts/document-guide-points.mjs gives neither SORDI photo a point (comments why); documentGuide.test.ts holds both.
+- Tests: src/data, src/i18n and BattlePassDocuments 642/642 (uiEnglishCharacter timed out once under load, passes alone),
+  server guideImages and questPointPhotos 14/14.
+- **After the release that carries this, on the server:** wiki-e5def8c9123abd69.png, -t.png and .jpg in
+  /var/lib/raidos/map-mirror/images/guides hold our frame (the interim for 254); put back the wiki's originals from
+  guides-replaced-254 (install -o raidos-api -g raidos-api -m 600), or «Все места» shows our frame under the trailer's caption.
+  Until that release the village's technical point still shows the trailer photo: the same file is its «Все места» entry, so
+  it cannot be hidden from the server alone.
+- History line (no news): «Документы боевого пропуска: в Деревне на Берегу фото мест совпадают с игрой, неверное убрано», "reports":[254,255] (replaces 254's line above).
