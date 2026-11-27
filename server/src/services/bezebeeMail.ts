@@ -7,11 +7,14 @@
  * (a Gmail filter) and pastes its address and an app password in the admin panel; the server reads that mailbox over IMAP
  * every minute (services/imapReader.ts, nothing is written there).
  *
- * A letter opens a subscription only when Gmail vouches that it comes from bezebee.com: the topmost
- * Authentication-Results of mx.google.com says dkim=pass for bezebee.com or dmarc=pass for header.from=bezebee.com (not
- * SPF, see vouchedByGmail). Anyone can write «From: no-reply@bezebee.com»; such a letter waits in the panel as
- * «без подписи». The tariff comes from the sum and the currency (every price of the table is distinct), the account
- * from the buyer's e-mail — the same path as the webhook (services/bezebeeWebhook.ts), one letter (its Message-ID) once.
+ * A letter opens a subscription only when Gmail vouches that BZB signed it: the topmost Authentication-Results of
+ * mx.google.com says dkim=pass for bezebee.com (not SPF or DMARC alone, see vouchedByGmail). Anyone can write
+ * «From: no-reply@bezebee.com»; such a letter waits in the panel as «без подписи». And BZB must have signed it to the
+ * seller (security review, 27.11.2026): one From and one To under the bezebee.com signature, To one of the seller's
+ * addresses, a Message-ID and a date of the last 14 days (signedToSeller). The tariff comes from the sum and
+ * the currency (every price of the table is distinct), read before «Контакт покупателя» (what the buyer typed comes
+ * after it); the account from the buyer's e-mail — the same path as the webhook (services/bezebeeWebhook.ts), one
+ * letter (its Message-ID) once.
  */
 import { createHash } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
@@ -34,7 +37,8 @@ const BEZEBEE = /(^|[.@])bezebee\.com$/i
 
 /**
  * Whether the receiving Gmail vouches that the letter comes from bezebee.com (its topmost Authentication-Results): a DKIM
- * signature of bezebee.com, or DMARC passed for From: bezebee.com. Not SPF (security review, 03.11.2026): Gmail repeats
+ * signature of bezebee.com. Not DMARC alone: it passes by SPF too (security review, 27.11.2026). Not SPF (security
+ * review, 03.11.2026): Gmail repeats
  * the envelope sender — anyone's to choose — in its comments and in smtp.mailfrom, and a sender like
  * «"x;spf=pass smtp.mailfrom=a@bezebee.com"@evil.example» read as a check of its own. Quoted strings and (comments) are
  * the sender's words, so they go before the verdict is read; a forwarded sale still passes by BZB's DKIM signature.
@@ -49,7 +53,6 @@ export function vouchedByGmail(mail: MailMessage) {
     if (!method || method[2].toLowerCase() !== 'pass') return false
     const property = (name: string) => new RegExp(`(?:^|\\s)${name}=([^\\s;]+)`, 'i').exec(check)?.[1]?.replace(/^@/, '')
     if (method[1].toLowerCase() === 'dkim') return BEZEBEE.test(property('header\\.d') ?? property('header\\.i') ?? '')
-    if (method[1].toLowerCase() === 'dmarc') return BEZEBEE.test(property('header\\.from') ?? '')
     return false
   })
 }
@@ -62,6 +65,37 @@ function gmailsOwnWords(results: string) {
     text = text.replace(/\([^()]*\)/g, ' ')
   }
   return text
+}
+
+/** How old a sale letter may be and still open a subscription by itself; an older one waits for the owner. */
+const LETTER_DAYS = 14
+
+/** The seller's addresses BZB writes its sale letters to, and the time now. */
+export interface SaleLetterCheck { sellers: readonly string[]; now: number }
+
+const addressIn = (value: string) => (/<([^<>\s]+@[^<>\s]+)>/.exec(value)?.[1] ?? value).trim().toLowerCase()
+
+/**
+ * Whether BZB signed the letter to the seller (security review, 27.11.2026): one From and one To, every bezebee.com
+ * DKIM signature covers From, To, Date and Message-ID, To is one address of the seller's, the letter has a Message-ID
+ * and was written in the last LETTER_DAYS days.
+ */
+export function signedToSeller(mail: MailMessage, check: SaleLetterCheck) {
+  const values = (name: string) => mail.headers.filter(([header]) => header === name).map(([, value]) => value)
+  const to = values('to')
+  if (values('from').length !== 1 || to.length !== 1 || !mail.messageId) return false
+  const signatures = values('dkim-signature').map((value) => value.replace(/\s+/g, '')).filter((value) => /(?:^|;)d=bezebee\.com(?:;|$)/i.test(value))
+  if (!signatures.length) return false
+  const covers = (signature: string) => {
+    const signed = (/(?:^|;)h=([^;]+)/i.exec(signature)?.[1] ?? '').toLowerCase().split(':')
+    return ['from', 'to', 'date', 'message-id'].every((header) => signed.includes(header))
+  }
+  if (!signatures.every(covers)) return false
+  const recipients = to[0].split(',').map(addressIn).filter(Boolean)
+  const sellers = new Set(check.sellers.map((seller) => seller.trim().toLowerCase()).filter(Boolean))
+  if (recipients.length !== 1 || !sellers.has(recipients[0])) return false
+  const written = Date.parse(mail.header('date') ?? '')
+  return Number.isFinite(written) && written <= check.now + 3_600_000 && check.now - written <= LETTER_DAYS * 86_400_000
 }
 
 /**
@@ -83,15 +117,20 @@ function readAmount(written: string) {
   return Number.isFinite(amount) && amount > 0 ? amount : undefined
 }
 
-/** A «Новая продажа» letter of BZB, or undefined for any other letter. */
-export function readBezebeeSaleMail(mail: MailMessage): BezebeeSaleMail | undefined {
+/**
+ * A «Новая продажа» letter of BZB, or undefined for any other letter. `check`: the seller's addresses and the time now
+ * (the mailbox always passes them; without it — the tests of BZB's wording — the recipient is not looked at).
+ */
+export function readBezebeeSaleMail(mail: MailMessage, check?: SaleLetterCheck): BezebeeSaleMail | undefined {
   if (!mail.fromAddress || !BEZEBEE.test(mail.fromAddress.split('@').pop() ?? '')) return undefined
   const text = mail.text.replace(/\s+/g, ' ')
-  const newSale = NEW_SALE.test(mail.subject) || NEW_SALE.test(text)
-  const sentence = SALE_SENTENCE.exec(text)
-  const lines = !sentence && newSale ? SALE_SUM.exec(text) : null
+  // The buyer's contact is the buyer's own words: the sale is read only from the letter's text before it.
+  const own = text.split(/Контакт покупателя/i)[0]
+  const newSale = NEW_SALE.test(mail.subject) || NEW_SALE.test(own)
+  const sentence = SALE_SENTENCE.exec(own)
+  const lines = !sentence && newSale ? SALE_SUM.exec(own) : null
   const sale = sentence ? { product: sentence[1], amount: sentence[2], currency: sentence[3] }
-    : lines ? { product: SALE_PRODUCT.exec(text)?.[1], amount: lines[1], currency: lines[2] } : undefined
+    : lines ? { product: SALE_PRODUCT.exec(own)?.[1], amount: lines[1], currency: lines[2] } : undefined
   if (!sale && !newSale) return undefined
   const product = sale?.product?.trim() || /«([^»]+)»/.exec(mail.subject)?.[1]
   const amount = sale ? readAmount(sale.amount) : undefined
@@ -113,7 +152,7 @@ export function readBezebeeSaleMail(mail: MailMessage): BezebeeSaleMail | undefi
   const date = mail.header('date')
   return {
     key,
-    verified: vouchedByGmail(mail),
+    verified: vouchedByGmail(mail) && (!check || signedToSeller(mail, check)),
     notice,
     summary: { source: 'e-mail', from: mail.fromAddress, subject: mail.subject, ...(date ? { date } : {}), ...(mail.messageId ? { messageId: mail.messageId } : {}), ...(product ? { product } : {}), text: mail.text.slice(0, 2000), authenticationResults: mail.header('authentication-results') ?? null },
   }
@@ -149,7 +188,7 @@ export class BezebeeMailbox {
     private readonly db: DatabaseSync,
     private readonly credentials: BezebeeCredentialStore,
     private readonly webhooks: BezebeeWebhooks,
-    private readonly options: { now?: () => number; host?: string; port?: number; connect?: ImapOptions['connect'] } = {},
+    private readonly options: { now?: () => number; host?: string; port?: number; connect?: ImapOptions['connect']; sellers?: readonly string[] } = {},
   ) {
     this.db.exec(STATE)
     const columns = (this.db.prepare('PRAGMA table_info(bezebee_mail_state)').all() as Row[]).map((column) => String(column.name))
@@ -205,7 +244,7 @@ export class BezebeeMailbox {
       if (uidValidity !== result.uidValidity) lastUid = 0
       uidValidity = result.uidValidity
       for (const message of result.messages) {
-        const sale = readBezebeeSaleMail(parseMail(message.raw))
+        const sale = readBezebeeSaleMail(parseMail(message.raw), this.options.sellers ? { sellers: this.options.sellers, now: this.now() } : undefined)
         if (sale) this.webhooks.receiveSale(sale)
         lastUid = Math.max(lastUid, message.uid)
         read++

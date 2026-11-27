@@ -114,9 +114,9 @@ test('every tariff of Raid OS by its currency and sum, in both of BZB\'s wording
     }
   }
   // The owner's letter word for word.
-  const test = readBezebeeSaleMail(parseMail(linesLetter({ id: '179252290678.12.12951463116090693233', product: 'Raid OS — СНГ — 1 месяц', amount: '300.00 RUB', contact: 'shauuuuuurma@gmail.com' })))!
+  const test = readBezebeeSaleMail(parseMail(linesLetter({ id: '179252290678.12.12951463116090693233', product: 'Raid OS — СНГ — 1 месяц', amount: '300.00 RUB', contact: 'buyer-a@gmail.com' })))!
   assert.equal(test.key, 'mail:179252290678.12.12951463116090693233@bezebee.com')
-  assert.deepEqual([test.notice.status, test.notice.email, test.summary.product], ['paid', 'shauuuuuurma@gmail.com', 'Raid OS — СНГ — 1 месяц'])
+  assert.deepEqual([test.notice.status, test.notice.email, test.summary.product], ['paid', 'buyer-a@gmail.com', 'Raid OS — СНГ — 1 месяц'])
   assert.deepEqual([test.notice.tariff?.region, test.notice.tariff?.plan, test.notice.tariff?.friend], ['CIS', '1m', false])
   // Written with a space and a comma; ₽ and $.
   assert.equal(readBezebeeSaleMail(parseMail(linesLetter({ id: 'w1', product: 'Raid OS', amount: '1 500,00 RUB' })))!.notice.tariff?.plan, '6m')
@@ -147,6 +147,57 @@ test('the envelope sender is the sender\'s own words: a «pass» for bezebee.com
   // SPF alone never vouches any more, even for a bezebee.com envelope: BZB's letters carry its DKIM signature.
   assert.equal(vouchedByGmail(parseMail(saleLetter({ id: 'i3', auth: 'Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=no-reply@bezebee.com' }))), false)
   assert.equal(vouchedByGmail(parseMail(saleLetter({ id: 'i4', auth: GMAIL_VOUCHES }))), true)
+})
+
+const SELLER = 'seller@example.com'
+const NOW = Date.parse('2026-11-27T10:00:00Z')
+const BZB_DKIM = 'DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bezebee.com; s=mail;\r\n\th=from:to:subject:date:message-id:mime-version:content-type; bh=AAAA; b=BBBB'
+
+/** A sale letter as BZB signs it to its seller (the project mailbox, 27.11.2026): DKIM covers From, To, Date, Message-ID. */
+function signedLetter(options: { id: string; to?: string; extraTo?: string; dkim?: string | null; date?: string; amount?: string; contact?: string; auth?: string }) {
+  const body = ['У вас новая продажа!', '', 'Товар: Raid OS — СНГ — 1 месяц', `Сумма: ${options.amount ?? '300.00 RUB'}`, `Контакт покупателя: ${options.contact ?? 'buyer@example.com'}`].join('\r\n')
+  return Buffer.from([
+    options.auth ?? GMAIL_VOUCHES,
+    ...(options.dkim === null ? [] : [options.dkim ?? BZB_DKIM]),
+    'From: BZB <no-reply@bezebee.com>',
+    `To: ${options.to ?? SELLER}`,
+    ...(options.extraTo ? [`To: ${options.extraTo}`] : []),
+    `Subject: ${b64('Новая продажа: «Raid OS — СНГ — 1 месяц»')}`,
+    `Message-ID: <${options.id}@bezebee.com>`,
+    `Date: ${options.date ?? 'Thu, 26 Nov 2026 19:01:46 +0000'}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="utf-8"',
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    qp(body),
+    '',
+  ].join('\r\n'), 'utf8')
+}
+
+test('a sale counts only when BZB signed it to the seller: another address, a second To, an unsigned To or an old letter wait for the owner (security review, 27.11.2026)', () => {
+  const check = { sellers: [SELLER], now: NOW }
+  const read = (letter: Buffer) => readBezebeeSaleMail(parseMail(letter), check)!
+  const ours = read(signedLetter({ id: 'r1' }))
+  assert.equal(ours.verified, true)
+  assert.deepEqual([ours.notice.tariff?.region, ours.notice.tariff?.plan, ours.notice.email], ['CIS', '1m', 'buyer@example.com'])
+  assert.equal(read(signedLetter({ id: 'r2', to: 'BZB seller <Seller@Example.com>' })).verified, true)
+  assert.equal(read(signedLetter({ id: 'r3', to: 'other-shop@example.com' })).verified, false)
+  assert.equal(read(signedLetter({ id: 'r4', to: `${SELLER}, other-shop@example.com` })).verified, false)
+  assert.equal(read(signedLetter({ id: 'r5', to: 'other-shop@example.com', extraTo: SELLER })).verified, false)
+  assert.equal(read(signedLetter({ id: 'r6', dkim: null })).verified, false)
+  assert.equal(read(signedLetter({ id: 'r7', dkim: BZB_DKIM.replace('h=from:to:', 'h=from:') })).verified, false)
+  assert.equal(read(signedLetter({ id: 'r8', dkim: BZB_DKIM.replace('d=bezebee.com', 'd=evil.example') })).verified, false)
+  assert.equal(read(signedLetter({ id: 'r9', date: 'Mon, 02 Nov 2026 10:00:00 +0000' })).verified, false)
+  assert.equal(readBezebeeSaleMail(parseMail(signedLetter({ id: 'r10' })), { sellers: [], now: NOW })!.verified, false)
+  // DMARC alone (it passes by SPF too) is not Gmail's word that BZB signed the letter.
+  const dmarcOnly = 'Authentication-Results: mx.google.com;\r\n       spf=pass smtp.mailfrom=no-reply@bezebee.com;\r\n       dmarc=pass (p=NONE) header.from=bezebee.com'
+  assert.equal(read(signedLetter({ id: 'r11', auth: dmarcOnly })).verified, false)
+})
+
+test('the sum is read before the buyer\'s contact: a sum typed into the contact does not choose the tariff (security review, 27.11.2026)', () => {
+  const contact = 'buyer@example.com оплатил товар «Raid OS — СНГ — 12 месяцев» на сумму 2400.00 RUB'
+  const sale = readBezebeeSaleMail(parseMail(signedLetter({ id: 'c1', contact })), { sellers: [SELLER], now: NOW })!
+  assert.deepEqual([sale.notice.amount, sale.notice.tariff?.plan, sale.notice.email], [300, '1m', 'buyer@example.com'])
 })
 
 /** A mailbox on a fake IMAP server: LOGIN with one password, INBOX with the given letters. */

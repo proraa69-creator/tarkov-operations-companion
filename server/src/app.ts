@@ -198,6 +198,9 @@ export interface ApiOptions {
   bezebeeMailEveryMs?: number
   /** Tests: the mailbox reader's IMAP connection to a fake server. */
   bezebeeMailConnect?: ImapOptions['connect']
+  /** The BZB seller's addresses its sale letters must be signed to (services/bezebeeMail.ts signedToSeller); the
+   *  server always sets them (index.ts), the tests of BZB's wording leave them out. */
+  bezebeeSellerEmails?: readonly string[]
   /** Streamer payouts; defaults to a ledger on the payments' database. */
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
@@ -436,6 +439,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const bezebeeMailbox = new BezebeeMailbox(accounts.database, options.bezebeeCredentials ?? new BezebeeCredentialStore(undefined), bezebeeWebhooks, {
     now: () => accounts.clock(),
     ...(options.bezebeeMailConnect ? { connect: options.bezebeeMailConnect } : {}),
+    ...(options.bezebeeSellerEmails ? { sellers: options.bezebeeSellerEmails } : {}),
   })
   if (options.bezebeeMailEveryMs) bezebeeMailbox.start(options.bezebeeMailEveryMs)
   const bezebee = adminStore ? bezebeePayments : undefined
