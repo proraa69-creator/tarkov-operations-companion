@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent,
 import { useBlockTitle } from './blockTitle'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Crosshair, MapPinned, Package, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Clock, Crosshair, Map as MapIcon, MapPinned, Package, Ruler, Skull, Target, X, Zap, type LucideIcon } from 'lucide-react'
 import type { GameMap, Item, ItemRef, ObjectiveConditions, QuestObjective } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { allConditionPieces, bodyPartWord, conditionPieces, distanceText, targetWord, timeText } from './conditionText'
@@ -13,6 +13,9 @@ import type { DeferMenuState } from '../components/QuestDeferDialog'
 import { WeaponBuildMenuProvider, useWeaponBuildMenu } from './WeaponBuildMenu'
 import { TakenCheck, useItemTaken } from './TakenItems'
 import { ThumbScroll } from '../components/ThumbScroll'
+import { traderPortraitOf } from '../data/traderPortraits'
+import { TraderBadge } from '../gunsmith/TraderBadge'
+import { useBenchBackdrop } from '../arsenal/benchBackdrop'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
 import bigPipeResting from '../assets/goons-rest/big-pipe.webp'
@@ -334,10 +337,14 @@ function QuestCard({ entry, pictures, mapName, full, expandable, className = '',
   const all = <span className="qc-all">
     {entry.objectives.map((entryObjective) => <FullObjective key={entryObjective.id} objective={entryObjective} pictures={pictures} mapName={mapName} />)}
   </span>
+  const portrait = traderPortraitOf(entry.quest)
   return <button type="button" className={`qc-main qc-card${full ? ' is-full' : ''}${expandable ? ' is-expandable' : ''}${className ? ` ${className}` : ''}`} aria-haspopup="dialog"
     title={uiText('Подробнее о сборке и предметах')} onClick={onOpen} {...events}
     onContextMenu={onDefer ? (event) => { event.preventDefault(); onDefer(deferMenuOf(entry, pictures, event)) } : undefined}>
-    <strong className="qc-name">{uiText(entry.quest.name)}</strong>
+    <span className="qc-title">
+      {portrait && <img className="qc-trader" src={portrait} alt="" loading="lazy" draggable={false} />}
+      <strong className="qc-name">{uiText(entry.quest.name)}</strong>
+    </span>
     {expandable ? <>{rest}{all}</> : full ? all : rest}
   </button>
 }
@@ -509,12 +516,19 @@ function ItemCard({ item, pictures }: { item: ItemRef; pictures: Pictures }) {
   </Link>
 }
 
+/**
+ * The weapon on a stand: over the blurred backdrop of «Сборка оружия»'s bench for the colour scheme (arsenal/benchBackdrop.ts),
+ * never in a black box of its own (owner, 28.11.2026: «опять окно в окне, оружие, черное окно… сделать стилизованные, красивые,
+ * аккуратные окна»); its name on a plate in the corner.
+ */
 function WeaponCard({ weapon, pictures }: { weapon: ItemRef; pictures: Pictures }) {
   const name = nameOf(weapon, pictures)
   const onMenu = useWeaponBuildMenu({ id: weapon.id, name: uiText(name) })
-  return <Link className="qc-weapon-card" to={`/flea?selected=${encodeURIComponent(weapon.id)}`} title={uiText(name)} onContextMenu={onMenu}>
+  const backdrop = useBenchBackdrop()
+  return <Link className={`qc-weapon-card${backdrop ? ' has-backdrop' : ''}`} to={`/flea?selected=${encodeURIComponent(weapon.id)}`} title={uiText(name)} onContextMenu={onMenu}>
+    {backdrop && <span className="qc-weapon-backdrop" style={{ backgroundImage: `url("${backdrop}")` }} aria-hidden="true" />}
     <Picture src={weaponPictureOf(weapon.id, pictures)} alt={uiText(name)} fallback={<Crosshair size={26} />} />
-    <span>{uiText(name)}</span>
+    <span className="qc-weapon-name">{uiText(name)}</span>
   </Link>
 }
 
@@ -529,26 +543,30 @@ function OptionGroups({ title, options, pictures }: { title: string; options: It
   </div>
 }
 
+type Fact = [string, string, LucideIcon]
+
+/** Every condition of the kill as a chip with its icon: how many, whom, from how far, where, when (owner, 28.11.2026: «аккуратные окна»). */
 function ConditionFacts({ objective, mapName }: { objective: QuestObjective; mapName: (id: string) => string }) {
   const conditions = objective.conditions ?? {}
-  const facts: Array<[string, string]> = [
-    [conditions.hitOnly ? 'Попасть' : 'Убить', `×${objective.count}`],
-    ...(conditions.targets?.length ? [['Противник', [...new Set(conditions.targets.map(targetWord))].map((word) => uiText(word)).join(', ')] as [string, string]] : []),
-    ...(conditions.distance ? [['Дистанция', uiText(distanceText(conditions.distance))] as [string, string]] : []),
-    ...(conditions.bodyParts?.length ? [['Части тела', [...new Set(conditions.bodyParts.map(bodyPartWord))].map((word) => uiText(word)).join(', ')] as [string, string]] : []),
-    ...(conditions.zoneNames?.length ? [['Зоны', conditions.zoneNames.join(', ')] as [string, string]]
-      : objective.zones?.length ? [['Зоны', uiText('только в зонах задания')] as [string, string]] : []),
-    ...(conditions.time ? [['Время в игре', timeText(conditions.time)] as [string, string]] : []),
-    ...(conditions.enemyEffects?.length ? [['Цель под эффектом', conditions.enemyEffects.join(', ')] as [string, string]] : []),
-    ...(conditions.playerEffects?.length ? [['Вы под эффектом', conditions.playerEffects.join(', ')] as [string, string]] : []),
-    ['Карты', objective.mapIds?.length ? objective.mapIds.map((id) => uiText(mapName(id))).join(', ') : uiText('Любая карта')],
+  const facts: Fact[] = [
+    [conditions.hitOnly ? 'Попасть' : 'Убить', `×${objective.count}`, Crosshair],
+    ...(conditions.targets?.length ? [['Противник', [...new Set(conditions.targets.map(targetWord))].map((word) => uiText(word)).join(', '), Skull] as Fact] : []),
+    ...(conditions.distance ? [['Дистанция', uiText(distanceText(conditions.distance)), Ruler] as Fact] : []),
+    ...(conditions.bodyParts?.length ? [['Части тела', [...new Set(conditions.bodyParts.map(bodyPartWord))].map((word) => uiText(word)).join(', '), Target] as Fact] : []),
+    ...(conditions.zoneNames?.length ? [['Зоны', conditions.zoneNames.join(', '), MapPinned] as Fact]
+      : objective.zones?.length ? [['Зоны', uiText('только в зонах задания'), MapPinned] as Fact] : []),
+    ...(conditions.time ? [['Время в игре', timeText(conditions.time), Clock] as Fact] : []),
+    ...(conditions.enemyEffects?.length ? [['Цель под эффектом', conditions.enemyEffects.join(', '), Zap] as Fact] : []),
+    ...(conditions.playerEffects?.length ? [['Вы под эффектом', conditions.playerEffects.join(', '), Zap] as Fact] : []),
+    ['Карты', objective.mapIds?.length ? objective.mapIds.map((id) => uiText(mapName(id))).join(', ') : uiText('Любая карта'), MapIcon],
   ]
-  return <dl className="qc-facts">{facts.map(([label, value]) => <div key={label}><dt>{uiText(label)}</dt><dd>{value}</dd></div>)}</dl>
+  return <dl className="qc-facts">{facts.map(([label, value, Icon]) => <div key={label}><dt><Icon size={13} aria-hidden="true" />{uiText(label)}</dt><dd>{value}</dd></div>)}</dl>
 }
 
 /**
- * What to take into the raid for these objectives, shortly: the weapon in a large picture, the parts and the gear (one
- * example of a choice) and every condition. The dialog's body.
+ * What to take into the raid for these objectives, shortly: the weapon on its stand with the parts and the gear beside it (one
+ * example of a choice) and every condition as a chip. The dialog's body: one card of the quest, no box inside a box (owner,
+ * 28.11.2026: «опять окно в окне… Тебе нужно сделать стилизованные, красивые, аккуратные окна»).
  */
 export function QuestBuild({ objectives, mapId, mapName, pictures, texts = true }: { objectives: QuestObjective[]; mapId: string; mapName: (id: string) => string; pictures: Pictures; texts?: boolean }) {
   return <>
@@ -557,17 +575,23 @@ export function QuestBuild({ objectives, mapId, mapName, pictures, texts = true 
       const here = objectiveOnMap(objective, mapId)
       const weapons = weaponOptions(conditions)
       const weapon = weapons.length ? exampleOf(weapons.flat(), pictures) : undefined
+      const mods = conditions.mods?.length ? conditions.mods : undefined
+      const wearing = conditions.wearing?.length ? conditions.wearing : undefined
       return <article key={`${index}:${objective.id}`} className={`qc-objective${here ? ' is-here' : ''}`}>
         {texts && objective.description && <p className="qc-objective-text">{uiText(objective.description)}</p>}
-        {weapon ? <div className="gs-block qc-block">
-          <h5>{uiText('Оружие')}</h5>
-          <Choice as="div" toggle className="qc-choice-block" options={weapons} weapons example={weapon} pictures={pictures}>
-            <div className="qc-weapons is-single"><WeaponCard weapon={weapon} pictures={pictures} /></div>
-          </Choice>
+        {weapon || mods || wearing ? <div className={`qc-stand${weapon ? ' has-weapon' : ''}${mods || wearing ? ' has-side' : ''}`}>
+          {weapon ? <div className="gs-block qc-block is-weapon">
+            <h5>{uiText('Оружие')}</h5>
+            <Choice as="div" toggle className="qc-choice-block" options={weapons} weapons example={weapon} pictures={pictures}>
+              <div className="qc-weapons is-single"><WeaponCard weapon={weapon} pictures={pictures} /></div>
+            </Choice>
+          </div> : null}
+          {mods || wearing ? <div className="qc-stand-side">
+            {mods ? <OptionGroups title="Модули на оружии" options={mods} pictures={pictures} /> : null}
+            {wearing ? <OptionGroups title="Надеть" options={wearing} pictures={pictures} /> : null}
+          </div> : null}
         </div> : null}
-        {conditions.mods?.length ? <OptionGroups title="Модули на оружии" options={conditions.mods} pictures={pictures} /> : null}
-        {conditions.wearing?.length ? <OptionGroups title="Надеть" options={conditions.wearing} pictures={pictures} /> : null}
-        <div className="gs-block qc-block">
+        <div className="gs-block qc-block is-facts">
           <h5>{uiText('Условия убийства')}</h5>
           <ConditionFacts objective={objective} mapName={mapName} />
         </div>
@@ -598,10 +622,13 @@ export function QuestConditionsDialog({ entry, mapId, mapName, pictures, onClose
   return createPortal(<WeaponBuildMenuProvider><div className="registration-overlay quest-conditions-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section className="panel quest-conditions-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="panel-header">
-        <div className="qc-dialog-title">
-          <span className="stat-label">{uiText('Сбор на рейд')}</span>
-          <h3 id={titleId}>{uiText(quest.name)}</h3>
-          <small>{uiText(quest.trader)}</small>
+        <div className="qc-dialog-heading">
+          <TraderBadge name={uiText(quest.trader)} image={traderPortraitOf(quest)} />
+          <div className="qc-dialog-title">
+            <span className="stat-label">{uiText('Сбор на рейд')}</span>
+            <h3 id={titleId}>{uiText(quest.name)}</h3>
+            <small>{uiText(quest.trader)}</small>
+          </div>
         </div>
         <div className="qc-dialog-actions">
           {mapLink && <Link className="button small ghost" to={mapLink} onClick={onClose}><MapPinned size={13} /> {uiText('Показать на карте')}</Link>}

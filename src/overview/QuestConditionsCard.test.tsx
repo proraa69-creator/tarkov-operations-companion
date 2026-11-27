@@ -68,6 +68,8 @@ describe('QuestConditionsCard', () => {
     renderCard([patriot])
     expect(card().querySelector(':scope > .qc-head .stat-label')).toHaveTextContent('Сбор на рейд')
     expect(shownName()).toBe('Работа для патриота')
+    // the trader's portrait beside the quest's name
+    expect(rest().querySelector('.qc-title .qc-trader')?.getAttribute('src')).toMatch(/prapor.*\.webp/)
     expect([...rest().querySelectorAll('.qc-chip')].map((chip) => chip.textContent)).toEqual(['Улицы Таркова', 'Берег', '+1'])
     // the whole AK-12 (its default preset), then the scope and the suppressor
     expect(card().querySelector('.qc-weapon')).toHaveAttribute('src', 'https://assets.tarkov.dev/64c1510bda0f6d156000cc17-512.webp')
@@ -199,6 +201,13 @@ describe('QuestConditionsCard', () => {
     expect([...parts.querySelectorAll('.gs-part strong')].map((node) => node.textContent)).toEqual(['ПС-320', 'АК-12 Гл.'])
     const facts = Object.fromEntries([...dialog.querySelectorAll('.qc-facts div')].map((fact) => [fact.querySelector('dt')!.textContent, fact.querySelector('dd')!.textContent]))
     expect(facts).toEqual({ Убить: '×10', Противник: 'ЧВК', Карты: 'Улицы Таркова, Берег, Эпицентр' })
+    // one card of the quest (owner, 28.11.2026: «опять окно в окне… сделать стилизованные, красивые, аккуратные окна»): the
+    // trader's portrait in the heading, the weapon with its parts beside it on one stand, each condition a chip with its icon
+    expect(dialog.querySelector('.qc-dialog-heading .gs-trader img')?.getAttribute('src')).toMatch(/prapor.*\.webp/)
+    expect(dialog.querySelector('.qc-stand.has-weapon.has-side > .is-weapon .qc-weapon-card')).not.toBeNull()
+    expect(dialog.querySelector('.qc-stand.has-weapon.has-side > .qc-stand-side .gs-parts')).not.toBeNull()
+    expect(weapon.querySelector('.qc-weapon-name')).toHaveTextContent('Автомат Калашникова АК-12 5.45x39')
+    expect([...dialog.querySelectorAll('.qc-facts dt')].every((label) => label.querySelector('svg'))).toBe(true)
     expect(within(dialog).getByRole('link', { name: /Открыть квест/ })).toHaveAttribute('href', '/quests?selected=64f5deac39e45b527a7c4232')
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())

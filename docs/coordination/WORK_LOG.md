@@ -11987,3 +11987,25 @@ Not pushed, not released, nothing uploaded.
   release's new name reaches everyone at once.
 - History line for the release (no news, a fix): «Документы боевого пропуска: на Таможне фото «Проектной документации»
   в компьютерной комнате — как в игре», "reports":[253].
+
+## 2026-11-28 02:30 — Claude: «Сбор на рейд» — one styled card per quest, no box inside a box (claude/raid-loadout-cards, not pushed)
+
+- Owner, 28.11.2026: «я просил сделать в сборе на рейд красивые карточки для каждого квеста… опять окно в окне, оружие, черное
+  окно, и потом клетки оружия, потом модули. Тебе нужно сделать стилизованные, красивые, аккуратные окна», then «основное
+  приложение доделывай и выпускай».
+- The card (the Overview block and its unfolded list, src/overview/QuestConditionsCard.tsx, src/styles/questConditions.css): the
+  trader's round portrait beside the quest's name (src/data/traderPortraits.ts `traderPortraitOf`: by the quest's trader id, else
+  its Russian or English name); the weapon on a soft light, no black box of its own; every item the game's icon in its own cell,
+  rounded, no second frame round it (one frame per item picture); each quest of the unfolded list a card of its own (soft
+  gradient, shadow, the shown one with the brass stripe).
+- The dialog: the trader's portrait as on the game's trader screen in the heading; each objective without a frame of its own (a
+  line between objectives); one stand — the weapon over the blurred backdrop of «Сборка оружия»'s bench for the colour scheme
+  (arsenal/benchBackdrop.ts) with a vignette and its name on a plate, its parts and the gear to put on beside it as slots (the
+  icon 64 px, the short name under it, the full name below); the kill conditions as chips, each with its icon. No new texts: the
+  labels are the ones translated already; checked in Russian and English, a quest with a weapon and parts, with gear only.
+- Tests: src/overview, src/gunsmith, traderPortraits, DashboardPage 20 files / 173 + the card and dialog checks 34; typecheck,
+  eslint clean. Checked in the dev server on a page of its own with real pictures (the app's data source did not answer then).
+- History line for the release: «Сбор на рейд: карточки квестов и окно квеста — портрет торговца, оружие на фоне верстака,
+  модули и снаряжение слотами, условия значками». Players' news (RU/EN, to the owner first): «Сбор на рейд: новые карточки
+  квестов — оружие на фоне, модули и снаряжение в слотах, условия значками» / «Raid loadout: new quest cards — the weapon on a
+  backdrop, parts and gear in slots, conditions as icons».
