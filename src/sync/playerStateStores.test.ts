@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setQuestCheck, readQuestChecks } from '../progression/questChecks'
 import { markDocumentFound, readFoundDocuments } from '../progression/foundDocuments'
 import { readQuestKeyFavorites, readQuestKeyReminder, setQuestKeyFavorite } from '../quests/questKeyFavorites'
+import { readUnsureKeys, writeUnsureKeys } from '../quests/unsureKeys'
 import { readPositions, savePosition } from '../trading/tradingPositions'
 import { readTradingSettings, writeTradingSettings } from '../trading/tradingSettings'
 import { renderHook, act } from '@testing-library/react'
@@ -73,6 +74,17 @@ describe('the stores as the account\'s other devices see them', () => {
     expect(adapter('quest-key-favorites').read('pvp')).toEqual(new Map([['key-1', true]]))
     adapter('quest-key-favorites').write('pvp', new Map([['key-2', true]]))
     expect([...readQuestKeyFavorites('p1', 'pvp')]).toEqual(['key-2'])
+
+    // «Ключи под вопросом» (owner, 27.11.2026): the labels the PC's scan left, told on the phone as well
+    const cabin = { ids: ['k-cabin', 'k-trailer'], seen: 2 }
+    writeUnsureKeys('p1', 'pve', new Map([['Времянка', cabin]]))
+    expect(adapter('unsure-keys').read('pve')).toEqual(new Map([['Времянка', cabin]]))
+    expect(adapter('unsure-keys').read('pvp')).toEqual(new Map())
+    adapter('unsure-keys').write('pve', new Map([['Сейф', { ids: ['a', 'b'], seen: 1 }]]))
+    expect([...readUnsureKeys('p1', 'pve').keys()]).toEqual(['Сейф'])
+    expect(adapter('unsure-keys').accepts!({ ids: ['a'], seen: 0 }, 'Сейф', 'pve')).toBe(false)
+    adapter('unsure-keys').write('pve', new Map())
+    expect(readUnsureKeys('p1', 'pve').size).toBe(0)
   })
 
   it('nothing is read before the profile is known, or from a damaged value: neither is a reason to take anything off', () => {

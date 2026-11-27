@@ -1,7 +1,7 @@
 import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { BellOff, BellRing, Check, Hourglass, KeyRound, Package, ScanSearch, Search, Star, Trash2, Undo2 } from 'lucide-react'
+import { BellOff, BellRing, Check, CircleHelp, Hourglass, KeyRound, Package, ScanSearch, Search, Star, Trash2, Undo2 } from 'lucide-react'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { useTarkovData } from '../data/DataProvider'
 import type { Barter } from '../data/economyApi'
@@ -19,7 +19,8 @@ import { QuestKeyBarterDialog, QuestKeyMarket } from '../quests/QuestKeyMarket'
 import { QuestKeyStockButton } from '../quests/QuestKeyStock'
 import { useKeyScan } from '../quests/keyScan'
 import { useKeyUses, useOwnedKeys } from '../quests/ownedKeys'
-import { KeyScanHelp, OwnedKeysPanel } from '../quests/QuestKeysStash'
+import { KeyScanHelp, UnsureKeysDialog } from '../quests/QuestKeysStash'
+import { useUnsureKeys } from '../quests/unsureKeys'
 import { useAppState } from '../state/AppState'
 import '../quests/questKeys.css'
 
@@ -83,10 +84,19 @@ export function QuestKeysPage() {
   const owned = useOwnedKeys(profileId, mode)
   const uses = useKeyUses(profileId, mode)
   // «Ключи в схроне» filters the list like a tab (owner, 11.11.2026: «нажимаешь «Ключи в схроне», и он из этого всего списка
-  // показывает только то, что у тебя есть в схроне»); «Изменить» unfolds the stash itself in the page.
+  // показывает только то, что у тебя есть в схроне»). The keys found go there by themselves; «Изменить ключи в схроне» is gone
+  // (owner, 27.11.2026: «нам не нужна кнопка «Изменить ключи в схроне». Ее убери»).
   const onlyStash = params.get('stash') === '1'
   const setOnlyStash = (on: boolean) => setParams((current) => { const next = new URLSearchParams(current); if (on) next.set('stash', '1'); else next.delete('stash'); return next }, { replace: true })
-  const [stashOpen, setStashOpen] = useState(false)
+  // The labels several keys carry the last scan left (quests/unsureKeys.ts): «Ключи под вопросом», blinking orange until told.
+  const unsure = useUnsureKeys(profileId, mode)
+  const stashRow = useRef<HTMLDivElement>(null)
+  const [toStash, setToStash] = useState(0)
+  useEffect(() => {
+    if (!toStash) return
+    const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    stashRow.current?.scrollIntoView?.({ block: 'start', behavior: still ? 'auto' : 'smooth' })
+  }, [toStash])
   // A player and the owner, 27.11.2026 («пишет что у меня их 15 шт — но показывает ток ключи для квестов»; «кнопку все ключи и
   // отдельно ключи для квестов»): «Ключи в схроне» shows the whole stash — the quests' keys as cards, the rest below them.
   const [stashAll, setStashAll] = useState(true)
@@ -123,6 +133,13 @@ export function QuestKeysPage() {
   const shown = tab === 'favorites' ? inTab(tab).sort((left, right) => FAVORITE_ORDER[left.state] - FAVORITE_ORDER[right.state])
     : inTab(tab).sort((left, right) => Number(owned.has(left.item.id)) - Number(owned.has(right.item.id)))
   const keyScan = useKeyScan({ items: data.items, wanted: rows.map((row) => row.item.id), profileId, mode })
+  // «Ок» of «Ключи под вопросом» (owner: «При нажатии ее тебя переносит блок «Ключи в схроне»… показываются твои ключи в схроне»).
+  const showStash = () => {
+    keyScan.closeUnsure()
+    setOnlyStash(true)
+    setStashAll(true)
+    setToStash((count) => count + 1)
+  }
   const ownedNeeded = inTab('needed').filter((row) => owned.has(row.item.id)).length
   const maps =[...new Set(rows.flatMap((row) => row.mapIds))]
   const empty = TABS.find(({ id }) => id === tab)!.empty
@@ -155,13 +172,13 @@ export function QuestKeysPage() {
         {reminder ? <BellOff size={14} aria-hidden="true" /> : <BellRing size={14} aria-hidden="true" />}{uiText(reminder ? 'Выключить уведомления' : 'Включить уведомления')}
       </button>
     </div>
-    <div className="quest-keys-stash-row">
+    <div className="quest-keys-stash-row" ref={stashRow}>
       {keyScan.available && <button type="button" className={`button small${keyScan.busy ? '' : ' primary'}`} onClick={() => void keyScan.run()}>
         <ScanSearch size={14} aria-hidden="true" />{uiText(keyScan.busy ? 'Остановить поиск' : 'Найти ключи')}
       </button>}
       <KeyScanHelp />
       {/* Owner, 11.11.2026: «возле кнопки «Найти ключи» кнопку «Ключи в схроне»… И там же добавь кнопку «Показать только избранные»». */}
-      <button type="button" className={`button small quest-keys-only-stash${onlyStash ? ' primary' : ''}`} aria-pressed={onlyStash} onClick={() => { setOnlyStash(!onlyStash); if (onlyStash) setStashOpen(false) }}><Package size={14} aria-hidden="true" />{uiText('Ключи в схроне')} · {owned.size}</button>
+      <button type="button" className={`button small quest-keys-only-stash${onlyStash ? ' primary' : ''}`} aria-pressed={onlyStash} onClick={() => setOnlyStash(!onlyStash)}><Package size={14} aria-hidden="true" />{uiText('Ключи в схроне')} · {owned.size}</button>
       {/* «Избранные ключи» holds nothing else, so it has no need of it. */}
       {tab !== 'favorites' && <button type="button" className={`button small quest-keys-only-favorites${onlyFavorites ? ' primary' : ''}`} aria-pressed={onlyFavorites} onClick={() => { writeOnlyFavorites(!onlyFavorites); setOnlyFavorites(!onlyFavorites) }}>
         <Star size={14} fill={onlyFavorites ? 'currentColor' : 'none'} aria-hidden="true" />{uiText('Показать только избранные')}
@@ -170,7 +187,11 @@ export function QuestKeysPage() {
         <button type="button" className={stashAll ? 'active' : ''} aria-pressed={stashAll} onClick={() => setStashAll(true)}>{uiText('Все ключи')} · {owned.size}</button>
         <button type="button" className={stashAll ? '' : 'active'} aria-pressed={!stashAll} onClick={() => setStashAll(false)}>{uiText('Для квестов')} · {ownedForQuests}</button>
       </div>}
-      {onlyStash && <button type="button" className={`button small ghost${stashOpen ? ' primary' : ''}`} aria-expanded={stashOpen} onClick={() => setStashOpen(!stashOpen)}>{uiText(stashOpen ? 'Свернуть' : 'Изменить ключи в схроне')}</button>}
+      {/* In the place of «Изменить ключи в схроне» (owner, 27.11.2026: «переименуй и сделай ключи под вопросом и подсвечивай ее
+       * каким-то цветом другим. Например, мигающим, там, оранжевым»): after a scan, while labels several keys carry wait. */}
+      {!keyScan.busy && unsure.size > 0 && <button type="button" className="button small quest-keys-unsure" aria-haspopup="dialog" onClick={keyScan.openUnsure}>
+        <CircleHelp size={14} aria-hidden="true" />{uiText('Ключи под вопросом')} · {unsure.size}
+      </button>}
       {keyScan.message && <span className="quest-keys-scan-message" role="status">{uiText(keyScan.message)}</span>}
       {/* Owner, 25.11.2026 («слева те что у меня в схроне, справа то что нашел»): the list's keys this scan did not see — an earlier
        * scan's, or ones gone from the stash — taken off by the player's click only (a scan itself only adds, 16.11.2026). */}
@@ -178,12 +199,9 @@ export function QuestKeysPage() {
         <Trash2 size={14} aria-hidden="true" />{uiText('Убрать ненайденные')} · {keyScan.unseen.length}
       </button>}
     </div>
-    {onlyStash && stashOpen && <section className="panel quest-keys-stash-inline" aria-label={uiText('Ключи в схроне')}>
-      <OwnedKeysPanel items={data.items} needed={new Set(rows.filter((row) => row.state === 'needed').map((row) => row.item.id))} profileId={profileId} mode={mode} favoriteIds={state.favoriteItemIds} />
-    </section>}
     {tab === 'done' && shown.length > 0 && <p className="quest-keys-note">{uiText('Эти ключи больше не нужны: можно убрать их из избранного в игре.')}</p>}
     {shown.length === 0 && showOther ? null : shown.length === 0
-      ? <p className="panel quest-keys-empty">{uiText(terms.length || mapId ? 'Ничего не найдено.' : onlyStash ? (owned.size ? 'В этом разделе нет ключей из схрона.' : 'В схроне пока нет ключей. Нажмите «Найти ключи» или «Изменить ключи в схроне».') : onlyFavorites && tab !== 'favorites' ? 'В этом разделе нет избранных ключей.' : empty)}</p>
+      ? <p className="panel quest-keys-empty">{uiText(terms.length || mapId ? 'Ничего не найдено.' : onlyStash ? (owned.size ? 'В этом разделе нет ключей из схрона.' : 'В схроне пока нет ключей. Нажмите «Найти ключи».') : onlyFavorites && tab !== 'favorites' ? 'В этом разделе нет избранных ключей.' : empty)}</p>
       : <ul className="quest-keys-list">
         {shown.map((row) => {
           const starred = favorites.has(row.item.id)
@@ -232,6 +250,7 @@ export function QuestKeysPage() {
         </li>
       })}</ul>
     </section>}
+    {keyScan.unsureOpen && <UnsureKeysDialog items={data.items} profileId={profileId} mode={mode} onClose={keyScan.closeUnsure} onDone={showStash} />}
     {request && <QuestDeferDialog request={request} onClose={() => setRequest(null)} />}
     {barterKey && <QuestKeyBarterDialog item={barterKey} barters={bartersByKey.get(barterKey.id) ?? []} partOf={partOf} traderOf={traderOf} loyalty={loyalty} onClose={closeBarter} />}
   </div>
