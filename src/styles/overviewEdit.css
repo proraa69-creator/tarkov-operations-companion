@@ -287,6 +287,11 @@
    over another thing (owner, 20.11.2026: «Проверь, чтобы каждый блок при подстраивании под место не были нарушены границы, чтобы все
    кнопки, все надписи… не выходили за рамки»). The card is the measure; under 250 px what stood side by side goes under. */
 .overview-free > .overview-block.is-card { container-type: inline-size; }
+/* A block with a window open stands over its neighbours while the window is open (owner, 28.11.2026: «Боевой пропуск у нас падает
+   за под блок карты, и его не видно, он дергается. Сделай, чтобы окно открывалось поверх»): each block is a layer of its own (the
+   size containment above), so what it opens past its edge went under the blocks after it — the timers' «Что показывать» menu
+   under the raid map, the pointer on its last line over the map; the unfolded «Сбор на рейд» the same. */
+:is(.overview-block, .phone-block):has(:is(.info-card-menu, .qc-pop.is-open)) { z-index: 30; }
 /* the Kappa card: its buttons go under the title as soon as the title has no room beside them */
 @container (max-width: 300px) {
   .kappa-card { display: flex; flex-direction: column; }

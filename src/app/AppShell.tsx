@@ -464,6 +464,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       )}
 
+      {/* «Смена дня и ночи»: the starry night sky behind the page, as strong as the night is (styles/theme-daynight.css) */}
+      {!mobile && <div className="daynight-sky" aria-hidden="true" />}
       <main className="content">{!mobile && <DesktopBackButton />}{uiText(initialLoading ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
 
       {uiText(searchOpen && <div className="search-overlay" onMouseDown={(event) => event.target === event.currentTarget && setSearchOpen(false)}>

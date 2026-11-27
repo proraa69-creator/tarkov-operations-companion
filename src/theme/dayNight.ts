@@ -4,15 +4,19 @@
  * dusk, deep and quiet at night. Four moments of the day each have a palette; between them every colour slides over a couple of
  * hours, and the app takes the new mix every minute, too little to notice at once (styles/theme-daynight.css). Owner, 19.11.2026:
  * «сделай как-то выраженно… где ночь, где день… Ночью… ближе к такому фиолетовому цвету»: the night is violet, the day lighter and warmer.
+ * Owner, 28.11.2026: «в смене дня и ночи сделай тему, как у нас в зимнем северное сияние, только без северного сияния… ночью быть
+ * вместо розового, фиолетового… ночь переходит в такой звездный… ночью будет вот такая тема, а потом будет светлеть»: the night is
+ * «Северное сияние»'s — its colours, its starry sky behind the page (styles/theme-daynight.css .daynight-sky), its top bar, menu and
+ * blocks — without the lights; the stars fade as the night turns to the dawn.
  */
 type Palette = Record<string, string>
 interface Look { night: Palette; dawn: Palette; day: Palette; dusk: Palette }
 
 // The variables a palette sets: the scheme's own (styles/tokens.css) and the light over the screen (--dn-*).
 const OLIVE: Look = {
-  // Owner, 24.11.2026: «нужно поменять фиолетовый цвет. Сделай его более темным, он слишком светлый… ночью у нас будет очень
-  // темно-фиолетовый цвет»: the sky over the screen and the menu nearly black violet, the lavender accents dimmed.
-  night: { bg: '#07050d', 'bg-elevated': '#0b0814', panel: '#0e0a19', 'panel-2': '#120d20', 'panel-3': '#191329', line: '#221a35', 'line-strong': '#32274a', 'line-soft': '#2a203f', text: '#e6e1f2', 'text-muted': '#9f97b8', 'text-dim': '#6c6488', brass: '#9580cf', 'brass-strong': '#b29ee8', green: '#7f93c4', 'surf-0': '#050309', 'surf-1': '#090611', 'surf-2': '#0d0918', 'dn-sky': '#140a28', 'dn-glow': 'rgb(120 80 220 / 10%)' },
+  // «Северное сияние»'s colours (styles/theme-winter.css of the winter branch, aurora), the sky's glow a cold moonlight instead of
+  // the lights' green (owner, 28.11.2026: «как у нас в зимнем северное сияние, только без северного сияния»)
+  night: { bg: '#04070e', 'bg-elevated': '#070c17', panel: '#0a111e', 'panel-2': '#0e1727', 'panel-3': '#142034', line: '#19273b', 'line-strong': '#2a405a', 'line-soft': '#203248', text: '#e8f2f8', 'text-muted': '#9cb2c4', 'text-dim': '#627a8e', brass: '#4fe3a4', 'brass-strong': '#94ffd0', green: '#4fe3a4', 'surf-0': '#03060c', 'surf-1': '#08101b', 'surf-2': '#0c1523', 'dn-sky': '#02040a', 'dn-glow': 'rgb(120 170 255 / 7%)' },
   dawn: { bg: '#110f0b', 'bg-elevated': '#181510', panel: '#1d1a14', 'panel-2': '#231f18', 'panel-3': '#2c271e', line: '#383126', 'line-strong': '#4c4334', 'line-soft': '#41392c', text: '#f2ece2', 'text-muted': '#aea290', 'text-dim': '#7c7262', brass: '#d9a866', 'brass-strong': '#efc07c', green: '#8fa47c', 'surf-0': '#0e0c09', 'surf-1': '#16130e', 'surf-2': '#1c1913', 'dn-sky': '#3a2a20', 'dn-glow': 'rgb(255 176 112 / 15%)' },
   // Owner, 24.11.2026, of four day variants: «пасмурно» — an overcast day, steel grey with a cool sky and warm gold accents.
   day: { bg: '#1c2024', 'bg-elevated': '#23282d', panel: '#2a3036', 'panel-2': '#313840', 'panel-3': '#3b434c', line: '#48515b', 'line-strong': '#626d79', 'line-soft': '#545e69', text: '#f5f7f9', 'text-muted': '#c0c7ce', 'text-dim': '#8f979f', brass: '#e2bd72', 'brass-strong': '#f2d290', green: '#9ec3a8', 'surf-0': '#181b1f', 'surf-1': '#1f2328', 'surf-2': '#262b31', 'dn-sky': '#6d8093', 'dn-glow': 'rgb(235 242 255 / 18%)' },
@@ -38,6 +42,18 @@ function mix(a: string, b: string, t: number) {
   const at = (x: number, y: number) => Math.round(x + (y - x) * t)
   const alpha = a1 + (a2 - a1) * t
   return alpha >= 1 ? `rgb(${at(r1, r2)} ${at(g1, g2)} ${at(b1, b2)})` : `rgb(${at(r1, r2)} ${at(g1, g2)} ${at(b1, b2)} / ${Math.round(alpha * 1000) / 10}%)`
+}
+
+/**
+ * How much of the night it is at this hour (0–1): the stars' strength over the page — all night from 21:30 to 4:30, rising over the
+ * dusk before it and fading over the dawn after it, as the colours slide (STOPS).
+ */
+export function nightShare(hour: number) {
+  const h = ((hour % 24) + 24) % 24
+  if (h >= 21.5 || h < 4.5) return 1
+  if (h >= 19.5) return smooth((h - 19.5) / 2)
+  if (h < 6.5) return 1 - smooth((h - 4.5) / 2)
+  return 0
 }
 
 /** The colours at this hour of the day (0–24, fractions are minutes). */
@@ -68,8 +84,12 @@ let timer: ReturnType<typeof setInterval> | undefined
 export function paintDayNight(hour = hourNow()) {
   const root = document.documentElement
   const palette = dayNightPalette(hour)
-  applied = Object.keys(palette).map((name) => `--${name}`)
+  const night = nightShare(hour)
+  applied = [...Object.keys(palette).map((name) => `--${name}`), '--dn-night']
   for (const [name, value] of Object.entries(palette)) root.style.setProperty(`--${name}`, value)
+  // the stars as strong as the night is; at night the top bar, the menu and the blocks are «Северное сияние»'s
+  root.style.setProperty('--dn-night', night.toFixed(3))
+  root.toggleAttribute('data-daynight-night', night >= 0.5)
 }
 
 /** On while «День и ночь» is the scheme: the colours follow the clock, a new mix every minute and when the app comes back. */
@@ -90,5 +110,6 @@ export function stopDayNight() {
   document.removeEventListener('visibilitychange', onVisible)
   const root = document.documentElement
   for (const name of applied) root.style.removeProperty(name)
+  root.removeAttribute('data-daynight-night')
   applied = []
 }

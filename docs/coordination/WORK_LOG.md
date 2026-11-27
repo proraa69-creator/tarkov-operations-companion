@@ -12080,3 +12080,26 @@ Not pushed, not released, nothing uploaded.
   1400×860 and 1280×600, phone 390×844; ru, en, de, ja); stand files not committed.
 - No updateHistory / playerNews row (the integrator's). News line proposed to the release session. Risk: the range model
   (src/range/rangeModel.ts) takes a ricochet's durability as half penetration × half armour damage (at least 1), the text says 1.
+
+## 2026-11-28 02:25 — Claude: the timers' menu over the map; «Смена дня и ночи» — a starry night (claude/overview-timers-night, not pushed)
+
+- Owner, 28.11.2026: «окно, которое у нас открывает время в Таркове, сброс торгов, таймер рейда и боевой пропуск. Боевой пропуск у
+  нас падает за под блок карты, и его не видно, он дергается. Сделай, чтобы окно открывалось поверх». Each Overview block is a layer
+  of its own (container-type on the free layout's cards), so «Что показывать» opened past the timers' block went under the raid
+  map after it, and the pointer on «Боевой пропуск» was over the map (seen: elementFromPoint gave the map's section).
+  `src/styles/overviewEdit.css`: a block with the timers' menu or the unfolded «Сбор на рейд» open stands over its neighbours
+  (z-index 30) while it is. Checked in the dev server: every line of the menu takes the pointer, «Боевой пропуск» switches on.
+- Owner, 28.11.2026: «в смене дня и ночи сделай тему, как у нас в зимнем северное сияние, только без северного сияния… вместо
+  розового, фиолетового… ночь переходит в такой звездный», then «вот эту звездную ночь надо добавить в основное приложение в смену
+  дня и ночи… ночью будет вот такая тема, а потом будет светлеть». `src/theme/dayNight.ts`: the night palette is «Северное сияние»'s
+  (from the winter branch), the sky's glow a cold moonlight instead of the lights' green; `nightShare` (all night 21:30–4:30, rising
+  over the dusk, fading over the dawn) paints `--dn-night` and `data-daynight-night`. `src/styles/theme-daynight.css`: the starry sky
+  behind the page (`.daynight-sky`, AppShell, PC only; the winter branch's stars.webp at the same path) as strong as the night is;
+  at night the top bar, the menu and the blocks of «Северное сияние». Shots at 1:00, 5:36 and noon.
+- For the 1 December merge of claude/winter-themes: both change dayNight.ts (the winter's WINTER palette and `data-winter-night`)
+  and put a layer before `<main className="content">` in AppShell; keep both lines, and in winter show one starry sky — the winter's
+  `.winter-night-sky` or this `.daynight-sky`, not both.
+- Tests: src/overview, src/theme (a new dayNight.test.ts), App, DashboardPage — 20 files / 177; typecheck, eslint clean.
+- History line: «Обзор: меню «Что показывать» в блоке времени открывается поверх соседних блоков; «Смена дня и ночи»: ночью звёздное
+  небо». Players' news (RU/EN, to the owner first): «Смена дня и ночи: ночью звёздное небо, к утру светлеет» / «Day and night: a
+  starry sky at night that brightens towards the morning».

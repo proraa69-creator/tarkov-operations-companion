@@ -8,3 +8,30 @@
 :root[data-theme="daynight"] .topbar { background: color-mix(in srgb, var(--dn-sky) 30%, var(--bg-elevated)); }
 /* the sky's colour on the menu too, so day and night are told at a glance */
 :root[data-theme="daynight"] .sidebar { background: linear-gradient(180deg, color-mix(in srgb, var(--dn-sky) 34%, var(--bg-elevated)), var(--bg-elevated) 70%); }
+
+/* The night: «Северное сияние»'s starry sky without the lights (owner, 28.11.2026: «в смене дня и ночи сделай тему, как у нас в
+   зимнем северное сияние, только без северного сияния… ночь переходит в такой звездный»; «ночью будет вот такая тема, а потом будет
+   светлеть») — black at the top, a faint blue towards the horizon, the stars, as strong as the night is (dayNight.ts --dn-night);
+   placed before the page's own layer (.content, isolated): over the body's background, under every block (AppShell). */
+.daynight-sky { display: none; }
+:root[data-theme="daynight"] .daynight-sky {
+  display: block; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: var(--dn-night, 0); transition: opacity 3s ease;
+  background:
+    url("../assets/textures/winter/stars.webp") 0 0 / 1024px 1024px,
+    radial-gradient(ellipse 120% 60% at 50% 115%, rgb(28 60 92 / 55%), transparent 70%),
+    linear-gradient(180deg, #02040a 0%, #050a16 45%, #0a1628 100%);
+}
+/* at night the see-through top bar, the menu and the dark night blocks of «Северное сияние» (dayNight.ts sets the attribute) */
+:root[data-theme="daynight"][data-daynight-night] .topbar { background: color-mix(in srgb, #03060c 84%, transparent); border-bottom-color: #13304a; }
+:root[data-theme="daynight"][data-daynight-night] .sidebar { background: linear-gradient(180deg, #050a14, #03060c 70%); border-right-color: #12253a; }
+:root[data-theme="daynight"][data-daynight-night]:not([data-style="glass"]) :is(.panel, .stat-card) {
+  background: linear-gradient(165deg, rgb(13 22 38 / 86%) 0%, rgb(9 17 32 / 88%) 55%, rgb(7 13 25 / 90%) 100%);
+  border-color: #17283d;
+  box-shadow: inset 0 1px 0 rgb(110 255 200 / 10%), inset 0 22px 30px -26px rgb(80 255 180 / 22%), 0 14px 34px rgb(0 0 0 / 55%);
+}
+:root[data-theme="daynight"][data-daynight-night] .page-title { text-shadow: 0 0 26px rgb(79 227 164 / 28%), 0 2px 0 rgb(0 0 0 / 60%); }
+:root[data-style="glass"][data-style][data-theme="daynight"][data-daynight-night] {
+  --glass-tint-pane: linear-gradient(165deg, rgb(14 26 44 / 46%), rgb(4 8 16 / 62%));
+  --glass-tint-strong: linear-gradient(180deg, rgb(8 16 30 / 70%), rgb(3 6 12 / 80%));
+  --glass-rim: inset 0 1px 0 rgb(150 255 215 / 18%), inset 0 0 0 1px rgb(120 220 255 / 6%);
+}
