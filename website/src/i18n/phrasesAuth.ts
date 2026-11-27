@@ -188,6 +188,11 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Укажите корректный e-mail', 'Enter a valid e-mail'], ['Дневной лимит писем исчерпан', 'The daily e-mail limit is used up'],
   ['Почтовый сервис недоступен', 'The e-mail service is unavailable'],
   ['Неверный или устаревший код. Проверьте код или запросите новый.', 'Wrong or expired code. Check it or request a new one.'],
+  // The owner's sign-in: the code from the e-mail after his password (owner, 27.11.2026)
+  ['Срок входа истёк. Введите пароль ещё раз.', 'The sign-in has expired. Enter your password again.'],
+  ['Слишком много неверных кодов. Попробуйте завтра.', 'Too many wrong codes. Try again tomorrow.'],
+  ['Не удалось отправить код. Попробуйте позже.', 'Could not send the code. Try again later.'],
+  ['Аккаунт владельца входит на странице «Вход».', 'The owner account signs in on the “Sign in” page.'],
   // QR sign-in
   ['Слишком много открытых кодов. Попробуйте через минуту.', 'Too many open codes. Try again in a minute.'],
   ['Код не найден, уже использован или истёк. Создайте новый.', 'The code was not found, has already been used or has expired. Make a new one.'],

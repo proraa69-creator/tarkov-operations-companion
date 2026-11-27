@@ -27,6 +27,12 @@ body { margin: 0; min-width: 320px; background: #060807; }
 .admin-auth-warning { color: #ffd691; background: rgba(255, 183, 77, .08); }
 .admin-auth-warning button { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 750; }
 .admin-auth-footnote { display: block; margin-top: 18px; color: #69736d; font-size: 11px; line-height: 1.45; }
+/* The owner's code step after the password (owner, 27.11.2026). */
+.admin-auth-code-note { display: grid; gap: 3px; padding: 11px 12px; border-radius: 11px; color: #c9f5da; background: rgba(101, 242, 157, .07); font-size: 13px; line-height: 1.45; }
+.admin-auth-code-note strong { color: #f3f7f4; font-weight: 700; overflow-wrap: anywhere; }
+.admin-auth-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+.admin-auth-links button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 4px; border: 0; color: #65f29d; background: transparent; font: inherit; font-size: 13px; font-weight: 700; }
+.admin-auth-links button:disabled { opacity: .5; }
 .admin-splash-card, .admin-denied-card { display: grid; justify-items: start; gap: 12px; }
 .admin-splash-card .admin-auth-mark, .admin-denied-card .admin-auth-mark { margin-bottom: 5px; }
 .admin-denied-card .admin-auth-submit { width: 100%; margin-top: 12px; }

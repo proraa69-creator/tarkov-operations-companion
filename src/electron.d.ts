@@ -31,6 +31,13 @@ export interface WatchdogAlert { service: WatchdogServiceId; kind: 'down' | 'rep
 /** POST /v1/accounts/register while the server sends e-mail codes: no account yet, the code from the e-mail follows. */
 export interface PendingServerRegistration { challengeId: string; expiresAt: string; resendSeconds: number; message: string }
 export type ServerRegistrationResult = { pending: PendingServerRegistration; status?: undefined } | { pending?: undefined; status: ServerAccountStatus; referralApplied: boolean }
+/**
+ * POST /v1/accounts/login of the owner's account while the server sends e-mail codes (owner, 27.11.2026): no session
+ * yet; the code from the e-mail signs in (account.loginConfirm).
+ */
+export interface PendingSecondFactor { challengeId: string; expiresAt: string; resendSeconds: number; message: string }
+/** The status after a password sign-in; `secondFactor`: still signed out, the code from the e-mail follows. */
+export type ServerLoginResult = ServerAccountStatus & { secondFactor?: PendingSecondFactor }
 
 export interface ServerAccountStatus {
   signedIn: boolean
@@ -190,7 +197,9 @@ interface TarkovDesktopApi {
   /** Server account. The session token stays in the main process; only the e-mail and status reach the renderer. */
   account?: {
     status: () => Promise<ServerAccountStatus>
-    login: (email: string, password: string) => Promise<ServerAccountStatus>
+    login: (email: string, password: string) => Promise<ServerLoginResult>
+    /** The code from the e-mail after the owner's password; the session stays in the main process. */
+    loginConfirm?: (challengeId: string, code: string) => Promise<ServerAccountStatus>
     /** «Войти по QR-коду» on this PC: a one-time code the phone app approves, and its QR link. */
     qrStart?: () => Promise<{ code: string; expiresAt: string; url: string }>
     /** One look: still waiting, expired, or signed in. */

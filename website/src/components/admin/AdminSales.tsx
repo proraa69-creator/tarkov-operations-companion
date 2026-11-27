@@ -8,6 +8,7 @@ import { Loading } from './adminShared'
 import { dateTime, useAdminData } from './adminData'
 
 const ACTION_LABEL: Record<string, string> = {
+  'owner.sign-in': 'Вход в аккаунт владельца',
   'payments.yookassa-settings': 'Настройки оплаты ЮKassa',
   'map.boss-place': 'Босс поставлен на карту',
   'map.boss-remove': 'Босс убран с карты',
@@ -59,14 +60,17 @@ const ACTION_LABEL: Record<string, string> = {
   'server.update-install': 'Установка обновления сервера',
   'server.rollback': 'Откат сервера на предыдущую версию',
 }
-const DETAIL_LABEL: Record<string, string> = { decision: 'решение', before: 'было, ₽', after: 'стало, ₽', paymentId: 'платёж', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск', regions: 'регионы', payment: 'оплата', targeted: 'получателей', images: 'фото', questions: 'вопросов', kind: 'вид', seen: 'увидели', closed: 'закрыли', case: 'дело', eft: 'Тарков', holder: 'держал' }
+const DETAIL_LABEL: Record<string, string> = { method: 'способ', ip: 'IP', country: 'страна', device: 'устройство', agent: 'браузер', decision: 'решение', before: 'было, ₽', after: 'стало, ₽', paymentId: 'платёж', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск', regions: 'регионы', payment: 'оплата', targeted: 'получателей', images: 'фото', questions: 'вопросов', kind: 'вид', seen: 'увидели', closed: 'закрыли', case: 'дело', eft: 'Тарков', holder: 'держал' }
+
+/** `method` of an owner's sign-in (server/src/services/ownerSignIn.ts SignInMethod). */
+const SIGN_IN_LABEL: Record<string, string> = { password: 'пароль', 'password-code': 'пароль и код из письма', 'email-code': 'код из письма', 'email-reset': 'новый пароль по коду', qr: 'QR-код' }
 
 const VALUE_LABEL: Record<string, string> = { open: 'открыт', closed: 'закрыт', approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён', all: 'все', unpaid: 'без оплаты', cis: 'СНГ', europe: 'Европа', other: 'другие', none: 'не указана', announcement: 'объявление', survey: 'опрос', active: 'активный', working: 'в процессе', keep: 'оставить привязку', transfer: 'отдать спорящему', unbind: 'снять обе', dispute: 'спор' }
 
 function detailText(details: Record<string, unknown> | undefined) {
   if (!details) return ''
   return Object.entries(details).map(([key, value]) => {
-    const text = typeof value === 'boolean' ? (value ? 'да' : 'нет') : key === 'paidUntil' && typeof value === 'string' ? dateTime.format(new Date(value)) : key === 'status' || key === 'decision' || key === 'payment' || key === 'kind' ? VALUE_LABEL[String(value)] ?? String(value) : key === 'regions' ? String(value).split(',').map((part) => VALUE_LABEL[part] ?? part).join(', ') : String(value)
+    const text = typeof value === 'boolean' ? (value ? 'да' : 'нет') : key === 'method' ? SIGN_IN_LABEL[String(value)] ?? String(value) : key === 'paidUntil' && typeof value === 'string' ? dateTime.format(new Date(value)) : key === 'status' || key === 'decision' || key === 'payment' || key === 'kind' ? VALUE_LABEL[String(value)] ?? String(value) : key === 'regions' ? String(value).split(',').map((part) => VALUE_LABEL[part] ?? part).join(', ') : String(value)
     return `${DETAIL_LABEL[key] ?? key}: ${text}`
   }).join(' · ')
 }

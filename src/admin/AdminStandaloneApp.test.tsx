@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ServerAccountStatus } from '../electron.d'
 
@@ -7,12 +7,17 @@ const mocks = vi.hoisted(() => ({
   stored: null as string | null,
   status: vi.fn<() => Promise<ServerAccountStatus>>(),
   answer: null as (() => void) | null,
+  login: vi.fn(),
+  loginConfirm: vi.fn(),
+  request: vi.fn(),
 }))
 vi.mock('../sync/webAccount', () => ({
   onServerAnswer: (listener: () => void) => { mocks.answer = listener; return () => { mocks.answer = null } },
   webStoredSessionEmail: () => mocks.stored,
   webAdminAccountStatus: mocks.status,
-  webAdminAccountLogin: vi.fn(),
+  webAdminAccountLogin: mocks.login,
+  webAdminAccountLoginConfirm: mocks.loginConfirm,
+  webServiceRequest: mocks.request,
   webAdminAccountLogout: vi.fn(async () => ({ signedIn: false, online: true, persistent: true, serverUrl: 'https://raidos.app' })),
 }))
 vi.mock('./AdminMobilePage', () => ({ AdminMobilePage: () => <div>Панель владельца</div> }))
@@ -26,7 +31,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   localStorage.clear()
   mocks.stored = null
-  mocks.status.mockReset()
+  for (const mock of [mocks.status, mocks.login, mocks.loginConfirm, mocks.request]) mock.mockReset()
 })
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
@@ -86,5 +91,32 @@ describe('the iPhone admin app', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
     expect(screen.getByText('Панель владельца')).toBeInTheDocument()
     expect(localStorage.getItem('raidos.admin.confirmedOwner')).toBe(OWNER)
+  })
+
+  // Owner, 27.11.2026: «После верного пароля на почту владельца приходит код, без кода входа нет».
+  it('after the right password the code from the e-mail; «Отправить код ещё раз» after its minute; the code opens the panel', async () => {
+    const signedOut: ServerAccountStatus = { signedIn: false, online: true, persistent: true, serverUrl: 'https://raidos.app' }
+    mocks.status.mockResolvedValue(signedOut)
+    const challengeId = 'c'.repeat(32)
+    mocks.login.mockResolvedValue({ ...signedOut, secondFactor: { challengeId, expiresAt: '2026-11-27T10:10:00.000Z', resendSeconds: 60, message: 'Мы отправили код на почту. Введите его, чтобы войти.' } })
+    mocks.request.mockResolvedValue({ challengeId, expiresAt: '2026-11-27T10:12:00.000Z', resendSeconds: 60 })
+    mocks.loginConfirm.mockResolvedValue({ signedIn: true, email: OWNER, owner: true, online: true, persistent: true, serverUrl: 'https://raidos.app' })
+    render(<AdminStandaloneApp />)
+    await flush()
+    fireEvent.change(screen.getByLabelText('E-mail владельца'), { target: { value: OWNER } })
+    fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'correct horse battery' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Войти' })) })
+    expect(screen.getByText('Мы отправили код на почту. Введите его, чтобы войти.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Пароль')).toBeNull()
+    const resend = screen.getByRole('button', { name: /Отправить код ещё раз/ })
+    expect(resend).toBeDisabled()
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(resend).toBeEnabled()
+    await act(async () => { fireEvent.click(resend) })
+    expect(mocks.request).toHaveBeenCalledWith('POST', '/v1/accounts/login/resend', { challengeId })
+    fireEvent.change(screen.getByLabelText('Код из письма'), { target: { value: '12 34 56' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Войти' })) })
+    expect(mocks.loginConfirm).toHaveBeenCalledWith(challengeId, '123456')
+    expect(screen.getByText('Панель владельца')).toBeInTheDocument()
   })
 })

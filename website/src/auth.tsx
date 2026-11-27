@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, ApiError, type Account, type PendingRegistration } from './api'
+import { api, ApiError, type Account, type PendingRegistration, type PendingSecondFactor } from './api'
 import { loadSessionToken, saveSessionToken } from './storage'
 
 type Status = 'signed-out' | 'loading' | 'ready' | 'error'
@@ -9,7 +9,13 @@ interface AuthState {
   account: Account | null
   status: Status
   error: ApiError | null
-  login(email: string, password: string): Promise<{ token: string }>
+  /**
+   * `secondFactor`: the owner's account while the server sends e-mail codes — no session yet; finish with confirmLogin()
+   * and the code from the e-mail (owner, 27.11.2026). Otherwise this browser is signed in.
+   */
+  login(email: string, password: string): Promise<{ token: string; secondFactor?: undefined } | { secondFactor: PendingSecondFactor; token?: undefined }>
+  /** The code from the e-mail after the owner's password: this browser is signed in. */
+  confirmLogin(challengeId: string, code: string): Promise<{ token: string }>
   /**
    * `pending`: the server sends e-mail codes — no session yet; finish with confirmRegistration(). Otherwise the account
    * exists and this browser is signed in.
@@ -61,6 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     token, account, status, error,
     async login(email, password) {
       const result = await api.login(email, password)
+      if ('secondFactor' in result && result.secondFactor) return { secondFactor: result }
+      if (!('token' in result)) throw new ApiError(0, 'Сервер вернул неожиданный ответ')
+      adoptSession(result.token, result.account)
+      return { token: result.token }
+    },
+    async confirmLogin(challengeId, code) {
+      const result = await api.loginConfirm(challengeId, code)
       adoptSession(result.token, result.account)
       return { token: result.token }
     },
@@ -103,7 +116,7 @@ export function EmbeddedOwnerAuth({ email, children }: { email: string; children
     return {
       token: 'owner-app', status: 'ready', error: null,
       account: { email, kind: 'user', createdAt: new Date(0).toISOString(), nicknames: {}, subscription: { status: 'inactive' }, owner: true } as Account,
-      login: refuse, register: refuse, confirmRegistration: refuse, logout: () => Promise.resolve(),
+      login: refuse, confirmLogin: refuse, register: refuse, confirmRegistration: refuse, logout: () => Promise.resolve(),
       reload() { /* the app keeps the session */ }, setAccount() { /* nothing to keep */ }, adopt() { /* nothing to keep */ },
     }
   }, [email])

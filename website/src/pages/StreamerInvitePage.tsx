@@ -131,6 +131,8 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
       // No referral code on purpose, even if one is remembered from an earlier /r/<code> visit.
       const result = haveAccount ? await auth.login(email, password) : await auth.register(email, password, undefined, country)
       if ('pending' in result && result.pending) { setPending(result.pending); setBusy(false); return }
+      // The owner's account asks the code from the e-mail: that sign-in is on the «Вход» page (owner, 27.11.2026).
+      if ('secondFactor' in result && result.secondFactor) { setLocalError(tr('Аккаунт владельца входит на странице «Вход».')); setBusy(false); return }
       if (!('token' in result)) return
       signedInNow = true
       await redeem(result.token)

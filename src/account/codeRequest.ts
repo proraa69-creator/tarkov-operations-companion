@@ -20,9 +20,9 @@ export async function postService(path: string, body: unknown) {
   }
 }
 
-/** «Отправить код ещё раз (42)»: seconds left of the resend cooldown. */
-export function useCooldown() {
-  const [until, setUntil] = useState(0)
+/** «Отправить код ещё раз (42)»: seconds left of the resend cooldown (`initialSeconds`: one already running at the start). */
+export function useCooldown(initialSeconds = 0) {
+  const [until, setUntil] = useState(() => (initialSeconds > 0 ? Date.now() + initialSeconds * 1000 : 0))
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (until <= Date.now()) return

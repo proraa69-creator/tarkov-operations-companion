@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   account: {
     status: () => ipcRenderer.invoke('account:status'),
     login: (email: string, password: string) => ipcRenderer.invoke('account:login', String(email), String(password)),
+    loginConfirm: (challengeId: string, code: string) => ipcRenderer.invoke('account:login-confirm', String(challengeId ?? ''), String(code ?? '')),
     qrStart: () => ipcRenderer.invoke('account:qr-start'),
     qrPoll: () => ipcRenderer.invoke('account:qr-poll'),
     logout: () => ipcRenderer.invoke('account:logout'),

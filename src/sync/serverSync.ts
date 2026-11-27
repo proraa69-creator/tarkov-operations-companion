@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { ModeProgress, ModeRegistration, ObjectiveProgress, ProgressEvent, RaidMode, TaskProgressRecord } from '../domain/types'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../progression/objectiveProgress'
 import type { DeferredSyncEntry } from '../progression/deferredQuests'
-import type { ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
+import type { ServerAccountStatus, ServerLoginResult, ServerRegistrationResult } from '../electron.d'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { logEventsForMode } from '../import/logApply'
 import type { ParsedTaskEvent } from '../import/logParser'
@@ -31,7 +31,7 @@ import { liveItemBody, onRecognisedItem, parseLiveItem } from '../items/recognis
 import type { ItemOverlayInfo } from '../overlay/types'
 import { parseStoryAnswer, type StoryRecord } from './storyRecords'
 import { dropQuestMirror, holdQuestMirror, noteQuestMirrorAccount, parseQuestMirror, questMirrorBody } from './questMirror'
-import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
+import { webAccountEmailSignIn, webAccountLogin, webAccountLoginConfirm, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
 import { parseTrialFeatures, setTrialFeatures } from '../account/trialFeatures'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
@@ -66,7 +66,7 @@ export function usesWebAccount() {
   return typeof window !== 'undefined' && !isDesktopShell() && (isNative() || isMobileLayout())
 }
 
-const webAccountApi = { status: webAccountStatus, login: webAccountLogin, logout: webAccountLogout, phoneSignIn: webAccountPhoneSignIn, emailSignIn: webAccountEmailSignIn, register: webAccountRegister, registerConfirm: webAccountRegisterConfirm }
+const webAccountApi = { status: webAccountStatus, login: webAccountLogin, loginConfirm: webAccountLoginConfirm, logout: webAccountLogout, phoneSignIn: webAccountPhoneSignIn, emailSignIn: webAccountEmailSignIn, register: webAccountRegister, registerConfirm: webAccountRegisterConfirm }
 
 const accountApi = () => (typeof window === 'undefined' ? undefined : window.tarkovDesktop?.account ?? (usesWebAccount() ? webAccountApi : undefined))
 
@@ -102,11 +102,33 @@ export async function refreshServerStatus(): Promise<ServerAccountStatus | null>
   }
 }
 
-export async function loginToServer(email: string, password: string) {
+/**
+ * A password sign-in. `secondFactor` (the owner's account while the server sends e-mail codes, owner 27.11.2026): still
+ * signed out — finish with confirmLoginOnServer() and the code from the e-mail.
+ */
+export async function loginToServer(email: string, password: string): Promise<ServerLoginResult> {
   const api = accountApi()
   if (!api) throw new Error('Вход доступен только в приложении для Windows')
   try {
     const status = await api.login(email, password)
+    if (status.secondFactor) {
+      if (!api.loginConfirm) throw new Error('Обновите приложение: вход по коду из письма появился в новой версии')
+      return status
+    }
+    setState({ status })
+    void runFullSync()
+    return status
+  } catch (error) {
+    throw new Error(cleanIpcError(error), { cause: error })
+  }
+}
+
+/** The code from the e-mail after the owner's password: signed in like after a password sign-in. */
+export async function confirmLoginOnServer(challengeId: string, code: string) {
+  const api = accountApi()
+  if (!api?.loginConfirm) throw new Error('Обновите приложение: вход по коду из письма появился в новой версии')
+  try {
+    const status = await api.loginConfirm(challengeId, code)
     setState({ status })
     void runFullSync()
     return status

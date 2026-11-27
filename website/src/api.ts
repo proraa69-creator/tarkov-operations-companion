@@ -359,6 +359,11 @@ export interface AuthResult { token: string; account: Account; referralApplied?:
  * never says whether it is already registered); POST /register/confirm with the code creates the account.
  */
 export interface PendingRegistration { pending: true; message: string; challengeId: string; expiresAt: string; resendSeconds: number }
+/**
+ * POST /login of the owner's account while the server sends e-mail codes (owner, 27.11.2026): no session yet; the code
+ * from the e-mail signs in (POST /login/confirm).
+ */
+export interface PendingSecondFactor { secondFactor: true; message: string; challengeId: string; expiresAt: string; resendSeconds: number }
 
 /** «Админ-панель» (owner only; server/src/routes/ownerAdmin.ts, services/adminStore.ts). Money in roubles. */
 /**
@@ -665,7 +670,12 @@ export const api = {
   emailReset: (challengeId: string, code: string, password: string) => request<AuthResult>('/email/reset', { method: 'POST', body: { challengeId, code, password } }),
   emailVerifyStart: (token: string) => request<CodeChallenge>('/me/email/start', { method: 'POST', token, body: {} }),
   emailVerifyConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/email/confirm', { method: 'POST', token, body: { challengeId, code } }),
-  login: (email: string, password: string) => request<AuthResult>('/login', { method: 'POST', body: { email, password } }),
+  /** 200 AuthResult, or 202 PendingSecondFactor for the owner's account while the server sends e-mail codes. */
+  login: (email: string, password: string) => request<AuthResult | PendingSecondFactor>('/login', { method: 'POST', body: { email, password } }),
+  /** The code from the e-mail after the owner's password: his session. */
+  loginConfirm: (challengeId: string, code: string) => request<AuthResult>('/login/confirm', { method: 'POST', body: { challengeId, code } }),
+  /** «Отправить код ещё раз» on the owner's code step: the same challenge, a new code. */
+  loginResend: (challengeId: string) => request<CodeChallenge>('/login/resend', { method: 'POST', body: { challengeId } }),
   /** «Войти через Google» (server/src/routes/google.ts): 409 asks the country of a new account. */
   googleSignIn: (body: { credential: string; country?: string; referralCode?: string }) => request<AuthResult & { created: boolean; referralApplied: boolean }>('/google', { method: 'POST', body }),
   logout: (token: string) => request<void>('/logout', { method: 'POST', token }),

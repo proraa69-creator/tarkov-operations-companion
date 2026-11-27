@@ -1,7 +1,7 @@
 import { SettingHelp } from './SettingHelp'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Copy, ExternalLink, Globe, HardDrive, LayoutDashboard, LogIn, LogOut, Server, Smartphone, UserPlus } from 'lucide-react'
-import type { LocalServerStatus, TunnelStatus } from '../electron'
+import type { LocalServerStatus, PendingSecondFactor, TunnelStatus } from '../electron'
 import { PaymentsPanel, StreamersPanel } from './OwnerPanels'
 import { OwnerSmsPanel } from './OwnerSmsPanel'
 import { uiText } from '../i18n/renderText'
@@ -13,6 +13,7 @@ import { appStoreRules, hidesPayments, isNative } from '../platform'
 import { ServerStatusBlock } from './ServerStatusLamps'
 import { PhoneCabinetRow, PhoneSignInForm, PhoneSignInLinks } from '../account/PhoneAccount'
 import { EmailSignInForm, EmailSignInLinks, EmailVerifyRow } from '../account/EmailAccount'
+import { SecondFactorStep } from '../account/SecondFactorStep'
 import { PHONE_AUTH_UI } from '../account/authFeatures'
 import { openAccountSignIn } from '../account/accountEvents'
 import { accountGateEnabled } from '../account/accountGate'
@@ -50,6 +51,8 @@ export function ServerAccountPanel() {
   const [dialog, setDialog] = useState<'mobile' | 'approve' | null>(null)
   const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
   const [emailMode, setEmailMode] = useState<'login' | 'reset' | null>(null)
+  // The owner's account: after the right password the code from the e-mail (owner, 27.11.2026).
+  const [secondFactor, setSecondFactor] = useState<PendingSecondFactor | null>(null)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -57,8 +60,9 @@ export function ServerAccountPanel() {
     setBusy(true)
     setError('')
     try {
-      await login(email, password)
+      const next = await login(email, password)
       setPassword('')
+      if (next.secondFactor) setSecondFactor(next.secondFactor)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Сервер недоступен')
     } finally {
@@ -119,7 +123,11 @@ export function ServerAccountPanel() {
           <EmailSignInForm purpose={emailMode} onSignedIn={() => setEmailMode(null)} onBack={() => setEmailMode(null)} />
         )}
 
-        {available && status && !status.signedIn && !phoneMode && !emailMode && (
+        {available && status && !status.signedIn && secondFactor && !phoneMode && !emailMode && (
+          <SecondFactorStep pending={secondFactor} email={email.trim()} onSignedIn={() => setSecondFactor(null)} onBack={() => setSecondFactor(null)} />
+        )}
+
+        {available && status && !status.signedIn && !phoneMode && !emailMode && !secondFactor && (
           <form className="stack" onSubmit={(event) => void submit(event)}>
             <p className="dim" style={{ margin: 0 }}>{uiText(isNative() ? 'Войдите тем же e-mail и паролем, что на сайте и в приложении для ПК.' : 'Войдите тем же e-mail и паролем, что на сайте. Без входа приложение работает только на этом компьютере.')}</p>
             <p className="dim" style={{ margin: 0 }}>{uiText('Вход на сервер:')} <strong style={{ userSelect: 'text' }}>{serverLabel(status.serverUrl)}</strong></p>

@@ -226,6 +226,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Registration in the app: only «Отправить код ещё раз» (answers a new challenge, never a session) goes through here.
   // POST /register and /register/confirm return a session, so they have their own IPC (accountRegister below).
   { methods: ['POST'], path: /^\/v1\/accounts\/register\/resend$/ },
+  // The owner's code step after his password (owner, 27.11.2026): the same — «Отправить код ещё раз» here, the code itself
+  // (POST /login/confirm returns a session) has its own IPC (accountLoginConfirm below).
+  { methods: ['POST'], path: /^\/v1\/accounts\/login\/resend$/ },
   // The accepted version of the legal documents after registration (152-ФЗ: the consent must be provable).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
   // «Сообщить об ошибке» (server/src/routes/bugReports.ts): signed-in accounts only, screenshots in base64 (≤ 25 MB).
@@ -812,6 +815,16 @@ export async function ownerExeLink(): Promise<{ url: string; size: number }> {
 }
 
 /**
+ * How this app names itself to the server where it signs in: the approving phone shows it for a QR request, and the
+ * owner's sign-in notice says «Raid OS для Windows <version>» (server/src/services/ownerSignIn.ts describeAgent).
+ */
+function desktopAgent(): Record<string, string> {
+  let version = ''
+  try { version = app.getVersion() } catch { /* an app without a version: the name alone */ }
+  return { 'User-Agent': version ? `RaidOS-Desktop/${version} (Windows)` : 'RaidOS-Desktop (Windows)' }
+}
+
+/**
  * «Войти по QR-коду» on this PC (owner, 28.10.2026: «при входе в приложение на ПК будет войти по QR-коду… человек
  * сканирует и входит»): the same one-time request the website makes (POST /v1/accounts/qr-login). The PC shows its code
  * as a QR code; the phone app signed in to the account approves it (DeepLinkLogin.tsx PhoneApprove) and this PC polls
@@ -823,7 +836,7 @@ export async function accountQrStart(): Promise<{ code: string; expiresAt: strin
   await loadServerUrl()
   let sent: Awaited<ReturnType<typeof send>>
   try {
-    sent = await send('POST', '/v1/accounts/qr-login', { body: {}, headers: { 'User-Agent': `RaidOS-Desktop/${app.getVersion()} (Windows)` } })
+    sent = await send('POST', '/v1/accounts/qr-login', { body: {}, headers: desktopAgent() })
   } catch (error) {
     if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
     throw error
@@ -843,7 +856,7 @@ export async function accountQrStart(): Promise<{ code: string; expiresAt: strin
 export async function accountQrPoll(): Promise<{ state: 'pending' | 'expired' } | { state: 'done'; status: AccountStatus }> {
   const request = qrRequest
   if (!request) return { state: 'expired' }
-  const { response, result } = await send('POST', '/v1/accounts/qr-login/poll', { body: { requestId: request.requestId, pollSecret: request.pollSecret } })
+  const { response, result } = await send('POST', '/v1/accounts/qr-login/poll', { body: { requestId: request.requestId, pollSecret: request.pollSecret }, headers: desktopAgent() })
   if (response.status === 202) return { state: 'pending' }
   if (response.status === 410 || response.status === 404) { qrRequest = null; return { state: 'expired' } }
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
@@ -854,7 +867,24 @@ export async function accountQrPoll(): Promise<{ state: 'pending' | 'expired' } 
   return { state: 'done', status: await accountStatus() }
 }
 
-export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Promise<AccountStatus> {
+/**
+ * POST /v1/accounts/login of the owner's account while the server sends e-mail codes (owner, 27.11.2026: «После верного
+ * пароля на почту владельца приходит код, без кода входа нет»): no session yet; the code from the e-mail signs in
+ * (accountLoginConfirm). Only this reaches the renderer, never a token.
+ */
+export interface PendingSecondFactor { challengeId: string; expiresAt: string; resendSeconds: number; message: string }
+export type LoginResult = AccountStatus & { secondFactor?: PendingSecondFactor }
+
+/** A 202 of the server with a code on its way (a registration or the owner's sign-in), shape-checked. */
+function pendingCode(result: unknown, fallback: string): PendingSecondFactor {
+  const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
+  if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  const resendSeconds = typeof pending.resendSeconds === 'number' && Number.isFinite(pending.resendSeconds) ? Math.max(0, Math.min(3600, Math.round(pending.resendSeconds))) : 60
+  const message = typeof pending.message === 'string' && pending.message.length <= 300 ? pending.message : fallback
+  return { challengeId: pending.challengeId, expiresAt: pending.expiresAt, resendSeconds, message }
+}
+
+export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Promise<LoginResult> {
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : ''
   const password = typeof rawPassword === 'string' ? rawPassword : ''
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
@@ -863,7 +893,7 @@ export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Pro
   const server = serverName(apiBaseUrl())
   let sent: Awaited<ReturnType<typeof send>>
   try {
-    sent = await send('POST', '/v1/accounts/login', { body: { email, password } })
+    sent = await send('POST', '/v1/accounts/login', { body: { email, password }, headers: desktopAgent() })
   } catch (error) {
     if (isServiceUnavailable(error)) throw new Error(`Сервер ${server} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
     throw error
@@ -872,10 +902,29 @@ export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Pro
   // The short answer only (owner, 13.10.2026: «много лишнего текста»); the server never says whether an e-mail exists.
   if (response.status === 401) throw new Error('Неверный e-mail или пароль')
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  // The owner's account: the password was right, the code from the e-mail follows. Nothing is saved yet.
+  if (response.status === 202 && (result as { secondFactor?: unknown } | null)?.secondFactor === true) {
+    const secondFactor = pendingCode(result, 'Мы отправили код на почту. Введите его, чтобы войти.')
+    return { ...(await accountStatus()), secondFactor }
+  }
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
   await saveSession(answer.token, { email: typeof answer.account?.email === 'string' ? answer.account.email : email, kind: answer.account?.kind === 'streamer' ? 'streamer' : 'user' })
   return accountStatus()
+}
+
+/**
+ * The code from the e-mail after the owner's password (POST /v1/accounts/login/confirm): the session stays in this
+ * process like a password sign-in's. «Отправить код ещё раз» goes through `serviceRequest` (/login/resend).
+ */
+export async function accountLoginConfirm(rawChallenge: unknown, rawCode: unknown): Promise<AccountStatus> {
+  const challengeId = typeof rawChallenge === 'string' ? rawChallenge : ''
+  const code = typeof rawCode === 'string' ? rawCode.replace(/[\s-]/g, '') : ''
+  if (!CHALLENGE_ID.test(challengeId)) throw new Error('Запросите код ещё раз')
+  if (!/^\d{6}$/.test(code)) throw new Error('Код из письма — 6 цифр')
+  const { response, result } = await sendAccountRequest('/v1/accounts/login/confirm', { challengeId, code }, desktopAgent())
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  return (await adoptSessionAnswer(result)).status
 }
 
 /**
@@ -902,7 +951,7 @@ async function accountCodeSignIn(channel: 'phone' | 'email', kind: unknown, rawC
   await loadServerUrl()
   let sent: Awaited<ReturnType<typeof send>>
   try {
-    sent = await send('POST', `/v1/accounts/${channel}/${reset ? 'reset' : 'login'}`, { body: reset ? { challengeId, code, password } : { challengeId, code } })
+    sent = await send('POST', `/v1/accounts/${channel}/${reset ? 'reset' : 'login'}`, { body: reset ? { challengeId, code, password } : { challengeId, code }, headers: desktopAgent() })
   } catch (error) {
     if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
     throw error
@@ -932,10 +981,10 @@ async function adoptSessionAnswer(result: unknown) {
   return { status: await accountStatus(), referralApplied: answer.referralApplied === true }
 }
 
-async function sendAccountRequest(path: string, body: unknown) {
+async function sendAccountRequest(path: string, body: unknown, headers?: Record<string, string>) {
   await loadServerUrl()
   try {
-    return await send('POST', path, { body })
+    return await send('POST', path, { body, ...(headers ? { headers } : {}) })
   } catch (error) {
     if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
     throw error
@@ -957,13 +1006,7 @@ export async function accountRegister(rawEmail: unknown, rawPassword: unknown, r
   if (referralCode && !REFERRAL_CODE.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
   if (country && !COUNTRY_CODE.test(country)) throw new Error('Выберите страну из списка')
   const { response, result } = await sendAccountRequest('/v1/accounts/register', { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) })
-  if (response.status === 202) {
-    const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
-    if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
-    const resendSeconds = typeof pending.resendSeconds === 'number' && Number.isFinite(pending.resendSeconds) ? Math.max(0, Math.min(3600, Math.round(pending.resendSeconds))) : 60
-    const message = typeof pending.message === 'string' && pending.message.length <= 300 ? pending.message : 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.'
-    return { pending: { challengeId: pending.challengeId, expiresAt: pending.expiresAt, resendSeconds, message } }
-  }
+  if (response.status === 202) return { pending: pendingCode(result, 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.') }
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось зарегистрироваться: ${response.status}`)
   return adoptSessionAnswer(result)
 }

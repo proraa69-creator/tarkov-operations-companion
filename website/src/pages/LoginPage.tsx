@@ -1,12 +1,12 @@
 import { LoaderCircle, LogIn, Mail, QrCode, RefreshCw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { ApiError, errorMessage } from '../api'
+import { ApiError, errorMessage, type PendingSecondFactor } from '../api'
 import { useAuth } from '../auth'
 import { Notice } from '../components/Notice'
 import { LoginQr } from '../components/LoginQr'
 import { useAuthConfig } from '../components/authConfig'
-import { EmailSignIn } from '../components/EmailAuth'
+import { EmailSignIn, SignInCodeStep } from '../components/EmailAuth'
 import { GoogleSignIn } from '../components/GoogleSignIn'
 import { tr } from '../i18n'
 import { qrLogin, type QrLoginRequest } from '../qrLogin'
@@ -20,6 +20,8 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [method, setMethod] = useState<'password' | 'qr' | 'email'>('password')
+  // The owner's account: after the right password the code from the e-mail (owner, 27.11.2026).
+  const [secondFactor, setSecondFactor] = useState<PendingSecondFactor | null>(null)
   const config = useAuthConfig()
 
   if (auth.status === 'ready') return <Navigate to="/cabinet" replace />
@@ -29,7 +31,8 @@ export function LoginPage() {
     setBusy(true)
     setError(null)
     try {
-      await auth.login(email, password)
+      const result = await auth.login(email, password)
+      if (result.secondFactor) { setSecondFactor(result.secondFactor); setPassword(''); return }
       navigate('/cabinet', { replace: true })
     } catch (reason) {
       setError(reason)
@@ -45,7 +48,8 @@ export function LoginPage() {
         <h1>{tr('Вход')}</h1>
         {method === 'qr' && <QrSignIn onBack={() => setMethod('password')} />}
         {method === 'email' && <EmailSignIn purpose="login" onDone={() => navigate('/cabinet', { replace: true })} onBack={() => setMethod('password')} />}
-        {method === 'password' && <>
+        {method === 'password' && secondFactor && <SignInCodeStep email={email.trim()} pending={secondFactor} onDone={() => navigate('/cabinet', { replace: true })} onBack={() => setSecondFactor(null)} />}
+        {method === 'password' && !secondFactor && <>
           <p className="lead">{tr('Войдите, чтобы открыть личный кабинет.')}</p>
           <form className="form" onSubmit={submit} noValidate={false}>
             {error !== null && (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { LoaderCircle, LogIn, LogOut, RefreshCw, Server, ShieldAlert, ShieldCheck } from 'lucide-react'
-import type { ServerAccountStatus } from '../electron.d'
-import { onServerAnswer, webAdminAccountLogin, webAdminAccountLogout, webAdminAccountStatus, webStoredSessionEmail } from '../sync/webAccount'
+import type { PendingSecondFactor, ServerAccountStatus } from '../electron.d'
+import { onServerAnswer, webAdminAccountLogin, webAdminAccountLoginConfirm, webAdminAccountLogout, webAdminAccountStatus, webServiceRequest, webStoredSessionEmail } from '../sync/webAccount'
 import { forgetKeptAnswers } from './adminKeep'
 import { AdminMobilePage } from './AdminMobilePage'
 import { useAdminNotifications } from './useAdminNotifications'
@@ -124,6 +124,17 @@ function AdminSplash() {
   return <main className="admin-auth-page" aria-label="Загрузка"><section className="admin-auth-card admin-splash-card"><div className="admin-auth-mark"><ShieldCheck size={32} /></div><h1>Админ панель</h1><p>Подключаемся к серверу Raid OS</p><LoaderCircle className="spin" size={22} /></section></main>
 }
 
+/** Seconds left until `until` (ms), ticking once a second while there are any. */
+function useSecondsLeft(until: number) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (until <= Date.now()) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [until])
+  return Math.max(0, Math.ceil((until - now) / 1000))
+}
+
 function AdminLogin({ offline, initialError, onSignedIn, onRetry, refreshing }: {
   offline: boolean; initialError: string; onSignedIn: (status: ServerAccountStatus) => void; onRetry: () => void; refreshing: boolean
 }) {
@@ -131,14 +142,47 @@ function AdminLogin({ offline, initialError, onSignedIn, onRetry, refreshing }: 
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(initialError)
+  // After the right password the code from the e-mail (owner, 27.11.2026: «без кода входа нет»).
+  const [secondFactor, setSecondFactor] = useState<PendingSecondFactor | null>(null)
+  const [code, setCode] = useState('')
+  const [resendAt, setResendAt] = useState(0)
+  const resendLeft = useSecondsLeft(resendAt)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (busy) return
     setBusy(true); setError('')
-    try { onSignedIn(await webAdminAccountLogin(email, password)); setPassword('') }
+    try {
+      const next = await webAdminAccountLogin(email, password)
+      setPassword('')
+      if (next.secondFactor) { setSecondFactor(next.secondFactor); setCode(''); setResendAt(Date.now() + next.secondFactor.resendSeconds * 1000) } else onSignedIn(next)
+    }
     catch (reason) { setError(message(reason)) }
     finally { setBusy(false) }
+  }
+
+  const confirm = async (event: FormEvent) => {
+    event.preventDefault()
+    if (busy || !secondFactor) return
+    setBusy(true); setError('')
+    try { onSignedIn(await webAdminAccountLoginConfirm(secondFactor.challengeId, code)) }
+    catch (reason) { setError(message(reason)) }
+    finally { setBusy(false) }
+  }
+
+  const resend = async () => {
+    if (busy || !secondFactor) return
+    setBusy(true); setError('')
+    try {
+      const next = await webServiceRequest('POST', '/v1/accounts/login/resend', { challengeId: secondFactor.challengeId }) as { challengeId: string; expiresAt: string; resendSeconds: number }
+      setSecondFactor({ ...secondFactor, ...next }); setCode('')
+      setResendAt(Date.now() + next.resendSeconds * 1000)
+    } catch (reason) {
+      const text = message(reason)
+      setError(text)
+      const wait = Number(/через (\d+) с/.exec(text)?.[1] ?? 0)
+      if (wait) setResendAt(Date.now() + wait * 1000)
+    } finally { setBusy(false) }
   }
 
   return <main className="admin-auth-page">
@@ -146,12 +190,25 @@ function AdminLogin({ offline, initialError, onSignedIn, onRetry, refreshing }: 
       <div className="admin-auth-mark"><ShieldCheck size={32} /></div>
       <div className="admin-auth-copy"><span>RAID OS</span><h1>Админ панель</h1><p>Прямое защищённое подключение к серверу. Подписка для входа не требуется.</p></div>
       {offline && <div className="admin-auth-warning"><Server size={17} /><span>Сервер сейчас недоступен</span><button type="button" onClick={onRetry} disabled={refreshing}><RefreshCw size={15} className={refreshing ? 'spin' : ''} />Повторить</button></div>}
-      <form className="admin-auth-form" onSubmit={(event) => void submit(event)}>
-        <label><span>E-mail владельца</span><input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-        <label><span>Пароль</span><input type="password" autoComplete="current-password" minLength={8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-        {error && <div className="admin-auth-error" role="alert"><ShieldAlert size={17} />{error}</div>}
-        <button className="admin-auth-submit" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <LogIn size={18} />}{busy ? 'Подключаемся…' : 'Войти'}</button>
-      </form>
+      {secondFactor ? (
+        <form className="admin-auth-form" onSubmit={(event) => void confirm(event)}>
+          <div className="admin-auth-code-note" role="status"><span>{secondFactor.message}</span><strong>{email.trim()}</strong></div>
+          <label><span>Код из письма</span><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required autoFocus /></label>
+          {error && <div className="admin-auth-error" role="alert"><ShieldAlert size={17} />{error}</div>}
+          <button className="admin-auth-submit" type="submit" disabled={busy || code.length !== 6}>{busy ? <LoaderCircle className="spin" size={18} /> : <LogIn size={18} />}{busy ? 'Подключаемся…' : 'Войти'}</button>
+          <div className="admin-auth-links">
+            <button type="button" disabled={busy || resendLeft > 0} onClick={() => void resend()}><RefreshCw size={14} />Отправить код ещё раз{resendLeft > 0 ? ` (${resendLeft})` : ''}</button>
+            <button type="button" onClick={() => { setSecondFactor(null); setError('') }}>Назад</button>
+          </div>
+        </form>
+      ) : (
+        <form className="admin-auth-form" onSubmit={(event) => void submit(event)}>
+          <label><span>E-mail владельца</span><input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+          <label><span>Пароль</span><input type="password" autoComplete="current-password" minLength={8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+          {error && <div className="admin-auth-error" role="alert"><ShieldAlert size={17} />{error}</div>}
+          <button className="admin-auth-submit" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <LogIn size={18} />}{busy ? 'Подключаемся…' : 'Войти'}</button>
+        </form>
+      )}
       <small className="admin-auth-footnote">Доступ получит только аккаунт владельца, подтверждённый сервером.</small>
     </section>
   </main>

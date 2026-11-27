@@ -31,7 +31,7 @@ import { bringToFront, startedByTheApp, waitForInstanceLock } from './singleInst
 import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountEmailSignIn, accountLogin, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, developmentSyncEnabled, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
+import { accountEmailSignIn, accountLogin, accountLoginConfirm, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, developmentSyncEnabled, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild, isSafeStartBuild, isTestBuild, TEST_BUILD_APP_NAME, TEST_BUILD_DATA_FOLDER } from './buildEdition.js'
 import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
 import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
@@ -836,6 +836,8 @@ function registerIpc() {
   // The public website address (streamer links, QR codes): the server's site, or this PC's public link.
   ipcMain.handle('account:website-url', () => websiteBase({ forPhone: true }))
   ipcMain.handle('account:login', (_event, email: unknown, password: unknown) => accountLogin(email, password))
+  // The owner's account: the code from the e-mail after his password; the session stays in the main process too.
+  ipcMain.handle('account:login-confirm', (_event, challengeId: unknown, code: unknown) => accountLoginConfirm(challengeId, code))
   // «Войти по QR-коду» on this PC: the phone signed in to the account approves it (serviceGateway.ts accountQrStart).
   ipcMain.handle('account:qr-start', async () => {
     const request = await accountQrStart()

@@ -9,7 +9,7 @@
  * - The session token is kept in the app's private WebView storage (never logged, never put in a URL).
  * - Only the whitelisted paths below can be requested.
  */
-import type { EntitlementView, ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
+import type { EntitlementView, PendingSecondFactor, ServerAccountStatus, ServerLoginResult, ServerRegistrationResult } from '../electron.d'
 import { webAcceptIssued, webClearEntitlement, webDeviceId, webDeviceName, webEntitlementDue, webEntitlementFor, webForgetKey, webPinKey, webRefuseEntitlement } from './webEntitlement'
 import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '../shared/sendRetry'
 import { isPaidContentPath } from '../shared/paidContent'
@@ -213,6 +213,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Registration in the app: «Отправить код ещё раз» and the consent record. /register and /register/confirm return a
   // session: webAccountRegister / webAccountRegisterConfirm keep it, like the sign-in.
   { methods: ['POST'], path: /^\/v1\/accounts\/register\/resend$/ },
+  // The owner's code step after his password (owner, 27.11.2026): «Отправить код ещё раз»; the code itself
+  // (/login/confirm returns a session) is webAccountLoginConfirm / webAdminAccountLoginConfirm.
+  { methods: ['POST'], path: /^\/v1\/accounts\/login\/resend$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
   // «Сообщить об ошибке» (server/src/routes/bugReports.ts): signed-in accounts only.
   { methods: ['POST'], path: /^\/v1\/bug-reports$/ },
@@ -483,26 +486,52 @@ function accountDetails(view: { owner?: unknown; storeReview?: unknown; nickname
   }
 }
 
-async function accountLogin(rawEmail: string, rawPassword: string, status: () => Promise<ServerAccountStatus>): Promise<ServerAccountStatus> {
+async function accountLogin(rawEmail: string, rawPassword: string, status: () => Promise<ServerAccountStatus>): Promise<ServerLoginResult> {
   const email = rawEmail.trim().toLowerCase()
   const password = rawPassword
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
   if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
   const { response, result } = await send('POST', '/v1/accounts/login', { body: { email, password } })
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  // The owner's account while the server sends e-mail codes (owner, 27.11.2026): the password was right, the code from the
+  // e-mail follows (webAccountLoginConfirm); nothing is saved yet.
+  if (response.status === 202 && (result as { secondFactor?: unknown } | null)?.secondFactor === true) {
+    const secondFactor = pendingCode(result, 'Мы отправили код на почту. Введите его, чтобы войти.')
+    return { ...(await status()), secondFactor }
+  }
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
   saveSession({ token: answer.token, email: typeof answer.account?.email === 'string' ? answer.account.email : email, kind: answer.account?.kind === 'streamer' ? 'streamer' : 'user' })
   return status()
 }
 
-export function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
+export function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerLoginResult> {
   return accountLogin(rawEmail, rawPassword, webAccountStatus)
 }
 
 /** Direct owner login for the standalone admin app, without a subscription/entitlement request. */
-export function webAdminAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
+export function webAdminAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerLoginResult> {
   return accountLogin(rawEmail, rawPassword, webAdminAccountStatus)
+}
+
+/** The code from the e-mail after the owner's password (POST /v1/accounts/login/confirm): the session is kept here. */
+async function loginConfirm(challengeId: string, rawCode: string, status: () => Promise<ServerAccountStatus>): Promise<ServerAccountStatus> {
+  const code = rawCode.replace(/[\s-]/g, '')
+  if (!CHALLENGE_ID.test(challengeId)) throw new Error('Запросите код ещё раз')
+  if (!/^\d{6}$/.test(code)) throw new Error('Код из письма — 6 цифр')
+  const { response, result } = await send('POST', '/v1/accounts/login/confirm', { body: { challengeId, code } })
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  keepSession(result)
+  return status()
+}
+
+export function webAccountLoginConfirm(challengeId: string, rawCode: string): Promise<ServerAccountStatus> {
+  return loginConfirm(challengeId, rawCode, webAccountStatus)
+}
+
+/** The same for the standalone admin app (no entitlement request). */
+export function webAdminAccountLoginConfirm(challengeId: string, rawCode: string): Promise<ServerAccountStatus> {
+  return loginConfirm(challengeId, rawCode, webAdminAccountStatus)
 }
 
 /**
@@ -585,12 +614,27 @@ async function codeSignIn(channel: 'phone' | 'email', kind: 'login' | 'reset', c
 
 const CHALLENGE_ID = /^[A-Za-z0-9_-]{32}$/
 
-/** A session answer ({ token, account }) of the server: stored, then the status. */
-async function adoptSession(result: unknown) {
+/** A session answer ({ token, account }) of the server: stored on this device. */
+function keepSession(result: unknown) {
   const answer = result as { token?: unknown; referralApplied?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
   saveSession({ token: answer.token, email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
-  return { status: await webAccountStatus(), referralApplied: answer.referralApplied === true }
+  return { referralApplied: answer.referralApplied === true }
+}
+
+/** A session answer of the server: stored, then the status. */
+async function adoptSession(result: unknown) {
+  const { referralApplied } = keepSession(result)
+  return { status: await webAccountStatus(), referralApplied }
+}
+
+/** A 202 of the server with a code on its way (a registration or the owner's sign-in), shape-checked. */
+function pendingCode(result: unknown, fallback: string): PendingSecondFactor {
+  const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
+  if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  const resendSeconds = typeof pending.resendSeconds === 'number' && Number.isFinite(pending.resendSeconds) ? Math.max(0, Math.min(3600, Math.round(pending.resendSeconds))) : 60
+  const message = typeof pending.message === 'string' && pending.message.length <= 300 ? pending.message : fallback
+  return { challengeId: pending.challengeId, expiresAt: pending.expiresAt, resendSeconds, message }
 }
 
 /**
@@ -607,13 +651,7 @@ export async function webAccountRegister(rawEmail: string, password: string, raw
   if (referralCode && !/^[a-zA-Z0-9_-]{3,24}$/.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
   if (country && !/^[A-Z]{2}$/.test(country)) throw new Error('Выберите страну из списка')
   const { response, result } = await send('POST', '/v1/accounts/register', { body: { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) } })
-  if (response.status === 202) {
-    const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
-    if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
-    const resendSeconds = typeof pending.resendSeconds === 'number' && Number.isFinite(pending.resendSeconds) ? Math.max(0, Math.min(3600, Math.round(pending.resendSeconds))) : 60
-    const message = typeof pending.message === 'string' && pending.message.length <= 300 ? pending.message : 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.'
-    return { pending: { challengeId: pending.challengeId, expiresAt: pending.expiresAt, resendSeconds, message } }
-  }
+  if (response.status === 202) return { pending: pendingCode(result, 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.') }
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось зарегистрироваться: ${response.status}`)
   return adoptSession(result)
 }

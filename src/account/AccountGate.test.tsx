@@ -3,7 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ServerAccountStatus } from '../electron'
+import type { ServerAccountStatus, ServerLoginResult } from '../electron'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { LEGAL_VERSION as SITE_LEGAL_VERSION } from '../../website/src/legal/documents'
 
@@ -28,6 +28,8 @@ const SERVER = 'https://raidos.app'
 const signedOut: ServerAccountStatus = { signedIn: false, online: true, serverUrl: SERVER, persistent: true }
 const signedIn: ServerAccountStatus = { signedIn: true, email: 'new@example.com', kind: 'user', nicknames: {}, subscription: { status: 'trial' }, online: true, serverUrl: SERVER, persistent: true }
 const CHALLENGE = 'c'.repeat(32)
+/** The owner's right password while the server sends e-mail codes: still signed out, the code follows. */
+const OWNER_PENDING: ServerLoginResult = { ...signedOut, secondFactor: { challengeId: CHALLENGE, expiresAt: '2026-10-01T10:10:00.000Z', resendSeconds: 60, message: 'Мы отправили код на почту. Введите его, чтобы войти.' } }
 
 function desktop(options: { edition?: 'client' | 'owner'; serverMode?: boolean; status?: ServerAccountStatus } = {}) {
   const account = {
@@ -97,6 +99,50 @@ describe('account window on first launch', { timeout: 30_000 }, () => {
     await user.click(screen.getByRole('button', { name: 'Войти' }))
     expect(account.login).toHaveBeenCalledWith('me@example.com', 'correct horse')
     await expectStraightToTheApp()
+  })
+
+  // Owner, 27.11.2026: «После верного пароля на почту владельца приходит код, без кода входа нет».
+  it('the owner\'s account: after the right password the code from the e-mail, then the app opens', async () => {
+    const { account, serviceRequest } = desktop()
+    account.login.mockResolvedValue(OWNER_PENDING)
+    const loginConfirm = vi.fn(async () => signedIn)
+    Object.assign(account, { loginConfirm })
+    const user = await open()
+    await screen.findByRole('dialog', { name: 'Вход в аккаунт' })
+    await user.type(screen.getByLabelText('E-mail'), 'owner@example.com')
+    await user.type(screen.getByLabelText('Пароль'), 'correct horse')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    expect(await screen.findByText('Мы отправили код на почту. Введите его, чтобы войти.')).toBeInTheDocument()
+    expect(screen.getByText('owner@example.com')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Пароль')).toBeNull()
+    expect(loginConfirm).not.toHaveBeenCalled()
+    // «Отправить код ещё раз» waits for its cooldown; «Войти» for the six digits.
+    await user.click(screen.getByRole('button', { name: /Отправить код ещё раз/ }))
+    expect(serviceRequest).not.toHaveBeenCalledWith('POST', '/v1/accounts/login/resend', expect.anything())
+    expect(screen.getByRole('button', { name: 'Войти' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Код из письма'), '123456')
+    account.status.mockResolvedValue(signedIn)
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    expect(loginConfirm).toHaveBeenCalledWith(CHALLENGE, '123456')
+    await expectStraightToTheApp()
+  })
+
+  it('the code step says the server\'s reason for a wrong code, «Назад» goes back to the password, and it speaks English', async () => {
+    const { account } = desktop()
+    account.login.mockResolvedValue(OWNER_PENDING)
+    Object.assign(account, { loginConfirm: vi.fn(async () => { throw new Error("Error invoking remote method 'account:login-confirm': Error: Неверный или устаревший код. Проверьте код или запросите новый.") }) })
+    const user = await open('en')
+    await screen.findByRole('dialog')
+    await user.type(screen.getByLabelText('E-mail'), 'owner@example.com')
+    await user.type(screen.getByLabelText('Password'), 'correct horse')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByText('We sent a code to your e-mail. Enter it to sign in.')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Code from the e-mail'), '000000')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Wrong or expired code. Check it or request a new one.')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 
   it('registers in the app: e-mail code step, then the consent is recorded and the app opens', async () => {

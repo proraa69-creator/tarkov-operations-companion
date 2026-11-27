@@ -1,6 +1,6 @@
 import { KeyRound, LoaderCircle, LogIn, Mail, MailCheck, RefreshCw } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { ApiError, api, errorMessage, type PendingRegistration, type CodeChallenge } from '../api'
+import { ApiError, api, errorMessage, type PendingRegistration, type PendingSecondFactor, type CodeChallenge } from '../api'
 import { useAuth } from '../auth'
 import { tr } from '../i18n'
 import { Notice } from './Notice'
@@ -107,6 +107,63 @@ export function RegistrationCodeStep({ email, pending, onDone, onBack }: { email
         <button type="button" className="button ghost small" onClick={onBack}>{tr('Изменить e-mail')}</button>
       </div>
       <p className="field-hint" style={{ margin: 0 }}>{tr('Если на этот адрес уже есть аккаунт, новый не создаётся — войдите с паролем или воспользуйтесь «Забыли пароль?».')}</p>
+    </form>
+  )
+}
+
+/**
+ * The owner's sign-in, step 2 (owner, 27.11.2026: «После верного пароля на почту владельца приходит код, без кода входа
+ * нет»): the server took his password and e-mailed a code; only that code gives this browser a session.
+ */
+export function SignInCodeStep({ email, pending, onDone, onBack }: { email: string; pending: PendingSecondFactor; onDone: () => void; onBack: () => void }) {
+  const auth = useAuth()
+  const [code, setCode] = useState('')
+  const [resendAt, setResendAt] = useState(() => Date.now() + pending.resendSeconds * 1000)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const [resent, setResent] = useState(false)
+
+  async function confirm(event: FormEvent) {
+    event.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await auth.confirmLogin(pending.challengeId, code)
+      onDone()
+    } catch (reason) {
+      setError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function resend() {
+    setBusy(true); setError(null); setResent(false)
+    try {
+      const next = await api.loginResend(pending.challengeId)
+      setResendAt(Date.now() + next.resendSeconds * 1000)
+      setCode(''); setResent(true)
+    } catch (reason) {
+      setError(reason)
+      const wait = retryAfter(reason)
+      if (wait) setResendAt(wait)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="form" onSubmit={confirm}>
+      <Notice tone="info" title={tr('Мы отправили код на e-mail')}><strong>{email}</strong></Notice>
+      {resent && <Notice tone="success">{tr('Новый код отправлен. Предыдущий больше не действует.')}</Notice>}
+      {failure(error)}
+      <EmailCodeField value={code} onChange={setCode} />
+      <button type="submit" className="button primary large block" disabled={busy || code.length !== 6}>
+        {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <LogIn aria-hidden="true" />}{tr('Войти')}
+      </button>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <ResendButton until={resendAt} busy={busy} onClick={() => void resend()} />
+        <button type="button" className="button ghost small" onClick={onBack}>{tr('Изменить e-mail')}</button>
+      </div>
     </form>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { AlertTriangle, Check, Clock, Gift, LoaderCircle, LogIn, Mail, Monitor, QrCode, RefreshCw, UserPlus, Users } from 'lucide-react'
-import type { PendingServerRegistration, ServerAccountStatus } from '../electron'
+import type { PendingSecondFactor, PendingServerRegistration, ServerAccountStatus } from '../electron'
 import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -13,6 +13,7 @@ import { postService, useCooldown, waitFrom, type CodeChallenge } from './codeRe
 import { EmailSignInForm, EmailSignInLinks } from './EmailAccount'
 import { PhoneSignInForm, PhoneSignInLinks } from './PhoneAccount'
 import { QrSignIn } from './QrSignIn'
+import { SecondFactorStep } from './SecondFactorStep'
 import { googleSignInOffered } from '../shared/googleRegion'
 import './account.css'
 
@@ -33,7 +34,8 @@ interface StepProps {
 /**
  * Step 1 of the account window (AccountController): «Вход» / «Регистрация» right in the app.
  * - Вход: e-mail + password, «Войти по QR-коду» (owner, 09.11.2026: instead of «Войти по коду из письма»), «Забыли
- *   пароль?» by e-mail code (while the server sends e-mail codes).
+ *   пароль?» by e-mail code (while the server sends e-mail codes). The owner's account then asks the code from the
+ *   e-mail (SecondFactorStep.tsx; owner, 27.11.2026).
  * - Регистрация: e-mail, password twice, the country, an optional invitation code and the consent with the documents on
  *   raidos.app; with e-mail codes on, the code from the e-mail creates the account, otherwise it is signed in at once.
  * The desktop app goes through the main process (electron/serviceGateway.ts: the session never reaches this page),
@@ -115,6 +117,8 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // The owner's account: after the right password the code from the e-mail (owner, 27.11.2026).
+  const [secondFactor, setSecondFactor] = useState<PendingSecondFactor | null>(null)
   // «Войти по QR-коду»: the phone by the QR code of the signed-in PC app, the PC by a QR code the signed-in phone
   // approves (QrSignIn.tsx; owner, 28.10.2026).
   // On every phone, the iPhone too (owner, 25.11.2026: «При входе в приложение на телефоне должна быть кнопка «Войти по
@@ -131,12 +135,17 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
     try {
       const next = await login(email, password)
       setPassword('')
+      if (next.secondFactor) { setSecondFactor(next.secondFactor); return }
       onSignedIn(next.nicknames)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Сервер недоступен')
     } finally {
       setBusy(false)
     }
+  }
+
+  if (secondFactor) {
+    return <SecondFactorStep pending={secondFactor} email={email.trim()} onSigningIn={onSigningIn} onSignedIn={(next) => onSignedIn(next.nicknames)} onBack={() => setSecondFactor(null)} />
   }
 
   return (
