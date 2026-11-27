@@ -74,7 +74,7 @@ export function ReferralsSheet({ onClose }: { onClose: () => void }) {
             <article><span><Wallet size={16} />{uiText('Оплатили')}</span><strong>{count.format(summary.paid)}</strong><small>{uiText(`не оплатили: ${count.format(summary.unpaid)}`)}</small></article>
             <article><span><Gift size={16} />{uiText('Дней начислено')}</span><strong>{count.format(summary.days.granted)}</strong><small>{uiText(`на проверке ${count.format(summary.days.pending)} · у администрации ${count.format(summary.days.review)}`)}</small></article>
           </div>
-          <p className="admin-referral-rules">{uiText(`За оплатившего друга — ${summary.rewardDays} дн., проверка ${summary.holdDays} дн.; другу скидка ${summary.discountPercent} % на первый месяц.${summary.waitingEft ? ` Ждут первого входа друга в приложение: ${summary.waitingEft}.` : ''}`)}</p>
+          <p className="admin-referral-rules">{uiText(`Дни за ранги: ${summary.ranks.map((rank) => `${rank.friends} — ${rank.bonusDays === 'lifetime' ? 'навсегда' : `${rank.bonusDays} дн.`}`).join(', ')}; проверка друга ${summary.holdDays} дн.; другу скидка ${summary.discountPercent} % на первый месяц.${summary.waitingEft ? ` Ждут первого входа друга в приложение: ${summary.waitingEft}.` : ''}`)}</p>
         </>}
         {data && <>
           <label className="admin-search admin-sheet-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={uiText('Поиск по почте или нику')} aria-label={uiText('Поиск по почте или нику')} />{search && <button type="button" onClick={() => setSearch('')} aria-label={uiText('Очистить')}><X size={16} /></button>}</label>

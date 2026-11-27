@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore, WELCOME_TRIAL_MS } from './accountStore.js'
 import { openDatabase } from './database.js'
-import { HOLD_MS, InviteProgram, LIFETIME_UNTIL, RANKS } from './invites.js'
+import { HOLD_MS, InviteProgram, RANKS } from './invites.js'
 import { PaymentStore } from './paymentStore.js'
 import { ProgressStore } from './progressStore.js'
 
@@ -89,7 +89,7 @@ test('a friend registers with a player code and gets 20 % off the first month on
   assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '2400.00', currency: 'RUB' })
 })
 
-test('the inviter gets 7 days only after the friend paid and 14 days passed; milestones at 3 friends', async () => {
+test('rewards only at the ranks: the first confirmed friend 7 days, the second nothing, the third a month (owner, 27.11.2026)', async () => {
   const t = await setup()
   const inviter = await t.register('inviter@example.com')
   const code = t.invites.code(inviter)
@@ -100,7 +100,8 @@ test('the inviter gets 7 days only after the friend paid and 14 days passed; mil
   for (const friend of friends) await t.pay(friend)
   let program = t.invites.program(inviter)
   assert.deepEqual([program.paid, program.confirmed, program.rank], [3, 0, null])
-  assert.ok(program.rewards.every((reward) => reward.status === 'pending' && reward.days === 7 && reward.releaseAt))
+  // A friend's own row carries no days now: the ranks give them.
+  assert.ok(program.rewards.every((reward) => reward.kind === 'friend' && reward.status === 'pending' && reward.days === 0 && reward.releaseAt))
   assert.match(program.rewards[0]!.friend!, /^[abc]\*\*\*@example\.com$/)
 
   t.advance(HOLD_MS - DAY)
@@ -112,12 +113,65 @@ test('the inviter gets 7 days only after the friend paid and 14 days passed; mil
   program = t.invites.program(inviter)
   assert.equal(program.confirmed, 3)
   assert.deepEqual(program.rank, { id: 'operator', title: 'Operator' })
-  assert.equal(program.next?.id, 'squad-leader')
-  assert.ok(program.rewards.some((reward) => reward.kind === 'operator' && reward.days === 30 && reward.status === 'granted'))
-  // 3 × 7 days + a month for the rank Operator.
-  assert.equal(t.paidUntil(inviter), t.now() + (21 + 30) * DAY)
+  assert.deepEqual(program.next, { id: 'squad-leader', title: 'Squad Leader', friends: 5, bonusDays: 90 })
+  assert.deepEqual(program.rewards.filter((reward) => reward.kind !== 'friend').map((reward) => [reward.kind, reward.days, reward.status]).sort(), [['operator', 30, 'granted'], ['scout', 7, 'granted']])
+  // 7 days for the first friend (Scout) and a month for the third (Operator); the second gives nothing.
+  assert.equal(t.paidUntil(inviter), t.now() + (7 + 30) * DAY)
   assert.deepEqual(t.invites.release(), { granted: 0 }, 'nothing twice')
-  assert.equal(t.paidUntil(inviter), t.now() + 51 * DAY)
+  assert.equal(t.paidUntil(inviter), t.now() + 37 * DAY)
+})
+
+test('the days come at 1, 3, 5 and 10 confirmed friends only: 7 days, a month, three months, a year after the owner\'s review', async () => {
+  const t = await setup()
+  const inviter = await t.register('inviter@example.com')
+  const code = t.invites.code(inviter)
+  // Friends four days apart (no burst): what each confirmed friend adds to the inviter's paid period, in days.
+  const added: number[] = []
+  for (let n = 1; n <= 11; n++) {
+    await t.pay(await t.register(`f${n}@example.com`, code, `10.4.${n}.1`))
+    t.advance(HOLD_MS + DAY)
+    const before = Math.max(t.paidUntil(inviter), t.now())
+    t.invites.release()
+    added.push(Math.round((t.paidUntil(inviter) - before) / DAY))
+  }
+  // «За второго мы вообще не выдаем дни» (owner, 27.11.2026); the tenth friend's year waits for the owner.
+  assert.deepEqual(added, [7, 0, 30, 0, 90, 0, 0, 0, 0, 0, 0])
+  const year = t.invites.adminList('review', 10, 0).rewards.find((reward) => reward.kind === 'raid-commander')!
+  assert.deepEqual([year.days, year.flags], [365, ['milestone']])
+  const before = t.paidUntil(inviter)
+  t.invites.decide('owner@example.com', year.id, 'approve')
+  assert.equal(t.paidUntil(inviter), before + 365 * DAY)
+  const program = t.invites.program(inviter)
+  assert.deepEqual([program.confirmed, program.rank?.id, program.next], [11, 'raid-commander', null])
+  assert.deepEqual(program.rewards.filter((reward) => reward.kind !== 'friend').map((reward) => [reward.kind, reward.days]).sort(), [['operator', 30], ['raid-commander', 365], ['scout', 7], ['squad-leader', 90]])
+  assert.ok(program.rewards.filter((reward) => reward.kind === 'friend').every((reward) => reward.days === 0 && reward.status === 'granted'))
+})
+
+test('a friend\'s row from before 27.11.2026 keeps its 7 days, and Scout does not give the first friend\'s days again', async () => {
+  const t = await setup()
+  const inviter = await t.register('inviter@example.com')
+  const code = t.invites.code(inviter)
+  // Two friends paid under the old rules (7 days on each friend's row): the first granted already, the second on hold.
+  const first = await t.register('old1@example.com', code, '10.5.0.1')
+  await t.pay(first)
+  await t.pay(await t.register('old2@example.com', code, '10.5.0.2'))
+  t.db.prepare("UPDATE invite_rewards SET days = 7 WHERE inviter_id = ? AND kind = 'friend'").run(inviter)
+  t.db.prepare("UPDATE invite_rewards SET status = 'granted', decided_at = ? WHERE friend_id = ?").run(t.now(), first)
+  t.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?)').run(inviter, t.now() + 7 * DAY)
+
+  t.advance(HOLD_MS + DAY)
+  let before = t.paidUntil(inviter)
+  assert.deepEqual(t.invites.release(), { granted: 1 })
+  assert.equal(t.paidUntil(inviter), before + 7 * DAY, 'the second friend\'s old row keeps its 7 days')
+  assert.equal(t.invites.program(inviter).rewards.some((reward) => reward.kind === 'scout'), false, 'no Scout days on top of the first friend\'s')
+
+  // A third friend under the new rules: the month of Operator.
+  await t.pay(await t.register('new3@example.com', code, '10.5.0.3'))
+  t.advance(HOLD_MS + DAY)
+  before = t.paidUntil(inviter)
+  t.invites.release()
+  assert.equal(t.paidUntil(inviter), before + 30 * DAY)
+  assert.deepEqual(t.invites.program(inviter).rewards.filter((reward) => reward.kind !== 'friend').map((reward) => reward.kind), ['operator'])
 })
 
 test('the inviter needs no payment of their own; only a friend\'s first month with the 20 % discount counts', async () => {
@@ -221,24 +275,25 @@ test('a friend code: not one\'s own, not after a payment, once; codes share one 
   assert.throws(() => t.invites.code(streamerId), /стримеров/)
 })
 
-test('50 confirmed friends make Premium lifelong (rank Legend)', async () => {
+test('10 confirmed friends: a year of Premium after the owner\'s review (rank Raid Commander), nothing for life any more', async () => {
   const t = await setup()
   const inviter = await t.register('inviter@example.com')
   const code = t.invites.code(inviter)
-  for (let i = 0; i < 50; i++) await t.pay(await t.register(`f${i}@example.com`, code, `10.1.${i}.1`))
-  // 50 rewards in one day are flagged as a burst after the first five: the owner approves them.
+  for (let i = 0; i < 10; i++) await t.pay(await t.register(`f${i}@example.com`, code, `10.1.${i}.1`))
+  // 10 rewards in one day are flagged as a burst after the first five: the owner approves them.
   for (const reward of t.invites.adminList('review', 500, 0).rewards) t.invites.decide('owner@example.com', reward.id, 'approve')
   t.advance(HOLD_MS)
   t.invites.release()
-  // A year (25) and lifetime (50) wait for the owner's review; then they are granted.
-  const milestones = t.invites.adminList('review', 500, 0).rewards.filter((reward) => reward.kind === 'raid-commander' || reward.kind === 'legend')
-  assert.deepEqual(milestones.map((reward) => reward.kind).sort(), ['legend', 'raid-commander'])
-  assert.notEqual(t.paidUntil(inviter), LIFETIME_UNTIL, 'not before the review')
+  // The year (10 friends) waits for the owner's review; then it is granted.
+  const milestones = t.invites.adminList('review', 500, 0).rewards.filter((reward) => reward.kind !== 'friend')
+  assert.deepEqual(milestones.map((reward) => [reward.kind, reward.days]), [['raid-commander', 365]])
+  // 7 days, a month and three months before the review.
+  assert.equal(t.paidUntil(inviter), t.now() + (7 + 30 + 90) * DAY, 'not before the review')
   for (const reward of milestones) t.invites.decide('owner@example.com', reward.id, 'approve')
   const program = t.invites.program(inviter)
-  assert.deepEqual([program.confirmed, program.rank?.id, program.next], [50, 'legend', null])
-  assert.equal(t.paidUntil(inviter), LIFETIME_UNTIL)
-  assert.ok(program.rewards.some((reward) => reward.kind === 'legend' && reward.days === 'lifetime'))
+  assert.deepEqual([program.confirmed, program.rank?.id, program.next], [10, 'raid-commander', null])
+  assert.equal(t.paidUntil(inviter), t.now() + (7 + 30 + 90 + 365) * DAY)
+  assert.equal(RANKS.some((rank) => rank.bonusDays === 'lifetime'), false)
 })
 
 test('routes: the cabinet program, the friend discount in /v1/payments and the owner review', async () => {
@@ -304,12 +359,12 @@ test('refunds take rewards back; the friend discount is for one payment; e-mail 
   t.invites.release()
   const before = t.paidUntil(inviter)
   assert.equal(before, t.now() + 7 * DAY)
-  // The friend's payment is refunded: the reward is cancelled, its 7 days and the friend's month are taken back.
+  // The friend's payment is refunded: he counts no more, Scout's 7 days and the friend's month are taken back.
   assert.equal(t.payments.markRefunded(first.paymentId), true)
   assert.equal(t.payments.markRefunded(first.paymentId), false, 'once')
   assert.equal(t.paidUntil(inviter), t.now())
   assert.equal(t.payments.list(friend).find((item) => item.id === first.paymentId)?.status, 'refunded')
-  assert.equal(t.invites.adminList('canceled', 10, 0).rewards[0]?.friend, 'friend@example.com')
+  assert.equal(t.invites.adminList('canceled', 10, 0).rewards.find((reward) => reward.kind === 'friend')?.friend, 'friend@example.com')
   // After that refund the cabinet and the bank agree: no discount shown, the list price is charged.
   assert.equal(t.invites.discountPercent(friend), 0)
   await t.payments.create(t.accounts.billingInfo(friend), '1m', 'https://raidos.example.com', { version: '2026-10-06' }, undefined, { percent: 20 })
@@ -394,11 +449,11 @@ test('any refund, full or partial, cancels the reward and the rank it no longer 
   t.invites.release()
   assert.equal(t.invites.program(inviter).rank?.id, 'operator')
   const withRank = t.paidUntil(inviter)
-  assert.equal(withRank, t.now() + (3 * 7 + 30) * DAY)
+  assert.equal(withRank, t.now() + (7 + 30) * DAY)
 
-  // A partial refund of one friend: his 7 days and the Operator bonus (3 friends) go back.
+  // A partial refund of one friend: the Operator bonus (3 friends) goes back, Scout (1 friend) stays.
   assert.equal(t.payments.partiallyRefunded(payments[0]!), true)
-  assert.equal(t.paidUntil(inviter), withRank - (7 + 30) * DAY)
+  assert.equal(t.paidUntil(inviter), withRank - 30 * DAY)
   assert.equal(t.invites.program(inviter).rank?.id, 'scout')
   assert.equal(t.invites.program(inviter).rewards.find((item) => item.kind === 'operator')?.status, 'canceled')
 
@@ -437,7 +492,7 @@ test('the owner\'s reward rows name both accounts with their nicknames and the f
   const paymentId = await t.pay(friend)
   const reward = t.invites.adminList(undefined, 10, 0).rewards[0]!
   assert.deepEqual({ ...reward, createdAt: undefined, releaseAt: undefined }, {
-    id: reward.id, kind: 'friend', days: 7, status: 'pending', createdAt: undefined, releaseAt: undefined,
+    id: reward.id, kind: 'friend', days: 0, status: 'pending', createdAt: undefined, releaseAt: undefined,
     inviterId: inviter, inviter: 'inviter@example.com', inviterNickname: 'Inviter_1', inviterCode: t.invites.code(inviter),
     friendId: friend, friend: 'friend@example.com', friendNickname: 'Friend_1',
     payment: { amount: 240, status: 'succeeded', provider: 'yookassa', plan: '1m', discountPercent: 20, paidAt: new Date(t.now()).toISOString() },
@@ -484,7 +539,7 @@ test('«Привлечение друзей» (owner, 03.11.2026): every inviter
   const [a, b, c] = stats.referrers
   assert.deepEqual(
     { invited: a!.invited, paid: a!.paid, unpaid: a!.unpaid, days: a!.days, rewards: a!.rewards, waitingEft: a!.waitingEft, rank: a!.rank?.id, nickname: a!.nickname, code: a!.code },
-    { invited: 4, paid: 3, unpaid: 1, days: { granted: 7, pending: 14, review: 0 }, rewards: { pending: 2, review: 0, granted: 1, canceled: 0 }, waitingEft: 1, rank: 'scout', nickname: 'Alpha_1', code: alphaCode },
+    { invited: 4, paid: 3, unpaid: 1, days: { granted: 7, pending: 0, review: 0 }, rewards: { pending: 2, review: 0, granted: 2, canceled: 0 }, waitingEft: 1, rank: 'scout', nickname: 'Alpha_1', code: alphaCode },
   )
   assert.equal(a!.nextReleaseAt, new Date(onHoldUntil).toISOString())
   assert.deepEqual([b!.invited, b!.paid, b!.unpaid, b!.days.granted + b!.days.pending, b!.rank], [1, 1, 0, 0, undefined])
@@ -492,8 +547,8 @@ test('«Привлечение друзей» (owner, 03.11.2026): every inviter
   assert.deepEqual({ ...stats.summary, top: stats.summary.top && { ...stats.summary.top, id: undefined } }, {
     withCode: 4, referrers: 3, invited: 6, paid: 4, unpaid: 2, friendsDeleted: 1,
     top: { id: undefined, invited: 4, email: 'alpha@example.com', nickname: 'Alpha_1' },
-    days: { granted: 7, pending: 14, review: 0 }, rewards: { pending: 2, review: 0, granted: 1, canceled: 0 },
-    waitingEft: 1, lifetime: 0, rewardDays: 7, holdDays: 3, discountPercent: 20, ranks: RANKS,
+    days: { granted: 7, pending: 0, review: 0 }, rewards: { pending: 2, review: 0, granted: 2, canceled: 0 },
+    waitingEft: 1, lifetime: 0, holdDays: 3, discountPercent: 20, ranks: RANKS,
   })
   // Sorted by paying friends, by reward days, by the latest invitation; the search narrows the list, never the totals.
   assert.deepEqual(t.invites.adminReferrals({ sort: 'paid' }).referrers.map((entry) => entry.email), ['alpha@example.com', 'beta@example.com', 'gamma@example.com'])
@@ -513,7 +568,8 @@ test('«Привлечение друзей» (owner, 03.11.2026): every inviter
   assert.deepEqual([onHold.reward?.status, onHold.reward?.releaseAt, onHold.reward?.waitingEft], ['pending', new Date(onHoldUntil).toISOString(), undefined])
   assert.deepEqual([byEmail.get('a3@example.com')!.eftBound, byEmail.get('a3@example.com')!.reward?.waitingEft], [false, true])
   assert.deepEqual([byEmail.get('a4@example.com')!.paid, byEmail.get('a4@example.com')!.reward, byEmail.get('a4@example.com')!.first], [false, undefined, undefined])
-  assert.deepEqual(detail.rewards, [])
+  // The ranks: Scout for the first friend.
+  assert.deepEqual(detail.rewards.map((reward) => [reward.kind, reward.days, reward.status]), [['scout', 7, 'granted']])
   const gammaDetail = t.invites.adminReferrer(gamma)
   assert.deepEqual([gammaDetail.friends[0]!.deleted, gammaDetail.friends[0]!.email], [true, undefined])
   assert.throws(() => t.invites.adminReferrer(a1), /никого не приглашал/)
@@ -552,7 +608,7 @@ test('«Привлечение друзей» routes: the owner only, the list a
     assert.equal((list.json.referrers as Array<{ email: string }>)[0]!.email, 'player@example.com')
     const detail = await call(`/accounts/me/admin/referrals/${player}`, owner)
     const friends = detail.json.friends as Array<{ email: string; paid: boolean; amount: number; reward?: { status: string; days: number } }>
-    assert.deepEqual([detail.status, friends[0]!.email, friends[0]!.paid, friends[0]!.amount, friends[0]!.reward?.status, friends[0]!.reward?.days], [200, 'friend@example.com', true, 240, 'pending', 7])
+    assert.deepEqual([detail.status, friends[0]!.email, friends[0]!.paid, friends[0]!.amount, friends[0]!.reward?.status, friends[0]!.reward?.days], [200, 'friend@example.com', true, 240, 'pending', 0])
     assert.equal((await call(`/accounts/me/admin/referrals/${friend}`, owner)).status, 404)
     assert.equal((await call('/accounts/me/admin/referrals/not-an-id', owner)).status, 400)
     assert.equal((await call('/accounts/me/admin/referrals?sort=everything', owner)).status, 400)

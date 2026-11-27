@@ -4,11 +4,10 @@ import { localeTag, tr } from '../i18n'
 
 /** The ranks of «Пригласи друга» (mirrors RANKS in server/src/services/invites.ts): used before the program loads and on the home page. */
 export const INVITE_RANKS: InviteRank[] = [
-  { id: 'scout', title: 'Scout', friends: 1, bonusDays: 0 },
+  { id: 'scout', title: 'Scout', friends: 1, bonusDays: 7 },
   { id: 'operator', title: 'Operator', friends: 3, bonusDays: 30 },
-  { id: 'squad-leader', title: 'Squad Leader', friends: 10, bonusDays: 90 },
-  { id: 'raid-commander', title: 'Raid Commander', friends: 25, bonusDays: 365 },
-  { id: 'legend', title: 'Legend', friends: 50, bonusDays: 'lifetime' },
+  { id: 'squad-leader', title: 'Squad Leader', friends: 5, bonusDays: 90 },
+  { id: 'raid-commander', title: 'Raid Commander', friends: 10, bonusDays: 365 },
 ]
 
 /** 1 день, 2 дня, 5 дней — Russian plural by the last digits. */
@@ -39,10 +38,9 @@ export function bonusText(days: number | 'lifetime') {
   return countText(days, DAY_WORDS)
 }
 
-/** What a rank gives: Scout — the per-friend days, the others — their one-off bonus. */
-export function rankReward(rank: InviteRank, rewardDays = 7) {
+/** What a rank gives: its one-off bonus — since 27.11.2026 the only days of the program (a friend gives none of his own). */
+export function rankReward(rank: InviteRank) {
   if (rank.bonusDays === 'lifetime') return tr('Premium навсегда')
-  if (rank.bonusDays === 0) return tr('{bonus} за друга', { bonus: bonusText(rewardDays) })
   return `+${bonusText(rank.bonusDays)}`
 }
 
@@ -56,6 +54,8 @@ export const REWARD_STATUS: Record<InviteRewardStatus, { label: string; tone: st
 
 export function rewardStatusText(reward: InviteReward) {
   if (reward.status === 'pending' && reward.waitingEft) return tr('Ожидает привязку')
+  // A friend's own row has no days since 27.11.2026: granted, he counts towards the ranks.
+  if (reward.status === 'granted' && reward.kind === 'friend' && reward.days === 0) return tr('Засчитан')
   if (reward.status === 'pending' && reward.releaseAt) {
     const date = new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'short' }).format(new Date(reward.releaseAt))
     return tr('На проверке до {date}', { date })
@@ -64,12 +64,11 @@ export function rewardStatusText(reward: InviteReward) {
 }
 
 /** «Ещё 2 оплаты до Operator — +1 месяц Premium». */
-export function progressText(program: Pick<InviteProgram, 'confirmed' | 'next' | 'rewardDays'>) {
+export function progressText(program: Pick<InviteProgram, 'confirmed' | 'next'>) {
   const next = program.next
-  if (!next) return tr('Высший ранг получен — Premium навсегда. Спасибо, что зовёте друзей!')
+  if (!next) return tr('Высший ранг получен. Спасибо, что зовёте друзей!')
   const left = Math.max(next.friends - program.confirmed, 0)
   const reward = next.bonusDays === 'lifetime' ? tr('Premium навсегда')
-    : next.bonusDays === 0 ? tr('{bonus} Premium за каждого друга', { bonus: bonusText(program.rewardDays) })
-      : tr('+{bonus} Premium', { bonus: next.bonusDays === 30 ? tr('1 месяц') : next.bonusDays === 365 ? tr('1 год') : bonusText(next.bonusDays) })
+    : tr('+{bonus} Premium', { bonus: next.bonusDays === 30 ? tr('1 месяц') : next.bonusDays === 365 ? tr('1 год') : bonusText(next.bonusDays) })
   return tr('Ещё {payments} до {rank} — {reward}', { payments: countText(left, PAYMENT_WORDS), rank: next.title, reward })
 }

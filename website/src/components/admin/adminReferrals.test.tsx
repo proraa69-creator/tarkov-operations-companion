@@ -31,10 +31,10 @@ const list: AdminReferrals = {
     withCode: 667, referrers: 2, invited: 5, paid: 3, unpaid: 2, friendsDeleted: 1,
     top: { id: 'a'.repeat(24), invited: 4, email: 'alpha@example.com', nickname: 'Alpha_1' },
     days: { granted: 7, pending: 14, review: 7 }, rewards: rewards(1, 2, 1), waitingEft: 1, lifetime: 0,
-    rewardDays: 7, holdDays: 3, discountPercent: 20,
+    holdDays: 3, discountPercent: 20,
     ranks: [
-      { id: 'scout', title: 'Scout', friends: 1, bonusDays: 0 }, { id: 'operator', title: 'Operator', friends: 3, bonusDays: 30 },
-      { id: 'legend', title: 'Legend', friends: 50, bonusDays: 'lifetime' },
+      { id: 'scout', title: 'Scout', friends: 1, bonusDays: 7 }, { id: 'operator', title: 'Operator', friends: 3, bonusDays: 30 },
+      { id: 'squad-leader', title: 'Squad Leader', friends: 5, bonusDays: 90 }, { id: 'raid-commander', title: 'Raid Commander', friends: 10, bonusDays: 365 },
     ],
   },
   referrers: [
@@ -78,7 +78,7 @@ describe('«Привлечение друзей»: the program in numbers and ev
     expect(within(tile('Оплатили')).getByText('60 % приглашённых')).toBeInTheDocument()
     expect(within(tile('Дней ждут выдачи')).getByText(/ждут входа друга в приложение для ПК: 1/)).toBeInTheDocument()
     expect(within(tile('Ждут вашего решения')).getByText(/«Платежи» → «Награды за друзей»/)).toBeInTheDocument()
-    expect(screen.getByText(/Ранги за подтверждённых друзей: 3 — \+30 дней, 50 — Premium навсегда/)).toBeInTheDocument()
+    expect(screen.getByText(/по числу подтверждённых друзей: 1 — \+7 дней, 3 — \+30 дней, 5 — \+90 дней, 10 — \+365 дней; год — после вашего подтверждения/)).toBeInTheDocument()
 
     const row = screen.getByText('alpha@example.com').closest('tr') as HTMLElement
     expect(within(row).getByText('RAID-ALPHA')).toBeInTheDocument()

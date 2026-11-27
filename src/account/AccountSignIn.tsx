@@ -302,7 +302,7 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin, onPickGoogle }
           Not in the App Store build: no free period, referral discounts or invitation codes there (src/account/IosAccount.tsx). */}
       {!ios && <ul className="account-gate-perks">
         <li><Clock size={14} /><span>{uiText('2 дня бесплатно — с первого рейда, без оплаты.')}</span></li>
-        <li><Users size={14} /><span>{uiText('Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.')}</span></li>
+        <li><Users size={14} /><span>{uiText('Пригласите друзей: за первого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, за 3 — месяц, за 5 — 3 месяца, за 10 — год.')}</span></li>
       </ul>}
       <label className="field-label">{uiText('E-mail')}
         <input className="input" type="email" autoComplete="email" value={email} maxLength={254} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} required autoFocus />

@@ -82,7 +82,7 @@ function ReferralSummary({ summary }: { summary: AdminReferralSummary }) {
         <Stat icon={ShieldQuestion} label="Ждут вашего решения" value={count(summary.rewards.review)} meta={summary.rewards.review ? `${daysText(summary.days.review)} · «Платежи» → «Награды за друзей»` : 'спорных наград нет'} accent={summary.rewards.review > 0} />
       </div>
       <p className="field-hint admin-referral-rules">
-        Друг получает −{summary.discountPercent} % на первый месяц. За каждого друга, оплатившего первый месяц со скидкой, пригласившему +{daysText(summary.rewardDays)}: через {daysText(summary.holdDays)} проверки и после входа друга в приложение для ПК. Ранги за подтверждённых друзей: {ranks}.
+        Друг получает −{summary.discountPercent} % на первый месяц и засчитывается, если оплатил его со скидкой: через {daysText(summary.holdDays)} проверки и после входа в приложение для ПК. Дни — только за ранги, по числу подтверждённых друзей: {ranks}; год — после вашего подтверждения.
       </p>
     </>
   )

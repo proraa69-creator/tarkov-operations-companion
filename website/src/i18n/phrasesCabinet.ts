@@ -155,8 +155,8 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   // Invite a friend (InviteFriendsPanel.tsx, inviteProgram.ts; the ladder is also on the home page).
   ['Пригласи друга', 'Invite a friend'], ['Без ранга', 'No rank'], ['Не удалось загрузить программу', "Couldn't load the invite program"],
   ['Загружаем ваш код…', 'Loading your code…'], ['Правила', 'Rules'],
-  ['Друг получает скидку {discount} % на первый месяц. Вы — {bonus} Premium за каждого друга, который оплатил первый месяц со скидкой {discount} %, даже если сами вы ещё не платили; дни начисляются после проверки ({hold}). Друг засчитывается, когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет его дни и бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.',
-    "Your friend gets {discount}% off the first month. You get {bonus} of Premium for every friend who pays for the first month with the {discount}% discount, even if you have never paid yourself; the days are credited after a review period ({hold}). A friend counts once their Raid OS app on PC has linked an Escape from Tarkov account: one game account — one friend. Any refund of a friend's payment cancels their days, and the rank bonus too if you no longer have enough friends for the rank. Rewards are Premium days and can't be cashed out. Cheating voids rewards."],
+  ['Друг получает скидку {discount} % на первый месяц. Premium вам дают за первого, третьего, пятого и десятого друга, оплатившего первый месяц со скидкой {discount} %, — даже если сами вы ещё не платили. Друг засчитывается после проверки ({hold}), когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.',
+    "Your friend gets {discount}% off the first month. You get Premium for your first, third, fifth and tenth friend who pays for the first month with the {discount}% discount — even if you have never paid yourself. A friend counts after a review period ({hold}), once their Raid OS app on PC has linked an Escape from Tarkov account: one game account — one friend. Any refund of a friend's payment cancels the rank bonus if you no longer have enough friends for the rank. Rewards are Premium days and can't be cashed out. Cheating voids rewards."],
   ['Зарегистрировались', 'Signed up'], ['Оплатили', 'Paid'], ['первую подписку', 'a first subscription'], ['Подтверждено', 'Confirmed'], ['после проверки', 'after review'],
   ['Ссылка для друга', 'Link for a friend'], ['Прогресс до следующего ранга', 'Progress to the next rank'],
   ['Ещё {payments} на проверке — засчитаются после {days}.', '{payments} more under review — they will count after {days}.'],
@@ -166,11 +166,11 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Новый код', 'New code'], ['3–24 символа: латиница, цифры, «_» или «-». Старый код перестанет работать.', '3–24 characters: Latin letters, digits, "_" or "-". The old code will stop working.'],
   ['Ранги за друзей', 'Ranks for friends'], ['получен', 'reached'], ['Друг {friend}', 'Friend {friend}'], ['Друг оплатил подписку', 'A friend subscribed'],
   ['Ранг {rank}', 'Rank {rank}'], ['Premium навсегда', 'Lifetime Premium'], ['год', '1 year'], ['месяц', '1 month'], ['1 год', '1 year'],
-  ['{bonus} за друга', '{bonus} per friend'], ['{bonus} Premium за каждого друга', '{bonus} of Premium for each friend'], ['+{bonus} Premium', '+{bonus} of Premium'],
+  ['+{bonus} Premium', '+{bonus} of Premium'],
   ['Ещё {payments} до {rank} — {reward}', '{payments} left until {rank} — {reward}'],
-  ['Высший ранг получен — Premium навсегда. Спасибо, что зовёте друзей!', 'Top rank reached — Lifetime Premium. Thanks for inviting your friends!'],
+  ['Высший ранг получен. Спасибо, что зовёте друзей!', 'Top rank reached. Thanks for inviting your friends!'],
   ['На проверке', 'Under review'], ['На проверке до {date}', 'Under review until {date}'], ['Проверяет администрация', 'Under admin review'],
-  ['Начислено', 'Credited'], ['Не засчитано', 'Not counted'], ['Ожидает привязку', 'Waiting for game link'],
+  ['Начислено', 'Credited'], ['Засчитан', 'Counted'], ['Не засчитано', 'Not counted'], ['Ожидает привязку', 'Waiting for game link'],
 
   // The server's answers the cabinet shows that src/i18n/phrasesAuth.ts does not have (server/src: payoutStore, paymentStore,
   // squadStore, routes). The account-wide ones (sign-in, password, invite codes, squads) are in phrasesAuth.ts.

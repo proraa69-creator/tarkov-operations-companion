@@ -11,8 +11,8 @@ describe('published seller details', () => {
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Telegram']).toBe('@raidosapp')
-    expect(LEGAL_VERSION).toBe('2026-11-17.1')
-    expect(LEGAL_VERSION_LABEL).toBe('17 ноября 2026 г., ред. 24')
+    expect(LEGAL_VERSION).toBe('2026-11-27.1')
+    expect(LEGAL_VERSION_LABEL).toBe('27 ноября 2026 г., ред. 25')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {

@@ -17,7 +17,7 @@ const formatCreated = (value: string) => new Intl.DateTimeFormat(localeTag(), { 
 const HOLD_DAY_WORDS = { ru: ['дня', 'дней', 'дней'], en: DAY_WORDS.en } as const
 
 /** The ranks ladder; `confirmed` marks reached ranks (cabinet), without it the ladder is just the list (home page). */
-export function RankLadder({ ranks = INVITE_RANKS, confirmed, rewardDays = 7, compact = false }: { ranks?: InviteRank[]; confirmed?: number; rewardDays?: number; compact?: boolean }) {
+export function RankLadder({ ranks = INVITE_RANKS, confirmed, compact = false }: { ranks?: InviteRank[]; confirmed?: number; compact?: boolean }) {
   return (
     <ol className={`rank-ladder${compact ? ' is-compact' : ''}`} aria-label={tr('Ранги за друзей')}>
       {ranks.map((rank) => {
@@ -27,7 +27,7 @@ export function RankLadder({ ranks = INVITE_RANKS, confirmed, rewardDays = 7, co
             <span className="rank-friends mono">{rank.friends}</span>
             <span className="rank-text">
               <strong>{rank.title}</strong>
-              <span>{rankReward(rank, rewardDays)}</span>
+              <span>{rankReward(rank)}</span>
             </span>
             {reached && <BadgeCheck className="rank-check" aria-label={tr('получен')} />}
           </li>
@@ -87,9 +87,8 @@ export function InviteFriendsPanel() {
         <div className="how-it-works">
           <div className="field-label">{tr('Правила')}</div>
           <p className="invite-rules">
-            {tr('Друг получает скидку {discount} % на первый месяц. Вы — {bonus} Premium за каждого друга, который оплатил первый месяц со скидкой {discount} %, даже если сами вы ещё не платили; дни начисляются после проверки ({hold}). Друг засчитывается, когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет его дни и бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.', {
+            {tr('Друг получает скидку {discount} % на первый месяц. Premium вам дают за первого, третьего, пятого и десятого друга, оплатившего первый месяц со скидкой {discount} %, — даже если сами вы ещё не платили. Друг засчитывается после проверки ({hold}), когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.', {
               discount: program?.discountPercent ?? 20,
-              bonus: bonusText(program?.rewardDays ?? 7),
               hold: countText(program?.holdDays ?? 3, DAY_WORDS),
             })}
           </p>
@@ -145,12 +144,12 @@ function ProgramView({ program, onChange }: { program: InviteProgram; onChange: 
         {waiting > 0 && <span className="field-hint">{tr('Ещё {payments} на проверке — засчитаются после {days}.', { payments: countText(waiting, PAYMENT_WORDS), days: countText(program.holdDays, HOLD_DAY_WORDS) })}</span>}
       </div>
 
-      <RankLadder ranks={ranks} confirmed={program.confirmed} rewardDays={program.rewardDays} />
+      <RankLadder ranks={ranks} confirmed={program.confirmed} />
 
       <div className="invite-rewards">
         <div className="field-label">{tr('Награды')}</div>
         {program.rewards.length === 0 ? (
-          <div className="muted" style={{ fontSize: 14 }}>{tr('Пока наград нет. Поделитесь ссылкой — как только друг оплатит первый месяц со скидкой, здесь появится {bonus} Premium.', { bonus: bonusText(program.rewardDays) })}</div>
+          <div className="muted" style={{ fontSize: 14 }}>{tr('Пока наград нет. Поделитесь ссылкой — как только друг оплатит первый месяц со скидкой, здесь появится {bonus} Premium.', { bonus: bonusText(ranks[0]?.bonusDays ?? 7) })}</div>
         ) : (
           <ul className="reward-list">
             {program.rewards.map((reward) => {
@@ -159,7 +158,7 @@ function ProgramView({ program, onChange }: { program: InviteProgram; onChange: 
                 <li key={reward.id} className="reward-item">
                   <div className="reward-main">
                     <strong>{rewardTitle(reward, ranks)}</strong>
-                    <span className="dim mono">{formatCreated(reward.createdAt)} · {rewardDaysText(reward.days)}</span>
+                    <span className="dim mono">{formatCreated(reward.createdAt)}{reward.days === 0 ? '' : ` · ${rewardDaysText(reward.days)}`}</span>
                   </div>
                   <span className={`tag ${status.tone}`}>{rewardStatusText(reward)}</span>
                 </li>

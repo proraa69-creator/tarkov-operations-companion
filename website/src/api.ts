@@ -508,7 +508,6 @@ export interface InviteReward {
 export interface InviteProgram {
   code: string
   discountPercent: number
-  rewardDays: number
   holdDays: number
   /** Registered by the code. */
   invited: number
@@ -581,10 +580,9 @@ export interface AdminReferralSummary {
   rewards: Record<InviteRewardStatus, number>
   waitingEft: number
   lifetime: number
-  rewardDays: number
   holdDays: number
   discountPercent: number
-  /** The rank bonuses: friends needed and the days they add (Raid Commander and Legend after the owner's review). */
+  /** The rank bonuses: friends needed and the days they add (Raid Commander after the owner's review). */
   ranks: InviteRank[]
 }
 export interface AdminReferrals { summary: AdminReferralSummary; referrers: AdminReferrer[]; total: number }

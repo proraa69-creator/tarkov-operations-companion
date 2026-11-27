@@ -4,11 +4,15 @@
  * Every player has a personal code (`accounts.invite_code`, «RAID-7K2QF» by default, can be changed once while nobody
  * has used it yet). A new player who registers with it (or enters it in the cabinet before their first payment) gets
  * FRIEND_DISCOUNT_PERCENT off the first month (PaymentStore.create). The player who invited them gets nothing for the
- * registration itself — only for a REAL paying friend, whether or not the inviter has ever paid (owner, 12.10.2026:
- * «ему дают бонусы, даже если он не оплатил первично»):
+ * registration itself — only for REAL paying friends, whether or not the inviter has ever paid (owner, 12.10.2026:
+ * «ему дают бонусы, даже если он не оплатил первично»), and only at the ranks (owner, 27.11.2026: «Мы только даем за
+ * конкретное число, за одного человека, за 3 человек, за 5 человек и за 10»): the first confirmed friend gives 7 days,
+ * the third a month, the fifth three months, the tenth a year (RANKS); the others give nothing. A friend is confirmed so:
  *
- *   - the friend's first successful payment creates a reward of REWARD_DAYS days, «на проверке» for HOLD_MS — 3 days (owner, 20.10.2026: «автовыдачу через 3 дня»; refunds
+ *   - the friend's first successful payment creates his reward row, «на проверке» for HOLD_MS — 3 days (owner, 20.10.2026: «автовыдачу через 3 дня»; refunds
  *     and charge-backs surface in that time, and the owner can cancel it); the owner's approval does not shorten it.
+ *     The row carries no days since 27.11.2026. Until then every friend gave 7 days on it: a row made before keeps
+ *     them, and then Scout does not give the first friend's 7 days again;
  *     Only a first payment made with the friend's discount counts (owner, 12.10.2026: «друзья должны оплатить подписку
  *     по скидке 20%») — the first month at FRIEND_DISCOUNT_PERCENT off; a friend who starts with a longer plan (no
  *     discount there) earns the inviter nothing;
@@ -19,9 +23,9 @@
  *     and the rank bonuses the inviter no longer has enough confirmed friends for (owner's decision 08.10.2026, «А»);
  *   - suspicious rewards (same device, same registration address, same card as the inviter or as another friend, too
  *     many in a day) go to the owner's review instead and are never granted automatically;
- *   - after the hold `release()` (hourly, index.ts) grants the days — only while the friend's payment is still
- *     succeeded and the inviter's account works — and the milestones: 3 / 10 / 25 confirmed friends add a month /
- *     three months / a year, 50 make Premium lifelong (rank «Legend»).
+ *   - after the hold `release()` (hourly, index.ts) confirms the friend — only while the friend's payment is still
+ *     succeeded and the inviter's account works — and grants the ranks reached: 1 / 3 / 5 / 10 confirmed friends add
+ *     7 days / a month / three months / a year (the year after the owner's review).
  *
  * Rewards are subscription days only: they are never paid out. Ranks follow the number of confirmed friends.
  */
@@ -33,7 +37,6 @@ import { providerOf, type PaymentProvider, type PaymentStore, type SucceededPaym
 
 const DAY_MS = 24 * 60 * 60 * 1000
 export const FRIEND_DISCOUNT_PERCENT = 20
-export const REWARD_DAYS = 7
 export const HOLD_MS = 3 * DAY_MS
 /** Paid until this moment means «навсегда» (rank Legend). */
 export const LIFETIME_UNTIL = Date.UTC(2100, 0, 1)
@@ -43,12 +46,16 @@ const BURST_LIMIT = 5
 const SAME_ADDRESS_LIMIT = 3
 
 export type RankId = 'scout' | 'operator' | 'squad-leader' | 'raid-commander' | 'legend'
+/**
+ * The days come only at these numbers of confirmed friends (owner, 27.11.2026: «за одного человека, за 3 человек, за 5
+ * человек и за 10»; «за второго мы вообще не выдаем дни»): 7 days, a month, three months, a year. Legend (50 friends,
+ * Premium for life) left the ladder then; nobody had reached it, and its kind is still read.
+ */
 export const RANKS: Array<{ id: RankId; title: string; friends: number; bonusDays: number | 'lifetime' }> = [
-  { id: 'scout', title: 'Scout', friends: 1, bonusDays: 0 },
+  { id: 'scout', title: 'Scout', friends: 1, bonusDays: 7 },
   { id: 'operator', title: 'Operator', friends: 3, bonusDays: 30 },
-  { id: 'squad-leader', title: 'Squad Leader', friends: 10, bonusDays: 90 },
-  { id: 'raid-commander', title: 'Raid Commander', friends: 25, bonusDays: 365 },
-  { id: 'legend', title: 'Legend', friends: 50, bonusDays: 'lifetime' },
+  { id: 'squad-leader', title: 'Squad Leader', friends: 5, bonusDays: 90 },
+  { id: 'raid-commander', title: 'Raid Commander', friends: 10, bonusDays: 365 },
 ]
 
 export type RewardStatus = 'pending' | 'review' | 'granted' | 'canceled'
@@ -267,7 +274,6 @@ export class InviteProgram {
     return {
       code,
       discountPercent: FRIEND_DISCOUNT_PERCENT,
-      rewardDays: REWARD_DAYS,
       holdDays: Math.round(HOLD_MS / DAY_MS),
       invited: this.invitedCount(accountId),
       paid: count("SELECT COUNT(*) AS n FROM invite_rewards WHERE inviter_id = ? AND kind = 'friend' AND status IN ('pending', 'review', 'granted')"),
@@ -287,8 +293,9 @@ export class InviteProgram {
     if (Number(first.n) !== 1) return
     const flags = this.fraudFlags(inviter, payment)
     const now = this.now()
-    this.db.prepare("INSERT INTO invite_rewards (inviter_id, friend_id, payment_id, kind, days, status, flags, created_at, release_at) VALUES (?, ?, ?, 'friend', ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
-      .run(inviter, payment.accountId, payment.id, REWARD_DAYS, flags.length ? 'review' : 'pending', flags.length ? flags.join(',') : null, now, now + HOLD_MS)
+    // No days of its own since 27.11.2026: the friend counts towards the ranks (RANKS), and they give the days.
+    this.db.prepare("INSERT INTO invite_rewards (inviter_id, friend_id, payment_id, kind, days, status, flags, created_at, release_at) VALUES (?, ?, ?, 'friend', 0, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
+      .run(inviter, payment.accountId, payment.id, flags.length ? 'review' : 'pending', flags.length ? flags.join(',') : null, now, now + HOLD_MS)
   }
 
   /**
@@ -302,8 +309,11 @@ export class InviteProgram {
     this.db.prepare("UPDATE invite_rewards SET status = 'canceled', decided_at = ?, comment = ? WHERE id = ?")
       .run(this.now(), partial ? 'платёж друга частично возвращён' : 'платёж друга возвращён', Number(row.id))
     if (row.status !== 'granted') return
-    this.extend(String(row.inviter_id), -Number(row.days))
+    // Days of its own only on a row from before 27.11.2026.
+    if (Number(row.days) > 0) this.extend(String(row.inviter_id), -Number(row.days))
     this.revokeLostMilestones(String(row.inviter_id))
+    // Such a row gone, the first friend's 7 days may be Scout's now (grantMilestones).
+    this.grantMilestones(String(row.inviter_id))
   }
 
   /** Rank bonuses above the inviter's confirmed friends now: cancelled, their days taken back (never below now). */
@@ -550,7 +560,6 @@ export class InviteProgram {
       rewards: { pending: sum((stats) => stats.rewards.pending), review: sum((stats) => stats.rewards.review), granted: sum((stats) => stats.rewards.granted), canceled: sum((stats) => stats.rewards.canceled) },
       waitingEft: sum((stats) => stats.waitingEft),
       lifetime: all.filter((stats) => stats.lifetime).length,
-      rewardDays: REWARD_DAYS,
       holdDays: Math.round(HOLD_MS / DAY_MS),
       discountPercent: FRIEND_DISCOUNT_PERCENT,
       ranks: RANKS,
@@ -644,20 +653,24 @@ export class InviteProgram {
   private grant(id: number, inviter: string, days: number, actor?: string, comment?: string) {
     const changed = this.db.prepare("UPDATE invite_rewards SET status = 'granted', decided_at = ?, decided_by = ?, comment = COALESCE(?, comment) WHERE id = ? AND status IN ('pending', 'review')").run(this.now(), actor ?? null, comment ?? null, id)
     if (!Number(changed.changes)) return false
-    this.extend(inviter, days)
+    // A friend's row has no days since 27.11.2026: nothing to add (extend with 0 would still rewrite the paid period).
+    if (days > 0) this.extend(inviter, days)
     return true
   }
 
   private grantMilestones(inviter: string) {
     const confirmed = this.confirmedCount(inviter)
+    // The first friend's 7 days came on his own row before 27.11.2026 (every friend gave 7 then): Scout does not repeat them.
+    const firstFriendPaid = this.db.prepare("SELECT 1 FROM invite_rewards WHERE inviter_id = ? AND kind = 'friend' AND status = 'granted' AND days > 0 LIMIT 1").get(inviter) !== undefined
     for (const rank of RANKS) {
       if (rank.bonusDays === 0 || confirmed < rank.friends) continue
+      if (rank.id === 'scout' && firstFriendPaid) continue
       const lifetime = rank.bonusDays === 'lifetime'
       const days = lifetime ? 0 : Number(rank.bonusDays)
       const reviewed = REVIEWED_MILESTONES.has(rank.id)
       // A rank lost after a refund and reached again: the same row comes back (one row per rank and inviter).
       const lost = this.db.prepare("SELECT id FROM invite_rewards WHERE inviter_id = ? AND kind = ? AND status = 'canceled'").get(inviter, rank.id) as Row | undefined
-      // A year and lifetime Premium wait for the owner (decide): 25–50 paid «friends» is what a farm of alts would buy.
+      // A year waits for the owner (decide): 10 paid «friends» is what a farm of alts would buy.
       if (reviewed) {
         if (lost) this.db.prepare("UPDATE invite_rewards SET status = 'review', flags = 'milestone', decided_at = NULL, decided_by = NULL, created_at = ? WHERE id = ?").run(this.now(), Number(lost.id))
         else this.db.prepare("INSERT INTO invite_rewards (inviter_id, kind, days, status, flags, created_at) VALUES (?, ?, ?, 'review', 'milestone', ?) ON CONFLICT DO NOTHING").run(inviter, rank.id, days, this.now())

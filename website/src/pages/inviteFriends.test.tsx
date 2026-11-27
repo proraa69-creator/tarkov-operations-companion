@@ -31,17 +31,15 @@ const { CabinetPage } = await import('./CabinetPage')
 const { ReferralLandingPage } = await import('./ReferralLandingPage')
 
 const ranks = [
-  { id: 'scout', title: 'Scout', friends: 1, bonusDays: 0 },
+  { id: 'scout', title: 'Scout', friends: 1, bonusDays: 7 },
   { id: 'operator', title: 'Operator', friends: 3, bonusDays: 30 },
-  { id: 'squad-leader', title: 'Squad Leader', friends: 10, bonusDays: 90 },
-  { id: 'raid-commander', title: 'Raid Commander', friends: 25, bonusDays: 365 },
-  { id: 'legend', title: 'Legend', friends: 50, bonusDays: 'lifetime' },
+  { id: 'squad-leader', title: 'Squad Leader', friends: 5, bonusDays: 90 },
+  { id: 'raid-commander', title: 'Raid Commander', friends: 10, bonusDays: 365 },
 ] as const
 
 const program: InviteProgram = {
   code: 'RAID-K7Q2M',
   discountPercent: 20,
-  rewardDays: 7,
   holdDays: 14,
   invited: 4,
   paid: 3,
@@ -50,10 +48,11 @@ const program: InviteProgram = {
   next: { id: 'operator', title: 'Operator', friends: 3, bonusDays: 30 },
   ranks: [...ranks],
   rewards: [
-    { id: 4, kind: 'friend', days: 7, status: 'pending', createdAt: '2026-10-06T10:00:00.000Z', releaseAt: '2026-10-20T10:00:00.000Z', friend: 'a***@mail.ru' },
-    { id: 3, kind: 'friend', days: 7, status: 'review', createdAt: '2026-10-05T10:00:00.000Z', friend: 'b***@mail.ru' },
-    { id: 2, kind: 'friend', days: 7, status: 'canceled', createdAt: '2026-10-02T10:00:00.000Z', decidedAt: '2026-10-03T10:00:00.000Z', friend: 'c***@mail.ru' },
-    { id: 1, kind: 'friend', days: 7, status: 'granted', createdAt: '2026-09-01T10:00:00.000Z', decidedAt: '2026-09-15T10:00:00.000Z', friend: 'd***@mail.ru' },
+    { id: 5, kind: 'scout', days: 7, status: 'granted', createdAt: '2026-09-15T10:00:00.000Z', decidedAt: '2026-09-15T10:00:00.000Z' },
+    { id: 4, kind: 'friend', days: 0, status: 'pending', createdAt: '2026-10-06T10:00:00.000Z', releaseAt: '2026-10-20T10:00:00.000Z', friend: 'a***@mail.ru' },
+    { id: 3, kind: 'friend', days: 0, status: 'review', createdAt: '2026-10-05T10:00:00.000Z', friend: 'b***@mail.ru' },
+    { id: 2, kind: 'friend', days: 0, status: 'canceled', createdAt: '2026-10-02T10:00:00.000Z', decidedAt: '2026-10-03T10:00:00.000Z', friend: 'c***@mail.ru' },
+    { id: 1, kind: 'friend', days: 0, status: 'granted', createdAt: '2026-09-01T10:00:00.000Z', decidedAt: '2026-09-15T10:00:00.000Z', friend: 'd***@mail.ru' },
   ],
 }
 
@@ -80,13 +79,16 @@ describe('«Пригласи друга»', () => {
     expect(scope.getAllByText('Scout').length).toBeGreaterThan(0)
     expect(scope.getByText('Зарегистрировались')).toBeInTheDocument()
     expect(scope.getByText('Подтверждено')).toBeInTheDocument()
-    // Ladder
-    expect(scope.getByText('7 дней за друга')).toBeInTheDocument()
-    expect(scope.getByText('Premium навсегда')).toBeInTheDocument()
+    // Ladder: the days only at 1, 3, 5 and 10 friends (owner, 27.11.2026).
+    expect(scope.getByText('+7 дней')).toBeInTheDocument()
+    expect(scope.getByText('+3 месяца')).toBeInTheDocument()
+    expect(scope.queryByText('Premium навсегда')).toBeNull()
+    expect(scope.getByText(/за первого, третьего, пятого и десятого друга/)).toBeInTheDocument()
     // Statuses
     expect(scope.getByText(/^На проверке до 20 окт/)).toBeInTheDocument()
     expect(scope.getByText('Проверяет администрация')).toBeInTheDocument()
     expect(scope.getByText('Начислено')).toBeInTheDocument()
+    expect(scope.getByText('Засчитан')).toBeInTheDocument()
     expect(scope.getByText('Не засчитано')).toBeInTheDocument()
     // The code cannot be changed: friends already registered by it.
     expect(scope.queryByText('Изменить код')).toBeNull()
@@ -98,7 +100,14 @@ describe('«Пригласи друга»', () => {
     mocks.invites.mockResolvedValue({ ...program, invited: 0, paid: 0, confirmed: 0, rank: null, next: { ...ranks[0] }, rewards: [] })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
     expect(await screen.findByText('Изменить код')).toBeInTheDocument()
-    expect(screen.getByText('Ещё 1 оплата до Scout — 7 дней Premium за каждого друга')).toBeInTheDocument()
+    expect(screen.getByText('Ещё 1 оплата до Scout — +7 дней Premium')).toBeInTheDocument()
+  })
+
+  it('the top rank: no lifetime Premium promised any more', async () => {
+    mocks.auth.account = player
+    mocks.invites.mockResolvedValue({ ...program, invited: 10, paid: 10, confirmed: 10, rank: { id: 'raid-commander', title: 'Raid Commander' }, next: null, rewards: [] })
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    expect(await screen.findByText('Высший ранг получен. Спасибо, что зовёте друзей!')).toBeInTheDocument()
   })
 
   it('the 1-month plan shows the friend price', async () => {

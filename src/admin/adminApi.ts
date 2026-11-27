@@ -112,7 +112,7 @@ export interface AdminReferralSummary {
   withCode: number; referrers: number; invited: number; paid: number; unpaid: number; friendsDeleted: number
   top?: { id: string; invited: number; email?: string; nickname?: string }
   days: { granted: number; pending: number; review: number }; rewards: Partial<Record<InviteRewardStatus, number>>
-  waitingEft: number; lifetime: number; rewardDays: number; holdDays: number; discountPercent: number
+  waitingEft: number; lifetime: number; holdDays: number; discountPercent: number
   ranks: Array<{ id: string; title: string; friends: number; bonusDays: number | 'lifetime' }>
 }
 export interface AdminReferrals { summary: AdminReferralSummary; referrers: AdminReferrer[]; total: number }
