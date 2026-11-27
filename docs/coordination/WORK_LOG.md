@@ -11688,3 +11688,32 @@ Not pushed, not released, nothing uploaded.
   людей. И в скобочках пиши вместо… 5 человек, вместо 10». The friends line now: «Пригласи друга: 7 дней Premium — за 1
   друга, месяц — за 3, 3 месяца — за 5 (вместо 10), год — за 10 (вместо 25)» (11 languages); the bosses line stays.
 - vitest src/news and src/data 609/609. Pushed to release/production on top of b12a875b for the 20:00 window.
+
+## 2026-11-27 17:00 — Claude: security review of the whole system; what is fixed in 0.6.0.352 and on the server
+
+- Owner, 27.11.2026: «проверь весь контур и найди возможные уязвимости», then «устраняй все эти проблемы и делай все,
+  что нужно». Three agents read the server, the desktop app and the site with the phones; the VPS, the release chain,
+  GitHub, the repository with its history and the owner's PC were checked here. The full report is the owner's only
+  (the repository is public).
+- In code (0.6.0.352, claude/referral-steps):
+  - a338af17: a BZB sale letter counts only when BZB signed it to the seller — one From and one To under the
+    bezebee.com DKIM signature (h= covers From, To, Date, Message-ID), To one of TARKOV_BEZEBEE_SELLER_EMAILS (else
+    TARKOV_OWNER_EMAILS), at most 14 days old, DMARC alone no longer; the sum is read before «Контакт покупателя».
+    Checked read-only on the paid letters of the project mailbox: all 35 pass. Others wait in «Ждут привязки».
+  - 0e089801: a BZB payment on another region's page waits for the owner. e4d548cb: a ЮKassa refund notice is read
+    from the API only for one of our succeeded payments.
+  - c9349e98: a new password, «Выйти на всех устройствах» or a block end the account's open reset codes and links;
+    none for the owner's account. 3b982c2b: the site's reset page takes the support link off the address.
+  - 4928ad1e: map tiles never leave the mirror. 66e19526: made-up e-mails, names and codes in this log and the tests
+    instead of real ones (git history keeps the old lines). d2cedf17: the ops reference (nginx, the publisher).
+- On the server (live): ufw (22, 80, 443; 10050 only for Timeweb's monitoring), fail2ban for sshd, no X11 forwarding;
+  nginx: HSTS, server_tokens off, a strict CSP in Report-Only beside the old one, a client's CF-IPCountry cleared,
+  /health with the client's address; the safe-start test exe and the 0.5.4 owner manifest moved off the site to
+  /root/raidos-archive; a daily database copy on the second disk (raidos-db-copy.timer, 02:30 UTC, 14 kept,
+  quick_check). Every changed file has a copy in /etc/raidos (*.bak-*).
+- GitHub: secret scanning and push protection, vulnerability alerts; release/production, main and mobile/release
+  protected from force-push and deletion (admins too); RAIDOS_ANDROID_REF pinned to 0e44314f.
+- Checks: server 646/646 before the last fixes and their own files after each; vitest src/data, src/news and the
+  changed site and admin tests; typecheck of the app, the site and the server.
+- After 20:00: the package updates and the reboot at a quiet hour, the API unit's hardening, the publisher's fix on
+  the VPS. The rest waits for the owner's decisions.
