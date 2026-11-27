@@ -11987,3 +11987,22 @@ Not pushed, not released, nothing uploaded.
   release's new name reaches everyone at once.
 - History line for the release (no news, a fix): «Документы боевого пропуска: на Таможне фото «Проектной документации»
   в компьютерной комнате — как в игре», "reports":[253].
+
+## 2026-11-28 02:05 — Claude: report 254 — Shoreline's test documentation lies on the table in the house by the SORDI tower (claude/report-254-photo 0aab54b8, not pushed)
+
+- Report 254 (PvE, app 0.6.0.354): «тестовая документация использует неправильный скрин», a screenshot named with its
+  position. Shoreline, our test documentation spot 1.7 m from the player: it showed the wiki's «spawn 8», a shelf in the SORDI
+  tower station's trailer (e5def8c9123abd69); in the player's game the document (the blue «LA» booklet) lies on the wooden
+  table in the house next to it. The player is right.
+- Owner, relayed by the release session: «заявка 254» — like 253. The frame fb47dafe8c001044 is cut from the player's
+  screenshot (no HUD, no weapon), shadows lifted, the owner's arrow on the document, named and sized like integrate_all.py
+  (E:\SPT-photo\server-upload\shoreline-report254\make254.py). `src/data/documentGuidePhotos.json`: our own frame in place
+  of the wiki's (files, photos, the Shoreline list, the spot); caption «В доме рядом с вышкой связи, на столе.» /
+  «In the house next to the SORDI tower, on the table.», the nine languages' line of the trailer replaced (no other photo used it).
+- Tests: src/data, src/i18n and BattlePassDocuments 641/641, server guideImages and questPointPhotos 14/14.
+- Server (Windows ssh.exe, the agent): wiki-fb47dafe8c001044.jpg and -t installed (raidos-api, 600). Until this goes out the
+  old names serve the new frame: wiki-e5def8c9123abd69.png, -t.png (PNG of it) and .jpg; the wiki's files kept in
+  /var/lib/raidos/map-mirror/images/guides-replaced-254. sha256 checked through raidos.app. An app that already showed the
+  old one keeps it from its cache for up to a week; the release's new name reaches everyone at once.
+- History line for the release (no news, a fix): «Документы боевого пропуска: на Берегу фото «Тестовой документации» у вышки
+  связи — как в игре», "reports":[254].
