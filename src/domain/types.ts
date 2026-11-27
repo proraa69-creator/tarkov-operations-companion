@@ -179,9 +179,13 @@ export interface PlayerProfileSnapshot {
  */
 export interface LevelAnchor {
   level: number
-  /** When the level was true: the game's screen at that moment, or Tarkov.dev's update time of the profile. */
+  /** When the level was true: the game's screen at that moment, Tarkov.dev's update time of the profile, or the entry's time. */
   observedAt: string
-  source: 'screen' | 'tarkov-dev'
+  /**
+   * `manual`: «Указать уровень» on the mode's card (owner, 27.11.2026), the player's own entry while no reading has the level
+   * (src/domain/progress.ts setManualLevel). A newer reading of the game or Tarkov.dev replaces it.
+   */
+  source: 'screen' | 'tarkov-dev' | 'manual'
   /**
    * A screen reading whose digits were also read from their shapes (src/import/levelDigits.ts). Readings stored before
    * 14.10.2026 were OCR alone, which took the game's «3» for a «5» (PvE 39 shown as 59): any newer reading replaces those.
@@ -194,6 +198,10 @@ export interface LevelAnchor {
 export interface ModeProgress {
   registration: ModeRegistration
   playerSnapshot?: PlayerProfileSnapshot
+  /**
+   * The level the mode's quests and items are filtered by. Without an anchor: the level the quests completed in the mode prove
+   * at least (src/profile/questExperience.ts levelProvenByQuests), shown as «Уровень не ниже N»; 1 without any.
+   */
   playerLevel: number
   /** The level's source and time; `playerLevel` may be higher by the experience of quests completed since. */
   levelAnchor?: LevelAnchor

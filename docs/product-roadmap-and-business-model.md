@@ -49,7 +49,7 @@ nickname input in the app or on the website (owner, 10.10.2026: «ручную �
 
 The app should try to detect the currently selected/played game mode automatically from logs/session data. If the game mode changes from PvP to PvE or Seasonal, the app should switch its active mode accordingly.
 
-Character level must come from trusted profile/account data where possible. The user should not manually edit level because quest availability depends on it.
+Character level must come from trusted profile/account data where possible: the game's screens or the Tarkov.dev profile, raised by the experience of the quests turned in since. Until one has the level of a mode (owner, 27.11.2026: «нижняя граница уровня по квестам и ручной ввод уровня»), the quests completed in that mode give the level at least («Уровень не ниже N»: the highest level they ask for, or the level their experience reaches), and the mode's card offers «Указать уровень» (1–79). Neither replaces a reading: a newer one replaces them. PvP, PvE and Season apart (`src/domain/progress.ts` applyLevelEstimate, setManualLevel).
 
 Refresh target:
 

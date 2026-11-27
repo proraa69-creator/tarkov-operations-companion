@@ -1,8 +1,11 @@
 /**
  * English for the nickname and level read from the game's screens (onboarding/GameRestartNotice.tsx, account/NicknameEditor.tsx,
- * components/PlayerLoadoutSummary.tsx, pages/ProfilePage.tsx) and the owner's notice (src/announcement).
+ * components/PlayerLoadoutSummary.tsx, components/ManualLevelField.tsx, pages/ProfilePage.tsx) and the owner's notice
+ * (src/announcement).
  */
 export const CHARACTER_PHRASES: Array<[string, string]> = [
+  // The level without a reading (owner, 27.11.2026): the quests' estimate («Уровень не ниже N», CHARACTER_RULES) and the entry.
+  ['Указать уровень', 'Set level'],
   ['Первый запуск', 'First launch'],
   ['Сначала Raid OS, потом игра', 'First Raid OS, then the game'],
   ['Закройте игру, если она открыта.', 'Close the game if it is open.'], ['Оставьте Raid OS запущенным и только потом запустите игру.', 'Keep Raid OS running and only then start the game.'], ['Приложение само найдёт на экране ваш логин и уровень.', 'The app finds your login and level on the screen by itself.'],
@@ -37,4 +40,9 @@ export const CHARACTER_PHRASES: Array<[string, string]> = [
   ['Поддержать проект', 'Support the project'],
   ['Помогите развивать компаньон для Escape from Tarkov', 'Help us build the companion for Escape from Tarkov'],
   ['Спасибо!', 'Thank you!'],
+]
+
+/** The level the mode's completed quests prove (components/PlayerLoadoutSummary.tsx), the number where each language puts it. */
+export const CHARACTER_RULES: Array<[RegExp, string]> = [
+  [/Уровень не ниже (\d+)/g, 'At least level $1'],
 ]

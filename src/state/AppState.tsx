@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, floorAfterReset, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
+import { applyLevelEstimate, applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, floorAfterReset, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, setManualLevel, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers, hiddenLayersFromStorage } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
@@ -71,6 +71,10 @@ interface AppStateValue extends UiState {
   applyScreenLevel: (mode: RaidMode, level: number, observedAt: string, raiseOnly?: boolean) => void
   /** Quest experience since the level's anchor (src/profile/questExperience.ts); never lowers the level. */
   raisePlayerLevel: (mode: RaidMode, level: number) => void
+  /** A mode without an anchor: the level its completed quests prove at least (src/domain/progress.ts applyLevelEstimate). */
+  estimatePlayerLevel: (mode: RaidMode, level: number) => void
+  /** «Указать уровень»: the player's own level of a mode while no reading has it (src/domain/progress.ts setManualLevel). */
+  setManualLevel: (mode: RaidMode, level: number) => void
   setSelectedMapId: (id: string) => void
   toggleTrackedQuest: (id: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
@@ -272,6 +276,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     updatePlayerSnapshot: (selectedMode, snapshot) => updateActive((profile) => applyPlayerSnapshot(profile, selectedMode, snapshot)),
     applyScreenLevel: (selectedMode, level, observedAt, raiseOnly) => updateActive((profile) => applyScreenLevel(profile, selectedMode, level, observedAt, raiseOnly)),
     raisePlayerLevel: (selectedMode, level) => updateActive((profile) => raisePlayerLevel(profile, selectedMode, level)),
+    // Asked whenever the mode's quests change: an estimate that stays leaves the state as it is (no write, no render).
+    estimatePlayerLevel: (selectedMode, level) => setProfileState((state) => {
+      const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
+      const next = profile && applyLevelEstimate(profile, selectedMode, level)
+      return !next || next === profile ? state : { ...state, profiles: state.profiles.map((entry) => (entry === profile ? next : entry)) }
+    }),
+    setManualLevel: (selectedMode, level) => updateActive((profile) => setManualLevel(profile, selectedMode, level)),
     setSelectedMapId: (selectedMapId) => setUi((current) => ({ ...current, selectedMapId })),
     toggleTrackedQuest: (id) => updateMode((progress) => ({ ...progress, trackedTaskIds: toggle(progress.trackedTaskIds, id) })),
     // Screen readings that change nothing leave the state as it is (audit P5f): no new state, so no profile write to

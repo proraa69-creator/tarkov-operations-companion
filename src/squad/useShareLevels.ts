@@ -3,11 +3,12 @@
  * level in every mode with the signed-in account (PUT /v1/me/levels), and friends see that before the public Tarkov.dev
  * profile, which the server often cannot reach and which stays stale until somebody opens it on tarkov.dev.
  *
- * - Only a level the app knows: a mode with a level anchor — the game's «Выбор профиля и режима» or traders' screen, or
- *   Tarkov.dev looked up from this PC (src/domain/progress.ts) — raised by the quest experience since
- *   (src/profile/questExperience.ts). The prestige: the player's own value chosen in «Престиж +» (then shared with the
- *   level the mode starts again at), else the mode's Tarkov.dev profile; without either it is null (unknown: no badge).
- *   PvP, PvE and Season each go as their own.
+ * - Only a level the app knows: a mode with a level anchor — the game's «Выбор профиля и режима» or traders' screen,
+ *   Tarkov.dev looked up from this PC, or the player's own «Указать уровень» (src/domain/progress.ts) — raised by the
+ *   quest experience since (src/profile/questExperience.ts); never the estimate from the quests alone («Уровень не ниже»).
+ *   The prestige: the player's own value chosen in «Престиж +» (then shared with the level the mode starts again at),
+ *   else the mode's Tarkov.dev profile; without either it is null (unknown: no badge). PvP, PvE and Season each go as
+ *   their own.
  * - The desktop app only: the phone reads no game screens and never overwrites what the PC shared.
  * - Once after start (or sign-in) and whenever a value changes, a few seconds after the last change. No polling.
  */
@@ -37,8 +38,10 @@ export function sharedLevelsOf(modes: Record<RaidMode, LevelState>): SharedModeL
     // «Престиж +» (owner, 15.10.2026): the prestige the player chose, with the level the mode starts again at.
     const chosenAt = progress?.prestigeSetAt
     if (!anchor && !chosenAt) continue
-    // The level the player sees here: the anchor's, or higher by the quests handed in since.
-    const level = progress.playerLevel
+    // The level the player sees here: the anchor's, or higher by the quests handed in since. Without an anchor, the level
+    // the mode starts again at: the quests' estimate (applyLevelEstimate) is no known level, and the phone would add the
+    // experience of the same quests to it once more.
+    const level = anchor ? progress.playerLevel : 1
     const observedAt = Date.parse(anchor && (!chosenAt || anchor.observedAt > chosenAt) ? anchor.observedAt : chosenAt!)
     if (!Number.isInteger(level) || level < 1 || level > MAX_LEVEL || !Number.isFinite(observedAt)) continue
     // The game's screens show no prestige: the player's own value («Престиж +») or a Tarkov.dev profile of this mode.
