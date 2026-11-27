@@ -115,6 +115,41 @@ button.quest-key-missing:hover { border-color: #d78a6e; color: #f0b9a5; }
 .quest-key-stock-pop > span { color: var(--text); font-size: 13px; font-weight: 700; white-space: nowrap; }
 .quest-key-stock-pop .button { justify-content: center; gap: 5px; }
 
+/*
+ * «Ключи под вопросом» (owner, 27.11.2026: «подсвечивай ее каким-то цветом другим. Например, мигающим, там, оранжевым»): the
+ * button while labels several keys carry wait, a soft orange swell; still for those who turn motion off. Its window below.
+ */
+.quest-keys-unsure { --unsure: #f2892b; gap: 5px; border-color: color-mix(in srgb, var(--unsure) 70%, transparent); background: color-mix(in srgb, var(--unsure) 14%, var(--panel-2)); color: #ffb873; animation: quest-keys-unsure-glow 1.8s ease-in-out infinite; }
+.quest-keys-unsure:hover { border-color: var(--unsure); background: color-mix(in srgb, var(--unsure) 22%, var(--panel-2)); }
+@keyframes quest-keys-unsure-glow {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { border-color: var(--unsure); box-shadow: 0 0 0 3px color-mix(in srgb, var(--unsure) 24%, transparent), 0 0 16px 3px color-mix(in srgb, var(--unsure) 40%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .quest-keys-unsure { animation: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--unsure) 30%, transparent); } }
+.quest-keys-unsure-dialog { width: min(560px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.quest-keys-unsure-lead { margin: 2px 0 12px; color: var(--text-muted); font-size: 13.5px; line-height: 1.45; }
+.quest-keys-unsure-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.quest-keys-unsure-label { display: grid; gap: 6px; padding: 10px; border: 1px solid color-mix(in srgb, #f2892b 35%, var(--line)); border-radius: var(--radius-sm); background: var(--surf-1); }
+.quest-keys-unsure-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.quest-keys-unsure-head strong { font-size: 14px; }
+.quest-keys-unsure-seen { color: #ffb873; font-variant-numeric: tabular-nums; }
+.quest-keys-unsure-head .button { gap: 4px; }
+.quest-keys-unsure-keys { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.quest-keys-unsure-keys > li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid transparent; border-radius: var(--radius-sm); }
+.quest-keys-unsure-keys > li.is-picked { border-color: color-mix(in srgb, var(--brass) 50%, var(--line)); background: color-mix(in srgb, var(--brass) 8%, transparent); }
+.quest-keys-unsure-pick { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
+.quest-keys-unsure-pick input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--brass); cursor: pointer; }
+.quest-keys-unsure-pick .quest-key-picture { width: 40px; height: 40px; }
+.quest-keys-unsure-owned { color: var(--green); font-size: 11px; }
+/* «− ×N +» (QuestKeysStash.tsx KeyCount): a key's pieces in «Ключи под вопросом» and on the keys of «Ключи в схроне» (28.11.2026). */
+.quest-key-count { display: inline-flex; flex: none; align-items: center; gap: 5px; }
+.quest-key-count .icon-button { width: 30px; height: 30px; border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); color: var(--text); }
+.quest-key-count .icon-button:hover:not(:disabled) { border-color: var(--brass); color: var(--brass-strong, var(--brass)); }
+.quest-key-count .icon-button:disabled { opacity: .45; cursor: default; }
+.quest-key-count b { min-width: 26px; font-variant-numeric: tabular-nums; text-align: center; }
+.quest-keys-unsure-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
+.quest-keys-unsure-actions .button { min-width: 110px; gap: 6px; }
+
 /* One key in a window over the map (quests/QuestKeyDialog.tsx): small, everything in the middle */
 .quest-key-dialog { width: min(320px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 20px 18px; text-align: center; }
 .quest-key-dialog-picture { display: grid; place-items: center; width: 76px; height: 76px; border: 1px solid var(--line-strong); border-radius: 12px; background: rgb(0 0 0 / 28%); color: var(--text-dim); }

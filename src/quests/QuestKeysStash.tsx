@@ -1,11 +1,12 @@
 import { matchesSearchTerms, searchTerms } from '../shared/textSearch'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CircleHelp, KeyRound, Minus, Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { Check, CircleHelp, KeyRound, Minus, Plus, Search, Star, Trash2, X } from 'lucide-react'
 import type { Item, RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { isKeyItem } from './keyScan'
 import { setKeyUses, setOwnedKey, useKeyUses, useOwnedKeys } from './ownedKeys'
+import { dropUnsureKeys, resolveUnsureKeys, useUnsureKeys } from './unsureKeys'
 
 /** A dialog over the page: Escape and a click beside it close it. */
 function Dialog({ title, className, onClose, children }: { title: string; className: string; onClose: () => void; children: React.ReactNode }) {
@@ -49,6 +50,87 @@ export function KeyScanHelp() {
       <p className="dim">{uiText('Поиск идёт 20 секунд, повторное нажатие его останавливает.')}</p>
     </Dialog>}
   </>
+}
+
+/**
+ * «− ×N +» of one key: the pieces of «Ключи под вопросом» and of a key in «Ключи в схроне» (owner, 28.11.2026, in place of the
+ * stash editor: «−» one less, «+» one more of the same). `least`: «−» stops there (0: the key leaves).
+ */
+export function KeyCount({ name, pieces, least = 0, onChange }: { name: string; pieces: number; least?: number; onChange: (pieces: number) => void }) {
+  return <span className="quest-key-count">
+    <button type="button" className="icon-button" aria-label={`${uiText('Минус один')}: ${name}`} disabled={pieces <= least} onClick={() => onChange(pieces - 1)}><Minus size={14} aria-hidden="true" /></button>
+    <b>×{pieces}</b>
+    <button type="button" className="icon-button" aria-label={`${uiText('Плюс один')}: ${name}`} onClick={() => onChange(pieces + 1)}><Plus size={14} aria-hidden="true" /></button>
+  </span>
+}
+
+type Picked = ReadonlyMap<string, ReadonlyMap<string, number>>
+
+/**
+ * «Ключи под вопросом» (owner, 27.11.2026: «после конца сканирования открывается это окно автоматически и напиши: найдены ключи
+ * с одинаковыми названиями… и предложи: выберите правильный ключ… выбираешь какой надо и нажимаешь галочку… какой и сколько
+ * добавить. А которые не нужны, нажимаешь «Убрать»… снизу будет галочка «Ок»»): each label the last scan could not tell
+ * (quests/unsureKeys.ts) with its keys, picture and full name. A tick picks a key — the pieces start at the cells seen not yet
+ * given to another key of the label; «Убрать» drops the label at once; «Ок» puts the ticked keys in the stash and `onDone`.
+ */
+export function UnsureKeysDialog({ items, profileId, mode, onClose, onDone }: { items: Item[]; profileId: string; mode: RaidMode; onClose: () => void; onDone: () => void }) {
+  const labels = useUnsureKeys(profileId, mode)
+  const owned = useOwnedKeys(profileId, mode)
+  const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
+  const [picked, setPicked] = useState<Picked>(() => new Map())
+  const pick = (label: string, id: string, pieces: number) => setPicked((current) => {
+    const next = new Map(current)
+    const keys = new Map(current.get(label))
+    if (pieces > 0) keys.set(id, pieces)
+    else keys.delete(id)
+    if (keys.size) next.set(label, keys)
+    else next.delete(label)
+    return next
+  })
+  const toggle = (label: string, id: string, seen: number) => {
+    const keys = picked.get(label)
+    if (keys?.has(id)) { pick(label, id, 0); return }
+    const given = [...(keys?.values() ?? [])].reduce((sum, pieces) => sum + pieces, 0)
+    pick(label, id, Math.max(1, seen - given))
+  }
+  const remove = (label: string) => {
+    setPicked((current) => { const next = new Map(current); next.delete(label); return next })
+    dropUnsureKeys(profileId, mode, [label])
+  }
+  const ok = () => {
+    resolveUnsureKeys(profileId, mode, picked)
+    onDone()
+  }
+  return <Dialog title="Ключи под вопросом" className="quest-keys-unsure-dialog" onClose={onClose}>
+    <p className="quest-keys-unsure-lead">{uiText('Найдены ключи с одинаковыми названиями — выберите правильный ключ.')}</p>
+    {labels.size > 0 && <ul className="quest-keys-unsure-list">{[...labels].map(([label, { ids, seen }]) => <li key={label} className="quest-keys-unsure-label">
+      <div className="quest-keys-unsure-head">
+        {/* ×2: two cells of it read; one says nothing (the reader takes a label once by its pixels: two alike may be one) */}
+        <strong>«{uiText(label)}»{seen > 1 && <> <span className="quest-keys-unsure-seen">×{seen}</span></>}</strong>
+        <button type="button" className="button small ghost" aria-label={`${uiText('Убрать')}: «${uiText(label)}»`} onClick={() => remove(label)}><Trash2 size={13} aria-hidden="true" />{uiText('Убрать')}</button>
+      </div>
+      <ul className="quest-keys-unsure-keys">{ids.map((id) => {
+        const item = byId.get(id)
+        const name = uiText(item?.name ?? id)
+        const pieces = picked.get(label)?.get(id)
+        const have = owned.get(id)
+        return <li key={id} className={pieces ? 'is-picked' : ''}>
+          <label className="quest-keys-unsure-pick">
+            <input type="checkbox" checked={pieces !== undefined} aria-label={name} onChange={() => toggle(label, id, seen)} />
+            <span className="quest-key-picture">{item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={20} aria-hidden="true" />}</span>
+            <span className="quest-keys-stash-name">
+              <strong>{name}</strong>
+              {have !== undefined && <small className="quest-keys-unsure-owned">{uiText('Есть в схроне')} · ×{have}</small>}
+            </span>
+          </label>
+          {pieces !== undefined && <KeyCount name={name} pieces={pieces} least={1} onChange={(next) => pick(label, id, next)} />}
+        </li>
+      })}</ul>
+    </li>)}</ul>}
+    <div className="quest-keys-unsure-actions">
+      <button type="button" className="button primary" onClick={ok}><Check size={15} aria-hidden="true" />{uiText('Ок')}</button>
+    </div>
+  </Dialog>
 }
 
 interface OwnedKeysProps { items: Item[]; needed: ReadonlySet<string>; profileId: string; mode: RaidMode; favoriteIds?: readonly string[] }

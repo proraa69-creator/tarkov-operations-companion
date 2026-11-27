@@ -4,6 +4,7 @@ import { labelNames } from '../kappa/collector'
 import { forgetKeysAddedByTaken } from '../progression/takenItems'
 import { createKeyMatcher } from './keyMatch'
 import { addSeenKeys, readOwnedKeys, setOwnedKey } from './ownedKeys'
+import { writeUnsureKeys } from './unsureKeys'
 
 /**
  * «Найти ключи» (owner, 07.11.2026: «По нажатию кнопки «Найти ключи» человек заходит в игру и открывает контейнер со всеми ключами. И
@@ -43,27 +44,39 @@ export function keyScanLists(items: Item[], wantedIds: readonly string[]) {
 export function createKeyScan(input: { items: Item[]; wanted: readonly string[]; profileId: string; mode: RaidMode }) {
   const { matcher, names } = keyScanLists(input.items, input.wanted)
   const seen = new Map<string, number>()
-  /** Labels several keys carry, seen and not told by a tooltip yet (label → its keys); and every key of such a label seen. */
+  /**
+   * Labels several keys carry, seen and not told by a tooltip yet (label → its keys); how many cells of each such label were
+   * read (each label once per scan: electron/collectorScan.ts); and every key of such a label seen.
+   */
   const unsure = new Map<string, string[]>()
+  const labelCells = new Map<string, number>()
   const sharedKeys = new Set<string>()
   let added = 0
 
   async function pass(restart: boolean): Promise<KeyScanPass | { ok: false }> {
     const api = window.tarkovDesktop
     if (!api?.scanScreenText) return { ok: false }
-    if (restart) { seen.clear(); unsure.clear(); sharedKeys.clear() }
+    if (restart) { seen.clear(); unsure.clear(); labelCells.clear(); sharedKeys.clear() }
     const frame = await api.scanScreenText(restart ? { restart: true, names } : {})
     for (const [id, pieces] of matcher.count(frame.text)) seen.set(id, (seen.get(id) ?? 0) + pieces)
-    // «Времянка» and the like (owner, 25.11.2026: «определять в точности ключи»): the player is asked to hover the key; its
-    // tooltip's full name, read on a later pass, tells which key it is.
-    for (const { label, ids } of matcher.shared(frame.text)) {
-      for (const id of ids) sharedKeys.add(id)
-      if (!ids.some((id) => seen.has(id))) unsure.set(label, ids)
+    // «Времянка» and the like (owner, 25.11.2026: «определять в точности ключи»): the player may hover the key, its tooltip's
+    // full name, read on a later pass, tells which key it is; or picks it in «Ключи под вопросом» after the scan (27.11.2026).
+    for (const row of frame.text.split(/\r?\n/)) {
+      for (const { label, ids } of matcher.shared(row)) {
+        labelCells.set(label, (labelCells.get(label) ?? 0) + 1)
+        for (const id of ids) sharedKeys.add(id)
+        if (!ids.some((id) => seen.has(id))) unsure.set(label, ids)
+      }
     }
     for (const [label, ids] of unsure) if (ids.some((id) => seen.has(id))) unsure.delete(label)
     added += seen.size ? addSeenKeys(input.profileId, input.mode, seen) : 0
     // a key «Взял» put in the list and seen now: «Есть в схроне»
     if (seen.size) forgetKeysAddedByTaken(input.profileId, input.mode, seen.keys())
+    // «Ключи под вопросом»: a scan that sees the key container puts its labels in place of the last scan's (one that sees
+    // nothing of it — the game closed, another screen — leaves them).
+    if (seen.size || unsure.size) {
+      writeUnsureKeys(input.profileId, input.mode, new Map([...unsure].map(([label, ids]) => [label, { ids, seen: labelCells.get(label) ?? 1 }])))
+    }
     return {
       ok: true,
       gameWindow: frame.gameWindow,
@@ -101,8 +114,9 @@ export function unsureHint(labels: readonly string[]) {
 /**
  * One «Найти ключи»: pass after pass for SCAN_WINDOW_MS while `running()`, each line said through `onMessage`; the last one is
  * returned. The button of «Ключи для квестов» and the phone's «Найти ключи» (src/screen/screenRemote.ts) run the same.
+ * `onUnsure`: the scan is over, run out or stopped, and left labels several keys carry (unsureKeys.ts) for the player to tell.
  */
-export async function runKeyScan(input: { items: Item[]; wanted: readonly string[]; profileId: string; mode: RaidMode }, options: { running: () => boolean; onMessage: (text: string) => void; onUnseen?: (ids: string[]) => void }) {
+export async function runKeyScan(input: { items: Item[]; wanted: readonly string[]; profileId: string; mode: RaidMode }, options: { running: () => boolean; onMessage: (text: string) => void; onUnseen?: (ids: string[]) => void; onUnsure?: (labels: string[]) => void }) {
   const scan = createKeyScan(input)
   const started = Date.now()
   let sawGame = false
@@ -127,17 +141,23 @@ export async function runKeyScan(input: { items: Item[]; wanted: readonly string
       // The keys of the list this scan did not see, offered to take off — only after a scan that saw the key container.
       if (sawGame && (last?.found ?? 0) > 0) options.onUnseen?.(scan.unseen())
     }
+    // Owner, 27.11.2026: «после конца сканирования открывается это окно автоматически».
+    if (sawGame && last?.unsure.length) options.onUnsure?.(last.unsure)
   } catch {
     say('Не удалось распознать экран. Попробуйте ещё раз.')
   }
   return said
 }
 
-/** The «Найти ключи» button: a second press stops; Windows app only (`available`). */
+/**
+ * The «Найти ключи» button: a second press stops; Windows app only (`available`). `unsureOpen`: the window «Ключи под вопросом»,
+ * opened by itself when a scan ends with labels several keys carry, and by its button.
+ */
 export function useKeyScan(input: { items: Item[]; wanted: readonly string[]; profileId: string; mode: RaidMode }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [unseen, setUnseen] = useState<string[]>([])
+  const [unsureOpen, setUnsureOpen] = useState(false)
   const running = useRef(false)
   const latest = useRef(input)
   useEffect(() => { latest.current = input })
@@ -149,8 +169,9 @@ export function useKeyScan(input: { items: Item[]; wanted: readonly string[]; pr
     setBusy(true)
     setMessage('')
     setUnseen([])
+    setUnsureOpen(false)
     try {
-      await runKeyScan(latest.current, { running: () => running.current, onMessage: setMessage, onUnseen: setUnseen })
+      await runKeyScan(latest.current, { running: () => running.current, onMessage: setMessage, onUnseen: setUnseen, onUnsure: () => setUnsureOpen(true) })
     } finally {
       running.current = false
       setBusy(false)
@@ -163,5 +184,8 @@ export function useKeyScan(input: { items: Item[]; wanted: readonly string[]; pr
     setUnseen([])
   }, [unseen])
 
-  return { available: Boolean(window.tarkovDesktop?.scanScreenText), busy, message, run, unseen, removeUnseen }
+  const openUnsure = useCallback(() => setUnsureOpen(true), [])
+  const closeUnsure = useCallback(() => setUnsureOpen(false), [])
+
+  return { available: Boolean(window.tarkovDesktop?.scanScreenText), busy, message, run, unseen, removeUnseen, unsureOpen, openUnsure, closeUnsure }
 }

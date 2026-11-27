@@ -1,7 +1,9 @@
 import '@testing-library/jest-dom/vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import type { Item, Quest, RaidMode } from '../domain/types'
 import { deferredQuestsKey } from '../progression/deferredQuests'
@@ -10,6 +12,7 @@ import { setRenderLanguage, uiText } from '../i18n/renderText'
 import { questKeyFavoritesKey, readQuestKeyFavorites, readQuestKeyReminder } from '../quests/questKeyFavorites'
 import { AppStateProvider } from '../state/AppState'
 import { readOwnedKeys, setOwnedKey } from '../quests/ownedKeys'
+import { readUnsureKeys, writeUnsureKeys } from '../quests/unsureKeys'
 
 const key = (itemId: string) => ({ itemId, purpose: 'key', count: 1, mapIds: ['customs'] })
 const quest = (id: string, name: string, keys: string[]) => ({ id, name, normalizedName: id, trader: 'Прапор', level: 5, objectives: [], raidRequirements: keys.map(key) }) as unknown as Quest
@@ -203,7 +206,8 @@ describe('«Ключи для квестов»', () => {
   })
 
   // Owner, 07.11.2026: «ключи, которые у меня есть, будет писаться… ниже. И рядом пишется и есть в игре»; «Ключи в схроне»… «Добавить вручную».
-  it('a key the player has: «Есть в схроне», the others «Нет в наличии», below the others, counted on «Нужны»; «Ключи в схроне» shows only those, «Изменить» adds one by hand in the page', () => {
+  // Owner, 27.11.2026: «нам не нужна кнопка «Изменить ключи в схроне». Ее убери».
+  it('a key the player has: «Есть в схроне», the others «Нет в наличии», below the others, counted on «Нужны»; «Ключи в схроне» shows only those, with no «Изменить ключи в схроне»', () => {
     const profile = open()
     // nothing said before any key is found or added
     expect(row('Ключ от гаража')).not.toHaveTextContent('Нет в наличии')
@@ -220,14 +224,103 @@ describe('«Ключи для квестов»', () => {
     expect(stash).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByRole('dialog', { name: 'Ключи в схроне' })).toBeNull()
     expect([...document.querySelectorAll('.quest-key strong')].map((node) => node.textContent)).toEqual(['Ключ от склада'])
-    fireEvent.click(screen.getByRole('button', { name: 'Изменить ключи в схроне' }))
-    const panel = screen.getByRole('region', { name: 'Ключи в схроне' })
-    fireEvent.click(within(panel).getByRole('button', { name: 'Добавить вручную' }))
-    fireEvent.change(within(panel).getByRole('textbox', { name: 'Название ключа…' }), { target: { value: 'гараж' } })
-    fireEvent.click(within(panel).getByRole('button', { name: /Ключ от гаража/ }))
-    expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
+    expect(screen.queryByRole('button', { name: /Изменить ключи в схроне|Свернуть/ })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Ключи в схроне' })).toBeNull()
     fireEvent.click(stash)
     expect(document.querySelectorAll('.quest-key')).toHaveLength(2)
+  })
+
+  // Owner, 27.11.2026: «ключи должны сразу, вот нашлись и сразу добавляются. Только не добавляются ключи под вопросом… после конца
+  // сканирования открывается это окно автоматически… выбираешь какой надо и нажимаешь галочку… снизу будет галочка «Ок». При
+  // нажатии ее тебя переносит блок «Ключи в схроне»».
+  describe('«Ключи под вопросом»', () => {
+    const cabin = { id: 'k-cabin', name: 'Ключ от времянки', shortName: 'Времянка', category: 'Ключ', iconUrl: 'cabin.webp' } as unknown as Item
+    const trailer = { id: 'k-trailer', name: 'Ключ от времянки трейлерного парка', shortName: 'Времянка', category: 'Ключ', iconUrl: 'trailer.webp' } as unknown as Item
+    const safe1 = { id: 'k-safe-1', name: 'Ключ от сейфа в офисе', shortName: 'Сейф', category: 'Ключ' } as unknown as Item
+    const safe2 = { id: 'k-safe-2', name: 'Ключ от сейфа на складе', shortName: 'Сейф', category: 'Ключ' } as unknown as Item
+    const unsureButton = () => screen.queryByRole('button', { name: /^Ключи под вопросом/ })
+    const scrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView')
+    beforeEach(() => { data.items.push(cabin, trailer, safe1, safe2) })
+    afterEach(() => {
+      data.items.splice(-4)
+      delete window.tarkovDesktop
+      if (scrollIntoView) Object.defineProperty(Element.prototype, 'scrollIntoView', scrollIntoView)
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    })
+
+    it('a scan adds the keys told at once; at its end the window opens by itself; the ticked keys and pieces go to «Ключи в схроне»', async () => {
+      let calls = 0
+      // each label once per scan (electron/collectorScan.ts): «Времянка» twice, «Склад» once
+      window.tarkovDesktop = { scanScreenText: async () => ({ gameWindow: true, text: calls++ ? '' : 'Склад\nВремянка\nВремянка' }) } as unknown as NonNullable<Window['tarkovDesktop']>
+      const scrolled = vi.fn()
+      Element.prototype.scrollIntoView = scrolled
+      const profile = open()
+      expect(unsureButton()).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Найти ключи' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Остановить поиск' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Ключи под вопросом' }, { timeout: 3000 })
+      // «Склад» is in the stash already; «Времянка» is not, nor any of its keys
+      expect(readOwnedKeys(profile.id, 'pvp')).toEqual(new Map([['k1', 1]]))
+      expect(dialog).toHaveTextContent('Найдены ключи с одинаковыми названиями — выберите правильный ключ.')
+      expect(dialog).toHaveTextContent('«Времянка» ×2')
+      expect([...dialog.querySelectorAll('.quest-keys-unsure-keys img')].map((img) => img.getAttribute('src'))).toEqual(['cabin.webp', 'trailer.webp'])
+      const tick = (name: string) => within(dialog).getByRole('checkbox', { name })
+      expect(tick('Ключ от времянки')).not.toBeChecked()
+      expect(tick('Ключ от времянки трейлерного парка')).not.toBeChecked()
+      // the first tick takes both cells seen; one less; the second takes the cell left
+      fireEvent.click(tick('Ключ от времянки трейлерного парка'))
+      expect(tick('Ключ от времянки трейлерного парка').closest('li')).toHaveTextContent('×2')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Минус один: Ключ от времянки трейлерного парка' }))
+      fireEvent.click(tick('Ключ от времянки'))
+      expect(tick('Ключ от времянки').closest('li')).toHaveTextContent('×1')
+      expect(readOwnedKeys(profile.id, 'pvp').has('k-cabin')).toBe(false)
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Ок' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(readOwnedKeys(profile.id, 'pvp')).toEqual(new Map([['k1', 1], ['k-cabin', 1], ['k-trailer', 1]]))
+      // carried to «Ключи в схроне», the whole stash
+      expect(screen.getByRole('button', { name: /^Ключи в схроне/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: 'Все ключи · 3' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('region', { name: 'Не нужны для квестов' })).toHaveTextContent('Ключ от времянки трейлерного парка')
+      expect(scrolled).toHaveBeenCalled()
+      expect(unsureButton()).toBeNull()
+    })
+
+    it('the button: only while labels wait, orange; «Убрать» drops a label, «Ок» keeps the one without a tick; PvE apart', () => {
+      const profile = open()
+      expect(unsureButton()).toBeNull()
+      act(() => writeUnsureKeys(profile.id, 'pvp', new Map([['Времянка', { ids: ['k-cabin', 'k-trailer'], seen: 1 }], ['Сейф', { ids: ['k-safe-1', 'k-safe-2'], seen: 1 }]])))
+      expect(unsureButton()).toHaveTextContent('Ключи под вопросом · 2')
+      expect(unsureButton()).toHaveClass('quest-keys-unsure')
+      // not opened by itself without a scan
+      expect(screen.queryByRole('dialog')).toBeNull()
+      fireEvent.click(unsureButton()!)
+      const dialog = screen.getByRole('dialog', { name: 'Ключи под вопросом' })
+      // one cell read says no count
+      expect(dialog).toHaveTextContent('«Времянка»')
+      expect(dialog).not.toHaveTextContent('«Времянка» ×')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Убрать: «Сейф»' }))
+      expect(dialog).not.toHaveTextContent('Сейф')
+      expect([...readUnsureKeys(profile.id, 'pvp').keys()]).toEqual(['Времянка'])
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Ок' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(readOwnedKeys(profile.id, 'pvp').size).toBe(0)
+      expect(unsureButton()).toHaveTextContent('Ключи под вопросом · 1')
+      // closed without «Ок»: nothing changes
+      fireEvent.click(unsureButton()!)
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('checkbox', { name: 'Ключ от времянки' }))
+      fireEvent.keyDown(window, { key: 'Escape' })
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(readOwnedKeys(profile.id, 'pvp').size).toBe(0)
+      cleanup()
+      open([], [], '/quest-keys', 'pve', profile.id)
+      expect(unsureButton()).toBeNull()
+    })
+
+    it('blinks softly, and not at all for those who turn motion off', () => {
+      const css = readFileSync(resolve(process.cwd(), 'src/quests/questKeys.css'), 'utf8')
+      expect(css).toMatch(/\.quest-keys-unsure \{[^}]*animation: quest-keys-unsure-glow [^;]*infinite/)
+      expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.quest-keys-unsure \{ animation: none/)
+    })
   })
 
   // A player and the owner, 27.11.2026 («пишет что у меня их 15 шт — но показывает ток ключи для квестов»; «кнопку все ключи и
@@ -250,6 +343,39 @@ describe('«Ключи для квестов»', () => {
       try {
         expect(['Все ключи', 'Для квестов', 'Не нужны для квестов'].map((text) => uiText(text))).toEqual(['All keys', 'For quests', 'Not needed for quests'])
       } finally { setRenderLanguage('ru') }
+    } finally { data.items.pop() }
+  })
+
+  // Owner, 28.11.2026 (in place of «Изменить ключи в схроне»): «− ×N +» right on each key of «Ключи в схроне».
+  it('«Ключи в схроне»: «−» and «+» on every key, «Все ключи» and «Для квестов»; on 0 the key leaves the stash', () => {
+    data.items.push({ id: 'k9', name: 'Ключ от времянки', shortName: 'Времянка', category: 'Ключ' } as unknown as Item)
+    try {
+      const profile = open()
+      act(() => { setOwnedKey(profile.id, 'pvp', 'k1', 1); setOwnedKey(profile.id, 'pvp', 'k2', 1); setOwnedKey(profile.id, 'pvp', 'k9', 2) })
+      // not on the list of every key, only in the stash
+      expect(screen.queryByRole('button', { name: /^Плюс один/ })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /^Ключи в схроне/ }))
+      const plus = (name: string) => screen.getByRole('button', { name: `Плюс один: ${name}` })
+      const minus = (name: string) => screen.getByRole('button', { name: `Минус один: ${name}` })
+      fireEvent.click(plus('Ключ от склада'))
+      expect(readOwnedKeys(profile.id, 'pvp').get('k1')).toBe(2)
+      expect(row('Ключ от склада')).toHaveTextContent('×2')
+      // a key no quest needs: two, one, gone from «Все ключи»
+      fireEvent.click(minus('Ключ от времянки'))
+      expect(screen.getByRole('region', { name: 'Не нужны для квестов' })).toHaveTextContent('×1')
+      fireEvent.click(minus('Ключ от времянки'))
+      expect(readOwnedKeys(profile.id, 'pvp').has('k9')).toBe(false)
+      expect(screen.queryByRole('region', { name: 'Не нужны для квестов' })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Все ключи · 2' })).toBeInTheDocument()
+      // «Для квестов» has them too
+      fireEvent.click(screen.getByRole('button', { name: 'Для квестов · 2' }))
+      fireEvent.click(minus('Ключ от гаража'))
+      expect(readOwnedKeys(profile.id, 'pvp').has('k2')).toBe(false)
+      expect(screen.queryByText('Ключ от гаража')).toBeNull()
+      // out of the stash: its quest card says «Нет в наличии»
+      fireEvent.click(screen.getByRole('button', { name: /^Ключи в схроне/ }))
+      expect(within(row('Ключ от гаража')).getByRole('button', { name: 'Нет в наличии' })).toBeInTheDocument()
+      expect(within(row('Ключ от склада')).getByRole('button', { name: 'Есть в схроне' })).toBeInTheDocument()
     } finally { data.items.pop() }
   })
 

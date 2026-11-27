@@ -32,6 +32,7 @@ import { EXIT_REQUIREMENTS_SYNC } from '../raidprep/exitRequirementsSetting'
 import { PROMO_SYNC } from '../promo/promoCodes'
 import { QUEST_KEY_SYNC, questKeyFavoritesKey } from '../quests/questKeyFavorites'
 import { keyUsesKey, OWNED_KEYS_EVENT, ownedKeysKey } from '../quests/ownedKeys'
+import { isUnsureKey, unsureKeysKey } from '../quests/unsureKeys'
 import { RESTOCK_SETTINGS_SYNC } from '../restock/restockSettings'
 import { TRADING_POSITIONS_SYNC } from '../trading/tradingPositions'
 import { TRADING_SETTINGS_SYNC } from '../trading/tradingSettings'
@@ -377,6 +378,8 @@ export const PLAYER_STATE_ADAPTERS: readonly StateAdapter[] = [
   // «Ключи в схроне»: the keys the player has and their uses left (quests/ownedKeys.ts)
   mapList('owned-keys', EACH_MODE, perProfile(ownedKeysKey), OWNED_KEYS_EVENT, isNumber),
   mapList('key-uses', EACH_MODE, perProfile(keyUsesKey), OWNED_KEYS_EVENT, isNumber),
+  // «Ключи под вопросом»: the labels several keys carry the last scan left for the player to tell (quests/unsureKeys.ts)
+  mapList('unsure-keys', EACH_MODE, perProfile(unsureKeysKey), OWNED_KEYS_EVENT, isUnsureKey),
   tradingPositions,
   mapSketches,
   traderList('trader-levels', TRADER_LEVELS_SYNC.manual, isNumber),
