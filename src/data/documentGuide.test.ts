@@ -88,6 +88,20 @@ describe('the photos of the battle pass documents', () => {
     expect(captions(-14.6, -135.7, 'test-docs')).toEqual([])
   })
 
+  it('the Shoreline village\'s houses show no SORDI tower station photo (reports 254/255, 28.11.2026)', () => {
+    // 254: the test documentation lies on a house's table; our own frame from the player's screenshot of the live game
+    const testDocs = pointPhotos(guide, 'shoreline', [154, 442], ['test-docs'])
+    expect(testDocs.map((id) => guide.photos[id]!.ru)).toEqual(['В доме в Деревне, на столе.'])
+    expect(guide.files[testDocs[0]!]).toMatchObject({ own: true })
+    // 255: no photo of that house yet, so none rather than the trailer's floor
+    expect(pointPhotos(guide, 'shoreline', [160.9, 412.8], ['technical'])).toEqual([])
+    // the wiki's SORDI photos stay in the map's «Все места»
+    expect(guide.maps.shoreline!['test-docs']).toContain('e5def8c9123abd69')
+    expect(guide.maps.shoreline!.technical).toContain('f7bafe8b561ae0c6')
+    expect(Object.values(guide.spots.shoreline!).flatMap((spot) => spot.photos)).not.toContain('e5def8c9123abd69')
+    expect(Object.values(guide.spots.shoreline!).flatMap((spot) => spot.photos)).not.toContain('f7bafe8b561ae0c6')
+  })
+
   it('on Interchange each blueprint spawn point shows its own room (reports 218/219, 24.11.2026)', () => {
     const first = (z: number, x: number, kind: 'blueprints' | 'financial') => {
       const ids = pointPhotos(guide, 'interchange', [z, x], [kind])

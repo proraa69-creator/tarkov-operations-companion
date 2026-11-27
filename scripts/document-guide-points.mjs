@@ -163,8 +163,11 @@ export const PHOTO_SPOTS = {
       // room 212's shelf is on the 2nd floor, the chair of 7 on the 3rd; room 316 (over 216) and room 206 each at their own point.
       4: [[93.6, 116.6]], 5: [[-181, -80.4]], 6: [[-312, -77.9]],
       7: [[-270.4, -102.7]], 8: [[-274.3, -140.3]], 9: [[-536.4, -336.2]],
-      10: [[412.8, 160.9]], 11: [[-219.1, -87]], 12: [[-707.5, 96.7]],
+      11: [[-219.1, -87]], 12: [[-707.5, 96.7]],
       13: [[-511.2, 264]], 14: [[-212.3, 19.8]],
+      // 10 («inside SORDI Tower station on the floor») is not [412.8, 160.9], a house in the village on our map (report 255,
+      // 28.11.2026: «неправильный скрин документации»; the owner: «фото нету поэтому убери от туда имеющееся»). No photo of that
+      // house yet, so the point shows none (`none` in documentGuidePhotos.json) and the photo stays in the map's «Все места».
       // 15 («inside the white house in front of the T-90 in the village») answers to no point of the feed: the one it was given by
       // elimination, [-627.6, -232.5], is a long green-roofed hangar between the village and the car exit (owner, 20.11.2026, report
       // 203: «место одно, а фото вообще другое»). The photo stays in the map's «Все места».
@@ -172,9 +175,12 @@ export const PHOTO_SPOTS = {
     'test-docs': {
       1: [[-319.4, 496.5]], 2: [[-180.7, 374.1]], 3: [[-512.7, 236.5]],
       4: [[-348, -89.7]], 5: [[97.8, 97.2]], 6: [[279.5, 180.7]],
-      7: [[-329, -89.2]], 8: [[442, 154]], 9: [[-707.7, 99.1]],
+      7: [[-329, -89.2]], 9: [[-707.7, 99.1]],
       10: [[-612.6, -180]], 11: [[-239, -146.9]], 12: [[-197, -77]],
       13: [[-231.3, -102.7]], 14: [[-520.2, -340.1]],
+      // 8 («inside SORDI tower station on the shelf») is not [442, 154]: there the document lies on the table of a house in the
+      // village (report 254, 28.11.2026, the player's screenshot of the live game). That point shows our own frame cut from it
+      // (fb47dafe8c001044, added by hand in documentGuidePhotos.json); the wiki's photo stays in the map's «Все места».
       // 15 («the most southwest house in the village near the Tunnel exit») is not [-135.7, -14.6], 65 m below the resort's west
       // end and 500 m from the Tunnel (report 247): no point of the feed answers to it, so it stays in the map's «Все места».
     },
