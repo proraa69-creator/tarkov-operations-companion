@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, dialog, type BrowserWindow } from 'electron'
-import { PAUSE_1S, runHiddenScript } from './hiddenScript.js'
+import { pauseOneSecond, runHiddenScript } from './hiddenScript.js'
 import { runningBuild } from './localServer.js'
 
 /**
@@ -83,8 +83,8 @@ function deleteExeAfterQuit() {
     runHiddenScript(`tarkov-operator-trial-${process.pid}.cmd`, [
       'set n=0',
       ':again',
-      PAUSE_1S,
-      PAUSE_1S,
+      pauseOneSecond(),
+      pauseOneSecond(),
       'del /f /q "%TO_EXE%" >nul 2>&1',
       'if not exist "%TO_EXE%" goto done',
       'set /a n+=1',

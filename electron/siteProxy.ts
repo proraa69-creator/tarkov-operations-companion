@@ -1,6 +1,20 @@
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http'
 
 /**
+ * Whether the website on this PC answers a request with this Host header (security review, 27.11.2026: DNS rebinding).
+ * It listens on 127.0.0.1 only, yet a page of another site whose name points at 127.0.0.1 could make the owner's browser
+ * reach it; such a request carries that site's name. Answered: this PC's own names with the site's port
+ * (127.0.0.1:<port>, localhost:<port>) and the public link's names while it is on (`publicHosts`, publicTunnel.ts
+ * tunnelHosts: cloudflared passes the visitor's Host on), optionally with :443.
+ */
+export function siteHostAllowed(host: string | undefined, port: number, publicHosts: readonly string[] = []) {
+  const value = (host ?? '').trim().toLowerCase()
+  if (value === `127.0.0.1:${port}` || value === `localhost:${port}`) return true
+  const name = value.replace(/:443$/, '')
+  return name !== '' && publicHosts.some((entry) => entry.toLowerCase() === name)
+}
+
+/**
  * The visitor's address for the API's per-IP rate limits (it trusts X-Forwarded-For from loopback only). The public
  * link arrives through cloudflared on 127.0.0.1, so the socket address is the same for everybody; Cloudflare's edge
  * sets CF-Connecting-IP itself (a visitor cannot choose it), and a header a visitor sent is never passed on as is.

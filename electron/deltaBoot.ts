@@ -65,6 +65,14 @@ export function stagedBuildVerified(fs: BootFs, dir: string, build: number, publ
   }
 }
 
+/**
+ * What a start checks of a staged build (boot.ts), by this process's rights (`elevated`, its token): with administrator
+ * rights every file that can run ('' for stagedBuildVerified) — a start without them runs nothing the player's own
+ * programs could not run anyway, so the signed header is enough (undefined). Rights that cannot be told count as rights:
+ * the whole check then costs a quarter of a second.
+ */
+export const stagedFilesToCheck = (elevated: boolean | null): '' | undefined => (elevated === false ? undefined : '')
+
 /** What an archive holds that never runs: 3D models, pictures, video, sound, source maps, OCR models, type files, fonts. */
 const NEVER_RUNS = /\.(glb|gltf|webp|png|jpe?g|gif|avif|ico|mp4|webm|mp3|ogg|wav|map|traineddata|ts|mts|cts|md|txt|ttf|otf|woff2?)$/i
 

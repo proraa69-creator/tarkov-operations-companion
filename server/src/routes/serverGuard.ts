@@ -42,16 +42,24 @@ const pageSchema = z.object({
 })
 const backupSchema = z.object({ kind: z.enum(['daily', 'before-restart', 'manual']).default('manual') })
 
-/** Host names a request made on this PC to the API port carries (anything else is DNS rebinding). */
-const LOCAL_HOST = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d{1,5})?$/i
+/**
+ * The Host header of a request made on this PC straight to the API: 127.0.0.1, localhost or [::1] with the very port the
+ * request came in on (security review, 27.11.2026). Anything else — another name (DNS rebinding), no port or another
+ * one — is not this PC's own call to this port.
+ */
+export function localHostHeader(host: string | undefined, port: number | undefined) {
+  if (!port) return false
+  const value = (host ?? '').trim().toLowerCase()
+  return ['127.0.0.1', 'localhost', '[::1]'].some((name) => value === `${name}:${port}`)
+}
 
 /**
  * Besides the loopback socket: the owner app's own call (Node fetch from the main process) — Host 127.0.0.1 /
- * localhost, no Origin and no cross-site Sec-Fetch-Site. A web page open in a browser on this PC can reach
- * 127.0.0.1:8787 too (a «simple» POST needs no preflight), or point a rebinding DNS name at it; both are refused.
+ * localhost with the API's port, no Origin and no cross-site Sec-Fetch-Site. A web page open in a browser on this PC can
+ * reach 127.0.0.1:8787 too (a «simple» POST needs no preflight), or point a rebinding DNS name at it; both are refused.
  */
 export function localAppRequest(req: Request) {
-  if (!LOCAL_HOST.test(req.get('host') ?? '')) return false
+  if (!localHostHeader(req.get('host'), req.socket.localPort)) return false
   if (req.get('origin') !== undefined) return false
   const site = (req.get('sec-fetch-site') ?? 'none').toLowerCase()
   return site === 'none' || site === 'same-origin'

@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { abandonBoot, chooseBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaState } from './deltaBoot'
+import { abandonBoot, chooseBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, stagedFilesToCheck, writeDeltaState, type DeltaState } from './deltaBoot'
 import { canonicalDeltaPayload, STAGED_INFO, type DeltaInfo } from './deltaInfo'
 
 const PACKAGED = { edition: 'owner', build: 1791000000000 }
@@ -194,6 +194,14 @@ describe('which build a player\'s app starts (partial update, owner 11.10.2026)'
     // A 3D model never runs: it is not read at each start.
     const model = await build(release(flip('glTF model bytes')))
     expect(stagedBuildVerified(fs, model, NEW, publicPem, '')).toBe(true)
+  })
+
+  // Security review, 27.11.2026: the rights come from the process's token (boot.ts → windowsSystem.ts), and rights that
+  // cannot be told are no reason to check less.
+  it('checks every file that can run unless the token says the start has no administrator rights', () => {
+    expect(stagedFilesToCheck(true)).toBe('')
+    expect(stagedFilesToCheck(null)).toBe('')
+    expect(stagedFilesToCheck(false)).toBeUndefined()
   })
 
   it('keeps its staged builds apart from the owner\'s', () => {

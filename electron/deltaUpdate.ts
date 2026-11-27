@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { dirname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
-import { PAUSE_1S, runHiddenScript, SYSTEM32 } from './hiddenScript.js'
+import { pauseOneSecond, runHiddenScript, systemCommand } from './hiddenScript.js'
 import { classifyStagedBuild, deltaMismatch, deltaSignatureValid, fileSha256, packageJsonOnlyVersion, parseDeltaInfo, readArchive, readPackedFile, RENDERER_INDEX_PATH, stageDelta, STAGED_INFO, type DeltaInfo } from './appDelta.js'
 import { abandonBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
 import { httpDeltaSource } from './deltaHttp.js'
@@ -223,13 +223,13 @@ export function relaunchWhenClosed(exe: string, waitFor: number = process.ppid) 
   return runHiddenScript(`raidos-relaunch-${process.pid}.cmd`, [
     'set n=0',
     ':wait',
-    `${SYSTEM32}\\tasklist.exe /FI "PID eq %RO_PID%" /NH 2>nul | ${SYSTEM32}\\find.exe " %RO_PID% " >nul || goto run`,
+    `${systemCommand('tasklist.exe')} /FI "PID eq %RO_PID%" /NH 2>nul | ${systemCommand('find.exe')} " %RO_PID% " >nul || goto run`,
     'set /a n+=1',
     'if %n% geq 90 goto run',
-    PAUSE_1S,
+    pauseOneSecond(),
     'goto wait',
     ':run',
-    PAUSE_1S,
+    pauseOneSecond(),
     'start "" "%RO_EXE%"',
   ], { RO_PID: String(waitFor), RO_EXE: exe })
 }

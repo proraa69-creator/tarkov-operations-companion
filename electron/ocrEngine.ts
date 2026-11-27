@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
-import { copyFile, mkdir, rename, rm, writeFile } from 'node:fs/promises'
+import { readFileSync, statSync } from 'node:fs'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
@@ -8,6 +9,7 @@ import type { OcrWordBox } from '../src/import/storyPaneLayout.js'
 import { ocrModel, ocrModelFiles, resolveGameLanguage } from '../src/import/gameLanguage.js'
 import { readSettings } from './experimental/settings.js'
 import { buildDefaultServerUrl } from './buildEdition.js'
+import { OCR_MODEL_SHA256 } from './ocrModels.js'
 
 /** Tesseract (tesseract.js) for the quest scanner, the item card and the Collector scan. */
 const require = createRequire(import.meta.url)
@@ -44,6 +46,9 @@ const RELEASE_TESSDATA_PATH = '/app-delta/resources/tessdata'
  * (all eleven game languages since 24.11.2026); otherwise the app's own folder, where a missing model is put once — from
  * the shipped folder when it is there, else downloaded. A copy updated in parts keeps the folder its installer made
  * (owner, 25.11.2026: «установилось один раз … только частичное обновление»), so a language added later is downloaded.
+ * Every model used has the SHA-256 the app knows for it (electron/ocrModels.ts; security review, 27.11.2026): a shipped
+ * one that does not is not used, one in the app's own folder that does not is put there again, and a download is taken
+ * only with exactly those bytes.
  */
 export async function ocrLanguagePath(model = 'rus+eng') {
   const files = ocrModelFiles(model)
@@ -53,10 +58,31 @@ export async function ocrLanguagePath(model = 'rus+eng') {
   return langPath
 }
 
+const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
+/** The model's bytes are the ones the app knows for this language (none known: never). */
+const modelBytesVerified = (lang: string, bytes: Buffer) => Object.hasOwn(OCR_MODEL_SHA256, lang) && sha256(bytes) === OCR_MODEL_SHA256[lang]
+
+/** Files already checked, by path, size and time: a model is hashed once a run, not at every new engine. */
+const checked = new Map<string, string>()
+/** A model file on disk with the bytes the app knows for its language. */
+function modelFileVerified(lang: string, file: string) {
+  try {
+    const info = statSync(file)
+    if (!info.isFile()) return false
+    const key = `${info.size}:${info.mtimeMs}`
+    if (checked.get(file) === key) return true
+    if (!modelBytesVerified(lang, readFileSync(file))) return false
+    checked.set(file, key)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** The shipped folder that holds every model asked for; else the app's own folder (the models put there). */
 function tessdataDirectory(files: string[]) {
   for (const folder of shippedFolders()) {
-    if (files.every((lang) => existsSync(join(folder, `${lang}.traineddata`)))) return folder
+    if (files.every((lang) => modelFileVerified(lang, join(folder, `${lang}.traineddata`)))) return folder
   }
   // Never written into the installed app's folder (Program Files): the app's own folder takes what is missing.
   return join(app.getPath('userData'), 'tessdata')
@@ -72,26 +98,34 @@ function modelSources(lang: string) {
   return [...(site.startsWith('https://') ? [`${site}${RELEASE_TESSDATA_PATH}/${lang}.traineddata`] : []), `${TESSDATA_URL}/${lang}.traineddata`]
 }
 
+/** The model's bytes from the shipped folder or a download, only when they are the ones the app knows; else null. */
+async function modelBytes(lang: string) {
+  const shipped = shippedFolders().map((folder) => join(folder, `${lang}.traineddata`)).find((path) => modelFileVerified(lang, path))
+  if (shipped) {
+    const bytes = await readFile(shipped)
+    if (modelBytesVerified(lang, bytes)) return bytes
+  }
+  for (const url of modelSources(lang)) {
+    const response = await fetch(url, { signal: AbortSignal.timeout(120_000) }).catch(() => null)
+    if (!response?.ok || !/octet-stream|binary|application\/x-|^$/.test(response.headers.get('content-type') ?? '')) continue
+    const body = Buffer.from(await response.arrayBuffer())
+    // The site's page, an error answer or any other file is not the model.
+    if (modelBytesVerified(lang, body)) return body
+  }
+  return null
+}
+
 async function ensureLanguageData(directory: string, files: string[]) {
   for (const lang of files) {
     const file = join(directory, `${lang}.traineddata`)
-    if (existsSync(file)) continue
+    if (modelFileVerified(lang, file)) continue
+    // Missing, or not the model it should be (an older download, a changed file): put there again.
+    await rm(file, { force: true })
+    const data = await modelBytes(lang)
+    if (!data) throw new Error('Не удалось подготовить распознавание текста. Нужен интернет при первом сканировании.')
     // Whole or not at all: a download cut short never leaves a model Tesseract would choke on.
     const part = `${file}.part`
-    const shipped = shippedFolders().map((folder) => join(folder, `${lang}.traineddata`)).find((path) => existsSync(path))
-    if (shipped) await copyFile(shipped, part)
-    else {
-      let data: Buffer | null = null
-      for (const url of modelSources(lang)) {
-        const response = await fetch(url, { signal: AbortSignal.timeout(120_000) }).catch(() => null)
-        if (!response?.ok || !/octet-stream|binary|application\/x-|^$/.test(response.headers.get('content-type') ?? '')) continue
-        const body = Buffer.from(await response.arrayBuffer())
-        // A model is megabytes; the site's page or an error answer is not one.
-        if (body.length > 100_000) { data = body; break }
-      }
-      if (!data) throw new Error('Не удалось подготовить распознавание текста. Нужен интернет при первом сканировании.')
-      await writeFile(part, data)
-    }
+    await writeFile(part, data)
     await rename(part, file).catch(async (error: unknown) => { await rm(part, { force: true }); throw error })
   }
 }
@@ -100,7 +134,7 @@ async function ensureLanguageData(directory: string, files: string[]) {
  * The game's language for every reader: the player's choice in «Язык игры» (English by default). Nothing of the game is
  * read for it. Each engine is made for the language's models and made again when the choice changes.
  */
-export async function gameLanguageNow(_fresh = false) {
+export async function gameLanguageNow() {
   const setting = resolveGameLanguage(readSettings().gameLanguage)
   return { setting, language: setting, model: ocrModel(setting) }
 }

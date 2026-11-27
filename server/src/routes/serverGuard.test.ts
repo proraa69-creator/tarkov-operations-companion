@@ -14,6 +14,7 @@ import {
 import { request as httpRequest } from 'node:http'
 import express from 'express'
 import { createAdminRouter } from './admin.js'
+import { localHostHeader } from './serverGuard.js'
 import { BackupService, backupName, backupsToRemove, parseBackupName } from '../services/serverBackups.js'
 import { ServerHealth, noteUnhandled, resetUnhandled } from '../services/serverHealth.js'
 
@@ -527,9 +528,22 @@ test('API: /health/backup and /health/detail refuse a browser page on this PC (O
     // DNS rebinding: a hostile name resolved to 127.0.0.1.
     assert.equal((await rawRequest(port, 'POST', '/health/backup', { host: `rebind.evil.example:${port}` }, body)).status, 404)
     assert.equal((await rawRequest(port, 'GET', '/health/detail', { host: `rebind.evil.example:${port}` })).status, 404)
+    // Security review, 27.11.2026: this PC's names only with the port the request came in on.
+    assert.equal((await rawRequest(port, 'GET', '/health/detail', { host: `[::1]:${port}` })).status, 200)
+    for (const host of ['127.0.0.1', 'localhost', `127.0.0.1:${port + 1}`, `localhost:${port}0`, `127.0.0.1:${port}.evil.example`, `localhost.evil.example:${port}`]) {
+      assert.equal((await rawRequest(port, 'GET', '/health/detail', { host })).status, 404, `Host «${host}»`)
+    }
   } finally {
     server.close()
   }
+})
+
+test('localHostHeader: 127.0.0.1, localhost or [::1] with exactly the port of the request', () => {
+  assert.equal(localHostHeader('127.0.0.1:8787', 8787), true)
+  assert.equal(localHostHeader('LOCALHOST:8787', 8787), true)
+  assert.equal(localHostHeader('[::1]:8787', 8787), true)
+  for (const host of ['127.0.0.1', 'localhost:80', '127.0.0.1:87870', 'evil.example:8787', '127.0.0.2:8787', undefined]) assert.equal(localHostHeader(host, 8787), false, String(host))
+  assert.equal(localHostHeader('127.0.0.1:8787', undefined), false)
 })
 
 test('owner token API (/v1/admin): direct requests on this PC only, whatever token comes through a proxy', async () => {

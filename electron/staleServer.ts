@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { basename } from 'node:path'
+import { systemProgram } from './windowsSystem.js'
 
 /**
  * An OLD copy of our own API server still holding 127.0.0.1:8787 (a leftover «Raid OS API» utility process of an
@@ -40,10 +41,10 @@ function run(command: string, args: string[]) {
   })
 }
 
-/** PID listening on 127.0.0.1:<port> (Windows netstat; elsewhere lsof), or null. */
+/** PID listening on 127.0.0.1:<port> (System32's netstat, by its full path; elsewhere lsof), or null. */
 export async function listeningPid(port: number): Promise<number | null> {
   if (process.platform === 'win32') {
-    const text = await run('netstat', ['-ano', '-p', 'TCP'])
+    const text = await run(systemProgram('NETSTAT.EXE'), ['-ano', '-p', 'TCP'])
     for (const line of text.split(/\r?\n/)) {
       const columns = line.trim().split(/\s+/)
       // Proto  Local Address  Foreign Address  State  PID
@@ -61,7 +62,7 @@ export async function listeningPid(port: number): Promise<number | null> {
 /** Executable image name of a process («Tarkov Operator.exe»), or '' when unknown. */
 export async function processImage(pid: number): Promise<string> {
   if (process.platform === 'win32') {
-    const text = await run('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'])
+    const text = await run(systemProgram('tasklist.exe'), ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'])
     const match = /^"([^"]+)","(\d+)"/m.exec(text.trim())
     return match && Number(match[2]) === pid ? match[1] : ''
   }

@@ -4,15 +4,17 @@
  * (a player's copy: its «client» folder, and only a build whose signed manifest verifies with the update key) and starts
  * that build's main.js instead; a build that fails to load is marked bad and the exe's own build starts. Electron waits
  * for this module (top-level await) before «ready», so main.ts sets its paths and switches in time either way. Only Node
- * built-ins, deltaBoot.ts (with deltaInfo.ts) and the public key here: everything else must come from the build that runs.
+ * built-ins, deltaBoot.ts (with deltaInfo.ts), the public key and windowsSystem.ts (with Koffi, for the rights) here:
+ * everything else must come from the build that runs.
  */
 import { app } from 'electron'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { chooseBoot, deltaRoot, markBad, stagedBuildVerified, type BootChoice, type BootFs } from './deltaBoot.js'
+import { chooseBoot, deltaRoot, markBad, stagedBuildVerified, stagedFilesToCheck, type BootChoice, type BootFs } from './deltaBoot.js'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
+import { processElevated } from './windowsSystem.js'
 
 function packagedInfo(): { edition?: unknown; build?: unknown; trialLaunches?: unknown; testBuild?: unknown } {
   try {
@@ -27,19 +29,11 @@ const alive = (pid: number) => {
 }
 
 /**
- * This start has administrator rights (security review, 03.11.2026): only then is every file of a staged build that can
- * run checked against its signed hash (deltaBoot.ts stagedFilesVerified) — a start without them runs nothing the
- * player's own programs could not run anyway. Windows lets only administrators and the system list this folder.
+ * Whether this start has administrator rights (security review, 03.11.2026), by this process's token (27.11.2026:
+ * electron/windowsSystem.ts, the same question as experimental/win32.ts isElevated) — never by a folder the environment
+ * names. See deltaBoot.ts stagedFilesToCheck for what it decides.
  */
-function administrator() {
-  if (process.platform !== 'win32') return false
-  try {
-    readdirSync(join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'config', 'systemprofile'))
-    return true
-  } catch {
-    return false
-  }
-}
+const administrator = () => (process.platform === 'win32' ? processElevated() : false)
 
 // Security review, 03.11.2026: the app runs as administrator, and Chromium's own debugging switches (the fuses stop only
 // Node's) would hand its windows to whoever started it. A packaged copy never runs with them.
@@ -57,7 +51,7 @@ if (app.isPackaged && !packaged.trialLaunches && packaged.testBuild !== true) {
   try {
     const fs = createRequire(import.meta.url)('original-fs') as BootFs
     originalFs = fs
-    const everyFile = administrator() ? '' : undefined
+    const everyFile = stagedFilesToCheck(administrator())
     choice = chooseBoot({ fs, root, packaged, pid: process.pid, alive, verify: (dir, build) => stagedBuildVerified(fs, dir, build, UPDATE_SIGNING_PUBLIC_KEY, everyFile) })
   } catch {
     choice = null

@@ -109,7 +109,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   getVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
   notify: (title: string, body: string, icon?: string, silent?: boolean) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? ''), icon, silent === true) as Promise<boolean>,
   confirm: (message: string, locale: string) => ipcRenderer.sendSync('app:confirm', String(message ?? ''), locale === 'en' ? 'en' : 'ru') === true,
-  resolvePlayerProfile: (mode: string, nickname: string) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode: string, accountId: number) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   systemBrief: () => ipcRenderer.invoke('system:brief') as Promise<string>,
   captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string }; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number; flea?: { reading?: unknown } }>,

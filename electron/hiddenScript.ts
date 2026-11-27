@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
+import { childEnvironment, systemProgram, windowsDirectory } from './windowsSystem.js'
 
 /**
  * A small cmd script that outlives the app (the update's swap and restart), with no window at all (owner, 31.10.2026:
@@ -16,15 +17,18 @@ import { extname, join } from 'node:path'
  * off on some PCs) cmd is started detached as before. The script uses only cmd itself and System32's programs by their
  * full path (another `find` on PATH — Git's — is not the one meant); `ping` waits a second where `timeout` refuses to work
  * without a keyboard.
+ * Security review, 27.11.2026: those paths, wscript's and cmd's come from Windows itself (electron/windowsSystem.ts) and
+ * are written into the script — never %SystemRoot% or %ComSpec%, which the environment could point elsewhere.
  */
-export const SYSTEM32 = '%SystemRoot%\\System32'
+/** A System32 program as a cmd script names it: its full path in quotes («%» doubled, as a script reads it). */
+export const systemCommand = (name: string) => `"${systemProgram(name).replace(/%/g, '%%')}"`
 /** One second's pause that works in a hidden console. */
-export const PAUSE_1S = `${SYSTEM32}\\PING.EXE -n 2 127.0.0.1 >nul`
+export const pauseOneSecond = () => `${systemCommand('PING.EXE')} -n 2 127.0.0.1 >nul`
 
-/** Windows Script Host: start cmd hidden with the script (its path is the first argument), do not wait. */
+/** Windows Script Host: start cmd (its path is the second argument) hidden with the script (the first), do not wait. */
 const RUN_HIDDEN_VBS = [
   'Set shell = CreateObject("WScript.Shell")',
-  'shell.Run """" & shell.ExpandEnvironmentStrings("%ComSpec%") & """ /d /c """ & WScript.Arguments(0) & """", 0, False',
+  'shell.Run """" & WScript.Arguments(1) & """ /d /c """ & WScript.Arguments(0) & """", 0, False',
 ].join('\r\n')
 
 /**
@@ -36,7 +40,7 @@ const RUN_HIDDEN_VBS = [
  */
 function writeScriptFile(name: string, text: string) {
   const unique = `${name.replace(/\.cmd$/i, '')}-${randomUUID()}${extname(name)}`
-  const folders = process.platform === 'win32' ? [join(process.env.SystemRoot || 'C:\\Windows', 'Temp'), tmpdir()] : [tmpdir()]
+  const folders = process.platform === 'win32' ? [join(windowsDirectory(), 'Temp'), tmpdir()] : [tmpdir()]
   for (const [index, folder] of folders.entries()) {
     const file = join(folder, unique)
     try {
@@ -51,18 +55,20 @@ function writeScriptFile(name: string, text: string) {
 
 export function runHiddenScript(name: string, lines: string[], env: Record<string, string>) {
   const script = writeScriptFile(name, ['@echo off', ...lines, 'del "%RO_HIDDEN_VBS%" >nul 2>&1', '(goto) 2>nul & del "%~f0"'].join('\r\n'))
-  const wscript = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'wscript.exe')
+  const wscript = systemProgram('wscript.exe')
+  const cmd = systemProgram('cmd.exe')
   const viaWsh = existsSync(wscript)
   const vbs = script.replace(/\.cmd$/i, '') + '.vbs'
   if (viaWsh) writeFileSync(vbs, RUN_HIDDEN_VBS, { encoding: 'utf8', flag: 'wx' })
   const [command, args] = viaWsh
-    ? [wscript, ['//B', '//Nologo', vbs, script]]
-    : [process.env.ComSpec || 'cmd.exe', ['/d', '/c', script]]
+    ? [wscript, ['//B', '//Nologo', vbs, script, cmd]]
+    : [cmd, ['/d', '/c', script]]
   const child = spawn(command, args, {
     detached: true,
     windowsHide: true,
     stdio: 'ignore',
-    env: { ...process.env, ...env, RO_HIDDEN_VBS: viaWsh ? vbs : '' },
+    // %SystemRoot%, %windir% and %ComSpec% of Windows itself for whatever the script starts as well.
+    env: childEnvironment(process.env, { ...env, RO_HIDDEN_VBS: viaWsh ? vbs : '' }),
   })
   child.unref()
   return script

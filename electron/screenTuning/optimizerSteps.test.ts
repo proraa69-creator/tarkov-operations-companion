@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { elevatedApplyScript, elevatedRevertScript, GPU_PREFERENCES, optimize, optimizeItems, optimizeTips, parseRegString, POWER_PLANS, revert, withDirectXSetting, directXSetting, type Elevated, type Run } from './optimizer'
 import type { PcInfo } from './pcInfo'
+import { systemProgram } from '../windowsSystem'
 
 /** The owner's PC (03.11.2026): one NVIDIA card, Windows 10, memory held back by an H410 board, a big page file on D:. */
 const OWNER_PC: PcInfo = {
@@ -151,7 +152,7 @@ describe('applying and putting back', () => {
 
     const back = await revert(windows.run, result.backup, { elevated: yes.elevated })
     expect(yes.scripts[1]).toContain('AutomaticManagedPagefile = $false')
-    expect(yes.scripts[1]).toContain("& reg.exe delete 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers' /v HwSchMode /f")
+    expect(yes.scripts[1]).toContain(`& '${systemProgram('reg.exe')}' delete 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers' /v HwSchMode /f`)
     expect(back).toMatchObject({ left: null, restart: true })
   })
 

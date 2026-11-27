@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { readdir, readFile, stat, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, win32 } from 'node:path'
+import { systemProgram } from './windowsSystem.js'
 
 export interface EftLogDiscovery {
   logsFolder?: string
@@ -133,20 +134,20 @@ function run(command: string, args: string[]) {
 }
 
 /**
- * One REG_SZ value through reg.exe (read only); undefined off Windows or when it is missing. reg.exe prints in the
- * console's code page, so a value with letters beyond ASCII (D:\Игры\Steam) comes out garbled: then the key is exported
- * to a temporary .reg file (UTF-16), read and removed.
+ * One REG_SZ value through reg.exe (read only; System32's, by its full path); undefined off Windows or when it is
+ * missing. reg.exe prints in the console's code page, so a value with letters beyond ASCII (D:\Игры\Steam) comes out
+ * garbled: then the key is exported to a temporary .reg file (UTF-16), read and removed.
  */
 const registryValue: RegistryQuery = async (key, name) => {
   if (process.platform !== 'win32') return undefined
-  const output = await run('reg', ['query', key, '/v', name])
+  const output = await run(systemProgram('reg.exe'), ['query', key, '/v', name])
   const line = output?.split(/\r?\n/).find((entry) => entry.trim().toLowerCase().startsWith(`${name.toLowerCase()} `))
   const value = /REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/i.exec(line ?? '')?.[1]
   if (!value) return undefined
   if (/^[\x20-\x7e]+$/.test(value)) return expandEnvironment(value)
   const file = join(tmpdir(), `raidos-registry-${process.pid}-${randomBytes(6).toString('hex')}.reg`)
   try {
-    if (await run('reg', ['export', key, file, '/y']) === undefined) return undefined
+    if (await run(systemProgram('reg.exe'), ['export', key, file, '/y']) === undefined) return undefined
     const exported = parseRegExport((await readFile(file)).toString('utf16le'), name)
     return exported ? expandEnvironment(exported) : undefined
   } catch {

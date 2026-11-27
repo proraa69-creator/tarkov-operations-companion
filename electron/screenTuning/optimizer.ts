@@ -4,6 +4,7 @@ import { readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { encodePowerShell, type PcInfo } from './pcInfo.js'
+import { childEnvironment, powershellExe, systemEnvironment, systemProgram } from '../windowsSystem.js'
 
 /**
  * «Оптимизация компьютера» (owner, 27.10.2026: «не усиливая ничего… не разгоняя, чтобы не навредить компьютеру
@@ -22,11 +23,15 @@ import { encodePowerShell, type PcInfo } from './pcInfo.js'
 
 export type Run = (file: string, args: string[], timeoutMs?: number) => Promise<string>
 
-const systemFile = (name: string) => join(process.env.SystemRoot || 'C:\\Windows', 'System32', name)
-export const POWERSHELL = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+/**
+ * reg.exe, powercfg.exe, tasklist.exe and PowerShell of System32 by their full path, with Windows' own %SystemRoot% and a
+ * PSModulePath of the folders only administrators may write (security review, 27.11.2026: electron/windowsSystem.ts):
+ * the app runs them with its administrator rights.
+ */
+const systemFile = (name: string) => systemProgram(name)
 
 export const defaultRun: Run = (file, args, timeoutMs = 10_000) => new Promise((resolve, reject) => {
-  execFile(file, args, { windowsHide: true, timeout: timeoutMs, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }, (error, stdout) => error ? reject(error) : resolve(String(stdout)))
+  execFile(file, args, { windowsHide: true, timeout: timeoutMs, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, env: childEnvironment() }, (error, stdout) => error ? reject(error) : resolve(String(stdout)))
 })
 
 export const POWER_PLANS = {
@@ -165,6 +170,22 @@ export interface OptimizeItem {
 
 /** Where a tip's button leads: the video card's app when it is installed, else its page (index.ts openTool). */
 export type OptimizeOpenTarget = 'nvidia-app' | 'amd-software' | 'nvidia-driver' | 'amd-driver' | 'intel-driver'
+
+/**
+ * The tips' buttons: the video card's app in `programFiles` when it is there, else the maker's page; nothing else can be
+ * opened. `programFiles` is Windows' own folder (electron/windowsSystem.ts), never %ProgramFiles%: the app opens it with
+ * its administrator rights.
+ */
+export function optimizeOpenTarget(target: unknown, programFiles: string): { exe?: string; url: string } | undefined {
+  const targets: Record<OptimizeOpenTarget, { exe?: string; url: string }> = {
+    'nvidia-app': { exe: join(programFiles, 'NVIDIA Corporation', 'NVIDIA App', 'CEF', 'NVIDIA App.exe'), url: 'https://www.nvidia.com/ru-ru/software/nvidia-app/' },
+    'amd-software': { exe: join(programFiles, 'AMD', 'CNext', 'CNext', 'RadeonSoftware.exe'), url: 'https://www.amd.com/ru/support/download/drivers.html' },
+    'nvidia-driver': { url: 'https://www.nvidia.com/ru-ru/geforce/drivers/' },
+    'amd-driver': { url: 'https://www.amd.com/ru/support/download/drivers.html' },
+    'intel-driver': { url: 'https://www.intel.ru/content/www/ru/ru/support/detect.html' },
+  }
+  return typeof target === 'string' && Object.hasOwn(targets, target) ? targets[target as OptimizeOpenTarget] : undefined
+}
 
 /** What the app cannot do itself: the player does it, the tip says how. */
 export interface OptimizeTip {
@@ -433,7 +454,7 @@ const quoted = (value: string) => `'${value.replace(/['‘’‚‛]/g, '$&$&')}
 export function elevatedApplyScript(steps: ReadonlyArray<'pageFile' | 'gpuScheduling'>) {
   const lines: string[] = []
   if (steps.includes('pageFile')) lines.push("try { $cs = Get-CimInstance Win32_ComputerSystem; Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $true }; $result.pageFile = 'ok' } catch { $result.pageFile = [string]$_.Exception.Message }")
-  if (steps.includes('gpuScheduling')) lines.push(`try { & reg.exe add ${quoted(HAGS.key)} /v ${HAGS.name} /t REG_DWORD /d 2 /f | Out-Null; if ($LASTEXITCODE -ne 0) { throw "reg $LASTEXITCODE" }; $result.gpuScheduling = 'ok' } catch { $result.gpuScheduling = [string]$_.Exception.Message }`)
+  if (steps.includes('gpuScheduling')) lines.push(`try { & ${quoted(systemFile('reg.exe'))} add ${quoted(HAGS.key)} /v ${HAGS.name} /t REG_DWORD /d 2 /f | Out-Null; if ($LASTEXITCODE -ne 0) { throw "reg $LASTEXITCODE" }; $result.gpuScheduling = 'ok' } catch { $result.gpuScheduling = [string]$_.Exception.Message }`)
   return lines.join('\n')
 }
 
@@ -448,9 +469,10 @@ export function elevatedRevertScript(backup: Pick<OptimizeBackup, 'pageFile' | '
     lines.push(`try { $cs = Get-CimInstance Win32_ComputerSystem; Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $${backup.pageFile.automatic ? 'true' : 'false'} }; ${backup.pageFile.automatic ? '' : `Get-CimInstance Win32_PageFileSetting | Remove-CimInstance; ${files.join('; ')}; `}$result.pageFile = 'ok' } catch { $result.pageFile = [string]$_.Exception.Message }`)
   }
   if (backup.gpuScheduling !== undefined) {
+    const reg = quoted(systemFile('reg.exe'))
     const command = backup.gpuScheduling === null
-      ? `& reg.exe delete ${quoted(HAGS.key)} /v ${HAGS.name} /f | Out-Null`
-      : `& reg.exe add ${quoted(HAGS.key)} /v ${HAGS.name} /t REG_DWORD /d ${backup.gpuScheduling} /f | Out-Null`
+      ? `& ${reg} delete ${quoted(HAGS.key)} /v ${HAGS.name} /f | Out-Null`
+      : `& ${reg} add ${quoted(HAGS.key)} /v ${HAGS.name} /t REG_DWORD /d ${backup.gpuScheduling} /f | Out-Null`
     lines.push(`try { ${command}; $result.gpuScheduling = 'ok' } catch { $result.gpuScheduling = [string]$_.Exception.Message }`)
   }
   return lines.join('\n')
@@ -458,15 +480,17 @@ export function elevatedRevertScript(backup: Pick<OptimizeBackup, 'pageFile' | '
 
 /**
  * The real administrator run: a second PowerShell started «as administrator» (Windows shows its question) writes `$result`
- * to a file of our own; the player's «Нет» there, a timeout or any error → null.
+ * to a file of our own; the player's «Нет» there, a timeout or any error → null. That PowerShell is System32's by its full
+ * path, and it looks for modules in the folders only administrators may write before anything else runs (a process
+ * started «as administrator» gets its environment from Windows, not from this one).
  */
 export function elevatedRunner(run: Run, directory = tmpdir()): Elevated {
   return async (script) => {
     const out = join(directory, `raidos-optimize-${randomUUID()}.json`)
-    const inner = `$ErrorActionPreference = 'Stop'\n$result = @{}\n${script}\n$result | ConvertTo-Json -Compress | Set-Content -LiteralPath ${quoted(out)} -Encoding UTF8`
-    const outer = `try { Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', '${encodePowerShell(inner)}') -ErrorAction Stop } catch { exit 3 }`
+    const inner = `$env:PSModulePath = ${quoted(systemEnvironment().PSModulePath)}\n$ErrorActionPreference = 'Stop'\n$result = @{}\n${script}\n$result | ConvertTo-Json -Compress | Set-Content -LiteralPath ${quoted(out)} -Encoding UTF8`
+    const outer = `try { Start-Process -FilePath ${quoted(powershellExe())} -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', '${encodePowerShell(inner)}') -ErrorAction Stop } catch { exit 3 }`
     try {
-      await run(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodePowerShell(outer)], 180_000)
+      await run(powershellExe(), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodePowerShell(outer)], 180_000)
       const value: unknown = JSON.parse(readFileSync(out, 'utf8').replace(/^\uFEFF/, ''))
       return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
     } catch {

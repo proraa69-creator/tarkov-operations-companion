@@ -1,7 +1,7 @@
 /**
  * The only way the app talks to the Raid OS API server (main process only).
  *
- * - Base URL: env TARKOV_API_URL (not in a packaged players' app), else the address saved in the app, else the build's default server
+ * - Base URL: env TARKOV_API_URL (development runs only), else the address saved in the app, else the build's default server
  *   (https://raidos.app, scripts/write-build-info.mjs), else this PC (http://127.0.0.1:8787). The owner's app uses this
  *   PC's server by default only while «Сервер и сайт на этом компьютере» is on (the server laptop): a gaming PC signs
  *   in to raidos.app, where the owner's account lives. Only HTTPS or plain HTTP to localhost / 127.0.0.1 is accepted.
@@ -343,11 +343,15 @@ export function defaultApiUrl() {
 }
 
 /**
- * TARKOV_API_URL / TARKOV_API_TOKEN: the owner's development integration (server/README.md). Not in a packaged players'
- * app (security review, 03.11.2026): any program of the player's can set them, and the app would then send the
- * account's password to that address.
+ * TARKOV_API_URL / TARKOV_API_TOKEN: the owner's development integration (server/README.md), and TARKOV_WEBSITE_URL, the
+ * site its buttons open (accountLinks.ts), in a development run only. Never in a packaged app — the players' since the
+ * security review of 03.11.2026, the owner's too since 27.11.2026: the environment is not the app's to trust, and the app
+ * would send the account's password, or a sign-in link, to that address.
  */
-const developmentEnv = (name: 'TARKOV_API_URL' | 'TARKOV_API_TOKEN') => (app.isPackaged && !isOwnerBuild() ? undefined : process.env[name])
+export const developmentEnv = (name: 'TARKOV_API_URL' | 'TARKOV_API_TOKEN' | 'TARKOV_WEBSITE_URL') => (app.isPackaged ? undefined : process.env[name])
+
+/** The development push to /v1/sync/events (main.ts): only a development run with both variables set. */
+export const developmentSyncEnabled = () => Boolean(developmentEnv('TARKOV_API_URL') && developmentEnv('TARKOV_API_TOKEN'))
 
 export function apiBaseUrl() {
   return checkServerUrl((developmentEnv('TARKOV_API_URL')?.trim() || savedServerUrl || defaultApiUrl()).replace(/\/+$/, ''))
