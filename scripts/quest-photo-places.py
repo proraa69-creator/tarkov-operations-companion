@@ -73,6 +73,15 @@ for photo_id, entry in sorted(guide['files'].items()):
         if at:
             places[photo_id] = at
 missing = sum(1 for entry in guide['files'].values() if entry.get('own')) - len(places)
+
+# Wiki photos placed by hand, [x, z] of the quest zone each one shows. «Ревизия. Маяк» (owner, 28.11.2026: «не хватает
+# скринов и мест других брдм»): one objective per vehicle kind, three places each, every place its own wiki photo — the
+# first, second and third BRDM at qlight_mark_vech1, vech2 and vech6 (the UN checkpoint), the Strykers at vech3, vech4, vech5.
+WIKI_PLACES = {
+    'b5951639ee801fe8': [13.14, -503.23], '9dc2cf810c6c240c': [-65.14, -691.74], 'eaa4b08a83b3af47': [8.42, 173.83],
+    '8bc9e81e9f245f7c': [66.05, 516.78], '37bd9007373f176d': [-41.03, 16.5], 'f3d63cbfcaf028d6': [187.4, -709.75],
+}
+places.update(WIKI_PLACES)
 with open(os.path.join(REPO, 'src/data/questPhotoPlaces.json'), 'w', encoding='utf-8', newline='\n') as out:
-    out.write('{\n' + ',\n'.join(f'"{key}": [{x}, {z}]' for key, (x, z) in places.items()) + '\n}\n')
+    out.write('{\n' + ',\n'.join(f'"{key}": [{x}, {z}]' for key, (x, z) in sorted(places.items())) + '\n}\n')
 print(f'{len(places)} own photos placed, {missing} without a known place')

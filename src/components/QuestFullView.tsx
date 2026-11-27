@@ -18,7 +18,7 @@ import { gunsmithHref, isGunsmithQuest, weaponBuildOf, weaponBuildsOf } from '..
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import { QuestGuideImages, QuestPointHints, RaidOsMark } from './QuestCuratedInfo'
-import { openRequiredItems, usedQuestKeys } from '../raidprep/objectives'
+import { openRequiredItems, USED_UP_PURPOSES, usedQuestKeys } from '../raidprep/objectives'
 import { QuestOfferUnlocks } from '../quests/QuestOfferUnlocks'
 import './traderQuests.css'
 
@@ -88,7 +88,8 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
         if (!first) eitherKey.set(requirement.objectiveId, requirement.itemId)
       }
       const row = rows.get(requirement.itemId) ?? { itemId: requirement.itemId, count: 0, purposes: new Set<string>(), mapIds: new Set<string>() }
-      row.count = Math.max(row.count, requirement.count)
+      // Two objectives that mark ask two markers; a key or an item to bring counts once (raidprep/objectives.ts).
+      row.count = USED_UP_PURPOSES.has(requirement.purpose) ? row.count + Math.max(1, requirement.count) : Math.max(row.count, requirement.count)
       row.purposes.add(requirement.pickUp ? 'pickUp' : requirement.purpose)
       requirement.mapIds.forEach((id) => row.mapIds.add(id))
       // Added or corrected in the quest constructor: marked «Raid OS», with the owner's comment.

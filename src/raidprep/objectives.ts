@@ -76,6 +76,24 @@ export function usedQuestKeys(quest: Pick<Quest, 'id' | 'raidRequirements'>, pro
   return new Set(keys.filter((itemId) => rows.every((row) => row.itemId !== itemId || (row.purpose === 'key' && keyUsed(progress, quest.id, row)))))
 }
 
+/**
+ * What an objective uses up, one each: two objectives that mark ask two markers (owner, 28.11.2026, «Ревизия. Маяк»: «должно
+ * быть в требованиях ×2 маркеров»). A key, or an item to bring or find, counts once, at its biggest number.
+ */
+export const USED_UP_PURPOSES: ReadonlySet<string> = new Set(['mark', 'place', 'signal', 'use'])
+
+/** How many of an item the quest takes into its raids (its `raidRequirements`), at least one. */
+export function requiredItemCount(requirements: ReadonlyArray<Pick<QuestRequirement, 'itemId' | 'count' | 'purpose'>>, itemId: string): number {
+  let usedUp = 0
+  let most = 0
+  for (const requirement of requirements) {
+    if (requirement.itemId !== itemId) continue
+    if (USED_UP_PURPOSES.has(requirement.purpose)) usedUp += Math.max(1, requirement.count)
+    else most = Math.max(most, requirement.count)
+  }
+  return Math.max(usedUp, most, 1)
+}
+
 /** The quest's plain list of items, without the keys already used. */
 export function openRequiredItems(quest: Pick<Quest, 'id' | 'raidRequirements' | 'requiredItems'>, progress: ObjectiveMarks): string[] {
   const used = usedQuestKeys(quest, progress)
