@@ -35,7 +35,7 @@ import { STICKER_PHRASES } from './uiEnglishStickers'
 import { OVERVIEW_PHRASES } from './uiEnglishOverview'
 import { GUNSMITH_PHRASES } from './uiEnglishGunsmith'
 import { LOG_SEARCH_PHRASES } from './uiEnglishLogs'
-import { CHARACTER_PHRASES } from './uiEnglishCharacter'
+import { CHARACTER_PHRASES, CHARACTER_RULES } from './uiEnglishCharacter'
 import { REQUESTS_KEY_PHRASES } from './uiEnglishRequestsKey'
 import { REPORTS_TABLE_PHRASES } from './uiEnglishReports'
 // First in the list: a word the other dictionaries already translate keeps their English.
@@ -154,7 +154,7 @@ const EXTRA: Array<[string, string]> = [
 const ORDERED = [...SUGGEST_POINT_PHRASES, ...EXTRA, ...REPORTS_TABLE_PHRASES, ...PHRASES, ...FEATURE_PHRASES, ...GOON_PHRASES, ...MAP_PHRASES, ...SERVER_PHRASES, ...SERVER_STATUS_PHRASES, ...THEME_PHRASES, ...MOBILE_PHRASES, ...SETTINGS_AREA_PHRASES, ...ACCOUNT_PHRASES, ...OWNER_SITE_PHRASES, ...OWNER_ADMIN_PHRASES, ...PAYMENT_PHRASES, ...PHONE_PHRASES, ...EMAIL_PHRASES, ...NO_OVERLAY_PHRASES, ...MINIMAP_PAGE_PHRASES, ...QUEST_PHRASES, ...BOSS_INFO_PHRASES, ...GAME_DATA_PHRASES, ...BOSS_SUPPLEMENT_PHRASES, ...ECONOMY_PHRASES, ...HIDEOUT_VIEW_PHRASES, ...ARSENAL_PHRASES, ...GUN_BUILDER_PHRASES, ...RAID_PREP_PHRASES, ...SQUAD_PHRASES, ...WORLD_MAP_PHRASES, ...ACCOUNT_GATE_PHRASES, ...PAYWALL_PHRASES, ...IOS_PHRASES, ...SERVER_UPDATE_PHRASES, ...SUPPORT_PHRASES, ...SUPPORT_CHAT_PHRASES, ...STICKER_PHRASES, ...OVERVIEW_PHRASES, ...GUNSMITH_PHRASES, ...LOG_SEARCH_PHRASES, ...CHARACTER_PHRASES, ...REQUESTS_KEY_PHRASES, ...NOTICE_PHRASES, ...QUEST_CONDITION_PHRASES, ...KEY_DOOR_PHRASES, ...QUEST_EDITOR_PHRASES, ...POINT_CONSTRUCTOR_PHRASES, ...EVENT_QUEST_PHRASES, ...ADMIN_PANEL_PHRASES, ...SCREEN_PHRASES].sort((a, b) => b[0].length - a[0].length)
 const EXACT = new Map(ORDERED)
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-const RULES: Array<[RegExp, string]> = [...MAP_RULES, ...QUEST_RULES, ...OWNER_ADMIN_RULES, ...QUEST_CONDITION_RULES, ...QUEST_EDITOR_RULES, ...POINT_CONSTRUCTOR_RULES, ...EVENT_QUEST_RULES, ...ADMIN_PANEL_RULES, ...SCREEN_RULES, ...ACCOUNT_RULES]
+const RULES: Array<[RegExp, string]> = [...MAP_RULES, ...QUEST_RULES, ...OWNER_ADMIN_RULES, ...QUEST_CONDITION_RULES, ...QUEST_EDITOR_RULES, ...POINT_CONSTRUCTOR_RULES, ...EVENT_QUEST_RULES, ...ADMIN_PANEL_RULES, ...SCREEN_RULES, ...ACCOUNT_RULES, ...CHARACTER_RULES]
 /** After the phrases: numbers with the Russian words around them. */
 const TAIL: Array<[RegExp, string]> = [
   [/(\d+)\s+задани(?:е|я|й)/gi, '$1 tasks'],

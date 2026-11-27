@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyPlayerSnapshot, applyScreenLevel, createLocalProfile, migrateProfile, registerModeProfile, setTaskProgress } from './progress'
+import { applyLevelEstimate, applyPlayerSnapshot, applyScreenLevel, createLocalProfile, migrateProfile, registerModeProfile, setManualLevel, setTaskProgress, wipeModeProgress } from './progress'
 import type { LocalProfile, PlayerProfileSnapshot, RaidMode } from './types'
 
 describe('local profile model', () => {
@@ -178,5 +178,92 @@ describe('the character level (player\'s report, 14.10.2026: «в PVE … 39 у 
     // A level within reach (or a lower one: a prestige) is taken as before.
     expect(applyPlayerSnapshot(read, 'pve', snapshot(40, 4_100_000, '2026-10-14T19:00:00.000Z')).modes.pve.playerLevel).toBe(40)
     expect(applyPlayerSnapshot(read, 'pve', snapshot(1, 0, '2026-10-14T19:00:00.000Z')).modes.pve.playerLevel).toBe(1)
+  })
+})
+
+/**
+ * Owner, 27.11.2026: «нижняя граница уровня по квестам и ручной ввод уровня». A PvP player without a public profile whose
+ * «Выбор профиля и режима» was not read: the level the mode's completed quests prove, and «Указать уровень».
+ */
+describe('the level without a reading: the quests\' estimate and the player\'s own entry', () => {
+  const at = (hour: number) => new Date(Date.UTC(2026, 10, 27, hour)).toISOString()
+  const snapshot = (level: number, experience: number, upstreamUpdatedAt: string): PlayerProfileSnapshot => ({
+    accountId: 5550123, nickname: 'Raid_OS', experience, level, faction: 'usec', prestige: 0, fetchedAt: upstreamUpdatedAt, upstreamUpdatedAt,
+  })
+  const levels = (profile: LocalProfile) => [profile.modes.pvp.playerLevel, profile.modes.pve.playerLevel, profile.modes.seasonal.playerLevel]
+
+  it('the estimate fills a mode with no anchor, follows its quests both ways and leaves the other modes alone', () => {
+    let profile = applyLevelEstimate(createLocalProfile('Operator'), 'pvp', 24)
+    expect(levels(profile)).toEqual([24, 1, 1])
+    expect(profile.modes.pvp.levelAnchor).toBeUndefined()
+    // A mark taken back: the estimate goes down with it.
+    profile = applyLevelEstimate(profile, 'pvp', 22)
+    expect(profile.modes.pvp.playerLevel).toBe(22)
+    expect(applyLevelEstimate(profile, 'pvp', 22)).toBe(profile)
+    for (const wrong of [0, 80, 22.5, Number.NaN]) expect(applyLevelEstimate(profile, 'pvp', wrong)).toBe(profile)
+    profile = applyLevelEstimate(profile, 'seasonal', 9)
+    expect(levels(profile)).toEqual([22, 1, 9])
+  })
+
+  it('a reading of the game or Tarkov.dev always replaces the estimate; the traders\' screen only above it', () => {
+    const estimated = applyLevelEstimate(createLocalProfile('Operator'), 'pvp', 24)
+    // «Выбор профиля и режима» names its mode: its level, lower than the estimate or not.
+    const read = applyScreenLevel(estimated, 'pvp', 22, at(10))
+    expect(read.modes.pvp).toMatchObject({ playerLevel: 22, levelAnchor: { level: 22, source: 'screen' } })
+    // From then on the quests' estimate changes nothing.
+    expect(applyLevelEstimate(read, 'pvp', 30)).toBe(read)
+    expect(applyPlayerSnapshot(estimated, 'pvp', snapshot(23, 700_000, at(9))).modes.pvp).toMatchObject({ playerLevel: 23, levelAnchor: { level: 23, source: 'tarkov-dev' } })
+    // The traders' screen takes the logs' mode, maybe another one's: never below what this mode's quests prove.
+    expect(applyScreenLevel(estimated, 'pvp', 12, at(10), true)).toBe(estimated)
+    expect(applyScreenLevel(estimated, 'pvp', 26, at(10), true).modes.pvp).toMatchObject({ playerLevel: 26, levelAnchor: { level: 26, source: 'screen' } })
+  })
+
+  it('the entry: 1–79, the mode\'s anchor from then on, its own mode only, corrected by the player, never over a reading', () => {
+    let profile = applyLevelEstimate(applyLevelEstimate(createLocalProfile('Operator'), 'pvp', 24), 'pve', 10)
+    for (const wrong of [0, 80, 24.5, Number.NaN]) expect(setManualLevel(profile, 'pvp', wrong, at(10))).toBe(profile)
+    profile = setManualLevel(profile, 'pvp', 31, at(10))
+    expect(profile.modes.pvp).toMatchObject({ playerLevel: 31, levelAnchor: { level: 31, observedAt: at(10), source: 'manual' } })
+    expect(levels(profile)).toEqual([31, 10, 1])
+    expect(profile.modes.pve.levelAnchor).toBeUndefined()
+    // A slip corrected by the player; an older entry (another device's) does not replace a newer one.
+    profile = setManualLevel(profile, 'pvp', 30, at(11))
+    expect(profile.modes.pvp.levelAnchor).toMatchObject({ level: 30, observedAt: at(11), source: 'manual' })
+    expect(setManualLevel(profile, 'pvp', 40, at(10))).toBe(profile)
+    // A level the game's screen or Tarkov.dev gave is never replaced by an entry.
+    const read = applyScreenLevel(createLocalProfile('Operator'), 'pvp', 22, at(9))
+    expect(setManualLevel(read, 'pvp', 30, at(10))).toBe(read)
+    const looked = applyPlayerSnapshot(createLocalProfile('Operator'), 'pvp', snapshot(22, 600_000, at(9)))
+    expect(setManualLevel(looked, 'pvp', 30, at(10))).toBe(looked)
+  })
+
+  it('a newer reading replaces the entry by the freshness rules of the readings; an older one does not', () => {
+    const typed = setManualLevel(createLocalProfile('Operator'), 'pvp', 12, at(10))
+    // «Выбор профиля и режима» read before the entry (kept while the app was locked): older, the entry stays.
+    expect(applyScreenLevel(typed, 'pvp', 14, at(9))).toBe(typed)
+    // After it: the game's level whatever it is, lower, or far above a slip of the keyboard (12 for 42).
+    expect(applyScreenLevel(typed, 'pvp', 42, at(11)).modes.pvp).toMatchObject({ playerLevel: 42, levelAnchor: { level: 42, source: 'screen', checked: true } })
+    expect(applyScreenLevel(typed, 'pvp', 9, at(11)).modes.pvp.playerLevel).toBe(9)
+    // The traders' screen, maybe another mode's: never lower, and only within reach, as after any reading.
+    expect(applyScreenLevel(typed, 'pvp', 9, at(11), true)).toBe(typed)
+    expect(applyScreenLevel(typed, 'pvp', 42, at(11), true)).toBe(typed)
+    expect(applyScreenLevel(typed, 'pvp', 13, at(11), true).modes.pvp).toMatchObject({ playerLevel: 13, levelAnchor: { level: 13, source: 'screen' } })
+    // Tarkov.dev: a newer profile replaces the entry; an older one does not, unless the entry is beyond its reach.
+    expect(applyPlayerSnapshot(typed, 'pvp', snapshot(11, 80_000, at(11))).modes.pvp.levelAnchor).toMatchObject({ level: 11, source: 'tarkov-dev', experience: 80_000 })
+    const older = applyPlayerSnapshot(typed, 'pvp', snapshot(11, 80_000, at(9)))
+    expect(older.modes.pvp).toMatchObject({ playerLevel: 12, levelAnchor: { level: 12, source: 'manual' } })
+    expect(older.modes.pvp.playerSnapshot?.level).toBe(11)
+    // 59 typed an hour after Tarkov.dev's 39 with 3 700 000 experience: 13 million more, no play gives it.
+    const slip = setManualLevel(createLocalProfile('Operator'), 'pve', 59, at(10))
+    expect(applyPlayerSnapshot(slip, 'pve', snapshot(39, 3_700_000, at(9))).modes.pve).toMatchObject({ playerLevel: 39, levelAnchor: { level: 39, source: 'tarkov-dev' } })
+  })
+
+  it('«Сброс», «Вайп» and «Престиж +» clear the entry with the rest; an entry from before the reset does not come back', () => {
+    const typed = setManualLevel(applyLevelEstimate(createLocalProfile('Operator'), 'pve', 17), 'pvp', 30, at(10))
+    for (const prestige of [{ keep: true }, { level: 2 }]) {
+      const wiped = wipeModeProgress(typed, 'pvp', at(12), at(12), prestige, { at: at(12) })
+      expect(wiped.modes.pvp.levelAnchor).toBeUndefined()
+      expect(levels(wiped)).toEqual([1, 17, 1])
+      expect(setManualLevel(wiped, 'pvp', 30, at(11))).toBe(wiped)
+    }
   })
 })

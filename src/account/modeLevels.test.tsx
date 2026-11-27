@@ -22,6 +22,12 @@ describe('«Личный кабинет»: the nickname and the levels', () => {
     expect(knownModeLevels({ pvp: { playerLevel: 41, levelAnchor: anchor as never }, pve: { playerLevel: 5 }, seasonal: { playerLevel: 0, levelAnchor: anchor as never } })).toEqual([{ mode: 'pvp', level: 41 }])
   })
 
+  // Owner, 27.11.2026: «нижняя граница уровня по квестам и ручной ввод уровня».
+  it('lists the player\'s own entry of a mode as its level, never the estimate from its quests', () => {
+    const typed = { level: 30, observedAt: '2026-11-27T10:00:00.000Z', source: 'manual' as const }
+    expect(knownModeLevels({ pvp: { playerLevel: 24 }, pve: { playerLevel: 31, levelAnchor: typed }, seasonal: { playerLevel: 1 } })).toEqual([{ mode: 'pve', level: 31 }])
+  })
+
   it('shows the nickname under the account, with the levels per mode', () => {
     render(<ClientCabinetPanel />)
     const identity = screen.getByText('player@example.com').closest('.account-cabinet-identity')!

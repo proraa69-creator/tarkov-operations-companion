@@ -3,6 +3,7 @@ import { uiText } from '../i18n/renderText'
 import { ExternalLink } from 'lucide-react'
 import { ACCOUNT_URL } from '../shared/links'
 import { PlayerLoadoutSummary } from '../components/PlayerLoadoutSummary'
+import { ManualLevelField } from '../components/ManualLevelField'
 import { useAppState } from '../state/AppState'
 import { ServerAccountPanel } from '../components/ServerAccountPanel'
 import { isOwnerApp } from '../app/buildEdition'
@@ -45,6 +46,9 @@ export function ProfilePage() {
   // Only a streamer with a share (owner, 26.11.2026): the server says so by answering its notices (useStreamerPanel).
   const panel = useStreamerPanel(streamer)
   const shownLevel = snapshot || progress.levelAnchor ? progress.playerLevel ?? snapshot?.level : undefined
+  // «Указать уровень» (owner, 27.11.2026): the level of the shown mode by hand while no reading has it.
+  const enterLevel = (level: number) => state.setManualLevel(state.raidMode, level)
+  const typedLevel = progress.levelAnchor?.source === 'manual'
   const blockButtons = <><ModeResetButtons /><NicknameEditor /></>
   // The players' «Личный кабинет» stands beside «Текущий профиль», not under it (owner, 15.11.2026: «Перенеси вот этот
   // большой блок наверх»).
@@ -69,7 +73,8 @@ export function ProfilePage() {
           <span className={`tag ${online ? 'green' : 'danger'}`}>{uiText(online ? 'Сервер доступен' : 'Сервер недоступен')}</span>
         </div>
         <div className="panel-body stack">
-          {!shownLevel && <PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} />}
+          {/* The level stands beside the mode; the player's own entry keeps its field under it, to correct it. */}
+          {shownLevel ? typedLevel && <ManualLevelField onSave={enterLevel} /> : <PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} onLevelEntered={enterLevel} />}
           <PrestigeLine level={progress.prestige} locale={locale} mode={state.raidMode} />
           {ios ? <IosAccountPanel buttons={blockButtons} /> : <ClientCabinetPanel buttons={blockButtons} />}
         </div>
@@ -77,7 +82,7 @@ export function ProfilePage() {
         {/* The current nickname, never the name of a Tarkov.dev profile from before a rename (owner, 13.10.2026). */}
         <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div>{panel && <StreamerPanelButton unread={panel.unread} />}</div>{uiText(snapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(snapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
         {/* «Вайп / Престиж» and «Сброс» below it, next to the level (owner, 15.10 and 04.11.2026). */}
-        <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /><div className="profile-level-actions"><ModeResetButtons /><NicknameEditor /></div></div><PrestigeLine level={progress.prestige} locale={locale} mode={state.raidMode} /></div>
+        <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} onLevelEntered={enterLevel} /><div className="profile-level-actions"><ModeResetButtons /><NicknameEditor /></div></div><PrestigeLine level={progress.prestige} locale={locale} mode={state.raidMode} /></div>
         {owner && <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>}
       </section>}
       {cabinetBeside && <ClientCabinetPanel />}

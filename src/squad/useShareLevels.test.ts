@@ -41,6 +41,14 @@ describe('sharedLevelsOf', () => {
       seasonal: { playerLevel: 12, prestige: 42, playerSnapshot: snapshot(12, 42), levelAnchor: { level: 12, observedAt: '2026-10-13T21:00:00+03:00', source: 'tarkov-dev' } },
     }))).toEqual({ seasonal: { level: 12, prestige: null, observedAt: SCREEN_AT } })
   })
+
+  // Owner, 27.11.2026: «нижняя граница уровня по квестам и ручной ввод уровня».
+  it('shares the player\'s own entry of a level, never the estimate from the quests alone', () => {
+    const typed = { level: 30, observedAt: SCREEN_AT, source: 'manual' as const }
+    expect(sharedLevelsOf(modes({ pvp: { playerLevel: 24 }, pve: { playerLevel: 31, levelAnchor: typed } }))).toEqual({ pve: { level: 31, prestige: null, observedAt: SCREEN_AT } })
+    // After «Престиж +»: the level the mode starts again at, whatever its quests prove since (the phone adds their experience).
+    expect(sharedLevelsOf(modes({ pvp: { playerLevel: 6, prestige: 2, prestigeSetAt: SCREEN_AT } }))).toEqual({ pvp: { level: 1, prestige: 2, observedAt: SCREEN_AT } })
+  })
 })
 
 describe('useShareLevels', () => {

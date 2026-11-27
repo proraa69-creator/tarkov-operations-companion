@@ -86,9 +86,10 @@ export function laterTime(a: string | undefined, b: string | undefined) {
 /**
  * «Престиж +», «Вайп» or «Сброс» (src/state/modeReset.ts): every progress record of one mode goes —
  * quests of every source (logs, server, Tasks table, story pane, manual marks), objective progress, conflicts and the
- * history of changes, hideout levels, «Что не продавать» counts, and the level, faction and Tarkov.dev profile read for
- * the mode. Kept: the game account binding and the logs' character of the mode (identity, not progress), the tracked
- * quests, favourite and raid items (preferences; a press clears them, clearPlayerLists) and the season.
+ * history of changes, hideout levels, «Что не продавать» counts, and the level (read, entered by hand or estimated from
+ * the quests), faction and Tarkov.dev profile of the mode. Kept: the game account binding and the logs' character of the
+ * mode (identity, not progress), the tracked quests, favourite and raid items (preferences; a press clears them,
+ * clearPlayerLists) and the season.
  *
  * The mode is rebuilt from the logs right after (AppState.resetModeProgress), from `floor.at` on (floorAfterReset; without
  * `floor`, the mode's floor stays). Other modes are not touched. A new nickname resets nothing (owner, 25.11.2026: «При
@@ -174,12 +175,14 @@ export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snaps
   // The level: Tarkov.dev's unless the game's screen showed one later («побеждают свежие, но приоритет у тарков дев») —
   // and one its exact experience could have reached by then: a screen level no play explains is a misreading (player's
   // report, 14.10.2026: PvE 39 shown as 59), Tarkov.dev's replaces it. The other way round too: a Tarkov.dev level no
-  // play explains since a checked screen reading (src/import/levelDigits.ts) does not replace that reading.
+  // play explains since a checked screen reading (src/import/levelDigits.ts) does not replace that reading. The player's
+  // own entry (setManualLevel): a newer Tarkov.dev reading replaces it whatever it shows, an older one only when the entry
+  // is beyond its reach (a slip of the keyboard).
   const observedAt = snapshot.upstreamUpdatedAt ?? snapshot.fetchedAt
   const anchor = profile.modes[mode].levelAnchor
   const level = Math.max(1, Math.round(snapshot.level))
   const experience = Number.isFinite(snapshot.experience) && snapshot.experience > 0 ? snapshot.experience : undefined
-  const misread = anchor?.source === 'screen' && !levelReachable({ level, observedAt, experience }, anchor.level, anchor.observedAt)
+  const misread = (anchor?.source === 'screen' || anchor?.source === 'manual') && !levelReachable({ level, observedAt, experience }, anchor.level, anchor.observedAt)
   const beyond = anchor?.source === 'screen' && anchor.checked === true && !levelReachable(anchor, level, observedAt)
   const levelUpdate = (!anchor || anchor.source === 'tarkov-dev' || observedAt >= anchor.observedAt || misread) && !beyond
     ? { playerLevel: level, levelAnchor: { level, observedAt, source: 'tarkov-dev' as const, ...(experience ? { experience } : {}) } }
@@ -206,7 +209,8 @@ export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snaps
  * their shapes too, src/import/levelDigits.ts): «Выбор профиля и режима», or the traders' screen (`raiseOnly`).
  * It replaces an older reading at once; Tarkov.dev's anchor stays when it has the same level (it knows the exact
  * experience) or is newer. A raise no play explains since the anchor (src/profile/levelExperience.ts) is not taken: a
- * misreading, or another mode's traders' screen.
+ * misreading, or another mode's traders' screen. The player's own entry (setManualLevel) is replaced by any newer
+ * reading of «Выбор профиля и режима», which names its mode, whatever it shows.
  */
 export function applyScreenLevel(profile: LocalProfile, mode: RaidMode, level: number, observedAt: string, raiseOnly = false): LocalProfile {
   if (!Number.isInteger(level) || level < 1) return profile
@@ -215,12 +219,15 @@ export function applyScreenLevel(profile: LocalProfile, mode: RaidMode, level: n
   const { levelAnchor: anchor, playerLevel } = profile.modes[mode]
   // Read by OCR alone before 14.10.2026 («39» stored as «59»): any newer reading replaces it, the traders' screen too.
   const unchecked = anchor?.source === 'screen' && !anchor.checked
-  // The traders' screen does not name its mode (the logs' current one is taken): it may raise a level, never lower one.
+  // The traders' screen does not name its mode (the logs' current one is taken): it may raise a level, never lower one,
+  // the player's entry and the level the mode's completed quests prove (applyLevelEstimate) included.
   if (raiseOnly && level < playerLevel && !unchecked) return profile
   if (anchor && anchor.observedAt >= observedAt) return profile
   // The same level as Tarkov.dev's (and nothing added since disagrees): its anchor stays, it knows the exact experience.
   if (anchor?.source === 'tarkov-dev' && anchor.level === level && playerLevel === level) return profile
-  if (anchor && !unchecked && level > playerLevel && !levelReachable(anchor, level, observedAt)) return profile
+  // The player's entry is no reading: only the traders' screen, which may be another mode's, must stay within its reach.
+  const typed = anchor?.source === 'manual' && !raiseOnly
+  if (anchor && !unchecked && !typed && level > playerLevel && !levelReachable(anchor, level, observedAt)) return profile
   return updateMode(profile, mode, { playerLevel: level, levelAnchor: { level, observedAt, source: 'screen', checked: true } })
 }
 
@@ -228,6 +235,38 @@ export function applyScreenLevel(profile: LocalProfile, mode: RaidMode, level: n
 export function raisePlayerLevel(profile: LocalProfile, mode: RaidMode, level: number): LocalProfile {
   if (!Number.isInteger(level) || level <= profile.modes[mode].playerLevel) return profile
   return updateMode(profile, mode, { playerLevel: level })
+}
+
+/** The game's highest character level (src/import/modeSelectScreen.ts MAX_PLAYER_LEVEL). */
+const MAX_LEVEL = 79
+
+/**
+ * The level the quests completed in the mode prove at least (owner, 27.11.2026: «нижняя граница уровня по квестам»;
+ * src/profile/questExperience.ts levelProvenByQuests), while nothing has the mode's level: no reading of the game or
+ * Tarkov.dev, no entry of the player's. The mode's quests and items are filtered by it, its card shows «Уровень не ниже
+ * N». It follows the quests both ways (a mark taken back takes it down); a reading or an entry (an anchor) replaces it,
+ * and with one this changes nothing. Each mode has its own.
+ */
+export function applyLevelEstimate(profile: LocalProfile, mode: RaidMode, level: number): LocalProfile {
+  const current = profile.modes[mode]
+  if (current.levelAnchor || !Number.isInteger(level) || level < 1 || level > MAX_LEVEL || level === current.playerLevel) return profile
+  return updateMode(profile, mode, { playerLevel: level })
+}
+
+/**
+ * «Указать уровень» on the mode's card (owner, 27.11.2026: «ручной ввод уровня»): the player's own level of the mode
+ * while nothing else has it — no anchor, only the quests' estimate, or an earlier entry of his. It never replaces a
+ * reading of the game's screen or Tarkov.dev, nor a newer entry. From then on it is the mode's anchor: the quests turned
+ * in since raise it, a newer reading replaces it (applyScreenLevel, applyPlayerSnapshot), and «Сброс», «Вайп» and
+ * «Престиж +» clear it with the rest (wipeModeProgress).
+ */
+export function setManualLevel(profile: LocalProfile, mode: RaidMode, level: number, at = new Date().toISOString()): LocalProfile {
+  if (!Number.isInteger(level) || level < 1 || level > MAX_LEVEL) return profile
+  const current = profile.modes[mode]
+  if (beforeModeReset(current, at)) return profile
+  const anchor = current.levelAnchor
+  if (anchor && (anchor.source !== 'manual' || anchor.observedAt > at)) return profile
+  return updateMode(profile, mode, { playerLevel: level, levelAnchor: { level, observedAt: at, source: 'manual' } }, at)
 }
 
 /**
