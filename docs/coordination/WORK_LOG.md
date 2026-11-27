@@ -11898,3 +11898,21 @@ Not pushed, not released, nothing uploaded.
   keeps /etc/raidos/backup-pass in KeePassXC.
 - Next: the owner's second factor for the admin panel (a code to the owner's e-mail after the password, a notice after each
   sign-in) is being built on claude/owner-second-factor for the release after 353.
+
+## 2026-11-27 23:00 — Claude: GitHub — a fine-grained token, 115 old branches gone, the owner's e-mail out of the files
+
+- The PC's git used a Git Credential Manager OAuth token (full access, no expiry). The owner made a fine-grained one (Contents
+  RW, Actions R, Workflows RW, until 25.02.2027) and put it in both Credential Manager entries (git:https://github.com and
+  GitHub - https://api.github.com/<user>); git takes the first. Checked: Actions API 200, git push --dry-run. The old OAuth
+  authorization is for the owner to revoke.
+- Personal data on GitHub, checked by hashes against the accounts and reports (no address printed): the database, passwords
+  and payments were never there (only server/schema.sql). release/production held no player address, only the owner's
+  e-mail and the support one; 111 other branches still carried 9 players' and streamers' addresses (the work log before
+  66e19526 and a few tests). With the owner's word 115 branches were deleted on GitHub; each is kept locally as
+  refs/archive/github-20261127/<branch> (never push those). Left: main, release/production, mobile/release,
+  sync/codex-claude-context, the open PR's branch and two branches of the last two days; mobile/release, claude/admin-ipa
+  and claude/vibrant-ritchie-vy7uh2 still carry the 9 addresses (mobile/release only with its next phone release). The
+  history of every branch still holds the old files: only a fresh public repository would drop it.
+- Making the repository private was weighed and left: about 4,200 macOS minutes of iOS builds a month would be billed ×10.
+- The owner's e-mail is out of the files: the build skill says <почта владельца> (sessions know it), deploy/linux/install.sh
+  requires RAIDOS_OWNER_EMAILS, the ops-reference scripts read it from the environment or /etc/raidos/release-config.json.
