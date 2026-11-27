@@ -105,6 +105,8 @@ export class EmailAuthError extends AccountError {
 
 export const EMAIL_OFF_MESSAGE = 'Коды на e-mail сейчас недоступны. Войдите по e-mail и паролю.'
 const BUDGET_MESSAGE = 'Отправка писем временно недоступна. Попробуйте позже.'
+/** The provider refused the registration code (502): POST /register then registers at once (accountStore createAccountsHandlers). */
+export const REGISTRATION_UNSENT_MESSAGE = 'Не удалось отправить код. Попробуйте позже.'
 const REGISTRATION_EXPIRED_MESSAGE = 'Срок подтверждения истёк. Зарегистрируйтесь ещё раз.'
 const TOO_MANY_ATTEMPTS_MESSAGE = 'Слишком много неверных попыток. Запросите новый код.'
 const IP_LIMIT_MESSAGE = 'Слишком много запросов кода с этого адреса. Попробуйте завтра.'
@@ -314,7 +316,16 @@ export class EmailAuthService implements PendingRegistrations {
     }
     const challenge = this.createChallenge('register', email, undefined, payload)
     this.record(email, 'register', true, ip)
-    this.sendInBackground(sender, 'register', email, challenge.code)
+    // The code goes out before the answer (owner, 27.11.2026: on 01.11 codes the provider refused left new players behind
+    // «код отправлен»): a refusal takes the challenge back, and POST /register registers at once instead (502 here). The
+    // service's own budget spent stays a 503 that stops the sign-up: burning it must not open registration without codes.
+    try {
+      await sender.send(renderEmail('register', email, { code: challenge.code, ttlMinutes: EMAIL_CODE_TTL_MS / 60_000 }))
+    } catch (error) {
+      this.db.prepare('DELETE FROM email_challenges WHERE digest = ?').run(sha256(challenge.challengeId))
+      this.log(this.failure(sender, error))
+      throw new EmailAuthError(502, REGISTRATION_UNSENT_MESSAGE)
+    }
     return this.answer(challenge)
   }
 

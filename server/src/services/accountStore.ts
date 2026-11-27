@@ -2101,8 +2101,15 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (registrations?.enabled && options.registrationEmailCode !== false) {
         // New, existing and owner addresses all get exactly this answer; whether a code or a notice was e-mailed (or
         // nothing at all) is never visible here. The account is created by POST /register/confirm.
-        const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown', country, ad)
-        return { status: 202, body: { pending: true, message: REGISTRATION_PENDING_MESSAGE, ...challenge } }
+        try {
+          const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown', country, ad)
+          return { status: 202, body: { pending: true, message: REGISTRATION_PENDING_MESSAGE, ...challenge } }
+        } catch (error) {
+          // The mail provider refused the code (502, EmailAuthService.startRegistration): the account is created at once,
+          // as with the codes off (owner, 27.11.2026: a code that cannot be sent must not stop a sign-up). The service's own
+          // budget spent (503) still stops it.
+          if (!(error instanceof AccountError) || error.status !== 502) throw error
+        }
       }
       const result = await store.register(email, password, referralCode || undefined, req.ip, country, ad)
       return { status: 201, body: { token: result.token, referralApplied: result.referralApplied, account: store.view(store.authenticate(result.token)!) } }

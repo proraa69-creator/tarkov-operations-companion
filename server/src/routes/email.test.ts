@@ -557,3 +557,30 @@ test('TARKOV_REGISTRATION_EMAIL_CODE turns the code at registration on or off on
   // anything else keeps the built-in default
   assert.equal(registrationEmailCodeFrom({ TARKOV_REGISTRATION_EMAIL_CODE: 'yes' }), REGISTRATION_EMAIL_CODE)
 })
+
+test('HTTP: a registration code the provider refuses does not stop the sign-up — the account is created at once (201)', async () => {
+  const accounts = new AccountStore({ ownerEmails: [] })
+  const sender = new FakeEmailSender()
+  const logs: string[] = []
+  const emails = new EmailAuthService(accounts, { sender, log: (message) => logs.push(message) })
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails, registrationEmailCode: true }).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/accounts`
+  const post = (path: string, body: unknown) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  try {
+    sender.fail = true
+    const answer = await post('/register', { email: 'unsent@example.com', password, country: 'RU' })
+    assert.equal(answer.status, 201)
+    assert.ok(((await answer.json()) as { token?: string }).token)
+    assert.equal(accounts.emailTaken('unsent@example.com'), true)
+    assert.deepEqual(logs, ['E-mail send failed (fake)'])
+    // the provider answers again: a new address gets its code (202), the account waits for it
+    sender.fail = false
+    const pending = await post('/register', { email: 'later@example.com', password, country: 'RU' })
+    assert.equal(pending.status, 202)
+    assert.equal(accounts.emailTaken('later@example.com'), false)
+    assert.ok(sender.lastCode('later@example.com'))
+  } finally {
+    server.close()
+  }
+})
