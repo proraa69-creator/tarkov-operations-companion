@@ -14,6 +14,8 @@ test('only successful exact production push from this repository authorizes rele
 test('source allowlist refuses credentials, traversal and unknown ownership boundaries', () => {
   for (const file of ['src/App.tsx', 'server/src/app.ts', 'website/src/main.tsx', 'package-lock.json', 'deploy/linux/install.sh']) assert.equal(deployPath(file), true)
   assert.equal(deployPath('docs/coordination/WORK_LOG.md'), false)
+  // developer tooling (the build skill), never deployed: the owner's e-mail came out of it on 27.11.2026
+  assert.equal(deployPath('.claude/skills/build-exe/SKILL.md'), false)
   for (const file of ['../a', '/etc/passwd', 'src/../../a', 'src/secret.pem', 'server/.env', 'server/src/a.sqlite', 'deploy/linux/unknown.sh', 'unmanaged/file']) assert.throws(() => deployPath(file))
 })
 test('symlink ancestors are refused, including dangling symlinks', async () => {

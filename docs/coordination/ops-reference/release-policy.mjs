@@ -11,7 +11,7 @@ export function approvedRun(run, sha, repo, branch) {
 export function deployPath(file) {
   if (!file || file.startsWith('/') || file.includes('\\') || file.split('/').some(x => !x || x === '.' || x === '..')) throw new Error('Unsafe source path')
   if (/(^|\/)(\.env[^/]*|[^/]*\.(sqlite|sqlite-wal|sqlite-shm|pem|key))$/i.test(file)) throw new Error('Private data path')
-  if (/^(docs\/|\.github\/|CLAUDE\.md$|AGENTS\.md$|\.gitignore$)/.test(file)) return false
+  if (/^(docs\/|\.claude\/|\.github\/|CLAUDE\.md$|AGENTS\.md$|\.gitignore$)/.test(file)) return false
   if (/^(src\/|electron\/|server\/src\/|website\/(src\/|public\/)|scripts\/|public\/|build\/)/.test(file)) return true
   if (/^(package(-lock)?\.json|tsconfig[^/]*\.json|vite\.config\.ts|index\.html|deploy\/linux\/install\.sh|server\/(package(-lock)?\.json|tsconfig\.json)|website\/(package(-lock)?\.json|tsconfig\.json|vite\.config\.ts|index\.html))$/.test(file)) return true
   if (/^(eslint\.config\.[cm]?js|playwright\.config\.ts|capacitor\.config\.ts|\.npmrc|\.gitattributes)$/.test(file)) return false
