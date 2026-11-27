@@ -75,6 +75,17 @@ describe('the players\' screens in every language', () => {
     }
   })
 
+  it('the consent at sign-up is one sentence in every language, with its three links', () => {
+    const sentence = 'I accept the [offer:terms of the offer] and give my [consent:consent to the processing of personal data] under the [privacy:privacy policy]'
+    expect(readFileSync(resolve(process.cwd(), 'src/account/AccountSignIn.tsx'), 'utf8')).toContain(`'${sentence}'`)
+    for (const language of TARGETS) {
+      const text = table(language)[sentence]
+      expect(text, language).toBeTruthy()
+      for (const slug of ['offer', 'consent', 'privacy']) expect(text, `${language}: ${slug}`).toMatch(new RegExp(`\\[${slug}:[^\\]]+\\]`))
+      expect(text, language).not.toMatch(CYRILLIC)
+    }
+  })
+
   it('«Hideout» is the hideout, not the location «Hideout Under the Landing Stage»', () => {
     for (const language of TARGETS) {
       const own = table(language)
