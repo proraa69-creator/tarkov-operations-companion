@@ -11839,3 +11839,21 @@ Not pushed, not released, nothing uploaded.
   the disputes while their list shows the old cases only (the site shows both with the server). A paying claimant still sees the
   app's own notice «уже используется… напишите в поддержку», without the lock. The release row in updateHistory.json is the
   integrator's.
+
+## 2026-11-27 21:20 — Claude: release 0.6.0.353 put together (local); the registration code back behind a server switch
+
+- Merged into claude/referral-steps: claude/level-fallback (d750a1db), claude/electron-hardening (d9efa8cf, the owner tried its
+  test exe: sign-in, «Обзор» with the game log, recognition, start), claude/eft-binding-cases (4c8076f7). Reviewed before each
+  merge: the level estimate only fills a mode without an anchor; the dispute routes sit behind the owner check like the old ones.
+  09f63874: the 353 history row and the players' news (the level). Not pushed: the owner releases everything together.
+- claude/email-proof (trial after the e-mail, a reset at the first proof) is NOT merged: the reset would hit 1408 accounts
+  without a confirmed e-mail, 136 of them paying; the owner chose the code at registration instead.
+- Why the codes failed on 01.11: Resend's Free plan has 100 e-mails a day (3000 a month); today 25–50 a day go out, sign-ups
+  add about 73 a day. Pro is $20 a month, 50 000 e-mails, no daily cap (resend.com/pricing). DMARC is still missing.
+- 2ca6a01b: TARKOV_REGISTRATION_EMAIL_CODE=1 in the API environment turns the code at registration on without a release
+  (0 or nothing keeps REGISTRATION_EMAIL_CODE = false); electron/apiEnv.ts lists it.
+- c5cbf09a: the registration code is sent before POST /register answers; a provider refusal (502) takes the challenge back and
+  the account is created at once, as with the codes off. The service's own budget spent (503) still stops the sign-up.
+- Checks: server 659/660 (supportChat screenshots: ECONNRESET under load, passes alone twice), email/trialDays/google 36/36,
+  serviceGateway.register 3/3, typecheck of the app, Electron and the server clean.
+- After 353 is live: the owner moves Resend to Pro and adds _dmarc TXT "v=DMARC1; p=none"; then the switch goes on the VPS.
