@@ -27,11 +27,11 @@ const TRIALS: Array<{ emailSha256: string; feature: TrialFeature; until: string 
 const digest = (email: string) => createHash('sha256').update(email.trim().toLowerCase()).digest('hex')
 
 /** The account's trial functions still on at `now`: each one's end, or null. `store`: the ones the owner turned on. */
-export function trialFeatures(email: string | undefined, now = Date.now(), store?: TrialFeatureStore, accountId?: string): TrialFeatures {
+export function trialFeatures(email: string | undefined, now = Date.now(), store?: TrialFeatureStore, accountId?: string, trials = TRIALS): TrialFeatures {
   const features: TrialFeatures = { questTableScan: null, mapFloorWheel: null }
   if (email) {
     const own = digest(email)
-    for (const trial of TRIALS) {
+    for (const trial of trials) {
       if (trial.emailSha256 === own && Date.parse(trial.until) > now) features[trial.feature] = trial.until
     }
   }

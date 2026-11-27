@@ -19,7 +19,7 @@ vi.mock('./AdminMobilePage', () => ({ AdminMobilePage: () => <div>Панель �
 vi.mock('./useAdminNotifications', () => ({ useAdminNotifications: () => undefined }))
 
 const { AdminStandaloneApp } = await import('./AdminStandaloneApp')
-const OWNER = 'proraa69@gmail.com'
+const OWNER = 'owner@example.com'
 const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve() })
 
 beforeEach(() => {

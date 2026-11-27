@@ -28,10 +28,10 @@ const stats = (registrations: number, linkRegistrations: number) => ({
 
 describe('«Стримеры»: registrations without the code', () => {
   it('shows every registration the link brought, split into with the code and without it', async () => {
-    const data: OwnerStreamers = { streamers: [{ email: 'streamer@example.com', code: 'RAID-58XWZ', createdAt: '2026-10-27T10:00:00.000Z', stats: stats(72, 12) }], invites: [] }
+    const data: OwnerStreamers = { streamers: [{ email: 'streamer@example.com', code: 'RAID-AAAAA', createdAt: '2026-10-27T10:00:00.000Z', stats: stats(72, 12) }], invites: [] }
     mocks.streamers.mockResolvedValue(data)
     render(<OwnerAdmin />)
-    const row = (await screen.findByText('RAID-58XWZ', { selector: 'span' })).closest('tr')!
+    const row = (await screen.findByText('RAID-AAAAA', { selector: 'span' })).closest('tr')!
     expect(within(row).getByText('60 по коду · 12 без кода')).toBeInTheDocument()
     expect(within(row).getAllByRole('cell')[1]).toHaveTextContent(/^72/)
     // The cards: the total with its split, the active subscriptions on their own.
@@ -45,9 +45,9 @@ describe('«Стримеры»: registrations without the code', () => {
   it('an older server without the split: everything is by the code', async () => {
     const { linkRegistrations: _unused, ...old } = stats(59, 0)
     void _unused
-    mocks.streamers.mockResolvedValue({ streamers: [{ email: 'streamer@example.com', code: 'RAID-58XWZ', createdAt: '2026-10-27T10:00:00.000Z', stats: old }], invites: [] })
+    mocks.streamers.mockResolvedValue({ streamers: [{ email: 'streamer@example.com', code: 'RAID-AAAAA', createdAt: '2026-10-27T10:00:00.000Z', stats: old }], invites: [] })
     render(<OwnerAdmin />)
-    const row = (await screen.findByText('RAID-58XWZ', { selector: 'span' })).closest('tr')!
+    const row = (await screen.findByText('RAID-AAAAA', { selector: 'span' })).closest('tr')!
     expect(within(row).getByText('59 по коду · 0 без кода')).toBeInTheDocument()
   })
 })

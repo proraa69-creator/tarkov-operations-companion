@@ -57,19 +57,19 @@ describe('admin users: the Escape from Tarkov account', () => {
 })
 
 describe('admin users: «Изменить e-mail»', () => {
-  it('sends the corrected address and shows it (owner, 20.10.2026: «longerros@gmai.com» → «longerros@gmail.com»)', async () => {
-    const typo = { ...player, email: 'longerros@gmai.com' }
+  it('sends the corrected address and shows it (owner, 20.10.2026: «player-a@gmai.com» → «player-a@gmail.com»)', async () => {
+    const typo = { ...player, email: 'player-a@gmai.com' }
     mocks.users.mockResolvedValue({ users: [typo], total: 1 })
     mocks.user.mockResolvedValue(detail(typo))
     mocks.devices.mockResolvedValue({ devices: [], limit: 3 })
-    mocks.email.mockResolvedValue(detail({ ...typo, email: 'longerros@gmail.com' }))
-    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' LongerRos@Gmail.com ')
+    mocks.email.mockResolvedValue(detail({ ...typo, email: 'player-a@gmail.com' }))
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(' Player-A@Gmail.com ')
     render(<AdminUsers />)
     fireEvent.click(await screen.findByRole('button', { name: /Действия/ }))
     fireEvent.click(await screen.findByRole('button', { name: /Изменить e-mail/ }))
-    expect(prompt).toHaveBeenCalledWith(expect.stringContaining('longerros@gmai.com'), 'longerros@gmai.com')
-    await waitFor(() => expect(mocks.email).toHaveBeenCalledWith('owner-token', player.id, 'longerros@gmail.com'))
-    expect(await screen.findByText('E-mail изменён: longerros@gmail.com')).toBeInTheDocument()
+    expect(prompt).toHaveBeenCalledWith(expect.stringContaining('player-a@gmai.com'), 'player-a@gmai.com')
+    await waitFor(() => expect(mocks.email).toHaveBeenCalledWith('owner-token', player.id, 'player-a@gmail.com'))
+    expect(await screen.findByText('E-mail изменён: player-a@gmail.com')).toBeInTheDocument()
   })
 
   it('nothing is sent when the owner cancels or leaves the address as it was', async () => {
