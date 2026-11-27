@@ -11890,7 +11890,7 @@ Not pushed, not released, nothing uploaded.
 - The owner moved Resend to Pro ($20 a month, no daily cap). A test e-mail through the API's own sender reached the support
   Gmail inbox, not spam. DMARC (_dmarc TXT) is still to be added by the owner. After 353 is live the switch
   TARKOV_REGISTRATION_EMAIL_CODE=1 goes into the API environment (a script with a backup and a health check).
-- Off-server copy: the owner made a private 10 GB Timeweb S3 bucket (autoscaling on) and wrote the keys with his PowerShell
+- Off-server copy: the owner made a private 10 GB Timeweb S3 bucket (autoscaling on) and wrote the keys with their PowerShell
   helper (they never passed through Claude). The helper had to be fixed twice: saved as UTF-8 with a BOM (Windows PowerShell
   5.1 read the Russian text in the ANSI code page and broke the quotes), and the keys read from the clipboard (Ctrl+V in a
   hidden Read-Host gives one control character: the secret first reached the server as 1 character and S3 answered 403).
