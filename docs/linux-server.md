@@ -150,3 +150,13 @@ A new server needs these too; they are not installed by any script.
 
 - `/etc/sysctl.d/99-raidos-bbr.conf`: `net.core.default_qdisc = fq`, `net.ipv4.tcp_congestion_control = bbr`, `net.ipv4.tcp_slow_start_after_idle = 0`; `/etc/modules-load.d/raidos-bbr.conf`: `tcp_bbr`. With cubic one download ran at about 1 MB/s from Asia, with BBR about 5 MB/s.
 - `/etc/nginx/nginx.conf`: `worker_rlimit_nofile 20000`, `worker_connections 8192`; `gzip_vary on`, `gzip_proxied any`, `gzip_comp_level 4`, `gzip_min_length 1024` and `gzip_types` with JSON, JS and CSS.
+
+## Pictures players send: no image tools on the VPS (28.11.2026)
+
+A file named `.png` may hold PostScript: image previews (Pillow, ImageMagick) hand it to Ghostscript by its first bytes, and
+a Ghostscript flaw runs commands on the server; printing (CUPS) is the second way in. Here every picture the server takes
+(support chat, reports, notices, quest point photos, stickers, the wiki photos it downloads) is told by its first bytes and
+only PNG, JPEG and WEBP pass; pictures go back as data with that type, `nosniff`, never run through a native tool
+(server/src/services/pictureUploads.test.ts). The VPS has no Ghostscript, ImageMagick, GraphicsMagick, CUPS, Pillow or PHP
+(checked 28.11.2026): do not install them. sharp in the app folder serves only scripts/crop-guide-photos.mjs, on wiki photos
+already checked as PNG or JPEG.
