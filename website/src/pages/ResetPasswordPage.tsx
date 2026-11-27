@@ -1,5 +1,5 @@
 import { LoaderCircle } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { useAuthConfig } from '../components/authConfig'
@@ -22,7 +22,11 @@ export function ResetPasswordPage() {
   const auth = useAuth()
   const navigate = useNavigate()
   const config = useAuthConfig()
-  const link = parsePasswordLink(useLocation().hash)
+  // Read once, then off the address and the browser's history (security review, 27.11.2026): an unused link must not
+  // stay there for its 48 hours.
+  const hash = useLocation().hash
+  const [link] = useState(() => parsePasswordLink(hash))
+  useEffect(() => { if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search) }, [])
 
   if (auth.status === 'ready' && !link) return <Navigate to="/cabinet" replace />
 
