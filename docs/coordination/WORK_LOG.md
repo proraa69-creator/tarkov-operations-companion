@@ -11660,3 +11660,24 @@ Not pushed, not released, nothing uploaded.
 - The second friend's reward the owner asked for («Ему уже выдай 7 дней за второго»): the hourly release() granted it
   at 11:51 (granted, 7 days, the paid period 7 days longer, the friend's EFT account counted).
 - No code changed; nothing else written to the database.
+
+## 2026-11-27 15:20 — Claude: release 0.6.0.352 for the 20:00 window — «Пригласи друга» by the ranks and the raid card's bosses (claude/referral-steps → release/production)
+
+- Owner, 27.11.2026: «Выкладывай все что до этого должны были опубликовать кроме зимней темы, а в новостях напиши по
+  поводу друзей что теперь 5 друзей вместо 10 итд».
+- What was waiting, checked against release/production 6bea18de: every branch this log called «not released» since 19.11
+  is in 0.6.0.346–351 by now (reports 194–199 as 7bc8b87d, the phone smoke as 4347d0b8, the 0 % streamer, the password
+  link, the site's trailer v8 through claude/site-trailers-v7). Not in 352: claude/winter-themes (1 December),
+  claude/new-year-test, the trailer render scripts (claude/trailer-v5, a tool), the admin iPhone app and the phone
+  branches (their own tracks), and the Overview editor lock (claude/overview-editor-lock, held for 1 December by the
+  owner in the morning; asked again).
+- 215903bd: claude/map-bosses-no-select merged — the general fixes taken out of the winter branch: the raid card's
+  bosses as decoration, a click opens their card in «Боссы»; nothing selected by a drag. It is inside
+  claude/winter-themes already, so 1 December brings no difference.
+- be6ff4c1: the history row in four lines; the news: «Пригласи друга: 3 месяца Premium теперь за 5 друзей вместо 10,
+  а год — за 10 вместо 25» and «Обзор»: a click on a boss opens his health, gear and 3D model (11 languages).
+- Checks: typecheck (app, site) clean; vitest src/data, src/news, BossFigures, src/styles, src/app, Dashboard 737/738 —
+  appVersion.test.ts fails on Windows only (E:E: in the path, the same on a clean release); the server 644/644 from
+  the feature commit, no server change since. The bosses not seen in Electron (Playwright at 1920×1000 and 390×844 on
+  their branch).
+- Pushed to release/production for the 20:00 window; live only after it (version.json).
