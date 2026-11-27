@@ -11745,6 +11745,7 @@ Not pushed, not released, nothing uploaded.
   failed files run again on both): appUpdate.ownerExe (`/tmp`), linux/updater (tar), staleServer, appVersion (Windows path),
   AdminPanelPage, release-policy.test.mjs and cache-item-images.test.mjs (node:test files); the serviceGateway ones only
   wanted server/node_modules in the new checkout; three MapsPage tests time out under load either way.
-- Not pushed. Tests only, nothing for the players' news. A checkout cleans up once it has this commit, so it goes with the
-  next release (owner's word); until then the other checkouts' runs keep leaving folders, and a run with the plugin removes
-  them after a day.
+- Not pushed. Tests only, nothing for the players' news. A checkout cleans up once it has this commit; until then the other
+  checkouts' runs keep leaving folders, and a run with the plugin removes them after a day.
+- Owner, 27.11.2026, on «Добавить уборку в следующий выпуск?»: «Да, добавь». Handed to the release session (Raid OS) for
+  the next release with an app version; not a release of its own.
