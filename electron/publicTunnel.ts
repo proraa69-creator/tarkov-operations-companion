@@ -53,7 +53,30 @@ async function readSaved(): Promise<Saved> {
 }
 
 async function save(next: Saved) {
+  savedHosts = null
   await writeFile(settingsFile(), JSON.stringify(next), 'utf8').catch(() => {})
+}
+
+/** The permanent address's names, read at most every few seconds (the site asks at every request). */
+let savedHosts: { at: number; hosts: string[] } | null = null
+const SAVED_HOSTS_MS = 5000
+const HOST_OF_LINK = /^https:\/\/([a-z0-9.-]+)\/?$/i
+
+/**
+ * The names the public link reaches this PC's site by (electron/localServer.ts answers only these and this PC's own:
+ * siteProxy.ts siteHostAllowed). cloudflared passes the visitor's Host on, so: the permanent address the owner set up
+ * (whether this app or a cloudflared service of his own runs that tunnel), with or without «www.», and the free link while
+ * this app's tunnel runs.
+ */
+export async function tunnelHosts(): Promise<string[]> {
+  if (!savedHosts || Date.now() - savedHosts.at > SAVED_HOSTS_MS) {
+    const hostname = (await readSaved()).hostname
+    const name = typeof hostname === 'string' ? hostname.trim().toLowerCase() : ''
+    const bare = name.replace(/^www\./, '')
+    savedHosts = { at: Date.now(), hosts: name && HOSTNAME.test(name) ? [...new Set([name, bare, `www.${bare}`])] : [] }
+  }
+  const link = child && url ? HOST_OF_LINK.exec(url)?.[1]?.toLowerCase() ?? '' : ''
+  return [...new Set([...savedHosts.hosts, ...(link ? [link] : [])])]
 }
 
 async function autoStart() {

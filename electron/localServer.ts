@@ -10,9 +10,9 @@ import { apiEnvironment, entitlementKeyEnvironment } from './ownerAdmin.js'
 import { apiChildEnv } from './apiEnv.js'
 import { dispatchApiMessage } from './apiChannel.js'
 import { buildEdition, type BuildEdition } from './buildEdition.js'
-import { publicSiteUrl, tunnelStatus } from './publicTunnel.js'
+import { publicSiteUrl, tunnelHosts, tunnelStatus } from './publicTunnel.js'
 import { siteSecurityHeaders } from './siteHeaders.js'
-import { proxyToApi, siteRoute } from './siteProxy.js'
+import { proxyToApi, siteHostAllowed, siteRoute } from './siteProxy.js'
 import { describeBuild, isStaleOwnServer, OUR_SERVICE, stopOwnServerOnPort, type ApiHealth } from './staleServer.js'
 
 /**
@@ -186,6 +186,13 @@ function startSite() {
       // CSP, framing, sniffing, referrer and permissions on every answer (pages, files, downloads, errors, the API).
       for (const [name, value] of Object.entries(siteSecurityHeaders())) response.setHeader(name, value)
       void (async () => {
+        // DNS rebinding (security review, 27.11.2026): only this PC's own names and the public link's are answered.
+        if (!siteHostAllowed(request.headers.host, SITE_PORT, await tunnelHosts().catch(() => []))) {
+          request.resume()
+          response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' })
+          response.end('Неизвестный адрес сайта.')
+          return
+        }
         const path = decodeURIComponent(new URL(request.url ?? '/', LOCAL_SITE_URL).pathname)
         if (path === '/download/windows') return sendDownload(response)
         if (path === '/download/version.json') return sendVersion(response)

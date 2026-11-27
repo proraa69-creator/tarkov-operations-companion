@@ -10,7 +10,7 @@ vi.mock('electron', () => ({ app: { getPath: () => env.userData }, safeStorage: 
 const spawn = vi.hoisted(() => vi.fn())
 vi.mock('node:child_process', () => ({ spawn }))
 
-const { CLOUDFLARED, cloudflaredVerified, setTunnel, stopTunnel, tunnelStatus } = await import('./publicTunnel')
+const { CLOUDFLARED, cloudflaredVerified, setTunnel, stopTunnel, tunnelHosts, tunnelStatus } = await import('./publicTunnel')
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
 Object.defineProperty(process, 'platform', { ...platform, value: 'win32' }) // the tunnel runs only on Windows
@@ -93,5 +93,37 @@ describe('cloudflared download (electron/publicTunnel.ts)', () => {
     expect(cloudflaredVerified(exe)).toBe(false)
     rmSync(exe)
     expect(cloudflaredVerified(exe)).toBe(false)
+  })
+})
+
+// Security review, 27.11.2026: the site on this PC answers only its own names and these (localServer.ts, siteProxy.ts).
+describe('the names the public link reaches the site by (tunnelHosts)', () => {
+  beforeEach(() => { stopTunnel(); spawn.mockReset(); rmSync(join(env.userData, 'public-tunnel.json'), { force: true }) })
+  afterEach(() => { CLOUDFLARED.sha256 = pinned.sha256 })
+
+  it('none without a link; the permanent address with and without «www.», also while this app runs no tunnel', async () => {
+    await setTunnel(false)
+    expect(await tunnelHosts()).toEqual([])
+    writeFileSync(join(env.userData, 'public-tunnel.json'), JSON.stringify({ hostname: 'Tarkov.Example.com' }))
+    await setTunnel(false) // saving drops the names read before
+    expect(await tunnelHosts()).toEqual(['tarkov.example.com', 'www.tarkov.example.com'])
+    writeFileSync(join(env.userData, 'public-tunnel.json'), JSON.stringify({ hostname: 'not a host name' }))
+    await setTunnel(false)
+    expect(await tunnelHosts()).toEqual([])
+  })
+
+  it('the free link only while this app\'s tunnel runs', async () => {
+    CLOUDFLARED.sha256 = sha256(release)
+    mkdirSync(tools, { recursive: true })
+    writeFileSync(exe, release)
+    const { EventEmitter } = await import('node:events')
+    const output = new EventEmitter()
+    spawn.mockReturnValue(Object.assign(new EventEmitter(), { stdout: output, stderr: null, kill: vi.fn() }))
+    await setTunnel(true)
+    output.emit('data', Buffer.from('INF |  https://quiet-river-1234.trycloudflare.com  |'))
+    expect((await tunnelStatus()).state).toBe('on')
+    expect(await tunnelHosts()).toEqual(['quiet-river-1234.trycloudflare.com'])
+    stopTunnel()
+    expect(await tunnelHosts()).toEqual([])
   })
 })
