@@ -202,14 +202,26 @@ export function mappedUiDictionary(map: (english: string) => string): UiDictiona
   return { exact: new Map(ordered), ordered, rules: RULES.map(([pattern, english]) => [pattern, put(english)] as const), tail: TAIL.map(([pattern, english]) => [pattern, put(english)] as const) }
 }
 
-/** English (or the dictionary's language) for a whole interface phrase, when the dictionary has it exactly. */
+/**
+ * English (or the dictionary's language) for a whole interface phrase, when the dictionary has it exactly. A label written
+ * with its spaces («Купить · », before the mode) is found by them too and comes back trimmed: the caller puts the text in
+ * place of the trimmed one, so the spaces stay.
+ */
 export function exactUiText(value: string, dictionary: UiDictionary = ENGLISH_UI) {
-  return dictionary.exact.get(value.trim())
+  return dictionary.exact.get(value.trim()) ?? dictionary.exact.get(value)?.trim()
+}
+
+/**
+ * A text one of the templates matches, through the whole dictionary; undefined when none does. For a template with «, » in it
+ * («Готово. Найдено ключей: 5, новых: 2.»): uiText cuts English texts at the commas, and no piece matches it.
+ */
+export function templateUiText(value: string, dictionary: UiDictionary = ENGLISH_UI) {
+  return dictionary.rules.some(([pattern]) => value.search(pattern) >= 0) ? translateUiText(value, dictionary) : undefined
 }
 
 export function translateUiText(value: string, dictionary: UiDictionary = ENGLISH_UI) {
   if (!/[А-Яа-яЁё]/.test(value)) return value
-  const exact = dictionary.exact.get(value.trim())
+  const exact = exactUiText(value, dictionary)
   if (exact) return value.replace(value.trim(), exact)
   let output = value
   // Templates first, while their Russian words are still intact.
