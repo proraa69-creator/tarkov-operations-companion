@@ -27,6 +27,19 @@ const BY_ID: Record<string, string> = {
   '69e0d6cc77b63940375b9173': 'survivor',
 }
 
+/** The game's trader names, Russian and English → the file: a quest carries its trader's name, its id not always. */
+const BY_NAME: Record<string, string> = {
+  Прапор: 'prapor', Prapor: 'prapor', Терапевт: 'therapist', Therapist: 'therapist', Скупщик: 'fence', Fence: 'fence',
+  Лыжник: 'skier', Skier: 'skier', Миротворец: 'peacekeeper', Peacekeeper: 'peacekeeper', Механик: 'mechanic', Mechanic: 'mechanic',
+  Барахольщик: 'ragman', Ragman: 'ragman', Егерь: 'jaeger', Jaeger: 'jaeger', Смотритель: 'lightkeeper', Lightkeeper: 'lightkeeper',
+  Реф: 'ref', Ref: 'ref', 'Водитель БТР': 'btr-driver', 'BTR Driver': 'btr-driver',
+}
+
+/** The portrait of a quest's trader: by its id when the quest has it, else by its name. */
+export function traderPortraitOf(quest: { trader: string; traderId?: string }): string | undefined {
+  return traderPortrait({ id: quest.traderId, normalizedName: BY_NAME[quest.trader.trim()] })
+}
+
 /** The trader's portrait: the one in the app (by normalized name, tarkov.dev id or the demo data's id), else the catalog's. */
 export function traderPortrait(trader: { id?: string; normalizedName?: string; imageUrl?: string } | undefined): string | undefined {
   if (!trader) return undefined
