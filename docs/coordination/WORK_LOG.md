@@ -11881,3 +11881,26 @@ Not pushed, not released, nothing uploaded.
   checkouts' runs keep leaving folders, and a run with the plugin removes them after a day.
 - Owner, 27.11.2026, on «Добавить уборку в следующий выпуск?»: «Да, добавь». Handed to the release session (Raid OS) for
   the next release with an app version; not a release of its own.
+
+## 2026-11-27 23:25 — Claude: report 253 — Customs' project documentation stands under the desk (claude/report-253-photo dd367f8e, not pushed)
+
+- Report 253 (PvE, app 0.6.0.350): «фото проектной документации не совпадает с тем что в игре», a screenshot named with its
+  position. Customs, the computer room behind the Tarcone Director's office key door («Ключ от офиса таможни» in the Russian
+  game): our spot 2 m from the player. Our offline frame 90d1b1636cb2a7df showed the tube and the roll lying on the floor in
+  front of the cabinet's drawers; in the player's game they stand upright under the next desk, by its leg, and the floor the
+  arrow showed is empty. The tarkov.dev point has no rotation; the pose («lying», E:\SPT-photo\bpdocs\customs-marks.json)
+  had been guessed from a dark wiki screenshot.
+- Owner, relayed by the release session: «делай как правильно». No SPT reshoot (the place photos are stopped until the
+  owner's word): the frame bd51e33a627824b4 is cut from the player's screenshot of the live game (no HUD, no weapon),
+  shadows lifted, the owner's arrow (pointer_final.py) on the tubes, named and sized like integrate_all.py
+  (E:\SPT-photo\server-upload\customs-report253\make253.py). `src/data/documentGuidePhotos.json`: the new id in place of the old one (files, photos, the
+  Customs list, the spot); the Russian caption now «…за дверью, открываемой Ключом от офиса таможни.» like its neighbour.
+  The English text is unchanged, so the other languages keep their translations.
+- Tests: src/data and BattlePassDocuments 591/591, server guideImages and questPointPhotos 14/14.
+- **The picture is not on the server.** E:\SPT-photo\server-upload\customs-report253 (wiki-bd51e33a627824b4.jpg and its
+  -t) must be in /var/lib/raidos/map-mirror/images/guides (raidos-api, 600) before this goes live, or the point shows no
+  photo. eval\upload_guides.py reads the lists from raidos-quest-photos-all, which does not have this commit: run it from
+  a checkout that does (its REPO) or install the two files by hand. The deploy key has asked for a passphrase since
+  27.11 19:27, so this needs the owner's unlocked key.
+- History line for the release (no news, a fix): «Документы боевого пропуска: на Таможне фото «Проектной документации»
+  в компьютерной комнате — как в игре», "reports":[253].
