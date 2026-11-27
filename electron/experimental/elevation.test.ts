@@ -1,11 +1,15 @@
 // @vitest-environment node
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runElevated = vi.hoisted(() => vi.fn<(file: string, params: string, dir: string) => boolean>(() => true))
 const nativeOk = vi.hoisted(() => vi.fn<() => boolean>(() => true))
+const data = vi.hoisted(() => ({ folder: '' }))
 vi.mock('./win32.js', () => ({ isElevated: () => false, runElevated }))
 vi.mock('./nativeIntegrity.js', () => ({ nativeFilesTrustworthy: nativeOk }))
-vi.mock('electron', () => ({ app: { quit: vi.fn() } }))
+vi.mock('electron', () => ({ app: { quit: vi.fn(), getPath: () => data.folder } }))
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
 const argv = process.argv
@@ -14,14 +18,18 @@ afterAll(() => {
   Object.defineProperty(process, 'platform', platform)
   process.argv = argv
   delete process.env.PORTABLE_EXECUTABLE_FILE
+  rmSync(data.folder, { recursive: true, force: true })
 })
 
 const { relaunchAsAdmin } = await import('./elevation')
+const { noteShownStart, SANDBOX_BACK_AFTER } = await import('../gpuFallback')
 
 beforeEach(() => {
   runElevated.mockClear()
   nativeOk.mockReturnValue(true)
   delete process.env.PORTABLE_EXECUTABLE_FILE
+  if (data.folder) rmSync(data.folder, { recursive: true, force: true })
+  data.folder = mkdtempSync(join(tmpdir(), 'raidos-elevation-'))
 })
 
 // Security review, 03.11.2026: whoever starts the app must not hand the copy with administrator rights anything but the
@@ -62,5 +70,25 @@ describe('the start with administrator rights', () => {
     process.argv = ['C:\\Program Files\\RaidOS\\Raid OS.exe', '--updated', '--disable-gpu', '--inspect']
     expect(relaunchAsAdmin()).toBe(true)
     expect(runElevated.mock.calls[1][1]).toBe(`--updated --disable-gpu --elevated-relaunch=${process.pid}`)
+  })
+
+  // Security review, 27.11.2026: without the sandbox for a while only. After SANDBOX_BACK_AFTER starts of the copy with the
+  // rights that showed their window, the shortcut's --no-sandbox is not handed on any more; --disable-gpu always is.
+  it('hands the shortcut\'s --no-sandbox on for a few shown starts only, --disable-gpu always', () => {
+    const shortcut = ['C:\\Program Files\\RaidOS\\Raid OS.exe', '--disable-gpu', '--no-sandbox']
+    for (let start = 1; start <= SANDBOX_BACK_AFTER; start += 1) {
+      process.argv = shortcut
+      expect(relaunchAsAdmin()).toBe(true)
+      expect(runElevated.mock.calls.at(-1)![1]).toBe(`--disable-gpu --no-sandbox --elevated-relaunch=${process.pid}`)
+      // The copy with the rights showed its window (main.ts noteShownWindow).
+      noteShownStart(data.folder, { noSandbox: false, noSandboxByArgument: true })
+    }
+    process.argv = shortcut
+    expect(relaunchAsAdmin()).toBe(true)
+    expect(runElevated.mock.calls.at(-1)![1]).toBe(`--disable-gpu --elevated-relaunch=${process.pid}`)
+    // The portable exe the same.
+    process.env.PORTABLE_EXECUTABLE_FILE = 'C:\\Users\\p\\Downloads\\RaidOSClient.exe'
+    expect(relaunchAsAdmin()).toBe(true)
+    expect(runElevated.mock.calls.at(-1)![1]).toBe(`--disable-gpu --elevated-relaunch=${process.pid}`)
   })
 })

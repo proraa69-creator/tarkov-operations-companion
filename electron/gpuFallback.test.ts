@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { asksAtNextStart, DARK_WINDOW_FILE, DARK_WINDOW_MS, describeGpus, GPU_FALLBACK_FILE, nextStartStep, readDarkWindowCheck, readGpuFallback, soonAfterShown, writeDarkWindowCheck, writeGpuFallback } from './gpuFallback'
+import { asksAtNextStart, DARK_WINDOW_FILE, DARK_WINDOW_MS, describeGpus, GPU_FALLBACK_FILE, nextStartStep, noteShownStart, readDarkWindowCheck, readGpuFallback, SANDBOX_BACK_AFTER, shortcutNoSandboxAllowed, soonAfterShown, writeDarkWindowCheck, writeGpuFallback } from './gpuFallback'
 import { appendStartLog, START_LOG_FILE, START_LOG_MAX_BYTES, startLogTail } from './startLog'
 
 const folders: string[] = []
@@ -36,6 +36,52 @@ describe('a start that draws nothing (owner, 23.11.2026)', () => {
     expect(readGpuFallback(data)).toEqual({ softwareDrawing: true, noSandbox: true, reason: 'page-gone: launch-failed', at: '2026-11-23T01:01:00.000Z' })
     writeFileSync(join(data, GPU_FALLBACK_FILE), '{broken')
     expect(readGpuFallback(data)).toEqual({ softwareDrawing: false })
+  })
+
+  // Security review, 27.11.2026: the start without the sandbox is for a while only; the black-window fix of 23.11 stays.
+  it('without the sandbox for SANDBOX_BACK_AFTER shown starts, then the sandbox is back and software drawing stays', () => {
+    const data = folder()
+    writeGpuFallback(data, 'page-gone: launch-failed', new Date('2026-11-23T01:01:00Z'), true)
+    for (let shown = 1; shown < SANDBOX_BACK_AFTER; shown += 1) {
+      expect(noteShownStart(data, { noSandbox: true, noSandboxByArgument: false })).toMatchObject({ sandboxBack: false })
+      expect(readGpuFallback(data)).toMatchObject({ softwareDrawing: true, noSandbox: true, shownStarts: shown })
+    }
+    const back = noteShownStart(data, { noSandbox: true, noSandboxByArgument: false }, new Date('2026-11-27T10:00:00Z'))
+    expect(back).toMatchObject({ sandboxBack: true, argumentSpent: false })
+    expect(readGpuFallback(data)).toEqual({ softwareDrawing: true, reason: 'page-gone: launch-failed', at: '2026-11-27T10:00:00.000Z' })
+    // Dark again with the sandbox: the next start goes without it at once (software drawing is on already), not to the report.
+    expect(nextStartStep({ kind: 'page-gone', reason: 'launch-failed' }, { softwareDrawing: true, noSandbox: false, painted: false, disabledByArgument: false })).toBe('no-sandbox')
+    writeGpuFallback(data, 'page-gone: launch-failed', new Date('2026-11-27T11:00:00Z'), true)
+    expect(readGpuFallback(data)).toEqual({ softwareDrawing: true, noSandbox: true, reason: 'page-gone: launch-failed', at: '2026-11-27T11:00:00.000Z' })
+  })
+
+  it('counts nothing for a start with the sandbox, and a count that is no number is none', () => {
+    const data = folder()
+    expect(noteShownStart(data, { noSandbox: false, noSandboxByArgument: false })).toBeNull()
+    expect(readGpuFallback(data)).toEqual({ softwareDrawing: false })
+    writeGpuFallback(data, 'no-picture', new Date('2026-11-23T01:00:00Z'))
+    // Software drawing only: nothing to count.
+    expect(noteShownStart(data, { noSandbox: true, noSandboxByArgument: false })).toBeNull()
+    writeFileSync(join(data, GPU_FALLBACK_FILE), JSON.stringify({ softwareDrawing: true, noSandbox: true, shownStarts: 'many', argumentShownStarts: -4 }))
+    expect(readGpuFallback(data)).toEqual({ softwareDrawing: true, noSandbox: true })
+    writeFileSync(join(data, GPU_FALLBACK_FILE), JSON.stringify({ softwareDrawing: true, noSandbox: true, shownStarts: 99 }))
+    expect(noteShownStart(data, { noSandbox: true, noSandboxByArgument: false })).toMatchObject({ sandboxBack: true })
+  })
+
+  it('the shortcut\'s --no-sandbox in the copy with administrator rights: as many shown starts, then it is not handed on; a new dark start keeps that', () => {
+    const data = folder()
+    expect(shortcutNoSandboxAllowed(data)).toBe(true)
+    for (let shown = 1; shown < SANDBOX_BACK_AFTER; shown += 1) {
+      expect(noteShownStart(data, { noSandbox: false, noSandboxByArgument: true })).toMatchObject({ argumentSpent: false })
+      expect(shortcutNoSandboxAllowed(data)).toBe(true)
+    }
+    expect(noteShownStart(data, { noSandbox: false, noSandboxByArgument: true })).toMatchObject({ argumentSpent: true })
+    expect(shortcutNoSandboxAllowed(data)).toBe(false)
+    expect(noteShownStart(data, { noSandbox: false, noSandboxByArgument: true })).toBeNull()
+    // The note of a later dark start keeps it: from then on the note's own count decides.
+    writeGpuFallback(data, 'no-picture', new Date('2026-11-27T12:00:00Z'), true)
+    expect(shortcutNoSandboxAllowed(data)).toBe(false)
+    expect(readGpuFallback(data)).toMatchObject({ noSandbox: true, argumentNoSandboxSpent: true })
   })
 
   // Owner, 23.11.2026: a player's window stayed black with 0.6.0.336 and no message — Chromium had drawn its first picture.

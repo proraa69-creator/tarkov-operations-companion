@@ -2,6 +2,7 @@ import { dirname } from 'node:path'
 import { app } from 'electron'
 import { isElevated, runElevated } from './win32.js'
 import { nativeFilesTrustworthy } from './nativeIntegrity.js'
+import { shortcutNoSandboxAllowed } from '../gpuFallback.js'
 
 /** Marks the copy started by relaunchAsAdmin; carries the process id of the copy that asked. */
 const RELAUNCH_ARG = '--elevated-relaunch'
@@ -10,9 +11,19 @@ const APP_SWITCHES = ['--server-mode', '--enable-local-server', '--enable-tunnel
 /**
  * Chromium's switches support gives a player whose window stays dark (owner, 23.11.2026: a player wrote them into the
  * shortcut and nothing changed — the copy with the rights draws the window and never got them). The portable exe passes
- * them on too. Exactly these two, nothing with a value.
+ * them on too. Exactly these two, nothing with a value. --no-sandbox for a few shown starts only (security review,
+ * 27.11.2026: electron/gpuFallback.ts noteShownStart); --disable-gpu always.
  */
 const DRAWING_SWITCHES = ['--disable-gpu', '--no-sandbox']
+
+/** The shortcut's --no-sandbox has not had its shown starts with the rights yet; false when the note cannot be read. */
+function shortcutNoSandboxLeft() {
+  try {
+    return shortcutNoSandboxAllowed(app.getPath('userData'))
+  } catch {
+    return false
+  }
+}
 
 /** This copy was started by relaunchAsAdmin: it never asks again, even when Windows still ran it without the rights. */
 export function isElevatedRelaunch() {
@@ -38,7 +49,8 @@ export function relaunchAsAdmin() {
   const file = portable || process.execPath
   // Only the app's own switches and the two drawing ones (security review, 03.11.2026): whoever started this copy must not
   // hand the copy with administrator rights anything else, e.g. Chromium's --remote-debugging-port.
-  const passed = portable ? DRAWING_SWITCHES : [...APP_SWITCHES, ...DRAWING_SWITCHES]
+  const drawing = DRAWING_SWITCHES.filter((name) => name !== '--no-sandbox' || shortcutNoSandboxLeft())
+  const passed = portable ? drawing : [...APP_SWITCHES, ...drawing]
   const args = [...new Set(process.argv.slice(1).filter((arg) => passed.includes(arg)))]
   const params = [...args, `${RELAUNCH_ARG}=${process.pid}`].map(quoteArg).join(' ')
   if (!runElevated(file, params, dirname(file))) return false

@@ -46,7 +46,7 @@ import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { installedExe, removeMigratedPortable, removePortableLeftovers, updatableExe } from './appInstall.js'
 import { abandonStagedBoot, confirmStagedBoot, relaunchWhenClosed } from './deltaUpdate.js'
-import { asksAtNextStart, describeGpus, FIRST_PAINT_MS, nextStartStep, readDarkWindowCheck, readGpuFallback, soonAfterShown, writeDarkWindowCheck, writeGpuFallback, type DrawingTrouble } from './gpuFallback.js'
+import { asksAtNextStart, DARK_WINDOW_MS, describeGpus, FIRST_PAINT_MS, nextStartStep, noteShownStart, readDarkWindowCheck, readGpuFallback, SANDBOX_BACK_AFTER, soonAfterShown, writeDarkWindowCheck, writeGpuFallback, type DrawingTrouble } from './gpuFallback.js'
 import { appendStartLog, startLogTail } from './startLog.js'
 import { shouldReloadAfterCrash, shouldReportLoadFailure, startNotes, startNotesScript } from './startDiagnostics.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
@@ -80,14 +80,33 @@ const safeStart = isSafeStartBuild()
 const softwareDrawing = gpuFallback.softwareDrawing || safeStart
 if (softwareDrawing) app.disableHardwareAcceleration()
 // The last step before giving up: no Chromium sandbox, which some security software does not let the page's process start in.
+// For a few shown starts only (noteShownWindow below), then the sandbox is tried again.
 if (gpuFallback.noSandbox) app.commandLine.appendSwitch('no-sandbox')
+// The shortcut's --no-sandbox, handed to this copy with administrator rights (experimental/elevation.ts): for a few shown starts too.
+const noSandboxByArgument = isElevatedRelaunch() && process.argv.includes('--no-sandbox')
 const startLog = (line: string) => appendStartLog(app.getPath('userData'), line)
 startLog(`start ${app.getVersion()} · Windows ${process.getSystemVersion()} ${process.arch} · ${[softwareDrawing ? 'software drawing' : '', safeStart ? 'safe start build' : '', gpuFallback.noSandbox ? 'no sandbox' : '', gpuOffByArgument ? '--disable-gpu' : '', app.commandLine.hasSwitch('no-sandbox') && !gpuFallback.noSandbox ? '--no-sandbox' : ''].filter(Boolean).join(', ') || 'normal'}`)
 /** The main window has drawn its page: the graphics card works. */
 let firstPicture = false
+/** The main window's page has loaded. */
+let pageLoaded = false
 /** When the main window appeared (ms): a second start or a close soon after it may mean the player sees it black. */
 let windowShownAt: number | null = null
 let restartingForSoftwareDrawing = false
+
+/**
+ * The window has been there DARK_WINDOW_MS with its first picture and its page loaded, and nothing started it again: a start that
+ * showed its window (security review, 27.11.2026). Without the sandbox for a while only: SANDBOX_BACK_AFTER such starts bring
+ * it back (electron/gpuFallback.ts noteShownStart); software drawing stays.
+ */
+function noteShownWindow() {
+  if (!firstPicture || !pageLoaded || restartingForSoftwareDrawing || !mainWindow || mainWindow.isDestroyed()) return
+  try {
+    const noted = noteShownStart(app.getPath('userData'), { noSandbox: gpuFallback.noSandbox === true, noSandboxByArgument })
+    if (noted?.sandboxBack) startLog(`the sandbox is back after ${SANDBOX_BACK_AFTER} shown starts without it`)
+    if (noted?.argumentSpent) startLog(`the shortcut's --no-sandbox had ${SANDBOX_BACK_AFTER} shown starts: not handed on any more`)
+  } catch { /* the count is a help, never a reason for trouble */ }
+}
 
 /**
  * A start that cannot show its page says so instead of a dark window (electron/startDiagnostics.ts): the page that could not be
@@ -494,6 +513,7 @@ function createWindow() {
 
   // The owner's copy started a build staged by a partial update: its page loaded, so that build works (electron/deltaBoot.ts).
   mainWindow.webContents.once('did-finish-load', confirmStagedBoot)
+  mainWindow.webContents.once('did-finish-load', () => { pageLoaded = true })
   // The page's own title would replace it: beside the real app, the tester must see which one this is.
   if (trialWindow) mainWindow.on('page-title-updated', (event) => event.preventDefault())
   followDisplayScale(mainWindow, { width: MAIN_WINDOW.minWidth, height: MAIN_WINDOW.minHeight })
@@ -511,6 +531,8 @@ function createWindow() {
     askSafeStartBuild()
     // The last window closed soon after it appeared on a PC where the app never worked: was it black? «Да» restarts it.
     void askIfLastWindowWasDark()
+    // Still there after DARK_WINDOW_MS with its picture: a start that showed its window (the sandbox comes back after a few).
+    setTimeout(noteShownWindow, DARK_WINDOW_MS).unref()
   }
   const revealAnyway = setTimeout(reveal, WINDOW_REVEAL_MAX_MS)
   mainWindow.once('ready-to-show', reveal)

@@ -7,6 +7,12 @@
  * notes it (gpu-fallback.json in its data folder) and starts again once, drawing in software
  * (app.disableHardwareAcceleration(), which must be called before the app is ready). It stays so: a card that failed once is not
  * tried at every start. A start with `--disable-gpu` draws in software too (Chromium's own switch).
+ *
+ * The start without Chromium's sandbox (the step after software drawing) is for a while only (security review, 27.11.2026): after
+ * SANDBOX_BACK_AFTER starts that showed their window (noteShownStart) the sandbox is tried again — software drawing stays. Should
+ * the window be dark again, the next start goes without the sandbox at once (nextStartStep), for as many starts again. The same
+ * for a shortcut's --no-sandbox that reached the copy with administrator rights (experimental/elevation.ts): after as many shown
+ * starts it is not handed on any more.
  */
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -14,6 +20,8 @@ import { join } from 'node:path'
 export const GPU_FALLBACK_FILE = 'gpu-fallback.json'
 /** How long a start may take to draw its page before the graphics card is blamed (a slow PC's first start included). */
 export const FIRST_PAINT_MS = 25_000
+/** Starts without the sandbox that showed their window, after which the sandbox is tried again. */
+export const SANDBOX_BACK_AFTER = 3
 
 export interface GpuFallbackState {
   /** Drawing in software since a start that drew nothing. */
@@ -21,20 +29,33 @@ export interface GpuFallbackState {
   /**
    * Started without Chromium's sandbox since a start that drew nothing in software either (owner, 23.11.2026: 0.6.0.335 still dark
    * for a player who had tried --disable-gpu): security software that blocks the sandboxed page process leaves the window dark.
+   * For SANDBOX_BACK_AFTER shown starts (`shownStarts` counts them).
    */
   noSandbox?: boolean
+  /** Starts without the sandbox (noSandbox) that showed their window. */
+  shownStarts?: number
+  /** Shown starts of a copy with administrator rights that got the shortcut's --no-sandbox. */
+  argumentShownStarts?: number
+  /** The shortcut's --no-sandbox had its SANDBOX_BACK_AFTER starts: no longer handed to the copy with administrator rights. */
+  argumentNoSandboxSpent?: boolean
   reason?: string
   at?: string
 }
+
+const count = (value: unknown) => (typeof value === 'number' && Number.isInteger(value) && value > 0 ? Math.min(value, SANDBOX_BACK_AFTER) : 0)
 
 export function readGpuFallback(dataFolder: string): GpuFallbackState {
   const file = join(dataFolder, GPU_FALLBACK_FILE)
   if (!existsSync(file)) return { softwareDrawing: false }
   try {
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<GpuFallbackState>
+    const noSandbox = parsed.noSandbox === true
     return {
       softwareDrawing: parsed.softwareDrawing === true,
-      ...(parsed.noSandbox === true ? { noSandbox: true } : {}),
+      ...(noSandbox ? { noSandbox: true } : {}),
+      ...(noSandbox && count(parsed.shownStarts) ? { shownStarts: count(parsed.shownStarts) } : {}),
+      ...(count(parsed.argumentShownStarts) ? { argumentShownStarts: count(parsed.argumentShownStarts) } : {}),
+      ...(parsed.argumentNoSandboxSpent === true ? { argumentNoSandboxSpent: true } : {}),
       ...(typeof parsed.reason === 'string' ? { reason: parsed.reason } : {}),
       ...(typeof parsed.at === 'string' ? { at: parsed.at } : {}),
     }
@@ -43,10 +64,59 @@ export function readGpuFallback(dataFolder: string): GpuFallbackState {
   }
 }
 
+/** A start that drew nothing: software drawing, and without the sandbox for SANDBOX_BACK_AFTER shown starts from now. */
 export function writeGpuFallback(dataFolder: string, reason: string, now = new Date(), noSandbox = false) {
-  const state: GpuFallbackState = { softwareDrawing: true, ...(noSandbox ? { noSandbox: true } : {}), reason, at: now.toISOString() }
+  const previous = readGpuFallback(dataFolder)
+  const state: GpuFallbackState = {
+    softwareDrawing: true,
+    ...(noSandbox ? { noSandbox: true } : {}),
+    ...(previous.argumentShownStarts ? { argumentShownStarts: previous.argumentShownStarts } : {}),
+    ...(previous.argumentNoSandboxSpent ? { argumentNoSandboxSpent: true } : {}),
+    reason,
+    at: now.toISOString(),
+  }
   writeFileSync(join(dataFolder, GPU_FALLBACK_FILE), JSON.stringify(state))
   return state
+}
+
+/**
+ * A start that showed its window (main.ts: its first picture, its page loaded, open DARK_WINDOW_MS without a restart or the
+ * player calling it black). `noSandbox`: it ran without the sandbox because of the note; `noSandboxByArgument`: a copy with
+ * administrator rights that got the shortcut's --no-sandbox. The SANDBOX_BACK_AFTER-th such start lets the sandbox back: the note
+ * drops `noSandbox` (software drawing stays), and the shortcut's switch is not handed on again. What it changed, for the start
+ * log; nothing is written for a start that ran with the sandbox.
+ */
+export function noteShownStart(dataFolder: string, how: { noSandbox: boolean; noSandboxByArgument: boolean }, now = new Date()) {
+  if (!how.noSandbox && !how.noSandboxByArgument) return null
+  const state = readGpuFallback(dataFolder)
+  const next: GpuFallbackState = { ...state }
+  let counted = false
+  let sandboxBack = false
+  let argumentSpent = false
+  if (how.noSandbox && state.noSandbox) {
+    const shown = (state.shownStarts ?? 0) + 1
+    delete next.shownStarts
+    if (shown >= SANDBOX_BACK_AFTER) { delete next.noSandbox; sandboxBack = true } else next.shownStarts = shown
+    counted = true
+  }
+  if (how.noSandboxByArgument && !state.argumentNoSandboxSpent) {
+    const shown = (state.argumentShownStarts ?? 0) + 1
+    delete next.argumentShownStarts
+    if (shown >= SANDBOX_BACK_AFTER) { next.argumentNoSandboxSpent = true; argumentSpent = true } else next.argumentShownStarts = shown
+    counted = true
+  }
+  if (!counted) return null
+  if (sandboxBack || argumentSpent) next.at = now.toISOString()
+  writeFileSync(join(dataFolder, GPU_FALLBACK_FILE), JSON.stringify(next))
+  return { state: next, sandboxBack, argumentSpent }
+}
+
+/**
+ * Whether the shortcut's --no-sandbox may still go to the copy with administrator rights (experimental/elevation.ts): until it
+ * had SANDBOX_BACK_AFTER shown starts there.
+ */
+export function shortcutNoSandboxAllowed(dataFolder: string) {
+  return readGpuFallback(dataFolder).argumentNoSandboxSpent !== true
 }
 
 export type DrawingTrouble =
