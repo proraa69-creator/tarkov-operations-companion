@@ -11681,3 +11681,10 @@ Not pushed, not released, nothing uploaded.
   the feature commit, no server change since. The bosses not seen in Electron (Playwright at 1920×1000 and 390×844 on
   their branch).
 - Pushed to release/production for the 20:00 window; live only after it (version.json).
+
+## 2026-11-27 15:45 — Claude: 0.6.0.352 news line as the new rules (owner's word)
+
+- Owner, 27.11.2026: «просто новые правила привлечения… на какой срок дается подписка, за какое количество привлеченных
+  людей. И в скобочках пиши вместо… 5 человек, вместо 10». The friends line now: «Пригласи друга: 7 дней Premium — за 1
+  друга, месяц — за 3, 3 месяца — за 5 (вместо 10), год — за 10 (вместо 25)» (11 languages); the bosses line stays.
+- vitest src/news and src/data 609/609. Pushed to release/production on top of b12a875b for the 20:00 window.
