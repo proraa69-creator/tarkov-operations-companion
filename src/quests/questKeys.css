@@ -84,6 +84,11 @@ button.quest-key-owned:hover { filter: brightness(1.15); }
 .quest-keys-stash-found button span:first-of-type { flex: 1; }
 .quest-keys-stash-found img { width: 28px; height: 28px; object-fit: contain; }
 .quest-keys-stash-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+/* «Ключи в схроне» → «Все ключи» (27.11.2026): the stash keys no quest needs, below the quests' cards. */
+.quest-keys-other { display: grid; gap: 8px; margin-top: 12px; padding: 12px; }
+.quest-keys-other-title { margin: 0; font-size: 14px; }
+.quest-keys-other-uses { opacity: 0.75; font-variant-numeric: tabular-nums; }
+.quest-keys-stash-scope button { white-space: nowrap; }
 .quest-keys-stash-list > li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto auto; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
 .quest-keys-stash-list .quest-key-picture { width: 40px; height: 40px; }
 .quest-keys-stash-name { display: grid; gap: 2px; min-width: 0; }

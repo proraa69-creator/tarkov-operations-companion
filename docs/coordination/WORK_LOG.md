@@ -11717,3 +11717,11 @@ Not pushed, not released, nothing uploaded.
   changed site and admin tests; typecheck of the app, the site and the server.
 - After 20:00: the package updates and the reboot at a quiet hour, the API unit's hardening, the publisher's fix on
   the VPS. The rest waits for the owner's decisions.
+
+## 2026-11-27 18:45 — Claude: «Ключи в схроне» shows the whole stash (a player's report in the chat, owner's word)
+
+- The player had 15 keys in «Ключи в схроне» (a scan already adds every key it sees; a label several keys carry, «Времянка», waits
+  for the tooltip), but the filter showed only the cards of the quests' keys: 5. Now «Ключи в схроне» has «Все ключи · N» (by
+  default) and «Для квестов · M»; under «Все ключи» the stash keys no quest needs follow the cards, «Не нужны для квестов».
+- src/pages/QuestKeysPage.tsx, src/quests/questKeys.css, English and 9 languages; a test in QuestKeysPage.test.tsx. The 352 news
+  row has its item (11 languages), the history row its words. typecheck; vitest src/pages/QuestKeysPage, src/i18n, src/quests 264/264.

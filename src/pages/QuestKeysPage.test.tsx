@@ -230,6 +230,29 @@ describe('«Ключи для квестов»', () => {
     expect(document.querySelectorAll('.quest-key')).toHaveLength(2)
   })
 
+  // A player and the owner, 27.11.2026 («пишет что у меня их 15 шт — но показывает ток ключи для квестов»; «кнопку все ключи и
+  // отдельно ключи для квестов»).
+  it('«Ключи в схроне»: the whole stash by default, the quests\' keys as cards and the rest below; «Для квестов» keeps the cards', () => {
+    data.items.push({ id: 'k9', name: 'Ключ от времянки', shortName: 'Времянка', category: 'Ключ' } as unknown as Item)
+    try {
+      const profile = open()
+      act(() => { setOwnedKey(profile.id, 'pvp', 'k1', 1); setOwnedKey(profile.id, 'pvp', 'k9', 2) })
+      fireEvent.click(screen.getByRole('button', { name: /^Ключи в схроне/ }))
+      expect(screen.getByRole('button', { name: 'Все ключи · 2' })).toHaveAttribute('aria-pressed', 'true')
+      expect([...document.querySelectorAll('.quest-key strong')].map((node) => node.textContent)).toEqual(['Ключ от склада'])
+      const other = screen.getByRole('region', { name: 'Не нужны для квестов' })
+      expect(other).toHaveTextContent('Ключ от времянки')
+      expect(other).toHaveTextContent('×2')
+      fireEvent.click(screen.getByRole('button', { name: 'Для квестов · 1' }))
+      expect(screen.queryByRole('region', { name: 'Не нужны для квестов' })).toBeNull()
+      expect(document.querySelectorAll('.quest-key')).toHaveLength(1)
+      setRenderLanguage('en')
+      try {
+        expect(['Все ключи', 'Для квестов', 'Не нужны для квестов'].map((text) => uiText(text))).toEqual(['All keys', 'For quests', 'Not needed for quests'])
+      } finally { setRenderLanguage('ru') }
+    } finally { data.items.pop() }
+  })
+
   // Owner, 18.11.2026: «Если у нас горит кнопка «Нет в наличии», на нее можно нажать… и можно нажать «Добавить в наличие»»;
   // 25.11.2026: «не открывается окно на весь экран и не притемняет, а прям там же открывается окошечко „Добавить в наличие“. И ты
   // нажимаешь „Добавить“. Все.»

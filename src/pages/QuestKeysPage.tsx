@@ -87,6 +87,9 @@ export function QuestKeysPage() {
   const onlyStash = params.get('stash') === '1'
   const setOnlyStash = (on: boolean) => setParams((current) => { const next = new URLSearchParams(current); if (on) next.set('stash', '1'); else next.delete('stash'); return next }, { replace: true })
   const [stashOpen, setStashOpen] = useState(false)
+  // A player and the owner, 27.11.2026 («пишет что у меня их 15 шт — но показывает ток ключи для квестов»; «кнопку все ключи и
+  // отдельно ключи для квестов»): «Ключи в схроне» shows the whole stash — the quests' keys as cards, the rest below them.
+  const [stashAll, setStashAll] = useState(true)
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const rows = useMemo(() => questKeyRows(data.quests, items, progress, availability, deferred), [data.quests, items, progress, availability, deferred])
@@ -109,6 +112,12 @@ export function QuestKeysPage() {
   const matches = (row: QuestKeyRow) => (!onlyFavorites || favorites.has(row.item.id)) && (!onlyStash || owned.has(row.item.id)) && (!mapId || row.mapIds.includes(mapId))
     && matchesSearchTerms(terms, ...[row.item.name, row.item.shortName, ...[...row.needed, ...row.deferred, ...row.done].map((use) => use.quest.name)].map((text) => uiText(text ?? '')))
   const filtered = rows.filter(matches)
+  const questKeyIds = new Set(rows.map((row) => row.item.id))
+  const ownedForQuests = rows.filter((row) => owned.has(row.item.id)).length
+  const otherOwned = [...owned.entries()].filter(([id]) => !questKeyIds.has(id)).map(([id, pieces]) => ({ id, pieces, item: items.get(id) }))
+    .filter(({ id, item }) => matchesSearchTerms(terms, uiText(item?.name ?? id), uiText(item?.shortName ?? '')))
+    .sort((left, right) => uiText(left.item?.name ?? left.id).localeCompare(uiText(right.item?.name ?? right.id)))
+  const showOther = onlyStash && stashAll && !onlyFavorites && !mapId && otherOwned.length > 0
   const inTab = (id: QuestKeyTab) => filtered.filter((row) => (id === 'favorites' ? favorites.has(row.item.id) : row.state === id))
   // The keys the player has go below the ones still to get (owner: «ключи, которые у меня есть, будет писаться… ниже»).
   const shown = tab === 'favorites' ? inTab(tab).sort((left, right) => FAVORITE_ORDER[left.state] - FAVORITE_ORDER[right.state])
@@ -157,6 +166,10 @@ export function QuestKeysPage() {
       {tab !== 'favorites' && <button type="button" className={`button small quest-keys-only-favorites${onlyFavorites ? ' primary' : ''}`} aria-pressed={onlyFavorites} onClick={() => { writeOnlyFavorites(!onlyFavorites); setOnlyFavorites(!onlyFavorites) }}>
         <Star size={14} fill={onlyFavorites ? 'currentColor' : 'none'} aria-hidden="true" />{uiText('Показать только избранные')}
       </button>}
+      {onlyStash && <div className="mode-switch quest-keys-stash-scope" role="group" aria-label={uiText('Ключи в схроне')}>
+        <button type="button" className={stashAll ? 'active' : ''} aria-pressed={stashAll} onClick={() => setStashAll(true)}>{uiText('Все ключи')} · {owned.size}</button>
+        <button type="button" className={stashAll ? '' : 'active'} aria-pressed={!stashAll} onClick={() => setStashAll(false)}>{uiText('Для квестов')} · {ownedForQuests}</button>
+      </div>}
       {onlyStash && <button type="button" className={`button small ghost${stashOpen ? ' primary' : ''}`} aria-expanded={stashOpen} onClick={() => setStashOpen(!stashOpen)}>{uiText(stashOpen ? 'Свернуть' : 'Изменить ключи в схроне')}</button>}
       {keyScan.message && <span className="quest-keys-scan-message" role="status">{uiText(keyScan.message)}</span>}
       {/* Owner, 25.11.2026 («слева те что у меня в схроне, справа то что нашел»): the list's keys this scan did not see — an earlier
@@ -169,7 +182,7 @@ export function QuestKeysPage() {
       <OwnedKeysPanel items={data.items} needed={new Set(rows.filter((row) => row.state === 'needed').map((row) => row.item.id))} profileId={profileId} mode={mode} favoriteIds={state.favoriteItemIds} />
     </section>}
     {tab === 'done' && shown.length > 0 && <p className="quest-keys-note">{uiText('Эти ключи больше не нужны: можно убрать их из избранного в игре.')}</p>}
-    {shown.length === 0
+    {shown.length === 0 && showOther ? null : shown.length === 0
       ? <p className="panel quest-keys-empty">{uiText(terms.length || mapId ? 'Ничего не найдено.' : onlyStash ? (owned.size ? 'В этом разделе нет ключей из схрона.' : 'В схроне пока нет ключей. Нажмите «Найти ключи» или «Изменить ключи в схроне».') : onlyFavorites && tab !== 'favorites' ? 'В этом разделе нет избранных ключей.' : empty)}</p>
       : <ul className="quest-keys-list">
         {shown.map((row) => {
@@ -206,6 +219,19 @@ export function QuestKeysPage() {
           </li>
         })}
       </ul>}
+    {showOther && <section className="panel quest-keys-other" aria-label={uiText('Не нужны для квестов')}>
+      <h2 className="quest-keys-other-title">{uiText('Не нужны для квестов')} · {otherOwned.length}</h2>
+      <ul className="quest-keys-stash-list">{otherOwned.map(({ id, pieces, item }) => {
+        const max = item?.keyUses && item.keyUses > 0 ? item.keyUses : undefined
+        const left = uses.get(id)
+        return <li key={id}>
+          <span className="quest-key-picture">{item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={20} aria-hidden="true" />}</span>
+          <span className="quest-keys-stash-name"><strong>{uiText(item?.name ?? id)}</strong></span>
+          {max !== undefined && left !== undefined && <small className="quest-keys-other-uses">{left} / {max}</small>}
+          <b className="quest-keys-other-pieces">×{pieces}</b>
+        </li>
+      })}</ul>
+    </section>}
     {request && <QuestDeferDialog request={request} onClose={() => setRequest(null)} />}
     {barterKey && <QuestKeyBarterDialog item={barterKey} barters={bartersByKey.get(barterKey.id) ?? []} partOf={partOf} traderOf={traderOf} loyalty={loyalty} onClose={closeBarter} />}
   </div>

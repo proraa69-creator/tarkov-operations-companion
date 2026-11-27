@@ -2,7 +2,8 @@
 export const ECONOMY_PHRASES: Array<[string, string]> = [
   ['Тир-лист', 'Tier list'],
   // «Найти ключи» and «Ключи в схроне» (quests/keyScan.ts, quests/QuestKeysStash.tsx, 07.11.2026); the key marks of «Требования рейда»
-  ['Найти ключи', 'Find keys'], ['Остановить поиск', 'Stop the search'], ['Ключи в схроне', 'Keys in stash'], ['есть', 'have'], ['Есть в игре', 'In the game'],
+  ['Найти ключи', 'Find keys'], ['Остановить поиск', 'Stop the search'], ['Ключи в схроне', 'Keys in stash'],
+  ['Все ключи', 'All keys'], ['Для квестов', 'For quests'], ['Не нужны для квестов', 'Not needed for quests'], ['есть', 'have'], ['Есть в игре', 'In the game'],
   ['Как работает «Найти ключи»', 'How «Find keys» works'], ['Нажмите «Найти ключи».', 'Press «Find keys».'],
   ['Зайдите в игру и откройте контейнер или сумку, где у вас лежат все ключи.', 'Go to the game and open the container or bag where you keep all your keys.'],
   ['Медленно листайте его: приложение читает названия ключей с экрана.', 'Scroll through it slowly: the app reads the keys\' names from the screen.'],
