@@ -10,6 +10,11 @@ body {
   font-size: 14px;
   text-rendering: optimizeLegibility;
 }
+/* Nothing is selected by a drag of the mouse, no text, no picture (owner, 27.11.2026: «я зажал курсор, провел мышкой, и у меня
+   выделяется текст. Этот текст не должен выделяться. Вообще, в принципе, ничего не должно выделяться»): only what is typed in,
+   and the few things kept to be copied by their own rules (a squad's code, a streamer's link, the support chat, the logs) */
+body { -webkit-user-select: none; user-select: none; }
+:is(input, textarea, [contenteditable="true"], [contenteditable=""]) { -webkit-user-select: text; user-select: text; }
 button, input, select { font: inherit; }
 /* Native lists (owner, 21.11.2026, the module window's «Меньше отдача»: «нужно сделать в нашем зелёном стиле. Когда оно сделано вот
    так серо-белым, все надписи теряются»): Windows drew every <select>'s popup white with the app's light text on it. A dark scheme
