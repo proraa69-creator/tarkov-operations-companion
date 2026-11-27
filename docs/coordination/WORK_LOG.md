@@ -1,19 +1,5 @@
 # Общий рабочий лог
 
-## 2026-11-28 04:10 — Claude: every battle pass document photo checked against its point; 89 corrected (claude/referral-steps, not pushed)
-
-- Owner, 28.11.2026: «проверь все картинки документации скорее всего практически все перепутаны». Two read-only checks of all 226 wiki
-  photos on 10 maps: 109 right, 108 wrong, 9 unproven. Evidence: the wiki's document maps (Factory, Ground Zero, Woods — matched
-  to the photos picture by picture and laid on game space by exits and locks), re3mr's Labyrinth map, map renders and floor plans,
-  door locks and heights; Lighthouse and Interchange had no mistakes.
-- Applied to src/data/documentGuidePhotos.json (spots): 40 photos moved to their own points, 49 taken off the wrong ones they shared
-  with the right one; 7 points new; the SORDI photos now at the tower's own points; one Labyrinth blueprint point shows none.
-  Left as they are: 17 photos placed on every point of one room (Lab infirmaries, Labyrinth assembly hall, Factory project 13)
-  where the right point is not proven; reports 254/255 (the village points) as the owner decided.
-- scripts/document-guide-points.mjs: marked out of date, the JSON is the record. Tests: documentGuide.test.ts updated (the Shoreline
-  hangar is the smugglers' northern warehouse; the bus depot store; SORDI photos at the tower, never in the village).
-- **After the release:** put back wiki-e5def8c9123abd69 originals on the server (see report 254 above) — it now shows at the SORDI point.
-
 ## 2026-10-08: Codex, выпуск по поручению владельца
 
 - Статус: completed; интегратор Codex, исходная ветка cc1506f. Итоговые build/тесты указаны в записи завершения ниже.
@@ -12155,3 +12141,17 @@ Not pushed, not released, nothing uploaded.
   Until that release the village's technical point still shows the trailer photo: the same file is its «Все места» entry, so
   it cannot be hidden from the server alone.
 - History line (no news): «Документы боевого пропуска: в Деревне на Берегу фото мест совпадают с игрой, неверное убрано», "reports":[254,255] (replaces 254's line above).
+
+## 2026-11-28 04:10 — Claude: every battle pass document photo checked against its point; 89 corrected (claude/referral-steps, not pushed)
+
+- Owner, 28.11.2026: «проверь все картинки документации скорее всего практически все перепутаны». Two read-only checks of all 226 wiki
+  photos on 10 maps: 109 right, 108 wrong, 9 unproven. Evidence: the wiki's document maps (Factory, Ground Zero, Woods — matched
+  to the photos picture by picture and laid on game space by exits and locks), re3mr's Labyrinth map, map renders and floor plans,
+  door locks and heights; Lighthouse and Interchange had no mistakes.
+- Applied to src/data/documentGuidePhotos.json (spots): 40 photos moved to their own points, 49 taken off the wrong ones they shared
+  with the right one; 7 points new; the SORDI photos now at the tower's own points; one Labyrinth blueprint point shows none.
+  Left as they are: 17 photos placed on every point of one room (Lab infirmaries, Labyrinth assembly hall, Factory project 13)
+  where the right point is not proven; reports 254/255 (the village points) as the owner decided.
+- scripts/document-guide-points.mjs: marked out of date, the JSON is the record. Tests: documentGuide.test.ts updated (the Shoreline
+  hangar is the smugglers' northern warehouse; the bus depot store; SORDI photos at the tower, never in the village).
+- **After the release:** put back wiki-e5def8c9123abd69 originals on the server (see report 254 above) — it now shows at the SORDI point.
