@@ -32,8 +32,16 @@
   box-shadow: 0 14px 32px rgb(0 0 0 / 50%), inset 0 1px 0 rgb(255 255 255 / 8%);
 }
 
-/* Phone: every language as a button of its own, wrapping when the row is full. */
-.locale-switch.language-buttons { flex-wrap: wrap; gap: 2px; }
+/* Phone: one button with the globe and the language's name; its window is a dialog with the full list (LanguageButtons). */
+.language-sheet-button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; font-weight: 700; }
+.language-sheet { width: min(420px, 100%); padding: 22px 18px 18px; }
+.language-sheet h2 { display: flex; align-items: center; gap: 10px; margin: 0 40px 14px 2px; font-size: 20px; }
+.language-sheet .locale-switch.language-menu {
+  position: static; min-width: 0; width: 100%; max-height: min(62vh, 520px); overflow-y: auto;
+  box-shadow: none; animation: none;
+}
+.language-sheet .locale-switch.language-menu button { grid-template-columns: 30px minmax(0, 1fr) 16px; padding: 12px; font-size: 15px; min-height: 46px; }
+.language-sheet .language-code { font-size: 11px; }
 
 @keyframes language-menu-in { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .locale-switch.language-menu { animation: none; } }
