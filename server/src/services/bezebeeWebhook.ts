@@ -338,6 +338,11 @@ export class BezebeeWebhooks {
   }
 
   private apply(key: string, signature: BezebeeEventView['signature'], notice: BezebeeNotice, rawBody: Buffer, email: string) {
+    // Paid on another region's page (security review, 27.11.2026): the owner looks at it before any days are given.
+    const region = this.payments.regionOfEmail(email)
+    if (region && notice.tariff && notice.tariff.region !== region) {
+      return this.store(key, signature, 'unmatched', `Оплачено по ценам ${notice.tariff.region === 'CIS' ? 'СНГ' : 'для мира'}, а аккаунт ${region === 'CIS' ? 'из СНГ' : 'не из СНГ'} — проверьте и привяжите вручную`, notice, rawBody)
+    }
     try {
       const confirmed = this.confirm(notice, email, 'BZB (автоматически)', key)
       return this.store(key, signature, 'confirmed', `Зачислено: ${notice.tariff!.plan}`, notice, rawBody, confirmed.accountId)

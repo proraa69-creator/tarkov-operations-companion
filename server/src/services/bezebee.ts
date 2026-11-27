@@ -134,6 +134,12 @@ export function bezebeeLink(region: BezebeeRegion, plan: BezebeePlanId, friend =
 export class BezebeePayments {
   constructor(private readonly accounts: AccountStore, private readonly payments: PaymentStore, private readonly invites?: InviteProgram) {}
 
+  /** The BZB region the account of `email` pays in (bezebeeRegionOf); undefined without an account, a country, or for Russia. */
+  regionOfEmail(email: string) {
+    const account = this.accounts.accountByEmail(email)
+    return account ? bezebeeRegionOf(this.accounts, account.id) : undefined
+  }
+
   /** `noDays`: «Не зачислять дни» — the payment is recorded, the subscription is left as it is (days given by hand before). */
   confirm(actor: string, input: { email: string; plan: BezebeePlanId; friend?: boolean; amount?: number; reference?: string; noDays?: boolean }) {
     const account = this.accounts.accountByEmail(input.email)

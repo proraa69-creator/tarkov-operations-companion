@@ -117,6 +117,20 @@ test('a signed paid notification opens the subscription of the account with that
   } finally { await t.close() }
 })
 
+test('another region\'s page (security review, 27.11.2026): a player outside the CIS who paid a CIS price waits for the owner, no days given', async () => {
+  const t = await setup()
+  try {
+    await t.player('de@example.com', 'DE')
+    assert.equal((await t.call('PUT', '/accounts/me/admin/bezebee/credentials', t.owner, { apiToken: 'tok_1', webhookSecret: SECRET })).status, 200)
+    // The CIS month (300 RUB) for an account from Germany: kept as «unmatched», the owner decides.
+    assert.deepEqual((await t.notify(paid('r1', 'NMTIra0O', 'de@example.com', 300))).json, { ok: true, status: 'unmatched' })
+    assert.equal(t.payments.paidUntil(t.idOf('de@example.com')), undefined)
+    // Its own region's month (7 USD) opens the subscription as before.
+    assert.deepEqual((await t.notify(paid('r2', '3bAgJUTh', 'de@example.com', 7, 'USD'))).json, { ok: true, status: 'confirmed' })
+    assert.ok((t.payments.paidUntil(t.idOf('de@example.com')) ?? 0) > t.now() + 29 * DAY)
+  } finally { await t.close() }
+})
+
 test('the friend price spends the discount; a WORLD payment is kept in roubles at the configured rate', async () => {
   const t = await setup()
   try {
