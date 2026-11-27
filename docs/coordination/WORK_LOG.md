@@ -11902,5 +11902,10 @@ Not pushed, not released, nothing uploaded.
   local files; it is served once a release names it. The deploy key has asked for a passphrase since 27.11 19:27 and sits
   in the Windows ssh-agent: Windows' own ssh.exe (System32\OpenSSH) gets in, Git Bash's /usr/bin/ssh does not, nor does
   eval\upload_guides.py run from it.
+- Owner, 27.11: «Нового фото нету, поэтому убери тогда фото, если нету» — the live version still names the old frame. Until
+  this goes out the old name serves the new frame: wiki-90d1b1636cb2a7df.jpg and -t on the server are now copies of
+  bd51e33a627824b4 (sha256 checked through raidos.app), the old frames kept in /var/lib/raidos/map-mirror/images/
+  guides-replaced-253. An app that already showed the old one keeps it from its cache for up to a week (immutable); the
+  release's new name reaches everyone at once.
 - History line for the release (no news, a fix): «Документы боевого пропуска: на Таможне фото «Проектной документации»
   в компьютерной комнате — как в игре», "reports":[253].
