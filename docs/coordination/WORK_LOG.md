@@ -11630,3 +11630,13 @@ Not pushed, not released, nothing uploaded.
 - Not pushed: the news line and the offer go to the owner first; for 20:00 it is pushed after 14:00 (the 13:00 window
   publishes 0.6.0.351). The held draft claude/release-352 (the Overview editor, for 1 December) stays local; the
   number 352 is this release's now.
+
+## 2026-11-27 13:15 — Claude: «Срок скрыт» for the streamer added on 26.11; the second friend's 7 days granted (server data, owner's word)
+
+- Owner, 27.11.2026: «Да, включи сам». After 0.6.0.351 went live (version.json at 13:11), «Срок скрыт» was set for the
+  streamer added on 26.11 with the same two writes as the admin's «Скрыть срок»: accounts.term_hidden_at and the audit
+  row «subscription.term-hidden» (actor the owner). He sees «Активна» with no end date; his free access ends with his
+  paid days. The API reads the flag from the database on each request, no restart.
+- The second friend's reward the owner asked for («Ему уже выдай 7 дней за второго»): the hourly release() granted it
+  at 11:51 (granted, 7 days, the paid period 7 days longer, the friend's EFT account counted).
+- No code changed; nothing else written to the database.
