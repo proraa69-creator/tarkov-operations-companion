@@ -12,14 +12,15 @@
 :root[data-rich-motion] .motion-glide-target::before { opacity: 0; }
 :root[data-rich-motion] .nav-link::before { transition: opacity .25s ease .2s; }
 
-/* Presses: down fast, back with a little overshoot. Not the map's points (Leaflet moves them by `transform`). */
+/* Presses: down fast, back with a little overshoot. Not the map's points (Leaflet moves them by `transform`), nor the bosses
+   of the raid card: decoration that opens a card, nothing moves (BossFigures.tsx, owner 27.11.2026). */
 :root[data-rich-motion]:not([data-layout="mobile"]) :is(button, .button, .icon-button, a.nav-link, [role="tab"], .profile-chip):not(.leaflet-marker-icon):not(:disabled) {
   /* the moves a button already had (a knob, a turning chevron) keep a glide of their own */
   transition-property: scale, transform, translate, top, right, bottom, left, width, background-color, border-color, color, opacity, box-shadow, filter;
   transition-duration: .42s, .2s, .3s, .3s, .3s, .3s, .3s, .3s, .2s, .2s, .2s, .2s, .2s, .18s;
   transition-timing-function: cubic-bezier(.34, 1.6, .5, 1), ease, cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), cubic-bezier(.22, 1, .36, 1), ease, ease, ease, ease, ease, ease;
 }
-:root[data-rich-motion]:not([data-layout="mobile"]) :is(button, .button, .icon-button, a.nav-link, [role="tab"], .profile-chip):not(.leaflet-marker-icon):not(:disabled):is(:active, [data-motion-pressed]) {
+:root[data-rich-motion]:not([data-layout="mobile"]) :is(button, .button, .icon-button, a.nav-link, [role="tab"], .profile-chip):not(.leaflet-marker-icon, .boss-figure-link):not(:disabled):is(:active, [data-motion-pressed]) {
   scale: .94;
   filter: brightness(.92);
   transition-duration: .08s, .2s, .3s, .3s, .3s, .3s, .3s, .3s, .1s, .1s, .1s, .1s, .1s, .08s;

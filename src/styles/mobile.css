@@ -183,7 +183,7 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   padding: 14px; pointer-events: none;
   background: linear-gradient(0deg, color-mix(in srgb, var(--surf-1) 88%, transparent) 0%, color-mix(in srgb, var(--surf-1) 52%, transparent) 34%, transparent 64%);
 }
-:root[data-layout="mobile"] .raid-content > * { pointer-events: auto; }
+:root[data-layout="mobile"] .raid-content > :not(.raid-main, .raid-actions) { pointer-events: auto; }
 /* The name and the buttons always over the bosses: on the iPhone a boss being drawn by the graphics chip (fading in,
    lit by a touch) came out over them now and then while the page scrolled (owner's recording, 14.10.2026). The card
    keeps its layers to itself and the text gets a layer of its own, which WebKit stacks by z-index. */
@@ -447,10 +447,9 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"][data-theme="telnyashka"] .mobile-more-grid .nav-link.mobile-more-link.active { padding-left: 6px; }
 
 /* The bosses on the raid card light up for a real mouse only: on the phone a finger that touched a boss and then scrolled
-   left it «pressed» or focused, lit with the brass glow (owner, 17.10.2026). A tap still opens «Тактика боя». */
+   left it «pressed» or focused, lit with the brass glow (owner, 17.10.2026). A tap opens his card in «Боссы» (BossFigures.tsx). */
 :root[data-layout="mobile"] .raid-card .boss-figure-link { touch-action: pan-y; -webkit-tap-highlight-color: transparent; transform: none; transition: none; }
 :root[data-layout="mobile"] .raid-card .boss-figure-link:is(:hover, :active, :focus, :focus-visible) img { filter: drop-shadow(0 3px 4px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%)); transform: none; }
-:root[data-layout="mobile"] .raid-card .boss-figure-link:is(:hover, :active, :focus, :focus-visible) .boss-figure-hint { opacity: 0; transform: translateY(4px); }
 :root[data-layout="mobile"] .raid-card .boss-figure-link:focus { outline: none; }
 :root[data-layout="mobile"] .raid-card .boss-figure-link:active { scale: none; }
 
