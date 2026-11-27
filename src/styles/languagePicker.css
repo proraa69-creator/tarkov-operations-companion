@@ -40,8 +40,8 @@
   position: static; min-width: 0; width: 100%; max-height: min(62vh, 520px); overflow-y: auto;
   box-shadow: none; animation: none;
 }
-.language-sheet .locale-switch.language-menu button { grid-template-columns: 30px minmax(0, 1fr) 16px; padding: 12px; font-size: 15px; min-height: 46px; }
-.language-sheet .language-code { font-size: 11px; }
+.language-sheet .locale-switch.language-menu button { grid-template-columns: minmax(0, 1fr) 30px 16px; padding: 12px; font-size: 15px; min-height: 46px; }
+.language-sheet .language-code { font-size: 12px; text-align: right; }
 
 @keyframes language-menu-in { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .locale-switch.language-menu { animation: none; } }

@@ -88,8 +88,8 @@ export function LanguageButtons() {
           <div className="locale-switch language-menu language-sheet-list" role="listbox" aria-label={uiText('Язык интерфейса')}>
             {LANGUAGES.map((option) => <button key={option.code} type="button" role="option" lang={option.tag} aria-selected={option.code === language}
               className={option.code === language ? 'active' : undefined} onClick={() => choose(option.code)}>
-              <span className="language-code">{option.short}</span>
               <span className="language-name">{option.name}</span>
+              <span className="language-code">{option.short}</span>
               {option.code === language ? <Check size={15} aria-hidden="true" /> : <span className="language-check" aria-hidden="true" />}
             </button>)}
           </div>
