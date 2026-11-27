@@ -1,7 +1,6 @@
 import type { ModeLogScanResult } from './import/eftLogTimeline'
 import type { RaidState } from './import/raidState'
 import type { PlayerProfileSnapshot, RaidMode } from './domain/types'
-import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
 import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
@@ -251,7 +250,6 @@ interface TarkovDesktopApi {
   notify?: (title: string, body: string, icon?: string, silent?: boolean) => Promise<boolean>
   /** window.confirm() as a main-process dialog (src/app/nativeConfirm.ts). Missing when the main process is older. */
   confirm?: (message: string, locale: 'ru' | 'en') => boolean
-  resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
   /** `profiles`: the game's «Выбор профиля и режима» cards two readings agree on (src/import/modeSelectScreen.ts). */

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -42,5 +42,18 @@ describe('preload.cjs mirrors preload.ts', () => {
     const cjs = calls('preload.cjs')
     const differing = [...calls('preload.ts')].filter(([channel, list]) => JSON.stringify(list) !== JSON.stringify(cjs.get(channel) ?? []))
     expect(differing).toEqual([])
+  })
+
+  // Security review, 27.11.2026: `profile:resolve` stayed in the preload after its handler went (14.10.2026). Every
+  // channel the page can call has its handler in the main process (ipcMain.handle / .on with that name).
+  it('every channel the page can call has a handler in the main process', () => {
+    const asked = new Set([...source('preload.cjs').matchAll(/ipcRenderer\.(?:invoke|send|sendSync)\('([a-z-]+:[a-z-]+)'/g)].map((match) => match[1]!))
+    const handled = new Set<string>()
+    for (const name of readdirSync(__dirname, { recursive: true, encoding: 'utf8' })) {
+      if (!name.endsWith('.ts') || name.endsWith('.test.ts')) continue
+      for (const match of source(name).matchAll(/ipcMain\.(?:handle|handleOnce|on|once)\(\s*'([a-z-]+:[a-z-]+)'/g)) handled.add(match[1]!)
+    }
+    expect(asked.size).toBeGreaterThan(50)
+    expect([...asked].filter((channel) => !handled.has(channel))).toEqual([])
   })
 })
