@@ -11725,3 +11725,13 @@ Not pushed, not released, nothing uploaded.
   default) and «Для квестов · M»; under «Все ключи» the stash keys no quest needs follow the cards, «Не нужны для квестов».
 - src/pages/QuestKeysPage.tsx, src/quests/questKeys.css, English and 9 languages; a test in QuestKeysPage.test.tsx. The 352 news
   row has its item (11 languages), the history row its words. typecheck; vitest src/pages/QuestKeysPage, src/i18n, src/quests 264/264.
+
+## 2026-11-27 19:00 — Claude: «Ревизия. Маяк» — one BRDM and one Stryker, any of three places each, in every mode (a player's chat)
+
+- The player (PvP) completed it with one BRDM and one Stryker; the EFT wiki: three possible places of each. tarkov.dev's PvP lists a
+  first and a second BRDM and Stryker with one place each and misses qlight_mark_vech5 and vech6; its PvE has the game's two objectives
+  with all six. src/data/catalogSource.ts TASK_OBJECTIVE_MERGES + withTaskObjectiveMerges (every mode, both the translated and the
+  untranslated tasks): the second objectives go, their places and the two missing ones (the PvE data's own geometry) join the first,
+  under the game's ids 61952308… and 61952325…, the text says «любую из трёх». src/data/manualQuests.json lists it.
+- Checked on the real json.tarkov.dev catalogs (fetchLiveCatalog, PvP and PvE): two objectives, six points at their places in both.
+  src/data/taskObjectiveMerges.test.ts (new); vitest src/data 591/591; typecheck clean. Not pushed: for the 13:00 window.

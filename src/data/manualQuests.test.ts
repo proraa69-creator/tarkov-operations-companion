@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Quest } from '../domain/types'
-import { MISSING_OBJECTIVE_KEYS, SEASON_BORROWED_TASKS, SEASON_TASK_FIXES, STALE_QUEST_KEYS } from './catalogSource'
+import { MISSING_OBJECTIVE_KEYS, SEASON_BORROWED_TASKS, SEASON_TASK_FIXES, STALE_QUEST_KEYS, TASK_OBJECTIVE_MERGES } from './catalogSource'
 import { MANUAL_QUESTS, manualQuest, markManualQuests, unmatchedManualFixes } from './manualQuests'
 import { QUEST_EXTRA_PLACES, QUEST_POINT_FLOORS } from './mapMarkerAdapter'
 import { OWNER_GUNSMITH_ADDITIONS } from './ownerGunsmithGuides'
@@ -17,12 +17,13 @@ describe('the quests changed by hand (owner, 23.11.2026: «помечай. И п
     const quests = new Set(Object.keys(MANUAL_QUESTS))
     const objectives = new Set(Object.values(MANUAL_QUESTS).flatMap((entry) => entry.fixes.flatMap((fix) => fix.objectives ?? [])))
     const fixedQuests = [
-      ...CORRECTED_QUEST_IDS, ...Object.keys(STALE_QUEST_KEYS), ...Object.keys(SEASON_TASK_FIXES), ...SEASON_BORROWED_TASKS,
+      ...CORRECTED_QUEST_IDS, ...Object.keys(STALE_QUEST_KEYS), ...Object.keys(SEASON_TASK_FIXES), ...SEASON_BORROWED_TASKS, ...Object.keys(TASK_OBJECTIVE_MERGES),
       ...OWNER_GUNSMITH_ADDITIONS.map((addition) => addition.questId),
     ]
     const fixedObjectives = [
       ...Object.keys(MISSING_OBJECTIVE_KEYS), ...Object.keys(QUEST_POINT_FLOORS), ...Object.keys(QUEST_EXTRA_PLACES), ...Object.keys(STALE_OBJECTIVE_MAPS),
       ...Object.values(SEASON_TASK_FIXES).flatMap((fix) => Object.keys(fix.objectives)),
+      ...Object.values(TASK_OBJECTIVE_MERGES).flatMap((list) => list.flatMap((merge) => [merge.keep, ...merge.drop])),
     ]
     expect(fixedQuests.filter((id) => !quests.has(id))).toEqual([])
     expect(fixedObjectives.filter((id) => !objectives.has(id))).toEqual([])

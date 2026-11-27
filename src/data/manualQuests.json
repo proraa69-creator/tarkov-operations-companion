@@ -1,6 +1,12 @@
 {
   "about": "Quests changed by hand (owner, 23.11.2026: «Все квесты, которые мы обновляем вот так вручную, вносим изменения, помечай. И при обновлениях из базы их не трогай»). Every catalog build marks them (`manualCorrection`), and the data generators (scripts/quest-guide-photos.mjs, scripts/quest-grid-snapshot.mjs, scripts/update-story-index.mjs) keep their entries as they are. A new hand fix of a quest is added here with its date. `objectives`: the game's ids of the objectives a fix is written under. The owner's edits in the quest editor (server: quest_point_overrides, quest_text_overrides, quest_requirement_overrides) are stored apart and laid over every build.",
   "quests": {
+    "6179b4d1bca27a099552e04e": {
+      "name": "Ревизия. Маяк",
+      "fixes": [
+        { "date": "2026-11-27", "what": "Одна любая БРДМ и один любой Stryker, по три места каждой, как в игре: в PvP убраны «вторая БРДМ» и «второй Stryker», добавлены два недостающих места", "source": "чат игрока 27.11.2026, игра в PvP, EFT wiki, данные PvE", "objectives": ["61952308aa0f643f9a0ae20f", "61952325aa0f643f9a0ae212", "6195231dd07bdc6de57b40a5", "6195232a1e972a652931edb6"] }
+      ]
+    },
     "5b478eca86f7744642012254": {
       "name": "Витамины",
       "fixes": [

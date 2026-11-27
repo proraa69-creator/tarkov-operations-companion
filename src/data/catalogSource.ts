@@ -93,9 +93,10 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   ])
 
   // Season: the quests its data lacks, from the PvP data (SEASON_BORROWED_TASKS); without the PvP data, Season as it is.
-  const seasonTasks = upstreamMode === 'pvp-season'
+  // Every mode: quests tarkov.dev splits into more objectives than the game asks (TASK_OBJECTIVE_MERGES).
+  const seasonTasks = withTaskObjectiveMerges(upstreamMode === 'pvp-season'
     ? withSeasonTaskFixes(await borrowRegularTasks(upstreamTasks, rawTasks, locale, fetcher).catch(() => upstreamTasks), rawTasks, locale)
-    : upstreamTasks
+    : upstreamTasks, rawTasks, locale)
 
   // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
   const now = options.now ?? Date.now()
@@ -298,6 +299,86 @@ export function withSeasonTaskFixes(tasks: JsonRecord, raw: RawEndpoint, locale:
     const noUnlock = (value: unknown) => (fix.noOfferUnlock ? { ...asRecord(value), offerUnlock: [] } : value)
     fixedRaw[id] = { ...rawTask, objectives: rawObjectives.map((objective, at) => patch(objective, changes[at], false)), finishRewards: noUnlock(rawTask.finishRewards) }
     fixedTranslated[id] = { ...task, objectives: objectives.map((objective, at) => patch(objective, changes[at], true)), finishRewards: noUnlock(task.finishRewards) }
+  }
+  if (!Object.keys(fixedTranslated).length) return tasks
+  raw.data = { ...rawRoot, tasks: { ...rawTasks, ...fixedRaw } }
+  return { ...tasks, tasks: { ...translated, ...fixedTranslated } }
+}
+
+/** One objective the game asks, standing for objectives tarkov.dev lists apart (TASK_OBJECTIVE_MERGES). */
+export interface TaskObjectiveMerge {
+  /** The game's id of the objective kept (its ticks stay under it). */
+  keep: string
+  /** The game's ids of the objectives folded into it: their zones join it, they leave the quest. */
+  drop: readonly string[]
+  /** The zones' order on the kept objective; a zone neither data has comes from `places`. */
+  zones: readonly string[]
+  /** Zones some mode's data lacks, in tarkov.dev's own shape (`map` is tarkov.dev's map id). */
+  places?: readonly JsonRecord[]
+  description: Record<AppLocale, string>
+}
+
+const LIGHTHOUSE_API = '5704e4dad2720bb55b8b4567'
+
+/**
+ * Quests tarkov.dev lists with more objectives than the game asks, the same in every mode. «Ревизия. Маяк» (a player's report,
+ * 27.11.2026, the game in PvP: «по квесту там одних из любых страйкеров и брдм по одному»; the EFT wiki: a BRDM and a Stryker,
+ * three possible places each): tarkov.dev's PvP lists a first and a second BRDM and Stryker, one place each, and misses two
+ * places; its PvE has the game's two objectives with all six places. Both modes now: any BRDM, any Stryker, three places each.
+ */
+export const TASK_OBJECTIVE_MERGES: Readonly<Record<string, readonly TaskObjectiveMerge[]>> = {
+  '6179b4d1bca27a099552e04e': [
+    {
+      keep: '61952308aa0f643f9a0ae20f',
+      drop: ['6195231dd07bdc6de57b40a5'],
+      zones: ['qlight_mark_vech1', 'qlight_mark_vech6', 'qlight_mark_vech2'],
+      places: [{ id: 'qlight_mark_vech6', map: LIGHTHOUSE_API, position: { x: 8.42, y: 7.42, z: 173.83 }, outline: [{ x: 7.56, y: 5.92, z: 170.68 }, { x: 6.58, y: 5.92, z: 176.52 }, { x: 9.29, y: 5.92, z: 176.98 }, { x: 10.27, y: 5.92, z: 171.14 }], top: 8.92, bottom: 5.92 }],
+      description: { ru: 'Найти и пометить любую из трёх БРДМ Маркером MS2000 на локации Маяк', en: 'Locate and mark any of the three BRDMs with an MS2000 Marker on Lighthouse' },
+    },
+    {
+      keep: '61952325aa0f643f9a0ae212',
+      drop: ['6195232a1e972a652931edb6'],
+      zones: ['qlight_mark_vech3', 'qlight_mark_vech4', 'qlight_mark_vech5'],
+      places: [{ id: 'qlight_mark_vech5', map: LIGHTHOUSE_API, position: { x: 187.4, y: 1.28, z: -709.75 }, outline: [{ x: 191.14, y: -0.62, z: -712.42 }, { x: 191.14, y: -0.62, z: -707.08 }, { x: 183.67, y: -0.62, z: -707.08 }, { x: 183.67, y: -0.62, z: -712.42 }], top: 3.19, bottom: -0.62 }],
+      description: { ru: 'Найти и пометить любой из трёх Stryker Маркером MS2000 на локации Маяк', en: 'Locate and mark any of the three Strykers with an MS2000 Marker on Lighthouse' },
+    },
+  ],
+}
+
+/**
+ * `tasks` (translated) with TASK_OBJECTIVE_MERGES applied, and the untranslated ones in `raw` likewise. Objectives are found
+ * by their id in the untranslated data and at the same place in the translated one (it has its text as id).
+ */
+export function withTaskObjectiveMerges(tasks: JsonRecord, raw: RawEndpoint, locale: AppLocale, merges: Readonly<Record<string, readonly TaskObjectiveMerge[]>> = TASK_OBJECTIVE_MERGES): JsonRecord {
+  const translated = asRecord(tasks.tasks)
+  const rawRoot = asRecord(raw.data)
+  const rawTasks = asRecord(rawRoot.tasks)
+  const fixedTranslated: JsonRecord = {}
+  const fixedRaw: JsonRecord = {}
+  for (const [id, list] of Object.entries(merges)) {
+    if (!translated[id] || !rawTasks[id]) continue
+    const rawTask = asRecord(rawTasks[id])
+    const task = asRecord(translated[id])
+    const rawObjectives = asArray(rawTask.objectives).map(asRecord)
+    const objectives = asArray(task.objectives).map(asRecord)
+    if (rawObjectives.length !== objectives.length) continue
+    const ids = rawObjectives.map((objective) => text(objective.id))
+    const dropped = new Set(list.flatMap((merge) => merge.drop))
+    const zonesOf = (source: JsonRecord[], merge: TaskObjectiveMerge) => {
+      const byId = new Map<string, JsonRecord>()
+      for (const place of merge.places ?? []) byId.set(text(place.id), place)
+      for (const at of ids.map((objectiveId, index) => (objectiveId === merge.keep || merge.drop.includes(objectiveId) ? index : -1)).filter((index) => index >= 0)) {
+        for (const zone of asArray(source[at]?.zones).map(asRecord)) byId.set(text(zone.id), zone)
+      }
+      return [...merge.zones.map((zoneId) => byId.get(zoneId)).filter((zone): zone is JsonRecord => zone !== undefined), ...[...byId.entries()].filter(([zoneId]) => !merge.zones.includes(zoneId)).map(([, zone]) => zone)]
+    }
+    const patch = (source: JsonRecord[], translate: boolean) => source.flatMap((objective, at) => {
+      if (dropped.has(ids[at]!)) return []
+      const merge = list.find((entry) => entry.keep === ids[at])
+      return merge ? [{ ...objective, zones: zonesOf(source, merge), ...(translate ? { description: merge.description[locale] } : {}) }] : [objective]
+    })
+    fixedRaw[id] = { ...rawTask, objectives: patch(rawObjectives, false) }
+    fixedTranslated[id] = { ...task, objectives: patch(objectives, true) }
   }
   if (!Object.keys(fixedTranslated).length) return tasks
   raw.data = { ...rawRoot, tasks: { ...rawTasks, ...fixedRaw } }
