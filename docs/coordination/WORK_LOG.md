@@ -11897,10 +11897,10 @@ Not pushed, not released, nothing uploaded.
   Customs list, the spot); the Russian caption now «…за дверью, открываемой Ключом от офиса таможни.» like its neighbour.
   The English text is unchanged, so the other languages keep their translations.
 - Tests: src/data and BattlePassDocuments 591/591, server guideImages and questPointPhotos 14/14.
-- **The picture is not on the server.** E:\SPT-photo\server-upload\customs-report253 (wiki-bd51e33a627824b4.jpg and its
-  -t) must be in /var/lib/raidos/map-mirror/images/guides (raidos-api, 600) before this goes live, or the point shows no
-  photo. eval\upload_guides.py reads the lists from raidos-quest-photos-all, which does not have this commit: run it from
-  a checkout that does (its REPO) or install the two files by hand. The deploy key has asked for a passphrase since
-  27.11 19:27, so this needs the owner's unlocked key.
+- The picture is on the server: E:\SPT-photo\server-upload\customs-report253 (wiki-bd51e33a627824b4.jpg and its -t) put in
+  /var/lib/raidos/map-mirror/images/guides (raidos-api, 600) by the release session on 27.11, sha256 checked against the
+  local files; it is served once a release names it. The deploy key has asked for a passphrase since 27.11 19:27 and sits
+  in the Windows ssh-agent: Windows' own ssh.exe (System32\OpenSSH) gets in, Git Bash's /usr/bin/ssh does not, nor does
+  eval\upload_guides.py run from it.
 - History line for the release (no news, a fix): «Документы боевого пропуска: на Таможне фото «Проектной документации»
   в компьютерной комнате — как в игре», "reports":[253].
