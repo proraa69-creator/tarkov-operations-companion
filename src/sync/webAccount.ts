@@ -139,6 +139,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/files\/\d{1,3}\/data$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/status$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/reward$/ },
+  // «Отчёты» → «Аккаунты Таркова» (server/src/routes/eftCases.ts): the cases, their statuses and the owner's decision on a
+  // dispute over a game account (the phone's tab asked for an address the list did not have).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/eft-cases\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/eft-cases\/\d{1,12}\/status$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/eft-disputes\/\d{1,12}\/(?:status|decision)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },

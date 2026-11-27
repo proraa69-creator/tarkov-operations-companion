@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { randomBytes } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore, eftDigest, newPasswordHash, type SubscriptionSource } from '../services/accountStore.js'
@@ -27,10 +28,15 @@ async function withApi(run: (ctx: {
   /** A paid-data request from a device. */
   data: (token: string, deviceId: string) => Promise<Answer>
   advance: (ms: number) => void
+  /** Premium for `days` from now (a paid period, SubscriptionSource). */
+  pay: (token: string, days: number) => void
+  /** A succeeded payment with money in it, its days long over. */
+  payment: (token: string) => void
 }) => Promise<void>) {
   let clock = Date.parse('2026-10-13T12:00:00Z')
   const accounts = new AccountStore({ now: () => clock, ownerEmails: ['owner@example.com'], streamerTrial: false })
-  const source: SubscriptionSource = { paidUntil: () => undefined, referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }), referralSeries: () => [] }
+  const paid = new Map<string, number>()
+  const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0, payers: 0 }), referralSeries: () => [] }
   accounts.attachSubscriptions(source)
   const entitlements = new EntitlementService(accounts)
   const fetcher = (async () => new Response('{"data":{"items":[]}}', { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch
@@ -51,6 +57,11 @@ async function withApi(run: (ctx: {
       report: (token, eftId) => call('POST', '/v1/accounts/me/eft-account', token, { accountId: eftId }),
       data: (token, deviceId) => call('POST', '/v1/data/graphql', token, { query: '{ items { id } }' }, deviceId),
       advance: (ms) => { clock += ms },
+      pay: (token, days) => { paid.set(accounts.authenticate(token)!, clock + days * 86_400_000) },
+      payment: (token) => {
+        accounts.database.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, paid_at, provider, currency) VALUES (?, ?, '1m', 30000, 'succeeded', ?, ?, 'yookassa', 'RUB')")
+          .run(randomBytes(12).toString('hex'), accounts.authenticate(token)!, clock - 90 * 86_400_000, clock - 90 * 86_400_000)
+      },
     })
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -263,6 +274,74 @@ test('a second account without a free day sees «already in use», not «Нуж�
     assert.equal(locked.status, 403)
     assert.equal(locked.body.code, 'eft_conflict')
     assert.equal(locked.body.error, 'Этот аккаунт Escape from Tarkov уже используется: он привязан к другому аккаунту Raid OS.')
+  })
+})
+
+// Owner, 27.11.2026: a paying account is not locked out by whoever bound its game account first; the owner decides who it is
+// («спор за игровой аккаунт», routes/eftCases.ts), and the binding moves only by his decision.
+test('a paying account whose game account another Raid OS account holds keeps its access; the binding stays where it is', async () => {
+  await withApi(async ({ accounts, register, entitle, report, data, pay }) => {
+    const first = await register('first@example.com')
+    await entitle(first, device(1))
+    assert.equal((await report(first, X)).status, 200)
+
+    const payer = await register('payer@example.com')
+    pay(payer, 30)
+    assert.equal((await entitle(payer, device(2))).body.plan, 'paid')
+    const refused = await report(payer, X)
+    assert.equal(refused.status, 409, 'the binding is not taken')
+    assert.equal(refused.body.code, 'eft-in-use')
+    const opened = await entitle(payer, device(2))
+    assert.equal(opened.status, 200, 'the paying account is not locked out')
+    assert.equal(opened.body.plan, 'paid')
+    assert.equal((await data(payer, device(2))).status, 200)
+    assert.equal(accounts.view(accounts.authenticate(payer)!).eftAccount, undefined, 'nothing bound to the payer')
+    assert.equal(accounts.view(accounts.authenticate(first)!).eftAccount?.masked, '••••321', 'the first account keeps it')
+    assert.equal((await data(first, device(1))).status, 200)
+
+    // A free account in the same place stays locked out, as before.
+    const free = await register('free@example.com')
+    await entitle(free, device(3))
+    assert.equal((await report(free, X)).status, 409)
+    assert.equal((await entitle(free, device(3))).status, 403)
+    assert.equal((await data(free, device(3))).status, 403)
+  })
+})
+
+test('a payment made long ago counts too, but the free days wait for the owner\'s decision', async () => {
+  await withApi(async ({ register, entitle, report, data, pay, payment }) => {
+    const first = await register('first@example.com')
+    await entitle(first, device(1))
+    await report(first, X)
+
+    const payer = await register('payer@example.com')
+    payment(payer)
+    assert.equal((await entitle(payer, device(2))).body.plan, 'trial', 'before its report: the free day')
+    assert.equal((await report(payer, X)).status, 409)
+    const waiting = await entitle(payer, device(2))
+    assert.equal(waiting.status, 402, 'not locked, but no free days while the game account is in dispute')
+    assert.equal(waiting.body.code, 'subscription_required')
+    assert.equal((await data(payer, device(2))).status, 402)
+    pay(payer, 30)
+    assert.equal((await entitle(payer, device(2))).body.plan, 'paid')
+    assert.equal((await data(payer, device(2))).status, 200)
+  })
+})
+
+test('a paying account bound to its own game account is still refused another one (a shared subscription)', async () => {
+  await withApi(async ({ register, entitle, report, pay }) => {
+    const first = await register('first@example.com')
+    await entitle(first, device(1))
+    await report(first, X)
+    const payer = await register('payer@example.com')
+    pay(payer, 30)
+    await entitle(payer, device(2))
+    assert.equal((await report(payer, Y)).status, 200)
+    // The payer's PC now shows the first account's game account.
+    assert.equal((await report(payer, X)).status, 409)
+    const locked = await entitle(payer, device(2))
+    assert.equal(locked.status, 403)
+    assert.deepEqual([locked.body.conflict, locked.body.seen, locked.body.bound], ['other-account', '••••321', '••••999'])
   })
 })
 

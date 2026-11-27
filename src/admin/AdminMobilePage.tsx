@@ -385,7 +385,7 @@ export function AdminMobilePage() {
                 count: eftCount,
                 selected: eftSelected,
                 onSelect: () => setEftSelected(true),
-                content: <EftCasesTable load={adminApi.eftCases} setStatus={adminApi.eftStatus} t={uiText} reloadKey={reportsTick} />,
+                content: <EftCasesTable load={adminApi.eftCases} setStatus={adminApi.eftStatus} disputes={adminApi.eftDisputes} t={uiText} reloadKey={reportsTick} />,
               }}
               t={uiText}
               focusId={focusReport}

@@ -5,7 +5,9 @@
  *   POST /v1/entitlement            { deviceId, deviceName? } (session) -> 200 { token, plan, expiresAt, until?, revokedDevices }
  *                                                          402 { error: 'Нужна подписка', code, subscription } (device still registered)
  *                                                          403 { error, code: 'eft_conflict', conflict, seen, bound? } (AccountStore.eftBlock:
- *                                                              this PC's game account breaks «one game account — one Raid OS account»)
+ *                                                              this PC's game account breaks «one game account — one Raid OS account»;
+ *                                                              a paying account whose game account another account holds is let in,
+ *                                                              its free days wait — «спор за игровой аккаунт», routes/eftCases.ts)
  *   GET  /v1/accounts/me/devices                        -> { devices, limit } (the signed-in user's own devices)
  *   GET  /v1/accounts/me/admin/users/:id/devices        -> { devices, limit }           (owner only, 404 for others)
  *   POST /v1/accounts/me/admin/users/:id/devices/:deviceId/revoke -> { devices, limit } (owner only, audited)

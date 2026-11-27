@@ -1,4 +1,4 @@
-import type { EftCasesPage, EftCaseStatus } from '../reports/EftCasesTable'
+import type { EftCasesPage, EftCaseStatus, EftDisputeChoice } from '../reports/EftCasesTable'
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { serviceClient } from '../account/nicknameBinding'
@@ -314,5 +314,18 @@ export const ownerEftCases = {
     const request = serviceClient()
     if (!request) throw new Error('Нет связи с сервером')
     return request('POST', `/v1/accounts/me/admin/eft-cases/${id}/status`, { status })
+  },
+  /** «Спор за аккаунт Таркова»: «Взять» / «Вернуть», and the owner's decision. */
+  disputes: {
+    setStatus: async (id: number, status: 'active' | 'working') => {
+      const request = serviceClient()
+      if (!request) throw new Error('Нет связи с сервером')
+      return request('POST', `/v1/accounts/me/admin/eft-disputes/${id}/status`, { status })
+    },
+    decide: async (id: number, decision: EftDisputeChoice) => {
+      const request = serviceClient()
+      if (!request) throw new Error('Нет связи с сервером')
+      return request('POST', `/v1/accounts/me/admin/eft-disputes/${id}/decision`, { decision })
+    },
   },
 }

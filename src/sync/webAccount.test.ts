@@ -252,4 +252,22 @@ describe('phone transport: the owner app on a slow road to the server', () => {
     await expect(webServiceRequest('POST', '/v1/accounts/me/admin/bug-reports/12/delete', {})).rejects.toThrow()
     expect(fetched).toHaveBeenCalledTimes(4)
   })
+
+  it('«Аккаунты Таркова»: the cases, their statuses and the owner\'s decision on a dispute go with the session, nothing else', async () => {
+    const fetched = vi.fn(async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetched)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    await webServiceRequest('GET', '/v1/accounts/me/admin/eft-cases?view=closed&limit=100')
+    await webServiceRequest('POST', '/v1/accounts/me/admin/eft-cases/7/status', { status: 'working' })
+    await webServiceRequest('POST', '/v1/accounts/me/admin/eft-disputes/3/status', { status: 'working' })
+    await webServiceRequest('POST', '/v1/accounts/me/admin/eft-disputes/3/decision', { decision: 'transfer' })
+    expect(fetched).toHaveBeenCalledTimes(4)
+    const [url, init] = fetched.mock.calls[3] as unknown as [string, RequestInit]
+    expect(url).toBe('https://raidos.app/v1/accounts/me/admin/eft-disputes/3/decision')
+    expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${token}`)
+    await expect(webServiceRequest('GET', '/v1/accounts/me/admin/eft-cases?view=all&limit=100')).rejects.toThrow('Неизвестный запрос сервиса')
+    await expect(webServiceRequest('POST', '/v1/accounts/me/admin/eft-disputes/3/delete', {})).rejects.toThrow('Неизвестный запрос сервиса')
+    await expect(webServiceRequest('GET', '/v1/accounts/me/admin/eft-disputes/3/decision')).rejects.toThrow('Неизвестный запрос сервиса')
+    expect(fetched).toHaveBeenCalledTimes(4)
+  })
 })
