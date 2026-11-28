@@ -10,7 +10,9 @@ import { describe, expect, it } from 'vitest'
  * Full-screen, but no window: decoration, a guide's own layer that places its card, the bars' backdrops, a whole-screen mode (the map's,
  * the quest tree's on the PC, the weapon bench's «На весь экран»: only the build and «Свернуть», owner 20.11.2026).
  */
-const NOT_WINDOWS = new Set(['frg-layer', 'gear-hangers', 'quest-sheet-backdrop', 'mobile-more-backdrop', 'map-stage', 'is-fullscreen', 'is-map-fullscreen', 'quest-tree-page', 'wb-full'])
+const NOT_WINDOWS = new Set(['frg-layer', 'gear-hangers', 'quest-sheet-backdrop', 'mobile-more-backdrop', 'map-stage', 'is-fullscreen', 'is-map-fullscreen', 'quest-tree-page', 'wb-full',
+  // The night sky behind the page of «Смена дня и ночи» (src/styles/theme-daynight.css, owner 28.11.2026): decoration, the PC only.
+  'daynight-sky'])
 const OWN_RULE = new Set(['search-overlay', 'gallery-overlay', 'support-image-lightbox', 'admin-report-lightbox', 'requests-viewer'])
 
 function files(dir: string): string[] {
