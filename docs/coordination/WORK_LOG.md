@@ -12187,3 +12187,20 @@ Not pushed, not released, nothing uploaded.
   alone; eslint on the changed files: no errors (one more react-refresh warning for `savedLanguage`).
 - Not checked in the running app (no dev server from this checkout). No updateHistory / playerNews row (the integrator's).
   Risk: English texts that stored notifications already hold stay as they were stored.
+
+## 2026-11-28 05:10 — Claude: the admin panel — the day window, «Профиль» everywhere, its commands, days in one box (claude/referral-steps 355b699b, not pushed)
+
+- Owner, 28.11.2026, the PC app: «когда нажимаешь на день, чтобы посмотреть статистику, то окно с информацией открывается слева внизу,
+  и его не видно». Cause: the site sheets are scoped with @scope to «.site-admin, .site-admin-layer», and a scope root is NOT in
+  scope — only its descendants are (checked in the app browser). The day window carried both classes itself, so it lost every rule
+  and stood as a plain block in body. Fixed by putting the backdrop inside a «site-admin-layer» wrapper; a test holds the shape.
+- «Профиль» beside a player: AccountRef (payments and every site table that knows the account id), the user card, the reports table.
+  The link /admin?tab=profile&account=<id> is caught by SiteAdminSummary.followLink and opens the app profile tab. Hidden on the site
+  (usesApiTransport), which has no such tab.
+- src/admin/AccountActions.tsx: «Действия» of the profile — give days, take days, change the e-mail, a 48-hour password link,
+  unlink the Escape from Tarkov account. Paths go through the gateway (ownerSiteAdminAllowed covers users/<id>/… for POST).
+  The PC panel passes  through ownerRequest, the phone admin app through adminApi.command.
+- Days: one box (1 by default) and one button for both giving and taking; reason boxes and day chips gone, here and in the site
+  «Пользователи» card. The log keeps «выдано в админ-панели» / «списано в админ-панели» (the server wants a reason).
+- Tests: adminCalendar 2/2, ChatProfile 9/9, admin + reports + website admin 188/189 (AdminPanelPage fails on CRLF in this copy,
+  as before), typecheck and the website typecheck clean. Not checked in the running app: the admin panel needs the owner signed in.
