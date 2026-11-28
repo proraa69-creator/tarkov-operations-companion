@@ -12204,3 +12204,19 @@ Not pushed, not released, nothing uploaded.
   «Пользователи» card. The log keeps «выдано в админ-панели» / «списано в админ-панели» (the server wants a reason).
 - Tests: adminCalendar 2/2, ChatProfile 9/9, admin + reports + website admin 188/189 (AdminPanelPage fails on CRLF in this copy,
   as before), typecheck and the website typecheck clean. Not checked in the running app: the admin panel needs the owner signed in.
+
+## 2026-11-28 13:25 — Claude: release 0.6.0.355 is out; the wiki photo put back on the server
+
+- Owner, 28.11.2026: «Да» to the release, then «Выпускай по готовности». release/production 1570cc75, the gate green at 13:09,
+  the publisher took it in the 13:00 window: version.json 0.6.0-355, build 1795846566123, commit 1570cc75…-production.
+- In it: the admin panel (day window over the page, «Профиль» everywhere, the profile commands, days in one box),
+  «Ревизия. Маяк», all the document photos checked (reports 254/255), the phone language window, «Назад» and the players'
+  screens in every language, the raid loadout cards, the timers menu, the starry night, the picture-with-a-program test, and
+  «Обновить» gone from the iPhone profile (owner: «Только на телефоне»).
+- Before the push: five news lines were over the 120 characters the app shows, and src/styles/mobileWindows.test.ts counted the
+  night sky layer as a window. Both fixed (443bc0ad, 1570cc75).
+- After the release, as planned: wiki-e5def8c9123abd69.png, -t.png and .jpg restored from guides-replaced-254 in
+  /var/lib/raidos/map-mirror/images/guides (raidos-api, 600). The wiki photo is the SORDI trailer again, our own frame stays
+  at the village point. Checked: /v1/guide-images/wiki-e5def8c9123abd69.png is 200, 90 214 bytes (the wiki original).
+- Local test runs on this Windows copy still fail where they always do (owner-exe updater on /tmp, appVersion on E:E:,
+  AdminPanelPage on CRLF, map/chat tests under load); the Linux gate passed.
