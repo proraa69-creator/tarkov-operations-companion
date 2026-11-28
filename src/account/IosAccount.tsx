@@ -66,7 +66,7 @@ export function IosNoAccess({ note }: { note?: string }) {
  * header of its own, no nickname (the block's title has it), these buttons first; «Удаление аккаунта» then stands below the block.
  */
 export function IosAccountPanel({ buttons }: { buttons?: ReactNode }) {
-  const { status, checking, refresh, logout } = useServerAccount()
+  const { status, logout } = useServerAccount()
   const nickname = useAccountNickname()
   if (!status?.signedIn) return null
   const online = status.online ?? false
@@ -83,9 +83,10 @@ export function IosAccountPanel({ buttons }: { buttons?: ReactNode }) {
       {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
       <EmailVerifyRow status={status} online={online} />
     </div>
+    {/* No «Обновить» here (owner, 28.11.2026: «удали окно обновить в приложении»): the account is re-read by itself when
+        the profile opens, and the «Нет доступа» screen keeps its own button. */}
     <div className="account-cabinet-actions">
       {buttons}
-      <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Обновить')}</button>
       <a className="button ghost is-wide" href={privacyPolicyUrl()} target="_blank" rel="noopener noreferrer"><Shield size={14} />{uiText('Политика конфиденциальности')}</a>
       <button className="button danger is-wide" onClick={() => confirmLogout(logout)}><LogOut size={14} />{uiText('Выйти')}</button>
     </div>
