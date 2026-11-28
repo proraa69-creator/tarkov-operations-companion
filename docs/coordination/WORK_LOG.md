@@ -12199,7 +12199,7 @@ Not pushed, not released, nothing uploaded.
   (usesApiTransport), which has no such tab.
 - src/admin/AccountActions.tsx: «Действия» of the profile — give days, take days, change the e-mail, a 48-hour password link,
   unlink the Escape from Tarkov account. Paths go through the gateway (ownerSiteAdminAllowed covers users/<id>/… for POST).
-  The PC panel passes  through ownerRequest, the phone admin app through adminApi.command.
+  The PC panel passes `call` through ownerRequest, the phone admin app through adminApi.command.
 - Days: one box (1 by default) and one button for both giving and taking; reason boxes and day chips gone, here and in the site
   «Пользователи» card. The log keeps «выдано в админ-панели» / «списано в админ-панели» (the server wants a reason).
 - Tests: adminCalendar 2/2, ChatProfile 9/9, admin + reports + website admin 188/189 (AdminPanelPage fails on CRLF in this copy,
