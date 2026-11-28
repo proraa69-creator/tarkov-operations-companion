@@ -12155,3 +12155,35 @@ Not pushed, not released, nothing uploaded.
 - scripts/document-guide-points.mjs: marked out of date, the JSON is the record. Tests: documentGuide.test.ts updated (the Shoreline
   hangar is the smugglers' northern warehouse; the bus depot store; SORDI photos at the tower, never in the village).
 - **After the release:** put back wiki-e5def8c9123abd69 originals on the server (see report 254 above) — it now shows at the SORDI point.
+
+## 2026-11-28 03:30 — Claude: players' screens in every language (claude/i18n-sweep 63a8e486…dd7dae84, from claude/referral-steps 1275db50, not pushed)
+
+- Owner, 28.11 from the phone: Russian or a word-by-word mix in every language but Russian. The phone's «Назад» and map list were
+  done in 1275db50; this is the sweep of the rest. Candidates: the scanner of every Cyrillic literal through uiText (templates with
+  their `${}` too), each checked in the code. Left out on purpose: owner tools (admin/, owner/, editors, boss placement, the
+  «Новых заявок» badge, notices' audience), OCR/search helpers, data/, the support clipboard text, and the false hits — screens that
+  write their English in the code (modeReset, QuestDeferDialog, LocationKeysWindow, RangeShooting, TradingPage, QuestsHelp,
+  ManualAdd, manualMarks, TradingNotifier, ScreenTuningPage), arsenal/buildAdvice.ts (shown nowhere), requirementEngine's blockers
+  (shown nowhere), profile/ammo/gun data errors (swallowed or never on screen).
+- 63a8e486 engine (src/i18n/renderText.ts, uiEnglish.ts): English cut a text at « · » / «, » before the templates looked, so a
+  template holding one never matched («Done. Keys found: 5, новых: 2.»); now the whole text first, a label of the game in «» stays.
+  A label with its spaces («Купить · », «Схрон · ») was looked up trimmed: English Russian, the nine lost the space. «Ветка
+  торговца: уровень 3» → «Trader line: level 3» (rule in uiEnglishQuests.ts). «Hideout» in de es fr pl pt tr zh was the location
+  «Hideout Under the Landing Stage» (the menu read «Versteck unter der Landungsbrücke») — the hideout's word now.
+- 86bacc25 dictionary src/i18n/uiEnglishPlayerScreens.ts: 55 phrases, 10 templates, 14 whole-text-only words (WHOLE_ONLY in
+  uiEnglish.ts: «от», «см», «Время, с», «Собрано»… never replace part of a sentence). Screens: what to collect for the hideout and
+  quests, the phone's photo sync, subscription chip and reminder, start-up error screens, «Падение пули» and «Баллистика»,
+  «Карта и предметы в рейде», the Collector's hotkey scan, «Геопозиция», «Кровавая луна», «Тыква», sign-in errors with a status,
+  the support chat's screenshot limit, the driver date. Locales: 69 new texts in each of the nine (10 more were there).
+- 20f57c49 screens: App.tsx / main.tsx error screens through uiText (main.tsx in the device's saved language, LocaleProvider
+  `savedLanguage` exported), the Collector scan's notices, RaidToolsSettings' error line, quest notes' «name» in the chosen
+  language (chronologyText.ts), the driver date and «Время, с» as one text each.
+- dd7dae84 sign-up consent (AccountSignIn.tsx): one sentence with [offer:…] [consent:…] [privacy:…] links, whole in every
+  phrase file in its own word order; before, its pieces had no text, so nine languages showed English.
+- Checks: scanner again — players' files 197 → 121 hits, all of them explained above; src/i18n/uiEnglishPlayerScreens.test.ts
+  (all phrases ru/en, built templates, commas and « · », whole-only words, nine languages with no Cyrillic, consent links,
+  «Hideout»); npm run typecheck; vitest src: 4314 passed, the failures are this checkout's (AdminPanelPage reads LF from a CRLF
+  checkout, appVersion builds «E:\E:\…» on drive E:) and Maps/Dashboard/ManualMarks/SupportChat timeouts under load that pass
+  alone; eslint on the changed files: no errors (one more react-refresh warning for `savedLanguage`).
+- Not checked in the running app (no dev server from this checkout). No updateHistory / playerNews row (the integrator's).
+  Risk: English texts that stored notifications already hold stay as they were stored.

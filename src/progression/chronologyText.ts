@@ -2,6 +2,7 @@ import type { ModeProgress, Quest } from '../domain/types'
 import type { TaskAvailability } from './requirementEngine'
 import { questStage } from './chronology'
 import { TRACKED_SOURCES as TRACKED } from './questBasics'
+import { uiText } from '../i18n/renderText'
 
 /** Russian words shown in the chronology (translated at render through uiText). */
 
@@ -43,7 +44,8 @@ export function chronologyNote(quest: Quest, info: TaskAvailability | undefined,
     return `${where}: ${word}${date ? ` ${date}` : ''}.`
   }
   const anchor = info?.anchorId ? questsById.get(info.anchorId) : undefined
-  const anchorName = anchor ? `«${anchor.name}»` : 'задание из логов'
+  // the name in the chosen language: the note's template (src/i18n/uiEnglishQuests.ts) leaves what is in «» as it is
+  const anchorName = anchor ? `«${uiText(anchor.name)}»` : 'задание из логов'
   // Inference never counts (src/quests/questEngine.ts): «вероятно», like the other bases.
   if (info?.basis === 'chain' && info.proof === 'prerequisite') return `Выполнено: без него не взять ${anchorName}.`
   if (info?.basis === 'chain') return `Вероятно выполнено: его требует ${anchorName}.`

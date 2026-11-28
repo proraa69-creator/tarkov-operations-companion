@@ -94,6 +94,8 @@ export const QUEST_RULES: Array<[RegExp, string]> = [
   [/^экран(?= |$)/g, 'screen'],
   [/^откроется на (\d+)-м уровне$/g, 'opens at level $1'],
   [/^Откроется на (\d+)-м уровне ветки(?: (\d+))? торговца$/g, 'Opens at level $1 of the trader’s line $2'],
+  // a line without its number («Ветка торговца: уровень 3»): no space before the colon
+  [/^Ветка торговца( \(LL\d\))?: уровень (\d+)$/g, 'Trader line$1: level $2'],
   [/^Ветка (\d+)? ?торговца( \(LL\d\))?: уровень (\d+)$/g, 'Trader line $1$2: level $3'],
   [/^по логам (\d+)$/g, 'by the logs: $1'],
   [/^Лояльность торговца (\d)$/g, 'Trader loyalty $1'],

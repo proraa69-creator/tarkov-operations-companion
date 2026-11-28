@@ -1,4 +1,4 @@
-import { exactUiText, translateUiText } from './uiEnglish'
+import { exactUiText, templateUiText, translateUiText } from './uiEnglish'
 import { cleanQuestText } from '../shared/questText'
 import { baseLocale, isTargetLanguage, languageOption, type AppLanguage } from './languages'
 import { setTargetLanguage, targetFromRussian, targetText, targetUiDictionary } from './targetText'
@@ -7,6 +7,9 @@ let language: 'ru' | 'en' = 'ru'
 let chosenTag = 'ru-RU'
 let catalog = new Map<string, string>()
 const CYRILLIC = /[А-Яа-яЁё]/
+/** Where uiText cuts an English text into pieces, and the quoted names a template leaves as they are. */
+const PIECES = / · |×\d|, /
+const QUOTED = /«[^»]*»/g
 /**
  * The language the screens are drawn in. Russian and English as before; German, Japanese and Chinese are the English
  * text put into that language (src/i18n/targetText.ts).
@@ -34,7 +37,7 @@ function inTarget(value: string): string | undefined {
   const trimmed = value.trim()
   const named = targetFromRussian(trimmed)
   if (named) return value.replace(trimmed, named)
-  const exact = target.exact.get(trimmed)
+  const exact = exactUiText(value, target)
   if (exact) return value.replace(trimmed, exact)
   const english = catalog.get(trimmed)
   if (english) return value.replace(trimmed, targetText(english))
@@ -66,6 +69,10 @@ export function uiText<T>(value: T): T {
     // A whole phrase first: sentences with commas would otherwise be split into untranslatable pieces.
     const exact = catalog.get(value.trim()) ?? exactUiText(value)
     if (exact) return value.replace(value.trim(), exact) as T
+    // A template with « · » or «, » in it is one text: cut there, no piece of it matches. What it leaves in «» (a label of
+    // the game's screen, «Времянка») stays as it is.
+    const template = PIECES.test(value) ? templateUiText(value) : undefined
+    if (template !== undefined && !CYRILLIC.test(template.replace(QUOTED, ''))) return template as T
     // Rendered templates often contain several independently localized names.
     return value.split(/( · | ×\d+|, )/).map((part) => {
       const translated = catalog.get(part.trim())

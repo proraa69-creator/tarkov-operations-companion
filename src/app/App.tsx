@@ -5,6 +5,7 @@ import { featureEnabled } from './archivedFeatures'
 import { rangeEnabled } from './rangeFeature'
 import { isOwnerApp } from './buildEdition'
 import { interfaceVersion } from './appVersion'
+import { uiText } from '../i18n/renderText'
 import { AppShell } from './AppShell'
 import { HideoutSection } from '../hideout/HideoutTabs'
 import { DashboardPage } from '../pages/DashboardPage'
@@ -151,7 +152,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: strin
   state = { error: '' }
 
   static getDerivedStateFromError(error: unknown) {
-    return { error: error instanceof Error ? error.message : String(error ?? 'Неизвестная ошибка') }
+    return { error: error instanceof Error ? error.message : String(error ?? uiText('Неизвестная ошибка')) }
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
@@ -165,10 +166,10 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: strin
       <div className="startup-recovery">
         <section className="startup-recovery-card">
           <div className="eyebrow">RAID OS</div>
-          <h1>Интерфейс не смог открыться</h1>
-          <p>Ошибка больше не оставляет пустой экран. Восстановление очистит только интерфейсный кэш и откроет «Обзор», аккаунт и прогресс останутся на месте.</p>
+          <h1>{uiText('Интерфейс не смог открыться')}</h1>
+          <p>{uiText('Ошибка больше не оставляет пустой экран. Восстановление очистит только интерфейсный кэш и откроет «Обзор», аккаунт и прогресс останутся на месте.')}</p>
           {/* the version on the screen: a player's screenshot tells which build fell (owner, 02.11.2026) */}
-          <pre>{this.state.error}{`\nВерсия ${interfaceVersion}`}</pre>
+          <pre>{this.state.error}{`\n${uiText('Версия')} ${interfaceVersion}`}</pre>
           <div className="startup-recovery-actions">
             <button type="button" onClick={() => {
               try {
@@ -178,8 +179,8 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: strin
               // the page that fell is not opened again: a reload keeps the address
               location.hash = '#/'
               location.reload()
-            }}>Восстановить запуск</button>
-            <button type="button" onClick={() => location.reload()}>Перезагрузить</button>
+            }}>{uiText('Восстановить запуск')}</button>
+            <button type="button" onClick={() => location.reload()}>{uiText('Перезагрузить')}</button>
           </div>
         </section>
       </div>

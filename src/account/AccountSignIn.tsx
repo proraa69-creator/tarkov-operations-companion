@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { AlertTriangle, Check, Clock, Gift, LoaderCircle, LogIn, Mail, Monitor, QrCode, RefreshCw, UserPlus, Users } from 'lucide-react'
 import type { PendingSecondFactor, PendingServerRegistration, ServerAccountStatus } from '../electron'
 import type { RaidMode } from '../domain/types'
@@ -357,13 +357,26 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin, onPickGoogle }
   )
 }
 
+/**
+ * The consent in the languages other than Russian: one sentence, each document's link in [slug:text], so every language puts
+ * the links where its own word order has them (src/i18n/locales/<language>.json has the sentence by this English). Piece by
+ * piece the nine other languages showed it in English: «I accept the», «and give my» have no text of their own.
+ */
+const CONSENT_SENTENCE = 'I accept the [offer:terms of the offer] and give my [consent:consent to the processing of personal data] under the [privacy:privacy policy]'
+const CONSENT_LINK = /\[(offer|consent|privacy):([^\]]+)\]/
+
 /** The documents open on raidos.app in the system browser (the desktop shell and the phone open https links outside). */
 function ConsentText() {
   const { locale } = useLocale()
   const link = (slug: 'offer' | 'consent' | 'privacy', text: string) => <a href={legalUrl(slug)} target="_blank" rel="noopener noreferrer">{text}</a>
-  return locale === 'en'
-    ? <span>I accept the {link('offer', 'terms of the offer')} and give my {link('consent', 'consent to the processing of personal data')} under the {link('privacy', 'privacy policy')}</span>
-    : <span>Я принимаю условия {link('offer', 'оферты')} и даю {link('consent', 'согласие на обработку персональных данных')} в соответствии с {link('privacy', 'политикой конфиденциальности')}</span>
+  if (locale === 'en') {
+    const sentence = uiText(CONSENT_SENTENCE)
+    return <span>{sentence.split(/(\[(?:offer|consent|privacy):[^\]]+\])/).map((part, index) => {
+      const found = CONSENT_LINK.exec(part)
+      return <Fragment key={index}>{found ? link(found[1] as 'offer' | 'consent' | 'privacy', found[2]!) : part}</Fragment>
+    })}</span>
+  }
+  return <span>Я принимаю условия {link('offer', 'оферты')} и даю {link('consent', 'согласие на обработку персональных данных')} в соответствии с {link('privacy', 'политикой конфиденциальности')}</span>
 }
 
 /** Google's «G» in the brand's four colours (Google's sign-in guidelines ask for it on a «Sign in with Google» button). */
