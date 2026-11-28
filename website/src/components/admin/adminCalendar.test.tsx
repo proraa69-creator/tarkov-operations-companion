@@ -55,6 +55,12 @@ describe('admin calendar', () => {
     fireEvent.click(second)
     const dialog = await screen.findByRole('dialog')
     expect(mocks.day).toHaveBeenCalledWith('owner-token', day.date)
+    // The window stands inside the layer, never on it: in the PC owner app @scope dresses what is in «site-admin-layer»,
+    // not the layer itself, so a backdrop that was the layer lost its own rules and fell to the bottom left of the page
+    // (owner, 28.11.2026: «окно с информацией открывается слева внизу, и его не видно»).
+    const backdrop = dialog.closest('.pay-dialog-backdrop')!
+    expect(backdrop).not.toHaveClass('site-admin-layer')
+    expect(backdrop.parentElement).toHaveClass('site-admin-layer')
     await waitFor(() => expect(within(dialog).getByText('payer@example.com')).toBeInTheDocument())
     expect(within(dialog).getByText('new@example.com')).toBeInTheDocument()
     expect(within(dialog).getByText('HUNTER')).toBeInTheDocument()

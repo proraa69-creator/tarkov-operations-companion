@@ -431,6 +431,8 @@ export const adminApi = {
   user: (id: string) => request<AdminUserDetail>('GET', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}`),
   /** «Посмотреть профиль» from «Чаты» (owner, 24.11.2026). */
   profile: (id: string) => request<AdminAccountProfile>('GET', adminProfilePath(id)),
+  /** The profile's own commands (grant, revoke, email, password-link, eft-account/unbind): the path is built there. */
+  command: (path: string, body?: unknown) => request<unknown>('POST', path, body),
   grant:(id: string, days: number, reason: string) => request<AdminUserDetail>(
     'POST', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}/grant`, { days, reason },
   ),

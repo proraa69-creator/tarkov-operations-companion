@@ -5,6 +5,7 @@ import { countryName } from '../shared/countries'
 import { OWNER_TIME_ZONE } from '../shared/ownerTime'
 import type { AdminAccountProfile, AdminDeviceKind, AdminPayment, PlanId } from './adminApi'
 import { initial } from './adminFormat'
+import { AccountActions } from './AccountActions'
 import './accountProfile.css'
 
 /**
@@ -28,11 +29,16 @@ export interface AccountProfileProps {
   name?: string
   /** 'sheet': the phone's full screen sheet, scrolled inside; 'page': a section of the owner app's page. */
   variant: 'page' | 'sheet'
+  /**
+   * The owner's commands on this account (owner, 28.11.2026: «нужно что бы в профиле можно было использовать функции
+   * отвязать аккаунт таркова, изменить почту, дать ссылку на смену пароля итд»). Without it the profile only reads.
+   */
+  call?: (path: string, body?: unknown) => Promise<unknown>
 }
 
 type Tr = (ru: string, en: string) => string
 type Profile = AdminAccountProfile
-type SectionId = 'account' | 'payments' | 'activity' | 'referrals'
+type SectionId = 'account' | 'actions' | 'payments' | 'activity' | 'referrals'
 
 const PLAN: Record<PlanId, [string, string]> = { '1m': ['1 мес.', '1 mo'], '3m': ['3 мес.', '3 mo'], '6m': ['6 мес.', '6 mo'], '12m': ['12 мес.', '12 mo'] }
 const PLAN_IDS: PlanId[] = ['1m', '3m', '6m', '12m']
@@ -114,7 +120,7 @@ function complete(raw: Profile, at: number): Profile {
 
 const messageOf = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason ?? ''))
 
-export function AccountProfile({ accountId, load, onBack, backLabel, onOpenChat, name, variant }: AccountProfileProps) {
+export function AccountProfile({ accountId, load, onBack, backLabel, onOpenChat, name, variant, call }: AccountProfileProps) {
   const { locale } = useLocale()
   const tr = useCallback<Tr>((ru, en) => (locale === 'en' ? en : ru), [locale])
   const f = useMemo(() => formats(locale === 'en' ? 'en' : 'ru'), [locale])
@@ -141,7 +147,9 @@ export function AccountProfile({ accountId, load, onBack, backLabel, onOpenChat,
   const subtitle = account ? (account.deleted ? tr('аккаунт удалён', 'account deleted') : account.nickname ? account.email ?? '' : '') : tr('Загружаем профиль…', 'Loading the profile…')
   const back = backLabel ? tr(backLabel.ru, backLabel.en) : tr('Назад', 'Back')
   const sections: Array<{ id: SectionId; label: string }> = [
-    { id: 'account', label: tr('Аккаунт', 'Account') }, { id: 'payments', label: tr('Оплаты', 'Payments') },
+    { id: 'account', label: tr('Аккаунт', 'Account') },
+    ...(call ? [{ id: 'actions' as const, label: tr('Действия', 'Actions') }] : []),
+    { id: 'payments', label: tr('Оплаты', 'Payments') },
     { id: 'activity', label: tr('Активность', 'Activity') }, { id: 'referrals', label: tr('Рефералы', 'Referrals') },
   ]
 
@@ -169,6 +177,7 @@ export function AccountProfile({ accountId, load, onBack, backLabel, onOpenChat,
           <div className="account-profile-columns">
             <div className="account-profile-column">
               <AccountCard data={data} tr={tr} f={f} locale={locale === 'en' ? 'en' : 'ru'} cardRef={(element) => { cards.current.account = element }} />
+              {call && <AccountActions data={data} tr={tr} dateTime={f.dateTime} date={f.date} call={call} onDone={() => setAttempt((value) => value + 1)} cardRef={(element) => { cards.current.actions = element }} />}
               <ActivityCard data={data} tr={tr} f={f} cardRef={(element) => { cards.current.activity = element }} />
             </div>
             <div className="account-profile-column">

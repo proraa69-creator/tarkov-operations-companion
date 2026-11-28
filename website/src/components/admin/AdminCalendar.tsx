@@ -146,7 +146,11 @@ function DayDialog({ date, today, onChange, onClose }: { date: string; today: st
   const error = result?.date === date ? result.error ?? null : null
   return createPortal(
     // site-admin-layer: the PC owner app styles this window with the site's sheets too (src/admin/SiteAdminSummary.tsx).
-    <div className="pay-dialog-backdrop site-admin-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    // The window stands INSIDE the layer, never on it: @scope dresses what is in the layer, not the layer itself, so a
+    // backdrop that was the layer kept none of its own rules and the window fell to the bottom left of the page
+    // (owner, 28.11.2026: «окно с информацией открывается слева внизу, и его не видно»).
+    <div className="site-admin-layer">
+    <div className="pay-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <div className="pay-dialog day-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialog} tabIndex={-1}>
         <div className="pay-dialog-head">
           <div>
@@ -163,6 +167,7 @@ function DayDialog({ date, today, onChange, onClose }: { date: string; today: st
         {!day && !error && <div className="day-dialog-loading"><LoaderCircle className="spinner" aria-hidden="true" />Загружаем день…</div>}
         {day && <DayDetails day={day} />}
       </div>
+    </div>
     </div>,
     document.body,
   )

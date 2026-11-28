@@ -144,13 +144,13 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
   const loadProfile = useCallback(async (accountId: string) => await request('GET', adminProfilePath(accountId)) as AdminAccountProfile, [request])
   switch (id) {
     case 'summary':
-      return <Suspense fallback={null}><SiteAdminSummary request={request} email={email} /></Suspense>
+      return <Suspense fallback={null}><SiteAdminSummary request={request} email={email} onProfile={openProfile} /></Suspense>
     case 'reports':
       return (
         <section className="panel admin-section" aria-labelledby="admin-reports-title">
           <div className="panel-header"><div><div className="eyebrow">{uiLabel('Отчёты и предложения игроков')}</div><div className="panel-title" id="admin-reports-title">{uiLabel('Отчёты')}</div></div><FileText size={18} className="brass" aria-hidden="true" /></div>
           <div className="panel-body">
-            <OwnerReportsTable onOpenChat={openChat} onAnswer={answerChat} focusId={Number(params.get('report')) || null} />
+            <OwnerReportsTable onOpenChat={openChat} onAnswer={answerChat} onProfile={openProfile} focusId={Number(params.get('report')) || null} />
             {/* «Доступ Claude к заявкам» (owner, 14.10.2026): the read-only key for Claude's cloud sessions. */}
             <details className="requests-more"><summary>{uiLabel('Доступ Claude к отчётам')}</summary><ClaudeAccessPanel /></details>
           </div>
@@ -167,7 +167,7 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
       const accountId = params.get('account') ?? ''
       return (
         <section className="admin-section admin-profile-section" aria-label={uiLabel('Профиль')}>
-          <AccountProfile accountId={accountId} load={loadProfile} onBack={() => openChat(accountId)} backLabel={{ ru: 'К чату', en: 'Back to chat' }} onOpenChat={openChat} variant="page" />
+          <AccountProfile accountId={accountId} load={loadProfile} onBack={() => openChat(accountId)} backLabel={{ ru: 'К чату', en: 'Back to chat' }} onOpenChat={openChat} variant="page" call={(path, body) => request('POST', path, body)} />
         </section>
       )
     }

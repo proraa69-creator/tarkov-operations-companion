@@ -131,3 +131,17 @@
 
 /* The phone admin app's sheet: the whole screen. */
 .account-profile-sheet { height: calc(100dvh - var(--safe-top, 0px) - 8px); max-height: none; }
+
+/* «Действия» (AccountActions.tsx): the days in one box with one button, then the account own commands. */
+.account-actions { display: grid; gap: 10px; }
+.account-action-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.account-action-days { display: grid; gap: 4px; }
+.account-action-days > span { color: var(--text-dim); font-size: 12px; }
+.account-action-days .input { width: 92px; text-align: center; }
+.account-action-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.account-action-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.account-action-hint { color: var(--text-dim); }
+.account-action-done { margin: 2px 0 0; color: var(--green); font-size: 13px; }
+.account-action-error { margin: 2px 0 0; color: var(--danger); font-size: 13px; }
+.account-action-link code { display: block; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-2); font-size: 12px; overflow-wrap: anywhere; user-select: text; }
+[data-layout='mobile'] .account-profile-card.is-actions { order: 2; }

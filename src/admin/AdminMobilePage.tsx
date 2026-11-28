@@ -485,7 +485,7 @@ function useAccountSearch() {
 function ProfileSheet({ accountId, name, onClose, onOpenChat }: { accountId: string; name?: string; onClose: () => void; onOpenChat: (accountId: string) => void }) {
   return <SheetPortal><div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="panel admin-user-sheet account-profile-sheet" role="dialog" aria-modal="true" aria-label={uiText(name ? `Профиль ${name}` : 'Профиль')}>
-      <AccountProfile accountId={accountId} name={name} load={adminApi.profile} onBack={onClose} onOpenChat={onOpenChat} variant="sheet" />
+      <AccountProfile accountId={accountId} name={name} load={adminApi.profile} onBack={onClose} onOpenChat={onOpenChat} variant="sheet" call={adminApi.command} />
     </section>
   </div></SheetPortal>
 }

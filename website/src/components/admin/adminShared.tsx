@@ -1,22 +1,38 @@
-import { LoaderCircle } from 'lucide-react'
+import { LoaderCircle, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { formatPeriodKey } from '../ReferralStatsTable'
-import type { AdminInviter, AdminPayment, PlanId } from '../../api'
+import { usesApiTransport, type AdminInviter, type AdminPayment, type PlanId } from '../../api'
 import { formatRub, numberFormat, PLAN_IDS, PLAN_LABEL, usersLink } from './adminData'
 
 /**
  * An account in plain words: the e-mail (a link to it in «Пользователи») and the game nickname, or «аккаунт удалён»
  * (owner, 17.10.2026: «от кого пришло, кто пришёл, аккаунты их»).
  */
-export function AccountRef({ email, nickname, deleted }: { email?: string; nickname?: string; deleted?: boolean }) {
+export function AccountRef({ email, nickname, deleted, accountId }: { email?: string; nickname?: string; deleted?: boolean; accountId?: string }) {
   if (deleted || !email) return <span className="admin-account is-deleted">аккаунт удалён</span>
   return (
     <span className="admin-account">
       <a className="admin-account-link" href={usersLink(email)} title="Открыть в «Пользователях»">{email}</a>
       {nickname && <span className="admin-nickname" title="Ник в Таркове"> · {nickname}</span>}
+      <ProfileLink accountId={accountId} />
     </span>
   )
 }
+
+/**
+ * «Профиль» beside a player wherever the admin panel names one (owner, 28.11.2026: «профиль клиента можно открыть, из
+ * любого места где есть его почта или платеж… профиля кнопка должна быть везде»). Only in the PC owner app, which has
+ * the profile tab and answers this link (src/admin/SiteAdminSummary.tsx followLink); the site has no such tab.
+ */
+export function ProfileLink({ accountId, label = 'Профиль' }: { accountId?: string; label?: string }) {
+  if (!accountId || !ACCOUNT_ID.test(accountId) || !usesApiTransport()) return null
+  return (
+    <a className="admin-profile-link" href={`/admin?tab=profile&account=${accountId}`} title="Открыть профиль игрока">
+      <UserRound size={12} aria-hidden="true" />{label}
+    </a>
+  )
+}
+const ACCOUNT_ID = /^[a-f0-9]{24}$/
 
 /** Who paid and where the payer came from: a friend's invitation (with the account), a streamer's code, or nobody. */
 export function PaymentWho({ payment }: { payment: AdminPayment }) {
@@ -26,7 +42,7 @@ export function PaymentWho({ payment }: { payment: AdminPayment }) {
       : undefined)
   return (
     <div className="admin-who">
-      <div className="admin-who-line"><span className="admin-who-label">Оплатил:</span> <AccountRef email={payment.email} nickname={payment.nickname} /></div>
+      <div className="admin-who-line"><span className="admin-who-label">Оплатил:</span> <AccountRef accountId={payment.accountId} email={payment.email} nickname={payment.nickname} /></div>
       <div className="admin-who-line admin-origin">
         {inviter ? <><span className="admin-who-label">Пришёл по приглашению:</span> <AccountRef email={inviter.email} nickname={inviter.nickname} deleted={inviter.deleted} /></>
           : payment.friendDiscount ? <span className="admin-who-label">Пришёл по коду друга</span>

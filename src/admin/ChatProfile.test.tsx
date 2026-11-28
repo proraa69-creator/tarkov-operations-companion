@@ -244,6 +244,47 @@ describe('the profile', () => {
     expect(await screen.findByRole('region', { name: 'Оплаты' })).toBeInTheDocument()
     expect(load).toHaveBeenCalledTimes(2)
   })
+
+  /**
+   * «Действия» (owner, 28.11.2026): one box of days and one button, no reason box, and the account commands beside them.
+   */
+  it('gives days, takes them, changes the e-mail, unlinks the game account and makes a password link', async () => {
+    const user = userEvent.setup()
+    const call = vi.fn().mockResolvedValue({})
+    const load = vi.fn().mockResolvedValue(full)
+    render(<LocaleProvider><AccountProfile accountId={ID} load={load} onBack={vi.fn()} variant="page" call={call} /></LocaleProvider>)
+    const actions = await screen.findByRole('region', { name: 'Действия' })
+
+    // one box, 1 by default, and the button: no reason, no day chips
+    const give = within(actions).getByLabelText('Сколько дней выдать')
+    expect(give).toHaveValue('1')
+    expect(within(actions).queryByPlaceholderText(/Причина/)).toBeNull()
+    await user.click(within(actions).getByRole('button', { name: 'Выдать' }))
+    await waitFor(() => expect(call).toHaveBeenCalledWith(`/v1/accounts/me/admin/users/${ID}/grant`, { days: 1, reason: 'выдано в админ-панели' }))
+    expect(await within(actions).findByText('Выдано дней: 1')).toBeInTheDocument()
+    expect(load).toHaveBeenCalledTimes(2)
+
+    call.mockClear()
+    const take = within(actions).getByLabelText('Сколько дней списать')
+    await user.clear(take)
+    await user.type(take, '3')
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await user.click(within(actions).getByRole('button', { name: 'Списать' }))
+    await waitFor(() => expect(call).toHaveBeenCalledWith(`/v1/accounts/me/admin/users/${ID}/revoke`, { days: 3, reason: 'списано в админ-панели' }))
+
+    call.mockClear()
+    vi.spyOn(window, 'prompt').mockReturnValue(' NEW@example.com ')
+    await user.click(within(actions).getByRole('button', { name: 'Изменить почту' }))
+    await waitFor(() => expect(call).toHaveBeenCalledWith(`/v1/accounts/me/admin/users/${ID}/email`, { email: 'new@example.com' }))
+
+    call.mockClear()
+    await user.click(within(actions).getByRole('button', { name: 'Отвязать аккаунт Таркова' }))
+    await waitFor(() => expect(call).toHaveBeenCalledWith(`/v1/accounts/me/admin/users/${ID}/eft-account/unbind`, undefined))
+
+    call.mockResolvedValueOnce({ url: 'https://raidos.app/reset#link=abc', expiresAt: '2026-11-30T10:00:00.000Z' })
+    await user.click(within(actions).getByRole('button', { name: 'Ссылка на смену пароля' }))
+    expect(await within(actions).findByText('https://raidos.app/reset#link=abc')).toBeInTheDocument()
+  })
 })
 
 describe('the owner app: «Чат» → «Посмотреть профиль» → its own tab', () => {

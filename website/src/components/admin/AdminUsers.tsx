@@ -5,10 +5,13 @@ import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type Admi
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
-import { Loading } from './adminShared'
+import { Loading, ProfileLink } from './adminShared'
 import { WriteToUser } from './WriteToUser'
 import { dateOnly, dateTime, failure, formatRub, FRIEND_DISCOUNT, inviterText, numberFormat, PAYMENT_STATUS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
+/** What the log writes down for days given or taken in the admin panel: the owner asked for no reason box (28.11.2026). */
+const GRANT_REASON = 'выдано в админ-панели'
+const REVOKE_REASON = 'списано в админ-панели'
 const PAGE = 50
 const FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'all', label: 'Все' },
@@ -172,10 +175,8 @@ function CameFrom({ user }: { user: AdminUser }) {
 function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user: AdminUser) => void; onDeleted: () => void }) {
   const { token } = useAuth()
   const detail = useAdminData(useCallback((t: string) => api.adminUser(t, id), [id]))
-  const [days, setDays] = useState('30')
-  const [reason, setReason] = useState('')
+  const [days, setDays] = useState('1')
   const [takeDays, setTakeDays] = useState('1')
-  const [takeReason, setTakeReason] = useState('')
   const [blockReason, setBlockReason] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<Failure | null>(null)
@@ -249,23 +250,25 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
     }
   }
 
+  /**
+   * «Выдать» (owner, 28.11.2026: «выдать дни сделай проще и без окна подписи за что, окно количества дней, по
+   * умолчанию 1 … одно окно и кнопка выдать, все»): the number of days and the button, nothing else. The log needs a
+   * reason, so it writes down where the days came from.
+   */
   const grant = (event: FormEvent) => {
     event.preventDefault()
     const n = Number(days)
     if (!Number.isInteger(n) || n < 1 || n > 3650) { setError({ message: 'Число дней: от 1 до 3650.', offline: false }); return }
-    if (reason.trim().length < 3) { setError({ message: 'Укажите причину (от 3 символов) — она попадёт в журнал.', offline: false }); return }
-    void run('grant', (t) => api.adminGrant(t, id, n, reason.trim()), (result) => { setReason(''); return `Подписка до ${dateOnly.format(new Date(result.user.subscription.paidUntil!))}` })
+    void run('grant', (t) => api.adminGrant(t, id, n, GRANT_REASON), (result) => `Подписка до ${dateOnly.format(new Date(result.user.subscription.paidUntil!))}`)
   }
 
-  // «Списать дни» (owner, 11.10.2026: «в разделе пользователи удалять дни подписки»)
+  // «Списать дни» (owner, 11.10.2026: «в разделе пользователи удалять дни подписки»; 28.11.2026: «списать тоже самое»)
   const revoke = (event: FormEvent) => {
     event.preventDefault()
     const n = Number(takeDays)
     if (!Number.isInteger(n) || n < 1 || n > 3650) { setError({ message: 'Число дней: от 1 до 3650.', offline: false }); return }
-    if (takeReason.trim().length < 3) { setError({ message: 'Укажите причину (от 3 символов) — она попадёт в журнал.', offline: false }); return }
     if (!window.confirm(`Списать ${n} дн. подписки у ${detail.data?.user.email ?? 'пользователя'}?`)) return
-    void run('revoke', (t) => api.adminRevoke(t, id, n, takeReason.trim()), (result) => {
-      setTakeReason('')
+    void run('revoke', (t) => api.adminRevoke(t, id, n, REVOKE_REASON), (result) => {
       const sub = result.user.subscription
       return sub.status === 'active' && sub.paidUntil ? `Подписка теперь до ${dateOnly.format(new Date(sub.paidUntil))}` : 'Оплаченных дней не осталось: подписка закончилась'
     })
@@ -279,30 +282,22 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
       <div className="admin-user-grid">
         <form className="admin-action" onSubmit={grant}>
           <div className="field-label"><CalendarPlus size={13} aria-hidden="true" />Выдать / продлить подписку</div>
-          <div className="inline-form">
-            <input className="input mono admin-days" inputMode="numeric" aria-label="Дней" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, '').slice(0, 4))} />
-            <input className="input" aria-label="Причина" placeholder="Причина (видна в журнале)" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} />
-          </div>
           <div className="admin-chips">
-            {[7, 30, 90, 365].map((n) => <button key={n} type="button" className="button small ghost" onClick={() => setDays(String(n))}>{n} дн.</button>)}
+            <input className="input mono admin-days" inputMode="numeric" aria-label="Дней" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, '').slice(0, 4))} />
             <button type="submit" className="button small primary" disabled={busy !== null}>{busy === 'grant' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />}Выдать</button>
           </div>
           <span className="field-hint">Дни добавляются к концу оплаченного периода (или с сегодня). Это не выручка: в статистике оплат не появится.</span>
         </form>
         <form className="admin-action" onSubmit={revoke}>
           <div className="field-label"><CalendarMinus size={13} aria-hidden="true" />Списать дни подписки</div>
-          <div className="inline-form">
-            <input className="input mono admin-days" inputMode="numeric" aria-label="Дней списать" value={takeDays} onChange={(e) => setTakeDays(e.target.value.replace(/\D/g, '').slice(0, 4))} />
-            <input className="input" aria-label="Причина списания" placeholder="Причина (видна в журнале)" maxLength={200} value={takeReason} onChange={(e) => setTakeReason(e.target.value)} />
-          </div>
           <div className="admin-chips">
-            {[1, 7, 30].map((n) => <button key={n} type="button" className="button small ghost" onClick={() => setTakeDays(String(n))}>{n} дн.</button>)}
+            <input className="input mono admin-days" inputMode="numeric" aria-label="Дней списать" value={takeDays} onChange={(e) => setTakeDays(e.target.value.replace(/\D/g, '').slice(0, 4))} />
             <button type="submit" className="button small ghost admin-danger" disabled={busy !== null || user.subscription.status !== 'active' || Boolean(user.subscription.lifetime)}>{busy === 'revoke' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarMinus aria-hidden="true" />}Списать</button>
           </div>
           <span className="field-hint">{user.subscription.lifetime ? 'У стримера бессрочный доступ: списывать нечего.' : user.subscription.status !== 'active' ? 'Оплаченных дней нет (пробный период здесь не списывается).' : 'Дни снимаются с конца оплаченного периода, но не раньше сегодняшнего дня.'}</span>
         </form>
         <div className="admin-action">
-          <div className="field-label"><ShieldCheck size={13} aria-hidden="true" />Доступ</div>
+          <div className="field-label"><ShieldCheck size={13} aria-hidden="true" />Доступ<ProfileLink accountId={id} label="Профиль игрока" /></div>
           {user.blockedAt
             ? <span className="field-hint">Вход заблокирован с {dateTime.format(new Date(user.blockedAt))}.</span>
             : <input className="input" aria-label="Причина блокировки" placeholder="Причина блокировки (необязательно)" maxLength={200} value={blockReason} onChange={(e) => setBlockReason(e.target.value)} />}

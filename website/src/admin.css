@@ -84,6 +84,9 @@
 .admin-account { min-width: 0; word-break: break-all; }
 .admin-account-link { color: var(--text); font-weight: 600; text-decoration: none; border-bottom: 1px dotted var(--line); }
 .admin-account-link:hover, .admin-account-link:focus-visible { color: #d4bc83; border-bottom-color: currentColor; }
+/* «Профиль» beside a player: only in the PC owner app (components/admin/adminShared.tsx ProfileLink). */
+.admin-profile-link { margin-left: 7px; display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px 2px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-muted); font-size: 11.5px; text-decoration: none; vertical-align: 1px; white-space: nowrap; }
+.admin-profile-link:hover, .admin-profile-link:focus-visible { border-color: #625537; color: #d4bc83; }
 .admin-account.is-deleted, .admin-nickname { color: var(--text-muted); }
 .admin-amount-edited { display: block; color: var(--text-dim); font-size: 11px; white-space: nowrap; }
 .admin-amount-editor { display: grid; gap: 6px; min-width: 200px; text-align: left; font-family: inherit; }

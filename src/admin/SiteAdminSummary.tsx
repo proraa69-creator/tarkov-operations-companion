@@ -34,7 +34,8 @@ const isTab = (value: string | null): value is SiteAdminTab => SITE_ADMIN_TABS.s
  * owner signed in to the app. The site's sheets apply only in here (vite.config.ts). A link to an account
  * (/admin?tab=users&q=…) opens «Пользователи» here. The texts are the site's, in Russian, as on the site.
  */
-export function SiteAdminSummary({ request, email }: { request: AdminRequest; email: string }) {
+/** `onProfile`: «Профиль» beside a player in the site tabs opens the app's own profile tab (owner, 28.11.2026). */
+export function SiteAdminSummary({ request, email, onProfile }: { request: AdminRequest; email: string; onProfile?: (accountId: string) => void }) {
   // Before the tabs' own effects ask anything: a layout effect runs ahead of every passive one.
   useLayoutEffect(() => {
     setApiTransport((method, path, body) => request(method, path, body))
@@ -58,6 +59,8 @@ export function SiteAdminSummary({ request, email }: { request: AdminRequest; em
     event.preventDefault()
     const params = new URL(link.getAttribute('href')!, 'https://raidos.app').searchParams
     const tab = params.get('tab')
+    const account = params.get('account')
+    if (tab === 'profile' && account && onProfile) { onProfile(account); return }
     if (isTab(tab)) setView((current) => ({ tab, query: params.get('q') ?? undefined, key: current.key + 1 }))
   }
 

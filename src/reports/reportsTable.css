@@ -45,6 +45,8 @@
 
 /* Who wrote it. */
 .rt-email { font-weight: 600; }
+/* «Профиль» of the report author (owner, 28.11.2026). */
+.rt-profile { margin-top: 3px; align-self: flex-start; padding: 2px 8px; font-size: 11.5px; }
 .rt-nickname { color: var(--brass-strong, var(--brass)); font-weight: 600; }
 .rt-author small { font-size: 11.5px; line-height: 1.35; }
 
